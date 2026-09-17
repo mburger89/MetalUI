@@ -61,6 +61,15 @@
 // byte-identical to revision 1's output (`diff` of the rest empty). The corpus
 // run is unchanged (it does not call the arms).
 //
+// RE-RECORDED 2026-09-17 (revision 3, the same design session), same machine
+// and toolchain, exit 0, run twice with byte-identical output. Additive arms
+// GP9-GP11 (`armsP2`), printed after GS18, and one change to the reference
+// model: on an infinite proposal axis the share is infinity whatever is
+// committed (`w.isInfinite ? w : ...`), where revision 2 computed inf - inf =
+// nan. Every revision-2 output line is byte-identical (the GZ counts included:
+// no generated grid reached that path); the corpus stdout's sha256 is
+// unchanged.
+//
 // THE READING (arm ids in brackets; "share" and "commit" are defined in 4).
 //
 // 1. Cells. A column is as wide as its widest single-column cell, a row as tall
@@ -108,7 +117,10 @@
 //    GF1: both halves at 96, same group; GF8: a at 61.33, then 82 each]. Rows
 //    the same on the other axis. The grid does not fill its proposal with
 //    fixed content [GP1 78x58 at 200x200] and answers inf when a cell does [GP4
-//    infxinf; GP8 78x58].
+//    infxinf; GP8 78x58]. On an infinite proposal axis every share is inf,
+//    even after a column of infinite width is committed [GP9: b's share
+//    measurement is the inf x inf cache hit, then its slot 50 x inf; GP10;
+//    GP11 at inf x 100: width inf, height 100].
 // 5. Layout priority. Groups of higher priority are served first with no
 //    reservation for lower ones [GQ1 92/0; GQ3 84 then 0 and 0, answer 120 at
 //    100]; lower-priority columns are not open for a higher group and count as
@@ -453,6 +465,13 @@
 //   GS16 [a 30x10, 8x8 leaf with a Spacer overlay, c 10x10] at nil x 80 @nilx80: size 64x10 | a (0,0 30x10) <- nilx80 | s (38,1 8x8) <- 8x10 | c (54,0 10x10) <- nilx80
 //   GS17 [a 30x10] [Spacer.frame(height: 8)] [c 10x10] at 80 x nil @80xnil: size 80x28 | a (25,0 30x10) <- 80x10 | c (35,18 10x10) <- 80x10 | s (0,10 80x8) <- 80x8
 //   GS18 control for GS17: [a] [8x8 leaf] [c] at 80 x nil @80xnil: size 30x44 | a (0,0 30x10) <- 80xnil | s (11,18 8x8) <- 30x8 | c (10,34 10x10) <- 30x10
+//   === GP (revision 3): a later group after an infinite committed column, at inf
+//   GP9 [a flexible, b width 0...50 h10 priority -1] at inf x inf @infxinf (measured only): size infxinf
+//       measured, in order: a 0x0->0x0; a infxinf->infxinf; b 0x0->0x10; b infxinf->50x10; b 50xinf->50x10; a 0x10->0x10
+//   GP10 [a flexible] [b flexible, c 10x10 priority -1] at inf x inf @infxinf (measured only): size infxinf
+//       measured, in order: a 0x0->0x0; a infxinf->infxinf; b 0x0->0x0; b infxinf->infxinf; c 0x0->10x10; c infxinf->10x10; c 10xinf->10x10; b 0x10->0x10
+//   GP11 [a flexible, b height-flexible w10 priority -1] at inf x 100 @infx100 (measured only): size infx100
+//       measured, in order: a 0x0->0x0; a infxinf->infxinf; b 0x0->10x0; b infxinf->10xinf; a infx100->infx100; b infx100->10x100
 //   === GZ: the reference model (solve/ModelGrid above) against SwiftUI's Grid on generated grids
 //     DIFFERS Grid(center, h nil, v nil) [c1:fixed(150, 20), c2:clampW(10, 40, 40)] @150xnil
 //       SwiftUI 168x40 c1(0,10 150x20) c2(158,0 10x40)
@@ -787,8 +806,9 @@ func solve(_ st: Structure, _ P: ProposedViewSize, hs: CGFloat?, vs: CGFloat?, m
             let level = order[i].prio
             let openCols = Set((0..<ncols).filter { col in cells.contains { $0.span == 1 && $0.col == col && $0.prio == level && !done.contains($0.index) } })
             let openR = (0..<nrows).filter { r in cells.contains { $0.row == r && $0.prio == level && !done.contains($0.index) } }.count
-            let shareW = controlIgnoresCommits ? Wp.map { $0 / CGFloat(ncols) } : Wp.map { w in (w - committedC.reduce(0) { $0 + curW[$1] }) / CGFloat(max(openCols.count, 1)) }
-            let shareH = Hp.map { h in (h - committedR.reduce(0) { $0 + curH[$1] }) / CGFloat(max(openR, 1)) }
+            // An infinite proposal axis shares infinity, whatever is committed (GP9-GP11).
+            let shareW = controlIgnoresCommits ? Wp.map { $0 / CGFloat(ncols) } : Wp.map { w in w.isInfinite ? w : (w - committedC.reduce(0) { $0 + curW[$1] }) / CGFloat(max(openCols.count, 1)) }
+            let shareH = Hp.map { h in h.isInfinite ? h : (h - committedR.reduce(0) { $0 + curH[$1] }) / CGFloat(max(openR, 1)) }
             var spans: [MCell] = []
             for c in group {
                 var w: CGFloat? = nil
@@ -798,7 +818,7 @@ func solve(_ st: Structure, _ P: ProposedViewSize, hs: CGFloat?, vs: CGFloat?, m
                     else {
                         var outside: CGFloat = 0
                         for q in 0..<ncols where !(c.col <= q && q < c.col + c.span) { outside += openCols.contains(q) ? shareW : curW[q] }
-                        w = max(Wp - outside + inner(c), spanW(c))
+                        w = Wp.isInfinite ? Wp : max(Wp - outside + inner(c), spanW(c))
                     }
                 }
                 var h: CGFloat? = nil
@@ -1280,6 +1300,12 @@ func p(_ w: CGFloat?, _ h: CGFloat?) -> ProposedViewSize { ProposedViewSize(widt
     arm("GS17 [a 30x10] [Spacer.frame(height: 8)] [c 10x10] at 80 x nil", p(80,nil)) { Grid { GridRow { fx("a",30,10) }; GridRow { Spacer().background(fl("s")).frame(height: 8) }; GridRow { fx("c",10,10) } } }
     arm("GS18 control for GS17: [a] [8x8 leaf] [c] at 80 x nil", p(80,nil)) { Grid { GridRow { fx("a",30,10) }; GridRow { fx("s",8,8) }; GridRow { fx("c",10,10) } } }
 }
+@MainActor func armsP2() {
+    print("=== GP (revision 3): a later group after an infinite committed column, at inf")
+    arm("GP9 [a flexible, b width 0...50 h10 priority -1] at inf x inf", p(.infinity,.infinity), measureOnly: true) { Grid { GridRow { fl("a"); cw("b",0,50).layoutPriority(-1) } } }
+    arm("GP10 [a flexible] [b flexible, c 10x10 priority -1] at inf x inf", p(.infinity,.infinity), measureOnly: true) { Grid { GridRow { fl("a") }; GridRow { fl("b"); fx("c",10,10).layoutPriority(-1) } } }
+    arm("GP11 [a flexible, b height-flexible w10 priority -1] at inf x 100", p(.infinity,100), measureOnly: true) { Grid { GridRow { fl("a"); fh("b",10).layoutPriority(-1) } } }
+}
 // ---------------- corpus ----------------
 func lit(_ v: CGFloat?) -> String { v.map { "\(Double($0))" } ?? "nil" }
 func kindLit(_ k: LK) -> String {
@@ -1350,7 +1376,7 @@ if CommandLine.arguments.contains("corpus") {
     exit(0)
 }
 MainActor.assumeIsolated {
-    armsA(); armsP(); armsF(); armsR(); armsS(); armsX(); armsQ(); armsL(); armsU(); armsW(); armsG(); armsS2()
+    armsA(); armsP(); armsF(); armsR(); armsS(); armsX(); armsQ(); armsL(); armsU(); armsW(); armsG(); armsS2(); armsP2()
     print("=== GZ: the reference model (solve/ModelGrid above) against SwiftUI's Grid on generated grids")
     controlIgnoresCommits = true
     _ = fuzz("GZ0 control: the model with commits ignored (must disagree)", seed: 101, count: 300, [], show: 1)
