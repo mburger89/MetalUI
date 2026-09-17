@@ -363,15 +363,27 @@ var ids: Set<GlobalElementID> { get }            // test observable (inert-table
 // Sources/MetalUI/LegacyLowering.swift (new, lanes 2–4)
 extension LayoutPass {
     /// Lowers one legacy node — `style` already animated — over native children.
-    /// `declared` is the pre-animation style, read only by the checks.
+    /// `declared` is the pre-animation style, read only by the checks. Lane 2: a
+    /// childless node lowers through `lowerLegacyLeaf` over a 0×0 native leaf; a
+    /// node with children reports `(site, "noLowering")` until lane 3. Lane 4 adds
+    /// `frameSpec: FrameSpec? = nil`.
     func lowerLegacyNode(_ style: Style, declared: Style, children: [LayoutNodeID],
-                         site: LoweringSite, frameSpec: FrameSpec? = nil) -> LayoutNodeID
+                         site: LoweringSite) -> LayoutNodeID
+    /// Lane 2: the leaf table's checks on `declared`; then `content()` → native
+    /// padding (non-zero `Style.padding`) → fixed `.topLeading` frame (a declared
+    /// `Style.size`). Returns the element's node; `content()` is not called when
+    /// anything is reported.
+    func lowerLegacyLeaf(_ style: Style, declared: Style, site: LoweringSite,
+                         content: () -> LayoutNodeID) -> LayoutNodeID
+    /// Lane 2: §5.4's every-node "otherwise" column for a leaf.
+    func legacyLeafDiagnostics(_ declared: Style, site: LoweringSite) -> [UnlowerableField]
 }
 
 // FrameSpec gains `idealWidth: Pixels?`, `idealHeight: Pixels?`; `style()` does not
-// read them. ModifierLayer gains `frameSpec: FrameSpec?`. Text.Layout gains
-// `measuredNode: LayoutNodeID`. The last two are stored properties on public types:
-// every lane that adds one runs `swift package clean` before its suite.
+// read them. ModifierLayer gains `frameSpec: FrameSpec?` — a stored property on a
+// public type: the lane that adds it runs `swift package clean` before its suite.
+// (`Text.Layout.measuredNode` was in this list; lane 2 added it, measured it wrong
+// and removed it, `LR-X`.)
 ```
 
 The trap message names both halves: `"MetalUI: <site>.<field> has no proposal
@@ -496,13 +508,17 @@ one axis (`FR-O`'s inert arm).
 
 **`Text`** (`LR-F`) lowers to a native leaf measured by
 `proposalTextMeasurement`, **unchanged**: it answers its widest line after
-wrapping at the proposed width (stage-1 probe T1/T2/T5/T6), and its widest word
-below a word's width, where SwiftUI answers the proposal (T3/T4) — a
-disagreement stage 1 pins and stage 2 owns. Its declared `size` wraps it in a
-fixed frame aligned `.topLeading`; glyphs are painted at the element's bounds
-origin, wrapped at `measuredNode`'s measured width, which keeps legacy glyph
-placement for `Text(…).width(w)` (SwiftUI would centre, T7 — that belongs to
-stage 8's `.width` → `.frame` conversion).
+wrapping at the proposed width (stage-1 probe T1/T2/T5/T6), and its widest
+**character** (with the trailing space the typesetter hangs on its line; 11.18 for
+probe T's string at 13pt) below a word's width, where SwiftUI answers the proposal
+(T3/T4) — a disagreement stage 1 pins and stage 2 owns (`LR-X`: this said "widest
+word"). Its declared `size` wraps it in a fixed frame aligned `.topLeading`;
+glyphs are painted at the element's bounds origin, wrapped at **the element
+node's** measured width — the frame's, the width the leaf was proposed — which
+keeps legacy glyphs for `Text(…).width(w)` at every `w`, including one narrower
+than a word (`LR-X`: this said "`measuredNode`'s", the leaf's, which lane 2
+measured drawing fewer lines at widths 30 and 5). SwiftUI would centre (T7) —
+that belongs to stage 8's `.width` → `.frame` conversion.
 
 ## 6. Stage 1 lanes
 
@@ -556,8 +572,11 @@ report is additional, never instead.
 ### Lane 2 — the lowering table's leaf half: childless `Box`, `Text`
 
 Files: `Sources/MetalUI/LegacyLowering.swift` (new), `Box.swift`, `Text.swift`
-(`Layout.measuredNode`; `swift package clean`);
-`Tests/MetalUITests/LoweringLeafTests.swift`. **No change to
+(`swift package clean` — `Layout.measuredNode` was added and then removed,
+`LR-X`); `Tests/MetalUITests/LoweringLeafTests.swift`, and 1.5's `Box`, `Text`,
+`ModifiedElement` and `List` arms in `LayoutAuthorityTests.swift` (a leaf now
+lowers: the `Box` and `Text` arms declare `flexGrow`, the layers' `Box` reports
+nothing, `List`'s spacer reports `box.flexShrink`). **No change to
 `ProposalText.swift`** (`LR-F`, critic round 1 finding 10).
 
 | # | test | red before | mutation |
@@ -567,9 +586,9 @@ Files: `Sources/MetalUI/LegacyLowering.swift` (new), `Box.swift`, `Text.swift`
 | 2.3 | `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` — one arm per row of §5.4's **every node** table's "otherwise" column (`display.none`, `size.percent`, `padding.percent`, `padding.floor`, `padding.text` on a `Text`, `minSize`, `maxSize`, `margin`, `border`, `position`, `inset`, `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`), each on a childless `Box` and on a `Text` except where the row names one; `try #require` on the arm count | reported at site level only | **M2c** the `margin` check deleted |
 | 2.4 | `everyContainerFieldIsIgnoredOnALoweredLeaf` — one arm per container field of §5.4's leaf paragraph, with its most unlowerable value, plus `aspectRatio` and `overflow`; empty report, rect agrees | reported | **M2d** `.rowReverse` reported on a leaf |
 | 2.5 | `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth` — short/long × 13/22pt × with/without `.foregroundColor`; bounds and glyph scene | reported | **M2e** the lowered leaf ignores `fontSize` |
-| 2.6 | `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock` — `Text(long)` in a 60-wide `Column` (inside the harness root): legacy 60, lowered the shaping cache's widest line at 60 (44 on the design machine; SwiftUI 45, T2), `try #require(legacy != lowered)` | reported | **M2f** the answer is the proposed width |
-| 2.7 | **characterization** `aProposalTextBelowItsNarrowestWordAnswersItsWidestWordWhereSwiftUIAnswersTheProposal` — widths 0 and 5 answer the widest word (SwiftUI 0 and 5, T3/T4), pinned wrong on purpose, owner stage 2 | green on arrival | **M2g** a `min(widest, proposal)` clamp added to `proposalTextMeasurement` |
-| 2.8 | `aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin` — `Text(long).width(100)` and `.height(40)`: bounds and glyphs equal | reported | **M2h** the element's node returned as the leaf, not the frame |
+| 2.6 | `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock` — `Text(long)` **directly in a 60-wide harness root** (`LR-X`: a `Column` lowers only in lane 3; the root `Stack`'s fit-content offer is a column item's cross-size rule, ST-H/TX-H): legacy 60, lowered the shaping cache's widest line at 60 (44 on the design machine; SwiftUI 45, T2), `try #require(legacy != lowered)` | reported | **M2f** the answer is the proposed width |
+| 2.7 | **characterization** `aProposalTextBelowItsNarrowestWordAnswersItsWidestCharacterWhereSwiftUIAnswersTheProposal` — widths 0 and 5 answer the widest character with its hanging space (11.18; `LR-X`: the design said widest word, 40.44) and 592 tall (SwiftUI 0 and 5 × 592, T3/T4), pinned wrong on purpose, owner stage 2 | green on arrival | **M2g** a `min(widest, proposal)` clamp added to `proposalTextMeasurement` |
+| 2.8 | `aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin` — `Text(long).width(100)`, `.width(30)`, `.width(5)` and `.height(40)`: bounds and glyphs equal; **the arms run in a child process** (`LR-X`) | reported; the 30 and 5 arms red on the `measuredNode` spelling (`57c6250`) | **M2h** the element's node returned as the leaf, not the frame (in-process it truncated the suite on `CN-L`'s one-parent precondition); **M2i** glyphs wrapped at the leaf's answer rather than the frame's width |
 
 ### Lane 3 — containers: `Row`, `Column`, `Box` with children; mixed trees
 

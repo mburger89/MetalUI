@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-X`**. A bare `LR-3` is a typo, not a citation.
+unused is **`LR-Y`**. A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -336,6 +336,10 @@ the proposal path that a production root reads. The below-word answer (T3/T4)
 and W2 go to stage 2's `Text`/`ProposalText` unification with these arms as its
 evidence; spec 2.7 becomes a characterization pin of today's answer, pinned
 wrong on purpose, whose mutation is adding the clamp.
+
+**Lane 2** amended two sentences of this ruling by measurement; see `LR-X`. The
+below-word answer is the widest *character*, not word, and glyphs wrap at the
+frame's width, not the leaf's (`Text.Layout.measuredNode` is gone).
 
 ---
 
@@ -937,3 +941,55 @@ offered "an arm-level check 1.1 can fail inside the unfiltered suite, e.g. the
 default read through a `Window` observer": any change to the default traps the
 suite's first legacy frame before such an observer's assertion can be reported,
 so the second option (the whole suite pins it) was taken.
+
+---
+
+## LR-X — lane 2's corrections: a lowered `Text` wraps at its element node's width, answers its widest character below a word, and 2.6 uses the harness root
+
+**What was measured** (record §18, lane 2).
+
+1. **The wrap width.** `LR-F` and spec §5.2 had a lowered `Text` with a declared
+   size paint at `Text.Layout.measuredNode`'s measured width — the native leaf
+   inside the frame. Implemented that way (`57c6250`), 2.8's `width(100)` and
+   `height(40)` arms agreed and mutation M2i (wrap at `layout.node`, the frame)
+   left the whole suite green. Measured on the two spellings with
+   `Text(long).width(w)` in a 1000-wide root: at `w` = 45 and 100 both agree with
+   the legacy text; at `w` = 30 and 5 the **leaf** spelling's scene differs
+   (`scenesEqual` false, 37 glyphs each, bounds equal) and the **frame** spelling
+   agrees. The frame proposes `w`; the leaf's shape answers "wrap at `w`", and its
+   stored width is that shape's widest line — wider than `w` when `w` is below a
+   word. Wrapping again at that wider width puts more characters on a line than
+   the height the leaf reported. The frame's measured width is `w` itself, the
+   question the leaf answered, and is what the legacy text wraps at (its known
+   width).
+2. **The below-word answer.** Spec 2.7 said widths 0 and 5 answer the widest word.
+   `proposalTextMeasurement` wraps at `smallestWrapWidth`, the typesetter breaks
+   inside a word it cannot fit, and every line is one character: measured
+   11.18 (the widest character with the space hung on its line; 7.91 without),
+   against a tokenizer min-content of 40.44, 592 tall (37 lines × 16) — the same
+   split `textMeasure`'s doc comment records for the legacy measure.
+3. **2.6's container.** Spec 2.6 put `Text(long)` in a 60-wide `Column`; a
+   `Column` is a container, which lowers only in lane 3, so in lane 2 the test
+   could only read `box.noLowering`. Directly under a 60-wide harness root, the
+   legacy side measured 60 — the root `Stack` offers fit-content, the same rule as
+   a column item's cross size (ST-H, TX-H) — and the lowered side the widest line.
+
+**The ruling.**
+
+- Glyphs wrap at the **element node's** measured width under both authorities;
+  `Text.Layout` keeps its one `node` field (`measuredNode` removed, `swift package
+  clean` both times). 2.8 gains `.width(30)` and `.width(5)` arms, which were red
+  on the `measuredNode` spelling.
+- 2.7 is renamed `…AnswersItsWidestCharacterWhereSwiftUIAnswersTheProposal`, with
+  an oracle that shapes each one-character line (and its hanging space) unwrapped.
+- 2.6 uses the harness root directly; lane 3 may add the `Column` spelling.
+- **2.8 runs its arms in a child process.** Mutation M2h (the text leaf returned
+  as the element's node while its frame also holds it) traps on `CN-L`'s
+  one-parent precondition, which in-process ended the run with no summary line
+  (practices shape 13).
+
+**What it costs if wrong.** If a later stage lowers padding on a `Text` (stage 2),
+the element's node is no longer the node the leaf was proposed by — the wrap width
+must then be read from the node directly around the leaf, and this ruling's
+reasoning (wrap at the width the leaf was proposed) says which one.
+

@@ -506,3 +506,110 @@ was attempted.
 4. **minor** — `scenesEqual` ignored paint order and layer: it now also compares
    `finalizedScene()`'s rects, glyphs and `drawList`; `LR-D`, the harness doc and
    spec §6 say so; arm 1.9d was red first.
+
+## Lane 2 — the leaf half: childless `Box`, `Text`
+
+Commits: `4e15733` (tests, red), `57c6250` (implementation), `913680b` (2.8's
+new arms and child process, red on `57c6250`), `8a28c4d` (the wrap-width fix and
+`measuredNode` removed, `LR-X`), and this record.
+
+### Red first
+
+- `4e15733`, on lane 1's `e95cb5f` sources (`swift test --build-system native
+  --no-parallel --filter "LoweringLeafTests|everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn"`):
+  `Test run with 9 tests in 0 suites failed after 0.298 seconds with 195
+  issues` — 2.1 12 issues, 2.2 9, 2.3 29, 2.4 96, 2.5 32, 2.6 2, 2.8 10, and 1.5
+  5 (its amended `Box`, `Text`, both `ModifiedElement` and `List` arms). Every
+  failure reads the site-level `box.noLowering`/`text.noLowering` entry or its
+  0×0 rect (e.g. `LoweringLeafTests.swift:82:5: Expectation failed:
+  pxReport.loweredBounds[leafID] == bounds(0, 0, 30, 20)`; 2.6's `:284:5
+  report.unlowerable.isEmpty` and `:291:5 lowered.size.width == …`; 2.6's
+  `legacy.size.width == px(60)` passed, so the legacy side measured 60 as
+  predicted). 2.7 passed on arrival (characterization).
+- **2.7 measured before its literal was written:** `proposalTextMeasurement` at
+  widths 0 and 5 → `SizeD(width: 11.1845703125, height: 592.0)`; tokenizer
+  min-content 40.44091796875; the widest single character unwrapped 7.9091796875.
+  The spec's "widest word" was wrong: each line is one character, and a word's
+  last character carries the hung space. The test's oracle shapes those 37 lines
+  one at a time (`LR-X`).
+- `913680b`, on `57c6250` sources (filtered): `Test run with 1 test … failed …
+  with 2 issues` — `LANE2-2.8 width(30) agrees=false scenes=false
+  disagreeing=[] unlowerable=[]` and `width(5) agrees=false scenes=false`;
+  `width(100)` and `height(40)` `agrees=true`.
+
+### Suite
+
+- `57c6250`, after `swift package clean` (`Text.Layout` gained `measuredNode`):
+  `Test run with 1377 tests in 1 suite passed after 41.918 seconds` (1369 + 8);
+  0 `error:`; the one `warning:` is SwiftPM's `--build-system native` notice.
+- `8a28c4d`, after `swift package clean` (`measuredNode` removed): `Test run with
+  1377 tests in 1 suite passed after 41.972 seconds`; 0 `error:`, one `warning:`
+  (the same notice). Goldens: `find Tests -name "*.json" | wc -l` → 97; `git diff
+  --stat c2290fc -- '*.json'` empty. No guard added (70 + G1 = 71, unchanged by
+  this lane).
+
+### Mutations
+
+Each: committed tree, file copied aside, mutant applied, `swift build
+--build-system native --build-tests`, full unfiltered `swift test
+--build-system native --no-parallel --skip-build`, restored from the copy, `git
+status --short` empty after every one.
+
+**Round 1, on `57c6250`:** M2a–M2g as below (same reddened tests); **M2h**
+(`Text` returned `lowered.content` as its node and layout node) — **the suite
+truncated, no summary line**: `LayoutTree.swift:717: Precondition failed: native
+layout node 0 registered under a second parent (node 2)` inside 2.8 (the root
+overlay registered the leaf its frame already held; practices shape 13);
+**M2i** (paint wraps at `layout.node` instead of `layout.measuredNode`) — `Test
+run with 1377 tests in 1 suite passed`. Proving the M2i mutant different
+(practices, "a mutation that reddens nothing"): `Text(long).width(w)` through the
+harness, both spellings, `w` ∈ {5, 30, 45, 100}:
+
+```
+measuredNode (57c6250): w=5 scenes=false  w=30 scenes=false  w=45 scenes=true  w=100 scenes=true   (disagreeing=[] and 37 glyphs a side throughout)
+layout.node (M2i):      w=5 scenes=true   w=30 scenes=true   w=45 scenes=true  w=100 scenes=true
+```
+
+So the mutant was the correct spelling and the design wrong; `LR-X`, `913680b`
+(red), `8a28c4d` (fix).
+
+**Round 2, on `8a28c4d`** (the lane's final tree):
+
+| mutation | reddened |
+|---|---|
+| M2a rem lowered as px (× 1) | `aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation` (5 issues) |
+| M2b padding registered outside the size frame | `aLoweredBoxPaddingSitsInsideItsDeclaredSize` (3) |
+| M2c the `margin` check deleted | `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` (2) |
+| M2d `.rowReverse` reported on a leaf | `everyContainerFieldIsIgnoredOnALoweredLeaf` (8) |
+| M2e the lowered leaf measures at 13pt whatever `fontSize` | `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth` (12) |
+| M2f the lowered leaf answers the proposed width | `everyContainerFieldIsIgnoredOnALoweredLeaf`, `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth`, `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock`, `aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin` (43) |
+| M2g `min(widest, proposal)` clamp in `proposalTextMeasurement` | `aProposalTextBelowItsNarrowestWordAnswersItsWidestCharacterWhereSwiftUIAnswersTheProposal` (4) |
+| M2h the text leaf returned as the element's node (frame still registered around it) | `aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin` (5; the child exits on `CN-L`'s precondition) — no truncation |
+| M2i paint wraps at the leaf's answer to the frame's width (the `measuredNode` design, re-spelled in `paintGlyphs`) | `aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin` (2) |
+| M2k the leaf's size frame aligned `.center` | **nothing** (`passed`). Equivalent by reading, not demonstrated: in stage 1 nothing reads the rect of a node inside a leaf's frame — `elementBounds`, hitboxes, decoration and glyph origin all read the element's node, and glyphs wrap at its width. It becomes observable when a `Text` gains lowered padding (stage 2) |
+| M2m `Text`'s authority check forced false (legacy registration under the proposal authority) | `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`, `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf`, `everyContainerFieldIsIgnoredOnALoweredLeaf`, `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth`, `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock`, `aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin` (81) |
+| M2n the `padding.text` check deleted | `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` (1) |
+
+### Pixels
+
+`CN-R`'s harness (`gen.py`, `DEMO_PIXELS_SMALL=1`) generated into a `git archive`
+of the lane's tree, twelve images, compared with lane 1's `c2290fc` images
+(`lr1-px-base`, generated by lane 1 from a `c2290fc` archive): **12 of 12 read
+0 differing pixels, scene identical** — at `57c6250` and again at `8a28c4d`
+(after `swift package clean` in the archive). Controls, re-read on both the base
+and `8a28c4d`'s images: `default-light-f0` vs `default-dark-f0` 1 048 576; vs
+`modal-light` 1 030 498; vs `animation-light` 210 027; vs `default-light-f3` 0;
+`preview-light` vs `preview-dark` 1 048 576. Expected: no production root is
+under the proposal authority, and the legacy branch of `Box` and `Text` changed
+only by capturing `declared` (`Box`) and its `Layout` initializer.
+
+### Probe
+
+`/usr/bin/swift docs/probes/swiftui-engine-replacement-stage1.swift` → exit 0,
+79 lines, `diff` empty against the header's output block. Lane 2 makes no new
+SwiftUI claim; the arms it cites (T2, T3, T4, B1) are from that run.
+
+### Screen lock
+
+`ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` → `<true/>` at 22:42 and
+22:54 PDT. No real-window capture was attempted.
