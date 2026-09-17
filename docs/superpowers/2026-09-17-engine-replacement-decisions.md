@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-AX`** (stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV` and its lane 1 `LR-AW`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-AZ`** (stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX` and its lane 3 `LR-AY`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -2193,3 +2193,74 @@ unpinned, which the named mutations check. (4) A floored `space-*` container tra
 under the proposal authority until stage 8's recipe respells it. (5) An author's
 negative factor traps instead of being ignored. (8) Raising `maxDepth` or adding a
 fifth wrapper per item moves both depth pins; lane 4 re-derives them with a margin.
+
+---
+
+## LR-AY — stage 2 lane 3's corrections: which string each probe-Y arm holds, the shape that can actually reach the padding placement, and what the lane measured that the design predicted
+
+**Evidence.** Record §19, lane 3: the stage-2 probe re-run twice this lane (254
+lines, byte-identical, filtered stderr empty, matching its revision-4 header); the
+red runs of both commits; the kernel's own answers at probe Y's nine widths,
+dumped from a scratch test before any literal was written (scratch deleted); two
+full suites (1440, then 1441, 0 `error:`/`warning:`); three mutations (M3a, M3b,
+M3c) each reddening named tests; and two twelve-image `CN-R` comparisons against
+`cb2e708`, one per commit.
+
+**The rulings.**
+
+1. **Probe group Y holds three strings, not one, and 3.4 must say which.** The
+   design's row reads "probe Y's strings and widths (Y1–Y9)" and gives the line
+   counts 1, 2, 2, 4, 5, 2, 2, 12, 7 without pairing an arm to a string. Y1–Y5 are
+   `Text("alpha")`, Y6–Y7 `Text("Short")`, Y8–Y9 the sentence; the probe's labels
+   say so (`Y1 Text(alpha) at 33`) and its `arms` table is the authority. A first
+   pass read all of Y1–Y5 as the sentence and the kernel answered 10, 13, 16, 28
+   and 37 lines against the design's 1, 2, 2, 4, 5 — **a red test that looked like
+   a finding about the engine and was a misread table**. With the three strings in
+   place every line count is the probe's exactly and every widest line matches the
+   probe's printed CoreText reading to two decimals (32.84, 18.17, 18.17, 10.31,
+   7.86, 17.25, 17.25, 33.31, 44.02). The lesson is the general one: when an arm
+   table is red, dump what the code answers before deciding which side is wrong.
+2. **Exactly two of the nine arms can see the clamp, and the test pins that
+   count.** Only Y5 (7.86 against a 5 proposal) and Y8 (33.31 against 30) have a
+   widest line above their proposal; the other seven hug and would pass under any
+   clamp or none. 3.4 carries `try #require(clamped == 2)` computed from the cache,
+   so an arm table edited to all-hugging arms fails loudly instead of passing
+   vacuously (practices shape 15). M3b confirms it: with the clamp removed both 3.3
+   and 3.4 redden.
+3. **3.1's shape is the clamped response in a stack and the caller-bounds entry,
+   not a custom `ProposalLayout`.** The design proposed "a custom `ProposalLayout`
+   placing it at 100×100". A custom layout's `place(at:anchor:proposal:)` stores a
+   subview at **its own answer** (`SA-C`), so a custom parent cannot hand a padding
+   bounds larger than its answer and cannot show the change at all. Two shapes can:
+   a padding whose **response clamps** — `HStack(spacing: 0) { a20×20.padding(−15);
+   b20×20 }`, where the pad answers 0×0 and the child is still 20×20 rather than
+   the rect-minus-insets 30×30 (probe N1, and the shape a lowered element reaches
+   in production) — and `computeNativeLayout(root:proposal:in:)`, the one entry
+   that places a node in bounds of the caller's choosing (`CN-J`). The third arm
+   (N2, a proposal-filling child under asymmetric insets) is the control both rules
+   agree on and must NOT move.
+4. **SwiftUI ceils its text answer and MetalUI does not; the widths come from the
+   shaping cache.** Y2 reads 19 against 18.17 and Y9 45 against 44.02. That is
+   `LR-F`'s rule applied, not a new divergence: the clamp is `min(proposal,
+   widestLine)` in Double, and the probe's printed integers are its ceiling. A
+   literal-for-literal test against the probe would have failed for the rounding
+   and hidden the clamp.
+5. **What the design predicted, this lane measured.** The preview images were
+   expected at 0 for commit 1 (from stage 1's scratch) and at 0 for commit 2 **by
+   prediction**. Both read 0, and so did all twelve images at both commits, scenes
+   identical — so neither production answer reaches a production root's pixels. The
+   exit test (2.15) re-ran unchanged at both commits, as did the 97 goldens. The
+   `SIGTRAP` `LR-AU` measured is exactly what commit 1's red run showed: 3.2 exits
+   on its own pinned-wrong precondition and passes once it reads 20.
+6. **Divergence 59 closes here, not in task 11.** `LR-AM` as amended already
+   assigned the below-word clamp to this lane; commit 2 lands it, so critic finding
+   14's consequence — "stage 6b ships divergence 59 to production" — does not
+   arise. **W2 stays deferred** to task 11 as a stack-allocation question, untouched
+   by the clamp.
+
+**What it costs if wrong.** (1) and (3) are test shapes: a wrong one leaves the
+change unpinned, which M3a and M3b check. (2) Without the count the arm table can
+rot into arms that cannot fail. (4) Adopting SwiftUI's ceiling would move every
+lowered text rect by up to a point and is a separate decision with its own pixels.
+(6) If a later stage finds a below-word shape the clamp answers differently from
+SwiftUI, divergence 59 reopens with task 11's owner.

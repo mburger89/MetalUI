@@ -436,18 +436,19 @@ Two commits, each with its own full suite, pixels and record entry. Files:
 
 | # | test | red before | mutation |
 |---|---|---|---|
-| 3.1 | commit 1, kernel: `aNativePaddingPlacesItsChildAtTheChildsOwnSize` (`MetalUILayoutTests`) — a padding node placed in bounds larger than its answer (a custom `ProposalLayout` placing it at 100×100) over a 20×20 leaf with insets (1, 2, 3, 4): child at (x + 4, y + 1), 20×20 (`SA-N` item 4, P2b) | stored at 94×96 | **M3a** bounds minus insets restored |
+| 3.1 | commit 1, kernel: `aNativePaddingPlacesItsChildAtTheChildsOwnSize` (`MetalUILayoutTests`) — **three arms** (`LR-AY` item 3; a custom `ProposalLayout` cannot show this, `SA-C`): the clamped response in a stack (N1, `.padding(−15)` on 20×20 beside a sibling — the pad answers 0×0 and the child is (−15, −5) 20×20, not 30×30); the caller-bounds entry `computeNativeLayout(root:proposal:in:)` with insets (1, 2, 3, 4) in (10, 20, 100, 100) — child at (14, 21) 20×20 where the old rule read 94×96; and control N2, a proposal-filling child, which must NOT move | stored at 94×96 | **M3a** bounds minus insets restored |
 | 3.2 | commit 1, amended: `negativePaddingIsAcceptedAndItsResponseClampsPerAxis` — the pinned-wrong precondition `clampedRect.width == 30 && … == 30` becomes SwiftUI's 20×20 and the doc's "pinned wrong on purpose" paragraph is replaced. **Measured at design time**: with item 4 applied this test exits `SIGTRAP` on exactly that precondition and passes once it reads 20 (`LR-AU`) | exits `SIGTRAP` once 3.1's change lands (the red run is the implementation's, recorded) | M3a |
 | 3.3 | commit 2: `aProposalTextBelowItsNarrowestWordAnswersItsWidestCharacterWhereSwiftUIAnswersTheProposal` (stage 1's 2.7) re-derived and renamed `aProposalTextBelowItsWidestBrokenLineAnswersTheProposal`: at 0 and 5 the width is the proposal, the height still 592 (T3/T4) | the old pin passes; the renamed one fails on `answer.size.width == width` | **M3b** the clamp removed |
-| 3.4 | commit 2: `aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal` — probe Y's strings and widths (Y1–Y9): the line count equals probe Y's (literal: 1, 2, 2, 4, 5, 2, 2, 12, 7) and the width equals `min(w, cache.shaped(s, wrappingAt: w).widestLine)` read from the shaping cache; Y0 at nil is one line at its unwrapped width | Y5 and Y8 answer wider than the proposal | **M3b**; **M3c** the clamp applied as `proposal` whenever a line breaks (Y2's 18.17 reads 25) |
+| 3.4 | commit 2: `aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal` — probe Y's widths over its **three** strings (`LR-AY` item 1): Y1–Y5 `"alpha"`, Y6–Y7 `"Short"`, Y8–Y9 the sentence. The line count equals probe Y's (literal: 1, 2, 2, 4, 5, 2, 2, 12, 7) and the width equals `min(w, cache.shaped(s, wrappingAt: w).widestLine)` read from the shaping cache — never a probe literal, since SwiftUI ceils and this does not (Y2 19 against 18.17, Y9 45 against 44.02). Y0 at nil is one line at its unwrapped width. `try #require(clamped == 2)`: only Y5 and Y8 have a widest line above their proposal | Y5 and Y8 answer wider than the proposal | **M3b**; **M3c** the clamp applied as `proposal` whenever a line breaks (Y2's 18.17 reads 25) |
 
-**Demo expectation**: legacy images 0 px; preview images re-taken **after each
-commit**; expected 0 in both (stage 1's scratch of item 4 read 0 in all 12). A
-non-zero preview image stops the lane and comes back as a ruling before the
-commit (`LR-AU`). The exit test (2.15) re-run after each commit: expected
-unchanged (item 4 measured so in scratch R2; the clamp by prediction). The record
-names commit 1 for the other track: its padding tests must be re-checked after
-the merge. W2 stays unpinned and deferred (`LR-AM` as amended).
+**Demo expectation — met, measured** (record §"Lane 3"): all twelve `CN-R` images
+read **0 differing pixels, scene identical** after commit 1 and again after commit
+2, the preview among them, so neither production answer reaches a production
+root's pixels — measured for commit 2 where this row predicted it (`LR-AY` item
+5). The exit test (2.15) re-ran unchanged after both commits, and the 97 goldens
+did not move. The record names commit 1 for the other track: its padding tests
+must be re-checked after the merge. **Divergence 59 closes in commit 2**; W2 stays
+unpinned and deferred (`LR-AM` as amended, `LR-AY` item 6).
 
 ### Lane 4 — the box model
 

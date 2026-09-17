@@ -722,3 +722,135 @@ read (`FR-V`).
 - **Shared file**: `LegacyLowering.swift` only (`planLegacyItems` restructured,
   `registerLegacyItems`, `paddedAndSized`'s fold); the call sites of
   `planLegacyItems` gained `parentSite:`.
+
+---
+
+## Lane 3 — the proposal-path answers that reach production (2026-09-17, PDT)
+
+Two commits, each with its own red run, full suite, twelve `CN-R` images and
+mutations. Ruling `LR-AU` scoped the lane; `LR-AY` records its corrections.
+
+### Probe re-run before the tests
+
+Stage-2 probe `docs/probes/swiftui-engine-replacement-stage2.swift`, revision 4
+(group N, appended before `DONE`): **exit 0, run twice, stdout byte-identical,
+254 lines**, filtered stderr empty, matching the revision-4 header line for line.
+N0 (control, `.padding(5)`): the child at (5, 5) 20×20 in a 30×30 pad. N1
+(`.padding(−15)` beside a sibling): the pad answers 0×0 at (0, 10) and the child
+is **(−15, −5) 20×20** where the rect minus the insets reads 30×30. N2 (a
+proposal-filling child under insets top 1, leading 4, bottom 3, trailing 2 at
+100×100): offered 94×96, placed at (4, 1) 94×96 — the two rules agree.
+
+### Commit 1 — `SA-N` item 4 (`8a2d753`)
+
+`placeNative`'s `.padding` case stored the child at the padding's bounds minus its
+insets; it now stores the child's **own** measurement at the origin plus the
+leading and top insets, exactly as `.fixedSize` does.
+
+**Red first**: `aNativePaddingPlacesItsChildAtTheChildsOwnSize` (3.1) failed with
+2 issues and `negativePaddingIsAcceptedAndItsResponseClampsPerAxis` (3.2) exited
+`SIGTRAP` on its own pinned-wrong precondition — the trap `LR-AU` measured at
+design time, reproduced here as the red run, and gone once the precondition reads
+SwiftUI's 20×20.
+
+3.1 has three arms (`LR-AY` item 3): the clamped stack response (N1), the
+caller-bounds entry `computeNativeLayout(root:proposal:in:)` — a rigid 20×20 child
+under asymmetric insets in (10, 20, 100, 100) stored at (14, 21) 20×20 where the
+old rule read 94×96 — and N2 as the control that must not move. A custom
+`ProposalLayout`, which the design proposed, **cannot** show the change: its
+`place(at:anchor:proposal:)` sizes a subview by its own answer (`SA-C`).
+
+**Suite 1440** (lane 2 left 1439; +1 is 3.1), 0 `error:`/`warning:` beyond
+SwiftPM's deprecation notice. Goldens 97, `git diff --name-only cb2e708 --
+'*.json'` empty.
+
+### Commit 2 — the below-word text clamp (`d0c439a`)
+
+`proposalTextMeasurement` now answers `min(proposal, widestLine)` on a finite
+proposal and is unchanged on an unspecified one. Divergence 59 closes here rather
+than in task 11 (`LR-AY` item 6); W2 stays deferred.
+
+**The kernel's own answers, dumped before any literal** (scratch test, deleted):
+at probe Y's nine widths the line counts are 1, 2, 2, 4, 5, 2, 2, 12, 7 — probe
+Y's exactly — and the widest lines 32.84, 18.17, 18.17, 10.31, 7.86, 17.25, 17.25,
+33.31, 44.02, matching the probe's printed CoreText readings to two decimals. A
+first pass read Y1–Y5 as the sentence rather than `"alpha"` and got 10, 13, 16, 28
+and 37 lines; the table was the misread, not the engine (`LR-AY` item 1).
+
+**Red first**: 3.3 (stage 1's 2.7 re-derived and renamed
+`aProposalTextBelowItsWidestBrokenLineAnswersTheProposal`) failed on
+`answer.size.width == width` at both 0 and 5; 3.4
+(`aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal`) failed
+with 10 issues, `clamped == 2` among them.
+
+Only **Y5** (7.86 against a 5 proposal) and **Y8** (33.31 against 30) can see the
+clamp; the other seven hug. 3.4 pins that count with a `try #require` computed
+from the cache. Every width is derived from the shaping cache, never written down:
+**SwiftUI ceils and MetalUI does not** (Y2 19 against 18.17, Y9 45 against 44.02),
+so a literal-for-literal test would have failed for the rounding and hidden the
+clamp (`LR-AY` items 2 and 4).
+
+**Suite 1441**, 0 `error:`/`warning:`. Goldens 97 unchanged.
+
+### Mutations
+
+Commit first, `cp` aside, apply, full unfiltered
+`swift test --build-system native --no-parallel`, restore from the copy,
+`git status --short` empty each time.
+
+| id | mutation | reddens (issues) |
+|---|---|---|
+| **M3a** | the padding's bounds-minus-insets placement restored | 3.1 (2), 3.2 (1, the exit test) — 3 issues in 1440, and nothing else |
+| **M3b** | the text clamp removed | 3.3 (2), 3.4 (2) — 4 issues in 1441 |
+| **M3c** | the clamp applied as the proposal whenever a line breaks | 48 issues in 10 tests: 3.4, `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock`, `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth`, `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent`, `aLoweredContainerPaddingSitsInsideItsDeclaredSize`, `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`, `aLoweredWindowPublishesTheSameAccessibilityTree`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm`, the exit test (2.15) |
+
+M3a leaves 3.3/3.4 green and M3b leaves 3.1/3.2 green: the two commits' pins are
+independent.
+
+### Pixels (CN-R)
+
+`gen-lib.py` into a `git archive` of each commit's tree, `DEMO_PIXELS_SMALL=1`,
+against lane 1's `cb2e708` images (`s2l1/px-base`):
+
+| commit | result |
+|---|---|
+| 1 (`SA-N` item 4) | **12 of 12: 0 differing pixels, scene identical** |
+| 2 (the text clamp) | **12 of 12: 0 differing pixels, scene identical** |
+
+The preview is among the twelve in both, so neither production answer reaches a
+production root's pixels — measured at both commits, where the design predicted it
+for commit 2 (`LR-AY` item 5). **Controls on the head images**: light vs dark f0
+1 048 576; vs modal-light 1 030 498; vs animation-light 210 027; f0 vs f3 0;
+preview light vs dark 1 048 576 — the stage-1 figures exactly.
+
+### The exit test
+
+`theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (2.15) re-ran
+**unchanged** after both commits, and M3c reddens it. The demo declares no padding
+whose rect differs from its answer and no text below its widest broken line.
+
+### Deferred from lane 3, by name
+
+- **W2** (the long label at priority 1): task 11, as a stack-allocation question
+  (`LR-AM` as amended, `LR-AY` item 6). The clamp does not touch it.
+- **SwiftUI's ceiling on a text answer**: unowned; a separate decision with its own
+  pixels (`LR-AY` item 4).
+- `margin`, `border`, `Style` padding on a `Text`, the `BM-4` floor and depth with
+  four wrappers per level: lane 4. Justify distribution and reverse: lane 5.
+
+### For the integrator
+
+- **Commit 1 is a production kernel change under the proposal authority, in a
+  shared file** (`LayoutTree.swift`, the `.padding` case of `placeNative` only).
+  **Any padding test the other track wrote against bounds-minus-insets placement
+  must be re-checked after the merge** — this is critic finding 10's semantic
+  collision, landed on its own commit so it can be identified.
+- **`SA-N` item 4 leaves the open list.** CLAUDE.md's "Probed, and the kernel
+  disagrees" section loses its padding row; `NativeValidationAcceptanceTests.swift`
+  loses its "pinned wrong on purpose" paragraph.
+- **Divergence 59 closes.** It was stage 1's, assigned to task 11 and taken back by
+  `LR-AM` as amended; CLAUDE.md's text section and the divergence table both change.
+  W2 remains open and is task 11's.
+- **Shared files touched**: `LayoutTree.swift` (one case, commit 1) and
+  `Sources/MetalUI/ProposalText.swift` (one expression, commit 2). No signature,
+  no stored property, no public spelling changed.
