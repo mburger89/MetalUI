@@ -101,6 +101,7 @@ scratch at revision 4; GS4, GS5 and GX17's revision-5 rects by the committed
 | `swiftui-grid.swift` | 4 (GF14–GF18: a greedy frame and a Color as cells) | `ce84b8b` | default ×2 | byte-identical; revision-3 lines identical; corpus sha256 unchanged |
 | `swiftui-grid.swift` | 5 (critic round: bare Spacers, step 12, GE, GN, GG10–GG16, GQ9–GQ10, GX20–GX23, GZ9–GZ12, three modes) | `beb4242`, `c0c499b`, `ea591cd` | default ×2 after each of the three commits' edits; `model-arms`, `classify-spans`, `corpus` ×2; `huge-columns` ×2; `trap-negative-columns` ×2 | byte-identical; exit 0 (default, three modes), 133 (`huge-columns`, `trap-negative-columns`); arm lines through GF18 identical to revision 4; corpus sha256 now `d93bc71a…a886f366` |
 | `swiftui-lazy-grid-scope.swift` | 1 | `ed3471e` | ×2 | byte-identical |
+| `swiftui-grid-gap-order.swift` | 1 (`GR-D`'s "largest": H1, V1, controls GA1 and GQ6) | `40c2fe9` | ×2 | byte-identical; exit 0 |
 
 All under `/usr/bin/swift` (Apple Swift 6.4, swiftlang-6.4.0.33.1), macOS 27.0
 (26A428). Revisions 1–4's corpus stdout had sha256
@@ -659,6 +660,102 @@ the CGS reading `FR-V` asks for rather than `IOConsoleLocked`. The first
 non-zero real-window comparison is still lane 4's (`GR-AE`, `GR-M`), and
 whoever takes it must re-run this probe first: "usually unlocked" was not true
 at this hour.
+
+## Lane 1, the verifier's three findings applied (`40c2fe9`, 2026-09-17)
+
+The lane-1 verifier re-ran the round at `062a114` and, against the report's
+"complete, nothing outstanding", found **three claims that nothing in the suite
+could see** — one major, two minors. All three are now pinned. No `Sources/`
+line changed: `git diff 0453d2f -- Sources/` is empty, and the whole round is
+two test files, one new probe and three docs.
+
+### The major: `GR-D`'s "the largest pair", unpinned on BOTH axes
+
+Every committed gap arm and all 120 corpus cases put the larger pair in the
+LATER row or column, so `Swift.max` and "the last pair seen" answer the same
+everywhere the suite looks. Mutating both reductions in
+`makeNativeGridPlan` — `hgapValues[column] = value` and `best = value` — left
+`Test run with 1449 tests in 1 suite passed`. The mutant is not equivalent: it
+reads 50×58 and 58×50 on the two arms below.
+
+A companion probe, **`docs/probes/swiftui-grid-gap-order.swift`**, was written
+and run for it (the arms in `swiftui-grid.swift` cannot discriminate: GS1's
+larger pair is in the later row, GS4/GS5 have one pair per boundary). Four
+arms, two of them positive controls already recorded in `swiftui-grid.swift`
+(GA1 78×58, GQ6 58×58, both reproduced), and one discriminator per axis:
+
+| arm | grid | SwiftUI | "last pair wins" would give |
+|---|---|---|---|
+| H1 | `[c 10x30, d 40x10] [Spacer, b 20x20]` (the Spacer row FIRST) | **58**×58 | 50×58 |
+| V1 | `[b 20x20, Spacer] [d 40x10, c 10x30]` (the Spacer column LAST) | 58×**58** | 58×50 |
+
+So SwiftUI takes the largest and the kernel was right all along; the defect was
+purely that the claim had no discriminating arm. Exit 0, run twice,
+byte-identical stdout, macOS 27.0 (26A428), `/usr/bin/swift` Apple Swift 6.4
+(swiftlang-6.4.0.33.1); the reading and the stdout are in its header.
+
+`eachGapIsTheLargestPairSpacingMeetingThere` gains GD-H1 and GD-V1, each as a
+plan assertion (`hgap`/`vgap` both `[0, 8]`) **and** laid out with its cells'
+rects, and the doc comment names the mutation.
+
+### Minor 1: the grid's bounds origin (spec §4.3)
+
+"The cells start at `bounds`' origin whatever its size (as ZStack's union does,
+`CN-E`)" was unpinned — every arm lays a grid out in bounds of its own answer at
+the origin, via `Arm.run`, and every in-tree container places a child at the
+child's own answer, so only the `computeNativeLayout(root:proposal:in:)` entry
+reaches it. `gridAndRowAlignmentPlaceCellsInTheirSlots` gains **GL-B1**: GL1
+laid out in `(7, 11, 200×200)` through a new `Arm.run(_:_:_:in:)`, the grid's
+own rect asserted as those bounds and each cell at the GL1 rect plus (7, 11).
+
+### Minor 2: `requestNativeGrid`'s spacing (amends `GR-AD`)
+
+The second critic round's registrar pins covered `alignment`, the row alignment
+and `columns`, but not `horizontalSpacing`/`verticalSpacing`: forwarding
+`nil, nil` whatever it was given left the suite green, which is the same V2/V2b
+class the round set out to close. `Tests/MetalUITests/GridRegistrarTests.swift`
+gains a fourth test, `requestNativeGridForwardsItsSpacingToTheKernel`, at GA3's
+3/5 against the default-spacing control (b at 33 and c at 25, where the control
+reads 38 and 28), both control figures `#require`d first. `GridUnderTest` gains
+the two spacing fields. `LayoutPass.requestNativeGrid` still has no production
+caller (`grep -rn requestNativeGrid Sources/`: only its own declaration), so
+every one of its parameters is now pinned by tests alone.
+
+### Mutations (committed first at `40c2fe9`, restored from copies; `git status --short` empty after each)
+
+| # | mutation | file | reddened |
+|---|---|---|---|
+| H2/H3 | both gap reductions take the LAST pair (`hgapValues[column] = value`, `best = value`) | `NativeGrid.swift` | `eachGapIsTheLargestPairSpacingMeetingThere` (8 issues) — and nothing else, as before the arms |
+| H9 | `placeGrid` centres the cells in `bounds` instead of starting at its origin | `LayoutTree.swift` | `gridAndRowAlignmentPlaceCellsInTheirSlots` (4 issues: GL-B1's four cells; its grid rect is `bounds` either way) |
+| H1 | `requestNativeGrid` forwards `horizontalSpacing: nil, verticalSpacing: nil` | `Sources/MetalUI/Grid.swift` | `requestNativeGridForwardsItsSpacingToTheKernel` (3 issues: b, c, d; a is (0, 0) under both) |
+
+Each was the verifier's own green mutation; each now reddens exactly the arm
+written for it and nothing else.
+
+### Re-taken at `40c2fe9`
+
+- `swift build --build-system native --build-tests`, then `swift test
+  --build-system native --no-parallel` unfiltered: **`Test run with 1450 tests
+  in 1 suite passed after 61.370 seconds`** (**+1**, the fourth registrar test;
+  the three new grid arms are arms of existing tests). 0 `error:`, the only
+  `warning:` SwiftPM's deprecation notice.
+- Goldens **97**, `git diff cb2e708 -- '*.json'` empty. Guards **71**
+  (73 `canTypecheck` hits less `Typecheck.swift`'s declaration and
+  `UnitSafetyTests`' comment) — no guard added or removed.
+
+### Demo and the real window
+
+**Not re-run, and it cannot move:** `git diff 0453d2f -- Sources/` is empty, so
+the tree's rendering is byte-for-byte `062a114`'s, whose `CN-R` comparison
+against `cb2e708` read **12 of 12 images at 0 differing pixels** with live
+controls (recorded in the previous section). Re-running the harness here could
+only reproduce those twelve zeros.
+
+The screen was **locked** at this hour too:
+`docs/probes/appkit-screen-lock-state.swift` compiled `-O` and run 2026-09-17
+reads `session CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`,
+`displayActive main: 0`. So no real-window capture this round either; it is
+still lane 4's (`GR-AE`, `GR-M`), and whoever takes it re-runs this probe first.
 
 ## For the integrator
 

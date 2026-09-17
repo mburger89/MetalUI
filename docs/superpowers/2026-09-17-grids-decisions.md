@@ -44,6 +44,11 @@ Probes (arm ids below are theirs):
   with SwiftUI's answer and the model's (`GR-AA`).
 - `docs/probes/swiftui-lazy-grid-scope.swift` (`ed3471e`) — LazyVGrid/LazyHGrid
   against Grid, and laziness; exit 0, run twice, byte-identical.
+- `docs/probes/swiftui-grid-gap-order.swift` (`40c2fe9`) — the four arms that
+  tell `GR-D`'s "the largest pair meeting at a gap" apart from "the last pair
+  seen", one per axis, with GA1 and GQ6 as positive controls; exit 0, run
+  twice, byte-identical. Written because no arm in `swiftui-grid.swift` can
+  (the lane-1 verifier's H2/H3).
 
 **Call counts.** The containers decisions note that SwiftUI's duplicate
 flexibility probes vary by OS release. The grid probe's "measured, in order"
@@ -230,7 +235,16 @@ and the rule is pinned by test 1.5.
 - The gap before column *j* is the **largest** spacing of any pair of adjacent
   cells in one row that meet at *j*, and **0 where no pair meets there** (GS5,
   GS6); the gap before row *r* the largest over pairs of cells covering one
-  column in rows *r−1* and *r* (GS4).
+  column in rows *r−1* and *r* (GS4). **"Largest", not "the last pair seen":**
+  the GS arms and the corpus all put the larger pair in the later row or
+  column, so they cannot tell the two rules apart, and the lane-1 verifier
+  showed that mutating both reductions to "the last pair wins" left the suite
+  green. The discriminators are the companion probe
+  `docs/probes/swiftui-grid-gap-order.swift`, whose arm H1
+  (`[c 10x30, d 40x10] [Spacer, b 20x20]`, the Spacer row **first**) answers
+  58 wide, not 50, and whose arm V1 (`[b 20x20, Spacer] [d 40x10, c 10x30]`,
+  the Spacer column **last**) answers 58 tall, not 50 — one axis each, against
+  GA1 and GQ6 as positive controls. Pinned as GD-H1 and GD-V1 in spec test 1.6.
 - A pair's spacing is the explicit spacing when one is given (GS11: 12 beside a
   Spacer); otherwise 0 when the left (upper) cell's trailing (bottom) edge or
   the right (lower) cell's leading (top) edge is a zero-spacing edge, else 8
@@ -1221,6 +1235,12 @@ not lane 4's.
   GX1's span for `markNativeGridCell` — each with a `#require`d control that
   answers differently. Public API with no caller is CLAUDE.md's "an API that
   exists, compiles and does nothing"; two lanes of it was too long.
+  **Amended at `40c2fe9`:** that first round left `requestNativeGrid`'s
+  `horizontalSpacing` and `verticalSpacing` unpinned — forwarding `nil, nil`
+  whatever it was given still left the suite green (the lane-1 verifier's H1) —
+  so a fourth test, `requestNativeGridForwardsItsSpacingToTheKernel`, reads
+  GA3's 3/5 against the default-spacing control. The registrars' every
+  parameter is now pinned.
 - **`markNativeGridRow` and `markNativeGridCell` trap on a legacy node**, each
   naming it ("a grid row/cell mark written on a legacy node (SA-G), node *i*"),
   before the parent check. Both previously checked only the generation and the
