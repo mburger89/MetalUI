@@ -1,14 +1,15 @@
 # Grids decisions (plan task 7, stage G)
 
 Rulings for [`specs/2026-09-17-grids-design.md`](specs/2026-09-17-grids-design.md),
-on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-AF`; next
-unused is **`GR-AG`**. A bare `GR-3` is a typo, not a citation.
+on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-AG`; next
+unused is **`GR-AH`**. A bare `GR-3` is a typo, not a citation.
 
 **Status, 2026-09-17: lanes 1 and 2 built** (`GR-W` and `GR-X` record their
 as-built amendments);
 the design was revised after **two** critic rounds — `GR-Q` records how each of
 the first round's fourteen findings was applied, `GR-Y` how each of the second
-round's fifteen was, and `GR-Z`…`GR-AF` are that round's new rulings. Baseline measured in this worktree at `cb2e708`: `swift build
+round's fifteen was, and `GR-Z`…`GR-AF` are that round's new rulings. `GR-AG`
+is the lane-2 re-verification's one finding (a green mutation, now pinned). Baseline measured in this worktree at `cb2e708`: `swift build
 --build-system native --build-tests`, then `swift test --build-system native
 --no-parallel` → `Test run with 1409 tests in 1 suite passed after 42.821
 seconds`, 0 `error:`, no `warning:` besides SwiftPM's deprecation notice;
@@ -1306,3 +1307,53 @@ divergence table carries it rather than one ruling's prose.
 the next field. That is the framework's rule everywhere, but a grid is exactly
 where conditional cells are natural, so it is recorded as a divergence rather
 than left implicit.
+
+---
+
+## GR-AG — the span-target rule has three steps and the finite solve pinned two
+
+**Ruling** (lane 2 re-verification, 2026-09-17; measurements in record §20,
+"Lane 2 re-verification"). A spanning cell's width shortfall goes to, in order,
+(1) the spanned columns still holding an **unprocessed** single-column cell,
+else (2) the spanned columns holding **no** single-column cell anywhere in the
+grid, else (3) all of them. The kernel has **two** solves — `solveNativeGrid`'s
+nil×nil branch and `NativeGridSolver.finishGroup` — and each carries its own
+copy of the rule, which is `GR-U`'s "a copy of a pinned implementation is
+unpinned" (CLAUDE.md's practices) applied to a rule rather than to an entry
+point.
+
+**The gap.** At a finite proposal the committed arms reached only steps (1) and
+(3): GX9 (a spanned column still holds an unprocessed single) and GX8 (every
+spanned column holds one). Step (2) had an arm only at nil×nil — GX11, test
+`aSpanShortfallAtNilGoesFirstToSpannedColumnsWithNoSingleColumnCell`, which runs
+the OTHER branch. So deleting step (2) from `NativeGridSolver.finishGroup` left
+`Test run with 1450 tests in 1 suite passed`. The mutant is not equivalent: it
+moves any cell that shares a column with a span whose other spanned columns hold
+no singles.
+
+**Probed now**, `docs/probes/swiftui-grid-span-targets.swift` (new; exit 0, run
+twice, byte-identical), two discriminators and two positive controls:
+
+| arm | grid | at | SwiftUI | "all spanned columns" would give |
+|---|---|---|---|---|
+| S1 | `[a 20x20] [x 60x20 span 2]` | 200×200 | 60×48, **a (0,0)** | a at x = 10 (column 0 widened to 40) |
+| S2 | `[a 20x20, b 30x20] [d 10x20, x 90x20 span 2]` | 300×200 | 118×48, **b (28,0)** | b at x = 43 (column 1 widened to 60) |
+
+C0 is GX8 at 300×100 and C1 is GX11 at nil×nil, each reproducing
+`swiftui-grid.swift`'s recorded rects exactly, so the run reads the same grid
+the corpus was read from. Both arms read the same rects at nil×nil, so the two
+branches agree there too, and both grids also confirm `GR-D`'s pairless boundary
+is 0 rather than the 8pt default (60 and 118 wide, not 68 and 126).
+
+**So the kernel was right and the arm was missing** — the same shape as the
+lane-1 verifier's `GR-D` finding, one branch over. `GR-F` is unchanged;
+`aSpanAtAFiniteProposalIsOfferedTheWidthOutsideItAndWidensItsOpenColumnsFirst`
+gains the S1 and S2 arms and names the mutation, and the suite stays 1450 (arms,
+no new test).
+
+**Cost if wrong.** A form whose spanning footer is wider than its columns
+centres its cells in columns that should not have grown; the grid's own answer
+does not move (the shortfall's sum is preserved), so nothing above the grid can
+see it and only a per-cell rect can. Lane 3 must keep both copies of the rule in
+step when it adds unsized axes and anchors: an edit to one branch's target chain
+is now caught by GX11 or by S1/S2, but only because each branch has an arm.

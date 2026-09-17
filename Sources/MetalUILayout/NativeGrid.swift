@@ -223,7 +223,15 @@ func makeNativeGridPlan(_ children: [NativeGridChild], alignment: ProposalAlignm
 /// anywhere in the grid, or over all of them if each does (GX1, GX7, GX11).
 ///
 /// **Any other proposal** is the flexibility-ordered, priority-grouped solve
-/// (`solveNativeGridAtAProposal`, rulings GR-E, GR-F, GR-U).
+/// driven below by `NativeGridSolver` (rulings GR-E, GR-F, GR-U), whose loop
+/// lives in `LayoutTree.measureGrid(_:atAProposal:)` so that no measurement
+/// runs inside the solver's frame (`GR-X` item 2, the depth guard).
+///
+/// The two branches each carry their own copy of the span-target rule — the
+/// spanned columns still holding an unprocessed single-column cell, else those
+/// holding none at all, else all of them — so an edit to one is not covered by
+/// the other's tests: this branch's is pinned by GX11, `NativeGridSolver`'s by
+/// GX9, GX8 and the S1/S2 arms (`GR-AG`).
 func solveNativeGrid(_ plan: NativeGridPlan, proposal: ProposedSize,
                      measure: (Int, ProposedSize) -> SizeD) -> NativeGridSolution {
     guard proposal.width == nil, proposal.height == nil else {
@@ -566,6 +574,9 @@ final class NativeGridSolver {
             guard shortfall > 0 else { continue }
             let columns = cell.column..<(cell.column + cell.span)
             steps += cell.span
+            // Step 12, then the nil branch's own rule, then every spanned
+            // column. Each step has its own arm: GX9, then S1/S2 (`GR-AG`;
+            // deleting this line was green until they were written), then GX8.
             var targets = columns.filter { unprocessedSingles[$0] > 0 }
             if targets.isEmpty { targets = columns.filter { plan.columnSingleCells[$0].isEmpty } }
             if targets.isEmpty { targets = Array(columns) }

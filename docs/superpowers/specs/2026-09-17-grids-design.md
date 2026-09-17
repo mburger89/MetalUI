@@ -1,10 +1,13 @@
 # Grids — design (plan task 7, stage G)
 
-`feat/grids` from `cb2e708`. Rulings `GR-A`…`GR-X` in
+`feat/grids` from `cb2e708`. Rulings `GR-A`…`GR-AG` in
 [`../2026-09-17-grids-decisions.md`](../2026-09-17-grids-decisions.md); probes
-`docs/probes/swiftui-grid.swift` (**revision 5**; arm ids below are its),
-`docs/probes/swiftui-grid-corpus.txt` (its `corpus` mode at revision 5) and
-`docs/probes/swiftui-lazy-grid-scope.swift`; record `docs/record/20-grids.md`.
+`docs/probes/swiftui-grid.swift` (**revision 6**; arm ids below are its),
+`docs/probes/swiftui-grid-corpus.txt` (its `corpus` mode at revision 6),
+`docs/probes/swiftui-lazy-grid-scope.swift`, and the three companion probes
+`swiftui-grid-stack-ties.swift` (`GR-X`), `swiftui-grid-gap-order.swift`
+(`GR-D`) and `swiftui-grid-span-targets.swift` (`GR-AG`); record
+`docs/record/20-grids.md`.
 Parent design:
 [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 row G ("no legacy twin; depends on nothing; exit test is its own probe's
@@ -13,8 +16,10 @@ arms; goldens 0; demo 0 px").
 **Status, 2026-09-17: lanes 1 and 2 built** (lane 1: `432cb3d` red, `82a63fe`;
 as-built amendments in `GR-W`, record §20 "Lane 1"; lane 2: `e4f95ff` red,
 `ea0a51b` scanning, `d467058`, `0196743`, `de0a51e`; amendments in `GR-X`,
-record §20 "Lane 2"). Lanes 3–4 not started. The design
-was revised after one critic round (`GR-Q`). Baseline at `cb2e708`, measured in
+record §20 "Lane 2"; both re-verified since, lane 1 at `062a114` and `40c2fe9`,
+lane 2 at `d6ad9ff`, each with a green mutation found and pinned — `GR-D`'s
+arms and `GR-AG`'s). Lanes 3–4 not started. The design was revised after **two**
+critic rounds (`GR-Q`, `GR-Y`). Baseline at `cb2e708`, measured in
 this worktree: `Test run with 1409 tests in 1 suite passed` (native,
 unfiltered), 97 goldens, 71 guards.
 
@@ -467,7 +472,7 @@ transcribed verbatim with its comment header kept).
 | 2.5 | `higherPriorityGroupsAreServedFirstWithNoReservation` | GQ1, GQ2, GQ3, GQ4, GQ5 (answers 100×100, 130×10, 120×10, 210×120, 266×118) | not in the tree | reserve lower groups' 0×0 widths, as `CN-B`'s stack does (GQ2's a and c read 27) |
 | 2.6 | `aBareSpacerCellIsPriorityMinusInfinityAndFlexibleOnBothAxes` | GS1 (s 142×42), GQ7 (`minLength: 0`), GQ8, and GQ9 (a `layoutPriority(0)` node over the Spacer: 200×100, s 152×62), `#require` GQ9 ≠ GS1 | not in the tree | read a cell's priority as 0 (GS1 reads GQ9's figures) |
 | 2.7 | `gapsHoldAtFiniteProposals` | GS1, GS2, GS3, GS11, GS12–GS18 laid out at their proposals | not in the tree | subtract no gaps from W′ and H′ (GS1 moves; the lane records it) |
-| 2.8 | `aSpanAtAFiniteProposalIsOfferedTheWidthOutsideItAndWidensItsOpenColumnsFirst` | GX8, GX9 (a 30 wide in its column, b 262), GX10 (a at 60.5, b at 219.5), GX12 (x proposed 300; a 176, b 116 slots) | not in the tree | (a) propose a span the sum of its columns' shares plus inner gaps (probe variant 2; GX10's x moves); (b) drop step 12 (GX9's b reads 231, a's column 61) |
+| 2.8 | `aSpanAtAFiniteProposalIsOfferedTheWidthOutsideItAndWidensItsOpenColumnsFirst` | GX8, GX9 (a 30 wide in its column, b 262), GX10 (a at 60.5, b at 219.5), GX12 (x proposed 300; a 176, b 116 slots), and — added by the lane-2 re-verification (`GR-AG`) — **S1** `[a 20x20] [x 60x20 span 2]` at 200×200 (60×48, a at 0) and **S2** `[a 20x20, b 30x20] [d 10x20, x 90x20 span 2]` at 300×200 (118×48, b at 28), probe `swiftui-grid-span-targets.swift` | not in the tree | (a) propose a span the sum of its columns' shares plus inner gaps (probe variant 2; GX10's x moves); (b) drop step 12 (GX9's b reads 231, a's column 61); (c) drop the middle target step (S1's a at 10, S2's b at 43 — **green before S1/S2**) |
 | 2.9 | `theModelsDisagreementsWithSwiftUIArePinned` — pinned wrong on purpose; SwiftUI's figures in its doc comment | the model's figures: **GX17** 200×100, a (0,36 30×10), b (38,0 134×82), c (180,31 20×20), x (25,90 150×10); **GX18** 200×100, a (0,0 104×82), b (112,36 30×10), c (150,36 50×10), x (70,90 60×10); **GS4** 45×40, a (0,0 15×10), c (15,15 30×20), s (0,10 15×30); **GS5** 164×136, a (48,0 40×40), b (34,63 68×10), c (144,48 20×40), d (53,96 30×40); GX19 (control, agreeing with SwiftUI) 200×100, x (80,90 40×10) | not in the tree | skip `absorbSpan` at proposals other than nil×nil (GX17 and GS5 move; the lane records the figures) |
 | 2.10 | `aGridPassesNoPriorityToAnEnclosingStack` | kernel spellings of GE8 (46/46), GE10 (**as built pinned wrong on purpose at 46/38/10**, SwiftUI 36/38/10: the stack's infinite tie, `GR-X` item 1, `GR-O` 8), GE11 (50/50), with GE27 (0/92) and GE28 (92/8) as controls, `#require` GE8 ≠ GE27 and GE11 ≠ GE28 | not in the tree | `.grid` in `nativeLayoutPriority` passes a one-cell grid's child priority, as a one-child stack does (GE8 reads 0/92, GE11 reads 92/8) |
 | 2.11 | `aGridInAStackLaysOutAsTheModelInAStack` | kernel spellings of GE17–GE22 (**GE19 as built pinned wrong on purpose** at z 46, stack 200×112, with the no-grid control T7 of probe `swiftui-grid-stack-ties.swift`; `GR-X` item 1), and the rects of GE1–GE7, GE16, GE23–GE26, GE29, GE30 laid out (moved from 1.10/1.11 by `GR-W`) | not in the tree | GZ0's control (GE17 moves; the lane records it) |
@@ -478,6 +483,9 @@ transcribed verbatim with its comment header kept).
 **Expected count:** 1431 + 14 = **1445**; guards 71. **Demo:** 0 px. **As built:
 1446** (lane 1's verifier added a test, `GR-X` item 6); depth re-bisected
 (`GR-X` item 2: a one-cell-grid chain at 400×400 completes 155, at nil×nil 167).
+**Re-verified at `d6ad9ff`** (suite 1450, goldens 97, guards 71, demo 12/12 at
+0 px): one green mutation found and pinned, `GR-AG`, test 2.8's S1 and S2 arms;
+no count moved.
 
 ### Lane 3 — cell attributes and the modifier-chain walk
 

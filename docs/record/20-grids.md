@@ -757,6 +757,102 @@ reads `session CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`,
 `displayActive main: 0`. So no real-window capture this round either; it is
 still lane 4's (`GR-AE`, `GR-M`), and whoever takes it re-runs this probe first.
 
+## Lane 2 re-verification at `d6ad9ff` (2026-09-17)
+
+Lane 2 was re-dispatched after the second critic round and after lane 1's
+verifier round, with its own round's content — re-owning divergence `GR-O` 8 to
+plan task 6 and queueing lane 3's three amendments — **already applied** by
+`062a114`. Its code (`cdd9209` plus the critic round's `1b6c698`) is in the
+tree, the working tree was clean on arrival, and no lane-2 behaviour changed.
+What was re-taken, and the one thing that was not already true:
+
+### Re-taken at `d6ad9ff`
+
+- `swift build --build-system native --build-tests`, then `swift test
+  --build-system native --no-parallel` unfiltered: **`Test run with 1450 tests
+  in 1 suite passed after 44.477 seconds`**, 0 `error:`, the only `warning:`
+  SwiftPM's deprecation notice. (Lane 2's own record reads 1446; the four since
+  are the critic round's three and lane 1's verifier's one.)
+- Goldens **97** (`find Tests -name "*.json" | wc -l`), `git diff cb2e708 --
+  '*.json'` empty. Guards **71** (73 `canTypecheck` hits across the fourteen
+  files, less `Typecheck.swift`'s declaration and `UnitSafetyTests`' comment).
+- `GR-X`'s claims, checked one by one in the source: `NativeGridSolver` is still
+  inverted (`request` / `provide`, the loop in
+  `LayoutTree.measureGrid(_:atAProposal:)`); `NativeGridSolution.bookkeepingSteps`
+  and test 2.14's literals 2203 / 1103 / ≤ 3 are unchanged; tests 2.10 and 2.11
+  still pin GE10 at a 46 and GE19 at z 46, and 2.11 still carries the no-grid T7
+  arm that lane 3 moves out. `GR-O` item 8's owner row (plan task 6) and
+  `GR-U`'s uncounted-sites list are in the decisions doc.
+
+### Mutations (from a copy, `git status --short` after each, full native suite)
+
+Four mutations of the finite solver, chosen where a claim looked unpinned:
+
+| # | mutation | reddened |
+|---|---|---|
+| R1 | `sortByKey`'s last tiebreak reversed (`x > y`): within a group, later declarations served first | 2.1 `aFiniteProposalServesGroupsWithSharesAndCommits` — 1 issue |
+| R2 | the probe's two `proposal.width != nil` / `proposal.height != nil` guards dropped, so a nil axis counts toward the flexibility key | 2.2 `theFlexibilityKeyCountsInfiniteAxesFirstAndIgnoresANilAxis`, 2.11 — 9 issues |
+| R3 | `commitColumn`'s `levelInColumn[column] == 0` dropped: a column commits with cells still open | 2.1, 2.3, 2.5, 2.6, 2.7, 2.8, 2.9, 2.11, 2.12 — 107 issues |
+| **R4** | `finishGroup`'s **middle** span-target step deleted (`targets = columns.filter { plan.columnSingleCells[$0].isEmpty }`) | **nothing: `Test run with 1450 tests in 1 suite passed`** |
+
+### The finding: `GR-AG`, step (2) of the span-target rule
+
+R4's mutant is not equivalent — it moves any cell sharing a column with a span
+whose other spanned columns hold no single-column cell. The committed arms
+reach step (1) (GX9) and step (3) (GX8) at a finite proposal, and step (2) only
+at nil×nil (GX11), which runs the other solve.
+
+A companion probe, **`docs/probes/swiftui-grid-span-targets.swift`**, was written
+and run for it. Four arms, two positive controls already recorded in
+`swiftui-grid.swift` (C0 = GX8 at 300×100, 100×38 with a (10.50,23), b
+(69.50,18), x (0,0); C1 = GX11 at nil×nil, 156×58 with all six rects), both
+reproduced rect for rect, and one discriminator per shape, each also run at
+nil×nil:
+
+| arm | grid | at | SwiftUI | "all spanned columns" |
+|---|---|---|---|---|
+| S1 | `[a 20x20] [x 60x20 span 2]` | 200×200 and nil | 60×48, **a (0,0 20×20)**, x (0,28 60×20) | a at 10 |
+| S2 | `[a 20x20, b 30x20] [d 10x20, x 90x20 span 2]` | 300×200 and nil | 118×48, **b (28,0 30×20)**, a (0,0), d (5,28), x (28,28 90×20) | b at 43 |
+
+So SwiftUI puts the whole shortfall in the spanned column with no single-column
+cell at a finite proposal exactly as at nil, the kernel was right on both
+branches, and the defect was that the arm was missing — the lane-1 verifier's
+`GR-D` finding one branch over. The sizes also confirm `GR-D`'s pairless column
+boundary contributes 0 and not the 8pt default (60 and 118, not 68 and 126).
+Exit 0, run twice, byte-identical stdout, macOS 27.0 (26A428), `/usr/bin/swift`
+Apple Swift 6.4 (swiftlang-6.4.0.33.1); the reading and the stdout are in its
+header.
+
+`aSpanAtAFiniteProposalIsOfferedTheWidthOutsideItAndWidensItsOpenColumnsFirst`
+gains the S1 and S2 arms and names the mutation (`7986252`). Committed first,
+then R4 re-applied from a copy: it reddens **that test and nothing else**, 2
+issues, `S1 a: LayoutRect(x: 10.0, …)` and `S2 b: LayoutRect(x: 43.0, …)` —
+the two figures derived by hand before the run. `git status --short` empty after
+the restore. Suite still **1450**: the arms are arms, not new tests.
+
+### Demo and the real window
+
+`git diff 062a114 -- Sources/` is empty, and this round's only `Sources/` change
+is two doc comments in `NativeGrid.swift` (the stale
+`solveNativeGridAtAProposal` name, and the three-step target rule's per-branch
+arms), so the tree's rendering is byte-for-byte the one already compared. It was
+nevertheless re-taken rather than inherited:
+`CN-R`'s harness (`scratchpad/harness/gen-lib.py`, `DEMO_PIXELS_SMALL=1`,
+default build system) in fresh `git archive`s of `cb2e708` and `d6ad9ff`:
+**12 of 12 images 0 differing pixels, scenes identical.** Controls on the head
+images, each reproducing lane 1's recorded figure exactly: light vs dark f0
+**1 048 576**; default vs modal (light) **1 030 498**; default vs animation
+(light) **210 027**; f0 vs f3 **0**; preview light vs dark **1 048 576**; 544
+distinct pixel values in `default-light-f0`.
+
+The screen was **locked at this hour too** — the third round in a row:
+`docs/probes/appkit-screen-lock-state.swift` compiled `-O` and run 2026-09-17
+reads `session CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`,
+`displayActive main: 0` (`preflightScreenCaptureAccess: true`, one screen
+2056×1329 at scale 2). So no real-window capture; it is still lane 4's
+(`GR-AE`, `GR-M`), and whoever takes it re-runs this probe first, on the CGS
+reading `FR-V` asks for rather than `IOConsoleLocked`.
+
 ## For the integrator
 
 (Written by lane 4; see spec §6, lane 4.)
