@@ -423,7 +423,7 @@ fix), and this record.
   (1357 + 11). Goldens 97; no `*.json` changed since `c2290fc`. The new guard
   prints `LAYOUT-AUTHORITY GUARD G1 choose: succeeded=false` and `control:
   succeeded=true`, so it ran.
-- `a155251` (22:0x PDT, no stored property on a public type changed, so no
+- `a155251` (committed 22:17 PDT; no stored property on a public type changed, so no
   clean): build 0 `error:`; `Test run with 1369 tests in 1 suite passed after
   41.643 seconds` (1368 + `1.5b`). Goldens 97; `git diff --stat c2290fc --
   '*.json'` empty.
