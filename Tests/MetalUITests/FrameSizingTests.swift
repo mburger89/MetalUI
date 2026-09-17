@@ -241,35 +241,63 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
 /// has no field that carries a caller's preferred size. An accepted-and-ignored
 /// parameter is the declared-but-inert shape CLAUDE.md keeps a table of, so the
 /// parameters stay in the signature — a port between paths is a type change and
-/// nothing else — and the call traps with a message naming the proposal path.
+/// nothing else — and laying the frame out traps with a message naming the
+/// proposal path.
+///
+/// **Amended by plan task 7, stage 1, lane 4 (ruling `LR-H`)**: the trap moved
+/// from the overload (construction) to the frame layer's **legacy registration**,
+/// because under the proposal layout authority the same layer lowers onto the
+/// kernel frame, whose ideal is SwiftUI's (spec 4.6). So each closure below
+/// **renders** its value under the legacy authority; the message check is
+/// unchanged. The old construction-only spelling exits successfully since lane 4,
+/// which is the amendment's evidence (record §18, lane 4).
 ///
 /// **Two positive controls**, and the second is the overload split's
-/// (critic finding 5): the same flexible overload with min/max only must exit
-/// successfully, and `.frame(idealWidth:)` on a **proposal** element must exit
+/// (critic finding 5): the same flexible overload with min/max only must render
+/// successfully, and `.frame(idealWidth:)` on a **proposal** element must render
 /// successfully too — if the legacy overload ever won there, a working SwiftUI
 /// idiom would become this trap.
 ///
-/// Mutations: delete the precondition (both failure arms redden); make the
-/// legacy overload win on a proposal element (the proposal control reddens).
+/// Mutations: delete the legacy registration's check (both failure arms redden);
+/// make the legacy overload win on a proposal element (the proposal control
+/// reddens).
 @Test func anIdealDimensionOnTheLegacyFrameTraps() async throws {
     let width = await #expect(processExitsWith: .failure,
                               observing: [\.standardErrorContent]) {
-        await MainActor.run { _ = Text("ideal").frame(idealWidth: Pixels(80)) }
+        await MainActor.run {
+            _ = LayoutDifferential.render(authority: .legacy, width: 200, height: 200) {
+                Text("ideal").frame(idealWidth: Pixels(80))
+            }
+        }
     }
     let widthError = String(decoding: width?.standardErrorContent ?? [], as: UTF8.self)
     #expect(widthError.contains("idealWidth"),
             "the trap must name the parameter that caused it: \(widthError)")
 
     await #expect(processExitsWith: .failure) {
-        await MainActor.run { _ = Text("ideal").frame(idealHeight: Pixels(80)) }
+        await MainActor.run {
+            _ = LayoutDifferential.render(authority: .legacy, width: 200, height: 200) {
+                Text("ideal").frame(idealHeight: Pixels(80))
+            }
+        }
     }
 
     await #expect(processExitsWith: .success) {
-        await MainActor.run { _ = Text("bounded").frame(minWidth: Pixels(40), maxWidth: Pixels(80)) }
+        await MainActor.run {
+            _ = LayoutDifferential.render(authority: .legacy, width: 200, height: 200) {
+                Text("bounded").frame(minWidth: Pixels(40), maxWidth: Pixels(80))
+            }
+        }
     }
 
     await #expect(processExitsWith: .success) {
-        await MainActor.run { _ = Rectangle().frame(idealWidth: Pixels(80)) }
+        await MainActor.run {
+            // A proposal root, not the harness root: a legacy `Stack` over a native
+            // node is `SA-G`'s trap, whatever the frame does.
+            var root = Rectangle().frame(idealWidth: Pixels(80))
+            Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)), scaleFactor: 1,
+                  layoutAuthority: .legacy).render(&root)
+        }
     }
 }
 

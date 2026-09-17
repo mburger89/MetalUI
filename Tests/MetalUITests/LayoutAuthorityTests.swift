@@ -217,6 +217,10 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// column with one child, a declared height and no declared width, where its
 /// default `stretch` has no free space to show (ruling LR-E) — reports nothing.
 ///
+/// **Lane 4** lowers `Stack` and both `ModifiedElement` registrars, so their arms
+/// declare a field the tables report: the `Stack` `flexGrow`, the outermost layer
+/// `flexGrow`, and the inner-layer arm `flexGrow` inside and `margin` outside.
+///
 /// **The `Component` amend arm runs in a child process** and prints its entries:
 /// in-process, a regression in the amend's check reaches `SA-G`'s `setStyle`
 /// precondition and ends the whole run with no summary line (lane-1 verifier,
@@ -228,17 +232,19 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 @MainActor
 @Test func everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn() async throws {
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
-    let layer = field(.modifierLayer, "noLowering")
     var arms: [Arm] = []
     arms.append(("Box", diagnostics { Box().width(px(10)).height(px(10)).flexGrow(1) },
                  [field(.box, "flexGrow")]))
-    arms.append(("Stack", diagnostics { Stack { ProbeLeaf(width: 10, height: 10) } },
-                 [field(.stack, "noLowering")]))
+    arms.append(("Stack", diagnostics { Stack { ProbeLeaf(width: 10, height: 10) }.flexGrow(1) },
+                 [field(.stack, "flexGrow")]))
     arms.append(("Text", diagnostics { Text("a").flexGrow(1) }, [field(.text, "flexGrow")]))
-    arms.append(("ModifiedElement, outermost registrar", diagnostics { Box().padding(px(4)) },
-                 [layer]))
+    arms.append(("ModifiedElement, outermost registrar", diagnostics { Box().padding(px(4)).flexGrow(1) },
+                 [field(.modifierLayer, "flexGrow")]))
+    // The inner layer declares `flexGrow`, the outermost `margin`, so the two
+    // registrars' entries are told apart by name and by order (inner first).
     arms.append(("ModifiedElement, inner-layer registrar",
-                 diagnostics { Box().padding(px(4)).padding(px(8)) }, [layer, layer]))
+                 diagnostics { Box().padding(px(4)).flexGrow(1).padding(px(8)).margin(px(3)) },
+                 [field(.modifierLayer, "flexGrow"), field(.modifierLayer, "margin")]))
     arms.append(("ScrollView", diagnostics { ScrollView { ProbeLeaf(width: 10, height: 10) } },
                  [field(.scrollView, "noLowering")]))
     // `list` first; then the zero-row `Box` it lays out under diagnostics — its

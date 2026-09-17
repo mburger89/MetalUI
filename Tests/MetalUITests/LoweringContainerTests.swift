@@ -287,9 +287,11 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 ///   nothing on a single line and is not reported);
 /// - every-node rows on a container: `margin`; `padding.floor`;
 /// - a hidden container reports `display.none` alone, even with a reverse direction;
-/// - a `Box` container declaring `display: .stack` reports `noLowering` (the overlay
-///   lowering is lane 4's) — added after mutation M3l (the check deleted, so the
-///   stack lowered as a flex row) left the suite green.
+/// - a `Box` container declaring `display: .stack` reported `noLowering` in lane 3 —
+///   added after mutation M3l (the check deleted, so the stack lowered as a flex
+///   row) left the suite green; since lane 4 it lowers as an overlay, and with its
+///   `nil` alignments reports `[alignItems.stretch, justifyItems.stretch]` (ruling
+///   LR-Y's amendment, spec 4.1).
 ///
 /// Mutation that must redden it: **M3f**, stretch always lowerable (the two-child
 /// arm reports nothing and disagrees); each reported row's check deleted reddens
@@ -378,10 +380,10 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
         ("margin on a container", report { Row { fixed(20, 10) }.margin(px(3)) }, [field(.box, "margin")]),
         ("padding floor on a container", report { Box(style: padded(10)) { fixed(20, 10) } },
          [field(.box, "padding.floor")]),
-        ("display: .stack on a Box container (lane 4's overlay)",
+        ("display: .stack on a Box container (lowered as an overlay since lane 4)",
          report { Box(style: { var s = Style(); s.display = .stack; return s }()) {
              fixed(20, 10); fixed(30, 10)
-         } }, [field(.box, "noLowering")]),
+         } }, [field(.box, "alignItems.stretch"), field(.box, "justifyItems.stretch")]),
         ("hidden reverse container",
          report { Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.rowReverse).hidden() },
          [field(.box, "display.none")]),
