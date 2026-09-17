@@ -39,6 +39,16 @@
 //        the parent (percentages).
 //   V  — `.hidden()` paints nothing and takes no tap (layout is stage-1 H1,
 //        accessibility is accessibility-bridge-rules R9).
+//   Revision 2 (critic round 1, appended; every revision-1 line is unchanged
+//   and in place, C2 sits after C1):
+//   C2 — a parent-relative fraction spelled with GeometryReader.
+//   X11–X18 — a greedy item inside a one-child padding (grow, alignment), a
+//        greedy child in a hugging ZStack, a greedy item on a hugging stack's
+//        main axis.
+//   F9, F10 — a greedy frame over a Text, and over a rigid stack, wider than
+//        its share (a zero basis with no minimum).
+//   P7–P9 — BM-4's overflow under a leading, top and centre frame alignment.
+//   Y  — breaking inside a word, against CoreText's own line breaks.
 //
 // RECORDED 2026-09-17 07:20 PDT by the stage-2 design session, macOS 27.0
 // (26A428), `/usr/bin/swift` = Apple Swift 6.4 (swiftlang-6.4.0.33.1). Exit
@@ -48,6 +58,15 @@
 // CGSSessionScreenIsLocked = 1, displayAsleep main: 1); group V sends events
 // to its own windows with `NSWindow.sendEvent`, and its controls V0/V2 move,
 // so the lock did not blind it.
+//
+// REVISION 2 RECORDED 2026-09-17 07:55 PDT by the same session (critic round
+// 1), same OS and toolchain, after renaming its word-break group to Y (the
+// stage-1 probe already has a B group): exit 0; run twice, stdout
+// byte-identical, 235 lines, the header's OUTPUT line for line; filtered stderr
+// empty. Screen locked and asleep
+// (CGSSessionScreenIsLocked = 1, displayAsleep main: 1 at 07:49). The 157
+// revision-1 lines appear unchanged and in order, with C2's three lines after
+// C1.
 //
 // READING (each arm against its control; "CSS" is the legacy engine's answer
 // for the legacy spelling the arm stands in for, from the engine's rules, not
@@ -104,6 +123,31 @@
 // - V: `.hidden()` paints nothing (V1 white; control V0 not white) and takes
 //   no tap — the tap reaches the view under it (V3: top 0, under 1; control
 //   V2 top 1, under 0).
+// - C2: `GeometryReader` takes the whole 200 proposal and a child sized
+//   `g.size.width * 0.5` is 100 — half of the PARENT's proposal. A
+//   parent-relative fraction IS spellable in SwiftUI, through a view that is
+//   itself greedy; `containerRelativeFrame` (C1) is not it.
+// - X11/X12: a greedy frame inside `.padding(8)` makes the padding fill its
+//   stack's leftover (160 against the control's 46; a hugging CSS padding
+//   layer keeps 46). X13/X14: a trailing alignment frame inside a padding
+//   makes an indefinite VStack fill (300 against 100) with b at the trailing
+//   edge (272). X15/X16: a greedy child makes a hugging ZStack fill (200
+//   against 30). X17/X18: a greedy item on a VStack's MAIN axis makes it
+//   fill a concrete proposal (200 tall against 30).
+// - F9: a greedy frame over a Text wider than its 50 share is 50, the Text
+//   breaking inside its word (48x48, three lines); CSS's zero-basis automatic
+//   minimum keeps the word's width. F10: over a rigid 200 stack the frame is
+//   200 and the row overflows (220), as CSS's automatic minimum does.
+// - P7/P8/P9: the 34x34 padding overflows a 10x10 frame by the frame's
+//   alignment: `.leading` centres it vertically (child at (12, 0)), `.top`
+//   horizontally (child at (0, 12)), the default both (child at (0, 0)); P1's
+//   `.topLeading` put the child at (12, 12).
+// - Y: at every width SwiftUI's line count equals CoreText's
+//   `CTTypesetterSuggestLineBreak` loop (which breaks inside a word that does
+//   not fit), and its width is min(proposal, ceil(widest line WITH its
+//   trailing space)): Y2/Y3 19 (18.17), Y4 11 (10.31), Y6/Y7 18 (17.25), Y9 45
+//   (44.02; 40.44 without the space), and the proposal where that is wider
+//   (Y5 5 against 7.86, Y8 30 against 33.31). Control Y0 (nil): one line.
 //
 // OUTPUT:
 //
@@ -259,14 +303,93 @@
 //       geometry color: (50, 0) 100x10
 //   C1 VStack(0){Color.containerRelativeFrame(.horizontal){w*0.5}.frame(height:10)}.frame(width:200) @nilxnil: size 200x10
 //       geometry color: (-150, 0) 500x10
+//   C2 VStack(0){GeometryReader{Color.frame(width:g.w*0.5,height:10)}.frame(height:10)}.frame(width:200) @nilxnil: size 200x10
+//       geometry color: (0, 0) 100x10
+//       geometry reader: (0, 0) 200x10
 //   V0 control Color.red.frame(20x20): centre pixel not white [255, 66, 69]
 //   V1 Color.red.frame(20x20).hidden(): centre pixel white (255,255,255)
 //   V2 control ZStack{blue.onTap(under); red.onTap(top)}: top 1, under 0
 //   V3 ZStack{blue.onTap(under); red.onTap(top).hidden()}: top 0, under 1
+//   X11 control HStack(0){a40x10; b30x10.padding(8)} at 200 @200xnil: size 86x26
+//       leaf a: at (0, 8) 40x10
+//       leaf b: at (48, 8) 30x10
+//       geometry pad: (40, 0) 46x26
+//   X12 HStack(0){a40x10; b30x10.frame(maxWidth:.inf).padding(8)} at 200 @200xnil: size 200x26
+//       leaf a: at (0, 8) 40x10
+//       leaf b: at (105, 8) 30x10
+//       geometry pad: (40, 0) 160x26
+//   X13 control VStack(0){a100x10; b20x10.padding(8)} at 300 @300xnil: size 100x36
+//       leaf a: at (0, 0) 100x10
+//       leaf b: at (40, 18) 20x10
+//       geometry pad: (32, 10) 36x26
+//       geometry vstack: (0, 0) 100x36
+//   X14 VStack(0){a100x10; b20x10.frame(maxWidth:.inf,alignment:.trailing).padding(8)} at 300 @300xnil: size 300x36
+//       leaf a: at (100, 0) 100x10
+//       leaf b: at (272, 18) 20x10
+//       geometry pad: (0, 10) 300x26
+//       geometry vstack: (0, 0) 300x36
+//   X15 control HStack(0){ZStack{a30x10; b0x10}} at 200 @200xnil: size 30x10
+//       leaf a: at (0, 0) 30x10
+//       leaf b: at (15, 0) 0x10
+//       geometry zstack: (0, 0) 30x10
+//   X16 HStack(0){ZStack{a30x10; b0x10.frame(maxWidth:.inf)}} at 200 @200xnil: size 200x10
+//       leaf a: at (85, 0) 30x10
+//       leaf b: at (100, 0) 0x10
+//       geometry zstack: (0, 0) 200x10
+//   X17 control VStack(0){a30x20; b30x10} at 200x200 @200x200: size 30x30
+//       leaf a: at (0, 0) 30x20
+//       leaf b: at (0, 20) 30x10
+//       geometry vstack: (0, 0) 30x30
+//   X18 VStack(0){a30x20; b30x10.frame(maxHeight:.inf)} at 200x200 @200x200: size 30x200
+//       leaf a: at (0, 0) 30x20
+//       leaf b: at (0, 105) 30x10
+//       geometry bframe: (0, 20) 30x180
+//       geometry vstack: (0, 0) 30x200
+//   F9 HStack(0){Text(alphabravocharlie).frame(maxWidth:.inf); b20x10.frame(maxWidth:.inf)} at 100 @100xnil: size 100x48
+//       leaf b: at (65, 19) 20x10
+//       geometry bframe: (50, 19) 50x10
+//       geometry text: (1, 0) 48x48
+//       geometry textframe: (0, 0) 50x48
+//   F10 HStack(0){HStack(0){a100;c100}.frame(maxWidth:.inf); b20x10.frame(maxWidth:.inf)} at 150 @150xnil: size 220x10
+//       leaf a: at (0, 0) 100x10
+//       leaf c: at (100, 0) 100x10
+//       leaf b: at (200, 0) 20x10
+//       geometry bframe: (200, 0) 20x10
+//       geometry innerframe: (0, 0) 200x10
+//   P7 c10x10.padding(12).frame(width:10,height:10,.leading) @nilxnil: size 10x10
+//       leaf c: at (12, 0) 10x10
+//       geometry padding: (0, -12) 34x34
+//   P8 c10x10.padding(12).frame(width:10,height:10,.top) @nilxnil: size 10x10
+//       leaf c: at (0, 12) 10x10
+//       geometry padding: (-12, 0) 34x34
+//   P9 c10x10.padding(12).frame(width:10,height:10) @nilxnil: size 10x10
+//       leaf c: at (0, 0) 10x10
+//       geometry padding: (-12, -12) 34x34
+//   Y0 control Text(alpha) at nil @nilxnil: size 33x16
+//       ct n/a (nil proposal)
+//   Y1 Text(alpha) at 33 @33xnil: size 33x16
+//       ct lines 1 widest 32.84 with trailing space 32.84
+//   Y2 Text(alpha) at 25 @25xnil: size 19x32
+//       ct lines 2 widest 18.17 with trailing space 18.17
+//   Y3 Text(alpha) at 20 @20xnil: size 19x32
+//       ct lines 2 widest 18.17 with trailing space 18.17
+//   Y4 Text(alpha) at 12 @12xnil: size 11x64
+//       ct lines 4 widest 10.31 with trailing space 10.31
+//   Y5 Text(alpha) at 5 @5xnil: size 5x80
+//       ct lines 5 widest 7.86 with trailing space 7.86
+//   Y6 Text(Short) at 21 @21xnil: size 18x32
+//       ct lines 2 widest 17.25 with trailing space 17.25
+//   Y7 Text(Short) at 18 @18xnil: size 18x32
+//       ct lines 2 widest 17.25 with trailing space 17.25
+//   Y8 Text(long) at 30 @30xnil: size 30x192
+//       ct lines 12 widest 29.95 with trailing space 33.31
+//   Y9 Text(long) at 45 @45xnil: size 45x112
+//       ct lines 7 widest 40.44 with trailing space 44.02
 //   DONE
 
 import AppKit
 import SwiftUI
+import CoreText
 
 func d(_ v: CGFloat?) -> String {
     guard let v else { return "nil" }
@@ -498,6 +621,116 @@ func p(_ x: CGFloat?, _ y: CGFloat?) -> ProposedViewSize { ProposedViewSize(widt
             SwiftUI.Color.red.containerRelativeFrame(.horizontal) { length, _ in length * 0.5 }.frame(height: 10).geo("color")
         }.frame(width: 200)
     }
+    // C2 (critic round 1, finding 15): a parent-relative fraction IS spellable
+    // with GeometryReader, which itself takes the whole proposal.
+    run("C2 VStack(0){GeometryReader{Color.frame(width:g.w*0.5,height:10)}.frame(height:10)}.frame(width:200)", none) {
+        VStack(spacing: 0) {
+            GeometryReader { g in
+                SwiftUI.Color.red.frame(width: g.size.width * 0.5, height: 10).geo("color")
+            }.frame(height: 10).geo("reader")
+        }.frame(width: 200)
+    }
+}
+
+// Revision 2 (critic round 1): arms appended after C2 so the earlier output
+// lines are unchanged.
+@MainActor func revisionTwoProbes() {
+    // X11-X16 — a greedy item inside a HUGGING one-child wrapper (finding 2),
+    // inside a hugging ZStack (finding 13), and on a hugging stack's main axis
+    // (cause R, finding 13). Each arm follows its control.
+    run("X11 control HStack(0){a40x10; b30x10.padding(8)} at 200", w(200)) {
+        HStack(spacing: 0) { fixed("a", 40, 10); fixed("b", 30, 10).padding(8).geo("pad") }
+    }
+    run("X12 HStack(0){a40x10; b30x10.frame(maxWidth:.inf).padding(8)} at 200", w(200)) {
+        HStack(spacing: 0) { fixed("a", 40, 10); fixed("b", 30, 10).frame(maxWidth: .infinity).padding(8).geo("pad") }
+    }
+    run("X13 control VStack(0){a100x10; b20x10.padding(8)} at 300", w(300)) {
+        VStack(spacing: 0) { fixed("a", 100, 10); fixed("b", 20, 10).padding(8).geo("pad") }.geo("vstack")
+    }
+    run("X14 VStack(0){a100x10; b20x10.frame(maxWidth:.inf,alignment:.trailing).padding(8)} at 300", w(300)) {
+        VStack(spacing: 0) { fixed("a", 100, 10); fixed("b", 20, 10).frame(maxWidth: .infinity, alignment: .trailing).padding(8).geo("pad") }.geo("vstack")
+    }
+    run("X15 control HStack(0){ZStack{a30x10; b0x10}} at 200", w(200)) {
+        HStack(spacing: 0) { ZStack { fixed("a", 30, 10); fixed("b", 0, 10) }.geo("zstack") }
+    }
+    run("X16 HStack(0){ZStack{a30x10; b0x10.frame(maxWidth:.inf)}} at 200", w(200)) {
+        HStack(spacing: 0) { ZStack { fixed("a", 30, 10); fixed("b", 0, 10).frame(maxWidth: .infinity) }.geo("zstack") }
+    }
+    run("X17 control VStack(0){a30x20; b30x10} at 200x200", p(200, 200)) {
+        VStack(spacing: 0) { fixed("a", 30, 20); fixed("b", 30, 10) }.geo("vstack")
+    }
+    run("X18 VStack(0){a30x20; b30x10.frame(maxHeight:.inf)} at 200x200", p(200, 200)) {
+        VStack(spacing: 0) { fixed("a", 30, 20); fixed("b", 30, 10).frame(maxHeight: .infinity).geo("bframe") }.geo("vstack")
+    }
+
+    // F9-F10 — a zero-basis grower with no minimum (finding 3): a Text whose
+    // word is wider than its share, and a rigid container wider than its share.
+    run("F9 HStack(0){Text(alphabravocharlie).frame(maxWidth:.inf); b20x10.frame(maxWidth:.inf)} at 100", w(100)) {
+        HStack(spacing: 0) {
+            Text("alphabravocharlie").geo("text").frame(maxWidth: .infinity).geo("textframe")
+            fixed("b", 20, 10).frame(maxWidth: .infinity).geo("bframe")
+        }
+    }
+    run("F10 HStack(0){HStack(0){a100;c100}.frame(maxWidth:.inf); b20x10.frame(maxWidth:.inf)} at 150", w(150)) {
+        HStack(spacing: 0) {
+            HStack(spacing: 0) { fixed("a", 100, 10); fixed("c", 100, 10) }.frame(maxWidth: .infinity).geo("innerframe")
+            fixed("b", 20, 10).frame(maxWidth: .infinity).geo("bframe")
+        }
+    }
+
+    // P7-P9 — BM-4's floor under the alignments a lowered Row (.leading: main
+    // flex-start, cross centre), Column (.top) and centred frame use (finding 13).
+    run("P7 c10x10.padding(12).frame(width:10,height:10,.leading)", none) {
+        fixed("c", 10, 10).padding(12).geo("padding").frame(width: 10, height: 10, alignment: .leading)
+    }
+    run("P8 c10x10.padding(12).frame(width:10,height:10,.top)", none) {
+        fixed("c", 10, 10).padding(12).geo("padding").frame(width: 10, height: 10, alignment: .top)
+    }
+    run("P9 c10x10.padding(12).frame(width:10,height:10)", none) {
+        fixed("c", 10, 10).padding(12).geo("padding").frame(width: 10, height: 10)
+    }
+}
+
+// Y — breaking inside a word (critic round 1, finding 14). Each arm prints
+// SwiftUI's answer and CoreText's `CTTypesetterSuggestLineBreak` loop at the
+// same width in the 13pt system font (`ct lines N widest W with trailing space
+// H`: the widest line without, and with, its trailing whitespace), so an agreement is a reading, not a guess.
+@MainActor func coreTextLines(_ string: String, _ width: CGFloat) -> String {
+    let font = NSFont.systemFont(ofSize: 13)
+    let attributed = NSAttributedString(string: string, attributes: [.font: font])
+    let typesetter = CTTypesetterCreateWithAttributedString(attributed)
+    var start = 0, lines = 0
+    var widest: CGFloat = 0, widestHung: CGFloat = 0
+    while start < attributed.length {
+        let count = CTTypesetterSuggestLineBreak(typesetter, start, Double(width))
+        let line = CTTypesetterCreateLine(typesetter, CFRange(location: start, length: count))
+        let full = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+        widest = max(widest, full - CGFloat(CTLineGetTrailingWhitespaceWidth(line)))
+        widestHung = max(widestHung, full)
+        lines += 1
+        start += max(count, 1)
+    }
+    return "ct lines \(lines) widest \(String(format: "%.2f", widest)) with trailing space \(String(format: "%.2f", widestHung))"
+}
+
+@MainActor func breakProbes() {
+    let arms: [(String, String, CGFloat?)] = [
+        ("Y0 control Text(alpha) at nil", "alpha", nil),
+        ("Y1 Text(alpha) at 33", "alpha", 33),
+        ("Y2 Text(alpha) at 25", "alpha", 25),
+        ("Y3 Text(alpha) at 20", "alpha", 20),
+        ("Y4 Text(alpha) at 12", "alpha", 12),
+        ("Y5 Text(alpha) at 5", "alpha", 5),
+        ("Y6 Text(Short) at 21", "Short", 21),
+        ("Y7 Text(Short) at 18", "Short", 18),
+        ("Y8 Text(long) at 30", long, 30),
+        ("Y9 Text(long) at 45", long, 45),
+    ]
+    for (label, string, width) in arms {
+        run(label, w(width)) { Text(string) }
+        print("    \(width.map { coreTextLines(string, $0) } ?? "ct n/a (nil proposal)")")
+        fflush(stdout)
+    }
 }
 
 // V — hidden: paint and hit testing.
@@ -572,5 +805,7 @@ app.setActivationPolicy(.accessory)
 MainActor.assumeIsolated {
     layoutProbes()
     hiddenProbes()
+    revisionTwoProbes()
+    breakProbes()
 }
 print("DONE")
