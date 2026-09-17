@@ -208,6 +208,12 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// entry; lanes 2–4 replace `box`, `stack`, `text` and `modifierLayer` with
 /// field-level entries (spec §6).
 ///
+/// **Lane 2** lowers a childless `Box` and a `Text`, so their arms carry a field
+/// the leaf table reports (`flexGrow`) and still name their own site; the
+/// `ModifiedElement` arms' `Box` lowers and reports nothing; `List`'s spacer is a
+/// childless `Box` declaring `flexShrink: 0` (`box.flexShrink`), and the zero-row
+/// `Box` around it is a container, still `box.noLowering` until lane 3.
+///
 /// **The `Component` amend arm runs in a child process** and prints its entries:
 /// in-process, a regression in the amend's check reaches `SA-G`'s `setStyle`
 /// precondition and ends the whole run with no summary line (lane-1 verifier,
@@ -222,21 +228,23 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     let box = field(.box, "noLowering")
     let layer = field(.modifierLayer, "noLowering")
     var arms: [Arm] = []
-    arms.append(("Box", diagnostics { Box().width(px(10)).height(px(10)) }, [box]))
+    arms.append(("Box", diagnostics { Box().width(px(10)).height(px(10)).flexGrow(1) },
+                 [field(.box, "flexGrow")]))
     arms.append(("Stack", diagnostics { Stack { ProbeLeaf(width: 10, height: 10) } },
                  [field(.stack, "noLowering")]))
-    arms.append(("Text", diagnostics { Text("a") }, [field(.text, "noLowering")]))
+    arms.append(("Text", diagnostics { Text("a").flexGrow(1) }, [field(.text, "flexGrow")]))
     arms.append(("ModifiedElement, outermost registrar", diagnostics { Box().padding(px(4)) },
-                 [box, layer]))
+                 [layer]))
     arms.append(("ModifiedElement, inner-layer registrar",
-                 diagnostics { Box().padding(px(4)).padding(px(8)) }, [box, layer, layer]))
+                 diagnostics { Box().padding(px(4)).padding(px(8)) }, [layer, layer]))
     arms.append(("ScrollView", diagnostics { ScrollView { ProbeLeaf(width: 10, height: 10) } },
                  [field(.scrollView, "noLowering")]))
     // `list` first; then the zero-row `Box` it lays out under diagnostics — its
-    // spacer and itself — and no row `Box`.
+    // spacer (a childless `Box` with `flexShrink: 0`, lowered since lane 2) and
+    // itself — and no row `Box`.
     arms.append(("List", diagnostics {
         List(probeItems(3), rowHeight: px(10)) { _ in ProbeLeaf(width: 10, height: 10) }
-    }, [field(.list, "noLowering"), box, box]))
+    }, [field(.list, "noLowering"), field(.box, "flexShrink"), box]))
     let amendChild = await #expect(processExitsWith: .success,
                                    observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
