@@ -97,7 +97,10 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// size (CSS border-box; stage-1 probe B1): a 60×60 box padded (12, 4, 8, 12) is
 /// 60×60 on both sides; an unsized box padded (top 3, right 5, bottom 7, left 11)
 /// is 16×10 on both sides (the padding sums); a 10×10 box padded 8 on every edge
-/// (a declared size below the padding sum, `BM-4`) is reported `padding.floor`.
+/// (a declared size below the padding sum, `BM-4`) reports nothing **since stage 2's
+/// lane 4** and keeps its fixed 10×10 frame where CSS floors the border box at 16×16
+/// — the divergence spec 4.3 pins (`LR-AH` as amended); this arm only holds that the
+/// report is gone and the frame is the declared size.
 ///
 /// Mutation that must redden it: **M2b**, padding placed outside the size frame
 /// (the first arm's lowered box reads 76×80).
@@ -130,18 +133,24 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
             $0.padding = Edges(all: .pixels(px(8)))
         })
     }
-    #expect(floor.unlowerable == [field(.box, "padding.floor")])
+    #expect(floor.unlowerable.isEmpty, "\(floor.unlowerable)")
+    #expect(floor.legacyBounds[leafID] == bounds(0, 0, 16, 16))
+    #expect(floor.loweredBounds[leafID] == bounds(0, 0, 10, 10))
 }
 
 // MARK: - 2.3, 2.4 — which fields a leaf reports
 
 /// **2.3.** Every "otherwise" row of spec §5.4's **every node** table is reported
-/// by its field name on a leaf — on a childless `Box` and on a `Text`, except
-/// `padding.text`, which names a `Text` (on a `Box` padding lowers, 2.2). One arm
-/// per row, each setting only that field; each report is exactly one entry. Four
-/// combined rows follow on both sites: `padding.floor` on the width axis alone and
-/// on the height axis alone; `display: none` with a margin, reported alone (`LR-J`);
-/// `margin` with `flexGrow`, both reported in the table's order.
+/// by its field name on a leaf — on a childless `Box` and on a `Text`. One arm
+/// per row, each setting only that field; each report is exactly one entry. Three
+/// combined rows follow on both sites: a percentage padding and a percentage border
+/// together, in the table's order; `display: none` with a margin, reported alone
+/// (`LR-J`); `margin` with `flexGrow`, both in the table's order.
+///
+/// **Stage 2, lane 4 (rulings LR-AH, LR-AI).** The box-model rows are gone or
+/// renamed: `padding.floor` lowers (the fixed frame wins, spec 4.3), `padding.text`
+/// lowers (native padding around the leaf, spec 4.2), and a px/rem `border` lowers
+/// into the padding's insets — only `border.percent` still reports.
 ///
 /// **Stage 2, lane 1 (rulings LR-AB, LR-AQ).** The item rows — `minSize`, `maxSize`,
 /// `margin`, `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf` — are the parent's
@@ -149,12 +158,12 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// container consumes the leaf's record, so each reports `<field>.unconsumed` after
 /// the root returns, in `LR-AQ`'s order (`flexGrow` before `margin` in the combined
 /// row). Inside a lowered `Row` the parent consumes the record and reports what
-/// stage 2 cannot lower, at the leaf's site under the stage-1 name: seven more arms
-/// per site (`minSize` a percentage, `maxSize` on the row's unstretched cross axis, a
-/// negative `flexGrow` and `flexShrink` — lane 2 lowers a positive grow, a zero
-/// shrink and a px minimum — `flexBasis` a length, and `alignSelf` as `.baseline`,
-/// which reports `alignSelf.baseline`: a `.center` `alignSelf` lowers since lane 1).
-/// 51 arms.
+/// stage 2 cannot lower, at the leaf's site: seven more arms per site
+/// (`minSize.percent`, `maxSize` on the row's unstretched cross axis, a negative
+/// `flexGrow` and `flexShrink` — lane 2 lowers a positive grow, a zero shrink and a
+/// px minimum — `flexBasis` a length, `margin.percent` — lane 4 lowers a px/rem
+/// margin — and `alignSelf` as `.baseline`, which reports `alignSelf.baseline`: a
+/// `.center` `alignSelf` lowers since lane 1). 46 arms.
 ///
 /// Mutations that must redden it: **M2c**, the `margin` check deleted; **V3**, the
 /// height half of the floor check deleted; **V4**, `display: none` no longer
@@ -166,15 +175,10 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         ("display.none", { $0.display = .none }, true),
         ("size.percent", { $0.size.width = .length(.percent(0.5)) }, true),
         ("padding.percent", { $0.padding.left = .percent(0.1) }, true),
-        ("padding.floor", {
-            $0.size = Size(width: .length(.pixels(px(10))), height: .length(.pixels(px(10))))
-            $0.padding = Edges(all: .pixels(px(8)))
-        }, true),
-        ("padding.text", { $0.padding = Edges(all: .pixels(px(4))) }, false),
         ("minSize.unconsumed", { $0.minSize.width = .length(.pixels(px(5))) }, true),
         ("maxSize.unconsumed", { $0.maxSize.height = .length(.pixels(px(50))) }, true),
         ("margin.unconsumed", { $0.margin.top = .length(.pixels(px(3))) }, true),
-        ("border", { $0.border.right = .pixels(px(2)) }, true),
+        ("border.percent", { $0.border.right = .percent(0.1) }, true),
         ("position", { $0.position = .relative }, true),
         ("inset", { $0.inset.left = .length(.pixels(px(4))) }, true),
         ("flexGrow.unconsumed", { $0.flexGrow = 1 }, true),
@@ -206,16 +210,10 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     // unlowerable field reports `display.none` ALONE (`LR-J`); a leaf with two
     // unlowerable fields reports both, in the table's order.
     let combined: [(name: String, edit: (inout Style) -> Void, expected: [String])] = [
-        ("padding.floor width only", {
-            $0.size.width = .length(.pixels(px(10)))
-            $0.padding = Edges(top: .pixels(px(0)), right: .pixels(px(8)),
-                               bottom: .pixels(px(0)), left: .pixels(px(8)))
-        }, ["padding.floor"]),
-        ("padding.floor height only", {
-            $0.size = Size(width: .length(.pixels(px(100))), height: .length(.pixels(px(10))))
-            $0.padding = Edges(top: .pixels(px(8)), right: .pixels(px(0)),
-                               bottom: .pixels(px(8)), left: .pixels(px(0)))
-        }, ["padding.floor"]),
+        ("padding and border percent together", {
+            $0.padding.left = .percent(0.1)
+            $0.border.right = .percent(0.1)
+        }, ["padding.percent", "border.percent"]),
         ("display.none with margin", {
             $0.display = .none
             $0.margin.top = .length(.pixels(px(3)))
@@ -244,9 +242,9 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     // which lowers a px `minSize`, a positive `flexGrow` and `flexShrink: 0`: the
     // `minSize` arm is a percentage, and the grow and shrink arms are negative.
     let consumed: [(name: String, edit: (inout Style) -> Void)] = [
-        ("minSize", { $0.minSize.width = .length(.percent(0.5)) }),
+        ("minSize.percent", { $0.minSize.width = .length(.percent(0.5)) }),
         ("maxSize", { $0.maxSize.height = .length(.pixels(px(50))) }),
-        ("margin", { $0.margin.top = .length(.pixels(px(3))) }),
+        ("margin.percent", { $0.margin.top = .length(.percent(0.1)) }),
         ("flexGrow", { $0.flexGrow = -1 }),
         ("flexShrink", { $0.flexShrink = -1 }),
         ("flexBasis", { $0.flexBasis = .length(.pixels(px(10))) }),
@@ -266,7 +264,7 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                      }.unlowerableFields,
                      [field(.text, row.name)]))
     }
-    try #require(arms.count == 51)
+    try #require(arms.count == 46)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }

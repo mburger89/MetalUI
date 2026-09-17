@@ -459,12 +459,26 @@ public struct Text: Element, StyledElement {
         // leaf's own width is its widest line, which is wider than the frame when
         // the frame is narrower than a word (2.7), and wrapping there draws fewer
         // lines than were measured.
-        let width = max(pass.measuredWidth(of: layout.node), smallestWrapWidth)
+        //
+        // **And under a `Style.padding` that node is the LEAF, not the element**
+        // (stage 2, lane 4, ruling LR-AH as amended). A lowered padded `Text`
+        // registers its leaf inside a native padding, and the element's node is that
+        // padding (or a fixed frame above it): the glyphs belong at the leaf's origin
+        // and wrap at the leaf's measured width — the element's width less the
+        // horizontal insets. Wrapping at the element's width instead — W's, when the
+        // text is stretched or grown — would overflow the trailing padding and re-line
+        // (critic round 1's finding 5; spec 4.2's stretched arm pins it).
+        // `Frame.lowering.textLeaves` is empty under the legacy authority and for an
+        // unpadded text, so both keep painting at `bounds.origin` at `layout.node`'s
+        // measured width.
+        let glyphNode = pass.frame.lowering.textLeaves[layout.node]
+        let origin = glyphNode.map { pass.bounds(of: $0).origin } ?? bounds.origin
+        let width = max(pass.measuredWidth(of: glyphNode ?? layout.node), smallestWrapWidth)
         let shaped = pass.shapingCache.shaped(string, font: font, wrappingAt: width)
         let color = pass.theme[foregroundColor ?? .textPrimary]
 
         for glyph in shaped.placedGlyphs(
-            at: (x: Double(bounds.origin.x.value), y: Double(bounds.origin.y.value)),
+            at: (x: Double(origin.x.value), y: Double(origin.y.value)),
             font: font,
             scaleFactor: pass.scaleFactor
         ) {

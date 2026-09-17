@@ -53,6 +53,14 @@ struct LoweringState {
     var order: [LayoutNodeID] = []
     /// Element node → the item frame W its parent registered around it.
     private(set) var aliases: [LayoutNodeID: LayoutNodeID] = [:]
+    /// A **padded** lowered `Text`'s element node → its text leaf (stage 2, lane 4,
+    /// ruling LR-AH as amended). The element node is the outermost node
+    /// `paddedAndSized` registered, so its rect and measured width are the padded
+    /// box's; the glyphs belong at the LEAF's origin and wrap at the LEAF's measured
+    /// width, or a stretched padded text would wrap at its item frame's width and
+    /// overflow its trailing padding (critic round 1's finding 5). Empty when no
+    /// lowered `Text` carries a padding — and under the legacy authority.
+    var textLeaves: [LayoutNodeID: LayoutNodeID] = [:]
 
     mutating func record(_ item: LoweredItem, for node: LayoutNodeID) {
         if items[node] == nil { order.append(node) }
@@ -119,17 +127,28 @@ extension Frame {
 }
 
 extension LoweredItem {
-    /// A margin on any edge that is not a zero length (`auto` counts, as stage 1's
-    /// every-node check counted it).
+    /// A margin on any edge that is not a zero length. **`.auto` does not count**
+    /// since stage 2's lane 4 (ruling LR-AH): the legacy engine resolves it to 0 on
+    /// both axes, so it lowers to nothing and reports nothing — where stage 1's
+    /// every-node check counted it.
     static func hasMargin(_ style: Style) -> Bool {
         let m = style.margin
         return [m.top, m.right, m.bottom, m.left].contains { edge in
             switch edge {
-            case .auto: true
+            case .auto: false
             case .length(.pixels(let p)): p.value != 0
             case .length(.rems(let r)): r.value != 0
             case .length(.percent(let f)): f != 0
             }
+        }
+    }
+
+    /// A fractional margin on any edge, which has no one-to-one SwiftUI spelling and
+    /// reports `margin.percent` (ruling LR-AI, stage 8's recipe).
+    static func hasPercentMargin(_ style: Style) -> Bool {
+        let m = style.margin
+        return [m.top, m.right, m.bottom, m.left].contains { edge in
+            if case .length(.percent(let f)) = edge { f != 0 } else { false }
         }
     }
 }

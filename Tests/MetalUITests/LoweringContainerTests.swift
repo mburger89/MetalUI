@@ -285,7 +285,9 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 /// - `.wrap`: `flexWrap`; an `alignContent`: `alignContent`;
 /// - a main-axis gap in percent: `gap.percent` (a cross-axis percent gap is read by
 ///   nothing on a single line and is not reported);
-/// - every-node rows on a container: `margin`; `padding.floor`;
+/// - every-node rows on a container: `margin` (`…unconsumed` under the harness root
+///   since stage 2); `border.percent` (stage 2's lane 4 replaced this arm's
+///   `padding.floor`, which now lowers — spec 4.3);
 /// - a hidden container reports `display.none` alone, even with a reverse direction;
 /// - a `Box` container declaring `display: .stack` reported `noLowering` in lane 3 —
 ///   added after mutation M3l (the check deleted, so the stack lowered as a flex
@@ -353,11 +355,14 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
         s.alignItems = .flexStart
         return s
     }
-    func padded(_ size: Float) -> Style {
+    // Stage 2, lane 4: a declared size below the padding sum no longer reports (the
+    // fixed frame wins, spec 4.3), so this arm carries the every-node row lane 4 adds
+    // instead — a percentage border, which has no containing block here (`LR-AI`).
+    func percentBorder() -> Style {
         var s = Style()
         s.alignItems = .flexStart
-        s.size = Size(width: .length(.pixels(px(size))), height: .auto)
-        s.padding = Edges(all: .pixels(px(8)))
+        s.border = Edges(top: .pixels(px(0)), right: .percent(0.1),
+                         bottom: .pixels(px(0)), left: .pixels(px(0)))
         return s
     }
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
@@ -397,8 +402,8 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
          } }, []),
         ("margin on a container (an item field: unconsumed under the harness root since stage 2)",
          report { Row { fixed(20, 10) }.margin(px(3)) }, [field(.box, "margin.unconsumed")]),
-        ("padding floor on a container", report { Box(style: padded(10)) { fixed(20, 10) } },
-         [field(.box, "padding.floor")]),
+        ("border percent on a container", report { Box(style: percentBorder()) { fixed(20, 10) } },
+         [field(.box, "border.percent")]),
         ("display: .stack on a Box container (lowered as an overlay since lane 4, its stretch since stage 2)",
          report { Box(style: { var s = Style(); s.display = .stack; return s }()) {
              fixed(20, 10); fixed(30, 10)

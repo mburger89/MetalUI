@@ -194,7 +194,9 @@ extension LayoutPass {
             return recordLoweredItem(report(fields), animated: style, declared: declared, site: site,
                                      contentAlignment: .topLeading, kind: .leaf)
         }
-        return recordLoweredItem(paddedAndSized(content(), style, alignment: .topLeading), animated: style,
+        return recordLoweredItem(paddedAndSized(content(), style, alignment: .topLeading,
+                                                textLeaf: site == .text),
+                                 animated: style,
                                  declared: declared, site: site, contentAlignment: .topLeading, kind: .leaf)
     }
 
@@ -303,22 +305,44 @@ extension LayoutPass {
         return frame.unlowerable(fields[fields.count - 1])
     }
 
-    /// `node` → native padding (`style.padding`, when any edge is non-zero) → a
-    /// fixed native frame (`style.size`, when either axis is declared) aligned by
-    /// `alignment`. Returns the outermost node registered. Since stage 2's lane 2 a
-    /// declared axis is folded with the style's own px/rem `minSize`/`maxSize`,
-    /// `max(min, min(size, max))` — CSS's used size — from the animated style (the
-    /// values half of ruling LR-AS).
+    /// `node` → native padding (`style.padding` **plus `style.border`**, when any edge
+    /// is non-zero) → a fixed native frame (`style.size`, when either axis is declared)
+    /// aligned by `alignment`. Returns the outermost node registered. Since stage 2's
+    /// lane 2 a declared axis is folded with the style's own px/rem
+    /// `minSize`/`maxSize`, `max(min, min(size, max))` — CSS's used size — from the
+    /// animated style (the values half of ruling LR-AS).
+    ///
+    /// **Border is padding** (stage 2, lane 4, ruling LR-AH): CSS's border box puts
+    /// `border` inside the declared size exactly where `padding` sits, and the legacy
+    /// engine shrinks its content box by both (`FlexEngine.swift`'s `contentBox`).
+    /// SwiftUI has no layout border, so native padding is the spelling for the sum.
+    ///
+    /// **A declared size below that sum keeps its frame** (lane 4, `LR-AH` as
+    /// amended; stage-2 probe P1, P7, P8): the padding overflows the fixed frame,
+    /// placed by `alignment`, where CSS floors the border box at the sum (`BM-4`).
+    /// Nothing is reported for it — spec 4.3 pins the divergence.
+    ///
+    /// **A `Text`'s leaf is remembered** when padding is registered around it
+    /// (`textLeaf`, lane 4): its glyphs are painted at the leaf's origin and wrapped
+    /// at the leaf's measured width, not the element's (`Text.paintGlyphs`).
     private func paddedAndSized(_ node: LayoutNodeID, _ style: Style,
-                                alignment: ProposalAlignment) -> LayoutNodeID {
+                                alignment: ProposalAlignment,
+                                textLeaf: Bool = false) -> LayoutNodeID {
+        let content = node
         var node = node
-        let insets = Edges(top: resolvedLength(style.padding.top),
-                           right: resolvedLength(style.padding.right),
-                           bottom: resolvedLength(style.padding.bottom),
-                           left: resolvedLength(style.padding.left))
+        func inset(_ padding: Length, _ border: Length) -> Double {
+            resolvedLength(padding) + resolvedLength(border)
+        }
+        let insets = Edges(top: inset(style.padding.top, style.border.top),
+                           right: inset(style.padding.right, style.border.right),
+                           bottom: inset(style.padding.bottom, style.border.bottom),
+                           left: inset(style.padding.left, style.border.left))
+        var padded = false
         if insets.top != 0 || insets.right != 0 || insets.bottom != 0 || insets.left != 0 {
             node = frame.requestNativePadding(child: node, insets: insets)
+            padded = true
         }
+        defer { if textLeaf && padded { frame.lowering.textLeaves[node] = content } }
         // A declared size is folded with its own `minSize`/`maxSize` at registration,
         // CSS's used size `max(min, min(size, max))` (stage 2, lane 2, ruling LR-AG).
         func folded(_ size: Dimension, _ minimum: Dimension, _ maximum: Dimension) -> Double? {
@@ -382,11 +406,12 @@ extension LayoutPass {
     /// reads them from the element's `LoweredItem` (`planLegacyItems`), and a record
     /// no lowered container consumes reports them `…unconsumed` (ruling LR-AQ).
     ///
-    /// Padding reports one entry at most: `padding.percent` (a percentage resolves
-    /// against a containing block the kernel does not have), else `padding.floor`
-    /// (a declared size below the padding sum on an axis, where CSS floors the
-    /// border box, `BM-4`), else — **on a `Text`**, whose legacy leaf ignores its
-    /// padding — `padding.text`.
+    /// Padding and border each report **only** their percentage — `padding.percent`,
+    /// `border.percent` — which resolves against a containing block the kernel does
+    /// not have (ruling LR-AI, stage 8's recipe). Since stage 2's lane 4 a px/rem
+    /// border lowers into the native padding's insets, a `Text`'s padding lowers
+    /// around its leaf, and a declared size below the padding + border sum keeps its
+    /// fixed frame (ruling LR-AH) — so `padding.floor` and `padding.text` are gone.
     func legacyLeafDiagnostics(_ declared: Style, site: LoweringSite) -> [UnlowerableField] {
         func entry(_ name: String) -> UnlowerableField { UnlowerableField(site: site, field: name) }
         if declared.display == .none { return [entry("display.none")] }
@@ -395,24 +420,12 @@ extension LayoutPass {
         let size = declared.size
         if isPercent(size.width) || isPercent(size.height) { fields.append(entry("size.percent")) }
 
-        let padding = declared.padding
-        let paddingEdges = [padding.top, padding.right, padding.bottom, padding.left]
-        if paddingEdges.contains(where: { if case .percent = $0 { true } else { false } }) {
-            fields.append(entry("padding.percent"))
-        } else if let width = resolvedDimension(size.width),
-                  width < resolvedLength(padding.left) + resolvedLength(padding.right) {
-            fields.append(entry("padding.floor"))
-        } else if let height = resolvedDimension(size.height),
-                  height < resolvedLength(padding.top) + resolvedLength(padding.bottom) {
-            fields.append(entry("padding.floor"))
-        } else if site == .text, paddingEdges.contains(where: { resolvedLength($0) != 0 }) {
-            fields.append(entry("padding.text"))
+        func hasPercentEdge(_ edges: Edges<Length>) -> Bool {
+            [edges.top, edges.right, edges.bottom, edges.left]
+                .contains { if case .percent = $0 { true } else { false } }
         }
-
-        let border = declared.border
-        if [border.top, border.right, border.bottom, border.left].contains(where: { !isZero(.length($0)) }) {
-            fields.append(entry("border"))
-        }
+        if hasPercentEdge(declared.padding) { fields.append(entry("padding.percent")) }
+        if hasPercentEdge(declared.border) { fields.append(entry("border.percent")) }
         if declared.position != .static { fields.append(entry("position")) }
         if declared.inset != Edges(all: .auto) { fields.append(entry("inset")) }
         return fields
@@ -471,6 +484,11 @@ struct LegacyItemPlan {
     /// The alignment frame: greedy on one axis (`horizontal` for a column parent's
     /// cross axis), placing the child by `factor` there.
     var alignmentFrame: (horizontal: Bool, factor: Double)?
+    /// `margin` as native padding, **outermost** — outside W and outside the alignment
+    /// frame, so the element's own rect still excludes it, as CSS's margin box does
+    /// (lane 4, ruling LR-AH). `nil` when no px/rem margin is declared, and always
+    /// `nil` under a stack or frame-layer parent, which ignore margins (`LR-AZ`).
+    var marginInsets: Edges<Double>?
 }
 
 extension LayoutPass {
@@ -623,8 +641,10 @@ extension LayoutPass {
             }
 
             // W's bounds on one axis (nil: W leaves the axis to its child), and the
-            // reports that axis's minimum and maximum make.
-            var minimumReported = false, maximumReported = false
+            // reports that axis's minimum and maximum make. A fraction is named
+            // `minSize.percent`/`maxSize.percent` since lane 4 (ruling LR-AI); a
+            // px/rem maximum off a greedy axis keeps the bare `maxSize` (stage 8).
+            var minimumPercent = false, maximumPercent = false, maximumReported = false
             func axis(size: Dimension, declaredMin: Dimension, declaredMax: Dimension,
                       animatedMin: Dimension, animatedMax: Dimension,
                       stretched: Bool, grown: Bool) -> (min: Double?, max: Double?)? {
@@ -634,8 +654,8 @@ extension LayoutPass {
                     let lo = resolvedDimension(animatedMin) ?? 0
                     return (lo, Swift.max(lo, Swift.max(0, resolvedDimension(animatedMax) ?? .infinity)))
                 }
-                if isPercent(declaredMin) { minimumReported = true }
-                if isPercent(declaredMax) { maximumReported = true }
+                if isPercent(declaredMin) { minimumPercent = true }
+                if isPercent(declaredMax) { maximumPercent = true }
                 let hasMin = resolvedDimension(declaredMin) != nil
                 let hasMax = resolvedDimension(declaredMax) != nil
                 let greedy = stretched || grown
@@ -661,9 +681,30 @@ extension LayoutPass {
                                         animatedMin: a.minSize.height, animatedMax: a.maxSize.height,
                                         stretched: stretchedV, grown: grownV)
             if item.kind != .frameLayer {
-                if minimumReported { reports.append("minSize") }
+                if minimumPercent { reports.append("minSize.percent") }
+                if maximumPercent { reports.append("maxSize.percent") }
                 if maximumReported { reports.append("maxSize") }
-                if LoweredItem.hasMargin(d) { reports.append("margin") }
+                // Margin (lane 4, rulings LR-AH, LR-AZ): a px/rem margin on either
+                // sign is native padding outermost; a fraction reports
+                // `margin.percent` (stage 8); `.auto` lowers as 0, which is what the
+                // legacy engine resolves it to (CLAUDE.md's inert table). A **stack**
+                // or **frame-layer** parent ignores a child's margin entirely, in
+                // size and in position — measured on the legacy stack, not assumed.
+                switch parentKind {
+                case .flex:
+                    if LoweredItem.hasMargin(d) {
+                        if LoweredItem.hasPercentMargin(d) {
+                            reports.append("margin.percent")
+                        } else {
+                            plan.marginInsets = Edges(top: marginEdge(a.margin.top),
+                                                      right: marginEdge(a.margin.right),
+                                                      bottom: marginEdge(a.margin.bottom),
+                                                      left: marginEdge(a.margin.left))
+                        }
+                    }
+                case .stack, .leaf, .frameLayer:
+                    break
+                }
             }
             if case .flex(let childIsRow) = item.kind,
                (childIsRow ? plan.itemFrameWidth : plan.itemFrameHeight) != nil,
@@ -711,6 +752,14 @@ extension LayoutPass {
                                                alignment: proposalAlignment(horizontal: 0,
                                                                             vertical: alignmentFrame.factor))
             }
+            // The margin is outside the box, as in CSS (lane 4, ruling LR-AH): it is
+            // registered last and is NOT aliased, so `Frame.bounds(of:)` still reports
+            // the border box. A negative inset overlaps, and the kernel's padding
+            // response clamps at 0 per axis where CSS's margin box goes negative
+            // (`SA-K` item 3; spec 4.5 pins the divergence).
+            if let insets = plan.marginInsets {
+                node = frame.requestNativePadding(child: node, insets: insets)
+            }
             nodes.append(node)
         }
         return nodes
@@ -729,5 +778,15 @@ extension LayoutPass {
 
     private func alignsByStretching(_ value: JustifyItems?) -> Bool {
         value == nil || value == .stretch
+    }
+
+    /// One margin edge in points: `.auto` is 0 — what the legacy engine resolves it to
+    /// (CLAUDE.md's inert table) — and a percentage is 0 here, its caller having
+    /// reported `margin.percent` already.
+    private func marginEdge(_ dimension: Dimension) -> Double {
+        switch dimension {
+        case .auto: 0
+        case .length(let length): resolvedLength(length)
+        }
     }
 }
