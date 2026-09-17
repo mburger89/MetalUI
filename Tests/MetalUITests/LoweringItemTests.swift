@@ -539,7 +539,9 @@ private struct AtOrigin: ProposalLayout {
 /// decoration, its hitbox and its accessibility frame) above a stretched
 /// multi-line `Text` (its rect is its glyph origin, and its measured width the
 /// width its glyphs wrap at). Agrees in every observation, the glyph scene
-/// included, and the text wraps to more than one line.
+/// included, and the text wraps to more than one line. A second arm stretches
+/// `Text("Wii il")` in a 4-wide column, below its widest glyph, where the width
+/// paint wraps at is visible in the glyph scene (the first arm cannot see it).
 ///
 /// Mutations that must redden it: **M1a** W not aliased; **M1k** the alias resolved
 /// in `Frame.bounds(of:)` but not `PaintPass.measuredWidth(of:)`.
@@ -561,6 +563,23 @@ private struct AtOrigin: ProposalLayout {
     #expect(r.loweredBounds[child(containerID, 0)] == bounds(0, 0, 120, 20))
     let text = try #require(r.loweredBounds[child(containerID, 1)])
     #expect(text.size.width == px(120) && text.size.height > px(20), "\(text)")
+
+    // The measured-width half. At 120 the leaf's answer (its widest line) re-wraps
+    // to the same lines as W's 120 — greedy breaking is unchanged by narrowing to
+    // the widest line — so the arm above cannot see which width `Text.paint` asks.
+    // Below a glyph's width it can: in a 4-wide stretched column the leaf answers
+    // its widest glyph, wider than W, and wrapping there puts two narrow glyphs on
+    // one line where 4 puts one per line (measured: M1k made this arm's scenes
+    // differ at 4 and 6, not at 9; record §19, lane 1).
+    let narrowTree = { @MainActor in
+        Column { fixed(4, 10); Text("Wii il") }.alignItems(.stretch).width(px(4))
+    }
+    let narrowLegacy = LayoutDifferential.render(authority: .legacy, width: 300, height: 200) { narrowTree() }
+    try #require(narrowLegacy.scene.glyphs.count == 5)
+    let narrow = LayoutDifferential.compare(width: 300, height: 200) { narrowTree() }
+    try #require(narrow.elements == 4)
+    expectCorpusAgreement(narrow, "stretched text narrower than a glyph")
+    #expect(narrow.loweredBounds[child(containerID, 1)]?.size.width == px(4))
 }
 
 /// **1.11** (`SA-M`'s method). `Column { Row { a; b }; Row { c; d }; Box { e } }

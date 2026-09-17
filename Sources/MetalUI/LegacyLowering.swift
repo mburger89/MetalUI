@@ -40,7 +40,11 @@ extension LayoutPass {
     /// `justifyContent` on the main axis and `alignItems` on the cross axis — CSS's
     /// border-box, where a content-sized line sits inside a larger box (ruling
     /// LR-E). What the table cannot lower is reported by
-    /// `legacyContainerDiagnostics`, before anything is registered. The children
+    /// `legacyContainerDiagnostics`, then — since stage 2 — each child's item fields
+    /// this lane cannot lower by `planLegacyItems`, before anything is registered.
+    /// Every child's item record is consumed first, and the node returned (the
+    /// lowered container, or a reported 0×0 leaf) is recorded as this element's own
+    /// item (ruling LR-AB); a hidden container records none. The children
     /// may be native nodes of any origin — a lowered legacy element or a proposal
     /// element such as an `HStack` — because under this authority every node is
     /// native (ruling LR-T).
@@ -168,7 +172,8 @@ extension LayoutPass {
     /// Returns the element's node: the outermost registered, whose rect is the
     /// element's bounds and whose measured width a `Text` wraps its glyphs at
     /// (ruling LR-X). When anything is reported, `content()` is **not** called and
-    /// the node is a 0×0 native leaf.
+    /// the node is a 0×0 native leaf. Either node is recorded as the leaf's item for
+    /// its parent (stage 2, ruling LR-AB), except under `display: none`.
     ///
     /// **Every container field is ignored** (`flexDirection`, `gap`, `alignItems`,
     /// `justifyContent`, `justifyItems`, `flexWrap`, `alignContent`, `display:
