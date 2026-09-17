@@ -3,6 +3,8 @@ import Testing
 import MetalUICore
 import MetalUILayout
 import MetalUIRender
+import MetalUIPlatform
+import Metal
 @testable import MetalUI
 
 // Test support for plan task 7's differential harness
@@ -13,7 +15,8 @@ import MetalUIRender
 // observation by observation (scene bytes as emitted and as finalized, hitboxes, accessibility records with
 // their geometry, `StateTable` ids).
 //
-// `compareInWindows` (the same comparison through a real `Window`) is lane 5's.
+// `compareInWindows` (lane 5) is the same comparison through a real `Window` per
+// authority, `DifferentialRoot` as the window's root content.
 
 /// The harness root: a top-leading, fixed-size root on both sides (ruling LR-D).
 ///
@@ -228,5 +231,100 @@ enum LayoutDifferential {
                       accessibilityEqual: axKey(legacy) == axKey(lowered),
                       stateSlotsEqual: legacy.stateTable.ids == lowered.stateTable.ids,
                       legacyBounds: a, loweredBounds: b)
+    }
+}
+
+/// Two real `Window`s over `FakePlatformWindow`s — one per layout authority — each
+/// showing `DifferentialRoot(size × size) { make() }`, for plan task 7's lane 5
+/// (spec 5.4–5.6): what a frame registers is compared as `compare` does, and what
+/// a window does with it afterwards — click dispatch through `Window.lastHitboxes`,
+/// focus, the keymap, the published accessibility tree, `@State` and animation —
+/// is driven identically on both.
+///
+/// **Square, and the root the window's size**, because the fake surface is square
+/// and a native root is centred at its answer (`CN-J`) where the legacy root sits
+/// at the origin: a root the window's own size is at (0, 0) under both.
+///
+/// **No diagnostics.** A `Window` builds production frames, so under the proposal
+/// authority anything unlowerable **traps** rather than reports: a window test
+/// that completes is itself the evidence that its tree lowers.
+@MainActor
+struct WindowPair {
+    let legacy: (window: Window, platform: FakePlatformWindow)
+    let lowered: (window: Window, platform: FakePlatformWindow)
+
+    init<Content: ElementGroup>(device: any MTLDevice, size: Int,
+                                startsDisplayLink: Bool = false,
+                                @ElementBuilder _ make: @escaping @MainActor () -> Content) throws {
+        func open(_ authority: LayoutAuthority) throws -> (window: Window, platform: FakePlatformWindow) {
+            let (window, platform) = try makeFakeWindow(device: device, size: size,
+                                                        startsDisplayLink: startsDisplayLink) {
+                DifferentialRoot(width: Float(size), height: Float(size), content: make)
+            }
+            window.layoutAuthority = authority
+            window.recordsElementBounds = true
+            return (window, platform)
+        }
+        legacy = try open(.legacy)
+        lowered = try open(.proposal)
+    }
+
+    /// Runs `step` on the legacy window, then on the lowered one.
+    func both(_ step: @MainActor (Window, FakePlatformWindow) throws -> Void) rethrows {
+        try step(legacy.window, legacy.platform)
+        try step(lowered.window, lowered.platform)
+    }
+
+    /// The two windows' last frames compared, as `LayoutDifferential.report` compares
+    /// two frames: element bounds (`Window.lastElementBounds`), the finalized scene
+    /// (`Window.lastScene`: rects, glyphs and draw list), `Window.lastHitboxes`,
+    /// every accessibility tree each window has published (in order, geometry
+    /// included), and the `StateTable` ids. `unlowerable` is always empty: a
+    /// window's frames trap instead of reporting.
+    func report() -> LayoutDifferential.Report {
+        let a = legacy.window.lastElementBounds, b = lowered.window.lastElementBounds
+        let ids = Set(a.keys).union(b.keys).sorted { (x: GlobalElementID, y: GlobalElementID) in "\(x)" < "\(y)" }
+        var agreeing: [GlobalElementID] = []
+        var disagreeing: [(id: GlobalElementID, legacy: Bounds<Pixels>, lowered: Bounds<Pixels>)] = []
+        var legacyOnly: [GlobalElementID] = [], loweredOnly: [GlobalElementID] = []
+        for id in ids {
+            switch (a[id], b[id]) {
+            case let (x?, y?):
+                if x == y { agreeing.append(id) } else { disagreeing.append((id, x, y)) }
+            case (_?, nil): legacyOnly.append(id)
+            case (nil, _?): loweredOnly.append(id)
+            case (nil, nil): break
+            }
+        }
+        func bytes<T>(_ xs: [T]) -> [UInt8] { xs.withUnsafeBytes { Array($0) } }
+        let sa = legacy.window.lastScene, sb = lowered.window.lastScene
+        let scenesEqual = bytes(sa.rects) == bytes(sb.rects) && bytes(sa.glyphs) == bytes(sb.glyphs)
+            && sa.drawList == sb.drawList
+        func hitboxKey(_ window: Window) -> [String] {
+            window.lastHitboxes.map { "\($0.id)|\($0.bounds)|\($0.layer)|\($0.opaque)" }
+        }
+        return LayoutDifferential.Report(
+            elements: ids.count, agreeing: agreeing, disagreeing: disagreeing,
+            legacyOnly: legacyOnly, loweredOnly: loweredOnly, unlowerable: [],
+            scenesEqual: scenesEqual,
+            hitboxesEqual: hitboxKey(legacy.window) == hitboxKey(lowered.window),
+            accessibilityEqual: legacy.platform.publishedAccessibilityTrees
+                == lowered.platform.publishedAccessibilityTrees,
+            stateSlotsEqual: legacy.window.stateTable.ids == lowered.window.stateTable.ids,
+            legacyBounds: a, loweredBounds: b)
+    }
+}
+
+extension LayoutDifferential {
+    /// Opens a `WindowPair`, runs `drive` on each window, and compares their last
+    /// frames (spec §5.2's `compareInWindows`; square, see `WindowPair`).
+    static func compareInWindows<Content: ElementGroup>(
+        device: any MTLDevice, size: Int,
+        @ElementBuilder _ make: @escaping @MainActor () -> Content,
+        drive: @MainActor (Window, FakePlatformWindow) throws -> Void
+    ) throws -> Report {
+        let pair = try WindowPair(device: device, size: size, make)
+        try pair.both(drive)
+        return pair.report()
     }
 }
