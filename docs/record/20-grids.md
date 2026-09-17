@@ -1,7 +1,7 @@
 # 20 — Grids (plan task 7, stage G)
 
 Branch `feat/grids` from `cb2e708`. Spec
-`docs/superpowers/specs/2026-09-17-grids-design.md`; rulings `GR-A`…`GR-V` in
+`docs/superpowers/specs/2026-09-17-grids-design.md`; rulings `GR-A`…`GR-X` in
 `docs/superpowers/2026-09-17-grids-decisions.md`; probes
 `docs/probes/swiftui-grid.swift` (revision 5), `docs/probes/swiftui-grid-corpus.txt`,
 `docs/probes/swiftui-lazy-grid-scope.swift`. The lanes append their sections
@@ -361,6 +361,147 @@ of M1.1, M1.5, M1.13, M1.15 and M1.21. Three stayed green:
 - Pin each `LayoutPass` registrar's forwarding through the element tests (V2,
   V2b): a non-centre grid alignment, a row alignment, and a column span, each
   reached through `LayoutPass`, with a mutation dropping the forwarding.
+
+## Lane 2 — the finite solve (2026-09-17)
+
+Commits: `e4f95ff` (tests 2.1–2.14 and `GridCorpus.swift`, red: does not
+compile), `ea0a51b` (a first finite branch in the model's shape; 2.14 red;
+GE10/GE19 pinned; probe `swiftui-grid-stack-ties.swift`), `d467058` (indexed
+bookkeeping, the `.grid` priority arm), `0196743` (`NativeGridSolver` inverted
+for the depth guard), `de0a51e` (2.3's logs, 2.12's substituted mutation), then
+this record with `GR-X` and the spec's amended rows.
+
+### Red first
+
+`e4f95ff`, native build: the test target does not compile, 7 errors, all
+`value of type 'NativeGridSolution' has no member 'bookkeepingSteps'`
+(`NativeGridWorkTests.swift:153:17`, `:153:68`, `:154:17`, `:154:68`, `:155:17`,
+`:155:44`, `:156:28`). One test-helper defect was fixed before the commit: three
+locals shadowed their helper functions (`let gf12 = gf12(nil)`, `let gs1 = gs1
+{ … }`; `cannot call value of non-function type 'Arm'` at
+`NativeGridTests.swift:1002:34`, `:1178:15`, `:1182:15`). With 2.14 compiled out
+(scratch, not committed), each other new test run alone against lane 1's branch:
+2.1, 2.2, 2.3, 2.5–2.13 died with `NativeGrid.swift:217: Fatal error: grids lane 2:
+a grid solved at a non-nil proposal ProposedSize(width: Optional(200.0), height:
+Optional(200.0))` (the proposal each first reached: 200×200 for 2.1 and 2.12,
+200×100 for 2.2, 2.6, 2.7, 2.9, 200 × nil for 2.3, 100×100 for 2.5, 300×100 for
+2.8, **∞ × 100** for 2.10 and 2.11 — a stack's flexibility probe — and 300×200 for
+2.13); 2.4 recorded `expected exit status ".success", but ".signal(SIGTRAP)" was
+reported instead`.
+
+**The scanning branch** (`ea0a51b`, every open count and commit check a scan of
+every cell, span targets likewise): suite `Test run with 1446 tests in 1 suite
+failed … with 3 issues`, all in 2.14: `two.bookkeepingSteps → 424331` (literal
+2203), `one.bookkeepingSteps → 107181` (1103), difference 209969 (≤ 3). Every
+other lane-2 test passed on that branch, so two independent ports of the model
+(scan and index) agree on 2.1–2.13.
+
+### A finding on arrival: GE10 and GE19 (`GR-X` item 1)
+
+The first green run of 2.10/2.11 read GE10 a (0,0 46×100), c (54,0 38×100), d
+(100,45) and GE19 stack 200×112, z 46, a (0,54 152×20): SwiftUI reads a 36 and z
+34. Derivation (GE19): the `VStack`'s two children tie at flexibility ∞ (z ∞ − 0,
+the grid ∞ − 58), `CN-B` serves z first at (100 − 8)/2 = 46, and the grid answers
+58 to 200×46 (group [b, c, d] shares 19, heights 20 and 30; a's share 8, kept at
+20). Probe `docs/probes/swiftui-grid-stack-ties.swift` (new; exit 0 twice,
+byte-identical): T0 control b 40 / a 52 (order can move); T1 = GE10, a 36; T7
+`VStack{z flexible; b height ≥ 58}` with **no grid**, z 34; T2–T5, T8 do not
+discriminate. Pinned at the kernel's figures, with a kernel T7 arm in 2.11 (z 46,
+stack 112). Not fixed: the stack is shared and not this track's (`GR-O` 8).
+
+### As built
+
+- `NativeGrid.swift`: `NativeGridSolution.bookkeepingSteps`; `solveNativeGrid`'s
+  non-nil branch drives `NativeGridSolver` (a `final class`: probes, key sort,
+  groups, shares from a level's per-column and per-row counts filled once and
+  decremented after each group, step-12 targets from each column's unprocessed
+  single-column count, commit checks over the first group's every column and row
+  and later groups' own cells, committed widths and heights as running sums).
+- `LayoutTree.swift`: `measureGrid` hands a non-nil proposal to
+  `measureGrid(_:atAProposal:)`, which feeds the solver from its own loop; an
+  explicit `.grid` arm returning 0 in `nativeLayoutPriority` (and its doc list);
+  doc comments of `newNativeGrid` and `measureGrid` updated.
+- `NativeLayoutRun.swift`: `maxDepth`'s table gains lane 2's re-take (88
+  unchanged). `NativeDepthGuardTests.swift`: a stale comment ("the finite branch
+  is lane 2's") updated.
+- Tests: `NativeGridTests.swift` (2.1–2.11, 2.13, helpers `fw`, `prio`,
+  `expectRects`), `NativeGridWorkTests.swift` (2.12, 2.14), `GridCorpus.swift`
+  (the corpus file below its own header, verbatim: `diff` of the extracted range
+  against `docs/probes/swiftui-grid-corpus.txt` is empty; 120 cases, 18 after
+  lane 2's filter, every one passing).
+
+### Suite
+
+`swift package clean`, `swift build --build-system native --build-tests` (0
+`error:`, only SwiftPM's deprecation `warning:`), `swift test --build-system
+native --no-parallel` unfiltered: **`Test run with 1446 tests in 1 suite passed
+after 59.500 seconds`** (1432 + 14). Goldens 97 (`git diff cb2e708 -- '*.json'`
+empty); guards 71 (73 `canTypecheck` hits).
+
+### Depth (`GR-X` item 2)
+
+Lane 1's method: a scratch test (never committed) nesting N nodes over a leaf
+answering min(proposal, 10), laid out at 400×400 (or nil×nil) on a 1 MB `Thread`,
+`maxDepth` temporarily 100 000, one `swift test --skip-build --filter` per depth,
+bisected in 50…600; each first failing depth completes on 4 MB.
+
+| build | one-cell grid, 400×400 | one-cell grid, nil×nil | vertical stack | padding |
+|---|---|---|---|---|
+| lane 1 (record above) | — | 170 / 171 | 127 / 128 | 194 / 195 |
+| indexed solver calling its measure closure from the group loop (`d467058`) | **65 / 66** | — | 127 / 128 | 194 / 195 |
+| `NativeGridSolver` inverted, loop inline in `measureGrid` | 159 / 160 | 159 / 160 | 127 / 128 | 194 / 195 |
+| **as committed** (`0196743`): loop in `measureGrid(_:atAProposal:)` | **155 / 156** (re-taken twice) | **167 / 168** | 127 / 128 | 194 / 195 |
+
+Both grid ceilings clear 147. `maxDepth` restored to 88 and the scratch test
+deleted before the suite (`git status --short` clean).
+
+### Mutations
+
+M2.1–M2.15 and the first M2.3 applied at `0196743`; the second M2.3 and M2.12s
+at `de0a51e` (which changed only 2.3 and 2.12's doc comment). Each from a copy, `git status --short` showing only
+the mutated file during and nothing after, then the full native suite (1446).
+Tests reddened:
+
+| # | mutation | reddened |
+|---|---|---|
+| M2.1 | GZ0's control: every group offered W′/ncols, commits ignored | 2.1 (GP2 a 96×62), 2.2, 2.3, 2.5, 2.6, 2.7 (GS1 s 96×42), 2.8, 2.9, 2.10, 2.11 (GE17 a (104,0 44×62), b at 166), 2.12, 2.13 (**4 of the 18** cases), 2.14 — 157 issues |
+| M2.2 | key = the finite sum with ∞ as +∞ (one group for equal sums) | 2.2 (GF10 b 96 wide), 2.11 — 6 issues |
+| M2.3 | a nil grid axis proposed as 0 | at `0196743`, before 2.3's logs: **2.13 only**, 4 issues (2.3 green); at `de0a51e`: 2.3 (GP5, GP6 logs), 2.13 — 6 issues |
+| M2.4 | `(W′ − committed) / open` on an infinite axis | 2.4 (child `.signal(SIGTRAP)`), then the suite **truncates** (no summary line): 2.10's `HStack` probes a grid at ∞ × 100 after an infinite column committed, `native layout received a NaN proposal … (SA-J)` |
+| M2.5 | reserve lower groups' 0×0 widths (as `CN-B`) | 2.5 (GQ2 a and c 27), 2.9, 2.10, 2.13 (1 case) — 27 issues |
+| M2.6 | a cell's priority read as 0 (in the plan) | 2.5, 2.6 (GS1 s 152×62, `#require` GS1 ≠ GQ9 fails), 2.7, 2.9, 2.10, 2.11, 2.13 (3 cases) — 52 issues |
+| M2.7 | no gaps subtracted from W′ and H′ | 2.1, 2.2, 2.3, 2.5, 2.6, 2.7 (GS1 b (168,15), c (70,58)), 2.8, 2.9, 2.10, 2.11, 2.12, 2.13 (3 cases), 2.14 — 180 issues |
+| M2.8a | a span proposed the sum of its columns' shares plus inner gaps (variant 2) | 2.8 (GX10 x 58 wide) — 8 issues |
+| M2.8b | step 12 dropped | 2.8 (GX9 b (69,0 231×82), a at 16), 2.9 (GX17 revision 4's b 78 at 66) — 5 issues |
+| M2.9 | no span shortfall at a non-nil proposal | 2.8 (GX10 x 58), 2.9 (GS5 a at 53, b 73 wide) — 16 issues |
+| M2.10 | `.grid` priority passes a one-cell grid's child's | 2.10 (`#require` GE8 ≠ GE27 fails) — 1 issue |
+| M2.12 | (the spec's) re-measure every cell at its slot | 1.5, 1.12, 2.1, 2.9, 2.13 — **not 2.12** (`GR-X` item 5) |
+| M2.12s | (substituted) also measure every cell at nil×nil first | 2.1, 2.3, 2.4, 2.12 (GP1 20 calls / 12 hits / 21 misses; GP2 19 / 13 / 20) — 9 issues |
+| M2.14 | the commit check also scans every cell (counted) | 2.14 only — 3 issues |
+| M2.15 | (shared file, not grid-owned) the stack serves the larger answer at 0 first on an infinite flexibility tie | 2.10 (GE10 a 36, c at 44, d at 90), 2.11 (GE19 z 34, stack 100; T7 z 34) — 12 issues |
+
+No mutation left the lane's named test green except M2.3 before its fix and the
+spec's M2.12; both are recorded in `GR-X`.
+
+### Demo
+
+`CN-R`'s harness (`scratchpad/harness/gen-lib.py`, `DEMO_PIXELS_SMALL=1`,
+default build system) in fresh `git archive`s of `cb2e708` and `de0a51e`:
+**12 of 12 images 0 differing pixels, scenes identical.** Controls on the head
+images: light vs dark f0 1 048 576; default vs modal (light) 1 030 498; default vs
+animation (light) 210 027; f0 vs f3 0; preview light vs dark 1 048 576 (lane 1's
+figures). `grep -rn "Grid\b" Sources/MetalUIDemoContent Sources/MetalUIDemo`: no
+hits. No real window was captured (lane 4's, `GR-M`).
+
+### For lane 3
+
+- The corpus filter in 2.13 is the only line to drop; the unsized-axis and
+  anchor rules enter `NativeGridSolver.serve` (width/height proposals) and
+  `nativeGridCellRects` (factors).
+- `NativeGridSolver` must stay inverted: any measurement from inside it puts its
+  frame on the recursion path (65 levels). Re-bisect after lane 3's changes.
+- A stack's infinite-flexibility tie (`GR-O` 8) will move any corpus or arm with
+  a grid beside a flexible sibling; none of lane 3's arms has one.
 
 ## For the integrator
 

@@ -1,6 +1,6 @@
 # Grids — design (plan task 7, stage G)
 
-`feat/grids` from `cb2e708`. Rulings `GR-A`…`GR-W` in
+`feat/grids` from `cb2e708`. Rulings `GR-A`…`GR-X` in
 [`../2026-09-17-grids-decisions.md`](../2026-09-17-grids-decisions.md); probes
 `docs/probes/swiftui-grid.swift` (**revision 5**; arm ids below are its),
 `docs/probes/swiftui-grid-corpus.txt` (its `corpus` mode at revision 5) and
@@ -10,8 +10,10 @@ Parent design:
 §4.1 row G ("no legacy twin; depends on nothing; exit test is its own probe's
 arms; goldens 0; demo 0 px").
 
-**Status, 2026-09-17: lane 1 built** (`432cb3d` red, `82a63fe`; as-built
-amendments in `GR-W`, record §20 "Lane 1"). Lanes 2–4 not started. The design
+**Status, 2026-09-17: lanes 1 and 2 built** (lane 1: `432cb3d` red, `82a63fe`;
+as-built amendments in `GR-W`, record §20 "Lane 1"; lane 2: `e4f95ff` red,
+`ea0a51b` scanning, `d467058`, `0196743`, `de0a51e`; amendments in `GR-X`,
+record §20 "Lane 2"). Lanes 3–4 not started. The design
 was revised after one critic round (`GR-Q`). Baseline at `cb2e708`, measured in
 this worktree: `Test run with 1409 tests in 1 suite passed` (native,
 unfiltered), 97 goldens, 71 guards.
@@ -70,7 +72,7 @@ stage (`GR-L`).
 
 | layer | file | what |
 |---|---|---|
-| kernel | `Sources/MetalUILayout/NativeGrid.swift` (new) | `ProposalAxes`; `NativeGridPlan` (cells, row and column indexes, gaps, edges), `NativeGridCell`; the pure solver `solveNativeGrid(_:proposal:measure:)` → `NativeGridSolution` (with its internal bookkeeping counter, `GR-U`); `nativeGridCellRects(_:solution:origin:measure:)`; `nativeGridZeroSpacingEdges(_:axis:)` |
+| kernel | `Sources/MetalUILayout/NativeGrid.swift` (new) | `ProposalAxes`; `NativeGridPlan` (cells, row and column indexes, gaps, edges), `NativeGridCell`; the pure solver `solveNativeGrid(_:proposal:measure:)` → `NativeGridSolution` (with its internal bookkeeping counter, `GR-U`), whose non-nil branch is the inverted `NativeGridSolver` (`request`/`provide`, `GR-X` item 2); `nativeGridCellRects(_:solution:origin:measure:)`; `nativeGridZeroSpacingEdges(_:axis:)` |
 | kernel | `Sources/MetalUILayout/LayoutTree.swift` (localized, `GR-A`) | three stored mark dictionaries and a row-token counter (`GR-W`) declared right after `nativeParents`, cleared by lines appended at the end of `reset`; `NativeNode.grid(NativeGridPlan)` as the last case; a `.grid` arm, last, in `measureNative`, `placeNative`, `markSpacers`, `zeroSpacingEdges`, `nativeLayoutPriority`; one extension at the end of the file holding the registrars and the plan's walk |
 | elements | `Sources/MetalUI/Grid.swift` (new) | `Grid`, `GridRow`, `GridCellModifier`, the four cell modifiers, and the public `LayoutPass` registrars (`LayoutPass.frame` and `Frame.tree` are internal to `MetalUI`) |
 
@@ -440,20 +442,22 @@ transcribed verbatim with its comment header kept).
 |---|---|---|---|---|
 | 2.1 | `aFiniteProposalServesGroupsWithSharesAndCommits` | GP1, GP2, GP7, GA9, GF1–GF9, GF14–GF18 (a greedy `newNativeFrame(maxWidth: .infinity)` cell; a proposal-responsive leaf standing for `Color`), GR2 (placed at 96×200): answers, rects, and GF7's d proposed 120 wide (its log) | not in the tree | GZ0's control: every group offered W′/ncols, commits ignored (GP2's a at 96) |
 | 2.2 | `theFlexibilityKeyCountsInfiniteAxesFirstAndIgnoresANilAxis` | GF10, GF11, GF12, GF13 (`#require` GF12 ≠ GF13) | not in the tree | key = the finite sum with ∞ as +∞, one group for equal sums (GF10's b at 96) |
-| 2.3 | `oneAxisNilAndInfiniteProposalsAnswerAsTheProbeReads` | GP5, GP6 laid out; GP4 (∞×∞) and GP8 measured only (an infinite answer traps at checkpoint 3 when stored, `SA-J`) | not in the tree | propose a nil grid axis as 0 instead of nil (GP5's a answers 152×0) |
+| 2.3 | `oneAxisNilAndInfiniteProposalsAnswerAsTheProbeReads` | GP5, GP6 laid out, **with a's logs** (GP5 {0×0, ∞×∞, 152×nil, 152×20}, GP6 {0×0, ∞×∞, nil×62}; `GR-X` item 4: the rects alone do not see the mutant); GP4 (∞×∞) and GP8 measured only (an infinite answer traps at checkpoint 3 when stored, `SA-J`) | not in the tree | propose a nil grid axis as 0 instead of nil (GP5's a is asked 152×0) |
 | 2.4 | `anInfiniteAxisSharesInfinityAfterAnInfiniteCommittedColumn` — in `NativeGridTests.swift` (`@testable`), an exit test expecting `.success` whose body measures GP9, GP10, GP11 and `precondition`s each answer and **each leaf's set of distinct proposals**, derived by hand from §4.2 before the run (for example GP11's b: {0×0, ∞×∞, ∞×100}) | GP9–GP11 | not in the tree | compute `(W′ − committed) / open` on an infinite axis: inf − inf is nan, and whether `max` then returns nan (a trap at checkpoint 1) or the column's width (a finite proposal in the set), the child exits `.failure` |
 | 2.5 | `higherPriorityGroupsAreServedFirstWithNoReservation` | GQ1, GQ2, GQ3, GQ4, GQ5 (answers 100×100, 130×10, 120×10, 210×120, 266×118) | not in the tree | reserve lower groups' 0×0 widths, as `CN-B`'s stack does (GQ2's a and c read 27) |
 | 2.6 | `aBareSpacerCellIsPriorityMinusInfinityAndFlexibleOnBothAxes` | GS1 (s 142×42), GQ7 (`minLength: 0`), GQ8, and GQ9 (a `layoutPriority(0)` node over the Spacer: 200×100, s 152×62), `#require` GQ9 ≠ GS1 | not in the tree | read a cell's priority as 0 (GS1 reads GQ9's figures) |
 | 2.7 | `gapsHoldAtFiniteProposals` | GS1, GS2, GS3, GS11, GS12–GS18 laid out at their proposals | not in the tree | subtract no gaps from W′ and H′ (GS1 moves; the lane records it) |
 | 2.8 | `aSpanAtAFiniteProposalIsOfferedTheWidthOutsideItAndWidensItsOpenColumnsFirst` | GX8, GX9 (a 30 wide in its column, b 262), GX10 (a at 60.5, b at 219.5), GX12 (x proposed 300; a 176, b 116 slots) | not in the tree | (a) propose a span the sum of its columns' shares plus inner gaps (probe variant 2; GX10's x moves); (b) drop step 12 (GX9's b reads 231, a's column 61) |
 | 2.9 | `theModelsDisagreementsWithSwiftUIArePinned` — pinned wrong on purpose; SwiftUI's figures in its doc comment | the model's figures: **GX17** 200×100, a (0,36 30×10), b (38,0 134×82), c (180,31 20×20), x (25,90 150×10); **GX18** 200×100, a (0,0 104×82), b (112,36 30×10), c (150,36 50×10), x (70,90 60×10); **GS4** 45×40, a (0,0 15×10), c (15,15 30×20), s (0,10 15×30); **GS5** 164×136, a (48,0 40×40), b (34,63 68×10), c (144,48 20×40), d (53,96 30×40); GX19 (control, agreeing with SwiftUI) 200×100, x (80,90 40×10) | not in the tree | skip `absorbSpan` at proposals other than nil×nil (GX17 and GS5 move; the lane records the figures) |
-| 2.10 | `aGridPassesNoPriorityToAnEnclosingStack` | kernel spellings of GE8 (46/46), GE10 (36/38/10), GE11 (50/50), with GE27 (0/92) and GE28 (92/8) as controls, `#require` GE8 ≠ GE27 and GE11 ≠ GE28 | not in the tree | `.grid` in `nativeLayoutPriority` passes a one-cell grid's child priority, as a one-child stack does (GE8 reads 0/92, GE11 reads 92/8) |
-| 2.11 | `aGridInAStackLaysOutAsTheModelInAStack` | kernel spellings of GE17–GE22, and the rects of GE1–GE7, GE16, GE23–GE26, GE29, GE30 laid out (moved from 1.10/1.11 by `GR-W`) | not in the tree | GZ0's control (GE17 moves; the lane records it) |
-| 2.12 | `aGridsWorkAtFiniteProposalsIsOneLeafCallPerDistinctProposal` (`NativeGridWorkTests.swift`) | GP1 = 16 leaf calls, GP2 = 15; hits and misses derived by hand before the run | not in the tree | re-measure every cell at its slot (GP1 reads more; the lane records it) |
+| 2.10 | `aGridPassesNoPriorityToAnEnclosingStack` | kernel spellings of GE8 (46/46), GE10 (**as built pinned wrong on purpose at 46/38/10**, SwiftUI 36/38/10: the stack's infinite tie, `GR-X` item 1, `GR-O` 8), GE11 (50/50), with GE27 (0/92) and GE28 (92/8) as controls, `#require` GE8 ≠ GE27 and GE11 ≠ GE28 | not in the tree | `.grid` in `nativeLayoutPriority` passes a one-cell grid's child priority, as a one-child stack does (GE8 reads 0/92, GE11 reads 92/8) |
+| 2.11 | `aGridInAStackLaysOutAsTheModelInAStack` | kernel spellings of GE17–GE22 (**GE19 as built pinned wrong on purpose** at z 46, stack 200×112, with the no-grid control T7 of probe `swiftui-grid-stack-ties.swift`; `GR-X` item 1), and the rects of GE1–GE7, GE16, GE23–GE26, GE29, GE30 laid out (moved from 1.10/1.11 by `GR-W`) | not in the tree | GZ0's control (GE17 moves; the lane records it) |
+| 2.12 | `aGridsWorkAtFiniteProposalsIsOneLeafCallPerDistinctProposal` (`NativeGridWorkTests.swift`) | GP1 = 16 leaf calls, GP2 = 15; hits and misses derived by hand before the run (GP1 12/17, GP2 13/16) | not in the tree | ~~re-measure every cell at its slot~~ (does not discriminate, `GR-X` item 5); **substituted**: also measure every cell at nil×nil first (GP1 20 calls) |
 | 2.13 | `theGridProbeCorpusAgreesCaseByCase` — reads `GridCorpus.swift`, `#require`s 120 cases and, in this lane, filters to those with no anchor, column alignment or unsized axis: `#require` **18** | the corpus | not in the tree | GZ0's control (the lane records how many of the 18 redden) |
 | 2.14 | `theSolversBookkeepingIsLinearInTheCells` (`NativeGridWorkTests.swift`) — `solveNativeGrid` directly on a grid of *n* rows `[fixed 20×10, clampW(0, 50, 10), flexW(10)]` at 300 × nil (three groups): `bookkeepingSteps` at *n* = 200 equals a literal, and `steps(200) − 2 · steps(100)` is at most a constant, both derived by hand from the indexed solver before the run | — (`GR-U`) | **red first** against a first finite branch in the model's shape (a scan of every cell per column and per group, the gaps by cell pairs); the lane records that count, then indexes | replace the column index in the commit check with a scan of every cell |
 
-**Expected count:** 1431 + 14 = **1445**; guards 71. **Demo:** 0 px.
+**Expected count:** 1431 + 14 = **1445**; guards 71. **Demo:** 0 px. **As built:
+1446** (lane 1's verifier added a test, `GR-X` item 6); depth re-bisected
+(`GR-X` item 2: a one-cell-grid chain at 400×400 completes 155, at nil×nil 167).
 
 ### Lane 3 — cell attributes and the modifier-chain walk
 
@@ -551,9 +555,9 @@ red once. **Demo:** 0 px; real windows 0 px.
 | lane | assumes | new `@Test` | suite | guards | clean |
 |---|---|---|---|---|---|
 | 1 | `cb2e708` | 22 | 1431 | 71 | yes |
-| 2 | lane 1 | 14 | 1445 | 71 | no |
-| 3 | lanes 1–2 | 11 | 1456 | 71 | yes |
-| 4 | lanes 1–3 | 24 (4 of them guards) | 1480 | 75 | no |
+| 2 | lane 1 | 14 | 1445 (as built 1446: lane 1's verifier test) | 71 | no |
+| 3 | lanes 1–2 | 11 | 1456 (1457 with that test) | 71 | yes |
+| 4 | lanes 1–3 | 24 (4 of them guards) | 1480 (1481) | 75 | no |
 
 Counts are design estimates: each lane re-takes them and explains a difference.
 The stage-2 track may land first at integration; the counts add.

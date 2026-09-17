@@ -1,10 +1,11 @@
 # Grids decisions (plan task 7, stage G)
 
 Rulings for [`specs/2026-09-17-grids-design.md`](specs/2026-09-17-grids-design.md),
-on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-W`; next unused
-is **`GR-X`**. A bare `GR-3` is a typo, not a citation.
+on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-X`; next unused
+is **`GR-Y`**. A bare `GR-3` is a typo, not a citation.
 
-**Status, 2026-09-17: lane 1 built** (`GR-W` records its as-built amendments);
+**Status, 2026-09-17: lanes 1 and 2 built** (`GR-W` and `GR-X` record their
+as-built amendments);
 the design was revised after one critic round (`GR-Q` records how each of its
 fourteen findings was applied). Baseline measured in this worktree at `cb2e708`: `swift build
 --build-system native --build-tests`, then `swift test --build-system native
@@ -612,6 +613,13 @@ is removed: probed and ruled, `GR-R`.)
 7. **A column count above `Int32.max` traps, naming `columns`**, where SwiftUI
    lays a 40-bit count out as its low 32 bits (GX22: 1 << 40 as `columns(0)`)
    and traps at `Int.max` (GX20) (`GR-S`): pinned by test 3.6.
+8. **(Lane 2, not created by this stage but first measured here; `GR-X`.) A
+   linear stack serves two children whose answers at main ∞ are both infinite
+   in declaration order**, where SwiftUI served the one larger at main 0 first
+   (probe `swiftui-grid-stack-ties.swift` T7, no grid: `VStack{z flexible; b
+   height ≥ 58}` at 200×100 reads z 34, MetalUI z 46 and the stack 112 tall).
+   Grid arms GE10 and GE19 turn on it. Pinned wrong on purpose by tests 2.10
+   (GE10) and 2.11 (GE19 and T7). Owner: `CN-B`'s stack, not the grid.
 
 (Revision 4's item 7, "a grid's edges in an enclosing stack take default
 spacing", is withdrawn: `GR-R` ports SwiftUI's positional rule.)
@@ -861,3 +869,70 @@ test 4.11 fails and the lane records what the text measured.
 
 **Cost if wrong.** (1) defers rects a lane; (2) binds lane 2 to a frame budget;
 (3) is pre-existing and recorded, not hidden.
+
+---
+
+## GR-X — lane 2 as built: the stack's infinite tie, an inverted solver, the counter, two mutations the spec named
+
+**Ruling** (lane 2, 2026-09-17; measurements in record §20, "Lane 2").
+
+1. **GE10 and GE19 are pinned at the kernel's figures, not SwiftUI's.** With the
+   finite solve in place, GE10 read a 46 / c 38 / d at 100 (stack 110 wide) and
+   GE19 z 46 with the stack 112 tall, against SwiftUI's 36/38/10 and z 34. The
+   grid's answers in both are the model's (GE10's grid answers 56 to its 46
+   offer, as a 46-wide grid of `[c flexible priority 1, d 10x10]` must; GE19's
+   58 to 200×46). The difference is **which child the enclosing stack serves
+   first**: both children answer ∞ at main ∞, so `CN-B`'s flexibility (∞ − the
+   answer at 0) ties, and MetalUI's stack breaks ties in declaration order.
+   A new probe, `docs/probes/swiftui-grid-stack-ties.swift` (run twice,
+   byte-identical), shows SwiftUI serving the child larger at 0 first **with no
+   grid** (T7: `VStack{z flexible; b height ≥ 58}` at 200×100, z 34), with a
+   control (T0) that can contradict declaration order. So this is a stack rule
+   the grid exposes, not a grid rule: it is divergence 8 of `GR-O`, pinned wrong
+   on purpose (tests 2.10 and 2.11, which gains a kernel T7 arm with no grid),
+   and left to the stack's owner. **Not fixed here**: `solveLinearStack` is in a
+   shared file on the other track's path, and one arm (T7) does not establish
+   SwiftUI's tie rule (the larger minimum first is one reading; T2–T5 and T8
+   cannot distinguish it from others). Mutation M2.15 (larger answer at 0 first
+   on an infinite tie, applied to the stack and reverted) reddens exactly those
+   two tests, at SwiftUI's figures (GE10 a 36; GE19 and T7 z 34).
+2. **The finite solver is inverted** (`NativeGridSolver`: `request` /
+   `provide`), for the depth guard (`SA-L`, `GR-M`'s gate of 147). A first
+   indexed solver that called its measure closure from inside its group loop
+   let a chain of one-cell grids at 400×400 complete **65** levels on a 1 MB
+   debug thread, below `maxDepth` itself (88), so a chain the guard admits would
+   have overflowed the stack. Inverted, with the loop in its own
+   `LayoutTree.measureGrid(_:atAProposal:)`, the chain completes **155** at
+   400×400 and **167** at nil×nil (170 at lane 1; 159 with the loop inline in
+   `measureGrid`); stack 127, padding 194, unchanged (re-taken on the
+   committed build). `solveNativeGrid(_:proposal:measure:)`
+   remains as a driver over the solver for placement and test 2.14.
+3. **The counter** (`GR-U`) counts one per cell visited filling a priority
+   level's counts, one per cell decremented after its group, one per column and
+   row visited by a commit check (every column and row after the first group,
+   a group's own cells' rows and single-column cells' columns after later
+   ones), and each column visited by a span sum (the columns outside a span
+   when proposing it, the spanned columns when summing its width and choosing
+   its targets). It counts nothing at nil×nil. On 2.14's grid: **11n + 3** (2203
+   at n = 200). The scanning first branch (`ea0a51b`) read **424331** at n = 200
+   and 107181 at n = 100.
+4. **Test 2.3 asserts GP5's and GP6's a logs.** Its named mutation (a nil grid
+   axis proposed as 0) left 2.3 green: a proposed 152×0 answers 152×0, and its
+   152×20 slot re-measures it to the rect the probe reads. The logs are the
+   probe's own "measured, in order" entries (`152xnil`, then placed at `152x20`;
+   `nilx62`), and with them the mutant reddens 2.3 (and the corpus, 4 issues).
+5. **Test 2.12's named mutation does not discriminate** (re-measure every cell
+   at its slot): GP1's four slots already differ from their answers, and GP2's
+   one equal slot is also its measured proposal. It reddened 1.5, 1.12, 2.1,
+   2.9 and 2.13 and left 2.12 green. **Substituted** (spec §7's rule, both
+   recorded): the finite solve also measures every cell at nil×nil first, which
+   reddens 2.12 at GP1 20 calls / 12 hits / 21 misses and GP2 19 / 13 / 20.
+6. **Counts.** Lane 1's verifier added `resetClearsGridCellColumnMarks`, so lane
+   2's suite is **1446** (spec §7 read 1445); later lanes' expectations add one.
+
+**Cost if wrong.** (1) If SwiftUI's tie rule is not about the stack, a grid in a
+stack beside a flexible sibling lays out differently from SwiftUI by a share
+(GE10: 10pt); the pins redden the day the stack changes, which is when this
+should be re-read. (2) is a stack-depth budget, re-measured. (3)–(5) are test
+strength, measured by mutation.
+
