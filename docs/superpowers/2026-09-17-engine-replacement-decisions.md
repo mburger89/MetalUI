@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-AW`** (stage 2's design took `LR-AB`…`LR-AO` and its critic round 1 `LR-AP`…`LR-AV`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-AX`** (stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV` and its lane 1 `LR-AW`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -2034,3 +2034,80 @@ gates; focus and keys under `hidden()` stay task 12's. The design it inherits:
 **What it costs if wrong.** A proposal-authority tree containing `hidden()` traps
 until the owner lands; stage 6a's flipped-default census classifies the 42 test
 uses; production content has none.
+
+---
+
+## LR-AW — stage 2 lane 1's corrections: W's minimum, where unlowered item fields report, the unconsumed check's reach, and the test shapes the harness root forces
+
+**Evidence.** Record §19, lane 1: the red run on the stage-1 lowering (1424 tests,
+17 red, every legacy-side literal passing), the implementation's first full run
+(1424, 7 red — exactly the pins below), stage-2 probe revision 3 (Z0/Z1, run twice,
+byte-identical), and the lane's mutations.
+
+**The rulings.**
+
+1. **W's minimum is 0 on a stretched axis when the item declares none.** CSS's
+   stretched cross size is the line's, below the item's content if the line is
+   smaller (the content overflows); a bare `.frame(maxHeight: .infinity)` never
+   answers below its child (stage-2 probe Z0: 20×50 in a 30-tall row) and
+   `.frame(minHeight: 0, maxHeight: .infinity)` answers the line (Z1: 20×30, the
+   child overflowing) — F4's presence rule on the cross axis. So W is
+   `frame(min: declared minSize ?? 0, max: declared maxSize ?? ∞)` on that axis,
+   the SwiftUI spelling whose answer is CSS's; a declared maximum below the minimum
+   is raised to it (CSS's minimum wins; the kernel would trap on `min > max`).
+   Pinned by 1.4's stretched arm (a row stretched to 40 over a 60-tall minimum
+   child: 40 on both sides), mutation **M1r**.
+2. **Item fields lane 1 does not lower are reported by the consuming parent**, at
+   the child's site under the stage-1 names — `flexGrow`, `flexShrink`,
+   `flexBasis`, `alignSelf.baseline`, `minSize`/`maxSize` off a stretched axis (or a
+   percentage on one), `margin` — after the parent's own rows (spec §4's order),
+   each child's in `LR-AQ`'s field order. **A reporting element still records its
+   item** (except `display: none`, reported alone, `LR-J`), so its own item fields
+   are reported by its parent: the whole demo reports each field once (5.3's
+   13-entry literal). A frame layer over one node is a stack parent: it ignores the
+   flex fields and reports a child's `minSize`/`maxSize`/`margin`, as the child
+   itself did in stage 1.
+3. **The unconsumed check lands in lane 1, so every item field under the harness
+   root reports `…unconsumed`** (the root is a proposal overlay). The spec listed
+   five amended pins; seven moved: 1.5 (`everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`:
+   arms re-spelled with `position` and `inset`), 2.3 (item rows `…unconsumed`, and
+   seven in-`Row` arms per site for the consumed names; 51 arms), **2.3b** (lane 2's
+   amendment to `size.percent` + `inset` taken now), 3.5 (the stretch arms agree, a
+   container's `margin` is unconsumed; **name kept** — its `space-*` half is still
+   the subject until lane 5), **3.9** (re-spelled `[reverse, flexWrap, position,
+   inset]`), 4.1 (the two stretch arms moved to 1.9; `margin` unconsumed) and 5.3 (an
+   exact ordered literal). Stage 1's M3f and M5c mutated a stretch row that no
+   longer exists and are retired.
+4. **The root exception, measured**: 1.13's root arms compare a legacy frame root
+   with and without each field; the legacy root ignores `flexGrow(1)`,
+   `flexShrink(0)`, `flexBasis(0)` and `alignSelf(.flexEnd)` (recorded literal), so
+   those lower as absent at the root; `minSize`/`maxSize`/`margin` report. Mutation
+   **M1u** (the root not exempt).
+5. **`alignSelf(.stretch)` on an item with a declared cross size** sits at the
+   start in CSS; in a centring parent it gets an alignment frame at factor 0 (1.5's
+   third child). The alignment frame is registered wherever the child's factor
+   differs from the parent's, not only for a non-`nil`, non-`stretch` `alignSelf`.
+6. **Test shapes the harness root forces** (spec §6 lane 1 amended in place):
+   the kernel offers a lowered item a concrete cross proposal wherever a root
+   proposes one, and a stack serves a group of one its whole finite main proposal —
+   there is no nil-offer in a lowered tree — so "an unsized parent whose line is
+   its tallest sibling" (X1) cannot agree under the harness root. 1.1's unsized arm
+   is a parent stretched to 60 by a sized grandparent; 1.4, 1.8 and 1.14 declare the
+   container's size; 1.6 and 1.7 keep the design's `Row { … }` spelling (the row
+   offers its whole width). 1.3's middle container is a **column** `Box` (in a row
+   `Box` the child's width is its main axis, 0 on both sides). 1.4's literal was
+   wrong: a 60 minimum on a 100 line is 100 (the 60 is the stretched-to-40 arm).
+   1.9's X16 arm needs `nil` items (`Stack(alignment:)` never stretches).
+7. **`CounterPanel()` needs a lowered flex parent** in 5.4–5.6: directly under the
+   harness root its chrome's `alignSelf` is unconsumed. `Column { CounterPanel()
+   }.width(400)`: 9 elements.
+8. M1d (the elision removed) and M1l (W also for an elided single child) are one
+   edit in this implementation; the record runs it once under both names.
+
+**What it costs if wrong.** (1) A stretched item whose content exceeds the line
+paints past its W where a greedy frame without a minimum would have grown the line;
+the alternative disagrees with the legacy engine and hides the overflow. (2) A
+reported tree's census lists more entries than the fields an author must fix first;
+production traps on the first either way. (3) An author placing a legacy element
+with an item field directly under a proposal container gets a trap naming
+`…unconsumed`, which is the ruling's intent (`LR-AQ`).

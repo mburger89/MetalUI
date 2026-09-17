@@ -49,6 +49,9 @@
 //        its share (a zero basis with no minimum).
 //   P7–P9 — BM-4's overflow under a leading, top and centre frame alignment.
 //   Y  — breaking inside a word, against CoreText's own line breaks.
+//   Revision 3 (stage 2, lane 1, appended before DONE):
+//   Z0, Z1 — a greedy cross frame over a child taller than the line, without and
+//        with a declared minimum of 0.
 //
 // RECORDED 2026-09-17 07:20 PDT by the stage-2 design session, macOS 27.0
 // (26A428), `/usr/bin/swift` = Apple Swift 6.4 (swiftlang-6.4.0.33.1). Exit
@@ -67,6 +70,12 @@
 // (CGSSessionScreenIsLocked = 1, displayAsleep main: 1 at 07:49). The 157
 // revision-1 lines appear unchanged and in order, with C2's three lines after
 // C1.
+//
+// REVISION 3 RECORDED 2026-09-17 08:45 PDT by the stage-2 lane-1 implementer,
+// same OS and toolchain: exit 0; run twice, stdout byte-identical, 243 lines —
+// the revision-2 OUTPUT's first 234 lines unchanged and in order, Z0/Z1's eight
+// lines, then DONE; filtered stderr empty. Screen locked and asleep
+// (CGSSessionScreenIsLocked = 1, displayAsleep main: 1 at 08:40).
 //
 // READING (each arm against its control; "CSS" is the legacy engine's answer
 // for the legacy spelling the arm stands in for, from the engine's rules, not
@@ -148,6 +157,11 @@
 //   trailing space)): Y2/Y3 19 (18.17), Y4 11 (10.31), Y6/Y7 18 (17.25), Y9 45
 //   (44.02; 40.44 without the space), and the proposal where that is wider
 //   (Y5 5 against 7.86, Y8 30 against 33.31). Control Y0 (nil): one line.
+// - Z: a bare `.frame(maxHeight: .infinity)` over a 50-tall child in a 30-tall
+//   row answers the child (Z0: 20x50 at y -10, overflowing centred); with
+//   `minHeight: 0` it answers the row's 30 and the child overflows it (Z1:
+//   frame (20, 0) 20x30, child at y -10) — CSS's stretched size, which is the
+//   line whatever the content. The presence rule of F4 on the cross axis.
 //
 // OUTPUT:
 //
@@ -385,6 +399,14 @@
 //       ct lines 12 widest 29.95 with trailing space 33.31
 //   Y9 Text(long) at 45 @45xnil: size 45x112
 //       ct lines 7 widest 40.44 with trailing space 44.02
+//   Z0 control HStack(0){a20x10; b20x50.frame(maxHeight:.inf)}.frame(height:30) @nilxnil: size 40x30
+//       leaf a: at (0, 10) 20x10
+//       leaf b: at (20, -10) 20x50
+//       geometry bframe: (20, -10) 20x50
+//   Z1 HStack(0){a20x10; b20x50.frame(minHeight:0,maxHeight:.inf)}.frame(height:30) @nilxnil: size 40x30
+//       leaf a: at (0, 10) 20x10
+//       leaf b: at (20, -10) 20x50
+//       geometry bframe: (20, 0) 20x30
 //   DONE
 
 import AppKit
@@ -800,6 +822,21 @@ enum Count {
     })
 }
 
+// Revision 3 (stage 2, lane 1; ruling LR-AW): a stretched item whose content is
+// taller than the line. Z0 is the control: a bare greedy cross frame never answers
+// below its child. Z1 adds a declared minimum of 0 (its PRESENCE, as F4): the
+// frame answers the line and its child overflows.
+@MainActor func revisionThreeProbes() {
+    run("Z0 control HStack(0){a20x10; b20x50.frame(maxHeight:.inf)}.frame(height:30)", none) {
+        HStack(spacing: 0) { fixed("a", 20, 10); fixed("b", 20, 50).frame(maxHeight: .infinity).geo("bframe") }
+            .frame(height: 30)
+    }
+    run("Z1 HStack(0){a20x10; b20x50.frame(minHeight:0,maxHeight:.inf)}.frame(height:30)", none) {
+        HStack(spacing: 0) { fixed("a", 20, 10); fixed("b", 20, 50).frame(minHeight: 0, maxHeight: .infinity).geo("bframe") }
+            .frame(height: 30)
+    }
+}
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 MainActor.assumeIsolated {
@@ -807,5 +844,6 @@ MainActor.assumeIsolated {
     hiddenProbes()
     revisionTwoProbes()
     breakProbes()
+    revisionThreeProbes()
 }
 print("DONE")

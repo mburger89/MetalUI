@@ -312,3 +312,194 @@ Deferred by name: `hidden()` (`LR-AV`), W2 (task 11), the others in spec §9.
   each; lane 5 no longer touches `ElementGroup.swift` or `ModifiedElement.swift`.
 - `LR-AK`'s paragraph in the "Decisions taken at design time" table above is
   superseded by `LR-AV`; `LR-AM`'s by `LR-AU` for the below-word answer.
+
+## Lane 1 — item records, the bounds alias, the cross axis, unconsumed records (2026-09-17, PDT)
+
+Implementer's record. Commits: `0e4a209` (red), `ba908ad` (implementation and
+amended pins), and this record's commit (docs, doc comments, probe revision 3).
+Rulings: `LR-AW` (the lane's corrections to the design; the spec's lane-1 rows are
+amended in place and marked *lane 1*).
+
+### Red first (`0e4a209`, on the stage-1 lowering)
+
+`swift build --build-system native --build-tests`: 0 `error:` (the first build of
+the new file had two — an `@ElementBuilder` missing on a local builder and
+`lastNativeLayoutWork` needing `@testable import MetalUILayout` — both fixed before
+the run). `swift test --build-system native --no-parallel --skip-build`: **`Test run
+with 1424 tests in 1 suite failed after 44.154 seconds with 197 issues`**, 17 tests
+red:
+
+| test | issues | first red line |
+|---|---|---|
+| 1.1 `aStretchedChildFillsTheLineOnItsCrossAxis` | 80 | `:184 r.unlowerable.isEmpty` (`box.alignItems.stretch`), `:186` cross size ≠ 70 |
+| 1.2 `aStretchedContainersContentSitsByItsOwnAlignment` | 18 | `:236` lowered rects (the container a reported 0×0 leaf) |
+| 1.3 `aStretchedSingleChildContainerDoesNotStretchItsChild` | 3 | `:285 r.loweredBounds[m] == bounds(0, 0, 200, 10)` |
+| 1.4 `aStretchedItemIsClampedByItsOwnMinimumAndMaximum` | 8 | `:325`, `:334` lowered rects |
+| 1.5 `alignSelfPlacesOneChildOnTheCrossAxisOfADefiniteContainer` | 3 | `:361` lowered rects (`box.alignSelf` reported) |
+| 1.6 `anAlignSelfWrapperFillsAnIndefiniteContainerWhereCSSHugs` | 2 | `:385` lowered rects |
+| 1.7 `aStretchedItemInsideAHuggingItemFillsItsProposal` | 2 | `:409` lowered rects |
+| 1.8 `aNilAxisFrameLayerUnderAStretchingContainerIsStretched` | 12 | `:435`, `:443`, `:450` |
+| 1.9 `aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields` | 15 | `:487`, `:499`, `:509`, `:517`, `:525 fill.unlowerable.isEmpty` |
+| 1.10 `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap` | 7 | `:561`, `:563` |
+| 1.11 `aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork` | 6 | `:618` report, `:619 nodeCount == 19`, `:621`–`:623` work |
+| 1.13 `anItemFieldNoLoweredContainerConsumesIsReportedByName` | 27 | `:774` arm entries (`box.flexGrow`, not `…unconsumed`), `:764` root rects |
+| 1.14 `aStretchedUnsizedSpaceDistributionContainerIsReported` | 9 | `:799` report, `:807` rects |
+| 1.15 `anAlignSelfInsideAOneChildWrapperFillsTheWrapperWhereCSSIgnoresIt` | 2 | `:833` lowered rects |
+| 5.4 `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements` | 1 | `LayoutDifferential.swift:274 preflight.unlowerable.isEmpty` — `[box.alignSelf]` |
+| 5.5 `aLoweredWindowPublishesTheSameAccessibilityTree` | 1 | the same pre-flight |
+| 5.6 `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths` | 1 | the same pre-flight |
+
+1.12 `theCentringDefaultOfRowAndColumnStretchesNothing` passed (characterization,
+as the spec marks it). **Every legacy-side literal passed** (1.3, 1.6, 1.7, 1.9's
+X16 arm, 1.15), and 1.13's recorded root literal (the legacy root ignores
+`flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`) passed — the measurement the
+root exception rests on (`LR-AW` item 4).
+
+**1.11's literals** (19 nodes; 92 misses, 74 hits, 15 calls) were derived by hand
+in the doc comment before the red run. The bookkeeping was checked with a Python
+transcription of the kernel's documented rules (`scratchpad/s2l1/workmodel.py`),
+first validated against stage 1's committed hand derivation of 5.7 (it reproduces
+118/94/4, 16 nodes, the column 40×38 and the second row at (1, 20)); the first
+derivation by hand missed placement's second solve of `SC` (9 hits), which the
+transcription's trace showed before any test ran. The implementation's first run
+matched all four literals and the five rects.
+
+### Implementation (`ba908ad`)
+
+- `Sources/MetalUI/LoweringState.swift` (new): `LoweredItem`, `LoweringState`
+  (records, registration order, aliases), `Frame.reportUnconsumedLoweredItems(root:)`.
+- `Frame.swift`: the stored `var lowering = LoweringState()` (with its doc), one
+  expression in `bounds(of:)`, one call in `render` after the root registers.
+  `Passes.swift`: one expression in `PaintPass.measuredWidth(of:)`.
+  `ScrollView.swift`: the proposal branch consumes its content's records.
+- `LegacyLowering.swift`: every site records its item; containers and the frame
+  layer consume their children's records; `planLegacyItems` / `registerLegacyItems`
+  (appended); the stretch rows removed from `legacyContainerDiagnostics` and the
+  item rows from `legacyLeafDiagnostics`.
+- `swift package clean` before the full run (`Frame` gained a stored property).
+
+**First full run**: `Test run with 1424 tests in 1 suite failed after 43.754 seconds
+with 33 issues`, 7 red — exactly the pins below, every new test green:
+`everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` (16),
+`everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` (5),
+`stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem` (5),
+`aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes` (3),
+`aLeafWithTwoUnlowerableFieldsTrapsNamingTheFirstInProduction` (2),
+`aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst` (1),
+`theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (1). Their red lines
+named what moved: item fields under the harness root now read `…unconsumed`
+(`Box flexGrow: [box.flexGrow.unconsumed]`; the 2.3b child trapped on
+`box.flexGrow.unconsumed`), the stretch arms reported nothing, and the demo census
+read 13 entries (`LR-AW` item 3). Each was amended as `LR-AW` records.
+
+**Suite after the amendments**: `Test run with 1424 tests in 1 suite passed after
+43.391 seconds` (1409 + 15 new tests; 0 `error:`, only SwiftPM's deprecation
+`warning:`). Goldens 97, `git diff --name-only cb2e708 -- '*.json'` empty. Guards
+71 (none added).
+
+### The whole demo's census after lane 1 (5.3)
+
+`[box.flexGrow ×3, list.noLowering, box.flexShrink, scrollView.noLowering,
+box.flexGrow, box.flexBasis, box.minSize, box.flexGrow, modifierLayer.flexGrow,
+box.flexGrow, box.flexGrow]` — every stretch and `alignSelf` entry gone (four
+`box.alignItems.stretch`, `modifierLayer.alignItems.stretch`, `stack.alignSelf`,
+`box.alignSelf`), no `…unconsumed`. Annotated in the test's doc comment.
+
+**Follow-up commit `9245c1f`**: M1k (below) left the suite green, so 1.10 gained a
+second arm (a stretched `Text("Wii il")` in a 4-wide column) and two doc comments
+in `LegacyLowering.swift` were updated. Suite: `Test run with 1424 tests in 1 suite
+passed after 43.038 seconds`. **Final**, after `swift package clean` (09:02 PDT):
+build 0 `error:`, one `warning:` (SwiftPM's `--build-system native` notice); `Test
+run with 1424 tests in 1 suite passed after 43.466 seconds`, 0 `error:`, no
+`warning:`; goldens 97; no `.json` differs from `cb2e708`.
+
+### Mutations
+
+Each by `scratchpad/s2l1/mut/run.py`: file copied aside, the target asserted
+unique, applied, `swift build --build-system native --build-tests`, full unfiltered
+`swift test --build-system native --no-parallel --skip-build`, restored from the
+copy, `git status --short` read after every one (it listed no `Sources/` or
+`Tests/` path; the uncommitted docs of this record showed). All on `ba908ad`
+except M1k's re-run on `9245c1f`. No build error, no truncated run. Issue counts in
+parentheses.
+
+| mutation | what | reddened |
+|---|---|---|
+| **M1a** | W registered, not aliased | 1.1 (54), 1.2 (12), 1.3 (1), 1.4 (6), 1.7 (1), 1.8 (6), 1.9 (4), 1.10 (6), 1.11 (1), 1.14 (2), `stretchAndSpaceDistribution…` (6) — 99 |
+| **M1b** | W greedy on the main axis instead of the cross | 1.1 (56), 1.2 (12), 1.3 (1), 1.4 (8), 1.7 (1), 1.8 (6), 1.10 (6), 1.11 (4), 1.14 (7), `stretchAndSpaceDistribution…` (6) — 107 |
+| **M1c** | W aligned `.topLeading` | 1.1 (8), 1.2 (8), 1.8 (4), 1.14 (4) |
+| **M1d** = **M1l** | the one-child elision removed (`LR-AW` item 8) | 1.3 (1), 1.11 (4), `stretchAndSpaceDistribution…` (2), `aLoweredPaddingLayerAgreesWithTheLegacyWrapper` (9), `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement` (4), `aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork` (5) — P3 run 1's three, as the spec predicted |
+| **M1e** | W drops `maxSize` | 1.4 (6) |
+| **M1r** | W's minimum absent when undeclared (`LR-AW` item 1) | 1.4 (2) |
+| **M1f** | the alignment frame's factor always 0 | 1.5 (2), 1.15 (1) |
+| **M1g** | the alignment frame not greedy | 1.5 (2), 1.6 (1), 1.15 (1), 5.4 (18), 5.5 (1), 5.6 (2) |
+| **M1h** | stretch only in a parent declaring its cross size | 1.1 (28), 1.4 (4), 1.7 (1), 1.11 (5) |
+| **M1i** | frame-layer records skipped by the parent | 1.8 (6) |
+| **M1j** | a stack parent lowers `alignSelf` | 1.9 (2) |
+| **M1j′** | a stack parent's stretch not greedy | 1.9 (4) |
+| **M1k** | alias in `bounds(of:)` but not `measuredWidth(of:)` | **none on `ba908ad`** — the finding: at 120 the leaf's widest line re-wraps to W's lines, so no test could see the width paint asks. Proven different first: a scratch arm below a glyph's width read `scenesEqual` false under the mutant at widths 4 and 6 (true at 9). Re-run on `9245c1f` with that arm in 1.10: 1.10 (1) |
+| **M1m** | the unconsumed check removed | 1.13 (18), 2.3 (16), 4.1 (1), `stretchAndSpaceDistribution…` (1) |
+| **M1m′** | `ScrollView` does not mark its records | 1.13 (1). The demo census stayed green: the demo's `ScrollView` receives only the `List`'s `Box` and the modal's `Deferred` stack, neither declaring an item field (spec §7 asked for this either way) |
+| **M1n** | the alignment frame aliased | 1.5 (2), 1.6 (1), 1.15 (1), **5.4 (9), 5.5 (3)** — not 5.6, whose slots are id-keyed and whose width half has no `alignSelf`; the `CounterPanel`-specific mutations that do redden 5.6 are M1g and M1q (the chrome moves off x 0 and the "+" click misses, so `$state0` is never written) and stage 1's M5d (below) |
+| **M1o** | stretch applied for `.center` | 1.12 (9), 1.15 (1), 5.4 (8), 5.5 (3), 5.1 (23), 5.2 (1), 5.7 (6), `aLoweredContainerPaddingSitsInsideItsDeclaredSize` (3) |
+| **M1p** | the free-space re-check removed | 1.14 (3) |
+| **M1q** | `alignSelf` elided in a one-child container | 1.15 (1), 5.4 (18), 5.5 (1), 5.6 (2) |
+| **M1t** | the parent's `flexGrow` report dropped | 1.13 (1), 2.3 (2), 5.3 (1) |
+| **M1u** | the root not exempt | 1.13 (4) |
+| **M5d** (stage 1's, re-run) | lowered stack spacing + 50 | 26 tests, 217 issues: 5.4 (18), 5.5 (1), 5.6 (2), 5.1 (23), 5.2 (1), 5.7 (3), lane 3's 3.1 (24), 3.2 (6), 3.3 (36), 3.4 (5), 3.5 → `stretchAndSpaceDistribution…` (7), 3.6 (1), 3.7 (6), 3.8 (3), 1.1 (42), 1.2 (12), 1.4 (6), 1.5 (2), 1.6 (1), 1.7 (1), 1.8 (3), 1.10 (3), 1.11 (4), 1.12 (3), 1.14 (3), 1.15 (1) |
+
+Every lane-1 test is reddened by its spec mutation; no mutation left the suite
+green except M1k on the first tree, now closed.
+
+### Pixels (CN-R)
+
+`gen-lib.py` into `git archive`s of `cb2e708` and `ba908ad` (the last commit
+changing behaviour under `Sources/`; `9245c1f` changes doc comments only),
+`DEMO_PIXELS_SMALL=1`: **12 of 12 read 0 differing pixels, scene identical.**
+Controls on the head images: light vs dark f0 1 048 576; vs modal-light
+1 030 498; vs animation-light 210 027; f0 vs f3 0; preview light vs dark
+1 048 576 — the stage-1 figures.
+
+**The two-authority chrome pair, re-taken with `CounterPanel()`**
+(`DifferentialRoot(560) { Column { CounterPanel() }.width(560) }` through a 560²
+fake `Window` per authority, on `ba908ad`): **`chrome-legacy` vs `chrome-proposal`
+0 differing pixels, scene files identical**; not blank (216 distinct pixel values;
+308 354 against `small560-default-light`). **Control, M5d** on an archive of
+`ba908ad`: 8 214 differing pixels, scenes differ.
+
+### Probe
+
+Stage-2 probe revision 3 (group Z, `LR-AW` item 1): exit 0, run twice,
+byte-identical, 243 lines; the first 234 identical to the revision-2 OUTPUT, then
+Z0/Z1 and DONE; filtered stderr empty. Z0 (control) `b20x50.frame(maxHeight:.inf)`
+in a 30-tall row: 20×50 at y −10. Z1 with `minHeight: 0`: frame 20×30 at y 0, the
+child at y −10. Recorded in the header.
+
+### Screen lock and captures
+
+`appkit-screen-lock-state` at 08:40, 08:44 and 09:02 PDT: `CGSSessionScreenIsLocked
+= 1`, `displayAsleep main: 1`. No real-window capture was taken. `IOConsoleLocked`
+not read (`FR-V`).
+
+### Deferred from lane 1, by name
+
+- **Every item field lane 1 still reports** — `flexGrow`, `flexShrink`,
+  `flexBasis`, `minSize`/`maxSize` off a stretched axis: lane 2; `margin`, and a
+  percentage on a stretched axis: lane 4; `alignSelf.baseline`: task 11.
+- **The exit test** (5.3's rewrite to `[list.noLowering, scrollView.noLowering]`
+  with its rect causes): lane 2.
+- **1.1's "line = tallest sibling" (X1)**: not expressible as an agreeing arm under
+  the harness root (`LR-AW` item 6); X1 is exercised by the kernel's own stack
+  placement at a nil cross proposal, which no lowered tree produces.
+
+### For the integrator
+
+- `Frame.lowering` is a new stored property on a public class: `swift package
+  clean` after merging. `Frame.bounds(of:)` and `PaintPass.measuredWidth(of:)`
+  each changed by one expression; `Frame.render` gained one call
+  (`reportUnconsumedLoweredItems(root:)`).
+- `ScrollView.swift` gained one line in its proposal branch (marks records).
+- New divergences pinned by this lane (proposal authority only): X9 (1.3), X7
+  (1.6), X4 (1.7), X16 (1.9), X14 (1.15). The stage-1 census (5.3) is now an
+  ordered literal of 13 entries.
+- Retired stage-1 mutations: M3f and M5c (the stretch rows they mutated are gone).
