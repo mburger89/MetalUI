@@ -141,6 +141,17 @@ public final class Window {
         didSet { setNeedsRedraw() }
     }
 
+    /// Whether every frame this window builds records its element bounds
+    /// (`Frame.recordsElementBounds`), read back through `lastElementBounds`.
+    /// **Test observability** for plan task 7's differential harness through a real
+    /// window (`WindowPair`, lane 5); no production reader. Off by default, so a
+    /// frame pays nothing.
+    var recordsElementBounds = false
+
+    /// The most recent frame's `Frame.elementBounds` — empty unless
+    /// `recordsElementBounds`. Captured alongside `lastScene`, for its reason.
+    private(set) var lastElementBounds: [GlobalElementID: Bounds<Pixels>] = [:]
+
     /// Raw input, for whatever no element claimed.
     ///
     /// **The window's fallback, not its first look — and that sentence is the
@@ -878,7 +889,8 @@ public final class Window {
                           focusedElement: focusHandedIn,
                           transaction: transaction,
                           collectsAccessibility: accessibility.isActive,
-                          layoutAuthority: layoutAuthority)
+                          layoutAuthority: layoutAuthority,
+                          recordsElementBounds: recordsElementBounds)
         frame.rootEnvironment = environment
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
@@ -893,6 +905,7 @@ public final class Window {
         let scene = frame.finalizedScene()
         lastScene = scene
         lastHitboxes = frame.hitboxes
+        lastElementBounds = frame.elementBounds
         lastFocusRegistry = frame.focusRegistry
         // Read BACK, not merely handed in: `Frame.resolveFocus()` cleared it if
         // this frame did not produce the focused element (design spec §4.2).

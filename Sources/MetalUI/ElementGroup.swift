@@ -663,6 +663,12 @@ extension AnyElement: ElementGroup {
 
     public mutating func prepaintGroup(layout: inout GroupLayout,
                                        pass: inout PrepaintPass) {
+        // The element bounds log (plan task 7, ruling LR-D), as
+        // `Element.prepaintGroup` records it: this group entry is a copy of that
+        // default, and lane 1's log missed it, so the differential harness could
+        // not see an erased element until lane 5's corpus put one in (record §18,
+        // lane 5; pinned by `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`).
+        pass.frame.recordElementBounds(layout.id, pass.bounds(of: layout.node))
         prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
     }
 

@@ -1510,10 +1510,11 @@ public final class Frame {
     let recordsElementBounds: Bool
 
     /// Each element's resolved bounds this frame, by id — **empty unless
-    /// `recordsElementBounds`**. Written at the three places an element's bounds
+    /// `recordsElementBounds`**. Written at the four places an element's bounds
     /// are handed to its `prepaint`: the root (`render`), every group member
-    /// (`Element.prepaintGroup`) and every inner `ModifiedElement` layer
-    /// (`prepaintLayer`). An id placed twice keeps its last rect.
+    /// (`Element.prepaintGroup`, and `AnyElement`'s own group entry, a copy of it —
+    /// lane 5), and every inner `ModifiedElement` layer (`prepaintLayer`). An id
+    /// placed twice keeps its last rect.
     private(set) var elementBounds: [GlobalElementID: Bounds<Pixels>] = [:]
 
     /// Records `bounds` for `id` when this frame records element bounds.
