@@ -1,5 +1,18 @@
 # Engine replacement — design (plan task 7), with stage 1 in detail
 
+**Status, 2026-09-17 (PDT): stage 1 implemented and verified; the task is open
+(stage 1 of 13).** Five lanes on `feat/engine-replacement`, `4ceb3e0`…`95234ae`,
+each red first; all five verified `ok: true`, lane 5 with four minor issues left
+open (record §18, "Verifier round (lane 5)": 5.8's doc comment and the
+bracketed 88/89 depth boundary, `compareInWindows` with no caller — §5.2 below
+still describes it as the window comparison — the demo's lazy globals, and 5.5
+passing on an empty bounds log). Suite 1409 (1357 + 52), 97 goldens unmoved, 71
+guards; the twelve demo images 0 differing pixels at every lane; no production
+frame runs under the proposal authority. Stages 2–11 (§4) are designed only at
+the level of §4's table; each needs its own design. Record:
+`docs/record/18-engine-replacement-stage-1.md`, whose "For the integrator"
+section names the documentation edits.
+
 Plan task 7 (`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`): *"Port
 advanced layout, then remove the legacy engine. … Migrate the remaining
 elements off `FlexEngine` (including a windowed proposal `List` and a proposal
