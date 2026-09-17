@@ -211,8 +211,11 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// **Lane 2** lowers a childless `Box` and a `Text`, so their arms carry a field
 /// the leaf table reports (`flexGrow`) and still name their own site; the
 /// `ModifiedElement` arms' `Box` lowers and reports nothing; `List`'s spacer is a
-/// childless `Box` declaring `flexShrink: 0` (`box.flexShrink`), and the zero-row
-/// `Box` around it is a container, still `box.noLowering` until lane 3.
+/// childless `Box` declaring `flexShrink: 0` (`box.flexShrink`).
+///
+/// **Lane 3** lowers containers, so the zero-row `Box` around the spacer — a
+/// column with one child, a declared height and no declared width, where its
+/// default `stretch` has no free space to show (ruling LR-E) — reports nothing.
 ///
 /// **The `Component` amend arm runs in a child process** and prints its entries:
 /// in-process, a regression in the amend's check reaches `SA-G`'s `setStyle`
@@ -225,7 +228,6 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 @MainActor
 @Test func everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn() async throws {
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
-    let box = field(.box, "noLowering")
     let layer = field(.modifierLayer, "noLowering")
     var arms: [Arm] = []
     arms.append(("Box", diagnostics { Box().width(px(10)).height(px(10)).flexGrow(1) },
@@ -240,11 +242,11 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     arms.append(("ScrollView", diagnostics { ScrollView { ProbeLeaf(width: 10, height: 10) } },
                  [field(.scrollView, "noLowering")]))
     // `list` first; then the zero-row `Box` it lays out under diagnostics — its
-    // spacer (a childless `Box` with `flexShrink: 0`, lowered since lane 2) and
-    // itself — and no row `Box`.
+    // spacer (a childless `Box` with `flexShrink: 0`, lowered since lane 2); the
+    // container itself lowers since lane 3 and reports nothing — and no row `Box`.
     arms.append(("List", diagnostics {
         List(probeItems(3), rowHeight: px(10)) { _ in ProbeLeaf(width: 10, height: 10) }
-    }, [field(.list, "noLowering"), field(.box, "flexShrink"), box]))
+    }, [field(.list, "noLowering"), field(.box, "flexShrink")]))
     let amendChild = await #expect(processExitsWith: .success,
                                    observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
