@@ -582,3 +582,136 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
         #expect(entries == expected, "\(name): \(entries)")
     }
 }
+
+// MARK: - 4.10–4.12 — verifier round (animated Stack and frame bounds, frame over no node)
+
+/// Renders `make(end)` animating from `make(start)` under
+/// `withAnimation(.linear(duration: 1))` on one `StateTable`, under `authority`
+/// in a 200×100 harness root, and returns `ids`' bounds on the frame before the
+/// transaction, the frame that starts it (t = 0) and half-way (t = 0.5). Every
+/// frame's report must be empty.
+@MainActor
+private func animatedRects<E: ElementGroup>(_ authority: LayoutAuthority, _ ids: [GlobalElementID],
+                                            start: E, end: E,
+                                            sourceLocation: SourceLocation = #_sourceLocation)
+    -> [[Bounds<Pixels>?]] {
+    let table = StateTable()
+    func rects(_ element: E, timestamp: Double, animating: Bool) -> [Bounds<Pixels>?] {
+        var root = DifferentialRoot(width: 200, height: 100) { element }
+        let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                          stateTable: table, timestamp: timestamp,
+                          transaction: animating ? .linear(duration: 1) : nil,
+                          layoutAuthority: authority,
+                          reportsUnlowerableFields: authority == .proposal,
+                          recordsElementBounds: true)
+        frame.render(&root)
+        #expect(frame.unlowerableFields.isEmpty, "\(authority) t \(timestamp): \(frame.unlowerableFields)",
+                sourceLocation: sourceLocation)
+        return ids.map { frame.elementBounds[$0] }
+    }
+    return [rects(start, timestamp: 0, animating: false),
+            rects(end, timestamp: 0, animating: true),
+            rects(end, timestamp: 0.5, animating: false)]
+}
+
+/// **4.10.** A lowered `Stack` lays out its **animated** size and padding, not its
+/// declared ones (the `Stack` branch of `lowerLegacyNode` has its own
+/// `paddedAndSized` call; 3.8 pins only the linear-stack branch's). A
+/// `.topLeading` `Stack` over one 10×10 box, height 20, animates width 40 → 120 and
+/// `Style.padding` 0 → 8 under `withAnimation(.linear(duration: 1))`. Derived by
+/// hand, under both authorities (padding inside the declared size, `LR-E`):
+///
+/// - before and at the transaction's start: stack (0, 0) 40×20, box (0, 0);
+/// - half-way: width 80, padding 4 — stack (0, 0) 80×20, box (4, 4).
+///
+/// Mutation that must redden it: **V4**, the `Stack` branch sizes and pads from
+/// `declared` (the lowered stack reads 120 wide with the box at (8, 8) on every
+/// animated frame).
+@MainActor
+@Test func aLoweredStackLaysOutItsAnimatedWidthAndPadding() throws {
+    func stack(width: Float, padding: Float) -> Stack<Box<EmptyGroup>> {
+        var s = Stack(alignment: .topLeading) { fixed(10, 10) }.width(px(width)).height(px(20))
+        s.style.padding = Edges(all: .pixels(px(padding)))
+        return s
+    }
+    let box = child(containerID, 0)
+    var arms = 0
+    for authority in [LayoutAuthority.legacy, .proposal] {
+        let r = animatedRects(authority, [containerID, box],
+                              start: stack(width: 40, padding: 0), end: stack(width: 120, padding: 8))
+        try #require(r.count == 3)
+        #expect(r[0] == [bounds(0, 0, 40, 20), bounds(0, 0, 10, 10)], "\(authority) baseline")
+        #expect(r[1] == [bounds(0, 0, 40, 20), bounds(0, 0, 10, 10)], "\(authority) transaction start")
+        #expect(r[2] == [bounds(0, 0, 80, 20), bounds(4, 4, 10, 10)], "\(authority) half-way")
+        arms += 1
+    }
+    try #require(arms == 2)
+}
+
+/// **4.11.** A frame layer's **minima and finite maxima** lower from its animated
+/// `Style` (`minSize`, `maxSize`), per axis and per bound (4.7 pins only a fixed
+/// width). Each animates 40 → 80 under `withAnimation(.linear(duration: 1))` in the
+/// 200×100 harness root; derived by hand, the frame reads 40 before and at the
+/// transaction's start and 60 half-way on the animated axis, under both
+/// authorities:
+///
+/// - `.frame(minWidth:)` over a 10×10 box: 40×10, 40×10, 60×10;
+/// - `.frame(minHeight:)` over a 10×10 box: 10×40, 10×40, 10×60;
+/// - `.frame(maxWidth:)` over a 100×10 box (larger than the maximum, so the legacy
+///   clamp and the lowered greedy maximum agree, `FR-E`): 40×10, 40×10, 60×10;
+/// - `.frame(maxHeight:)` over a 10×100 box: 10×40, 10×40, 10×60.
+///
+/// Mutations that must redden it: **V2** (`minWidth`), **V2h** (`minHeight`),
+/// **V2x** (`maxWidth`), **V2y** (`maxHeight`) — each bound read from `FrameSpec`
+/// instead of the animated style (that arm's lowered frame reads 80 at the start
+/// and half-way).
+@MainActor
+@Test func aFrameLayerLowersItsMinimaAndFiniteMaximaFromItsAnimatedStyle() throws {
+    typealias Framed = ModifiedElement<Box<EmptyGroup>>
+    let arms: [(String, Framed, Framed, [Bounds<Pixels>])] = [
+        ("minWidth", fixed(10, 10).frame(minWidth: px(40)), fixed(10, 10).frame(minWidth: px(80)),
+         [bounds(0, 0, 40, 10), bounds(0, 0, 40, 10), bounds(0, 0, 60, 10)]),
+        ("minHeight", fixed(10, 10).frame(minHeight: px(40)), fixed(10, 10).frame(minHeight: px(80)),
+         [bounds(0, 0, 10, 40), bounds(0, 0, 10, 40), bounds(0, 0, 10, 60)]),
+        ("maxWidth", fixed(100, 10).frame(maxWidth: px(40)), fixed(100, 10).frame(maxWidth: px(80)),
+         [bounds(0, 0, 40, 10), bounds(0, 0, 40, 10), bounds(0, 0, 60, 10)]),
+        ("maxHeight", fixed(10, 100).frame(maxHeight: px(40)), fixed(10, 100).frame(maxHeight: px(80)),
+         [bounds(0, 0, 10, 40), bounds(0, 0, 10, 40), bounds(0, 0, 10, 60)]),
+    ]
+    var ran = 0
+    for (name, start, end, expected) in arms {
+        for authority in [LayoutAuthority.legacy, .proposal] {
+            let r = animatedRects(authority, [containerID], start: start, end: end)
+            try #require(r.count == 3)
+            #expect(r.map { $0[0] } == expected, "\(name) \(authority): \(r)")
+            ran += 1
+        }
+    }
+    try #require(ran == 8)
+}
+
+/// **4.12.** A frame over **no** node that is not fixed on both axes shows the
+/// stand-in leaf's size (4.4's arm is fixed on both, where it cannot): ruling
+/// LR-Z's agreement "for a fixed or min-only frame". `NoNodes().frame(width: 40)`
+/// is 40×0 and `NoNodes().frame(minWidth: 40)` is 40×0 on both sides.
+///
+/// Mutation that must redden it: **V6**, the stand-in leaf answers 10×10 (the
+/// lowered frames read 40×10).
+@MainActor
+@Test func aFrameOverNoNodeFixedOnOneAxisOrMinOnlyIsZeroOnTheOther() throws {
+    let arms: [(String, LayoutDifferential.Report)] = [
+        ("width only", LayoutDifferential.compare(width: 200, height: 200) {
+            NoNodes().frame(width: px(40)).background(.accent)
+        }),
+        ("minWidth only", LayoutDifferential.compare(width: 200, height: 200) {
+            NoNodes().frame(minWidth: px(40)).background(.accent)
+        }),
+    ]
+    try #require(arms.count == 2)
+    for (name, r) in arms {
+        try #require(r.elements == 2, "\(name): \(r.elements)")
+        expectFullAgreement(r, name)
+        #expect(lowered(r, [containerID]) == [bounds(0, 0, 40, 0)], "\(name)")
+        #expect(r.legacyBounds[containerID] == bounds(0, 0, 40, 0), "\(name)")
+    }
+}
