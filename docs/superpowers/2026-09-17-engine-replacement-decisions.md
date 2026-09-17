@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-AB`**. A bare `LR-3` is a typo, not a citation.
+unused is **`LR-AP`** (stage 2's design took `LR-AB`…`LR-AO`, appended at the end). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -1191,3 +1191,458 @@ finding and not fixed here. The pre-flight
 checks the first frame's tree only: a tree that becomes unlowerable after input
 still traps inside its window.
 
+
+---
+
+# Stage 2 — flex-item semantics onto SwiftUI's (design, 2026-09-17)
+
+Rulings `LR-AB`…`LR-AO` belong to
+[`specs/2026-09-17-engine-stage-2-design.md`](specs/2026-09-17-engine-stage-2-design.md),
+on `feat/engine-stage-2` from `cb2e708`. **Design only**: no file under
+`Sources/` or `Tests/` changed in a commit. Measurements are in
+`docs/record/19-engine-replacement-stage-2.md`.
+
+**Probe**: `docs/probes/swiftui-engine-replacement-stage2.swift`, run under
+`/usr/bin/swift` (Apple Swift 6.4, swiftlang-6.4.0.33.1), macOS 27.0 (26A428),
+exit 0, run twice byte-identical, 157 lines; arms F0–F8, X0–X10, P0–P6, J0–J9,
+R0–R2, C0–C1, V0–V3, each group with a control that differs. Cited below as
+*stage-2 probe* arms; stage 1's as *stage-1 probe*, the containers probe's as
+*stack-algorithms*.
+
+**Prototype P3**: §3's mechanism for lanes 1–2, applied to this worktree, built,
+run and restored (`git checkout Sources`, the scratch test deleted, `git status
+--short` showing only this design's probe afterwards); patch kept in the session
+scratchpad, never committed. Baseline at `cb2e708`: `Test run with 1409 tests in
+1 suite passed after 42.660 seconds`, 0 `error:`, no `warning:` besides SwiftPM's
+deprecation notice, 97 goldens.
+
+---
+
+## LR-AB — item fields are lowered by the parent: the child records, the container wraps, and a grown or stretched box's rect is its item frame
+
+**The question.** `flexGrow`, stretch, `alignSelf`, `flexShrink`, `flexBasis`,
+`minSize`/`maxSize` and `margin` mean something only on the **parent's** axes, and
+legacy registration is post-order: `Box.requestLayout` registers its children
+before it knows its own lowering, and a child has no reference to its parent.
+Stage 2 needs the child's fields and the parent's axis at one place.
+
+**Alternatives weighed.**
+
+1. **A downward context** (the container pushes its axis and `alignItems` onto the
+   pass before its children register). Rejected: every proposal container
+   (`HStack`, `ProposalFrame`, `ModifiedContent`, `.overlay`, `ProposalScrollView`,
+   custom layouts) would have to reset it, or a legacy grandchild would read its
+   grandparent's axis; `CN-Q`'s containers ruling already named this exact shape
+   ("a pass-scoped value every legacy container would have to set … none
+   enforced") as the reason the legacy frame could not do it.
+2. **Split a parent-facing node from the bounds node in the group entries.**
+   Rejected: `Element.requestGroupLayout`, `AnyElement`'s copy, `ModifiedElement`'s
+   outermost layer and the typed builder entries are line-for-line copies pinned
+   one by one (`MC-H`); every one would change.
+3. **A kernel "amend" API** so the parent re-parameterizes the child's size frame.
+   Rejected: it needs every lowered element to end in a frame (extra nodes in
+   every tree, moving stage 1's hand-derived work counts and depth pins) and a
+   mutation of `NativeNode` storage after registration in `LayoutTree.swift`, a
+   shared file.
+
+**The ruling.** Each lowering records a `LoweredItem` (declared and animated
+`Style`, site, content alignment, kind) for the node it returns, in
+`Frame.loweredItems`, and reports no item field. A lowered container wraps each
+recorded child before registering its stack or overlay — `fixedSize` for
+`flexShrink: 0`, the **item frame** W (greedy for grow/stretch, carrying
+`minSize`/`maxSize`), the **alignment frame** for a non-stretch `alignSelf`, and
+padding for `margin` — and aliases the child's node to W:
+`Frame.bounds(of:)` and `LayoutPass.measuredWidth(of:)` resolve the alias.
+
+**Evidence.** Prototype P3: the whole demo reports only
+`[list.noLowering, scrollView.noLowering]` (modal on: plus `stack.position`,
+`stack.inset`), and with `LR-AC`'s elision the full suite (1410 with the scratch
+test) reds exactly the five tests that pin the old diagnostics. Why the alias:
+in CSS a grown box's background, hitbox, accessibility frame and text wrap width
+are the grown ones; a greedy frame in SwiftUI is the rect a `.background`
+written after it paints (stage-2 probe F1's `bframe`, X1). Why the alignment
+frame and the margin padding are not aliased: both lie outside the CSS box (X5's
+`b` keeps its own rect; P3's background is at (8, 8)).
+
+**What it costs if wrong.** Every reader of an element's rect goes through
+`Frame.bounds(of:)` or `measuredWidth(of:)` today (grep at `cb2e708`: one
+definition each, the two `PrepaintPass`/`PaintPass` forwarders); a future reader
+of `tree.layout(node)` for an element bypasses the alias and sees the hugging
+content rect. Lane 1's 1.10 pins the four observations that exist. A record no
+lowered container consumes is silently item-less; under the legacy authority
+only the root is such a position, and the legacy engine ignores a root's item
+fields too.
+
+---
+
+## LR-AC — stretch lowers to a greedy cross-axis item frame, except for a single child with no declared cross size; a greedy item inside a hugging item fills
+
+**Evidence.** Stage-2 probe X1 (a greedy cross frame answers the stack's own
+cross size at an unspecified proposal, 40) and X2 (the concrete one, 100): CSS's
+line cross size in both. X4: a greedy view inside a **hugging** container fills
+the container's proposal (200) where CSS's fit-content container is 30. X9: an
+outer greedy frame stretches a nil-axis frame and leaves its content at its own
+size. Prototype P3 without the elision: a `.padding` layer's implicit stretch
+(its `Style.alignItems` is `nil`, EP-8's `Box` default) made the padded content
+greedy, and three stage-1 tests went red on X4-shaped fills
+(`aLoweredPaddingLayerAgreesWithTheLegacyWrapper` 9 issues,
+`theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement` 4,
+`aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork` 5); with
+it, none.
+
+**The ruling.**
+
+- A child whose cross `size` is `auto` and whose effective alignment (`alignSelf
+  ?? the parent's alignItems`) is `nil`/`.stretch` gets W greedy on the cross
+  axis, aliased — **unless the parent has exactly one child and no declared
+  cross size** (stage 1's `LR-E` principle 3, kept). SwiftUI's `.padding` never
+  makes content greedy; a one-child `Box` is a padded, framed child.
+- The stretched single-child case is a **new divergence**: a one-child container
+  that is itself stretched does not stretch its child (legacy stretches it to the
+  line; lowered, X9's content keeps its size). Pinned by lane 1's 1.3.
+- A greedy item inside a container that hugs on that axis fills the container's
+  proposal (X4; **new divergence**, pinned by 1.7). Not emulated: CSS's
+  fit-content would need a custom `ProposalLayout` measuring each hugging item
+  at nil and clamping — a lowering with no SwiftUI spelling, on the one path
+  stage 6b deliberately re-spells (the demo re-spelled "for the semantics stage 2
+  changed").
+- A stack parent (`Stack`, and a one-node frame layer, `CN-N`) stretches per axis
+  by `justifyItems`/`alignItems` with the same rule.
+- **`MC-Q` finding 7**: a frame layer child with a nil axis is an auto item on
+  that axis and is stretched like any other (X8 is SwiftUI's un-stretched frame;
+  X9 the outer greedy frame this lowering registers). W carries the layer's
+  finite `minSize`/`maxSize` on the stretched axis, where CSS stretches and then
+  clamps (X10).
+
+**What it costs if wrong.** If a real tree nests a stretched single-child
+container around content that must fill (a card whose inner column paints a
+background edge to edge), the lowered inner box hugs; the author re-spells with
+an explicit `.alignItems(.stretch)` on a two-child container or a width. The
+demo has one such row (the sidebar column, 282 → 160 tall, no decoration of its
+own). If fit-content turns out to be needed widely, the custom layout above is
+the fallback, measured against 1.7 and the demo's cause-R rows.
+
+---
+
+## LR-AD — a non-stretch `alignSelf` lowers to an unaliased greedy alignment frame; `baseline` stays reported
+
+**Evidence.** Stage-2 probe X5: `.frame(maxWidth: .infinity, alignment:
+.leading)` places one child at the leading edge of a definite column while its
+siblings stay centred (b at 0, a at 100) — CSS's `align-self: flex-start`. X7 (with
+control X6): in an indefinite column the same spelling makes the column fill its
+proposal (300 against 100). SwiftUI has no per-child cross alignment that
+references the container's edge; an `alignmentGuide` aligns guides, not edges.
+
+**The ruling.** `alignSelf` `.flexStart`/`.center`/`.flexEnd` differing from the
+parent's `alignItems` wraps the (possibly W-wrapped) child in a frame greedy on
+the cross axis with that factor, not aliased. A flex parent consumes it; a stack
+parent ignores it, as the legacy stack does (inert table). `.baseline` reports
+`alignSelf.baseline` (task 11). The X7 fill is a new divergence, pinned by 1.6.
+
+**What it costs if wrong.** An `alignSelf` inside a hugging column widens the
+column to its proposal. The demo's two uses (`CounterPanel`, the stack cluster)
+sit in the main pane's column, which is itself grown and stretched, so they
+agree (P3).
+
+---
+
+## LR-AE — `flexGrow` lowers to a greedy main-axis item frame shared equally; unequal weights and non-zero bases report
+
+**Evidence.** Stage-2 probe F1 (a greedy frame takes the rigid sibling's leftover:
+CSS's `flex-grow: 1`); F2 (two greedy frames over 100 and 20 at 300 answer
+150/150 — CSS with `flex-basis: auto` answers 190/110, with `flex-basis: 0`
+150/150); F3 (a greedy frame without a minimum never answers below its child:
+200/100); F4, F8 (a declared minimum's **presence** lets it: 150 over a 200
+child). No SwiftUI spelling carries a weight.
+
+**The ruling.**
+
+- `flexGrow > 0` → W greedy on the main axis, aliased, when every growing
+  sibling's factor is equal (any equal value); SwiftUI's equal share. With
+  `flexBasis: auto` and unequal content this differs from CSS (F2): a **new
+  divergence**, pinned by lane 2's 2.2.
+- Unequal positive factors among siblings → `flexGrow.weights`, once, on the
+  **parent's** site (the only place all factors are visible): a deleted concept,
+  stage 10; its tests retire in 7b.
+- `flexBasis: 0` **with** `flexGrow > 0` → W's main-axis minimum 0 (F4/F8: a
+  minimum's presence makes the greedy frame answer the equal share even over
+  wider content, CSS's zero basis). A declared main `size` stays on the element's
+  own frame — the child registers before it can know its parent's main axis — so
+  a sized **container** with a zero basis lays its children out at the declared
+  size inside the smaller item rect (F4's overflow): a new divergence, pinned by
+  2.4's container arm.
+- `flexBasis` `.auto` → nothing. Any other basis — `0` without grow, a non-zero
+  length, a fraction — reports `flexBasis` (stage 8's recipe / stage 10).
+
+**What it costs if wrong.** Two growers with different content widths and an
+`auto` basis are equal under the proposal authority; a caller who relied on CSS's
+base-plus-share re-spells at stage 6b/8 with explicit widths. By reading
+`demoContent()`, every demo container holds at most one grower (the header row's
+bar, the body row's main pane, the outer column's body row, the main pane's
+scroller box), so no demo rect depends on it; P3 implemented no weights check and
+is not evidence for this sentence.
+
+---
+
+## LR-AF — `flexShrink: 0` lowers to `fixedSize`; any positive shrink lowers as SwiftUI's compression; divergence 55's SwiftUI answer stands
+
+**Evidence.** Stage-2 probe F7 against F6: `.fixedSize()` keeps a Text on one line
+and overflows (302 wide against 95) — CSS's `flex-shrink: 0` on a max-content
+item. F5: a rigid 196 beside a greedy text frame at 400 keeps 196; CSS shrinks a
+declared 196 to its content floor when a sibling's base size demands it (`SZ-L`;
+the demo's sidebar reads 88 at 920). Stack-algorithms G9 (`HStack(0){80; 80}` at
+100 answers 160, overflowing) and G1 (flexible children served least flexible
+first). `LR-I` handed stage 2 the choice between lowering a legacy spelling to
+priorities and re-spelling it.
+
+**The ruling.** `flexShrink == 0` on an axis whose main `size` is `auto` → a
+`fixedSize` on the parent's main axis (a declared size is already rigid). Every
+positive `flexShrink`, whatever its value, lowers to nothing: the kernel's
+compression order is the answer, and the weight has no spelling. **No priorities
+are synthesized**: a `layoutPriority` derived from CSS base sizes would be a
+lowering with no SwiftUI author behind it, and it would change allocation among
+flexible children, not rigid overflow. Divergence 55 keeps SwiftUI's answer under
+the proposal authority (pinned by 2.6 for weights and 2.9 on the demo's body-row
+shape); production takes it at stage 6b.
+
+**What it costs if wrong.** Rows that rely on CSS shrinking fixed-size children
+overflow under the proposal authority; stage 6b's demo re-spelling meets the
+sidebar first (P3: 88 → 196 moves every main-pane rect 108 to the right at 920).
+
+---
+
+## LR-AG — CSS minima floor the item frame by presence; maxima lower only where the item is greedy or sized
+
+**Evidence.** Stage-2 probe F4/F8 (a greedy frame with a declared minimum answers
+the proposal share even below its child), X10 (`.frame(maxHeight: 25)` is 25 in a
+100-tall stack: greedy up to the maximum). Frame probe D4 (`swiftui-frame-semantics`,
+`FR-A`): a finite maximum is greedy. `FR-G`: `.minHeight(0)` is the legacy
+spelling that cancels flex §4.5's automatic minimum.
+
+**The ruling.**
+
+- `minSize` px/rem on an `auto` axis → W's minimum on that axis (aliased). With a
+  greedy axis this is CSS's explicit minimum replacing the automatic one — the
+  demo's scroller box (`flexGrow(1).flexBasis(0).minHeight(0)`) takes its share
+  below its content; without, a floor.
+- `maxSize` px/rem on a **greedy** axis (grown or stretched) → W's maximum.
+- `minSize`/`maxSize` on an axis with a declared `size` → folded at registration
+  into the element's own fixed frame as `clamp(size, min, max)`, CSS's used size.
+- `maxSize` on a non-greedy `auto` axis → report `maxSize`: SwiftUI's maximum is
+  greedy, CSS's clamps content, and stage 8's recipe converts `.maxWidth` to
+  `.frame(maxWidth:)` and takes SwiftUI's answer there.
+- A fraction → `minSize.percent`/`maxSize.percent` (`LR-AI`).
+- A frame layer's own `FrameSpec` bounds stay on its kernel frame (`LR-H`); W
+  repeats them only on a stretched axis.
+
+**What it costs if wrong.** A `maxWidth` on a hugging text stays unlowerable until
+stage 8; the census shows no such use in the demo.
+
+---
+
+## LR-AH — the box model: border as insets, padding on a Text, the fixed frame over the BM-4 floor, margin as outer padding, and `SA-N` item 4
+
+**Evidence.** Stage-2 probe P1 (a 12pt padding inside a fixed 10×10 frame: the
+frame stays 10×10 and the padding overflows; CSS's border box floors at 34×34,
+`BM-4`), P3 (padding outside a background is CSS's margin: background at (8, 8),
+sibling at 36), P4 (negative padding overlaps, sibling at 4, and the response
+clamps at 0 per axis, `SA-K` item 3), P6 (`Text("alpha").padding(10)`: 53×36,
+text at (10, 10); the legacy leaf ignores Style padding, inert table). `SA-N`
+item 4 and its pinned-wrong kernel test
+`negativePaddingIsAcceptedAndItsResponseClampsPerAxis` (SwiftUI keeps a padded
+child at its own size, P2b). Record §18's critic round measured a scratch of
+`SA-N` item 4 at 0 differing pixels in all twelve images, and found the same
+scratch made that test's child exit on `SIGTRAP`.
+
+**The ruling.**
+
+- `Style.border` px/rem adds to the native padding's insets, inside the declared
+  size (CSS's border box; SwiftUI has no layout border, and padding is the
+  spelling). A fraction reports `border.percent`.
+- `Style.padding` on a `Text` lowers to native padding around the text leaf, with
+  glyphs painted at the leaf's origin (`Frame.textLeafNodes`) — SwiftUI's P6, a
+  deliberate change from the legacy inert answer, pinned by 3.2.
+- A declared size below the padding (+ border) sum keeps the fixed frame (P1),
+  a deliberate change from `BM-4`, pinned by 3.3.
+- `margin` px/rem, either sign → native padding outermost around the child, not
+  aliased (P3, P4); agreeing with CSS until SwiftUI's clamp (3.5 pins the
+  clamp). `margin: .auto` → 0, which is what the legacy engine resolves (inert
+  table). A fraction → `margin.percent`.
+- `SA-N` item 4: `LayoutTree.placeNative`'s `.padding` case places the child at
+  origin + leading/top inset at **its measured size**; the kernel pin is
+  re-derived, and the lane finds the checkpoint behind the scratch's `SIGTRAP`
+  before writing the placement.
+
+**What it costs if wrong.** The `SA-N` change reaches production roots: every
+proposal-path padding in the preview. The scratch read 0 px; if the real change
+does not, the lane stops and explains each differing image against P2b before
+continuing.
+
+---
+
+## LR-AI — percentages keep reporting, owned by stage 8's recipe
+
+**Evidence.** Stage-2 probe C1: `containerRelativeFrame(.horizontal) { $0 * 0.5 }`
+inside a 200-wide `VStack` is 500 wide — half the 1000-wide host — against control
+C0's 100. SwiftUI's relative sizing is relative to the nearest *container*
+(window, scroll view), not the parent; `GeometryReader` is a view with its own
+sizing. `FR-H`/`FR-T` recorded the legacy fractions resolving against the
+containing block.
+
+**The ruling.** `size.percent`, `padding.percent`, `border.percent`,
+`margin.percent`, `gap.percent`, `minSize.percent`, `maxSize.percent` and a
+fractional `flexBasis` stay unlowerable by name. Each call site needs a respelling
+decision (a fixed length, a greedy frame, a `ProposalLayout`), which is stage 8's
+recipe; stage 10 deletes the fields.
+
+**What it costs if wrong.** Nothing silent: a tree with a percentage traps under
+the proposal authority until stage 8. `width(fraction:)` has test callers that
+stage 6a's flipped-default census classifies.
+
+---
+
+## LR-AJ — justify distribution lowers to spacers and rigid gap leaves; reverse lowers to reversed node order and a mirrored main alignment
+
+**Evidence.** Stage-2 probe J1/J2 (`Spacer(minLength: gap)` between children is
+`space-between`: 0, 90, 180 at 200), J3 (overflowing, packed from the start at
+the minimum — CSS's `space-between` fallback is `flex-start`, the same), J4
+(`space-evenly` at gap 0), J7 (`space-around`: 23.33, 90, 156.67), J8 (a rigid
+10-wide leaf beside a `Spacer(minLength: 0)` is `space-evenly` with a 10 gap: 50,
+130), J5 (a `Spacer(minLength: 10)` is **not**: 53.33), J9 (overflowing, spacers
+pack from the start where CSS's `space-around`/`space-evenly` fall back to
+`center`), J6 (a greedy frame beside a spacer takes all of it). R1/R2 (reversed
+children in a trailing frame are `row-reverse`, overflow toward the start).
+
+**The ruling.** Under a declared main size (stage 1 already lowered the unsized
+case):
+
+- `spaceBetween` → `Spacer(minLength: main gap)` between children, stack
+  spacing 0;
+- `spaceEvenly` → `Spacer(minLength: 0)` at both ends and between, a non-zero
+  gap as a rigid native leaf of that length beside each between-spacer;
+  `spaceAround` → the same with the between-spacers doubled;
+- `rowReverse`/`columnReverse` → the children's **nodes** in reverse order
+  (their group order, ids, paint and hit order untouched) and the main factor
+  mirrored (`flexStart` → 1, `flexEnd` → 0), the spacer pattern reversed with
+  them.
+
+The J9 overflow is a new divergence, pinned by 4.3.
+
+**What it costs if wrong.** Spacer nodes are native children with no element, so
+the harness sees only the children's rects; a spacer mis-marked by `markSpacers`
+would answer the cross proposal (`CN-C`), which 4.1's column arms see.
+
+---
+
+## LR-AK — `hidden()` keeps its space, paints nothing, takes no pointer and publishes nothing; accessibility suppression moves off `display`
+
+**Evidence.** Stage-1 probe H1 (`.hidden()` keeps its layout space; H2, a removed
+`if`, does not). Stage-2 probe V1 (nothing painted; control V0 painted) and V3 (no
+tap; the tap reaches the view under it; control V2 the reverse). Accessibility
+bridge rules R9 (`.hidden()` content is not published, `AB-O`). `LR-J` handed
+stage 2 the choice and the move of `AB-O` off `Style.display`; record §18 found by
+reading that `AnyElement`'s group entry never calls
+`suppressingAccessibilityIfHidden`.
+
+**The ruling.** Under the proposal authority a `display: .none` node lowers as if
+shown and joins `Frame.hiddenNodes`. `Frame.isHidden(node)` is
+`style(node).display == .none || hiddenNodes.contains(node)`, read by
+`suppressingAccessibilityIfHidden` and `render`'s root check — so the legacy path
+reads exactly what it read. `Element.prepaintGroup` registers a hidden subtree
+under the existing `hitTestingDisabled` scope, `Element.paintGroup` skips its
+paint, `AnyElement`'s entry mirrors both and gains the missing suppression, and
+`ModifiedElement` mirrors them per inner layer (`MC-B`). Focus and keys are not
+gated (SwiftUI unprobed; task 12), characterized by 5.5.
+
+**What it costs if wrong.** A hidden scroll region still takes the wheel
+(`hitTestingDisabled` does not gate scroll regions, the inert row); `ScrollView`
+is site-level until stage 3, which inherits it.
+
+---
+
+## LR-AL — `Row`/`Column` default spacing (divergence 52) is a spelling default, not a lowering
+
+**Evidence.** Stack-algorithms S: `HStack`/`VStack` default to per-pair spacing
+(8 between two leaves); `HStack(spacing: 0)` is 0. `Style.gap` defaults to
+`.pixels(0)` and cannot say "unset", so a lowered `Row { a; b }` cannot tell a
+caller's `gap: 0` from the initializer's default.
+
+**The ruling.** A lowered stack's spacing is the declared main-axis gap, always
+explicit (stage 1's behaviour, now characterized by 4.8). Closing divergence 52
+means changing `Row`/`Column`'s public default — a vocabulary change with every
+legacy caller's pixels behind it — so it is stage 8's, with the sizing recipe.
+
+**What it costs if wrong.** Nothing moves; the divergence stays pinned by
+`aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`.
+
+---
+
+## LR-AM — text: the measurement is already one on the proposal path; the below-word answer and W2 go to task 11, the legacy measure's deletion to stage 9
+
+**Evidence.** `LR-F`/`LR-X`: a lowered `Text` and `ProposalText` share
+`proposalTextMeasurement`; below its narrowest word it answers the widest
+character with its hung space (11.18 at 13pt) where SwiftUI answers the proposal
+(stage-1 probe T3/T4, divergence 59). W2: with the long label at priority 1,
+SwiftUI gives "Short" 18×32 — it breaks inside a word — and the kernel disagrees
+with the clamp and without it (record §18, critic round 1).
+
+**The ruling.** Stage 2 does not change text measurement. "Unified" is already
+true under the proposal authority; the legacy `textMeasure` and tokenizer
+min-content disappear with the engine at **stage 9**. The below-word answer and
+W2 need a characterization of SwiftUI's in-word breaking that no probe has made;
+it is text semantics, not a flex-item field, and nothing in the engine's removal
+depends on it, so it moves to **task 11** (text, shape and rendering-facing
+semantics). Divergence 59's owner changes accordingly (the integrator edits the
+divergence table).
+
+**What it costs if wrong.** Divergence 59 reaches production at stage 6b
+unchanged. It is visible only for a text proposed below a word's width.
+
+---
+
+## LR-AN — stage 2's exit test pins the demo's report exactly and every disagreement as a literal with a named cause
+
+**Evidence.** Prototype P3 (modal off): report `[list.noLowering,
+scrollView.noLowering]`; 2036 ids, 6 agreeing, 30 disagreeing, 2000 legacy-only.
+Every disagreement falls under five causes: **R** — the harness root's proposal
+(divergence 53, stack-algorithms A5) filled by the demo's greedy column (X4); **55**
+— the sidebar kept at 196 (F5, G9, G4r), shifting the main pane 108 right and
+re-wrapping the paragraph; **X9** — the sidebar column not stretched in its
+one-child padding layer; the `ScrollView` and the `List` (site-level, stages 3
+and 4). Modal on: 2042 ids, 36 disagreeing, the extra rows the modal's `Stack`
+(stage 5) and its descendants.
+
+**The ruling.** `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` is
+rewritten in lane 2 (spec §7): the report as an exact array for both modal
+states; `try #require` on the id and agreement counts; each disagreeing rect pair
+a literal grouped by cause, each cause with an isolating pin (`LR-AC`'s 1.3 and
+1.7, `LR-AF`'s 2.9, the stage-1 `Stack` offer pin). The lane measures its own
+table; P3's figures are the prediction it checks first, and a row under no named
+cause is a finding before the literal is written. Lanes 3–5 re-run it unchanged.
+
+**What it costs if wrong.** A literal of 30 rect pairs is brittle by design: any
+lowering change that moves a demo rect reddens it, which is its job; the cause
+grouping is what makes the red readable.
+
+---
+
+## LR-AO — stage 2's scope: five lanes, and the rest deferred by name
+
+**The ruling.** Lanes: (1) item records, the bounds alias, the cross axis; (2) the
+main axis and the exit test; (3) the box model and `SA-N` item 4; (4) justify
+distribution and reverse; (5) `hidden()`. Deferred (spec §9): percentages (stage
+8/10, `LR-AI`), a non-greedy `maxSize` (stage 8), a non-zero `flexBasis` (stage
+8/10), unequal grow weights (stage 10), divergence 55 in production (6b), 52
+(stage 8, `LR-AL`), the below-word text answer and W2 (task 11) and the legacy
+text measure (stage 9) (`LR-AM`), `hidden()` focus and keys (task 12), baselines
+(task 11), a greedy child in a hugging stack (6b), `compareInWindows` (the
+integrator), 5.8's doc and the 88/89 boundary (6b).
+
+**Why this order.** Lane 1 builds the mechanism every other lane's wrappers use;
+lane 2 empties the demo's report, so the exit test lands there; lanes 3–5 are
+independent of each other and of the demo.
+
+**What it costs if wrong.** Stages 3 (census, record §18: stretch 35 + 4 on a
+`Stack` + 11, `minSize` 3), 4 (stretch ×251,
+`flexShrink` ×249, `minSize` ×222) and 5 depend on lanes 1–2 only; a slip in
+lanes 3–5 delays none of them.
