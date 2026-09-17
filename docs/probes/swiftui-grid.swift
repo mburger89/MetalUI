@@ -106,7 +106,7 @@
 //   both changes (222 -> 231); GZ0, GZ1, GZ2, GZ4 are unchanged from revision 4.
 // - Arms GE1-GE30 (a Grid in a stack), GN1-GN10 (Text and text-like cells),
 //   GG10-GG16 (nested rows, row-level cell attributes), GQ9-GQ10 (a Spacer's
-//   priority), fuzz GZ9-GZ12, printed
+//   priority), GX23 (a column only a span covers), fuzz GZ9-GZ12, printed
 //   after GZ8; modes `model-arms`, `classify-spans`, `huge-columns`; a
 //   `.wrap` leaf kind the generator never produces.
 // The `corpus` run: exit 0, twice, byte-identical, sha256
@@ -200,9 +200,12 @@
 //    column absorbs x's shortfall, a's committed column stays 30]. The model
 //    still misreads GS5 (SwiftUI shares 292 over all 3 columns where the model
 //    opens only the column with single-column cells: 76.67 vs 164). A column
-//    count of 100_000 is clamped [GX21]; 1 << 40 lays out as columns(0)
-//    [GX22]; Int.max and Int.max / 2 trap [GX20; Int.max / 2 and Int.max - 1
-//    in scratch, record §20].
+//    count of 100_000 is clamped to the columns left [GX21]; 1 << 40 lays out
+//    as columns(0) [GX22: SwiftUI keeps 32 bits of the count]; Int.max traps
+//    [GX20; Int.max / 2 and Int.max - 1 too, in scratch, record §20]. The
+//    column count is the widest row's sum of spans, and a column that only a
+//    span covers is a column: GX23's third column takes x's whole shortfall (a
+//    at 0, b at 38) where GX1's two columns share it (51/41).
 //    gridCellColumns(0) lays out as neither 0 nor 1 [GX14: c at x 0, d shares
 //    column 0]; gridCellColumns(-1) traps [GT1]. Two gridCellColumns on one
 //    view add the values above 1 [GX15: 3 and 2 span 5; GX16: 2 and 1 span 2;
@@ -719,6 +722,8 @@
 //   === GQ (revision 5): a Spacer with .layoutPriority(0) is not a bare Spacer
 //   GQ9 GS1 with Spacer().layoutPriority(0) @200x100: size 200x100 | b (170,21 20x20) <- 40x62 | c (71,70 10x30) <- 152x30 | d (160,80 40x10) <- 40x30 | s (0,0 152x62) <- 152x62
 //   GQ10 subview-proxy priority of [Spacer(), Spacer().layoutPriority(0), Spacer().layoutPriority(1), Spacer().background(Color), Spacer().gridCellColumns(1), Color]: -inf, 0.0, 1.0, -inf, -inf, 0.0
+//   === GX (revision 5): the column count is the widest row's sum of spans
+//   GX23 [a 30x10, b 20x20] [x 100x10 span 3]: a third column that only the span covers takes the shortfall @nilxnil: size 100x38 | a (0,5 30x10) <- 30x20 | b (38,0 20x20) <- nilxnil | x (0,28 100x10) <- nilxnil
 //   === GZ (revision 5): plain grids at a stack's probe proposals, and beside a sibling in a stack
 //   FUZZ GZ9 plain, infinite proposals (sizes only) seed 110: 300 of 300 agree
 //   FUZZ GZ10 plain, a zero axis seed 111: 300 of 300 agree
@@ -1915,6 +1920,8 @@ enum StackKind { case h, v }
     arm("GQ9 GS1 with Spacer().layoutPriority(0)", p(200,100)) { Grid { GridRow { Spacer().background(fl("s")).layoutPriority(0); fx("b",20,20) }; GridRow { fx("c",10,30); fx("d",40,10) } } }
     let (_, _) = host(none) { PriorityReader { Spacer(); Spacer().layoutPriority(0); Spacer().layoutPriority(1); Spacer().background(SwiftUI.Color.red); Spacer().gridCellColumns(1); SwiftUI.Color.red } }
     print("GQ10 subview-proxy priority of [Spacer(), Spacer().layoutPriority(0), Spacer().layoutPriority(1), Spacer().background(Color), Spacer().gridCellColumns(1), Color]: " + readPriorities.map { "\($0)" }.joined(separator: ", "))
+    print("=== GX (revision 5): the column count is the widest row's sum of spans")
+    arm("GX23 [a 30x10, b 20x20] [x 100x10 span 3]: a third column that only the span covers takes the shortfall", none) { Grid { GridRow { fx("a",30,10); fx("b",20,20) }; GridRow { fx("x",100,10).gridCellColumns(3) } } }
 }
 nonisolated(unsafe) var readPriorities: [Double] = []
 /// Reads its subviews' `priority` (GQ10).
