@@ -624,6 +624,9 @@ spacing", is withdrawn: `GR-R` ports SwiftUI's positional rule.)
   alignment or a `GridCellModifier` outside a `Grid` (`GR-I`);
 - `NativeGridSolution`'s bookkeeping counter (`GR-U`): a test observable with no
   production reader.
+- `ProposalAxes` (`NativeGrid.swift`), public from lane 1 with no reader or
+  writer until lane 3's `unsizedAxes` mark; delete this item when lane 3 lands
+  (verifier finding, lane 1).
 
 ---
 

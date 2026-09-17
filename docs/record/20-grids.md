@@ -312,7 +312,8 @@ mutated file during and nothing after, then the full native suite
 | M1.21 | `maxDepth` 89 | 1.21, `aLoweredChainOneLevelPastTheNativeDepthLimitTraps` |
 | M1.22 | `maxDepth` 87 | 1.22, `aLoweredChainOneLevelPastTheNativeDepthLimitTraps` |
 
-No mutation left the suite green.
+No mutation above left the suite green; the verifier's round (below) found
+three that did.
 
 ### Demo
 
@@ -330,6 +331,36 @@ captured (lane 4's).
 - `solveNativeGrid`'s finite branch puts the solver back on the measurement
   recursion path: keep its frame small and re-bisect against 147.
 - `nativeLayoutPriority` has no `.grid` arm yet (its `default` returns 0).
+
+### Verifier round (lane 1)
+
+The verifier re-took the suite (1431), goldens (97, `git diff cb2e708 --
+'*.json'` empty), guards (71), the probe, the offscreen demo (0 px in 12) and
+the depth table, all matching the above, and ran mutations V1–V16 plus re-runs
+of M1.1, M1.5, M1.13, M1.15 and M1.21. Three stayed green:
+
+- **V1, `reset` no longer clears `gridCellColumns` (major, fixed).** A stale
+  span on a reused index is read by `newNativeGrid`, and
+  `markNativeGridCell(_:columns: nil)` writes nothing over it. New test
+  `resetClearsGridCellColumnMarks` (`NativeGridTests.swift`, after 1.13): a
+  100×10 leaf at an index marked `columns: 2` before the reset, one-cell row
+  over a row of two 30×10 cells, answers 138×28; its control, marked in
+  generation 2, answers 100×28, and a `#require` makes the arms disagree first.
+  Committed, then V1 applied from a copy (`git status --short` showing only
+  `LayoutTree.swift`): full native suite **1432, 1 issue, reddening only
+  `resetClearsGridCellColumnMarks`** (at its `#require`, 100×28 on both arms).
+  Restored, status clean, **1432 passed**. Clearing `gridRowAlignments` stays
+  unpinned and is equivalent: an alignment is read only with a token, and
+  every row mark rewrites both.
+- **V2 / V2b, `LayoutPass.requestNativeGrid` passes `.center` / `markNativeGridRow`
+  passes `alignment: nil` (minor, deferred to lane 4).** No test calls the three
+  `LayoutPass` registrars in `Sources/MetalUI/Grid.swift`; see "For lane 4".
+
+### For lane 4
+
+- Pin each `LayoutPass` registrar's forwarding through the element tests (V2,
+  V2b): a non-centre grid alignment, a row alignment, and a column span, each
+  reached through `LayoutPass`, with a mutation dropping the forwarding.
 
 ## For the integrator
 
