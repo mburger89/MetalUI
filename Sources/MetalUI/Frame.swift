@@ -1457,7 +1457,10 @@ public final class Frame {
          activeElement: GlobalElementID? = nil,
          focusedElement: GlobalElementID? = nil,
          transaction: Animation? = nil,
-         collectsAccessibility: Bool = false) {
+         collectsAccessibility: Bool = false,
+         layoutAuthority: LayoutAuthority = .legacy,
+         reportsUnlowerableFields: Bool = false,
+         recordsElementBounds: Bool = false) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
@@ -1478,12 +1481,84 @@ public final class Frame {
         self.focusedElement = focusedElement
         self.transaction = transaction
         self.collectsAccessibility = collectsAccessibility
+        self.layoutAuthority = layoutAuthority
+        self.reportsUnlowerableFields = reportsUnlowerableFields
+        self.recordsElementBounds = recordsElementBounds
+    }
+
+    // MARK: - Layout authority (plan task 7, rulings LR-B, LR-C, LR-D)
+
+    /// Which engine this frame's legacy elements register with. See
+    /// `LayoutAuthority`. **A `let`, for `collectsAccessibility`'s reason**: half
+    /// a tree lowered is ruling SA-G's mixed tree. `Window` passes its own
+    /// `layoutAuthority`; a frame built anywhere else defaults to `.legacy`.
+    let layoutAuthority: LayoutAuthority
+
+    /// Whether a site with no proposal lowering records an `UnlowerableField` and
+    /// carries on instead of trapping. **Set only by tests** (the differential
+    /// harness): a diagnostic is what lets a lowering test read red without
+    /// truncating the suite (ruling LR-C). Production frames never set it, and the
+    /// exit tests that pin each trap run with it off.
+    let reportsUnlowerableFields: Bool
+
+    /// What the sites reported, in registration order — **empty unless
+    /// `reportsUnlowerableFields`**.
+    private(set) var unlowerableFields: [UnlowerableField] = []
+
+    /// Whether `elementBounds` is filled. Set only by tests (the differential
+    /// harness, ruling LR-D).
+    let recordsElementBounds: Bool
+
+    /// Each element's resolved bounds this frame, by id — **empty unless
+    /// `recordsElementBounds`**. Written at the three places an element's bounds
+    /// are handed to its `prepaint`: the root (`render`), every group member
+    /// (`Element.prepaintGroup`) and every inner `ModifiedElement` layer
+    /// (`prepaintLayer`). An id placed twice keeps its last rect.
+    private(set) var elementBounds: [GlobalElementID: Bounds<Pixels>] = [:]
+
+    /// Records `bounds` for `id` when this frame records element bounds.
+    func recordElementBounds(_ id: GlobalElementID, _ bounds: Bounds<Pixels>) {
+        guard recordsElementBounds else { return }
+        elementBounds[id] = bounds
+    }
+
+    /// A legacy site met a field (or is a site) with no proposal lowering.
+    /// **Traps** with `field.trapMessage` unless this frame reports; reporting,
+    /// records the entry and returns. The site is always the caller's own
+    /// argument (ruling LR-C). For a site that registers nothing in place of the
+    /// field — `StyledComponent`'s amend — this is the whole check.
+    func noteUnlowerable(_ field: UnlowerableField) {
+        guard reportsUnlowerableFields else { preconditionFailure(field.trapMessage) }
+        unlowerableFields.append(field)
+    }
+
+    /// `noteUnlowerable(_:)`, then — reporting — a 0×0 native leaf in place of
+    /// the node the site would have registered, so the frame completes. Whatever
+    /// the site had already registered below it is orphaned: its rects are unset
+    /// and the harness reports them, which is noise, not silence (ruling LR-C's
+    /// cost).
+    func unlowerable(_ field: UnlowerableField) -> LayoutNodeID {
+        noteUnlowerable(field)
+        return requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
     }
 
     // MARK: - Layout phase
 
+    /// Registers a legacy CSS node. **Internal and undeprecated** (stage 6a pins
+    /// tests about CSS answers to the legacy authority through it, ruling LR-R);
+    /// every in-module legacy site calls this rather than `LayoutPass`'s public
+    /// forwarder, which reports `customElement`.
+    ///
+    /// **Under the proposal authority it is a backstop, not a site check**: every
+    /// legacy site checks the authority itself before it gets here (ruling LR-C),
+    /// so reaching this means a site forgot. It cannot name that site (`Frame`
+    /// never infers one), so in production it traps with a site-less message, and
+    /// under diagnostics it returns a 0×0 native leaf **without recording** — the
+    /// missing entry is what `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
+    /// reads, without truncating the suite.
     func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
-        tree.newNode(style: style, children: children)
+        guard layoutAuthority == .legacy else { return unguardedLegacyRegistration("requestNode") }
+        return tree.newNode(style: style, children: children)
     }
 
     /// Registers a **leaf** — a childless node that reports its own content size
@@ -1493,8 +1568,20 @@ public final class Frame {
     /// do with a measured content size — §9.2's content branch, §4.5's automatic
     /// minimum, an `auto` cross size — was reachable only for containers before
     /// it existed, because `tree.measure()` was `nil` on every production node.
+    ///
+    /// Under the proposal authority, the same backstop as `requestNode`.
     func requestLeaf(style: Style, measure: @escaping MeasureFunction) -> LayoutNodeID {
-        tree.newLeaf(style: style, measure: measure)
+        guard layoutAuthority == .legacy else { return unguardedLegacyRegistration("requestLeaf") }
+        return tree.newLeaf(style: style, measure: measure)
+    }
+
+    /// `requestNode`/`requestLeaf`'s backstop under the proposal authority.
+    private func unguardedLegacyRegistration(_ registrar: String) -> LayoutNodeID {
+        precondition(reportsUnlowerableFields, """
+            MetalUI: Frame.\(registrar) reached under the proposal layout authority by a \
+            site that did not check the authority itself (plan task 7, ruling LR-C).
+            """)
+        return requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
     }
 
     func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
@@ -1794,6 +1881,7 @@ public final class Frame {
 
         computeRootLayout(root: root)
         let rootBounds = bounds(of: root)
+        recordElementBounds(rootID, rootBounds)
 
         var prepaintPass = PrepaintPass(frame: self)
         // The root's `prepaint` is called here, not through `prepaintGroup`, so

@@ -88,7 +88,8 @@ private struct LegacyNodeUnderAProposalMarker: ProposalElement {
 /// second route into `MC-G` hole 5, closed by the outer-modifiers task
 /// (`OM-Z`, lane 4). `Component.padding` no longer amends each member's
 /// `Style` (which reached `setStyle`'s trap above) but wraps each member in a
-/// legacy padding node through `LayoutPass.requestNode(style:children:)`, and
+/// legacy padding node through `Frame.requestNode(style:children:)` (plan task 7's
+/// per-site checks moved it off `LayoutPass`'s public forwarder), and
 /// `LayoutTree.newNode` already refuses a native child
 /// (`LayoutTree.swift`, "legacy layout node given a native child", ruling
 /// SA-G; pinned for the direct call by

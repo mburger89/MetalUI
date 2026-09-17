@@ -133,6 +133,14 @@ public final class Window {
         didSet { setNeedsRedraw() }
     }
 
+    /// The layout authority every frame this window builds runs under (plan task
+    /// 7, ruling LR-B): `.legacy` until stage 6b switches the default. A write
+    /// marks the window dirty, as `environment`'s does, a no-op included.
+    /// **Internal**, pinned by `aPlainImportCannotChooseTheLayoutAuthority`.
+    var layoutAuthority: LayoutAuthority = .legacy {
+        didSet { setNeedsRedraw() }
+    }
+
     /// Raw input, for whatever no element claimed.
     ///
     /// **The window's fallback, not its first look — and that sentence is the
@@ -869,7 +877,8 @@ public final class Window {
                           activeElement: active,
                           focusedElement: focusHandedIn,
                           transaction: transaction,
-                          collectsAccessibility: accessibility.isActive)
+                          collectsAccessibility: accessibility.isActive,
+                          layoutAuthority: layoutAuthority)
         frame.rootEnvironment = environment
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering

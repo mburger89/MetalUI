@@ -217,7 +217,12 @@ public struct ModifiedElement<Content: ElementGroup>: Element, StyledElement {
                 inner[k].style = inner[k].lowered(inner[k].style, childCount: children.count)
                 (inner[k].style, inner[k].decoration) = animated(inner[k].style, inner[k].decoration,
                                                                  for: layerID, pass: &pass)
-                let node = pass.requestNode(style: inner[k].style, children: children)
+                // Each registrar checks the authority itself (plan task 7, ruling
+                // LR-C) — this inner-layer one and the outermost one below; lane 4
+                // replaces both with the frame/padding lowering.
+                let node = pass.lowersToProposal
+                    ? pass.frame.unlowerable(UnlowerableField(site: .modifierLayer, field: "noLowering"))
+                    : pass.frame.requestNode(style: inner[k].style, children: children)
                 placements.append(LayerPlacement(id: layerID, node: node))
                 children = [node]
             }
@@ -225,7 +230,9 @@ public struct ModifiedElement<Content: ElementGroup>: Element, StyledElement {
         outermost.style = outermost.lowered(outermost.style, childCount: children.count)
         (outermost.style, outermost.decoration) = animated(outermost.style, outermost.decoration,
                                                            for: id, pass: &pass)
-        let node = pass.requestNode(style: outermost.style, children: children)
+        let node = pass.lowersToProposal
+            ? pass.frame.unlowerable(UnlowerableField(site: .modifierLayer, field: "noLowering"))
+            : pass.frame.requestNode(style: outermost.style, children: children)
         return (node, Layout(node: node, inner: placements, content: contentLayout))
     }
 
@@ -274,6 +281,10 @@ public struct ModifiedElement<Content: ElementGroup>: Element, StyledElement {
                 return content.prepaintGroup(layout: &layout.content, pass: &pass)
             }
             let next = layout.inner[depth - 1]
+            // The element bounds log, per inner layer — `Element.prepaintGroup`'s
+            // recording mirrored here, as ruling MC-B requires of any hook in the
+            // group defaults (plan task 7, ruling LR-D).
+            pass.frame.recordElementBounds(next.id, pass.bounds(of: next.node))
             return prepaintLayer(depth - 1, id: next.id, bounds: pass.bounds(of: next.node),
                                  layout: &layout, pass: &pass)
         }

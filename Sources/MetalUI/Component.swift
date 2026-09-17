@@ -408,7 +408,13 @@ enum ComponentModifierOp {
 /// ruling SA-G's own preconditions, no new one. Pinned by
 /// `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration` and
 /// `aPaddingModifierOnAProposalComponentTraps`
-/// (`NativeBoundaryIntegrationTests.swift`).
+/// (`NativeBoundaryIntegrationTests.swift`). **That is the legacy authority's
+/// answer.** Under the proposal authority (plan task 7) each op checks the
+/// authority first and traps by its own name, `component.amend` or
+/// `component.wrap`, before either precondition — and under diagnostics an
+/// amend is recorded and skipped (ruling LR-C; pinned by
+/// `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority` and
+/// `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`).
 public struct StyledComponent<C: Component>: ElementGroup {
     var component: C
     /// In declaration order. `Component.padding/width/height` start the list
@@ -429,11 +435,23 @@ public struct StyledComponent<C: Component>: ElementGroup {
             for op in ops {
                 switch op {
                 case .amend(let amend):
-                    var style = pass.style(current)
-                    amend(&style)
-                    pass.setStyle(current, style)
+                    // Each op checks the authority itself (plan task 7, ruling
+                    // LR-C, critic round 1 finding 1): under the proposal
+                    // authority an amend traps by name — or, under diagnostics,
+                    // is recorded and SKIPPED, so `SA-G`'s `setStyle`
+                    // precondition is never the message — and a wrap traps or
+                    // registers a 0×0 native leaf. Stage 3 lowers both.
+                    if pass.lowersToProposal {
+                        pass.frame.noteUnlowerable(UnlowerableField(site: .component, field: "amend"))
+                    } else {
+                        var style = pass.style(current)
+                        amend(&style)
+                        pass.setStyle(current, style)
+                    }
                 case .wrap(let style):
-                    current = pass.requestNode(style: style, children: [current])
+                    current = pass.lowersToProposal
+                        ? pass.frame.unlowerable(UnlowerableField(site: .component, field: "wrap"))
+                        : pass.frame.requestNode(style: style, children: [current])
                 }
             }
             return current

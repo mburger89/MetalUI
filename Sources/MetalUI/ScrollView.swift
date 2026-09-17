@@ -283,6 +283,16 @@ public struct ScrollView<Content: ElementGroup>: Element {
             content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         }
 
+        // The site's own authority check (plan task 7, ruling LR-C): a
+        // `ScrollView` has no proposal lowering until stage 3, so it traps by
+        // name — after its content (which checks its own sites first) and before
+        // either node or `$anim` prefix. Under diagnostics one 0×0 native leaf
+        // stands for both the viewport and the content node.
+        if pass.lowersToProposal {
+            let node = pass.frame.unlowerable(UnlowerableField(site: .scrollView, field: "noLowering"))
+            return (node, Layout(node: node, contentNode: node, inner: inner))
+        }
+
         var contentStyle = Style()
         contentStyle.flexDirection = axis == .vertical ? .column : .row
         // **Load-bearing, and for content whose min-content and max-content
@@ -313,7 +323,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // uncaught.
         (contentStyle, _) = animated(contentStyle, Decoration(), for: scrollViewContentAnimID(for: id),
                                      pass: &pass)
-        let contentNode = pass.requestNode(style: contentStyle, children: children)
+        let contentNode = pass.frame.requestNode(style: contentStyle, children: children)
 
         var viewportStyle = Style()
         viewportStyle.flexDirection = axis == .vertical ? .column : .row
@@ -324,7 +334,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
         viewportStyle.overflow = Axes(both: .scroll)
         (viewportStyle, _) = animated(viewportStyle, Decoration(), for: scrollViewViewportAnimID(for: id),
                                       pass: &pass)
-        let node = pass.requestNode(style: viewportStyle, children: [contentNode])
+        let node = pass.frame.requestNode(style: viewportStyle, children: [contentNode])
 
         return (node, Layout(node: node, contentNode: contentNode, inner: inner))
     }

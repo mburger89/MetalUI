@@ -340,6 +340,18 @@ where Data.Element: Identifiable {
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Box<Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>>.Layout) {
+        // The site's own authority check, FIRST — before any row is built (plan
+        // task 7, ruling LR-C, critic round 1 finding 2). A `List` registers no
+        // node of its own, so without this its only report would be the `Box`
+        // below, and once `Box` lowers an unwindowed `List` would lay out through
+        // it silently. The windowed proposal `List` is stage 4's. Under
+        // diagnostics it then lays out a ZERO-row `Box` (the spacer and the
+        // container), whose own reports are additional, never instead.
+        let lowersToProposal = pass.lowersToProposal
+        if lowersToProposal {
+            pass.frame.noteUnlowerable(UnlowerableField(site: .list, field: "noLowering"))
+        }
+
         // Every row is wrapped in its own `Box` so its height can be pinned
         // independently of `Row`'s own type — `Row` need not be `StyledElement`
         // for `List` to control its size. See the type doc for why both
@@ -351,7 +363,7 @@ where Data.Element: Identifiable {
         rowStyle.flexShrink = 0
 
         let count = data.count
-        let window = visibleRange(count: count, pass: pass)
+        let window = lowersToProposal ? 0..<0 : visibleRange(count: count, pass: pass)
         // The same test `visibleRange`'s guard makes, kept rather than inferred
         // from `window`: a short list's real window can equal `0..<count`.
         let context = pass.scrollContext

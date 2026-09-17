@@ -233,7 +233,13 @@ public struct Text: Element, StyledElement {
         // first thing to rewrite — the cache would have to become an actor, or
         // the shaped size would have to be computed before the closure is
         // built.
-        let node = pass.requestLeaf(style: style) { known, available in
+        // The site's own authority check (plan task 7, ruling LR-C); lane 2
+        // replaces it with a native leaf measured by `proposalTextMeasurement`.
+        if pass.lowersToProposal {
+            let node = pass.frame.unlowerable(UnlowerableField(site: .text, field: "noLowering"))
+            return (node, Layout(node: node))
+        }
+        let node = pass.frame.requestLeaf(style: style) { known, available in
             MainActor.assumeIsolated {
                 // **A hit here rests on three things, and this comment once
                 // named two of them and called the guard unable to fire.**

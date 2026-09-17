@@ -103,7 +103,11 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
         // back on `self` so `paint`'s read of `self.decoration` later this
         // frame sees the substituted (possibly mid-transition) values.
         (style, decoration) = animated(style, decoration, for: id, pass: &pass)
-        let node = pass.requestNode(style: style, children: children)
+        // The site's own authority check — see `Box.requestLayout`'s (ruling LR-C);
+        // lane 4 replaces it with the lowering.
+        let node = pass.lowersToProposal
+            ? pass.frame.unlowerable(UnlowerableField(site: .stack, field: "noLowering"))
+            : pass.frame.requestNode(style: style, children: children)
         return (node, Layout(node: node, content: contentLayout))
     }
 

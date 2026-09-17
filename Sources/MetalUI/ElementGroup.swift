@@ -150,6 +150,10 @@ extension Element {
         // keep their inert-table behaviour. The style is read only while collecting.
         // The check is `Frame.suppressingAccessibilityIfHidden`, shared with
         // `ModifiedElement`'s inner layers.
+        // The element bounds log (plan task 7, ruling LR-D), for a frame built to
+        // record it; `ModifiedElement.prepaintLayer` mirrors this per inner layer
+        // (ruling MC-B) and `Frame.render` records the root.
+        pass.frame.recordElementBounds(layout.id, pass.bounds(of: layout.node))
         return pass.frame.suppressingAccessibilityIfHidden(layout.node) {
             prepaint(layout.id, bounds: pass.bounds(of: layout.node), layout: &layout.state, pass: &pass)
         }

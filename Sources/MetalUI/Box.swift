@@ -58,7 +58,8 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
     /// Carried from `requestLayout` to the later phases.
     ///
     /// `node` is stored rather than re-derived because there is nothing to
-    /// re-derive it from: `LayoutPass.requestNode` mints ids and hands them out
+    /// re-derive it from: the registrar (`Frame.requestNode`, or a 0×0 native leaf
+    /// under the proposal authority, ruling LR-C) mints ids and hands them out
     /// once. `content` is the children's own threaded state.
     public struct Layout {
         public var node: LayoutNodeID
@@ -84,7 +85,13 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // animation (and any other decoration field this helper animates)
         // reach the screen rather than only the layout node.
         (style, decoration) = animated(style, decoration, for: id, pass: &pass)
-        let node = pass.requestNode(style: style, children: children)
+        // The site's own authority check (plan task 7, ruling LR-C): under the
+        // proposal authority a `Box` has no lowering yet, so it traps by name, or
+        // reports and registers a 0×0 native leaf under diagnostics. Lanes 2–3
+        // replace this with the lowering.
+        let node = pass.lowersToProposal
+            ? pass.frame.unlowerable(UnlowerableField(site: .box, field: "noLowering"))
+            : pass.frame.requestNode(style: style, children: children)
         return (node, Layout(node: node, content: contentLayout))
     }
 

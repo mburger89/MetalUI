@@ -26,11 +26,25 @@ public struct LayoutPass {
     /// The space offered to the root, in logical points.
     public var contentSize: Size<Pixels> { frame.contentSize }
 
+    /// Whether this frame lowers legacy elements onto the proposal kernel
+    /// (`Frame.layoutAuthority`, plan task 7, ruling LR-B). A legacy site reads it
+    /// before registering; see `LayoutAuthority`.
+    var lowersToProposal: Bool { frame.layoutAuthority == .proposal }
+
     /// Registers a node with `style` and already-registered `children`, and
     /// returns its id. Children are registered before their parent, so an
     /// element builds bottom-up.
+    ///
+    /// **A custom element's registrar.** No in-module element calls it (each
+    /// calls `Frame.requestNode` after its own authority check), so under the
+    /// proposal authority it reports `customElement.requestNode` — a trap in
+    /// production, a diagnostic under the differential harness (ruling LR-C).
+    /// Stage 6a deprecates it and moves every caller (ruling LR-R).
     public func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
-        frame.requestNode(style: style, children: children)
+        if lowersToProposal {
+            return frame.unlowerable(UnlowerableField(site: .customElement, field: "requestNode"))
+        }
+        return frame.requestNode(style: style, children: children)
     }
 
     /// Registers a **leaf**: a node with no children that answers for its own
@@ -46,9 +60,15 @@ public struct LayoutPass {
     /// Public because a leaf is how *anything* that is not a box gets a size —
     /// spec §3.1 names text, images and embedded app content — and an element
     /// outside this module has no other way to report one.
+    ///
+    /// Under the proposal authority it reports `customElement.requestLeaf`, as
+    /// `requestNode` above reports its own name (ruling LR-C).
     public func requestLeaf(style: Style,
                             measure: @escaping MeasureFunction) -> LayoutNodeID {
-        frame.requestLeaf(style: style, measure: measure)
+        if lowersToProposal {
+            return frame.unlowerable(UnlowerableField(site: .customElement, field: "requestLeaf"))
+        }
+        return frame.requestLeaf(style: style, measure: measure)
     }
 
     // MARK: Native registrars — typed (ruling MC-G)

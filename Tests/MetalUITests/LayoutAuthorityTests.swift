@@ -70,7 +70,7 @@ private func field(_ site: LoweringSite, _ name: String) -> UnlowerableField {
 
 /// The proposal frame's diagnostics for `make()` inside the harness root.
 @MainActor
-private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: () -> C) -> [UnlowerableField] {
+private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () -> C) -> [UnlowerableField] {
     LayoutDifferential.render(authority: .proposal, width: 100, height: 100, make).unlowerableFields
 }
 
