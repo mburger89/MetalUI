@@ -219,7 +219,9 @@ func makeNativeGridPlan(_ children: [NativeGridChild], alignment: ProposalAlignm
 func solveNativeGrid(_ plan: NativeGridPlan, proposal: ProposedSize,
                      measure: (Int, ProposedSize) -> SizeD) -> NativeGridSolution {
     guard proposal.width == nil, proposal.height == nil else {
-        return solveNativeGridAtAProposal(plan, proposal: proposal, measure: measure)
+        let solver = NativeGridSolver(plan, proposal: proposal)
+        while let request = solver.request { solver.provide(measure(request.index, request.proposal)) }
+        return solver.solution
     }
     var widths = Array(repeating: 0.0, count: plan.columnCount)
     var heights = Array(repeating: 0.0, count: plan.rowCount)
@@ -347,80 +349,158 @@ func nativeGridZeroSpacingEdges(_ plan: NativeGridPlan, axis: ProposalStackAxis)
 /// cells' columns, because a column left uncommitted holds an unprocessed cell
 /// of the running level and can only commit when that cell is processed.
 /// `bookkeepingSteps` counts each record those updates, checks and span sums
-/// visit (theSolversBookkeepingIsLinearInTheCells: 11n + 3 on its grid).
-private func solveNativeGridAtAProposal(_ plan: NativeGridPlan, proposal: ProposedSize,
-                                        measure: (Int, ProposedSize) -> SizeD) -> NativeGridSolution {
-    let cells = plan.cells
-    let columnCount = plan.columnCount, rowCount = plan.rowCount
-    var steps = 0
-    var widths = Array(repeating: 0.0, count: columnCount)
-    var heights = Array(repeating: 0.0, count: rowCount)
-    var proposals = Array(repeating: proposal, count: cells.count)
-    var answers = Array(repeating: SizeD(width: 0, height: 0), count: cells.count)
+/// visit (`theSolversBookkeepingIsLinearInTheCells`: 11n + 3 on its grid).
+///
+/// **Inverted, for the depth guard** (ruling SA-L, record §20 lane 2): the
+/// solver never calls a measure function. It exposes the one measurement it
+/// needs next (`request`) and resumes when given the answer (`provide`), so
+/// `LayoutTree.measureGrid` recurses into a cell from its own small loop and
+/// none of this state sits on the recursion path. A solver that called its
+/// measure closure from inside the group loop let a chain of one-cell grids at
+/// 400×400 complete only 65 levels on a 1 MB debug thread.
+final class NativeGridSolver {
+    private let plan: NativeGridPlan
+    private let proposal: ProposedSize
+    private let wPrime: Double?
+    private let hPrime: Double?
 
-    // 1. Probes and keys.
-    var infiniteAxes = Array(repeating: 0, count: cells.count)
-    var flexibility = Array(repeating: 0.0, count: cells.count)
-    for index in cells.indices {
-        let zero = measure(index, ProposedSize(width: 0, height: 0))
-        let inf = measure(index, ProposedSize(width: .infinity, height: .infinity))
-        if proposal.width != nil {
-            if inf.width.isInfinite { infiniteAxes[index] += 1 } else { flexibility[index] += inf.width - zero.width }
+    private var widths: [Double]
+    private var heights: [Double]
+    private var proposals: [ProposedSize]
+    private var answers: [SizeD]
+    private var steps = 0
+
+    private var zeroAnswer = SizeD(width: 0, height: 0)
+    private var infiniteAxes: [Int]
+    private var flexibility: [Double]
+    private var order: [Int] = []
+
+    private var unprocessedSingles: [Int]
+    private var levelInColumn: [Int]
+    private var levelInRow: [Int]
+    private var openColumns = 0
+    private var openRows = 0
+    private var runningLevel: Double?
+    private var committedColumn: [Bool]
+    private var committedRow: [Bool]
+    private var committedWidth = 0.0
+    private var committedHeight = 0.0
+    private var shareW: Double?
+    private var shareH: Double?
+
+    private enum Phase { case probe(Int, infinite: Bool), serve(Int), finished }
+    private var phase: Phase
+    private var groupStart = 0
+    private var groupEnd = 0
+    private var isFirstGroup = true
+
+    /// The measurement the solve needs next, nil once it is solved.
+    private(set) var request: (index: Int, proposal: ProposedSize)?
+
+    init(_ plan: NativeGridPlan, proposal: ProposedSize) {
+        self.plan = plan
+        self.proposal = proposal
+        wPrime = proposal.width.map { $0 - plan.hgap.reduce(0, +) }
+        hPrime = proposal.height.map { $0 - plan.vgap.reduce(0, +) }
+        let count = plan.cells.count
+        widths = Array(repeating: 0, count: plan.columnCount)
+        heights = Array(repeating: 0, count: plan.rowCount)
+        proposals = Array(repeating: proposal, count: count)
+        answers = Array(repeating: SizeD(width: 0, height: 0), count: count)
+        infiniteAxes = Array(repeating: 0, count: count)
+        flexibility = Array(repeating: 0, count: count)
+        unprocessedSingles = plan.columnSingleCells.map(\.count)
+        levelInColumn = Array(repeating: 0, count: plan.columnCount)
+        levelInRow = Array(repeating: 0, count: plan.rowCount)
+        committedColumn = Array(repeating: false, count: plan.columnCount)
+        committedRow = Array(repeating: false, count: plan.rowCount)
+        if count == 0 {
+            phase = .finished
+        } else {
+            phase = .probe(0, infinite: false)
+            request = (0, ProposedSize(width: 0, height: 0))
         }
-        if proposal.height != nil {
-            if inf.height.isInfinite { infiniteAxes[index] += 1 } else { flexibility[index] += inf.height - zero.height }
+    }
+
+    /// The solve's state; valid once `request` is nil.
+    var solution: NativeGridSolution {
+        NativeGridSolution(columnWidths: widths, rowHeights: heights, proposals: proposals, answers: answers,
+                           size: size, bookkeepingSteps: steps)
+    }
+
+    /// The grid's answer: the sums plus the gaps; valid once `request` is nil.
+    var size: SizeD {
+        SizeD(width: widths.reduce(0, +) + plan.hgap.reduce(0, +),
+              height: heights.reduce(0, +) + plan.vgap.reduce(0, +))
+    }
+
+    /// The answer to `request`; advances to the next measurement.
+    func provide(_ answer: SizeD) {
+        guard let (index, cellProposal) = request else { preconditionFailure("a grid solver given an answer it did not ask for") }
+        switch phase {
+        case let .probe(probed, infinite):
+            if !infinite {
+                zeroAnswer = answer
+                phase = .probe(probed, infinite: true)
+                request = (probed, ProposedSize(width: .infinity, height: .infinity))
+                return
+            }
+            if proposal.width != nil {
+                if answer.width.isInfinite { infiniteAxes[probed] += 1 } else { flexibility[probed] += answer.width - zeroAnswer.width }
+            }
+            if proposal.height != nil {
+                if answer.height.isInfinite { infiniteAxes[probed] += 1 } else { flexibility[probed] += answer.height - zeroAnswer.height }
+            }
+            if probed + 1 < plan.cells.count {
+                phase = .probe(probed + 1, infinite: false)
+                request = (probed + 1, ProposedSize(width: 0, height: 0))
+            } else {
+                sortByKey()
+                startGroup(at: 0)
+            }
+        case let .serve(position):
+            let cell = plan.cells[index]
+            proposals[index] = cellProposal
+            answers[index] = answer
+            heighten(cell.row, to: Swift.max(heights[cell.row], answer.height))
+            if cell.span == 1 { widen(cell.column, to: Swift.max(widths[cell.column], answer.width)) }
+            if position + 1 < groupEnd {
+                serve(position + 1)
+            } else {
+                finishGroup()
+                if groupEnd < order.count { startGroup(at: groupEnd) } else { phase = .finished; request = nil }
+            }
+        case .finished:
+            preconditionFailure("a grid solver given an answer after it finished")
         }
     }
-    func sameKey(_ x: Int, _ y: Int) -> Bool {
-        cells[x].priority == cells[y].priority && infiniteAxes[x] == infiniteAxes[y] && flexibility[x] == flexibility[y]
-    }
-    let order = cells.indices.sorted { x, y in
-        if cells[x].priority != cells[y].priority { return cells[x].priority > cells[y].priority }
-        if infiniteAxes[x] != infiniteAxes[y] { return infiniteAxes[x] < infiniteAxes[y] }
-        if flexibility[x] != flexibility[y] { return flexibility[x] < flexibility[y] }
-        return x < y
+
+    private func sameKey(_ x: Int, _ y: Int) -> Bool {
+        plan.cells[x].priority == plan.cells[y].priority && infiniteAxes[x] == infiniteAxes[y]
+            && flexibility[x] == flexibility[y]
     }
 
-    // 2. Shares over counts.
-    let wPrime = proposal.width.map { $0 - plan.hgap.reduce(0, +) }
-    let hPrime = proposal.height.map { $0 - plan.vgap.reduce(0, +) }
-    var unprocessedSingles = plan.columnSingleCells.map(\.count)
-    var levelInColumn = Array(repeating: 0, count: columnCount)
-    var levelInRow = Array(repeating: 0, count: rowCount)
-    var openColumns = 0, openRows = 0
-    var runningLevel: Double?
-    var committedColumn = Array(repeating: false, count: columnCount)
-    var committedRow = Array(repeating: false, count: rowCount)
-    var committedWidth = 0.0, committedHeight = 0.0
-    func widen(_ column: Int, to value: Double) {
-        let old = widths[column]
-        guard value != old else { return }
-        widths[column] = value
-        if committedColumn[column] { committedWidth += value - old }
-    }
-    func heighten(_ row: Int, to value: Double) {
-        let old = heights[row]
-        guard value != old else { return }
-        heights[row] = value
-        if committedRow[row] { committedHeight += value - old }
-    }
-    func spanWidth(_ cell: NativeGridCell) -> Double {
-        steps += cell.span
-        return widths[cell.column..<(cell.column + cell.span)].reduce(0, +) + innerGaps(plan, cell)
+    private func sortByKey() {
+        let cells = plan.cells
+        order = cells.indices.sorted { x, y in
+            if cells[x].priority != cells[y].priority { return cells[x].priority > cells[y].priority }
+            if infiniteAxes[x] != infiniteAxes[y] { return infiniteAxes[x] < infiniteAxes[y] }
+            if flexibility[x] != flexibility[y] { return flexibility[x] < flexibility[y] }
+            return x < y
+        }
     }
 
-    var start = 0
-    while start < order.count {
-        var end = start + 1
-        while end < order.count, sameKey(order[end], order[start]) { end += 1 }
-        let group = order[start..<end]
-        let level = cells[order[start]].priority
+    private func startGroup(at start: Int) {
+        groupStart = start
+        groupEnd = start + 1
+        while groupEnd < order.count, sameKey(order[groupEnd], order[start]) { groupEnd += 1 }
+        let level = plan.cells[order[start]].priority
         if level != runningLevel {
             runningLevel = level
             var next = start
-            while next < order.count, cells[order[next]].priority == level {
+            while next < order.count, plan.cells[order[next]].priority == level {
                 steps += 1
-                let cell = cells[order[next]]
+                let cell = plan.cells[order[next]]
                 if cell.span == 1 {
                     if levelInColumn[cell.column] == 0 { openColumns += 1 }
                     levelInColumn[cell.column] += 1
@@ -430,39 +510,40 @@ private func solveNativeGridAtAProposal(_ plan: NativeGridPlan, proposal: Propos
                 next += 1
             }
         }
-        let shareW = wPrime.map { $0.isInfinite ? $0 : ($0 - committedWidth) / Double(Swift.max(openColumns, 1)) }
-        let shareH = hPrime.map { $0.isInfinite ? $0 : ($0 - committedHeight) / Double(Swift.max(openRows, 1)) }
+        shareW = wPrime.map { $0.isInfinite ? $0 : ($0 - committedWidth) / Double(Swift.max(openColumns, 1)) }
+        shareH = hPrime.map { $0.isInfinite ? $0 : ($0 - committedHeight) / Double(Swift.max(openRows, 1)) }
+        serve(start)
+    }
 
-        for index in group {
-            let cell = cells[index]
-            var width: Double?
-            if let wPrime, let shareW {
-                if cell.span == 1 {
-                    width = Swift.max(shareW, widths[cell.column])
-                } else if wPrime.isInfinite {
-                    width = wPrime
-                } else {
-                    var outside = 0.0
-                    for column in 0..<columnCount where column < cell.column || column >= cell.column + cell.span {
-                        outside += levelInColumn[column] > 0 ? shareW : widths[column]
-                    }
-                    steps += columnCount
-                    width = Swift.max(wPrime - outside + innerGaps(plan, cell), spanWidth(cell))
+    /// Asks for the group member at `position` at its proposal.
+    private func serve(_ position: Int) {
+        let index = order[position]
+        let cell = plan.cells[index]
+        var width: Double?
+        if let wPrime, let shareW {
+            if cell.span == 1 {
+                width = Swift.max(shareW, widths[cell.column])
+            } else if wPrime.isInfinite {
+                width = wPrime
+            } else {
+                var outside = 0.0
+                for column in 0..<plan.columnCount where column < cell.column || column >= cell.column + cell.span {
+                    outside += levelInColumn[column] > 0 ? shareW : widths[column]
                 }
+                steps += plan.columnCount
+                width = Swift.max(wPrime - outside + innerGaps(plan, cell), spanWidth(cell))
             }
-            let height = shareH.map { Swift.max($0, heights[cell.row]) }
-            let cellProposal = ProposedSize(width: width, height: height)
-            let answer = measure(index, cellProposal)
-            proposals[index] = cellProposal
-            answers[index] = answer
-            heighten(cell.row, to: Swift.max(heights[cell.row], answer.height))
-            if cell.span == 1 { widen(cell.column, to: Swift.max(widths[cell.column], answer.width)) }
         }
+        let height = shareH.map { Swift.max($0, heights[cell.row]) }
+        phase = .serve(position)
+        request = (index, ProposedSize(width: width, height: height))
+    }
 
-        // 3. Processed: counts, span shortfalls, commits.
+    private func finishGroup() {
+        let group = order[groupStart..<groupEnd]
         for index in group {
             steps += 1
-            let cell = cells[index]
+            let cell = plan.cells[index]
             if cell.span == 1 {
                 unprocessedSingles[cell.column] -= 1
                 levelInColumn[cell.column] -= 1
@@ -471,8 +552,8 @@ private func solveNativeGridAtAProposal(_ plan: NativeGridPlan, proposal: Propos
             levelInRow[cell.row] -= 1
             if levelInRow[cell.row] == 0 { openRows -= 1 }
         }
-        for index in group where cells[index].span > 1 {
-            let cell = cells[index]
+        for index in group where plan.cells[index].span > 1 {
+            let cell = plan.cells[index]
             let shortfall = answers[index].width - spanWidth(cell)
             guard shortfall > 0 else { continue }
             let columns = cell.column..<(cell.column + cell.span)
@@ -482,32 +563,48 @@ private func solveNativeGridAtAProposal(_ plan: NativeGridPlan, proposal: Propos
             if targets.isEmpty { targets = Array(columns) }
             for column in targets { widen(column, to: widths[column] + shortfall / Double(targets.count)) }
         }
-        func commitColumn(_ column: Int) {
-            steps += 1
-            guard !committedColumn[column], levelInColumn[column] == 0 else { return }
-            committedColumn[column] = true
-            committedWidth += widths[column]
-        }
-        func commitRow(_ row: Int) {
-            steps += 1
-            guard !committedRow[row], levelInRow[row] == 0 else { return }
-            committedRow[row] = true
-            committedHeight += heights[row]
-        }
-        if start == 0 {
-            for column in 0..<columnCount { commitColumn(column) }
-            for row in 0..<rowCount { commitRow(row) }
+        if isFirstGroup {
+            isFirstGroup = false
+            for column in 0..<plan.columnCount { commitColumn(column) }
+            for row in 0..<plan.rowCount { commitRow(row) }
         } else {
             for index in group {
-                if cells[index].span == 1 { commitColumn(cells[index].column) }
-                commitRow(cells[index].row)
+                if plan.cells[index].span == 1 { commitColumn(plan.cells[index].column) }
+                commitRow(plan.cells[index].row)
             }
         }
-        start = end
     }
 
-    let size = SizeD(width: widths.reduce(0, +) + plan.hgap.reduce(0, +),
-                     height: heights.reduce(0, +) + plan.vgap.reduce(0, +))
-    return NativeGridSolution(columnWidths: widths, rowHeights: heights, proposals: proposals,
-                              answers: answers, size: size, bookkeepingSteps: steps)
+    private func spanWidth(_ cell: NativeGridCell) -> Double {
+        steps += cell.span
+        return widths[cell.column..<(cell.column + cell.span)].reduce(0, +) + innerGaps(plan, cell)
+    }
+
+    private func widen(_ column: Int, to value: Double) {
+        let old = widths[column]
+        guard value != old else { return }
+        widths[column] = value
+        if committedColumn[column] { committedWidth += value - old }
+    }
+
+    private func heighten(_ row: Int, to value: Double) {
+        let old = heights[row]
+        guard value != old else { return }
+        heights[row] = value
+        if committedRow[row] { committedHeight += value - old }
+    }
+
+    private func commitColumn(_ column: Int) {
+        steps += 1
+        guard !committedColumn[column], levelInColumn[column] == 0 else { return }
+        committedColumn[column] = true
+        committedWidth += widths[column]
+    }
+
+    private func commitRow(_ row: Int) {
+        steps += 1
+        guard !committedRow[row], levelInRow[row] == 0 else { return }
+        committedRow[row] = true
+        committedHeight += heights[row]
+    }
 }

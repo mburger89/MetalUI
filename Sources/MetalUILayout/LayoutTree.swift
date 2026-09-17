@@ -1649,14 +1649,14 @@ extension LayoutTree {
     /// A grid's answer, measuring its cells through the run's cache. Its own
     /// function so `measureNative`'s frame gains no locals (spec §4.5). At
     /// nil×nil the cells are measured here and the solver gets their answers
-    /// (ruling GR-W: the depth gate); at any other proposal the solver measures
-    /// through a closure, because its proposals depend on earlier answers.
+    /// (ruling GR-W: the depth gate); at any other proposal each proposal
+    /// depends on earlier answers, so this loop feeds `NativeGridSolver` one
+    /// measurement at a time and the recursion into a cell starts here, not
+    /// inside the solver (the same gate, record §20 lane 2).
     private func measureGrid(_ id: LayoutNodeID, proposal: ProposedSize, run: NativeLayoutRun) -> SizeD {
         guard let plan = nativeGridPlan(id) else { preconditionFailure("measureGrid on a node that is not a grid") }
         guard proposal.width == nil, proposal.height == nil else {
-            return solveNativeGrid(plan, proposal: proposal) { index, cellProposal in
-                self.measureNative(plan.cells[index].node, proposal: cellProposal, run: run).size
-            }.size
+            return measureGrid(plan, atAProposal: proposal, run: run)
         }
         var answers: [SizeD] = []
         answers.reserveCapacity(plan.cells.count)
@@ -1664,6 +1664,21 @@ extension LayoutTree {
             answers.append(measureNative(cell.node, proposal: proposal, run: run).size)
         }
         return solveNativeGrid(plan, proposal: proposal) { index, _ in answers[index] }.size
+    }
+
+    /// A grid's answer at a proposal with a non-nil axis: feeds
+    /// `NativeGridSolver` one measurement at a time. Its own function so the
+    /// nil×nil path's frame does not carry this loop's locals: a chain of
+    /// one-cell grids at nil×nil completed 159 levels on a 1 MB debug thread
+    /// with the loop inline in `measureGrid` and 167 with it here (record §20,
+    /// lane 2).
+    private func measureGrid(_ plan: NativeGridPlan, atAProposal proposal: ProposedSize,
+                             run: NativeLayoutRun) -> SizeD {
+        let solver = NativeGridSolver(plan, proposal: proposal)
+        while let request = solver.request {
+            solver.provide(measureNative(plan.cells[request.index].node, proposal: request.proposal, run: run).size)
+        }
+        return solver.size
     }
 
     /// Places a grid's cells (spec §4.3): the solve again at `proposal`, every

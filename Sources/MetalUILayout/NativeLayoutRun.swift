@@ -92,8 +92,14 @@ final class NativeLayoutRun {
     /// here and the finding is left to `LR-Q`'s stage 6b re-bisection. The
     /// grid's first two implementations measured 110 and 117 (a solver frame
     /// and `Array.map` on the recursion path); lane 1 measures a nil grid's
-    /// cells directly in `LayoutTree.measureGrid`. Lane 2's finite solve is on
-    /// that path again and re-bisects.
+    /// cells directly in `LayoutTree.measureGrid`.
+    ///
+    /// **Re-taken by grids lane 2** (same method; first failing depth completes
+    /// on 4 MB): one-cell grid at 400×400 (the finite solve) **155 / 156**, at
+    /// nil×nil 167 / 168; stack 127 / 128 and padding 194 / 195, unchanged. A
+    /// first finite solve that called its measure closure from inside its group
+    /// loop read 65 / 66; `NativeGridSolver` is inverted (it asks, the tree
+    /// measures) for that reason. Both grid ceilings clear `GR-M`'s gate of 147.
     ///
     /// **No parity with legacy is claimed.** One legacy level ported as
     /// `.padding(…).frame(width:)` is at least three native levels, so a

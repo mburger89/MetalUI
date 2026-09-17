@@ -138,8 +138,8 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
 // depth literals are literals on purpose (ruling GR-M, critic finding 2), not
 // `NativeLayoutRun.maxDepth` arithmetic: a leaf under 88 nested one-cell grids
 // is 89 levels and traps; under 87 it is 88 levels and lays out. Both lay out
-// at a nil proposal, the only grid branch lane 1 has (the finite branch is lane
-// 2's), on a 4 MB thread as above. The one-cell-grid debug ceiling is in
+// at a nil proposal (lane 1's branch; the finite solve's ceiling is also in the
+// table below and clears the same gate), on a 4 MB thread as above. The one-cell-grid debug ceiling is in
 // `NativeLayoutRun.maxDepth`'s table.
 
 /// Mutation: `NativeLayoutRun.maxDepth` 89 (the child exits `.success`).
