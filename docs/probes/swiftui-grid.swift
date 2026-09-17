@@ -70,6 +70,11 @@
 // no generated grid reached that path); the corpus stdout's sha256 is
 // unchanged.
 //
+// RE-RECORDED 2026-09-17 (revision 4, the same design session), same machine
+// and toolchain, exit 0, run twice with byte-identical output. Additive only:
+// arms GF14-GF18 (`armsF2`: a greedy frame and a Color as cells), printed after
+// GP11; every revision-3 line is byte-identical.
+//
 // THE READING (arm ids in brackets; "share" and "commit" are defined in 4).
 //
 // 1. Cells. A column is as wide as its widest single-column cell, a row as tall
@@ -117,7 +122,12 @@
 //    GF1: both halves at 96, same group; GF8: a at 61.33, then 82 each]. Rows
 //    the same on the other axis. The grid does not fill its proposal with
 //    fixed content [GP1 78x58 at 200x200] and answers inf when a cell does [GP4
-//    infxinf; GP8 78x58]. On an infinite proposal axis every share is inf,
+//    infxinf; GP8 78x58]. Flexible content behaves as its answers say: a
+//    cell in .frame(maxWidth: .infinity) takes its column's remainder and
+//    keeps its row at its child's height [GF14 200x58, a centred in 152; GF15
+//    at nil 78x58], a Color takes both [GF16 152x62; GF17 10x20 at nil], a
+//    frame greedy on both axes both [GF18 200x100]. On an infinite proposal
+//    axis every share is inf,
 //    even after a column of infinite width is committed [GP9: b's share
 //    measurement is the inf x inf cache hit, then its slot 50 x inf; GP10;
 //    GP11 at inf x 100: width inf, height 100].
@@ -472,6 +482,13 @@
 //       measured, in order: a 0x0->0x0; a infxinf->infxinf; b 0x0->0x0; b infxinf->infxinf; c 0x0->10x10; c infxinf->10x10; c 10xinf->10x10; b 0x10->0x10
 //   GP11 [a flexible, b height-flexible w10 priority -1] at inf x 100 @infx100 (measured only): size infx100
 //       measured, in order: a 0x0->0x0; a infxinf->infxinf; b 0x0->10x0; b infxinf->10xinf; a infx100->infx100; b infx100->10x100
+//   === GF (revision 4): a greedy frame and a Color as cells
+//   GF14 [a 30x10 in .frame(maxWidth: .infinity), b 20x20] [c 10x30, d 40x10] at 200x100 @200x100: size 200x58 | a (61,5 30x10) <- 152x10 | b (170,0 20x20) <- 40x20 | c (71,28 10x30) <- 152x30 | d (160,38 40x10) <- 40x30
+//       measured, in order: a 0x0->30x10; a infxinf->30x10; b 0x0->20x20; b infxinf->20x20; c 0x0->10x30; c infxinf->10x30; d 0x0->40x10; d infxinf->40x10; b 96x46->20x20; c 96x46->10x30; d 96x46->40x10; a 152x62->30x10; a 152x20->30x10; b 40x20->20x20; c 152x30->10x30; d 40x30->40x10; a 152x10->30x10
+//   GF15 GF14 at nil @nilxnil: size 78x58 | a (0,5 30x10) <- 30x10 | b (48,0 20x20) <- 40x20 | c (10,28 10x30) <- 30x30 | d (38,38 40x10) <- 40x30
+//   GF16 [a Color (bg leaf k), b 20x20] [c 10x30, d 40x10] at 200x100 @200x100: size 200x100 | b (170,21 20x20) <- 40x62 | c (71,70 10x30) <- 152x30 | d (160,80 40x10) <- 40x30 | k (0,0 152x62) <- 152x62
+//   GF17 GF16 at nil @nilxnil: size 58x58 | b (28,0 20x20) <- 40x20 | c (0,28 10x30) <- nilxnil | d (18,38 40x10) <- 40x30 | k (0,0 10x20) <- 10x20
+//   GF18 [a 30x10 in .frame(maxWidth: .infinity, maxHeight: .infinity), b 20x20] [c 10x30, d 40x10] at 200x100 @200x100: size 200x100 | a (61,26 30x10) <- 152x62 | b (170,21 20x20) <- 40x62 | c (71,70 10x30) <- 152x30 | d (160,80 40x10) <- 40x30
 //   === GZ: the reference model (solve/ModelGrid above) against SwiftUI's Grid on generated grids
 //     DIFFERS Grid(center, h nil, v nil) [c1:fixed(150, 20), c2:clampW(10, 40, 40)] @150xnil
 //       SwiftUI 168x40 c1(0,10 150x20) c2(158,0 10x40)
@@ -1306,6 +1323,14 @@ func p(_ w: CGFloat?, _ h: CGFloat?) -> ProposedViewSize { ProposedViewSize(widt
     arm("GP10 [a flexible] [b flexible, c 10x10 priority -1] at inf x inf", p(.infinity,.infinity), measureOnly: true) { Grid { GridRow { fl("a") }; GridRow { fl("b"); fx("c",10,10).layoutPriority(-1) } } }
     arm("GP11 [a flexible, b height-flexible w10 priority -1] at inf x 100", p(.infinity,100), measureOnly: true) { Grid { GridRow { fl("a"); fh("b",10).layoutPriority(-1) } } }
 }
+@MainActor func armsF2() {
+    print("=== GF (revision 4): a greedy frame and a Color as cells")
+    arm("GF14 [a 30x10 in .frame(maxWidth: .infinity), b 20x20] [c 10x30, d 40x10] at 200x100", p(200,100), seq: true) { Grid { GridRow { fx("a",30,10).frame(maxWidth: .infinity); fx("b",20,20) }; GridRow { fx("c",10,30); fx("d",40,10) } } }
+    arm("GF15 GF14 at nil", none) { Grid { GridRow { fx("a",30,10).frame(maxWidth: .infinity); fx("b",20,20) }; GridRow { fx("c",10,30); fx("d",40,10) } } }
+    arm("GF16 [a Color (bg leaf k), b 20x20] [c 10x30, d 40x10] at 200x100", p(200,100)) { Grid { GridRow { SwiftUI.Color.red.background(fl("k")); fx("b",20,20) }; GridRow { fx("c",10,30); fx("d",40,10) } } }
+    arm("GF17 GF16 at nil", none) { Grid { GridRow { SwiftUI.Color.red.background(fl("k")); fx("b",20,20) }; GridRow { fx("c",10,30); fx("d",40,10) } } }
+    arm("GF18 [a 30x10 in .frame(maxWidth: .infinity, maxHeight: .infinity), b 20x20] [c 10x30, d 40x10] at 200x100", p(200,100)) { Grid { GridRow { fx("a",30,10).frame(maxWidth: .infinity, maxHeight: .infinity); fx("b",20,20) }; GridRow { fx("c",10,30); fx("d",40,10) } } }
+}
 // ---------------- corpus ----------------
 func lit(_ v: CGFloat?) -> String { v.map { "\(Double($0))" } ?? "nil" }
 func kindLit(_ k: LK) -> String {
@@ -1376,7 +1401,7 @@ if CommandLine.arguments.contains("corpus") {
     exit(0)
 }
 MainActor.assumeIsolated {
-    armsA(); armsP(); armsF(); armsR(); armsS(); armsX(); armsQ(); armsL(); armsU(); armsW(); armsG(); armsS2(); armsP2()
+    armsA(); armsP(); armsF(); armsR(); armsS(); armsX(); armsQ(); armsL(); armsU(); armsW(); armsG(); armsS2(); armsP2(); armsF2()
     print("=== GZ: the reference model (solve/ModelGrid above) against SwiftUI's Grid on generated grids")
     controlIgnoresCommits = true
     _ = fuzz("GZ0 control: the model with commits ignored (must disagree)", seed: 101, count: 300, [], show: 1)

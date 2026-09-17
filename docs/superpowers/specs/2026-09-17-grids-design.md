@@ -2,7 +2,7 @@
 
 `feat/grids` from `cb2e708`. Rulings `GR-A`…`GR-P` in
 [`../2026-09-17-grids-decisions.md`](../2026-09-17-grids-decisions.md); probes
-`docs/probes/swiftui-grid.swift` (revision 3; arm ids below are its),
+`docs/probes/swiftui-grid.swift` (revision 4; arm ids below are its),
 `docs/probes/swiftui-grid-corpus.txt` (its `corpus` mode) and
 `docs/probes/swiftui-lazy-grid-scope.swift`; record
 `docs/record/20-grids.md`. Parent design:
@@ -312,7 +312,7 @@ depth tests appended to `NativeDepthGuardTests.swift`.
 | 1.3 | `atANilProposalSpansWidenTheirColumnsAfterEverySingleColumnCell` | GP3, GX1, GX2, GX3, GX4, GX5, GX6, GX7 | no registrar | absorb each cell's span in source order among the single-column cells (GX7's a moves to x 8) |
 | 1.4 | `aSpanShortfallGoesFirstToSpannedColumnsWithNoSingleColumnCell` | GX11 | no registrar | spread over every spanned column (col 1 41, col 2 51) |
 | 1.5 | `aCellWhoseSlotEqualsItsAnswerIsPlacedAtTheProposalItWasMeasuredAt` | GR1, GR2 with `odd`, and GR0's control (an `odd` leaf in a 20×20 fixed frame reads 15×15), `#require`d first; GP3's c placed at nil | no registrar | always place at the slot size (a reads 15×15 at (2.5, 2.5)) |
-| 1.6 | `aFiniteProposalServesGroupsWithSharesAndCommits` | GP1, GP2, GF1–GF9: answers, rects, and GF7's d proposed 120 wide (its log) | no registrar | GZ0's control: every group offered W′/ncols, commits ignored (GP2's a at 96) |
+| 1.6 | `aFiniteProposalServesGroupsWithSharesAndCommits` | GP1, GP2, GF1–GF9, GF14–GF18 (a greedy `newNativeFrame(maxWidth: .infinity)` cell and a proposal-responsive leaf standing for `Color`): answers, rects, and GF7's d proposed 120 wide (its log) | no registrar | GZ0's control: every group offered W′/ncols, commits ignored (GP2's a at 96) |
 | 1.7 | `theFlexibilityKeyCountsInfiniteAxesFirstAndIgnoresANilAxis` | GF10, GF11, GF12, GF13 (`#require` GF12 ≠ GF13) | no registrar | key = the finite sum with ∞ as +∞, one group for equal sums (GF10's b at 96) |
 | 1.8 | `oneAxisNilAndInfiniteProposalsAnswerAsTheProbeReads` | GP5, GP6 laid out; GP4 (∞×∞) and GP8 measured only (an infinite answer traps at checkpoint 3 when stored, `SA-J`) | no registrar | propose a nil grid axis as 0 instead of nil (GP5's a answers 152×0) |
 | 1.9 | `anInfiniteAxisSharesInfinityAfterAnInfiniteCommittedColumn` — an exit test expecting `.success` (`@testable`), measuring GP9, GP10, GP11 in the child and checking their answers | GP9–GP11 | no registrar | compute `(W′ − committed)` on an infinite axis: inf − inf is nan and checkpoint 1 traps, so the child exits `.failure` |
@@ -388,7 +388,7 @@ types only), but take one if an incremental build misbehaves (CLAUDE.md).
 
 | # | test | arms | red before | mutation |
 |---|---|---|---|---|
-| 3.1 | `gridAndGridRowLayOutAsTheProbeReadsThroughTheElementAPI` | GA1, GA3, GP2 (at a 200×100 root), GL3 (`GridRow(alignment: .top)`), GX1 (`.gridCellColumns(2)`), GL5 (`.gridColumnAlignment(.trailing)`), GL11 (`.gridCellAnchor(.trailing)`), GU9 (`.gridCellUnsizedAxes(.horizontal)`); nil arms under `.fixedSize()` | no types | `Grid` passes `horizontalSpacing` as vertical (GA3 moves) |
+| 3.1 | `gridAndGridRowLayOutAsTheProbeReadsThroughTheElementAPI` | GA1, GA3, GP2 (at a 200×100 root), GL3 (`GridRow(alignment: .top)`), GX1 (`.gridCellColumns(2)`), GL5 (`.gridColumnAlignment(.trailing)`), GL11 (`.gridCellAnchor(.trailing)`), GU9 (`.gridCellUnsizedAxes(.horizontal)`), GF14 (`.frame(maxWidth: .infinity)`), GF16 (`Color(.accent)`); nil arms under `.fixedSize()` | no types | `Grid` passes `horizontalSpacing` as vertical (GA3 moves) |
 | 3.2 | `everyProposalModifierCarriesAGridCellAttributeAsTheProbeReads` | GWS/GWA/GWC/GWU through MetalUI's spellings: `.padding(Edges)`, `.frame(width:height:)`, `.frame(maxWidth:)`, `.fixedSize()`, `.aspectRatio`, `.layoutPriority`, `.background(ColorToken)`, `.clip`, `.border`, `.opacity`, `.allowsHitTesting(false)`, `.onTap {}`, `.disabled(true)`, `.overlay { }` primary and content side, `.background { }` content side, `HStack { one }`, `ZStack { one }` | no types | `GridCellModifier` drops `.columnAlignment` (every GWC arm reddens; the lane records the rest) |
 | 3.3 | `aGridRowOutsideAGridIsItsCells` | GG1 (in a `VStack`: a (0,0), b (5,18), 30×38), GG2 | no types | `GridRow` registers an `HStack` of its cells (GG1 reads one child) |
 | 3.4 | `aGridRowInsideAGridRowFlattens` | GG3 (71×20) | no types | the kernel keeps the first row token written (GG3 reads two rows) |

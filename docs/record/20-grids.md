@@ -3,7 +3,7 @@
 Branch `feat/grids` from `cb2e708`. Spec
 `docs/superpowers/specs/2026-09-17-grids-design.md`; rulings `GR-A`…`GR-P` in
 `docs/superpowers/2026-09-17-grids-decisions.md`; probes
-`docs/probes/swiftui-grid.swift` (revision 3), `docs/probes/swiftui-grid-corpus.txt`,
+`docs/probes/swiftui-grid.swift` (revision 4), `docs/probes/swiftui-grid-corpus.txt`,
 `docs/probes/swiftui-lazy-grid-scope.swift`. The lanes append their sections
 below the design round.
 
@@ -94,6 +94,7 @@ scratch (the probe's `host`, `modelGrid`, `realGrid`), at the arm's proposal:
 | `swiftui-grid.swift` | 1 | `ed3471e` | default ×2, `corpus` ×2, `trap-negative-columns` ×1 (a second run at revision 3) | byte-identical; exit 0, 0, 133 |
 | `swiftui-grid.swift` | 2 (GS12–GS18) | `c1f793d` | default ×2 | byte-identical; every revision-1 line identical |
 | `swiftui-grid.swift` | 3 (GP9–GP11, ∞ share in the model) | `01a3462` | default ×2, `corpus` ×1 | byte-identical; revision-2 lines identical; corpus sha256 unchanged |
+| `swiftui-grid.swift` | 4 (GF14–GF18: a greedy frame and a Color as cells) | the commit after `88d0472` | default ×2 | byte-identical; revision-3 lines identical; corpus sha256 unchanged |
 | `swiftui-lazy-grid-scope.swift` | 1 | `ed3471e` | ×2 | byte-identical |
 
 All under `/usr/bin/swift` (Apple Swift 6.4, swiftlang-6.4.0.33.1), macOS 27.0
