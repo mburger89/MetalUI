@@ -826,8 +826,8 @@ or `ProposalLayoutContainer(layout) { … }` (also `MyLayout { … }`).
   - a legacy root is unchanged, and no legacy container is deprecated (only
     the `percent:` sizing spellings are, as renames, `CN-O`).
 - **Sufficiency.** The plain-import `ReferenceLinearStack` must match the
-  built-in stack's rects. It compares a transposed vertical tree too (`CN-B`,
-  aimed at record §09's green mutation F1, which was not re-run), and spacers' main extents only (a
+  built-in stack's rects. It compares a transposed vertical tree too (`CN-B`;
+  record §09's green mutation F1 now reddens it, re-run 2026-09-16), and spacers' main extents only (a
   `ProposalLayout` cannot mark a spacer).
 
 **The kernel's stacks are SwiftUI's** (`CN-B`…`CN-I`, probe

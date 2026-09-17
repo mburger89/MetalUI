@@ -1933,3 +1933,52 @@ history (`CN-B`: a greedy frame takes surplus, G4r/G4f).
   closed (lane 1 compares a transposed tree).
 - `docs/probes/swiftui-stack-algorithms.swift`: fix the V7f/V7k labels and
   re-record (run twice, byte-identical apart from those two lines).
+
+## Docs phase (integrator)
+
+2026-09-16, on `feat/containers` from `5224dfa`. Documents only, plus one probe
+re-record and one mutation; no `Sources/` or test change.
+
+**Counts, re-taken.** `swift package clean`, `swift build --build-system native
+--build-tests`, then unfiltered `swift test --build-system native
+--no-parallel`: `Test run with 1355 tests in 1 suite passed after 41.342
+seconds`; 0 `error:` in the build and test logs; the one `warning:` in each is
+SwiftPM's `--build-system native` deprecation notice; only
+`regenerateAllGoldens` and `aListsWorkIsTheSameFor100kRowsAsFor500` skipped.
+The four `ContainerCompileGuards` ran (`CONTAINER GUARD G1 …`/`G4 …` lines in
+the log; 0.2–0.5 s each). Goldens 97, `git diff --stat 9e439cb` over them
+empty. Guards 70, per file by `grep -c canTypecheck`: `PhaseSeparationTests`
+19, `ErasureCompileGuards` 10, `EnvironmentCompileGuards` 8,
+`ProposalNodeIDCompileGuards` 6, `ProposalLayoutCompileGuards` 6,
+`ElementGroupTrapTests` 5, `ContainerCompileGuards` 4, `AXNodeTests` 3,
+`DecorationCompileGuards` 3, `UnitSafetyTests` 2 (3 hits, one a comment),
+`ModifiedElementCompileGuards` 2, `FrameSizingCompileGuards` 2.
+`@available(*, deprecated` hits in `Sources/`: 34.
+
+**Probe revision 9.** The V7f and V7k labels in
+`docs/probes/swiftui-stack-algorithms.swift` now name the trees they run; run
+twice (`/usr/bin/swift`, exit 0, byte-identical), 779 lines, and against
+revision 8's recorded output `diff` shows exactly those two lines with the
+figures unchanged (44x20, 52x20). The header records it. Hazard 13 and the
+"Probe defects left open" paragraph above are closed by this.
+
+**Record §09 mutation F1, re-run** at `7b47c6a`:
+`ReferenceLinearStack.swift:89`'s `* alignment.horizontalFactor` → `* 0`,
+filtered run of `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects`:
+red, 7 issues at `ProposalLayoutTests.swift:212` (`c == b`). Restored from a
+copy; `git status --short` clean. Lane 1's transposed tree closes it.
+
+**Not done here:** lane 3's mutations C–K by an independent verifier and a
+decision on F (probe V1k mirrored, an arm in 3.6). Lane 3 stays `ok: false`;
+the plan's task 6 note says so.
+
+**Documents changed:** `CLAUDE.md`/`AGENTS.md` (ruling table, Where things
+are, counts and guard sentences, legacy frame and containers rules, `fraction:`,
+the native root, the stack rules paragraph, proxies, sufficiency, the holes,
+wrapper preconditions, Vocabulary, `ProposalScrollView`, probe-backed values,
+`SA-N`, the greedy frame, unprobed behaviour, performance, practices, human
+verification, divergences 36/37/40 retired and 51–58 added, inert rows);
+`README.md`; `docs/record/README.md`; `docs/record/04-divergences.md`;
+`docs/record/09-swiftui-alignment.md` (F1); the plan (task 6 progress note,
+not ticked; notes on tasks 2, 3, 4, 5 and 7; dated history in "Current
+starting point"); the `SA-`, `FR-` and `MC-` decisions docs.

@@ -1231,7 +1231,9 @@ byte-identical between `db6837e` and `HEAD`):
   test compares the horizontal stack path only**; its doc comment and `SA-B`
   claim cross-axis alignment generally. Open. *2026-09-16 (plan task 6, record
   §17):* the test now also compares a transposed, vertical copy of the tree
-  (lane 1, `CN-B`); F1 itself was not re-run against it.
+  (lane 1, `CN-B`). **Closed:** F1 re-run by the containers Docs phase at
+  `7b47c6a` reddens `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects`
+  (7 issues, `ProposalLayoutTests.swift:212`, `c == b`).
 - **B1:** `measureDepth` raised only around `.custom`'s `sizeThatFits`, not
   around leaf closures or built-in bodies. Lane 2's
   `writingARectDuringNativeMeasurementTraps` later pinned the **leaf** half

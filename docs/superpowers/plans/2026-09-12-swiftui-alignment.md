@@ -99,9 +99,9 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
 
   **Carried, not blocking.** These are coverage gaps that verifiers found by
   mutations that stayed green; each is listed in record §09:
-  - the reference stack compares the horizontal path only — *addressed
-    2026-09-16 by `CN-B` (lane 1 compares a transposed tree; mutation F1 not
-    re-run)*;
+  - the reference stack compares the horizontal path only — *closed
+    2026-09-16 by `CN-B` (lane 1 compares a transposed tree; mutation F1
+    re-run, now red)*;
   - the `measureDepth` bracket around built-in bodies;
   - `measureNativeLayout`'s flag, active-run and work-record assignments;
   - padding's right-inset term;
