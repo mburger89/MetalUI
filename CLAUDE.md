@@ -311,7 +311,12 @@ included). Over zero or several nodes — a multi-member `Component` — it stay
 divergence 56); a conditional that moves the count between 1 and 2 switches
 the lowering at run time. **A stack reads neither `.flexGrow` nor `.alignSelf`,
 so on the only child of a legacy frame both compile and do nothing** (inert
-table; `width(fraction: 1)` fills). **Two legacy divergences stay pinned wrong
+table; `width(fraction: 1)` fills). **Unfixed defect, found by the branch
+checker 2026-09-16 (unpinned): `.hidden()` written directly after a one-node
+frame is undone** — `lowered` overwrites the layer's `display: .none` with
+`.stack`, so `Text(…).frame(width: 40).hidden()` still takes 40pt in its row
+(9e439cb filtered it; the fixed and flexible overloads both; a `.padding`
+between them hides). Record §17, "Branch checker". **Two legacy divergences stay pinned wrong
 on purpose**, owner now task 7 (`CN-Q`): a finite maximum clamps but never
 grows (35); a single-axis infinite maximum is inert (inert table). `idealWidth`/`idealHeight` **trap** on the legacy path
 (`FR-D`, exit test). `.frame()` with no arguments is a deprecated no-op on both
@@ -870,7 +875,8 @@ or `ProposalLayoutContainer(layout) { … }` (also `MyLayout { … }`).
   maximum, a spacer and a scroll viewport's scrolling axis (`CN-F`, reversing
   `FR-B`); a custom layout placing a child there traps at checkpoint 3.
 - Every rule is pinned against a probe arm in `NativeStackDistributionTests`
-  and `ContainerIntegrationTests`.
+  and `ContainerIntegrationTests`, except a same-axis stack's trailing
+  zero-spacing edge (mutation F leaves the suite green; below).
 
 **One layout authority per root, no adapter** (`SA-G`). Each of these traps:
 - a native node under a legacy node;
@@ -1174,7 +1180,7 @@ or any of text's three §4.2 failure modes; these are looks.
 | animation §9's "whether the motion looks right" (spec exit criterion 9): press **A**. The sidebar's width (196pt ↔ 320pt, the layout-phase helper) and its background (`.surface` ↔ `.accent`, the paint-phase helper) both read `DemoModel.animationDemoActive` inside one `withAnimation(.spring(duration: 0.6, bounce: 0.2))`, so one keystroke drives both and they can be reported separately | **run 2026-09-10, release, at `b869253` — BOTH animate; the paint-phase helper is confirmed live in production.** Read first as "width slides, colour snaps" and corrected on a second look, so the fade is **not obvious at a glance**. **Overshoot and reverse direction closed 2026-09-10 by a scripted measurement, not a human look** (the running release demo, scripted keystrokes, window captures): the forward press peaks at 114pt and settles at 113pt on screen — the declared 196→320 spring's 1.88pt overshoot at t = 0.500 s, computed from the real `springValue`, lands as a 2-device-pixel rebound because the sidebar is flex-shrunk (SZ-L); the colour overshoots too, (97,167,253) against a (96,165,250) target; and the reverse press animates width and colour 113→73pt. Record §03. **These pixel readings describe the pre-`f1944f8` sidebar** (padding inside the 196pt column); the background now paints from the padding layer (`ModifiedElement`), so they need re-taking |
 | accessibility bridge: record §12's VoiceOver script, items 1–9 (activation in both orders, static text, buttons, the list by ear and by Inspector, focus, frames while scrolling, theme and modal, animation noise, identity adoption) | open, nobody has run it |
 | tasks 4 and 5 integrated (frame and sizing; outer modifiers): release-window capture of the default demo AND the preview window against a build of `c4b5853`, by `MC-J`'s method | **open**: the display was locked at every capture moment of both tracks and at integration (`IOConsoleLocked` `<true/>` 2026-09-16 09:29; `FR-V`: it has also read `false` on a locked, asleep display, and `docs/probes/appkit-screen-lock-state.swift`'s CGS check has no positive control yet). Stand-in: offscreen `FakePlatformWindow` pixels, ten images, merged vs `c4b5853`, **0 differing pixels and identical scene dumps in all ten**, with an instrument (element padding doubled plus the kernel's frame proposal less 10) that moves every image including the preview (record §16). At 920×560 the preview's content is 594pt tall, centred, overflowing 17pt top and bottom (`FR-U`): a look would report a clipped border |
-| containers (plan task 6, `feat/containers`): release-window capture of the default demo and the preview against `9e439cb` | **open**: `IOConsoleLocked` read `<true/>` at every lane and at the record pass. Stand-in: offscreen `FakePlatformWindow` pixels, legacy images 0 differing in all nine, preview 1 109 per 1024 image and 65 449 at 560, every changed rect traced to `CN-G`/`CN-M` (record §17). The lock check itself should be the CGS probe (`FR-V`), which no lane ran |
+| containers (plan task 6, `feat/containers`): release-window capture of the default demo and the preview against `9e439cb` | **open**: `IOConsoleLocked` read `<true/>` at every lane and at the record pass. Stand-in: offscreen `FakePlatformWindow` pixels, legacy images 0 differing in all nine, preview 1 109 per 1024 image (three rects: `CN-G`'s toggle and the `CN-M` scroll view) and 65 449 at 560 (every rect: `CN-B`'s distribution and `CN-J`'s centred, overflowing root as well), re-taken by the branch checker with identical figures (record §17). The lock check itself should be the CGS probe (`FR-V`), which no lane ran |
 | the focus ring (`focusBorder`) reads as a focus affordance | open: the demo declares none, so a look needs a demo-only commit first |
 | tasks 3, 9, 12 integrated: release-window capture of the default demo AND the `METALUI_NATIVE_LAYOUT_PREVIEW=1` window against a build of `f64e58a`, by `MC-J`'s method (`CGWindowListCopyWindowInfo` bounds, `screencapture -x -R…`, no input) | **open**: the session was locked at every track and at integration. Stand-in: offscreen `FakePlatformWindow` pixels of `demoContent()` (light/dark, f0/f3, modal, settled **A**) and the preview, merged vs `f64e58a`, **0 differing pixels in all ten**, with a paint-order instrument that differs (record §13). It cannot see the drawable, the real window, input, hover, focus or a mid-flight animation |
 
@@ -1265,7 +1271,7 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 | `Position.relative`'s offset | makes a containing block, does not shift the box |
 | `Style.alignSelf` on a `Stack` child | ignored entirely |
 | `Style.padding`/`border`/`margin` on a **leaf** (`Text`) | **not** the `.padding(_:)` modifier on an element, which now wraps in a `ModifiedElement` layer: it offsets and enlarges the outer footprint of a fixed-size custom `StyledElement` (`paddingWrapsAnElementAndExpandsItsOuterFootprint`, whose `Leaf` is not a `Text`); that it does the same for a `Text` is by reading, unpinned. Holds for `Style.padding`/`Style.border` set directly and `.margin`: ignored on a **content-sized** leaf: no size moves, and it stays out of §9.7.4.c's shrink weight (`aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`). **Not inert once the leaf declares a main size**: ruling BM-4 puts the padding inside that base, so it comes off the shrink weight as CSS says — a 200 row of two `width: 200px` measured leaves, one with `padding: 0 40px`, lays out 125 / 75 (`aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`) |
-| `hidden()` on a subtree that draws or is focusable | layout filters it, paint does not: glyphs stack at the window's top-left; a hidden focusable still claims keystrokes. Use a builder `if` instead |
+| `hidden()` on a subtree that draws or is focusable | layout filters it, paint does not: glyphs stack at the window's top-left; a hidden focusable still claims keystrokes. Use a builder `if` instead. Directly after a one-node legacy `.frame` it does not even filter layout (`CN-N`'s `lowered` overwrites `display`; defect, record §17) |
 | `AnyElement` | works when hand-written; the builder never produces one and must not |
 | `@State` inside `AnyElement` | silently inert |
 | `PaintPass.isActive` | correct, pinned, consulted by no built-in element — nothing paints a pressed state |

@@ -1982,3 +1982,93 @@ verification, divergences 36/37/40 retired and 51–58 added, inert rows);
 `docs/record/09-swiftui-alignment.md` (F1); the plan (task 6 progress note,
 not ticked; notes on tasks 2, 3, 4, 5 and 7; dated history in "Current
 starting point"); the `SA-`, `FR-` and `MC-` decisions docs.
+
+## Branch checker (adversarial, `9e439cb..14f8abe`)
+
+2026-09-16, in this worktree at `14f8abe`. Documents only; no `Sources/` or
+test change.
+
+**Suite, re-taken.** `swift build --build-system native --build-tests`, then
+unfiltered `swift test --build-system native --no-parallel`: `Test run with
+1355 tests in 1 suite passed after 41.312 seconds`; 0 `error:`; the only
+`warning:` SwiftPM's deprecation notice; only `regenerateAllGoldens` and
+`aListsWorkIsTheSameFor100kRowsAsFor500` skipped; `CONTAINER GUARD G1`…`G4`
+lines printed. Under the default build system (`swift build --build-tests`,
+`swift test --no-parallel`): six summary lines, 65 + 745 + 55 + 28 + 440 + 22
+= **1355**, all passed, 0 `error:`, 0 `warning:`. Goldens 97, `git diff
+9e439cb..HEAD` over them empty. Guards 70 by per-file `grep -c canTypecheck`
+(the Docs phase's table, identical). `cmp CLAUDE.md AGENTS.md` identical.
+`@available(*, deprecated` hits in `Sources/` 34, broken down as CLAUDE.md
+says (17 + `Binding` typealiases, 9 `native…` methods, 2 `frame()`, 2 stack
+initializers, 3 `percent:`). Every long backticked test name in `CLAUDE.md`
+and `README.md` exists as a declaration; the six in added doc lines that do
+not are each cited as deleted or replaced.
+
+**Mutations** (`LayoutTree.swift`, exact unique replacement, native build,
+unfiltered suite, restored from a copy, `git status --short` clean after each;
+every run printed its 1355-test summary line):
+
+| mutation | red |
+|---|---|
+| M1 `solveLinearStack` serves MOST flexible first (`l > r`) | 11 tests, 70 issues: `aStackServesItsLeastFlexibleChildFirst`, `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects`, `aDefaultSpacerAndAGreedyFrameThroughTheElementAPI`, `aGreedyChildTakesTheSurplusAheadOfASpacer`, `aStackAnswersTheSumOfItsChildrensAnswers`, `aStackMeasuresItsCrossSizeAtItsAllocations`, `aStackWithASpacerStillCompressesItsOtherChildren`, `anInfiniteProposalIsAnsweredWithInfinity`, `hStackAndVStackDistributeAsTheProbeReadsThroughTheElementAPI`, `overlayAndBackgroundContentIsPlacedAtThePrimarysSize`, `theCrossAxisMarkReachesASpacerThroughEveryWrapperButAStack` |
+| M2 = lane 3's C: a same-axis nested stack has no zero edge | `defaultSpacingBesideANestedContainerFollowsItsChildrensEdges` only, 24 issues — the record pass's figure exactly |
+| M3 = lane 3's F: trailing edge read from the last child's leading edge | **nothing red** — the record pass's finding confirmed |
+| M4 `CN-D`: a single-child stack reads priority 0 | 4 tests, 8 issues: `aSingleChildStackPassesItsChildsPriorityThrough`, `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules`, `aSpacerDefaultsToEightAndAnswersZeroOnItsStacksCrossAxis`, `theCrossAxisMarkReachesASpacerThroughEveryWrapperButAStack` |
+
+Lane 3's D–K were not re-run here, so its independent re-verification stays
+incomplete.
+
+**Demo comparison, re-taken** (`CN-R`'s harness, `git archive` of `9e439cb` and
+`14f8abe`, default build system, `DEMO_PIXELS_SMALL=1`). Base controls: light
+vs dark 1 048 576, default vs modal 1 030 498, default vs animation 210 027,
+f0 vs f3 0, preview light vs dark 1 048 576. Head vs base: the eight legacy
+images and `small560-default-light` 0 with identical scenes;
+`preview-light`/`-dark` 1 109 each, bbox (264, 212)–(939, 865);
+`small560-preview-light` 65 449 — every figure the record's. The 1024
+preview's scene differs in three rects only: the scroll view's border
+856 → 520 wide (`CN-M`), the toggle 168×94 at y 846 → 168×95 at y 845 and its
+20×20 child y 846 → 845 (`CN-G`). The 560 preview moves all sixteen rects:
+the root 696×604 at (−68, −22) (`CN-J` centring an overflowing `CN-B`
+answer), a 380-wide row member → 480 and its 0-wide neighbour → 36 (`CN-B`),
+the toggle 123×69 → 168×95 (`CN-B`/`CN-G`). `IOConsoleLocked` read `<true/>`;
+no real window was captured.
+
+**List and identity.** `git diff 9e439cb..HEAD` touches no line of
+`List.swift`, `ScrollView.swift`, `Deferred.swift`, `Stack.swift`,
+`Flex.swift`, `MetalUIPlatform` or any id, `StateTable` or hit-testing source;
+`ModifiedElement.swift` changes only the style a layer registers with, not its
+id; no test asserting an id, `$state`/`$focus`/`$anim` path or `List` row name
+changed. The legacy demo images read 0.
+
+**Code defect found (not fixed): `.hidden()` after a one-node legacy frame is
+undone by `CN-N`.** `ModifierLayer.lowered(_:childCount:)` sets
+`style.display = .stack` unconditionally for a frame layer over one node, so a
+`display: .none` written onto that layer by `hidden()` (a `Self`-returning
+`StyledElement` modifier, which configures the outermost layer) is
+overwritten. Scratch test in both `git archive` trees (not committed): a
+20×20 mark in a `Row` with a 5×5 sibling, reading the sibling's x —
+
+| chain | `9e439cb` | `14f8abe` |
+|---|---|---|
+| `mark.hidden()` (control) | 0 | 0 |
+| `mark.frame(width: 40, height: 40)` (control) | 40 | 40 |
+| `mark.frame(width: 40, height: 40).hidden()` | **0** | **40** |
+| `mark.frame(width: 40, height: 40).padding(4).hidden()` | 0 | 0 |
+| `mark.frame(minWidth: 40, maxWidth: 80).hidden()` | **0** | **40** |
+
+By reading, the same overwrite defeats `AB-O`'s accessibility suppression for
+that layer (`suppressingAccessibilityIfHidden` reads the registered node's
+display). No test pins it. The fix is to keep `.none` in `lowered`; its pin is
+the table above.
+
+**Doc defects fixed** (this commit): the plan's task 6 note said the nine
+alignment positions are pinned for `.background` (A9 pins three); `CLAUDE.md`
+said every stack rule is pinned (mutation F is not) and traced every changed
+560 rect to `CN-G`/`CN-M` (`CN-B` and `CN-J` move them too); the legacy frame
+paragraph and the `hidden()` inert row gained the defect above; `CN-N`'s
+decisions entry gained an addendum.
+
+**Doc defect reported, not fixed (a test file):** test 3.6's doc comment
+(`NativeStackDistributionTests.swift`, above
+`defaultSpacingBesideANestedContainerFollowsItsChildrensEdges`) still says the
+trailing-edge mutation reddens V1b and V1c; M3 shows it reddens nothing.

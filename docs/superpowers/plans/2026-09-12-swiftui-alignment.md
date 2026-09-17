@@ -309,8 +309,10 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   - *"Cover proposal propagation, explicit versus platform-default spacing, all
     nine `Alignment` positions, frame alignment, and scroll axes"* — **done
     except two-axis scrolling** (task 10, `CN-M`); the nine positions are
-    pinned for `ZStack`, `.overlay`, `.background` and both frames, three per
-    axis for the linear stacks.
+    pinned for `ZStack`, `.overlay` and both frames, three per axis for the
+    linear stacks; `.background(alignment:content:)` has three positions
+    pinned (A9: `.topLeading`, `.center`, `.bottomTrailing`), not nine
+    (*corrected by the branch checker, 2026-09-16*).
   - *"Preserve the existing centred stack defaults only where probes confirm
     them"* — **done** (A1–A3, A6, A9, K5g/K5h confirm centring).
   - *"Replace containers with SwiftUI-style algorithms"* (the title) — **not
@@ -322,7 +324,13 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   single-axis infinite maxima go to task 7; two-axis scrolling to task 10;
   text-edge spacing to task 11. **Before merging:** an independent verifier
   should re-run lane 3's mutations C–K and decide F (probe V1k mirrored, then
-  an arm in test 3.6; record §17).
+  an arm in test 3.6; record §17). *Branch checker, 2026-09-16:* re-ran
+  lane 3's C (red, 3.6 only, 24 issues) and F (green, confirmed) plus two lane 1
+  mutations, and re-took the twelve images with identical figures; C's
+  siblings D–K were not re-run, so lane 3's re-verification is still
+  incomplete. It also found an unfixed regression from `CN-N`:
+  `.frame(…).hidden()` on a legacy element no longer hides (record §17,
+  "Branch checker").
 
   **Proposed amendment (`CN-T`), for the user to accept or not:** retitle this
   task "Port SwiftUI's container algorithms to the proposal path and audit the

@@ -925,6 +925,11 @@ choices and one finding:
   5.8, `aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf`, with
   its workaround, `width(fraction: 1)`, and it is a Docs-phase inert-table
   candidate (record §17).
+- **Branch checker addendum, 2026-09-16 — a defect this ruling introduced.**
+  `lowered` writes `display = .stack` over whatever the layer holds, so
+  `.hidden()` written directly after a one-node frame (fixed or flexible) is
+  undone: the element takes its frame's space again, where `9e439cb` filtered
+  it. Unfixed and unpinned; measurements in record §17, "Branch checker".
 
 ---
 
