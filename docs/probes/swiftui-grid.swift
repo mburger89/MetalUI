@@ -10,9 +10,12 @@
 //   /usr/bin/swift docs/probes/swiftui-grid.swift                          # arms + fuzz (the output below)
 //   /usr/bin/swift docs/probes/swiftui-grid.swift corpus                   # the replay corpus (docs/probes/swiftui-grid-corpus.txt)
 //   /usr/bin/swift docs/probes/swiftui-grid.swift trap-negative-columns    # arm GT1: exits by trap
+//   /usr/bin/swift docs/probes/swiftui-grid.swift huge-columns             # arms GX21, GX22, then GX20: exits by trap (revision 5)
+//   /usr/bin/swift docs/probes/swiftui-grid.swift model-arms               # the reference model on every arm a Case spells (revision 5)
+//   /usr/bin/swift docs/probes/swiftui-grid.swift classify-spans           # GZ6's disagreements by symptom and model variant (revision 5)
 //
 // `/usr/bin/swift` is Apple's toolchain; a swift.org toolchain's JIT fails on
-// SwiftUI symbols. About ten seconds.
+// SwiftUI symbols. The default run takes about twenty seconds.
 //
 // METHOD. Every figure is read from SwiftUI through an `NSHostingView` whose
 // root is the `Probe` layout: it asks the grid for its answer at the stated
@@ -35,14 +38,26 @@
 // GX19 differs from GX18 (only the non-row child's width changes); in every GW
 // table the `none` row differs from the `HStack{one}` row. GZ0 runs the
 // reference model with commits ignored and must disagree: 212 of 300 agree
-// against GZ1's 1000 of 1000.
+// against GZ1's 1000 of 1000. Revision 5: GE2, GE7 (an 8x8 leaf where GE1, GE6
+// have a Spacer) differ from GE1, GE6; GE24 (the Spacer in the last row)
+// differs from GE23 (in the top row); GE8 equals GE9 (no priority), which is
+// the finding, and GE27 (the same HStack with no grid: 0/92) shows the priority
+// acting; GE11 (50/50) likewise against GE28 (92 and the Spacer at its 8pt
+// minimum); GE13 and GE15 (no stack) are the controls
+// GE12 and GE14 equal; GG12 (outer row unaligned) differs from GG10 and GG11;
+// GN6 is the long Text alone; GX21 (100_000 columns) differs from GX22
+// (1 << 40); `model-arms` checks every transcribed arm's SwiftUI answer against
+// the arm's own line (0 mismatches) and reports 4 disagreements, so it can
+// disagree.
 //
 // THE REFERENCE MODEL (`solve` and `ModelGrid`, below) is the algorithm the
 // grids design ports (spec §4, rulings GR-B…GR-H). It is a SwiftUI `Layout`
 // over the SAME leaves, so GZ compares it with `Grid` rect for rect on
 // generated grids with fixed seeds (`fuzz`: sizes within 0.01, every leaf's
 // rect, and for GZ7 the answer only). It reads layout priority from the
-// subview proxy and treats a `.spacer` cell as a Spacer.
+// subview proxy (a bare Spacer's is -inf there) and treats a `.spacer` cell as
+// a Spacer for the gap rule only; the kernel's gap rule is the zero-spacing-edge
+// walk that GS12-GS18 probe, which agrees with this on a bare Spacer.
 //
 // RECORDED 2026-09-17 07:38 PDT by the grids design session (plan task 7, stage
 // G), macOS 27.0 (26A428), `/usr/bin/swift` = Apple Swift 6.4
@@ -74,6 +89,31 @@
 // and toolchain, exit 0, run twice with byte-identical output. Additive only:
 // arms GF14-GF18 (`armsF2`: a greedy frame and a Color as cells), printed after
 // GP11; every revision-3 line is byte-identical.
+//
+// RE-RECORDED 2026-09-17 08:32 PDT (revision 5, the grids design's critic
+// round), same machine and toolchain. Default run exit 0, run twice,
+// byte-identical; every arm line up to GF18 is byte-identical to revision 4.
+// Changes, each measured (record §20, "Critic round"):
+// - The generated cells apply `.layoutPriority`, `.gridCellColumns` and
+//   `.gridCellUnsizedAxes` only when written (`WrittenAttributes`). Revisions
+//   1-4 applied `.layoutPriority(0)` to every cell, which replaces a Spacer's
+//   -inf priority with 0, so no generated Spacer was bare. GZ3 moved 479 -> 469.
+// - Model step 12: at a non-nil proposal a span's shortfall goes first to the
+//   spanned columns that still hold an unprocessed single-column cell (GX9).
+//   GZ5 476 -> 482, GZ6 374 -> 376, GZ7 222 -> 231, GZ8 659 -> 662 (with the
+//   bare Spacers); GZ0, GZ1, GZ2, GZ4 unchanged.
+// - Arms GE1-GE28 (a Grid in a stack), GN1-GN10 (Text and text-like cells),
+//   GG10-GG16 (nested rows, row-level cell attributes), GQ9-GQ10 (a Spacer's
+//   priority), fuzz GZ9-GZ12, printed
+//   after GZ8; modes `model-arms`, `classify-spans`, `huge-columns`; a
+//   `.wrap` leaf kind the generator never produces.
+// The `corpus` run: exit 0, twice, byte-identical, sha256
+// d93bc71acd09a1c745691e65460401d214f6c701bf70c7d0b2e52e2da886f366, last line
+// "// END CORPUS: 120 kept of 185 generated; 65 skipped because SwiftUI and the
+// model differ, 0 because an answer was infinite". `model-arms`,
+// `classify-spans`: exit 0, twice each, byte-identical (stdout below).
+// `huge-columns`: exit 133 after printing GX21, GX22 and GX20's first line,
+// twice, byte-identical. `trap-negative-columns`: exit 133, twice.
 //
 // THE READING (arm ids in brackets; "share" and "commit" are defined in 4).
 //
@@ -138,7 +178,10 @@
 //    130; GQ4 d at 192x92, then b 192x0 and c 0x92: 210x120; GQ5]. The grid
 //    can answer wider than its proposal. A Spacer is priority -inf [GS1: s at
 //    142x42 = 192 - 40 - 10 by 92 - 30 - 20; GQ7 with minLength 0; GQ6 at nil;
-//    GQ8 alone fills].
+//    GQ8 alone fills]. (Revision 5.) The subview proxy reads -inf for a bare
+//    Spacer, through a background or a gridCellColumns, and the written value
+//    for a `.layoutPriority`, 0 included [GQ10]; so `.layoutPriority(0)` makes
+//    GS1's Spacer an ordinary flexible cell [GQ9: 200x100, s 152x62].
 // 6. Spans. A span's width shortfall is spread equally over its spanned columns
 //    that hold no single-column cell, else over all of them [GX1 51/41; GX11:
 //    col 1 grows to 82 and col 2 stays 10]. A span is clamped to the columns
@@ -150,6 +193,14 @@
 //    [GX10 151/141]. SwiftUI OVERFLOWS when a span's shortfall is spread while
 //    a spanned column is still open: GX17 answers 284 at 200 (b proposed 218),
 //    GX18 231.33 at 200 where control GX19 reads 200 (GR-F: not ported).
+//    (Revision 5.) At a non-nil proposal the shortfall goes first to the
+//    spanned columns still holding an unprocessed single-column cell [GX9: b's
+//    column absorbs x's shortfall, a's committed column stays 30]. The model
+//    still misreads GS5 (SwiftUI shares 292 over all 3 columns where the model
+//    opens only the column with single-column cells: 76.67 vs 164). A column
+//    count of 100_000 is clamped [GX21]; 1 << 40 lays out as columns(0)
+//    [GX22]; Int.max and Int.max / 2 trap [GX20; Int.max / 2 and Int.max - 1
+//    in scratch, record §20].
 //    gridCellColumns(0) lays out as neither 0 nor 1 [GX14: c at x 0, d shares
 //    column 0]; gridCellColumns(-1) traps [GT1]. Two gridCellColumns on one
 //    view add the values above 1 [GX15: 3 and 2 span 5; GX16: 2 and 1 span 2;
@@ -188,7 +239,12 @@
 //    HStack]; nested in a GridRow it flattens [GG3]; a modifier on it applies
 //    to each cell [GG4 padding, GG5 anchor, GG6 columns, GG7 onTapGesture keeps
 //    the row]; rows reach the Grid through if and ForEach [GG8]; a container
-//    holding a GridRow is a non-row child [GG9].
+//    holding a GridRow is a non-row child [GG9]. (Revision 5.) Flattened rows
+//    take the OUTERMOST row's alignment, nil included [GG10 a at y 0, GG11 a
+//    at y 20, control GG12 a at y 10: the inner .bottom is ignored]; a cell
+//    attribute written on a GridRow loses to the cell's own [GG13 anchor, GG14
+//    column alignment], columns add [GG15: 2 + 2 spans 4] and unsized axes
+//    form a union [GG16].
 // 11. The model against SwiftUI (GZ, seeds fixed): 1000/1000 plain; 988/1000
 //    with alignment, anchors, column alignment, unsized axes and explicit
 //    spacing; 479/500 with Spacer cells; 441/500 with layout priority; 476/500
@@ -196,9 +252,40 @@
 //    proposals with everything; 659/1000 with everything. The first
 //    disagreements per group are printed. Every disagreement read involves a
 //    span or non-row child, a priority, a Spacer or an unsized axis;
-//    none is a plain grid.
+//    none is a plain grid. REVISION 5 COUNTS: GZ3 469/500 (bare Spacers), GZ5
+//    482/500, GZ6 376/500, GZ7 231/300, GZ8 662/1000; the others unchanged;
+//    plain grids at infinite proposals 300/300 [GZ9], at a zero axis 300/300
+//    [GZ10], beside a leaf in an HStack 300/300 [GZ11] and in a VStack 300/300
+//    [GZ12]. `classify-spans`: of GZ6's 124 disagreements, 3 are SwiftUI
+//    answering wider than a finite proposal where the model fits (the
+//    overflow), 64 the model answering wider than SwiftUI, 31 SwiftUI wider
+//    without the overflow, 26 equal sizes with different rects; 60 agree under
+//    a variant that keeps a span's columns open (4, 6 or both), 1 under
+//    variant 1, 63 under none.
+// 12. A Grid in a stack (revision 5). Its zero-spacing edges are positional:
+//    leading if a cell starting at column 0 has a zero leading edge [GE1, GE4
+//    one row of two, GE5, GE26], trailing if a cell ending at the last column
+//    has a zero trailing edge [GE3; GE26: a short last row does not], top if a
+//    cell of row 0 has a zero top edge [GE6, GE23], bottom if a cell of the
+//    last row has [GE23, GE24; GE24's top is 8]; a non-row Spacer gives both
+//    [GE25]; an empty Grid gives both [GE16: a and c touch]. A Grid passes NO
+//    priority through, a one-cell grid of a priority-1 cell [GE8 = GE9; no
+//    grid, GE27: 0/92] or of a Spacer [GE11: 50/50; no grid, GE28: 92/8]
+//    included. An enclosing stack does not change
+//    a Spacer cell's gaps inside the grid [GE12 = GE13, GE14 = GE15]. The model
+//    in a stack agrees with Grid in a stack [GE17-GE22, GZ11, GZ12].
+// 13. Text cells (revision 5). A form at 200 x nil answers 196x64: the label
+//    column is its widest label (50), the value column 138 = 200 - 50 - 8 - 4
+//    (the long value wraps narrower than offered), and rows of Text meet with
+//    no gap [GN2, GN5, GN7: 0, as GS7]; at 120 x nil both values wrap [GN3].
+//    Text-like `.wrap` leaves in the same shape agree with the model at 200,
+//    120 and 60 wide [GN8-GN10].
+// 14. The model on the arms (revision 5, `model-arms`): 91 of the 95 arms a
+//    `Case` spells agree; GS4 (a Spacer below a priority-0 cell in one column,
+//    at 60x60: SwiftUI 90x40, model 45x40), GS5 (a column holding only a span:
+//    76.67x136 vs 164x136) and GX17, GX18 (the overflow) do not.
 //
-// WHOLE STDOUT OF THE DEFAULT RUN:
+// WHOLE STDOUT OF THE DEFAULT RUN (revision 5):
 //
 //   === GA: column widths, row heights, default and explicit spacing, empty content (nil proposal)
 //   GA0 control: VStack{HStack{a 30x10; b 20x20}; HStack{c 10x30; d 40x10}} @nilxnil: size 58x58 | a (0,5 30x10) <- 25x20 | b (38,0 20x20) <- 20x20 | c (0,28 10x30) <- 25x30 | d (18,38 40x10) <- 40x30
@@ -505,16 +592,16 @@
 //       SwiftUI 187.50x116 c1(25,0 100x10) c2(0,18 150x30) c3(150,18 20x30) c4(65,56 20x60) c5(150,76 25.00x20) c6(178.12,81 6.25x10)
 //       model   187.50x123 c1(25,0 100x10) c2(0,21.50 150x30) c3(150,18 20x37) c4(65,63 20x60) c5(150,83 25x20) c6(178.12,88 6.25x10)
 //   FUZZ GZ2 alignment, anchors, column alignment, unsized axes, explicit spacing seed 102: 988 of 1000 agree
-//     DIFFERS Grid(topTrailing, h nil, v nil) [c1:flexH(10) anchor.bottom unsizedH, c2:flex anchor.topTrailing, c3:flexW(30) anchor.center col.center unsizedV] [c4:spacer unsizedV, c5:fixed(100, 60), c6:clampBoth(0, 30)] @nilx80
-//       SwiftUI 136x98 c1(0,0 10x30) c2(18,0 100x30) c3(126,0 10x30) c4(0,38 10x60) c5(18,38 100x60) c6(126,38 10x30)
-//       model   136x104 c1(0,0 10x36) c2(18,0 100x36) c3(126,3 10x30) c4(0,44 10x60) c5(18,44 100x60) c6(126,44 10x30)
-//     DIFFERS Grid(bottomLeading, h nil, v nil) [c1:spacer anchor.topLeading unsizedH unsizedV] [c2:flexW(40) col.center unsizedV, c3:half anchor.center, c4:spacer] @60x60
-//       SwiftUI 60.00x48 c1(0,0 21.67x8) c2(0,8 21.67x40) c3(31.83,23 4.33x10) c4(38.33,8 21.67x40)
-//       model   55.67x48 c1(0,0 17.33x8) c2(0,8 17.33x40) c3(27.50,23 4.33x10) c4(34,8 21.67x40)
-//     DIFFERS Grid(center, h nil, v nil) [c1:flex anchor.bottom, c2:fixed(40, 40) anchor.bottom unsizedV, c3:spacer anchor.leading unsizedV] [row.center c4:flex, c5:fixed(30, 10) unsizedH, c6:spacer unsizedH] [row.top c7:flex anchor.trailing] @60x60
-//       SwiftUI 60x85.33 c1(0,0 4.00x40) c2(12.00,0 40x40) c3(52,0 8x40) c4(0,48 4.00x14.67) c5(17.00,50.33 30x10) c6(52,48 8x14.67) c7(0,70.67 4.00x14.67)
-//       model   62x85.33 c1(0,0 6x40) c2(14,0 40x40) c3(54,0 8x40) c4(0,48 6x14.67) c5(19,50.33 30x10) c6(54,48 8x14.67) c7(0,70.67 6x14.67)
-//   FUZZ GZ3 Spacer cells seed 103: 479 of 500 agree
+//     DIFFERS Grid(bottomLeading, h nil, v nil) [c1:half] [row.bottom c2:spacer col.center unsizedV, c3:clampW(30, 180, 20) anchor.center unsizedH] @60x60
+//       SwiftUI 75x30 c1(0,0 45x10) c2(0,10 45x20) c3(45,10 30x20)
+//       model   45x30 c1(0,0 15x10) c2(0,10 15x20) c3(15,10 30x20)
+//     DIFFERS Grid(top, h nil, v nil) [c1:clampW(30, 90, 10)] [c2:spacer, c3:flexW(10)] [c4:flexH(40)] @60x60
+//       SwiftUI 120x60 c1(0,0 60x10) c2(0,10 60x10) c3(60,10 60x10) c4(10,20 40x40)
+//       model   70x50 c1(0,0 40x10) c2(0,10 40x15) c3(40,10 30x10) c4(0,25 40x25)
+//     DIFFERS Grid(bottomTrailing, h nil, v nil) [c1:flex col.trailing, c2:clampW(10, 160, 10)] [c3:spacer anchor.trailing col.trailing, c4:flexH(10) anchor.bottom] [c5:fixed(10, 10), c6:spacer, c7:fixed(100, 10)] @300x200
+//       SwiftUI 446x296 c1(0,0 178x139) c2(186,129 160x10) c3(0,147 178x139) c4(261,147 10x139) c5(168,286 10x10) c6(186,286 160x10) c7(346,286 100x10)
+//       model   300x200 c1(0,0 96x91) c2(104,81 96x10) c3(0,99 96x91) c4(147,99 10x91) c5(86,190 10x10) c6(104,190 96x10) c7(200,190 100x10)
+//   FUZZ GZ3 Spacer cells seed 103: 469 of 500 agree
 //     DIFFERS Grid(center, h nil, v nil) [c1:clampW(30, 40, 30), c2:clampBoth(10, 20), c3:fixed(40, 40)] [c4:flexH(30) prio-1] [c5:fixed(40, 30) prio1, c6:clampBoth(20, 170) prio-1] @200x100
 //       SwiftUI 180x86 c1(0,5 40x30) c2(80,10 20x20) c3(140,0 40x40) c4(5,48 30x0) c5(0,56 40x30) c6(48,56 84x30)
 //       model   138x100 c1(0,5 40x30) c2(59,10 20x20) c3(98,0 40x40) c4(5,48 30x14) c5(0,70 40x30) c6(48,70 42x30)
@@ -525,16 +612,16 @@
 //       SwiftUI 136x80 c1(0,5 20x10) c2(28,0 70x20) c3(106,0 30x20) c4(0,28 20x4.00) c5(48,28 30x4.00) c6(0,40 20x40)
 //       model   136x100 c1(0,5 20x10) c2(28,0 70x20) c3(106,0 30x20) c4(0,28 20x24) c5(48,28 30x24) c6(0,60 20x40)
 //   FUZZ GZ4 layout priority seed 104: 441 of 500 agree
-//     DIFFERS Grid(top, h nil, v nil) FULL c1:fixed(10, 30) [c2:fixed(20, 60) anchor.bottomTrailing unsizedH unsizedV, c3:flex unsizedH, c4:clampW(0, 10, 40)] FULL c5:flexW(30) @60x60
-//       SwiftUI 60x136 c1(25,0 10x30) c2(0,38 20x60) c3(28,38 14x60) c4(50,38 10x40) c5(0,106 60x30)
-//       model   60x136 c1(25,0 10x30) c2(4.67,38 20x60) c3(32.67,38 4.67x60) c4(47.67,38 10x40) c5(0,106 60x30)
-//     DIFFERS Grid(center, h nil, v nil) FULL c1:flexW(30) [c2:fixed(30, 10), c3:flex anchor.bottom, c4:flex] FULL c5:flex @60x60
-//       SwiftUI 60x63 c1(0,0 60x30) c2(0,38 30x10) c3(38,38 7x10) c4(53,38 7x10) c5(0,56 60x7.00)
-//       model   60x63 c1(0,0 60x30) c2(2.33,38 30x10) c3(42.67,38 4.67x10) c4(55.33,38 4.67x10) c5(0,56 60x7)
-//     DIFFERS Grid(leading, h nil, v nil) FULL c1:half unsizedV FULL c2:fixed(60, 20) anchor.leading [row.top c3:fixed(20, 40) unsizedV, c4:clampW(10, 40, 40) col.leading] @300x200
-//       SwiftUI 150x86 c1(0,0 150x10) c2(0,18 60x20) c3(0,46 20x40) c4(69,46 40x40)
-//       model   150x86 c1(0,0 150x10) c2(0,18 60x20) c3(0,46 20x40) c4(77,46 40x40)
-//   FUZZ GZ5 non-row children seed 105: 476 of 500 agree
+//     DIFFERS Grid(topTrailing, h nil, v nil) FULL c1:fixed(40, 40) col.leading [c2:clampBoth(20, 60), c3:fixed(10, 10) anchor.bottomLeading col.center] [row.top c4:clampBoth(0, 10), c5:flexH(30), c6:fixed(60, 40) col.trailing] @nilxnil
+//       SwiftUI 126x116 c1(86,0 40x40) c2(0,48 20x20) c3(28,58 10x10) c4(0,76 10x10) c5(28,76 30x40) c6(66,76 60x40)
+//       model   126x116 c1(86,0 40x40) c2(0,48 20x20) c3(28,58 10x10) c4(10,76 10x10) c5(28,76 30x40) c6(66,76 60x40)
+//     DIFFERS Grid(topTrailing, h nil, v nil) [c1:flex anchor.trailing col.center unsizedV] [c2:half anchor.topTrailing] FULL c3:clampW(0, 100, 20) col.leading @200x100
+//       SwiftUI 200x46 c1(0,0 200x0) c2(100,8 100x10) c3(100,26 100x20)
+//       model   200x46 c1(0,0 200x0) c2(100,8 100x10) c3(50,26 100x20)
+//     DIFFERS Grid(leading, h nil, v nil) FULL c1:fixed(100, 10) col.center [c2:fixed(40, 40) unsizedH, c3:fixed(60, 20) anchor.top, c4:clampBoth(0, 10) anchor.center] [row.center c5:fixed(150, 40) unsizedH, c6:flex] @60x60
+//       SwiftUI 226x106 c1(0,0 100x10) c2(55,18 40x40) c3(158,18 60x20) c4(226,33 0x10) c5(0,66 150x40) c6(158,66 60x40)
+//       model   226x106 c1(0,0 100x10) c2(0,18 40x40) c3(158,18 60x20) c4(226,33 0x10) c5(0,66 150x40) c6(158,66 60x40)
+//   FUZZ GZ5 non-row children seed 105: 482 of 500 agree
 //     DIFFERS Grid(center, h nil, v nil) [c1:clampBoth(10, 160), c2:clampW(0, 30, 30), c3:flexW(20) span3] [c4:fixed(100, 10), c5:clampW(10, 30, 20)] @60x60
 //       SwiftUI 126x60 c1(0,0 100x32) c2(108,1 10x30) c3(126,6 0x20) c4(0,45 100x10) c5(108,40 10x20)
 //       model   138x60 c1(0,0 100x32) c2(108,1 22x30) c3(138,6 0x20) c4(0,45 100x10) c5(108,40 22x20)
@@ -544,7 +631,7 @@
 //     DIFFERS Grid(center, h nil, v nil) [c1:fixed(60, 10)] [c2:clampBoth(0, 60), c3:clampBoth(0, 60), c4:fixed(100, 10) span3] @150xnil
 //       SwiftUI 184.50x28 c1(0,0 60x10) c2(0,18 60x10) c3(68,18 8.50x10) c4(84.50,18 100x10)
 //       model   193.00x28 c1(0,0 60x10) c2(0,18 60x10) c3(68,18 17x10) c4(93,18 100x10)
-//   FUZZ GZ6 spans seed 106: 374 of 500 agree
+//   FUZZ GZ6 spans seed 106: 376 of 500 agree
 //     DIFFERS Grid(bottomTrailing, h nil, v nil) [c1:clampW(0, 60, 20) anchor.center unsizedV] [row.center c2:flex span3 col.center unsizedV, c3:clampW(0, 20, 40) span3 anchor.trailing col.center] @infxinf
 //       SwiftUI infxinf
 //       model   infx68
@@ -554,7 +641,7 @@
 //     DIFFERS Grid(center, h nil, v nil) FULL c1:clampBoth(10, 70) span2 [row.bottom c2:clampW(30, 40, 10) col.center, c3:flex span3 anchor.trailing col.trailing unsizedH unsizedV] @infx100
 //       SwiftUI infx64
 //       model   70x64
-//   FUZZ GZ7 infinite proposals (sizes only) seed 108: 222 of 300 agree
+//   FUZZ GZ7 infinite proposals (sizes only) seed 108: 231 of 300 agree
 //     DIFFERS Grid(topTrailing, h nil, v nil) [c1:clampBoth(0, 30) prio1 unsizedH, c2:half prio1] [c3:flexW(40) prio1 anchor.leading col.leading, c4:clampW(30, 40, 10) anchor.topLeading col.trailing, c5:clampW(10, 40, 10) prio1 col.center unsizedH] FULL c6:half unsizedV @300x200
 //       SwiftUI 338x96 c1(0,0 30x30) c2(268,0 52x10) c3(0,38 208x40) c4(216,38 40x10) c5(328,38 10x10) c6(169,86 169x10)
 //       model   231.50x96 c1(0,0 30x30) c2(179.25,0 34.25x10) c3(0,38 137x40) c4(145,38 40x10) c5(221.50,38 10x10) c6(115.75,86 115.75x10)
@@ -564,8 +651,206 @@
 //     DIFFERS Grid(trailing, h nil, v nil) [row.bottom c1:half prio-1, c2:fixed(10, 20) col.center, c3:clampBoth(0, 30)] [c4:clampW(0, 150, 30)] [c5:clampBoth(10, 40) anchor.center col.leading, c6:clampW(10, 30, 10) prio1, c7:clampW(0, 100, 20) anchor.trailing col.leading unsizedH] @nilx80
 //       SwiftUI 56x97 c1(0,15.50 10x10) c2(28,5.50 10x20) c3(46,0 10x25.50) c4(0,33.50 20x30) c5(0,71.50 20x25.50) c6(28,79.25 10x10) c7(46,74.25 10x20)
 //       model   56x86 c1(0,10 10x10) c2(28,0 10x20) c3(46,0 10x20) c4(0,28 20x30) c5(0,66 20x20) c6(28,71 10x10) c7(46,66 10x20)
-//   FUZZ GZ8 everything seed 109: 659 of 1000 agree
+//   FUZZ GZ8 everything seed 109: 662 of 1000 agree
+//   === GE (revision 5): a Grid inside a stack — its edges, its priority, a Spacer cell, its answers at a stack's proposals
+//   GE1 HStack{a 30x10; Grid{[Spacer (bg s), b 20x20]}; c 10x10}: the grid's leading edge @nilxnil: size 76x20 | a (0,5 30x10) <- nilx20 | b (38,0 20x20) <- nilx20 | c (66,5 10x10) <- nilx20 | s (30,0 8x20) <- 8x20
+//   GE2 control for GE1: the Spacer replaced by an 8x8 leaf s @nilxnil: size 92x20 | a (0,5 30x10) <- nilx20 | s (38,6 8x8) <- 8x20 | b (54,0 20x20) <- nilx20 | c (82,5 10x10) <- nilx20
+//   GE3 HStack{a; Grid{[b 20x20, Spacer (bg s)]}; c}: the trailing edge @nilxnil: size 76x20 | a (0,5 30x10) <- nilx20 | b (38,0 20x20) <- nilx20 | c (66,5 10x10) <- nilx20 | s (58,0 8x20) <- 8x20
+//   GE4 HStack{a; Grid{[Spacer (bg s), b 20x20] [d 20x20, e 20x20]}; c}: a Spacer leading one row of two @nilxnil: size 96x48 | a (0,19 30x10) <- nilx48 | b (58,0 20x20) <- nilx20 | d (30,28 20x20) <- nilx20 | e (58,28 20x20) <- nilx20 | c (86,19 10x10) <- nilx48 | s (30,0 20x20) <- 20x20
+//   GE5 HStack{a; Grid{[Spacer (bg s), b 20x20] [Spacer (bg t), e 20x20]}; c}: a Spacer leading every row @nilxnil: size 76x48 | a (0,19 30x10) <- nilx48 | b (38,0 20x20) <- nilx20 | e (38,28 20x20) <- nilx20 | c (66,19 10x10) <- nilx48 | t (30,28 8x20) <- 8x20 | s (30,0 8x20) <- 8x20
+//   GE6 VStack{a 30x10; Grid{[Spacer (bg s)] [b 20x20]}; c 10x10}: the grid's top edge @nilxnil: size 30x56 | a (0,0 30x10) <- 30xnil | b (5,18 20x20) <- 30xnil | c (10,46 10x10) <- 30xnil | s (5,10 20x8) <- 20x8
+//   GE7 control for GE6: the Spacer replaced by an 8x8 leaf s @nilxnil: size 30x72 | a (0,0 30x10) <- 30xnil | s (11,18 8x8) <- 20x8 | b (5,34 20x20) <- 30xnil | c (10,62 10x10) <- 30xnil
+//   GE8 HStack{a flexible; Grid{[c flexible priority 1]}} at 100x100: a one-cell grid's priority @100x100: size 100x100 | a (0,0 46x100) <- 46x100 | c (54,0 46x100) <- 46x100
+//   GE9 control for GE8: no priority @100x100: size 100x100 | a (0,0 46x100) <- 46x100 | c (54,0 46x100) <- 46x100
+//   GE10 HStack{a flexible; Grid{[c flexible priority 1, d 10x10]}} at 100x100: two cells @100x100: size 100x100 | a (0,0 36x100) <- 36x100 | c (44,0 38x100) <- 38x100 | d (90,45 10x10) <- 10x100
+//   GE11 HStack{a flexible; Grid{[Spacer (bg s)]}} at 100x100: a one-cell grid of a Spacer @100x100: size 100x100 | a (0,0 50x100) <- 50x100 | s (50,0 50x100) <- 50x100
+//   GE12 HStack(spacing: 0){Grid{[a 30x10] [Spacer (bg s)] [c 10x10]}} at nil x 80: row gaps beside a Spacer under an enclosing HStack @nilx80: size 30x80 | a (0,0 30x10) <- nilx40 | c (10,70 10x10) <- 30x10 | s (0,10 30x60) <- 30x60
+//   GE13 control for GE12: the grid with no stack @nilx80: size 30x80 | a (0,0 30x10) <- nilx40 | c (10,70 10x10) <- 30x10 | s (0,10 30x60) <- 30x60
+//   GE14 VStack(spacing: 0){Grid{[a 30x10, Spacer (bg s), c 10x10]}} at 80 x nil: column gaps beside a Spacer under an enclosing VStack @80xnil: size 80x10 | a (0,0 30x10) <- 40xnil | c (70,0 10x10) <- 40xnil | s (30,0 40x10) <- 40x10
+//   GE15 control for GE14: the grid with no stack @80xnil: size 80x10 | a (0,0 30x10) <- 40xnil | c (70,0 10x10) <- 40xnil | s (30,0 40x10) <- 40x10
+//   GE16 HStack{a 30x10; Grid{} ; c 10x10}: an empty grid's edges @nilxnil: size 40x10 | a (0,0 30x10) <- nilx10 | c (30,0 10x10) <- nilx10
+//   GE17 HStack{z:flex; Grid(center, h nil, v nil) [a:flex, b:fixed(20, 20)] [c:fixed(10, 30), d:fixed(40, 10)] @200x100} agrees
+//       SwiftUI 200x100 a(104,0 48x62) b(170,21 20x20) c(123,70 10x30) d(160,80 40x10) z(0,0 96x100)
+//   GE18 HStack{z:flexW(20); Grid(center, h nil, v nil) [a:fixed(30, 10), b:fixed(20, 20)] [c:fixed(10, 30), d:fixed(40, 10)] @200x100} agrees
+//       SwiftUI 200x58 a(122,5 30x10) b(170,0 20x20) c(132,28 10x30) d(160,38 40x10) z(0,19 114x20)
+//   GE19 VStack{z:flex; Grid(center, h nil, v nil) [a:flex, b:fixed(20, 20)] [c:fixed(10, 30), d:fixed(40, 10)] @200x100} agrees
+//       SwiftUI 200x100 a(0,42 152x20) b(170,42 20x20) c(71,70 10x30) d(160,80 40x10) z(0,0 200x34)
+//   GE20 HStack{z:clampW(0, 100, 10); Grid(center, h nil, v nil) [b:half, x:flex] [e:fixed(10, 30)] @150x80} agrees
+//       SwiftUI 150x80 b(82.94,16 7.88x10) e(81.88,50 10x30) x(102.75,0 47.25x42) z(0,35 71x10)
+//   GE21 HStack{z:fixed(30, 10); Grid(center, h nil, v nil) [a:flex, b:fixed(20, 20)] [c:fixed(10, 30), d:fixed(40, 10)] @nilx80} agrees
+//       SwiftUI 96x80 a(38,0 10x42) b(66,11 20x20) c(38,50 10x30) d(56,60 40x10) z(0,35 30x10)
+//   GE22 VStack{z:half; Grid(center, h nil, v nil) [a:clampW(0, 60, 10), b:flexH(10)] [c:fixed(10, 30), d:fixed(40, 10)] @120xnil} agrees
+//       SwiftUI 108x66 a(0,18 60x10) b(83,18 10x10) c(25,36 10x30) d(68,46 40x10) z(24,0 60x10)
+//   GE23 VStack{a 30x10; Grid{[Spacer (bg s), b 20x20]}; c 10x10}: a Spacer in the top row beside a leaf @nilxnil: size 30x40 | a (0,0 30x10) <- 30xnil | b (10,10 20x20) <- 30xnil | c (10,30 10x10) <- 30xnil | s (0,10 10x20) <- 10x20
+//   GE24 VStack{a 30x10; Grid{[b 20x20] [Spacer (bg s)]}; c 10x10}: a Spacer in the last row only @nilxnil: size 30x56 | a (0,0 30x10) <- 30xnil | b (5,18 20x20) <- 30xnil | c (10,46 10x10) <- 30xnil | s (5,38 20x8) <- 20x8
+//   GE25 HStack{a 30x10; Grid{[b 20x20] Spacer (bg s, non-row)}; c 10x10}: a non-row Spacer @nilxnil: size 60x28 | a (0,9 30x10) <- nilx28 | b (30,0 20x20) <- nilx28 | c (50,9 10x10) <- nilx28 | s (30,20 20x8) <- 20x8
+//   GE26 HStack{a 30x10; Grid{[b 20x20, e 20x20] [Spacer (bg s)]}; c 10x10}: a Spacer starting a short last row @nilxnil: size 96x28 | a (0,9 30x10) <- nilx28 | b (30,0 20x20) <- nilx28 | e (58,0 20x20) <- nilx28 | c (86,9 10x10) <- nilx28 | s (30,20 20x8) <- 20x8
+//   GE27 positive control for GE8: HStack{a flexible; c flexible priority 1} at 100x100, no grid @100x100: size 100x100 | a (0,0 0x100) <- 0x100 | c (8,0 92x100) <- 92x100
+//   GE28 positive control for GE11: HStack{a flexible; Spacer (bg s)} at 100x100, no grid @100x100: size 100x100 | a (0,0 92x100) <- 92x100 | s (92,50 8x0) <- 8x0
+//   === GN (revision 5): Text cells — a form of labels and wrapping values (Texts read through background leaves)
+//   GN1 form [Name, Ada Lovelace] [Address, long] at nil @nilxnil: size 363x32 | t4 (58,16 305x16) <- 305x16 | t3 (0,16 50x16) <- 50x16 | t2 (170,0 81x16) <- 81x16 | t1 (7,0 36x16) <- 36x16
+//   GN2 the form at 200 x nil @200xnil: size 196x64 | t4 (58,16 138x48) <- 138x48 | t3 (0,32 50x16) <- 50x16 | t2 (86.50,0 81x16) <- 81x16 | t1 (7,0 36x16) <- 36x16
+//   GN3 the form at 120 x nil @120xnil: size 112x144 | t4 (58,32 54x112) <- 54x112 | t3 (0,80 50x16) <- 50x16 | t2 (58,0 54x32) <- 54x32 | t1 (7,8 36x16) <- 36x16
+//   GN4 the form, Grid(alignment: .leading), at 200 x nil @200xnil: size 196x64 | t4 (58,16 138x48) <- 138x48 | t3 (0,32 50x16) <- 50x16 | t2 (58,0 81x16) <- 81x16 | t1 (0,0 36x16) <- 36x16
+//   GN5 the form at 200 x 100 @200x100: size 196x64 | t4 (58,16 138x48) <- 138x48 | t3 (0,32 50x16) <- 50x16 | t2 (86.50,0 81x16) <- 81x16 | t1 (7,0 36x16) <- 36x16
+//   GN6 control: the long Text alone at 128 x nil @128xnil: size 119x48 | t4 (0,0 119x48) <- 119x48
+//   GN7 [Text A, Text B] [Text C, Text D] at 80 x nil: row gap between Text rows at a finite width @80xnil: size 28x32 | t4 (18,16 10x16) <- 10x16 | t3 (0,16 10x16) <- 10x16 | t2 (18.50,0 9x16) <- 9x16 | t1 (0.50,0 9x16) <- 9x16
+//   GN8 text-like wrap leaves Grid(center, h nil, v nil) [l1:wrap(40, 16), v1:wrap(84, 16)] [l2:wrap(56, 16), v2:wrap(290, 16)] @200xnil agrees
+//       SwiftUI 200x72 l1(8,0 40x16) l2(0,40 56x16) v1(90,0 84x16) v2(64,24 136x48)
+//   GN9 text-like wrap leaves Grid(center, h nil, v nil) [l1:wrap(40, 16), v1:wrap(84, 16)] [l2:wrap(56, 16), v2:wrap(290, 16)] @120xnil agrees
+//       SwiftUI 120x136 l1(8,8 40x16) l2(0,80 56x16) v1(64,0 56x32) v2(64,40 56x96)
+//   GN10 text-like wrap leaves Grid(center, h nil, v nil) [l1:wrap(40, 16), v1:wrap(84, 16)] [l2:wrap(56, 16), v2:wrap(290, 16)] @60xnil agrees
+//       SwiftUI 60x264 l1(0,16 26x32) l2(0,144 26x48) v1(34,0 26x64) v2(34,72 26x192)
+//   === GG (revision 5): nested GridRow alignment; a cell attribute on a GridRow against the cell's own
+//   GG10 Grid{GridRow(.top){GridRow(.bottom){a 10x10; b 10x30}; c 10x20}} @nilxnil: size 46x30 | a (0,0 10x10) <- 10x30 | b (18,0 10x30) <- nilxnil | c (36,0 10x20) <- 10x30
+//   GG11 the reverse: Grid{GridRow(.bottom){GridRow(.top){a 10x10; b 10x30}; c 10x20}} @nilxnil: size 46x30 | a (0,20 10x10) <- 10x30 | b (18,0 10x30) <- nilxnil | c (36,10 10x20) <- 10x30
+//   GG12 control: Grid{GridRow{GridRow(.bottom){a; b}; c}} (outer row unaligned) @nilxnil: size 46x30 | a (0,10 10x10) <- 10x30 | b (18,0 10x30) <- nilxnil | c (36,5 10x20) <- 10x30
+//   GG13 [a 50x10, b 20x50] GridRow{c 10x10 anchor(.topLeading); d 20x50}.gridCellAnchor(.bottomTrailing) @nilxnil: size 78x108 | a (0,20 50x10) <- 50x50 | b (58,0 20x50) <- nilxnil | c (0,58 10x10) <- 50x50 | d (58,58 20x50) <- nilxnil
+//   GG14 [a 10x10] [e 50x10] with GridRow{a column(.leading)}.gridColumnAlignment(.trailing) @nilxnil: size 50x28 | a (0,0 10x10) <- 50x10 | e (0,18 50x10) <- nilxnil
+//   GG15 [a,b,e 5x5,f 5x5,g 5x5] GridRow{c 100x10 columns(2); d 1x1}.gridCellColumns(2) @nilxnil: size 113x38 | a (2,5 30x10) <- 34x20 | b (44,0 20x20) <- 24x20 | e (76,7.50 5x5) <- 9x20 | f (93,7.50 5x5) <- 9x20 | g (108,7.50 5x5) <- 5x20 | c (0,28 100x10) <- nilxnil | d (110,32.50 1x1) <- 5x10
+//   GG16 [a 30x10, b 20x20] [c flexible unsized(.vertical)] row .gridCellUnsizedAxes(.horizontal) at 200x200 @200x200: size 78x38 | a (0,5 30x10) <- 30x20 | b (48,0 20x20) <- 40x20 | c (0,28 30x10) <- 30x10 | d (38,28 40x10) <- 20x172
+//   === GQ (revision 5): a Spacer with .layoutPriority(0) is not a bare Spacer
+//   GQ9 GS1 with Spacer().layoutPriority(0) @200x100: size 200x100 | b (170,21 20x20) <- 40x62 | c (71,70 10x30) <- 152x30 | d (160,80 40x10) <- 40x30 | s (0,0 152x62) <- 152x62
+//   GQ10 subview-proxy priority of [Spacer(), Spacer().layoutPriority(0), Spacer().layoutPriority(1), Spacer().background(Color), Spacer().gridCellColumns(1), Color]: -inf, 0.0, 1.0, -inf, -inf, 0.0
+//   === GZ (revision 5): plain grids at a stack's probe proposals, and beside a sibling in a stack
+//   FUZZ GZ9 plain, infinite proposals (sizes only) seed 110: 300 of 300 agree
+//   FUZZ GZ10 plain, a zero axis seed 111: 300 of 300 agree
+//   FUZZ GZ11 plain grid beside a leaf in an HStack seed 112: 300 of 300 agree
+//   FUZZ GZ12 plain grid below a leaf in a VStack seed 113: 300 of 300 agree
 //   DONE
+//
+// STDOUT OF `model-arms` (revision 5):
+//
+//   === MODEL-ARMS (revision 5): the reference model on every arm a Case can spell
+//   GA1 agrees: 78x58
+//   GA2 agrees: 70x50
+//   GA3 agrees: 73x55
+//   GA4 agrees: 71x58
+//   GA7 agrees: 30x48
+//   GA8 agrees: 30x38
+//   GA9 agrees: 200x100
+//   GP1 agrees: 78x58
+//   GP2 agrees: 200x100
+//   GP3 agrees: 58x58
+//   GP4 agrees: infxinf
+//   GP5 agrees: 200x58
+//   GP6 agrees: 58x100
+//   GP7 agrees: 100x100
+//   GP8 agrees: 78x58
+//   GP9 agrees: infxinf
+//   GP10 agrees: infxinf
+//   GP11 agrees: infx100
+//   GF1 agrees: 104x58
+//   GF2 agrees: 200x58
+//   GF3 agrees: 68x100
+//   GF4 agrees: 198x100
+//   GF5 agrees: 98x88
+//   GF6 agrees: 200x100
+//   GF7 agrees: 138x100
+//   GF8 agrees: 200x100
+//   GF9 agrees: 93x10
+//   GF10 agrees: 200x100
+//   GF11 agrees: 138x100
+//   GF12 agrees: 150x10
+//   GF13 agrees: 150x100
+//   GS1 agrees: 190x80
+//   GS2 agrees: 48x80
+//   GS3 agrees: 64x80
+//   GS4 DIFFERS
+//       SwiftUI 90x40 a(0,0 30x10) c(30,15 60x20) s(0,10 30x30)
+//       model   45x40 a(0,0 15x10) c(15,15 30x20) s(0,10 15x30)
+//   GS5 DIFFERS
+//       SwiftUI 76.67x136 a(4.33,0 40x40) b(12.17,63 24.33x10) c(56.67,48 20x40) d(9.33,96 30x40)
+//       model   164x136 a(48,0 40x40) b(34,63 68x10) c(144,48 20x40) d(53,96 30x40)
+//   GS6 agrees: 68x136
+//   GS8 agrees: 60x45
+//   GS11 agrees: 72x70
+//   GX1 agrees: 100x38
+//   GX2 agrees: 58x38
+//   GX3 agrees: 100x76
+//   GX4 agrees: 58x38
+//   GX5 agrees: 113x38
+//   GX6 agrees: 58x38
+//   GX7 agrees: 100x38
+//   GX8 agrees: 100x38
+//   GX9 agrees: 300x100
+//   GX10 agrees: 300x100
+//   GX11 agrees: 156x58
+//   GX12 agrees: 300x114
+//   GX13 agrees: 71x38
+//   GX15 (columns 3 + 2 spelled as 5) agrees: 109x38
+//   GX16 (columns 2 + 1 spelled as 2) agrees: 126x38
+//   GX17 DIFFERS
+//       SwiftUI 284x100 a(0,36 30x10) b(38,0 218.00x82) c(264,31 20x20) x(67,90 150x10)
+//       model   200x100 a(0,36 30x10) b(38,0 134x82) c(180,31 20x20) x(25,90 150x10)
+//   GX18 DIFFERS
+//       SwiftUI 231.33x100 a(0,0 135.33x82) b(143.33,36 30x10) c(181.33,36 50x10) x(85.67,90 60x10)
+//       model   200x100 a(0,0 104x82) b(112,36 30x10) c(150,36 50x10) x(70,90 60x10)
+//   GX19 agrees: 200x100
+//   GQ1 agrees: 100x100
+//   GQ2 agrees: 130x10
+//   GQ3 agrees: 120x10
+//   GQ4 agrees: 210x120
+//   GQ5 agrees: 266x118
+//   GQ6 agrees: 58x58
+//   GQ8 agrees: 100x100
+//   GL1 agrees: 78x58
+//   GL2 agrees: 78x58
+//   GL3 agrees: 78x58
+//   GL4 agrees: 78x58
+//   GL5 agrees: 78x58
+//   GL6 agrees: 30x46
+//   GL7 agrees: 30x46
+//   GL8 agrees: 58x46
+//   GL9 agrees: 28x68
+//   GL10 agrees: 58x48
+//   GL11 agrees: 58x48
+//   GL12 agrees: 58x48
+//   GL13 agrees: 116x78
+//   GL15 (inner leading) agrees: 50x28
+//   GL16 (inner topLeading) agrees: 78x108
+//   GU1 agrees: 78x200
+//   GU2 agrees: 200x200
+//   GU3 agrees: 58x28
+//   GU4 agrees: 148x58
+//   GU5 agrees: 148x58
+//   GU6 agrees: 78x78
+//   GU7 agrees: 134x100
+//   GU8 agrees: 200x100
+//   GU9 agrees: 58x100
+//   GU10 agrees: 200x100
+//   GU11 agrees: 0x0
+//   GU12 agrees: 78x38
+//   GU13 agrees: 78x200
+//   GG3 (flattened) agrees: 71x20
+//   GG5 (per cell) agrees: 78x68
+//   GG6 (per cell) agrees: 208x38
+//   MODEL-ARMS: 91 agree, 4 differ, 0 transcription mismatches, of 95
+//
+// STDOUT OF `classify-spans` (revision 5):
+//
+//   CLASSIFY GZ6 (seed 106, 500 grids with spans): 124 disagreements
+//     symptom SwiftUI wider than the model, not the overflow above | finite width, nil height: 7
+//     symptom SwiftUI wider than the model, not the overflow above | finite x finite: 24
+//     symptom SwiftUI wider than the proposal, the model within it | finite x finite: 3
+//     symptom equal sizes, rects differ | finite width, nil height: 8
+//     symptom equal sizes, rects differ | finite x finite: 17
+//     symptom equal sizes, rects differ | nil width, finite height: 1
+//     symptom the model wider than SwiftUI | finite width, nil height: 12
+//     symptom the model wider than SwiftUI | finite x finite: 50
+//     symptom the model wider than SwiftUI | nil width, finite height: 1
+//     symptom the model wider than SwiftUI | nil x nil: 1
+//     agrees under no single variant: 63
+//     agrees under variant 1: 1
+//     agrees under variant 4: 18
+//     agrees under variant 4+6: 26
+//     agrees under variant 6: 16
+//
+// STDOUT OF `huge-columns` (revision 5; the process ends by trap after the last line):
+//
+//   GX21 [a 30x10, b 20x20] [c 10x10 columns(100_000), d 5x5]: clamped @nilxnil: size 71x38 | a (0,5 30x10) <- 30x20 | b (38,0 20x20) <- nilxnil | c (24,28 10x10) <- 58x10 | d (66,30.50 5x5) <- 5x10
+//   GX22 [a 30x10, b 20x20] [c 10x10 columns(1 << 40), d 5x5] @nilxnil: size 58x38 | a (0,5 30x10) <- 30x20 | b (38,0 20x20) <- nilxnil | c (0,28 10x10) <- 30x10 | d (12.50,30.50 5x5) <- 30x10
+//   GX20 gridCellColumns(Int.max): laying out; a trap ends the process here
 //
 
 import AppKit
@@ -584,8 +869,15 @@ func fmt(_ r: CGRect) -> String { "(\(d(r.minX)),\(d(r.minY)) \(d(r.width))x\(d(
 // ---------- leaves ----------
 enum LK: Sendable {
     case fixed(CGFloat, CGFloat), flex, clampBoth(CGFloat, CGFloat), flexW(CGFloat), flexH(CGFloat), half, clampW(CGFloat, CGFloat, CGFloat), spacer
+    /// Revision 5: a text-like leaf, `natural` wide on one line of `line`
+    /// height; at a narrower width it wraps into ceil(natural / width) lines
+    /// (a width below 1 counts as 1). Never produced by the generator.
+    case wrap(CGFloat, CGFloat)
     func answer(_ p: ProposedViewSize) -> CGSize {
         switch self {
+        case let .wrap(natural, line):
+            let w = min(max(p.width ?? natural, 0), natural)
+            return CGSize(width: w, height: line * (natural / max(w, 1)).rounded(.up))
         case let .fixed(w, h): return CGSize(width: w, height: h)
         case .flex: return CGSize(width: p.width ?? 10, height: p.height ?? 10)
         case let .clampBoth(lo, hi): return CGSize(width: min(max(p.width ?? 10, lo), hi), height: min(max(p.height ?? 10, lo), hi))
@@ -606,6 +898,7 @@ enum LK: Sendable {
         case .half: return "half"
         case let .clampW(lo, hi, h): return "clampW(\(d(lo)), \(d(hi)), \(d(h)))"
         case .spacer: return "spacer"
+        case let .wrap(n, l): return "wrap(\(d(n)), \(d(l)))"
         }
     }
 }
@@ -648,11 +941,31 @@ struct Case: Sendable {
     var children: [ChildSpec]; var proposal: ProposedViewSize
     var alignment: A9 = .center; var hs: CGFloat? = nil; var vs: CGFloat? = nil
 }
-struct CellMods: ViewModifier {
+/// Revision 5: each attribute is applied only when it was written (a priority
+/// other than 0, a span other than 1, a non-empty axis set). Revisions 1-4
+/// applied `.layoutPriority(c.prio)` to every cell, and a `.layoutPriority(0)`
+/// on a Spacer replaces its -inf priority with 0 (GS1 bare: 190x80; with
+/// `.layoutPriority(0)`: 200x100), so their Spacer cells were not bare.
+struct WrittenAttributes: ViewModifier {
     let c: CellSpec
     @ViewBuilder func body(content: Content) -> some View {
         let axes: Axis.Set = c.unsizedH ? (c.unsizedV ? [.horizontal, .vertical] : .horizontal) : (c.unsizedV ? .vertical : [])
-        let base = content.layoutPriority(c.prio).gridCellColumns(c.span).gridCellUnsizedAxes(axes)
+        switch (c.prio != 0, c.span != 1, !axes.isEmpty) {
+        case (false, false, false): content
+        case (true, false, false): content.layoutPriority(c.prio)
+        case (false, true, false): content.gridCellColumns(c.span)
+        case (false, false, true): content.gridCellUnsizedAxes(axes)
+        case (true, true, false): content.layoutPriority(c.prio).gridCellColumns(c.span)
+        case (true, false, true): content.layoutPriority(c.prio).gridCellUnsizedAxes(axes)
+        case (false, true, true): content.gridCellColumns(c.span).gridCellUnsizedAxes(axes)
+        case (true, true, true): content.layoutPriority(c.prio).gridCellColumns(c.span).gridCellUnsizedAxes(axes)
+        }
+    }
+}
+struct CellMods: ViewModifier {
+    let c: CellSpec
+    @ViewBuilder func body(content: Content) -> some View {
+        let base = content.modifier(WrittenAttributes(c: c))
         if let a = c.anchor, let h = c.colAlign {
             base.gridCellAnchor(a.unit).gridColumnAlignment(h.swiftUI)
         } else if let a = c.anchor {
@@ -718,6 +1031,14 @@ struct MeasureOnly: Layout {
 /// Positive control for the fuzz (GZ0): when true, every group is offered the
 /// initial equal share, ignoring commits.
 nonisolated(unsafe) var controlIgnoresCommits = false
+/// Revision 5, `classify-spans` only: a model variant, 0 = the reference model.
+/// 1 spreads a span's shortfall over all its columns; 2 proposes a span the
+/// sum over its columns of the share (open) or current width, plus inner gaps;
+/// 3 absorbs a span's shortfall as soon as it is measured, not after its group;
+/// 4 keeps a span's columns open while it is unprocessed; 5 drops step 12 (the
+/// shortfall's preference for still-open columns); 6 counts a column holding no
+/// single-column cell as open for every share and never commits it (GS5).
+nonisolated(unsafe) var modelVariant = 0
 
 struct MCell { var row: Int; var col: Int; var span: Int; var prio: Double; var index: Int; var spec: CellSpec; var isFull: Bool }
 struct Structure { var cells: [MCell]; var ncols: Int; var nrows: Int; var rowAlign: [V3?] }
@@ -783,11 +1104,19 @@ func solve(_ st: Structure, _ P: ProposedViewSize, hs: CGFloat?, vs: CGFloat?, m
         curH[c.row] = max(curH[c.row], s.height)
         if c.span == 1 { curW[c.col] = max(curW[c.col], s.width) }
     }
+    var done = Set<Int>()
     func absorbSpan(_ c: MCell, _ s: CGSize) {
         let have = spanW(c)
         if s.width > have {
             var targets = (c.col..<c.col + c.span).filter { !singleCols.contains($0) }
-            if targets.isEmpty { targets = Array(c.col..<c.col + c.span) }
+            // Revision 5 (record §20 step 12): at a non-nil proposal the shortfall
+            // goes first to the spanned columns that still hold an unprocessed
+            // single-column cell (GX9: b's column, not a's committed one).
+            if modelVariant != 5, P.width != nil || P.height != nil {
+                let open = (c.col..<c.col + c.span).filter { q in cells.contains { $0.span == 1 && $0.col == q && !done.contains($0.index) } }
+                if !open.isEmpty { targets = open }
+            }
+            if targets.isEmpty || modelVariant == 1 { targets = Array(c.col..<c.col + c.span) }
             let e = (s.width - have) / CGFloat(targets.count)
             for j in targets { curW[j] += e }
         }
@@ -812,7 +1141,7 @@ func solve(_ st: Structure, _ P: ProposedViewSize, hs: CGFloat?, vs: CGFloat?, m
             if kx.2 != ky.2 { return kx.2 < ky.2 }
             return x.index < y.index
         }
-        var committedC = Set<Int>(), committedR = Set<Int>(), done = Set<Int>()
+        var committedC = Set<Int>(), committedR = Set<Int>()
         let Wp = P.width.map { $0 - gap.reduce(0, +) }
         let Hp = P.height.map { $0 - vgap.reduce(0, +) }
         var i = 0
@@ -821,7 +1150,7 @@ func solve(_ st: Structure, _ P: ProposedViewSize, hs: CGFloat?, vs: CGFloat?, m
             while j < order.count && key(order[j]) == key(order[i]) { j += 1 }
             let group = Array(order[i..<j])
             let level = order[i].prio
-            let openCols = Set((0..<ncols).filter { col in cells.contains { $0.span == 1 && $0.col == col && $0.prio == level && !done.contains($0.index) } })
+            let openCols = Set((0..<ncols).filter { col in cells.contains { ($0.span == 1 ? $0.col == col : (modelVariant == 4 && $0.col <= col && col < $0.col + $0.span)) && $0.prio == level && !done.contains($0.index) } || (modelVariant == 6 && !singleCols.contains(col)) })
             let openR = (0..<nrows).filter { r in cells.contains { $0.row == r && $0.prio == level && !done.contains($0.index) } }.count
             // An infinite proposal axis shares infinity, whatever is committed (GP9-GP11).
             let shareW = controlIgnoresCommits ? Wp.map { $0 / CGFloat(ncols) } : Wp.map { w in w.isInfinite ? w : (w - committedC.reduce(0) { $0 + curW[$1] }) / CGFloat(max(openCols.count, 1)) }
@@ -836,6 +1165,7 @@ func solve(_ st: Structure, _ P: ProposedViewSize, hs: CGFloat?, vs: CGFloat?, m
                         var outside: CGFloat = 0
                         for q in 0..<ncols where !(c.col <= q && q < c.col + c.span) { outside += openCols.contains(q) ? shareW : curW[q] }
                         w = Wp.isInfinite ? Wp : max(Wp - outside + inner(c), spanW(c))
+                        if modelVariant == 2 && !Wp.isInfinite { w = max((c.col..<c.col + c.span).reduce(0) { $0 + (openCols.contains($1) ? shareW : curW[$1]) } + inner(c), spanW(c)) }
                     }
                 }
                 var h: CGFloat? = nil
@@ -843,12 +1173,12 @@ func solve(_ st: Structure, _ P: ProposedViewSize, hs: CGFloat?, vs: CGFloat?, m
                 let p = ProposedViewSize(width: w, height: h)
                 prop[c.index] = p; size[c.index] = measure(c.index, p)
                 absorbSingle(c, size[c.index])
-                if c.span > 1 { spans.append(c) }
+                if c.span > 1 { if modelVariant == 3 { absorbSpan(c, size[c.index]) } else { spans.append(c) } }
                 done.insert(c.index)
             }
             for c in spans { absorbSpan(c, size[c.index]) }
-            for col in 0..<ncols where !committedC.contains(col) {
-                if cells.allSatisfy({ $0.span > 1 || $0.col != col || done.contains($0.index) || $0.prio < level }) { committedC.insert(col) }
+            for col in 0..<ncols where !committedC.contains(col) && !(modelVariant == 6 && !singleCols.contains(col)) {
+                if cells.allSatisfy({ ($0.span > 1 ? !(modelVariant == 4 && $0.col <= col && col < $0.col + $0.span) : $0.col != col) || done.contains($0.index) || $0.prio < level }) { committedC.insert(col) }
             }
             for r in 0..<nrows where !committedR.contains(r) {
                 if cells.allSatisfy({ $0.row != r || done.contains($0.index) || $0.prio < level }) { committedR.insert(r) }
@@ -903,6 +1233,8 @@ struct ModelGrid: Layout {
 struct LCG { var s: UInt64; mutating func next(_ n: Int) -> Int { s = s &* 6364136223846793005 &+ 1442695040888963407; return Int((s >> 33) % UInt64(n)) } }
 struct Features: OptionSet { let rawValue: Int
     static let spans = Features(rawValue: 1), prios = Features(rawValue: 2), fulls = Features(rawValue: 4), attrs = Features(rawValue: 8), spacers = Features(rawValue: 16), spacing = Features(rawValue: 32), inf = Features(rawValue: 64)
+    /// Revision 5: proposals with a zero axis (what an enclosing stack's minimum probe sends).
+    static let zero = Features(rawValue: 128)
 }
 func randomKind(_ g: inout LCG, spacers: Bool) -> LK {
     let sizes: [CGFloat] = [10, 20, 30, 40, 60, 100, 150]
@@ -944,6 +1276,7 @@ func randomCase(_ g: inout LCG, _ f: Features) -> Case {
     }
     var props: [ProposedViewSize] = [.init(width: nil, height: nil), .init(width: 200, height: 100), .init(width: 100, height: 100), .init(width: 60, height: 60), .init(width: 300, height: 200), .init(width: 150, height: nil), .init(width: nil, height: 80)]
     if f.contains(.inf) { props = [.init(width: .infinity, height: .infinity), .init(width: .infinity, height: 100), .init(width: 150, height: .infinity), .init(width: nil, height: .infinity)] }
+    if f.contains(.zero) { props = [.init(width: 0, height: 0), .init(width: 0, height: nil), .init(width: nil, height: 0), .init(width: 0, height: 100), .init(width: 200, height: 0)] }
     var k = Case(children: children, proposal: props[g.next(props.count)])
     if f.contains(.attrs) { k.alignment = A9(rawValue: g.next(9))! }
     if f.contains(.spacing) { if g.next(2) == 0 { k.hs = [0, 3, 12][g.next(3)] }; if g.next(2) == 0 { k.vs = [0, 5, 12][g.next(3)] } }
@@ -1331,6 +1664,309 @@ func p(_ w: CGFloat?, _ h: CGFloat?) -> ProposedViewSize { ProposedViewSize(widt
     arm("GF17 GF16 at nil", none) { Grid { GridRow { SwiftUI.Color.red.background(fl("k")); fx("b",20,20) }; GridRow { fx("c",10,30); fx("d",40,10) } } }
     arm("GF18 [a 30x10 in .frame(maxWidth: .infinity, maxHeight: .infinity), b 20x20] [c 10x30, d 40x10] at 200x100", p(200,100)) { Grid { GridRow { fx("a",30,10).frame(maxWidth: .infinity, maxHeight: .infinity); fx("b",20,20) }; GridRow { fx("c",10,30); fx("d",40,10) } } }
 }
+// ---------------- revision 5 ----------------
+func C(_ n: String, _ k: LK) -> CellSpec { CellSpec(name: n, kind: k) }
+extension CellSpec {
+    func span(_ v: Int) -> CellSpec { var c = self; c.span = v; return c }
+    func prio(_ v: Double) -> CellSpec { var c = self; c.prio = v; return c }
+    func anchor(_ v: A9) -> CellSpec { var c = self; c.anchor = v; return c }
+    func col(_ v: H3) -> CellSpec { var c = self; c.colAlign = v; return c }
+    func uH() -> CellSpec { var c = self; c.unsizedH = true; return c }
+    func uV() -> CellSpec { var c = self; c.unsizedV = true; return c }
+}
+func R(_ cells: CellSpec..., al: V3? = nil) -> ChildSpec { .row(al, cells) }
+func F(_ c: CellSpec) -> ChildSpec { .full(c) }
+func K(_ children: [ChildSpec], _ p: ProposedViewSize, al: A9 = .center, hs: CGFloat? = nil, vs: CGFloat? = nil) -> Case {
+    Case(children: children, proposal: p, alignment: al, hs: hs, vs: vs)
+}
+func byName(_ m: [String: CGRect]) -> String { m.sorted { $0.key < $1.key }.map { "\($0.key)\(fmt($0.value))" }.joined(separator: " ") }
+func agrees(_ rs: CGSize, _ rp: [String: CGRect], _ ms: CGSize, _ mp: [String: CGRect], sizesOnly: Bool) -> Bool {
+    var ok = close(rs.width, ms.width) && close(rs.height, ms.height)
+    if !sizesOnly { ok = ok && rp.count == mp.count; for (n, r) in rp where !closeR(r, mp[n]) { ok = false } }
+    return ok
+}
+
+/// The arms a `Case` can spell, with the answer their own line above records
+/// (a transcription check), for `model-arms`.
+let modelArmCases: [(String, String, Case, Bool)] = {
+    let a = C("a", .fixed(30, 10)), b = C("b", .fixed(20, 20)), c = C("c", .fixed(10, 30)), d = C("d", .fixed(40, 10))
+    let ga1 = [R(a, b), R(c, d)]
+    let gp2 = [R(C("a", .flex), b), R(c, d)]
+    let n = none, pp = { (w: CGFloat?, h: CGFloat?) in ProposedViewSize(width: w, height: h) }
+    let inf = CGFloat.infinity
+    let s = C("s", .spacer)
+    return [
+        ("GA1", "78x58", K(ga1, n), false),
+        ("GA2", "70x50", K(ga1, n, hs: 0, vs: 0), false),
+        ("GA3", "73x55", K(ga1, n, hs: 3, vs: 5), false),
+        ("GA4", "71x58", K([R(a, b, C("e", .fixed(5, 5))), R(c)], n), false),
+        ("GA7", "30x48", K([R(a), .row(nil, []), R(c)], n), false),
+        ("GA8", "30x38", K([F(C("x", .fixed(30, 10))), F(C("y", .fixed(10, 20)))], n), false),
+        ("GA9", "200x100", K([F(C("x", .fixed(30, 10))), F(C("y", .flex))], pp(200, 100)), false),
+        ("GP1", "78x58", K(ga1, pp(200, 200)), false),
+        ("GP2", "200x100", K(gp2, pp(200, 100)), false),
+        ("GP3", "58x58", K(gp2, n), false),
+        ("GP4", "infxinf", K(gp2, pp(inf, inf)), true),
+        ("GP5", "200x58", K(gp2, pp(200, nil)), false),
+        ("GP6", "58x100", K(gp2, pp(nil, 100)), false),
+        ("GP7", "100x100", K([R(C("a", .flex))], pp(100, 100)), false),
+        ("GP8", "78x58", K(ga1, pp(inf, inf)), true),
+        ("GP9", "infxinf", K([R(C("a", .flex), C("b", .clampW(0, 50, 10)).prio(-1))], pp(inf, inf)), true),
+        ("GP10", "infxinf", K([R(C("a", .flex)), R(C("b", .flex), C("c", .fixed(10, 10)).prio(-1))], pp(inf, inf)), true),
+        ("GP11", "infx100", K([R(C("a", .flex), C("b", .flexH(10)).prio(-1))], pp(inf, 100)), true),
+        ("GF1", "104x58", K([R(C("a", .half), b), R(c, C("d", .half))], pp(200, 200)), false),
+        ("GF2", "200x58", K([R(C("a", .flexW(20)), b), R(c, d)], pp(200, 100)), false),
+        ("GF3", "68x100", K([R(C("a", .flexH(20)), b), R(c, d)], pp(200, 100)), false),
+        ("GF4", "198x100", K([R(C("a", .clampBoth(0, 150)), b), R(c, d)], pp(200, 100)), false),
+        ("GF5", "98x88", K([R(C("a", .clampBoth(0, 50)), b), R(c, d)], pp(200, 100)), false),
+        ("GF6", "200x100", K([R(C("a", .flex), b), R(c, C("d", .flex))], pp(200, 100)), false),
+        ("GF7", "138x100", K([R(C("a", .flex), C("b", .fixed(120, 20))), R(c, d)], pp(100, 100)), false),
+        ("GF8", "200x100", K([R(C("a", .fixed(20, 20)), C("b", .flex), C("c", .flex))], pp(200, 100)), false),
+        ("GF9", "93x10", K([R(C("a", .clampW(0, 30, 10)), C("b", .clampW(0, 55, 10)))], pp(100, 100)), false),
+        ("GF10", "200x100", K([R(C("a", .half), C("b", .flex))], pp(200, 100)), false),
+        ("GF11", "138x100", K([R(C("a", .clampW(10, 20, 10)), C("b", .flexH(20)), C("c", .clampW(10, 160, 30)))], pp(200, 100)), false),
+        ("GF12", "150x10", K([R(C("a", .clampBoth(10, 50)), C("b", .flexH(30)), C("c", .flex))], pp(150, nil)), false),
+        ("GF13", "150x100", K([R(C("a", .clampBoth(10, 50)), C("b", .flexH(30)), C("c", .flex))], pp(150, 100)), false),
+        ("GS1", "190x80", K([R(s, b), R(c, d)], pp(200, 100)), false),
+        ("GS2", "48x80", K([R(a, s, C("c", .flexH(10)))], pp(nil, 80)), false),
+        ("GS3", "64x80", K([R(a, C("s", .fixed(8, 8)), C("c", .flexH(10)))], pp(nil, 80)), false),
+        ("GS4", "90x40", K([R(C("a", .half)), R(s, C("c", .clampW(30, 180, 20)))], pp(60, 60)), false),
+        ("GS5", "76.67x136", K([R(C("a", .fixed(40, 40))), R(C("b", .half), C("c", .fixed(20, 40)).span(2)), R(C("d", .clampW(0, 30, 40)))], pp(300, 200)), false),
+        ("GS6", "68x136", K([R(C("a", .fixed(40, 40))), R(C("b", .half), C("c", .fixed(20, 40)).span(2)), R(C("d", .clampW(0, 30, 40)))], n), false),
+        ("GS8", "60x45", K(ga1, n, hs: -10, vs: -5), false),
+        ("GS11", "72x70", K([R(a, s, C("c", .fixed(10, 10)))], pp(nil, 80), hs: 12), false),
+        ("GX1", "100x38", K([R(a, b), R(C("c", .fixed(100, 10)).span(2))], n), false),
+        ("GX2", "58x38", K([R(a, b), R(C("c", .fixed(10, 10)).span(2))], n), false),
+        ("GX3", "100x76", K([R(a, b), F(C("x", .fixed(100, 10))), R(c, d)], n), false),
+        ("GX4", "58x38", K([R(a, b), F(C("x", .half))], n), false),
+        ("GX5", "113x38", K([R(a, b, C("c", .fixed(5, 5))), R(C("x", .fixed(100, 10)).span(2), C("y", .fixed(1, 1)))], n), false),
+        ("GX6", "58x38", K([R(a, b), R(C("x", .fixed(10, 10)).span(5))], n), false),
+        ("GX7", "100x38", K([R(C("x", .fixed(100, 10)).span(2)), R(a, b)], n), false),
+        ("GX8", "100x38", K([R(C("x", .fixed(100, 10)).span(2)), R(a, b)], pp(300, 100)), false),
+        ("GX9", "300x100", K([R(a, C("b", .flex)), R(C("x", .fixed(100, 10)).span(2))], pp(300, 100)), false),
+        ("GX10", "300x100", K([R(a, C("b", .fixed(20, 10))), R(C("x", .flex).span(2))], pp(300, 100)), false),
+        ("GX11", "156x58", K([R(C("a", .clampBoth(0, 100)), C("b", .fixed(100, 40)).span(2), C("c", .clampW(30, 40, 40)).span(2)), R(C("d", .flexH(10)).span(2), C("e", .flexH(10)), C("f", .clampW(30, 180, 10)))], n), false),
+        ("GX12", "300x114", K([R(C("a", .clampBoth(20, 120)), C("b", .clampW(0, 60, 30))), F(C("x", .flexW(10)))], pp(300, 200)), false),
+        ("GX13", "71x38", K([R(a, b, C("e", .fixed(5, 5))), F(C("x", .fixed(10, 10)))], n), false),
+        ("GX15 (columns 3 + 2 spelled as 5)", "109x38", K([R(a, b, C("e", .fixed(5, 5)), C("f", .fixed(5, 5))), R(C("c", .fixed(100, 10)).span(5), C("d", .fixed(1, 1)))], n), false),
+        ("GX16 (columns 2 + 1 spelled as 2)", "126x38", K([R(a, b, C("e", .fixed(5, 5)), C("f", .fixed(5, 5))), R(C("c", .fixed(100, 10)).span(2), C("d", .fixed(1, 1)))], n), false),
+        ("GX17", "284x100", K([R(a, C("b", .flex), C("c", .fixed(20, 20))), R(C("x", .fixed(150, 10)).span(3))], pp(200, 100)), false),
+        ("GX18", "231.33x100", K([R(C("a", .flex), C("b", .clampW(10, 30, 10)), C("c", .clampW(20, 50, 10))), F(C("x", .fixed(60, 10)))], pp(200, 100)), false),
+        ("GX19", "200x100", K([R(C("a", .flex), C("b", .clampW(10, 30, 10)), C("c", .clampW(20, 50, 10))), F(C("x", .fixed(40, 10)))], pp(200, 100)), false),
+        ("GQ1", "100x100", K([R(C("a", .flex), C("b", .flex).prio(1))], pp(100, 100)), false),
+        ("GQ2", "130x10", K([R(C("a", .clampW(0, 200, 10)), C("b", .clampW(30, 200, 10)).prio(-1), C("c", .clampW(20, 200, 10)))], pp(100, 100)), false),
+        ("GQ3", "120x10", K([R(C("a", .clampW(0, 200, 10)), C("b", .clampW(30, 200, 10)).prio(1), C("c", .clampW(20, 200, 10)))], pp(100, 100)), false),
+        ("GQ4", "210x120", K([R(C("a", .flex), b), R(c, C("d", .flex).prio(1))], pp(200, 100)), false),
+        ("GQ5", "266x118", K([R(C("a", .clampBoth(10, 70)).prio(1)), R(C("b", .fixed(20, 10)).prio(1), C("c", .fixed(150, 30)), C("d", .clampW(30, 180, 40)))], pp(100, 100)), false),
+        ("GQ6", "58x58", K([R(s, b), R(c, d)], n), false),
+        ("GQ8", "100x100", K([R(s)], pp(100, 100)), false),
+        ("GL1", "78x58", K(ga1, n, al: .topLeading), false),
+        ("GL2", "78x58", K(ga1, n, al: .bottomTrailing), false),
+        ("GL3", "78x58", K([R(a, b, al: .top), R(c, d)], n), false),
+        ("GL4", "78x58", K([R(a, b.col(.trailing)), R(c, d)], n), false),
+        ("GL5", "78x58", K([R(C("a", .fixed(10, 10)), b), R(C("c", .fixed(30, 30)).col(.trailing), d)], n), false),
+        ("GL6", "30x46", K([R(C("a", .fixed(10, 10)).col(.leading)), R(C("b", .fixed(10, 10))), R(C("c", .fixed(30, 10)).col(.trailing))], n), false),
+        ("GL7", "30x46", K([R(C("a", .fixed(10, 10)).col(.trailing)), R(C("b", .fixed(10, 10))), R(C("c", .fixed(30, 10)).col(.leading))], n), false),
+        ("GL8", "58x46", K([R(C("a", .fixed(10, 10)), C("b", .fixed(10, 10))), R(C("c", .fixed(30, 10)).span(2).col(.trailing)), R(C("d", .fixed(40, 10)))], n), false),
+        ("GL9", "28x68", K([R(C("a", .fixed(10, 10)), C("b", .fixed(10, 30)), al: .top), R(C("c", .fixed(10, 10)), C("d", .fixed(10, 30)))], n, al: .bottom), false),
+        ("GL10", "58x48", K([R(C("a", .fixed(10, 10)).anchor(.topLeading).col(.trailing), C("b", .fixed(10, 30))), R(C("c", .fixed(40, 10)))], n), false),
+        ("GL11", "58x48", K([R(C("a", .fixed(40, 10)), C("b", .fixed(10, 30))), F(C("x", .fixed(10, 10)).anchor(.trailing))], n), false),
+        ("GL12", "58x48", K([R(C("a", .fixed(40, 10)), C("b", .fixed(10, 30))), F(C("x", .fixed(10, 10)))], n, al: .leading), false),
+        ("GL13", "116x78", K([R(C("a", .fixed(10, 10)).col(.trailing), C("b", .fixed(20, 40)), C("e", .fixed(10, 10)).anchor(.center), al: .bottom), R(C("c", .fixed(30, 30)), d, C("f", .fixed(30, 30)))], n, al: .topLeading), false),
+        ("GL15 (inner leading)", "50x28", K([R(C("a", .fixed(10, 10)).col(.leading)), R(C("e", .fixed(50, 10)))], n), false),
+        ("GL16 (inner topLeading)", "78x108", K([R(C("a", .fixed(50, 10)), C("b", .fixed(20, 50))), R(C("c", .fixed(10, 10)).anchor(.topLeading), C("d", .fixed(20, 50)))], n), false),
+        ("GU1", "78x200", K([R(a, b), R(C("c", .flex).uH(), d)], pp(200, 200)), false),
+        ("GU2", "200x200", K([R(a, b), R(C("c", .flex), d)], pp(200, 200)), false),
+        ("GU3", "58x28", K([R(a, b), R(C("c", .flex).uH().uV().span(2))], pp(200, 200)), false),
+        ("GU4", "148x58", K([R(a, b), R(C("c", .fixed(100, 30)).uH(), d)], n), false),
+        ("GU5", "148x58", K([R(a, b), R(C("c", .fixed(100, 30)).uH(), d)], pp(200, 200)), false),
+        ("GU6", "78x78", K([R(a, b), R(C("c", .fixed(10, 50)).uV(), d)], pp(200, 200)), false),
+        ("GU7", "134x100", K([R(C("a", .flex).uH(), C("b", .flex)), R(C("c", .fixed(30, 30)), d)], pp(200, 100)), false),
+        ("GU8", "200x100", K([R(C("a", .clampW(0, 50, 10)).uH(), C("b", .flex)), R(C("c", .fixed(30, 30)), d)], pp(200, 100)), false),
+        ("GU9", "58x100", K([R(a, b), F(C("x", .flex).uH())], pp(200, 100)), false),
+        ("GU10", "200x100", K([R(a, b), F(C("x", .flex))], pp(200, 100)), false),
+        ("GU11", "0x0", K([R(C("a", .flex).uH().uV())], pp(200, 100)), false),
+        ("GU12", "78x38", K([R(a, b), R(C("c", .flex).uH().uV(), d)], pp(200, 200)), false),
+        ("GU13", "78x200", K([R(a, b), R(C("c", .flex).uH(), d)], pp(200, 200)), false),
+        ("GG3 (flattened)", "71x20", K([R(a, b, C("c", .fixed(5, 5)))], n), false),
+        ("GG5 (per cell)", "78x68", K([R(C("a", .fixed(50, 10)), C("b", .fixed(20, 50))), R(C("c", .fixed(10, 10)).anchor(.topLeading), C("d", .fixed(10, 10)).anchor(.topLeading))], n), false),
+        ("GG6 (per cell)", "208x38", K([R(a, b, C("e", .fixed(5, 5)), C("f", .fixed(5, 5))), R(C("c", .fixed(100, 10)).span(2), C("d", .fixed(100, 10)).span(2))], n), false),
+    ]
+}()
+
+@MainActor func modelArms() {
+    print("=== MODEL-ARMS (revision 5): the reference model on every arm a Case can spell")
+    var agree = 0, differ = 0, transcription = 0
+    for (id, expected, k, mo) in modelArmCases {
+        let (rs, rp) = host(k.proposal, measureOnly: mo) { realGrid(k) }
+        let (ms, mp) = host(k.proposal, measureOnly: mo) { modelGrid(k) }
+        let tag = fmt(rs) == expected ? "" : " TRANSCRIPTION: the arm reads \(expected)"
+        if !tag.isEmpty { transcription += 1 }
+        if agrees(rs, rp, ms, mp, sizesOnly: mo) {
+            agree += 1; print("\(id) agrees: \(fmt(rs))\(tag)")
+        } else {
+            differ += 1
+            print("\(id) DIFFERS\(tag)")
+            print("    SwiftUI \(fmt(rs)) \(mo ? "" : byName(rp))")
+            print("    model   \(fmt(ms)) \(mo ? "" : byName(mp))")
+        }
+    }
+    print("MODEL-ARMS: \(agree) agree, \(differ) differ, \(transcription) transcription mismatches, of \(modelArmCases.count)")
+    fflush(stdout)
+}
+
+enum StackKind { case h, v }
+@MainActor func embeddedCompare(_ label: String, _ axis: StackKind, _ sibling: CellSpec, _ k: Case) -> Bool {
+    let (rs, rp) = host(k.proposal) {
+        if axis == .h { HStack { leafView(sibling); realGrid(k) } } else { VStack { leafView(sibling); realGrid(k) } }
+    }
+    let (ms, mp) = host(k.proposal) {
+        if axis == .h { HStack { leafView(sibling); modelGrid(k) } } else { VStack { leafView(sibling); modelGrid(k) } }
+    }
+    let ok = agrees(rs, rp, ms, mp, sizesOnly: false)
+    if !label.isEmpty {
+        print("\(label) \(axis == .h ? "HStack" : "VStack"){\(sibling.name):\(sibling.kind.text); \(caseText(k))} \(ok ? "agrees" : "DIFFERS")")
+        print("    SwiftUI \(fmt(rs)) \(byName(rp))")
+        if !ok { print("    model   \(fmt(ms)) \(byName(mp))") }
+    }
+    return ok
+}
+
+@MainActor func armsE() {
+    print("=== GE (revision 5): a Grid inside a stack — its edges, its priority, a Spacer cell, its answers at a stack's proposals")
+    arm("GE1 HStack{a 30x10; Grid{[Spacer (bg s), b 20x20]}; c 10x10}: the grid's leading edge", none) { HStack { fx("a",30,10); Grid { GridRow { Spacer().background(fl("s")); fx("b",20,20) } }; fx("c",10,10) } }
+    arm("GE2 control for GE1: the Spacer replaced by an 8x8 leaf s", none) { HStack { fx("a",30,10); Grid { GridRow { fx("s",8,8); fx("b",20,20) } }; fx("c",10,10) } }
+    arm("GE3 HStack{a; Grid{[b 20x20, Spacer (bg s)]}; c}: the trailing edge", none) { HStack { fx("a",30,10); Grid { GridRow { fx("b",20,20); Spacer().background(fl("s")) } }; fx("c",10,10) } }
+    arm("GE4 HStack{a; Grid{[Spacer (bg s), b 20x20] [d 20x20, e 20x20]}; c}: a Spacer leading one row of two", none) { HStack { fx("a",30,10); Grid { GridRow { Spacer().background(fl("s")); fx("b",20,20) }; GridRow { fx("d",20,20); fx("e",20,20) } }; fx("c",10,10) } }
+    arm("GE5 HStack{a; Grid{[Spacer (bg s), b 20x20] [Spacer (bg t), e 20x20]}; c}: a Spacer leading every row", none) { HStack { fx("a",30,10); Grid { GridRow { Spacer().background(fl("s")); fx("b",20,20) }; GridRow { Spacer().background(fl("t")); fx("e",20,20) } }; fx("c",10,10) } }
+    arm("GE6 VStack{a 30x10; Grid{[Spacer (bg s)] [b 20x20]}; c 10x10}: the grid's top edge", none) { VStack { fx("a",30,10); Grid { GridRow { Spacer().background(fl("s")) }; GridRow { fx("b",20,20) } }; fx("c",10,10) } }
+    arm("GE7 control for GE6: the Spacer replaced by an 8x8 leaf s", none) { VStack { fx("a",30,10); Grid { GridRow { fx("s",8,8) }; GridRow { fx("b",20,20) } }; fx("c",10,10) } }
+    arm("GE8 HStack{a flexible; Grid{[c flexible priority 1]}} at 100x100: a one-cell grid's priority", p(100,100)) { HStack { fl("a"); Grid { GridRow { fl("c").layoutPriority(1) } } } }
+    arm("GE9 control for GE8: no priority", p(100,100)) { HStack { fl("a"); Grid { GridRow { fl("c") } } } }
+    arm("GE10 HStack{a flexible; Grid{[c flexible priority 1, d 10x10]}} at 100x100: two cells", p(100,100)) { HStack { fl("a"); Grid { GridRow { fl("c").layoutPriority(1); fx("d",10,10) } } } }
+    arm("GE11 HStack{a flexible; Grid{[Spacer (bg s)]}} at 100x100: a one-cell grid of a Spacer", p(100,100)) { HStack { fl("a"); Grid { GridRow { Spacer().background(fl("s")) } } } }
+    arm("GE12 HStack(spacing: 0){Grid{[a 30x10] [Spacer (bg s)] [c 10x10]}} at nil x 80: row gaps beside a Spacer under an enclosing HStack", p(nil,80)) { HStack(spacing: 0) { Grid { GridRow { fx("a",30,10) }; GridRow { Spacer().background(fl("s")) }; GridRow { fx("c",10,10) } } } }
+    arm("GE13 control for GE12: the grid with no stack", p(nil,80)) { Grid { GridRow { fx("a",30,10) }; GridRow { Spacer().background(fl("s")) }; GridRow { fx("c",10,10) } } }
+    arm("GE14 VStack(spacing: 0){Grid{[a 30x10, Spacer (bg s), c 10x10]}} at 80 x nil: column gaps beside a Spacer under an enclosing VStack", p(80,nil)) { VStack(spacing: 0) { Grid { GridRow { fx("a",30,10); Spacer().background(fl("s")); fx("c",10,10) } } } }
+    arm("GE15 control for GE14: the grid with no stack", p(80,nil)) { Grid { GridRow { fx("a",30,10); Spacer().background(fl("s")); fx("c",10,10) } } }
+    arm("GE16 HStack{a 30x10; Grid{} ; c 10x10}: an empty grid's edges", none) { HStack { fx("a",30,10); Grid { }; fx("c",10,10) } }
+    let a = C("a", .fixed(30, 10)), b = C("b", .fixed(20, 20)), c = C("c", .fixed(10, 30)), d = C("d", .fixed(40, 10))
+    _ = embeddedCompare("GE17", .h, C("z", .flex), K([R(C("a", .flex), b), R(c, d)], p(200, 100)))
+    _ = embeddedCompare("GE18", .h, C("z", .flexW(20)), K([R(a, b), R(c, d)], p(200, 100)))
+    _ = embeddedCompare("GE19", .v, C("z", .flex), K([R(C("a", .flex), b), R(c, d)], p(200, 100)))
+    _ = embeddedCompare("GE20", .h, C("z", .clampW(0, 100, 10)), K([R(C("b", .half), C("x", .flex)), R(C("e", .fixed(10, 30)))], p(150, 80)))
+    _ = embeddedCompare("GE21", .h, C("z", .fixed(30, 10)), K([R(C("a", .flex), b), R(c, d)], p(nil, 80)))
+    _ = embeddedCompare("GE22", .v, C("z", .half), K([R(C("a", .clampW(0, 60, 10)), C("b", .flexH(10))), R(c, d)], p(120, nil)))
+    arm("GE23 VStack{a 30x10; Grid{[Spacer (bg s), b 20x20]}; c 10x10}: a Spacer in the top row beside a leaf", none) { VStack { fx("a",30,10); Grid { GridRow { Spacer().background(fl("s")); fx("b",20,20) } }; fx("c",10,10) } }
+    arm("GE24 VStack{a 30x10; Grid{[b 20x20] [Spacer (bg s)]}; c 10x10}: a Spacer in the last row only", none) { VStack { fx("a",30,10); Grid { GridRow { fx("b",20,20) }; GridRow { Spacer().background(fl("s")) } }; fx("c",10,10) } }
+    arm("GE25 HStack{a 30x10; Grid{[b 20x20] Spacer (bg s, non-row)}; c 10x10}: a non-row Spacer", none) { HStack { fx("a",30,10); Grid { GridRow { fx("b",20,20) }; Spacer().background(fl("s")) }; fx("c",10,10) } }
+    arm("GE26 HStack{a 30x10; Grid{[b 20x20, e 20x20] [Spacer (bg s)]}; c 10x10}: a Spacer starting a short last row", none) { HStack { fx("a",30,10); Grid { GridRow { fx("b",20,20); fx("e",20,20) }; GridRow { Spacer().background(fl("s")) } }; fx("c",10,10) } }
+    arm("GE27 positive control for GE8: HStack{a flexible; c flexible priority 1} at 100x100, no grid", p(100,100)) { HStack { fl("a"); fl("c").layoutPriority(1) } }
+    arm("GE28 positive control for GE11: HStack{a flexible; Spacer (bg s)} at 100x100, no grid", p(100,100)) { HStack { fl("a"); Spacer().background(fl("s")) } }
+}
+
+@MainActor func armsN() {
+    print("=== GN (revision 5): Text cells — a form of labels and wrapping values (Texts read through background leaves)")
+    let long = "12 St James's Square, London SW1Y 4LB, England"
+    func form(_ al: Alignment) -> some View {
+        Grid(alignment: al) {
+            GridRow { Text("Name").background(fl("t1")); Text("Ada Lovelace").background(fl("t2")) }
+            GridRow { Text("Address").background(fl("t3")); Text(long).background(fl("t4")) }
+        }
+    }
+    arm("GN1 form [Name, Ada Lovelace] [Address, long] at nil", none) { form(.center) }
+    arm("GN2 the form at 200 x nil", p(200,nil)) { form(.center) }
+    arm("GN3 the form at 120 x nil", p(120,nil)) { form(.center) }
+    arm("GN4 the form, Grid(alignment: .leading), at 200 x nil", p(200,nil)) { form(.leading) }
+    arm("GN5 the form at 200 x 100", p(200,100)) { form(.center) }
+    arm("GN6 control: the long Text alone at 128 x nil", p(128,nil)) { Text(long).background(fl("t4")) }
+    arm("GN7 [Text A, Text B] [Text C, Text D] at 80 x nil: row gap between Text rows at a finite width", p(80,nil)) { Grid { GridRow { Text("A").background(fl("t1")); Text("B").background(fl("t2")) }; GridRow { Text("C").background(fl("t3")); Text("D").background(fl("t4")) } } }
+    let form = { (w: CGFloat?) in K([R(C("l1", .wrap(40, 16)), C("v1", .wrap(84, 16))), R(C("l2", .wrap(56, 16)), C("v2", .wrap(290, 16)))], p(w, nil)) }
+    for (id, w) in [("GN8", CGFloat(200)), ("GN9", 120), ("GN10", 60)] {
+        let k = form(w)
+        let (rs, rp) = host(k.proposal) { realGrid(k) }
+        let (ms, mp) = host(k.proposal) { modelGrid(k) }
+        let ok = agrees(rs, rp, ms, mp, sizesOnly: false)
+        print("\(id) text-like wrap leaves \(caseText(k)) \(ok ? "agrees" : "DIFFERS")")
+        print("    SwiftUI \(fmt(rs)) \(byName(rp))")
+        if !ok { print("    model   \(fmt(ms)) \(byName(mp))") }
+    }
+}
+
+@MainActor func armsG2() {
+    print("=== GG (revision 5): nested GridRow alignment; a cell attribute on a GridRow against the cell's own")
+    arm("GG10 Grid{GridRow(.top){GridRow(.bottom){a 10x10; b 10x30}; c 10x20}}", none) { Grid { GridRow(alignment: .top) { GridRow(alignment: .bottom) { fx("a",10,10); fx("b",10,30) }; fx("c",10,20) } } }
+    arm("GG11 the reverse: Grid{GridRow(.bottom){GridRow(.top){a 10x10; b 10x30}; c 10x20}}", none) { Grid { GridRow(alignment: .bottom) { GridRow(alignment: .top) { fx("a",10,10); fx("b",10,30) }; fx("c",10,20) } } }
+    arm("GG12 control: Grid{GridRow{GridRow(.bottom){a; b}; c}} (outer row unaligned)", none) { Grid { GridRow { GridRow(alignment: .bottom) { fx("a",10,10); fx("b",10,30) }; fx("c",10,20) } } }
+    arm("GG13 [a 50x10, b 20x50] GridRow{c 10x10 anchor(.topLeading); d 20x50}.gridCellAnchor(.bottomTrailing)", none) { Grid { GridRow { fx("a",50,10); fx("b",20,50) }; GridRow { fx("c",10,10).gridCellAnchor(.topLeading); fx("d",20,50) }.gridCellAnchor(.bottomTrailing) } }
+    arm("GG14 [a 10x10] [e 50x10] with GridRow{a column(.leading)}.gridColumnAlignment(.trailing)", none) { Grid { GridRow { fx("a",10,10).gridColumnAlignment(.leading) }.gridColumnAlignment(.trailing); GridRow { fx("e",50,10) } } }
+    arm("GG15 [a,b,e 5x5,f 5x5,g 5x5] GridRow{c 100x10 columns(2); d 1x1}.gridCellColumns(2)", none) { Grid { GridRow { fx("a",30,10); fx("b",20,20); fx("e",5,5); fx("f",5,5); fx("g",5,5) }; GridRow { fx("c",100,10).gridCellColumns(2); fx("d",1,1) }.gridCellColumns(2) } }
+    arm("GG16 [a 30x10, b 20x20] [c flexible unsized(.vertical)] row .gridCellUnsizedAxes(.horizontal) at 200x200", p(200,200)) { Grid { GridRow { fx("a",30,10); fx("b",20,20) }; GridRow { fl("c").gridCellUnsizedAxes(.vertical); fx("d",40,10) }.gridCellUnsizedAxes(.horizontal) } }
+    print("=== GQ (revision 5): a Spacer with .layoutPriority(0) is not a bare Spacer")
+    arm("GQ9 GS1 with Spacer().layoutPriority(0)", p(200,100)) { Grid { GridRow { Spacer().background(fl("s")).layoutPriority(0); fx("b",20,20) }; GridRow { fx("c",10,30); fx("d",40,10) } } }
+    let (_, _) = host(none) { PriorityReader { Spacer(); Spacer().layoutPriority(0); Spacer().layoutPriority(1); Spacer().background(SwiftUI.Color.red); Spacer().gridCellColumns(1); SwiftUI.Color.red } }
+    print("GQ10 subview-proxy priority of [Spacer(), Spacer().layoutPriority(0), Spacer().layoutPriority(1), Spacer().background(Color), Spacer().gridCellColumns(1), Color]: " + readPriorities.map { "\($0)" }.joined(separator: ", "))
+}
+nonisolated(unsafe) var readPriorities: [Double] = []
+/// Reads its subviews' `priority` (GQ10).
+struct PriorityReader: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        readPriorities = subviews.map { Double($0.priority) }; lastSize = CGSize(width: 10, height: 10); return lastSize
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {}
+}
+
+/// Revision 5: plain grids beside a sibling leaf in an HStack or VStack,
+/// SwiftUI's Grid against the model, every rect.
+@MainActor func fuzzEmbedded(_ label: String, seed: UInt64, count: Int, _ axis: StackKind, show: Int) {
+    var g = LCG(s: seed); var bad = 0
+    for _ in 0..<count {
+        let k = randomCase(&g, [])
+        let sibling = CellSpec(name: "z", kind: randomKind(&g, spacers: false))
+        if !embeddedCompare("", axis, sibling, k) {
+            bad += 1
+            if bad <= show { _ = embeddedCompare("  DIFFERS", axis, sibling, k) }
+        }
+    }
+    print("FUZZ \(label) seed \(seed): \(count - bad) of \(count) agree")
+    fflush(stdout)
+}
+
+/// Revision 5: GZ6's disagreements, by symptom and by which one-rule variant
+/// of the model agrees with SwiftUI instead (`modelVariant`).
+@MainActor func classifySpans() {
+    var g = LCG(s: 106)
+    var symptoms: [String: Int] = [:], fixes: [String: Int] = [:], total = 0
+    for _ in 0..<500 {
+        let k = randomCase(&g, [.spans])
+        modelVariant = 0
+        let (rs, rp) = host(k.proposal) { realGrid(k) }
+        let (ms, mp) = host(k.proposal) { modelGrid(k) }
+        if agrees(rs, rp, ms, mp, sizesOnly: false) { continue }
+        total += 1
+        let pw = k.proposal.width
+        let kind = pw == nil ? (k.proposal.height == nil ? "nil x nil" : "nil width, finite height") : (k.proposal.height == nil ? "finite width, nil height" : "finite x finite")
+        var symptom: String
+        if let pw, rs.width > pw + 0.01, ms.width <= pw + 0.01 { symptom = "SwiftUI wider than the proposal, the model within it" }
+        else if ms.width > rs.width + 0.01 { symptom = "the model wider than SwiftUI" }
+        else if rs.width > ms.width + 0.01 { symptom = "SwiftUI wider than the model, not the overflow above" }
+        else if !close(rs.height, ms.height) { symptom = "equal widths, heights differ" }
+        else { symptom = "equal sizes, rects differ" }
+        symptoms["\(symptom) | \(kind)", default: 0] += 1
+        var fixedBy: [Int] = []
+        for v in 1...6 {
+            modelVariant = v
+            let (vs, vp) = host(k.proposal) { modelGrid(k) }
+            if agrees(rs, rp, vs, vp, sizesOnly: false) { fixedBy.append(v) }
+        }
+        modelVariant = 0
+        fixes[fixedBy.isEmpty ? "no single variant" : "variant " + fixedBy.map(String.init).joined(separator: "+"), default: 0] += 1
+    }
+    print("CLASSIFY GZ6 (seed 106, 500 grids with spans): \(total) disagreements")
+    for (key, n) in symptoms.sorted(by: { $0.key < $1.key }) { print("  symptom \(key): \(n)") }
+    for (key, n) in fixes.sorted(by: { $0.key < $1.key }) { print("  agrees under \(key): \(n)") }
+    fflush(stdout)
+}
 // ---------------- corpus ----------------
 func lit(_ v: CGFloat?) -> String { v.map { "\(Double($0))" } ?? "nil" }
 func kindLit(_ k: LK) -> String {
@@ -1343,6 +1979,7 @@ func kindLit(_ k: LK) -> String {
     case .half: return ".half"
     case let .clampW(lo, hi, h): return ".clampW(\(lit(lo)), \(lit(hi)), \(lit(h)))"
     case .spacer: return ".spacer"
+    case let .wrap(n, l): return ".wrap(\(lit(n)), \(lit(l)))"
     }
 }
 func cellLit(_ c: CellSpec) -> String {
@@ -1396,6 +2033,25 @@ if CommandLine.arguments.contains("trap-negative-columns") {
     }
     exit(0)
 }
+if CommandLine.arguments.contains("huge-columns") {
+    MainActor.assumeIsolated {
+        arm("GX21 [a 30x10, b 20x20] [c 10x10 columns(100_000), d 5x5]: clamped", none) { Grid { GridRow { fx("a",30,10); fx("b",20,20) }; GridRow { fx("c",10,10).gridCellColumns(100_000); fx("d",5,5) } } }
+        arm("GX22 [a 30x10, b 20x20] [c 10x10 columns(1 << 40), d 5x5]", none) { Grid { GridRow { fx("a",30,10); fx("b",20,20) }; GridRow { fx("c",10,10).gridCellColumns(1 << 40); fx("d",5,5) } } }
+        print("GX20 gridCellColumns(Int.max): laying out; a trap ends the process here")
+        fflush(stdout)
+        arm("GX20 [a 30x10, b 20x20] [c 10x10 columns(Int.max), d 5x5]", none) { Grid { GridRow { fx("a",30,10); fx("b",20,20) }; GridRow { fx("c",10,10).gridCellColumns(Int.max); fx("d",5,5) } } }
+        print("GX20 survived")
+    }
+    exit(0)
+}
+if CommandLine.arguments.contains("model-arms") {
+    MainActor.assumeIsolated { modelArms() }
+    exit(0)
+}
+if CommandLine.arguments.contains("classify-spans") {
+    MainActor.assumeIsolated { classifySpans() }
+    exit(0)
+}
 if CommandLine.arguments.contains("corpus") {
     MainActor.assumeIsolated { corpus(seed: 4242, want: 120) }
     exit(0)
@@ -1414,5 +2070,11 @@ MainActor.assumeIsolated {
     _ = fuzz("GZ6 spans", seed: 106, count: 500, [.spans], show: 3)
     _ = fuzz("GZ7 infinite proposals (sizes only)", seed: 108, count: 300, [.inf, .attrs, .spans, .fulls, .prios], show: 3)
     _ = fuzz("GZ8 everything", seed: 109, count: 1000, [.spans, .prios, .fulls, .attrs, .spacers, .spacing], show: 3)
+    armsE(); armsN(); armsG2()
+    print("=== GZ (revision 5): plain grids at a stack's probe proposals, and beside a sibling in a stack")
+    _ = fuzz("GZ9 plain, infinite proposals (sizes only)", seed: 110, count: 300, [.inf], show: 3)
+    _ = fuzz("GZ10 plain, a zero axis", seed: 111, count: 300, [.zero], show: 3)
+    fuzzEmbedded("GZ11 plain grid beside a leaf in an HStack", seed: 112, count: 300, .h, show: 3)
+    fuzzEmbedded("GZ12 plain grid below a leaf in a VStack", seed: 113, count: 300, .v, show: 3)
 }
 print("DONE")
