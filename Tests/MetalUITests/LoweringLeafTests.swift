@@ -143,6 +143,17 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// on the height axis alone; `display: none` with a margin, reported alone (`LR-J`);
 /// `margin` with `flexGrow`, both reported in the table's order.
 ///
+/// **Stage 2, lane 1 (rulings LR-AB, LR-AQ).** The item rows — `minSize`, `maxSize`,
+/// `margin`, `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf` — are the parent's
+/// to read. Directly under the harness root (a proposal overlay) no lowered
+/// container consumes the leaf's record, so each reports `<field>.unconsumed` after
+/// the root returns, in `LR-AQ`'s order (`flexGrow` before `margin` in the combined
+/// row). Inside a lowered `Row` the parent consumes the record and reports what lane
+/// 1 cannot lower, at the leaf's site under the stage-1 name: seven more arms per
+/// site (`minSize` on the row's main axis, `maxSize` on its unstretched cross axis,
+/// and `alignSelf` as `.baseline`, which reports `alignSelf.baseline` — a `.center`
+/// `alignSelf` lowers since lane 1). 51 arms.
+///
 /// Mutations that must redden it: **M2c**, the `margin` check deleted; **V3**, the
 /// height half of the floor check deleted; **V4**, `display: none` no longer
 /// returned alone; **V5**, only the last of several fields recorded.
@@ -158,16 +169,16 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
             $0.padding = Edges(all: .pixels(px(8)))
         }, true),
         ("padding.text", { $0.padding = Edges(all: .pixels(px(4))) }, false),
-        ("minSize", { $0.minSize.width = .length(.pixels(px(5))) }, true),
-        ("maxSize", { $0.maxSize.height = .length(.pixels(px(50))) }, true),
-        ("margin", { $0.margin.top = .length(.pixels(px(3))) }, true),
+        ("minSize.unconsumed", { $0.minSize.width = .length(.pixels(px(5))) }, true),
+        ("maxSize.unconsumed", { $0.maxSize.height = .length(.pixels(px(50))) }, true),
+        ("margin.unconsumed", { $0.margin.top = .length(.pixels(px(3))) }, true),
         ("border", { $0.border.right = .pixels(px(2)) }, true),
         ("position", { $0.position = .relative }, true),
         ("inset", { $0.inset.left = .length(.pixels(px(4))) }, true),
-        ("flexGrow", { $0.flexGrow = 1 }, true),
-        ("flexShrink", { $0.flexShrink = 0 }, true),
-        ("flexBasis", { $0.flexBasis = .length(.pixels(px(10))) }, true),
-        ("alignSelf", { $0.alignSelf = .center }, true),
+        ("flexGrow.unconsumed", { $0.flexGrow = 1 }, true),
+        ("flexShrink.unconsumed", { $0.flexShrink = 0 }, true),
+        ("flexBasis.unconsumed", { $0.flexBasis = .length(.pixels(px(10))) }, true),
+        ("alignSelf.unconsumed", { $0.alignSelf = .center }, true),
     ]
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
     var arms: [Arm] = []
@@ -210,7 +221,7 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         ("margin and flexGrow", {
             $0.flexGrow = 1
             $0.margin.top = .length(.pixels(px(3)))
-        }, ["margin", "flexGrow"]),
+        }, ["flexGrow.unconsumed", "margin.unconsumed"]),
     ]
     for row in combined {
         let s = style(row.edit)
@@ -226,7 +237,32 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                      }.unlowerableFields,
                      row.expected.map { field(.text, $0) }))
     }
-    try #require(arms.count == 37)
+    // Consumed by a lowered `Row` (stage 2, lane 1): the parent reports at the leaf's
+    // site, under the stage-1 name, what lane 1 does not lower.
+    let consumed: [(name: String, edit: (inout Style) -> Void)] = [
+        ("minSize", { $0.minSize.width = .length(.pixels(px(5))) }),
+        ("maxSize", { $0.maxSize.height = .length(.pixels(px(50))) }),
+        ("margin", { $0.margin.top = .length(.pixels(px(3))) }),
+        ("flexGrow", { $0.flexGrow = 1 }),
+        ("flexShrink", { $0.flexShrink = 0 }),
+        ("flexBasis", { $0.flexBasis = .length(.pixels(px(10))) }),
+        ("alignSelf.baseline", { $0.alignSelf = .baseline }),
+    ]
+    for row in consumed {
+        let s = style(row.edit)
+        arms.append(("Box in a Row \(row.name)",
+                     LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                         MetalUI.Row { Box(style: s) }
+                     }.unlowerableFields,
+                     [field(.box, row.name)]))
+        let t = text("ab", row.edit)
+        arms.append(("Text in a Row \(row.name)",
+                     LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                         MetalUI.Row { t }
+                     }.unlowerableFields,
+                     [field(.text, row.name)]))
+    }
+    try #require(arms.count == 51)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }
@@ -234,16 +270,22 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 
 /// **2.3b** (exit test). In production — diagnostics off — a leaf declaring two
 /// unlowerable fields traps naming the **first** in the table's order
-/// (`box.margin`), not the last (`box.flexGrow`).
+/// (`box.size.percent`), not the last (`box.inset`).
+///
+/// **Re-spelled in stage 2, lane 1** from `margin` + `flexGrow`: both are item
+/// fields now, reported `…unconsumed` after the root returns (ruling LR-AQ), so the
+/// pair no longer exercised the leaf table's order. `size.percent` and `inset` are
+/// every-node rows the leaf still reports itself (spec §6 lane 2's amendment, taken
+/// in lane 1, where the change lands).
 ///
 /// Mutation that must redden it: **V5**, the loop recording every field but the
-/// last deleted (the trap then names `flexGrow`).
+/// last deleted (the trap then names `inset`).
 @Test func aLeafWithTwoUnlowerableFieldsTrapsNamingTheFirstInProduction() async {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             var s = Style()
-            s.flexGrow = 1
-            s.margin.top = .length(.pixels(Pixels(3)))
+            s.size.width = .length(.percent(0.5))
+            s.inset.left = .length(.pixels(Pixels(4)))
             let box = Box(style: s)
             var root = DifferentialRoot(width: 100, height: 100) { box }
             Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
@@ -251,9 +293,9 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         }
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("box.margin has no proposal lowering"),
+    #expect(stderr.contains("box.size.percent has no proposal lowering"),
             "aborted, but not at the first unlowerable field:\n\(stderr)")
-    #expect(!stderr.contains("box.flexGrow"), "the trap must name the first field:\n\(stderr)")
+    #expect(!stderr.contains("box.inset"), "the trap must name the first field:\n\(stderr)")
 }
 
 /// **2.3c.** A lowered `Box` registers its **animated** style, not its declared

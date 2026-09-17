@@ -221,6 +221,13 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// declare a field the tables report: the `Stack` `flexGrow`, the outermost layer
 /// `flexGrow`, and the inner-layer arm `flexGrow` inside and `margin` outside.
 ///
+/// **Stage 2, lane 1** moves item fields to the parent (ruling LR-AB): under the
+/// harness root — a proposal overlay, which consumes no record — `flexGrow` and
+/// `margin` report `…unconsumed` after the root returns (ruling LR-AQ). So the
+/// `Box`, `Stack`, `Text` and registrar arms declare every-node fields the element
+/// still reports itself: `position`, and `inset` on the inner-layer arm's outer
+/// layer (inner first, as before).
+///
 /// **The `Component` amend arm runs in a child process** and prints its entries:
 /// in-process, a regression in the amend's check reaches `SA-G`'s `setStyle`
 /// precondition and ends the whole run with no summary line (lane-1 verifier,
@@ -233,18 +240,18 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 @Test func everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn() async throws {
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
     var arms: [Arm] = []
-    arms.append(("Box", diagnostics { Box().width(px(10)).height(px(10)).flexGrow(1) },
-                 [field(.box, "flexGrow")]))
-    arms.append(("Stack", diagnostics { Stack { ProbeLeaf(width: 10, height: 10) }.flexGrow(1) },
-                 [field(.stack, "flexGrow")]))
-    arms.append(("Text", diagnostics { Text("a").flexGrow(1) }, [field(.text, "flexGrow")]))
-    arms.append(("ModifiedElement, outermost registrar", diagnostics { Box().padding(px(4)).flexGrow(1) },
-                 [field(.modifierLayer, "flexGrow")]))
-    // The inner layer declares `flexGrow`, the outermost `margin`, so the two
+    arms.append(("Box", diagnostics { Box().width(px(10)).height(px(10)).position(.relative) },
+                 [field(.box, "position")]))
+    arms.append(("Stack", diagnostics { Stack { ProbeLeaf(width: 10, height: 10) }.position(.relative) },
+                 [field(.stack, "position")]))
+    arms.append(("Text", diagnostics { Text("a").position(.relative) }, [field(.text, "position")]))
+    arms.append(("ModifiedElement, outermost registrar", diagnostics { Box().padding(px(4)).position(.relative) },
+                 [field(.modifierLayer, "position")]))
+    // The inner layer declares `position`, the outermost `inset`, so the two
     // registrars' entries are told apart by name and by order (inner first).
     arms.append(("ModifiedElement, inner-layer registrar",
-                 diagnostics { Box().padding(px(4)).flexGrow(1).padding(px(8)).margin(px(3)) },
-                 [field(.modifierLayer, "flexGrow"), field(.modifierLayer, "margin")]))
+                 diagnostics { Box().padding(px(4)).position(.relative).padding(px(8)).inset(px(3)) },
+                 [field(.modifierLayer, "position"), field(.modifierLayer, "inset")]))
     arms.append(("ScrollView", diagnostics { ScrollView { ProbeLeaf(width: 10, height: 10) } },
                  [field(.scrollView, "noLowering")]))
     // `list` first; then the zero-row `Box` it lays out under diagnostics — its

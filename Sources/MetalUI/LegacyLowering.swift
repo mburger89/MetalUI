@@ -13,6 +13,15 @@ import MetalUILayout
 // native overlay (ruling LR-G), and `ModifiedElement`'s layers: a `.padding` layer
 // through the container lowering, a `.frame` layer onto one native frame
 // (`lowerLegacyLayer`, ruling LR-H).
+//
+// **Stage 2 lowers flex ITEM fields by the parent** (`docs/superpowers/specs/2026-09-17-engine-stage-2-design.md`
+// §3; rulings LR-AB, LR-AC, LR-AD, LR-AQ, LR-AR): every lowered site records a
+// `LoweredItem` for the node it returns (`LoweringState.swift`) and reports no item
+// field itself; a lowered container consumes its children's records and wraps each
+// (`planLegacyItems`, below). Lane 1 lowers the cross axis — stretch as a greedy item
+// frame W aliased as the element's rect, a non-stretch `alignSelf` as an unaliased
+// alignment frame — and still reports the item fields later lanes own, at the
+// child's site, after the container's own rows.
 
 extension LayoutPass {
     /// Lowers one legacy node — `style` already animated — over native `children`.
@@ -49,31 +58,53 @@ extension LayoutPass {
                 frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
             }
         }
-        let fields = legacyContainerDiagnostics(declared, childCount: children.count, site: site)
-        if !fields.isEmpty { return report(fields) }
+        // Stage 2 (ruling LR-AQ): every record this container receives is consumed,
+        // whether or not a field of it lowers — and whether or not this container
+        // itself reports.
+        let received = children.map { frame.lowering.consume($0) }
+        var fields = legacyContainerDiagnostics(declared, childCount: children.count, site: site)
+        // `display: none` is reported alone and records no item (ruling LR-J).
+        if declared.display == .none { return report(fields) }
+        let isStack = declared.display == .stack
+        let plans = planLegacyItems(received, parent: declared,
+                                    parentKind: isStack ? .stack : .flex(isRow: declared.flexDirection.isRow),
+                                    fields: &fields)
+        let kind: LoweredItem.Kind = isStack ? .stack : .flex(isRow: declared.flexDirection.isRow)
 
         if style.display == .stack {
             let alignment = proposalAlignment(horizontal: alignmentFactor(style.justifyItems),
                                               vertical: alignmentFactor(style.alignItems))
-            let overlay = frame.requestNativeOverlay(children: children, alignment: alignment)
-            return paddedAndSized(overlay, style, alignment: alignment)
+            if !fields.isEmpty {
+                return recordLoweredItem(report(fields), animated: style, declared: declared, site: site,
+                                         contentAlignment: alignment, kind: kind)
+            }
+            let overlay = frame.requestNativeOverlay(children: registerLegacyItems(children, plans),
+                                                     alignment: alignment)
+            return recordLoweredItem(paddedAndSized(overlay, style, alignment: alignment), animated: style,
+                                     declared: declared, site: site, contentAlignment: alignment, kind: kind)
         }
 
         let isRow = style.flexDirection.isRow
         let main = alignmentFactor(style.justifyContent)
         let cross = alignmentFactor(style.alignItems)
+        let contentAlignment = isRow ? proposalAlignment(horizontal: main, vertical: cross)
+                                     : proposalAlignment(horizontal: cross, vertical: main)
+        if !fields.isEmpty {
+            return recordLoweredItem(report(fields), animated: style, declared: declared, site: site,
+                                     contentAlignment: contentAlignment, kind: kind)
+        }
         // `Axes.horizontal` is the gap between a row's items, `vertical` between a
         // column's (CSS `column-gap` / `row-gap`); the cross-axis gap separates
         // lines, and a no-wrap container has one.
         let spacing = resolvedLength(isRow ? style.gap.horizontal : style.gap.vertical)
         // The stack reads only the cross-axis factor of its alignment.
         let stack = frame.requestNativeLinearStack(
-            children: children, axis: isRow ? .horizontal : .vertical, spacing: spacing,
+            children: registerLegacyItems(children, plans), axis: isRow ? .horizontal : .vertical,
+            spacing: spacing,
             alignment: isRow ? proposalAlignment(horizontal: 0, vertical: cross)
                              : proposalAlignment(horizontal: cross, vertical: 0))
-        return paddedAndSized(stack, style,
-                              alignment: isRow ? proposalAlignment(horizontal: main, vertical: cross)
-                                               : proposalAlignment(horizontal: cross, vertical: main))
+        return recordLoweredItem(paddedAndSized(stack, style, alignment: contentAlignment), animated: style,
+                                 declared: declared, site: site, contentAlignment: contentAlignment, kind: kind)
     }
 
     /// The container table's "otherwise" column (spec §5.4, **containers**), then
@@ -81,18 +112,16 @@ extension LayoutPass {
     /// **declared** style with `childCount` layout children. `display: none` is
     /// checked first and alone (ruling LR-J). A `display: .stack` container (lane
     /// 4) reads none of the flex rows below — the legacy engine branches to its
-    /// stack layout before any of them — and reports, in order,
-    /// `alignItems.stretch` (`nil`/`.stretch`), `alignItems.baseline`, then
-    /// `justifyItems.stretch` (`nil`/`.stretch`), then the every-node rows. The
-    /// flex container rows, in order:
+    /// stack layout before any of them — and reports `alignItems.baseline`, then the
+    /// every-node rows (its stretch on either axis lowers per child since stage 2,
+    /// `planLegacyItems`). The flex container rows, in order:
     ///
     /// - `reverse` — `.rowReverse`/`.columnReverse`;
     /// - `gap.percent` — a percentage **main-axis** gap (the cross-axis gap is read
     ///   by nothing on a single line, so it is not reported);
     /// - `alignItems.baseline`;
-    /// - `alignItems.stretch` — `nil`/`.stretch` (a `Box`'s default) unless there is
-    ///   no free cross space for it to show: exactly one child **and** no declared
-    ///   cross-axis size (ruling LR-E principle 3);
+    /// - (`alignItems.stretch` is no longer a container row: since stage 2 each
+    ///   child it reaches is wrapped by `planLegacyItems`, ruling LR-AC);
     /// - `justifyContent.spaceBetween`/`.spaceAround`/`.spaceEvenly` — unless there
     ///   is no declared main-axis size;
     /// - `flexWrap` (≠ `.noWrap`), `alignContent` (≠ `nil`) — deleted concepts.
@@ -107,15 +136,7 @@ extension LayoutPass {
         if declared.display == .none { return [entry("display.none")] }
         var fields: [UnlowerableField] = []
         if declared.display == .stack {
-            switch declared.alignItems {
-            case nil, .stretch: fields.append(entry("alignItems.stretch"))
-            case .baseline: fields.append(entry("alignItems.baseline"))
-            case .flexStart, .center, .flexEnd: break
-            }
-            switch declared.justifyItems {
-            case nil, .stretch: fields.append(entry("justifyItems.stretch"))
-            case .start, .center, .end: break
-            }
+            if declared.alignItems == .baseline { fields.append(entry("alignItems.baseline")) }
             return fields + legacyLeafDiagnostics(declared, site: site)
         }
         let isRow = declared.flexDirection.isRow
@@ -123,16 +144,8 @@ extension LayoutPass {
         if case .percent = isRow ? declared.gap.horizontal : declared.gap.vertical {
             fields.append(entry("gap.percent"))
         }
-        let crossSize = isRow ? declared.size.height : declared.size.width
         let mainSize = isRow ? declared.size.width : declared.size.height
-        switch declared.alignItems {
-        case .baseline:
-            fields.append(entry("alignItems.baseline"))
-        case nil, .stretch:
-            if childCount != 1 || crossSize != .auto { fields.append(entry("alignItems.stretch")) }
-        case .flexStart, .center, .flexEnd:
-            break
-        }
+        if declared.alignItems == .baseline { fields.append(entry("alignItems.baseline")) }
         if mainSize != .auto {
             switch declared.justifyContent {
             case .spaceBetween: fields.append(entry("justifyContent.spaceBetween"))
@@ -166,8 +179,13 @@ extension LayoutPass {
     func lowerLegacyLeaf(_ style: Style, declared: Style, site: LoweringSite,
                          content: () -> LayoutNodeID) -> LayoutNodeID {
         let fields = legacyLeafDiagnostics(declared, site: site)
-        if !fields.isEmpty { return report(fields) }
-        return paddedAndSized(content(), style, alignment: .topLeading)
+        if declared.display == .none { return report(fields) }
+        if !fields.isEmpty {
+            return recordLoweredItem(report(fields), animated: style, declared: declared, site: site,
+                                     contentAlignment: .topLeading, kind: .leaf)
+        }
+        return recordLoweredItem(paddedAndSized(content(), style, alignment: .topLeading), animated: style,
+                                 declared: declared, site: site, contentAlignment: .topLeading, kind: .leaf)
     }
 
     /// Lowers one `ModifiedElement` layer — `layer.style` already animated — over
@@ -195,9 +213,21 @@ extension LayoutPass {
             return lowerLegacyNode(layer.style, declared: declared, children: children,
                                    site: .modifierLayer)
         }
-        let fields = legacyFrameLayerDiagnostics(layer, declared: declared, childCount: children.count)
-        if !fields.isEmpty { return report(fields) }
-        let child = children.first
+        let received = children.map { frame.lowering.consume($0) }
+        var fields = legacyFrameLayerDiagnostics(layer, declared: declared, childCount: children.count)
+        if declared.display == .none { return report(fields) }
+        // A frame over one node is a stack (`CN-N`): it stretches nothing (its
+        // `FrameSpec.style()` alignment is never `stretch`) and ignores its child's
+        // flex fields; a child's `minSize`, `maxSize` or `margin` still reports.
+        var plans: [LegacyItemPlan] = received.map { _ in LegacyItemPlan() }
+        if children.count == 1 {
+            plans = planLegacyItems(received, parent: declared, parentKind: .stack, fields: &fields)
+        }
+        if !fields.isEmpty {
+            return recordLoweredItem(report(fields), animated: layer.style, declared: declared,
+                                     site: .modifierLayer, contentAlignment: spec.alignment, kind: .frameLayer)
+        }
+        let child = registerLegacyItems(children, plans).first
             ?? frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
         let style = layer.style
         // A bound `FrameSpec.style()` wrote, read back from the animated style;
@@ -213,7 +243,7 @@ extension LayoutPass {
             guard let declared else { return nil }
             return declared.value.isFinite ? bound(declared, dimension) : Double(declared.value)
         }
-        return frame.requestNativeFrame(
+        let node = frame.requestNativeFrame(
             child: child,
             width: bound(spec.width, style.size.width),
             height: bound(spec.height, style.size.height),
@@ -224,6 +254,8 @@ extension LayoutPass {
             idealHeight: spec.idealHeight.map { Double($0.value) },
             maxHeight: maximum(spec.maxHeight, style.maxSize.height),
             alignment: spec.alignment)
+        return recordLoweredItem(node, animated: layer.style, declared: declared, site: .modifierLayer,
+                                 contentAlignment: spec.alignment, kind: .frameLayer)
     }
 
     /// A frame layer's checks (ruling LR-H), for its **declared** style:
@@ -323,6 +355,11 @@ extension LayoutPass {
     /// table's order, for a leaf's **declared** style. `display: none` is checked
     /// first and alone: a hidden node reports nothing else (ruling LR-J).
     ///
+    /// **Item fields are not rows here since stage 2** (`minSize`, `maxSize`,
+    /// `margin`, `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`): the parent
+    /// reads them from the element's `LoweredItem` (`planLegacyItems`), and a record
+    /// no lowered container consumes reports them `…unconsumed` (ruling LR-AQ).
+    ///
     /// Padding reports one entry at most: `padding.percent` (a percentage resolves
     /// against a containing block the kernel does not have), else `padding.floor`
     /// (a declared size below the padding sum on an axis, where CSS floors the
@@ -350,23 +387,12 @@ extension LayoutPass {
             fields.append(entry("padding.text"))
         }
 
-        let auto = Size<Dimension>(width: .auto, height: .auto)
-        if declared.minSize != auto { fields.append(entry("minSize")) }
-        if declared.maxSize != auto { fields.append(entry("maxSize")) }
-        let margin = declared.margin
-        if [margin.top, margin.right, margin.bottom, margin.left].contains(where: { !isZero($0) }) {
-            fields.append(entry("margin"))
-        }
         let border = declared.border
         if [border.top, border.right, border.bottom, border.left].contains(where: { !isZero(.length($0)) }) {
             fields.append(entry("border"))
         }
         if declared.position != .static { fields.append(entry("position")) }
         if declared.inset != Edges(all: .auto) { fields.append(entry("inset")) }
-        if declared.flexGrow != 0 { fields.append(entry("flexGrow")) }
-        if declared.flexShrink != 1 { fields.append(entry("flexShrink")) }
-        if declared.flexBasis != .auto { fields.append(entry("flexBasis")) }
-        if declared.alignSelf != nil { fields.append(entry("alignSelf")) }
         return fields
     }
 
@@ -401,5 +427,192 @@ extension LayoutPass {
         case .length(.rems(let r)): r.value == 0
         case .length(.percent(let f)): f == 0
         }
+    }
+}
+
+// MARK: - Stage 2: item records and the wrappers a parent registers around them
+
+/// What a lowered container registers around one child (plan task 7, stage 2, spec
+/// §3 item 2): at most the item frame W and the alignment frame, innermost first.
+/// Lane 1 plans the cross axis only.
+struct LegacyItemPlan {
+    /// W's bounds per axis — `(minimum, maximum)` — on each axis it is greedy on;
+    /// `nil` on an axis it hugs. W is registered when either axis is set.
+    var itemFrameWidth: (min: Double, max: Double)?
+    var itemFrameHeight: (min: Double, max: Double)?
+    var itemFrameAlignment: ProposalAlignment = .topLeading
+    /// The alignment frame: greedy on one axis (`horizontal` for a column parent's
+    /// cross axis), placing the child by `factor` there.
+    var alignmentFrame: (horizontal: Bool, factor: Double)?
+}
+
+extension LayoutPass {
+    /// Records `node` as `site`'s lowered item and returns it (ruling LR-AB item 1).
+    func recordLoweredItem(_ node: LayoutNodeID, animated: Style, declared: Style,
+                           site: LoweringSite, contentAlignment: ProposalAlignment,
+                           kind: LoweredItem.Kind) -> LayoutNodeID {
+        frame.lowering.record(LoweredItem(declared: declared, animated: animated, site: site,
+                                          contentAlignment: contentAlignment, kind: kind),
+                              for: node)
+        return node
+    }
+
+    /// Plans each received child's wrappers for a parent of `parentKind` whose
+    /// **declared** style is `parent`, and appends — in child order, each child's in
+    /// `LR-AQ`'s field order — the item fields this stage cannot lower yet, at the
+    /// child's own site (spec §4's report order: after the container's own rows).
+    /// `received[i]` is `nil` for a child no legacy site recorded (a proposal
+    /// element), which gets no wrapper.
+    ///
+    /// **Stretch** (ruling LR-AC): a child whose cross size is `auto` and whose
+    /// effective alignment — `alignSelf`, else the parent's `alignItems` (a stack
+    /// parent: `justifyItems` horizontally, `alignItems` vertically) — is `nil` or
+    /// `.stretch` gets W greedy on that axis, **unless the parent has exactly one
+    /// child and no declared size on that axis** (the elision; stage 1's `LR-E`
+    /// principle 3). W carries the child's own `minSize`/`maxSize` on that axis from
+    /// its animated style (`LR-AG`, `LR-AS`), a minimum of **0** when none is
+    /// declared — CSS's stretched size is the line even below the content (`LR-AW`)
+    /// — and is aligned by the child's content alignment. A `.frame` layer child is
+    /// stretched the same way on an axis its frame leaves `nil` (`MC-Q` finding 7).
+    ///
+    /// **`alignSelf`** in a flex parent (ruling LR-AD): where the child is not
+    /// stretched and its alignment factor (`.stretch` and `.baseline` place at the
+    /// start) differs from the parent's, an alignment frame greedy on the cross axis
+    /// places it — in a one-child container too (`LR-AR`). A stack parent ignores
+    /// `alignSelf`, as the legacy stack does.
+    ///
+    /// **The free-space re-check** (ruling LR-AR, the stretch half): a child flex
+    /// container that W makes greedy on its own **main** axis, with no declared main
+    /// size and `justifyContent` `space-*`, reports `justifyContent.<case>` at its
+    /// site.
+    ///
+    /// **Reported, lane 1** (a flex parent): `flexGrow`, `flexShrink`, `flexBasis`
+    /// (lane 2), `alignSelf.baseline` (task 11), `minSize`/`maxSize` anywhere but a
+    /// stretched axis, or a percentage there (lanes 2 and 4), `margin` (lane 4). A
+    /// stack parent reports only `minSize`/`maxSize` off a stretched axis and
+    /// `margin`. A `.frame` layer child reports nothing: its item fields are its own
+    /// frame's.
+    func planLegacyItems(_ received: [LoweredItem?], parent: Style, parentKind: LoweredItem.Kind,
+                         fields: inout [UnlowerableField]) -> [LegacyItemPlan] {
+        let single = received.count == 1
+        var plans: [LegacyItemPlan] = []
+        for item in received {
+            var plan = LegacyItemPlan()
+            guard let item else {
+                plans.append(plan)
+                continue
+            }
+            let d = item.declared, a = item.animated
+            func stretches(_ value: AlignItems?) -> Bool { value == nil || value == .stretch }
+            // Whether the child is stretched on each axis.
+            var horizontal = false, vertical = false
+            var reports: [String] = []
+            switch parentKind {
+            case .flex(let isRow):
+                let effective: Bool
+                switch d.alignSelf {
+                case nil: effective = stretches(parent.alignItems)
+                case .stretch?: effective = true
+                case .flexStart?, .center?, .flexEnd?, .baseline?: effective = false
+                }
+                let crossAuto = (isRow ? d.size.height : d.size.width) == .auto
+                let parentCross = isRow ? parent.size.height : parent.size.width
+                let stretched = effective && crossAuto && !(single && parentCross == .auto)
+                if isRow { vertical = stretched } else { horizontal = stretched }
+                if item.kind != .frameLayer {
+                    if d.flexGrow != 0 { reports.append("flexGrow") }
+                    if d.flexShrink != 1 { reports.append("flexShrink") }
+                    if d.flexBasis != .auto { reports.append("flexBasis") }
+                    if d.alignSelf == .baseline { reports.append("alignSelf.baseline") }
+                }
+                if !stretched {
+                    let parentFactor = alignmentFactor(parent.alignItems)
+                    let childFactor = d.alignSelf.map(alignmentFactor) ?? parentFactor
+                    if childFactor != parentFactor {
+                        plan.alignmentFrame = (horizontal: !isRow, factor: childFactor)
+                    }
+                }
+            case .stack, .leaf, .frameLayer:
+                horizontal = alignsByStretching(parent.justifyItems) && d.size.width == .auto
+                    && !(single && parent.size.width == .auto)
+                vertical = stretches(parent.alignItems) && d.size.height == .auto
+                    && !(single && parent.size.height == .auto)
+            }
+            if item.kind != .frameLayer {
+                func reported(_ size: Size<Dimension>) -> Bool {
+                    (size.width != .auto && !(horizontal && !isPercent(size.width)))
+                        || (size.height != .auto && !(vertical && !isPercent(size.height)))
+                }
+                if reported(d.minSize) { reports.append("minSize") }
+                if reported(d.maxSize) { reports.append("maxSize") }
+                if LoweredItem.hasMargin(d) { reports.append("margin") }
+            }
+            if case .flex(let childIsRow) = item.kind,
+               childIsRow ? horizontal : vertical,
+               (childIsRow ? d.size.width : d.size.height) == .auto {
+                switch d.justifyContent {
+                case .spaceBetween?: reports.append("justifyContent.spaceBetween")
+                case .spaceAround?: reports.append("justifyContent.spaceAround")
+                case .spaceEvenly?: reports.append("justifyContent.spaceEvenly")
+                case nil, .flexStart?, .center?, .flexEnd?: break
+                }
+            }
+            fields += reports.map { UnlowerableField(site: item.site, field: $0) }
+
+            func bounds(_ minimum: Dimension, _ maximum: Dimension) -> (min: Double, max: Double) {
+                let lo = resolvedDimension(minimum) ?? 0
+                return (lo, Swift.max(lo, Swift.max(0, resolvedDimension(maximum) ?? .infinity)))
+            }
+            if horizontal { plan.itemFrameWidth = bounds(a.minSize.width, a.maxSize.width) }
+            if vertical { plan.itemFrameHeight = bounds(a.minSize.height, a.maxSize.height) }
+            plan.itemFrameAlignment = item.contentAlignment
+            plans.append(plan)
+        }
+        return plans
+    }
+
+    /// Registers each child's planned wrappers, innermost first, aliasing the child's
+    /// node to its item frame (ruling LR-AB item 3), and returns the nodes the
+    /// container registers in the children's place.
+    func registerLegacyItems(_ children: [LayoutNodeID], _ plans: [LegacyItemPlan]) -> [LayoutNodeID] {
+        var nodes: [LayoutNodeID] = []
+        for (child, plan) in zip(children, plans) {
+            var node = child
+            if plan.itemFrameWidth != nil || plan.itemFrameHeight != nil {
+                node = frame.requestNativeFrame(child: node,
+                                                minWidth: plan.itemFrameWidth?.min,
+                                                maxWidth: plan.itemFrameWidth?.max,
+                                                minHeight: plan.itemFrameHeight?.min,
+                                                maxHeight: plan.itemFrameHeight?.max,
+                                                alignment: plan.itemFrameAlignment)
+                frame.lowering.alias(child, to: node)
+            }
+            if let alignmentFrame = plan.alignmentFrame {
+                node = alignmentFrame.horizontal
+                    ? frame.requestNativeFrame(child: node, maxWidth: .infinity,
+                                               alignment: proposalAlignment(horizontal: alignmentFrame.factor,
+                                                                            vertical: 0))
+                    : frame.requestNativeFrame(child: node, maxHeight: .infinity,
+                                               alignment: proposalAlignment(horizontal: 0,
+                                                                            vertical: alignmentFrame.factor))
+            }
+            nodes.append(node)
+        }
+        return nodes
+    }
+
+    /// The fraction of free space an `alignSelf` places before the child: `.center`
+    /// ½, `.flexEnd` 1, and 0 for `.flexStart`, `.stretch` (a declared cross size
+    /// sits at the start) and `.baseline` (reported).
+    private func alignmentFactor(_ value: AlignSelf) -> Double {
+        switch value {
+        case .center: 0.5
+        case .flexEnd: 1
+        case .flexStart, .stretch, .baseline: 0
+        }
+    }
+
+    private func alignsByStretching(_ value: JustifyItems?) -> Bool {
+        value == nil || value == .stretch
     }
 }

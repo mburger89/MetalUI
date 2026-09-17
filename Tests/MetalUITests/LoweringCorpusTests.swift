@@ -435,66 +435,62 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
 
 /// **5.3 — stage 2's entry.** `demoContent()`, **imported from `MetalUIDemoContent`**
 /// (ruling LR-S), one frame at 920×560 inside the harness root under diagnostics
-/// (modal and animation off): the multiset of `(site, field)` it reports, as a
-/// literal measured by this lane on lane 4's tree, each entry annotated with the
-/// element that reports it and its owning stage (spec §4.1).
+/// (modal and animation off): the `(site, field)` entries it reports, **in order**,
+/// as a literal, each annotated with the element it names, the lowered container
+/// that reports it and its owning stage.
 ///
-/// Registration is post-order, so a container reports after its children, and a
-/// reported element returns one 0×0 leaf (its own subtree is still registered).
-/// Measured order:
+/// **Re-measured in stage 2, lane 1** (record §19). Item fields are read by the
+/// parent since then (ruling LR-AB): a child's entry is reported when its lowered
+/// container registers, after that container's own rows, at the child's site; a
+/// stretch or `alignSelf` lowers, so stage 1's four `alignItems.stretch`, the
+/// header layer's `modifierLayer.alignItems.stretch`, `stack.alignSelf` and
+/// `box.alignSelf` are gone (rulings LR-AC, LR-AD), and the scroller box's three
+/// fields read in `LR-AQ`'s order. Nothing is `…unconsumed`: the `List`'s zero-row
+/// `Box` consumes its spacer, and the `ScrollView` marks what it receives.
 ///
-/// | # | entry | element | stage |
+/// | # | entry | element (reported by) | stage |
 /// |---|---|---|---|
-/// | 1 | `box.flexGrow` | the header's bar, `.flexGrow(1)` | 2 |
-/// | 2 | `box.flexGrow` | the header `Row`, `.flexGrow(1)` | 2 |
-/// | 3 | `modifierLayer.alignItems.stretch` | the header's padding layer, `.height(72)` | 2 |
-/// | 4, 5 | `box.alignItems.stretch`, `box.flexGrow` | the sidebar `Column` | 2 |
-/// | 6 | `stack.alignSelf` | the stack cluster, `.alignSelf(.flexStart)` | 2 |
-/// | 7 | `box.alignSelf` | `CounterPanel`'s chrome | 2 |
-/// | 8 | `list.noLowering` | the `List`, checked before it builds its `Box` | 4 |
-/// | 9 | `box.flexShrink` | the `List`'s zero-row `Box` (diagnostics only) | 2 (4 replaces it) |
-/// | 10 | `scrollView.noLowering` | the `ScrollView` | 3 |
-/// | 11–13 | `box.minSize`, `box.flexGrow`, `box.flexBasis` | the `Box` around the scroller | 2 |
-/// | 14, 15 | `box.alignItems.stretch`, `box.flexGrow` | the main pane's `Column` | 2 |
-/// | 16 | `modifierLayer.flexGrow` | the main pane's padding layer | 2 |
-/// | 17, 18 | `box.alignItems.stretch`, `box.flexGrow` | the body `Row` | 2 |
-/// | 19, 20 | `box.alignItems.stretch`, `box.flexGrow` | the outer `Column` | 2 |
+/// | 1 | `box.flexGrow` | the header's bar (the header `Row`) | 2 |
+/// | 2 | `box.flexGrow` | the header `Row` (its padding layer) | 2 |
+/// | 3 | `box.flexGrow` | the sidebar `Column` (its padding layer) | 2 |
+/// | 4 | `list.noLowering` | the `List`, checked before it builds its `Box` | 4 |
+/// | 5 | `box.flexShrink` | the `List`'s spacer (its zero-row `Box`, diagnostics only) | 2 (4 replaces it) |
+/// | 6 | `scrollView.noLowering` | the `ScrollView` | 3 |
+/// | 7–9 | `box.flexGrow`, `box.flexBasis`, `box.minSize` | the `Box` around the scroller (the main pane's `Column`) | 2 |
+/// | 10 | `box.flexGrow` | the main pane's `Column` (its padding layer) | 2 |
+/// | 11 | `modifierLayer.flexGrow` | the main pane's padding layer (the body `Row`) | 2 |
+/// | 12 | `box.flexGrow` | the body `Row` (the outer `Column`) | 2 |
+/// | 13 | `box.flexGrow` | the outer `Column` (the outer padding layer) | 2 |
 ///
-/// **Not the design's census** (spec §2.7 item 2, scratch P2's 8 084 stretches):
-/// P2 built the `List`'s 500 rows, and lane 1's `List` check reports before any row
-/// exists. The modal is off, so `Deferred`, `position` and `inset` do not appear
-/// (stage 5). Nothing but sites 8 and 10 is site-level: every other entry names a
-/// field stage 2 owns — which is what stage 2's exit test rewrites this literal to.
+/// The modal is off, so `Deferred`, `position` and `inset` do not appear (stage 5).
+/// Nothing but entries 4 and 6 is site-level: every other entry names a field stage
+/// 2 owns — which is what stage 2's exit test rewrites this literal to (lane 2).
 ///
-/// Mutation that must redden it: **M5c**, two-child stretch made lowerable (the
-/// `alignItems.stretch` count moves).
+/// Mutations that must redden it (stage 2, lane 1): **M1t**, the parent's `flexGrow`
+/// report dropped (eight entries leave); stage 1's **M5c** is retired with the
+/// stretch row it mutated.
 @MainActor
 @Test func theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn() throws {
     demoModel.showModal = false
     demoModel.animationDemoActive = false
     let report = LayoutDifferential.compare(width: 920, height: 560) { demoContent() }
-    try #require(report.unlowerable.count == 20, "\(report.unlowerable)")
 
     func entry(_ site: LoweringSite, _ field: String) -> UnlowerableField {
         UnlowerableField(site: site, field: field)
     }
-    let expected: [UnlowerableField: Int] = [
-        entry(.box, "flexGrow"): 7,                       // stage 2
-        entry(.box, "alignItems.stretch"): 4,             // stage 2
-        entry(.modifierLayer, "alignItems.stretch"): 1,   // stage 2
-        entry(.modifierLayer, "flexGrow"): 1,             // stage 2
-        entry(.stack, "alignSelf"): 1,                    // stage 2
-        entry(.box, "alignSelf"): 1,                      // stage 2
-        entry(.box, "flexShrink"): 1,                     // stage 2 (the List's zero-row Box; stage 4 replaces it)
-        entry(.box, "minSize"): 1,                        // stage 2
-        entry(.box, "flexBasis"): 1,                      // stage 2
-        entry(.list, "noLowering"): 1,                    // stage 4
-        entry(.scrollView, "noLowering"): 1,              // stage 3
-    ]
-    let measured = report.unlowerable.reduce(into: [UnlowerableField: Int]()) { $0[$1, default: 0] += 1 }
-    #expect(measured == expected)
-    // The List reports before its zero-row Box does, and before the ScrollView.
-    let list = try #require(report.unlowerable.firstIndex(of: entry(.list, "noLowering")))
-    let scroll = try #require(report.unlowerable.firstIndex(of: entry(.scrollView, "noLowering")))
-    #expect(list < scroll && report.unlowerable[list + 1] == entry(.box, "flexShrink"))
+    #expect(report.unlowerable == [
+        entry(.box, "flexGrow"),                // header bar
+        entry(.box, "flexGrow"),                // header Row
+        entry(.box, "flexGrow"),                // sidebar Column
+        entry(.list, "noLowering"),             // stage 4
+        entry(.box, "flexShrink"),              // the List's spacer (stage 4 replaces it)
+        entry(.scrollView, "noLowering"),       // stage 3
+        entry(.box, "flexGrow"),                // the Box around the scroller
+        entry(.box, "flexBasis"),
+        entry(.box, "minSize"),
+        entry(.box, "flexGrow"),                // main pane Column
+        entry(.modifierLayer, "flexGrow"),      // main pane padding layer
+        entry(.box, "flexGrow"),                // body Row
+        entry(.box, "flexGrow"),                // outer Column
+    ], "\(report.unlowerable)")
 }

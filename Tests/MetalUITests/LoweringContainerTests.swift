@@ -296,6 +296,17 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 /// Mutation that must redden it: **M3f**, stretch always lowerable (the two-child
 /// arm reports nothing and disagrees); each reported row's check deleted reddens
 /// its own arm (record §18, lane 3, M3i–M3r).
+///
+/// **Amended in stage 2, lane 1** (rulings LR-AB, LR-AC, LR-AQ). Stretch is no
+/// longer a container row: each child it reaches is wrapped in a greedy item frame.
+/// The two-child arm (now declaring a 30pt cross size, so the harness root's
+/// proposal is not what the stretch fills) and the sized single-child arm agree —
+/// the auto child 20×30 on both sides — and so does a `Box` declaring `display:
+/// .stack` (its `nil` items stretch per child, 1.9). A container's `margin` is an
+/// item field its parent reads: under the harness root it reports
+/// `margin.unconsumed`. **The name is kept**: its `space-*` half is still the
+/// subject, which stage 2's lane 5 moves; M3f's premise (stretch reported) is gone,
+/// and stretch's own mutations are lane 1's (M1a–M1d).
 @MainActor
 @Test func stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem() throws {
     let single = LayoutDifferential.compare(width: 100, height: 100) { Box { fixed(20, 10) } }
@@ -320,13 +331,21 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
     #expect(lowered(unsizedSpace, [containerID, child(containerID, 1)])
             == [bounds(0, 0, 50, 10), bounds(20, 0, 30, 10)])
 
-    // The two-child arm must be a real disagreement, not only a report: the legacy
-    // engine stretches the auto-height child to the line's 10.
+    // Stage 2, lane 1: the two-child stretch lowers (a greedy item frame, aliased) and
+    // agrees, the auto-height child stretched to the declared 30 on both sides.
     let twoChild = LayoutDifferential.compare(width: 100, height: 100) {
-        Box { fixed(20, 10); Box().width(px(20)) }
+        Box { fixed(20, 10); Box().width(px(20)).background(.accent) }.height(px(30))
     }
-    #expect(twoChild.unlowerable == [field(.box, "alignItems.stretch")])
-    #expect(twoChild.legacyBounds[child(containerID, 1)] == bounds(20, 0, 20, 10))
+    try #require(twoChild.elements == 4)
+    expectFullAgreement(twoChild, "two-child stretch")
+    #expect(lowered(twoChild, [child(containerID, 0), child(containerID, 1)])
+            == [bounds(0, 0, 20, 10), bounds(20, 0, 20, 30)])
+    let sizedSingle = LayoutDifferential.compare(width: 100, height: 100) {
+        Box { Box().width(px(20)).background(.accent) }.height(px(30))
+    }
+    try #require(sizedSingle.elements == 3)
+    expectFullAgreement(sizedSingle, "sized single-child stretch")
+    #expect(lowered(sizedSingle, [child(containerID, 0)]) == [bounds(0, 0, 20, 30)])
 
     func percentGap(_ axes: Axes<Length>) -> Style {
         var s = Style()
@@ -346,9 +365,8 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
         LayoutDifferential.render(authority: .proposal, width: 100, height: 100, make).unlowerableFields
     }
     let arms: [Arm] = [
-        ("two-child stretch", twoChild.unlowerable, [field(.box, "alignItems.stretch")]),
-        ("sized single-child stretch",
-         report { Box { Box().width(px(20)) }.height(px(30)) }, [field(.box, "alignItems.stretch")]),
+        ("two-child stretch (lowered since stage 2)", twoChild.unlowerable, []),
+        ("sized single-child stretch (lowered since stage 2)", sizedSingle.unlowerable, []),
         ("sized spaceBetween",
          report { Row { fixed(20, 10); fixed(30, 10) }.width(px(100)).justifyContent(.spaceBetween) },
          [field(.box, "justifyContent.spaceBetween")]),
@@ -377,13 +395,14 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
          report { Box(style: percentGap(Axes(horizontal: .pixels(px(4)), vertical: .percent(0.1)))) {
              fixed(20, 10); fixed(30, 10)
          } }, []),
-        ("margin on a container", report { Row { fixed(20, 10) }.margin(px(3)) }, [field(.box, "margin")]),
+        ("margin on a container (an item field: unconsumed under the harness root since stage 2)",
+         report { Row { fixed(20, 10) }.margin(px(3)) }, [field(.box, "margin.unconsumed")]),
         ("padding floor on a container", report { Box(style: padded(10)) { fixed(20, 10) } },
          [field(.box, "padding.floor")]),
-        ("display: .stack on a Box container (lowered as an overlay since lane 4)",
+        ("display: .stack on a Box container (lowered as an overlay since lane 4, its stretch since stage 2)",
          report { Box(style: { var s = Style(); s.display = .stack; return s }()) {
              fixed(20, 10); fixed(30, 10)
-         } }, [field(.box, "alignItems.stretch"), field(.box, "justifyItems.stretch")]),
+         } }, []),
         ("hidden reverse container",
          report { Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.rowReverse).hidden() },
          [field(.box, "display.none")]),
@@ -564,27 +583,29 @@ private func mixedTree() -> some ElementGroup {
 }
 
 /// A container declaring two container rows (`reverse`, `flexWrap`) and two every
-/// node rows (`margin`, `flexGrow`).
+/// node rows (`position`, `inset`). **Re-spelled in stage 2, lane 1** from `margin`
+/// and `flexGrow`, item fields its parent reads since then (ruling LR-AB; under the
+/// harness root they report `…unconsumed` after the root returns, LR-AQ).
 @MainActor
 private func fourFieldContainer() -> some ElementGroup {
     Box { fixed(20, 10); fixed(30, 10) }
-        .flexDirection(.rowReverse).alignItems(.flexStart).flexWrap(.wrap).margin(px(3)).flexGrow(1)
+        .flexDirection(.rowReverse).alignItems(.flexStart).flexWrap(.wrap).position(.relative).inset(px(3))
 }
 
 /// **3.9.** `LR-Y`'s report order: a container's rows in §5.4's table order, then
-/// the every-node rows in theirs — `[reverse, flexWrap, margin, flexGrow]` — and in
+/// the every-node rows in theirs — `[reverse, flexWrap, position, inset]` — and in
 /// production (diagnostics off) the trap names the **first**, `box.reverse`.
 ///
 /// Mutation that must redden it: **V2**, `legacyLeafDiagnostics(…) + fields` (the
-/// report reads `[margin, flexGrow, reverse, flexWrap]` and the trap names
-/// `box.margin`).
+/// report reads `[position, inset, reverse, flexWrap]` and the trap names
+/// `box.position`).
 @MainActor
 @Test func aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst() async throws {
     let entries = LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
         fourFieldContainer()
     }.unlowerableFields
     #expect(entries == [field(.box, "reverse"), field(.box, "flexWrap"),
-                        field(.box, "margin"), field(.box, "flexGrow")], "\(entries)")
+                        field(.box, "position"), field(.box, "inset")], "\(entries)")
 
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
@@ -596,5 +617,5 @@ private func fourFieldContainer() -> some ElementGroup {
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
     #expect(stderr.contains("box.reverse has no proposal lowering"),
             "aborted, but not at the first unlowerable field:\n\(stderr)")
-    #expect(!stderr.contains("box.margin"), "the trap must name the first field:\n\(stderr)")
+    #expect(!stderr.contains("box.position"), "the trap must name the first field:\n\(stderr)")
 }
