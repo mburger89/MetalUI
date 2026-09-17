@@ -503,6 +503,12 @@ hits. No real window was captured (lane 4's, `GR-M`).
   frame on the recursion path (65 levels). Re-bisect after lane 3's changes.
 - A stack's infinite-flexibility tie (`GR-O` 8) will move any corpus or arm with
   a grid beside a flexible sibling; none of lane 3's arms has one.
+- The span-target rule exists **twice**, once per branch (`GR-AG`, added by the
+  lane-2 re-verification). Lane 3's unsized axes and anchors touch both
+  `NativeGridSolver.serve` and the nil branch: an edit to one branch's target
+  chain is caught only by that branch's arms — GX11 for the nil one, GX9 / GX8 /
+  S1 / S2 for the finite one — so change them together or the suite will not
+  say.
 
 ## Second critic round (2026-09-17, after lane 2, probe revision 6)
 
@@ -839,8 +845,12 @@ arms), so the tree's rendering is byte-for-byte the one already compared. It was
 nevertheless re-taken rather than inherited:
 `CN-R`'s harness (`scratchpad/harness/gen-lib.py`, `DEMO_PIXELS_SMALL=1`,
 default build system) in fresh `git archive`s of `cb2e708` and `d6ad9ff`:
-**12 of 12 images 0 differing pixels, scenes identical.** Controls on the head
-images, each reproducing lane 1's recorded figure exactly: light vs dark f0
+**12 of 12 images 0 differing pixels, scenes identical**, and **re-taken at this
+round's own head `5e787c7`** against the same `cb2e708` archive: 12 of 12 at 0
+again, with the five controls reading the same five figures on those images too
+(only this section's closing note is later, and it touches no source). Controls
+on the head images, each reproducing lane 1's recorded figure exactly: light vs
+dark f0
 **1 048 576**; default vs modal (light) **1 030 498**; default vs animation
 (light) **210 027**; f0 vs f3 **0**; preview light vs dark **1 048 576**; 544
 distinct pixel values in `default-light-f0`.
