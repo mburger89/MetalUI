@@ -311,12 +311,13 @@ included). Over zero or several nodes — a multi-member `Component` — it stay
 divergence 56); a conditional that moves the count between 1 and 2 switches
 the lowering at run time. **A stack reads neither `.flexGrow` nor `.alignSelf`,
 so on the only child of a legacy frame both compile and do nothing** (inert
-table; `width(fraction: 1)` fills). **Unfixed defect, found by the branch
-checker 2026-09-16 (unpinned): `.hidden()` written directly after a one-node
-frame is undone** — `lowered` overwrites the layer's `display: .none` with
-`.stack`, so `Text(…).frame(width: 40).hidden()` still takes 40pt in its row
-(9e439cb filtered it; the fixed and flexible overloads both; a `.padding`
-between them hides). Record §17, "Branch checker". **Two legacy divergences stay pinned wrong
+table; `width(fraction: 1)` fills). **`lowered` keeps a `display: .none`**:
+`.hidden()` written directly after a one-node frame (either overload, as the
+outermost or an inner layer) hides it from layout and from an accessibility
+client — a regression the branch checker found in `CN-N` and the closeout
+fixed (`hiddenAfterASingleChildLegacyFrameStillHidesTheElement`,
+`aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`; record §17,
+"Closeout"). **Two legacy divergences stay pinned wrong
 on purpose**, owner now task 7 (`CN-Q`): a finite maximum clamps but never
 grows (35); a single-axis infinite maximum is inert (inert table). `idealWidth`/`idealHeight` **trap** on the legacy path
 (`FR-D`, exit test). `.frame()` with no arguments is a deprecated no-op on both
@@ -1271,7 +1272,7 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 | `Position.relative`'s offset | makes a containing block, does not shift the box |
 | `Style.alignSelf` on a `Stack` child | ignored entirely |
 | `Style.padding`/`border`/`margin` on a **leaf** (`Text`) | **not** the `.padding(_:)` modifier on an element, which now wraps in a `ModifiedElement` layer: it offsets and enlarges the outer footprint of a fixed-size custom `StyledElement` (`paddingWrapsAnElementAndExpandsItsOuterFootprint`, whose `Leaf` is not a `Text`); that it does the same for a `Text` is by reading, unpinned. Holds for `Style.padding`/`Style.border` set directly and `.margin`: ignored on a **content-sized** leaf: no size moves, and it stays out of §9.7.4.c's shrink weight (`aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`). **Not inert once the leaf declares a main size**: ruling BM-4 puts the padding inside that base, so it comes off the shrink weight as CSS says — a 200 row of two `width: 200px` measured leaves, one with `padding: 0 40px`, lays out 125 / 75 (`aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`) |
-| `hidden()` on a subtree that draws or is focusable | layout filters it, paint does not: glyphs stack at the window's top-left; a hidden focusable still claims keystrokes. Use a builder `if` instead. Directly after a one-node legacy `.frame` it does not even filter layout (`CN-N`'s `lowered` overwrites `display`; defect, record §17) |
+| `hidden()` on a subtree that draws or is focusable | layout filters it, paint does not: glyphs stack at the window's top-left; a hidden focusable still claims keystrokes. Use a builder `if` instead. Directly after a one-node legacy `.frame` it filters layout and accessibility as anywhere else (`CN-N`'s regression, fixed: `hiddenAfterASingleChildLegacyFrameStillHidesTheElement`, `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`) |
 | `AnyElement` | works when hand-written; the builder never produces one and must not |
 | `@State` inside `AnyElement` | silently inert |
 | `PaintPass.isActive` | correct, pinned, consulted by no built-in element — nothing paints a pressed state |

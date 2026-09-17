@@ -929,7 +929,17 @@ choices and one finding:
   `lowered` writes `display = .stack` over whatever the layer holds, so
   `.hidden()` written directly after a one-node frame (fixed or flexible) is
   undone: the element takes its frame's space again, where `9e439cb` filtered
-  it. Unfixed and unpinned; measurements in record §17, "Branch checker".
+  it. Measurements in record §17, "Branch checker".
+  **Fixed in the closeout** (record §17, "Closeout"): `lowered` returns the
+  style unchanged when it holds `display: .none` — `display` is the only field
+  it writes, so no other `Self`-returning modifier's field is overwritten this
+  way. Pinned by `hiddenAfterASingleChildLegacyFrameStillHidesTheElement`
+  (FrameSizingTests, seven rows: the checker's five plus the frame hidden as
+  an inner layer under `.padding(4)`, both overloads; red at `b442c9e` on rows
+  3, 5, 6, 7) and `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`
+  (AccessibilityTreeTests, four arms). The checker's by-reading claim that the
+  overwrite also defeated `AB-O`'s suppression was **right**: red at `b442c9e`
+  on all four arms, 0 emissions at `9e439cb`.
 
 ---
 

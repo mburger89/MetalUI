@@ -75,8 +75,17 @@ public struct ModifierLayer {
     /// lays the members out side by side, where SwiftUI frames each member
     /// (component-distribution `G7`); neither lowering is that answer, and the
     /// row is today's.
+    ///
+    /// **`display: .none` is kept.** `hidden()` is a `Self`-returning modifier,
+    /// so written directly after a frame it sets `display` on the frame layer
+    /// itself (outermost, or inner once a wrapper follows); lowering over it
+    /// undid `hidden()` for layout and for accessibility (the branch checker's
+    /// regression, record §17). `display` is the only field this method writes,
+    /// so it is the only one a caller's modifier could lose here. Pinned by
+    /// `hiddenAfterASingleChildLegacyFrameStillHidesTheElement` and
+    /// `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`.
     func lowered(_ style: Style, childCount: Int) -> Style {
-        guard isFrame, childCount == 1 else { return style }
+        guard isFrame, childCount == 1, style.display != .none else { return style }
         var style = style
         style.display = .stack
         return style

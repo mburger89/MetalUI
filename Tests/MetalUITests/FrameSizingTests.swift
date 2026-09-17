@@ -672,6 +672,87 @@ private struct StretchingPair: Component {
             "the workaround fills the root flexible frame")
 }
 
+// MARK: - 5.9 `hidden()` after a single-child frame still hides (ruling CN-N, closeout)
+
+/// **`hidden()` written after a one-node legacy frame hides the element** —
+/// the regression the branch checker found in `CN-N`'s lowering (record §17,
+/// "Branch checker"; fixed in its "Closeout"). `ModifierLayer.lowered(_:childCount:)`
+/// wrote `display = .stack` over whatever the frame layer held, so the
+/// `display: .none` that `hidden()` — a `Self`-returning modifier, which
+/// configures the layer it follows — had written was overwritten and the
+/// element took its frame's space again. No SwiftUI claim: this is MetalUI's own
+/// `hidden()` keeping the meaning it had at `9e439cb`.
+///
+/// Instrument: `widthInRow`, the x of a 5pt sibling after a 20×20 mark's chain
+/// in a 300pt `Row` (the checker's scratch instrument). Each row read at
+/// `9e439cb` (a `git archive` build: rows 1–5 by the checker, 6–7 by the
+/// closeout), at `b442c9e` (red run, before the fix) and required now:
+///
+/// | chain on the mark | `9e439cb` | `b442c9e` | now |
+/// |---|---|---|---|
+/// | 1 `.hidden()` (control) | 0 | 0 | 0 |
+/// | 2 `.frame(width: 40, height: 40)` (control) | 40 | 40 | 40 |
+/// | 3 `.frame(width: 40, height: 40).hidden()` | 0 | **40** | 0 |
+/// | 4 `.frame(width: 40, height: 40).padding(4).hidden()` (control) | 0 | 0 | 0 |
+/// | 5 `.frame(minWidth: 40, maxWidth: 80).hidden()` | 0 | **40** | 0 |
+/// | 6 `.frame(width: 40, height: 40).hidden().padding(4)` | 8 | **48** | 8 |
+/// | 7 `.frame(minWidth: 40, maxWidth: 80).hidden().padding(4)` | 8 | **48** | 8 |
+///
+/// Row 4 was never broken: its hidden layer is the padding, not a frame. Rows 6
+/// and 7 hide the frame as an INNER layer, which `requestLayout` lowers too; 8 is
+/// the padding's two insets around a filtered frame. Controls 1 and 2 are
+/// `#require`d to disagree.
+///
+/// Red at `b442c9e`: rows 3, 5, 6, 7 (4 issues). Mutation, after the fix
+/// (`lowered` ignoring `.none` again): this test's same 4 issues and
+/// `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient` (record §17,
+/// "Closeout").
+@Test @MainActor func hiddenAfterASingleChildLegacyFrameStillHidesTheElement() throws {
+    let rows: [(chain: String, expected: Float, measure: () throws -> Float)] = [
+        ("hidden()", 0, {
+            try widthInRow { Mark("mark", log: $0, width: 20, height: 20).hidden() }
+        }),
+        ("frame(width: 40, height: 40)", 40, {
+            try widthInRow { Mark("mark", log: $0, width: 20, height: 20).frame(width: px(40), height: px(40)) }
+        }),
+        ("frame(width: 40, height: 40).hidden()", 0, {
+            try widthInRow {
+                Mark("mark", log: $0, width: 20, height: 20).frame(width: px(40), height: px(40)).hidden()
+            }
+        }),
+        ("frame(width: 40, height: 40).padding(4).hidden()", 0, {
+            try widthInRow {
+                Mark("mark", log: $0, width: 20, height: 20).frame(width: px(40), height: px(40))
+                    .padding(4).hidden()
+            }
+        }),
+        ("frame(minWidth: 40, maxWidth: 80).hidden()", 0, {
+            try widthInRow {
+                Mark("mark", log: $0, width: 20, height: 20).frame(minWidth: px(40), maxWidth: px(80)).hidden()
+            }
+        }),
+        ("frame(width: 40, height: 40).hidden().padding(4)", 8, {
+            try widthInRow {
+                Mark("mark", log: $0, width: 20, height: 20).frame(width: px(40), height: px(40))
+                    .hidden().padding(4)
+            }
+        }),
+        ("frame(minWidth: 40, maxWidth: 80).hidden().padding(4)", 8, {
+            try widthInRow {
+                Mark("mark", log: $0, width: 20, height: 20).frame(minWidth: px(40), maxWidth: px(80))
+                    .hidden().padding(4)
+            }
+        }),
+    ]
+    let measured = try rows.map { try $0.measure() }
+    try #require(measured.count == 7)
+    try #require(measured[0] != measured[1],
+                 "the hidden control and the visible frame control agree: \(measured[0]), \(measured[1])")
+    for (row, x) in zip(rows, measured) {
+        #expect(x == row.expected, "mark.\(row.chain): the sibling sits at \(x), expected \(row.expected)")
+    }
+}
+
 // MARK: - 2.9 an infinite maximum (ruling FR-O)
 
 /// **An infinite maximum fills only when BOTH axes are infinite** (ruling

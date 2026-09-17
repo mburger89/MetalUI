@@ -685,6 +685,47 @@ private struct PressToRename: Component {
     #expect(hidden.nodes.isEmpty)
 }
 
+/// `display: none` on a one-node legacy FRAME layer hides everything inside it
+/// from an accessibility client (AB-O), outermost (`.frame(…).hidden()`, which
+/// `Element.prepaintGroup` checks) and inner (`.frame(…).hidden().padding(4)`,
+/// which `ModifiedElement.prepaintLayer` checks), for both frame overloads.
+///
+/// **The by-reading claim in record §17's "Branch checker" was right.**
+/// `Frame.suppressingAccessibilityIfHidden` reads the style the layer
+/// REGISTERED, and `CN-N`'s `ModifierLayer.lowered(_:childCount:)` registered
+/// `display: .stack` over `hidden()`'s `.none`. Red at `b442c9e` on all four
+/// arms (8 issues: one emission recorded and one node published per arm); at
+/// `9e439cb` each arm recorded 0 emissions and published 0 nodes (a `git
+/// archive` build, record §17 "Closeout"). The control, the framed box
+/// unhidden, records it; each arm's box still prepaints and emits its declared
+/// node, so the suppression — not a missing element — is what is measured.
+@Test @MainActor func aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient() throws {
+    func target() -> Box<EmptyGroup> {
+        declared(Box().width(px(10)).height(px(10)).onClick {}, AXNode(label: "in"))
+    }
+    let (shownFrame, shown) = collect(Row { target().frame(width: px(40), height: px(40)) })
+    try #require(shownFrame.axEmissions.count == 1, "control: the framed, unhidden box records")
+    #expect(shown.id(labelled: "in") != nil)
+
+    let arms: [(chain: String, frame: Frame, tree: AccessibilityTree)] = [
+        { let (f, t) = collect(Row { target().frame(width: px(40), height: px(40)).hidden() })
+          return ("frame(width:height:).hidden()", f, t) }(),
+        { let (f, t) = collect(Row { target().frame(minWidth: px(40), maxWidth: px(80)).hidden() })
+          return ("frame(minWidth:maxWidth:).hidden()", f, t) }(),
+        { let (f, t) = collect(Row { target().frame(width: px(40), height: px(40)).hidden().padding(px(4)) })
+          return ("frame(width:height:).hidden().padding(4)", f, t) }(),
+        { let (f, t) = collect(Row { target().frame(minWidth: px(40), maxWidth: px(80)).hidden().padding(px(4)) })
+          return ("frame(minWidth:maxWidth:).hidden().padding(4)", f, t) }(),
+    ]
+    for arm in arms {
+        #expect(arm.frame.axNodes.values.contains { $0.label == "in" },
+                "control, \(arm.chain): the box inside the hidden frame still prepaints and emits")
+        #expect(arm.frame.axEmissions.isEmpty,
+                "\(arm.chain): nothing inside a hidden frame layer records, got \(arm.frame.axEmissions.count)")
+        #expect(arm.tree.nodes.isEmpty, "\(arm.chain): published \(arm.tree.nodes.count) nodes")
+    }
+}
+
 /// A `List` publishes a table whose row count is its logical count, even when a
 /// caller declared a label and so left its role `generic` (AB-L, arm R16).
 @Test @MainActor func aLabelledListIsStillATable() throws {
