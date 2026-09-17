@@ -35,23 +35,27 @@ side, and which one runs is decided by the window's **root** element
   `FixedSize`, plus typed modifiers on `ProposalElementGroup`: `.frame` (fixed
   or min/ideal/max), `.padding(Edges)`, `.fixedSize`, `.background`, `.border`,
   `.clip`, `.opacity`, `.allowsHitTesting`, `.onTap`, `.overlay`,
-  `.aspectRatio`, `.layoutPriority`. The algorithms live in `MetalUILayout`
+  `.background(alignment:content:)`, `.aspectRatio`, `.layoutPriority`. Since
+  plan task 6 its stacks, `Spacer`, default spacing, `ZStack`, overlay content,
+  root placement and scroll axes follow SwiftUI's probed algorithms
+  (`docs/probes/swiftui-stack-algorithms.swift`); the legacy containers keep
+  their CSS ones. The algorithms live in `MetalUILayout`
   (`LayoutTree.computeNativeLayout`) as a closed set: `NativeNode` is a private
   enum. A custom element can register a leaf or any built-in node kind through
   the eleven public `LayoutPass.requestNative*` methods, but it cannot add a
   new container algorithm.
 
-Limits of the proposal path, as of 2026-09-14:
+Limits of the proposal path, as of 2026-09-16:
 
 - **Don't mix the two.** Proposal containers require `ProposalElementGroup`
   content, so the built-in legacy elements fail to compile inside them
   (`HStack { Text("x") }` is rejected). That boundary is a protocol whose
   requirement returns a `ProposalNodeID` only `MetalUI` can create, so a type
-  that registers legacy nodes through it does not compile. Seven named holes
-  remain (ruling `MC-G`), such as a legacy node registered as a side effect,
-  which still traps at runtime. The other direction is not guarded: a proposal
-  subtree inside `Column` compiles and nothing traps, but it is unsupported and
-  what it draws is unmeasured.
+  that registers legacy nodes through it does not compile. Six named holes
+  remain (ruling `MC-G`; a seventh, one node registered under two parents, now
+  traps, `CN-L`), such as a legacy node registered as a side effect. The
+  other direction is not guarded: a proposal subtree inside `Column` compiles
+  and nothing traps, but it is unsupported and what it draws is unmeasured.
 - **Conditionals are partial.** `EitherGroup` does not conform to
   `ProposalElementGroup`, so `if … else` inside a proposal container does not
   compile. A bare `if` compiles, but the single-child wrappers (`.frame`,
@@ -60,13 +64,14 @@ Limits of the proposal path, as of 2026-09-14:
   modifier calls the animation helpers, so every change snaps. The one fade is
   `ProposalScrollView`'s scroll indicator, which redraws itself the way
   `ScrollView`'s does.
-- **Its SwiftUI numbers are recorded, not re-runnable.** The 8pt stack
-  spacing, priority split, aspect fit/fill and similar values are
-  written up as probe results in the plan and in test comments, but no probe
-  source is committed.
-- **Missing pieces:** no focus, key handling, AX nodes, `.id()`, baselines or
-  alignment guides. `HStack`/`VStack` read only the cross-axis half of a
-  nine-point `ProposalAlignment`.
+- **Most of its SwiftUI numbers are re-runnable.** The frame, stack, spacer,
+  spacing, alignment and scroll-axis rules have committed probes with controls
+  in `docs/probes/`; a few older values (the 10pt `Rectangle`, a frame's ideal)
+  survive only as prose.
+- **Missing pieces:** no focus, key handling, AX nodes, `.id()`, baselines,
+  alignment guides, two-axis scrolling, a windowed `List` or a portal. Stack
+  alignment is typed as in SwiftUI (`HStack(alignment: .top)`); the old
+  nine-case spacing-first initializers are deprecated.
 
 There is still no iOS support: everything is macOS only.
 
@@ -103,9 +108,9 @@ swift build
 swift test --no-parallel
 ```
 
-On `integrate/tasks-4-5` (2026-09-16, after integrating plan tasks 4 and 5)
-the suite reports **1303 tests**. That total includes **97** layout goldens
-generated from WebKit and **66** `swiftc -typecheck` guards.
+On `feat/containers` (2026-09-16, plan task 6) the suite reports **1355
+tests**. That total includes **97** layout goldens generated from WebKit and
+**70** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them.
@@ -181,7 +186,7 @@ but that case is unsupported and unmeasured:
 ```swift
 @MainActor
 func proposalContent(_ model: Counter) -> some Element {
-    VStack(spacing: Pixels(12), alignment: .leading) {
+    VStack(alignment: .leading, spacing: Pixels(12)) {
         Text("Count \(model.count)").proposalLayout().font(size: 24)
 
         HStack(spacing: Pixels(12)) {
@@ -199,14 +204,15 @@ func proposalContent(_ model: Counter) -> some Element {
 }
 ```
 
-This is not a 200pt card like the legacy sample's. A native window root is
-stored at the full window rect, and its own measurement is discarded
-(`Frame.computeRootLayout`). `.background` and `.border` add no layout node:
-they paint the bounds of the node they wrap. So, reading the source, the
-background and border here would cover the whole window.
+A native window root is measured at the window's size and placed centred at
+its own answer (`Frame.computeRootLayout`, ruling `CN-J`). `.background` and
+`.border` add no layout node: they paint the bounds of the node they wrap. So,
+reading the source, this is a card at its own size in the middle of the
+window, not a full-window fill.
 
-Both samples typecheck in Swift 6 mode against the modules built at `7cfcddc`.
-Neither has been rendered for this README.
+Both samples typecheck in Swift 6 mode, with no warning, against the modules
+built on `feat/containers` (2026-09-16). Neither has been rendered for this
+README.
 
 ## How it is put together
 
@@ -249,13 +255,14 @@ controls (`docs/probes/swiftui-frame-semantics.swift`, `…-negative-sizes.swift
 and `docs/probes/` holds the other re-runnable SwiftUI probes; the earliest
 probes survive only as prose.
 
-Forty-two measured divergences from CSS, SwiftUI or WebKit are tabled in
-[`CLAUDE.md`](CLAUDE.md). Two are unfixed defects (19, one element value placed
-twice shares a `@State` box; 40, `width(percent:)` takes a fraction); the rest
-are deliberate decisions or known limits. Divergence 15 was fixed by task 5.
+Forty-seven measured divergences from CSS, SwiftUI or WebKit are tabled in
+[`CLAUDE.md`](CLAUDE.md). One is an unfixed defect (19, one element value
+placed twice shares a `@State` box); the rest are deliberate decisions or known
+limits. Divergence 15 was fixed by task 5; 36, 37 and 40 were retired by task 6
+(40's `percent:` modifiers are now spelled `fraction:`).
 [`docs/record/04-divergences.md`](docs/record/04-divergences.md) holds the
-original eleven in full and index tables for 20–34 and 35–50; divergence 19 is
-recorded only in `CLAUDE.md`.
+original eleven in full and index tables for 20–34, 35–50 and 51–58; divergence
+19 is recorded only in `CLAUDE.md`.
 
 ## Milestones
 
@@ -294,7 +301,7 @@ transforms, and text colour animation.
   [`13-integration-tasks-3-9-12.md`](docs/record/13-integration-tasks-3-9-12.md)
   for their integration, `14`–`15` for tasks 4 and 5, and
   [`16-integration-tasks-4-5.md`](docs/record/16-integration-tasks-4-5.md) for
-  theirs.
+  theirs, and [`17-containers.md`](docs/record/17-containers.md) for task 6.
 - [`docs/superpowers/`](docs/superpowers/) — a decisions document per
   completed milestone, each ruling with its reasoning and what it costs if wrong.
 - SwiftUI alignment:
@@ -312,6 +319,8 @@ transforms, and text colour animation.
     and [accessibility bridge spec](docs/superpowers/specs/2026-09-15-accessibility-bridge-design.md)
   - [frame and sizing spec](docs/superpowers/specs/2026-09-15-frame-sizing-design.md)
     and [outer modifiers spec](docs/superpowers/specs/2026-09-15-outer-modifiers-design.md)
+  - [containers spec](docs/superpowers/specs/2026-09-16-containers-design.md)
+    (plan task 6, still open: the legacy containers are audited, not replaced)
 - [`docs/practices/verifying-tests-can-fail.md`](docs/practices/verifying-tests-can-fail.md)
   — sixteen numbered shapes of test that cannot fail, every one observed here.
 

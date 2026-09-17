@@ -99,7 +99,9 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
 
   **Carried, not blocking.** These are coverage gaps that verifiers found by
   mutations that stayed green; each is listed in record §09:
-  - the reference stack compares the horizontal path only;
+  - the reference stack compares the horizontal path only — *addressed
+    2026-09-16 by `CN-B` (lane 1 compares a transposed tree; mutation F1 not
+    re-run)*;
   - the `measureDepth` bracket around built-in bodies;
   - `measureNativeLayout`'s flag, active-run and work-record assignments;
   - padding's right-inset term;
@@ -110,10 +112,11 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
     `.frame()` is deprecated in SwiftUI (task 4) — *closed 2026-09-16 by
     `FR-A`/`FR-M` and `FR-J`*;
   - padding places its child at the child's size (task 5) — *2026-09-16: task
-    5 did not take it (`OM-Q`, no kernel change); unowned, reassign*;
+    5 did not take it (`OM-Q`, no kernel change); assigned to task 7 by `CN-Q`*;
   - `Spacer()`'s 8pt default minimum, and a single-child stack passing its
-    child's priority through (task 6);
-  - `aspectRatio` at nil×nil (task 7).
+    child's priority through (task 6) — *closed 2026-09-16 by `CN-C` and
+    `CN-D` (`feat/containers`)*;
+  - `aspectRatio` at nil×nil (task 7) — *closed 2026-09-16 by `CN-G`*.
 
   Not in this task: replacing `Style` resolution and the legacy engine
   (task 7).
@@ -180,7 +183,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `malloc_logger` counter. **Owned by later tasks** (`MC-L`): task 4 —
   `width`/`height`/min/max as layers and legacy `.frame` semantics; task 5 —
   `Component` distribution, B-7, hole 5 and paint-only layers; task 6 — hole 4
-  and the one-node traps; task 7 — unification with `ModifiedContent`, holes
+  and the one-node traps (*delivered 2026-09-16: hole 4 traps at run time,
+  `CN-L`; the overlay side takes zero or several nodes, `CN-K`*); task 7 — unification with `ModifiedContent`, holes
   1–3, 6 and 7, and `_wrap`.
 
 - [ ] **4. Finish frame and sizing semantics.**
@@ -224,7 +228,10 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   lowering function. Also open: a greedy finite maximum, a single-axis infinite
   maximum and an overflowing oversized child on the legacy path (task 6),
   `ideal` on the legacy path (task 7), the `percent:` unit (task 6), the
-  release-window captures (`MC-J`; `FR-V`).
+  release-window captures (`MC-J`; `FR-V`). *2026-09-16, task 6
+  (`feat/containers`, record §17):* the oversized child overflows for a frame
+  over one node (`CN-N`) and `percent:` is renamed `fraction:` (`CN-O`); the
+  greedy finite and single-axis infinite maxima move to task 7 (`CN-Q`).
 
 - [ ] **5. Finish outer modifiers and modifier order.**
   Complete the padding migration, then audit background, overlay, border,
@@ -239,7 +246,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
     `Component` padding wraps each top-level node and accumulates (`OM-D`,
     `OM-E`); one shape on all three columns of spec §3.1.
   - **Audit — done**, spec §3.1, three columns. Legacy `overlay` is audited as
-    "not offered; use `Stack` or `Deferred`" (task 6/7).
+    "not offered; use `Stack` or `Deferred`" (task 6/7; *2026-09-16: task 7,
+    `CN-Q` — a second subtree is the `ModifiedContent` unification*).
   - **Focus drawing and content shape — delivered**: `focusBorder` (the focus
     ring, `OM-L`) and `contentShape(inset:)` (`OM-J`), with `border`,
     `opacity`, `clipped()` and `allowsHitTesting` on the legacy path;
@@ -269,14 +277,71 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   explicit versus platform-default spacing, all nine `Alignment` positions,
   frame alignment, and scroll axes. Preserve the existing centred stack
   defaults only where probes confirm them.
-  *Progress 2026-09-14 (at `7cfcddc`), still open.* No listed legacy container
-  was ported. What was built instead is a parallel set: `HStack`, `VStack`,
-  `ZStack`, `ProposalScrollView`, and a nine-case `ProposalAlignment`. A
-  proposal `Spacer` was also added, but it is new rather than parallel: no
-  legacy `Spacer` existed at `a15ec83` (`git grep -n Spacer a15ec83 -- Sources`
-  finds nothing), and `NativeElements.swift:351` is the only definition, so
-  this task's "Audit … `Spacer`" names a type the legacy path never had.
-  `List` and `Deferred` have no proposal counterpart.
+  *Progress 2026-09-16 on `feat/containers` (`75b5f69..`, from `9e439cb`),
+  still open.* Spec `specs/2026-09-16-containers-design.md`; rulings
+  `CN-A`…`CN-U` in `../2026-09-16-containers-decisions.md`; probes
+  `docs/probes/swiftui-stack-algorithms.swift` (revision 9) and
+  `swiftui-overlay-presentation.swift`; record §17. Five lanes, each red first;
+  lanes 1, 2, 4 and 5 verified `ok`, lane 3 `ok: false` (its re-verification
+  was cut short; the record pass ran the missing mutations itself and found
+  one unpinned clause, mutation F). Suite 1355 (1303 + 52), 97 goldens
+  unmoved, 70 guards.
+  - **Proposal containers — SwiftUI's** (lanes 1–4): stack distribution
+    (least flexible first, lower minimums reserved, sum of answers), `Spacer`
+    (−∞ priority, default minimum 8, 0 on its stack's cross axis), per-edge
+    default spacing, typed stack alignments, `ZStack` placement, the centred
+    root, overlay/background content with `.background(alignment:content:)`,
+    the duplicate-parent trap, the scroll view's cross axis. `SA-N` items for
+    `Spacer()`, `aspectRatio` at nil×nil and single-child priority closed;
+    `FR-B` reversed.
+  - **Legacy path** (lane 5): a legacy frame over one node overflows both axes
+    (`FR-N` closed); `fraction:` sizing with `percent:` deprecated (`FR-T`
+    resolved); `Row`/`Column` gap 0, `Stack` fit-content and `ScrollView`'s
+    cross axis pinned as divergences 52–54.
+
+  **Not ticked, clause by clause.**
+  - *"Audit `Row`, `Column`, `Stack`, `Box`, `Spacer`, `ScrollView`, `List`,
+    and `Deferred` against … overlay/presentation patterns"* — **done** (spec
+    §3's table; probe K6 for `List`, P0–P6/H0–H3 for presentation; `Spacer`
+    has no legacy counterpart).
+  - *"Port stack, overlay and spacer algorithms directly to the new proposal
+    system"* — **done** (`CN-B`…`CN-K`).
+  - *"Cover proposal propagation, explicit versus platform-default spacing, all
+    nine `Alignment` positions, frame alignment, and scroll axes"* — **done
+    except two-axis scrolling** (task 10, `CN-M`); the nine positions are
+    pinned for `ZStack`, `.overlay`, `.background` and both frames, three per
+    axis for the linear stacks.
+  - *"Preserve the existing centred stack defaults only where probes confirm
+    them"* — **done** (A1–A3, A6, A9, K5g/K5h confirm centring).
+  - *"Replace containers with SwiftUI-style algorithms"* (the title) — **not
+    met**: no legacy container is replaced or lowered (`CN-A`), by ruling.
+
+  **Not done, by ruling (`CN-A`, `CN-Q`):** the root switch, lowering the
+  legacy containers, a windowed proposal `List`, a proposal portal for
+  `Deferred`, legacy `.overlay` and the legacy frame's greedy finite and
+  single-axis infinite maxima go to task 7; two-axis scrolling to task 10;
+  text-edge spacing to task 11. **Before merging:** an independent verifier
+  should re-run lane 3's mutations C–K and decide F (probe V1k mirrored, then
+  an arm in test 3.6; record §17).
+
+  **Proposed amendment (`CN-T`), for the user to accept or not:** retitle this
+  task "Port SwiftUI's container algorithms to the proposal path and audit the
+  legacy containers", with the body: *Make `HStack`, `VStack`, `ZStack`,
+  `Spacer`, `.overlay`/`.background` content and `ProposalScrollView` agree
+  with SwiftUI's probed distribution, spacing, alignment, root placement and
+  scroll axes; audit `Row`, `Column`, `Stack`, `Box`, `ScrollView`, `List` and
+  `Deferred` against them, pin each difference, and hand the replacement of the
+  legacy spellings to task 7* — and append "including a windowed proposal
+  `List` and a proposal portal for `Deferred`" to task 7's "Migrate the
+  remaining elements off `FlexEngine`". If accepted, tick this task (lane 3's
+  re-verification first). If not, it stays open until task 7 replaces the
+  legacy containers.
+
+  *Superseded note, 2026-09-14 (at `7cfcddc`):* no listed legacy container was
+  ported; `HStack`, `VStack`, `ZStack`, `ProposalScrollView`, a nine-case
+  `ProposalAlignment` and a new proposal `Spacer` (no legacy `Spacer` existed
+  at `a15ec83`) were built beside them; `List` and `Deferred` had no proposal
+  counterpart. All still true except the alignment, now typed (`CN-I`).
 
 - [ ] **7. Port advanced layout, then remove the legacy engine.**
   Implement the proposal-system equivalents of unspecified, ideal, min/max,
@@ -293,6 +358,13 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   *Corrected 2026-09-14 (task 2, `00a1e22`):* custom layouts now exist on the
   proposal kernel as `ProposalLayout` (`SA-A`…`SA-F`); grids and expansion of
   non-spacer children are still absent.
+  *Corrected 2026-09-16 (task 6, `feat/containers`):* expansion of non-spacer
+  children exists — a greedy frame takes a stack's surplus (`CN-B`, probe
+  G4r/G4f); grids are still absent. Task 6 hands this task the lowering of the
+  legacy containers and the root switch, a windowed proposal `List`, a
+  proposal portal for `Deferred`, legacy `.overlay`, the legacy frame's greedy
+  finite and single-axis infinite maxima, a frame over a multi-member
+  `Component`, `SA-N`'s padding item and divergences 35, 52–56 (`CN-Q`).
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and
@@ -459,6 +531,10 @@ derived from source and not executed.
   - Explicit-zero controls pin both defaults separately
     (`hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt` and its
     vertical twin).
+  - *History as of 2026-09-16 (task 6):* `spacing: nil` is the platform
+    default decided per adjacent pair — 8, none at a spacer's edge (`CN-H`,
+    `docs/probes/swiftui-stack-algorithms.swift` S, SP, K3, V); text edges
+    remain 8 (divergence 51).
 - The proposal path has an explicit `aspectRatio(_:contentMode:)` wrapper with
   deterministic fit/fill proposal and placement tests. A macOS SwiftUI custom
   `Layout` probe observes a 2:1 child offered 100×80 responding 100×50 for
@@ -492,6 +568,12 @@ derived from source and not executed.
   - **Tests.** Coverage is element-level only (`hStack…`/`vStack…` in
     `NativeLayoutIntegrationTests.swift`). `NativeLayoutTests.swift` has no
     priority test.
+  - *History as of 2026-09-16 (task 6):* the mechanism, the no-spacer gate and
+    "non-spacer children never receive surplus" are refuted and replaced by
+    SwiftUI's distribution (`CN-B`: lower minimums reserved, least flexible
+    first, the sum of the answers), pinned in
+    `NativeStackDistributionTests.swift`; the 80/20 and 50/50 figures still
+    hold.
 - A proposal `Spacer(minLength:)` retains that minimum when a stack receives a
   smaller main-axis proposal, matching a macOS SwiftUI probe: the stack reports
   its overflowing minimum rather than compressing the spacer away.
@@ -502,6 +584,8 @@ derived from source and not executed.
     (`LayoutTree.swift:397-401`), pinned as-is by
     `aNativeLinearStackDividesConcreteSurplusBetweenSpacers`. SwiftUI's
     behaviour here is unprobed.
+  - *History as of 2026-09-16 (task 6):* a nil `minLength` is 8 and a spacer
+    answers 0 on its stack's cross axis, both probed (`CN-C`, SP1, SPB1–SPB6).
 - All nine `ProposalAlignment` positions are deterministically covered at the
   native overlay placement boundary; each named case has a distinct expected
   position rather than relying on independent horizontal/vertical factor tests.
@@ -514,6 +598,8 @@ derived from source and not executed.
     (`NativeLayoutTests.swift:364`) pins it. That is the test a main-axis
     alignment change must redden.
   - SwiftUI types these as `VerticalAlignment`/`HorizontalAlignment`.
+  - *History as of 2026-09-16 (task 6):* so do `HStack`/`VStack` now
+    (`CN-I`, guards G1–G3); the nine-case initializer is deprecated.
 - `ProposalScrollView` is the proposal-layout migration path for scrolling:
   it measures content with an unspecified scrolling axis, retains a concrete
   parent viewport proposal, and reuses MetalUI's clipped wheel-routing and
@@ -527,6 +613,9 @@ derived from source and not executed.
   container migration can replace it without mixing layout engines.
   - **Hard-coded stack.** The lowered stack is `spacing: 8`, `.center`,
     regardless of axis (`ProposalScrollView.swift:59-60`).
+    *History as of 2026-09-16 (task 6):* default spacing (`spacing: nil`,
+    SC3, SC5), and the viewport answers its content's size on the
+    non-scrolling axis (`CN-M`).
   - **Hit-testing gate.** `.allowsHitTesting(false)` does not gate a scroll
     region: `registerScrollRegion` bypasses the depth check
     (`Frame.swift:501-503` vs `:655`). The only test is
@@ -664,6 +753,8 @@ derived from source and not executed.
   measurement. A native root is therefore stretched to the window rather than
   sized to its answer, pinned by
   `aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout`.
+  *History as of 2026-09-16 (task 6):* a native root is placed centred at its
+  own answer (`CN-J`, probe R1/R2, `aNativeRootIsCentredAtItsAnswer`).
 - *Added 2026-09-14.* Kernel robustness. The native path has:
   - no recursion-depth guard;
   - no `beginLayout`/`endLayout` re-entrancy check;

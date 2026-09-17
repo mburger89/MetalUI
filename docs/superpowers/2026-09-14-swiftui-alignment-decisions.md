@@ -1422,15 +1422,20 @@ behaviour noticed and not explained. None blocks task 2.
    the test now pins 80.
 2. **`Spacer()` has an 8pt default minimum between two views.** P5 control:
    `HStack(spacing: 0) { 20; Spacer(); 20 }` answers **48**. The kernel's nil
-   `minLength` is 0 (`LayoutTree.swift:234`). Plan task 6.
+   `minLength` is 0 (`LayoutTree.swift:234`). Plan task 6. **Closed
+   2026-09-16 by `CN-C`** (`feat/containers`): a nil `minLength` is
+   `ProposalSpacing.platformDefault`, 8.
 3. **`aspectRatio` at `nil × nil` answers the child's own size.** P8b control:
    `Color.aspectRatio(2, .fit)` offered nil×nil answers **10×10**, and so does
    ratio −2. The kernel's intrinsic branch answers 10×5 for 2 and, by reading,
-   −20×10 for −2. Plan task 7.
+   −20×10 for −2. Plan task 7. **Closed 2026-09-16 by `CN-G`**
+   (`feat/containers`): `.aspectRatio` answers its child's answer to the
+   ratio-shaped proposal.
 4. **Padding places its child at the child's own size.** P2b: the inner rect is
    20×20 at origin + inset. The kernel stores bounds minus insets (record §09
    hazard 4). Plan task 5. *2026-09-16:* task 5 did not take it (`OM-Q`: no
    `Sources/MetalUILayout` behaviour change); unowned, needs reassigning.
+   *2026-09-16:* assigned to plan task 7 by `CN-Q`.
 5. **SwiftUI's memo survives passes** (F/G/H). This is deliberately not adopted
    (`SA-H`). Reopen it only with a `lastNativeLayoutWork` count showing the
    cost.
@@ -1449,7 +1454,9 @@ behaviour noticed and not explained. None blocks task 2.
    single-child custom layout reads 0. MetalUI's single-child stacks read 0.
    Why SwiftUI's do was not investigated. Plan task 6, which owns the stack
    algorithms. Lane 1's `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules`
-   pins MetalUI's 0 wrong on purpose.
+   pins MetalUI's 0 wrong on purpose. **Closed 2026-09-16 by `CN-D`**
+   (`feat/containers`): a single-child `HStack`, `VStack` or `ZStack` passes
+   its child's priority through; a custom layout still reads 0.
 9. **`.frame()` with no argument compiles silently** (third pass, after `SA-K`
    item 6's split), and so does `.frame(alignment:)`. SwiftUI deprecates
    `frame()`: `'frame()' is deprecated: Please pass one or more parameters.`

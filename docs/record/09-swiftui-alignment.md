@@ -1229,7 +1229,9 @@ byte-identical between `db6837e` and `HEAD`):
   of `alignment.horizontalFactor`. The reference tree's vertical root has both
   children 157 wide, no overflow (38 < 91) and no spacer, so **the equivalence
   test compares the horizontal stack path only**; its doc comment and `SA-B`
-  claim cross-axis alignment generally. Open.
+  claim cross-axis alignment generally. Open. *2026-09-16 (plan task 6, record
+  §17):* the test now also compares a transposed, vertical copy of the tree
+  (lane 1, `CN-B`); F1 itself was not re-run against it.
 - **B1:** `measureDepth` raised only around `.custom`'s `sizeThatFits`, not
   around leaf closures or built-in bodies. Lane 2's
   `writingARectDuringNativeMeasurementTraps` later pinned the **leaf** half

@@ -767,3 +767,42 @@ inside a scrolled `ScrollView` gets its own mask. Pins:
 `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` (inverted, name
 kept) and `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`. Never reuse
 the label.
+
+## 2026-09-16: divergences 36, 37 and 40 retired, 51–58 added (plan task 6, containers)
+
+Added to `CLAUDE.md`'s table by the containers Docs phase (record §17). Rulings
+are in `docs/superpowers/2026-09-16-containers-decisions.md`; probe arms in
+`docs/probes/swiftui-stack-algorithms.swift` unless stated.
+
+| # | kind | ruling | pin |
+|---|---|---|---|
+| 51 | vs SwiftUI | `CN-H`, probe S (text edges font-derived) | `aProposalTextStackUsesEightWhereSwiftUIUsesFontSpacing` (task 11) |
+| 52 | vs SwiftUI | `CN-P` 1, probe S | `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight` (task 7) |
+| 53 | vs SwiftUI | `CN-P` 2, A5 | `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal` (task 7) |
+| 54 | vs SwiftUI | `CN-P` 3, SC2 | `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents` (task 7) |
+| 55 | vs SwiftUI | `CN-P` 4, G1 | — (covered by the CSS goldens; task 7) |
+| 56 | vs SwiftUI | `CN-N`, component G7 | `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`, `chainedFramesRemainConcreteAndNestTheirLayoutNodes`, as it stands (task 7) |
+| 57 | vs SwiftUI | `CN-K`, `swiftui-overlay-presentation.swift` H3 | unpinned (task 12) |
+| 58 | design | `CN-E` | `aZStackPlacesItsChildrenAtItsOwnSizeWithinTheirUnion` |
+
+**36 retired** (`CN-N`): a legacy frame over exactly one node lowers to a
+one-cell `display: .stack`, so an oversized child keeps its size and overflows
+both axes as SwiftUI's A5 does. Its pin
+`aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows` was replaced by
+`aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes`. A frame over
+several nodes keeps the flex row (divergence 56).
+
+**37 retired** (`CN-F`, reversing `FR-B`): the kernel's frame with an infinite
+maximum answers ∞ at an infinite proposal, as SwiftUI's D12 does. Its pin
+`aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity` was deleted and
+replaced by `anInfiniteProposalIsAnsweredWithInfinity`.
+
+**40 retired** (`CN-O`, resolving `FR-T`): the sizing modifiers always took a
+fraction; they are now spelled `width(fraction:)`, `height(fraction:)` and
+`flexBasis(fraction:)`, and the `percent:` spellings are deprecated renames
+forwarding unchanged (guard
+`thePercentSizingModifiersAreDeprecatedRenamesOfFraction`). Its pin
+`aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock` is now
+`aFractionSizeResolvesAgainstItsContainingBlock`.
+
+**35's owner** moves from task 6 to task 7 (`CN-Q`). Never reuse 36, 37 or 40.

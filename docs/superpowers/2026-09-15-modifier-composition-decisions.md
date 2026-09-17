@@ -919,6 +919,11 @@ lane 2.
 
 ## MC-G — `SA-R`'s compile-time check is DELIVERED: a typed `ProposalNodeID` with an internal initializer, returned by a new requirement on `ProposalElementGroup`; five lies become compile errors, and seven named holes stay, each pinned or cited
 
+**2026-09-16:** hole 4 (one typed id used twice) is **closed at run time** by
+plan task 6's `CN-L`: every native registrar with children records each
+child's parent and traps on a second (`aNativeNodeRegisteredTwiceTraps`, exit
+tests). The type still does not prevent it.
+
 **Revised at design review (`MC-N` findings 7 and 8).** Two changes:
 
 - **The hole list was incomplete.** Holes 4 (measured), 5 and 6 (measured) are
@@ -1681,17 +1686,17 @@ as covering it.
 | unifying `ModifiedElement` with proposal `ModifiedContent` | two engines until task 7 | task 7 |
 | a public, user-definable modifier protocol; the `_wrap` hole (`MC-A`) | `MC-A` | task 7 or later |
 | `EitherGroup: ProposalElementGroup` (record §09 boundary 4) | not composition of modifiers | tasks 6/8 |
-| one-node wrapper traps on 0 or 2+ nodes (boundary 2) | a typed id fixes the kind, not the count | task 6 |
-| `MC-G` holes 1–4, 6 and 7 | holes 3 and 7: no mechanism within public Swift (7's backstop is C-3's trap); holes 1, 2 and 6 need the legacy root switch gone; hole 4 needs a duplicate-parent check in the kernel | task 7 (hole 4: task 6) |
+| one-node wrapper traps on 0 or 2+ nodes (boundary 2) | a typed id fixes the kind, not the count | task 6 — *2026-09-16: delivered for `.overlay` and `.background(alignment:content:)`'s content side (zero or several nodes, `CN-K`); the builder wrappers' 0/2+ traps go to task 8 (`CN-Q`)* |
+| `MC-G` holes 1–4, 6 and 7 | holes 3 and 7: no mechanism within public Swift (7's backstop is C-3's trap); holes 1, 2 and 6 need the legacy root switch gone; hole 4 needs a duplicate-parent check in the kernel | task 7 (hole 4: task 6 — *closed at run time 2026-09-16, `CN-L`*) |
 | proposal `.id()`, focus, AX | interaction | task 12 |
 | animation on proposal wrappers, and wrappers joining transactions | | task 13 |
 | divergence 19 (one value placed twice) and `@State` inside `AnyElement` | not modifier composition | task 8 |
-| a separate test that two `ProposalScrollView`s in an overlay keep separate `ScrollState` | closed by `MC-E`'s mechanism, not separately pinned | task 6 |
+| a separate test that two `ProposalScrollView`s in an overlay keep separate `ScrollState` | closed by `MC-E`'s mechanism, not separately pinned | task 6 — *delivered 2026-09-16: `twoProposalScrollViewsInOneOverlayKeepSeparateOffsets`* |
 | deprecating `nativeFrame(…)` | breaks the 0-warning baseline (record §09) | integration step |
 | ~~`aProposalContainerReadsTheEnvironmentDuringLayout`~~ — **withdrawn after lane 1's critic round (`MC-Q` finding 5):** the environment track already has it as `proposalContentReadsTheEnvironmentThroughAScopeInEveryPhase` (`feat/environment:Tests/MetalUITests/EnvironmentTests.swift:468`, E11, ruling EV-W), reading layout, prepaint and paint `[7, 7, 7]` under an `HStack` and a `ProposalScrollView` | the typed `EnvironmentScope` entry is written at merge; EV-W's test is its check | integration step |
 | `EnvironmentScope` arms in `everyModifierWrapperDelegatesEachPhaseExactlyOnce` (legacy and proposal) | the wrapper does not exist on this branch | integration step |
 | per-layer mirroring of AB-O's `display: none` accessibility suppression in `ModifiedElement.prepaint`, and its test | the check does not exist on this branch (`MC-B`'s "does NOT cover") | integration step |
-| legacy `.frame` against SwiftUI outside test 10's scope: a nil axis, a frame smaller than its content, under a stretching `Box` (EP-8), in a shrinking row (SZ-L) | legacy `.frame` semantics are task 4's; by reading the legacy frame node stretches or shrinks where a SwiftUI frame stays fixed | task 4 — *2026-09-16:* the shrinking row is `FR-P`'s pin, the smaller frame is divergence 36 (`FR-N`); the nil axis and the stretching `Box` parent stay open (task 6) |
+| legacy `.frame` against SwiftUI outside test 10's scope: a nil axis, a frame smaller than its content, under a stretching `Box` (EP-8), in a shrinking row (SZ-L) | legacy `.frame` semantics are task 4's; by reading the legacy frame node stretches or shrinks where a SwiftUI frame stays fixed | task 4 — *2026-09-16:* the shrinking row is `FR-P`'s pin, the smaller frame is divergence 36 (`FR-N`); the nil axis and the stretching `Box` parent stay open (task 6; *2026-09-16: task 7, `CN-Q`*) |
 | CLAUDE.md / AGENTS.md / plan / record README updates: guard count, "registering points", `FrameModifier` mentions, the candidate divergence (`MC-C`), the holes | owned by the integration step | integration |
 
 **The superseded typed-modifier spec's required proofs**, and where each now

@@ -162,6 +162,11 @@ Every run read `Test run with 1234 tests`:
 
 ## FR-B — an infinite proposal answers the child, where SwiftUI answers infinity
 
+**Reversed 2026-09-16 by `CN-F`** (plan task 6, `feat/containers`): a frame
+with an infinite maximum, a spacer and a scroll viewport's scrolling axis now
+answer ∞ at an infinite proposal, as D12 does; divergence 37 is retired and
+its pin replaced by `anInfiniteProposalIsAnsweredWithInfinity`.
+
 **The finding.** Probe D12: `frame(maxWidth: .infinity)` offered
 `inf × inf` answers **`inf × 20`** and places its 20pt child at `x = inf`. An
 earlier pass of the same harness, which placed the view under test at
@@ -339,7 +344,9 @@ SwiftUI reads 80 (probe D4). Spec test 2.3 pins that arm **wrong on purpose**,
 with SwiftUI's number in its doc comment, beside two arms that agree
 (`minWidth` 40, probe D7; a 200pt child capped to 80, probe D14). Owner of the
 fix: plan task 6, which owns the containers and can hand a layer its parent's
-axis.
+axis. *2026-09-16:* task 6 moved it to **plan task 7** (`CN-Q`: the parent's
+flex axis at registration is a pass-scoped value every legacy container would
+have to set, on a path task 7 deletes).
 
 **Scope, narrowed by the critic round.** This ruling is about a **finite**
 maximum. The infinite case is `FR-O`, which found an axis-safe lowering for the
@@ -760,6 +767,12 @@ and is silently smaller than its contents.
 
 ## FR-N — the legacy frame SQUEEZES an oversized child on the layer's main axis
 
+**Closed 2026-09-16 by `CN-N`** for a frame over exactly one node (plan task 6):
+the layer lowers to a one-cell `display: .stack`, so the child keeps its size
+and overflows both axes; divergence 36 is retired and its pin replaced by
+`aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes`. A frame over
+several nodes keeps the flex row (divergence 56).
+
 **Where it came from.** The critic round's finding 8: the design claimed the
 silent divergence set was empty while its own record §14 carried scratch **L3**
 showing something neither `FR-D` nor `FR-E` covers.
@@ -840,7 +853,8 @@ present, the same lowering in a `Column` pushes the sibling from y = 20 to
   differently on purpose and the reason is not comfort: `idealWidth` has no CSS
   spelling at all and no path to one, so a trap is the terminal answer; a
   single-axis infinite maximum has a known lowering that is blocked only by the
-  layer not knowing its parent's axis, which plan task 6 removes. Trapping the
+  layer not knowing its parent's axis, which plan task 6 removes (*2026-09-16:
+moved to plan task 7 by `CN-Q`*). Trapping the
   commonest SwiftUI idiom would also make every ported view crash on a spelling
   that is about to work.
 
@@ -1148,6 +1162,11 @@ support.
 
 ## FR-T — `width(percent:)` takes a FRACTION, and two of the design's three percentage arms were wrong
 
+**Resolved 2026-09-16 by `CN-O`** (plan task 6): the modifiers are spelled
+`width(fraction:)`, `height(fraction:)` and `flexBasis(fraction:)`; the
+`percent:` spellings are deprecated renames forwarding unchanged. Divergence 40
+is retired.
+
 **Where it came from.** Lane 3, writing spec test 3.1. The design's three arms
 were "in a 300pt `Row`, `.width(percent: 50)` reads 150", "at the root it reads
 the offered width, not half of it", and "in a `Column`, `.width(percent: 100)`
@@ -1355,7 +1374,7 @@ capture whose non-black pixel count is above 0, added to the probe's header.
 | A finite `maxWidth` frame grows | `SA-N` item 1 | `FR-A`, fixed, as amended by `FR-M` |
 | `.frame()` compiles silently | `SA-N` item 9 | `FR-J`, fixed — and finding 11's proposed simplification would have reinstated it |
 | "whether a finite `maxWidth` frame grows" | record §09 §2, open | `FR-A`, answered: it does |
-| a nil axis, a smaller frame, a stretching `Box` parent (EP-8) and a shrinking row (SZ-L), excluded from `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes` | `MC-Q` finding 7 | the shrinking row is `FR-P`'s `minSize` pin (spec test 2.2); the smaller frame is probe A5/B9 and spec tests 2.5 and 2.8 (`FR-N`); **the nil axis and the stretching parent are not covered and stay open** |
+| a nil axis, a smaller frame, a stretching `Box` parent (EP-8) and a shrinking row (SZ-L), excluded from `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes` | `MC-Q` finding 7 | the shrinking row is `FR-P`'s `minSize` pin (spec test 2.2); the smaller frame is probe A5/B9 and spec tests 2.5 and 2.8 (`FR-N`); **the nil axis and the stretching parent are not covered and stay open** (*2026-09-16: owner plan task 7, `CN-Q`*) |
 | "Port `width`/`height`/min/max as layers" | `MC-L` | `FR-F`, `FR-G`, `FR-I`: refused with evidence, owner reassigned to task 7 |
 | `Component` distribution and B-7 | `MC-L` | untouched; plan task 5 |
 

@@ -66,6 +66,13 @@
 // (`diff` empty). They settle CN-H's walk for what is neither a wrapper nor a
 // ZStack with children, which revision 7 read from K3h alone.
 //
+// RE-RECORDED 2026-09-16 (revision 9, the containers Docs phase), same machine
+// and toolchain, exit 0, run twice with byte-identical output. Labels only:
+// V7f's label now names the tree it runs, `VStack{ZStack{sp}.padding(.leading,
+// 4); HStack{sp}}` (test 3.6's), and V7k's garbled label is rewritten to its
+// tree. No view changed; against revision 8's record, `diff` shows exactly
+// those two output lines, figures unchanged (44x20, 52x20).
+//
 // READING (each claim names its arms):
 // - Default spacing is 8 horizontally between every pair measured (S), and 8
 //   vertically between non-text views; vertically a Text edge is font-derived
@@ -956,7 +963,7 @@
 //   V7e HStack{a20; VStack{HStack{sp}; HStack{sp}}; b20} @nilxnil: size 40x20
 //       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
 //       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
-//   V7f HStack{a20; VStack{sp.padding(.leading, 4); HStack{sp}}; b20} (per edge?) @nilxnil: size 44x20
+//   V7f HStack{a20; VStack{ZStack{sp}.padding(.leading, 4); HStack{sp}}; b20} (per edge?) @nilxnil: size 44x20
 //       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
 //       leaf b: proposed [nilxnil, nilx20] at (24, 0) 20x20 calls 2
 //   V7g HStack{a20; ZStack{HStack{sp}}; b20} (a ZStack over a same-axis stack) @nilxnil: size 40x20
@@ -971,7 +978,7 @@
 //   V7j HStack{a20; ZStack{sp; HStack{sp}}; b20} @nilxnil: size 40x20
 //       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
 //       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
-//   V7k HStack{a20; ZStack{sp}.padding(.leading, 4)... ZStack{sp.padding(.leading, 4); sp}; b20} (ZStack per edge?) @nilxnil: size 52x20
+//   V7k HStack{a20; ZStack{sp.padding(.leading, 4); sp}; b20} (ZStack per edge?) @nilxnil: size 52x20
 //       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
 //       leaf b: proposed [nilxnil, nilx20] at (32, 0) 20x20 calls 2
 //   V8c control HStack{a20; ScrollView(.vertical){c 0x0}; b20} @nilxnil: size 56x20
@@ -2014,7 +2021,7 @@ enum Kind: String, CaseIterable { case rect, color, text, leaf, image, hstack, b
     run("V7e HStack{a20; VStack{HStack{sp}; HStack{sp}}; b20}", none) {
         HStack { fixed("a", 20, 20); VStack { HStack { sp() }; HStack { sp() } }; fixed("b", 20, 20) }
     }
-    run("V7f HStack{a20; VStack{sp.padding(.leading, 4); HStack{sp}}; b20} (per edge?)", none) {
+    run("V7f HStack{a20; VStack{ZStack{sp}.padding(.leading, 4); HStack{sp}}; b20} (per edge?)", none) {
         HStack { fixed("a", 20, 20); VStack { ZStack { sp() }.padding(.leading, 4); HStack { sp() } }; fixed("b", 20, 20) }
     }
     run("V7g HStack{a20; ZStack{HStack{sp}}; b20} (a ZStack over a same-axis stack)", none) {
@@ -2029,7 +2036,7 @@ enum Kind: String, CaseIterable { case rect, color, text, leaf, image, hstack, b
     run("V7j HStack{a20; ZStack{sp; HStack{sp}}; b20}", none) {
         HStack { fixed("a", 20, 20); ZStack { sp(); HStack { sp() } }; fixed("b", 20, 20) }
     }
-    run("V7k HStack{a20; ZStack{sp}.padding(.leading, 4)... ZStack{sp.padding(.leading, 4); sp}; b20} (ZStack per edge?)", none) {
+    run("V7k HStack{a20; ZStack{sp.padding(.leading, 4); sp}; b20} (ZStack per edge?)", none) {
         HStack { fixed("a", 20, 20); ZStack { sp().padding(.leading, 4); sp() }; fixed("b", 20, 20) }
     }
     // V8: a ScrollView's edges. Control V8c: a non-spacer content.
