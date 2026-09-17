@@ -73,6 +73,17 @@
 // tree. No view changed; against revision 8's record, `diff` shows exactly
 // those two output lines, figures unchanged (44x20, 52x20).
 //
+// RE-RECORDED 2026-09-16 (revision 10, the containers closeout), same machine
+// and toolchain, exit 0, run twice with byte-identical output (787 lines).
+// Additive only: the V1l and V1m arms after V8; against revision 9's record
+// the 779 output lines before them are byte-identical (`diff` shows only the
+// eight added lines). Before adding them, revision 9 itself was re-run and
+// matched its record exactly. They mirror V1k: the nested stack's LAST child is
+// a spacer padded on one edge, so its leading and trailing edges disagree —
+// the one shape that tells "a same-axis nested stack's trailing edge is its
+// last child's TRAILING edge" from "…its last child's leading edge" (the
+// record pass's unpinned mutation F, record §17). Controls V1c 48, V1j 56.
+//
 // READING (each claim names its arms):
 // - Default spacing is 8 horizontally between every pair measured (S), and 8
 //   vertically between non-text views; vertically a Text edge is font-derived
@@ -106,6 +117,11 @@
 //   * A SAME-axis nested stack's leading edge is its first child's and its
 //     trailing edge its last child's, whatever its own spacing (V1 40, V1b 48
 //     with c at 20, V1c 48 with c at 28, V1e 20x40, V1i 52, V1k 60; V1j 56).
+//     (Revision 10.) The trailing edge is the last child's TRAILING edge, not
+//     its leading one: V1l `{c; sp.padding(.trailing, 4)}` 60 with b at 40
+//     (20+8+0+0+4+8+20; the leading edge would give 52) and V1m
+//     `{c; sp.padding(.leading, 4)}` 60 with b at 40 (20+8+0+8+4+0+20; the
+//     leading edge would give 68).
 //   * A CROSS-axis nested stack or a custom layout: an edge is zero if it is
 //     zero on ANY child (V3 40, V3b 40, V3e 40, V7 40, V7b 40, V7d 40, V7i 40;
 //     per edge: V3f 52 = 20+8+4+0+20; V3g two non-spacers 56).
@@ -995,6 +1011,14 @@
 //   V8 HStack{a20; ScrollView(.horizontal){sp}; b20} @nilxnil: size 56x20
 //       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
 //       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V1l HStack{a20; HStack{c 0x0; sp.padding(.trailing, 4)}; b20} (last child's padded trailing edge) @nilxnil: size 60x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx0, nilx20] at (28, 10) 0x0 calls 3
+//       leaf b: proposed [nilxnil, nilx20] at (40, 0) 20x20 calls 2
+//   V1m HStack{a20; HStack{c 0x0; sp.padding(.leading, 4)}; b20} (last child's padded leading edge) @nilxnil: size 60x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx0, nilx20] at (28, 10) 0x0 calls 3
+//       leaf b: proposed [nilxnil, nilx20] at (40, 0) 20x20 calls 2
 //   DONE
 
 import AppKit
@@ -2047,6 +2071,19 @@ enum Kind: String, CaseIterable { case rect, color, text, leaf, image, hstack, b
         run("V8 HStack{a20; ScrollView(.\(name)){sp}; b20}", none) {
             HStack { fixed("a", 20, 20); ScrollView(axes) { sp() }; fixed("b", 20, 20) }
         }
+    }
+
+    // Revision 10 (containers closeout): V1k mirrored. Is a same-axis nested
+    // stack's TRAILING edge its last child's trailing edge (not its leading
+    // one)? Every probed arm so far had a last child whose two edges agree
+    // (V1b a leaf, V1c a bare spacer), so it could not tell. Each arm's last
+    // child is a padded spacer whose edges DISAGREE. Controls, same run:
+    // V1c (48, a bare spacer last) and V1j (56, no spacer).
+    run("V1l HStack{a20; HStack{c 0x0; sp.padding(.trailing, 4)}; b20} (last child's padded trailing edge)", none) {
+        HStack { fixed("a", 20, 20); HStack { fixed("c", 0, 0); sp().padding(.trailing, 4) }; fixed("b", 20, 20) }
+    }
+    run("V1m HStack{a20; HStack{c 0x0; sp.padding(.leading, 4)}; b20} (last child's padded leading edge)", none) {
+        HStack { fixed("a", 20, 20); HStack { fixed("c", 0, 0); sp().padding(.leading, 4) }; fixed("b", 20, 20) }
     }
 
 }

@@ -104,8 +104,8 @@ CLAUDE.md AGENTS.md` before committing.
 - **Containers (plan task 6, `CN-`; on `feat/containers`, still open by
   `CN-T`)**: `specs/2026-09-16-containers-design.md`,
   `2026-09-16-containers-decisions.md`, record §17; probes
-  `docs/probes/swiftui-stack-algorithms.swift` (revision 9, the V1–V8 spacing
-  arms among them) and `swiftui-overlay-presentation.swift` (compiled form
+  `docs/probes/swiftui-stack-algorithms.swift` (revision 10, the V1–V8 spacing
+  arms and V1l/V1m among them) and `swiftui-overlay-presentation.swift` (compiled form
   only).
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests. Sixteen numbered shapes of test that cannot fail, seven ways a
@@ -876,8 +876,11 @@ or `ProposalLayoutContainer(layout) { … }` (also `MyLayout { … }`).
   maximum, a spacer and a scroll viewport's scrolling axis (`CN-F`, reversing
   `FR-B`); a custom layout placing a child there traps at checkpoint 3.
 - Every rule is pinned against a probe arm in `NativeStackDistributionTests`
-  and `ContainerIntegrationTests`, except a same-axis stack's trailing
-  zero-spacing edge (mutation F leaves the suite green; below).
+  and `ContainerIntegrationTests`. A same-axis stack's trailing zero-spacing
+  edge is its last child's TRAILING edge: probe arms V1l/V1m (revision 10, a
+  last child whose two edges differ) and their arms in
+  `defaultSpacingBesideANestedContainerFollowsItsChildrensEdges`, red under
+  mutation F (record §17, "Closeout").
 
 **One layout authority per root, no adapter** (`SA-G`). Each of these traps:
 - a native node under a legacy node;
@@ -1076,10 +1079,6 @@ a frame's answer is observable as an x
   (`solveLinearStack`; unprobed, unpinned).
 - A custom layout has no spacing preference: it spaces as SwiftUI's default
   `Layout.spacing` does (V3).
-- A same-axis nested stack's trailing zero-spacing edge comes from its last
-  child's trailing edge by symmetry with V1k; no probe arm or test has a last
-  child whose two edges differ, and mutating it leaves the suite green (record
-  §17, mutation F).
 - `.opacity` out of 0…1 traps at **paint**, not at registration (outside
   `SA-J`'s scope).
 - No built-in proposal type or modifier wrapper has `.id()`; only

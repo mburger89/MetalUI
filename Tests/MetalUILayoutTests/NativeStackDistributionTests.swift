@@ -1349,8 +1349,8 @@ private struct Pass: ProposalLayout {
     }
 }
 
-/// CN-H as amended (probe revision 8, the V group; every arm at nil×nil between
-/// `a` and `b` fixed 20×20 in a default-spacing `HStack`, `sp` a
+/// CN-H as amended (probe revisions 8 and 10, the V group; every arm at nil×nil
+/// between `a` and `b` fixed 20×20 in a default-spacing `HStack`, `sp` a
 /// `Spacer(minLength: 0)`, `c`/`d` fixed 0×0). Controls: K3 (48, test 3.2) and
 /// the non-spacer arms V1j, V3c, V3g, V4c (56), which must disagree with the
 /// zero arms (40).
@@ -1364,6 +1364,10 @@ private struct Pass: ProposalLayout {
 ///   28); V1c `HStack{c; sp}` 48 (c at 28, b at 28); V1i `HStack(spacing:
 ///   4){sp; c}` 52 (c at 24, b at 32); V1k `HStack{sp.padding(.leading, 4); c}`
 ///   60 (c at 32, b at 40); V1e vertically `VStack{a; VStack{sp}; b}` 20×40.
+///   The trailing edge is the last child's TRAILING edge (probe revision 10, V1k
+///   mirrored): V1l `HStack{c; sp.padding(.trailing, 4)}` 60 and V1m
+///   `HStack{c; sp.padding(.leading, 4)}` 60, each c at 28 and b at 40 — the only
+///   arms whose last child's two edges disagree.
 /// - A cross-axis stack or a custom layout: an edge is zero when ANY child's
 ///   is. V3b `Pass{sp; c}`, V3e `Pass{c; sp}`, V7 `VStack{ZStack{sp}}`, V7b
 ///   `VStack{ZStack{sp}; c}`, V7c `VStack{HStack{sp}}`, V7d `VStack{c;
@@ -1381,7 +1385,11 @@ private struct Pass: ProposalLayout {
 /// `ZStack` has no zero edge (V4); a nested stack has none (V1…); a spacer's
 /// edges ignore its orientation (V1d, V1h, V3h, V7h read 40); a custom layout
 /// combines with AND (V3b, V3e, V7i); a cross-axis stack combines with AND (V7b,
-/// V7d); a same-axis stack reads its last child's leading edge (V1b, V1c).
+/// V7d); a same-axis stack reads its last child's LEADING edge for its trailing
+/// one (mutation F: V1l and V1m only, 4 issues — V1l 52 with b at 32, V1m 68
+/// with b at 48; record §17, "Closeout"). Before V1l/V1m that mutation reddened
+/// nothing (record §17, lane 3's record pass and the branch checker's M3): V1b's
+/// last child is a leaf and V1c's a bare spacer, whose two edges agree.
 @Test func defaultSpacingBesideANestedContainerFollowsItsChildrensEdges() {
     typealias Middle = (Arm) -> LayoutNodeID
     /// `defaultHStack{a; middle; b}` at nil×nil: the arm and its answer.
@@ -1399,6 +1407,9 @@ private struct Pass: ProposalLayout {
     }
     func leftPadded(_ arm: Arm, _ child: LayoutNodeID) -> LayoutNodeID {
         arm.tree.newNativePadding(child: child, insets: Edges(top: 0, right: 0, bottom: 0, left: 4))
+    }
+    func rightPadded(_ arm: Arm, _ child: LayoutNodeID) -> LayoutNodeID {
+        arm.tree.newNativePadding(child: child, insets: Edges(top: 0, right: 4, bottom: 0, left: 0))
     }
 
     let controls: [(String, Middle)] = [
@@ -1465,6 +1476,18 @@ private struct Pass: ProposalLayout {
         #expect(answer == size(60, 20), "V1k size")
         #expect(arm.x("c") == 32, "V1k c")
         #expect(arm["b"] == rect(40, 0, 20, 20), "V1k b")
+    }
+    do { // V1l (probe revision 10, V1k mirrored): the last child's padded TRAILING edge is default
+        let (arm, answer) = between { arm in arm.defaultHStack("w", [c(arm), rightPadded(arm, sp(arm))]) }
+        #expect(answer == size(60, 20), "V1l size")
+        #expect(arm.x("c") == 28, "V1l c")
+        #expect(arm["b"] == rect(40, 0, 20, 20), "V1l b")
+    }
+    do { // V1m (probe revision 10): the last child's padded LEADING edge does not reach the trailing edge
+        let (arm, answer) = between { arm in arm.defaultHStack("w", [c(arm), leftPadded(arm, sp(arm))]) }
+        #expect(answer == size(60, 20), "V1m size")
+        #expect(arm.x("c") == 28, "V1m c")
+        #expect(arm["b"] == rect(40, 0, 20, 20), "V1m b")
     }
     do { // V3f
         let (arm, answer) = between { arm in pass(arm, [leftPadded(arm, sp(arm)), c(arm)]) }

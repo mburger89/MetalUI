@@ -613,6 +613,17 @@ is next to a spacer. The one unprobed kernel shape left is a custom layout's
 **own** spacing preference: `ProposalLayout` has no `spacing` requirement, so
 every custom layout behaves as SwiftUI's default `Layout.spacing` does (V3).
 
+**Closeout addendum — the same-axis trailing clause is now probed and pinned.**
+The walk's "last child's trailing" was the symmetric reading of V1b/V1c/V1k,
+not a measurement: no arm had a last child whose two edges differ, and the
+record pass's mutation F (read the last child's LEADING edge) reddened nothing
+(record §17; the branch checker's M3). Probe revision 10 adds V1k mirrored:
+V1l `HStack{a; HStack{c 0x0; sp.padding(.trailing, 4)}; b}` 60 and V1m
+`HStack{a; HStack{c 0x0; sp.padding(.leading, 4)}; b}` 60, each b at 40 —
+SwiftUI reads the trailing edge, as ruled. Test 3.6 carries both; under F they
+read 52 (b 32) and 68 (b 48), 4 issues, nothing else red (record §17,
+"Closeout"). No change to the walk.
+
 ---
 
 ## CN-I — typed stack alignments, in SwiftUI's argument order
