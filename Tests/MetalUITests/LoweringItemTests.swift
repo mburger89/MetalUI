@@ -1364,16 +1364,24 @@ let demoParagraph = """
 /// container free space: `Row { Row { 20×10; 20×10 }.justifyContent(j).flexGrow(1);
 /// 40×10 }.width(300)` with `.spaceBetween` reports exactly
 /// `box.justifyContent.spaceBetween` at the inner row's site; controls `.flexEnd`
-/// (b at x 240) and `.center` (a at 110, b at 130) agree.
+/// (b at x 240) and `.center` (a at 110, b at 130) agree. A **minimum** leaves free
+/// space too: `Row { Row { 20×10; 20×10 }.justifyContent(.spaceBetween).minWidth(200);
+/// 40×10 }.width(300)` reports the same entry (legacy distributes inside the 200, b
+/// at 180; W's floor would place it at 20 — lane 2's extension of `LR-AR`, record §19).
 ///
-/// Mutation that must redden it: **M2m** the grow half of the re-check removed (the
-/// report reads empty).
+/// Mutations that must redden it: **M2m** the grow half of the re-check removed (the
+/// report reads empty); **M2m′** the re-check limited to a greedy W (the minimum arm
+/// reads empty).
 @MainActor
 @Test func aGrownUnsizedSpaceDistributionContainerIsReported() throws {
     func tree(_ justify: JustifyContent) -> some ElementGroup {
         Row { Row { fixed(20, 10); fixed(20, 10) }.justifyContent(justify).flexGrow(1); fixed(40, 10) }.width(px(300))
     }
     #expect(report { tree(.spaceBetween) } == [field(.box, "justifyContent.spaceBetween")])
+    #expect(report {
+        Row { Row { fixed(20, 10); fixed(20, 10) }.justifyContent(.spaceBetween).minWidth(px(200)); fixed(40, 10) }
+            .width(px(300))
+    } == [field(.box, "justifyContent.spaceBetween")], "a minimum")
     let inner = child(containerID, 0)
     for (justify, a) in [(JustifyContent.flexEnd, Float(220)), (.center, 110)] {
         let r = LayoutDifferential.compare(width: 400, height: 100) { tree(justify) }
