@@ -391,3 +391,118 @@ minus W's lines `diff`s empty against revision 1's 61-line block.
 21:16:37 PDT: `ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` → `<true/>`. No
 capture attempted. The design round's skip at 20:36 (`<false/>`) is recorded as an
 override of the orchestrator's trigger (`LR-M`).
+
+## Lane 1 — authority, every site's own check, bounds log, harness
+
+Commits: `4ceb3e0` (tests, red: does not compile), `68200dc` (implementation),
+then the verifier round: `ea7ac56` (tests; 1.9 arm d red), `a155251` (harness
+fix), and this record.
+
+### Red first
+
+- `4ceb3e0`: a `git archive` of the commit fails to build, 72 error lines, all
+  naming the missing lane-1 API (`UnlowerableField`, `lowersToProposal`,
+  `LayoutAuthority`, `elementBounds`, `StateTable.ids`, the new `Frame` init
+  arguments). `68200dc`'s only test edits are a `@MainActor` closure annotation
+  and a doc comment. Measured by the lane-1 verifier.
+- `ea7ac56`: `swift test --build-system native --no-parallel --filter
+  LayoutAuthorityTests` → 11 tests, one issue:
+  `theDifferentialHarnessComparesPaintHitboxesAccessibilityAndState` at arm (d),
+  `Expectation failed: d.scenesEqual == false`. The harness compared
+  `Frame.scene`'s emission bytes only; two leaves whose emitted rects are
+  byte-identical, the first on a raised layer under the proposal authority,
+  read equal. `1.5b` (`aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop`) and
+  1.5's amend arm moved into a child process both pin existing code and passed
+  on arrival; their mutations are below.
+
+### Suite
+
+- `68200dc`, after `swift package clean` and a native build (verifier): 0
+  `error:`, the only `warning:` SwiftPM's `--build-system native` deprecation
+  notice; `Test run with 1368 tests in 1 suite passed after 41.914 seconds`
+  (1357 + 11). Goldens 97; no `*.json` changed since `c2290fc`. The new guard
+  prints `LAYOUT-AUTHORITY GUARD G1 choose: succeeded=false` and `control:
+  succeeded=true`, so it ran.
+- `a155251` (22:0x PDT, no stored property on a public type changed, so no
+  clean): build 0 `error:`; `Test run with 1369 tests in 1 suite passed after
+  41.643 seconds` (1368 + `1.5b`). Goldens 97; `git diff --stat c2290fc --
+  '*.json'` empty.
+
+### Mutations
+
+Each: committed tree, file copied, mutant applied, full unfiltered suite,
+restored from the copy, `git status --short` empty afterwards. M1b–M1l, G1 and
+the unnamed rows were run by the lane-1 verifier on `68200dc`; M1d′ (second
+run), the skip-removed variant (second run), M1m, M1n and M1n′ on `a155251`.
+
+| mutation | reddened |
+|---|---|
+| M1b `Window` builds its `Frame` without `layoutAuthority:` | `aWindowBuildsEveryFrameUnderItsLayoutAuthority` |
+| `Window.layoutAuthority`'s `didSet` no longer dirties | `aWindowBuildsEveryFrameUnderItsLayoutAuthority` |
+| M1c `LayoutPass.requestNode`'s `customElement` check removed | `aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` |
+| M1c′ the same in `LayoutPass.requestLeaf` | the same two |
+| M1d `List`'s `noteUnlowerable(list.noLowering)` removed | `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` |
+| M1d′ the amend's authority check removed (`setStyle` always runs) — **at `68200dc`** | `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority`, then **the suite truncated with no summary line**: `LayoutTree.swift:603: Precondition failed: setStyle on a native layout node` inside 1.5's in-process amend arm (practices shape 13). Spec §6 had claimed 1.4 only |
+| M1d′ — **at `a155251`**, 1.5's amend arm in a child process | `Test run with 1369 tests … failed … with 4 issues`: `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` (the child exits on `SA-G`'s precondition) |
+| the amend records its entry but still calls `setStyle` — at `68200dc` | **suite truncated, no summary line** (same precondition, same test) |
+| the same — at `a155251` | `… failed … with 2 issues`: `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` |
+| `StyledComponent`'s wrap check forced false | `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` |
+| M1e `ScrollView` registers a native leaf without recording | `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` |
+| M1e′ variant: `List` builds its real window under diagnostics (row `Box`es appear) | `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` |
+| `Box`'s, `Stack`'s, `Text`'s, the inner-layer and the outermost `ModifiedElement` registrars' own checks, each forced false separately (five runs) | `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` each |
+| M1f per-inner-layer `recordElementBounds` removed from `prepaintLayer` | `theElementBoundsLogRecordsTheRootEveryGroupMemberAndEveryInnerModifierLayer` |
+| M1g the root's `recordElementBounds` removed from `Frame.render` | `theDifferentialHarnessSeesAOnePointDisagreementAtExactlyThatElement`, `theDifferentialRootPlacesItsContentTopLeadingAtItsSizeUnderBothAuthorities`, `theElementBoundsLogIsEmptyUnlessRequested`, `theElementBoundsLogRecordsTheRootEveryGroupMemberAndEveryInnerModifierLayer` |
+| `Element.prepaintGroup`'s `recordElementBounds` removed | the same four |
+| M1h `recordElementBounds` ignores `recordsElementBounds` | `theElementBoundsLogIsEmptyUnlessRequested` |
+| `Frame.init`'s `reportsUnlowerableFields` defaults to `true` | `aFrameAndAWindowDefaultToTheLegacyAuthority`, `aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority`, `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority` |
+| M1i `compare` renders the legacy authority twice | `theDifferentialHarnessComparesPaintHitboxesAccessibilityAndState`, `theDifferentialHarnessSeesAOnePointDisagreementAtExactlyThatElement` |
+| M1j `hitboxesEqual` returns `true` | `theDifferentialHarnessComparesPaintHitboxesAccessibilityAndState` |
+| `scenesEqual` returns `true` | the same |
+| `accessibilityEqual` returns `true` | the same |
+| M1l `stateSlotsEqual` returns `true` | the same |
+| M1k `DifferentialRoot`'s proposal-side overlay aligned `.center` | `theDifferentialHarnessSeesAOnePointDisagreementAtExactlyThatElement`, `theDifferentialRootPlacesItsContentTopLeadingAtItsSizeUnderBothAuthorities` |
+| `noteUnlowerable` never traps | `aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority`, `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority` |
+| M1n `Frame.requestNode`'s backstop guard removed — **at `68200dc`** | **nothing**: `Test run with 1368 tests in 1 suite passed`. Not equivalent: a site that forgets its own check would register a real legacy node under the proposal authority. The gap `1.5b` closes |
+| M1n — at `a155251` | `… failed … with 3 issues`: `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` (child exits 0; no backstop message; the diagnostics arm's node is not native) |
+| M1n′ `Frame.requestLeaf`'s backstop guard removed — at `a155251` | `… failed … with 3 issues`: `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` |
+| M1m the scene comparison reads emission bytes only (the finalized rects, glyphs and `drawList` clauses deleted) — at `a155251` | `… failed … with 1 issue`: `theDifferentialHarnessComparesPaintHitboxesAccessibilityAndState` (arm d) |
+| G1 `LayoutAuthority` and `Window.layoutAuthority` made `public` | `aPlainImportCannotChooseTheLayoutAuthority` |
+
+Not separately pinned: the `drawList` clause of `scenesEqual` (no harness arm
+emits glyphs, so no arm differs in the rect/glyph interleave alone). 1.1's
+defaults claim no mutation (spec §6).
+
+### Pixels
+
+`CN-R`'s harness (`DEMO_PIXELS_SMALL=1`), re-taken by the lane-1 verifier from
+`git archive`s of `c2290fc` and `68200dc`, twelve images each: **12 of 12 read 0
+differing pixels, scene identical.** Controls on `c2290fc`: `default-light-f0`
+vs `default-dark-f0` 1 048 576; vs `modal-light` 1 030 498; vs
+`animation-light` 210 027; `preview-light` vs `preview-dark` 1 048 576 —
+record §16/§17's figures. `git diff --stat 68200dc a155251 -- Sources` is empty
+(the verifier round touched `Tests/` and docs only), so that measurement is
+the one for this lane's final tree; it was not re-run.
+
+### Probe
+
+`/usr/bin/swift docs/probes/swiftui-engine-replacement-stage1.swift` → exit 0,
+79 lines, matching the header's output block line for line (verifier).
+
+### Screen lock
+
+`ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` → `<true/>` at both of the
+verifier's checks and at 22:22:01 PDT on this round. No real-window capture
+was attempted.
+
+### Verifier round dispositions
+
+1. **major** — lane 1 not closed out: this section; the unreverted M1b the
+   verifier found in the worktree was reverted by the verifier.
+2. **minor** — the amend mutations truncate the run: recorded above, and 1.5's
+   amend arm now runs in a child process, so both variants redden 1.5 by name.
+3. **minor** — the backstop is unpinned: `1.5b`
+   `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` (two exit children, one
+   in-process diagnostics loop); M1n and M1n′ redden it.
+4. **minor** — `scenesEqual` ignored paint order and layer: it now also compares
+   `finalizedScene()`'s rects, glyphs and `drawList`; `LR-D`, the harness doc and
+   spec §6 say so; arm 1.9d was red first.
