@@ -1387,8 +1387,33 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 /// - GX12 `[a clamp 20…120, b width 0…60 h30] x width-flexible h10 (non-row)` at
 ///   300×200: x proposed 300; slots 176 and 116.
 ///
+/// The target rule has three steps, and GX8–GX12 reach only two of them at a
+/// finite proposal: a spanned column still holding an unprocessed single (GX9)
+/// and, failing that, every spanned column (GX8). The MIDDLE step — the spanned
+/// columns holding no single-column cell anywhere in the grid — had an arm only
+/// at nil×nil (GX11, in `aSpanShortfallAtNilGoesFirstToSpannedColumnsWithNoSingleColumnCell`),
+/// where the other solve runs, so deleting it from `NativeGridSolver.finishGroup`
+/// left the whole 1450-test suite green (lane-2 re-verification, ruling
+/// `GR-AG`). S1 and S2 are the discriminators, probed now in
+/// `docs/probes/swiftui-grid-span-targets.swift` against GX8 and GX11 as
+/// positive controls; the probe reads the same rects at nil×nil, so the two
+/// branches agree.
+///
+/// - S1 `[a 20x20] [x 60x20 span 2]` at 200×200: column 1 is spanned only, so
+///   the whole 40pt shortfall goes there and **a stays at x = 0**; over both
+///   columns it would be 20/20 and a would centre in a 40-wide column 0, at 10.
+/// - S2 `[a 20x20, b 30x20] [d 10x20, x 90x20 span 2]` at 300×200: column 2 is
+///   spanned only, so it takes the whole 60pt shortfall and **b stays at
+///   x = 28**; over both it would be 30/30 and b would centre at 43.
+///
+/// Neither grid has a cell pair meeting at its last column boundary, so that
+/// gap is 0 and not the 8pt default (`GR-D`); SwiftUI's 60×48 and 118×48 are
+/// what the probe reads.
+///
 /// Mutations: (a) propose a span the sum of its columns' shares plus inner gaps
-/// (GX10's x moves); (b) drop step 12 (GX9's b 231, a's column 61).
+/// (GX10's x moves); (b) drop step 12 (GX9's b 231, a's column 61); (c) drop the
+/// middle target step, `targets = columns.filter { plan.columnSingleCells[$0].isEmpty }`
+/// (S1's a at 10, S2's b at 43, and nothing else in the suite).
 @Test func aSpanAtAFiniteProposalIsOfferedTheWidthOutsideItAndWidensItsOpenColumnsFirst() {
     do { // GX8
         let arm = Arm()
@@ -1414,6 +1439,20 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
         let root = arm.grid([row(arm.cb("a", 20, 120), arm.cw("b", 0, 60, 30)), .full(arm.fw("x", 10))])
         #expect(arm.run(root, 300, 200) == size(300, 114), "GX12 size")
         expectRects(arm, "GX12", ["a": r(28, 0, 120, 96), "b": r(212, 33, 60, 30), "x": r(0, 104, 300, 10)])
+    }
+    do { // S1 — the middle target step at a finite proposal (probe swiftui-grid-span-targets.swift)
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 20, 20)), row(arm.span(arm.fx("x", 60, 20), 2))])
+        #expect(arm.run(root, 200, 200) == size(60, 48), "S1 size")
+        expectRects(arm, "S1", ["a": r(0, 0, 20, 20), "x": r(0, 28, 60, 20)])
+    }
+    do { // S2 — the same step where the span's other column's singles are merely processed
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 20, 20), arm.fx("b", 30, 20)),
+                             row(arm.fx("d", 10, 20), arm.span(arm.fx("x", 90, 20), 2))])
+        #expect(arm.run(root, 300, 200) == size(118, 48), "S2 size")
+        expectRects(arm, "S2", ["a": r(0, 0, 20, 20), "b": r(28, 0, 30, 20),
+                                "d": r(5, 28, 10, 20), "x": r(28, 28, 90, 20)])
     }
 }
 
