@@ -101,8 +101,7 @@ CLAUDE.md AGENTS.md` before committing.
     `…-component-distribution.swift`;
   - the integration (merges, eight cross-track tests and their mutations,
     probe arms S0–S3, the demo stand-in): record §16.
-- **Containers (plan task 6, `CN-`; on `feat/containers`, still open by
-  `CN-T`)**: `specs/2026-09-16-containers-design.md`,
+- **Containers (plan task 6, `CN-`; done, text amended by `CN-T`)**: `specs/2026-09-16-containers-design.md`,
   `2026-09-16-containers-decisions.md`, record §17; probes
   `docs/probes/swiftui-stack-algorithms.swift` (revision 10, the V1–V8 spacing
   arms and V1l/V1m among them) and `swiftui-overlay-presentation.swift` (compiled form

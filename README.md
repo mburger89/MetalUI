@@ -320,7 +320,7 @@ transforms, and text colour animation.
   - [frame and sizing spec](docs/superpowers/specs/2026-09-15-frame-sizing-design.md)
     and [outer modifiers spec](docs/superpowers/specs/2026-09-15-outer-modifiers-design.md)
   - [containers spec](docs/superpowers/specs/2026-09-16-containers-design.md)
-    (plan task 6, still open: the legacy containers are audited, not replaced)
+    (plan task 6, done: the legacy containers are audited; replacing them is task 7)
 - [`docs/practices/verifying-tests-can-fail.md`](docs/practices/verifying-tests-can-fail.md)
   — sixteen numbered shapes of test that cannot fail, every one observed here.
 

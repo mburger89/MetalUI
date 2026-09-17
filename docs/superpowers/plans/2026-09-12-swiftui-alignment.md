@@ -269,16 +269,24 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   (`swiftui-border-clip-paint` C3, D1) have no test; the focus ring's look;
   the release-window captures.
 
-- [ ] **6. Replace containers with SwiftUI-style algorithms.**
-  Audit `Row`, `Column`, `Stack`, `Box`, `Spacer`, `ScrollView`, `List`, and
+- [x] **6. Port SwiftUI's container algorithms to the proposal path and audit the legacy containers.**
+  Make `HStack`, `VStack`, `ZStack`, `Spacer`, `.overlay`/`.background`
+  content and `ProposalScrollView` agree with SwiftUI's probed distribution,
+  spacing, alignment, root placement and scroll axes; audit `Row`, `Column`,
+  `Stack`, `Box`, `ScrollView`, `List` and `Deferred` against them, pin each
+  difference, and hand the replacement of the legacy spellings to task 7.
+  *Amended and ticked 2026-09-16 by the user's acceptance of `CN-T`.* The
+  original text read: "Replace containers with SwiftUI-style algorithms. Audit
+  `Row`, `Column`, `Stack`, `Box`, `Spacer`, `ScrollView`, `List`, and
   `Deferred` against `HStack`, `VStack`, `ZStack`, `Spacer`, `ScrollView`,
   `List`, and overlay/presentation patterns. Port stack, overlay and spacer
   algorithms directly to the new proposal system. Cover proposal propagation,
   explicit versus platform-default spacing, all nine `Alignment` positions,
   frame alignment, and scroll axes. Preserve the existing centred stack
-  defaults only where probes confirm them.
-  *Progress 2026-09-16 on `feat/containers` (`75b5f69..`, from `9e439cb`),
-  still open.* Spec `specs/2026-09-16-containers-design.md`; rulings
+  defaults only where probes confirm them." Replacing the legacy containers
+  moved to task 7 with it. Merged to `feat/review-fixes` at `ba1ebba`.
+  *Progress 2026-09-16 on `feat/containers` (`75b5f69..`, from `9e439cb`);
+  written while the task was open under its original text.* Spec `specs/2026-09-16-containers-design.md`; rulings
   `CN-A`…`CN-U` in `../2026-09-16-containers-decisions.md`; probes
   `docs/probes/swiftui-stack-algorithms.swift` (revision 10) and
   `swiftui-overlay-presentation.swift`; record §17. Five lanes, each red first;
@@ -361,7 +369,9 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
 - [ ] **7. Port advanced layout, then remove the legacy engine.**
   Implement the proposal-system equivalents of unspecified, ideal, min/max,
   fixed-size, layout priority, compression, expansion, grids and custom
-  layouts. Migrate the remaining elements off `FlexEngine`, delete the CSS
+  layouts. Migrate the remaining elements off `FlexEngine` (including a windowed
+  proposal `List` and a proposal portal for `Deferred`; added 2026-09-16 by
+  `CN-T`), delete the CSS
   layout paths and dead `Style` fields, and replace browser-fixture goldens with
   SwiftUI probes or deterministic native layout tests. No production layout
   request may pass through the legacy engine after this task.

@@ -1198,6 +1198,10 @@ containers", is delivered for no legacy container.
 3. If the text is not amended, task 6 stays open until task 7 replaces the
    legacy containers, and says so in its progress note.
 
+**Resolved 2026-09-16: the user accepted the amendment.** Task 6 carries the
+amended text and is ticked; task 7's migration clause names the windowed
+proposal `List` and the proposal portal for `Deferred`.
+
 **What it costs if wrong.** A reader of the plan believes the containers are
 replaced when they are not (if ticked), or task 7 cannot close (if `List` stays
 with task 10). Both are prose, and the progress note states the facts either
