@@ -85,7 +85,10 @@ struct DifferentialRoot<Content: ElementGroup>: Element {
 /// - `proposalWidthOffset`: added to the width under the proposal authority only;
 /// - `clickable`: an `onClick` and an accessibility label, registered in `prepaint`;
 /// - `mintsProbeStateUnder`: a `$probe` state entry minted only under that authority;
-/// - `onLayout`: called with `pass.lowersToProposal` during layout.
+/// - `onLayout`: called with `pass.lowersToProposal` during layout;
+/// - `paintsOnRaisedLayerUnder`: its fill is emitted inside `Frame.pushLayer()`
+///   only under that authority, so the emitted rect bytes are identical and only
+///   the finalized paint order (layer sorts first) differs.
 ///
 /// It paints a fill over its bounds, so its rect reaches the scene.
 @MainActor
@@ -96,6 +99,7 @@ struct ProbeLeaf: Element {
     var clickable = false
     var mintsProbeStateUnder: LayoutAuthority? = nil
     var onLayout: (@MainActor (Bool) -> Void)? = nil
+    var paintsOnRaisedLayerUnder: LayoutAuthority? = nil
 
     mutating func requestLayout(_ id: GlobalElementID,
                                 pass: inout LayoutPass) -> (LayoutNodeID, Void) {
@@ -124,7 +128,10 @@ struct ProbeLeaf: Element {
 
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                         layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {
+        let raised = paintsOnRaisedLayerUnder == pass.frame.layoutAuthority
+        if raised { pass.frame.pushLayer() }
         pass.fill(bounds, color: Hsla(h: 0.6, s: 0.5, l: 0.5))
+        if raised { pass.frame.popLayer() }
     }
 }
 

@@ -50,6 +50,26 @@ private struct CustomLeafElement: Element {
                         prepaint: inout Void, pass: inout PaintPass) {}
 }
 
+/// A site that forgot its own check: it calls `Frame`'s internal legacy
+/// registrar directly, so under the proposal authority only `Frame`'s backstop
+/// stands between it and a legacy node (ruling LR-C). `leaf` picks
+/// `requestLeaf` over `requestNode`; `registered` receives the node it got back.
+private struct BackstopBypassElement: Element {
+    var leaf = false
+    var registered: (@MainActor (LayoutNodeID) -> Void)? = nil
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        let node = leaf
+            ? pass.frame.requestLeaf(style: Style()) { _, _ in SizeD(width: 10, height: 10) }
+            : pass.frame.requestNode(style: Style(), children: [])
+        registered?(node)
+        return (node, ())
+    }
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                           pass: inout PrepaintPass) {}
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                        prepaint: inout Void, pass: inout PaintPass) {}
+}
+
 /// A `Component` over proposal content, so its members register native nodes
 /// under either authority and a caller's `.width`/`.padding` reaches
 /// `StyledComponent`'s amend/wrap with nothing legacy inside it.
@@ -188,10 +208,16 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// entry; lanes 2–4 replace `box`, `stack`, `text` and `modifierLayer` with
 /// field-level entries (spec §6).
 ///
+/// **The `Component` amend arm runs in a child process** and prints its entries:
+/// in-process, a regression in the amend's check reaches `SA-G`'s `setStyle`
+/// precondition and ends the whole run with no summary line (lane-1 verifier,
+/// mutation M1d′); in a child it reddens this test by name.
+///
 /// Mutations that must redden it: **M1e**, `ScrollView`'s record dropped;
-/// **M1e′**, `List`'s check moved after its `Box` is built (row boxes appear).
+/// **M1e′**, `List`'s check moved after its `Box` is built (row boxes appear);
+/// **M1d′**, the amend's check removed (the child exits on `SA-G`'s precondition).
 @MainActor
-@Test func everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn() throws {
+@Test func everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn() async throws {
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
     let box = field(.box, "noLowering")
     let layer = field(.modifierLayer, "noLowering")
@@ -211,17 +237,76 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     arms.append(("List", diagnostics {
         List(probeItems(3), rowHeight: px(10)) { _ in ProbeLeaf(width: 10, height: 10) }
     }, [field(.list, "noLowering"), box, box]))
-    arms.append(("Component amend", diagnostics { ProposalProbeComponent().width(px(70)) },
-                 [field(.component, "amend")]))
+    let amendChild = await #expect(processExitsWith: .success,
+                                   observing: [\.standardOutputContent, \.standardErrorContent]) {
+        await MainActor.run {
+            let entries = LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                ProposalProbeComponent().width(Pixels(70))
+            }.unlowerableFields
+            FileHandle.standardOutput.write(Data("AMEND-ENTRIES \(entries)\n".utf8))
+        }
+    }
+    let amendOut = String(decoding: amendChild?.standardOutputContent ?? [], as: UTF8.self)
+    let amendErr = String(decoding: amendChild?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(amendOut.contains("AMEND-ENTRIES [component.amend]\n"),
+            "Component amend: stdout \(amendOut)\nstderr \(amendErr)")
     arms.append(("Component wrap", diagnostics { ProposalProbeComponent().padding(px(4)) },
                  [field(.component, "wrap")]))
     arms.append(("custom requestNode", diagnostics { CustomNodeElement() },
                  [field(.customElement, "requestNode")]))
     arms.append(("custom requestLeaf", diagnostics { CustomLeafElement() },
                  [field(.customElement, "requestLeaf")]))
-    try #require(arms.count == 11)
+    try #require(arms.count == 10)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
+    }
+}
+
+/// **1.5b** (exit test for the production half). `Frame`'s internal legacy
+/// registrars are a backstop under the proposal authority (ruling LR-C): a site
+/// that bypasses its own check and calls `Frame.requestNode`/`requestLeaf`
+/// directly traps with the site-less backstop message in production; under
+/// diagnostics it gets a native 0×0 leaf and records **nothing**, so
+/// `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` sees the missing entry.
+///
+/// Mutation that must redden it: **M1n**, the backstop guard removed from
+/// `Frame.requestNode` (the legacy node is registered; no trap, and the
+/// diagnostics arm's node is not native) — lane-1 verifier finding: that mutation
+/// left the suite green.
+@Test func aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop() async throws {
+    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var root = BackstopBypassElement()
+            Frame(contentSize: Size(width: Pixels(50), height: Pixels(50)), scaleFactor: 1,
+                  layoutAuthority: .proposal).render(&root)
+        }
+    }
+    let nodeErr = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(nodeErr.contains("Frame.requestNode reached under the proposal layout authority"),
+            "aborted, but not at the requestNode backstop:\n\(nodeErr)")
+
+    let leaf = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var root = BackstopBypassElement(leaf: true)
+            Frame(contentSize: Size(width: Pixels(50), height: Pixels(50)), scaleFactor: 1,
+                  layoutAuthority: .proposal).render(&root)
+        }
+    }
+    let leafErr = String(decoding: leaf?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(leafErr.contains("Frame.requestLeaf reached under the proposal layout authority"),
+            "aborted, but not at the requestLeaf backstop:\n\(leafErr)")
+
+    try await MainActor.run {
+        for leaf in [false, true] {
+            var got: [LayoutNodeID] = []
+            var root = BackstopBypassElement(leaf: leaf, registered: { got.append($0) })
+            let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(50)), scaleFactor: 1,
+                              layoutAuthority: .proposal, reportsUnlowerableFields: true)
+            frame.render(&root)
+            try #require(got.count == 1)
+            #expect(frame.tree.isNativeLayoutNode(got[0]), "leaf: \(leaf)")
+            #expect(frame.unlowerableFields.isEmpty, "leaf: \(leaf): \(frame.unlowerableFields)")
+        }
     }
 }
 
@@ -314,10 +399,15 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 ///   the state slots do not;
 /// - (b) the same leaf unoffset, minting a `$probe` state entry only under the
 ///   proposal authority: only the state slots differ;
-/// - (c) unoffset, no extra entry: all four agree.
+/// - (c) unoffset, no extra entry: all four agree;
+/// - (d) two unoffset leaves, the first painted on a raised layer under the
+///   proposal authority only: the emitted rect bytes are identical, and only the
+///   finalized scene (the order the GPU receives) differs, so only the scenes
+///   differ (verifier finding, lane 1: the comparison read emission bytes only).
 ///
 /// Mutations that must redden it: **M1j**, the hitbox comparison returns `true`
-/// (arm a); **M1l**, `stateSlotsEqual` returns `true` (arm b).
+/// (arm a); **M1l**, `stateSlotsEqual` returns `true` (arm b); **M1m**, the scene
+/// comparison reads emission bytes only (arm d).
 @MainActor
 @Test func theDifferentialHarnessComparesPaintHitboxesAccessibilityAndState() throws {
     let a = LayoutDifferential.compare(width: 100, height: 60) {
@@ -344,6 +434,16 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     #expect(c.accessibilityEqual == true)
     #expect(c.stateSlotsEqual == true)
     #expect(c.disagreeing.isEmpty)
+
+    let d = LayoutDifferential.compare(width: 100, height: 60) {
+        ProbeLeaf(width: 20, height: 10, paintsOnRaisedLayerUnder: .proposal)
+        ProbeLeaf(width: 30, height: 5)
+    }
+    #expect(d.scenesEqual == false)
+    #expect(d.hitboxesEqual == true)
+    #expect(d.accessibilityEqual == true)
+    #expect(d.stateSlotsEqual == true)
+    #expect(d.disagreeing.isEmpty)
 }
 
 /// **1.10.** `DifferentialRoot` sits at (0, 0) at its declared size and places
