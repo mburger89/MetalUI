@@ -43,7 +43,8 @@
 // differs from GE23 (in the top row); GE8 equals GE9 (no priority), which is
 // the finding, and GE27 (the same HStack with no grid: 0/92) shows the priority
 // acting; GE11 (50/50) likewise against GE28 (92 and the Spacer at its 8pt
-// minimum); GE13 and GE15 (no stack) are the controls
+// minimum); GE30 (the VStack's own Spacer, gap 8) differs from GE29 (0); GE13
+// and GE15 (no stack) are the controls
 // GE12 and GE14 equal; GG12 (outer row unaligned) differs from GG10 and GG11;
 // GN6 is the long Text alone; GX21 (100_000 columns) differs from GX22
 // (1 << 40); `model-arms` checks every transcribed arm's SwiftUI answer against
@@ -100,9 +101,10 @@
 //   -inf priority with 0, so no generated Spacer was bare. GZ3 moved 479 -> 469.
 // - Model step 12: at a non-nil proposal a span's shortfall goes first to the
 //   spanned columns that still hold an unprocessed single-column cell (GX9).
-//   GZ5 476 -> 482, GZ6 374 -> 376, GZ7 222 -> 231, GZ8 659 -> 662 (with the
-//   bare Spacers); GZ0, GZ1, GZ2, GZ4 unchanged.
-// - Arms GE1-GE28 (a Grid in a stack), GN1-GN10 (Text and text-like cells),
+//   Measured with the bare Spacers, without then with step 12: GZ5 476 -> 482,
+//   GZ6 374 -> 376, GZ8 657 -> 662; GZ1-GZ4 equal. GZ7 was measured only with
+//   both changes (222 -> 231); GZ0, GZ1, GZ2, GZ4 are unchanged from revision 4.
+// - Arms GE1-GE30 (a Grid in a stack), GN1-GN10 (Text and text-like cells),
 //   GG10-GG16 (nested rows, row-level cell attributes), GQ9-GQ10 (a Spacer's
 //   priority), fuzz GZ9-GZ12, printed
 //   after GZ8; modes `model-arms`, `classify-spans`, `huge-columns`; a
@@ -272,7 +274,10 @@
 //    priority through, a one-cell grid of a priority-1 cell [GE8 = GE9; no
 //    grid, GE27: 0/92] or of a Spacer [GE11: 50/50; no grid, GE28: 92/8]
 //    included. An enclosing stack does not change
-//    a Spacer cell's gaps inside the grid [GE12 = GE13, GE14 = GE15]. The model
+//    a Spacer cell's gaps inside the grid [GE12 = GE13, GE14 = GE15], and a
+//    stack does not mark a Spacer inside a grid: through a VStack across an
+//    HStack the grid's Spacer still gives a zero leading edge [GE29: a and s
+//    touch], where a VStack's own Spacer does not [control GE30: 8]. The model
 //    in a stack agrees with Grid in a stack [GE17-GE22, GZ11, GZ12].
 // 13. Text cells (revision 5). A form at 200 x nil answers 196x64: the label
 //    column is its widest label (50), the value column 138 = 200 - 50 - 8 - 4
@@ -687,6 +692,8 @@
 //   GE26 HStack{a 30x10; Grid{[b 20x20, e 20x20] [Spacer (bg s)]}; c 10x10}: a Spacer starting a short last row @nilxnil: size 96x28 | a (0,9 30x10) <- nilx28 | b (30,0 20x20) <- nilx28 | e (58,0 20x20) <- nilx28 | c (86,9 10x10) <- nilx28 | s (30,20 20x8) <- 20x8
 //   GE27 positive control for GE8: HStack{a flexible; c flexible priority 1} at 100x100, no grid @100x100: size 100x100 | a (0,0 0x100) <- 0x100 | c (8,0 92x100) <- 92x100
 //   GE28 positive control for GE11: HStack{a flexible; Spacer (bg s)} at 100x100, no grid @100x100: size 100x100 | a (0,0 92x100) <- 92x100 | s (92,50 8x0) <- 8x0
+//   GE29 HStack{a 30x10; VStack{Grid{[Spacer (bg s), b 20x20]}}; c 10x10}: a grid's Spacer seen through a VStack across the HStack @nilxnil: size 76x20 | a (0,5 30x10) <- nilx20 | b (38,0 20x20) <- nilx20 | c (66,5 10x10) <- nilx20 | s (30,0 8x20) <- 8x20
+//   GE30 control for GE29: HStack{a 30x10; VStack{Spacer (bg s); b 20x20}; c 10x10} (no grid; the VStack marks its Spacer) @nilxnil: size 76x28 | a (0,9 30x10) <- nilx28 | b (38,8 20x20) <- 20x20 | c (66,9 10x10) <- nilx28 | s (48,0 0x8) <- 0x8
 //   === GN (revision 5): Text cells — a form of labels and wrapping values (Texts read through background leaves)
 //   GN1 form [Name, Ada Lovelace] [Address, long] at nil @nilxnil: size 363x32 | t4 (58,16 305x16) <- 305x16 | t3 (0,16 50x16) <- 50x16 | t2 (170,0 81x16) <- 81x16 | t1 (7,0 36x16) <- 36x16
 //   GN2 the form at 200 x nil @200xnil: size 196x64 | t4 (58,16 138x48) <- 138x48 | t3 (0,32 50x16) <- 50x16 | t2 (86.50,0 81x16) <- 81x16 | t1 (7,0 36x16) <- 36x16
@@ -1863,6 +1870,8 @@ enum StackKind { case h, v }
     arm("GE26 HStack{a 30x10; Grid{[b 20x20, e 20x20] [Spacer (bg s)]}; c 10x10}: a Spacer starting a short last row", none) { HStack { fx("a",30,10); Grid { GridRow { fx("b",20,20); fx("e",20,20) }; GridRow { Spacer().background(fl("s")) } }; fx("c",10,10) } }
     arm("GE27 positive control for GE8: HStack{a flexible; c flexible priority 1} at 100x100, no grid", p(100,100)) { HStack { fl("a"); fl("c").layoutPriority(1) } }
     arm("GE28 positive control for GE11: HStack{a flexible; Spacer (bg s)} at 100x100, no grid", p(100,100)) { HStack { fl("a"); Spacer().background(fl("s")) } }
+    arm("GE29 HStack{a 30x10; VStack{Grid{[Spacer (bg s), b 20x20]}}; c 10x10}: a grid's Spacer seen through a VStack across the HStack", none) { HStack { fx("a",30,10); VStack { Grid { GridRow { Spacer().background(fl("s")); fx("b",20,20) } } }; fx("c",10,10) } }
+    arm("GE30 control for GE29: HStack{a 30x10; VStack{Spacer (bg s); b 20x20}; c 10x10} (no grid; the VStack marks its Spacer)", none) { HStack { fx("a",30,10); VStack { Spacer().background(fl("s")); fx("b",20,20) }; fx("c",10,10) } }
 }
 
 @MainActor func armsN() {
