@@ -732,3 +732,42 @@ stage-1 B1/B3, from their recorded runs. Not re-run.
 
 `ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` → `<true/>` at 23:41 and 23:59
 PDT. No real-window capture was attempted.
+
+### Verifier round 1
+
+The verifier (suite 1386 at `3489561`, 12 of 12 images 0 differing pixels) found
+two sub-clauses green under mutation, each proven non-equivalent by a scratch
+run: **V1** the container branch laying out `declared` (size frame, padding and
+`declared.gap`) — container animation snaps under the proposal authority (a row
+animating width 40→120 read 120 on the start and half-way frames, legacy 80);
+**V2** `legacyLeafDiagnostics(…) + fields`, which reorders `LR-Y`'s report so
+production traps on an every-node field. It also found §5.4's report-order
+paragraph splitting the containers table (moved below the table's last row).
+
+Tests added in `6b8fda1` (committed before any mutation, no source change):
+3.8 `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap` — a row `Box` over
+two 10×10 children, width 40→120, padding 0→8, gap 0→20 under
+`.linear(duration: 1)`: the transaction's start frame reads 40×10 with b at x 10,
+half-way reads 80×18 with a at (4, 4) and b at (24, 4), under both authorities
+(literals derived before the run); 3.9
+`aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst`
+— `Box { a; b }` with `rowReverse`, `flexWrap`, `margin(3)`, `flexGrow(1)`
+reports `[reverse, flexWrap, margin, flexGrow]`, and an exit test with
+diagnostics off traps naming `box.reverse has no proposal lowering` and not
+`box.margin`. Both pin current behaviour and passed on arrival (filtered: `Test
+run with 2 tests in 0 suites passed`), so each was reddened by its mutation.
+Each mutation as above (copy aside, native build, full unfiltered suite with
+`--skip-build`, restored, `git status --short` empty):
+
+| mutation | reddened |
+|---|---|
+| V1 the container branch passes `declared` to `paddedAndSized` and reads `declared.gap` | `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap` (2: the start and half-way frames) — `Test run with 1388 tests in 1 suite failed … with 2 issues` |
+| V2 `return legacyLeafDiagnostics(declared, site: site) + fields` | `aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst` (3: the report, the trap's `box.reverse`, its absent `box.margin`) |
+| V2b the `flexWrap` check moved above `reverse` | `aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst` (2: the report, the trap's `box.reverse`) |
+
+Suite on the restored `6b8fda1` sources, rebuilt (no stored property changed, so
+no clean), 00:16 PDT: `Test run with 1388 tests in 1 suite passed after 41.850
+seconds` (1386 + 2); 0 `error:`, one `warning:` (SwiftPM's `--build-system
+native` notice). Goldens 97, `git diff --stat c2290fc -- '*.json'` empty. No
+guard added. `Sources/` is unchanged since `35c588e`, so the pixel comparison
+above stands; the probe was not re-run (no new SwiftUI claim).
