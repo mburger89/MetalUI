@@ -403,7 +403,9 @@ private func nestedPaddedBoxes(_ n: Int) -> Box<AnyElement> {
 }
 
 /// **5.8** (`LR-Q`). A chain of **29** such `Box`es — 87 native levels, the
-/// deepest `NativeLayoutRun.maxDepth` (88) allows — laid out as a **production**
+/// deepest multiple of this chain's three levels per `Box` under
+/// `NativeLayoutRun.maxDepth` (88, which itself is allowed; with 5.9 this
+/// brackets the limit between 87 and 90 rather than pinning 88) — laid out as a **production**
 /// frame's root (no harness root, whose overlay and frame would add two levels)
 /// under the proposal authority. **An exit test whose child expects success**, so
 /// a mutation that makes it trap reddens this test by name instead of ending the
