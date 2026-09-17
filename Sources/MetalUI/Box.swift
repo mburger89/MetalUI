@@ -58,9 +58,9 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
     /// Carried from `requestLayout` to the later phases.
     ///
     /// `node` is stored rather than re-derived because there is nothing to
-    /// re-derive it from: the registrar (`Frame.requestNode`, or a 0×0 native leaf
-    /// under the proposal authority, ruling LR-C) mints ids and hands them out
-    /// once. `content` is the children's own threaded state.
+    /// re-derive it from: the registrar (`Frame.requestNode`, or the lowering's
+    /// outermost kernel node under the proposal authority, ruling LR-A) mints ids
+    /// and hands them out once. `content` is the children's own threaded state.
     public struct Layout {
         public var node: LayoutNodeID
         var content: Content.GroupLayout
@@ -84,13 +84,16 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // later in this same frame, so this is what makes `cornerRadius`
         // animation (and any other decoration field this helper animates)
         // reach the screen rather than only the layout node.
+        let declared = style
         (style, decoration) = animated(style, decoration, for: id, pass: &pass)
-        // The site's own authority check (plan task 7, ruling LR-C): under the
-        // proposal authority a `Box` has no lowering yet, so it traps by name, or
-        // reports and registers a 0×0 native leaf under diagnostics. Lanes 2–3
-        // replace this with the lowering.
+        // The site's own authority check (plan task 7, ruling LR-C). Under the
+        // proposal authority the (animated) style is lowered onto kernel nodes;
+        // the checks read the declared one. A childless `Box` lowers since lane 2
+        // (`LegacyLowering.swift`); a `Box` with children still traps by name as
+        // `box.noLowering`, or reports it and registers a 0×0 native leaf under
+        // diagnostics, until lane 3.
         let node = pass.lowersToProposal
-            ? pass.frame.unlowerable(UnlowerableField(site: .box, field: "noLowering"))
+            ? pass.lowerLegacyNode(style, declared: declared, children: children, site: .box)
             : pass.frame.requestNode(style: style, children: children)
         return (node, Layout(node: node, content: contentLayout))
     }

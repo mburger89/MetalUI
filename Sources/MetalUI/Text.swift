@@ -187,6 +187,12 @@ public struct Text: Element, StyledElement {
 
     public struct Layout {
         public var node: LayoutNodeID
+        /// The node whose **measured width** the glyphs wrap at. Under the legacy
+        /// authority it is `node`. Under the proposal authority (plan task 7, ruling
+        /// LR-F) it is the native text leaf, and `node` is the fixed frame a
+        /// declared `size` wraps it in — the frame's width is the box, the leaf's
+        /// is what the text was typeset at.
+        var measuredNode: LayoutNodeID
     }
 
     public mutating func requestLayout(_ id: GlobalElementID,
@@ -233,11 +239,30 @@ public struct Text: Element, StyledElement {
         // first thing to rewrite — the cache would have to become an actor, or
         // the shaped size would have to be computed before the closure is
         // built.
-        // The site's own authority check (plan task 7, ruling LR-C); lane 2
-        // replaces it with a native leaf measured by `proposalTextMeasurement`.
+        // The site's own authority check (plan task 7, ruling LR-C). Under the
+        // proposal authority a `Text` lowers (ruling LR-F, `LegacyLowering.swift`)
+        // to a native leaf measured by `proposalTextMeasurement` — unchanged, the
+        // same function `ProposalText` uses, so it hugs its widest line at a
+        // proposed width — inside a fixed `.topLeading` frame when a size is
+        // declared. The leaf's closure makes the same `assumeIsolated` assumption
+        // as the legacy one below, for the same reason: `computeNativeLayout` runs
+        // synchronously on the caller's thread, inside `Frame.computeRootLayout`.
         if pass.lowersToProposal {
-            let node = pass.frame.unlowerable(UnlowerableField(site: .text, field: "noLowering"))
-            return (node, Layout(node: node))
+            let lowered = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
+                pass.frame.requestNativeLeaf { proposal in
+                    MainActor.assumeIsolated {
+                        guard let font = cache.font(for: key) else {
+                            preconditionFailure("""
+                                No font registered for \(key) on the shaping cache a lowered \
+                                Text's measure function captured (see the legacy closure below).
+                                """)
+                        }
+                        return proposalTextMeasurement(string, font: font, cache: cache,
+                                                       proposal: proposal)
+                    }
+                }
+            }
+            return (lowered.node, Layout(node: lowered.node, measuredNode: lowered.content))
         }
         let node = pass.frame.requestLeaf(style: style) { known, available in
             MainActor.assumeIsolated {
@@ -291,7 +316,7 @@ public struct Text: Element, StyledElement {
                                    known: known, available: available)
             }
         }
-        return (node, Layout(node: node))
+        return (node, Layout(node: node, measuredNode: node))
     }
 
     /// Registers a click target when — and only when — `onClick(_:)` was
@@ -432,7 +457,13 @@ public struct Text: Element, StyledElement {
         // is not the paint-side epsilon this repo measured and rejected — an
         // epsilon is a blind additive fudge and could not be bounded, this is
         // the width the box was measured at.
-        let width = max(pass.measuredWidth(of: layout.node), smallestWrapWidth)
+        //
+        // Read from `layout.measuredNode`, which is `layout.node` under the legacy
+        // authority; under the proposal authority it is the native text leaf
+        // inside a declared size's frame (ruling LR-F), so a lowered
+        // `Text(…).width(100)` wraps at the width its text was measured at, not
+        // at the frame's.
+        let width = max(pass.measuredWidth(of: layout.measuredNode), smallestWrapWidth)
         let shaped = pass.shapingCache.shaped(string, font: font, wrappingAt: width)
         let color = pass.theme[foregroundColor ?? .textPrimary]
 
