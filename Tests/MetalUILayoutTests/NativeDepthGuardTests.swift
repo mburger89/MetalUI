@@ -130,3 +130,53 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
         while !t.isFinished { usleep(1000) }
     }
 }
+
+// MARK: - Grids (lane 1 of `docs/superpowers/specs/2026-09-17-grids-design.md`)
+//
+// A grid is ONE native level (spec §4.5): its solver runs in functions called
+// from `measureNative` and `placeNative`, and each cell is entered once. The
+// depth literals are literals on purpose (ruling GR-M, critic finding 2), not
+// `NativeLayoutRun.maxDepth` arithmetic: a leaf under 88 nested one-cell grids
+// is 89 levels and traps; under 87 it is 88 levels and lays out. Both lay out
+// at a nil proposal, the only grid branch lane 1 has (the finite branch is lane
+// 2's), on a 4 MB thread as above. The one-cell-grid debug ceiling is in
+// `NativeLayoutRun.maxDepth`'s table.
+
+/// Mutation: `NativeLayoutRun.maxDepth` 89 (the child exits `.success`).
+@Test func aChainOf88GridsTraps() async {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        let t = Thread {
+            let tree = LayoutTree(generation: 0)
+            var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            for _ in 0..<88 {
+                node = tree.newNativeGrid(children: [node])
+            }
+            tree.computeNativeLayout(root: node, proposal: ProposedSize(width: nil, height: nil),
+                                     in: LayoutRect(x: 0, y: 0, width: 10, height: 10))
+        }
+        t.stackSize = 4 * 1024 * 1024
+        t.start()
+        while !t.isFinished { usleep(1000) }
+    }
+    #expect(stderrText(result).contains("native layout recursion exceeded"),
+            "aborted, but not at the native depth guard:\n\(stderrText(result))")
+}
+
+/// Mutation: `NativeLayoutRun.maxDepth` 87 (the child traps).
+@Test func aChainOf87GridsDoesNotTrap() async {
+    await #expect(processExitsWith: .success) {
+        let t = Thread {
+            let tree = LayoutTree(generation: 0)
+            var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            for _ in 0..<87 {
+                node = tree.newNativeGrid(children: [node])
+            }
+            let size = tree.computeNativeLayout(root: node, proposal: ProposedSize(width: nil, height: nil),
+                                                in: LayoutRect(x: 0, y: 0, width: 10, height: 10)).size
+            precondition(size == SizeD(width: 10, height: 10), "answered \(size)")
+        }
+        t.stackSize = 4 * 1024 * 1024
+        t.start()
+        while !t.isFinished { usleep(1000) }
+    }
+}
