@@ -466,11 +466,11 @@ counter chrome's legacy rects.
 | `justifyContent` `.spaceBetween`/`.spaceAround`/`.spaceEvenly` | lowerable only with no declared main-axis size (no free space exists) | else reported `justifyContent.spaceBetween`/`.spaceAround`/`.spaceEvenly` (stage 2) |
 | `display: .stack` (`Stack`) | native overlay; alignment from `alignItems` × `justifyItems` (nine) — lane 4; on a `Box` container before lane 4, reported `noLowering` alone (`LR-Y`) | either `.stretch` → reported |
 | `flexWrap` ≠ `.noWrap`, `alignContent` ≠ nil | — | reported `flexWrap`, `alignContent` (deleted concept, stage 9/10) |
+| `aspectRatio`, `overflow`; `justifyItems` on a flex node | ignored — the legacy engine ignores them too (inert table) | — |
 
 A container's report is `display.none` alone if hidden; else the container rows
 in this table's order, then the **every node** rows (`LR-Y`); production traps
 on the first.
-| `aspectRatio`, `overflow`; `justifyItems` on a flex node | ignored — the legacy engine ignores them too (inert table) | — |
 
 **Leaves** (a childless `Box`, a `Text`; critic round 1 finding 6). The legacy
 engine lays out no children for a leaf, so every **container** field is

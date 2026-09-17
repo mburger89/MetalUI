@@ -502,3 +502,97 @@ private func mixedTree() -> some ElementGroup {
     #expect(legacyErr.contains("legacy layout node given a native child"),
             "aborted, but not at SA-G's newNode check:\n\(legacyErr)")
 }
+
+// MARK: - 3.8, 3.9 — verifier round (animation, report order)
+
+/// **3.8.** A lowered container lays out its **animated** style, not its declared
+/// one (lane 2's 2.3c pinned this for a leaf; the container branch has its own
+/// call). A row `Box` (`alignItems` `.flexStart`) over two 10×10 children animates
+/// width 40 → 120, padding 0 → 8 and main-axis gap 0 → 20 under
+/// `withAnimation(.linear(duration: 1))`. Derived by hand, under both authorities:
+///
+/// - the frame that starts the transaction: container (0, 0) 40×10, a (0, 0),
+///   b (10, 0);
+/// - half-way (t = 0.5): width 80, padding 4, gap 10 — container (0, 0) 80×18,
+///   a (4, 4), b (4 + 10 + 10, 4) = (24, 4).
+///
+/// Mutation that must redden it: **V1**, the container branch lays out `declared`
+/// (size frame, padding and `declared.gap`): the lowered container reads 120 wide
+/// and b at x 36 on both frames.
+@MainActor
+@Test func aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap() throws {
+    func containerStyle(width: Float, padding: Float, gap: Float) -> Style {
+        var s = Style()
+        s.flexDirection = .row
+        s.alignItems = .flexStart
+        s.size = Size(width: .length(.pixels(px(width))), height: .auto)
+        s.padding = Edges(all: .pixels(px(padding)))
+        s.gap = Axes(horizontal: .pixels(px(gap)), vertical: .pixels(px(0)))
+        return s
+    }
+    let a = child(containerID, 0), b = child(containerID, 1)
+    var arms = 0
+    for authority in [LayoutAuthority.legacy, .proposal] {
+        let table = StateTable()
+        func rects(_ s: Style, timestamp: Double, animating: Bool) -> [Bounds<Pixels>?] {
+            let box = Box(style: s) { fixed(10, 10); fixed(10, 10) }
+            var root = DifferentialRoot(width: 200, height: 100) { box }
+            let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                              stateTable: table, timestamp: timestamp,
+                              transaction: animating ? .linear(duration: 1) : nil,
+                              layoutAuthority: authority,
+                              reportsUnlowerableFields: authority == .proposal,
+                              recordsElementBounds: true)
+            frame.render(&root)
+            #expect(frame.unlowerableFields.isEmpty, "\(authority): \(frame.unlowerableFields)")
+            return [containerID, a, b].map { frame.elementBounds[$0] }
+        }
+        let start = containerStyle(width: 40, padding: 0, gap: 0)
+        let end = containerStyle(width: 120, padding: 8, gap: 20)
+        #expect(rects(start, timestamp: 0, animating: false)
+                == [bounds(0, 0, 40, 10), bounds(0, 0, 10, 10), bounds(10, 0, 10, 10)], "\(authority) baseline")
+        #expect(rects(end, timestamp: 0, animating: true)
+                == [bounds(0, 0, 40, 10), bounds(0, 0, 10, 10), bounds(10, 0, 10, 10)],
+                "\(authority) transaction start")
+        #expect(rects(end, timestamp: 0.5, animating: false)
+                == [bounds(0, 0, 80, 18), bounds(4, 4, 10, 10), bounds(24, 4, 10, 10)], "\(authority) half-way")
+        arms += 1
+    }
+    try #require(arms == 2)
+}
+
+/// A container declaring two container rows (`reverse`, `flexWrap`) and two every
+/// node rows (`margin`, `flexGrow`).
+@MainActor
+private func fourFieldContainer() -> some ElementGroup {
+    Box { fixed(20, 10); fixed(30, 10) }
+        .flexDirection(.rowReverse).alignItems(.flexStart).flexWrap(.wrap).margin(px(3)).flexGrow(1)
+}
+
+/// **3.9.** `LR-Y`'s report order: a container's rows in §5.4's table order, then
+/// the every-node rows in theirs — `[reverse, flexWrap, margin, flexGrow]` — and in
+/// production (diagnostics off) the trap names the **first**, `box.reverse`.
+///
+/// Mutation that must redden it: **V2**, `legacyLeafDiagnostics(…) + fields` (the
+/// report reads `[margin, flexGrow, reverse, flexWrap]` and the trap names
+/// `box.margin`).
+@MainActor
+@Test func aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst() async throws {
+    let entries = LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+        fourFieldContainer()
+    }.unlowerableFields
+    #expect(entries == [field(.box, "reverse"), field(.box, "flexWrap"),
+                        field(.box, "margin"), field(.box, "flexGrow")], "\(entries)")
+
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var root = DifferentialRoot(width: 100, height: 100) { fourFieldContainer() }
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
+                  layoutAuthority: .proposal).render(&root)
+        }
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("box.reverse has no proposal lowering"),
+            "aborted, but not at the first unlowerable field:\n\(stderr)")
+    #expect(!stderr.contains("box.margin"), "the trap must name the first field:\n\(stderr)")
+}
