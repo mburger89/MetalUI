@@ -889,3 +889,53 @@ real-window capture was attempted.
   Docs phase.
 - `EmptyGroup` is a `ProposalElementGroup`, so `EmptyGroup().frame(…)` is the
   proposal frame and traps on zero nodes (`SA-R`'s single-child precondition).
+
+### Verifier round 1
+
+The verifier (suite 1397 at `1b89197` after a clean, 12 of 12 images 0 differing
+pixels, frame probe re-run) found three sub-clauses green under mutation, each
+proven non-equivalent by a scratch witness: **V4** the `Stack` branch of
+`lowerLegacyNode` passing `declared` to `paddedAndSized` (an animated stack width
+snaps under the proposal authority); **V2** a frame layer's `minWidth` read from
+`FrameSpec` instead of the animated `style.minSize` (4.7 pins only the fixed
+width); **V6** the 0×0 stand-in leaf under a frame over no node answering 10×10
+(4.4's arm is fixed on both axes, where the leaf cannot show).
+
+Tests added in `cb3dc10` (committed before any mutation, no source change; literals
+derived by hand before the run, filtered run `Test run with 3 tests in 0 suites
+passed` on arrival, so each was reddened by its mutation):
+
+- 4.10 `aLoweredStackLaysOutItsAnimatedWidthAndPadding` — a `.topLeading` `Stack`
+  over a 10×10 box, height 20, animating width 40→120 and `Style.padding` 0→8
+  under `.linear(duration: 1)`: before and at the transaction's start 40×20 with the
+  box at (0, 0); half-way 80×20 with the box at (4, 4) (padding inside the declared
+  size, `LR-E`), under both authorities;
+- 4.11 `aFrameLayerLowersItsMinimaAndFiniteMaximaFromItsAnimatedStyle` — per axis
+  and per bound, each 40→80: `.frame(minWidth:)` over 10×10 (40×10, 40×10, 60×10),
+  `.frame(minHeight:)` over 10×10, `.frame(maxWidth:)` over a 100×10 box and
+  `.frame(maxHeight:)` over a 10×100 box (larger than the maximum, so the legacy
+  clamp and the lowered greedy maximum agree), under both authorities;
+- 4.12 `aFrameOverNoNodeFixedOnOneAxisOrMinOnlyIsZeroOnTheOther` —
+  `NoNodes().frame(width: 40)` and `NoNodes().frame(minWidth: 40)`, each with a
+  background: 40×0 on both sides, full agreement (scenes, hitboxes, accessibility,
+  state slots). This is `LR-Z`'s "fixed or min-only" row made observable.
+
+Each mutation: sources copied aside, the edit, native build, full unfiltered suite,
+restored from the copy, `git status --short` empty:
+
+| mutation | reddened |
+|---|---|
+| V4 `paddedAndSized(overlay, declared, alignment:)` in the `Stack` branch | `aLoweredStackLaysOutItsAnimatedWidthAndPadding` (2: proposal transaction start and half-way) — `Test run with 1400 tests in 1 suite failed … with 2 issues` |
+| V2 `minWidth: spec.minWidth.map { Double($0.value) }` | `aFrameLayerLowersItsMinimaAndFiniteMaximaFromItsAnimatedStyle` (1: `minWidth .proposal`) |
+| V2h the same for `minHeight` | 4.11 (1: `minHeight .proposal`) |
+| V2x the same for `maxWidth` | 4.11 (1: `maxWidth .proposal`) |
+| V2y the same for `maxHeight` | 4.11 (1: `maxHeight .proposal`) |
+| V6 the stand-in leaf answers 10×10 | `aFrameOverNoNodeFixedOnOneAxisOrMinOnlyIsZeroOnTheOther` (6: disagreement, scenes and the lowered rect, in each of its two arms) |
+
+Suite on the restored sources at `cb3dc10`, rebuilt (tests only, no stored property
+changed, so no clean), 01:12 PDT: `Test run with 1400 tests in 1 suite passed after
+42.170 seconds` (1397 + 3); 0 `error:`, one `warning:` (SwiftPM's `--build-system
+native` notice). Goldens 97, `git diff --name-only c2290fc` lists no `.json`. No
+guard added. `Sources/` is unchanged since `4446336`, so the pixel comparison above
+stands, and no new SwiftUI claim was made, so no probe was re-run.
+`IOConsoleLocked` read `<true/>` at 01:13 PDT; no real-window capture.
