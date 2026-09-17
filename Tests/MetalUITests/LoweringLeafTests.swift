@@ -341,23 +341,51 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 }
 
 /// **2.8.** A `Text` with a declared width or height keeps its legacy bounds and
-/// glyph origin when lowered: its node is a fixed frame aligned `.topLeading`
-/// around the measured leaf, and glyphs wrap at the **leaf's** measured width
-/// (`Text.Layout.measuredNode`). `Text(long).width(100)` (wraps) and
-/// `Text(long).height(40)` (one line in a 1000-wide root, 40 tall).
+/// glyphs when lowered: its node is a fixed frame aligned `.topLeading` around the
+/// measured leaf, and glyphs wrap at **the element node's** measured width — the
+/// frame's, which is the width the leaf was proposed (ruling `LR-X`). Arms:
+/// `Text(long).width(100)` (wraps), `.width(30)` and `.width(5)` (narrower than
+/// the text's widest word, so the leaf answers wider than its frame, 2.7), and
+/// `.height(40)` (one line in a 1000-wide root, 40 tall).
 ///
-/// Mutation that must redden it: **M2h**, the element's node returned as the leaf,
-/// not the frame (the width arm's box hugs its widest line; the height arm's is
-/// one line tall).
-@MainActor
-@Test func aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin() throws {
-    let width = LayoutDifferential.compare(width: 1000, height: 300) { Text(longString).width(px(100)) }
-    try #require(width.elements == 2)
-    expectFullAgreement(width, "width(100)")
-    #expect(width.loweredBounds[leafID]?.size.width == px(100))
-
-    let height = LayoutDifferential.compare(width: 1000, height: 300) { Text(longString).height(px(40)) }
-    try #require(height.elements == 2)
-    expectFullAgreement(height, "height(40)")
-    #expect(height.loweredBounds[leafID]?.size.height == px(40))
+/// **The arms run in a child process** that must exit successfully and print one
+/// line per agreeing arm: a lowering that registers the text leaf both inside its
+/// frame and as the element's node traps on the kernel's one-parent precondition
+/// (`CN-L`), and in-process that ended the whole run with no summary line
+/// (mutation M2h, lane 2; practices shape 13).
+///
+/// Mutations that must redden it: **M2h**, the element's node returned as the
+/// leaf, not the frame; **M2i**, glyphs wrapped at the leaf's answer to the
+/// frame's proposal (the design's `Text.Layout.measuredNode`), which draws the
+/// `.width(30)` and `.width(5)` arms in fewer, wider lines than the legacy text.
+@Test func aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin() async {
+    let child = await #expect(processExitsWith: .success,
+                              observing: [\.standardOutputContent, \.standardErrorContent]) {
+        await MainActor.run {
+            let arms: [(name: String, text: Text, width: Float?, height: Float?)] = [
+                ("width(100)", Text(longString).width(px(100)), 100, nil),
+                ("width(30)", Text(longString).width(px(30)), 30, nil),
+                ("width(5)", Text(longString).width(px(5)), 5, nil),
+                ("height(40)", Text(longString).height(px(40)), nil, 40),
+            ]
+            for arm in arms {
+                let element = arm.text
+                let r = LayoutDifferential.compare(width: 1000, height: 900) { element }
+                let lowered = r.loweredBounds[leafID]
+                let agrees = r.elements == 2 && r.unlowerable.isEmpty && r.disagreeing.isEmpty
+                    && r.legacyOnly.isEmpty && r.loweredOnly.isEmpty && r.scenesEqual
+                    && r.hitboxesEqual && r.accessibilityEqual && r.stateSlotsEqual
+                    && (arm.width.map { lowered?.size.width == Pixels($0) } ?? true)
+                    && (arm.height.map { lowered?.size.height == Pixels($0) } ?? true)
+                let line = "LANE2-2.8 \(arm.name) agrees=\(agrees) scenes=\(r.scenesEqual) "
+                    + "disagreeing=\(r.disagreeing) unlowerable=\(r.unlowerable) lowered=\(String(describing: lowered))\n"
+                FileHandle.standardOutput.write(Data(line.utf8))
+            }
+        }
+    }
+    let out = String(decoding: child?.standardOutputContent ?? [], as: UTF8.self)
+    let err = String(decoding: child?.standardErrorContent ?? [], as: UTF8.self)
+    for name in ["width(100)", "width(30)", "width(5)", "height(40)"] {
+        #expect(out.contains("LANE2-2.8 \(name) agrees=true "), "\(name):\n\(out)\nstderr \(err)")
+    }
 }
