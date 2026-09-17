@@ -9,8 +9,10 @@ import MetalUILayout
 //
 // **Lane 2 lowers leaves** — a childless `Box` and a `Text`. **Lane 3 lowers
 // containers** — a `Box` with children, and so `Row` and `Column` — onto a native
-// linear stack. A `display: .stack` container still reports `(site, "noLowering")`
-// until lane 4.
+// linear stack. **Lane 4 lowers** a `display: .stack` container (`Stack`) onto a
+// native overlay (ruling LR-G), and `ModifiedElement`'s layers: a `.padding` layer
+// through the container lowering, a `.frame` layer onto one native frame
+// (`lowerLegacyLayer`, ruling LR-H).
 
 extension LayoutPass {
     /// Lowers one legacy node — `style` already animated — over native `children`.
@@ -34,8 +36,12 @@ extension LayoutPass {
     /// element such as an `HStack` — because under this authority every node is
     /// native (ruling LR-T).
     ///
-    /// A `display: .stack` container still reports `(site, "noLowering")`: the
-    /// overlay lowering is lane 4's.
+    /// A `display: .stack` container (a `Stack`, lane 4) lowers to a native
+    /// **overlay** of its children with its nine-point alignment — `justifyItems`
+    /// horizontally, `alignItems` vertically — → native padding → a fixed frame
+    /// with the same alignment (ruling LR-G). For fixed children this is the
+    /// legacy stack's answer; the overlay proposes its own proposal to each child
+    /// where the legacy stack offers fit-content (divergence 53, spec 4.2).
     func lowerLegacyNode(_ style: Style, declared: Style, children: [LayoutNodeID],
                          site: LoweringSite) -> LayoutNodeID {
         guard !children.isEmpty else {
@@ -45,6 +51,13 @@ extension LayoutPass {
         }
         let fields = legacyContainerDiagnostics(declared, childCount: children.count, site: site)
         if !fields.isEmpty { return report(fields) }
+
+        if style.display == .stack {
+            let alignment = proposalAlignment(horizontal: alignmentFactor(style.justifyItems),
+                                              vertical: alignmentFactor(style.alignItems))
+            let overlay = frame.requestNativeOverlay(children: children, alignment: alignment)
+            return paddedAndSized(overlay, style, alignment: alignment)
+        }
 
         let isRow = style.flexDirection.isRow
         let main = alignmentFactor(style.justifyContent)
@@ -66,8 +79,12 @@ extension LayoutPass {
     /// The container table's "otherwise" column (spec §5.4, **containers**), then
     /// the **every node** table's (`legacyLeafDiagnostics`), for a container's
     /// **declared** style with `childCount` layout children. `display: none` is
-    /// checked first and alone (ruling LR-J); a `display: .stack` container reports
-    /// `noLowering` alone (lane 4). The container rows, in order:
+    /// checked first and alone (ruling LR-J). A `display: .stack` container (lane
+    /// 4) reads none of the flex rows below — the legacy engine branches to its
+    /// stack layout before any of them — and reports, in order,
+    /// `alignItems.stretch` (`nil`/`.stretch`), `alignItems.baseline`, then
+    /// `justifyItems.stretch` (`nil`/`.stretch`), then the every-node rows. The
+    /// flex container rows, in order:
     ///
     /// - `reverse` — `.rowReverse`/`.columnReverse`;
     /// - `gap.percent` — a percentage **main-axis** gap (the cross-axis gap is read
@@ -88,8 +105,19 @@ extension LayoutPass {
                                     site: LoweringSite) -> [UnlowerableField] {
         func entry(_ name: String) -> UnlowerableField { UnlowerableField(site: site, field: name) }
         if declared.display == .none { return [entry("display.none")] }
-        if declared.display == .stack { return [entry("noLowering")] }
         var fields: [UnlowerableField] = []
+        if declared.display == .stack {
+            switch declared.alignItems {
+            case nil, .stretch: fields.append(entry("alignItems.stretch"))
+            case .baseline: fields.append(entry("alignItems.baseline"))
+            case .flexStart, .center, .flexEnd: break
+            }
+            switch declared.justifyItems {
+            case nil, .stretch: fields.append(entry("justifyItems.stretch"))
+            case .start, .center, .end: break
+            }
+            return fields + legacyLeafDiagnostics(declared, site: site)
+        }
         let isRow = declared.flexDirection.isRow
         if declared.flexDirection.isReverse { fields.append(entry("reverse")) }
         if case .percent = isRow ? declared.gap.horizontal : declared.gap.vertical {
@@ -142,6 +170,88 @@ extension LayoutPass {
         return paddedAndSized(content(), style, alignment: .topLeading)
     }
 
+    /// Lowers one `ModifiedElement` layer — `layer.style` already animated — over
+    /// the native `children` (plan task 7, lane 4). `declared` is the layer's style
+    /// after `ModifierLayer.lowered(_:childCount:)` and before `animated(…)`, read
+    /// only by the checks.
+    ///
+    /// - A **`.padding` layer** (no `frameSpec`) is a one-child container and
+    ///   lowers through `lowerLegacyNode` at site `modifierLayer`: native padding
+    ///   over the child, and whatever a caller's `Self`-returning modifier wrote on
+    ///   the layer is checked by the container table.
+    /// - A **`.frame` layer** lowers to ONE native frame (ruling LR-H): fixed
+    ///   `width`/`height`, and finite minima and maxima, from the **animated**
+    ///   style's fields that `FrameSpec.style()` wrote (`size`, `minSize`,
+    ///   `maxSize`), so an animated frame lays out its interpolated value; ideals,
+    ///   infinite maxima and the alignment from `frameSpec`, which `Style` cannot
+    ///   carry. The kernel frame is SwiftUI's (`FR-A`/`FR-M`): a finite maximum is
+    ///   greedy and a single infinite maximum fills its axis (spec 4.5), where the
+    ///   legacy layer clamps (`FR-E`) or is inert (`FR-O`). Over no node the frame
+    ///   wraps a 0×0 native leaf. What cannot be lowered is reported by
+    ///   `legacyFrameLayerDiagnostics`.
+    func lowerLegacyLayer(_ layer: ModifierLayer, declared: Style,
+                          children: [LayoutNodeID]) -> LayoutNodeID {
+        guard let spec = layer.frameSpec else {
+            return lowerLegacyNode(layer.style, declared: declared, children: children,
+                                   site: .modifierLayer)
+        }
+        let fields = legacyFrameLayerDiagnostics(layer, declared: declared, childCount: children.count)
+        if !fields.isEmpty { return report(fields) }
+        let child = children.first
+            ?? frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
+        let style = layer.style
+        // A bound `FrameSpec.style()` wrote, read back from the animated style;
+        // the declared style equals `style()`'s (the check above), so the case is a
+        // px length whenever the spec names the bound.
+        func bound(_ declared: Pixels?, _ dimension: Dimension) -> Double? {
+            guard let declared else { return nil }
+            return resolvedDimension(dimension) ?? Double(declared.value)
+        }
+        // A finite maximum is `maxSize`; an infinite one has no `Style` row
+        // (`FrameSpec.style()` writes none) and passes through as +∞.
+        func maximum(_ declared: Pixels?, _ dimension: Dimension) -> Double? {
+            guard let declared else { return nil }
+            return declared.value.isFinite ? bound(declared, dimension) : Double(declared.value)
+        }
+        return frame.requestNativeFrame(
+            child: child,
+            width: bound(spec.width, style.size.width),
+            height: bound(spec.height, style.size.height),
+            minWidth: bound(spec.minWidth, style.minSize.width),
+            idealWidth: spec.idealWidth.map { Double($0.value) },
+            maxWidth: maximum(spec.maxWidth, style.maxSize.width),
+            minHeight: bound(spec.minHeight, style.minSize.height),
+            idealHeight: spec.idealHeight.map { Double($0.value) },
+            maxHeight: maximum(spec.maxHeight, style.maxSize.height),
+            alignment: spec.alignment)
+    }
+
+    /// A frame layer's checks (ruling LR-H), for its **declared** style:
+    ///
+    /// 1. `display.none` alone — a `hidden()` written after the frame, which
+    ///    `ModifierLayer.lowered` keeps (ruling LR-J);
+    /// 2. `style` — the declared style differs from
+    ///    `layer.lowered(frameSpec.style(), childCount:)`, the style an unmodified
+    ///    frame layer registers with (the same `display: .stack` a one-node frame
+    ///    gets): a caller's `Self`-returning modifier written after `.frame` —
+    ///    `.width`, `.minWidth`, `.flexGrow`, `.alignItems`, `.position` — lands on
+    ///    the layer. An animation never trips it, because the animated style is not
+    ///    what is compared;
+    /// 3. `frame.multipleNodes` — a frame over more than one node (a multi-member
+    ///    `Component`), which the legacy engine lays out as a flex row and SwiftUI
+    ///    frames member by member (component-distribution `G7`); stage 3's (ruling
+    ///    LR-Z).
+    func legacyFrameLayerDiagnostics(_ layer: ModifierLayer, declared: Style,
+                                     childCount: Int) -> [UnlowerableField] {
+        func entry(_ name: String) -> UnlowerableField { UnlowerableField(site: .modifierLayer, field: name) }
+        guard let spec = layer.frameSpec else { return [] }
+        if declared.display == .none { return [entry("display.none")] }
+        var fields: [UnlowerableField] = []
+        if declared != layer.lowered(spec.style(), childCount: childCount) { fields.append(entry("style")) }
+        if childCount > 1 { fields.append(entry("frame.multipleNodes")) }
+        return fields
+    }
+
     /// Records every entry of a non-empty diagnostics list: in production the first
     /// entry traps; under diagnostics each is recorded and the frame completes on
     /// one 0×0 leaf, which is returned.
@@ -181,6 +291,14 @@ extension LayoutPass {
         case .center: 0.5
         case .flexEnd: 1
         case nil, .flexStart, .stretch, .baseline: 0
+        }
+    }
+
+    private func alignmentFactor(_ value: JustifyItems?) -> Double {
+        switch value {
+        case .center: 0.5
+        case .end: 1
+        case nil, .start, .stretch: 0
         }
     }
 

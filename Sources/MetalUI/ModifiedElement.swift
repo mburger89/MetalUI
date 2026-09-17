@@ -45,19 +45,28 @@ public struct ModifierLayer {
     var decoration: Decoration
     var handlers: Handlers
     var elementID: ElementID?
+    /// What the `.frame(...)` overload that built this layer asked for, before
+    /// `FrameSpec.style()`'s CSS lowering wrote `style`; `nil` for a `.padding`
+    /// layer (plan task 7, ruling `LR-H`). Under the proposal layout authority a
+    /// frame layer lowers onto ONE kernel frame, reading its ideals, its infinite
+    /// maxima and its alignment from here, and the rest from the animated `style`
+    /// (`LayoutPass.lowerLegacyLayer`); under the legacy authority a non-`nil`
+    /// ideal traps at registration (`FR-D`).
+    var frameSpec: FrameSpec?
+
     /// Whether a `.frame(...)` overload built this layer (ruling `CN-N`). A frame
     /// layer over EXACTLY ONE node registers as a one-cell `display: .stack`,
     /// so an oversized child overflows both axes as SwiftUI's does; over zero or
     /// several nodes it keeps `FR-C`'s flex row. The choice is
     /// `lowered(_:childCount:)`'s, made in `requestLayout` per layer.
-    var isFrame: Bool
+    var isFrame: Bool { frameSpec != nil }
 
-    init(style: Style, isFrame: Bool = false) {
+    init(style: Style, frameSpec: FrameSpec? = nil) {
         self.style = style
         self.decoration = Decoration()
         self.handlers = Handlers()
         self.elementID = nil
-        self.isFrame = isFrame
+        self.frameSpec = frameSpec
     }
 
     /// The `Style` this layer registers with around `childCount` nodes (ruling
@@ -215,25 +224,38 @@ public struct ModifiedElement<Content: ElementGroup>: Element, StyledElement {
                 // Before `animated`, so the `$anim` baseline holds the style
                 // the layer registers with (ruling CN-N).
                 inner[k].style = inner[k].lowered(inner[k].style, childCount: children.count)
+                let declared = inner[k].style
                 (inner[k].style, inner[k].decoration) = animated(inner[k].style, inner[k].decoration,
                                                                  for: layerID, pass: &pass)
                 // Each registrar checks the authority itself (plan task 7, ruling
-                // LR-C) — this inner-layer one and the outermost one below; lane 4
-                // replaces both with the frame/padding lowering.
+                // LR-C) — this inner-layer one and the outermost one below. Under
+                // the proposal authority the layer lowers onto kernel nodes from
+                // its animated style, checked against `declared` (`LR-H`); under
+                // the legacy one a frame layer's ideal traps first (`FR-D`).
                 let node = pass.lowersToProposal
-                    ? pass.frame.unlowerable(UnlowerableField(site: .modifierLayer, field: "noLowering"))
-                    : pass.frame.requestNode(style: inner[k].style, children: children)
+                    ? pass.lowerLegacyLayer(inner[k], declared: declared, children: children)
+                    : Self.registerLegacyLayer(inner[k], children: children, pass: &pass)
                 placements.append(LayerPlacement(id: layerID, node: node))
                 children = [node]
             }
         }
         outermost.style = outermost.lowered(outermost.style, childCount: children.count)
+        let declared = outermost.style
         (outermost.style, outermost.decoration) = animated(outermost.style, outermost.decoration,
                                                            for: id, pass: &pass)
         let node = pass.lowersToProposal
-            ? pass.frame.unlowerable(UnlowerableField(site: .modifierLayer, field: "noLowering"))
-            : pass.frame.requestNode(style: outermost.style, children: children)
+            ? pass.lowerLegacyLayer(outermost, declared: declared, children: children)
+            : Self.registerLegacyLayer(outermost, children: children, pass: &pass)
         return (node, Layout(node: node, inner: placements, content: contentLayout))
+    }
+
+    /// One layer's CSS node, under the legacy layout authority. A frame layer
+    /// with an ideal dimension traps first (`FrameSpec.trapIfLaidOutByTheLegacyEngine`,
+    /// ruling `FR-D` as moved by `LR-H`).
+    private static func registerLegacyLayer(_ layer: ModifierLayer, children: [LayoutNodeID],
+                                            pass: inout LayoutPass) -> LayoutNodeID {
+        layer.frameSpec?.trapIfLaidOutByTheLegacyEngine()
+        return pass.frame.requestNode(style: layer.style, children: children)
     }
 
     /// Outermost layer first, then each layer inside it, then the content once:
@@ -354,8 +376,7 @@ extension ElementGroup {
     /// overloads make a long chain exponential for the solver (ruling FR-S).
     public func frame(width: Pixels? = nil, height: Pixels? = nil,
                       alignment: ProposalAlignment = .center) -> ModifiedElement<LayerBase> {
-        _wrap(ModifierLayer(style: FrameSpec(width: width, height: height,
-                                             alignment: alignment).style(),
-                            isFrame: true))
+        let spec = FrameSpec(width: width, height: height, alignment: alignment)
+        return _wrap(ModifierLayer(style: spec.style(), frameSpec: spec))
     }
 }

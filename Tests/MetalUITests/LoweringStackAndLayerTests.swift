@@ -359,17 +359,79 @@ private func idealColumn() -> some ElementGroup {
     Column { fixed(20, 20).frame(idealHeight: px(80)) }
 }
 
+/// A custom layout that proposes nil×nil to its one subview, answers that
+/// subview's answer, and places it at its own origin at nil×nil.
+private struct NilProposal: ProposalLayout {
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        subviews[0].sizeThatFits(.unspecified)
+    }
+
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {
+        subviews[0].place(at: Point(x: bounds.x, y: bounds.y), proposal: .unspecified)
+    }
+}
+
+/// A root that measures and places its content at a **nil×nil** proposal under
+/// the proposal authority (a native `NilProposal` layout); it registers nothing
+/// under the legacy one, where only the ideal trap is exercised.
+@MainActor
+private struct NilProposalRoot<Content: ElementGroup>: Element {
+    var content: Content
+
+    init(@ElementBuilder content: () -> Content) { self.content = content() }
+
+    struct Layout { var content: Content.GroupLayout }
+
+    mutating func requestLayout(_ id: GlobalElementID,
+                                pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        let node = pass.lowersToProposal
+            ? pass.frame.requestNativeLayout(NilProposal(), children: children)
+            : pass.frame.requestNode(style: Style(), children: children)
+        return (node, Layout(content: contentLayout))
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Layout, pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        content.prepaintGroup(layout: &layout.content, pass: &pass)
+    }
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Layout, prepaint: inout Content.GroupPrepaint,
+                        pass: inout PaintPass) {
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+/// `make()` under a `NilProposalRoot`, under the proposal authority with
+/// diagnostics and the bounds log on.
+@MainActor
+private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> C) -> Frame {
+    var root = NilProposalRoot(content: make)
+    let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)), scaleFactor: 1,
+                      layoutAuthority: .proposal, reportsUnlowerableFields: true,
+                      recordsElementBounds: true)
+    frame.render(&root)
+    return frame
+}
+
 /// **4.6.** An ideal frame **lowers** under the proposal authority and **still
 /// traps** when laid out by the legacy engine (ruling LR-H, `FR-D`'s trap moved
 /// from construction to legacy registration).
 ///
 /// - proposal arm, in a child process (on lane 3's tree construction traps, which
-///   in-process would end the run): a `Row` measures its child at a nil main
-///   proposal, so `.frame(idealWidth: 80)` over a 20×20 box answers **80×20**
-///   (frame probe C1: `frame(idealWidth: 80)` at a nil proposal is 80×20), the box
-///   centred at (30, 0); `.frame(idealHeight: 80)` in a `Column` answers 20×80, the
-///   box at (0, 30). The child prints both frame rects and both reports;
-/// - legacy arms (exit tests): rendering either tree under the legacy authority
+///   in-process would end the run): measured at a **nil** proposal (`NilProposal`,
+///   a custom layout — nothing the stage-1 lowering registers proposes nil: a
+///   lowered `Row` proposes its own finite proposal, where the frame answers its
+///   child, frame probe C control), `.frame(idealWidth: 80)` over a 20×20 box
+///   answers **80×20** (frame probe C1: `frame(idealWidth: 80)` at a nil proposal
+///   is 80×20), and `.frame(idealHeight: 80)` answers 20×80. A native root is
+///   stored centred in the 200×200 window at its own answer (`CN-J`), so the frames
+///   read (60, 90) 80×20 and (90, 60) 20×80, each with the box centred at (90, 90).
+///   The child prints both frame rects and both reports;
+/// - legacy arms (exit tests): rendering `Row { … .frame(idealWidth: 80) }` or its
+///   `Column`/`idealHeight` twin in the harness root under the legacy authority
 ///   fails, and stderr names `idealWidth` / `idealHeight`.
 ///
 /// Mutation that must redden it: **M4f**, the ideal dropped from the lowering (the
@@ -378,24 +440,24 @@ private func idealColumn() -> some ElementGroup {
     let proposal = await #expect(processExitsWith: .success,
                                  observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
-            let frameID = child(containerID, 0)
-            let row = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) { idealRow() }
-            let column = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) { idealColumn() }
-            let line = "IDEAL row \(String(describing: row.elementBounds[frameID])) "
-                + "box \(String(describing: row.elementBounds[child(frameID, 0)])) "
-                + "report \(row.unlowerableFields) | "
-                + "column \(String(describing: column.elementBounds[frameID])) "
-                + "box \(String(describing: column.elementBounds[child(frameID, 0)])) "
-                + "report \(column.unlowerableFields)\n"
+            let frameID = containerID
+            let wide = renderAtNilProposal { fixed(20, 20).frame(idealWidth: px(80)) }
+            let tall = renderAtNilProposal { fixed(20, 20).frame(idealHeight: px(80)) }
+            let line = "IDEAL width \(String(describing: wide.elementBounds[frameID])) "
+                + "box \(String(describing: wide.elementBounds[child(frameID, 0)])) "
+                + "report \(wide.unlowerableFields) | "
+                + "height \(String(describing: tall.elementBounds[frameID])) "
+                + "box \(String(describing: tall.elementBounds[child(frameID, 0)])) "
+                + "report \(tall.unlowerableFields)\n"
             FileHandle.standardOutput.write(Data(line.utf8))
         }
     }
     let out = String(decoding: proposal?.standardOutputContent ?? [], as: UTF8.self)
     let err = String(decoding: proposal?.standardErrorContent ?? [], as: UTF8.self)
-    let expected = "IDEAL row \(String(describing: Optional(bounds(0, 0, 80, 20)))) "
-        + "box \(String(describing: Optional(bounds(30, 0, 20, 20)))) report [] | "
-        + "column \(String(describing: Optional(bounds(0, 0, 20, 80)))) "
-        + "box \(String(describing: Optional(bounds(0, 30, 20, 20)))) report []\n"
+    let expected = "IDEAL width \(String(describing: Optional(bounds(60, 90, 80, 20)))) "
+        + "box \(String(describing: Optional(bounds(90, 90, 20, 20)))) report [] | "
+        + "height \(String(describing: Optional(bounds(90, 60, 20, 80)))) "
+        + "box \(String(describing: Optional(bounds(90, 90, 20, 20)))) report []\n"
     #expect(out.contains(expected), "stdout \(out)\nexpected \(expected)\nstderr \(err)")
 
     let width = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {

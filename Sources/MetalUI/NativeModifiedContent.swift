@@ -272,7 +272,10 @@ extension ProposalElementGroup {
     /// clamps but never grows (`FR-E`), a single infinite maximum is inert
     /// (`FR-O`), and an oversized child is squeezed on one axis when the frame
     /// wraps several nodes (`FR-N`, closed for one node by `CN-N`) — and why
-    /// `idealWidth`/`idealHeight` trap there (`FR-D`). Which overload a call
+    /// `idealWidth`/`idealHeight` trap there when the legacy engine lays the
+    /// frame out (`FR-D`; since plan task 7's `LR-H` at registration, and a legacy
+    /// frame lowered under the proposal layout authority answers all of these as
+    /// this overload does). Which overload a call
     /// resolves to is pinned by
     /// `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload`.
     ///

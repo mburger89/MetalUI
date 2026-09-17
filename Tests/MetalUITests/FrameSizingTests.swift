@@ -519,7 +519,8 @@ private struct TwoMarks: Component {
 /// `Row` each frame sits at (0, 20), so the child reads (−60, 20) 200×160.
 /// Before the lane these two arms read the child squeezed to the frame's 80.
 /// These arms were added in lane 5's fix round: making the flexible overload
-/// pass `isFrame: false` (verifier mutation V1) left the suite green.
+/// pass `isFrame: false` (verifier mutation V1; spelled `frameSpec: nil` since
+/// plan task 7's lane 4 made `isFrame` computed) left the suite green.
 ///
 /// Before the lane the single-child arm reads (0, 20) 60×160 (`FR-N`).
 /// Mutations, measured (record §17, lane 5): lower single-child frames as a
@@ -652,7 +653,8 @@ private struct StretchingPair: Component {
 /// restored row stretches both — so the test stops there; 5.1's six fixed arms
 /// redden too); the flexible overload passes `isFrame: false` (the fill pin
 /// reddens, with 5.1's `D13`/`D14` arms; the fill workaround does not, since the
-/// row fills a `width(fraction: 1)` child too).
+/// row fills a `width(fraction: 1)` child too). `isFrame: false` is spelled
+/// `frameSpec: nil` since plan task 7's lane 4 (`isFrame` is computed from it).
 @Test @MainActor func aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf() throws {
     let grow = try render { log in
         Row { Mark("grow", log: log, height: 20).flexGrow(1).frame(width: px(100), height: px(40)) }

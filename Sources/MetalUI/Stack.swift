@@ -102,11 +102,14 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
         // M4 spec 3 §5 — see `Box.requestLayout`'s identical line. Stored
         // back on `self` so `paint`'s read of `self.decoration` later this
         // frame sees the substituted (possibly mid-transition) values.
+        let declared = style
         (style, decoration) = animated(style, decoration, for: id, pass: &pass)
-        // The site's own authority check — see `Box.requestLayout`'s (ruling LR-C);
-        // lane 4 replaces it with the lowering.
+        // The site's own authority check — see `Box.requestLayout`'s (ruling LR-C).
+        // Under the proposal authority a `Stack` lowers onto a native overlay with
+        // its nine-point alignment, inside native padding and a fixed frame (plan
+        // task 7, lane 4, ruling LR-G); the checks read `declared`.
         let node = pass.lowersToProposal
-            ? pass.frame.unlowerable(UnlowerableField(site: .stack, field: "noLowering"))
+            ? pass.lowerLegacyNode(style, declared: declared, children: children, site: .stack)
             : pass.frame.requestNode(style: style, children: children)
         return (node, Layout(node: node, content: contentLayout))
     }
