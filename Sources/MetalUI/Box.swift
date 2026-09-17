@@ -88,10 +88,11 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         (style, decoration) = animated(style, decoration, for: id, pass: &pass)
         // The site's own authority check (plan task 7, ruling LR-C). Under the
         // proposal authority the (animated) style is lowered onto kernel nodes;
-        // the checks read the declared one. A childless `Box` lowers since lane 2
-        // (`LegacyLowering.swift`); a `Box` with children still traps by name as
-        // `box.noLowering`, or reports it and registers a 0×0 native leaf under
-        // diagnostics, until lane 3.
+        // the checks read the declared one (`LegacyLowering.swift`). A childless
+        // `Box` lowers since lane 2, a `Box` with children — and so `Row` and
+        // `Column` — since lane 3; a field outside the lowering table traps by
+        // name, or is reported with a 0×0 native leaf in its place under
+        // diagnostics.
         let node = pass.lowersToProposal
             ? pass.lowerLegacyNode(style, declared: declared, children: children, site: .box)
             : pass.frame.requestNode(style: style, children: children)
