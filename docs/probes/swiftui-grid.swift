@@ -13,9 +13,14 @@
 //   /usr/bin/swift docs/probes/swiftui-grid.swift huge-columns             # arms GX21, GX22, then GX20: exits by trap (revision 5)
 //   /usr/bin/swift docs/probes/swiftui-grid.swift model-arms               # the reference model on every arm a Case spells (revision 5)
 //   /usr/bin/swift docs/probes/swiftui-grid.swift classify-spans           # GZ6's disagreements by symptom and model variant (revision 5)
+//   /usr/bin/swift docs/probes/swiftui-grid.swift divergences              # the 65 cases the corpus run discards (docs/probes/swiftui-grid-divergences.txt, revision 6)
+//   /usr/bin/swift docs/probes/swiftui-grid.swift span-row <n>             # GX24: one row of two cells each gridCellColumns(n) (revision 6)
 //
 // `/usr/bin/swift` is Apple's toolchain; a swift.org toolchain's JIT fails on
-// SwiftUI symbols. The default run takes about twenty seconds.
+// SwiftUI symbols. The default run takes about twenty seconds; its stdout is
+// committed as docs/probes/swiftui-grid-default-run.txt (revision 6), sha256
+// 5d2030386ae93bba614ff68f203e8d56a1bf284bad9912232f261088172f61ba, 435 lines,
+// so the reading below can be diffed against a re-run rather than re-read.
 //
 // METHOD. Every figure is read from SwiftUI through an `NSHostingView` whose
 // root is the `Probe` layout: it asks the grid for its answer at the stated
@@ -116,6 +121,29 @@
 // `classify-spans`: exit 0, twice each, byte-identical (stdout below).
 // `huge-columns`: exit 133 after printing GX21, GX22 and GX20's first line,
 // twice, byte-identical. `trap-negative-columns`: exit 133, twice.
+//
+// REVISION 6 (2026-09-17, the second critic round; the default run's stdout is
+// byte-identical to revision 5's — the two new modes are additive):
+// - `divergences`: the same generator, seed and budget as `corpus`, printing
+//   the 65 cases that run discards because SwiftUI and the model differ, each
+//   with BOTH answers. Stdout committed as docs/probes/swiftui-grid-divergences.txt,
+//   sha256 recorded in that file's header; exit 0, twice, byte-identical.
+// - `span-row <n>`: GX24, one row of two cells each `gridCellColumns(n)`, so a
+//   row's SUM of spans is 2n (the case the `Int32.max` row-sum trap is about).
+//   Measured, each run alone, on this machine (`/usr/bin/time -l`):
+//
+//     n            answer      real     max RSS
+//     3            71x38       ~1 s     -
+//     100_000      71x38       ~1 s     -
+//     1_000_000    71x38       7.0 s    1.38 GB
+//     10_000_000   71x38       31.5 s   5.95 GB
+//
+//   So SwiftUI honours a row sum of 2n columns — the answer never moves, the
+//   empty columns take no width (GX21, GX23) — at about **300 bytes and 1.5 µs
+//   per column**. A sum of `Int32.max` would be ~640 GB: SwiftUI's honouring is
+//   bounded by allocation, not by a check. That is why no arm probes a sum
+//   above 2^31 (it cannot be run), and it is the measurement behind ruling
+//   GR-S's trap and ruling GR-AB's allocation divergence.
 //
 // THE READING (arm ids in brackets; "share" and "commit" are defined in 4).
 //
@@ -2037,6 +2065,48 @@ func cellLit(_ c: CellSpec) -> String {
     print("// END CORPUS: \(kept) kept of \(tried) generated; \(skippedDiffer) skipped because SwiftUI and the model differ, \(skippedInfinite) because an answer was infinite")
     fflush(stdout)
 }
+
+/// Revision 6 (second critic round, finding 3): the cases `corpus` DISCARDS.
+///
+/// Same generator, same seed, same budget, so the `kept` cases are exactly the
+/// committed corpus's 120 and the ones printed here are exactly the 65 it threw
+/// away. Each prints BOTH answers — SwiftUI's and the model's — so the
+/// divergence the corpus cannot see has a committed shape and size.
+@MainActor func divergences(seed: UInt64, want: Int) {
+    var g = LCG(s: seed); var kept = 0; var tried = 0; var shown = 0; var skippedInfinite = 0
+    print("// BEGIN DIVERGENCES (seed \(seed)): the cases the `corpus` run at the same seed discards")
+    while kept < want {
+        tried += 1
+        let k = randomCase(&g, [.spans, .prios, .fulls, .attrs, .spacers, .spacing])
+        let (rs, rp) = host(k.proposal) { realGrid(k) }
+        let (ms, mp) = host(k.proposal) { modelGrid(k) }
+        var ok = close(rs.width, ms.width) && close(rs.height, ms.height) && rp.count == mp.count
+        for (name, r) in rp where !closeR(r, mp[name]) { ok = false }
+        let children = k.children.map { ch -> String in
+            switch ch {
+            case let .row(al, cells): return ".row(\(al.map { ".\($0)" } ?? "nil"), [" + cells.map(cellLit).joined(separator: ", ") + "])"
+            case let .full(c): return ".spanning(\(cellLit(c)))"
+            }
+        }.joined(separator: ", ")
+        func rectLits(_ p: [String: CGRect]) -> String {
+            let names = p.keys.sorted { Int($0.dropFirst())! < Int($1.dropFirst())! }
+            return names.map { n -> String in let r = p[n]!; return "(\(lit(r.minX)), \(lit(r.minY)), \(lit(r.width)), \(lit(r.height)))" }.joined(separator: ", ")
+        }
+        if !ok {
+            shown += 1
+            print("GridDivergenceCase(id: \(shown), proposal: (\(lit(k.proposal.width)), \(lit(k.proposal.height))), alignment: .\(k.alignment), horizontalSpacing: \(lit(k.hs)), verticalSpacing: \(lit(k.vs)),")
+            print("    children: [\(children)],")
+            print("    swiftUI: ((\(lit(rs.width)), \(lit(rs.height))), [\(rectLits(rp))]),")
+            print("    model:   ((\(lit(ms.width)), \(lit(ms.height))), [\(rectLits(mp))])),")
+            continue
+        }
+        let finite = rs.width.isFinite && rs.height.isFinite && rp.values.allSatisfy { $0.minX.isFinite && $0.minY.isFinite && $0.width.isFinite && $0.height.isFinite }
+        if !finite { skippedInfinite += 1; continue }
+        kept += 1
+    }
+    print("// END DIVERGENCES: \(shown) printed of \(tried) generated; \(kept) agree (the committed corpus), \(skippedInfinite) skipped because an answer was infinite")
+    fflush(stdout)
+}
 // ---------------- main ----------------
 let app = NSApplication.shared
 app.setActivationPolicy(.prohibited)
@@ -2058,6 +2128,24 @@ if CommandLine.arguments.contains("huge-columns") {
         arm("GX20 [a 30x10, b 20x20] [c 10x10 columns(Int.max), d 5x5]", none) { Grid { GridRow { fx("a",30,10); fx("b",20,20) }; GridRow { fx("c",10,10).gridCellColumns(Int.max); fx("d",5,5) } } }
         print("GX20 survived")
     }
+    exit(0)
+}
+if CommandLine.arguments.contains("span-row") {
+    // GX24 (revision 6): one row of TWO cells each spanning n columns, so the
+    // row's SUM of spans is 2n — the shape ruling GR-S traps above Int32.max
+    // and the only shape that can show whether SwiftUI honours a sum. n is the
+    // last argument (default 100_000). See the header for the measured table.
+    let n = Int(CommandLine.arguments.last ?? "") ?? 100_000
+    MainActor.assumeIsolated {
+        print("GX24 span-row n=\(n): [a 30x10, b 20x20] [c 10x10 columns(n), d 5x5 columns(n)] — a row sum of \(2 * n)")
+        fflush(stdout)
+        arm("GX24 n=\(n)", none) { Grid { GridRow { fx("a",30,10); fx("b",20,20) }; GridRow { fx("c",10,10).gridCellColumns(n); fx("d",5,5).gridCellColumns(n) } } }
+        print("GX24 n=\(n) survived")
+    }
+    exit(0)
+}
+if CommandLine.arguments.contains("divergences") {
+    MainActor.assumeIsolated { divergences(seed: 4242, want: 120) }
     exit(0)
 }
 if CommandLine.arguments.contains("model-arms") {
