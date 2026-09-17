@@ -246,8 +246,13 @@ enum LayoutDifferential {
 /// at the origin: a root the window's own size is at (0, 0) under both.
 ///
 /// **No diagnostics.** A `Window` builds production frames, so under the proposal
-/// authority anything unlowerable **traps** rather than reports: a window test
-/// that completes is itself the evidence that its tree lowers.
+/// authority anything unlowerable **traps** rather than reports. **So the init
+/// first renders the same content through `LayoutDifferential.compare`, with
+/// diagnostics, and requires an empty report**: without that pre-flight a mutant
+/// that makes the tree report (lane 5's re-run of M4h) trapped inside a window
+/// test and ended the whole run with no summary line (practices shape 13, record
+/// §18 lane 5). A tree whose report changes between frames (an animation's end
+/// state) needs its own pre-flight per state.
 @MainActor
 struct WindowPair {
     let legacy: (window: Window, platform: FakePlatformWindow)
@@ -265,6 +270,9 @@ struct WindowPair {
             window.recordsElementBounds = true
             return (window, platform)
         }
+        let preflight = LayoutDifferential.compare(width: Float(size), height: Float(size), make)
+        try #require(preflight.unlowerable.isEmpty,
+                     "this tree would trap in a proposal-authority window: \(preflight.unlowerable)")
         legacy = try open(.legacy)
         lowered = try open(.proposal)
     }

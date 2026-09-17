@@ -256,20 +256,25 @@ private final class WidthModel {
     }
     #expect(counter.legacy.window.stateTable.ids == ids)
 
-    var models: [WidthModel] = []
+    func animatedColumn(_ width: Float) -> some ElementGroup {
+        Column {
+            Box().width(px(width)).height(px(20)).background(.accent)
+            Box().width(px(20)).height(px(10)).frame(width: px(width), height: px(20))
+        }
+        .alignItems(.flexStart)
+    }
+    // `WindowPair`'s pre-flight, for both ends of the animation: a report here
+    // would otherwise trap inside the window below and end the run.
+    for width: Float in [196, 320] {
+        let preflight = LayoutDifferential.compare(width: 400, height: 400) { animatedColumn(width) }
+        try #require(preflight.unlowerable.isEmpty, "\(width): \(preflight.unlowerable)")
+    }
     let column = child(rootID, 0)
     var widths: [LayoutAuthority: [[Float]]] = [:]
     for authority in [LayoutAuthority.legacy, .proposal] {
         let model = WidthModel()
-        models.append(model)
         let (window, platform) = try makeFakeWindow(device: device, size: 400, startsDisplayLink: true) {
-            DifferentialRoot(width: 400, height: 400) {
-                Column {
-                    Box().width(px(model.wide ? 320 : 196)).height(px(20)).background(.accent)
-                    Box().width(px(20)).height(px(10)).frame(width: px(model.wide ? 320 : 196), height: px(20))
-                }
-                .alignItems(.flexStart)
-            }
+            DifferentialRoot(width: 400, height: 400) { animatedColumn(model.wide ? 320 : 196) }
         }
         window.layoutAuthority = authority
         window.recordsElementBounds = true
