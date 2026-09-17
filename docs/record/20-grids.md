@@ -612,6 +612,54 @@ which any demo or preview content reaches (`grep -rn "Grid\b"
 Sources/MetalUIDemoContent Sources/MetalUIDemo`: no hits, re-checked). Lane 3
 takes the next comparison, lane 4 the first non-zero one (`GR-AE`).
 
+## Lane 1 re-verification at `062a114` (2026-09-17)
+
+Lane 1 was re-dispatched after the second critic round and found **already
+built, with nothing outstanding**: its own commits (`432cb3d`, `82a63fe`,
+`92501ce`, `e015b9d`, `92e3313`) and the critic round's amendments to it
+(`1b6c698`, `062a114`) are all in the tree, working tree clean, and no new code
+or test was needed. What was re-taken at `062a114`, all matching what is
+recorded above:
+
+- `swift build --build-system native --build-tests` up to date, then `swift test
+  --build-system native --no-parallel` unfiltered: **`Test run with 1449 tests
+  in 1 suite passed after 45.761 seconds`**, 0 `error:`, the only `warning:`
+  SwiftPM's deprecation notice.
+- Goldens **97** (`find Tests -name "*.json" | wc -l`), `git diff cb2e708 --
+  '*.json'` empty. Guards **71** (73 `canTypecheck` hits across the thirteen
+  guard files and `Typecheck.swift`, less the declaration and
+  `UnitSafetyTests`' comment).
+- The three claims the round attributed to lane 1 are in the source, checked one
+  by one: the span clamp is gone from `NativeGrid.swift` (only `GR-Z`'s proof
+  comment remains at line 126, no `Swift.min(span…)`); test 1.2 carries the
+  GX13 arm (`NativeGridTests.swift:244–252`, 71×38, x centred at 30.5, e at 66);
+  `Tests/MetalUITests/GridRegistrarTests.swift` holds the three `LayoutPass`
+  registrar pins (`GR-AD`), so V2/V2b are closed rather than owed to lane 4.
+  `NativeLayoutRun.maxDepth` is unchanged at 88 — lane 1's measured grid ceiling
+  of 170 is the gate's headroom, not a stored figure.
+
+### Demo (re-taken, not inherited)
+
+`CN-R`'s harness (`scratchpad/harness/gen-lib.py`, `DEMO_PIXELS_SMALL=1`,
+default build system) in fresh `git archive`s of `cb2e708` and `062a114`:
+**12 of 12 images 0 differing pixels, scenes identical** — the first comparison
+taken against the tree as it stands after the second critic round, which chose
+not to re-run one. Controls on the head images, each reproducing lane 1's
+recorded figure exactly, so the instrument is live: light vs dark f0
+**1 048 576**; default vs modal (light) **1 030 498**; default vs animation
+(light) **210 027**; f0 vs f3 **0**; preview light vs dark **1 048 576**.
+
+### The screen was locked at this hour (for lane 4)
+
+`docs/probes/appkit-screen-lock-state.swift`, compiled `-O` and run
+2026-09-17: `session CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`,
+`displayActive main: 0` (`preflightScreenCaptureAccess: true`, one screen
+2056×1329 at scale 2). So **no real window was captured this round either**, on
+the CGS reading `FR-V` asks for rather than `IOConsoleLocked`. The first
+non-zero real-window comparison is still lane 4's (`GR-AE`, `GR-M`), and
+whoever takes it must re-run this probe first: "usually unlocked" was not true
+at this hour.
+
 ## For the integrator
 
 (Written by lane 4; see spec §6, lane 4.)
