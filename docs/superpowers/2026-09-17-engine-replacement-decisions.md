@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-Z`**. A bare `LR-3` is a typo, not a citation.
+unused is **`LR-AA`**. A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -1032,3 +1032,73 @@ becomes observable and its `%` must be checked; M3i's arm names only the main
 axis. If lane 4 routes `Stack` through `lowerLegacyNode`, it must remove the
 `noLowering` row and amend 3.5's arm in the same change.
 
+---
+
+## LR-Z — lane 4's lowering: what a stack reads, a frame over zero or several nodes, where the frame check lives, and where an ideal can be seen
+
+**The question.** Spec §5.4 said a `display: .stack` container lowers to an overlay
+and reports "either `.stretch`", but not what the flex container rows do on a
+stack, nor the entries' names. `LR-H` ruled a frame layer's lowering and check but
+not a frame layer over zero or several nodes, which `ModifierLayer.lowered` keeps
+on `FR-C`'s flex row. §5.2 said lane 4 adds `frameSpec:` to `lowerLegacyNode`. Spec
+4.6 said the proposal arm is "measured at a nil proposal" without saying what
+proposes nil.
+
+**What was measured** (record §18, lane 4). The nine tests agree element by
+element, scene, hitboxes, accessibility and state slots on every agreeing arm at
+literal rects derived by hand. A sized `.bottomTrailing` `Stack` declaring
+`flexDirection(.column)`, a gap, `justifyContent(.spaceBetween)`, `flexWrap(.wrap)`
+and `alignContent(.center)` agrees with the legacy stack with an empty report: the
+legacy engine branches to `layOutStack` before `collectItems`
+(`FlexEngine.swift`, the `display == .stack` branch), so none is read. The first
+spelling of 4.6's proposal arm put `.frame(idealWidth: 80)` in a lowered `Row` and
+read **20×20**, not 80×20: the kernel stack proposes its own finite proposal to
+its child, where a frame with only an ideal answers its child (frame probe
+**C control**: 300×200 → 20×20, re-run this lane). CLAUDE.md's "stack children get
+a nil main offer" is stale on this point; the Docs phase owns it.
+
+**The ruling.**
+
+- **A stack** (any site whose declared `display` is `.stack`) reports, after
+  `display.none` alone: `alignItems.stretch` (`nil`/`.stretch`),
+  `alignItems.baseline`, `justifyItems.stretch` (`nil`/`.stretch`), then the
+  every-node rows. The flex container rows (`reverse`, `gap.percent`,
+  `justifyContent.space*`, `flexWrap`, `alignContent`) are **not checked** on a
+  stack, as a leaf ignores them (§5.4's leaf paragraph): the legacy engine does not
+  read them. It lowers overlay (the nine-point alignment, `justifyItems` horizontal,
+  `alignItems` vertical) → padding → fixed frame with the same alignment. `LR-Y`'s
+  `noLowering` row for a `display: .stack` `Box` is removed and 3.5's arm amended
+  in the same change, as `LR-Y` required.
+- **A frame layer over more than one node** reports `frame.multipleNodes` (after
+  `style`, if both), because the kernel frame has exactly one child and neither the
+  legacy row nor a single frame is SwiftUI's per-member answer
+  (component-distribution `G7`); stage 3 owns it with `Component` distribution.
+  **Over no node** it lowers over a 0×0 native leaf: the legacy row with no children
+  answers its declared size or 0, which the kernel frame answers for a fixed or
+  min-only frame (4.4's arm agrees); a maximum over nothing is greedy on the
+  proposal side, `FR-E`'s disagreement again.
+- **API.** The frame lowering and check are `LayoutPass.lowerLegacyLayer(_:declared:children:)`
+  and `legacyFrameLayerDiagnostics(_:declared:childCount:)`, taking the
+  `ModifierLayer`, instead of a `frameSpec:` parameter on `lowerLegacyNode`: the
+  check compares with `layer.lowered(frameSpec.style(), childCount:)`, which is the
+  layer's method, and re-deriving it in the lowering would be an unpinned copy
+  (practices: a copy of a pinned implementation is unpinned). A `.padding` layer
+  goes through `lowerLegacyNode` at site `modifierLayer`. `ModifierLayer.isFrame`
+  is computed from `frameSpec`, so the two cannot disagree.
+- **Where an ideal can be seen.** Nothing the stage-1 lowering registers proposes
+  nil on an axis — the harness root, the lowered stacks and overlays and fixed
+  frames all propose finite sizes — so a lowered ideal is observable only under a
+  node that proposes nil: 4.6 uses a test-only `ProposalLayout` (`NilProposal`),
+  which is what frame probe C1 measures. In a production tree an ideal shows under
+  a `ProposalScrollView`'s scrolling axis or a custom layout, which cannot yet
+  hold legacy content (`requestProposalGroupLayout`); by design, stage 3's
+  lowered `ScrollView` would be the first legacy node that proposes nil.
+
+**What it costs if wrong.** If a later stage lowers a stack's flex rows (it will
+not: a stack has no main axis), 4.1's ignoring arm must change with it. If stage 3
+frames each member of a multi-member component, `frame.multipleNodes` goes and 4.9's
+arm with it. A caller expecting `.frame(idealWidth:)` to show in a lowered `Row`
+gets the child's size. Whether SwiftUI's `HStack` answers the same for that frame
+is **unprobed**: frame probe C control is the same frame at a finite proposal
+outside a stack, and no stack-algorithms arm puts an ideal-only frame over a fixed
+child in one.

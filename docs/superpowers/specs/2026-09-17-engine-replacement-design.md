@@ -366,12 +366,22 @@ extension LayoutPass {
     /// `declared` is the pre-animation style, read only by the checks. Lane 2: a
     /// childless node lowers through `lowerLegacyLeaf` over a 0×0 native leaf.
     /// Lane 3: a node with children lowers to linear stack → padding → frame
-    /// (§5.4's container table); a `display: .stack` container reports
-    /// `(site, "noLowering")` until lane 4. Lane 4 adds `frameSpec: FrameSpec? = nil`.
+    /// (§5.4's container table). Lane 4: a `display: .stack` container lowers to
+    /// overlay → padding → frame.
     func lowerLegacyNode(_ style: Style, declared: Style, children: [LayoutNodeID],
                          site: LoweringSite) -> LayoutNodeID
+    /// Lane 4 (`LR-Z`: the design's `frameSpec:` parameter on `lowerLegacyNode`
+    /// became this method, because the check needs `ModifierLayer.lowered`): a
+    /// `.padding` layer → `lowerLegacyNode(site: .modifierLayer)`; a `.frame`
+    /// layer → one native frame (`LR-H`), after `legacyFrameLayerDiagnostics`.
+    func lowerLegacyLayer(_ layer: ModifierLayer, declared: Style,
+                          children: [LayoutNodeID]) -> LayoutNodeID
+    /// Lane 4: `display.none` alone; `style`; `frame.multipleNodes` (`LR-Z`).
+    func legacyFrameLayerDiagnostics(_ layer: ModifierLayer, declared: Style,
+                                     childCount: Int) -> [UnlowerableField]
     /// Lane 3: §5.4's container "otherwise" column, then `legacyLeafDiagnostics`
-    /// (`LR-Y`: `display.none` alone first, `display: .stack` → `noLowering` alone).
+    /// (`LR-Y`: `display.none` alone first; lane 4, `LR-Z`: a `display: .stack`
+    /// container reports only the stack rows, then the every-node rows).
     func legacyContainerDiagnostics(_ declared: Style, childCount: Int,
                                     site: LoweringSite) -> [UnlowerableField]
     /// Lane 2: the leaf table's checks on `declared`; then `content()` → native
@@ -385,8 +395,11 @@ extension LayoutPass {
 }
 
 // FrameSpec gains `idealWidth: Pixels?`, `idealHeight: Pixels?`; `style()` does not
-// read them. ModifierLayer gains `frameSpec: FrameSpec?` — a stored property on a
-// public type: the lane that adds it runs `swift package clean` before its suite.
+// read them; `trapIfLaidOutByTheLegacyEngine()` holds FR-D's two preconditions.
+// ModifierLayer gains `frameSpec: FrameSpec?` — a stored property on a public type:
+// the lane that adds it runs `swift package clean` before its suite — and its
+// stored `isFrame` becomes `var isFrame: Bool { frameSpec != nil }`, its init
+// `init(style:frameSpec:)` (lane 4).
 // (`Text.Layout.measuredNode` was in this list; lane 2 added it, measured it wrong
 // and removed it, `LR-X`.)
 ```
@@ -464,7 +477,7 @@ counter chrome's legacy rects.
 | `alignItems` `nil`/`.stretch` (a `Box`'s default) | **lowerable only where CSS cannot show it**: exactly 1 child **and** no declared cross-axis size | else reported `alignItems.stretch` (stage 2) |
 | `justifyContent` `nil`/`.flexStart`/`.center`/`.flexEnd` | the size frame's main-axis alignment | — |
 | `justifyContent` `.spaceBetween`/`.spaceAround`/`.spaceEvenly` | lowerable only with no declared main-axis size (no free space exists) | else reported `justifyContent.spaceBetween`/`.spaceAround`/`.spaceEvenly` (stage 2) |
-| `display: .stack` (`Stack`) | native overlay; alignment from `alignItems` × `justifyItems` (nine) — lane 4; on a `Box` container before lane 4, reported `noLowering` alone (`LR-Y`) | either `.stretch` → reported |
+| `display: .stack` (`Stack`) | native overlay; alignment from `alignItems` (vertical) × `justifyItems` (horizontal), nine — lane 4, on any site (a `Box` declaring it too; before lane 4 it reported `noLowering` alone, `LR-Y`). **Every other row of this table is ignored on a stack** — the legacy engine branches to its stack layout before reading them (4.1's arm, `LR-Z`) | `alignItems` `nil`/`.stretch` → `alignItems.stretch`; `.baseline` → `alignItems.baseline`; `justifyItems` `nil`/`.stretch` → `justifyItems.stretch`; then the every-node rows |
 | `flexWrap` ≠ `.noWrap`, `alignContent` ≠ nil | — | reported `flexWrap`, `alignContent` (deleted concept, stage 9/10) |
 | `aspectRatio`, `overflow`; `justifyItems` on a flex node | ignored — the legacy engine ignores them too (inert table) | — |
 
@@ -509,7 +522,11 @@ animation never trips it. `display: .none` (a `hidden()` after the frame) is
 reported as `display.none` before the comparison. Any other difference — a
 caller's `.width`, `.minWidth`, `.maxHeight`, `.flexGrow` or `.alignItems`
 written after `.frame`, which lands on the frame layer — is reported as
-`modifierLayer.style` (lane 4 test 4.8). The kernel frame is SwiftUI's
+`modifierLayer.style` (lane 4 test 4.8). A frame layer over **more than one**
+node (a multi-member `Component`) is reported `frame.multipleNodes` (stage 3,
+`LR-Z`); over **no** node it lowers over a 0×0 native leaf. A **`.padding`
+layer** is a one-child container and lowers through the container table at site
+`modifierLayer`. The kernel frame is SwiftUI's
 (`FR-A`/`FR-M`), so under the proposal authority a lowered `.frame(minWidth: 40,
 maxWidth: 80)` over a 20pt child answers 80 at a 100pt proposal (frame probe D
 control; legacy 40, divergence 35) and `.frame(maxWidth: .infinity)` fills on
@@ -625,20 +642,23 @@ Files: `LegacyLowering.swift`, `Stack.swift`, `ModifiedElement.swift`
 (`FrameSpec.idealWidth`/`idealHeight`; the `FR-D` trap moves from
 `frame(minWidth:idealWidth:…)` to the legacy registration branch);
 `Tests/MetalUITests/LoweringStackAndLayerTests.swift`, and the amended pin in
-`FrameSizingTests.swift`.
+`FrameSizingTests.swift`; also (lane 4) 1.5's `Stack` and both `ModifiedElement`
+arms in `LayoutAuthorityTests.swift` (they now declare a field the tables report)
+and 3.5's `display: .stack` `Box` arm (`LR-Y`'s amendment), and a doc comment in
+`NativeModifiedContent.swift`.
 
 | # | test | red before | mutation |
 |---|---|---|---|
-| 4.1 | `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes` | reported | **M4a** the overlay's horizontal and vertical factors swapped |
+| 4.1 | `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes` — nine alignments × unsized and sized-with-`Style.padding`; plus (lane 4) an arm declaring the flex container fields a stack does not read (empty report, agrees) and five reported arms (`Box` with `display: .stack` → `alignItems.stretch`, `justifyItems.stretch`; stretch; baseline; `margin`; hidden → `display.none` alone) | reported | **M4a** the overlay's horizontal and vertical factors swapped |
 | 4.2 | `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent` — `Stack { Text(long) }` inside a 60-wide `Column` in the harness root: legacy text box 60, lowered its widest line; `try #require` disagreement (divergence 53, stack-algorithms A5) | reported | **M4b** each lowered child wrapped in a native `fixedSize` |
 | 4.3 | `aLoweredPaddingLayerAgreesWithTheLegacyWrapper` — `.padding(4).padding(8)`, asymmetric edges, over `Box` and `Text`, with backgrounds | reported | **M4c** top and bottom insets swapped |
-| 4.4 | `aLoweredFixedFrameLayerAgreesWithTheLegacyFrameOverAFixedChild` — nine alignments × child smaller and larger than the frame | reported | **M4d** frame alignment forced `.center` |
-| 4.5 | `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps` — `minWidth 40, maxWidth 80` over 20 (legacy 40, lowered 80; D control) and `maxWidth: .infinity` alone (legacy 20, lowered 100; `FR-O`), each inside a 100-wide `Column` | reported | **M4e** the flexible frame lowered as a CSS clamp (child's size clamped) |
-| 4.6 | `anIdealFrameLowersUnderTheProposalAuthorityAndStillTrapsUnderTheLegacyOne` — exit test at legacy **render** (stderr names `idealWidth`); proposal arm measured at a nil proposal answers the ideal (frame probe C1: 80×20) | the construction trap fires first | **M4f** the ideal dropped from the lowering |
+| 4.4 | `aLoweredFixedFrameLayerAgreesWithTheLegacyFrameOverAFixedChild` — nine alignments × child smaller and larger than the frame; plus (lane 4) a frame over no node | reported | **M4d** frame alignment forced `.center` |
+| 4.5 | `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps` — `minWidth 40, maxWidth 80` over 20 (legacy 40, lowered 80; D control) and `maxWidth: .infinity` alone (legacy 20, lowered 100; `FR-O`), each inside a 100-wide `Column` | reported | **M4e** the maxima not passed to the kernel frame (a frame without a maximum is not greedy: 40 and 20, the CSS clamp's answers) |
+| 4.6 | `anIdealFrameLowersUnderTheProposalAuthorityAndStillTrapsUnderTheLegacyOne` — exit test at legacy **render** (stderr names `idealWidth` / `idealHeight`); proposal arm, in a child process, measured at a nil proposal by a test-only `NilProposal` layout answers the ideal (frame probe C1: 80×20; and 20×80 for `idealHeight`). **Lane 4:** the first spelling put the frame in a lowered `Row`, which proposes its own finite proposal, so the frame answered its child (C control, 20×20) — nothing the stage-1 lowering registers proposes nil (`LR-Z`) | the construction trap fires first (the child exits on `SIGTRAP`) | **M4f** the ideal dropped from the lowering |
 | 4.7 | `aFrameLayerLowersFromItsAnimatedStyleForWhatStyleCarries` — `.frame(width: 40)` animating to 80 reads the interpolated width under both authorities, and the report is empty at every frame | reported | **M4g** lowered from `FrameSpec` alone; **M4g′** the check compares the **animated** style (the mid-flight frame reports `modifierLayer.style`) |
-| 4.8 | `aSizingModifierWrittenAfterAFrameIsReportedOnTheFrameLayer` — `.frame(width: 40).width(60)`, `.frame(width: 40).minWidth(10)`, `.frame(maxWidth: 80).flexGrow(1)`: each reports `modifierLayer.style`; control `.frame(width: 40).background(.accent)` reports nothing and agrees | reported (`modifierLayer.noLowering`) | **M4h** the comparison made against `frameSpec.style()` without `lowered(_:childCount:)` (the control arm, a one-node frame, reports) |
-| 4.9 | `aHiddenFrameLayerIsReportedAsDisplayNone` — `.frame(width: 40).hidden()` on one node and on two | reported | **M4i** the `display.none` check moved after the comparison (the entry reads `modifierLayer.style`) |
-| amended | `anIdealDimensionOnTheLegacyFrameTraps` — its closures now **render** under the legacy authority; stderr still names `idealWidth` | — | the lane records that its old spelling (construction only) goes green-by-success, which is the amendment's evidence |
+| 4.8 | `aSizingModifierWrittenAfterAFrameIsReportedOnTheFrameLayer` — `.frame(width: 40).width(60)`, `.frame(width: 40).minWidth(10)`, `.frame(maxWidth: 80).flexGrow(1)`, and (lane 4) `.frame(width: 40).alignItems(.flexEnd).padding(4)` on an inner layer: each reports `modifierLayer.style`; control `.frame(width: 40).background(.accent)` reports nothing and agrees | reported (`modifierLayer.noLowering`) | **M4h** the comparison made against `frameSpec.style()` without `lowered(_:childCount:)` (the control arm, a one-node frame, reports) |
+| 4.9 | `aHiddenFrameLayerIsReportedAsDisplayNone` — `.frame(width: 40).hidden()` on one node and on two, with a `.width` after it, and on an inner layer; plus (lane 4, `LR-Z`) a two-node frame, not hidden, reporting `frame.multipleNodes` | reported | **M4i** the `display.none` check moved after the comparison (the entry reads `modifierLayer.style`) |
+| amended | `anIdealDimensionOnTheLegacyFrameTraps` — its closures now **render** under the legacy authority (the proposal control renders a proposal root: a legacy harness `Stack` over a native node is `SA-G`'s trap); stderr still names `idealWidth` | — | the lane records that its old spelling (construction only) goes green-by-success, which is the amendment's evidence |
 
 ### Lane 5 — demo content as a library; corpus; pipeline parity; depth and work
 
@@ -671,8 +691,8 @@ library instead of copying `main.swift`) and the unchanged suite count.
 guard G1 (a guard is a `@Test` and counts toward the suite); the amended pin is
 not new. Expected at the end: **1401 tests**, **97 goldens**, **71 guards** — to
 be re-measured, not trusted. Measured so far: lane 1 +12 (1369), lane 2 +10
-(1379), lane 3 +7 (1386) — lanes 1 and 2 each added verifier-round tests the
-plan did not count.
+(1379), lane 3 +7 (1386), lane 3's verifier round +2 (1388), lane 4 +9 (1397) —
+lanes 1, 2 and 3 each added verifier-round tests the plan did not count.
 
 ## 7. Demo comparison (`LR-M`)
 

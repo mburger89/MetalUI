@@ -771,3 +771,121 @@ seconds` (1386 + 2); 0 `error:`, one `warning:` (SwiftPM's `--build-system
 native` notice). Goldens 97, `git diff --stat c2290fc -- '*.json'` empty. No
 guard added. `Sources/` is unchanged since `35c588e`, so the pixel comparison
 above stands; the probe was not re-run (no new SwiftUI claim).
+
+## Lane 4 — `Stack` and `ModifiedElement` layers; ideal under the proposal authority
+
+Commits: `6d0d910` (tests, red), `4446336` (implementation, with 4.6's proposal
+arm respelled — below), and this record with spec and `LR-Z`.
+
+### Red first
+
+- `6d0d910`, on lane 3's `918bbc3` sources (`swift test --build-system native
+  --no-parallel --skip-build --filter
+  "LoweringStackAndLayerTests|everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn|stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem|anIdealDimensionOnTheLegacyFrameTraps"`):
+  `Test run with 12 tests in 0 suites failed after 0.512 seconds with 199 issues`
+  — 4.1 71, 4.2 3, 4.3 18, 4.4 76, 4.5 6, 4.6 2, 4.7 6, 4.8 8, 4.9 5; 1.5 3 (its
+  `Stack` and two `ModifiedElement` arms still read `noLowering`); 3.5 1 (its
+  `display: .stack` `Box` arm read `[box.noLowering]`); the amended ideal pin
+  passed (the construction trap still names `idealWidth`). Every lowering failure
+  reads the site-level entry or its 0×0 rect, e.g.
+  `LoweringStackAndLayerTests.swift:127:28: Expectation failed: r.unlowerable.isEmpty`
+  (4.1), `:292:32` (4.4), `:486:9: entries == expected` (4.8); 4.6's
+  `:378:26: expected exit status ".success", but ".signal(SIGTRAP)"` — the child
+  hit the construction trap. No legacy-side literal failed (4.2's legacy 60, 4.5's
+  legacy 40 at x 30 and 20 at x 40, 4.4's legacy rects), so the legacy side
+  measured as derived.
+- **The first red run truncated** (no summary line): `MetalUI/NativeModifiedContent.swift:110:
+  Precondition failed: a native outer modifier must wrap exactly one native layout
+  node` — 4.4's zero-node arm was spelled `EmptyGroup().frame(…)`, and `EmptyGroup`
+  is a `ProposalElementGroup`, so it resolved to the **proposal** frame. Respelled
+  over a component with no node (`NoNodes`) before the commit; the run above is
+  the second.
+- **4.6's proposal arm was wrong as first written**, found green-side: after the
+  implementation it read `20×20`, not `80×20`. It put the frame in a lowered
+  `Row`, and the kernel stack proposes its own finite proposal, where an ideal-only
+  frame answers its child (frame probe C control). The arm now measures under a
+  test-only `NilProposal` layout (`LR-Z`), in a child process as before, with the
+  native root centred at its answer (`CN-J`): frames (60, 90) 80×20 and
+  (90, 60) 20×80, box (90, 90). Its red, re-taken on a `git archive` of
+  `6d0d910` with the respelled test file copied in: `Test run with 1 test … failed
+  … with 2 issues` — `:440:26 expected exit status ".success", but
+  ".signal(SIGTRAP)"` and `:461:5 out.contains(expected)`.
+- **The amendment's evidence**: `918bbc3`'s construction-only
+  `anIdealDimensionOnTheLegacyFrameTraps`, run on a `git archive` of `4446336`:
+  `failed … with 3 issues` — both failure arms `expected exit status ".failure",
+  but ".exitCode(EXIT_SUCCESS)"` and the missing `idealWidth` message. The
+  amended pin renders and passes.
+
+### Suite
+
+- `4446336` after `swift package clean` (`ModifierLayer` gained a stored property
+  and lost one): `Test run with 1397 tests in 1 suite passed after 42.125 seconds`
+  (1388 + 9); 0 `error:`; the one `warning:` is SwiftPM's `--build-system native`
+  notice. Goldens 97; `git diff --stat c2290fc -- '*.json'` empty. No guard added.
+- After the mutation round, sources restored (`git diff -- Sources Tests` empty) and
+  rebuilt, 00:53 PDT: `Test run with 1397 tests in 1 suite passed after 42.195
+  seconds`; 0 `error:` in build and test logs; no `warning:` besides the notice.
+
+### Mutations
+
+Each on `4446336`: mutant applied by script (the target string asserted unique),
+native build, full unfiltered `swift test --build-system native --no-parallel
+--skip-build`, the file restored from `git show HEAD:<file>` copied aside before
+the build, `git status --short` showing only this lane's uncommitted docs after
+every one. Issue counts in parentheses.
+
+| mutation | reddened |
+|---|---|
+| M4a the stack's horizontal and vertical factors swapped | `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes` (24) |
+| M4b each lowered stack child wrapped in a native `fixedSize` | `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent` (2) |
+| M4c native padding's top and bottom insets swapped (shared by every lowering) | `aLoweredPaddingLayerAgreesWithTheLegacyWrapper` (6), 4.1 (18), `aLoweredContainerPaddingSitsInsideItsDeclaredSize` (4) |
+| M4d the frame layer's alignment forced `.center` | `aLoweredFixedFrameLayerAgreesWithTheLegacyFrameOverAFixedChild` (32) |
+| M4e the maxima not passed to the kernel frame | `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps` (1: the `try #require` disagreement of the first arm, which then stops the test) |
+| M4f the ideals not passed | `anIdealFrameLowersUnderTheProposalAuthorityAndStillTrapsUnderTheLegacyOne` (1) |
+| M4g bounds read from `FrameSpec` alone | `aFrameLayerLowersFromItsAnimatedStyleForWhatStyleCarries` (2: the start and half-way frames) |
+| M4g′ the check compares the animated style | 4.7 (4) |
+| M4h the check compares `frameSpec.style()` without `lowered` | 4.4 (72), 4.5 (6), 4.6 (1), 4.7 (6), `aSizingModifierWrittenAfterAFrameIsReportedOnTheFrameLayer` (4) |
+| M4i `display.none` checked after the comparison | `aHiddenFrameLayerIsReportedAsDisplayNone` (4) |
+| M4j the legacy registration's ideal trap removed (`ModifiedElement.swift`) | `anIdealDimensionOnTheLegacyFrameTraps` (3), 4.6 (4) — 7 issues |
+| M4k the `frame.multipleNodes` check deleted | 4.9 (1) |
+| M4l the stack's `justifyItems.stretch` row deleted | 4.1 (1), `stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem` (1) |
+| M4m the every-node rows not appended for a stack | 4.1 (1), `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` (1) |
+| M4o the stack's `alignItems.baseline` row deleted | 4.1 (1) |
+| M4p the stack branch disabled (a stack lowers as a flex row) | 4.1 (38) |
+
+Every mutation reddened at least the test the spec names; none left the suite
+green.
+
+### Pixels
+
+`CN-R`'s harness (`gen.py`, `DEMO_PIXELS_SMALL=1`) generated into a `git archive`
+of `4446336` (built in the scratchpad), compared with lane 1's `c2290fc` images
+(`lr1-px-base`): **12 of 12 read 0 differing pixels, scene identical.** Controls on
+the head images: `default-light-f0` vs `default-dark-f0` 1 048 576; vs
+`modal-light` 1 030 498; vs `animation-light` 210 027; vs `default-light-f3` 0;
+`preview-light` vs `preview-dark` 1 048 576. The respelled 4.6 changed only
+`Tests/` before `4446336`, and nothing in `Sources/` changed after it.
+
+### Probe
+
+Re-run this lane under `/usr/bin/swift`, exit 0:
+`docs/probes/swiftui-frame-semantics.swift` (291 lines) and
+`docs/probes/swiftui-stack-algorithms.swift` (787 lines); every output line appears
+verbatim in the file's recorded header. Arms cited: frame A5, B9 (60×40), C control
+(`frame(idealWidth: 80)` at 300×200 → 20×20), C1 (at nil → 80×20), D control
+(`minWidth 40, maxWidth 80` at 100×100 → 80×20); stack-algorithms A5 (`ZStack` of
+a greedy child at 100×80 → 100×80), G9 and X13 (160×20).
+
+### Screen lock
+
+`ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` → `<true/>` at 00:40 PDT. No
+real-window capture was attempted.
+
+### Findings for later phases
+
+- CLAUDE.md's "stack children get a nil main offer" (proposal path, "Unprobed
+  kernel behaviour") does not describe the kernel stack at this commit: a lowered
+  `Row` proposed its finite proposal to an ideal-only frame (4.6's first spelling).
+  Docs phase.
+- `EmptyGroup` is a `ProposalElementGroup`, so `EmptyGroup().frame(…)` is the
+  proposal frame and traps on zero nodes (`SA-R`'s single-child precondition).
