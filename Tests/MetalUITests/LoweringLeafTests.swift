@@ -138,9 +138,14 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// **2.3.** Every "otherwise" row of spec §5.4's **every node** table is reported
 /// by its field name on a leaf — on a childless `Box` and on a `Text`, except
 /// `padding.text`, which names a `Text` (on a `Box` padding lowers, 2.2). One arm
-/// per row, each setting only that field; each report is exactly one entry.
+/// per row, each setting only that field; each report is exactly one entry. Four
+/// combined rows follow on both sites: `padding.floor` on the width axis alone and
+/// on the height axis alone; `display: none` with a margin, reported alone (`LR-J`);
+/// `margin` with `flexGrow`, both reported in the table's order.
 ///
-/// Mutation that must redden it: **M2c**, the `margin` check deleted.
+/// Mutations that must redden it: **M2c**, the `margin` check deleted; **V3**, the
+/// height half of the floor check deleted; **V4**, `display: none` no longer
+/// returned alone; **V5**, only the last of several fields recorded.
 @MainActor
 @Test func everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf() throws {
     typealias Row = (name: String, edit: (inout Style) -> Void, onBox: Bool)
@@ -182,9 +187,103 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                      }.unlowerableFields,
                      [field(.text, row.name)]))
     }
-    try #require(arms.count == 29)
+    // Arms whose report is not a single entry named by the row (verifier round 1,
+    // lane 2): each half of `padding.floor` on its own axis (the 10×10 row above
+    // always takes the width branch first); a hidden leaf that also declares an
+    // unlowerable field reports `display.none` ALONE (`LR-J`); a leaf with two
+    // unlowerable fields reports both, in the table's order.
+    let combined: [(name: String, edit: (inout Style) -> Void, expected: [String])] = [
+        ("padding.floor width only", {
+            $0.size.width = .length(.pixels(px(10)))
+            $0.padding = Edges(top: .pixels(px(0)), right: .pixels(px(8)),
+                               bottom: .pixels(px(0)), left: .pixels(px(8)))
+        }, ["padding.floor"]),
+        ("padding.floor height only", {
+            $0.size = Size(width: .length(.pixels(px(100))), height: .length(.pixels(px(10))))
+            $0.padding = Edges(top: .pixels(px(8)), right: .pixels(px(0)),
+                               bottom: .pixels(px(8)), left: .pixels(px(0)))
+        }, ["padding.floor"]),
+        ("display.none with margin", {
+            $0.display = .none
+            $0.margin.top = .length(.pixels(px(3)))
+        }, ["display.none"]),
+        ("margin and flexGrow", {
+            $0.flexGrow = 1
+            $0.margin.top = .length(.pixels(px(3)))
+        }, ["margin", "flexGrow"]),
+    ]
+    for row in combined {
+        let s = style(row.edit)
+        arms.append(("Box \(row.name)",
+                     LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                         Box(style: s)
+                     }.unlowerableFields,
+                     row.expected.map { field(.box, $0) }))
+        let t = text("ab", row.edit)
+        arms.append(("Text \(row.name)",
+                     LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                         t
+                     }.unlowerableFields,
+                     row.expected.map { field(.text, $0) }))
+    }
+    try #require(arms.count == 37)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
+    }
+}
+
+/// **2.3b** (exit test). In production — diagnostics off — a leaf declaring two
+/// unlowerable fields traps naming the **first** in the table's order
+/// (`box.margin`), not the last (`box.flexGrow`).
+///
+/// Mutation that must redden it: **V5**, the loop recording every field but the
+/// last deleted (the trap then names `flexGrow`).
+@Test func aLeafWithTwoUnlowerableFieldsTrapsNamingTheFirstInProduction() async {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var s = Style()
+            s.flexGrow = 1
+            s.margin.top = .length(.pixels(Pixels(3)))
+            let box = Box(style: s)
+            var root = DifferentialRoot(width: 100, height: 100) { box }
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
+                  layoutAuthority: .proposal).render(&root)
+        }
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("box.margin has no proposal lowering"),
+            "aborted, but not at the first unlowerable field:\n\(stderr)")
+    #expect(!stderr.contains("box.flexGrow"), "the trap must name the first field:\n\(stderr)")
+}
+
+/// **2.3c.** A lowered `Box` registers its **animated** style, not its declared
+/// one: a width going 20 → 100 under `withAnimation(.linear(duration: 1))` reads
+/// 20 on the frame that starts the transaction and 60 half-way, under the proposal
+/// authority exactly as under the legacy one. (Spec §6's 5.6 is the stage's
+/// animation pin; this is lane 2's own.)
+///
+/// Mutation that must redden it: **V7**, `Box` lowers its declared style (the
+/// half-way frame reads 100).
+@MainActor
+@Test func aLoweredBoxRegistersItsAnimatedWidth() throws {
+    for authority in [LayoutAuthority.legacy, .proposal] {
+        let table = StateTable()
+        func widthAt(_ width: Float, timestamp: Double, animating: Bool) -> Pixels? {
+            let box = Box().width(px(width)).height(px(10))
+            var root = DifferentialRoot(width: 200, height: 100) { box }
+            let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                              stateTable: table, timestamp: timestamp,
+                              transaction: animating ? .linear(duration: 1) : nil,
+                              layoutAuthority: authority,
+                              reportsUnlowerableFields: authority == .proposal,
+                              recordsElementBounds: true)
+            frame.render(&root)
+            #expect(frame.unlowerableFields.isEmpty, "\(authority): \(frame.unlowerableFields)")
+            return frame.elementBounds[leafID]?.size.width
+        }
+        #expect(widthAt(20, timestamp: 0, animating: false) == px(20), "\(authority) baseline")
+        #expect(widthAt(100, timestamp: 0, animating: true) == px(20), "\(authority) transaction start")
+        #expect(widthAt(100, timestamp: 0.5, animating: false) == px(60), "\(authority) half-way")
     }
 }
 
