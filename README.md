@@ -108,7 +108,7 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/containers` (2026-09-16, plan task 6) the suite reports **1355
+On `feat/containers` (2026-09-16, plan task 6) the suite reports **1357
 tests**. That total includes **97** layout goldens generated from WebKit and
 **70** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently

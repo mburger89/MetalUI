@@ -2072,3 +2072,75 @@ decisions entry gained an addendum.
 (`NativeStackDistributionTests.swift`, above
 `defaultSpacingBesideANestedContainerFollowsItsChildrensEdges`) still says the
 trailing-edge mutation reddens V1b and V1c; M3 shows it reddens nothing.
+
+## Closeout (implementer, after the branch checker)
+
+2026-09-16, in this worktree from `b442c9e`. Three items the checker's "not
+ready to merge" verdict named, each red first and committed separately. Scratch
+logs in `scratchpad/closeout/`.
+
+**1. The `hidden()` regression, fixed** (`ed5fbc2`). `ModifierLayer.lowered(_:childCount:)`
+now returns the style unchanged when it holds `display: .none`. `display` is
+the only field `lowered` writes, so no other field a `Self`-returning modifier
+writes on a frame layer is overwritten this way (checked by reading: `animated`
+passes `display` through, and nothing else in `requestLayout` assigns a layer's
+style). Two tests, red at `b442c9e` (filtered run, 12 issues):
+
+- `hiddenAfterASingleChildLegacyFrameStillHidesTheElement` (`FrameSizingTests`,
+  5.9): the checker's five rows plus the frame hidden as an INNER layer,
+  `.frame(width: 40, height: 40).hidden().padding(4)` and the flexible overload
+  the same. Red lines: row 3 read 40, row 5 40, rows 6 and 7 48 (4 issues);
+  required 0, 0, 8, 8. `9e439cb` (the checker's `git archive` build,
+  `scratchpad/chk/pxbase`, `ModifiedElement.swift`/`Frame.swift`/`Box.swift`/
+  `LayoutTree.swift` `cmp`-identical to `git show 9e439cb`): rows 1–5 the
+  checker's figures, rows 6 and 7 read 8 and 8 by this closeout's scratch test
+  (deleted afterwards).
+- `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`
+  (`AccessibilityTreeTests`), four arms (both overloads, outermost and under
+  `.padding(4)`), a collecting `Frame`. **The checker's by-reading claim was
+  right**: every arm recorded 1 emission and published 1 node at `b442c9e` (8
+  issues); at `9e439cb` each recorded 0 and published 0 (same scratch build),
+  the control 1 and 1. Each arm's box still emits its declared node, so the
+  suppression is what is measured.
+
+Mutation, after committing: `lowered`'s guard without the `.none` clause →
+unfiltered suite `Test run with 1357 tests in 1 suite failed … with 12 issues`:
+`hiddenAfterASingleChildLegacyFrameStillHidesTheElement` (4) and
+`aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient` (8), nothing
+else. Restored from a copy; `git status --short` clean. `CN-N`'s addendum, the
+`CLAUDE.md` legacy frame paragraph and the `hidden()` inert row say fixed.
+
+**2. Lane 3's mutation F, probed and pinned** (`f80c2aa`). Probe revision 10:
+revision 9 re-run first, output identical to its record (779 lines); then V1l
+`HStack{a20; HStack{c 0x0; sp.padding(.trailing, 4)}; b20}` and V1m
+`HStack{a20; HStack{c 0x0; sp.padding(.leading, 4)}; b20}` appended after V8;
+run twice (`/usr/bin/swift`, exit 0, byte-identical, 787 lines), and against
+revision 9's record `diff` shows only the eight added lines. SwiftUI: V1l 60, c
+at 28, b at 40; V1m 60, c at 28, b at 40 — the trailing edge is the last child's
+TRAILING edge, as `CN-H` ruled by symmetry. Controls in the same run: V1c 48,
+V1j 56. Test 3.6 gained both arms (green on the real code). Mutation F (the
+checker's M3 replacement, exact and unique in `LayoutTree.swift`), unfiltered:
+`Test run with 1357 tests in 1 suite failed … with 4 issues`, all in
+`defaultSpacingBesideANestedContainerFollowsItsChildrensEdges`: V1l size 52 and
+b at 32, V1m size 68 and b at 48. Restored from a copy; `git status --short`
+clean. 3.6's doc comment no longer says F reddens V1b and V1c; `CN-H` has a
+closeout addendum; `CLAUDE.md`'s "except … mutation F" and its unprobed-
+behaviour bullet are gone.
+
+**Lane 3's status.** F is decided and pinned. Mutations D–K were run once, by
+the record pass, not by an independent verifier, and this closeout did not
+re-run them; lane 3's recorded verdict stays `ok: false` until someone other
+than an implementer does.
+
+**3. This section, the counts and the plan note** (the commit adding this
+section). Task 6 is not ticked and `CN-T`'s amendment is not applied.
+
+**Suite at `f80c2aa`**: `swift build --build-system native --build-tests`, then
+unfiltered `swift test --build-system native --no-parallel`: `Test run with 1357
+tests in 1 suite passed after 40.959 seconds`; 0 `error:` in either log; the
+only `warning:` SwiftPM's deprecation notice; only `regenerateAllGoldens` and
+`aListsWorkIsTheSameFor100kRowsAsFor500` skipped; `CONTAINER GUARD` lines
+printed. **1357** = 1355 + 2 (the two tests of item 1; item 2 added arms to an
+existing test). Goldens 97, `git diff 9e439cb` over them empty. Guards 70
+(per-file `grep -c canTypecheck` unchanged). The default build system was not
+re-run.

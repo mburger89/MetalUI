@@ -128,9 +128,11 @@ swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout preview window (value must be exactly "1")
 ```
 
-- **Counts, dated:** **1355 tests**, **97** browser-fixture goldens, **70**
-  `swiftc -typecheck` guards, 0 `error:`, 0 `warning:` — measured 2026-09-16
-  on `feat/containers` (plan task 6) after `swift package clean`, unfiltered
+- **Counts, dated:** **1357 tests**, **97** browser-fixture goldens, **70**
+  `swiftc -typecheck` guards, 0 `error:`, 0 `warning:` — re-taken 2026-09-16
+  at the containers closeout (`f80c2aa`: 1355 + the two `hidden()` regression
+  tests, record §17 "Closeout"); first measured on `feat/containers` (plan
+  task 6) after `swift package clean`, unfiltered
   `swift test --build-system native --no-parallel` after `swift build
   --build-system native --build-tests` (one summary line; only the two gated
   tests skipped; the lone `warning:` is SwiftPM's deprecation notice). Goldens

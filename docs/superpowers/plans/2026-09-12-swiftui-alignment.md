@@ -280,12 +280,13 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   *Progress 2026-09-16 on `feat/containers` (`75b5f69..`, from `9e439cb`),
   still open.* Spec `specs/2026-09-16-containers-design.md`; rulings
   `CN-A`…`CN-U` in `../2026-09-16-containers-decisions.md`; probes
-  `docs/probes/swiftui-stack-algorithms.swift` (revision 9) and
+  `docs/probes/swiftui-stack-algorithms.swift` (revision 10) and
   `swiftui-overlay-presentation.swift`; record §17. Five lanes, each red first;
   lanes 1, 2, 4 and 5 verified `ok`, lane 3 `ok: false` (its re-verification
   was cut short; the record pass ran the missing mutations itself and found
-  one unpinned clause, mutation F). Suite 1355 (1303 + 52), 97 goldens
-  unmoved, 70 guards.
+  one unpinned clause, mutation F, since pinned by the closeout). Suite 1355
+  (1303 + 52) at the Docs phase, 1357 after the closeout; 97 goldens unmoved,
+  70 guards.
   - **Proposal containers — SwiftUI's** (lanes 1–4): stack distribution
     (least flexible first, lower minimums reserved, sum of answers), `Spacer`
     (−∞ priority, default minimum 8, 0 on its stack's cross axis), per-edge
@@ -330,7 +331,14 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   siblings D–K were not re-run, so lane 3's re-verification is still
   incomplete. It also found an unfixed regression from `CN-N`:
   `.frame(…).hidden()` on a legacy element no longer hides (record §17,
-  "Branch checker").
+  "Branch checker"). *Closeout, 2026-09-16* (record §17, "Closeout"): the
+  `hidden()` regression is fixed, for layout and accessibility, and pinned
+  (`hiddenAfterASingleChildLegacyFrameStillHidesTheElement`,
+  `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`); F is
+  decided — probe revision 10's V1l/V1m confirm the trailing clause and test
+  3.6's new arms redden under F. **Lane 3 stays `ok: false`**: D–K have still
+  been run only by the record pass, never by an independent verifier. Suite
+  1357, 97 goldens unmoved, 70 guards.
 
   **Proposed amendment (`CN-T`), for the user to accept or not:** retitle this
   task "Port SwiftUI's container algorithms to the proposal path and audit the
