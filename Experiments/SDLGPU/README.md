@@ -16,6 +16,20 @@ swift run --build-system native Replay
 swift run --build-system native Replay --show
 ```
 
+Portable shaders (one HLSL source, `Shaders/replay.hlsl`) need the compiled
+stages first: `python3 scripts/compile-shaders.py --shadercross <path>` writes
+SPIR-V, MSL, DXIL and reflection JSON to `Shaders/compiled/`. Then:
+
+```sh
+swift run --build-system native Replay --portable          # SPIR-V -> MSL on SDL Metal
+brew install molten-vk vulkan-loader
+SDL_VULKAN_LIBRARY=/opt/homebrew/lib/libvulkan.1.dylib \
+  swift run --build-system native Replay --driver vulkan   # SPIR-V on SDL Vulkan (MoltenVK)
+```
+
+SDL does not search `/opt/homebrew/lib`; without `SDL_VULKAN_LIBRARY` it fails
+with `SDL_HINT_GPU_DRIVER vulkan unsupported!`. `--driver` implies `--portable`.
+
 `--show` displays the final SDL render in a resizable window for up to 30 seconds.
 Closing it ends presentation early. Resizing scales the captured scene; it does
 not run MetalUI layout. `REPLAY_OUTPUT=/absolute/path` chooses the artifact folder
@@ -37,13 +51,23 @@ performance measurement: the probe compiles shaders and waits for GPU readback.
   16. This proves the comparison sees a broken backend, rather than merely
   comparing two blank or identical reference images.
 
+## Results (2026-09-21, Apple M1 Max, SDL 3.4.16)
+
+| Path | Backend | Frames 0–3 differing pixels | Order mutation |
+|---|---|---|---|
+| adapted native MSL | SDL Metal | 0 / 0 / 0 / 0 | 283 px, Δ152 |
+| HLSL → SPIR-V → MSL (`--portable`) | SDL Metal | 0 / 0 / 0 / 0 | 283 px, Δ152 |
+| HLSL → SPIR-V (`--driver vulkan`) | SDL Vulkan, MoltenVK 1.4.2 | 0 / 0 / 0 / 0 | 283 px, Δ152 |
+
 ## Deliberate limits
 
-This is **SDL's Metal backend**, explicitly selected, not a Vulkan or Direct3D 12
-implementation. It adapts the existing MSL shader resource bindings and changes
-its atlas sampling to an explicit normalized sampler. The shader math remains
-shared, so this does not independently validate the math or prove shader
-translation to SPIR-V/DXIL.
+The portable HLSL is an independent re-expression of the shader math (float4
+lanes, 128/96-byte strides packed by the C bridge), and the Vulkan run
+exercises SDL's Vulkan backend: descriptor sets, SPIR-V loading, transfer
+pitch, readback. But MoltenVK translates SPIR-V back to MSL on the same Apple
+GPU, so it does not prove behaviour on a native Vulkan driver, and the DXIL
+stages have never executed. Pixel identity there is expected; on other GPUs
+the one-UNORM-step tolerance may matter.
 
 Text still uses MetalUI's CoreText implementation. The portable-looking C bridge
 is not a claim that the Swift package builds outside macOS. No `App`, `Window`,
@@ -61,9 +85,8 @@ validated public renderer API.
 
 ## Next experiments
 
-1. Author a shared portable shader source and compile to SPIR-V and DXIL using
-   SDL shader tooling. Verify struct layout, bindings, sample coordinates and
-   the same readback corpus on native Windows/Linux hardware.
+1. Done on macOS (table above). Still owed: the same readback corpus on native
+   Linux Vulkan and Windows D3D12 hardware.
 2. Extract the scene/atlas transport into a module without Metal/CoreText imports,
    then replay a serialized fixture without building the Apple UI stack.
 3. Add asynchronous resource lifetime and atlas-update stress cases before

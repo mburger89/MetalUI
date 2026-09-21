@@ -187,16 +187,19 @@ func run() throws {
     guard let device = MTLCreateSystemDefaultDevice() else { throw ProbeError("No Metal device") }
     let renderer = try Renderer(device: device)
     let source = try sdlSource()
-    let portable = CommandLine.arguments.contains("--portable")
+    let arguments = CommandLine.arguments
+    // --driver implies the portable shaders: only they exist as SPIR-V/DXIL.
+    let driver = arguments.firstIndex(of: "--driver").flatMap { $0 + 1 < arguments.count ? arguments[$0 + 1] : nil }
+    let portable = arguments.contains("--portable") || driver != nil
     let shaderDirectory = ProcessInfo.processInfo.environment["REPLAY_SHADERS"] ?? "Shaders/compiled"
     let created = portable
-        ? shaderDirectory.withCString { replay_create_portable($0, "metal") }
+        ? shaderDirectory.withCString { replay_create_portable($0, driver ?? "metal") }
         : source.withCString { replay_create($0) }
     guard let gpu = created else {
         throw ProbeError("SDL create: \(String(cString: replay_error()))")
     }
     defer { replay_destroy(gpu) }
-    print("Shader path: \(portable ? "HLSL -> SPIR-V -> MSL" : "adapted native MSL")")
+    print("Shader path: \(portable ? (driver == "vulkan" ? "HLSL -> SPIR-V" : driver == "direct3d12" ? "HLSL -> SPIR-V -> DXIL" : "HLSL -> SPIR-V -> MSL") : "adapted native MSL")")
     print("SDL GPU driver: \(String(cString: replay_driver(gpu))); reference device: \(device.name)")
     let atlas = GlyphAtlas(width: 1024, height: 1024)
     var report = [String]()
