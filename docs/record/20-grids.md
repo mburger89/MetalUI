@@ -863,6 +863,161 @@ reads `session CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`,
 (`GR-AE`, `GR-M`), and whoever takes it re-runs this probe first, on the CGS
 reading `FR-V` asks for rather than `IOConsoleLocked`.
 
+## Lane 1 re-verification at `723f26e` (2026-09-21)
+
+Lane 1 was re-dispatched a third time, after lane 2's re-verification, with an
+implementer report describing the round at `0453d2f`. The tree had moved on:
+HEAD was `723f26e`, holding lane 1's own follow-up (`40c2fe9`, `d6ad9ff`) and
+lane 2's (`7986252`, `5e787c7`, `723f26e`). **The worktree was not clean**: it
+held one untracked file, `docs/probes/swiftui-grid-finite-shares.swift`, an
+interrupted round's work. Continuing it is most of this round.
+
+### Re-taken at `723f26e`
+
+- `swift build --build-system native --build-tests` (incremental, no stored
+  property changed, so no `swift package clean`), then `swift test
+  --build-system native --no-parallel` unfiltered: **`Test run with 1450 tests
+  in 1 suite passed after 48.982 seconds`**, 0 `error:`, the only `warning:`
+  SwiftPM's deprecation notice.
+- Goldens **97**, `git diff cb2e708 -- '*.json'` empty. Guards **71** (73
+  `canTypecheck` hits across the fourteen files, less `Typecheck.swift`'s
+  declaration and `UnitSafetyTests`' comment).
+- **Red first, checked rather than assumed**: `git show --stat 432cb3d` is five
+  test files and no `Sources/` file; `git show --stat 82a63fe` is four
+  `Sources/` files and no test. `git grep` at `cb2e708` for `func newNativeGrid`,
+  `func markNativeGridRow`, `func markNativeGridCell` and `NativeGridPlan`
+  returns nothing, and the test commit spells them twelve times in
+  `NativeGridTests.swift` alone — so it could not have compiled.
+- **Probe re-run**: `docs/probes/swiftui-grid-gap-order.swift` (lane 1's own,
+  from `40c2fe9`) exits 0 and its four lines diff **empty** against the header's
+  recorded stdout.
+
+### Mutations (from a copy; `git status --short` shown during and after each; full native suite)
+
+| # | mutation | file | reddened |
+|---|---|---|---|
+| GV-1 | `nativeGridCellRects` always places at the recorded proposal (the inverse of M1.5) | `NativeGrid.swift` | 14 tests, 29 issues (`aCellWhoseSlotEqualsItsAnswerIsPlacedAtTheProposalItWasMeasuredAt`, `theGridProbeCorpusAgreesCaseByCase`, …) |
+| GV-2 | the slot width drops `innerGaps` | `NativeGrid.swift` | 6 tests, 20 issues |
+| GV-3 | the vgap interval merge always advances the upper row (`i += 1`) | `NativeGrid.swift` | 5 tests, 28 issues |
+| **GV-4** | the trailing edge predicate is `$0.column == plan.columnCount - 1` | `NativeGrid.swift` | **nothing: `Test run with 1450 tests in 1 suite passed`** |
+| GV-5 | an empty grid has neither zero-spacing edge | `NativeGrid.swift` | 2 tests, 3 issues |
+| GV-6 | at nil a spanning cell does not raise its row's height | `NativeGrid.swift` | 7 tests, 39 issues |
+| **GV-F** | `serve` drops the span proposal's floor, `Swift.max(…, spanWidth(cell))` (the `spanWidth` call kept, so `bookkeepingSteps` does not move) | `NativeGrid.swift` | **nothing: 1450 passed** |
+| **GV-O** | `serve`'s `outside +=` is always `widths[column]` | `NativeGrid.swift` | **nothing: 1450 passed** |
+| **GV-R** | `widen` lets the committed-width sum go stale | `NativeGrid.swift` | **nothing: 1450 passed** |
+
+Four green. None is equivalent — each was re-run against a scratch test (never
+committed) that measures the three grids through `LayoutTree`'s `.grid` node:
+
+| arm | kernel as written | under its mutation | SwiftUI |
+|---|---|---|---|
+| F1 | 218×58 | **218×38** | 218×58 |
+| O1 | 106×100 | **298×100** | **245.33×100** |
+| R1 | 290×28 | **440×28** | 290×28 |
+
+All four are now pinned; see `GR-AH`. Each was re-applied after its arm landed
+and reddens exactly the test written for it and nothing else:
+
+| # | after | reddened |
+|---|---|---|
+| GV-4b | `a2c1216` | `aGridSeenFromAStackHasPositionalZeroSpacingEdges` — 1 issue (T1's `#require` stops it) |
+| GV-Fb | `aea2b04` | `aSpanAtAFiniteProposalIsOfferedTheWidthOutsideItAndWidensItsOpenColumnsFirst` — 3 issues |
+| GV-Ob | `aea2b04` | `theModelsDisagreementsWithSwiftUIArePinned` — 7 issues |
+| GV-Rb | `aea2b04` | `aFiniteProposalServesGroupsWithSharesAndCommits` — 4 issues |
+
+### The uncommitted probe, and why its header could not be used
+
+`docs/probes/swiftui-grid-finite-shares.swift` arrived untracked, with arms F1,
+O1 and R1 aimed at exactly the three green solver clauses above and a header
+claiming "RECORDED 2026-09-17 … Exit 0, run twice, byte-identical stdout". Run
+here, twice, byte-identical: **it does not reproduce its own header.** All five
+arms' measurement sequences differ, and O1's answer differs outright, 106×100
+recorded against 245.33×100 measured. The harness is byte-identical to
+`swiftui-grid.swift`'s and `swiftui-grid-span-targets.swift`'s, and the C0/C1
+controls' real output matches `swiftui-grid-default-run.txt`'s GX8 and GX12 line
+for line, sequences included — while the header's C0/C1 lines do not. The header
+records, on every arm, **the kernel's answers as SwiftUI's**.
+
+Two of the three readings survive that anyway (F1 and R1: SwiftUI agrees with
+the kernel), which is why only O1 exposed it. Had the three arms been written
+from the header as the draft intended, the suite would have pinned "SwiftUI
+answers O1 106×100" as a confirmation of a rule SwiftUI does not follow.
+
+The file is committed at `aea2b04` with its arms unchanged, its true stdout, a
+PROVENANCE paragraph and a corrected reading. The O1 finding is `GR-AH` item 4:
+`swiftui-grid.swift`'s own `model-arms` mode, with an O1 case added in a scratch
+copy, reads the reference model at 106×100 **rect for rect** with the kernel, so
+the kernel follows the model exactly as `GR-B` says and O1 is a fifth
+model-vs-SwiftUI disagreement, now an arm of test 2.9 (pinned wrong on purpose)
+and a named arm under divergence `GR-O` 2. Owner: plan task 15.
+
+### New probe: `docs/probes/swiftui-grid-span-edges.swift`
+
+For GV-4. Four arms at nil×nil, the GE instrument unchanged (the grid between a
+30×10 and a 10×10 leaf in an `HStack`, the stack's answer carrying the gaps):
+C0 = GE25 (60×28) and C1 = GE26 (96×28) as positive controls, both reproduced;
+T1 a non-row Spacer over a two-cell row, T2 a row Spacer with
+`gridCellColumns(2)`. **SwiftUI answers 88×28 for both** — the cell that ENDS at
+the last column carries the trailing edge whatever its span, and 96 (the wrong
+spelling's answer) is C1's own recorded width, so the two readings are not a
+rounding apart. Exit 0, run twice, byte-identical stdout; the header's STDOUT
+block diffs empty against the run.
+
+### Commits
+
+`a2c1216` (the span-edges probe and T1/T2), `aea2b04`
+(`swiftui-grid-finite-shares.swift` and arms F1, R1, O1), and this record with
+`GR-AH`. `git diff 723f26e -- Sources/` is **empty**: no source line changed
+this round, so nothing for the integration to merge in a shared file.
+
+### Demo (re-taken, not inherited)
+
+`CN-R`'s harness (`scratchpad/harness/gen-lib.py`, `DEMO_PIXELS_SMALL=1`,
+default build system) in fresh `git archive`s of `cb2e708` and `a2c1216`:
+**12 of 12 images 0 differing pixels, scenes identical.** Controls on the head
+images, each reproducing the figure every earlier round recorded: light vs dark
+f0 **1 048 576**; default vs modal (light) **1 030 498**; default vs animation
+(light) **210 027**; f0 vs f3 **0**; preview light vs dark **1 048 576**; 544
+distinct pixel values in `default-light-f0`.
+
+### The real window, at last — the first non-zero capture this track has taken
+
+`docs/probes/appkit-screen-lock-state.swift`, compiled `-O` and run
+2026-09-21, prints **no `CGSSessionScreenIsLocked` line** and `displayAsleep
+main: 0` / `displayActive main: 1` (`kCGSSessionOnConsoleKey = 1`,
+`preflightScreenCaptureAccess: true`, one screen 2056×1329 at scale 2). The
+three earlier rounds all read `CGSSessionScreenIsLocked = 1`; this is the first
+time the gate `FR-V` asks for was met. `docs/probes/window-capture/capture.sh`
+was run for `cb2e708` and `a2c1216` (release builds from `git archive`,
+window-id captures with `-o`, no input, no pointer movement):
+
+| capture | result |
+|---|---|
+| `cb2e708` default, a vs b | 1840×1176 differing=**0** (the window is settled) |
+| `cb2e708` preview, a vs b | 1840×1176 differing=**0** |
+| `a2c1216` default, a vs b | 1840×1176 differing=**0** |
+| `a2c1216` preview, a vs b | 1840×1176 differing=**0** |
+| **`cb2e708` → `a2c1216` default** | 1840×1176 differing=**0** |
+| **`cb2e708` → `a2c1216` preview** | 1840×1176 differing=**0** |
+| control, default vs preview at `a2c1216` | 1840×1176 differing=**890 803**, bbox (0,15)–(1839,1175) |
+
+So the real release window is pixel-identical to `cb2e708`'s on both the default
+demo and the proposal preview, with a live instrument. This closes the capture
+`GR-AE`/`GR-M` had left to lane 4; what remains there is the *human look* at the
+preview's grid, which no capture can supply.
+
+### For lane 3 and lane 4
+
+- `GR-AH` items 2–4 are lane 2's code. Their arms are written and green here, but
+  **lane 3 owns keeping both branches of the span-target and share rules in
+  step** — `GR-AG`'s warning now applies to four clauses, not one.
+- O1 is a divergence, not a defect (`GR-O` 2, owner plan task 15). Do not
+  "fix" the `outside` term toward SwiftUI without re-deriving the model: the
+  model is what the other 65 divergence cases are pinned against.
+- Lane 4 no longer owes the real-window capture (above); it still owes the
+  preview's grid, `GR-AE`'s human-verification row, tests 4.9b/4.9c, test 4.21
+  and CLAUDE.md's row.
+
 ## For the integrator
 
 (Written by lane 4; see spec §6, lane 4.)

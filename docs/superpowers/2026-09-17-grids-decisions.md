@@ -1,15 +1,17 @@
 # Grids decisions (plan task 7, stage G)
 
 Rulings for [`specs/2026-09-17-grids-design.md`](specs/2026-09-17-grids-design.md),
-on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-AG`; next
-unused is **`GR-AH`**. A bare `GR-3` is a typo, not a citation.
+on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-AH`; next
+unused is **`GR-AI`**. A bare `GR-3` is a typo, not a citation.
 
 **Status, 2026-09-17: lanes 1 and 2 built** (`GR-W` and `GR-X` record their
 as-built amendments);
 the design was revised after **two** critic rounds — `GR-Q` records how each of
 the first round's fourteen findings was applied, `GR-Y` how each of the second
 round's fifteen was, and `GR-Z`…`GR-AF` are that round's new rulings. `GR-AG`
-is the lane-2 re-verification's one finding (a green mutation, now pinned). Baseline measured in this worktree at `cb2e708`: `swift build
+is the lane-2 re-verification's one finding (a green mutation, now pinned), and
+`GR-AH` the lane-1 re-verification's four (four more, now pinned, one of them a
+fifth model-vs-SwiftUI disagreement). Baseline measured in this worktree at `cb2e708`: `swift build
 --build-system native --build-tests`, then `swift test --build-system native
 --no-parallel` → `Test run with 1409 tests in 1 suite passed after 42.821
 seconds`, 0 `error:`, no `warning:` besides SwiftPM's deprecation notice;
@@ -677,7 +679,11 @@ is removed: probed and ruled, `GR-R`.)
    and on arms GS4 and GS5: pinned by test 2.9 **and by test 3.12**, which
    holds a representative handful of the 65 committed divergence cases
    (`docs/probes/swiftui-grid-divergences.txt`) wrong on purpose, at the model's
-   figures with SwiftUI's in the doc comment. Roughly one generated grid in
+   figures with SwiftUI's in the doc comment. **Arm O1** joined test 2.9 in the
+   lane-1 re-verification (`GR-AH`): `[a 20x10, b 30x10, c w40 height-flexible]
+   [x clamp 0…250 span 2, d 40x10]` at 300×100 is 106×100 in the model and the
+   kernel, 245.33×100 in SwiftUI — the share charged to an OPEN column outside a
+   span, probed in `docs/probes/swiftui-grid-finite-shares.swift`. Roughly one generated grid in
    three that uses spans, priorities or Spacers lays out differently from
    SwiftUI; the GZ table is the dated baseline. **Owner: plan task 15's
    closeout** (`GR-AA`, `GR-N`).
@@ -1357,3 +1363,58 @@ does not move (the shortfall's sum is preserved), so nothing above the grid can
 see it and only a per-cell rect can. Lane 3 must keep both copies of the rule in
 step when it adds unsized axes and anchors: an edit to one branch's target chain
 is now caught by GX11 or by S1/S2, but only because each branch has an arm.
+
+
+## GR-AH — the lane-1 re-verification: four green mutations, and a probe header that was never run
+
+Four mutations of lane 1's and lane 2's kernel code left
+`Test run with 1450 tests in 1 suite passed`. None is equivalent; all four are
+now pinned, by arms rather than new tests, so the total did not move.
+
+1. **The trailing zero-spacing edge over a SPANNING cell** (lane 1,
+   `nativeGridZeroSpacingEdges`). `$0.column + $0.span == plan.columnCount`
+   changed to `$0.column == plan.columnCount - 1` — "the cell must START at the
+   last column" — was green. GE3's Spacer is single-column at the last column,
+   GE25's non-row Spacer is in a ONE-column grid (where column 0 is also
+   `columnCount - 1`), and GE26's row Spacer ends at column 0 of two, so neither
+   spelling gives it an edge: every named arm agrees under both. Probed now in
+   **`docs/probes/swiftui-grid-span-edges.swift`** (T1, a non-row Spacer over a
+   two-cell row; T2, a row Spacer with `columns: 2`; C0 = GE25 and C1 = GE26 as
+   controls, both reproduced). SwiftUI answers 88×28 for both, so the cell that
+   ENDS at the last column carries the edge whatever its span and the kernel was
+   right. Pinned by T1/T2 in
+   `aGridSeenFromAStackHasPositionalZeroSpacingEdges`, T1 behind a `#require`
+   against GE26's 96.
+2. **The span proposal's FLOOR** (lane 2, `NativeGridSolver.serve`): dropping
+   `Swift.max(…, spanWidth(cell))` was green. F1 `[a 200x10, b 10x10] [x span
+   2]` at 100×100 reads 218×58 with the floor and 218×38 without; SwiftUI reads
+   218×58. Pinned by arm F1.
+3. **The running sum of committed widths** (lane 2, `widen`): deleting
+   `if committedColumn[column] { committedWidth += value - old }` was green. R1
+   `[a 50x10 prio 2, b 10x10 prio 2] [c clamp 0…200 prio 1, e clamp 0…300]` at
+   300×100 reads 290×28 kept and 440×28 stale; SwiftUI reads 290×28. Pinned by
+   arm R1.
+4. **The share charged to an OPEN column outside a span** (lane 2, `serve`'s
+   `outside += levelInColumn[column] > 0 ? shareW : widths[column]`): making it
+   always `widths[column]` was green. O1 reads 106×100 as written and 298×100
+   mutated — **and SwiftUI reads 245.33×100, neither of them.** Running
+   `swiftui-grid.swift`'s `model-arms` mode with O1 added reads the reference
+   model at 106×100 rect for rect, so the kernel implements the model faithfully
+   and this is a **fifth model-vs-SwiftUI disagreement** of divergence `GR-O` 2's
+   class, not a solver defect. Pinned wrong on purpose as arm O1 of
+   `theModelsDisagreementsWithSwiftUIArePinned`, beside GX17, GX18, GS4 and GS5.
+   Owner for closing it: plan task 15, with the rest of `GR-O` 2.
+
+**And a practice finding.** An earlier draft of
+`swiftui-grid-finite-shares.swift` was left uncommitted in the worktree by an
+interrupted round, carrying a "RECORDED … run twice, byte-identical" header
+whose STDOUT block **came from no run of that file**: on all five arms it
+records the KERNEL's answers as SwiftUI's, and its C0/C1 control lines
+contradict `docs/probes/swiftui-grid-default-run.txt` (whose sequences the real
+run reproduces exactly). Because F1 and R1 happen to agree, only O1 exposed it —
+had the arms been written from that header, the suite would have pinned
+`SwiftUI answers 106×100` as a *confirmation* of a rule SwiftUI does not follow.
+The probe is committed with its true stdout and reading; the rule it costs is
+the one already in `docs/practices/verifying-tests-can-fail.md`: **a probe's
+header is the output of a run of the committed file, and a control that
+reproduces the corpus is what makes the rest of the run readable.**
