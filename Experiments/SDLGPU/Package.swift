@@ -1,15 +1,20 @@
 // swift-tools-version: 6.3
 import PackageDescription
 
+// The Apple half: draws fixtures with the production Metal renderer, compares
+// SDL live, and records fixtures for Portable/, which builds without MetalUI.
 let package = Package(
     name: "SDLGPUExperiment",
     platforms: [.macOS(.v14)],
-    dependencies: [.package(name: "MetalUI", path: "../..")],
+    dependencies: [
+        .package(name: "MetalUI", path: "../.."),
+        .package(name: "SDLGPUPortable", path: "Portable")
+    ],
     targets: [
-        .systemLibrary(name: "CSDL", pkgConfig: "sdl3", providers: [.brew(["sdl3"])]),
-        .target(name: "SDLBridge", dependencies: ["CSDL"]),
         .executableTarget(name: "Replay", dependencies: [
-            "SDLBridge", .product(name: "MetalUI", package: "MetalUI")
+            .product(name: "SDLBridge", package: "SDLGPUPortable"),
+            .product(name: "ReplayFixture", package: "SDLGPUPortable"),
+            .product(name: "MetalUI", package: "MetalUI")
         ])
     ]
 )

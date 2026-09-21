@@ -5,6 +5,7 @@ import MetalUI
 import MetalUIText
 import MetalUIShaderTypes
 import SDLBridge
+import ReplayFixture
 import AppKit
 
 struct ProbeError: Error, CustomStringConvertible {
@@ -165,19 +166,20 @@ func savePNG(_ bytes: [UInt8], width: Int, height: Int, path: URL) throws {
     try png.write(to: path)
 }
 
-func difference(_ a: [UInt8], _ b: [UInt8]) -> (pixels: Int, maxDelta: Int) {
-    precondition(a.count == b.count)
-    var pixels = 0, maxDelta = 0
-    for i in stride(from: 0, to: a.count, by: 4) {
-        var changed = false
-        for c in 0..<4 {
-            let delta = abs(Int(a[i+c]) - Int(b[i+c]))
-            changed = changed || delta != 0
-            maxDelta = max(maxDelta, delta)
-        }
-        if changed { pixels += 1 }
+// The primitive ABI crosses as raw bytes; pin it here, where both sides are visible.
+func recordedFixture(_ scene: Scene, atlas: GlyphAtlas, width: Int, height: Int,
+                     projection: simd_float4x4, reference: [UInt8]) throws -> ReplayFixture {
+    try require(MemoryLayout<MUIRect>.stride == Int(ReplayFixture.rectStride)
+                && MemoryLayout<MUIGlyph>.stride == Int(ReplayFixture.glyphStride),
+                "MUIRect/MUIGlyph stride changed; update ReplayFixture and replay.hlsl")
+    let runs = scene.drawList.map {
+        FixtureRun(kind: $0.kind == .glyph ? .glyph : .rect, start: UInt32($0.start), count: UInt32($0.count))
     }
-    return (pixels, maxDelta)
+    let matrix = withUnsafeBytes(of: projection) { Array($0.bindMemory(to: Float.self)) }
+    return try ReplayFixture(width: UInt32(width), height: UInt32(height),
+        rects: scene.rects.withUnsafeBytes { Array($0) }, glyphs: scene.glyphs.withUnsafeBytes { Array($0) },
+        runs: runs, atlasWidth: UInt32(atlas.width), atlasHeight: UInt32(atlas.height),
+        atlas: Array(atlas.pixels), projection: matrix, reference: reference)
 }
 
 @MainActor
@@ -191,7 +193,7 @@ func run() throws {
     // --driver implies the portable shaders: only they exist as SPIR-V/DXIL.
     let driver = arguments.firstIndex(of: "--driver").flatMap { $0 + 1 < arguments.count ? arguments[$0 + 1] : nil }
     let portable = arguments.contains("--portable") || driver != nil
-    let shaderDirectory = ProcessInfo.processInfo.environment["REPLAY_SHADERS"] ?? "Shaders/compiled"
+    let shaderDirectory = ProcessInfo.processInfo.environment["REPLAY_SHADERS"] ?? "Portable/Shaders/compiled"
     let created = portable
         ? shaderDirectory.withCString { replay_create_portable($0, driver ?? "metal") }
         : source.withCString { replay_create($0) }
@@ -202,6 +204,9 @@ func run() throws {
     print("Shader path: \(portable ? (driver == "vulkan" ? "HLSL -> SPIR-V" : driver == "direct3d12" ? "HLSL -> SPIR-V -> DXIL" : "HLSL -> SPIR-V -> MSL") : "adapted native MSL")")
     print("SDL GPU driver: \(String(cString: replay_driver(gpu))); reference device: \(device.name)")
     let atlas = GlyphAtlas(width: 1024, height: 1024)
+    // --record <dir> writes each frame as a fixture Portable/ can replay alone.
+    let record = arguments.firstIndex(of: "--record").flatMap { $0 + 1 < arguments.count ? arguments[$0 + 1] : nil }
+    if let record { try FileManager.default.createDirectory(atPath: record, withIntermediateDirectories: true) }
     var report = [String]()
     var reference = [UInt8]()
     var lastScene = Scene()
@@ -212,19 +217,24 @@ func run() throws {
         if index == 3 { projection.columns.0.x = 0.85; projection.columns.1.y = 0.85 }
         let metal = try metalPixels(scene, atlas: atlas, renderer: renderer, width: width, height: height, projection: projection)
         let sdl = try sdlPixels(scene, atlas: atlas, gpu: gpu, width: width, height: height, projection: projection)
-        let delta = difference(metal, sdl)
+        let delta = pixelDifference(metal, sdl)
         let line = "frame \(index) \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))
         try require(delta.maxDelta <= 1, "Parity failed: \(line)")
+        if let record {
+            let path = URL(fileURLWithPath: record).appendingPathComponent("frame-\(index).muireplay")
+            try Data(recordedFixture(scene, atlas: atlas, width: width, height: height,
+                                     projection: projection, reference: metal).encoded()).write(to: path)
+        }
         // This tolerance only permits UNORM rounding, never misplaced edges.
         reference = metal; lastScene = scene
     }
     var projection = matrix_identity_float4x4
     projection.columns.0.x = 0.85; projection.columns.1.y = 0.85
     let mutant = try sdlPixels(lastScene, atlas: atlas, gpu: gpu, width: 640, height: 380, projection: projection, mutation: true)
-    let delta = difference(reference, mutant)
+    let delta = pixelDifference(reference, mutant)
     try savePNG(mutant, width: 640, height: 380, path: output.appendingPathComponent("mutant-order.png"))
     try require(delta.pixels > 100 && delta.maxDelta > 16, "Broken comparison: draw-order mutation did not move enough pixels")
     let control = "draw-order mutation: differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta) (detected)"
