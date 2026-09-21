@@ -1204,7 +1204,9 @@ rows, `vgap = [0, 8]`, so H′ = 92.
 | serve | a at 92/2 = 46 → 10×20; b at (92 − 20)/1 = 72 → 10×72 | b at 46 → 10×46; a at (92 − 46)/1 = 46 → 10×20 |
 | answer | **10×100**, a (0,0 10×20), b (0,28 10×72) | 10×74, b (0,28 10×46) |
 
-Test 2.2 gains that grid as **GF19** (GF14–GF18 are test 2.1's), with **GF20**,
+Test 2.2 gains that grid as **GF19** (GF14–GF18 are test 2.1's; `f7aec53`'s
+commit subject still names the pre-rename ids, the code and every doc use
+GF19/GF20), with **GF20**,
 the same grid at 100×100, as the control that reaches the mutant's order
 honestly through a finite width: 100×74, a (0,0 100×20), b (10,28 80×46). The
 two are `#require`d to differ.
