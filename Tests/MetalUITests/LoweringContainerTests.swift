@@ -278,9 +278,6 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 ///   — the legacy engine stretches the second child to 10 tall;
 /// - single-child stretch with a declared cross size (`.height(30)`):
 ///   `alignItems.stretch`;
-/// - `.spaceBetween` / `.spaceAround` / `.spaceEvenly` with a declared main size:
-///   `justifyContent.spaceBetween` / `.spaceAround` / `.spaceEvenly`;
-/// - `.rowReverse`, `.columnReverse`: `reverse`;
 /// - `.baseline`: `alignItems.baseline`;
 /// - `.wrap`: `flexWrap`; an `alignContent`: `alignContent`;
 /// - a main-axis gap in percent: `gap.percent` (a cross-axis percent gap is read by
@@ -306,11 +303,20 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 /// the auto child 20×30 on both sides — and so does a `Box` declaring `display:
 /// .stack` (its `nil` items stretch per child, 1.9). A container's `margin` is an
 /// item field its parent reads: under the harness root it reports
-/// `margin.unconsumed`. **The name is kept**: its `space-*` half is still the
-/// subject, which stage 2's lane 5 moves; M3f's premise (stretch reported) is gone,
-/// and stretch's own mutations are lane 1's (M1a–M1d).
+/// `margin.unconsumed`. M3f's premise (stretch reported) is gone, and stretch's own
+/// mutations are lane 1's (M1a–M1d).
+///
+/// **Amended and renamed in stage 2, lane 5** (ruling LR-AJ), from
+/// `stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem`: its
+/// other half lowered too, so nothing named in the old name is reported any more and
+/// the name would have been a lie. What is left is the container table's inventory —
+/// every container field either lowers and agrees, or is reported by name — so the
+/// five `space-*` and reverse arms stay here, expecting `[]`, and their rects are
+/// pinned in depth by `LoweringDistributionTests.swift` (5.1, 5.2, 5.5). The hidden
+/// reverse container still reports `display.none` alone, which is the arm that shows
+/// `display: none` is checked before the direction.
 @MainActor
-@Test func stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem() throws {
+@Test func everyContainerFieldEitherLowersAndAgreesOrIsReportedByName() throws {
     let single = LayoutDifferential.compare(width: 100, height: 100) { Box { fixed(20, 10) } }
     try #require(single.elements == 3)
     expectFullAgreement(single, "single-child stretch")
@@ -372,21 +378,18 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
     let arms: [Arm] = [
         ("two-child stretch (lowered since stage 2)", twoChild.unlowerable, []),
         ("sized single-child stretch (lowered since stage 2)", sizedSingle.unlowerable, []),
-        ("sized spaceBetween",
-         report { Row { fixed(20, 10); fixed(30, 10) }.width(px(100)).justifyContent(.spaceBetween) },
-         [field(.box, "justifyContent.spaceBetween")]),
-        ("sized spaceAround",
-         report { Column { fixed(20, 10); fixed(30, 10) }.height(px(100)).justifyContent(.spaceAround) },
-         [field(.box, "justifyContent.spaceAround")]),
-        ("sized spaceEvenly",
-         report { Row { fixed(20, 10); fixed(30, 10) }.width(px(100)).justifyContent(.spaceEvenly) },
-         [field(.box, "justifyContent.spaceEvenly")]),
-        ("rowReverse",
+        ("sized spaceBetween (lowered since lane 5)",
+         report { Row { fixed(20, 10); fixed(30, 10) }.width(px(100)).justifyContent(.spaceBetween) }, []),
+        ("sized spaceAround (lowered since lane 5)",
+         report { Column { fixed(20, 10); fixed(30, 10) }.height(px(100)).justifyContent(.spaceAround) }, []),
+        ("sized spaceEvenly (lowered since lane 5)",
+         report { Row { fixed(20, 10); fixed(30, 10) }.width(px(100)).justifyContent(.spaceEvenly) }, []),
+        ("rowReverse (lowered since lane 5)",
          report { Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.rowReverse).alignItems(.flexStart) },
-         [field(.box, "reverse")]),
-        ("columnReverse",
+         []),
+        ("columnReverse (lowered since lane 5)",
          report { Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.columnReverse).alignItems(.center) },
-         [field(.box, "reverse")]),
+         []),
         ("baseline", report { Row { fixed(20, 10); fixed(30, 10) }.alignItems(.baseline) },
          [field(.box, "alignItems.baseline")]),
         ("wrap", report { Row { fixed(20, 10); fixed(30, 10) }.flexWrap(.wrap) }, [field(.box, "flexWrap")]),
@@ -587,29 +590,36 @@ private func mixedTree() -> some ElementGroup {
     try #require(arms == 2)
 }
 
-/// A container declaring two container rows (`reverse`, `flexWrap`) and two every
-/// node rows (`position`, `inset`). **Re-spelled in stage 2, lane 1** from `margin`
-/// and `flexGrow`, item fields its parent reads since then (ruling LR-AB; under the
-/// harness root they report `…unconsumed` after the root returns, LR-AQ).
+/// A container declaring two container rows (`gap.percent`, `flexWrap`) and two
+/// every-node rows (`position`, `inset`). **Re-spelled in stage 2, lane 1** from
+/// `margin` and `flexGrow`, item fields its parent reads since then (ruling LR-AB;
+/// under the harness root they report `…unconsumed` after the root returns, LR-AQ),
+/// and **again in lane 5**, which lowered `reverse` (ruling LR-AJ): a percentage
+/// main-axis gap took its place as the first container row.
 @MainActor
 private func fourFieldContainer() -> some ElementGroup {
-    Box { fixed(20, 10); fixed(30, 10) }
-        .flexDirection(.rowReverse).alignItems(.flexStart).flexWrap(.wrap).position(.relative).inset(px(3))
+    var style = Style()
+    style.alignItems = .flexStart
+    style.gap = Axes(horizontal: .percent(0.1), vertical: .pixels(px(4)))
+    style.flexWrap = .wrap
+    style.position = .relative
+    style.inset = Edges(all: .length(.pixels(px(3))))
+    return Box(style: style) { fixed(20, 10); fixed(30, 10) }
 }
 
 /// **3.9.** `LR-Y`'s report order: a container's rows in §5.4's table order, then
-/// the every-node rows in theirs — `[reverse, flexWrap, position, inset]` — and in
-/// production (diagnostics off) the trap names the **first**, `box.reverse`.
+/// the every-node rows in theirs — `[gap.percent, flexWrap, position, inset]` — and
+/// in production (diagnostics off) the trap names the **first**, `box.gap.percent`.
 ///
 /// Mutation that must redden it: **V2**, `legacyLeafDiagnostics(…) + fields` (the
-/// report reads `[position, inset, reverse, flexWrap]` and the trap names
+/// report reads `[position, inset, gap.percent, flexWrap]` and the trap names
 /// `box.position`).
 @MainActor
 @Test func aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst() async throws {
     let entries = LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
         fourFieldContainer()
     }.unlowerableFields
-    #expect(entries == [field(.box, "reverse"), field(.box, "flexWrap"),
+    #expect(entries == [field(.box, "gap.percent"), field(.box, "flexWrap"),
                         field(.box, "position"), field(.box, "inset")], "\(entries)")
 
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
@@ -620,7 +630,7 @@ private func fourFieldContainer() -> some ElementGroup {
         }
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("box.reverse has no proposal lowering"),
+    #expect(stderr.contains("box.gap.percent has no proposal lowering"),
             "aborted, but not at the first unlowerable field:\n\(stderr)")
     #expect(!stderr.contains("box.position"), "the trap must name the first field:\n\(stderr)")
 }

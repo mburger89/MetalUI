@@ -27,6 +27,12 @@ import MetalUILayout
 // minimum and a `maxSize` as W's maximum on a greedy axis, both folded into a
 // declared size (rulings LR-AE, LR-AF, LR-AG, LR-AS). The item fields later lanes
 // own are still reported, at the child's site, after the container's own rows.
+//
+// **Lane 5 lowers the two remaining container fields** (ruling LR-AJ),
+// in `arrangeLegacyMainAxis`: `justifyContent`'s three distributions, with a
+// declared main size, as native spacers (and a rigid gap leaf beside them where the
+// main gap is non-zero); `.rowReverse`/`.columnReverse` as the children's **nodes**
+// in reverse order with the main alignment factor mirrored.
 
 extension LayoutPass {
     /// Lowers one legacy node — `style` already animated — over native `children`.
@@ -40,7 +46,10 @@ extension LayoutPass {
     /// A node **with children** (lane 3) lowers as spec §5.4's container table
     /// says, innermost first: a native **linear stack** on the main axis
     /// (`flexDirection`), spaced by the main-axis `gap` and aligning its children on
-    /// the cross axis by `alignItems` → native **padding** (`Style.padding`) → a
+    /// the cross axis by `alignItems` — its children arranged by
+    /// `arrangeLegacyMainAxis` since stage 2's lane 5, which interleaves
+    /// `justifyContent`'s spacers and reverses the node list for a reverse direction
+    /// — → native **padding** (`Style.padding`) → a
     /// fixed native **frame** (`Style.size`) aligning that content by
     /// `justifyContent` on the main axis and `alignItems` on the cross axis — CSS's
     /// border-box, where a content-sized line sits inside a larger box (ruling
@@ -94,7 +103,11 @@ extension LayoutPass {
         }
 
         let isRow = style.flexDirection.isRow
-        let main = alignmentFactor(style.justifyContent)
+        // The main-axis arrangement (lane 5): `justifyContent`'s distributions and
+        // the reverse directions. `mainFactor` is `justifyContent`'s factor,
+        // mirrored by a reverse direction, and is both the container's own frame
+        // alignment and the content alignment its parent's item frame reads.
+        let main = legacyMainFactor(style)
         let cross = alignmentFactor(style.alignItems)
         let contentAlignment = isRow ? proposalAlignment(horizontal: main, vertical: cross)
                                      : proposalAlignment(horizontal: cross, vertical: main)
@@ -102,14 +115,12 @@ extension LayoutPass {
             return recordLoweredItem(report(fields), animated: style, declared: declared, site: site,
                                      contentAlignment: contentAlignment, kind: kind)
         }
-        // `Axes.horizontal` is the gap between a row's items, `vertical` between a
-        // column's (CSS `column-gap` / `row-gap`); the cross-axis gap separates
-        // lines, and a no-wrap container has one.
-        let spacing = resolvedLength(isRow ? style.gap.horizontal : style.gap.vertical)
+        let arrangement = arrangeLegacyMainAxis(registerLegacyItems(children, plans),
+                                                declared: declared, animated: style)
         // The stack reads only the cross-axis factor of its alignment.
         let stack = frame.requestNativeLinearStack(
-            children: registerLegacyItems(children, plans), axis: isRow ? .horizontal : .vertical,
-            spacing: spacing,
+            children: arrangement.nodes, axis: isRow ? .horizontal : .vertical,
+            spacing: arrangement.spacing,
             alignment: isRow ? proposalAlignment(horizontal: 0, vertical: cross)
                              : proposalAlignment(horizontal: cross, vertical: 0))
         return recordLoweredItem(paddedAndSized(stack, style, alignment: contentAlignment), animated: style,
@@ -125,14 +136,19 @@ extension LayoutPass {
     /// every-node rows (its stretch on either axis lowers per child since stage 2,
     /// `planLegacyItems`). The flex container rows, in order:
     ///
-    /// - `reverse` — `.rowReverse`/`.columnReverse`;
+    /// - (`reverse` is no longer a row: since stage 2's lane 5 a `.rowReverse` or
+    ///   `.columnReverse` container hands its stack the children's nodes in reverse
+    ///   order with its main factor mirrored, `arrangeLegacyMainAxis`, ruling LR-AJ);
     /// - `gap.percent` — a percentage **main-axis** gap (the cross-axis gap is read
     ///   by nothing on a single line, so it is not reported);
     /// - `alignItems.baseline`;
     /// - (`alignItems.stretch` is no longer a container row: since stage 2 each
     ///   child it reaches is wrapped by `planLegacyItems`, ruling LR-AC);
-    /// - `justifyContent.spaceBetween`/`.spaceAround`/`.spaceEvenly` — unless there
-    ///   is no declared main-axis size;
+    /// - (`justifyContent.spaceBetween`/`.spaceAround`/`.spaceEvenly` with a declared
+    ///   main size is no longer a row either: since lane 5 it lowers to native
+    ///   spacers, `arrangeLegacyMainAxis`. **Without** a declared main size it still
+    ///   lowers as `flex-start`, and a parent that makes the container greedy on its
+    ///   own main axis reports it there, `planLegacyItems`' re-check, `LR-AR`);
     /// - `flexWrap` (≠ `.noWrap`), `alignContent` (≠ `nil`) — deleted concepts.
     ///
     /// **Not reported: overflow** (ruling LR-I). Whether fixed children overflow a
@@ -149,20 +165,10 @@ extension LayoutPass {
             return fields + legacyLeafDiagnostics(declared, site: site)
         }
         let isRow = declared.flexDirection.isRow
-        if declared.flexDirection.isReverse { fields.append(entry("reverse")) }
         if case .percent = isRow ? declared.gap.horizontal : declared.gap.vertical {
             fields.append(entry("gap.percent"))
         }
-        let mainSize = isRow ? declared.size.width : declared.size.height
         if declared.alignItems == .baseline { fields.append(entry("alignItems.baseline")) }
-        if mainSize != .auto {
-            switch declared.justifyContent {
-            case .spaceBetween: fields.append(entry("justifyContent.spaceBetween"))
-            case .spaceAround: fields.append(entry("justifyContent.spaceAround"))
-            case .spaceEvenly: fields.append(entry("justifyContent.spaceEvenly"))
-            case nil, .flexStart, .center, .flexEnd: break
-            }
-        }
         if declared.flexWrap != .noWrap { fields.append(entry("flexWrap")) }
         if declared.alignContent != nil { fields.append(entry("alignContent")) }
         return fields + legacyLeafDiagnostics(declared, site: site)
@@ -358,6 +364,105 @@ extension LayoutPass {
                                             alignment: alignment)
         }
         return node
+    }
+
+    // MARK: The main-axis arrangement (lane 5, ruling LR-AJ)
+
+    /// The container's own main-axis factor: `justifyContent`'s, **mirrored by a
+    /// reverse direction** — `flexStart`/`nil` → 1, `flexEnd` → 0, `center`
+    /// unchanged (lane 5, ruling LR-AJ; stage-2 probe R1, R2). It is the fraction
+    /// of the container's own free main space placed before its line, so it is
+    /// both the alignment of the fixed frame `paddedAndSized` registers and the
+    /// content alignment the element records for its parent's item frame (5.9).
+    ///
+    /// A `space-*` factor is `alignmentFactor`'s 0 (mirrored to 1), and is not
+    /// read where it is lowered: the spacers fill the line, so no free main space
+    /// is left for the frame to place.
+    ///
+    /// Neither `flexDirection` nor `justifyContent` is animatable, so reading the
+    /// animated style here is reading the declared one (`LR-AS`).
+    private func legacyMainFactor(_ style: Style) -> Double {
+        let factor = alignmentFactor(style.justifyContent)
+        return style.flexDirection.isReverse ? 1 - factor : factor
+    }
+
+    /// Arranges one lowered flex container's already-wrapped `items` on its main
+    /// axis (lane 5, ruling LR-AJ), returning the nodes to hand the native linear
+    /// stack, the container's main factor and the stack's spacing.
+    ///
+    /// **`justifyContent`'s distributions lower to native spacers**, and only with a
+    /// declared main size — an unsized container has no free space to distribute and
+    /// keeps stage 1's `flex-start` (a parent that later grows it reports, `LR-AR`):
+    ///
+    /// - `spaceBetween` → `Spacer(minLength: main gap)` between each pair, and the
+    ///   **stack's own spacing drops to 0** (probe J1, J2): a spacer takes the gap
+    ///   plus its share, so a stack gap as well would double-count it while it fits
+    ///   and, overflowing, place the line at `2 × gap` steps instead of one (J3);
+    /// - `spaceEvenly` → `Spacer(minLength: 0)` at both ends and between each pair;
+    ///   `spaceAround` → the same with the between-spacers **doubled** (J4, J7);
+    /// - a non-zero main gap under either → a **rigid native leaf** of that length
+    ///   beside each between-spacer (J8), never the spacer's own minimum, which
+    ///   distributes differently (J5: 53.33/126.67 where CSS puts 50/130).
+    ///
+    /// Overflowing, every spacer collapses to its minimum and the line packs from
+    /// the main start (J9) — which is also what `Alignment.swift`'s
+    /// `distributeMainAxis` does, since it clamps its free space at 0 for all three
+    /// distributions (lane 5's measurement, `LR-BA` item 1).
+    ///
+    /// **A reverse direction reverses the node list** — the spacer pattern with it,
+    /// which is symmetric — and mirrors the main factor. The children's group order,
+    /// ids, `@State` slots, paint order, hit order and accessibility order are
+    /// untouched: this function sees only node ids, the element tree having already
+    /// been walked in declaration order (5.7).
+    ///
+    /// Structure reads the **declared** style and lengths the **animated** one
+    /// (`LR-AS`).
+    func arrangeLegacyMainAxis(_ items: [LayoutNodeID], declared: Style, animated: Style)
+        -> (nodes: [LayoutNodeID], mainFactor: Double, spacing: Double) {
+        let isRow = declared.flexDirection.isRow
+        // `Axes.horizontal` is the gap between a row's items, `vertical` between a
+        // column's (CSS `column-gap` / `row-gap`); the cross-axis gap separates
+        // lines, and a no-wrap container has one.
+        let gap = resolvedLength(isRow ? animated.gap.horizontal : animated.gap.vertical)
+        let mainSize = isRow ? declared.size.width : declared.size.height
+        var nodes = items
+        var spacing = gap
+        if mainSize != .auto, let distribution = declared.justifyContent,
+           distribution == .spaceBetween || distribution == .spaceAround
+               || distribution == .spaceEvenly {
+            nodes = distributedLegacyItems(items, distribution, gap: gap, isRow: isRow)
+            spacing = 0
+        }
+        if declared.flexDirection.isReverse { nodes.reverse() }
+        return (nodes, legacyMainFactor(animated), spacing)
+    }
+
+    /// `items` interleaved with the spacers and rigid gap leaves `distribution`
+    /// spells (see `arrangeLegacyMainAxis`). `gap` is the main-axis gap in points;
+    /// at 0 no rigid leaf is registered.
+    private func distributedLegacyItems(_ items: [LayoutNodeID], _ distribution: JustifyContent,
+                                        gap: Double, isRow: Bool) -> [LayoutNodeID] {
+        let ends = distribution != .spaceBetween
+        let betweenCount = distribution == .spaceAround ? 2 : 1
+        // `space-between`'s minimum IS the gap; the other two carry the gap as a
+        // rigid leaf, so their spacers may collapse all the way to 0.
+        let minimum = distribution == .spaceBetween ? gap : 0
+        func spacer() -> LayoutNodeID { frame.requestNativeSpacer(minLength: minimum) }
+        func gapLeaf() -> LayoutNodeID {
+            let size = isRow ? SizeD(width: gap, height: 0) : SizeD(width: 0, height: gap)
+            return frame.requestNativeLeaf { _ in LayoutMeasurement(size: size) }
+        }
+        var nodes: [LayoutNodeID] = []
+        if ends { nodes.append(spacer()) }
+        for (index, item) in items.enumerated() {
+            if index > 0 {
+                for _ in 0..<betweenCount { nodes.append(spacer()) }
+                if ends && gap != 0 { nodes.append(gapLeaf()) }
+            }
+            nodes.append(item)
+        }
+        if ends { nodes.append(spacer()) }
+        return nodes
     }
 
     /// The fraction of free space placed before the content: 0 for `flexStart`,

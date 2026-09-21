@@ -337,16 +337,19 @@ private func container<C: ElementGroup>(row: Bool, gap: Float = 0, justify: Just
 /// (trailing), `flexEnd` → 0, `center` unchanged — which is SwiftUI's spelling for
 /// `row-reverse` (stage-2 probe R1: reversed children in a `.trailing` frame).
 ///
-/// A 200-long container over a first child 20 long and a second 30 long, at gap 0 and
-/// 10. Legacy, measured before the literals were written — `first` is the child
-/// declared first, which a reverse container puts at the main **end**:
+/// A 200-long container at gap 0 and 10. `first` is the child declared first, which a
+/// reverse container puts at the main **end**. The row's children are 20 and 30 long
+/// (10 tall), the column's 10 and 30 long (20 and 10 wide) — **the two tables are
+/// different** and reusing the row's for the column was the one correction this arm
+/// needed after the implementation landed (record §19, lane 5). Legacy, measured
+/// before the literals were written:
 ///
-/// | justify | gap 0 | gap 10 |
-/// |---|---|---|
-/// | `nil` / `.flexStart` | first 180, second 150 | first 180, second 140 |
-/// | `.center` | 105, 75 | 110, 70 |
-/// | `.flexEnd` | 30, 0 | 40, 0 |
-/// | `.spaceBetween` | 180, 0 | 180, 0 |
+/// | justify | row, gap 0 | row, gap 10 | column, gap 0 | column, gap 10 |
+/// |---|---|---|---|---|
+/// | `nil` / `.flexStart` | 180, 150 | 180, 140 | 190, 160 | 190, 150 |
+/// | `.center` | 105, 75 | 110, 70 | 110, 80 | 115, 75 |
+/// | `.flexEnd` | 30, 0 | 40, 0 | 30, 0 | 40, 0 |
+/// | `.spaceBetween` | 180, 0 | 180, 0 | 190, 0 | 190, 0 |
 ///
 /// The `.spaceBetween` arms are where the reversal and lane 5's spacer pattern meet:
 /// reversing the whole node list carries the spacers with it.
@@ -356,13 +359,14 @@ private func container<C: ElementGroup>(row: Bool, gap: Float = 0, justify: Just
 @MainActor
 @Test func aReverseContainerPlacesItsChildrenFromTheMainEnd() throws {
     let ids = [containerID, child(containerID, 0), child(containerID, 1)]
-    // justify → gap → (first child's leading offset, second child's)
-    let expected: [(justify: JustifyContent?, gap: Float, first: Float, second: Float)] = [
-        (nil, 0, 180, 150), (nil, 10, 180, 140),
-        (.flexStart, 0, 180, 150), (.flexStart, 10, 180, 140),
-        (.center, 0, 105, 75), (.center, 10, 110, 70),
-        (.flexEnd, 0, 30, 0), (.flexEnd, 10, 40, 0),
-        (.spaceBetween, 0, 180, 0), (.spaceBetween, 10, 180, 0),
+    // justify, gap → the row's (first, second) leading offsets, then the column's.
+    let expected: [(justify: JustifyContent?, gap: Float,
+                    row: (first: Float, second: Float), column: (first: Float, second: Float))] = [
+        (nil, 0, (180, 150), (190, 160)), (nil, 10, (180, 140), (190, 150)),
+        (.flexStart, 0, (180, 150), (190, 160)), (.flexStart, 10, (180, 140), (190, 150)),
+        (.center, 0, (105, 75), (110, 80)), (.center, 10, (110, 70), (115, 75)),
+        (.flexEnd, 0, (30, 0), (30, 0)), (.flexEnd, 10, (40, 0), (40, 0)),
+        (.spaceBetween, 0, (180, 0), (190, 0)), (.spaceBetween, 10, (180, 0), (190, 0)),
     ]
     var arms = 0
     for arm in expected {
@@ -374,8 +378,8 @@ private func container<C: ElementGroup>(row: Bool, gap: Float = 0, justify: Just
         }
         try #require(row.elements == 4, "row \(name)")
         expectFullAgreement(row, "row \(name)")
-        #expect(lowered(row, ids) == [bounds(0, 0, 200, 10), bounds(arm.first, 0, 20, 10),
-                                      bounds(arm.second, 0, 30, 10)], "row \(name)")
+        #expect(lowered(row, ids) == [bounds(0, 0, 200, 10), bounds(arm.row.first, 0, 20, 10),
+                                      bounds(arm.row.second, 0, 30, 10)], "row \(name)")
 
         let column = LayoutDifferential.compare(width: 300, height: 300) {
             container(row: false, gap: arm.gap, justify: arm.justify, main: 200, reverse: true) {
@@ -384,8 +388,8 @@ private func container<C: ElementGroup>(row: Bool, gap: Float = 0, justify: Just
         }
         try #require(column.elements == 4, "column \(name)")
         expectFullAgreement(column, "column \(name)")
-        #expect(lowered(column, ids) == [bounds(0, 0, 20, 200), bounds(0, arm.first, 20, 10),
-                                         bounds(0, arm.second, 10, 30)], "column \(name)")
+        #expect(lowered(column, ids) == [bounds(0, 0, 20, 200), bounds(0, arm.column.first, 20, 10),
+                                         bounds(0, arm.column.second, 10, 30)], "column \(name)")
         arms += 2
     }
     try #require(arms == 20)
