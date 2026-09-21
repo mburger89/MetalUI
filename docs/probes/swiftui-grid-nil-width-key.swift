@@ -64,7 +64,7 @@
 //    N1 — so the instrument does respond to the width axis when it is finite,
 //    and N1's reading is about the axis being nil, not about the two leaves.
 // 3. The kernel's own answers at these two grids are asserted by
-//    `theFlexibilityKeyCountsInfiniteAxesFirstAndIgnoresANilAxis`' GF14/GF15
+//    `theFlexibilityKeyCountsInfiniteAxesFirstAndIgnoresANilAxis`' GF19/GF20
 //    arms (`Tests/MetalUILayoutTests/NativeGridTests.swift`, test 2.2).
 //
 // STDOUT:

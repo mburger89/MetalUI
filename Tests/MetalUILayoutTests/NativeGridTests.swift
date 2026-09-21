@@ -956,7 +956,7 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 ///   non-row children at 200×100.
 /// - GF1–GF9: half, width-flexible, height-flexible, clamped and flexible cells;
 ///   GF7 overflows to 138 and its d is proposed 120 wide (b's column).
-/// - GF14–GF18: a greedy `frame(maxWidth: .infinity)` cell (and at nil), a
+/// - GF19–GF18: a greedy `frame(maxWidth: .infinity)` cell (and at nil), a
 ///   proposal-responsive leaf standing for `Color` (and at nil), a frame
 ///   greedy on both axes.
 /// - GR2 `[a odd, b 20x20]` at 200×200: a placed at the 96×200 it was measured
@@ -1048,17 +1048,17 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
         #expect(arm.run(root, 100, 100) == size(93, 10), "GF9 size")
         expectRects(arm, "GF9", ["a": r(0, 0, 30, 10), "b": r(38, 0, 55, 10)])
     }
-    do { // GF14
+    do { // GF19
         let arm = Arm()
         let a = arm.tree.newNativeFrame(child: arm.fx("a", 30, 10), maxWidth: .infinity)
-        #expect(arm.run(withFirst(arm, a), 200, 100) == size(200, 58), "GF14 size")
-        expectRects(arm, "GF14", ["a": r(61, 5, 30, 10), "b": r(170, 0, 20, 20), "c": r(71, 28, 10, 30), "d": r(160, 38, 40, 10)])
+        #expect(arm.run(withFirst(arm, a), 200, 100) == size(200, 58), "GF19 size")
+        expectRects(arm, "GF19", ["a": r(61, 5, 30, 10), "b": r(170, 0, 20, 20), "c": r(71, 28, 10, 30), "d": r(160, 38, 40, 10)])
     }
-    do { // GF15
+    do { // GF20
         let arm = Arm()
         let a = arm.tree.newNativeFrame(child: arm.fx("a", 30, 10), maxWidth: .infinity)
-        #expect(arm.run(withFirst(arm, a), nil, nil) == size(78, 58), "GF15 size")
-        expectRects(arm, "GF15", ["a": r(0, 5, 30, 10), "b": r(48, 0, 20, 20), "c": r(10, 28, 10, 30), "d": r(38, 38, 40, 10)])
+        #expect(arm.run(withFirst(arm, a), nil, nil) == size(78, 58), "GF20 size")
+        expectRects(arm, "GF20", ["a": r(0, 5, 30, 10), "b": r(48, 0, 20, 20), "c": r(10, 28, 10, 30), "d": r(38, 38, 40, 10)])
     }
     do { // GF16
         let arm = Arm()
@@ -1109,23 +1109,23 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 ///   150 before b's one infinite axis.
 /// - GF12 `[a clamp 10…50, b height-flexible w30, c flexible]` at 150 × nil and
 ///   GF13 at 150×100: required to differ.
-/// - GF14 `[a width-flexible h20] [b clamp 10…80]` at nil × 100 and GF15 at
+/// - GF19 `[a width-flexible h20] [b clamp 10…80]` at nil × 100 and GF20 at
 ///   100×100: required to differ.
 ///
 /// **The clause is TWO guards in the source, one per axis, and each is mutated
 /// on its own** (CLAUDE.md: "a copy of a pinned implementation is unpinned").
-/// GF12/GF13 hold the height guard; GF14/GF15 the width one, whose own deletion
-/// left the whole suite green until they were written (`GR-AJ`). GF14's two
+/// GF12/GF13 hold the height guard; GF19/GF20 the width one, whose own deletion
+/// left the whole suite green until they were written (`GR-AJ`). GF19's two
 /// cells change ORDER if the nil width axis counts: `a`'s ∞ answer is
 /// infinitely wide and `b`'s is 80, so counting the width would put `b` (no
 /// infinite axis) before `a` (one), where counting only the height puts `a`
 /// (flexibility 0) before `b` (70). SwiftUI serves `a` first and answers
 /// 10×100 (`docs/probes/swiftui-grid-nil-width-key.swift`, N1; its control N0
-/// is GF15, where the finite width DOES count and `b` goes first).
+/// is GF20, where the finite width DOES count and `b` goes first).
 ///
 /// Mutation: key = the finite sum with ∞ as +∞, one group for equal sums
 /// (GF10's b at 96). Mutation: `provide`'s `if proposal.width != nil` →
-/// `if true` (GF14 answers 10×74, its b 10×46 at y 28).
+/// `if true` (GF19 answers 10×74, its b 10×46 at y 28).
 @Test func theFlexibilityKeyCountsInfiniteAxesFirstAndIgnoresANilAxis() throws {
     do { // GF10
         let arm = Arm()
@@ -1149,17 +1149,17 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
     expectRects(gf12, "GF12", ["a": r(0, 0, 50, 10), "b": r(58, 0, 30, 10), "c": r(96, 0, 54, 10)])
     #expect(gf13["grid"] == r(0, 0, 150, 100), "GF13 size")
     expectRects(gf13, "GF13", ["a": r(0, 25, 44.67, 50), "b": r(52.67, 0, 30, 100), "c": r(90.67, 0, 59.33, 100)])
-    func gf14Arm(_ width: Double?) -> (Arm, SizeD) {
+    func gf19Arm(_ width: Double?) -> (Arm, SizeD) {
         let arm = Arm()
         let answer = arm.run(arm.grid([row(arm.fw("a", 20)), row(arm.cb("b", 10, 80))]), width, 100)
         return (arm, answer)
     }
-    let (gf14, gf14Size) = gf14Arm(nil), (gf15, gf15Size) = gf14Arm(100)
-    try #require(gf14Size != gf15Size, "GF14 and its control GF15 must differ")
-    #expect(gf14Size == size(10, 100), "GF14 size")
-    expectRects(gf14, "GF14", ["a": r(0, 0, 10, 20), "b": r(0, 28, 10, 72)])
-    #expect(gf15Size == size(100, 74), "GF15 size")
-    expectRects(gf15, "GF15", ["a": r(0, 0, 100, 20), "b": r(10, 28, 80, 46)])
+    let (gf19, gf19Size) = gf19Arm(nil), (gf20, gf20Size) = gf19Arm(100)
+    try #require(gf19Size != gf20Size, "GF19 and its control GF20 must differ")
+    #expect(gf19Size == size(10, 100), "GF19 size")
+    expectRects(gf19, "GF19", ["a": r(0, 0, 10, 20), "b": r(0, 28, 10, 72)])
+    #expect(gf20Size == size(100, 74), "GF20 size")
+    expectRects(gf20, "GF20", ["a": r(0, 0, 100, 20), "b": r(10, 28, 80, 46)])
 }
 
 // MARK: 2.3 one-axis and infinite proposals

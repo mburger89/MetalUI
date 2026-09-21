@@ -467,7 +467,7 @@ transcribed verbatim with its comment header kept).
 | # | test | arms | red before | mutation |
 |---|---|---|---|---|
 | 2.1 | `aFiniteProposalServesGroupsWithSharesAndCommits` | GP1, GP2, GP7, GA9, GF1–GF9, GF14–GF18 (a greedy `newNativeFrame(maxWidth: .infinity)` cell; a proposal-responsive leaf standing for `Color`), GR2 (placed at 96×200): answers, rects, and GF7's d proposed 120 wide (its log) | not in the tree | GZ0's control: every group offered W′/ncols, commits ignored (GP2's a at 96) |
-| 2.2 | `theFlexibilityKeyCountsInfiniteAxesFirstAndIgnoresANilAxis` | GF10, GF11, GF12, GF13 (`#require` GF12 ≠ GF13) | not in the tree | key = the finite sum with ∞ as +∞, one group for equal sums (GF10's b at 96) |
+| 2.2 | `theFlexibilityKeyCountsInfiniteAxesFirstAndIgnoresANilAxis` | GF10, GF11, GF12, GF13 (`#require` GF12 ≠ GF13) and — added by the lane-2 implementer round (`GR-AJ`) — **GF19** `[a width-flexible h20] [b clamp 10…80]` at nil × 100 (10×100, a 10×20 at y 0, b 10×72 at y 28) with its control **GF20**, the same grid at 100×100 (100×74, b 80×46 at x 10), `#require` GF19 ≠ GF20, probe `swiftui-grid-nil-width-key.swift` | not in the tree | (a) key = the finite sum with ∞ as +∞, one group for equal sums (GF10's b at 96); (b) `provide`'s `if proposal.height != nil` → `if true` (GF12 moves); (c) the **width** twin, `if proposal.width != nil` → `if true` (GF19 reads 10×74, its b 10×46 — **green before GF19/GF20**) |
 | 2.3 | `oneAxisNilAndInfiniteProposalsAnswerAsTheProbeReads` | GP5, GP6 laid out, **with a's logs** (GP5 {0×0, ∞×∞, 152×nil, 152×20}, GP6 {0×0, ∞×∞, nil×62}; `GR-X` item 4: the rects alone do not see the mutant); GP4 (∞×∞) and GP8 measured only (an infinite answer traps at checkpoint 3 when stored, `SA-J`) | not in the tree | propose a nil grid axis as 0 instead of nil (GP5's a is asked 152×0) |
 | 2.4 | `anInfiniteAxisSharesInfinityAfterAnInfiniteCommittedColumn` — in `NativeGridTests.swift` (`@testable`), an exit test expecting `.success` whose body measures GP9, GP10, GP11 and `precondition`s each answer and **each leaf's set of distinct proposals**, derived by hand from §4.2 before the run (for example GP11's b: {0×0, ∞×∞, ∞×100}) | GP9–GP11 | not in the tree | compute `(W′ − committed) / open` on an infinite axis: inf − inf is nan, and whether `max` then returns nan (a trap at checkpoint 1) or the column's width (a finite proposal in the set), the child exits `.failure` |
 | 2.5 | `higherPriorityGroupsAreServedFirstWithNoReservation` | GQ1, GQ2, GQ3, GQ4, GQ5 (answers 100×100, 130×10, 120×10, 210×120, 266×118) | not in the tree | reserve lower groups' 0×0 widths, as `CN-B`'s stack does (GQ2's a and c read 27) |
@@ -487,12 +487,18 @@ transcribed verbatim with its comment header kept).
 **Re-verified at `d6ad9ff`** (suite 1450, goldens 97, guards 71, demo 12/12 at
 0 px): one green mutation found and pinned, `GR-AG`, test 2.8's S1 and S2 arms;
 no count moved. **Re-verified again at `f6ed8a0`** (`GR-AI`; suite 1450, goldens
-97, guards 71, demo 12/12 at 0 px): eighteen mutations, **none green**, so after
-`GR-AG` and `GR-AH` the solver has no unpinned clause left except two that
-cannot be pinned — `finishGroup`'s first-group/later-group split, whose only
-witness is test 2.14's counter, and `startGroup`'s two unreachable
-`Swift.max(…, 1)` clamps. The depth boundary was re-bisected at the head and is
-unchanged (155/156 at 400×400, 167/168 at nil×nil).
+97, guards 71, demo 12/12 at 0 px): eighteen mutations, sixteen reddening the
+suite and **two measured green and equivalent** — `finishGroup`'s
+first-group/later-group split, whose only witness is test 2.14's counter, and
+`startGroup`'s two unreachable `Swift.max(…, 1)` clamps, which are green on the
+full suite and leave 20 000 differential solves byte-identical. The depth
+boundary was re-bisected at the head and is unchanged (155/156 at 400×400,
+167/168 at nil×nil). **Re-verified a fourth time at `5c6c5ff`, with one green
+mutation found** (`GR-AJ`): the flexibility key's nil-axis clause is two
+per-axis guards in the source and only the height one was pinned, so **the
+"no clause the suite cannot see" claim above was false for the width guard**;
+test 2.2's GF19/GF20 arms now hold it. Its two per-axis copies, and every other
+per-axis twin in the solver, are mutated separately from now on.
 
 ### Lane 3 — cell attributes and the modifier-chain walk
 

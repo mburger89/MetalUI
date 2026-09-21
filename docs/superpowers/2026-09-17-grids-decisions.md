@@ -1,17 +1,21 @@
 # Grids decisions (plan task 7, stage G)
 
 Rulings for [`specs/2026-09-17-grids-design.md`](specs/2026-09-17-grids-design.md),
-on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-AH`; next
-unused is **`GR-AI`**. A bare `GR-3` is a typo, not a citation.
+on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-AJ`; next
+unused is **`GR-AK`**. A bare `GR-3` is a typo, not a citation.
 
 **Status, 2026-09-17: lanes 1 and 2 built** (`GR-W` and `GR-X` record their
 as-built amendments);
 the design was revised after **two** critic rounds — `GR-Q` records how each of
 the first round's fourteen findings was applied, `GR-Y` how each of the second
 round's fifteen was, and `GR-Z`…`GR-AF` are that round's new rulings. `GR-AG`
-is the lane-2 re-verification's one finding (a green mutation, now pinned), and
+is the lane-2 re-verification's one finding (a green mutation, now pinned),
 `GR-AH` the lane-1 re-verification's four (four more, now pinned, one of them a
-fifth model-vs-SwiftUI disagreement). Baseline measured in this worktree at `cb2e708`: `swift build
+fifth model-vs-SwiftUI disagreement), `GR-AI` the third lane-2 re-verification
+(eighteen mutations and the two clauses no test can hold, amended by the round
+below) and `GR-AJ` the lane-2 implementer round's one green mutation — the
+flexibility key's nil **width** guard, the second copy of a clause only whose
+height half was pinned. Baseline measured in this worktree at `cb2e708`: `swift build
 --build-system native --build-tests`, then `swift test --build-system native
 --no-parallel` → `Test run with 1409 tests in 1 suite passed after 42.821
 seconds`, 0 `error:`, no `warning:` besides SwiftPM's deprecation notice;
@@ -1419,19 +1423,37 @@ the one already in `docs/practices/verifying-tests-can-fail.md`: **a probe's
 header is the output of a run of the committed file, and a control that
 reproduces the corpus is what makes the rest of the run readable.**
 
-## GR-AI — the lane-2 re-verification: eighteen mutations, no green, and two clauses no test can hold
+## GR-AI — the lane-2 re-verification: eighteen mutations, and two clauses no test can hold
 
 **Round:** lane 2 re-verified a third time, at `f6ed8a0` (2026-09-21), after
 lane 1's verifier had written arms F1, O1, R1, T1 and T2 into lane 2's tests
 (`GR-AH`). Nothing in `Sources/` changed this round except doc comments.
 
-**Eighteen mutations of the finite solve, every one reddened.** Twelve were run
-against the full suite directly (H, M1, M2, M3, M4, M5, M6, M9, M11, M12, M13,
-M14), and six more (A, B, C, D, E, F) were filtered first through a scratch
-differential digest and then run against the suite. Record §20 has the table.
-After `GR-AG` and `GR-AH` the finite solver has **no clause left whose deletion
-the suite does not see** — with the two exceptions below, which no test can see
-by construction.
+**Eighteen mutations of the finite solve: sixteen reddened, two are green and
+equivalent.** Twelve were run against the full suite directly (H, M1, M2, M3,
+M4, M5, M6, M9, M11, M12, M13, M14), and six more (A, B, C, D, E, F) were
+filtered first through a scratch differential digest; five of those six were
+then run against the suite. Record §20 has the table.
+
+**Two corrections, both re-measured by the lane-2 implementer round at
+`f7aec53`, not argued:**
+
+- **This round's A was never run against the suite.** The digest was taken and
+  the row written up as though the suite had been too; this paragraph
+  originally read "every one reddened". Both clamps have now been run, each on
+  its own, on the full unfiltered native suite at `f7aec53`:
+  `Double(Swift.max(openColumns, 1))` → `Double(openColumns)` and
+  `Double(Swift.max(openRows, 1))` → `Double(openRows)` each give `Test run
+  with 1450 tests in 1 suite passed`, 0 issues. They are **green and
+  equivalent**, which is what the row should have said; the `openRows` twin had
+  never been mutated at all, by digest or by suite, and rested on argument
+  alone. The instruction below — do not write a test for them — is unchanged.
+- **"No clause left whose deletion the suite does not see" was false.**
+  `GR-AJ` found one: the flexibility key's nil-axis clause is **two** per-axis
+  guards in the source and only the height one was pinned. The claim is
+  withdrawn. What holds after `GR-AG`, `GR-AH` and `GR-AJ` is the weaker and
+  honest form — no *known* clause is unpinned besides the two below — and the
+  way to learn otherwise is to keep mutating each copy on its own.
 
 **1. `finishGroup`'s first-group / later-group split is a COST rule.** As
 written, the first group's commit check sweeps every column and row and later
@@ -1461,7 +1483,9 @@ cell — and then `shareW` is never read, because the span branch charges
 `widths[column]` on every outside column (`levelInColumn` is 0 everywhere) and
 takes its own `wPrime − outside` proposal. Replacing
 `Double(Swift.max(openColumns, 1))` with `Double(openColumns)` — a division by
-zero — leaves the same 20 000 solves byte-identical. They stay as written
+zero — leaves the same 20 000 solves byte-identical, **and the full suite
+passes, 1450 tests, 0 issues; so does the `openRows` twin mutated on its own**
+(both measured at `f7aec53`, the correction above). They stay as written
 (defensive, free), the source says so, and **no test should be written for
 them**: it could not fail.
 
@@ -1481,3 +1505,71 @@ grids on a 1 MB debug thread completes at **155** and dies at **156** at
 400×400, completes at **167** and dies at **168** at nil×nil, and 156 completes
 on a 4 MB thread. Identical to lane 2's figures; `NativeLayoutRun.maxDepth`'s
 table needs no edit.
+
+## GR-AJ — a per-axis clause is two copies: the flexibility key's nil WIDTH guard was unpinned
+
+**Round:** lane 2's implementer round, at `5c6c5ff` → `f7aec53` (2026-09-21),
+fixing the lane-2 verifier's one blocker. `Sources/` is unchanged by it.
+
+**The finding.** `GR-E` step 2's "a nil proposal axis counts for neither" is
+written in `NativeGridSolver.provide` as two sibling `if`s, one per axis:
+
+```swift
+if proposal.width  != nil { … infiniteAxes[probed] += 1 … flexibility[probed] += … }
+if proposal.height != nil { … infiniteAxes[probed] += 1 … flexibility[probed] += … }
+```
+
+Deleting the **height** guard (`if true`) reddens two tests; deleting the
+**width** guard left the whole 1450-test suite green. `GR-AI`'s eighteen
+mutations had never separated them: the `d6ad9ff` round's R2 dropped BOTH in
+one mutant, and its red came entirely from the height half. Every arm of test
+2.2 ran at a finite width (200, 200, 150, 150) and varied only the height, and
+GF12 — the corpus's "a nil axis adds no flexibility" arm — is at 150 × nil.
+
+**The rule.** *A clause written once per axis is two implementations, and each
+is mutated on its own, at a proposal where that axis is the nil one.* This is
+`CLAUDE.md`'s "a copy of a pinned implementation is unpinned" applied to the
+axis dimension, and it is the third time this lane has paid for it: `GR-D`
+(unpinned on both axes), `GR-AG` (a per-branch copy of the span-target rule),
+and now this. The same reading applies to the solver's other per-axis twins —
+`wPrime`/`hPrime`'s gap subtraction, `shareW`/`shareH`'s infinite branch,
+`widen`/`heighten`, `commitColumn`/`commitRow` — each of which this round or a
+previous one has mutated singly; keep doing so.
+
+**The pin.** Test 2.2 gains **GF19**, a two-row grid whose cells swap key order
+when the nil width axis is counted, and **GF20**, the same grid at a finite
+width, `#require`d to differ:
+
+| | grid | proposal | answer | rects |
+|---|---|---|---|---|
+| GF19 | `[a fw h20] [b clamp 10…80]` | nil × 100 | 10×100 | a (0,0 10×20), b (0,28 10×72) |
+| GF20 | the same | 100×100 | 100×74 | a (0,0 100×20), b (10,28 80×46) |
+
+`a` answers `proposal.width ?? 10` wide by a fixed 20 tall, so its ∞-probe
+answer is infinitely wide but its height flexibility is 0; `b` clamps both axes
+to 10…80, so its height flexibility is 70 and neither axis is infinite.
+Counting only the finite height axis makes `a` the less flexible cell, serves it
+first at half of H′ = 92, and leaves `b` the remaining 72. Counting the nil
+width axis as well gives `a` one infinite axis against `b`'s none, and the key's
+first term — fewer infinite axes first — reverses them: `b` takes 46, `a`'s
+fixed 20 follows, and the grid is 74 tall. GF20 is that second order reached
+honestly, by a finite width; the two must differ or the arm reads nothing about
+the axis being nil.
+
+**Probe:** `docs/probes/swiftui-grid-nil-width-key.swift` (N1 = GF19,
+N0 = GF20), `/usr/bin/swift`, Apple Swift 6.4 (swiftlang-6.4.0.33.1), macOS
+27.0 (26A428), exit 0, run twice, byte-identical stdout. Both arms came out
+**exactly as hand-derived from the reference model before the run**, so this is
+not a kernel-only convention: SwiftUI counts the nil axis for neither term. Its
+measurement log is the direct reading — at nil × 100 SwiftUI asks `a nilx46`
+before `b nilx72`, at 100×100 it asks `b 100x46` before `a 100x46`.
+
+**Mutation, at `f7aec53`, from a copy, `git status --short` clean after:**
+`if proposal.width != nil` → `if true` reddens
+`theFlexibilityKeyCountsInfiniteAxesFirstAndIgnoresANilAxis` alone, 2 issues
+(`gf19Size == size(10, 100)` and GF19's b rect), out of 1450.
+
+**Cost if wrong.** Nothing in `Sources/` moved, so the kernel's behaviour is
+unchanged; what changes is that a future edit to the width guard is now visible.
+The residual risk is the one the rule names: other clauses may still be written
+twice somewhere the suite reaches only one copy.

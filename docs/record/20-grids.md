@@ -1083,7 +1083,7 @@ first. **None was green.**
 | # | mutation (`NativeGrid.swift`, `NativeGridSolver` unless noted) | reddened |
 |---|---|---|
 | H | `heighten` drops the running committed-height sum (the height twin of `GR-AH`'s R) | 2.1 — 1 issue |
-| M1 | `serve` drops the single-column width floor, `Swift.max(shareW, widths[column])` | 2.1, 2.4 — 2 issues |
+| M1 | `serve` drops the single-column width floor, `Swift.max(shareW, widths[column])` | **this row did not reproduce; re-taken below** — as written it recorded "2.1, 2.4 — 2 issues", which neither reading of the mutant gives |
 | M2 | `serve` drops the row-height floor, `Swift.max(shareH, heights[row])` | 2.4 — 1 issue |
 | M3 | a served cell **sets** its row height instead of raising it | 11 tests — 119 issues |
 | M4 | the level counters are refilled at every group, not at every level | 2.2, 2.9, 2.11, 2.13, 2.14 — 29 issues |
@@ -1094,7 +1094,7 @@ first. **None was green.**
 | M12 | the finite span proposal drops its inner gaps | 2.8 — 9 issues |
 | M13 | the shortfall goes entirely to the first target instead of splitting equally | 2.8, `markNativeGridCell…` — 7 issues |
 | M14 | a span also widens its first column by its whole answer | 2.8, 2.9, `markNativeGridCell…` — 25 issues |
-| **A** | `Double(Swift.max(openColumns, 1))` → `Double(openColumns)` (division by zero) | **digest unchanged — not run against the suite; unreachable, see below** |
+| **A** | `Double(Swift.max(openColumns, 1))` → `Double(openColumns)` (division by zero) | **digest unchanged; not run against the suite in THIS round** — run in the next one (`f7aec53`), where it and its never-before-mutated `openRows` twin each pass 1450/1450; green and equivalent, see below |
 | B | the priority key sorts ascending | 8 tests — 81 issues |
 | C | every cell is its own group (`sameKey` never extends one) | 2.1, 2.8, 2.14 — 7 issues |
 | D | `unprocessedSingles` never decrements (step 12 always finds targets) | 2.8, 2.9 — 7 issues |
@@ -1174,6 +1174,115 @@ capture still describes this head.
 Nothing new. `GR-O` item 8 (the stack's infinite-flexibility tie, GE10/GE19/T7)
 stays owned by plan task 6, and `GR-O` item 2 (the model-vs-SwiftUI divergence
 corpus, now with `GR-AH`'s O1 in it) by plan task 15.
+
+## Lane 2, implementer round at `5c6c5ff` → `f7aec53` (2026-09-21)
+
+The lane-2 verifier's fourth round returned one blocker and two minors. Nothing
+in `Sources/` changed; the round is one probe, two test arms and three
+corrections to what earlier rounds claimed.
+
+### The blocker: a per-axis clause is two copies (`GR-AJ`)
+
+`GR-E` step 2's "a nil proposal axis counts for neither" is two sibling `if`s in
+`NativeGridSolver.provide`, one per axis. Deleting the **height** guard reddens
+two tests; deleting the **width** guard left the whole 1450-test suite green.
+`GR-AI`'s eighteen mutations never separated them — the `d6ad9ff` round's R2
+dropped both in one mutant, so its red came entirely from the height half — and
+every arm of test 2.2 ran at a finite width (200, 200, 150, 150), varying only
+the height.
+
+**The witness, hand-derived from the reference model before any run.** Two rows
+of one cell: `a` = `fw(20)` (width `proposal ?? 10`, height a fixed 20), `b` =
+`cb(10, 80)` (clamp on both axes). At nil × 100 the plan is one column, two
+rows, `vgap = [0, 8]`, so H′ = 92.
+
+| | key as written (height axis only) | key with the nil width counted |
+|---|---|---|
+| a | infinite axes 0, flexibility 20 − 20 = 0 | infinite axes **1** (∞ answer is infinitely wide), flexibility 0 |
+| b | infinite axes 0, flexibility 80 − 10 = 70 | infinite axes 0, flexibility 70 + (80 − 10) = 140 |
+| order | a, then b | **b, then a** (fewer infinite axes first) |
+| serve | a at 92/2 = 46 → 10×20; b at (92 − 20)/1 = 72 → 10×72 | b at 46 → 10×46; a at (92 − 46)/1 = 46 → 10×20 |
+| answer | **10×100**, a (0,0 10×20), b (0,28 10×72) | 10×74, b (0,28 10×46) |
+
+Test 2.2 gains that grid as **GF19** (GF14–GF18 are test 2.1's), with **GF20**,
+the same grid at 100×100, as the control that reaches the mutant's order
+honestly through a finite width: 100×74, a (0,0 100×20), b (10,28 80×46). The
+two are `#require`d to differ.
+
+**Probe.** `docs/probes/swiftui-grid-nil-width-key.swift`, N1 = GF19,
+N0 = GF20, `/usr/bin/swift` Apple Swift 6.4 (swiftlang-6.4.0.33.1), macOS 27.0
+(26A428), exit 0, run twice, `diff` empty. Both arms landed **exactly** on the
+hand-derived figures above, so SwiftUI counts the nil axis for neither term, and
+its measurement log reads the order directly: `a nilx46` before `b nilx72` at
+nil × 100, `b 100x46` before `a 100x46` at 100×100.
+
+**Mutation** (committed first at `f7aec53`, from a copy, `git status --short`
+showing only `NativeGrid.swift` during and nothing after, full unfiltered native
+suite): `if proposal.width != nil` → `if true` fails
+`theFlexibilityKeyCountsInfiniteAxesFirstAndIgnoresANilAxis` alone, **2
+issues** — `NativeGridTests.swift:1159` (`gf19Size == size(10, 100)`) and
+`:1160` (GF19's b rect) — out of 1450.
+
+### The two clamps, run against the suite at last
+
+`GR-AI` reported eighteen mutations "every one reddened" while its own table
+said A was never run. Both clamps have now been run, **each on its own**, from a
+copy, full unfiltered native suite at `f7aec53`:
+
+| mutation | suite |
+|---|---|
+| `Double(Swift.max(openColumns, 1))` → `Double(openColumns)` | `Test run with 1450 tests in 1 suite passed after 47.622 seconds` |
+| `Double(Swift.max(openRows, 1))` → `Double(openRows)` (never mutated before, by digest or by suite) | `Test run with 1450 tests in 1 suite passed after 47.713 seconds` |
+
+So both are **green and equivalent**, as `GR-AI`'s structural argument and the
+verifier's independent 20 000-solve digest say — not "reddened". `GR-AI` and the
+spec's lane-2 paragraph are amended to say so; the instruction not to write a
+test for them stands, because it could not fail.
+
+### M1 re-taken, with the mutant quoted
+
+The `f6ed8a0` table's M1 row read "2.1, 2.4 — 2 issues" and reproduces under
+neither reading of "drops the single-column width floor". Both were re-run at
+`f7aec53`, from a copy, full unfiltered suite each time:
+
+| mutant, exactly | reddened |
+|---|---|
+| `width = Swift.max(shareW, widths[cell.column])` → `width = shareW` | `aFiniteProposalServesGroupsWithSharesAndCommits` alone — **1 issue** (GF7's d, `NativeGridTests.swift:1036`) |
+| the same line → `width = widths[cell.column]` | **14 tests, 216 issues** — every one of tests 2.1–2.14 |
+
+(The verifier read 213 issues for the second at `5c6c5ff`; the extra three are
+GF19/GF20's, which the same mutant also moves.) The first reading is the one
+`GR-AI`'s digest calibration used, and it is the honest M1: **one** test, not
+two. A future regression can now be told apart from a coverage change by the
+issue count.
+
+### Suite, goldens, guards
+
+`swift build --build-system native --build-tests` then `swift test
+--build-system native --no-parallel`, unfiltered, at `f7aec53`: `Test run with
+1450 tests in 1 suite passed`, 0 `error:`, the only `warning:` SwiftPM's own
+deprecation notice. No test was added or removed — GF19/GF20 are arms of an
+existing test — so the count is unchanged from `5c6c5ff`. Goldens 97, `git diff
+cb2e708 -- '*.json'` empty. Guards 71, unchanged; the round adds no typecheck
+guard.
+
+### The real window and the demo
+
+`git diff f6ed8a0..HEAD -- Sources/`, with comment lines filtered out, is
+**empty** — the only source change since lane 2's last round is `ceef0dc`'s
+24 lines of doc comment — so lane 2's 12-of-12 0-pixel demo comparison at
+`ceef0dc` and lane 1's live capture at `a2c1216` both still describe this head,
+and neither was re-taken. The screen lock was not probed, because with no
+executable line moved there is nothing for a capture to see.
+
+### For lane 3, added by this round
+
+- **Mutate each per-axis twin on its own**, at a proposal where that axis is the
+  nil one (`GR-AJ`). The solver's twins are the two `provide` guards,
+  `wPrime`/`hPrime`, `shareW`/`shareH`, `widen`/`heighten` and
+  `commitColumn`/`commitRow`; lane 3's anchors and unsized axes add more.
+- Arm ids `GF14`–`GF18` belong to test 2.1 and `GF19`/`GF20` to test 2.2; the
+  next free `GF` is **GF21**.
 
 ## For the integrator
 
