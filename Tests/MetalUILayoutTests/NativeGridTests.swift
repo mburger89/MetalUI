@@ -962,8 +962,19 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 /// - GR2 `[a odd, b 20x20]` at 200×200: a placed at the 96×200 it was measured
 ///   at, never at its 20×20 slot.
 ///
-/// Mutation (GZ0's control): every group offered W′/ncols, commits ignored (GP2's
-/// a at 96).
+/// - R1 `[a 50x10 prio 2, b 10x10 prio 2] [c clamp 0…200 prio 1, e clamp 0…300]`
+///   at 300×100: the committed widths are a RUNNING sum. The priority-2 group
+///   commits columns 0 and 1 at 50 and 10; the priority-1 group then widens
+///   column 0 to 200, and e's group must see 210 committed, so it is offered
+///   292 − 210 = 82 and the grid answers 290×28. Let the sum go stale and e
+///   sees 60, is offered 232 and answers it: 440×28. Probed in
+///   `docs/probes/swiftui-grid-finite-shares.swift` (arm R1), where SwiftUI
+///   also reads 290×28.
+///
+/// Mutations: (a) (GZ0's control) every group offered W′/ncols, commits ignored
+/// (GP2's a at 96); (b) `widen`'s `if committedColumn[column] { committedWidth
+/// += value - old }` deleted — the running sum goes stale (R1 reads 440×28, and
+/// nothing else in the suite moves).
 @Test func aFiniteProposalServesGroupsWithSharesAndCommits() {
     do { // GP1
         let arm = Arm()
@@ -1072,6 +1083,17 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
         expectRects(arm, "GR2", ["a": r(0, 0, 20, 20), "b": r(28, 0, 20, 20)])
         #expect(arm.proposals("a") == [proposal(0, 0), proposal(.infinity, .infinity), proposal(96, 200)],
                 "GR2 a is placed at the 96×200 it answered 20×20 to: \(arm.proposals("a"))")
+    }
+    do { // R1 — the committed widths are a RUNNING sum, re-read after a widen
+        let arm = Arm()
+        let a = arm.prio(arm.fx("a", 50, 10), 2), b = arm.prio(arm.fx("b", 10, 10), 2)
+        let c = arm.prio(arm.cw("c", 0, 200), 1)
+        let root = arm.grid([row(a, b), row(c, arm.cw("e", 0, 300))])
+        #expect(arm.run(root, 300, 100) == size(290, 28), "R1 size")
+        expectRects(arm, "R1", ["a": r(75, 0, 50, 10), "b": r(244, 0, 10, 10),
+                                "c": r(0, 18, 200, 10), "e": r(208, 18, 82, 10)])
+        #expect(arm.proposals("e").contains(proposal(82, 72)),
+                "R1 e is offered 292 − 210 committed: \(arm.proposals("e"))")
     }
 }
 
@@ -1428,10 +1450,20 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 /// gap is 0 and not the 8pt default (`GR-D`); SwiftUI's 60×48 and 118×48 are
 /// what the probe reads.
 ///
+/// F1 `[a 200x10, b 10x10] [x span 2]` at 100×100 is the FLOOR in that same
+/// line, `Swift.max(…, spanWidth(cell))`: W′ is 92 but the span's own columns
+/// already sum 218, and SwiftUI proposes the larger, so x reads its "at least
+/// 200 wide" height of 40 and the grid answers 218×58. Dropping the floor
+/// proposes 100, x answers 20 tall and the grid reads 218×38 — green across the
+/// whole suite until this arm, because GX8 serves its span FIRST, with every
+/// column still 0. Probed in `docs/probes/swiftui-grid-finite-shares.swift`
+/// (arm F1, controls GX8 and GX12).
+///
 /// Mutations: (a) propose a span the sum of its columns' shares plus inner gaps
 /// (GX10's x moves); (b) drop step 12 (GX9's b 231, a's column 61); (c) drop the
 /// middle target step, `targets = columns.filter { plan.columnSingleCells[$0].isEmpty }`
-/// (S1's a at 10, S2's b at 43, and nothing else in the suite).
+/// (S1's a at 10, S2's b at 43, and nothing else in the suite); (d) drop the
+/// span proposal's floor, `Swift.max(…, spanWidth(cell))` (F1 reads 218×38).
 @Test func aSpanAtAFiniteProposalIsOfferedTheWidthOutsideItAndWidensItsOpenColumnsFirst() {
     do { // GX8
         let arm = Arm()
@@ -1472,6 +1504,16 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
         expectRects(arm, "S2", ["a": r(0, 0, 20, 20), "b": r(28, 0, 30, 20),
                                 "d": r(5, 28, 10, 20), "x": r(28, 28, 90, 20)])
     }
+    do { // F1 — the span proposal's FLOOR at its own columns' sum
+        let arm = Arm()
+        // 60 wide; 40 tall only when proposed at least 200 wide, so its height
+        // reads back the width the solve offered it.
+        let x = arm.leaf("x") { SizeD(width: 60, height: ($0.width ?? 0) >= 200 ? 40 : 20) }
+        let root = arm.grid([row(arm.fx("a", 200, 10), arm.fx("b", 10, 10)), row(arm.span(x, 2))])
+        #expect(arm.run(root, 100, 100) == size(218, 58), "F1 size")
+        expectRects(arm, "F1", ["a": r(0, 0, 200, 10), "b": r(208, 0, 10, 10), "x": r(79, 18, 60, 40)])
+        #expect(arm.proposals("x").contains(proposal(218, 82)), "F1 x is offered its columns' 218: \(arm.proposals("x"))")
+    }
 }
 
 // MARK: 2.9 the model's disagreements with SwiftUI
@@ -1494,8 +1536,23 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 /// GX19 (GX18 with x 40 wide) is the control on which SwiftUI and the model
 /// agree: 200×100, x (80,90 40×10).
 ///
-/// Mutation: skip `absorbSpan` at proposals other than nil×nil (GX17 and GS5
-/// move; recorded by the lane).
+/// - O1 `[a 20x10, b 30x10, c w40 height-flexible] [x clamp 0…250 span 2, d
+///   40x10]` at 300×100: SwiftUI **245.33×100**, a (34.83,36), b (132.50,36),
+///   c (205.33,0 40×82), d (205.33,90), x (0,90 197.33×10) — it charges the
+///   open column outside the span 94.67, W′ ÷ 3 with nothing committed. The
+///   model charges that column its group's share at the moment it is served,
+///   (284 − 50) ÷ 1 = 234, and proposes x 58: **106×100**. Both readings are
+///   from `docs/probes/swiftui-grid-finite-shares.swift` (arm O1) and from
+///   `swiftui-grid.swift`'s own `model-arms` mode with O1 added, which reads the
+///   model at 106×100 rect for rect — so the kernel follows the model here, as
+///   `GR-B` says it does, and the disagreement is the model's, not a solver bug.
+///   Without this arm, making the outside term always `widths[column]` (298×100)
+///   left the whole suite green.
+///
+/// Mutations: (a) skip `absorbSpan` at proposals other than nil×nil (GX17 and
+/// GS5 move; recorded by the lane); (b) `NativeGridSolver.serve`'s
+/// `outside += levelInColumn[column] > 0 ? shareW : widths[column]` made always
+/// `widths[column]` (O1 reads 298×100).
 @Test func theModelsDisagreementsWithSwiftUIArePinned() {
     do { // GX17
         let arm = Arm()
@@ -1530,6 +1587,16 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
                              row(arm.cw("d", 0, 30, 40))])
         #expect(arm.run(root, 300, 200) == size(164, 136), "GS5 size")
         expectRects(arm, "GS5", ["a": r(48, 0, 40, 40), "b": r(34, 63, 68, 10), "c": r(144, 48, 20, 40), "d": r(53, 96, 30, 40)])
+    }
+    do { // O1 — the share charged to an OPEN column outside a span
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 20, 10), arm.fx("b", 30, 10), arm.fh("c", 40)),
+                             row(arm.span(arm.cw("x", 0, 250), 2), arm.fx("d", 40, 10))])
+        #expect(arm.run(root, 300, 100) == size(106, 100), "O1 size")
+        expectRects(arm, "O1", ["a": r(0, 36, 20, 10), "b": r(28, 36, 30, 10), "c": r(66, 0, 40, 82),
+                                "d": r(66, 90, 40, 10), "x": r(0, 90, 58, 10)])
+        #expect(arm.proposals("x").contains(proposal(58, 46)),
+                "O1 x is offered 284 − 234 + 8, the open column charged its group's share: \(arm.proposals("x"))")
     }
 }
 
