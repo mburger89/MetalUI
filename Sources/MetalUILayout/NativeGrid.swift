@@ -1,7 +1,9 @@
 import MetalUICore
 
 // The grid kernel (plan task 7, stage G): SwiftUI's `Grid`, ported from the
-// reference model in `docs/probes/swiftui-grid.swift` (revision 5). Spec
+// reference model in `docs/probes/swiftui-grid.swift` — the model is unchanged
+// since revision 5, which `GR-B` names as the reference, and the file is at
+// revision 6, whose two added modes are additive (record §20). Spec
 // `docs/superpowers/specs/2026-09-17-grids-design.md` §4; rulings `GR-A`…
 // in `docs/superpowers/2026-09-17-grids-decisions.md`.
 //
@@ -506,6 +508,17 @@ final class NativeGridSolver {
         }
     }
 
+    /// Opens the group starting at `start` and asks for its first member.
+    ///
+    /// The two `Swift.max(…, 1)` clamps below are **defensive and unreachable**
+    /// (`GR-AI`, measured): `openRows` is at least 1 whenever a group exists,
+    /// because every cell of the level raises its row's count and a later
+    /// group's cells have not been decremented yet; and `openColumns` is 0 only
+    /// when the level holds no single-column cell, in which case `shareW` is
+    /// never read — a span reads `widths[column]` on every outside column
+    /// (`levelInColumn` is 0 everywhere) and takes its own branch. Dividing by
+    /// 0 instead leaves 20 000 differential solves byte-identical, so **no test
+    /// can cover them**; do not write one.
     private func startGroup(at start: Int) {
         groupStart = start
         groupEnd = start + 1
@@ -582,6 +595,15 @@ final class NativeGridSolver {
             if targets.isEmpty { targets = Array(columns) }
             for column in targets { widen(column, to: widths[column] + shortfall / Double(targets.count)) }
         }
+        // The first group sweeps every column and row; later groups check only
+        // their own cells'. **This split is a COST rule, not a behavioural one**
+        // (`GR-AI`, measured): sweeping every column after every group gives
+        // byte-identical answers over 20 000 differential solves, because a
+        // column's level count reaches 0 only in the group that serves its last
+        // cell at this level, so the extra visits are no-ops on
+        // `commitColumn`'s guards. Its only pin is
+        // `theSolversBookkeepingIsLinearInTheCells` (test 2.14) — the counter,
+        // not a rect. Keep the split, and keep 2.14 reading `ncols`.
         if isFirstGroup {
             isFirstGroup = false
             for column in 0..<plan.columnCount { commitColumn(column) }

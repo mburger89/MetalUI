@@ -137,6 +137,13 @@ private final class LeafLog: @unchecked Sendable {
 /// every cell per column and row, per group); the lane records that count.
 /// Mutation: replace the column index in the commit check with a scan of every
 /// cell.
+///
+/// **This test is the ONLY pin on `finishGroup`'s first-group / later-group
+/// split** (`GR-AI`). Second mutation, which nothing else in the suite
+/// reddens: delete the `isFirstGroup` branch so every group sweeps every
+/// column and row (2 issues here, both literals). It is not equivalent in
+/// cost and is indistinguishable in behaviour — 20 000 differential solves
+/// byte-identical — so the counter is the only witness the split has.
 @Test func theSolversBookkeepingIsLinearInTheCells() throws {
     func solve(_ rows: Int) throws -> NativeGridSolution {
         let tree = LayoutTree(generation: 0)
