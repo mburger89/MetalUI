@@ -858,7 +858,7 @@ private struct FocusReader: Element {
 }
 
 private final class SelfFocusProbe {
-    /// Weak for `MetalUIDemo`'s `demoWindow` reason: the content closure the
+    /// Weak for `MetalUIDemoContent`'s `demoWindow` reason: the content closure the
     /// window retains builds an element holding this probe, so a strong window
     /// here would close the cycle.
     weak var window: Window?
@@ -868,7 +868,7 @@ private final class SelfFocusProbe {
 }
 
 /// An element that focuses **itself** from its own `requestLayout`, the way
-/// `MetalUIDemo`'s `CounterPanel` does.
+/// `MetalUIDemoContent`'s `CounterPanel` does.
 ///
 /// Hand-written rather than a `Box` for `FocusReader`'s reason: only the
 /// element knows its own `GlobalElementID`, and only a bespoke element can

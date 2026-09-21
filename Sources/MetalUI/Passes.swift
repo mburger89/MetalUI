@@ -26,11 +26,25 @@ public struct LayoutPass {
     /// The space offered to the root, in logical points.
     public var contentSize: Size<Pixels> { frame.contentSize }
 
+    /// Whether this frame lowers legacy elements onto the proposal kernel
+    /// (`Frame.layoutAuthority`, plan task 7, ruling LR-B). A legacy site reads it
+    /// before registering; see `LayoutAuthority`.
+    var lowersToProposal: Bool { frame.layoutAuthority == .proposal }
+
     /// Registers a node with `style` and already-registered `children`, and
     /// returns its id. Children are registered before their parent, so an
     /// element builds bottom-up.
+    ///
+    /// **A custom element's registrar.** No in-module element calls it (each
+    /// calls `Frame.requestNode` after its own authority check), so under the
+    /// proposal authority it reports `customElement.requestNode` — a trap in
+    /// production, a diagnostic under the differential harness (ruling LR-C).
+    /// Stage 6a deprecates it and moves every caller (ruling LR-R).
     public func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
-        frame.requestNode(style: style, children: children)
+        if lowersToProposal {
+            return frame.unlowerable(UnlowerableField(site: .customElement, field: "requestNode"))
+        }
+        return frame.requestNode(style: style, children: children)
     }
 
     /// Registers a **leaf**: a node with no children that answers for its own
@@ -46,9 +60,134 @@ public struct LayoutPass {
     /// Public because a leaf is how *anything* that is not a box gets a size —
     /// spec §3.1 names text, images and embedded app content — and an element
     /// outside this module has no other way to report one.
+    ///
+    /// Under the proposal authority it reports `customElement.requestLeaf`, as
+    /// `requestNode` above reports its own name (ruling LR-C).
     public func requestLeaf(style: Style,
                             measure: @escaping MeasureFunction) -> LayoutNodeID {
-        frame.requestLeaf(style: style, measure: measure)
+        if lowersToProposal {
+            return frame.unlowerable(UnlowerableField(site: .customElement, field: "requestLeaf"))
+        }
+        return frame.requestLeaf(style: style, measure: measure)
+    }
+
+    // MARK: Native registrars — typed (ruling MC-G)
+    //
+    // **Every native registrar returns a `ProposalNodeID` and takes them as
+    // children**, and `ProposalNodeID`'s initializer is `internal`, so outside
+    // `MetalUI` a native child can only be a node one of these returned
+    // (`aNativeRegistrarRejectsALegacyChild`,
+    // `aProposalLayoutContainerOnlyAcceptsTypedChildren`). They wrap and unwrap
+    // around `Frame`'s untyped registrars, which are unchanged and keep the
+    // run-time traps of ruling SA-G as the backstop for what the type cannot see
+    // (`ProposalNodeID.swift`'s seven holes). Until lane 3 of the
+    // modifier-composition track these took and returned `LayoutNodeID`.
+
+    /// Registers a leaf measured by the native SwiftUI-style layout path.
+    ///
+    /// The closure receives the parent's proposal rather than CSS known and
+    /// available spaces. A native node cannot contain a legacy child, and a
+    /// legacy node cannot contain a native one: both trap at registration
+    /// (ruling SA-G). The typed id makes the first a compile error for any child
+    /// a native registrar is handed (ruling MC-G); the traps stay for a legacy
+    /// node reached some other way.
+    public func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeLeaf(measure: measure))
+    }
+
+    /// Registers a native `ZStack`-style overlay container.
+    public func requestNativeOverlay(children: [ProposalNodeID],
+                                     alignment: ProposalAlignment = .center) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeOverlay(children: children.map(\.layoutNodeID),
+                                                  alignment: alignment))
+    }
+
+    /// Registers a native overlay attachment: `overlay` measured against
+    /// `child`'s resolved size, without changing it.
+    public func requestNativeOverlayAttachment(child: ProposalNodeID, overlay: ProposalNodeID,
+                                               alignment: ProposalAlignment = .center) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeOverlayAttachment(child: child.layoutNodeID,
+                                                            overlay: overlay.layoutNodeID,
+                                                            alignment: alignment))
+    }
+
+    /// Registers a native SwiftUI-style frame around one native child.
+    public func requestNativeFrame(child: ProposalNodeID, width: Double? = nil,
+                                   height: Double? = nil,
+                                   minWidth: Double? = nil, idealWidth: Double? = nil,
+                                   maxWidth: Double? = nil,
+                                   minHeight: Double? = nil, idealHeight: Double? = nil,
+                                   maxHeight: Double? = nil,
+                                   alignment: ProposalAlignment = .center) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeFrame(child: child.layoutNodeID, width: width, height: height,
+                                                minWidth: minWidth, idealWidth: idealWidth,
+                                                maxWidth: maxWidth,
+                                                minHeight: minHeight, idealHeight: idealHeight,
+                                                maxHeight: maxHeight,
+                                                alignment: alignment))
+    }
+
+    /// Registers native outer padding around one native child.
+    public func requestNativePadding(child: ProposalNodeID,
+                                     insets: Edges<Double>) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativePadding(child: child.layoutNodeID, insets: insets))
+    }
+
+    /// Registers native fixed-size behavior around one native child.
+    public func requestNativeFixedSize(child: ProposalNodeID,
+                                       horizontal: Bool = true,
+                                       vertical: Bool = true) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeFixedSize(child: child.layoutNodeID,
+                                                    horizontal: horizontal, vertical: vertical))
+    }
+
+    /// Registers native aspect-ratio proposal behavior around one native child.
+    public func requestNativeAspectRatio(child: ProposalNodeID, ratio: Double,
+                                         contentMode: AspectRatioContentMode = .fit) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeAspectRatio(child: child.layoutNodeID, ratio: ratio,
+                                                      contentMode: contentMode))
+    }
+
+    /// Registers native stack layout priority around one proposal-layout child.
+    public func requestNativeLayoutPriority(child: ProposalNodeID, priority: Double) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeLayoutPriority(child: child.layoutNodeID, priority: priority))
+    }
+
+    /// Registers a native flexible spacer for a native linear stack.
+    public func requestNativeSpacer(minLength: Double? = nil) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeSpacer(minLength: minLength))
+    }
+
+    /// Registers a clipped proposal-layout viewport around one native child.
+    /// The element owns clipping and the interactive scroll offset; this node
+    /// establishes only the parent-proposal/content-measurement relationship.
+    public func requestNativeScrollViewport(child: ProposalNodeID,
+                                            axis: ProposalStackAxis) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeScrollViewport(child: child.layoutNodeID, axis: axis))
+    }
+
+    /// Registers a native linear stack for the proposal-layout migration.
+    ///
+    /// `spacing` nil is SwiftUI's platform default, 8 between views and none
+    /// at a spacer's edge (ruling CN-H; `LayoutTree.newNativeLinearStack`).
+    /// The default stays 0 for callers that name no spacing.
+    public func requestNativeLinearStack(children: [ProposalNodeID], axis: ProposalStackAxis,
+                                         spacing: Double? = 0,
+                                         alignment: ProposalAlignment = .center) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeLinearStack(children: children.map(\.layoutNodeID), axis: axis,
+                                                      spacing: spacing, alignment: alignment))
+    }
+
+    /// Registers a custom `ProposalLayout` algorithm over native children.
+    ///
+    /// The element-side mirror of `LayoutTree.newNativeLayout(_:children:)`.
+    /// `ProposalLayoutContainer` is the ready-made element over it; an element
+    /// with its own paint or input is a `ProposalElement` that calls
+    /// `content.requestProposalGroupLayout` and then this, as `HStack` calls
+    /// `requestNativeLinearStack`.
+    public func requestNativeLayout(_ layout: some ProposalLayout,
+                                    children: [ProposalNodeID]) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeLayout(layout, children: children.map(\.layoutNodeID)))
     }
 
     /// Reads back a node's current `Style`, so a caller that registered a node
@@ -62,7 +201,8 @@ public struct LayoutPass {
     /// the `Style` of any node it can name — a sibling's, a parent's — during
     /// the request phase, with no signal to the node's owner. Nothing outside
     /// `MetalUI` needs that: `StyledComponent` is in-module and amends only the
-    /// nodes its own component just returned. Shipping public surface with one
+    /// nodes its own component just returned, or the padding wrappers it has
+    /// just registered around them (`OM-E`'s ordered ops). Shipping public surface with one
     /// in-module caller is what this repo's inert-API discipline refuses;
     /// widening later is trivial and unshipping is not. Pinned by
     /// `layoutPassStyleAccessorsAreNotPublic` (`ErasureCompileGuards.swift`), which
@@ -92,6 +232,9 @@ public struct LayoutPass {
     /// that shapes survive the frame. Making it public would also make
     /// `ShapingCache`'s whole surface part of `MetalUI`'s API by reachability.
     var shapingCache: ShapingCache { frame.shapingCache }
+
+    /// Whether this frame records accessibility (`Frame.collectsAccessibility`).
+    var collectsAccessibility: Bool { frame.collectsAccessibility }
 
     /// The innermost active `ScrollView`'s ambient context, or `nil` outside
     /// one — `ScrollView.requestLayout` is the sole publisher, via
@@ -327,9 +470,42 @@ public struct PrepaintPass {
     /// `Handlers` and would otherwise have no way to make it do anything —
     /// which is precisely CLAUDE.md's declared-and-inert shape, arrived at by
     /// access control instead of by omission.
+    ///
+    /// **Under `.disabled(true)` it registers no hitbox and no focus**, whatever
+    /// `handlers` holds, and a declared AX node gains `.disabled` — the one
+    /// disabled gate, read from `environment.isEnabled` (rulings EV-E, EV-F;
+    /// see `Frame.registerHandlers`). An element calling it needs no check of
+    /// its own.
     public func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
                                  id: GlobalElementID) {
         frame.registerHandlers(handlers, at: bounds, id: id)
+    }
+
+    /// Whether this frame records accessibility (`Frame.collectsAccessibility`).
+    var collectsAccessibility: Bool { frame.collectsAccessibility }
+
+    /// `registerHandlers` with what only an in-module conformer can say to an
+    /// accessibility client: a text leaf's string, and whether it synthesizes a
+    /// node at all (ruling AB-Y). Its two callers are `Text.prepaint` and
+    /// `OnTapModifier.prepaint`. See `Frame.registerHandlers`.
+    func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
+                          id: GlobalElementID, accessibleText: String? = nil,
+                          synthesizesAccessibility: Bool = true) {
+        frame.registerHandlers(handlers, at: bounds, id: id, accessibleText: accessibleText,
+                               synthesizesAccessibility: synthesizesAccessibility)
+    }
+
+    /// Runs `body` with pointer hitbox registration enabled or disabled.
+    ///
+    /// This scope deliberately leaves focus and keyboard registration live.
+    /// SwiftUI-style hit-testing modifiers answer whether pointer events enter
+    /// a subtree; they do not erase that subtree's keyboard behaviour.
+    public func allowsHitTesting(_ enabled: Bool, _ body: () -> Void) {
+        guard !enabled else {
+            body()
+            return
+        }
+        frame.withHitTestingDisabled(body)
     }
 
     /// Records `node` as `id`'s accessibility node, resolving its `frame` to
@@ -432,12 +608,15 @@ public struct PaintPass {
         frame.tree.measuredWidth(node)
     }
 
-    /// The active theme (spec §7.9).
+    /// The active theme (spec §7.9): the nearest `.theme(_:)`, else the
+    /// window's (ruling EV-G).
     ///
     /// This is the whole of "propagated through the frame context": an element
     /// that wants a colour resolves a `ColorToken` against this, and there is no
     /// other way to obtain one. Nothing here reads global state, and nothing
-    /// cascades — `Style` has no colour field for a cascade to inherit through.
+    /// cascades — `Style` has no colour field for a cascade to inherit through,
+    /// and a scoped theme is a value handed out at a position, not a property
+    /// written into every node.
     ///
     /// **Deliberately not on `LayoutPass` or `PrepaintPass`.** Neither phase can
     /// consume a colour: layout contributes `Style`, which has no colour field,
@@ -473,8 +652,19 @@ public struct PaintPass {
     /// geometry a caller outside any `clipped` block would pass, and the two
     /// look identical to a caller either way, which is the point.
     public func fill(_ bounds: Bounds<Pixels>, color: Hsla,
-                     cornerRadii: Corners<Pixels> = Corners(all: Pixels(0))) {
-        frame.fill(bounds, color: color, cornerRadii: cornerRadii)
+                     cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
+                     borderColor: Hsla = .transparent,
+                     borderWidths: Edges<Pixels> = Edges(all: Pixels(0))) {
+        frame.fill(bounds, color: color, cornerRadii: cornerRadii,
+                   borderColor: borderColor, borderWidths: borderWidths)
+    }
+
+    /// Multiplies the opacity of every primitive emitted by `body`.
+    public func opacity(_ value: Float, _ body: () -> Void) {
+        precondition((0...1).contains(value), "opacity must be in 0...1")
+        frame.pushOpacity(value)
+        defer { frame.popOpacity() }
+        body()
     }
 
     /// Runs `body` with `bounds` intersected into the active clip and `offset`
@@ -709,4 +899,37 @@ extension PaintPass {
                              _ body: (inout S) -> Void) {
         frame.stateTable.withState(id, initial: initial(), body)
     }
+}
+
+// MARK: - Environment (rulings EV-C, EV-L)
+//
+// **Get-only on all three passes, and readable in all three.** A setter here
+// would be an unscoped push: a write in one element's phase would change what
+// every later sibling reads, the cascade leak ruling EV-A exists to prevent.
+// Writers are modifiers (`EnvironmentScope`). Pinned by the typecheck guard
+// `environmentValuesCannotBeWrittenThroughAPass`.
+//
+// **No phase-only guard** (ruling EV-L): within one frame and one scope the
+// three accessors return identical values, because the root is fixed before
+// the frame starts and a scope re-pushes the values it computed in layout.
+// There is no prepaint/paint boundary for a value to lie across. The theme is
+// not reachable here — `EnvironmentValues.theme` is internal and
+// `PaintPass.theme` is its only reader (ruling EV-G).
+//
+// Each read is a copy of the frame's current environment and counts one
+// `Frame.environmentSnapshotCount` (ruling EV-O).
+
+extension LayoutPass {
+    /// The environment at this element's position. See the section note above.
+    public var environment: EnvironmentValues { frame.environmentSnapshot() }
+}
+
+extension PrepaintPass {
+    /// The environment at this element's position. See the section note above.
+    public var environment: EnvironmentValues { frame.environmentSnapshot() }
+}
+
+extension PaintPass {
+    /// The environment at this element's position. See the section note above.
+    public var environment: EnvironmentValues { frame.environmentSnapshot() }
 }

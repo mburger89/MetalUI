@@ -381,6 +381,22 @@ private final class LabelBox {
         List([Datum(id: 0)], rowHeight: px(40)) { _ in Box() }
             .width(px(40)).height(px(40)).onClick { log.names.append("list") }
     }
+    // Ruling MC-I: a `.padding`/`.frame` chain is ONE `ModifiedElement` that
+    // registers each layer's handlers in a loop — two arms over a two-layer
+    // chain, the handler on the INNER layer (32x32 at (4, 4), inside a 40x40
+    // outermost layer with none) and on the outermost. The wrapped `Box`
+    // declares no handler, so (20, 20) can only reach the layer's.
+    try fires("modified inner layer") {
+        Box().width(px(24)).height(px(24))
+            .padding(Edges(all: .pixels(px(4)))).onClick { log.names.append("modified inner layer") }
+            .padding(Edges(all: .pixels(px(4)))).width(px(40)).height(px(40))
+    }
+    try fires("modified outermost layer") {
+        Box().width(px(24)).height(px(24))
+            .padding(Edges(all: .pixels(px(4))))
+            .padding(Edges(all: .pixels(px(4)))).width(px(40)).height(px(40))
+            .onClick { log.names.append("modified outermost layer") }
+    }
 }
 
 private struct Datum: Identifiable { let id: Int }

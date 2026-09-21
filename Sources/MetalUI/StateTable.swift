@@ -270,6 +270,11 @@ final class StateTable {
     /// so `public` here bought nothing and implied a supported API.
     var count: Int { storage.count }
 
+    /// Every id holding an entry. A test observable with no production reader,
+    /// on `count`'s footing: the differential harness compares two tables' ids
+    /// (plan task 7, ruling LR-D).
+    var ids: Set<GlobalElementID> { Set(storage.keys) }
+
     /// How many times `withState` has actually run its `body` and written an
     /// entry, cumulative since this table was created. Test observability, on
     /// `isDirty`'s exact footing — no production reader, `internal` for the

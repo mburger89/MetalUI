@@ -865,7 +865,7 @@ private func fixedSize(_ w: Float, _ h: Float) -> Style {
 /// **Measured, not decorative.** Without it this fixture's 100pt box is
 /// floored at the 150pt its nested `ScrollView`'s content node reports — the
 /// half of §4.5 this engine DOES implement (CLAUDE.md divergence 5), and the
-/// same reason `Sources/MetalUIDemo/main.swift` writes `.minHeight(Pixels(0))`
+/// same reason `Sources/MetalUIDemoContent/DemoContent.swift` writes `.minHeight(Pixels(0))`
 /// around its own scroll list. The first draft of the test below had `outer`
 /// parked at 74 instead of its intended 50pt ceiling for exactly this reason.
 private func boundedHeight(_ h: Float) -> Style {

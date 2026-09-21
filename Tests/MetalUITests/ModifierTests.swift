@@ -3,7 +3,10 @@ import MetalUICore
 import MetalUILayout
 @testable import MetalUI
 
-// The public modifier surface: `StyledElement`'s thirty-seven and `Box`'s one.
+// The direct-style modifier surface: `StyledElement`'s forty-five and `Box`'s
+// one. The table below holds 44 of the 46: `padding(_:)`'s two overloads are
+// deliberately absent, being wrapper modifiers that return a `ModifiedElement`
+// rather than writing their receiver's `Style`.
 
 /// An `Action` for the `onAction(_:_:)` row below. Its identity is all that
 /// matters — the row asserts that exactly one entry landed in
@@ -15,8 +18,8 @@ private struct TableAction: Action {}
 // element tests call a handful of them and assert on the *rect* that comes out,
 // so they cover the few they use and say nothing about the rest. Measured before
 // this file existed: nine mutations applied **at once** — `minWidth(_:)` writing
-// `minSize.height`, `maxHeight(_:)` writing `maxSize.width`, `width(percent:)`
-// writing `size.height`, `flexShrink(_:)` writing `flexGrow`, `flexBasis(_:)`
+// `minSize.height`, `maxHeight(_:)` writing `maxSize.width`, `width(percent:)` (now
+// `width(fraction:)`, ruling CN-O) writing `size.height`, `flexShrink(_:)` writing `flexGrow`, `flexBasis(_:)`
 // treating points as a percentage, `borderWidth(_:)` writing `padding`, and
 // `justifyContent(_:)`, `flexWrap(_:)`, `alignContent(_:)` each writing nothing
 // at all — left the whole 302-test suite green.
@@ -55,8 +58,10 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// `keyContext(_:_:)` that made its element focusable, an `onAction(_:_:)` that
 /// also registered a pointer hitbox by writing `onClick`.
 ///
-/// **`Handlers` has SIX members as of the tombstones-and-AX milestone's Task
-/// 5, and this comment said five (before that, three) until this fix round.**
+/// **`Handlers` has EIGHT members as of plan task 5's lane 3 (`allowsHitTesting`
+/// and `contentShapeInset`, ruling `OM-T`/`OM-J`); it had SIX as of the
+/// tombstones-and-AX milestone's Task 5, and this comment said five (before
+/// that, three) until that milestone's fix round.**
 /// The projection stopped tracking the struct and the comment stopped saying
 /// so, in one commit — the reason the two keymap-task modifiers escaped this
 /// table entirely, back when it happened the first time. It has now happened
@@ -90,6 +95,12 @@ private struct HandlerShape: Equatable {
     /// case below leaves this at the default `AXNode()`, matching
     /// `Handlers.axNode`'s own default — nothing today writes it.
     var axNode = AXNode()
+    /// Plan task 5's lane 3. The default is `true`, so the one case that writes
+    /// it must write `false` — a modifier that wrote nothing would otherwise
+    /// pass. `contentShapeInset` is the whole `Edges` value, not a flag, so the
+    /// per-edge overload's four distinct components catch a transposition.
+    var allowsHitTesting = true
+    var contentShapeInset: Edges<Pixels>?
 }
 
 @MainActor
@@ -100,16 +111,17 @@ private struct ModifierCase {
                             inout HandlerShape) -> Void
 }
 
-/// Every public modifier writes its own field, and only its own field.
+/// Every direct-style modifier writes its own field, and only its own field.
 ///
 /// **Every value below is distinct, and none is a default.** Both halves are
 /// load-bearing and both are taxonomy shape 1 ("uniform values on both sides of
 /// an assertion"), which is the exact trap here:
 ///
-/// - *Distinct* — `padding(19)` and `borderWidth(31)` produce different `Edges`,
-///   so `borderWidth(_:)` writing `padding` is a mismatch rather than a
-///   coincidence. Uniform `4`s would pass against every transposition in the
-///   table. The four-edge and two-axis cases carry four and two distinct
+/// - *Distinct* — `margin(25)` and `border(…, width: 51)` carry different
+///   numbers, so a border modifier writing `Style.margin` — or writing
+///   `Style.border`, the field its deleted `borderWidth(_:)` predecessor wrote
+///   — is a mismatch rather than a coincidence. Uniform `4`s would pass against
+///   every transposition in the table. The four-edge and two-axis cases carry four and two distinct
 ///   components for the same reason: `margin(_ edges:)` rebuilds the `Edges`
 ///   component by component, which is a transposition site.
 /// - *Non-default* — `flexShrink`'s default is `1`, so `flexShrink(1)` would
@@ -119,8 +131,14 @@ private struct ModifierCase {
 ///
 /// The count check is a tripwire on **this table**, not on `Box.swift`: nothing
 /// here can see a modifier added there without a case. Reconcile with
-/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is 40 — the 39 on
-/// `extension StyledElement` plus `flexDirection` on `extension Box`.
+/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is **50** as of
+/// plan task 5's lane 3: 40 before, minus the two deleted `borderWidth`
+/// overloads (`OM-M`), plus the eight paint-only decoration modifiers (lane
+/// 2), plus lane 3's three hit-testing modifiers, plus
+/// `BorderStyle.withWidths(_:)` — which grep counts and which is not a
+/// modifier. `Decoration.setOpacity(_:)` is `public mutating func` and this
+/// grep does not see it, which is worth knowing before anyone re-derives the
+/// number and lands on 48.
 @MainActor
 @Test func everyPublicModifierWritesItsOwnFieldAndOnlyThatField() {
     let cases: [ModifierCase] = [
@@ -152,11 +170,11 @@ private struct ModifierCase {
         ModifierCase(name: "height(_:)",
                      apply: { $0.height(px(12)) },
                      effect: { s, _, _, _ in s.size.height = .length(.pixels(px(12))) }),
-        ModifierCase(name: "width(percent:)",
-                     apply: { $0.width(percent: 13) },
+        ModifierCase(name: "width(fraction:)",
+                     apply: { $0.width(fraction: 13) },
                      effect: { s, _, _, _ in s.size.width = .length(.percent(13)) }),
-        ModifierCase(name: "height(percent:)",
-                     apply: { $0.height(percent: 14) },
+        ModifierCase(name: "height(fraction:)",
+                     apply: { $0.height(fraction: 14) },
                      effect: { s, _, _, _ in s.size.height = .length(.percent(14)) }),
         ModifierCase(name: "minWidth(_:)",
                      apply: { $0.minWidth(px(15)) },
@@ -172,16 +190,8 @@ private struct ModifierCase {
                      effect: { s, _, _, _ in s.maxSize.height = .length(.pixels(px(18))) }),
 
         // MARK: Box model
-        ModifierCase(name: "padding(_ points:)",
-                     apply: { $0.padding(px(19)) },
-                     effect: { s, _, _, _ in s.padding = Edges(all: .pixels(px(19))) }),
-        ModifierCase(name: "padding(_ edges:)",
-                     apply: { $0.padding(Edges(top: .pixels(px(21)), right: .pixels(px(22)),
-                                               bottom: .pixels(px(23)), left: .pixels(px(24)))) },
-                     effect: { s, _, _, _ in
-                         s.padding = Edges(top: .pixels(px(21)), right: .pixels(px(22)),
-                                           bottom: .pixels(px(23)), left: .pixels(px(24)))
-                     }),
+        // `padding` deliberately does not appear here: it is a SwiftUI-style
+        // wrapper modifier now, not a direct write into its receiver's Style.
         ModifierCase(name: "margin(_ points:)",
                      apply: { $0.margin(px(25)) },
                      effect: { s, _, _, _ in s.margin = Edges(all: .length(.pixels(px(25)))) }),
@@ -192,16 +202,13 @@ private struct ModifierCase {
                          s.margin = Edges(top: .length(.pixels(px(26))), right: .length(.pixels(px(27))),
                                           bottom: .length(.pixels(px(28))), left: .length(.pixels(px(29))))
                      }),
-        ModifierCase(name: "borderWidth(_ points:)",
-                     apply: { $0.borderWidth(px(31)) },
-                     effect: { s, _, _, _ in s.border = Edges(all: .pixels(px(31))) }),
-        ModifierCase(name: "borderWidth(_ edges:)",
-                     apply: { $0.borderWidth(Edges(top: .pixels(px(32)), right: .pixels(px(33)),
-                                                   bottom: .pixels(px(34)), left: .pixels(px(35)))) },
-                     effect: { s, _, _, _ in
-                         s.border = Edges(top: .pixels(px(32)), right: .pixels(px(33)),
-                                          bottom: .pixels(px(34)), left: .pixels(px(35)))
-                     }),
+        // The two `borderWidth(_:)` rows lived here and are GONE with the
+        // modifier (ruling `OM-M`). They wrote `Style.border`, which the engine
+        // consumed inside `contentBox` and discarded — the layout moved and
+        // nothing painted. `borderWidthIsNoLongerSpellable`
+        // (`DecorationCompileGuards.swift`) pins the removal against a plain
+        // import, which a `@testable` test cannot do (taxonomy shape 16). The
+        // paint-only replacements are under "Paint-only decoration" below.
 
         // MARK: As a flex container
         ModifierCase(name: "gap(_ points:)",
@@ -235,8 +242,8 @@ private struct ModifierCase {
         ModifierCase(name: "flexBasis(_ points:)",
                      apply: { $0.flexBasis(px(43)) },
                      effect: { s, _, _, _ in s.flexBasis = .length(.pixels(px(43))) }),
-        ModifierCase(name: "flexBasis(percent:)",
-                     apply: { $0.flexBasis(percent: 44) },
+        ModifierCase(name: "flexBasis(fraction:)",
+                     apply: { $0.flexBasis(fraction: 44) },
                      effect: { s, _, _, _ in s.flexBasis = .length(.percent(44)) }),
         ModifierCase(name: "alignSelf(_:)",
                      apply: { $0.alignSelf(.flexEnd) },
@@ -287,6 +294,81 @@ private struct ModifierCase {
                          h.context = KeyContext("Editor", ["mode": "code"])
                      }),
 
+        // MARK: Paint-only decoration (plan task 5, lane 2)
+        //
+        // Eight rows for the eight modifiers appended at the end of
+        // `extension StyledElement`. Every value is distinct from every other
+        // in this table and from each other's: `.scrollIndicator` and
+        // `.background` are two more tokens `Theme`'s
+        // `noTwoTokensCollideWithinAVariant` keeps apart, and the widths run
+        // 51…59, clear of the `Length`-valued 25…35 range above, so a border
+        // modifier writing `Style.border` — the field its deleted predecessor
+        // wrote — is a mismatch rather than a coincidence.
+        ModifierCase(name: "border(_:width:)",
+                     apply: { $0.border(.accent, width: px(51)) },
+                     effect: { _, d, _, _ in d.border = BorderStyle(.accent, width: px(51)) }),
+        ModifierCase(name: "border(_:widths:)",
+                     apply: { $0.border(.separator, widths: Edges(top: px(52), right: px(53),
+                                                                  bottom: px(54), left: px(55))) },
+                     effect: { _, d, _, _ in
+                         d.border = BorderStyle(.separator, widths: Edges(top: px(52), right: px(53),
+                                                                          bottom: px(54), left: px(55)))
+                     }),
+        ModifierCase(name: "hoverBorder(_:width:)",
+                     apply: { $0.hoverBorder(.scrim, width: px(56)) },
+                     effect: { _, d, _, _ in d.hoverBorder = BorderStyle(.scrim, width: px(56)) }),
+        ModifierCase(name: "hoverBorder(_:widths:)",
+                     apply: { $0.hoverBorder(.surface, widths: Edges(top: px(57), right: px(58),
+                                                                     bottom: px(59), left: px(60))) },
+                     effect: { _, d, _, _ in
+                         d.hoverBorder = BorderStyle(.surface, widths: Edges(top: px(57), right: px(58),
+                                                                             bottom: px(59), left: px(60)))
+                     }),
+        ModifierCase(name: "focusBorder(_:width:)",
+                     apply: { $0.focusBorder(.textPrimary, width: px(61)) },
+                     effect: { _, d, _, _ in d.focusBorder = BorderStyle(.textPrimary, width: px(61)) }),
+        ModifierCase(name: "focusBorder(_:widths:)",
+                     apply: { $0.focusBorder(.scrollIndicator,
+                                             widths: Edges(top: px(62), right: px(63),
+                                                           bottom: px(64), left: px(65))) },
+                     effect: { _, d, _, _ in
+                         d.focusBorder = BorderStyle(.scrollIndicator,
+                                                     widths: Edges(top: px(62), right: px(63),
+                                                                   bottom: px(64), left: px(65)))
+                     }),
+        // `Decoration.opacity` defaults to 1, so this value must be neither 1
+        // nor 0 — 0 would also be non-default, but a modifier that wrote
+        // `clipsContent` instead would then be caught only by luck.
+        ModifierCase(name: "opacity(_:)",
+                     apply: { $0.opacity(0.25) },
+                     effect: { _, d, _, _ in d.setOpacity(0.25) }),
+        ModifierCase(name: "clipped()",
+                     apply: { $0.clipped() },
+                     effect: { _, d, _, _ in d.clipsContent = true }),
+
+        // MARK: Hit testing (plan task 5, lane 3)
+        //
+        // Three rows for the three modifiers appended after lane 2's eight.
+        // `allowsHitTesting` defaults to `true`, so the row writes `false` — the
+        // only non-default value a `Bool` has. The insets run 66…70, clear of
+        // lane 2's 51…65 and of every `Length`-valued number above, and the
+        // per-edge row's four components are distinct so that `contentShape(
+        // inset: Edges)` rebuilding the value component by component is a
+        // transposition site this table can see.
+        ModifierCase(name: "allowsHitTesting(_:)",
+                     apply: { $0.allowsHitTesting(false) },
+                     effect: { _, _, _, h in h.allowsHitTesting = false }),
+        ModifierCase(name: "contentShape(inset: Pixels)",
+                     apply: { $0.contentShape(inset: px(66)) },
+                     effect: { _, _, _, h in h.contentShapeInset = Edges(all: px(66)) }),
+        ModifierCase(name: "contentShape(inset: Edges)",
+                     apply: { $0.contentShape(inset: Edges(top: px(67), right: px(68),
+                                                            bottom: px(69), left: px(70))) },
+                     effect: { _, _, _, h in
+                         h.contentShapeInset = Edges(top: px(67), right: px(68),
+                                                     bottom: px(69), left: px(70))
+                     }),
+
         // MARK: `Box`'s own — deliberately not on `StyledElement`, so that
         // `Column { … }.flexDirection(.row)` cannot compile.
         ModifierCase(name: "flexDirection(_:)",
@@ -294,7 +376,12 @@ private struct ModifierCase {
                      effect: { s, _, _, _ in s.flexDirection = .columnReverse }),
     ]
 
-    #expect(cases.count == 40)
+    // 38 − 2 (`borderWidth` ×2, ruling `OM-M`) + 8 (lane 2's paint-only
+    // decoration) + 3 (lane 3's `allowsHitTesting` and `contentShape` ×2) =
+    // **47**, this track's pre-agreed number — stated in the spec's lane 3
+    // table so the parallel frame/sizing track adds to it rather than
+    // colliding with it (spec §8 risk (c)).
+    #expect(cases.count == 47)
 
     for c in cases {
         var expectedStyle = Style()
@@ -318,7 +405,9 @@ private struct ModifierCase {
                              focusable: got.handlers.isFocusable,
                              actionCount: got.handlers.actions.count,
                              context: got.handlers.keyContext,
-                             axNode: got.handlers.axNode) == expectedHandlers,
+                             axNode: got.handlers.axNode,
+                             allowsHitTesting: got.handlers.allowsHitTesting,
+                             contentShapeInset: got.handlers.contentShapeInset) == expectedHandlers,
                 "\(c.name) wrote the wrong `Handlers` member, or wrote nothing")
     }
 }

@@ -18,7 +18,7 @@ import MetalUIText
 /// the narrowest glyph produces the same character-per-line answer, measured at
 /// 0.001, 0.5, 1 and 5 (see ``MetalUIText/Shaper/unbreakableRuns(of:)``).
 /// 0.5 is the value Task 2's positive control already uses.
-private let smallestWrapWidth = 0.5
+let smallestWrapWidth = 0.5
 
 /// Measures `string` the way spec §3.4's table says, for one axis' worth of
 /// question at a time.
@@ -233,7 +233,32 @@ public struct Text: Element, StyledElement {
         // first thing to rewrite — the cache would have to become an actor, or
         // the shaped size would have to be computed before the closure is
         // built.
-        let node = pass.requestLeaf(style: style) { known, available in
+        // The site's own authority check (plan task 7, ruling LR-C). Under the
+        // proposal authority a `Text` lowers (ruling LR-F, `LegacyLowering.swift`)
+        // to a native leaf measured by `proposalTextMeasurement` — unchanged, the
+        // same function `ProposalText` uses, so it hugs its widest line at a
+        // proposed width — inside a fixed `.topLeading` frame when a size is
+        // declared. The leaf's closure makes the same `assumeIsolated` assumption
+        // as the legacy one below, for the same reason: `computeNativeLayout` runs
+        // synchronously on the caller's thread, inside `Frame.computeRootLayout`.
+        if pass.lowersToProposal {
+            let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
+                pass.frame.requestNativeLeaf { proposal in
+                    MainActor.assumeIsolated {
+                        guard let font = cache.font(for: key) else {
+                            preconditionFailure("""
+                                No font registered for \(key) on the shaping cache a lowered \
+                                Text's measure function captured (see the legacy closure below).
+                                """)
+                        }
+                        return proposalTextMeasurement(string, font: font, cache: cache,
+                                                       proposal: proposal)
+                    }
+                }
+            }
+            return (node, Layout(node: node))
+        }
+        let node = pass.frame.requestLeaf(style: style) { known, available in
             MainActor.assumeIsolated {
                 // **A hit here rests on three things, and this comment once
                 // named two of them and called the guard unable to fire.**
@@ -298,10 +323,27 @@ public struct Text: Element, StyledElement {
     /// be missing here**: only `Box.prepaint` emitted, so a node declared on a
     /// `Text` was dropped silently. The `text` arm of
     /// `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` pins it.
-    /// Nothing derives a label from the string; a caller declares one.
+    ///
+    /// **The string reaches an accessibility client** (ruling AB-F): while a
+    /// client is active the frame records it beside the handlers, and
+    /// `AccessibilityTreeBuilder` publishes it as the text's value, or as a
+    /// button's label. Nothing derives an `AXNode` from it, so `Frame.axNodes`
+    /// and `StateTable` are the same whether or not a client is active (AB-U).
+    /// **An empty string is no text** (arms E0–E2): SwiftUI omits `Text("")`
+    /// and publishes `Text(" ")`.
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout, pass: inout PrepaintPass) {
-        pass.registerHandlers(handlers, at: bounds, id: id)
+        // Through `registerAndScope` since plan task 5's lane 2, exactly as
+        // `Box.prepaint` and `Stack.prepaint` are. **The two accessibility
+        // arguments are forwarded and are not optional decoration** (`OM-X`):
+        // a helper that took only the three-argument form would delete every
+        // text leaf's accessibility string. `Text` has no children, so the
+        // content closure is empty and the clip scope is a no-op here — it is
+        // written out anyway so a future `Text` that draws through the helper
+        // gets the same answer the other three sites do.
+        pass.registerAndScope(handlers, decoration, at: bounds, for: id,
+                              accessibleText: string.isEmpty ? nil : string,
+                              synthesizesAccessibility: true) { }
     }
 
     /// Emits the background, then one sprite per inked glyph.
@@ -358,11 +400,31 @@ public struct Text: Element, StyledElement {
         // computed. The glyph fill below (`foregroundColor ?? .textPrimary`)
         // is genuinely still unanimated — it is not in spec §4's animatable
         // list, and animating text colour is §8's named hole, unchanged.
-        if let color = animatedBackground(decoration, for: id, pass: &pass) {
-            pass.fill(bounds, color: color,
-                      cornerRadii: Corners(all: decoration.cornerRadius))
+        //
+        // **Through `paintDecoration` since plan task 5's lane 2.** The glyphs
+        // are this leaf's `content()`, so they sit between the background and
+        // the border and inside the opacity scope and the clip — a bordered
+        // `Text` draws its ring over its own glyphs (`OM-V`), and a faded one
+        // fades them with its fill rather than leaving them opaque.
+        //
+        // **Both of those sentences are pinned — by the `Text` arm of
+        // `everyDecorationScopingSiteContainsItsOwnContent` — and neither was
+        // until the lane's review round** (`OM-AI`). Keeping this call and
+        // moving `paintGlyphs` OUTSIDE the closure leaves the border at the
+        // right box with the right widths and this element's own fill correctly
+        // faded, so `everyDecorationPaintingSiteDrawsItsBorder` cannot see it,
+        // while the glyphs read alpha 1.0 where they should read 0.5, escape
+        // the clip, and are drawn OVER the ring rather than under it — measured:
+        // the border rect lands at paint position 0 and the two glyphs at 1
+        // and 2.
+        pass.paintDecoration(decoration, in: bounds, for: id) {
+            paintGlyphs(bounds: bounds, layout: &layout, pass: &pass)
         }
+    }
 
+    /// The glyph half of `paint`, as `paintDecoration`'s `content()`.
+    private mutating func paintGlyphs(bounds: Bounds<Pixels>, layout: inout Layout,
+                                      pass: inout PaintPass) {
         // The same memoized request `requestLayout` made — a dictionary hit,
         // not a second `CTFont` creation.
         let font = pass.shapingCache.resolveFont(family: fontFamily, size: fontSize)
@@ -389,6 +451,14 @@ public struct Text: Element, StyledElement {
         // is not the paint-side epsilon this repo measured and rejected — an
         // epsilon is a blind additive fudge and could not be bounded, this is
         // the width the box was measured at.
+        //
+        // **Under the proposal authority too** (plan task 7, ruling LR-X): a
+        // lowered `Text` with a declared size registers a fixed frame around its
+        // native leaf, and `layout.node` is the frame, whose measured width is the
+        // width the leaf was proposed — the question its shape answered. The
+        // leaf's own width is its widest line, which is wider than the frame when
+        // the frame is narrower than a word (2.7), and wrapping there draws fewer
+        // lines than were measured.
         let width = max(pass.measuredWidth(of: layout.node), smallestWrapWidth)
         let shaped = pass.shapingCache.shaped(string, font: font, wrappingAt: width)
         let color = pass.theme[foregroundColor ?? .textPrimary]

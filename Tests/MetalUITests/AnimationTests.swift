@@ -944,20 +944,34 @@ import MetalUIRender
 
         // A caller's modifier on the component. **PINNED WRONG ON PURPOSE**
         // (review finding B-7). All three `Component` modifiers — `width`,
-        // `height`, `padding` — SNAP even inside `withAnimation`. Measured on
-        // this fixture: (w, h, padding.left) reads **(320, 80, 20) at t = 0 and
-        // again at t = 0.5**. The CORRECT readings are **(196, 40, 4) at t = 0
-        // and (258, 60, 12) at t = 0.5** — what the control arm above gives
-        // for the same width declared inside the component.
+        // `height`, `padding` — SNAP even inside `withAnimation`.
+        //
+        // **Re-measured in the outer-modifiers task (lane 4, `OM-D`).** The
+        // `.padding` is no longer an amend of the member's `Style.padding` but
+        // a WRAPPER NODE around the member, registered by
+        // `StyledComponent.requestGroupLayout` through `pass.requestNode`
+        // with no `animated(...)` call and no `$anim` slot of its own. So the
+        // node `group` returns for `.width(196).height(40).padding(4)` is the
+        // wrapper, and the member is its only child. Two readings, both
+        // snapping: the WRAPPER's `padding.left` reads **20 at t = 0 and
+        // again at t = 0.5** (correct: 4, then 12), and the MEMBER's
+        // (w, h) reads **(320, 80) at both samples** (correct: (196, 40), then
+        // (258, 60)) — what the control arm above gives for the same width
+        // declared inside the component. Before lane 4 the one amended node
+        // read (320, 80, 20) at both samples; the mechanism is unchanged and
+        // the numbers moved to two nodes.
         //
         // This is NOT the `.auto` / case-change snap: the member declares real
         // pixel baselines for `size` (100 x 10), and `padding` is a `Length`,
-        // which has no `.auto`. The mechanism is ordering.
-        // `StyledComponent.requestGroupLayout` runs `amend` and `pass.setStyle`
-        // AFTER the member `Box.requestLayout` has already called
-        // `animated(...)` and stored its `$anim` baseline. So that baseline
-        // never contains the caller's value, and `setStyle` overwrites the
-        // interpolated result with the raw target on every frame.
+        // which has no `.auto`. The mechanism is ordering, twice over.
+        // `.amend` runs `pass.setStyle` AFTER the member `Box.requestLayout`
+        // has already called `animated(...)` and stored its `$anim` baseline,
+        // so that baseline never contains the caller's value and `setStyle`
+        // overwrites the interpolated result with the raw target on every
+        // frame. `.wrap` registers a node under NO element id at all — a
+        // `StyledComponent` mints no identity (`addingAModifierDoesNotResetAComponentsState`)
+        // — so there is no slot for `animated(...)` to compare against even
+        // if it were called.
         //
         // The blocker is `ElementGroup.requestGroupLayout`: it returns a flat
         // `[LayoutNodeID]`, so `StyledComponent` cannot name a member's id or
@@ -973,57 +987,114 @@ import MetalUIRender
         // values above, delete this framing, and delete the `Component` row
         // from CLAUDE.md's "What snaps rather than animates".
         //
-        // MUTATIONS, whole suite unfiltered, each restored afterwards:
-        // - Deleting `pass.setStyle(node, style)` in
-        //   `StyledComponent.requestGroupLayout` makes both samples read the
-        //   member's own (100, 10, 0). It reddens this arm and `ComponentTests`'
-        //   `aModifierOnAComponentDistributesToEachTopLevelChild`,
-        //   `widthAloneDistributesToEachTopLevelChild`,
+        // MUTATIONS, re-taken at lane 4 (each restored afterwards; the named
+        // tests are the readings on the merged suite, record §15 lane 4):
+        // - Making `StyledComponent.requestGroupLayout` skip `.amend`'s
+        //   `pass.setStyle(node, style)` makes the MEMBER read its own
+        //   (100, 10) at both samples: reddens this arm's member half and
+        //   `ComponentTests`' `widthAloneDistributesToEachTopLevelChild`,
         //   `heightAloneDistributesToEachTopLevelChild`,
-        //   `widthAndHeightComposeOnAChainedModifier` and
-        //   `chainedPaddingReplacesRatherThanAccumulates`.
-        // - Routing the amended style through `animated(...)` under a separate
-        //   probe id beneath the component's id makes this arm read exactly
-        //   the correct values: (196, 40, 4), then (258, 60, 12). It reddens
-        //   this arm, and none of the five `ComponentTests` the first mutation
-        //   reddens, so a real fix trips this arm without breaking
-        //   distribution. That was a probe, not a fix: it adds an unreserved slot,
-        //   and how it composes with a member's own running animation was not
-        //   measured.
+        //   `widthAndHeightComposeOnAChainedModifier`,
+        //   `aComponentsWidthStillOverwritesItsMembersDeclaredWidth` and
+        //   `aModifierOnAComponentAppliesInTheOrderItIsWritten`.
+        // - Making `.wrap` an amend of `Style.padding` (lane 4's own named
+        //   mutation) makes the returned node the member again, with no
+        //   child: the `#require` below fails, and so do lane 4's padding
+        //   tests in `ComponentTests` and the matrix's Component padding row.
         // - Deleting `Box.requestLayout`'s `animated(...)` call makes the
         //   control arm above read 320 at both samples, which reddens it along
         //   with this test's `Box` arm and many others. The pinned arm is
         //   unaffected, because the caller's value never went through that
         //   call.
         do {
-            let table = StateTable()
-            _ = nodeStyles(Panel(innerWidth: 100).width(196).height(40).padding(4), table, at: 0)
-            var start: [Style] = []
-            withAnimation(.linear(duration: 1)) {
-                start = nodeStyles(Panel(innerWidth: 100).width(320).height(80).padding(20), table, at: 0)
+            /// The wrapper `group` returns and the member under it; `nil`
+            /// unless there is exactly one of each.
+            func wrapperAndMember<G: ElementGroup>(_ group: G, _ table: StateTable, at t: Double)
+                -> (wrapper: Style, member: Style)? {
+                var group = group
+                var pass = LayoutPass(frame: animFrame(table, timestamp: t))
+                var cursor = 0
+                let (nodes, _) = group.requestGroupLayout(under: eid("component"), at: &cursor, pass: &pass)
+                guard nodes.count == 1 else { return nil }
+                let children = pass.frame.tree.children(nodes[0])
+                guard children.count == 1 else { return nil }
+                return (pass.style(nodes[0]), pass.style(children[0]))
             }
-            let mid = nodeStyles(Panel(innerWidth: 100).width(320).height(80).padding(20), table, at: 0.5)
-            try #require(start.count == 1 && mid.count == 1)
+
+            let table = StateTable()
+            try #require(wrapperAndMember(Panel(innerWidth: 100).width(196).height(40).padding(4), table, at: 0) != nil,
+                         "Component: `.padding` must return ONE wrapper node holding the member as its only child (OM-D)")
+            var start: (wrapper: Style, member: Style)?
+            withAnimation(.linear(duration: 1)) {
+                start = wrapperAndMember(Panel(innerWidth: 100).width(320).height(80).padding(20), table, at: 0)
+            }
+            let mid = try #require(wrapperAndMember(Panel(innerWidth: 100).width(320).height(80).padding(20), table, at: 0.5))
+            let begin = try #require(start)
             let readings = """
-                start (w, h, padding.left) = (\(start[0].size.width), \(start[0].size.height), \
-                \(start[0].padding.left)); mid = (\(mid[0].size.width), \(mid[0].size.height), \
-                \(mid[0].padding.left))
+                start (member w, member h, wrapper padding.left) = (\(begin.member.size.width), \
+                \(begin.member.size.height), \(begin.wrapper.padding.left)); mid = (\(mid.member.size.width), \
+                \(mid.member.size.height), \(mid.wrapper.padding.left))
                 """
-            #expect(start[0].size.width == .length(.pixels(320))
-                    && start[0].size.height == .length(.pixels(80))
-                    && start[0].padding.left == .pixels(20), """
+            #expect(begin.member.size.width == .length(.pixels(320))
+                    && begin.member.size.height == .length(.pixels(80))
+                    && begin.wrapper.padding.left == .pixels(20), """
                     WRONG ON PURPOSE — B-7. A caller's modifier on a Component snaps: 'from' \
                     should be (196, 40, 4) and today reads the target (320, 80, 20). If this \
                     now reads (196, 40, 4), the snap is fixed; flip the arm. \(readings)
                     """)
-            #expect(mid[0].size.width == .length(.pixels(320))
-                    && mid[0].size.height == .length(.pixels(80))
-                    && mid[0].padding.left == .pixels(20), """
+            #expect(mid.member.size.width == .length(.pixels(320))
+                    && mid.member.size.height == .length(.pixels(80))
+                    && mid.wrapper.padding.left == .pixels(20), """
                     WRONG ON PURPOSE — B-7. Halfway should read (258, 60, 12) and today reads \
                     the target (320, 80, 20). If it now reads (258, 60, 12), the snap is \
                     fixed; flip the arm. \(readings)
                     """)
         }
+    }
+
+    // MARK: ModifiedElement — the inner layer as well as the outermost
+
+    // Ruling MC-I (modifier-composition lane 2). `.padding`/`.frame` chains are
+    // ONE `ModifiedElement` whose `requestLayout` loops over its layers, each
+    // registering its own node through `animated(...)` under its own id. A
+    // two-layer chain, read back at BOTH nodes: an implementation that wires
+    // only the outermost layer — the one `StyledElement`'s accessors reach —
+    // passes an arm on a one-layer chain. The inner node is read as the outer
+    // node's only child in the tree, not through `ModifiedElement.Layout`, so
+    // the reading does not depend on the code under test's own bookkeeping.
+    // Paddings differ per layer (4 → 20 inner, 8 → 40 outer), so a transposed
+    // or shared baseline is a mismatch rather than a coincidence.
+    do {
+        let table = StateTable()
+        let id = eid("modified")
+
+        /// `nil` when the outer layer's node does not have exactly one child.
+        func paddings(inner: Float, outer: Float, at t: Double) -> (inner: Length, outer: Length)? {
+            var pass = LayoutPass(frame: animFrame(table, timestamp: t))
+            var chain = Box().width(Pixels(10)).height(Pixels(10))
+                .padding(Edges(all: .pixels(Pixels(inner))))
+                .padding(Edges(all: .pixels(Pixels(outer))))
+            let (node, _) = chain.requestLayout(id, pass: &pass)
+            let children = pass.frame.tree.children(node)
+            guard children.count == 1 else { return nil }
+            return (pass.style(children[0]).padding.left, pass.style(node).padding.left)
+        }
+
+        try #require(paddings(inner: 4, outer: 8, at: 0) != nil,
+                     "ModifiedElement: the outer layer's node must have exactly one child")
+        var start: (inner: Length, outer: Length)?
+        withAnimation(.linear(duration: 1)) {
+            start = paddings(inner: 20, outer: 40, at: 0)
+        }
+        let mid = try #require(paddings(inner: 20, outer: 40, at: 0.5))
+        #expect(start?.inner == .pixels(4) && mid.inner == .pixels(12), """
+                ModifiedElement INNER layer: registering site does not animate — expected 4 then \
+                12, got \(String(describing: start?.inner)) then \(mid.inner)
+                """)
+        #expect(start?.outer == .pixels(8) && mid.outer == .pixels(24), """
+                ModifiedElement outermost layer: registering site does not animate — expected 8 \
+                then 24, got \(String(describing: start?.outer)) then \(mid.outer)
+                """)
     }
 }
 
@@ -1110,6 +1181,54 @@ import MetalUIRender
         #expect(stack3.decoration.cornerRadius.value == 10, """
                 Stack: decoration substitution does not reach the element — expected the \
                 halfway value 10, got \(stack3.decoration.cornerRadius.value)
+                """)
+    }
+
+    // MARK: ModifiedElement (ruling MC-I; verifier finding on lane 2)
+
+    // The legacy `.padding` wrapper was `Box<Self>` and ran Box's write-back,
+    // guarded by the Box arm above. Since lane 2 it is a `ModifiedElement`
+    // layer, a different code path with TWO write-backs — the inner layers'
+    // and the outermost's — and dropping either returned `Decoration`
+    // (`(inner[k].style, _) = animated(…)`, `(outermost.style, _) = animated(…)`)
+    // reddened 0 of 1115 before this arm existed. `paint` reads
+    // `inner[k].decoration` and `outermost.decoration` later the same frame,
+    // so this reads those two back after a real `requestLayout`. The two
+    // layers animate to different radii (20 and 40), so a layer reading the
+    // other's value, or a shared baseline, is a mismatch.
+    do {
+        let table = StateTable()
+        let id = eid("modified-decoration")
+
+        func radii(inner: Float, outer: Float,
+                   at t: Double) -> (layers: Int, inner: Float, outer: Float) {
+            var pass = LayoutPass(frame: animFrame(table, timestamp: t))
+            var chain = Box().width(Pixels(10)).height(Pixels(10))
+                .padding(4).cornerRadius(Pixels(inner))
+                .padding(8).cornerRadius(Pixels(outer))
+            _ = chain.requestLayout(id, pass: &pass)
+            return (chain.layerCount,
+                    chain.inner.first?.decoration.cornerRadius.value ?? -1,
+                    chain.outermost.decoration.cornerRadius.value)
+        }
+
+        let baseline = radii(inner: 0, outer: 0, at: 0)
+        try #require(baseline.layers == 2,
+                     "ModifiedElement: the decoration arm must exercise a two-layer chain")
+        var start: (layers: Int, inner: Float, outer: Float)?
+        withAnimation(.linear(duration: 1)) {
+            start = radii(inner: 20, outer: 40, at: 0)
+        }
+        let mid = radii(inner: 20, outer: 40, at: 0.5)
+        #expect(start?.inner == 0 && mid.inner == 10, """
+                ModifiedElement INNER layer: decoration substitution does not reach the \
+                element — expected 0 then 10, got \(String(describing: start?.inner)) then \
+                \(mid.inner)
+                """)
+        #expect(start?.outer == 0 && mid.outer == 20, """
+                ModifiedElement outermost layer: decoration substitution does not reach the \
+                element — expected 0 then 20, got \(String(describing: start?.outer)) then \
+                \(mid.outer)
                 """)
     }
 }
@@ -2692,6 +2811,26 @@ final class AnimationDriveModel {
         var t = Text("hi").background(token)
         t.elementID = ElementID("site")
         return t
+    }
+    // Ruling MC-I: a `.padding`/`.frame` chain is ONE `ModifiedElement` that
+    // paints each layer's background in a loop, so it gets two arms over a
+    // two-layer chain — the background on the INNER layer (the outermost
+    // declares none, so the first rect is the inner layer's) and on the
+    // outermost. Wiring only the outermost layer, the one `StyledElement`'s
+    // accessors reach, passes the second arm and not the first.
+    try check("ModifiedElement inner layer") { token in
+        var m = Box().width(Pixels(40)).height(Pixels(40))
+            .padding(Edges(all: .pixels(Pixels(4)))).background(token)
+            .padding(Edges(all: .pixels(Pixels(8))))
+        m.elementID = ElementID("site")
+        return m
+    }
+    try check("ModifiedElement outermost layer") { token in
+        var m = Box().width(Pixels(40)).height(Pixels(40))
+            .padding(Edges(all: .pixels(Pixels(4))))
+            .padding(Edges(all: .pixels(Pixels(8)))).background(token)
+        m.elementID = ElementID("site")
+        return m
     }
 }
 

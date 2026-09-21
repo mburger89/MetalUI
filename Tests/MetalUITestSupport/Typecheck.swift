@@ -118,7 +118,61 @@ public struct TypecheckResult: Sendable {
 /// Declarations are legal in `body`: Swift permits nested functions and types
 /// inside a function body, so a fixture may declare `func probe(pass: inout
 /// PaintPass)` and have it typechecked in full.
+///
+/// **Two properties of this shape are not what an external module has**, and
+/// `typecheckFile(_:importing:)` exists for both: every fixture type is a
+/// LOCAL type, so a file-scope `extension X: P {}` is rejected with
+/// `declaration is only valid at file scope`; and no `-swift-version` is
+/// passed, so the fixture compiles in the Swift 5 language mode, where a
+/// `Sendable` violation is a warning and exits 0 (ruling SA-P).
 public func typecheck(_ body: String, importing module: String) throws -> TypecheckResult {
+    try runTypecheck(source: """
+        import \(module)
+
+        func fixture() {
+        \(body)
+        }
+        """, importing: module, extraArguments: [])
+}
+
+/// Typechecks `source` verbatim as a whole file after `import <module>`, in the
+/// Swift 6 language mode: file-scope declarations, `public` types and
+/// extensions, exactly as an external module writes them.
+///
+/// Added by the kernel completion's lane 1 (ruling SA-P) for the proposal-layout
+/// migration guards, whose positive fixture declares
+/// `extension Leaf: ProposalElementGroup {}` (its spelling until ruling MC-G made
+/// the leaf a `ProposalElement`) and so cannot be a local type.
+/// The language mode is observable and guarded:
+/// `typecheckFileChecksInTheSwift6LanguageMode` fails a non-`Sendable` stored
+/// property in a `ProposalLayout`, which Swift 5 mode only warns about.
+public func typecheckFile(_ source: String, importing module: String) throws -> TypecheckResult {
+    try typecheckFile(source, importing: module, frontendArguments: [])
+}
+
+/// `typecheckFile(_:importing:)` with each of `frontendArguments` passed to the
+/// compiler frontend as `-Xfrontend <argument>`, after `-swift-version 6`.
+///
+/// Added by the modifier-composition track's lane 2 (ruling MC-A, as revised
+/// after lane 1's critic round, MC-Q finding 3) for a guard that bounds the
+/// constraint solver's WORK on one expression with
+/// `-solver-scope-threshold=<n>`: past the bound `swiftc` reports "the compiler
+/// is unable to type-check this expression in reasonable time", a count of
+/// solver scopes rather than the wall-clock time-out a plain build would rely
+/// on. The two-argument form forwards here with no arguments, so no existing
+/// guard's command line changed.
+public func typecheckFile(_ source: String, importing module: String,
+                          frontendArguments: [String]) throws -> TypecheckResult {
+    try runTypecheck(source: """
+        import \(module)
+
+        \(source)
+        """, importing: module,
+        extraArguments: ["-swift-version", "6"] + frontendArguments.flatMap { ["-Xfrontend", $0] })
+}
+
+private func runTypecheck(source contents: String, importing module: String,
+                          extraArguments: [String]) throws -> TypecheckResult {
     guard let modules = modulesDirectory(containing: module) else {
         throw TypecheckUnavailable(module: module)
     }
@@ -130,13 +184,7 @@ public func typecheck(_ body: String, importing module: String) throws -> Typech
     defer { try? fileManager.removeItem(at: scratch) }
 
     let source = scratch.appendingPathComponent("fixture.swift")
-    try """
-    import \(module)
-
-    func fixture() {
-    \(body)
-    }
-    """.write(to: source, atomically: true, encoding: .utf8)
+    try contents.write(to: source, atomically: true, encoding: .utf8)
 
     // `-diagnostic-style=llvm` gives one `file:line:col: error: message` line per
     // diagnostic, which is what `TypecheckResult.messages` parses. Both styles
@@ -144,6 +192,7 @@ public func typecheck(_ body: String, importing module: String) throws -> Typech
     // matters and why no caller should match against `output`.
     var arguments = ["swiftc", "-typecheck", "-diagnostic-style=llvm", "-I", modules.path]
     arguments += cModuleSearchPaths(besides: modules).flatMap { ["-I", $0.path] }
+    arguments += extraArguments
     arguments.append(source.path)
 
     let process = Process()

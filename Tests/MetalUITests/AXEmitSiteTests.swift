@@ -112,6 +112,41 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
                     .width(px(61)).height(px(17)).id("list"),
                 declaring: AXNode(role: .button, label: "list-label"),
                 at: rect(0, 0, 61, 17))
+
+    // Ruling MC-I: a `.padding`/`.frame` chain is ONE `ModifiedElement` that
+    // registers each layer's handlers — and so emits each layer's declared
+    // node — in a loop. Two arms over a two-layer chain. The outermost arm goes
+    // through `expectEmits`, which declares the node on the outermost layer.
+    expectEmits("modifiedOuter", Box().width(px(31)).height(px(13))
+                    .padding(Edges(all: .pixels(px(5))))
+                    .padding(Edges(all: .pixels(px(7))))
+                    .width(px(55)).height(px(37)).id("modifiedOuter"),
+                declaring: AXNode(role: .container, label: "modified-outer-label"),
+                at: rect(0, 0, 55, 37))
+    // The INNER arm declares its node on the padding-5 layer before the
+    // padding-7 layer wraps it, so it is emitted under the inner layer's id,
+    // `.positional(0)` under the root's. Its bounds, by hand: the outermost
+    // layer is 55x37 with padding 7, so the inner layer starts at (7, 7) and is
+    // 31 + 2x5 = 41 wide and 13 + 2x5 = 23 tall (the 37 - 2x7 = 23 a stretch
+    // would give is the same number, so stretch cannot move it).
+    do {
+        var inner = Box().width(px(31)).height(px(13)).padding(Edges(all: .pixels(px(5))))
+        inner.handlers.axNode = AXNode(role: .image, label: "modified-inner-label")
+        var chain = inner.padding(Edges(all: .pixels(px(7)))).width(px(55)).height(px(37))
+            .id("modifiedInner")
+        let frame = render(&chain)
+        let innerID = GlobalElementID.child(of: rootID("modifiedInner"), at: 0, name: nil)
+        if let emitted = frame.axNodes[innerID] {
+            #expect(emitted.role == .image && emitted.label == "modified-inner-label",
+                    "modifiedInner: emitted \(emitted.role)/\(emitted.label ?? "nil")")
+            #expect(emitted.frame == rect(7, 7, 41, 23),
+                    "modifiedInner: emitted at \(emitted.frame), its resolved bounds are (7, 7, 41, 23)")
+            #expect(frame.axNode(for: innerID)?.label == "modified-inner-label",
+                    "modifiedInner: emitted into Frame.axNodes but wrote no $ax retention copy")
+        } else {
+            Issue.record("modifiedInner: the INNER layer declared an AXNode and emitted none — emitted ids \(Array(frame.axNodes.keys))")
+        }
+    }
 }
 
 /// **A non-root `Text`, off the origin on both axes — red on arrival.** The

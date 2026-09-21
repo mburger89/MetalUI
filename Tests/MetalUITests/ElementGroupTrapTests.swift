@@ -13,6 +13,146 @@ private let skipReason: Comment =
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
 
+/// The proposal overlay registers only native nodes, so it must reject a
+/// legacy child at the type boundary rather than build a mixed tree that traps
+/// during layout. The positive control proves this is a boundary, not a
+/// missing overlay API.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func proposalOverlayAcceptsProposalContentAndRejectsLegacyContent() throws {
+    let positive = try typecheck("""
+        @MainActor func probe() {
+            _ = Rectangle().overlay {
+                Color(.accent)
+            }
+        }
+        """, importing: "MetalUI")
+    #expect(positive.succeeded,
+            "proposal content must retain the canonical overlay API:\n\(positive.output)")
+
+    let negative = try typecheck("""
+        @MainActor func probe() {
+            _ = Text("legacy").overlay {
+                Rectangle()
+            }
+        }
+        """, importing: "MetalUI")
+    #expect(!negative.succeeded,
+            "a legacy child must not enter the proposal overlay and trap while registering layout:\n\(negative.output)")
+    #expect(negative.messages.contains("overlay"),
+            "rejected, but not because the proposal overlay boundary was absent:\n\(negative.output)")
+}
+
+/// `onTap` has no layout footprint, but it still delegates registration to its
+/// content. Keeping the same proposal-only boundary as outer layout modifiers
+/// prevents an ordinary CSS element from failing later at runtime.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func proposalOnTapAcceptsProposalContentAndRejectsLegacyContent() throws {
+    let positive = try typecheck("""
+        @MainActor func probe() {
+            _ = Rectangle().onTap {}
+        }
+        """, importing: "MetalUI")
+    #expect(positive.succeeded,
+            "proposal content must retain the canonical onTap API:\n\(positive.output)")
+
+    let negative = try typecheck("""
+        @MainActor func probe() {
+            _ = Text("legacy").onTap {}
+        }
+        """, importing: "MetalUI")
+    #expect(!negative.succeeded,
+            "a legacy child must not enter the proposal onTap wrapper and trap while registering layout:\n\(negative.output)")
+    #expect(negative.messages.contains("onTap"),
+            "rejected, but not because the proposal onTap boundary was absent:\n\(negative.output)")
+}
+
+/// Proposal containers and their stored wrapper forms all register native
+/// nodes. Their generic constraints must therefore reject a legacy subtree at
+/// construction time; checking each constructor independently prevents one
+/// unconstrained builder from reintroducing the runtime mixed-tree trap.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func proposalLayoutConstructorsRequireProposalContent() throws {
+    let positive = try typecheck("""
+        @MainActor func probe() {
+            _ = HStack { Rectangle(); Color(.accent) }
+            _ = VStack { Rectangle(); Color(.accent) }
+            _ = ZStack { Rectangle(); Color(.accent) }
+            _ = ProposalFrame { Rectangle() }
+            _ = Padding(Edges(all: Pixels(1))) { Rectangle() }
+            _ = Background(.accent) { Rectangle() }
+            _ = FixedSize { Rectangle() }
+            _ = ProposalScrollView { VStack { Rectangle() } }
+            _ = ModifiedContent(content: Rectangle(), modifier: .padding(Edges(all: Pixels(1))))
+            _ = OnTapModifier(content: Rectangle()) {}
+            _ = OverlayModifier(content: Rectangle()) { Color(.accent) }
+        }
+        """, importing: "MetalUI")
+    #expect(positive.succeeded,
+            "every proposal builder must remain constructible with proposal content:\n\(positive.output)")
+
+    func assertRejectsLegacyContent(_ source: String) throws {
+        let result = try typecheck(source, importing: "MetalUI")
+        #expect(!result.succeeded,
+                "a legacy subtree must be rejected before native layout registration:\n\(result.output)")
+        #expect(result.messages.contains("ProposalElementGroup"),
+                "rejected, but not because the proposal-content constraint was missing:\n\(result.output)")
+    }
+
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = HStack { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = VStack { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = ZStack { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = ProposalFrame { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() {
+            _ = Padding(Edges(all: Pixels(1))) { Text("legacy") }
+        }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = Background(.accent) { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = FixedSize { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = ProposalScrollView { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() {
+            _ = ModifiedContent(content: Text("legacy"), modifier: .padding(Edges(all: Pixels(1))))
+        }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = OnTapModifier(content: Text("legacy")) {} }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() {
+            _ = OverlayModifier(content: Text("legacy")) { Rectangle() }
+        }
+        """)
+}
+
+/// A proposal Text adapter keeps the existing legacy `Text.background` member
+/// out of overload resolution while letting the converted value use the
+/// proposal wrapper's canonical modifier spelling.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func proposalTextSelectsProposalModifiersWithoutMakingLegacyTextAmbiguous() throws {
+    let result = try typecheck("""
+        @MainActor func probe() -> ModifiedContent<ProposalText> {
+            Text("proposal").proposalLayout().background(.accent)
+        }
+        """, importing: "MetalUI")
+    #expect(result.succeeded,
+            "proposal Text must select the proposal background wrapper without changing legacy Text:\n\(result.output)")
+}
+
 /// An element that replaces its own children **between `requestLayout` and
 /// `prepaint`**.
 ///

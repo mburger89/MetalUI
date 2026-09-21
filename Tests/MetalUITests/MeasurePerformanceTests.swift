@@ -477,14 +477,14 @@ struct MeasurePerformanceTests {
 
 // `ScrollView` conforms to `Element`, not `StyledElement` (CLAUDE.md's
 // declared-but-inert table), so `.width`/`.height`/`.minHeight` land on a
-// wrapping `Box` — the same shape `Sources/MetalUIDemo/main.swift` uses for
+// wrapping `Box` — the same shape `Sources/MetalUIDemoContent/DemoContent.swift` uses for
 // its own list. This builds through `List`, matching the demo's own
 // row shape (`DemoRow` mirrors the identity a real caller's data would carry;
 // `List` requires `Data.Element: Identifiable` and a bare `Range<Int>`'s
 // `Int` does not conform).
 //
 // Each row's `.width(Pixels(420))` is pinned, matching the demo's own row
-// closure (search `main.swift` for `.width(Pixels(420))`, which appears on
+// closure (search `DemoContent.swift` for `.width(Pixels(420))`, which appears on
 // the row and again on the `Box` wrapping the `ScrollView`) rather than left
 // `auto`. An
 // auto-width row is an auto-cross item, so `collectItems`' fit-content probe
