@@ -1018,6 +1018,163 @@ preview's grid, which no capture can supply.
   preview's grid, `GR-AE`'s human-verification row, tests 4.9b/4.9c, test 4.21
   and CLAUDE.md's row.
 
+## Lane 2 re-verification at `f6ed8a0` (2026-09-21)
+
+Lane 2's third round. The tree was clean at `f6ed8a0`, holding lane 1's verifier
+round (`a2c1216`, `aea2b04`, `f6ed8a0`), which had written five arms into lane
+2's own tests — F1, O1 and R1 into 2.1/2.8/2.9, T1 and T2 into 1.10 (`GR-AH`).
+The lane's dispatch text was stale in two places, checked before acting: its
+"suite 1446 → 1449" is now 1450, and the two things it asked the lane to re-own
+were already applied — `GR-O` item 8's owner is plan task 6 (`GR-N`'s table),
+and lane 3's three amendments (2.14's `ncols` and spanning arms, the no-grid T7
+arm moving to the stack's own file) are in the spec's lane-3 section.
+
+### Re-taken at `f6ed8a0`
+
+- `swift build --build-system native --build-tests` (incremental; no stored
+  property changed, so no `swift package clean`), then `swift test
+  --build-system native --no-parallel` unfiltered: **`Test run with 1450 tests
+  in 1 suite passed after 50.585 seconds`**, 0 `error:`, the only `warning:`
+  SwiftPM's deprecation notice.
+- Goldens **97**; `git diff cb2e708 --stat -- '*.json'` empty. Guards **71**
+  (73 `canTypecheck` hits across fourteen files, less `Typecheck.swift`'s
+  declaration and `UnitSafetyTests`' comment).
+
+### Depth re-bisected at the head, not argued
+
+`GR-X` item 2's ceilings were taken at `0196743`. Since then `1b6c698` removed
+the span clamp in `makeNativeGridPlan` and added two `SA-G` preconditions to the
+mark registrars — `git diff 0196743..HEAD -- Sources/`, with comment lines
+filtered out, is exactly those three lines, all at registration time and none on
+the measurement recursion. That is an argument, so the boundary was measured
+instead: scratch test (never committed), N nested one-cell grids over a leaf
+answering `min(proposal, 10)`, `maxDepth` temporarily `100_000`, one
+`swift test --skip-build --filter` per depth.
+
+| chain | 1 MB debug | first failing depth on 4 MB |
+|---|---|---|
+| one-cell grid at 400×400 | **155 completes / 156 dies** | 156 completes |
+| one-cell grid at nil×nil | **167 completes / 168 dies** | — |
+
+Identical to lane 2's own figures; `NativeLayoutRun.maxDepth`'s table needs no
+edit, and both clear `GR-M`'s gate of 147. `maxDepth` restored and the scratch
+file deleted before the suite (`git status --short` empty).
+
+### The differential instrument (scratch, never committed)
+
+`Tests/MetalUILayoutTests/ScratchGridDifferential.swift`: 4 000 generated grids
+(1–4 rows, 1–4 cells each, one row in five a non-row child, one cell in four
+spanning 2–3, four priority levels, six leaf kinds from fixed through
+proposal-following) × five proposals (200×100, 60×300, 300 × nil, nil × 120,
+∞ × 100) = **20 000 solves**, every column width, row height, cell answer and
+recorded proposal folded into one FNV digest, through `solveNativeGrid`
+directly. Baseline digest `c69d82acf7cc6f30`.
+
+**Calibrated before it was believed**: mutation M1 (`serve` dropping the
+single-column floor) moves it to `7c9c6776323b429f`, and four of the six
+mutations it was used to filter moved it too. A digest that does not move is a
+claim of *equivalence*, never of coverage.
+
+### Mutations (committed first; from a copy; `git status --short` during and after each; full native suite)
+
+Twelve run straight against the suite, six (A–F) filtered through the digest
+first. **None was green.**
+
+| # | mutation (`NativeGrid.swift`, `NativeGridSolver` unless noted) | reddened |
+|---|---|---|
+| H | `heighten` drops the running committed-height sum (the height twin of `GR-AH`'s R) | 2.1 — 1 issue |
+| M1 | `serve` drops the single-column width floor, `Swift.max(shareW, widths[column])` | 2.1, 2.4 — 2 issues |
+| M2 | `serve` drops the row-height floor, `Swift.max(shareH, heights[row])` | 2.4 — 1 issue |
+| M3 | a served cell **sets** its row height instead of raising it | 11 tests — 119 issues |
+| M4 | the level counters are refilled at every group, not at every level | 2.2, 2.9, 2.11, 2.13, 2.14 — 29 issues |
+| **M5** | **`finishGroup`'s `isFirstGroup` split deleted: every group sweeps every column and row** | **2.14 only — 2 issues** (digest unchanged: see below) |
+| M6 | the span shortfall guard admits negatives (`> 0` → `!= 0`) | 2.8 — 4 issues |
+| M9 | `commitRow` drops its open-cell guard (the row twin of the `d6ad9ff` round's R3) | 9 tests — 127 issues |
+| M11 | `spanWidth` drops its inner gaps | 2.8, 2.9, `markNativeGridCellForwardsItsColumnCountToTheKernel` — 20 issues |
+| M12 | the finite span proposal drops its inner gaps | 2.8 — 9 issues |
+| M13 | the shortfall goes entirely to the first target instead of splitting equally | 2.8, `markNativeGridCell…` — 7 issues |
+| M14 | a span also widens its first column by its whole answer | 2.8, 2.9, `markNativeGridCell…` — 25 issues |
+| **A** | `Double(Swift.max(openColumns, 1))` → `Double(openColumns)` (division by zero) | **digest unchanged — not run against the suite; unreachable, see below** |
+| B | the priority key sorts ascending | 8 tests — 81 issues |
+| C | every cell is its own group (`sameKey` never extends one) | 2.1, 2.8, 2.14 — 7 issues |
+| D | `unprocessedSingles` never decrements (step 12 always finds targets) | 2.8, 2.9 — 7 issues |
+| E | a column may be committed twice (`!committedColumn` dropped) | 2.1, 2.14 — 5 issues |
+| F | the group key ignores flexibility | 7 tests — 38 issues |
+
+### The two clauses no test can hold (`GR-AI`)
+
+**M5 — the commit sweep's shape is a COST rule.** Deleting the
+first-group/later-group split reddens only `theSolversBookkeepingIsLinearInTheCells`
+(2.14), and the digest is **byte-identical over 20 000 solves**. Structurally it
+must be: `commitColumn` guards on `!committedColumn[column] && levelInColumn[column] == 0`,
+and a column's level count reaches 0 only in the group that serves its last cell
+at that level, so the sweep's extra visits are no-ops; a column whose cells all
+sit at a later level is committed early at width 0, adding 0 to `committedWidth`,
+and `widen` keeps the sum in step from then on. So 2.14's counter is the split's
+whole defence — which makes lane 3's promised `ncols` arm (`GR-Y` finding 9)
+load-bearing rather than a nicety, and 3.13 mutates the very same line.
+
+**A — `startGroup`'s two `Swift.max(…, 1)` clamps are unreachable.** `openRows`
+is at least 1 at every `startGroup` (every cell of the level raised its row's
+count at the refill; a later group's have not been decremented). `openColumns`
+is 0 only when the level holds no single-column cell, and then `shareW` is never
+read: the span branch charges `widths[column]` on every outside column, since
+`levelInColumn` is 0 everywhere, and proposes `wPrime − outside`. Dividing by
+zero leaves the digest byte-identical. Both stay as written, `startGroup`'s doc
+comment says why, and **no test should be written for them** — it could not
+fail.
+
+### Source
+
+`git diff f6ed8a0 -- Sources/` is **doc comments only**: the file header (the
+model is unchanged since probe revision 5, the file is at revision 6),
+`startGroup`'s clamp note and `finishGroup`'s cost note. Nothing executable
+moved, so there is nothing for the integration to merge in a shared file.
+`NativeGridWorkTests.swift`'s 2.14 gains the second mutation it alone catches.
+
+### Demo
+
+`CN-R`'s harness (`scratchpad/harness/gen-lib.py`, `DEMO_PIXELS_SMALL=1`,
+default build system) in fresh `git archive`s of `cb2e708` and this round's
+source commit `ceef0dc`: **12 of 12 images 0 differing pixels, scenes
+identical.** Controls taken on the head images first, each reproducing the
+figure every earlier round recorded: light vs dark f0 **1 048 576**; default vs
+modal (light) **1 030 498**; default vs animation (light) **210 027**; f0 vs f3
+**0**; preview light vs dark **1 048 576**; 544 distinct pixel values in
+`default-light-f0`.
+
+### The real window: not taken, and why it does not need to be
+
+`docs/probes/appkit-screen-lock-state.swift`, compiled `-O` and run at the end
+of this round, prints **`CGSSessionScreenIsLocked = 1`** and `displayAsleep
+main: 1` / `displayActive main: 0`, so `FR-V`'s gate is shut and no capture was
+attempted. Lane 1's round took the track's first live capture at `a2c1216`
+(default and preview, `cb2e708` → `a2c1216`, 0 differing pixels on both, with a
+890 803-pixel control). `git diff a2c1216..HEAD -- Sources/`, with comment lines
+filtered out, is **empty** — this round changed no executable line — so that
+capture still describes this head.
+
+### For lane 3
+
+- **2.14's `ncols` arm is the only defence the commit sweep has** (`GR-AI`).
+  Write it before touching `finishGroup`, and note that 3.13's named mutation —
+  "make the first group's commit sweep visit only its own cells' columns" — is
+  that same line, so the two rows must agree on the literal.
+- Do **not** write a test for `startGroup`'s `Swift.max(…, 1)` clamps. It could
+  not fail; the source says why.
+- Unchanged from the previous round: the span-target rule exists once per
+  branch (`GR-AG`), and `GR-AH` items 2–4 add three more clauses whose two
+  branches must move together; `NativeGridSolver` must stay inverted, and lane 3
+  re-bisects the PLACEMENT path, which this round did not touch.
+- Lane 3's expected count baseline in the spec was 1449 and is **1450**;
+  measure it rather than trust it.
+
+### Deferrals
+
+Nothing new. `GR-O` item 8 (the stack's infinite-flexibility tie, GE10/GE19/T7)
+stays owned by plan task 6, and `GR-O` item 2 (the model-vs-SwiftUI divergence
+corpus, now with `GR-AH`'s O1 in it) by plan task 15.
+
 ## For the integrator
 
 (Written by lane 4; see spec §6, lane 4.)

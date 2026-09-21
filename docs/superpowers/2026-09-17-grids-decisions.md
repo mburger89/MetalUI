@@ -1418,3 +1418,66 @@ The probe is committed with its true stdout and reading; the rule it costs is
 the one already in `docs/practices/verifying-tests-can-fail.md`: **a probe's
 header is the output of a run of the committed file, and a control that
 reproduces the corpus is what makes the rest of the run readable.**
+
+## GR-AI — the lane-2 re-verification: eighteen mutations, no green, and two clauses no test can hold
+
+**Round:** lane 2 re-verified a third time, at `f6ed8a0` (2026-09-21), after
+lane 1's verifier had written arms F1, O1, R1, T1 and T2 into lane 2's tests
+(`GR-AH`). Nothing in `Sources/` changed this round except doc comments.
+
+**Eighteen mutations of the finite solve, every one reddened.** Twelve were run
+against the full suite directly (H, M1, M2, M3, M4, M5, M6, M9, M11, M12, M13,
+M14), and six more (A, B, C, D, E, F) were filtered first through a scratch
+differential digest and then run against the suite. Record §20 has the table.
+After `GR-AG` and `GR-AH` the finite solver has **no clause left whose deletion
+the suite does not see** — with the two exceptions below, which no test can see
+by construction.
+
+**1. `finishGroup`'s first-group / later-group split is a COST rule.** As
+written, the first group's commit check sweeps every column and row and later
+groups check only their own cells'. Deleting the split — every group sweeps
+everything — reddens **only
+`theSolversBookkeepingIsLinearInTheCells`** (test 2.14, 2 issues, both step
+literals) out of 1450 tests, and leaves a differential digest over 4 000
+generated grids at five proposals (20 000 solves, every column width, row
+height, cell answer and recorded proposal fed into it) **byte-identical**. The
+reason is structural: `commitColumn`'s guards are `!committedColumn[column]`
+and `levelInColumn[column] == 0`, and a column's level count reaches 0 only in
+the group that serves its last cell at that level, so every extra visit the
+sweep makes is a no-op. A column whose cells all sit at a *later* priority level
+is committed early at width 0, which adds 0 to `committedWidth` and leaves every
+share unchanged, and `widen` keeps the sum in step from then on.
+
+So the split has **no behavioural witness and can never have one**; 2.14's
+counter is the whole defence. Consequence for lane 3: 2.14's promised `ncols`
+arm (`GR-Y` finding 9, `GR-U`) is not a nicety — it is the only thing that will
+hold the sweep's shape once the counter's other terms move.
+
+**2. The two `Swift.max(…, 1)` clamps in `startGroup` are unreachable.**
+`openRows` is at least 1 at every `startGroup`, since every cell of the level
+raised its row's count at the refill and a later group's cells have not been
+decremented yet. `openColumns` is 0 only when the level holds no single-column
+cell — and then `shareW` is never read, because the span branch charges
+`widths[column]` on every outside column (`levelInColumn` is 0 everywhere) and
+takes its own `wPrime − outside` proposal. Replacing
+`Double(Swift.max(openColumns, 1))` with `Double(openColumns)` — a division by
+zero — leaves the same 20 000 solves byte-identical. They stay as written
+(defensive, free), the source says so, and **no test should be written for
+them**: it could not fail.
+
+**The instrument.** The digest is a scratch test (never committed,
+`Tests/MetalUILayoutTests/ScratchGridDifferential.swift`, deleted before the
+suite) calling `solveNativeGrid` directly on generated plans. It was calibrated
+before it was believed: mutation M1 (`serve` dropping the single-column floor)
+moves the digest from `c69d82acf7cc6f30` to `7c9c6776323b429f`, and four of the
+six filtered mutations moved it too. A digest that did not move is a claim of
+equivalence, not of coverage, and is reported as such.
+
+**Depth re-measured, not argued.** `GR-X` item 2's ceilings were taken at
+`0196743`; `1b6c698`'s span-clamp removal and two `SA-G` preconditions have
+landed since, all at registration time. Rather than argue they are off the
+recursion path, the boundary was re-bisected at the head: a chain of one-cell
+grids on a 1 MB debug thread completes at **155** and dies at **156** at
+400×400, completes at **167** and dies at **168** at nil×nil, and 156 completes
+on a 4 MB thread. Identical to lane 2's figures; `NativeLayoutRun.maxDepth`'s
+table needs no edit.

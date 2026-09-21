@@ -16,9 +16,10 @@ arms; goldens 0; demo 0 px").
 **Status, 2026-09-17: lanes 1 and 2 built** (lane 1: `432cb3d` red, `82a63fe`;
 as-built amendments in `GR-W`, record §20 "Lane 1"; lane 2: `e4f95ff` red,
 `ea0a51b` scanning, `d467058`, `0196743`, `de0a51e`; amendments in `GR-X`,
-record §20 "Lane 2"; both re-verified since, lane 1 at `062a114` and `40c2fe9`,
-lane 2 at `d6ad9ff`, each with a green mutation found and pinned — `GR-D`'s
-arms and `GR-AG`'s). Lanes 3–4 not started. The design was revised after **two**
+record §20 "Lane 2"; both re-verified since — lane 1 at `062a114`, `40c2fe9`
+and `723f26e`, lane 2 at `d6ad9ff` and `f6ed8a0` — with green mutations found
+and pinned at four of those five rounds: `GR-D`'s arms, `GR-AG`'s, `GR-AH`'s
+four, and `GR-AI` finding none left). Lanes 3–4 not started. The design was revised after **two**
 critic rounds (`GR-Q`, `GR-Y`). Baseline at `cb2e708`, measured in
 this worktree: `Test run with 1409 tests in 1 suite passed` (native,
 unfiltered), 97 goldens, 71 guards.
@@ -485,7 +486,13 @@ transcribed verbatim with its comment header kept).
 (`GR-X` item 2: a one-cell-grid chain at 400×400 completes 155, at nil×nil 167).
 **Re-verified at `d6ad9ff`** (suite 1450, goldens 97, guards 71, demo 12/12 at
 0 px): one green mutation found and pinned, `GR-AG`, test 2.8's S1 and S2 arms;
-no count moved.
+no count moved. **Re-verified again at `f6ed8a0`** (`GR-AI`; suite 1450, goldens
+97, guards 71, demo 12/12 at 0 px): eighteen mutations, **none green**, so after
+`GR-AG` and `GR-AH` the solver has no unpinned clause left except two that
+cannot be pinned — `finishGroup`'s first-group/later-group split, whose only
+witness is test 2.14's counter, and `startGroup`'s two unreachable
+`Swift.max(…, 1)` clamps. The depth boundary was re-bisected at the head and is
+unchanged (155/156 at 400×400, 167/168 at nil×nil).
 
 ### Lane 3 — cell attributes and the modifier-chain walk
 
@@ -534,8 +541,16 @@ arms.
 | 3.13 | `aLargeColumnCountCostsTheKernelOnePassPerColumn` — the allocation ceiling (`GR-AB`, `GR-O` 10): a grid whose row sum of spans is large (the lane names the count it can afford), read through `bookkeepingSteps` and `lastNativeLayoutWork`, **work never wall clock**, beside SwiftUI's measured ~300 bytes and ~1.5 µs per column (GX24) | GX21, GX23, GX24 | no counter reads a column-count term | make the first group's commit sweep visit only its own cells' columns (the counter loses its `ncols` term and the literal falls) |
 | — | `theGridProbeCorpusAgreesCaseByCase` (2.13) **loses its filter**: `#require` 120 | the corpus | 102 cases were filtered out | each of: GZ0's control; last-declaration column alignment; unsized answers not absorbed — the lane records how many cases each reddens |
 
-**Expected count:** 1449 + 13 = **1462**; guards 71. **Demo:** 0 px. (The
-second critic round's code added 3 tests before this lane and 2 rows to it.)
+**Expected count:** 1450 + 13 = **1463**; guards 71. **Demo:** 0 px. (The
+second critic round's code added 3 tests before this lane and 2 rows to it; the
+baseline was 1449 when this row was written and lane 1's follow-up added
+`resetClearsGridCellColumnMarks`, so measure it rather than trust it.)
+
+**2.14's `ncols` arm is load-bearing, not a nicety** (`GR-AI`): the
+first-group/later-group split in `NativeGridSolver.finishGroup` has **no
+behavioural witness in the suite and can have none** — deleting it moves no
+rect, only 2.14's two step literals — so 2.14's counter is the whole defence of
+the sweep's shape, and 3.13 mutates the same line.
 
 ### Lane 4 — elements, identity and the pipeline
 
