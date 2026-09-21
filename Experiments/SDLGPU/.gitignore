@@ -1,0 +1,5 @@
+.build/
+.swiftpm/
+output*/
+.tools/
+Shaders/compiled/
