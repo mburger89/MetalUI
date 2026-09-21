@@ -764,9 +764,15 @@ private let none = ProposedSize(width: nil, height: nil)
 /// - GE23 `VStack{a; Grid{[Spacer, b]}; c}`: 30×40. GE24 `[b] [Spacer]`: 30×56.
 /// - GE25 `HStack{a; Grid{[b] Spacer (non-row)}; c}`: 60×28. GE26 `[b, e]
 ///   [Spacer]`: 96×28.
+/// - T1 `[b, e]` plus a non-row Spacer (which spans both columns): 88×28.
+///   T2 the same boundary reached by a row Spacer with `columns: 2`: 88×28.
+///   Both from `docs/probes/swiftui-grid-span-edges.swift`, whose C0 and C1
+///   reproduce GE25 and GE26.
 ///
 /// Mutations: (a) answer "any cell", as `.custom` does (GE3 reads 68, GE24
-/// 48); (b) answer neither edge (GE1 reads 84).
+/// 48); (b) answer neither edge (GE1 reads 84); (c) the trailing predicate
+/// reads `$0.column == plan.columnCount - 1` — the cell must START at the
+/// last column — which every GE arm agrees with and T1/T2 read 96 under.
 @Test func aGridSeenFromAStackHasPositionalZeroSpacingEdges() throws {
     func hArm(_ grid: (Arm) -> LayoutNodeID) -> SizeD {
         let arm = Arm()
@@ -806,6 +812,18 @@ private let none = ProposedSize(width: nil, height: nil)
     #expect(ge25 == size(60, 28), "GE25 \(ge25)")
     let ge26 = hArm { $0.grid([row($0.fx("b", 20, 20), $0.fx("e", 20, 20)), row($0.spacer("s"))]) }
     #expect(ge26 == size(96, 28), "GE26 \(ge26)")
+    // T1/T2 (`docs/probes/swiftui-grid-span-edges.swift`): the cell reaching the
+    // last column SPANS. GE3, GE25 and GE26 all put a single-column cell at the
+    // boundary, so "ends at the last column" and "starts at" agree on every one
+    // of them; here they differ by the 8pt gap, and GE26's own 96 is what the
+    // wrong spelling gives. Both are 88 in SwiftUI.
+    let t1 = hArm { $0.grid([row($0.fx("b", 20, 20), $0.fx("e", 20, 20)), .full($0.spacer("s"))]) }
+    try #require(t1 != ge26, "T1 must differ from GE26, or the trailing edge is unread")
+    #expect(t1 == size(88, 28), "T1 \(t1)")
+    let t2 = hArm {
+        $0.grid([row($0.fx("b", 20, 20), $0.fx("e", 20, 20)), row($0.span($0.spacer("s"), 2))])
+    }
+    #expect(t2 == size(88, 28), "T2 \(t2)")
 }
 
 // MARK: - 1.11 a stack does not mark a grid's Spacer
