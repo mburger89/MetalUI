@@ -76,7 +76,9 @@ func run() throws {
         let pixels = try render(fixture, runs: fixture.runs, gpu: gpu)
         // --dump <dir>: raw BGRA8 of this backend's output, for offline diffing.
         if let dump = option("--dump") {
-            FileManager.default.createFile(atPath: dump + "/" + name + ".bgra", contents: Data(pixels))
+            guard FileManager.default.createFile(atPath: dump + "/" + name + ".bgra", contents: Data(pixels)) else {
+                throw ReplayError("cannot write \(dump)/\(name).bgra")
+            }
         }
         let parity = fixture.parity(of: pixels)
         let line = "\(name) \(fixture.width)x\(fixture.height): \(fixture.rectCount) rects, \(fixture.glyphCount) glyphs, \(fixture.runs.count) runs; outside glyphs: \(parity.outside.pixels) px, max Δ\(parity.outside.maxDelta) (≤\(ParityTolerance.outsideGlyphs)); inside glyphs: \(parity.inside.pixels) px, max Δ\(parity.inside.maxDelta) (≤\(ParityTolerance.insideGlyphs))"

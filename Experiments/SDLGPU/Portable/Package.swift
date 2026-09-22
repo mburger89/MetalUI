@@ -14,7 +14,10 @@ let package = Package(
     targets: [
         .systemLibrary(name: "CSDL", pkgConfig: "sdl3",
                        providers: [.brew(["sdl3"]), .apt(["libsdl3-dev"])]),
-        .target(name: "SDLBridge", dependencies: ["CSDL"]),
+        // Declared here, not only in CSDL's module map: that `link` applies
+        // only where Swift imports CSDL, and nothing does. Without pkg-config
+        // (Windows) nothing else asks for SDL3.
+        .target(name: "SDLBridge", dependencies: ["CSDL"], linkerSettings: [.linkedLibrary("SDL3")]),
         .target(name: "ReplayFixture"),
         .executableTarget(name: "PortableReplay", dependencies: ["SDLBridge", "ReplayFixture"]),
         .testTarget(name: "ReplayFixtureTests", dependencies: ["ReplayFixture"])
