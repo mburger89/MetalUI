@@ -1,7 +1,7 @@
 # Engine replacement, stage 3 — scrolling and `Component` distribution (design)
 
-**Status, 2026-09-22 (PDT): lanes 1 and 2 IMPLEMENTED** (record §7, §8);
-lanes 3–5 designed. The design-phase status below describes the state before
+**Status, 2026-09-22 (PDT): lanes 1, 2 and 3 IMPLEMENTED** (record §7, §8, §9);
+lanes 4–5 designed. The design-phase status below describes the state before
 lane 1.
 
 **Status, 2026-09-22 (PDT): DESIGNED. No file under `Sources/` or `Tests/`
@@ -12,7 +12,7 @@ re-measured green at the baseline.** Branch `feat/engine-stage-3` from
 `57893d0`. Plan task 7, stage 3 of the fourteen in
 [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 (its row 3), §4.2 (its dependency census) and §8 (its stage-3 row).
-Rulings `LR-BB`…`LR-BJ`, critic round 1 `LR-BK`, lane 1 `LR-BL`, in
+Rulings `LR-BB`…`LR-BJ`, critic round 1 `LR-BK`, lane 1 `LR-BL`, lane 2 `LR-BM`, lane 3 `LR-BN`, in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
 — the same decisions doc as stages 1 and 2. Record:
 `docs/record/24-engine-replacement-stage-3.md`. Probe:
@@ -545,7 +545,7 @@ deviation from the prediction is a finding, not a rounding.
 | — | baseline at `57893d0` | **1550** |
 | 1 | 1.1, 1.2, 1.4 — 3 (1.3 and the exit-test trap arm are arms of existing tests) | **1553** ✓ measured |
 | 2 | 2.1, 2.2, 2.2a, 2.3, 2.4, 2.5, 2.6, 2.7 — 8 (A2b is an arm of 2.1) | **1561** ✓ measured |
-| 3 | 3.4, 3.5 — 2 (3.1–3.3 parameterise in place) | **1563** |
+| 3 | 3.4, 3.5 — 2 (3.1–3.3 parameterise in place) | **1563** ✓ measured |
 | 4 | 4.1–4.6 — 6 | **1569** |
 | 5 | 5.1, 5.1a, 5.2 — 3 (5.3 amends, 5.4 re-runs) | **1572** |
 
@@ -635,7 +635,9 @@ Files: `ScrollRoutingTests.swift`, `ScrollIndicatorTests.swift`,
 **Census first.** `ScrollViewTests` was added to this lane without appearing in
 task 7's §4.2 dependency census. Take its census before parameterising: if it
 registers no custom legacy node, the record says so; if it does, that type
-re-spells as a native probe leaf like the other two.
+re-spells as a native probe leaf like the other two. **Taken: it declares no
+custom element** — no `requestNode`, no `requestLeaf`, nothing to re-spell
+(`LR-BN` item 2).
 
 The two custom test elements — `ScrollContextRecorder` (5 call sites) and
 `HitboxProbe` (2) — register through the public legacy `requestNode`, which is
@@ -650,13 +652,25 @@ Every scenario in the two suites becomes `@Test(arguments: LayoutAuthority.allCa
 window under the argument. A parameterised test counts as **one** test in the
 summary line, so the suite total does not move for these.
 
+**Seven fixtures declare a cross axis they used to leave `.auto`** (`LR-BN` item
+3, unforeseen by the design). A `ScrollView` whose only child declares just the
+scrolling axis relied on the legacy engine stretching it across the definite
+viewport; the kernel viewport's cross answer is its content's (`CN-M`) and a
+single child is exempt from the stretch item frame (`LR-AC`), so the same
+fixture measures a **0-wide viewport centred at the window's midpoint** under
+the proposal authority — measured at 120×100: `(0, 0) 120×100` legacy against
+`(60, 0) 0×100` lowered. That is stage 2's ruled divergence, pinned by 2.4, not
+what these scenarios are about. Declaring the cross axis **moves no legacy
+number**: the stretch already produced exactly these values, which is what the
+34 unchanged legacy arms say.
+
 | # | test | red before | mutation |
 |---|---|---|---|
-| 3.1 | the 16 `ScrollRoutingTests` scenarios, each under both authorities: wheel routing, the topmost-region ranking, momentum, the clipped nested region, the horizontal axis, the overscroll write-back, the `Deferred` scrim pair, the nested-scroller wheel | lane 1's exit-test arm (a proposal-authority `Window` over a `ScrollView` exits non-zero). **Not** a red run of these suites: that aborts the process and records nothing | **M3a** `registerScrollRegion` given the content node's rect instead of the element's; **M3b** the bounds alias dropped in `Frame.bounds(of:)` (the lowered arms' regions move) |
-| 3.2 | the 14 `ScrollIndicatorTests` scenarios under both authorities, including the display-link pause/wake pair and `.hidden` | as 3.1 | **M2a** (the viewport a plain leaf: the thumb ratio changes); **M1c** |
-| 3.3 | the 7 `ScrollViewTests` scenarios under both authorities, `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport` included | as 3.1 | **M2d** |
-| 3.4 | `everyScrollScenarioRanUnderBothLayoutAuthorities` — the exit test's guard: a counter incremented by the parameterised arms, `try #require` that both authorities were covered and that the count equals the arm count derived by hand (practices shape 13) | literal mismatch | **M3c** the `arguments:` list reduced to `[.legacy]` |
-| 3.5 | `aScrollContextSurvivesALoweredViewportAcrossTwoFrames` — a **non-`List`** recorder inside the scroller and again after it, two frames through a `Window` per authority, wheel between them, comparing the published `ScrollContext` (offset, viewport extent, axis) frame by frame; the second frame is what makes `viewportExtent` non-zero, so the first frame's zero cannot make it vacuous. **Renamed and re-scoped** (critic round 1 finding 4): a `List` under the proposal authority calls `noteUnlowerable(.list, "noLowering")` before any row (`List.swift:351`), so through a `Window` it traps — and under diagnostics, where P4 measured it, it builds **zero** rows, so a `List` arm would be vacuous even there. `List` windowing under the proposal authority is **stage 4's** | **characterization** (P4 read the contexts identical on frame 1) | **M3d** `withScrollContext` moved after the content build; **M3e** the prepaint overload's `viewportExtent` write removed |
+| 3.1 | the 16 `ScrollRoutingTests` scenarios, each under both authorities: wheel routing, the topmost-region ranking, momentum, the clipped nested region, the horizontal axis, the overscroll write-back, the `Deferred` scrim pair, the nested-scroller wheel | lane 1's exit-test arm (a proposal-authority `Window` over a `ScrollView` exits non-zero). **Not** a red run of these suites: that aborts the process and records nothing | **M3a** `registerScrollRegion` given the content node's rect instead of the element's; ~~**M3b** the bounds alias dropped in `Frame.bounds(of:)` (the lowered arms' regions move)~~ — **built: M3b reddens 34 tests and no scroll scenario among them** (`LR-BN` item 5). No fixture in these suites has a lowered parent that stretches or grows its scroller, so the alias is inert in all of them; the claim is pinned by lane 2's `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel` and stage 2's `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, both of which it reddens |
+| 3.2 | the 14 `ScrollIndicatorTests` scenarios under both authorities, including the display-link pause/wake pair and `.hidden` | as 3.1 | **M2a** (the viewport a plain leaf: the thumb ratio changes) — re-taken: **31** tests, where lane 2 read 8; **M1c** — re-taken: `theThumbIsProportionalAndFlooredAtTwentyPoints` under **both** authorities |
+| 3.3 | **4** of the 7 `ScrollViewTests` scenarios under both authorities, `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport` included. **Built: 4, not 7** — the other three call `ScrollChrome.clamp` with three `Double`s and take no authority in their call path (`LR-BN` item 2). The census `LR-BI` asked for: the file declares **no** custom element, so nothing in it re-spells | as 3.1 | **M2d** — re-taken: at this HEAD it **aborts the process** at 3.5, naming `scrollView.flexShrink.unconsumed` on `stderr`, after lane 2's ten tests have already recorded issues (`LR-BN` item 5) |
+| 3.4 | `everyScrollScenarioRanUnderBothLayoutAuthorities` — the exit test's guard. **Built as a roll call, not a counter** (`LR-BN` item 1): Swift Testing does not specify test order and this toolchain has no `Test.all`, so a counter read early reads zero and passes. `ScrollAuthorityCoverage` holds the 34 names and the one `arguments:` list; `record` verifies the whole set order-independently when the last name arrives, and 3.4 holds the literals | literal mismatch (measured: `Expectation failed: missing.isEmpty`, naming all 34) | **M3c** the `arguments:` list reduced to `[.legacy]` |
+| 3.5 | `aScrollContextSurvivesALoweredViewportAcrossTwoFrames` — a **non-`List`** recorder inside the scroller and again after it, two frames through a `Window` per authority, wheel between them, comparing the published `ScrollContext` (offset, viewport extent, axis) frame by frame; the second frame is what makes `viewportExtent` non-zero, so the first frame's zero cannot make it vacuous. **Built with a HORIZONTAL scroller** (`LR-BN` item 3): a vertical one in a bounded wrapper measures 200 under the legacy engine and 100 under the proposal authority, which is `LR-BC` and is test 2.2's subject, not this one's. **Renamed and re-scoped** (critic round 1 finding 4): a `List` under the proposal authority calls `noteUnlowerable(.list, "noLowering")` before any row (`List.swift:351`), so through a `Window` it traps — and under diagnostics, where P4 measured it, it builds **zero** rows, so a `List` arm would be vacuous even there. `List` windowing under the proposal authority is **stage 4's** | **characterization** (P4 read the contexts identical on frame 1) | **M3d** `withScrollContext` moved after the content build; **M3e** the prepaint overload's `viewportExtent` write removed |
 
 ### Lane 4 — `Component` amend and wrap (`LR-BG`)
 
@@ -781,8 +795,9 @@ A later lane that rebuilds it again checks itself against those seven numbers.
   through a 560² fake `Window` per authority) must read 0 with stage 1's **M5d**
   as its control.
 
-**Real-window captures.** The screen is **unlocked** in this session, so captures
-are available for the first time since stage 1. Before any capture:
+**Real-window captures.** The screen was **unlocked** when this design was
+written; it has been **locked at the end of every lane since** (1, 2 and 3), so
+no capture has been taken. Before any capture:
 `xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&
 /tmp/lockstate`; capture only if it prints no `CGSSessionScreenIsLocked` line
 and `displayAsleep main: 0`. Then
@@ -798,7 +813,7 @@ Each row names how the stage checks it rather than asserting it.
 |---|---|
 | production runs the legacy authority | the twelve `CN-R` images, every lane (§8) |
 | `List` windowing (`MP-`, `TB-`) | **under the LEGACY authority only this stage**, which is what production runs: all `ListTests` green every lane. The mechanism `List` windows against — `ScrollContext` across a lowered viewport — is checked by 3.5's two-frame comparison with a **non-`List`** recorder. A `List` under the proposal authority cannot be measured here at all: it traps through a `Window` and builds zero rows under diagnostics (critic round 1 finding 4). **Stage 4 owns the proposal half** |
-| wheel routing and the one hitbox list (divergence 16, `IN-`) | 3.1's 16 scenarios under both authorities; **M3a**/**M3b** |
+| wheel routing and the one hitbox list (divergence 16, `IN-`) | 3.1's 16 scenarios under both authorities; **M3a** (which reddens `theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove` under both). **M3b is not evidence here** — it reddens 34 tests and no scroll scenario, because no fixture in these suites has a lowered parent that stretches its scroller (`LR-BN` item 5); lane 2's `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel` is |
 | scroll direction | 3.1's `aHorizontalScrollViewMovesOnDeltaXNotDeltaY` and `momentumDeltasScrollLikeDirectOnes`, both authorities |
 | the overscroll clamp's shipped intermittent defect | 1.1 and `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind`, both reddened by **M1a** |
 | identity paths and the seven reserved slots | 2.6; `theSevenRetentionSlotsAreMutuallyDistinct`; every agreement arm asserts `stateSlotsEqual` |

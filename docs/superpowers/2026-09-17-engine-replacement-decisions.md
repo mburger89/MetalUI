@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-BN`** (stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL` and its lane 2 `LR-BM`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-BO`** (stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM` and its lane 3 `LR-BN`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -3380,3 +3380,152 @@ chrome images.
 (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`; `IOConsoleLocked` not
 read, `FR-V`), as it was at the end of lane 1. The twelve offscreen images
 stand in.
+
+---
+
+## LR-BN — stage 3 lane 3's corrections: a roll call rather than a counter, 34 scenarios rather than 37, and the fixtures whose cross axis had to be declared
+
+**Round.** 2026-09-22, implementing lane 3 (the scroll suites under both layout
+authorities, `LR-BI`) on `feat/engine-stage-3`. Everything below was measured in
+that lane; each item corrects or extends `LR-BI` rather than replacing it.
+
+### 1. The exit test is a roll call, not a counter
+
+**`LR-BI` asked for "a counter incremented by the parameterised arms, with a
+`try #require` on the arm count".** That shape cannot be made falsifiable in
+Swift Testing. Test ordering is not part of the framework's contract, so a
+counter read by a test that happens to run before the arms reads zero and
+passes — practices shape 14's "a test that cannot fail", paid for with the
+stage's exit criterion. `Test.all`, which would have let the check read the
+declared parameterisation instead of its executions, **does not exist in this
+toolchain** (Swift 6.4, `swiftlang-6.4.0.33.1`: `type 'Test' has no member
+'all'`, measured).
+
+**Applied.** `ScrollAuthorityCoverage` (`Tests/MetalUITests/`) holds the 34
+scenario names by hand and the single `arguments:` list every scenario is
+declared over, and the claim is split in two:
+
+- **Order-independent**: `record(_:_:)` verifies the whole set the moment the
+  last expected name first arrives. It skips the name it is called with, and
+  that is not a hole — Swift Testing runs one test's argument cases back to back
+  (measured: `… → .legacy` then `… → .proposal` for the same function), so every
+  *other* name has had all its arms by then, while that one has had exactly one.
+  A scenario recording a name not in `expected` reddens in its own arm.
+- **Order-dependent, and measured rather than assumed**:
+  `everyScrollScenarioRanUnderBothLayoutAuthorities` holds the literals — the
+  34, and `authorities == LayoutAuthority.allCases` — and reads what has been
+  recorded. Swift Testing runs a file's tests in source order and the files in
+  path order (measured twice, identical: `ScrollIndicatorTests` →
+  `ScrollRoutingTests` → `ScrollViewTests`), so the test is declared at the end
+  of the last of the three. If that order ever changes it fails **naming the
+  scenarios it had not yet seen**, rather than passing quietly.
+
+**M3c still reddens both halves**, which is the point: reducing `authorities`
+to `[.legacy]` fails the literal `#require` in 3.4 *and* raises 33 issues from
+`record`'s whole-set check (measured: 34 issues across 2 test names).
+
+### 2. 34 scenarios, not 37 — `ScrollViewTests`' census
+
+`LR-BI` counts `ScrollViewTests`' 7. **It declares no custom element type at
+all** (the census `LR-BI` item 5 asked for: no `requestNode`, no `requestLeaf`,
+nothing to re-spell), and **three of its seven are pure `ScrollChrome.clamp`
+tests** — `theOffsetClampsToTheScrollableRange`,
+`contentShorterThanTheViewportDoesNotScroll`,
+`aStoredOffsetPastTheEndIsClampedWhenItIsRead` — each one static call with three
+`Double`s. No element, no `Frame`, no authority anywhere in the call path, so an
+authority argument would be one the body never reads and the two cases would run
+the identical assertions: a parameter that cannot make either arm fail
+differently from the other. They stay unparameterised, and 34 is the hand-derived
+count 3.4 requires.
+
+### 3. Seven fixtures had to declare their cross axis, and it moved no legacy number
+
+A `ScrollView` whose **only** child declares just the scrolling axis relied on
+the legacy engine stretching that child across the definite viewport. The kernel
+viewport's cross answer is its CONTENT's (`CN-M`) and a single child is exempt
+from the stretch item frame (stage 2's elision, `LR-AC`), so the same fixture
+measures a **0-wide viewport centred at the window's midpoint** under the
+proposal authority — stage 2's ruled divergence, already pinned by lane 2's test
+2.4, and not what these scenarios are about. Measured, at 120×100:
+`ScrollView(.vertical) { Box(style: fixedHeight(200)) }` registers `(0, 0)
+120×100` under the legacy authority and `(60, 0) 0×100` under the proposal one.
+
+**Applied**: the single-child fixtures declare both axes, and the padded-row
+wrapper of `theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt`
+declares its width (a native root is centred at its own answer, `CN-J`, so that
+column's 117pt hug would put the viewport at x 39 rather than 17). **No legacy
+literal moves**: the stretch already produced exactly these numbers, which is
+what the unchanged legacy arms of all 34 scenarios say.
+
+The same could not be done for 3.5. A **vertical** scroller in a 100pt wrapper
+measures 200 under the legacy engine (the viewport hugs its content and
+overflows) and 100 under the proposal authority — which is `LR-BC`, pinned by
+2.2 — so 3.5 uses a **horizontal** scroller, whose scrolling axis is the cross
+axis of its column parent and where the two authorities agree at 120.
+
+### 4. Two probe types, and what the re-spelling does not carry
+
+`ScrollContextRecorder` and `HitboxProbe` take `ProbeLeaf`'s shape, as `LR-BI`
+says. Their declared `Style`s become a `width`/`height` pair, so the two arms
+cannot drift. **The cross axis they used to leave `.auto` is not carried**: under
+the legacy authority the parent stretches it, under the proposal authority it is
+the leaf's own answer. No scenario reads it — checked call site by call site —
+and `HitboxProbe`'s two sites declared both axes already, so the scrim covers
+the same 200×200 under either engine.
+
+### 5. Mutations, and one that becomes a process abort
+
+Re-taken at the lane's HEAD (`a1b8ff3`), full unfiltered runs, restored from a
+copy with `git status --short` empty after each.
+
+| # | mutation | tests reddened (by name) |
+|---|---|---|
+| **M3a** | `registerScrollRegion` given the content node's rect instead of the element's | **6** (8 issues): `theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove` (**both** arms), `aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting`, `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents`, `aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows`, `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`, `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel` |
+| **M3b** | the bounds alias dropped in `Frame.bounds(of:)` | **34** (202 issues) — and **none of them is a lane-3 arm**: see below |
+| **M3c** | the `arguments:` list reduced to `[.legacy]` | **2** (34 issues): `everyScrollScenarioRanUnderBothLayoutAuthorities`, `aScrollViewWithNoCornerRadiusClipsSquare` (the arm whose `record` completes the set) |
+| **M3d** | `withScrollContext` moved after the content build | **15**: `aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, `scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout`, `rawOffsetPublishedDuringRequestLayoutCanExceedTheClampedRange` and `nestedScrollViewsInnermostWinsAndPoppingRestoresTheOuterContext` (each under **both** authorities), plus 11 `List` and accessibility tests |
+| **M3e** | the prepaint overload's `viewportExtent` write removed | **13**: `aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, `scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout` (both authorities), plus 11 `List` and accessibility tests |
+| **M2a** (re-taken) | the viewport registered as a plain native leaf | **31** (77 issues), where lane 2 read **8** — 21 of the 34 parameterised scenarios are among the new ones. This is the lane's own headline: the scroll suites can now see the lowering |
+| **M2d** (re-taken) | `flexShrink: 0` carried onto the lowered content style | **aborts the process**: see below |
+| **M1c** (re-taken) | the 20pt thumb floor removed | **3**: `theThumbIsProportionalAndFlooredAtTwentyPoints` under **both** authorities (lane 1 read one arm), `theTwoScrollElementsShareOneChromeImplementation`, `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent` |
+
+**M3b reddens 34 tests and not one of them is a scroll scenario.** The alias is
+load-bearing for a scroller whose lowered parent stretches or grows it, and no
+fixture in the two scroll suites is in that position — they are window roots or
+single children. The claim is pinned, by lane 2's
+`aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel` and by stage
+2's `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, both of
+which M3b reddens. **Lane 3 owes no new test for it**; the design's expectation
+that "the lowered arms' regions move" was wrong about which fixtures could see
+it.
+
+**M2d no longer produces a list of red tests: it aborts the run.** At lane 3's
+HEAD the first proposal-authority `Window` holding a `ScrollView` is test #1251,
+`aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, and a production frame
+traps rather than reporting:
+
+```
+MetalUI/Frame.swift:1536: Fatal error: MetalUI: scrollView.flexShrink.unconsumed
+has no proposal lowering (plan task 7, stage 3); a tree containing it cannot run
+under the proposal layout authority.
+```
+
+Ten tests had already recorded issues by then — lane 2's ten exactly — so the
+mutation's evidence is unchanged; what is lost is the summary line. **This is the
+trade `LR-BI`'s amendment took deliberately** when it put real `Window`s under
+the proposal authority, and it is now a standing property of the suite: from this
+lane onward, an unlowerable-field regression reachable from a scroll fixture
+truncates the run at that test, with the field named on `stderr`. A per-fixture
+diagnostics pre-flight (what `WindowPair.init` does) would convert it back into a
+named failure, and was **not** applied: these fixtures' content closures capture
+shared recorder boxes, so rendering the tree a second time would add a phantom
+entry to every `Seen` and break the very tests it was protecting.
+
+### 6. What it costs if wrong
+
+If item 1's ordering claim goes stale, 3.4 fails loudly and names what it had
+not seen — recoverable. If item 3's fixture changes had moved a legacy number,
+the 34 legacy arms would have said so on the first run; they did not. The
+genuine exposure is item 5's last paragraph: a future regression of the
+`…unconsumed` shape costs a run with no summary line before anyone sees the
+field's name.

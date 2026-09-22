@@ -3,13 +3,13 @@
 Plan task 7, stage 3 of the fourteen in
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1.
 Design: `docs/superpowers/specs/2026-09-22-engine-stage-3-design.md`.
-Rulings: `LR-BB`…`LR-BJ` in
+Rulings: `LR-BB`…`LR-BJ`, `LR-BK` (critic round 1), `LR-BL`, `LR-BM`, `LR-BN` (lanes 1–3) in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md` (the same
 decisions doc as stages 1 and 2).
 Branch `feat/engine-stage-3` from `57893d0`, worktree
 `/Users/maxburger/Developer/MetalUI-stage-3`.
 
-**Status: lanes 1 and 2 implemented** (§7, §8). Sections 1–6 are the design phase, in
+**Status: lanes 1, 2 and 3 implemented** (§7, §8, §9). Sections 1–6 are the design phase, in
 which no file under `Sources/` or `Tests/` changed in any commit. Everything
 here was measured on 2026-09-22 (PDT).
 
@@ -721,3 +721,196 @@ so **no real-window capture was taken**. `IOConsoleLocked` was not read
 | the demo's remaining scroll-subtree width disagreement (0 vs 420, and 420 vs 420 with the modal on) | it is the `List` reporting, not the `ScrollView` | stage 4 |
 | `ProposalScrollView` publishing a `ScrollContext`; its animation | `LR-BF`, `LR-BJ` — unchanged by this lane | stage 11 / task 10 |
 | divergence 54's retirement | 2.2a now pins the surviving difference as a literal, as `LR-BC` (amended) asked | stage 11 / task 10 |
+
+
+## 9. Lane 3 — the scroll suites under both authorities (`LR-BI`; corrections in `LR-BN`)
+
+The stage's exit criterion. Two commits on `feat/engine-stage-3`:
+
+| commit | what |
+|---|---|
+| `5fb562b` | the roll call (3.4) and `ScrollAuthorityCoverage`, read **red** before the parameterisation |
+| `a1b8ff3` | the parameterisation, the two probe types re-spelled, the fixture cross axes, and 3.5 |
+| (this one) | `LR-BN`, the spec's corrections, this section |
+
+### 9.1 Red first, and it is a real red this time
+
+Unlike lanes 1 and 2, lane 3 opens with a genuine red-before that does not
+truncate anything: `everyScrollScenarioRanUnderBothLayoutAuthorities` written
+against the 34 hand-derived names, with nothing recording coverage yet.
+
+```
+Test everyScrollScenarioRanUnderBothLayoutAuthorities() recorded an issue at
+ScrollViewTests.swift:265:9: Expectation failed: missing.isEmpty
+  these scenarios recorded no coverage: ["aDeferredScrollViewTakesTheWheel…", … 34 names …]
+Test run with 1562 tests in 1 suite failed after 51.398 seconds with 1 issue.
+```
+
+The design's other red-before — lane 1's exit-test arm, a proposal-authority
+`Window` over a `ScrollView` exiting non-zero — was retired by lane 2 and is not
+re-taken here.
+
+### 9.2 The census, and why it is 34 and not 37
+
+`ScrollViewTests` (the file the design added to this lane without a census)
+**declares no custom element type**: no `requestNode`, no `requestLeaf`, nothing
+to re-spell. Three of its seven tests —
+`theOffsetClampsToTheScrollableRange`, `contentShorterThanTheViewportDoesNotScroll`,
+`aStoredOffsetPastTheEndIsClampedWhenItIsRead` — are one static
+`ScrollChrome.clamp` call with three `Double`s each. Parameterising them would
+add an argument the body never reads, so the two cases would run identical
+assertions and neither could fail differently from the other. They stay as they
+are; the hand-derived count is **34** (16 + 14 + 4), and 3.4 requires it.
+
+### 9.3 What was re-spelled, and what had to change in the fixtures
+
+- **`ScrollContextRecorder` (5 call sites) and `HitboxProbe` (2)** take
+  `ProbeLeaf`'s shape — `pass.lowersToProposal ? requestNativeLeaf : requestLeaf`
+  — with their declared `Style` replaced by a `width`/`height` pair so the two
+  arms cannot drift. §4.2's census counted these as 9 legacy registrations.
+- **`makeFakeWindow`, `ScrollIndicatorTests.fullyRendered` and
+  `ScrollViewTests.laidOut`** take a `layoutAuthority`. Neither bare-`Frame`
+  helper sets `reportsUnlowerableFields`: they fail the way a production frame
+  does. `makeFakeWindow` writes the authority **only when it differs**, so the
+  1561 existing call sites reach `drawFrameIfNeeded` through exactly the states
+  they did before (a write dirties the window even when it changes nothing).
+- **Seven fixtures declare a cross axis they used to leave `.auto`** — the one
+  thing the design did not foresee (`LR-BN` item 3). Measured at 120×100:
+  `ScrollView(.vertical) { Box(style: fixedHeight(200)) }` registers `(0, 0)
+  120×100` under the legacy authority and `(60, 0) **0×100**` under the proposal
+  one, because the kernel viewport's cross answer is its content's (`CN-M`) and
+  a single child is exempt from the stretch item frame (`LR-AC`). That is stage
+  2's ruled divergence, pinned by lane 2's test 2.4. Declaring the cross axis
+  moved **no legacy number** — the stretch already produced these values, which
+  is what all 34 unchanged legacy arms say.
+- 3.5 uses a **horizontal** scroller for the same reason in reverse: a vertical
+  one in a bounded wrapper measures 200 under the legacy engine (the viewport
+  hugs its content and overflows) and 100 under the proposal authority, which is
+  `LR-BC` and test 2.2's subject.
+
+### 9.4 The exit test's shape, and the two claims it could not make
+
+`LR-BI` asked for a counter. Swift Testing does not specify test order, so a
+counter read by a test that runs first reads zero and passes; and `Test.all`,
+which would have let the check read the *declared* parameterisation, does not
+exist in this toolchain (measured: `type 'Test' has no member 'all'`, Swift 6.4
+`swiftlang-6.4.0.33.1`). The claim is split (`LR-BN` item 1):
+
+- `ScrollAuthorityCoverage.record` verifies the whole set when the last expected
+  name first arrives — order-independent, fires exactly once per unfiltered run,
+  skipping the name it is called with (a test's argument cases run back to back,
+  measured, so every *other* name is complete by then).
+- `everyScrollScenarioRanUnderBothLayoutAuthorities` holds the literals (34, and
+  `authorities == allCases`) and reads what has been recorded. **Ordering
+  measured, not assumed**: a file's tests run in source order and the files in
+  path order — `ScrollIndicatorTests` → `ScrollRoutingTests` → `ScrollViewTests`,
+  identical across two runs — so it is declared at the end of the last of the
+  three, and if that changes it fails naming what it had not seen.
+
+The first writing of `record` flagged the *current* name too, and the run
+reported `aScrollViewWithNoCornerRadiusClipsSquare ran under [.legacy]` on a
+healthy tree — found by the first full run, fixed in the same commit.
+
+### 9.5 Mutations
+
+Commit first, `cp` the file aside, apply, native build, **full unfiltered**
+`swift test --build-system native --no-parallel`, restore from the copy,
+`git status --short` empty (checked and empty after every one). Taken at
+`a1b8ff3`.
+
+| # | mutation | tests reddened (by name) |
+|---|---|---|
+| **M3a** | `registerScrollRegion` given the content node's rect | **6** (8 issues): `theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove` (**both** arms), `aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting`, `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents`, `aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows`, `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`, `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel` |
+| **M3b** | the bounds alias dropped in `Frame.bounds(of:)` | **34** (202 issues), **none of them a scroll scenario** — see §9.6 |
+| **M3c** | `ScrollAuthorityCoverage.authorities` reduced to `[.legacy]` | **2** (34 issues): `everyScrollScenarioRanUnderBothLayoutAuthorities` (the `authorities == allCases` require), `aScrollViewWithNoCornerRadiusClipsSquare` (33 issues from `record`'s whole-set check) |
+| **M3d** | `withScrollContext` moved after the content build | **15**: `aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, and `scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout`, `rawOffsetPublishedDuringRequestLayoutCanExceedTheClampedRange`, `nestedScrollViewsInnermostWinsAndPoppingRestoresTheOuterContext` each under **both** authorities, plus 11 `List`/accessibility tests |
+| **M3e** | the prepaint overload's `viewportExtent` write removed | **13**: `aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, `scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout` (both authorities), plus 11 `List`/accessibility tests |
+| **M2a** re-taken | the viewport registered as a plain native leaf | **31** (77 issues), where lane 2 read **8**. The 23 new names include 21 of the 34 parameterised scenarios — `aWheelEventInsideARegionScrollsIt`, `theThumbIsProportionalAndFlooredAtTwentyPoints`, `theContentNodeOverflowsTheViewport`, `theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt` among them. **This is the lane's headline** |
+| **M2d** re-taken | `flexShrink: 0` carried onto the lowered content style | **aborts the run** — see §9.6 |
+| **M1c** re-taken | the 20pt thumb floor removed | **3**: `theThumbIsProportionalAndFlooredAtTwentyPoints` under **both** authorities (lane 1 had one arm), `theTwoScrollElementsShareOneChromeImplementation`, `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent` |
+
+### 9.6 Two findings
+
+**1. M3b is not lane-3 evidence, and the design said it would be.** The bounds
+alias is load-bearing for a scroller whose *lowered parent* stretches or grows
+it; not one fixture in the two scroll suites is in that position — they are
+window roots or single children. M3b reddens 34 tests, all of them stage 2's and
+lane 2's, including the two that do pin the claim
+(`aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel`,
+`theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`). The lane owes
+no new test for it; the spec's row is corrected rather than a test added, because
+a scroll fixture built to see the alias would be a copy of lane 2's.
+
+**2. An `…unconsumed` regression now truncates the suite.** M2d used to produce
+ten red tests under diagnostics. At this HEAD the first proposal-authority
+`Window` holding a `ScrollView` is test **#1251**,
+`aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, and a production frame
+traps:
+
+```
+MetalUI/Frame.swift:1536: Fatal error: MetalUI: scrollView.flexShrink.unconsumed
+has no proposal lowering (plan task 7, stage 3); a tree containing it cannot run
+under the proposal layout authority.
+```
+
+Lane 2's ten tests had already recorded their issues by then, so the mutation's
+evidence is intact; the summary line is not. **This is the trade `LR-BI`'s
+amendment took deliberately**, and it is now a standing property of the suite.
+The obvious mitigation — a per-fixture diagnostics pre-flight, as
+`WindowPair.init` runs — was **not** applied: these fixtures' content closures
+capture shared recorder boxes, so rendering the tree a second time would add a
+phantom entry to every `Seen` and break the tests it was protecting.
+
+### 9.7 Suite, goldens, guards
+
+- `swift build --build-system native --build-tests`: 0 `error:`, the only
+  `warning:` SwiftPM's deprecation notice.
+- `swift test --build-system native --no-parallel`, unfiltered, at `a1b8ff3`:
+  **`Test run with 1563 tests in 1 suite passed after 52.875 seconds`** — the
+  design's predicted 1563 exactly. Whole logs kept, never tailed. No
+  unattributed issue appeared in any of the lane's green runs (§7.1's retirement
+  holds).
+- Goldens: `git diff --name-only 57893d0 HEAD -- 'Tests/**/*.json'` **empty**;
+  `find Tests -name "*.json" | wc -l` still **97**.
+- Typecheck guards: **77**, unchanged (78 `canTypecheck` hits minus
+  `UnitSafetyTests`' comment). The lane adds no public spelling.
+- The one `Sources/` change is `CaseIterable` on the internal `LayoutAuthority`.
+
+### 9.8 Pixels (`CN-R`), and the harness rebuilt a third time
+
+Rebuilt again from §7.6's description (it is still uncommitted; §10's deferral
+now carries three rebuilds). **It reproduces all eight control figures** on an
+archive of `57893d0`:
+
+| control | recorded | this rebuild |
+|---|---|---|
+| light vs dark, f0 | 1 048 576 | **1 048 576** |
+| default vs modal (light) | 1 030 498 | **1 030 498** |
+| default vs animation (light) | 210 027 | **210 027** |
+| f0 vs f3 (light) | 0 | **0** |
+| preview light vs dark | 1 048 576 | **1 048 576** |
+| distinct values, `default-light-f0` | 544 | **544** |
+| distinct values, `chrome-legacy` | 216 | **216** |
+| `chrome-legacy` vs `chrome-proposal` | 0 | **0** |
+
+**Twelve of twelve read 0 differing pixels** against `57893d0` at `a1b8ff3`, and
+every scene dump is byte-identical. Expected by construction — the lane's only
+`Sources/` change is a protocol conformance on an internal enum — and taken
+anyway.
+
+### 9.9 Screen lock and captures
+
+`xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&
+/tmp/lockstate` at the end of the lane: **`session CGSSessionScreenIsLocked =
+1`**, `CGSSessionScreenLockedTime = 1790087900`, `displayAsleep main: 1`,
+`displayActive main: 0`. Locked, exactly as at the end of lanes 1 and 2, so
+**no real-window capture was taken**. `IOConsoleLocked` was not read (`FR-V`).
+
+### 9.10 Deferred out of lane 3
+
+| item | why | owner |
+|---|---|---|
+| committing the `CN-R` harness | rebuilt three times now; §9.8's eight numbers are all that certify a rebuild | stage 6b |
+| a real-window capture | the screen has been locked at the end of all three lanes | whoever runs a lane with an unlocked screen |
+| turning an `…unconsumed` trap back into a named failure in a scroll fixture | §9.6 finding 2: the pre-flight `WindowPair` uses would double-record every shared `Seen` box | stage 6b, which switches the root and owns what production traps on |
+| `List` windowing under the proposal authority | it traps through a `Window` and builds zero rows under diagnostics | stage 4 |
