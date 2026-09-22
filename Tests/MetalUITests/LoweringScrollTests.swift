@@ -507,6 +507,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// |---|---|---|
 /// | **A1** | `Box { ScrollView(.vertical) { 3 × 80×40 } }.width(80).height(60)` | root, `Box`, `ScrollView`, 3 leaves = **6** |
 /// | **A2** | the demo's own spelling: the scroller `Box` `.width(80).flexGrow(1).flexBasis(0).minHeight(0)` as the second child of a stretching 120×120 column | root, column, the 20×10 sibling, `Box`, `ScrollView`, 3 leaves = **8** |
+/// | **A2b** | A1's shape whose **content** carries an item field — a second row `.alignSelf(.center)` — so the arm can tell `lowerLegacyNode` from a bare stack | root, `Box`, `ScrollView`, 2 children = **5** |
 /// | **A5** | content (50×30) **smaller** than a 100×100 viewport | root, `Box`, `ScrollView`, leaf = **4** |
 /// | **A8** | content **wider** than a vertical viewport (160×30 in 80×60) | **4** |
 /// | **A9** | a `ScrollView` inside a `ScrollView` | root, `Box`, outer, inner, 3 leaves = **7** |
@@ -522,6 +523,18 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// the scrolling axis (`LR-BC`), not because anything stretched it. A9 is the
 /// nested case, where the inner viewport's scrolling axis is proposed `nil` by
 /// the outer content stack and it answers its content's own 120.
+///
+/// **A2b exists because M2b reddened nothing here on its first run.** The
+/// design predicted that registering the content through
+/// `requestNativeLinearStack` instead of `lowerLegacyNode` would move "A2's
+/// stretch rows"; it does not, because every other arm's scroll content is
+/// fixed-size leaves that record no item field, so the container lowering's
+/// `planLegacyItems`, `arrangeLegacyMainAxis` and `paddedAndSized` are all
+/// no-ops over them and a bare stack produces the identical geometry. A2b gives
+/// the content one child that declares `alignSelf(.center)`: the legacy content
+/// column centres it in the column's 80, and only `lowerLegacyNode`'s alignment
+/// frame reproduces that — a bare stack leaves it at x 0 and leaves its record
+/// unconsumed as well.
 ///
 /// **Every leaf's cross size equals its container's, deliberately.**
 /// `ProbeLeaf` registers a raw native leaf and records no `LoweredItem`, so no
@@ -573,6 +586,26 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     let a2Column = lane2Child(lane2Root, 0), a2Scroller = lane2Child(a2Column, 1)
     #expect(a2.loweredBounds[lane2Child(a2Scroller, 0)] == lane2Bounds(0, 10, 80, 110),
             "\(String(describing: a2.loweredBounds[lane2Child(a2Scroller, 0)]))")
+
+    // A2b: the content itself carries an item field only the container lowering
+    // takes. The second row is 40 wide in an 80-wide content column and
+    // `alignSelf(.center)` puts it at x = (80 − 40)/2 = 20 under both
+    // authorities; the alignment frame is not aliased, so the element's own rect
+    // is still its 40×40 box.
+    let a2b = LayoutDifferential.compare(width: 200, height: 200) {
+        Box {
+            ScrollView(.vertical) {
+                lane2Fixed(80, 40)
+                lane2Fixed(40, 40).alignSelf(.center)
+            }
+        }
+        .width(lane2Px(80)).height(lane2Px(60))
+    }
+    try #require(a2b.elements == 5, "A2b ids: \(a2b.elements)")
+    lane2ExpectAgreement(a2b, "A2b")
+    let a2bScroller = lane2Child(lane2Child(lane2Root, 0), 0)
+    #expect(a2b.loweredBounds[lane2Child(a2bScroller, 1)] == lane2Bounds(20, 40, 40, 40),
+            "A2b centred row: \(String(describing: a2b.loweredBounds[lane2Child(a2bScroller, 1)]))")
 
     let a5 = LayoutDifferential.compare(width: 200, height: 200) {
         Box { ScrollView(.vertical) { ProbeLeaf(width: 50, height: 30) } }
