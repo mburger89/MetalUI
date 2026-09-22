@@ -503,8 +503,12 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   both `resolvedOffset` overloads), a computed `var chrome` each side rebuilds
   from its `axis`, `cornerRadius` and `indicatorVisibility`, never stored;
   `ScrollView.clamp`/`.extent` are
-  gone. A re-inlined private copy on either side reddens
-  `theTwoScrollElementsShareOneChromeImplementation`.
+  gone. A private copy re-inlined on either side **and drifting** reddens
+  `theTwoScrollElementsShareOneChromeImplementation` — measured in both
+  directions (M1f and the verifier's V7, each a `paintIndicator` copy with a
+  30pt thumb floor). A **byte-identical** re-inline reddens nothing: that test
+  compares the two elements' output, not their call graph, so it catches the
+  drift, not the copy.
 - **`SA-N`'s "probed, and the kernel disagrees" list is EMPTY.** Its last item
   — padding placing its child at the child's own size — was closed by stage 2's
   lane 3 (`LR-AU`) on both entries, pinned by

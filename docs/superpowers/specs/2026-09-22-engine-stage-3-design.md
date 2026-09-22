@@ -509,11 +509,18 @@ enum ComponentModifierOp {
 ```
 
 **Shared files touched**: `ScrollView.swift`, `ProposalScrollView.swift`,
-`ScrollChrome.swift` (new), `Component.swift`, `LegacyLowering.swift`, and doc
-comments only in `LoweringState.swift` (`Kind.leaf` now also names a lowered
-viewport) and `LayoutAuthority.swift` (`owningStage`'s `.scrollView`/`.component`
-note). **Not touched**: `Frame.swift`, `Passes.swift`, `LayoutTree.swift`,
-`List.swift`, `ModifiedElement.swift`, `Box.swift`, `ElementGroup.swift`.
+`ScrollChrome.swift` (new), `Component.swift`, `LegacyLowering.swift`, and
+`LayoutAuthority.swift` — **corrected by the branch checker**: this paragraph
+said "doc comments only" of `LayoutAuthority.swift`, and lane 3 adds a
+`CaseIterable` conformance to the internal `LayoutAuthority` there (§6 lane 3's
+own text says so; record §24 §9 and record §05's 2026-09-22 section record it).
+Doc comments only in `LoweringState.swift` (`Kind.leaf` now also names a lowered
+viewport), plus — also omitted from the original list, recorded at record §24
+line 416 — one renamed citation each in `Hitbox.swift`, `StateTable.swift` and
+`Window.swift` (`ScrollView.resolvedOffset` → `ScrollChrome.resolvedOffset`).
+**Not touched**: `Frame.swift`, `Passes.swift`, `LayoutTree.swift`,
+`List.swift`, `ModifiedElement.swift`, `Box.swift`, `ElementGroup.swift`
+(verified on the branch diff).
 
 **New test files**: `Tests/MetalUITests/LoweringScrollTests.swift` (lanes 2–3),
 `Tests/MetalUITests/LoweringComponentTests.swift` (lanes 4–5).

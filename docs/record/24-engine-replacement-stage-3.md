@@ -2003,3 +2003,130 @@ every count after the merge, **after `swift package clean`**.
   verification round**; **`LR-BQ` is the next id**, and the header's "next
   unused" line already says so — unmoved, because this round appended no
   ruling.
+
+## 14. Branch checker, 2026-09-22 (adversarial, `57893d0..f9adc0c`)
+
+An independent pass over the whole branch. **Everything checkable was re-taken,
+not read off this record.** Verdict and the two open code concerns are at the
+end.
+
+### 14.1 The numbers, re-measured from a clean tree
+
+| measure | claimed | branch checker |
+|---|---|---|
+| suite | `Test run with 1572 tests in 1 suite passed` | **`Test run with 1572 tests in 1 suite passed after 52.480 seconds`** — after `swift package clean`, `swift build --build-system native --build-tests`, unfiltered `swift test --build-system native --no-parallel` |
+| `error:` / `warning:` | 0 / only SwiftPM's deprecation notice | **0 / 1**, the notice — counted over the **whole** clean build log (256 lines), not its tail |
+| baseline | 1550 at `57893d0` | **1551** in a `git archive` of `57893d0` carrying the checker's one extra harness test — i.e. **1550**, so the **+22** delta is confirmed |
+| goldens | 97, none moved | **97**; `git diff --name-only 57893d0 HEAD -- 'Tests/**/*.json'` **empty** |
+| guards | 77 (79 hits − declaration − comment), per-file list unchanged | **77**, same 79 hits and the same per-file split; stage 3 added none |
+| `cmp CLAUDE.md AGENTS.md` | clean | **clean** |
+| `@available(*, deprecated` | 34, unchanged | **34** at both `57893d0` and HEAD |
+| 34 parameterised scenarios | 16 + 14 + 4 | **34** `ScrollAuthorityCoverage.record(#function` calls, 16/14/4, matching `expected.count` |
+| test functions removed or renamed | none claimed | **none**: the whole-`Tests/` `func` inventory at `57893d0` is a strict subset of HEAD's (2124 → 2164) |
+| ruling ids and test names cited in the branch's docs | — | 50 ruling ids: all defined except the four "next unused" (`LR-BQ`, `CN-V`, `GR-AU`, `OM-AN`). 113 identifiers: **one** has no definition, `aListInsideALoweredScrollerWindowsAgainstTheSameContextAsTheLegacyOne`, and that is `LR-BI`'s amendment **quoting the name it renamed away** — correct as written |
+
+`ListTests`, `TombstoneTests`, `AccessibilityTreeTests`,
+`AccessibilityEndToEndTests`, `AccessibilityDefaultsTests`, `AnimationTests`,
+`AnimationDurationTrapTests`, `DisabledTests`, `FocusTests`, `HitboxTests`,
+`HitRegionTests`, `InputDispatchTests` and `StateTableTests` are **byte-unchanged** on the branch and green in that run.
+
+### 14.2 Three mutations, designed by the checker, run to completion
+
+Each: commit first, `cp` aside, apply, native build, **full unfiltered** suite,
+restore from the copy, `git status --short` empty (verified after each).
+
+| # | mutation | reddened | reading |
+|---|---|---|---|
+| **BC1** | **one** scenario's `@Test(arguments:)` reduced to `[LayoutAuthority.legacy]` (`aWheelEventInsideARegionScrollsIt`) — strictly finer than M3c, which edits the shared list | **2**, and **both halves of the split instrument fire**: `everyScrollScenarioRanUnderBothLayoutAuthorities` at `ScrollViewTests.swift:287` and `record`'s order-independent whole-set check inside `aScrollViewWithNoCornerRadiusClipsSquare`, each printing `aWheelEventInsideARegionScrollsIt ran under 1 authority, not both` | the exit criterion has teeth at single-scenario resolution and **names the offender**. Independently reproduces the verifiers' lane-3 V5 |
+| **BC2** | the lowered viewport's axis inverted (`requestNativeScrollViewport(child:axis:)`), proposal branch only | **29 tests / 56 issues**; **exactly 20 of the 34** parameterised scenarios, **all 30 parameterised issues on the `.proposal` arm and 0 on `.legacy`**; plus the 9 non-parameterised lowering tests | reproduces §12.2's lane-3 V1 **to the test, the issue and the arm**. The exit criterion catches a lowering defect the legacy arm cannot see |
+| **BC3** | `$0.viewportExtent = viewport` deleted from `ScrollChrome.resolvedOffset`'s prepaint overload — the line `List` windows against | **13**: `aListRowsStateSurvivesABoundedExcursionButNotALongerOne`, `aListsWorkIsTheSameFor160RowsAsFor40`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`, `anOffScreenListRowsModelReadIsNotTracked`, `aClientDoesNotChangeStateRetention`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`, `synthesizedNodesCostNothingWhileNoClientIsActive`, `scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout`, `aScrollContextSurvivesALoweredViewportAcrossTwoFrames` | **`List` windowing is genuinely pinned, and pinned by the suite this branch did not touch.** 12 at lane 1 (V6) + test 3.5, which did not exist then — the expected superset |
+
+### 14.3 The fold, checked textually rather than by trusting the tests
+
+All seven `ScrollChrome` members were extracted and normalised against **both**
+pre-fold copies. Every one is the **`ScrollView`** copy verbatim (`delta`'s only
+difference is the parameter name `v` → `value`). The pre-existing drift between
+the two copies was measured the same way and is exactly what `LR-BD` claims and
+no more: `paintIndicator`'s `lastScroll` seed (`0` against `-Double.infinity`),
+the `$0.viewportExtent` write's position **inside** the same `withState`
+closure, and spelling (`clamp(offset:)` / `clamp(_:)`, `return Bounds(` /
+`Bounds(`). Both seeds are dead — `withState` always runs its closure — so the
+fold's only behavioural change to `ProposalScrollView` is to a dead initialiser.
+`ScrollView`'s **legacy** `requestLayout` branch, `withScrollContext` and
+`ScrollContext` publication are untouched in the diff.
+
+### 14.4 The twelve `CN-R` images, on a harness written from scratch
+
+The generator is still uncommitted, so the checker wrote a **fifth** one
+(75 lines, `git archive` of each commit, `@testable import MetalUIDemoContent`,
+twelve images through a real `Window` over `FakePlatformWindow`, raw BGRA plus
+its own scene-dump format). **Controls read non-zero first, and all eight
+recorded figures reproduce exactly at BOTH trees**: 1 048 576 / 1 030 498 /
+210 027 / 0 / 1 048 576, 544 and 216 distinct values, chrome pair 0.
+
+**`57893d0` against `f9adc0c`: 0 differing pixels in all twelve, every scene
+dump byte-identical.**
+
+§7.6's caveat was re-measured independently and **holds**: scanning all twelve
+scene dumps for a 3pt cross-axis rect finds **zero** in every one, so no
+indicator is painted anywhere in the set. `ScrollState.lastScrollTime` defaults
+to `-.infinity`, which is why.
+
+**Screen: still locked** (`session CGSSessionScreenIsLocked = 1`,
+`CGSSessionScreenLockedTime = 1790087900` — the same lock as at every lane —
+`displayAsleep main: 1`, `displayActive main: 0`). No real-window capture;
+`IOConsoleLocked` not read (`FR-V`). The look stays open.
+
+### 14.5 Doc defects found and fixed in this commit
+
+1. **`CLAUDE.md` overclaimed the fold's pin.** "A re-inlined private copy on
+   either side reddens `theTwoScrollElementsShareOneChromeImplementation`" is
+   false for a **byte-identical** copy: that test compares the two elements'
+   output, not their call graph. Both M1f and V7 drifted the thumb floor to
+   30pt, and the test's own doc comment says so. Reworded to name the drift.
+2. **The stage-3 spec's §5 file list contradicted its own §6 lane 3.** It said
+   "doc comments only in … `LayoutAuthority.swift`", where lane 3 adds
+   `CaseIterable`; and it omitted the three doc-comment-only citation renames in
+   `Hitbox.swift`, `StateTable.swift` and `Window.swift` that §7.3 of this
+   record already lists. Corrected, with the branch diff named as the check.
+   The "**Not touched**" half was verified against the diff and is right.
+3. **`specs/2026-09-17-engine-replacement-design.md`'s status header still read
+   "stage 1 of 14"** — stale since stages 2 and G, so not stage 3's regression,
+   but it is the doc `CLAUDE.md` sends a reader to for §4.1's table. A dated
+   paragraph now names which stages have landed and points at the plan's stage
+   list as the live status.
+
+Nothing else was changed. `cmp CLAUDE.md AGENTS.md` clean afterwards; the
+counts, the goldens and the guards are unaffected by all three edits.
+
+### 14.6 Two code concerns, reported not fixed
+
+Both are **already written down** by this stage, which is why neither blocks the
+merge; they are repeated here because they are the two things a later stage will
+trip over.
+
+1. **A proposal-authority regression truncates the suite.** `Window` never sets
+   `reportsUnlowerableFields`, so `noteUnlowerable` takes its
+   `preconditionFailure` branch and the process aborts with no summary line.
+   Lane 3 put 34 scenarios × 2 through real `Window`s, so this is now reachable
+   from ordinary scroll work. Named in `LR-BI`'s amendment, in CLAUDE.md's CI
+   list and in §13's deferrals (30 of the 34 are eligible for a diagnostics
+   pre-flight). Owner: stage 6b.
+2. **The exit test depends on an unspecified cross-file test order.**
+   `everyScrollScenarioRanUnderBothLayoutAuthorities` reads coverage two other
+   files accumulate. Verified by the checker: `swift test --filter
+   everyScrollScenario` **fails**, by construction. It fails loudly and names
+   what it had not seen, and the `record`-side whole-set check is
+   order-independent (BC1 fired it), so the risk is a spurious red rather than a
+   false green. Named in CLAUDE.md's CI list. Owner: whoever next sees a
+   toolchain change the order.
+
+**Verdict: merge.** Every claim the checker could test held, including three of
+the verifiers' own mutation figures reproduced to the test and to the arm; the
+twelve-image comparison reads 0 on an instrument written from scratch; nothing
+in `List` windowing, wheel routing, the overscroll clamp, identity, hit testing,
+accessibility or animation moved, and the one line `List` windowing depends on
+is measured live rather than argued. Task 7's box is **not** ticked, and the
+plan's stage note is a superset of §4.1 row 3's exit criterion
+(`ScrollViewTests` added to the two suites the row names; both authorities where
+it asks for the proposal one), which is what a delivered stage should read.
