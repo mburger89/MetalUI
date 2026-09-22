@@ -2340,7 +2340,7 @@ private func buildGridCase(_ corpusCase: GridCorpusCase)
 // MARK: 3.10 the modifier-chain walk
 
 /// One wrapper kind, and what the two walks do with it. `carriesAttribute` is
-/// `GR-I`'s grid walk (`newNativeGrid`'s `gridAttributes(of:)`);
+/// `GR-I`'s grid walk (`LayoutTree.gridChildMarks(_:)`, read by `newNativeGrid`);
 /// `carriesPriority` is the existing `nativeLayoutPriority` walk (`SA-D`,
 /// `CN-C`, `CN-D`), and the two DIFFER: a `padding`, a `frame`, a `fixedSize`
 /// and an `aspectRatio` carry a cell attribute and hide a priority, while a

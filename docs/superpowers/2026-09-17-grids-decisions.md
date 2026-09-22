@@ -1711,9 +1711,10 @@ unpinned" again — the third time in this stage, after `GR-AG` and `GR-AJ` — 
 the tell was the same: the two arms that cross the wrapper were written from the
 probe, and the probe has no arm with two marks above 1 on one chain.
 
-**The probe:** `docs/probes/swiftui-grid-chain-span-sum.swift`, four arms, all
-four hand-derived from the reference model **before** the run and all four
-exactly as predicted; `/usr/bin/swift` = Apple Swift 6.4
+**The probe:** `docs/probes/swiftui-grid-lane3-discriminators.swift`, whose W
+group is these four arms (its R and U groups close the other two holes below and
+in `GR-AM`'s sibling entries), all four hand-derived from the reference model
+**before** the run and all four exactly as predicted; `/usr/bin/swift` = Apple Swift 6.4
 (swiftlang-6.4.0.33.1), macOS 27.0 (26A428), exit 0, run twice, byte-identical.
 
 | arm | written on `c` (fixed 100×10) | SwiftUI |
@@ -1744,3 +1745,55 @@ accumulation would have been invisible, and a caller writing
 `.gridCellColumns(2).padding(…).gridCellColumns(2)` would silently have got a
 span of 2. (2) was cosmetic — the trap fires either way — but the arm was
 proving less than it read.
+
+## GR-AN — the lane-3 re-verification: the outermost row mark's ALIGNMENT was unpinned
+
+**Ruling.** `LayoutTree.gridChildMarks` states one clause — "the row token
+**with its alignment** from the outermost mark on the chain" — and the suite
+held only half of it. Fifteen verifier mutations, fourteen red; the one that
+left all 1463 tests green **split the clause in two**: the token still from the
+outermost mark, the alignment from the innermost.
+
+**Not equivalent.** On the kernel's own shape — a leaf row-marked `.bottom`,
+wrapped in a `padding(1)`, inside a row marked `.top` — the mutant moves the
+leaf from y = 1 to y = 29 (shown with a scratch test, run under the mutant and
+under HEAD, never committed).
+
+**Why no arm saw it.** Test 3.10's R2 arm, the one arm that marks a row at both
+ends of a chain, writes a **nil** alignment at both ends, so it reads the
+membership and not the alignment; every other row arm marks once per chain.
+`GR-AM` found three clauses of exactly this shape, and this is the fourth: a
+clause with two halves, only one of which any arm varies.
+
+**Probed, not assumed.** `docs/probes/swiftui-grid-row-alignment-inheritance.swift`,
+five arms (A0–A4), each hand-derived before the run and each exactly as
+predicted; `/usr/bin/swift` = Apple Swift 6.4 (swiftlang-6.4.0.33.1), macOS 27.0
+(26A428), exit 0, run twice byte-identical, and the committed file reproduces
+the stdout in its own header.
+
+| arm | SwiftUI | reads |
+|---|---|---|
+| A0 `GridRow(.top){a 30×10; b 20×40}` | 58×40, a (0,0) | the control: `.top` |
+| A1 `GridRow(.bottom){a; b}` | 58×40, a (0,**30**) | the control: `.bottom`, and A0 ≠ A1 |
+| A2 `GridRow(.top){ GridRow(.bottom){a}; b }` | 58×40, a (0,0) | the **enclosing** row wins with no wrapper |
+| A3 `GridRow(.top){ GridRow(.bottom){a}.padding(1); b }` | 60×40, a (1,**1**) | it wins across a wrapper too |
+| A4 the reverse nesting | 60×40, a (1,**29**) | and it is the alignment, not the padding |
+
+So the kernel's rule is **right** and it was the coverage that was missing.
+
+**Pinned** by arm **R4** of test 3.10
+(`cellAttributesAndRowTokensAreReadThroughModifierNodesAndNotContainers`), two
+directions, asserting `plan.rowAlignments[0]` and the rects; the mutation
+reddens it with four issues. The suite stays at **1463** — an arm, not a test.
+
+**Cost if wrong.** A future edit to the walk could have taken a nested row's own
+alignment and nothing would have said so; lane 4, which is where `GridRow`
+actually writes these marks (`GR-T` requires a row to mark **after** its
+content), is the change most likely to make that edit.
+
+**Also corrected in this round**, both citations that could not be followed:
+`GR-AM` named a probe file `swiftui-grid-chain-span-sum.swift` that does not
+exist (the arms are the W group of
+`docs/probes/swiftui-grid-lane3-discriminators.swift`), and test 3.10's header
+named a walk `gridAttributes(of:)` that does not exist (it is
+`LayoutTree.gridChildMarks(_:)`).

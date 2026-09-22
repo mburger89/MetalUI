@@ -1542,6 +1542,89 @@ Nothing new. `GR-O` item 8 (the stack's infinite-flexibility tie, now pinned by
 stays owned by plan task 6; `GR-O` item 2 (the divergence corpus, now with test
 3.12's five cases in it) by plan task 15.
 
+### Verifier round (lane 3)
+
+Re-taken at `1630443` on a `swift package clean` build: **`Test run with 1463
+tests in 1 suite passed after 48.618 seconds`**, 0 `error:`, no `warning:` but
+SwiftPM's deprecation notice, goldens **97** (`git diff cb2e708 -- '*.json'`
+empty), guards **71** (73 `canTypecheck` hits less `Typecheck.swift`'s
+declaration and `UnitSafetyTests`' comment). Lane 3 adds no typecheck guard, so
+there was none to mutate.
+
+**Red first, re-run.** `Sources/` at `d7a785f` with `Tests/` at `5ceea23`
+compiles with exactly the ten errors the commit message lists, at the same line
+numbers (97:47, 103:56, 109:52, 1868:36, 2360:53, 2365:35, 2371:62, 2376:26,
+2383:58, 2388:35), plus their "cannot infer contextual base" follow-ons and
+nothing else. Restored, `git status --short` empty.
+
+**The probe re-run.** `/usr/bin/swift
+docs/probes/swiftui-grid-lane3-discriminators.swift` exits 0 and its twenty
+stdout lines match its header byte for byte.
+
+**Mutations: fifteen, each from a copy of the committed file, `git status
+--short` showing exactly one modified file during and nothing after, full native
+suite each time.** Eleven re-take the implementer's and read the same tests;
+four are the verifier's own.
+
+| # | mutation | reddened |
+|---|---|---|
+| V1 | the chain's `columns +=` becomes a `max` (`M3.5b`) | 3.5 (1), 3.6 (2) |
+| V2 | the walk takes the INNERMOST row token (`M3.RT`) | 3.10 (1) |
+| V3 | the unsized width reads `widths[cell.column]` (`M3.UW`) | 3.7 (3) |
+| V4 | drop the single-count `Int32.max` check (`M3.6a`) | 3.6 (1) |
+| V5 | `fx` ignores the anchor (`M3.AX`) | 3.3 (3), 3.4 (2), 2.13 (8) |
+| V6 | the LAST column-alignment declaration wins (`M3.1`) | 3.1 (4), 2.13 (3) |
+| V7 | a span is aligned by its first column's alignment (`M3.2`) | 3.2 (1), 2.13 (4) |
+| V8 | the walk's unsized union becomes "the innermost replaces" (`M3.9b`) | 3.9 (5) |
+| V9 | `columns > 1` relaxed to `columns >= 1` (`M3.5c`) | 3.5 (11) |
+| V10 | stop the chain at `padding` (`M3.10`) | 3.10 (10), 3.5 (16), 3.4 (2), 3.9 (3), 3.6 (2) |
+| V13 | drop the unsized HEIGHT branch in `serve` (`M3.UV`) | 3.7 (4), 3.9 (6), 2.13 (35) |
+| V11 | **verifier's own**: `fx` falls back to the ROW's horizontal factor before the grid's | 3.3 (1), 2.13 (9), 3.12 (1) |
+| V15 | **verifier's own**: the unsized-horizontal branch applies at a NIL width proposal too | 2.13 (4) |
+| V12 | **verifier's own**: the token from the outermost mark, the ALIGNMENT from the innermost | **green** — `GR-AN` |
+| V12b | the same after the fix | 3.10 (4: R4a, R4b) |
+
+V10 reddens more than `M3.10` recorded because the implementer's table was taken
+before `c49fada` added 3.5's W arms and 3.6's arm (d); the tests named still
+redden. V15 shows that "an unsized axis only bites where that axis's proposal is
+non-nil" is held by the corpus (2.13) rather than by a named GU arm.
+
+**The one green mutation is `GR-AN`**: `gridChildMarks` claims "the row token
+**with its alignment** from the outermost mark", and only the token half was
+pinned — R2, the one arm that marks a row at both ends of a chain, writes a nil
+alignment at both ends. Proved non-equivalent with a scratch test (never
+committed): the mutant moves the padded cell from y = 1 to y = 29. Probed with a
+new five-arm probe
+`docs/probes/swiftui-grid-row-alignment-inheritance.swift` (A0–A4, all
+hand-derived before the run, all exactly as predicted, run twice
+byte-identical): SwiftUI gives a flattened nested row's cells the **enclosing**
+row's alignment, with a wrapper (A3 a (1,1), A4 a (1,29)) and without one (A2),
+so the kernel was right and the coverage was missing. Pinned by arm **R4** of
+test 3.10 (`c3868d9`); the suite stays at 1463.
+
+**Two citations that could not be followed, fixed in the same pass**: `GR-AM`
+named a probe `swiftui-grid-chain-span-sum.swift` that does not exist (its arms
+are the W group of `swiftui-grid-lane3-discriminators.swift`), and test 3.10's
+header named a walk `gridAttributes(of:)` that does not exist (it is
+`LayoutTree.gridChildMarks(_:)`).
+
+**Demo, re-taken by the verifier.** `CN-R`'s harness (`gen-lib.py`,
+`DEMO_PIXELS_SMALL=1`, default build system) in fresh `git archive`s of
+`cb2e708` and `1630443`: **12 of 12 images 0 differing pixels, every scene dump
+identical.** Controls on the head images, each reproducing the implementer's
+figure: light vs dark f0 1 048 576; default vs modal (light) 1 030 498; default
+vs animation (light) 210 027; preview light vs dark 1 048 576; f0 vs f3 0.
+`grep -rn Grid Sources/MetalUIDemoContent Sources/MetalUIDemo`: no hits.
+
+**Arm ids.** This round added **A0–A4** (the new probe) and test 3.10's **R4**;
+`GR-` reaches **GR-AN**, so the next free ruling is `GR-AO`. The next free `GF`
+is still GF21.
+
+**No real window.** `docs/probes/appkit-screen-lock-state.swift` read
+`CGSSessionScreenIsLocked = 1` and `displayAsleep main: 1` at the verifier
+round, so `capture.sh` was not run; the only real-window reading for this lane
+is the implementer's, above, including its launch-noise finding.
+
 ## For the integrator
 
 (Written by lane 4; see spec §6, lane 4.)
