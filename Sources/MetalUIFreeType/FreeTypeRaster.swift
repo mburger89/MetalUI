@@ -26,36 +26,49 @@ public enum FreeTypeRaster {
         precondition(scaleFactor > 0, "a scale factor must be positive")
         let face = font.face
 
+        // The ink box, from the outline in font units (FT-D). A scaled
+        // FreeType outline is quantized to 1/64 px, and that quantization
+        // moved the box across a pixel boundary in 26 of 832 oracle cases
+        // (measured: Noto Sans "o" at 11 pt tops out at 6.006 px exactly and
+        // at 6.0 px in 26.6, so the bitmap was 9 rows against CoreText's 10). `FT_LOAD_NO_SCALE` returns the design coordinates, whose
+        // exact bounding box scales in Double with the same arithmetic as
+        // `GlyphRaster`: points first, then device pixels, then the shift.
+        try check(FT_Load_Glyph(face, FT_UInt(glyph), Int32(FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP)), "FT_Load_Glyph")
+        guard let unscaled = face.pointee.glyph, unscaled.pointee.format == FT_GLYPH_FORMAT_OUTLINE else {
+            throw FreeTypeError(operation: "an outline glyph", code: -1)
+        }
+        var designOutline = unscaled.pointee.outline
+        guard designOutline.n_points > 0 else { return .empty }
+        var box = FT_BBox()
+        try check(FT_Outline_Get_BBox(&designOutline, &box), "FT_Outline_Get_BBox")
+        guard box.xMin < box.xMax, box.yMin < box.yMax else { return .empty }
+
+        let scale = Double(scaleFactor)
+        let pointsPerUnit = font.size / Double(face.pointee.units_per_EM)
+        let dx = GlyphImage.subpixelOffset(variant: subpixelVariant)
+        let pad = GlyphImage.inkPadding
+        let x0 = Int((Double(box.xMin) * pointsPerUnit * scale + dx).rounded(.down)) - pad
+        let y0 = Int((Double(box.yMin) * pointsPerUnit * scale).rounded(.down)) - pad
+        let x1 = Int((Double(box.xMax) * pointsPerUnit * scale + dx).rounded(.up)) + pad
+        let y1 = Int((Double(box.yMax) * pointsPerUnit * scale).rounded(.up)) + pad
+        let width = x1 - x0, height = y1 - y0
+        guard width > 0, height > 0 else { return .empty }
+
         // 72 dpi: one point is one device pixel at scale 1, as in CoreText.
-        let pixels = font.size * Double(scaleFactor)
+        let pixels = font.size * scale
         try check(FT_Set_Char_Size(face, 0, FT_F26Dot6((pixels * 64).rounded()), 72, 72), "FT_Set_Char_Size")
         try check(FT_Load_Glyph(face, FT_UInt(glyph), Int32(FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP)), "FT_Load_Glyph")
         guard let slot = face.pointee.glyph, slot.pointee.format == FT_GLYPH_FORMAT_OUTLINE else {
             throw FreeTypeError(operation: "an outline glyph", code: -1)
         }
         var outline = slot.pointee.outline
-        guard outline.n_points > 0 else { return .empty }
 
-        // The subpixel shift, in 26.6: a quarter pixel is exactly 16 units.
-        let dx = GlyphImage.subpixelOffset(variant: subpixelVariant)
-        FT_Outline_Translate(&outline, FT_Pos((dx * 64).rounded()), 0)
-
-        var box = FT_BBox()
-        try check(FT_Outline_Get_BBox(&outline, &box), "FT_Outline_Get_BBox")
-        guard box.xMin < box.xMax, box.yMin < box.yMax else { return .empty }
-
-        let pad = GlyphImage.inkPadding
-        let x0 = Int(floorDiv64(box.xMin)) - pad
-        let y0 = Int(floorDiv64(box.yMin)) - pad
-        let x1 = Int(ceilDiv64(box.xMax)) + pad
-        let y1 = Int(ceilDiv64(box.yMax)) + pad
-        let width = x1 - x0, height = y1 - y0
-        guard width > 0, height > 0 else { return .empty }
-
-        // Move the box's bottom-left to the bitmap origin. With a positive
-        // pitch FreeType fills rows top-down, so row 0 is the top row — the
-        // same memory order as GlyphRaster's CGBitmapContext.
-        FT_Outline_Translate(&outline, FT_Pos(-x0 * 64), FT_Pos(-y0 * 64))
+        // Shift right by the subpixel offset and move the box's bottom-left to
+        // the bitmap origin, in one 26.6 translation: a quarter pixel is
+        // exactly 16 units. With a positive pitch FreeType fills rows
+        // top-down, so row 0 is the top row — the same memory order as
+        // GlyphRaster's CGBitmapContext.
+        FT_Outline_Translate(&outline, FT_Pos((dx * 64).rounded()) - FT_Pos(x0 * 64), FT_Pos(-y0 * 64))
         var bytes = [UInt8](repeating: 0, count: width * height)
         try bytes.withUnsafeMutableBufferPointer { buffer in
             var bitmap = FT_Bitmap()
@@ -73,8 +86,4 @@ public enum FreeTypeRaster {
     private static func check(_ error: FT_Error, _ operation: String) throws {
         if error != 0 { throw FreeTypeError(operation: operation, code: error) }
     }
-
-    /// Floor and ceiling of a 26.6 value in whole pixels, exactly (no Double).
-    private static func floorDiv64(_ v: FT_Pos) -> FT_Pos { v >> 6 }
-    private static func ceilDiv64(_ v: FT_Pos) -> FT_Pos { (v + 63) >> 6 }
 }

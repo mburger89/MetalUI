@@ -34,7 +34,7 @@ public final class FreeTypeFont {
         guard initError == 0, let library else { throw FreeTypeError(operation: "FT_Init_FreeType", code: initError) }
 
         let storage = UnsafeMutableRawBufferPointer.allocate(byteCount: max(data.count, 1), alignment: 16)
-        storage.copyMemory(from: UnsafeRawBufferPointer(start: data, count: data.count))
+        data.withUnsafeBytes { storage.copyMemory(from: $0) }
         var face: FT_Face?
         let faceError = FT_New_Memory_Face(library, storage.baseAddress!.assumingMemoryBound(to: FT_Byte.self),
                                            FT_Long(data.count), FT_Long(faceIndex), &face)
