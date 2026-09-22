@@ -1,6 +1,9 @@
 import MetalUICore
 import MetalUIText
 @_exported import MetalUIShaderTypes
+// Ruling PS-B: Scene, DrawRun and PrimitiveKind lived in this module until
+// 2026-09-22; re-exported so `import MetalUIRender` still sees them.
+@_exported import MetalUIScene
 
 extension MUIPoint {
     init(_ p: Point<ScaledPixels>) { self.init(x: p.x.value, y: p.y.value) }

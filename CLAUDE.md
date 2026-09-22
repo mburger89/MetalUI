@@ -30,7 +30,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-AB`). A numbered citation of a
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-AB`), `PS-` (next `PS-H`;
+  rulings in its spec, no separate decisions doc). A numbered citation of a
   lettered prefix (`CS-3`, `LR-3`) is a typo; sweep case-insensitively.
 - **SwiftUI-alignment plan:** `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`.
   Its 2026-09-12 kernel/modifier specs describe types never built; **the
@@ -55,8 +56,8 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-17, `feat/engine-replacement`): 1409 tests, 97 goldens,
-  71 typecheck guards**, 0 `error:`, 0 `warning:`, taken after `swift package
+- **Counts (2026-09-22, `feat/portable-scene`): 1411 tests, 97 goldens,
+  73 typecheck guards**, 0 `error:`, 0 `warning:`, taken after `swift package
   clean` with `swift build --build-system native --build-tests` then
   unfiltered `swift test --build-system native --no-parallel`. History: record
   §06, §19 "Build and test". A count is stale the moment a test lands; re-measure.
@@ -76,7 +77,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `EnvironmentCompileGuards`, `FrameSizingCompileGuards`,
   `DecorationCompileGuards`, `ContainerCompileGuards`,
   `LayoutAuthorityCompileGuards`, `UnitSafetyTests` (one hit is a comment),
-  `AXNodeTests`; `Typecheck.swift` holds only the declaration. Two helpers:
+  `AXNodeTests`, `SceneBoundaryCompileGuards`; `Typecheck.swift` holds only
+  the declaration. Two helpers:
   `typecheck(_:importing:)` wraps the fixture in a function (Swift 5, nothing
   `public`/file-scope compiles); `typecheckFile(_:importing:)` is whole-file
   Swift 6. A guard about what an external module can write uses
@@ -91,14 +93,22 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `Undefined symbols … direct field offset`. Causes: the untracked shader
   header symlink (`Sources/MetalUIShaderTypes/include/`), and any new
   case/stored property on a public type crossing a module boundary.
-- **Targets:** nine one-way-dependent (`MetalUICore`, `MetalUILayout`,
-  `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`,
-  `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus `Tests/MetalUITestSupport`.
-  `MetalUIDemoContent` holds the demo tree so tests can import it (`LR-S`).
+- **Targets:** ten one-way-dependent (`MetalUICore`, `MetalUILayout`,
+  `MetalUIScene`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
+  `MetalUIPlatform`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
+  `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so tests
+  can import it (`LR-S`). `MetalUIScene` holds `Scene`/`DrawRun`/`PrimitiveKind`,
+  the glyph atlas types and the `FontKey` struct; `MetalUIText` and
+  `MetalUIRender` re-export it (`PS-B`), so its types need no new import.
 
-Four constraints that fail silently:
+Five constraints that fail silently:
 
 - `MetalUILayout` imports only `MetalUICore` (anchored grep).
+- `MetalUIScene` imports only `MetalUIShaderTypes` — no Foundation, CoreText,
+  CoreGraphics or Metal (`PS-A`). macOS cannot see a violation; the Swift
+  workflow's `scene-linux` job can (`PS-G`). An initialiser that must stay
+  unspellable outside the package is `package`, with a plain-import guard
+  (`FontKey`, `GlyphImage`: `PS-D`, `PS-E`).
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (gamma-space compositing, §7.8).
