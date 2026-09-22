@@ -232,3 +232,121 @@ Re-measure rather than trust these: a count is stale the moment a test lands.
   and must be settled before stage 6b.
 - **Task 7 is not ticked.** Stages 2 and G of fourteen are landed; the plan's
   entry carries a dated progress note instead.
+
+## 6. The verification round — every §2 and §3 number re-taken independently
+
+A second pass over this integration, on the committed tree, taking the
+measurements again rather than reading them. It changed no source and no test;
+its two commits are documentation. The session that wrote §1–§5 was interrupted
+after committing, so nothing here is a fix of unfinished work — it is the
+check that the committed claims are true of the committed tree.
+
+### The suite, the counts and the tree
+
+`swift package clean` → `swift build --build-system native --build-tests`
+(`Build complete!`, 0 `error:`, the only `warning:` SwiftPM's own deprecation
+notice) → unfiltered `swift test --build-system native --no-parallel`:
+**`Test run with 1548 tests in 1 suite passed after 52.663 seconds`** — §4's
+figure. Goldens 97, `git diff --name-only cb2e708 -- '*.json'` empty. Guards 77
+`canTypecheck` hits across 15 files, less `Typecheck.swift`'s declaration and
+`UnitSafetyTests`' comment = **75**, the per-file table of §4 reproduced hit for
+hit. `@available(*, deprecated` 34.
+
+**The kernel-surface counts were the one claim that needed looking at twice.**
+`grep -c "func requestNative" Sources/MetalUI/Passes.swift` reads **12**, not 13
+— the thirteenth, `requestNativeGrid`, is in `Sources/MetalUI/Grid.swift`, an
+extension on `LayoutPass` the grids track added in its own file. So §4 and
+`CLAUDE.md` are right about the **type** (`LayoutPass` has 13) and a reader
+greping one file will get 12. `LayoutTree.newNative*` is 13 in one file.
+`NativeNode` is twelve built-in cases (`leaf`, `overlay`, `overlayAttachment`,
+`frame`, `padding`, `fixedSize`, `aspectRatio`, `layoutPriority`, `spacer`,
+`scrollViewport`, `linearStack`, `grid`) plus `custom`. Every test name
+`CLAUDE.md`'s new rows and record §04's new index rows cite exists, checked by
+`grep -rl "func <name>" Tests`: 18 of 18, one file each.
+
+### The four cross-track tests: four of the five mutations re-applied
+
+Protocol as in §2: committed first, the file copied aside, the mutation applied,
+the **full unfiltered** suite run, the file restored from the copy,
+`git status --short` empty after each (it was, every time). `XM2` was not
+re-run: `XM1` and `XM2` are the two halves of `X1`'s seam and `XM1` was.
+
+| id | re-applied as | reddened | vs §2 |
+|---|---|---|---|
+| **XM1** | `planLegacyItems`: `if isRow { grownH = true } else { grownV = true }` → the two swapped | `aGridsColumnWidthReachesAGrowingChildInsideALoweredCell` (**X1**, 5) plus 15 stage-2 tests, **99 issues** — `aGrowingChildTakesTheRemainingMainSpace` 36, `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder` 10, `aZeroBasisGrowerTakesItsShareDownToItsContent` 9, `growingSiblingsShareTheSurplusEquallyWhereCSSAddsItToTheirBases` 8 … | **exact** |
+| **XM3** | `planLegacyItems`' `guard let item else` arm given `plan.itemFrameHeight = (0, .infinity)` under a row parent | **X2** (1) and `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (2), 3 issues | **exact** |
+| **XM4b** | `Text.swift`'s lowered leaf de-unified: `proposalTextMeasurement` replaced inline by `cache.shaped(…).widestLine` with no `min(proposal, …)` | **X3 and nothing else**, 3 issues | **exact** |
+| **XM5** | `Grid.requestProposalLayout`: `for c in children { _ = pass.frame.lowering.consume(c.layoutNodeID) }` before the registrar | **X4 and nothing else**, 5 issues | **exact** |
+
+`XM4b` is the one worth re-taking by hand, because it is this integration's only
+finding: it confirms that **X3 is the sole pin for the lowered half of lane 3's
+clamp**, and that the clause was reachable by neither track alone.
+
+### The pixels, re-generated from scratch on three trees
+
+The `CN-R` harness was **rebuilt from the recipe** (it is a scratch artefact, not
+a committed one): a generator importing `MetalUIDemoContent`, rendering through a
+real `Window` over `FakePlatformWindow`, writing each image's raw BGRA bytes and
+a scene dump. Three trees, each a fresh `git archive` built on its own:
+`cb2e708`, `ac1ad1d` (`feat/grids`' head) and this branch's HEAD.
+
+**Controls first, on both sides.** Every one reproduces §3's figure: light vs
+dark f0 **1 048 576**; f0 vs f3 **0**; f0 vs modal **1 030 498**; f0 vs animation
+**210 027**; preview light vs dark **1 048 576**; `small560-default-light` vs
+`small560-preview-light` **171 670** at the head (178 634 at the base — it moves
+because the grid is in the preview, which is the point).
+`default-light-f0` holds 544 distinct pixel values.
+
+**`cb2e708` → HEAD, twelve images:** nine at **0** with identical scene dumps
+(every default, modal and animation image, light and dark, and
+`small560-default-light`); `preview-light` and `preview-dark` **7 680** in bbox
+**(624, 865)–(795, 920)**; `small560-preview-light` **52 033** in bbox
+(0, 63)–(559, 497). §3's numbers to the pixel and to the bounding box.
+
+The attribution checks out arithmetically: the bbox is 172 × 56 =
+(80 + 12 + 80) × (24 + 8 + 24), the preview grid's own box, and 7 680 = 4 × 80 ×
+24, its four cells — the gaps between them are background that did not change.
+
+**HEAD vs `feat/grids`: 0 differing pixels in all twelve, every scene identical.**
+So the whole `cb2e708` → HEAD delta is the grids track's preview grid and none of
+it is a merge artefact — §3's claim, re-measured from both trees' own archives.
+
+**The two-authority chrome pair** (`StageOneCorpus.counterChrome()` in a 560²
+`DifferentialRoot` through a 560² `Window` under each authority, via
+`WindowPair`): `chrome-legacy` vs `chrome-proposal` **0 differing pixels, scene
+dumps byte-identical**, 216 distinct values, **308 354** against
+`small560-default-light` — so it is not two blank images agreeing. **Its
+instrument control `M5d`** (`spacing: arrangement.spacing + 50` in
+`LegacyLowering.swift`, which moves the lowered side alone) takes the pair to
+**8 214** differing pixels with the scenes differing: §3's figure, and the proof
+that this pair can see a lowering change when the twelve images cannot.
+
+### The screen, again
+
+`docs/probes/appkit-screen-lock-state.swift`, compiled and run twice in this
+round: `session CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`,
+`displayActive main: 0`. The brief's gate fails in both readings, so
+`docs/probes/window-capture/capture.sh` was **not** run and the real-window half
+of the human-verification row stays open. `IOConsoleLocked` was not read
+(`FR-V`).
+
+### Two staleness findings, fixed
+
+Neither is about this merge's code; both are documents this integration's own
+claims point at.
+
+1. **`SA-N` item 4 was still open in the `SA-` decisions doc.** `CLAUDE.md` and
+   the plan both say `SA-N`'s "probed, and the kernel disagrees" list is empty,
+   closed by `LR-AU`. The doc they cite still read "assigned to plan task 7 by
+   `CN-Q`", with no closure — so following the citation gave the opposite answer.
+   Item 4 now records the closure (both kernel entries, the pin
+   `aNativePaddingPlacesItsChildAtTheChildsOwnSize`, the mutation `M3a` that
+   reddens it, and the caller-bounds arm to re-check at stage 6b), and the
+   section's closing paragraphs state that the list is empty and why.
+2. **`README.md`'s pointer at record §04** named index tables "20–34, 35–50 and
+   51–58" — already missing 59 before this stage and now 60–70 as well — and its
+   retirement sentence did not carry 59. Both corrected against §04's own
+   section headings.
+
+**Nothing else in §1–§5 was refuted.** Every number this round re-took came back
+identical.
