@@ -185,3 +185,92 @@ public func pixelDifference(_ a: [UInt8], _ b: [UInt8], above threshold: Int = 0
     }
     return (pixels, maxDelta)
 }
+
+// MARK: - Parity
+
+/// Parity is judged in two regions. Outside glyph quads a backend may differ
+/// by one UNORM step (rounding). Inside them the atlas is sampled wherever
+/// the projection puts a pixel centre; off texel centres, the sampled value
+/// depends on the implementation's texture-coordinate and filter-weight
+/// precision. Vulkan requires only 4 sub-texel bits, so a weight may be off
+/// by 1/32 and a full-contrast texel pair then moves the result by ~8 steps.
+/// Measured on Mesa llvmpipe vs Apple M1 Max: 3 (README, "Linux").
+public enum ParityTolerance {
+    public static let outsideGlyphs = 1
+    public static let insideGlyphs = 8
+}
+
+public struct Parity: Equatable, Sendable {
+    public var outside: (pixels: Int, maxDelta: Int)
+    public var inside: (pixels: Int, maxDelta: Int)
+    public var passes: Bool {
+        outside.maxDelta <= ParityTolerance.outsideGlyphs && inside.maxDelta <= ParityTolerance.insideGlyphs
+    }
+    public static func == (a: Parity, b: Parity) -> Bool {
+        a.outside == b.outside && a.inside == b.inside
+    }
+}
+
+extension ReplayFixture {
+    /// Glyph bounds (the first four floats of each 88-byte record), as
+    /// recorded, before the projection.
+    public var glyphBounds: [(x: Float, y: Float, width: Float, height: Float)] {
+        (0..<glyphCount).map { index in
+            let base = index * Int(Self.glyphStride)
+            func float(_ k: Int) -> Float {
+                let o = base + k * 4
+                return Float(bitPattern: UInt32(glyphs[o]) | UInt32(glyphs[o + 1]) << 8
+                                        | UInt32(glyphs[o + 2]) << 16 | UInt32(glyphs[o + 3]) << 24)
+            }
+            return (float(0), float(1), float(2), float(3))
+        }
+    }
+
+    /// Where a pre-projection pixel position lands on the target, by the
+    /// shaders' own mapping: pixels → NDC → `projection` → pixels.
+    public func project(_ x: Float, _ y: Float) -> (x: Float, y: Float) {
+        let m = projection, w = Float(width), h = Float(height)
+        let nx = x / w * 2 - 1, ny = 1 - y / h * 2
+        let cx = m[0] * nx + m[4] * ny + m[12]
+        let cy = m[1] * nx + m[5] * ny + m[13]
+        let cw = m[3] * nx + m[7] * ny + m[15]
+        return ((cx / cw + 1) / 2 * w, (1 - cy / cw) / 2 * h)
+    }
+
+    /// Pixels a glyph quad may touch after projection, grown by one pixel
+    /// for anti-aliased coverage at its edge.
+    public func glyphMask() -> [Bool] {
+        let w = Int(width), h = Int(height)
+        var mask = [Bool](repeating: false, count: w * h)
+        // Snap to 1/256 px, a rasterizer's sub-pixel grid, so float round-off
+        // in the NDC round trip (2 -> 1.9999998) cannot grow the mask a row.
+        func snapped(_ p: (x: Float, y: Float)) -> (x: Float, y: Float) {
+            ((p.x * 256).rounded() / 256, (p.y * 256).rounded() / 256)
+        }
+        for b in glyphBounds {
+            let corners = [project(b.x, b.y), project(b.x + b.width, b.y),
+                           project(b.x, b.y + b.height), project(b.x + b.width, b.y + b.height)].map(snapped)
+            let x0 = max(0, Int((corners.map(\.x).min()! - 1).rounded(.down)))
+            let x1 = min(w - 1, Int((corners.map(\.x).max()! + 1).rounded(.up)))
+            let y0 = max(0, Int((corners.map(\.y).min()! - 1).rounded(.down)))
+            let y1 = min(h - 1, Int((corners.map(\.y).max()! + 1).rounded(.up)))
+            guard x0 <= x1, y0 <= y1 else { continue }
+            for y in y0...y1 { for x in x0...x1 { mask[y * w + x] = true } }
+        }
+        return mask
+    }
+
+    public func parity(of pixels: [UInt8]) -> Parity {
+        precondition(pixels.count == reference.count, "output size differs from reference")
+        let mask = glyphMask()
+        var inside = (pixels: 0, maxDelta: 0), outside = (pixels: 0, maxDelta: 0)
+        for p in 0..<mask.count {
+            var delta = 0
+            for c in 0..<4 { delta = max(delta, abs(Int(reference[p * 4 + c]) - Int(pixels[p * 4 + c]))) }
+            guard delta > 0 else { continue }
+            if mask[p] { inside.pixels += 1; inside.maxDelta = max(inside.maxDelta, delta) }
+            else { outside.pixels += 1; outside.maxDelta = max(outside.maxDelta, delta) }
+        }
+        return Parity(outside: outside, inside: inside)
+    }
+}

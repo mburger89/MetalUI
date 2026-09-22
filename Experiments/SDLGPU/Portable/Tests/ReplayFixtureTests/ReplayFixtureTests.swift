@@ -111,3 +111,79 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
     #expect(pixelDifference(a, b, above: 34).pixels == 1)
     #expect(pixelDifference(a, b, above: 35).maxDelta == 35)
 }
+
+// MARK: - Parity
+
+func floats(_ values: [Float]) -> [UInt8] {
+    values.flatMap { v in withUnsafeBytes(of: v.bitPattern.littleEndian) { Array($0) } }
+}
+
+/// A 20×10 target with one glyph quad at (5, 2, 4×3).
+func glyphFixture(projection: [Float] = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+                  reference: [UInt8]? = nil) throws -> ReplayFixture {
+    let record = floats([5, 2, 4, 3]) + [UInt8](repeating: 0, count: 88 - 16)
+    return try ReplayFixture(width: 20, height: 10, rects: [], glyphs: record,
+        runs: [FixtureRun(kind: .glyph, start: 0, count: 1)],
+        atlasWidth: 1, atlasHeight: 1, atlas: [0], projection: projection,
+        reference: reference ?? [UInt8](repeating: 100, count: 20 * 10 * 4))
+}
+
+func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<Int>)? {
+    let points = mask.indices.filter { mask[$0] }.map { ($0 % width, $0 / width) }
+    guard let first = points.first else { return nil }
+    return (points.map(\.0).min()!...points.map(\.0).max()!, first.1...points.map(\.1).max()!)
+}
+
+@Test func glyphBoundsReadTheRecordsFirstFourFloats() throws {
+    let b = try #require(try glyphFixture().glyphBounds.first)
+    #expect(b.x == 5 && b.y == 2 && b.width == 4 && b.height == 3)
+}
+
+@Test func theGlyphMaskIsTheQuadGrownByOnePixel() throws {
+    // Quad spans x 5..<9, y 2..<5; grown: x 4...10, y 1...6.
+    let area = try #require(marked(try glyphFixture().glyphMask(), width: 20))
+    #expect(area.x == 4...10)
+    #expect(area.y == 1...6)
+}
+
+@Test func theGlyphMaskFollowsTheProjection() throws {
+    // Scale 0.5 about the centre (10, 5): x 5..9 -> 7.5..9.5, y 2..5 -> 3.5..5.
+    let scaled: [Float] = [0.5,0,0,0, 0,0.5,0,0, 0,0,1,0, 0,0,0,1]
+    let area = try #require(marked(try glyphFixture(projection: scaled).glyphMask(), width: 20))
+    #expect(area.x == 6...11)
+    #expect(area.y == 2...6)
+}
+
+@Test func parityJudgesInsideAndOutsideGlyphsSeparately() throws {
+    let fixture = try glyphFixture()
+    var output = fixture.reference
+    output[(3 * 20 + 6) * 4] += 8          // inside the quad: at the glyph tolerance
+    output[(9 * 20 + 18) * 4 + 1] += 1     // far outside: one rounding step
+    let parity = fixture.parity(of: output)
+    #expect(parity.inside.pixels == 1 && parity.inside.maxDelta == 8)
+    #expect(parity.outside.pixels == 1 && parity.outside.maxDelta == 1)
+    #expect(parity.passes)
+}
+
+@Test func twoStepsOutsideGlyphsFail() throws {
+    let fixture = try glyphFixture()
+    var output = fixture.reference
+    output[(9 * 20 + 18) * 4 + 2] += 2
+    #expect(!fixture.parity(of: output).passes)
+}
+
+@Test func beyondTheGlyphToleranceInsideAQuadFails() throws {
+    let fixture = try glyphFixture()
+    var output = fixture.reference
+    output[(3 * 20 + 6) * 4] += 9          // literal: the bound is 8 (Vulkan's 4 sub-texel bits)
+    #expect(!fixture.parity(of: output).passes)
+}
+
+@Test func theGlyphToleranceDoesNotReachPastTheGrownQuad() throws {
+    let fixture = try glyphFixture()
+    var output = fixture.reference
+    output[(3 * 20 + 11) * 4] += 3         // x 11: one pixel past the grown edge
+    let parity = fixture.parity(of: output)
+    #expect(parity.outside.maxDelta == 3)
+    #expect(!parity.passes)
+}

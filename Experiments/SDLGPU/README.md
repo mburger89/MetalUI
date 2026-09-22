@@ -22,7 +22,7 @@ No production source or root package dependency is changed.
 ```sh
 swift run --build-system native Replay --portable --record "$PWD/fixtures"
 cd Portable
-swift test                                             # fixture format, 12 tests
+swift test                                             # fixture format and parity, 19 tests
 swift run PortableReplay ../fixtures                   # SDL Metal
 SDL_VULKAN_LIBRARY=/opt/homebrew/lib/libvulkan.1.dylib \
   swift run PortableReplay ../fixtures --driver vulkan  # SDL Vulkan (MoltenVK)
@@ -87,7 +87,7 @@ performance measurement: the probe compiles shaders and waits for GPU readback.
 | HLSL → SPIR-V → MSL (`--portable`) | SDL Metal | 0 / 0 / 0 / 0 | 283 px, Δ152 |
 | HLSL → SPIR-V (`--driver vulkan`) | SDL Vulkan, MoltenVK 1.4.2 | 0 / 0 / 0 / 0 | 283 px, Δ152 |
 | `PortableReplay` from fixtures | SDL Metal and SDL Vulkan | 0 / 0 / 0 / 0 | 205 px >16, Δ152 |
-| `PortableReplay`, **Linux** aarch64 (OrbStack) | SDL Vulkan, Mesa llvmpipe (LLVM 20) | max Δ 1 / 1 / 1 / **3** — frame 3 fails | 205 px >16, Δ151 |
+| `PortableReplay`, **Linux** aarch64 (OrbStack) | SDL Vulkan, Mesa llvmpipe (LLVM 20) | outside glyphs max Δ1 every frame; inside glyphs Δ1 / 1 / 1 / 3 | 205 px >16, Δ151 |
 
 The control counts pixels off by more than 16 steps (`above: 16`): llvmpipe
 differs from Metal by one step on ~11–14k pixels in every frame, so a raw
@@ -104,18 +104,36 @@ docker --context orbstack run --rm -v "$PWD":/work metalui-portable bash -c \
 
 Swift 6.2.4 on Ubuntu 24.04 with SDL 3.4.16 built from source (headless:
 `SDL_UNIX_CONSOLE_BUILD`, offscreen video) and Mesa llvmpipe, a CPU Vulkan
-driver. `Portable/` builds, its 12 tests pass, and `PortableReplay` links
+driver. `Portable/` builds, its 19 tests pass, and `PortableReplay` links
 SDL3 and swift-corelibs-foundation only. Parity:
 
 - Frames 0–2 (identity projection): every difference is exactly one step,
   mostly blue; no pixel differs by more — within tolerance.
-- Frame 3 (0.85 projection): 631 pixels differ by 2–3 steps, alpha never.
-  **All 631 lie inside glyph quads.** Glyphs sit on integer pixel origins in
-  the identity frames, so the atlas is sampled at texel centres; the scaled
-  projection samples between texels, where bilinear weight precision is
-  implementation-defined (Vulkan guarantees only 4 `subTexelPrecisionBits`).
-  Rect pixels stay within one step. This is the inferred cause, not yet
-  proved by a nearest-filter or texel-centre separating arm.
+- Frame 3 (0.85 projection): 631 pixels differ by 2–3 steps, alpha never,
+  **all inside glyph quads**; rect pixels stay within one step.
+
+**Cause: atlas sampling off texel centres.** Measured with a nearest-filter
+arm (`--nearest`, diagnostic, both backends):
+
+- Frames 0–2 render identically under nearest and linear filtering: glyphs
+  sit on integer pixel origins, so every sample lands on a texel centre.
+- Frame 3 under nearest, Apple GPU vs llvmpipe: 436 glyph pixels differ by
+  up to 202 steps — whole-texel flips — and **every one** has an atlas
+  coordinate exactly on a texel boundary (0.85 maps pixel centres onto
+  multiples of 1/17 px), against 12% of glyph pixels overall. At a tie the
+  nearest texel is implementation-defined. Outside glyph quads: max Δ1.
+- Frame 3 under linear: the difference grows with the contrast of the 2×2
+  texel footprint (share of pixels >1 step: 0.6% at contrast <32, 10% at
+  ≥224), the signature of a small coordinate/weight error scaled by texel
+  contrast. The arm does not separate coordinate precision from weight
+  precision; both are implementation-defined.
+
+**Parity is therefore judged in two regions** (`ReplayFixture.parity(of:)`):
+outside glyph quads ≤1 step (rounding); inside the projected glyph quads,
+grown by one pixel, ≤8 steps — Vulkan's minimum 4 sub-texel bits allow a
+1/32 weight error, ~8 steps across a full-contrast texel pair. Measured: 3.
+A glyph defect under 8 steps is invisible to this harness; misplacement and
+painter-order faults are not (the control moves 205 pixels by >16).
 
 `--dump <dir>` writes each frame's raw BGRA8 and reports every frame instead
 of stopping at the first failure; the verdict still fails.

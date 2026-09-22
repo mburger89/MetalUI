@@ -114,6 +114,21 @@ ReplayGPU *replay_create_portable(const char *directory, const char *driver) {
     return create(NULL, directory, driver);
 }
 
+bool replay_use_nearest_filter(ReplayGPU *g) {
+    // Diagnostic arm only: the production Metal renderer filters linearly.
+    SDL_GPUSamplerCreateInfo info = {
+        .min_filter = SDL_GPU_FILTER_NEAREST, .mag_filter = SDL_GPU_FILTER_NEAREST,
+        .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE
+    };
+    SDL_GPUSampler *sampler = SDL_CreateGPUSampler(g->device, &info);
+    if (!sampler) return false;
+    SDL_ReleaseGPUSampler(g->device, g->sampler);
+    g->sampler = sampler;
+    return true;
+}
+
 void replay_destroy(ReplayGPU *g) {
     if (!g) return;
     if (g->device) {

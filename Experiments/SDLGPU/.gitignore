@@ -5,3 +5,5 @@ output*/
 Shaders/compiled/
 fixtures/
 linux-dump/
+mac-*/
+linux-*/

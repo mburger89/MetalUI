@@ -3,7 +3,7 @@
 // and no MetalUI module: the fixtures are its only link to the renderer.
 //
 //   PortableReplay <fixture-dir> [--driver metal|vulkan|direct3d12]
-//                  [--shaders <dir>] [--dump <dir>] [--show]
+//                  [--shaders <dir>] [--dump <dir>] [--nearest] [--show]
 import Foundation  // swift-corelibs-foundation off Apple platforms
 import ReplayFixture
 import SDLBridge
@@ -64,20 +64,24 @@ func run() throws {
         throw ReplayError("SDL create: \(String(cString: replay_error()))")
     }
     defer { replay_destroy(gpu) }
+    // --nearest: diagnostic arm; output no longer matches the linear-filtered reference.
+    if CommandLine.arguments.contains("--nearest") {
+        guard replay_use_nearest_filter(gpu) else { throw ReplayError("nearest sampler: \(String(cString: replay_error()))") }
+        print("atlas filter: nearest (diagnostic)")
+    }
     print("SDL GPU driver: \(String(cString: replay_driver(gpu))); fixtures: \(names.count) from \(directory)")
 
     var parityFailures = 0
     for (name, fixture) in zip(names, fixtures) {
         let pixels = try render(fixture, runs: fixture.runs, gpu: gpu)
-        let delta = pixelDifference(fixture.reference, pixels)
         // --dump <dir>: raw BGRA8 of this backend's output, for offline diffing.
         if let dump = option("--dump") {
             FileManager.default.createFile(atPath: dump + "/" + name + ".bgra", contents: Data(pixels))
         }
-        let line = "\(name) \(fixture.width)x\(fixture.height): \(fixture.rectCount) rects, \(fixture.glyphCount) glyphs, \(fixture.runs.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta)"
+        let parity = fixture.parity(of: pixels)
+        let line = "\(name) \(fixture.width)x\(fixture.height): \(fixture.rectCount) rects, \(fixture.glyphCount) glyphs, \(fixture.runs.count) runs; outside glyphs: \(parity.outside.pixels) px, max Δ\(parity.outside.maxDelta) (≤\(ParityTolerance.outsideGlyphs)); inside glyphs: \(parity.inside.pixels) px, max Δ\(parity.inside.maxDelta) (≤\(ParityTolerance.insideGlyphs))"
         print(line)
-        // Permits UNORM rounding on another GPU, never a misplaced edge.
-        if delta.maxDelta > 1 {
+        if !parity.passes {
             parityFailures += 1
             if option("--dump") == nil { throw ReplayError("parity failed: \(line)") }
         }

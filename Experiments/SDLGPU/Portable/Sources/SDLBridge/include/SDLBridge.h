@@ -10,6 +10,8 @@ ReplayGPU *replay_create_portable(const char *shader_dir, const char *driver);
 const char *replay_error(void);
 const char *replay_driver(ReplayGPU *gpu);
 void replay_destroy(ReplayGPU *gpu);
+// Replaces the linear atlas sampler with a nearest one (diagnostic arm).
+bool replay_use_nearest_filter(ReplayGPU *gpu);
 // Synchronous diagnostic renderer. Copies caller bytes before returning.
 // Buffers are opaque: Swift supplies the existing MetalUI shader ABI.
 bool replay_render(ReplayGPU *gpu, uint32_t width, uint32_t height,
