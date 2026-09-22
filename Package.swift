@@ -70,7 +70,14 @@ let package = Package(
                 "src/sfnt/sfnt.c", "src/truetype/truetype.c", "src/cff/cff.c",
                 "src/psaux/psaux.c", "src/psnames/psnames.c", "src/smooth/smooth.c",
             ],
-            cSettings: [.define("FT2_BUILD_LIBRARY")]
+            cSettings: [
+                .define("FT2_BUILD_LIBRARY"),
+                // The default (swiftbuild) build system on macOS turns on
+                // -Wshorten-64-to-32, which FreeType's LP64 code trips 116
+                // times (measured); native SwiftPM and Linux do not. Silenced
+                // here rather than by editing the vendored sources (FT-A).
+                .unsafeFlags(["-Wno-shorten-64-to-32"]),
+            ]
         ),
 
         // Glyph rasterization with no Apple framework (rulings FT-B, FT-K):
