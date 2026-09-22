@@ -169,16 +169,16 @@ extension ReplayFixture {
     }
 }
 
-/// Per-pixel BGRA comparison: pixels with any differing channel, and the
-/// largest single-channel difference.
-public func pixelDifference(_ a: [UInt8], _ b: [UInt8]) -> (pixels: Int, maxDelta: Int) {
+/// Per-pixel BGRA comparison: pixels with a channel differing by more than
+/// `threshold` (default: any difference), and the largest channel difference.
+public func pixelDifference(_ a: [UInt8], _ b: [UInt8], above threshold: Int = 0) -> (pixels: Int, maxDelta: Int) {
     precondition(a.count == b.count && a.count % 4 == 0, "images differ in size")
     var pixels = 0, maxDelta = 0
     for i in stride(from: 0, to: a.count, by: 4) {
         var changed = false
         for c in 0..<4 {
             let delta = abs(Int(a[i + c]) - Int(b[i + c]))
-            changed = changed || delta != 0
+            changed = changed || delta > threshold
             maxDelta = max(maxDelta, delta)
         }
         if changed { pixels += 1 }

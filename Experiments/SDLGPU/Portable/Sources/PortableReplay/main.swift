@@ -3,7 +3,7 @@
 // and no MetalUI module: the fixtures are its only link to the renderer.
 //
 //   PortableReplay <fixture-dir> [--driver metal|vulkan|direct3d12]
-//                  [--shaders <dir>] [--show]
+//                  [--shaders <dir>] [--dump <dir>] [--show]
 import Foundation  // swift-corelibs-foundation off Apple platforms
 import ReplayFixture
 import SDLBridge
@@ -43,9 +43,9 @@ func render(_ fixture: ReplayFixture, runs: [FixtureRun], gpu: OpaquePointer) th
 
 func run() throws {
     let positional = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("--") }
-    let optionValues = Set(["--driver", "--shaders"].compactMap(option))
+    let optionValues = Set(["--driver", "--shaders", "--dump"].compactMap(option))
     guard let directory = positional.first(where: { !optionValues.contains($0) }) else {
-        throw ReplayError("usage: PortableReplay <fixture-dir> [--driver metal|vulkan|direct3d12] [--shaders dir] [--show]")
+        throw ReplayError("usage: PortableReplay <fixture-dir> [--driver metal|vulkan|direct3d12] [--shaders dir] [--dump dir] [--show]")
     }
     let driver = option("--driver") ?? "metal"
     let shaders = option("--shaders") ?? "Shaders/compiled"
@@ -66,29 +66,41 @@ func run() throws {
     defer { replay_destroy(gpu) }
     print("SDL GPU driver: \(String(cString: replay_driver(gpu))); fixtures: \(names.count) from \(directory)")
 
+    var parityFailures = 0
     for (name, fixture) in zip(names, fixtures) {
         let pixels = try render(fixture, runs: fixture.runs, gpu: gpu)
         let delta = pixelDifference(fixture.reference, pixels)
+        // --dump <dir>: raw BGRA8 of this backend's output, for offline diffing.
+        if let dump = option("--dump") {
+            FileManager.default.createFile(atPath: dump + "/" + name + ".bgra", contents: Data(pixels))
+        }
         let line = "\(name) \(fixture.width)x\(fixture.height): \(fixture.rectCount) rects, \(fixture.glyphCount) glyphs, \(fixture.runs.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta)"
         print(line)
         // Permits UNORM rounding on another GPU, never a misplaced edge.
-        guard delta.maxDelta <= 1 else { throw ReplayError("parity failed: \(line)") }
+        if delta.maxDelta > 1 {
+            parityFailures += 1
+            if option("--dump") == nil { throw ReplayError("parity failed: \(line)") }
+        }
     }
     // Positive control: the same comparison must see a backend that breaks painter order.
     let last = fixtures[fixtures.count - 1]
     let mutant = try render(last, runs: last.orderMutatedRuns, gpu: gpu)
-    let delta = pixelDifference(last.reference, mutant)
-    guard delta.pixels > 100, delta.maxDelta > 16 else {
+    // Count only pixels no rounding explains: a backend may differ by one
+    // step on every edge (llvmpipe does, on ~11k pixels a frame).
+    let delta = pixelDifference(last.reference, mutant, above: 16)
+    guard delta.pixels > 100 else {
         throw ReplayError("broken comparison: draw-order mutation moved \(delta.pixels) pixels, max delta \(delta.maxDelta)")
     }
-    let control = "draw-order mutation: differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta) (detected)"
+    let control = "draw-order mutation: pixels off by >16=\(delta.pixels), max channel delta=\(delta.maxDelta) (detected)"
     print(control)
 
     if CommandLine.arguments.contains("--show") {
         _ = try render(last, runs: last.runs, gpu: gpu)
         guard replay_show(gpu, 30) else { throw ReplayError("SDL window: \(String(cString: replay_error()))") }
     }
-    print("PASS")
+    // --dump reports every frame instead of stopping at the first failure.
+    print(parityFailures == 0 ? "PASS" : "FAIL: \(parityFailures) frame(s) over tolerance")
+    if parityFailures > 0 { exit(1) }
 }
 
 do { try run() } catch {

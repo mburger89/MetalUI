@@ -102,3 +102,12 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
     #expect(delta.pixels == 2)
     #expect(delta.maxDelta == 35)
 }
+
+@Test func aThresholdCountsOnlyPixelsBeyondIt() {
+    let a: [UInt8] = [0, 0, 0, 0,  10, 10, 10, 10,  5, 5, 5, 5]
+    let b: [UInt8] = [0, 0, 0, 0,  11, 10, 10, 10,  5, 5, 5, 40]
+    #expect(pixelDifference(a, b, above: 1).pixels == 1)
+    #expect(pixelDifference(a, b, above: 35).pixels == 0)
+    #expect(pixelDifference(a, b, above: 34).pixels == 1)
+    #expect(pixelDifference(a, b, above: 35).maxDelta == 35)
+}

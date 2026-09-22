@@ -22,7 +22,7 @@ No production source or root package dependency is changed.
 ```sh
 swift run --build-system native Replay --portable --record "$PWD/fixtures"
 cd Portable
-swift test                                             # fixture format, 11 tests
+swift test                                             # fixture format, 12 tests
 swift run PortableReplay ../fixtures                   # SDL Metal
 SDL_VULKAN_LIBRARY=/opt/homebrew/lib/libvulkan.1.dylib \
   swift run PortableReplay ../fixtures --driver vulkan  # SDL Vulkan (MoltenVK)
@@ -86,7 +86,39 @@ performance measurement: the probe compiles shaders and waits for GPU readback.
 | adapted native MSL | SDL Metal | 0 / 0 / 0 / 0 | 283 px, Δ152 |
 | HLSL → SPIR-V → MSL (`--portable`) | SDL Metal | 0 / 0 / 0 / 0 | 283 px, Δ152 |
 | HLSL → SPIR-V (`--driver vulkan`) | SDL Vulkan, MoltenVK 1.4.2 | 0 / 0 / 0 / 0 | 283 px, Δ152 |
-| `PortableReplay` from fixtures | SDL Metal and SDL Vulkan | 0 / 0 / 0 / 0 | 283 px, Δ152 |
+| `PortableReplay` from fixtures | SDL Metal and SDL Vulkan | 0 / 0 / 0 / 0 | 205 px >16, Δ152 |
+| `PortableReplay`, **Linux** aarch64 (OrbStack) | SDL Vulkan, Mesa llvmpipe (LLVM 20) | max Δ 1 / 1 / 1 / **3** — frame 3 fails | 205 px >16, Δ151 |
+
+The control counts pixels off by more than 16 steps (`above: 16`): llvmpipe
+differs from Metal by one step on ~11–14k pixels in every frame, so a raw
+changed-pixel count proves nothing there.
+
+### Linux (2026-09-21)
+
+```sh
+docker --context orbstack build -t metalui-portable Portable/linux
+docker --context orbstack run --rm -v "$PWD":/work metalui-portable bash -c \
+  'swift test --scratch-path /tmp/build && \
+   $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../fixtures --driver vulkan'
+```
+
+Swift 6.2.4 on Ubuntu 24.04 with SDL 3.4.16 built from source (headless:
+`SDL_UNIX_CONSOLE_BUILD`, offscreen video) and Mesa llvmpipe, a CPU Vulkan
+driver. `Portable/` builds, its 12 tests pass, and `PortableReplay` links
+SDL3 and swift-corelibs-foundation only. Parity:
+
+- Frames 0–2 (identity projection): every difference is exactly one step,
+  mostly blue; no pixel differs by more — within tolerance.
+- Frame 3 (0.85 projection): 631 pixels differ by 2–3 steps, alpha never.
+  **All 631 lie inside glyph quads.** Glyphs sit on integer pixel origins in
+  the identity frames, so the atlas is sampled at texel centres; the scaled
+  projection samples between texels, where bilinear weight precision is
+  implementation-defined (Vulkan guarantees only 4 `subTexelPrecisionBits`).
+  Rect pixels stay within one step. This is the inferred cause, not yet
+  proved by a nearest-filter or texel-centre separating arm.
+
+`--dump <dir>` writes each frame's raw BGRA8 and reports every frame instead
+of stopping at the first failure; the verdict still fails.
 
 ## Deliberate limits
 
@@ -120,7 +152,7 @@ validated public renderer API.
    at 0 differing pixels on SDL Metal and SDL Vulkan with no MetalUI module
    built or linked. Production is untouched: `Scene` still lives in
    `MetalUIRender` (which imports Metal) and `GlyphAtlas` in `MetalUIText`
-   (CoreText). `Portable/` has **not** been built on Linux or Windows yet.
+   (CoreText). Built and run on Linux (above); not on Windows.
 3. Add asynchronous resource lifetime and atlas-update stress cases before
    benchmarking or integrating with `Window`.
 4. Introduce a renderer protocol only after the two implementations establish
