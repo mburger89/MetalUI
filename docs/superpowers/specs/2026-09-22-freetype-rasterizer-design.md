@@ -35,9 +35,10 @@ until then ids come from CoreText's shaper or from tests), font discovery
   `-Wshorten-64-to-32`, which the vendored LP64 code trips 116 times, in both
   the root package and when the portable package pulls `MetalUIFreeType` in
   as a dependency; native SwiftPM (this project's counted baseline) and Linux
-  do not turn it on. Fixed with `.unsafeFlags(["-Wno-shorten-64-to-32"])` in
-  `CFreeType`'s `cSettings` rather than editing vendored sources; SwiftPM
-  accepts an `unsafeFlags` C setting in a path dependency.
+  do not turn it on. Silenced by `#pragma clang diagnostic ignored
+  "-Wshorten-64-to-32"` in the vendored `ftoption.h`, under
+  `FT2_BUILD_LIBRARY` — not `unsafeFlags`, which SwiftPM refuses in any
+  package consumed by URL.
 - **FT-B — one new target, `MetalUIFreeType`, depending on `MetalUIScene` and
   `CFreeType` only.** No Foundation, CoreText, CoreGraphics or Metal; it joins
   `MetalUIScene` under the Linux build rule (`PS-G`). It is in the root package

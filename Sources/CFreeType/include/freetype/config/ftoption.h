@@ -1056,6 +1056,17 @@ FT_BEGIN_HEADER
 
 FT_END_HEADER
 
+  /*
+   * MetalUI (ruling FT-A): the default (swiftbuild) build system on macOS
+   * enables -Wshorten-64-to-32, which FreeType's LP64 code trips 116 times.
+   * Silenced for FreeType's own compilation only (FT2_BUILD_LIBRARY is set
+   * by CFreeType's cSettings, never by a client), and here rather than as an
+   * unsafeFlags setting, which SwiftPM refuses in a URL dependency.
+   */
+#if defined( FT2_BUILD_LIBRARY ) && defined( __clang__ )
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
+
 #endif /* FTOPTION_H_ */
 
 

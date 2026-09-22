@@ -62,17 +62,15 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   clean` with `swift build --build-system native --build-tests` then
   unfiltered `swift test --build-system native --no-parallel`. History: record
   §06, §19, §20, §21 "Build and test". A count is stale the moment a test
-  lands; re-measure. `find Tests -name "*.json" | wc -l` reads higher than 97
-  once `swift test` has run inside `Tests/PortableTests/` — its own gitignored
-  `.build/` grows JSON build artifacts there; only
-  `Tests/MetalUILayoutTests/Golden` holds goldens.
+  lands; re-measure.
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line; the default build system may print six (sum them).
   Two gated tests count toward the total while skipped. The lone `warning:`
   under native is SwiftPM's deprecation notice.
 - **Goldens must not move** on a change outside `Sources/MetalUILayout/`
-  (`find Tests -name "*.json" | wc -l`). WebKit is the oracle for the CSS
-  engine only. The proposal kernel shares `LayoutTree.swift` storage
+  (`find Tests/MetalUILayoutTests -name "*.json" | wc -l` — not all of
+  `Tests/`, where `Tests/PortableTests/.build/` holds JSON build artifacts).
+  WebKit is the oracle for the CSS engine only. The proposal kernel shares `LayoutTree.swift` storage
   (`newNode`, `reset`, `roundLayout`, the `SA-G`/`SA-I` preconditions), so a
   proposal-path edit there can move a golden — run the fixtures. No text
   fixture, ever (TX-B).

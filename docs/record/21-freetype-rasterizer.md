@@ -93,11 +93,16 @@ discovery, variable fonts, colour glyphs, hinting.
   `ubuntu-24.04-arm`, `swift:6.4-noble` container) and
   `freetype-portable-windows` (`windows-latest`,
   `compnerd/gha-setup-swift@v0.5.0`, `swift-6.4.0-release`).
-- `Package.swift`'s `CFreeType` target: `.unsafeFlags(["-Wno-shorten-64-to-32"])`
-  in `cSettings`. The default (swiftbuild) build system on macOS turns on
+- The default (swiftbuild) build system on macOS turns on
   `-Wshorten-64-to-32`, which the vendored LP64 C code trips 116 times; native
-  SwiftPM (this project's baseline) and Linux do not turn it on. The vendored
-  sources are unchanged; only the flag differs.
+  SwiftPM (this project's baseline) and Linux do not. The portable lane first
+  silenced it with `.unsafeFlags(["-Wno-shorten-64-to-32"])` in `CFreeType`'s
+  `cSettings`. **Replaced at review:** SwiftPM refuses `unsafeFlags` in any
+  package consumed by URL, so that would have made MetalUI undependable as a
+  library. It is now `#pragma clang diagnostic ignored "-Wshorten-64-to-32"`
+  in the vendored `ftoption.h`, under `FT2_BUILD_LIBRARY` (set only for
+  FreeType's own compilation). Measured from `rm -rf .build` on the default
+  build system: 116 warnings with the pragma removed, 0 with it.
 
 ## Measurements
 
@@ -187,9 +192,9 @@ consistent with `FT-J`'s scope.
 
 After `swift package clean`, `--build-system native` (re-taken in this
 session): **1419 tests** (1411 + 8, one of the 8 skipped), **97 goldens**
-(`find Tests -name "*.json" | wc -l` reads 115 once `Tests/PortableTests`'s
-own gitignored `.build/` has run once; the 97 are all under
-`Tests/MetalUILayoutTests/Golden`), **73 typecheck guards** (no new guard
+(`find Tests -name "*.json" | wc -l` read 115 once `Tests/PortableTests`'s
+own gitignored `.build/` had run; CLAUDE.md's command is now scoped to
+`Tests/MetalUILayoutTests`), **73 typecheck guards** (no new guard
 file — `MetalUIFreeType` adds no plain-import boundary that needed one beyond
 `FT-K`'s Linux build check), 0 `error:`, 1 `warning:` (SwiftPM's
 `--build-system native` deprecation notice), the `FR-J` line present once.
@@ -216,3 +221,14 @@ package on Linux aarch64: 4/4 pass.
   to `MetalUIFreeType` is future work.
 - Windows could not be run locally; CI carries the only Windows coverage for
   `Tests/PortableTests`.
+
+## Review fixes (after the workflow)
+
+- `unsafeFlags` replaced by the scoped pragma (above).
+- The verifier's one surviving mutant: FontKey's size built from `size * 2`
+  reddened nothing in `Tests/PortableTests`, which never read the key. Added
+  `theFontKeyIsReadOffTheFaceAtTheRequestedSize` (PostScript name, size in
+  points, no variations, identity matrix, per font at 13 and 26 pt); the same
+  mutant now reddens it alone. The portable package runs 5 tests.
+- The verifier counted 71 guards because it used a pre-`PS-` file list; the
+  list in CLAUDE.md includes `SceneBoundaryCompileGuards` (2), so 73.

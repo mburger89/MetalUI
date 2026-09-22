@@ -128,6 +128,24 @@ let recording = ProcessInfo.processInfo.environment["METALUI_PORTABLE_RECORD"] =
         #expect(mismatches == 0, "\(mismatches) of \(grid.count) cases differ from macOS")
     }
 
+    @Test func theFontKeyIsReadOffTheFaceAtTheRequestedSize() throws {
+        // FT-F off macOS, where the CoreText equality test cannot run: the key
+        // carries the face's PostScript name and the size in POINTS as
+        // requested (never scaled), with no variations and the identity matrix.
+        let names = ["NotoSans-Regular.ttf": "NotoSans-Regular",
+                     "SourceSans3-Regular.otf": "SourceSans3-Regular"]
+        for file in fontFiles {
+            for size in [13.0, 26.0] {
+                let key = try FreeTypeFont(data: fontBytes(file), size: size).key
+                #expect(key.postScriptName == names[file], "\(file)")
+                #expect(key.size == size, "\(file) at \(size)")
+                #expect(key.variations.isEmpty, "\(file)")
+                #expect(key.matrix.a == 1 && key.matrix.b == 0 && key.matrix.c == 0
+                        && key.matrix.d == 1 && key.matrix.tx == 0 && key.matrix.ty == 0, "\(file)")
+            }
+        }
+    }
+
     @Test func theGridIsNotDegenerate() throws {
         // Guards the pins against a rasterizer that returns nothing: the space
         // is empty, every other glyph has ink, and no two inked cases in one
