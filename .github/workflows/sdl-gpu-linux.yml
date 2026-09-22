@@ -23,7 +23,7 @@ jobs:
       run:
         working-directory: Experiments/SDLGPU
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install SDL3
         run: brew install sdl3 pkg-config
       - name: Compiled shaders match replay.hlsl
@@ -32,7 +32,7 @@ jobs:
       - name: Record, and check SDL Metal parity live
         # --portable: the HLSL -> SPIR-V -> MSL stages, the same source Linux runs.
         run: swift run Replay --portable --record "$PWD/fixtures"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: fixtures
           path: Experiments/SDLGPU/fixtures/
@@ -52,14 +52,14 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: fixtures
           path: Experiments/SDLGPU/fixtures
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build image (Swift, SDL3 from source, Mesa)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: Experiments/SDLGPU/Portable/linux
           tags: metalui-portable
@@ -76,7 +76,7 @@ jobs:
             swift test --scratch-path /tmp/build
             $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../fixtures --driver vulkan --dump ../linux-dump
           '
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: linux-dump-${{ matrix.arch }}
