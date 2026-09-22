@@ -247,7 +247,7 @@ private func solveSpanningRow() throws -> NativeGridSolution {
 /// equal to their answers, 2 more hits).
 ///
 /// Mutation: make the first group's commit sweep visit only its own cells'
-/// columns (the counter loses its `ncols` term; 5n + 7 becomes 4n + 8).
+/// columns (the counter loses its `ncols` term; the lane records the figure).
 @Test func aLargeColumnCountCostsTheKernelOnePassPerColumn() throws {
     func grid(_ n: Int) throws -> (tree: LayoutTree, plan: NativeGridPlan, root: LayoutNodeID) {
         let tree = LayoutTree(generation: 0)

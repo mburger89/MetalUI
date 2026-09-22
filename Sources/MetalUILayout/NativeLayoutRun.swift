@@ -101,6 +101,21 @@ final class NativeLayoutRun {
     /// loop read 65 / 66; `NativeGridSolver` is inverted (it asks, the tree
     /// measures) for that reason. Both grid ceilings clear `GR-M`'s gate of 147.
     ///
+    /// **Re-taken by grids lane 3**, which re-bisected the PLACEMENT path
+    /// (`GR-AC` item 4): lanes 1 and 2 bisected chains of ONE-cell grids, whose
+    /// slot always equals the cell's answer, so `nativeGridCellRects`' fresh
+    /// measurement never ran on the measured stack. A chain of two-cell rows
+    /// whose inner cell's slot differs from its answer at **every** level (the
+    /// row one point taller than the inner grid) completes **154** levels and
+    /// dies at 155 — the same before and after lane 3's code, and 155 completes
+    /// on a 4 MB thread, so it is a stack ceiling and not a logic failure. It
+    /// clears the gate of 147 by seven levels, so `placeGrid` keeps its shape
+    /// (the solver loop and `nativeGridCellRects`' `map`) and is not routed
+    /// through `measureGrid(_:atAProposal:)`. Same run: one-cell grid at nil×nil
+    /// 167 / 168 (unchanged), at 400×400 **154 / 155** (155 / 156 in lane 2, one
+    /// level for lane 3's locals), stack 127 / 128 and padding 194 / 195,
+    /// unchanged.
+    ///
     /// **No parity with legacy is claimed.** One legacy level ported as
     /// `.padding(…).frame(width:)` is at least three native levels, so a
     /// ported tree near legacy's 64 can exceed 88 native levels and trap where
