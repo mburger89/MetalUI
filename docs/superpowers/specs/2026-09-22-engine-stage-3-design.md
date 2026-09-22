@@ -1,5 +1,9 @@
 # Engine replacement, stage 3 — scrolling and `Component` distribution (design)
 
+**Status, 2026-09-22 (PDT): lanes 1 and 2 IMPLEMENTED** (record §7, §8);
+lanes 3–5 designed. The design-phase status below describes the state before
+lane 1.
+
 **Status, 2026-09-22 (PDT): DESIGNED. No file under `Sources/` or `Tests/`
 changed in a commit; every source patch cited as *prototype P4* was applied in
 this worktree, built, run and restored with `git checkout Sources Tests` (the
@@ -379,7 +383,7 @@ names; stage 11 owns it.
 | what | lowers to | note |
 |---|---|---|
 | the content children | `lowerLegacyNode` at site `scrollView`, style = `flexDirection` only | stage 2's container lowering entire |
-| a scroller child's item field stage 2 does **not** lower | `scrollView.<field>` | `lowerLegacyNode` passes `site:` to `planLegacyItems` as `parentSite:` — this is what keeps the case reachable |
+| a scroller child's **unequal grow weights** | `scrollView.flexGrow.weights` | `lowerLegacyNode` passes `site:` to `planLegacyItems` as `parentSite:`, and that is the **only** entry raised there — every other per-child entry is raised at the child's own site (`LR-BM` item 1). This is one of the two routes that keep the case reachable |
 | the content node's own record | **left unconsumed** | nothing reports today (all defaults); a future field on that style reports rather than vanishing (§3.1) |
 | `flexShrink: 0` on the content node | **nothing** (carrying it reports) | no kernel freeze loop (§3.1); **M2d** |
 | `overflow: .scroll` on the viewport | **nothing** | already inert (CLAUDE.md's table) |
@@ -391,15 +395,21 @@ names; stage 11 owns it.
 **Nothing at site `scrollView` reports for the shapes stage 2 lowers** — which
 is what the demo exercises, and what §7's report pins. The site stays in
 `LoweringSite`, and `UnlowerableField.owningStage`'s `case .scrollView` with it,
-for the two reachable routes in the table above: a scroller child's unlowerable
-item field (`alignSelf: .baseline`, a percentage `flexBasis`, unequal grow
-weights) reporting through `parentSite:`, and a field carried onto the
-unconsumed content style. The design's first writing gave the reason as
-"`LoweredItem.site` names it in a `…unconsumed` report", which is unreachable:
-the viewport's record is `declared: Style()` and `ScrollView` is not a
-`StyledElement`, so it has no modifier surface to set an item field with
-(critic round 1 finding 9). Test 2.5 produces a `scrollView.alignSelf` report on
-purpose, so the case is pinned live rather than asserted live.
+for the two reachable routes in the table above: a scroller child's **unequal
+grow weights**, reporting `scrollView.flexGrow.weights` through `parentSite:`,
+and a field carried onto the unconsumed content style. The design's first
+writing gave the reason as "`LoweredItem.site` names it in a `…unconsumed`
+report", which is unreachable: the viewport's record is `declared: Style()` and
+`ScrollView` is not a `StyledElement`, so it has no modifier surface to set an
+item field with (critic round 1 finding 9). **Critic round 1's replacement was
+itself half wrong** and is corrected in lane 2 (`LR-BM` item 1): it named
+`alignSelf: .baseline` and a percentage `flexBasis` as well, and both report at
+the **child's** site — `planLegacyItems` raises exactly one entry at
+`parentSite:`, `flexGrow.weights`, and every per-child entry at `item.site`.
+Test 2.5 (c) produces `scrollView.flexGrow.weights` on purpose, so the case is
+pinned live rather than asserted live, and
+`everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s `ScrollView` arm uses
+the same shape.
 
 ### 4.2 `Component` (site `component`)
 
@@ -533,8 +543,8 @@ deviation from the prediction is a finding, not a rounding.
 | lane | new tests | predicted total |
 |---|---|---|
 | — | baseline at `57893d0` | **1550** |
-| 1 | 1.1, 1.2, 1.4 — 3 (1.3 and the exit-test trap arm are arms of existing tests) | **1553** |
-| 2 | 2.1, 2.2, 2.2a, 2.3, 2.4, 2.5, 2.6, 2.7 — 8 | **1561** |
+| 1 | 1.1, 1.2, 1.4 — 3 (1.3 and the exit-test trap arm are arms of existing tests) | **1553** ✓ measured |
+| 2 | 2.1, 2.2, 2.2a, 2.3, 2.4, 2.5, 2.6, 2.7 — 8 (A2b is an arm of 2.1) | **1561** ✓ measured |
 | 3 | 3.4, 3.5 — 2 (3.1–3.3 parameterise in place) | **1563** |
 | 4 | 4.1–4.6 — 6 | **1569** |
 | 5 | 5.1, 5.1a, 5.2 — 3 (5.3 amends, 5.4 re-runs) | **1572** |
@@ -589,12 +599,12 @@ Files: `ScrollView.swift`, `LoweringState.swift` (doc), `LayoutAuthority.swift`
 
 | # | test | red before | mutation |
 |---|---|---|---|
-| 2.1 | `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape` — prototype arms A1, A2, A5, A8, A9 (6, 8, 4, 4, 7 ids), each agreeing, `try #require` on the id counts | `scrollView.noLowering` | **M2a** the viewport registered as a plain native leaf (A1's content rects collapse); **M2b** the content node registered through `requestNativeLinearStack` directly instead of `lowerLegacyNode` (A2's stretch and padding rows move) |
+| 2.1 | `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape` — prototype arms A1, A2, A5, A8, A9 (6, 8, 4, 4, 7 ids) plus lane 2's **A2b** (5 ids), each agreeing, `try #require` on the id counts | `scrollView.noLowering` | **M2a** the viewport registered as a plain native leaf (A1's content rects collapse); **M2b** the content node registered through `requestNativeLinearStack` directly instead of `lowerLegacyNode` — which moves **A2b's** centred row, not "A2's stretch rows" as first written: every other arm's content is fixed-size leaves the container lowering is a no-op over, so a bare stack is geometrically identical and M2b reddened only the diagnostics tests (`LR-BM` item 2b) |
 | 2.2 | **divergence pin** `aLoweredScrollViewFillsItsProposalOnTheScrollingAxisWhereTheLegacyViewportHugs` — A7 (`Row` parent 120×100: viewport (0, 20) 50×60 → (0, 0) 50×100, both children up 20), A11 (`Column` parent: the same), and the agreeing-cross-axis control A10 (**120 on both sides**), each with `try #require` that the two authorities disagree before the equalities are read | reported | **M2c** the viewport lowered as a `fixedSize` over the content (both sides read 60 and the pin's `#require` fails) |
 | 2.2a | **divergence pin** `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem` — a lowered `ScrollView` and a `ProposalScrollView` as the two children of **one** stretching lowered `Box` with a declared cross size: the `ScrollView` takes the line's cross size through stage 2's stretch item frame and the alias, the `ProposalScrollView` keeps its content's (`LR-BC` amended, critic round 1 finding 5). `try #require` the two disagree; both rects literal | reported (the `ScrollView` half) | **M2i** `recordLoweredItem` dropped from the lowered `ScrollView` (the two agree and the `#require` fails — which is also how the surviving divergence would silently close) |
 | 2.3 | **divergence pin** `aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows` — A4: viewport 160×50 → 100×50, `scenesEqual` and `hitboxesEqual` both **false** and asserted false | reported | **M2c** |
 | 2.4 | `aLoweredScrollViewsContentKeepsItsNaturalExtent` — A6's shape: the `Text` is 225 wide inside a 100pt viewport on **both** sides (the width derived from the shaping cache, `LR-F`), and the height disagreement (40 → 16) is asserted as stage 2's single-child stretch elision with `LR-AC` named | reported | **M2d** (restated, critic round 1 finding 2) `flexShrink: 0` carried into the lowered content style: with the record left unconsumed this **reports** `scrollView.flexShrink.unconsumed`. One edit. (The first writing had the record consumed, which made this mutation inert — a consumed record is skipped by `reportUnconsumedLoweredItems`) |
-| 2.5 | `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable` — three things: (a) `Box { ScrollView { … } }.alignItems(.stretch)` with a declared cross size stretches the viewport (the alias reaches its hitbox and its clip); (b) the content node's record is left unconsumed and, with only `flexDirection` on that style, **nothing** reports; (c) a scroller **child** declaring `alignSelf: .baseline` reports **`scrollView.alignSelf`** — the route that keeps `LoweringSite.scrollView` and `owningStage`'s `.scrollView` branch reachable (§4.1, critic round 1 finding 9) | reported | **M2e** (restated) the content node registered with `site: .modifierLayer` — (c) reads the wrong site; **M2f** the viewport not recorded (its parent stops stretching it) |
+| 2.5 | `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable` — three things: (a) a **horizontal** `Box { ScrollView { … } }.alignItems(.stretch)` with a declared cross size stretches the viewport, read three ways (element rect, scroll region, the content leaf's `contentMask`); (b) the content node's record is left unconsumed and the viewport's is consumed, asserted structurally on `Frame.lowering`, and with only `flexDirection` on that style **nothing** reports; (c) two scroller **children** with unequal `flexGrow` factors report **`scrollView.flexGrow.weights`** — the route that keeps `LoweringSite.scrollView` and `owningStage`'s `.scrollView` branch reachable (§4.1; `LR-BM` item 1 corrects critic round 1's `alignSelf: .baseline`, which reports at the child's site) | reported | **M2e** (restated) the content node registered with `site: .modifierLayer` — (c) reads the wrong site; **M2f** the viewport not recorded (its parent stops stretching it) |
 | 2.6 | `aLoweredScrollViewKeepsItsTwoAnimationSlots` (`LR-BE`) — `$anim-content` and `$anim-viewport` still hold distinct entries under the proposal authority, and `theSevenRetentionSlotsAreMutuallyDistinct` still passes | reported | **M2g** both `animated(…)` calls given the bare `id` |
 | 2.7 | `aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork` (`SA-M`) — A1's tree, `LayoutTree.lastNativeLayoutWork`'s calls/hits/misses and the node count **derived by hand in the doc comment before the first run** | written against stage-2 API, so it compiles; the report carries `scrollView.noLowering` and the literals mismatch | **M2h** the content node registered twice |
 
@@ -607,7 +617,9 @@ reported); `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (§7).
 
 **Demo expectation**: eight legacy images 0 px (no production root lowers); two
 preview images 0 px (`ProposalScrollView` untouched by this lane); the 560²
-pair 0 px.
+pair 0 px. **Measured: 0 in all twelve, every scene dump byte-identical**, with
+all eight of §8's control figures reproduced by a rebuilt harness (`LR-BM`
+item 4). Screen **locked** at the end of the lane, so no real-window capture.
 
 ### Lane 3 — the scroll suites under both authorities (the exit test, `LR-BI`)
 
@@ -702,13 +714,25 @@ expectation:
    agreeing / 30 disagreeing (modal off), 2042 / 36 (modal on) — P4 passed both
    `#require`s unchanged.
 3. **Three of the thirty rows' lowered rects change**, and only three. Legacy
-   values unchanged throughout:
+   values unchanged throughout. **Measured in lane 2, identical to P4's
+   prediction in every cell** (the middle row is the `List`'s row `Box`, which
+   P4 labelled "the `ScrollView`'s content node"; the content node is not an
+   element and has no id):
 
-| row | legacy | lowered before | lowered after (P4) |
+| row | legacy | lowered before | lowered after (P4; lane 2) |
 |---|---|---|---|
 | the `ScrollView`'s viewport | (132, 439) 420×0 | (240, 455) 0×0 | (240, 455) 0×**73** |
-| the `ScrollView`'s content node | (132, 439) 420×0 | **(0, 0)** 0×0 | **(240, 455)** 0×0 |
+| the `List`'s row `Box` | (132, 439) 420×0 | **(0, 0)** 0×0 | **(240, 455)** 0×0 |
 | the `List` | (132, 439) 420×14000 | (0, 0) 0×0 | (240, 455) 0×**14000** |
+
+   **Modal on, two of those three widths read 420 rather than 0**, and the cause
+   is stage 2's, not stage 3's: `Deferred` registers no node of its own and hands
+   its child's node straight up, so the lowered content node has **two** children
+   with the modal on, the single-child stretch elision (`LR-AC`) stops applying,
+   the `List` takes a greedy item frame and reads the 420 its scroller was
+   proposed, and the viewport's non-scrolling axis (`CN-M`) reads 420 with it.
+   The row `Box` stays 0×0. Recorded as three per-id overrides in the test's
+   modal half (`LR-BM` item 3); it disappears when stage 4 lowers `List`.
 
    The three rows' **widths stay 0** because the `List` reports and builds no
    rows, so the viewport's non-scrolling axis — the content's answer (`CN-M`) —
@@ -725,7 +749,8 @@ Mutations that must redden it: **M2a**, **M2d** (which adds
 stage 2's **M1a** and **M2a** (unchanged). **M2e** is no longer in this list:
 restated as "the content node registered with the wrong `site:`", it does not
 change the demo's report, because the demo's scroller children produce no
-item-field entry — 2.5's `alignSelf: .baseline` arm is what sees it.
+item-field entry — 2.5 (c)'s unequal-`flexGrow` arm is what sees it (`LR-BM`
+item 1).
 
 ## 8. Demo, pixels and captures
 
