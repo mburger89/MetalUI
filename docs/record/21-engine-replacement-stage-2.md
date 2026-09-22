@@ -1,4 +1,4 @@
-# 19 — Engine replacement, stage 2 (plan task 7)
+# 21 — Engine replacement, stage 2 (plan task 7)
 
 Spec: `docs/superpowers/specs/2026-09-17-engine-stage-2-design.md`. Rulings
 `LR-AB`…`LR-BA` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`
@@ -1482,7 +1482,7 @@ commits:
 | `ff8b05c`, `55621aa`, `9a4a130`, `4bde004` | **lane 4** — the box model |
 | `3ec113b`, `32f82d4`, `45ba049` | **lane 5** — justify distribution and reverse directions |
 | `901e243` | the verification round above |
-| (this commit) | record §19 |
+| (this commit) | record §21 |
 
 **The behaviour.** Under the **proposal authority only** — production still runs the
 legacy authority until stage 6b — a lowered legacy tree now carries flex-item
@@ -1746,13 +1746,13 @@ the merge, **after `swift package clean`** (hazard 1).
    next is `LR-AB`) | `` → `` (`LR-A`…`LR-BA`, next is `LR-BB`) ``. In "Where things
    are", after the stage-1 line: `` stage 2 (flex-item semantics):
    `specs/2026-09-17-engine-stage-2-design.md`, same decisions doc (`LR-AB`…`LR-BA`),
-   record §19; probe `docs/probes/swiftui-engine-replacement-stage2.swift`
+   record §21; probe `docs/probes/swiftui-engine-replacement-stage2.swift`
    (revision 4). ``
 2. **Counts.** 1409 / 97 / 71 → **1460 / 97 / 71** on `feat/engine-stage-2` at
    `901e243` (**+51 tests**: lane 1 +15, lane 2 +15, lane 3 +2, lane 4 +9, lane 5
    +9, verification round +1; **0 goldens, 0 guards** — this stage added no
    typecheck guard, so the per-file guard list and the "the other 31 …" sentence are
-   unchanged); record §19. Then re-take after the merge.
+   unchanged); record §21. Then re-take after the merge.
 3. **The layout-authority paragraph** (the one stage 1 added). Append, keeping it
    rules-only:
    > "**Stage 2 lowers the flex ITEM fields, by the parent** (`LR-AB`…`LR-BA`).
@@ -1834,7 +1834,7 @@ the merge, **after `swift package clean`** (hazard 1).
    default-vs-preview 890 803. Offscreen stand-in at every lane: twelve images 0
    differing, the two-authority chrome pair 0 (control 8 214). Nothing in production
    runs under the proposal authority, so no demo look is owed until stage 6b (record
-   §19)".
+   §21)".
 
 **The plan's task 7 entry: do NOT tick it.** Append under the existing notes:
 
@@ -1842,7 +1842,7 @@ the merge, **after `swift package clean`** (hazard 1).
 > of 14, task still open.* Spec `specs/2026-09-17-engine-stage-2-design.md`; rulings
 > `LR-AB`…`LR-BA` in `../2026-09-17-engine-replacement-decisions.md` (the same doc
 > as stage 1); probe `docs/probes/swiftui-engine-replacement-stage2.swift`
-> (revision 4); record §19. **Stage 2 delivered** (five lanes, each red first, all
+> (revision 4); record §21. **Stage 2 delivered** (five lanes, each red first, all
 > verified `ok`, fourteen minors all dispositioned): flex-item semantics lowered by
 > the parent under the proposal authority — item records and the unconsumed report,
 > stretch and `alignSelf`, `flexGrow`/`flexBasis`/`flexShrink`, CSS minima and
@@ -1869,7 +1869,7 @@ the merge, **after `swift package clean`** (hazard 1).
   **1460** … **97** … **71**"; re-take after the merge.
 - "Forty-eight measured divergences" stays **forty-eight** (59 retires, 60 is added).
 - In the record list, after `18-engine-replacement-stage-1.md`: "and
-  [`19-engine-replacement-stage-2.md`](docs/record/19-engine-replacement-stage-2.md)
+  [`21-engine-replacement-stage-2.md`](docs/record/21-engine-replacement-stage-2.md)
   for its second". In the specs list, extend the engine-replacement entry: "stages 1
   and 2 of 14 landed: legacy elements lower onto the kernel under an internal
   proposal authority, with SwiftUI's flex-item semantics; production still uses the
@@ -1877,7 +1877,7 @@ the merge, **after `swift package clean`** (hazard 1).
 
 **Other owned documents:**
 
-- `docs/record/README.md`: add `` | `19-engine-replacement-stage-2.md` | plan task 7
+- `docs/record/README.md`: add `` | `21-engine-replacement-stage-2.md` | plan task 7
   stage 2 on `feat/engine-stage-2`: flex-item semantics lowered by the parent — item
   records and the unconsumed report, the cross and main axes, the box model,
   distribution and reverse, animated fields; the two proposal-path answers that reach

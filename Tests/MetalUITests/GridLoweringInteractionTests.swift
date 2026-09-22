@@ -5,10 +5,10 @@ import MetalUICore
 import MetalUIText
 @testable import MetalUI
 
-// Integration of plan task 7's two parallel stage-2 tracks (record §21): the
-// engine track's legacy LOWERING (`docs/record/19-engine-replacement-stage-2.md`,
+// Integration of plan task 7's two parallel stage-2 tracks (record §23): the
+// engine track's legacy LOWERING (`docs/record/21-engine-replacement-stage-2.md`,
 // rulings `LR-AB`…`LR-BA`) and the grids track's `Grid`/`GridRow`
-// (`docs/record/20-grids.md`, rulings `GR-A`…`GR-AT`). Neither track could run
+// (`docs/record/22-grids.md`, rulings `GR-A`…`GR-AT`). Neither track could run
 // these: each holds only its own half.
 //
 // The two meet at exactly one seam — a kernel node under the **proposal layout
@@ -31,7 +31,7 @@ import MetalUIText
 //
 // **Geometry is hand-derived before the run** (practices): every extent an
 // alignment divides is even, and each test's doc comment carries the derivation.
-// Each test names the mutation that reddens it; record §21 names what each
+// Each test names the mutation that reddens it; record §23 names what each
 // reddened.
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }

@@ -1305,3 +1305,41 @@ re-take the pixel readings of the 2026-09-10 animation entry. One prediction is
 worth noting against the image: record §16 said a look at the 920×560 preview
 would report a clipped border (`FR-U`); the `c4b5853` and later preview
 captures show no clipped content at any window edge. That was not investigated.
+
+
+## 2026-09-21: two rows added at the stage 2 / grids integration
+
+Records §21–§23. Written into the root `CLAUDE.md` at the
+`integrate/stage-2-grids` Docs phase and recorded here because that file has
+since been cut to rules only.
+
+- **Release-window capture of the default demo and the preview against
+  `cb2e708`** (plan task 7 stages 2 and G, merged on `integrate/stage-2-grids`).
+  **The offscreen half is closed; the real-window half is open.** Offscreen
+  (`CN-R`'s harness from `git archive`s of `cb2e708` and the merged head,
+  `DEMO_PIXELS_SMALL=1`): **nine of twelve images at 0 differing pixels**,
+  scenes identical — every default, modal and animation image, light and dark,
+  and `small560-default-light`. The three **preview** images differ and are
+  attributed: `preview-light`/`preview-dark` 7 680 px in bbox
+  (624,865)–(795,920), exactly the grids track's four 80×24 preview cells
+  (4 × 1 920) inside their 172×56 bounding box, and `small560-preview-light`
+  52 033, where the narrower preview reflows around the grid. **The merge
+  itself renders nothing new**: merged head vs `feat/grids` is 0 in all twelve.
+  Controls non-zero and reproducing the tracks' figures (light/dark 1 048 576,
+  modal 1 030 498, animation 210 027, f0 vs f3 0, preview light/dark
+  1 048 576, 544 distinct values); the two-authority chrome pair 0 with 216
+  distinct values, 308 354 against `small560-default-light`, and its `M5d`
+  instrument control (the lowering's stack spacing + 50, which moves the
+  lowered side alone) **8 214**. Every figure was re-taken independently twice
+  more — the verification round on a rebuilt harness and three separately built
+  archives, and the adversarial round on a third harness written from the
+  recipe (record §23 §6, §7) — identical to the pixel and to the bounding box.
+  **No real-window capture**: the screen was locked at the merge and at the
+  verification round (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`),
+  so `capture.sh` was not run (`FR-V`).
+- **The proposal preview's grid** (`METALUI_NATIVE_LAYOUT_PREVIEW=1`): two rows
+  and two columns of 80×24 cells at the right of the bottom row, the last cell
+  changes colour on click and lights on hover, and nothing else on the preview
+  moved. **Open, nobody has looked at a grid on screen** (owner: task 15's
+  closeout, `GR-N`). The offscreen and real-window captures both read the delta
+  as exactly those four cells (records §22, §23), which is not a look.

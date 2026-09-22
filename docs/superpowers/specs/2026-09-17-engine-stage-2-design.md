@@ -11,13 +11,13 @@ marked *lane 1*; lane 2: `27a9e23` red, `f25889a` implementation, `30737bd`,
 corrections `LR-AX` marked *lane 2*; lane 3: `8a2d753` and `d0c439a`, corrections
 `LR-AY`; lane 4: `ff8b05c` red, `55621aa` implementation, `9a4a130`, corrections
 `LR-AZ` marked *lane 4*; lane 5: `3ec113b` red, `32f82d4` implementation,
-corrections `LR-BA` marked *lane 5*; record §19).
+corrections `LR-BA` marked *lane 5*; record §21).
 Branch `feat/engine-stage-2` from `cb2e708`. Plan task 7, stage 2 of the fourteen
 in [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 (its row 2) and §8 (its stage-2 row). Rulings `LR-AB`…`LR-BA` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
 (the same decisions doc as stage 1; critic round 1's dispositions are `LR-AP`).
-Record: `docs/record/19-engine-replacement-stage-2.md`. Probe:
+Record: `docs/record/21-engine-replacement-stage-2.md`. Probe:
 `docs/probes/swiftui-engine-replacement-stage2.swift` (groups F, X, P, J, R, C, V,
 and revision 2's C2, X11–X18, F9–F10, P7–P9, Y; cited as *stage-2 probe*; stage
 1's arms are *stage-1 probe*, the containers probe's are *stack-algorithms*).
@@ -100,7 +100,7 @@ byte-identical; the reading is in its header). The arms this design rests on:
 | V1, V3 | `.hidden()` paints nothing and takes no tap | legacy `hidden()` is `display: none` (deferred, `LR-AV`) |
 
 Stage-1 probe arms also cited: H1, S1–S3, G1/G2, T3/T4, W2. **Re-run this round**
-(record §19): stack-algorithms (787 lines, identical to its record — A5, G1, G9,
+(record §21): stack-algorithms (787 lines, identical to its record — A5, G1, G9,
 G4r, S), accessibility-bridge-rules (62 lines, identical — R9), frame-semantics
 (291 lines; D4 identical; its G1 child-proposal *sequence* differs on this OS,
 sizes and rects identical).
@@ -417,7 +417,7 @@ rewritten in `LoweringCorpusTests.swift`; depth pins beside stage 1's.
 | 2.6 | **divergence pin** `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight` — `Row { Box().width(80).flexShrink(1); Box().width(80).flexShrink(3) }.width(100)`: lowered 80/80 from x 0 (G9) for weights 1 and 3; legacy 50/50 and 65/35 (divergence 55) | reported | **M2f** a shrink ≠ 1 reported |
 | 2.7 | `aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent` — `Box().minWidth(50)` over nothing in a `Row` (50); the demo scroller's shape `Box { Box().height(400) }.width(420).flexGrow(1).flexBasis(0).minHeight(0)` in a 300-tall column beside a fixed sibling (F4/F8); `Box().width(40).minWidth(60)` (static fold: 60); agrees | reported (`minSize`, `flexBasis`, `flexGrow`) | **M2g** W drops the minimum (the scroller arm answers its 400 content); **M2h** the static fold skipped (60 → 40) |
 | 2.8 | `aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere` — `maxWidth(80)` on a grower (80) and on `width(120)` (80, static) agree; `Text(long).maxWidth(80)` in a hugging row reports `text.maxSize` | reported | **M2i** a non-greedy maximum lowered onto W |
-| 2.9 | **divergence pin** `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt` — the demo body row's shape at 920×560: legacy sidebar 88, lowered 196 (F5; G9, G4r) | reported | **M1b** stretch applied to the main axis. *Amended after the lane-2 verification:* the design's **M2j** (a declared main size lowered as a greedy `frame(maxWidth: size)` with no minimum) leaves 2.9 green — the sidebar also declares `.flexGrow(1)`, so W is greedy either way and a 196 maximum still answers 196. M2j reddens fifteen other tests (record §19, lane 2) |
+| 2.9 | **divergence pin** `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt` — the demo body row's shape at 920×560: legacy sidebar 88, lowered 196 (F5; G9, G4r) | reported | **M1b** stretch applied to the main axis. *Amended after the lane-2 verification:* the design's **M2j** (a declared main size lowered as a greedy `frame(maxWidth: size)` with no minimum) leaves 2.9 green — the sidebar also declares `.flexGrow(1)`, so W is greedy either way and a 196 maximum still answers 196. M2j reddens fifteen other tests (record §21, lane 2) |
 | 2.10 | **divergence pin** `aGrowerOnAHuggingContainersMainAxisFillsItsProposal` (cause R's isolating pin, X18) — `Column { Box().width(30).height(20); Box().width(30).height(10).flexGrow(1) }` in a 200×200 harness root: legacy column 30×30, lowered 30×200 | reported | **M2k** W not greedy when the parent declares no main size (pin and exit test's cause-R rows move) |
 | 2.11 | **divergence pin** `aGrowInsideAOneChildPaddingFillsTheWrapperWhereCSSLeavesItUngrown` (`LR-AR`, S2, X12) — `Row { Box().width(40).height(10); Box().width(30).height(10).flexGrow(1).padding(8) }.width(200)`: legacy padding 46×26, child 30 wide; lowered (scratch R2) 160×26, child 144 | reported | **M2l** grow elided in a one-child container (the pin reddens; the lane records what else — by reading, the exit test's main-pane rows) |
 | 2.12 | `aGrownUnsizedSpaceDistributionContainerIsReported` (`LR-AR`, S1) — `Row { Row { a20; b20 }.justifyContent(.spaceBetween).flexGrow(1); c40 }.width(300)` reports `box.justifyContent.spaceBetween` at the inner `Row`'s site; controls `.flexEnd` and `.center` agree; *lane 2:* a `.minWidth(200)` arm reports the same | report empty (S1), literal mismatch | **M2m** the grow half of the re-check removed; **M2m′** (*lane 2*) the re-check limited to a greedy W |

@@ -178,7 +178,7 @@ private func leaf(_ tree: LayoutTree) -> LayoutNodeID {
 /// process was killed). The mutants used clamp as well as delete — (c) clamps
 /// each SPAN to 2 in `makeNativeGridPlan`, (d) clamps the walk's sum to 4 — so
 /// the child registers and exits `.success`, which is the discrimination these
-/// arms were written for. Recorded as substitutions in record §20.
+/// arms were written for. Recorded as substitutions in record §22.
 @Test func aColumnCountAboveInt32MaxTraps() async {
     // Arm a: one count above Int32.max.
     let single = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {

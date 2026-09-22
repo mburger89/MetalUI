@@ -99,7 +99,7 @@
 // RE-RECORDED 2026-09-17 08:32 PDT (revision 5, the grids design's critic
 // round), same machine and toolchain. Default run exit 0, run twice,
 // byte-identical; every arm line up to GF18 is byte-identical to revision 4.
-// Changes, each measured (record §20, "Critic round"):
+// Changes, each measured (record §22, "Critic round"):
 // - The generated cells apply `.layoutPriority`, `.gridCellColumns` and
 //   `.gridCellUnsizedAxes` only when written (`WrittenAttributes`). Revisions
 //   1-4 applied `.layoutPriority(0)` to every cell, which replaces a Spacer's
@@ -236,7 +236,7 @@
 //    ~300 bytes and ~1.5 us per column [GX24, revision 6, `span-row`: two cells
 //    of 10_000_000 each answer 71x38 in 31.5 s and 5.95 GB]; 1 << 40 lays out
 //    as columns(0) [GX22: SwiftUI keeps 32 bits of the count]; Int.max traps
-//    [GX20; Int.max / 2 and Int.max - 1 too, in scratch, record §20]. The
+//    [GX20; Int.max / 2 and Int.max - 1 too, in scratch, record §22]. The
 //    column count is the widest row's sum of spans, and a column that only a
 //    span covers is a column: GX23's third column takes x's whole shortfall (a
 //    at 0, b at 38) where GX1's two columns share it (51/41).
@@ -257,7 +257,7 @@
 //    column (or spanned) width / row height instead of a share [GU1 30x172 vs
 //    control GU2 152x172; GU6 152x10]; the answer still widens the column [GU4,
 //    GU5 148; GU6 78x78]; the processing order is unchanged (GZ2 agrees only
-//    with that variant, record §20). A divider-like non-row child stops
+//    with that variant, record §22). A divider-like non-row child stops
 //    widening the grid [GU9 58 vs control GU10 200]. A lone cell unsized on
 //    both axes answers 0x0 [GU11]. Declarations on one view form a union
 //    [GU12, GU13, GWI5].
@@ -1155,7 +1155,7 @@ func solve(_ st: Structure, _ P: ProposedViewSize, hs: CGFloat?, vs: CGFloat?, m
         let have = spanW(c)
         if s.width > have {
             var targets = (c.col..<c.col + c.span).filter { !singleCols.contains($0) }
-            // Revision 5 (record §20 step 12): at a non-nil proposal the shortfall
+            // Revision 5 (record §22 step 12): at a non-nil proposal the shortfall
             // goes first to the spanned columns that still hold an unprocessed
             // single-column cell (GX9: b's column, not a's committed one).
             if modelVariant != 5, P.width != nil || P.height != nil {

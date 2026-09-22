@@ -12,11 +12,22 @@ on:
 jobs:
   build:
 
-    runs-on: macos-latest
+    runs-on: xcode-27  # Swift 6.4 (Xcode 27, preview image)
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Build
       run: swift build -v
     - name: Run tests
       run: swift test -v --no-parallel
+
+  # MetalUIScene must build without Apple frameworks (ruling PS-G): a Metal,
+  # CoreText or CoreGraphics import there fails to compile on Linux, and
+  # macOS cannot see that.
+  scene-linux:
+    runs-on: ubuntu-24.04
+    container: swift:6.4-noble
+    steps:
+    - uses: actions/checkout@v7
+    - name: Build MetalUIScene
+      run: swift build --target MetalUIScene

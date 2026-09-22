@@ -436,7 +436,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   still open.* **Stage 2 delivered** (spec
   `specs/2026-09-17-engine-stage-2-design.md`; rulings `LR-AB`…`LR-BA` in the
   same decisions doc; probe
-  `docs/probes/swiftui-engine-replacement-stage2.swift` revision 4; record §19;
+  `docs/probes/swiftui-engine-replacement-stage2.swift` revision 4; record §21;
   five lanes, each red first, all verified `ok`, fourteen minors all
   dispositioned): flex-item semantics lowered **by the parent** under the
   proposal authority — item records and the unconsumed report, stretch and
@@ -450,7 +450,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   Its exit test reports no stage-2 field. **Stage G delivered** (spec
   `specs/2026-09-17-grids-design.md`; rulings `GR-A`…`GR-AT` in
   `../2026-09-17-grids-decisions.md`; ten runnable probes and three recorded
-  corpora; record §20; four lanes, each red first, lanes 1/3/4 verified `ok` and
+  corpora; record §22; four lanes, each red first, lanes 1/3/4 verified `ok` and
   lane 2's one major and one minor — both label-and-prose, no executable line —
   applied in its docs round): SwiftUI's `Grid` and `GridRow` on the proposal path
   as a kernel `NativeNode` case (`GR-C`), with the nil×nil and finite solves,
@@ -458,7 +458,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   attribute walk, the element API and its identity rules, a grid in the proposal
   preview, and depth and work pins. Fourteen green mutations were found by the
   verifiers and pinned; two deliberately equivalent clamps are left unpinned and
-  say so in the source. **Integration** (record §21): two conflict-free merges,
+  say so in the source. **Integration** (record §23): two conflict-free merges,
   four cross-track tests at the one seam the tracks share, each proven by a
   mutation — one of which, XM4, found that the **lowered** half of stage 2's text
   clamp was pinned by neither track. Suite 1409 → **1548** (stage 2 +51, stage G

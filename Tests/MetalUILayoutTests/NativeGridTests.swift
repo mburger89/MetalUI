@@ -1248,7 +1248,7 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 /// at its 152×20 slot; GP6's a is asked nil × 62 and, its 10×62 slot equalling
 /// that answer, placed there. **The rects alone cannot see the mutant below**:
 /// a proposed 152×0 answers 152×0, and its 152×20 slot re-measures it to the
-/// same rect (measured, record §20 lane 2).
+/// same rect (measured, record §22 lane 2).
 ///
 /// Mutation: propose a nil grid axis as 0 (GP5's a is asked 152×0).
 @Test func oneAxisNilAndInfiniteProposalsAnswerAsTheProbeReads() {

@@ -1437,7 +1437,7 @@ behaviour noticed and not explained. None blocks task 2.
    `Sources/MetalUILayout` behaviour change); unowned, needs reassigning.
    *2026-09-16:* assigned to plan task 7 by `CN-Q`. **Closed 2026-09-21 by
    `LR-AU`** (task 7 stage 2's lane 3, `feat/engine-stage-2` `8a2d753`;
-   integrated on `integrate/stage-2-grids`, record §21): `placeNative`'s
+   integrated on `integrate/stage-2-grids`, record §23): `placeNative`'s
    `.padding` case places its child at the child's own answer on **both**
    entries — the recursive one and the window-root
    `computeNativeLayout(root:proposal:in:)` — pinned by

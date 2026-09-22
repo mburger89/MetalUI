@@ -77,7 +77,7 @@ There is still no iOS support: everything is macOS only.
 
 ## Requirements
 
-macOS 14+, Swift 6.3 toolchain, a Metal-capable device.
+macOS 14+, Swift 6.4 toolchain, a Metal-capable device.
 
 ## Try it
 
@@ -306,11 +306,15 @@ transforms, and text colour animation.
   theirs, [`17-containers.md`](docs/record/17-containers.md) for task 6, and
   [`18-engine-replacement-stage-1.md`](docs/record/18-engine-replacement-stage-1.md)
   for task 7's first stage,
-  [`19-engine-replacement-stage-2.md`](docs/record/19-engine-replacement-stage-2.md)
-  for its second and [`20-grids.md`](docs/record/20-grids.md) for its grids
+  [`21-engine-replacement-stage-2.md`](docs/record/21-engine-replacement-stage-2.md)
+  for its second and [`22-grids.md`](docs/record/22-grids.md) for its grids
   stage, and
-  [`21-integration-stage-2-grids.md`](docs/record/21-integration-stage-2-grids.md)
-  for their integration.
+  [`23-integration-stage-2-grids.md`](docs/record/23-integration-stage-2-grids.md)
+  for their integration. Two files are not task tracks:
+  [`19-claude-md-full-2026-09-21.md`](docs/record/19-claude-md-full-2026-09-21.md)
+  is the root `CLAUDE.md` as it read before it was cut to rules only, and
+  [`20-portable-scene.md`](docs/record/20-portable-scene.md) is the
+  `MetalUIScene` move.
 - [`docs/superpowers/`](docs/superpowers/) — a decisions document per
   completed milestone, each ruling with its reasoning and what it costs if wrong.
 - SwiftUI alignment:

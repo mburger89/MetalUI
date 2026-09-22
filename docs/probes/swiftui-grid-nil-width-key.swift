@@ -13,7 +13,7 @@
 // clause on the HEIGHT axis (150 x nil against 150x100). No corpus arm reads it
 // on the WIDTH axis, and `NativeGridSolver.provide`'s two guards are separate
 // copies of one clause: dropping `if proposal.width != nil` left the whole
-// 1450-test suite green (lane-2 verifier round, record §20), while dropping
+// 1450-test suite green (lane-2 verifier round, record §22), while dropping
 // `if proposal.height != nil` reddened two tests. These arms are the missing
 // width-axis discriminator.
 //
@@ -41,7 +41,7 @@
 // must disagree, or the instrument reads nothing about the nil axis.
 //
 // PREDICTED BEFORE THE RUN, from the reference model in
-// `docs/probes/swiftui-grid.swift` (hand-derived, record §20):
+// `docs/probes/swiftui-grid.swift` (hand-derived, record §22):
 //
 //   N0 @100x100: size 100x74 | a (0,0 100x20) | b (10,28 80x46)
 //   N1 @nilx100: size 10x100 | a (0,0 10x20)  | b (0,28 10x72)

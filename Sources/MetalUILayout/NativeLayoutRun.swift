@@ -78,7 +78,7 @@ final class NativeLayoutRun {
     ///
     /// **Re-taken 2026-09-17 by the grids track (lane 1, ruling GR-M)**, same
     /// method, `/usr/bin/swift` 6.4 debug, laid out at 400×400 (a grid at
-    /// nil×nil, its only lane-1 branch); record §20:
+    /// nil×nil, its only lane-1 branch); record §22:
     ///
     /// | kind | at `cb2e708` | with lane 1's `.grid` case |
     /// |---|---|---|

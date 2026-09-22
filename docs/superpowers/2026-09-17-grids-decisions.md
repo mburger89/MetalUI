@@ -387,7 +387,7 @@ holding no single-column cell as open for every share and never commits it
 (variant 6: 16), or either (26); 1 under spreading every shortfall over all
 spanned columns; 63 under none. Neither open-column variant was adopted: the
 design round measured spans that block a commit as worse on non-row children
-(record §20 step 4), and variant 6 lowered GZ8 from 657 to 646 while raising
+(record §22 step 4), and variant 6 lowered GZ8 from 657 to 646 while raising
 GZ6 from 374 to 410 (measured before step 12).
 
 **Cost if wrong** (restated). With spans at a non-nil proposal the kernel can
@@ -445,7 +445,7 @@ group are unchanged. A divider-like non-row child stops widening the grid (GU9
 Declarations on one view form a **union** (GU12, GU13, GWI5; GG16 through a
 `GridRow`).
 
-**The ordering variant was measured, not chosen by reading** (record §20): on
+**The ordering variant was measured, not chosen by reading** (record §22): on
 400 generated grids with attributes (seed 31), counting an unsized axis in the
 key and keeping it in its group agreed 400 of 400; counting it but sorting
 unsized cells after sized cells of an equal key agreed 398; excluding the axis
@@ -720,7 +720,7 @@ is removed: probed and ruled, `GR-R`.)
    **no-grid** T7 arm **moved** (lane 3) out of 2.11 into
    `NativeStackDistributionTests.swift`'s `aStackServesItsLeastFlexibleChildFirst`,
    so a later reader does not take it for grid behaviour; breaking the tie by the
-   answer at main 0 reddens that test and the two grid arms together (record §20,
+   answer at main 0 reddens that test and the two grid arms together (record §22,
    mutation MT7). **Owner: plan task 6, the stacks task** (`GR-N`), not this
    stage.
 
@@ -769,7 +769,7 @@ authority, the lowering table or the harness of stage 1; nothing in
 integrator's documentation obligations (CLAUDE.md vocabulary and
 unprobed-behaviour lists, the divergence and inert tables, design §4.1 and §8,
 the plan's task 7 note, record README, and a `swift package clean` before the
-merged suite) are listed in record §20's "For the integrator", written by lane
+merged suite) are listed in record §22's "For the integrator", written by lane
 4.
 
 ---
@@ -777,7 +777,7 @@ merged suite) are listed in record §20's "For the integrator", written by lane
 ## GR-Q — the critic round: each finding and what was done
 
 The design (`88d0472`…`3981a4e`) was reviewed before any lane ran. Every finding
-was applied; none was rejected. Measurements are in record §20, "Critic round".
+was applied; none was rejected. Measurements are in record §22, "Critic round".
 
 | # | finding | disposition |
 |---|---|---|
@@ -981,7 +981,7 @@ test 4.11 fails and the lane records what the text measured.
 
 ## GR-W — lane 1 as built: stack arms measured, a nil grid's cells measured outside the solver, the plan a class, a row-token counter
 
-**Ruling** (lane 1, 2026-09-17; measurements in record §20, "Lane 1").
+**Ruling** (lane 1, 2026-09-17; measurements in record §22, "Lane 1").
 
 1. **Tests 1.10 and 1.11 assert answers, not rects.** The spec placed the GE
    arms in lane 1, but a linear stack places each child at its own measured
@@ -1024,7 +1024,7 @@ test 4.11 fails and the lane records what the text measured.
 
 ## GR-X — lane 2 as built: the stack's infinite tie, an inverted solver, the counter, two mutations the spec named
 
-**Ruling** (lane 2, 2026-09-17; measurements in record §20, "Lane 2").
+**Ruling** (lane 2, 2026-09-17; measurements in record §22, "Lane 2").
 
 1. **GE10 and GE19 are pinned at the kernel's figures, not SwiftUI's.** With the
    finite solve in place, GE10 read a 46 / c 38 / d at 100 (stack 110 wide) and
@@ -1096,7 +1096,7 @@ time, in the worktree, with the suite re-run (1446) and every probe re-run
 twice. **Fifteen findings; all fifteen applied, none rejected** — five in code
 now (`1b6c698`), four in the probes and their committed stdout (`1844256`), the
 rest as restatements here and as named rows in lanes 3 and 4. Measurements are
-in record §20, "Second critic round".
+in record §22, "Second critic round".
 
 | # | finding | disposition |
 |---|---|---|
@@ -1336,7 +1336,7 @@ than left implicit.
 
 ## GR-AG — the span-target rule has three steps and the finite solve pinned two
 
-**Ruling** (lane 2 re-verification, 2026-09-17; measurements in record §20,
+**Ruling** (lane 2 re-verification, 2026-09-17; measurements in record §22,
 "Lane 2 re-verification"). A spanning cell's width shortfall goes to, in order,
 (1) the spanned columns still holding an **unprocessed** single-column cell,
 else (2) the spanned columns holding **no** single-column cell anywhere in the
@@ -1448,7 +1448,7 @@ and equivalent** — and a *nineteenth*, A's `openRows` twin, is green too.
 Twelve were run against the full suite directly (H, M1, M2, M3,
 M4, M5, M6, M9, M11, M12, M13, M14), and six more (A, B, C, D, E, F) were
 filtered first through a scratch differential digest; five of those six were
-then run against the suite. Record §20 has the table.
+then run against the suite. Record §22 has the table.
 
 **This heading's count was wrong twice and is restated here from the table.**
 It first read "every one reddened" (A had not been run at all), then "sixteen
@@ -1853,7 +1853,7 @@ being missing.
 
 ## GR-AP — lane 4 as built: what the spec's rows became
 
-**Ruling** (lane 4 implementer round, 2026-09-21; figures in record §20's lane-4
+**Ruling** (lane 4 implementer round, 2026-09-21; figures in record §22's lane-4
 section; items 7 and 8 added by the lane's verifier round). Eight departures from
 spec §6's lane-4 table, each because the table's spelling could not be written,
 could not discriminate, or — for the last two — was simply missed.
@@ -2023,7 +2023,7 @@ mutant that moves the rule rather than the bookkeeping. Recorded so the next
 reader does not take the early-plus-late reading as evidence the clause is
 pinned.
 
-**Amended** (lane 4 verifier round, minor 3; measured, record §20's verifier
+**Amended** (lane 4 verifier round, minor 3; measured, record §22's verifier
 round). The heading's original wording — "only mutable by MOVING the mark" —
 was **stronger than what was measured**, and two things have to be separated:
 
@@ -2089,7 +2089,7 @@ eighteen, **seventeen reddened and one (A) is green**; A's `openRows` twin is a
 nineteenth mutation, also green. What the heading was reaching for is that **two
 CLAUSES have no behavioural witness** — `finishGroup`'s split, whose only witness
 is a *cost counter* rather than any rect, and the two unreachable clamps.
-Restated in `GR-AI`, in the spec's lane-2 sentence and in record §20's table
+Restated in `GR-AI`, in the spec's lane-2 sentence and in record §22's table
 preamble.
 
 *The rule.* **State the clause claim as a clause claim.** "N mutations, M green"

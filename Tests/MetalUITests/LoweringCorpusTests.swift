@@ -472,7 +472,7 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
 /// | **4** `List` has no lowering | — (site-level) | stage 4 | the `List` (420×14000 → 0×0 at 0, 0) and its row `Box` (420×0 → 0×0) |
 ///
 /// **Measured first against the prediction** (prototype P3 and scratch R2, record
-/// §19): identical in both modal states, every pair (record §19, lane 2).
+/// §21): identical in both modal states, every pair (record §21, lane 2).
 ///
 /// **3. Modal on**: 2042 ids, 6 agreeing, **36** disagreeing — the 30 above (the
 /// `List` and its row box one index later, after the `Deferred`) plus the modal's six
@@ -590,7 +590,7 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
         (child(child(scroll, 0), 0), bounds(132, legacyScrollerY, 420, 0), bounds(0, 0, 0, 0)),
     ]
     try #require(expected.count == 30)
-    // The predictions the derivations must reproduce (P3, R2; record §19).
+    // The predictions the derivations must reproduce (P3, R2; record §21).
     #expect([legacyOuter, legacyBody, legacyRenders, legacyParagraph, legacyScrollerY,
              loweredRenders, loweredParagraph, loweredScrollerY, library] == [439, 310, 26, 48, 439, 26, 64, 455, 16])
 

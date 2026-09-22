@@ -74,7 +74,7 @@ private final class LeafLog: @unchecked Sendable {
 /// calls). Total **15 calls** (the probe's list has 15), **16 misses**, **13
 /// hits**; calls per leaf a 3, b 4, c 4, d 4.
 ///
-/// **The spec's mutation does not discriminate here** (record §20 lane 2):
+/// **The spec's mutation does not discriminate here** (record §22 lane 2):
 /// re-measuring every cell at its slot changes nothing on GP1, whose four slots
 /// already differ from their answers, or on GP2, whose one equal slot (a's
 /// 152×62) is also the proposal it was measured at. It reddens 1.5, 1.12, 2.1,

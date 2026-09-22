@@ -14,7 +14,7 @@ import MetalUITestSupport
 // **A guard skips silently when `.build/<triple>/debug/Modules` is absent**
 // (CLAUDE.md, "CI — what lapses silently"). Each guard here was run red once on a
 // `--build-system native` build, against the mutation its doc names; the red
-// lines are in record §20 under lane 4.
+// lines are in record §22 under lane 4.
 //
 // **Each real diagnostic is printed before it is asserted on**, so a guard whose
 // fragment stopped matching shows what the compiler said instead. And each guard

@@ -3,7 +3,7 @@ import MetalUICore
 // The grid kernel (plan task 7, stage G): SwiftUI's `Grid`, ported from the
 // reference model in `docs/probes/swiftui-grid.swift` — the model is unchanged
 // since revision 5, which `GR-B` names as the reference, and the file is at
-// revision 6, whose two added modes are additive (record §20). Spec
+// revision 6, whose two added modes are additive (record §22). Spec
 // `docs/superpowers/specs/2026-09-17-grids-design.md` §4; rulings `GR-A`…
 // in `docs/superpowers/2026-09-17-grids-decisions.md`.
 //
@@ -95,7 +95,7 @@ struct NativeGridCell {
 /// struct its payload widened `NativeNode` and every recursion frame that
 /// holds one; measured on a 1 MB debug thread, the one-cell-grid ceiling was
 /// 164 as a struct and 170 as a class, and the stack's and padding's did not
-/// fall further (record §20, lane 1).
+/// fall further (record §22, lane 1).
 final class NativeGridPlan {
     init(alignment: ProposalAlignment, cells: [NativeGridCell], columnCount: Int, rowCount: Int,
          rowAlignments: [ProposalAlignment?], columnAlignments: [ProposalAlignment?],
@@ -429,7 +429,7 @@ func nativeGridZeroSpacingEdges(_ plan: NativeGridPlan, axis: ProposalStackAxis)
 /// `bookkeepingSteps` counts each record those updates, checks and span sums
 /// visit (`theSolversBookkeepingIsLinearInTheCells`: 11n + 3 on its grid).
 ///
-/// **Inverted, for the depth guard** (ruling SA-L, record §20 lane 2): the
+/// **Inverted, for the depth guard** (ruling SA-L, record §22 lane 2): the
 /// solver never calls a measure function. It exposes the one measurement it
 /// needs next (`request`) and resumes when given the answer (`provide`), so
 /// `LayoutTree.measureGrid` recurses into a cell from its own small loop and

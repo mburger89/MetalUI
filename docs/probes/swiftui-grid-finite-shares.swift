@@ -17,7 +17,7 @@
 // answers as SwiftUI's, and its C0/C1 control lines contradicted
 // `docs/probes/swiftui-grid-default-run.txt`. The arms below are that draft's,
 // unchanged; the stdout, the reading and the O1 conclusion are this file's own
-// run, taken by the lane-1 verifier (record §20). Two of the three clauses come
+// run, taken by the lane-1 verifier (record §22). Two of the three clauses come
 // out as that draft claimed; the third does not.
 //
 // WHY A COMPANION PROBE. Three mutations of `NativeGridSolver` leave the whole
@@ -52,7 +52,7 @@
 // THE THREE ARMS, with the kernel's answer beside SwiftUI's. (The kernel's
 // figures were read by running the same five grids through `LayoutTree`'s
 // `.grid` node in a scratch test, unmutated and under each mutation; they are
-// in record §20, lane 1's verifier round.)
+// in record §22, lane 1's verifier round.)
 //
 //   F1 `Grid { GridRow { a 200x10, b 10x10 }; GridRow { x span 2 } }` at
 //      100×100, where x is 60 wide and 40 tall when proposed at least 200 wide,
@@ -75,7 +75,7 @@
 //      284 − 94.67 + 8, where 94.67 is W′ ÷ 3, the share with NOTHING committed
 //      and all three columns counted open. So SwiftUI does not charge the
 //      outside column the share the kernel computes at that moment, and the
-//      kernel diverges here by 139.33pt. See record §20; no ruling owns it yet.
+//      kernel diverges here by 139.33pt. See record §22; no ruling owns it yet.
 //
 //   R1 `Grid { GridRow { a 50x10 priority 2, b 10x10 priority 2 };
 //      GridRow { c clamp 0…200 priority 1, e clamp 0…300 priority 0 } }` at

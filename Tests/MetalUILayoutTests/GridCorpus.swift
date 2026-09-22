@@ -84,7 +84,7 @@ let gridCorpus: [GridCorpusCase] = [
 // byte (sha256 d93bc71acd09a1c745691e65460401d214f6c701bf70c7d0b2e52e2da886f366),
 // and a second run was identical. Revisions 1-4's corpus (sha256 88e4e1ec…)
 // is superseded: its Spacer cells all carried a `.layoutPriority(0)`, which is
-// not a bare Spacer (record §20, critic round).
+// not a bare Spacer (record §22, critic round).
 //
 // Each case is a grid generated from seed 4242 whose answer and every leaf rect
 // SwiftUI's Grid and the probe's reference model agree on (within 0.01);

@@ -1200,7 +1200,7 @@ Rulings `LR-AB`…`LR-AO` belong to
 [`specs/2026-09-17-engine-stage-2-design.md`](specs/2026-09-17-engine-stage-2-design.md),
 on `feat/engine-stage-2` from `cb2e708`. **Design only**: no file under
 `Sources/` or `Tests/` changed in a commit. Measurements are in
-`docs/record/19-engine-replacement-stage-2.md`.
+`docs/record/21-engine-replacement-stage-2.md`.
 
 **Probe**: `docs/probes/swiftui-engine-replacement-stage2.swift`, run under
 `/usr/bin/swift` (Apple Swift 6.4, swiftlang-6.4.0.33.1), macOS 27.0 (26A428),
@@ -1488,7 +1488,7 @@ stage 8; the census shows no such use in the demo.
 
 **Amended, stage-2 critic round 1 (`LR-AP`).** The design's own test 1.4 contradicted this ruling: it put `.maxHeight(25)` on an
 item of a **centring** `Row`, a non-greedy axis, and expected 25. Measured with
-prototype P3 plus `SA-N` item 4 (record §19, critic round 1, scratch R2 arm S4:
+prototype P3 plus `SA-N` item 4 (record §21, critic round 1, scratch R2 arm S4:
 P3 put every `maxSize` onto W): legacy 20×0 at y 50, P3 20×25 at y 38. Under this
 ruling that maximum reports `box.maxSize`; spec 1.4 now declares
 `.alignItems(.stretch)` and 1.12 pins the centring case's report. Frame probe D4
@@ -1699,7 +1699,7 @@ in-word breaking" is no longer true: stage-2 probe group **Y** (added this round
 shows SwiftUI's line count equal to CoreText's own line-break loop at ten widths
 and its width `min(proposal, ceil(widest line with its trailing space))`. The
 kernel's `proposalTextMeasurement` already breaks the same lines (scratch, record
-§19): it lacks only the `min(proposal, …)`. So the below-word answer (T3/T4,
+§21): it lacks only the `min(proposal, …)`. So the below-word answer (T3/T4,
 divergence 59) **is stage 2's**, in lane 3. **W2 stays out**: with that clamp the
 stage-1 scratch put the priority-1 text at 75 and "Short" at 5 where SwiftUI
 gives 59 and 18, and Y6/Y7 show "Short" measures 18 at 21 on both sides — W2 is
@@ -1739,7 +1739,7 @@ sizes are computed in the test from `proposalTextMeasurement` (lowered) and the
 legacy `textMeasure` path (legacy) at the widths the test itself derives;
 literals remain only for rects no text reaches (the sidebar bars, the badge
 frame, the chrome, the paddings' widths). (2) **The census was re-measured with
-`SA-N` item 4 applied on top of P3** (record §19, scratch R2): the same 2036 /
+`SA-N` item 4 applied on top of P3** (record §21, scratch R2): the same 2036 /
 6 / 30 and 2042 / 6 / 36, and all 30 (36) rect pairs identical to P3's — the
 prediction the rewritten test checks first is now a measurement with lane 3's
 kernel change in it. (3) The stage-2 exit test is spec **2.15**; its cause-R
@@ -1787,7 +1787,7 @@ lane; 4 and 5 need lane 1's records.
 findings (1–7 serious, 8–16 smaller). The critic re-ran the stage-1 and stage-2
 probes twice each and found both byte-identical to their records; the defects
 were in how the design mapped the answers onto legacy fields and MetalUI's code.
-New evidence this round, all in record §19's "Critic round 1" section: stage-2
+New evidence this round, all in record §21's "Critic round 1" section: stage-2
 probe revision 2 (groups C2, X11–X18, F9–F10, P7–P9, Y; 235 lines, run twice,
 identical); re-runs of the stack-algorithms, accessibility-bridge-rules and
 frame-semantics probes; scratch R2 (prototype P3 + `SA-N` item 4, the demo census
@@ -1812,7 +1812,7 @@ clean` run afterwards.
 | 12 | depth budget understated | **applied**: four wrappers per item; depth pins per lane | `LR-AB` amended; spec 2.14, 4.8 |
 | 13 | divergence claims with no pin | **applied**: X16 (hugging `Stack`), X18 (main-axis fill, cause R), P7/P8 (BM-4 on `Row`/`Column`) probed and pinned | spec 1.9, 2.10, 4.3 |
 | 14 | the below-word answer and W2 deferred on an unprobed premise | **applied**: probe group Y characterizes in-word breaking; the below-word clamp is lane 3's; W2 re-deferred as a stack-allocation question | `LR-AM` amended, `LR-AU` |
-| 15 | claims resting on probes not re-run; `LR-AI`'s sentence | **applied**: stack-algorithms (787 lines) and accessibility-bridge-rules (62) re-run identical; frame-semantics D4 identical, its G1 child-proposal sequence differs on this OS (sizes and rects identical); `GeometryReader` arm C2 added and `LR-AI` softened | `LR-AI`, `LR-AK`, `LR-AL`, `LR-AG` amended; record §19 |
+| 15 | claims resting on probes not re-run; `LR-AI`'s sentence | **applied**: stack-algorithms (787 lines) and accessibility-bridge-rules (62) re-run identical; frame-semantics D4 identical, its G1 child-proposal sequence differs on this OS (sizes and rects identical); `GeometryReader` arm C2 added and `LR-AI` softened | `LR-AI`, `LR-AK`, `LR-AL`, `LR-AG` amended; record §21 |
 | 16 | `measuredWidth(of:)` is `PaintPass`'s; 5.4–5.6 need a `CounterPanel`-specific mutation | **applied** | `LR-AB` amended; spec §5, lane 1 amended pins (M1n) |
 
 No finding is rejected.
@@ -1864,7 +1864,7 @@ the demo reaches it.
 ## LR-AR — a parent re-checks the free space it creates; the one-child elision is for stretch only
 
 **Evidence.** Finding 2, measured with scratch R2 (P3 + `SA-N` item 4, record
-§19), legacy → lowered, the report empty in every shape:
+§21), legacy → lowered, the report empty in every shape:
 - **S1** `Row { Row { a20; b20 }.justifyContent(.spaceBetween).flexGrow(1); c40 }.width(300)`:
   b at x 240 → 20. Stage 1 lowers `space-*` on a container with no declared main
   size as flex-start because it has no free space; W gives it some.
@@ -2056,7 +2056,7 @@ uses; production content has none.
 
 ## LR-AW — stage 2 lane 1's corrections: W's minimum, where unlowered item fields report, the unconsumed check's reach, and the test shapes the harness root forces
 
-**Evidence.** Record §19, lane 1: the red run on the stage-1 lowering (1424 tests,
+**Evidence.** Record §21, lane 1: the red run on the stage-1 lowering (1424 tests,
 17 red, every legacy-side literal passing), the implementation's first full run
 (1424, 7 red — exactly the pins below), stage-2 probe revision 3 (Z0/Z1, run twice,
 byte-identical), and the lane's mutations.
@@ -2133,7 +2133,7 @@ with an item field directly under a proposal container gets a trap naming
 
 ## LR-AX — stage 2 lane 2's corrections: arms the design spelled that could not show their subject, the re-check's reach, negative factors, and how the animated and depth pins are driven
 
-**Evidence.** Record §19, lane 2: the red run on lane 1's lowering (1439 tests, all
+**Evidence.** Record §21, lane 2: the red run on lane 1's lowering (1439 tests, all
 16 lane-2 tests red, every legacy-side literal passing), the legacy measurements
 taken before the literals were written (scratch, deleted), the implementation's first
 full run (1439, 9 issues in 4 tests — three amended pins and one test's own
@@ -2215,7 +2215,7 @@ fifth wrapper per item moves both depth pins; lane 4 re-derives them with a marg
 
 ## LR-AY — stage 2 lane 3's corrections: which string each probe-Y arm holds, the shape that can actually reach the padding placement, and what the lane measured that the design predicted
 
-**Evidence.** Record §19, lane 3: the stage-2 probe re-run twice this lane (254
+**Evidence.** Record §21, lane 3: the stage-2 probe re-run twice this lane (254
 lines, byte-identical, filtered stderr empty, matching its revision-4 header); the
 red runs of both commits; the kernel's own answers at probe Y's nine widths,
 dumped from a scratch test before any literal was written (scratch deleted); two
@@ -2286,7 +2286,7 @@ SwiftUI, divergence 59 reopens with task 11's owner.
 
 ## LR-AZ — stage 2 lane 4's corrections: the legacy box under the `BM-4` floor, the stack's indifference to margins, what an `.auto` margin can be seen by, and the pin lane 3 retired
 
-**Evidence.** Record §19, lane 4: the stage-2 probe re-run twice this lane (254
+**Evidence.** Record §21, lane 4: the stage-2 probe re-run twice this lane (254
 lines, byte-identical, filtered stderr empty, matching its revision-4 header); a
 scratch differential that dumped the **legacy** answer for every shape in the lane
 before a literal was written (deleted before the red commit); the red run (`Test run
@@ -2364,7 +2364,7 @@ differing pixels with the stage-1 controls; and the mutation table below.
 **Amended after the lane's verification.** Item 2's claim — a `.stack`, `.leaf` or
 `.frameLayer` parent plans no margin padding — and lane 4's renaming of the `border`
 report to `border.percent` (item 5) each carry a mutation of their own, added to
-record §19's lane-4 table by the verifier: **V4j** (a stack or frame-layer parent
+record §21's lane-4 table by the verifier: **V4j** (a stack or frame-layer parent
 plans the margin like a flex parent, i.e. this item reversed) reddens 4.4 with 4
 issues, and **V4q** (the `border.percent` entry removed) reddens 2.3 (4), 4.7 (1)
 and the container inventory (1). A sixth ruling follows from the same round:
@@ -2390,7 +2390,7 @@ site to the wrong owner.
 
 ## LR-BA — stage 2 lane 5's corrections: the overflow fallback the legacy engine actually takes, the arrangement's third return value, and the shape that can show a mispaired item plan
 
-**Evidence.** Record §19, lane 5: the stage-2 probe re-run twice this lane (254
+**Evidence.** Record §21, lane 5: the stage-2 probe re-run twice this lane (254
 lines, the two runs byte-identical and identical to its header's OUTPUT block line
 for line, filtered stderr empty, `exit 0`); three rounds of a scratch differential
 that dumped the **legacy** answer for every shape in the lane before a literal was

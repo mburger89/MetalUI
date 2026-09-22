@@ -1,9 +1,9 @@
-# §21 — the integration of task 7's stage 2 and stage G
+# §23 — the integration of task 7's stage 2 and stage G
 
 `integrate/stage-2-grids`, branched from `cb2e708` (the last commit before
 either track). Two tracks ran in parallel in separate worktrees and are merged
-here: `feat/engine-stage-2` (record §19, rulings `LR-AB`…`LR-BA`) and
-`feat/grids` (record §20, rulings `GR-A`…`GR-AT`).
+here: `feat/engine-stage-2` (record §21, rulings `LR-AB`…`LR-BA`) and
+`feat/grids` (record §22, rulings `GR-A`…`GR-AT`).
 
 This file records **the merge itself**: what conflicted, what the merged suite
 found that neither track's suite could, and the demo comparison. Each track's
@@ -53,10 +53,10 @@ word:
   200×58 and 78×58 figures) and its own `GF19`/`GF20` in test 2.2, so the
   namespace collision is gone and the "GF14–GF18 belong to 2.1, next free is
   GF21" rule is true of the source;
-- `docs/record/20-grids.md:1089` and the decisions doc both now read "of the
+- `docs/record/22-grids.md:1089` and the decisions doc both now read "of the
   eighteen, seventeen reddened and one — A — is green", and the "None was
   green." sentence no longer states anything: its one surviving occurrence,
-  `docs/record/20-grids.md:1091`, is the **quoted erratum** that replaced it
+  `docs/record/22-grids.md:1091`, is the **quoted erratum** that replaced it
   ("This paragraph read 'None was green.' until the lane-4 docs round"). *Said
   "the sentence is gone" until 2026-09-22; a `grep "None was green"` returns
   one hit, not zero, and an adversarial reader checking the grep would have
@@ -466,7 +466,7 @@ this round could take.
    round to append would have reused `GR-AT`. Corrected, with the rule that a
    round appending a ruling moves that line in the same commit.
 2. **§1's "the 'None was green.' sentence is gone" is not what the grep says.**
-   One occurrence survives, at `docs/record/20-grids.md:1091`, as the quoted
+   One occurrence survives, at `docs/record/22-grids.md:1091`, as the quoted
    erratum that replaced it. The claim's substance holds — the tally is
    corrected in both documents — but a reader checking it by grep reads one hit
    and concludes the fix did not land. Reworded to say which hit survives and
@@ -479,6 +479,52 @@ this round set out to refute and could not — `CLAUDE.md`'s new human-verificat
 row saying "the offscreen and real-window captures both read the delta as exactly
 those four cells" — is supported: the track's **lane 4** capture at `12d4b28`
 reads the preview window at **30 720** device pixels, bbox (1248, 900)–(1591,
-1011) = 4 × 160 × 48 at scale 2 = the same four cells (record §20). The lane-1
+1011) = 4 × 160 × 48 at scale 2 = the same four cells (record §22). The lane-1
 capture at `a2c1216`, which reads 0, predates the preview grid (`f0e72b1`) and is
 not the one the row cites.
+
+## 8. The third merge (2026-09-22) — `feat/review-fixes`' portable-`Scene` line
+
+A separate line of work had landed on `master` while stages 2 and G ran:
+`3d184d8`, carrying the portable `MetalUIScene` module (record §20, rulings
+`PS-`), the SDL GPU replay experiment under `Experiments/SDLGPU/`, CI changes, a
+Swift 6.4 requirement, and a root `CLAUDE.md` cut to rules only with its
+long-form content moved to `docs/record/19-claude-md-full-2026-09-21.md`. Both
+lines descend from `cb2e708`.
+
+**Conflicts: three, all documentation** — `CLAUDE.md`, `AGENTS.md`,
+`docs/record/README.md`. No source file conflicted: the two lines touch
+different modules (`MetalUIScene`/`MetalUIText`/`MetalUIRender` against
+`MetalUILayout`/`MetalUI`).
+
+**Resolution.** `CLAUDE.md` keeps the other side's rules-only structure and its
+`MetalUIScene` rules (the ten-target list, the `PS-A` import constraint, the
+workflow token budget) and re-acquires this side's stage 2 and grids rules: the
+`LR-`/`GR-` prefix rows, the stage-2 item-lowering paragraph, the `Grid`/
+`GridRow` bullet and vocabulary, the twelve-case kernel enum, the 13 + 13
+registrars counted by type, the depth-guard amendments, the empty `SA-N` list,
+the animated-structure snap and four practice bullets. Every number in it was
+**re-measured on the merged tree**, not copied from either side.
+
+**Record renumbering.** Both lines added `19-*.md` and `20-*.md`. The other
+side's two were already published, so they keep their numbers and this side's
+three moved: `19-engine-replacement-stage-2.md` → `21-`, `20-grids.md` → `22-`,
+`21-integration-stage-2-grids.md` → `23-` (this file). Every `§19`/`§20`/`§21`
+citation written by this side was repointed across `Sources/`, `Tests/`,
+`docs/` and the two root READMEs; the other side's `§19`/`§20` citations were
+all filename references in `docs/record/README.md` and stayed.
+
+**Where the long-form tables went.** `19-claude-md-full-2026-09-21.md` is frozen
+at `cb2e708`, so it does not carry this integration's rows. The divergence rows
+were already in record §04; the inert rows and the two human-verification rows
+were only in the old root `CLAUDE.md`, so they were appended as dated sections to
+records §05 and §03. `CLAUDE.md` now says which copy is current.
+
+**Counts on the merged tree** (`swift package clean`, `swift build
+--build-system native --build-tests`, unfiltered `swift test --build-system
+native --no-parallel`): **`Test run with 1550 tests in 1 suite passed`**, 97
+goldens (`git diff --name-only cb2e708 HEAD -- '*.json'` empty), **77** guards.
+1550 = 1409 (stage 1) + 139 (stages 2 and G) + 2 (`SceneBoundaryCompileGuards`);
+77 = 71 + 4 (`GridCompileGuards`) + 2 (`SceneBoundaryCompileGuards`). 0
+`error:`, and the only `warning:` is SwiftPM's `--build-system native`
+deprecation notice.

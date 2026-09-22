@@ -22,7 +22,7 @@ import MetalUIText
 // pin whose red-before is its report. The mutation each must redden is named in its
 // doc comment and in spec §6's lane-4 table; the record names what each reddened.
 //
-// **Legacy answers were measured before any literal here was written** (record §19,
+// **Legacy answers were measured before any literal here was written** (record §21,
 // lane 4): several of the design's predictions were wrong — the legacy border box
 // under 4.3 is **24×24**, not the 34×34 of SwiftUI probe P1, and its child sits at
 // (12, 7) in a `Row` and (7, 12) in a `Column` rather than (12, 12) — and the legacy

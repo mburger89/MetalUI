@@ -11,7 +11,7 @@
 // SwiftUI symbols.
 //
 // WHY EACH GROUP EXISTS. Each was written after a mutation of the kernel left
-// the whole 1463-test suite GREEN (record §20, lane 3's mutation table):
+// the whole 1463-test suite GREEN (record §22, lane 3's mutation table):
 //
 //   W  `LayoutTree.gridChildMarks`' `columns += …` replaced by a `max`
 //      (mutation M3.5b). The suite's chain arms are the main probe's GWI1 and

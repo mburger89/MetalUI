@@ -1,4 +1,4 @@
-# 20 — Grids (plan task 7, stage G)
+# 22 — Grids (plan task 7, stage G)
 
 Branch `feat/grids` from `cb2e708`. Spec
 `docs/superpowers/specs/2026-09-17-grids-design.md`; rulings `GR-A`…`GR-AT` in
@@ -1944,7 +1944,7 @@ What this stage owes them:
    > cell changes colour on click and lights on hover, and nothing else on the
    > preview moved | **open, nobody has looked at a grid on screen.** The
    > offscreen and real-window captures both read the delta as exactly those
-   > four cells (record §20, lane 4), which is not a look.
+   > four cells (record §22, lane 4), which is not a look.
 
 6. **Design §4.1 row G** should be marked built, and `GR-L`'s proposed **stage
    G2 — lazy grids** (after stage 4) added to that table and to the plan's task 7
@@ -2339,7 +2339,7 @@ This track edits none of CLAUDE.md, AGENTS.md, README.md, the plan,
 
 **1. `docs/record/README.md`** — one row, after `18-…`:
 
-> | `20-grids.md` | plan task 7 stage G on `feat/grids`: SwiftUI's `Grid`/`GridRow` on the proposal path as a kernel `NativeNode` case — the plan and the nil solve, the finite solve's group/share/commit arithmetic, cell attributes and the modifier-chain walk, the elements and identity; four lanes, each red first, all verified (lane 2's two label-and-prose findings applied in the docs round); ten runnable probes and three recorded corpora, sixteen green mutations found (fourteen pinned, two equivalent), the offscreen and real-window comparisons reading the preview delta as exactly the grid's four cells; counts 1493 / 97 / 75 |
+> | `22-grids.md` | plan task 7 stage G on `feat/grids`: SwiftUI's `Grid`/`GridRow` on the proposal path as a kernel `NativeNode` case — the plan and the nil solve, the finite solve's group/share/commit arithmetic, cell attributes and the modifier-chain walk, the elements and identity; four lanes, each red first, all verified (lane 2's two label-and-prose findings applied in the docs round); ten runnable probes and three recorded corpora, sixteen green mutations found (fourteen pinned, two equivalent), the offscreen and real-window comparisons reading the preview delta as exactly the grid's four cells; counts 1493 / 97 / 75 |
 
 (This track claimed `20-` at the design round so the two parallel tracks would
 not collide over a filename; `19-` was left free for the engine track. The
@@ -2383,7 +2383,7 @@ integrator owns the final numbering.)
   > changes colour on click and lights on hover, and nothing else on the preview
   > moved | **open, nobody has looked at a grid on screen.** The offscreen and
   > real-window captures both read the delta as exactly those four cells
-  > (record §20, lane 4), which is not a look.
+  > (record §22, lane 4), which is not a look.
 
 **3. The divergence table** gains ten rows, each already pinned (numbers assigned
 at integration; `GR-O` has the full text):
@@ -2424,7 +2424,7 @@ Stage G is one of fourteen stages. Suggested wording, to append after the
 > in `../2026-09-17-grids-decisions.md`; ten runnable probes and three recorded
 > corpora in `docs/probes/` (`swiftui-grid.swift` revision 6 with its corpus,
 > default run and divergence list, plus nine companions, each with positive
-> controls); record §20. **Stage G delivered**
+> controls); record §22. **Stage G delivered**
 > (four lanes, each red first; lanes 1, 3 and 4 verified `ok`, lane 2's one major
 > and one minor — both label-and-prose, no executable line — applied in the docs
 > round): SwiftUI's `Grid` and `GridRow` on the proposal path as a kernel

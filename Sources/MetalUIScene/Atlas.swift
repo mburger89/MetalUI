@@ -1,6 +1,3 @@
-import CoreText
-import Foundation
-
 /// What identifies one rasterized glyph bitmap, per spec §6.1.
 ///
 /// Five components, and §6.1 chose each. Dropping any one collapses two
@@ -28,12 +25,14 @@ import Foundation
 ///   that symptom, and nothing in this repo can see it.
 public struct GlyphKey: Hashable, Sendable {
     public let font: FontKey
-    public let glyph: CGGlyph
+    /// A glyph id in ``font`` (`CGGlyph` on Apple platforms, which is this
+    /// same `UInt16`; ruling PS-C).
+    public let glyph: UInt16
     public let size: Double
     public let subpixelVariant: Int
     public let scaleFactor: Float
 
-    public init(font: FontKey, glyph: CGGlyph, size: Double,
+    public init(font: FontKey, glyph: UInt16, size: Double,
                 subpixelVariant: Int, scaleFactor: Float) {
         self.font = font
         self.glyph = glyph

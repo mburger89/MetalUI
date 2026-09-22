@@ -19,7 +19,7 @@ import MetalUIText
 // **Red before**: every test here was run on `cb2e708`'s lowering (stage 1), where
 // stretch reports `alignItems.stretch` and every item field reports at the child's
 // own site; each reads red there by a report or a literal mismatch, and compiles
-// against stage-1 API only (record §19, lane 1). 1.12's agreeing arm is
+// against stage-1 API only (record §21, lane 1). 1.12's agreeing arm is
 // characterization (green on arrival). The mutation each must redden is named in its
 // doc comment and in spec §6's lane-1 table; the record names what each reddened.
 //
@@ -266,7 +266,7 @@ private struct AtOrigin: ProposalLayout {
 /// 3): legacy stretches the child to **200**, lowered it keeps its own **0**, at
 /// x 0 (M's content alignment is leading). **Corrected from the design's
 /// spelling** (a row `Box`, whose child width is its main axis and so 0 on both
-/// sides; record §19, lane 1).
+/// sides; record §21, lane 1).
 ///
 /// The agreeing control: `Box { Text("x") }` alone (one child, no cross size: its
 /// stretch is not shown by CSS either).
@@ -309,7 +309,7 @@ private struct AtOrigin: ProposalLayout {
 ///
 /// Every arm agrees. **Corrected from the design's literal** ("25 and 60" in a
 /// 100-tall row, where CSS clamps the stretched 100 by the 60 minimum to 100;
-/// record §19, lane 1).
+/// record §21, lane 1).
 ///
 /// Mutations that must redden it: **M1e** W drops `maxSize` (a reads 100 / 40);
 /// **M1r** W's minimum left absent (the stretched arm's row reads 60).
@@ -573,7 +573,7 @@ private struct AtOrigin: ProposalLayout {
     // Below a glyph's width it can: in a 4-wide stretched column the leaf answers
     // its widest glyph, wider than W, and wrapping there puts two narrow glyphs on
     // one line where 4 puts one per line (measured: M1k made this arm's scenes
-    // differ at 4 and 6, not at 9; record §19, lane 1).
+    // differ at 4 and 6, not at 9; record §21, lane 1).
     let narrowTree = { @MainActor in
         Column { fixed(4, 10); Text("Wii il") }.alignItems(.stretch).width(px(4))
     }
@@ -590,7 +590,7 @@ private struct AtOrigin: ProposalLayout {
 /// a `Box().height(10)`, b `.height(20)`, c `.height(10)`, d `.height(30)` (auto
 /// width, in centring rows, so 0 wide), e `Box().width(10)` (auto height). Literals
 /// **derived by hand before the first run**, bookkeeping checked against a
-/// transcription of the kernel's rules that reproduces 5.7's 118/94/4 (record §19,
+/// transcription of the kernel's rules that reproduces 5.7's 118/94/4 (record §21,
 /// lane 1).
 ///
 /// **The registered tree (19 nodes).** Each leaf is a 0×0 leaf `L` in a frame `F`
@@ -715,7 +715,7 @@ private struct AtOrigin: ProposalLayout {
 ///   ignores it exactly when the two rects are equal — and assert **no report and an
 ///   unchanged lowered root** where it is ignored, the `…unconsumed` report
 ///   otherwise. The four comparisons are recorded as literals (all ignored, measured
-///   on the first run; record §19, lane 1).
+///   on the first run; record §21, lane 1).
 ///
 /// Mutations that must redden it: **M1m** the unconsumed check removed; **M1m′** the
 /// `noLowering` sites do not mark (the `ScrollView` arm).
@@ -859,7 +859,7 @@ private struct AtOrigin: ProposalLayout {
 //
 // **Red before**: every test below was run on lane 1's lowering (`25fd9fb`), where
 // `flexGrow`, `flexShrink`, `flexBasis` and a `minSize`/`maxSize` off a stretched
-// axis are still reported by the parent at the child's site (record §19, lane 2).
+// axis are still reported by the parent at the child's site (record §21, lane 2).
 
 /// A 13pt system-font shaping cache and font, the lowered and legacy `Text`'s
 /// default (`LR-F`: a rect a text decides is derived from the cache, not a literal).
@@ -1026,7 +1026,7 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
 ///   `a40; b40` under `.justifyContent(.flexEnd)`): rigid children sit at
 ///   f·(150 − 200) + f·(200 − 80) = f·(150 − 80) inside W under any one factor f,
 ///   exactly where CSS puts them, so that arm cannot show the divergence; a grower
-///   inside can (record §19, lane 2).
+///   inside can (record §21, lane 2).
 ///
 /// Mutations that must redden it: **M2d** a non-zero length basis lowered as `auto`
 /// (the `flexBasis(40)` arm reads empty); **M2d′** a zero basis given W's minimum 0
@@ -1119,7 +1119,7 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
 /// kept the default shrink: CSS shrinks that childless box to **0** (its automatic
 /// minimum is its content's, 0; measured legacy 0×10 at x 252) where the lowered
 /// row keeps a declared 50 rigid — divergence 55, pinned by 2.6 and 2.9, not this
-/// test's subject (record §19, lane 2). The column declares `.alignItems(.stretch)`
+/// test's subject (record §21, lane 2). The column declares `.alignItems(.stretch)`
 /// so the text's width is the line on both sides (a centred lowered text hugs its
 /// widest line, `LR-F`).
 ///
@@ -1368,7 +1368,7 @@ let demoParagraph = """
 /// (b at x 240) and `.center` (a at 110, b at 130) agree. A **minimum** leaves free
 /// space too: `Row { Row { 20×10; 20×10 }.justifyContent(.spaceBetween).minWidth(200);
 /// 40×10 }.width(300)` reports the same entry (legacy distributes inside the 200, b
-/// at 180; W's floor would place it at 20 — lane 2's extension of `LR-AR`, record §19).
+/// at 180; W's floor would place it at 20 — lane 2's extension of `LR-AR`, record §21).
 ///
 /// Mutations that must redden it: **M2m** the grow half of the re-check removed (the
 /// report reads empty); **M2m′** the re-check limited to a greedy W (the minimum arm
@@ -1456,14 +1456,14 @@ private func animatedWidths<C: ElementGroup>(_ authority: LayoutAuthority, ids: 
 ///   60 / 240, 100 / 200, 150 / 150. **Corrected from the design's `(1 → 2, 2)`**:
 ///   its start state (1, 2) reports `flexGrow.weights` and would trap the proposal
 ///   window before the animation begins; (0 → 2, 2) starts with one grower and is
-///   unequal mid-flight all the same (record §19, lane 2). The child process is the
+///   unequal mid-flight all the same (record §21, lane 2). The child process is the
 ///   guard against M2o, whose mid-flight report traps a production window and would
 ///   otherwise end the run with no summary line (practices shape 13).
 /// - **Arm C — agrees.** `Row { 260×10; Box().height(10).flexGrow(1).minWidth(40 →
 ///   80) }.width(300)`: 40, 40, 50, 60, 80 on both sides. **Corrected from the
 ///   design's "hugging row"**: under the harness root a hugging row is offered the
 ///   root's width and a grower fills it (cause R), so the row declares 300 and the
-///   rigid sibling leaves the grower 40 (record §19, lane 2).
+///   rigid sibling leaves the grower 40 (record §21, lane 2).
 ///
 /// Every state is pre-flighted through `LayoutDifferential.compare` first (`LR-AA`).
 ///

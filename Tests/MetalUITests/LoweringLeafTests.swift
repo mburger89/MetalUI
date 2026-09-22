@@ -170,7 +170,7 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// recorded; **M4h**, `margin.percent` no longer reported (2 issues); **V4q**, the
 /// `border.percent` entry removed (4). Stage 1's **V3** (the height half of the floor
 /// check deleted) is **retired**: lane 4 deleted the `padding.floor` branch outright,
-/// so the mutation has no target left (record §19's verification section).
+/// so the mutation has no target left (record §21's verification section).
 @MainActor
 @Test func everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf() throws {
     typealias Row = (name: String, edit: (inout Style) -> Void, onBox: Bool)

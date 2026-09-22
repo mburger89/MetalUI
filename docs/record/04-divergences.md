@@ -831,7 +831,7 @@ divergence is retired: production frames still run under the legacy authority.
 ## 2026-09-21: 59 retired, 60–70 added (plan task 7 stages 2 and G, integrated)
 
 Added to `CLAUDE.md`'s table at the `integrate/stage-2-grids` Docs phase
-(records §19, §20, §21). The table goes from forty-eight entries to
+(records §21, §22, §23). The table goes from forty-eight entries to
 **fifty-eight**: 59 out, 60–70 in. Production frames still run under the legacy
 authority, so **nothing here is production-visible yet** except 60, which is
 about a measurement both the proposal path and the future production path use.
@@ -845,7 +845,7 @@ about a measurement both the proposal path and the future production path use.
   `aProposalTextBelowItsWidestBrokenLineAnswersTheProposal` and
   `aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal`.
   The **lowered** half of that clamp was pinned by nothing until the
-  integration's X3 (record §21, mutation XM4).
+  integration's X3 (record §23, mutation XM4).
 
 | # | kind | ruling (decisions doc) | pin |
 |---|---|---|---|

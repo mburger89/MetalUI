@@ -7,7 +7,7 @@
 `docs/probes/swiftui-lazy-grid-scope.swift`, and the three companion probes
 `swiftui-grid-stack-ties.swift` (`GR-X`), `swiftui-grid-gap-order.swift`
 (`GR-D`) and `swiftui-grid-span-targets.swift` (`GR-AG`); record
-`docs/record/20-grids.md`.
+`docs/record/22-grids.md`.
 Parent design:
 [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 row G ("no legacy twin; depends on nothing; exit test is its own probe's
@@ -19,21 +19,21 @@ round applied.** At the docs round's head: **1493** tests, **97** goldens
 3 and 4 came back `ok`; lane 2's verifier raised one major and one minor, both
 label-and-prose with no executable line (the `GF14`/`GF15` rename that
 over-reached, and a mutation tally restated as a clause claim), applied in the
-docs round and ruled in `GR-AT`, with record §20's closing tables and its "For
+docs round and ruled in `GR-AT`, with record §22's closing tables and its "For
 the integrator" section. Sixteen green mutations were found across the verifier
 rounds: fourteen are pinned, two are the deliberately equivalent `startGroup`
 clamps. Deferred with owners in `GR-N`, lazy grids proposed as **stage G2** after
 stage 4 (`GR-L`). Detail below —
 
 **All four lanes built** (lane 3: `5ceea23` red, `f3885a7`,
-amendments in `GR-AK`…`GR-AO`, record §20 "Lane 3"; lane 4: `cdfdf54` red,
-`f0e72b1`, `12d4b28`, amendments in `GR-AP`…`GR-AS`, record §20 "Lane 4". At
+amendments in `GR-AK`…`GR-AO`, record §22 "Lane 3"; lane 4: `cdfdf54` red,
+`f0e72b1`, `12d4b28`, amendments in `GR-AP`…`GR-AS`, record §22 "Lane 4". At
 lane 4's head: **1492** tests, 97 goldens, **75** guards; the default demo 0
 differing pixels in nine of twelve images and the preview's delta exactly the
 grid's four cells, offscreen and in a real window). Earlier: **lanes 1 and 2 built** (lane 1: `432cb3d` red, `82a63fe`;
-as-built amendments in `GR-W`, record §20 "Lane 1"; lane 2: `e4f95ff` red,
+as-built amendments in `GR-W`, record §22 "Lane 1"; lane 2: `e4f95ff` red,
 `ea0a51b` scanning, `d467058`, `0196743`, `de0a51e`; amendments in `GR-X`,
-record §20 "Lane 2"; both re-verified since — lane 1 at `062a114`, `40c2fe9`
+record §22 "Lane 2"; both re-verified since — lane 1 at `062a114`, `40c2fe9`
 and `723f26e`, lane 2 at `d6ad9ff` and `f6ed8a0` — with green mutations found
 and pinned at four of those five rounds: `GR-D`'s arms, `GR-AG`'s, `GR-AH`'s
 four, and `GR-AI` finding none left). The design was revised after **two**
@@ -561,7 +561,7 @@ arms.
 | 3.8 | `anUnsizedNonRowChildStopsWideningTheGrid` | GU9 vs GU10 | no parameter | ignore unsized axes on non-row cells (GU9 reads 200) |
 | 3.9 | `unsizedAxesDeclaredTwiceFormAUnion` | GU12, GU13, GWI5 | no parameter | a later mark replaces the axes (GU12 reads horizontal only) |
 | 3.10 | `cellAttributesAndRowTokensAreReadThroughModifierNodesAndNotContainers` — one arm per node kind: fixed and flexible `frame`, `padding` (and a padding with a non-zero inset), `fixedSize`, `aspectRatio`, `layoutPriority`, overlay attachment primary, overlay attachment content side, one-child linear stack, one-child overlay; for each of span, anchor, column alignment, unsized axes and a row token; and GWP's priority arms (padding, flexible frame, aspect ratio stop; overlay primary and one-child stacks pass), which the existing walk already satisfies | GWS/GWA/GWC/GWU/GWP rows 1–4, 6, 11, 12, 15–18 | lane 1 reads marks on the child node only (every wrapped arm reads the unwrapped control's rect) | stop the chain at `padding` (the padding arms redden, and 3.4's and 3.5's GWI arms) |
-| 3.11 | `gridCellColumnsZeroLaysOutAsOne` — divergence pin; GX14's SwiftUI figures in the doc comment | GX14: kernel c (10,28 10×10), d (45.5,30.5 5×5), 58×38 (record §20's "GX14as1") | lane 1 already treats 0 as 1; **green on arrival**, kept as the pin | treat 0 as 2 (c spans two columns, d moves to column 2) |
+| 3.11 | `gridCellColumnsZeroLaysOutAsOne` — divergence pin; GX14's SwiftUI figures in the doc comment | GX14: kernel c (10,28 10×10), d (45.5,30.5 5×5), 58×38 (record §22's "GX14as1") | lane 1 already treats 0 as 1; **green on arrival**, kept as the pin | treat 0 as 2 (c spans two columns, d moves to column 2) |
 | 3.12 | `theModelDisagreesWithSwiftUIOnTheDivergenceCorpus` — divergence pin (`GR-O` 2, `GR-AA`), **wrong on purpose**: a representative handful of `docs/probes/swiftui-grid-divergences.txt`, at least one per `classify-spans` symptom (the model wider, SwiftUI wider, equal sizes and different rects) and one with no span, asserting the **model's** size and rects with SwiftUI's in the doc comment | the committed divergence cases | the cases are not in the tree | each of GZ0's control and, per case, the one-rule model variant `classify-spans` names for it (the lane records which cases each variant moves) |
 | 3.13 | `aLargeColumnCountCostsTheKernelOnePassPerColumn` — the allocation ceiling (`GR-AB`, `GR-O` 10): a grid whose row sum of spans is large (the lane names the count it can afford), read through `bookkeepingSteps` and `lastNativeLayoutWork`, **work never wall clock**, beside SwiftUI's measured ~300 bytes and ~1.5 µs per column (GX24) | GX21, GX23, GX24 | no counter reads a column-count term | make the first group's commit sweep visit only its own cells' columns (the counter loses its `ncols` term and the literal falls) |
 | — | `theGridProbeCorpusAgreesCaseByCase` (2.13) **loses its filter**: `#require` 120 | the corpus | 102 cases were filtered out | each of: GZ0's control; last-declaration column alignment; unsized answers not absorbed — the lane records how many cases each reddens |
@@ -571,7 +571,7 @@ second critic round's code added 3 tests before this lane and 2 rows to it; the
 baseline was 1449 when this row was written and lane 1's follow-up added
 `resetClearsGridCellColumnMarks`, so measure it rather than trust it.)
 
-**As built** (`GR-AK`, `GR-AL`, `GR-AM`; record §20's lane-3 section). Five
+**As built** (`GR-AK`, `GR-AL`, `GR-AM`; record §22's lane-3 section). Five
 departures from the table above, each recorded there: 3.10 asserts the **plan**,
 one arm per node kind per attribute, because a wrapper changes the geometry a
 rect comparison against an unwrapped control would need, and the rect
@@ -667,11 +667,11 @@ preview's grid (nobody has looked at a grid on screen), owned by plan task 15's
 closeout (`GR-N`).
 
 **Real windows:** the lock probe, then `capture.sh <scratch> cb2e708 <HEAD>`
-(`GR-M`), its table recorded in record §20 (expected 0 differing pixels in the
+(`GR-M`), its table recorded in record §22 (expected 0 differing pixels in the
 default window and the grid's own region in the preview window; if the screen
 reads locked, say so and do not capture).
 
-**Record §20** gains "For the integrator": CLAUDE.md's vocabulary (proposal
+**Record §22** gains "For the integrator": CLAUDE.md's vocabulary (proposal
 types gain `Grid`, `GridRow`, the four cell modifiers, `ProposalAxes`), the
 kernel's registrars count (13 `newNative*` and `requestNative*` each, plus two
 mark functions each), the divergence and inert lists (`GR-O`), design §4.1 row
@@ -683,7 +683,7 @@ counts re-taken after `swift package clean`.
 red once. **Demo:** default 0 px; preview non-zero by design (`GR-AE`); real
 windows the same.
 
-**As built** (`GR-AP`…`GR-AS`; record §20's lane-4 section). Six departures from
+**As built** (`GR-AP`…`GR-AS`; record §22's lane-4 section). Six departures from
 the table above, each recorded there: 4.9/4.9b/4.9c drive `@State` with a
 layout-time bump against one shared `StateTable` rather than a click, because
 the claim is identity and `onTap` dispatch is 4.14's and 4.15's; 4.2 asserts the

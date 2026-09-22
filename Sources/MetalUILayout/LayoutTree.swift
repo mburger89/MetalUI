@@ -1766,7 +1766,7 @@ extension LayoutTree {
     /// (ruling GR-W: the depth gate); at any other proposal each proposal
     /// depends on earlier answers, so this loop feeds `NativeGridSolver` one
     /// measurement at a time and the recursion into a cell starts here, not
-    /// inside the solver (the same gate, record §20 lane 2).
+    /// inside the solver (the same gate, record §22 lane 2).
     private func measureGrid(_ id: LayoutNodeID, proposal: ProposedSize, run: NativeLayoutRun) -> SizeD {
         guard let plan = nativeGridPlan(id) else { preconditionFailure("measureGrid on a node that is not a grid") }
         guard proposal.width == nil, proposal.height == nil else {
@@ -1784,7 +1784,7 @@ extension LayoutTree {
     /// `NativeGridSolver` one measurement at a time. Its own function so the
     /// nil×nil path's frame does not carry this loop's locals: a chain of
     /// one-cell grids at nil×nil completed 159 levels on a 1 MB debug thread
-    /// with the loop inline in `measureGrid` and 167 with it here (record §20,
+    /// with the loop inline in `measureGrid` and 167 with it here (record §22,
     /// lane 2).
     private func measureGrid(_ plan: NativeGridPlan, atAProposal proposal: ProposedSize,
                              run: NativeLayoutRun) -> SizeD {

@@ -21,7 +21,7 @@ import MetalUICore
 // evidence). The mutation each must redden is named in its doc comment and in spec
 // §6's lane-5 table; the record names what each actually reddened.
 //
-// **Every legacy literal below was measured before it was written** (record §19,
+// **Every legacy literal below was measured before it was written** (record §21,
 // lane 5, "Legacy answers measured before any literal was written"), on a scratch
 // differential dump of exactly these shapes.
 //
@@ -264,7 +264,7 @@ private func container<C: ElementGroup>(row: Bool, gap: Float = 0, justify: Just
 /// **5.3.** Overflowing, the spacers of all three distributions collapse to their
 /// minimum and the line packs from the **main start** — on both paths.
 ///
-/// **This arm was designed as a divergence pin and is not one** (record §19, lane 5;
+/// **This arm was designed as a divergence pin and is not one** (record §21, lane 5;
 /// ruling `LR-BA` item 1). SwiftUI packs overflowing spacers from the start (J9) and
 /// CSS's `space-around`/`space-evenly` fall back to `center`, so the design expected
 /// the legacy engine to centre. It does not: `Alignment.swift`'s `distributeMainAxis`
@@ -273,7 +273,7 @@ private func container<C: ElementGroup>(row: Bool, gap: Float = 0, justify: Just
 /// Measured, three rigid 20s at 40: **0, 20, 40 for `spaceBetween`, `spaceEvenly`
 /// and `spaceAround` alike**, which is what the lowering answers. The legacy
 /// engine's own disagreement with CSS here is pre-existing and outside this lane
-/// (record §19, "For the integrator").
+/// (record §21, "For the integrator").
 ///
 /// The `try #require` is the discriminating precondition: the content (60) must
 /// overflow the container (40), or the arm would be about the fitting case 5.2
@@ -341,7 +341,7 @@ private func container<C: ElementGroup>(row: Bool, gap: Float = 0, justify: Just
 /// reverse container puts at the main **end**. The row's children are 20 and 30 long
 /// (10 tall), the column's 10 and 30 long (20 and 10 wide) — **the two tables are
 /// different** and reusing the row's for the column was the one correction this arm
-/// needed after the implementation landed (record §19, lane 5). Legacy, measured
+/// needed after the implementation landed (record §21, lane 5). Legacy, measured
 /// before the literals were written:
 ///
 /// | justify | row, gap 0 | row, gap 10 | column, gap 0 | column, gap 10 |
@@ -438,7 +438,7 @@ private func container<C: ElementGroup>(row: Bool, gap: Float = 0, justify: Just
 /// third, and is not usable here: in a row with no declared cross size a greedy
 /// alignment frame hugs where the legacy line places at its end, which is lane 1's
 /// own divergence (1.6, probe X7) and would make the forward control disagree —
-/// measured, not assumed (record §19, lane 5).
+/// measured, not assumed (record §21, lane 5).
 private enum DistributionRole { case grower, plain, floored }
 
 /// A clickable, labelled, `@State`-holding leaf: a `Component`, so it has a

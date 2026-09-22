@@ -1,4 +1,4 @@
-// swift-tools-version: 6.3
+// swift-tools-version: 6.4
 import PackageDescription
 
 let package = Package(
@@ -6,15 +6,19 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "MetalUI", targets: ["MetalUI"]),
+        // Platform-free per-frame data (ruling PS-A), for backends outside this
+        // package; first consumer: Experiments/SDLGPU/Portable.
+        .library(name: "MetalUIScene", targets: ["MetalUIScene"]),
         .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
     ],
     targets: [
         // Test-support only: the single copy of the `swiftc -typecheck` machinery
         // that the negative type-system guards shell out to (ruling EP-1). It is
         // in **no product** and is **not** one of spec §3.1's seven layering
-        // targets. The eight non-test targets *here* are MetalUICore,
-        // MetalUILayout, MetalUIText, MetalUIShaderTypes, MetalUIRender,
-        // MetalUIPlatform, MetalUI and MetalUIDemo — which is not §3.1's list:
+        // targets. The ten non-test targets *here* are MetalUICore,
+        // MetalUILayout, MetalUIScene, MetalUIText, MetalUIShaderTypes,
+        // MetalUIRender, MetalUIPlatform, MetalUI, MetalUIDemoContent and
+        // MetalUIDemo — which is not §3.1's list:
         // that one has seven, excluding MetalUIDemo, which is an executable
         // rather than a layer. **The two counts used to agree and no longer do**
         // — M2 Task 1 landed MetalUIText, which was the coincidence's expiry
@@ -46,7 +50,12 @@ let package = Package(
         // **imported by nothing** — font resolution needs only CoreText. It is
         // an unused edge rather than an unused API, so it changes no call site;
         // delete it if the milestone ends without one.
-        .target(name: "MetalUIText", dependencies: ["MetalUICore"]),
+        // What a GPU backend consumes per frame — the scene and the glyph atlas
+        // — with no Apple framework import, so it builds on Linux and Windows
+        // (ruling PS-A). Re-exported by MetalUIText and MetalUIRender (PS-B).
+        .target(name: "MetalUIScene", dependencies: ["MetalUIShaderTypes"]),
+
+        .target(name: "MetalUIText", dependencies: ["MetalUICore", "MetalUIScene"]),
         .testTarget(name: "MetalUITextTests", dependencies: ["MetalUIText"]),
 
         .target(name: "MetalUIShaderTypes"),
@@ -58,14 +67,14 @@ let package = Package(
         // with no CI.
         .target(
             name: "MetalUIRender",
-            dependencies: ["MetalUICore", "MetalUIShaderTypes", "MetalUIText"],
+            dependencies: ["MetalUICore", "MetalUIShaderTypes", "MetalUIScene", "MetalUIText"],
             resources: [.copy("Shaders")]
         ),
         // `MetalUIText` is a dependency of `MetalUIRender` already; it is named
         // again so the glyph tests may build a real `GlyphAtlas` and read its
         // `pixels` back as the oracle for what the GPU should have sampled.
         .testTarget(name: "MetalUIRenderTests",
-                    dependencies: ["MetalUIRender", "MetalUIText"]),
+                    dependencies: ["MetalUIRender", "MetalUIScene", "MetalUIText"]),
 
         .target(
             name: "MetalUIPlatform",

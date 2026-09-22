@@ -1,6 +1,7 @@
 import Testing
 import MetalUIShaderTypes
 @testable import MetalUIRender
+@testable import MetalUIScene  // DrawRun/AtlasSlot memberwise inits (PS-F)
 
 // `Scene`'s side tables went from two `[PrimitiveKind: [Int]]` dictionaries to
 // four plain `[Int]` arrays. That is a refactor of `finalize()`'s bookkeeping,
