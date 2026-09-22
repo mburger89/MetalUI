@@ -320,6 +320,14 @@ private func wheelEvent(at position: Point<Pixels>, deltaY: Float) -> InputEvent
                                               timestamp: 100)
         #expect(hiddenFrame.scene.rects.count == 1,
                 "only the content rectangle: content overflows and the fade has not elapsed (age 0), so `.hidden` is the only thing that can suppress the thumb")
+        // The frame request, not only the rect. **Found by mutation M1d**: with
+        // the `.hidden` guard moved below `pass.requestAnotherFrame()` the rect
+        // count above is unchanged — the guard still returns before the fill —
+        // and only this assertion sees it. A hidden scroller that kept asking
+        // would hold the display link awake forever, spec §4.4's exit criterion.
+        // `ScrollView`'s half is `hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake`.
+        #expect(!hiddenFrame.wantsAnotherFrame,
+                "`.hidden` must return before `requestAnotherFrame()`, not merely before the fill")
 
         var automatic = proposalScroller(contentHeight: 200)
         let (automaticFrame, _) = chromeRendered(&automatic, width: 120, height: 100,
@@ -328,6 +336,8 @@ private func wheelEvent(at position: Point<Pixels>, deltaY: Float) -> InputEvent
                                                  timestamp: 100)
         #expect(automaticFrame.scene.rects.count == 2,
                 "the same fixture under `.automatic` must paint the thumb, or the assertion above proves nothing")
+        #expect(automaticFrame.wantsAnotherFrame,
+                "and must ask for the frames that fade it, or the `.hidden` assertion above proves nothing")
     }
 }
 
