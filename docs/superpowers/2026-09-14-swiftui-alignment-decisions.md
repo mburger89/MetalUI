@@ -1435,7 +1435,17 @@ behaviour noticed and not explained. None blocks task 2.
    20×20 at origin + inset. The kernel stores bounds minus insets (record §09
    hazard 4). Plan task 5. *2026-09-16:* task 5 did not take it (`OM-Q`: no
    `Sources/MetalUILayout` behaviour change); unowned, needs reassigning.
-   *2026-09-16:* assigned to plan task 7 by `CN-Q`.
+   *2026-09-16:* assigned to plan task 7 by `CN-Q`. **Closed 2026-09-21 by
+   `LR-AU`** (task 7 stage 2's lane 3, `feat/engine-stage-2` `8a2d753`;
+   integrated on `integrate/stage-2-grids`, record §21): `placeNative`'s
+   `.padding` case places its child at the child's own answer on **both**
+   entries — the recursive one and the window-root
+   `computeNativeLayout(root:proposal:in:)` — pinned by
+   `aNativePaddingPlacesItsChildAtTheChildsOwnSize`, with `M3a` (the old
+   bounds-minus-insets placement restored) reddening it. That test's
+   caller-bounds arm applies the rule to an entry SwiftUI cannot spell and says
+   so in its own doc comment; re-check it at stage 6b, when a production
+   proposal root can be a `Padding` (`LR-AY` item 3).
 5. **SwiftUI's memo survives passes** (F/G/H). This is deliberately not adopted
    (`SA-H`). Reopen it only with a `lastNativeLayoutWork` count showing the
    cost.
@@ -1467,9 +1477,18 @@ behaviour noticed and not explained. None blocks task 2.
 **Fixed, not carried:** priority through `.overlay` (L2). The second pass's
 kernel read 0; `SA-D` now looks through overlay attachments.
 
-**What it costs if wrong.** Items 1–4 and 8 are live SwiftUI divergences in
-shipped proposal elements until their tasks land. The two this milestone
-touches, items 4 and 8, are pinned wrong on purpose rather than left silent.
+**Every kernel disagreement in this list is now closed.** Items 1, 2, 3, 8 and 9
+closed by tasks 4 and 6; item 4, the last one, by task 7 stage 2's `LR-AU` on
+2026-09-21. Items 5, 6 and 7 were never disagreements — a deliberate
+non-adoption, a not-investigated list and a moot reading. **`CLAUDE.md`'s
+"probed, and the kernel disagrees" list is therefore empty; do not re-add a row
+to it without a probe run now.** New disagreements found after task 2 are
+numbered divergences instead (60 is stage 2's).
+
+**What it costs if wrong.** Items 1–4 and 8 *were* live SwiftUI divergences in
+shipped proposal elements until their tasks landed; all five have. The two this
+milestone touched, items 4 and 8, were pinned wrong on purpose rather than left
+silent, and each pin was flipped to the agreement by the task that closed it.
 
 ---
 

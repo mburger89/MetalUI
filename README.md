@@ -260,10 +260,11 @@ Fifty-eight measured divergences from CSS, SwiftUI or WebKit are tabled in
 [`CLAUDE.md`](CLAUDE.md). One is an unfixed defect (19, one element value
 placed twice shares a `@State` box); the rest are deliberate decisions or known
 limits. Divergence 15 was fixed by task 5; 36, 37 and 40 were retired by task 6
-(40's `percent:` modifiers are now spelled `fraction:`).
+(40's `percent:` modifiers are now spelled `fraction:`); 59 was retired by task
+7 stage 2, which clamps a text answer to its proposal as SwiftUI does.
 [`docs/record/04-divergences.md`](docs/record/04-divergences.md) holds the
-original eleven in full and index tables for 20–34, 35–50 and 51–58; divergence
-19 is recorded only in `CLAUDE.md`.
+original eleven in full and index tables for 20–34, 35–50, 51–58, 59 and 60–70;
+divergence 19 is recorded only in `CLAUDE.md`.
 
 ## Milestones
 
