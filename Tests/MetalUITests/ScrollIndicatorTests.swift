@@ -174,7 +174,7 @@ private func scrolledState(offset: Double, lastScrollTime: Double) -> StateTable
                 "100 * (100/200) = 50 — a bare proportional size, not the floor")
         // The CROSS axis, which nothing else in this file reads: 3pt wide,
         // inset 2pt from the viewport's trailing edge (origin.x + width - 5).
-        // Catches a transposed `width:`/`height:` in `indicatorBounds`'s
+        // Catches a transposed `width:`/`height:` in `ScrollChrome.indicatorBounds`'s
         // `.vertical` branch (the thumb would come back 50 wide and 3 tall)
         // and a wrong inset (a thumb hard against the edge, or off it).
         #expect(abs(Double(rect.bounds.size.width) - 3) < 0.001,
@@ -344,7 +344,7 @@ private func wheel(at position: Point<Pixels>, deltaY: Float, timestamp: Double)
 /// §4.4), so `lastTick` is frozen at whatever instant the last real tick
 /// delivered. A wheel event arriving after a longer idle gets stamped with
 /// that stale instant, and the next frame's `age = timestamp - lastScrollTime`
-/// is then large enough that `paintIndicator`'s `guard alpha > 0 else {
+/// is then large enough that `ScrollChrome.paintIndicator`'s `guard alpha > 0 else {
 /// return }` suppresses the indicator outright — content scrolls, nothing
 /// paints to show it.
 ///
@@ -610,12 +610,12 @@ private func wheel(at position: Point<Pixels>, deltaY: Float, timestamp: Double)
 
 // MARK: - 7. The horizontal branch's geometry
 
-/// The `.horizontal` branch of `indicatorBounds`, which ran in
+/// The `.horizontal` branch of `ScrollChrome.indicatorBounds`, which ran in
 /// `aHorizontalScrollViewMovesOnDeltaXNotDeltaY` with nothing reading the rect
 /// it produced.
 ///
 /// What this catches, measured: **transposing `width:` and `height:` at
-/// `ScrollView.indicatorBounds`'s `.horizontal` case** — the thumb comes back
+/// `ScrollChrome.indicatorBounds`'s `.horizontal` case** — the thumb comes back
 /// 3pt wide and 50pt tall, a vertical bar lying across a horizontal track —
 /// passed the entire suite. So did an inset or a travel axis taken from the
 /// wrong coordinate.
@@ -792,7 +792,7 @@ private let nestedListID = GlobalElementID.child(of: nestedRootID, at: 0, name: 
 }
 
 /// A hidden indicator must not keep the window dirty or the display link
-/// awake. `paintIndicator`'s `.hidden` guard sits before
+/// awake. `ScrollChrome.paintIndicator`'s `.hidden` guard sits before
 /// `pass.requestAnotherFrame()`; if it moved after that call (or was
 /// removed), a hidden scroll view would still ask for another frame on
 /// every tick while nothing ever fades, holding the display link awake

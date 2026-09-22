@@ -295,7 +295,7 @@ private struct TwoOrdinalElement: Element {
     #expect(table.isDirty, "a write must dirty the table")
 }
 
-/// `ScrollView`'s per-frame offset bookkeeping (`resolvedOffset`, called from
+/// `ScrollView`'s per-frame offset bookkeeping (`ScrollChrome.resolvedOffset`, called from
 /// both `requestLayout` and `prepaint`) writes back through `withState` on
 /// EVERY render, scrolled or not — `prepaint`'s overload always stores a
 /// fresh `viewportExtent`. If `withState` raised `isDirty` the way `write`

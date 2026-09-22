@@ -1092,7 +1092,7 @@ public final class Window {
     /// against, so there is nothing to route the event to.
     ///
     /// **The write below is deliberately unbounded, and the thing that bounds
-    /// it is `ScrollView.resolvedOffset`, not anything here.** This method has
+    /// it is `ScrollChrome.resolvedOffset`, not anything here.** This method has
     /// the region's rect but not its content node's size, and no layout at all
     /// for the frame it is about to cause, so it cannot know where the end is;
     /// the next frame clamps the stored value against the layout it just

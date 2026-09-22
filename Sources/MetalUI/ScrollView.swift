@@ -18,7 +18,7 @@ public enum ScrollIndicatorVisibility: Sendable, Equatable {
     /// afterward. The default.
     case automatic
     /// No indicator is ever painted, and no frame is ever requested to fade
-    /// one — `paintIndicator` returns before either happens.
+    /// one — `ScrollChrome.paintIndicator` returns before either happens.
     case hidden
 }
 
@@ -44,14 +44,14 @@ public struct ScrollState: Sendable {
     /// its thumb at full strength on the window's first frame and requested
     /// another one. With `-.infinity`, any finite `timestamp` gives
     /// `age == +.infinity`, the ramp gives `max(0, -.infinity) == 0` rather
-    /// than NaN, and `paintIndicator`'s `guard alpha > 0` returns before
+    /// than NaN, and `ScrollChrome.paintIndicator`'s `guard alpha > 0` returns before
     /// `requestAnotherFrame()`. The init's parameter default is the one
     /// `ScrollState()` actually reaches, so it carries the same value.
     /// Pinned by `aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame`.
     public var lastScrollTime: Double = -.infinity
 
     /// The viewport's extent along the scroll axis, as of the last `prepaint`
-    /// — written by `resolvedOffset`'s `PrepaintPass` overload from the same
+    /// — written by `ScrollChrome.resolvedOffset`'s `PrepaintPass` overload from the same
     /// `bounds` it clamps against. `requestLayout` reads this back **next**
     /// frame to publish `LayoutPass.scrollContext`: it is pure layout output,
     /// so the only way to have it during layout is to have stored it a frame
@@ -78,7 +78,7 @@ public struct ScrollState: Sendable {
 /// clamping needs the content node's laid-out size, which does not exist
 /// during layout (see `ScrollView.requestLayout`). `viewportExtent` is ONE
 /// FRAME STALE, copied from `ScrollState.viewportExtent`, which only
-/// `resolvedOffset`'s `PrepaintPass` overload ever writes.
+/// `ScrollChrome.resolvedOffset`'s `PrepaintPass` overload ever writes.
 public struct ScrollContext: Sendable, Equatable {
     public var offset: Double
     public var viewportExtent: Double
@@ -181,7 +181,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// which is not decoration: the thumb is painted outside the content's
     /// clipped block so that it does not scroll, and outside that block it
     /// carried no clip at all — so it painted square across the very corner
-    /// this radius exists to curve. `paintIndicator` pushes the same bounds
+    /// this radius exists to curve. `ScrollChrome.paintIndicator` pushes the same bounds
     /// and the same radii with a zero offset.
     ///
     /// **Does NOT animate, silently, where the identical modifier on a `Box`
@@ -201,7 +201,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// type does not have.
     public var cornerRadius: Pixels = Pixels(0)
 
-    /// Whether `paintIndicator` paints the fading thumb at all. `.automatic`
+    /// Whether `ScrollChrome.paintIndicator` paints the fading thumb at all. `.automatic`
     /// unless `scrollIndicators(_:)` sets it.
     public var indicatorVisibility: ScrollIndicatorVisibility = .automatic
 
@@ -225,7 +225,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
 
     /// Sets whether the fading overlay indicator is ever painted.
     /// `.hidden` suppresses it entirely, including the frame requests it
-    /// makes while fading — see `paintIndicator`'s guard.
+    /// makes while fading — see `ScrollChrome.paintIndicator`'s guard.
     public func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> Self {
         var copy = self
         copy.indicatorVisibility = visibility
@@ -238,20 +238,13 @@ public struct ScrollView<Content: ElementGroup>: Element {
         var inner: Content.GroupLayout
     }
 
-    /// `0 ... max(0, content - viewport)`.
-    ///
-    /// **Clamped on read, not on write.** The wheel handler that writes the
-    /// offset (Task 7) has no access to the current layout, and the layout that
-    /// would validate it does not exist until the next frame — so a stored
-    /// value may legitimately be out of range when content shrinks between
-    /// frames. `aStoredOffsetPastTheEndIsClampedWhenItIsRead` in
-    /// `ScrollViewTests.swift` is what this guarantees.
-    ///
-    /// **The result is written back to the state table by `resolvedOffset`, and
-    /// that write-back is what bounds the stored value.** Clamping the read
-    /// alone leaves the stored number free to run away — see `resolvedOffset`.
-    static func clamp(offset: Double, content: Double, viewport: Double) -> Double {
-        min(max(0, offset), max(0, content - viewport))
+    /// The clamp, the offset resolution and the fading overlay indicator, all
+    /// of which this element shares with ``ProposalScrollView`` (ruling
+    /// `LR-BD`). **Computed, not stored** — see `ScrollChrome`'s own doc for
+    /// why, and for what the fold deliberately left alone.
+    var chrome: ScrollChrome {
+        ScrollChrome(axis: axis, cornerRadius: cornerRadius,
+                     indicatorVisibility: indicatorVisibility)
     }
 
     public mutating func requestLayout(_ id: GlobalElementID,
@@ -262,7 +255,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // lines later in the frame. `viewportExtent` is last frame's, because
         // this frame's viewport does not exist until layout runs. See
         // `ScrollState.viewportExtent`'s doc for why neither is resolved or
-        // clamped here — that is `resolvedOffset`'s job, once bounds exist.
+        // clamped here — that is `ScrollChrome.resolvedOffset`'s job, once bounds exist.
         var rawOffset: Double = 0
         var lastViewportExtent: Double = 0
         pass.withState(id, initial: ScrollState()) {
@@ -345,7 +338,9 @@ public struct ScrollView<Content: ElementGroup>: Element {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        let offset = resolvedOffset(id, bounds: bounds, layout: layout, pass: pass)
+        let chrome = self.chrome
+        let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
+                                           pass: pass)
         // Registered OUTSIDE `clipped(to:offsetBy:)`, using the bounds handed
         // in rather than anything computed inside the block: `bounds` here is
         // this viewport's rect in its PARENT's space, and being outside the
@@ -368,7 +363,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // scroller and one at (100, 170) still reached the inner one.
         pass.registerScrollRegion(bounds, id: id, axis: axis)
         var result: Content.GroupPrepaint!
-        pass.clipped(to: bounds, offsetBy: delta(-offset),
+        pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
                     cornerRadii: Corners(all: cornerRadius)) {
             result = content.prepaintGroup(layout: &layout.inner, pass: &pass)
         }
@@ -378,13 +373,15 @@ public struct ScrollView<Content: ElementGroup>: Element {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
-        let offset = resolvedOffset(id, bounds: bounds, layout: layout, pass: pass)
+        let chrome = self.chrome
+        let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
+                                           pass: pass)
         // The clip is rounded to `cornerRadius` — the same curve the caller's
         // wrapping background (typically a `Box(decoration:)`) paints, so a
         // row scrolled to the very top or bottom is cut by the same curve
         // rather than painting square into a corner the background left
         // transparent. Ruling CL-A.
-        pass.clipped(to: bounds, offsetBy: delta(-offset),
+        pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
                     cornerRadii: Corners(all: cornerRadius)) {
             content.paintGroup(layout: &layout.inner, prepaint: &prepaint, pass: &pass)
         }
@@ -396,169 +393,13 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // content just emitted regardless of order, so an overlay indicator
         // over a list of text was not expressible at all.
         //
-        // **Outside this block, not unclipped**: `paintIndicator` pushes its
+        // **Outside this block, not unclipped**: `ScrollChrome.paintIndicator` pushes its
         // own clip at the same bounds and radii with a ZERO offset, which is
         // what leaves the thumb inside the rounded corner without leaving it
         // subject to the scroll. Being outside here and clipped by nothing at
-        // all was a reported defect — see `paintIndicator`.
-        paintIndicator(id, bounds: bounds, offset: offset, layout: layout, pass: &pass)
-    }
-
-    /// The fading overlay scroll indicator: a thumb sized and positioned to
-    /// the viewport/content ratio, opaque for 0.6s after a scroll and then
-    /// ramped linearly to invisible over the next 0.4s.
-    ///
-    /// **A hand-rolled ramp, not an easing curve.** `PaintPass.timestamp` and
-    /// `requestAnotherFrame()` are borrowed M4 primitives — inputs to
-    /// animation, not an animation system — so this is the one place in the
-    /// element that computes a value that changes over time, and it does so
-    /// with a `let` and an `if`.
-    private func paintIndicator(_ id: GlobalElementID, bounds: Bounds<Pixels>, offset: Double,
-                                layout: Layout, pass: inout PaintPass) {
-        // Checked first and unconditionally: `.hidden` must cost nothing at
-        // all, not paint a suppressed-alpha rect, and must never reach
-        // `requestAnotherFrame()` below — a hidden indicator that kept
-        // asking would hold the display link awake forever, exactly the
-        // failure `guard alpha > 0` exists to prevent for a faded one.
-        guard indicatorVisibility != .hidden else { return }
-        let content = extent(pass.bounds(of: layout.contentNode).size)
-        let viewport = extent(bounds.size)
-        let scrollable = max(0, content - viewport)
-        // Nothing to scroll: no thumb, and — just as important for spec
-        // §4.4 — no `requestAnotherFrame()` either. A `ScrollView` whose
-        // content fits must cost exactly as little as a `Box`.
-        guard scrollable > 0 else { return }
-
-        var lastScroll: Double = 0
-        pass.withState(id, initial: ScrollState()) { lastScroll = $0.lastScrollTime }
-        let age = pass.timestamp - lastScroll
-        let alpha = age < 0.6 ? 1.0 : max(0, 1.0 - (age - 0.6) / 0.4)
-        guard alpha > 0 else { return }
-        // Unconditional here on purpose: the guard just above is what stops
-        // the asking. Once `alpha` has reached zero this point is
-        // unreachable at all, so an idle window that was scrolled once and
-        // left alone stops requesting frames on its own — a wrapping
-        // `if age < 1.0` here would read as a second guard but can never be
-        // false when reached (`alpha > 0` above already implies it), so it
-        // stayed as a comment instead of a condition that cannot fail.
-        pass.requestAnotherFrame()
-
-        let thumb = max(20, viewport * (viewport / content))
-        let travel = (offset / scrollable) * (viewport - thumb)
-
-        var color = pass.theme[.scrollIndicator]
-        color.a *= Float(alpha)
-        // **The same clip as the content, with the translation taken out.**
-        // Being outside `paint`'s `clipped(to:offsetBy:)` block is what stops
-        // the thumb scrolling away with the content; it also left it clipped by
-        // nothing at all, so on a rounded viewport it painted square across the
-        // corner the background had curved away — `Frame.fill` stamps every
-        // rect with `activeClip` and `activeClipRadii`, and outside a block
-        // those are the whole surface and zero radii.
-        //
-        // `offsetBy: .zero` is the load-bearing half of this call, and it is
-        // what makes "clipped but not scrolled" expressible: the same `bounds`
-        // and the same `cornerRadius` as the content clip, and none of its
-        // `-offset` translation. Passing `delta(-offset)` here instead would
-        // reproduce exactly the bug painting inside the block would.
-        pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
-                    cornerRadii: Corners(all: cornerRadius)) {
-            pass.fill(indicatorBounds(bounds: bounds, thumb: thumb, travel: travel),
-                     color: color, cornerRadii: Corners(all: Pixels(3)))
-        }
-    }
-
-    /// The thumb's rect: 3pt wide (or tall, for `.horizontal`), inset 2pt from
-    /// the viewport's trailing edge, `thumb` long and `travel` from the start
-    /// along the scroll axis.
-    private func indicatorBounds(bounds: Bounds<Pixels>, thumb: Double,
-                                 travel: Double) -> Bounds<Pixels> {
-        switch axis {
-        case .vertical:
-            return Bounds(
-                origin: Point(x: Pixels(bounds.origin.x.value + bounds.size.width.value - 5),
-                             y: Pixels(bounds.origin.y.value + Float(travel))),
-                size: Size(width: Pixels(3), height: Pixels(Float(thumb))))
-        case .horizontal:
-            return Bounds(
-                origin: Point(x: Pixels(bounds.origin.x.value + Float(travel)),
-                             y: Pixels(bounds.origin.y.value + bounds.size.height.value - 5)),
-                size: Size(width: Pixels(Float(thumb)), height: Pixels(3)))
-        }
-    }
-
-    // Two overloads, one per pass type, rather than one function taking a
-    // shared protocol. `PrepaintPass` and `PaintPass` have no common protocol
-    // to write this against — `Passes.swift` records why: a `StatefulPass`
-    // requirement would force `frame` public on both, and `PaintPass.frame`
-    // leaking makes `scaleFactor` reachable through it, which is exactly the
-    // double-application hazard `PaintPass` is built to keep out of element
-    // code. Three lines duplicated is cheaper than that leak.
-    ///
-    /// **The prepaint overload writes the clamped value BACK, and that line is
-    /// what keeps scrolling responsive rather than being a tidy-up.** `Window.applyScroll`
-    /// writes `offset -= delta` with no bound — it has this region's rect but
-    /// not the content node's size, and no layout at all for the frame it is
-    /// about to cause. Reading through a clamp while leaving the stored number
-    /// alone therefore lets a gesture against either end bank an arbitrarily
-    /// large excess *invisibly*: the view sits at the end looking correct, and
-    /// every event in the opposite direction then spends itself paying that
-    /// excess down instead of moving anything. Measured on a 200pt content in a
-    /// 120pt viewport (80pt of travel), one frame per event, before the
-    /// write-back existed: twenty -37 events stored **740**, and seventeen of
-    /// the twenty events that followed in the opposite direction moved the view
-    /// by nothing. How long that dead band lasted was a function of how far past
-    /// the end the user had already scrolled, which is why it was reported as
-    /// scrolling that worked and then intermittently stopped.
-    ///
-    /// The bound this buys is "one frame's worth of events", not zero: events
-    /// arriving between two frames still accumulate unclamped, and `Window`
-    /// dirties the window on every one of them, so the next frame normalises
-    /// them together. That is the tightest bound available from here — the
-    /// ceiling does not exist until layout has run. Pinned by
-    /// `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind`
-    /// (`ScrollRoutingTests.swift`).
-    private func resolvedOffset(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                layout: Layout, pass: PrepaintPass) -> Double {
-        let viewport = extent(bounds.size)
-        let content = extent(pass.bounds(of: layout.contentNode).size)
-        var resolved: Double = 0
-        pass.withState(id, initial: ScrollState()) {
-            $0.offset = Self.clamp(offset: $0.offset, content: content, viewport: viewport)
-            resolved = $0.offset
-            // The half `viewportExtent`'s own doc names: this is the only
-            // writer, and it is what lets NEXT frame's `requestLayout` read a
-            // viewport extent at all.
-            $0.viewportExtent = viewport
-        }
-        return resolved
-    }
-
-    /// **This one clamps on read and does NOT write back, unlike the prepaint
-    /// overload above — measured, not assumed.** `Frame.render` runs prepaint
-    /// before paint unconditionally, and `ScrollView.prepaint` calls its
-    /// overload unconditionally, so by the time this runs the stored value has
-    /// already been normalised against this same layout and a second write
-    /// could only store the number it just read. Adding one back reddens
-    /// nothing on a 498-test suite, which is redundancy rather than a coverage
-    /// gap: the mutant provably cannot behave differently. The read clamp
-    /// itself stays, so this phase is correct on its own terms rather than by
-    /// trusting the phase before it.
-    private func resolvedOffset(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                layout: Layout, pass: PaintPass) -> Double {
-        let viewport = extent(bounds.size)
-        let content = extent(pass.bounds(of: layout.contentNode).size)
-        var stored: Double = 0
-        pass.withState(id, initial: ScrollState()) { stored = $0.offset }
-        return Self.clamp(offset: stored, content: content, viewport: viewport)
-    }
-
-    private func delta(_ v: Double) -> Point<Pixels> {
-        axis == .vertical ? Point(x: Pixels(0), y: Pixels(Float(v)))
-                          : Point(x: Pixels(Float(v)), y: Pixels(0))
-    }
-
-    func extent(_ size: Size<Pixels>) -> Double {
-        Double(axis == .vertical ? size.height.value : size.width.value)
+        // all was a reported defect — see `ScrollChrome.paintIndicator`.
+        chrome.paintIndicator(id, bounds: bounds, offset: offset,
+                              contentNode: layout.contentNode, pass: &pass)
     }
 }
+

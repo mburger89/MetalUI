@@ -97,7 +97,7 @@ private func wheelEvent(at position: Point<Pixels>, deltaY: Float) -> InputEvent
 /// clamping what is *read* while leaving what is *stored* alone lets a gesture
 /// against either end bank an arbitrarily large excess invisibly — the view
 /// sits at the end looking correct, and every reversing event then spends
-/// itself paying the excess down. `resolvedOffset`'s `PrepaintPass` overload
+/// itself paying the excess down. `ScrollChrome.resolvedOffset`'s `PrepaintPass` overload
 /// writes the clamped value back, which bounds the stored value to one frame's
 /// worth of events.
 ///
@@ -344,7 +344,7 @@ private func wheelEvent(at position: Point<Pixels>, deltaY: Float) -> InputEvent
 /// seeds (`0` and `-.infinity`) are dead because `StateTable.withState` always
 /// runs its closure. There was no discriminator to be red about. What the test
 /// guards is the *future*: **mutation M1f** re-inlines a private copy of
-/// `paintIndicator` into one of the two elements with a different thumb floor,
+/// `ScrollChrome.paintIndicator` into one of the two elements with a different thumb floor,
 /// which is exactly the drift the fold exists to prevent, and only this test
 /// sees it.
 ///

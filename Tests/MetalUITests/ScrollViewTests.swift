@@ -75,9 +75,9 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// unclamped as the upper bound (a `min` with no `max(0, …)` around it would
 /// give a negative ceiling instead of 0 for row three's case below).
 @Test @MainActor func theOffsetClampsToTheScrollableRange() {
-    #expect(ScrollView<EmptyGroup>.clamp(offset: -30, content: 200, viewport: 100) == 0)
-    #expect(ScrollView<EmptyGroup>.clamp(offset: 500, content: 200, viewport: 100) == 100)
-    #expect(ScrollView<EmptyGroup>.clamp(offset: 40, content: 200, viewport: 100) == 40)
+    #expect(ScrollChrome.clamp(offset: -30, content: 200, viewport: 100) == 0)
+    #expect(ScrollChrome.clamp(offset: 500, content: 200, viewport: 100) == 100)
+    #expect(ScrollChrome.clamp(offset: 40, content: 200, viewport: 100) == 40)
 }
 
 /// Content shorter than the viewport is not scrollable at all — a negative
@@ -86,7 +86,7 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// without flooring it at 0, which would clamp 25 down to -40 instead of up
 /// to 0.
 @Test @MainActor func contentShorterThanTheViewportDoesNotScroll() {
-    #expect(ScrollView<EmptyGroup>.clamp(offset: 25, content: 60, viewport: 100) == 0)
+    #expect(ScrollChrome.clamp(offset: 25, content: 60, viewport: 100) == 0)
 }
 
 /// Clamping happens on READ, not on write. The wheel handler has no layout to
@@ -94,7 +94,7 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// that a wildly out-of-range stored value (as if content shrank drastically
 /// between frames) still comes back clamped rather than passed through.
 @Test @MainActor func aStoredOffsetPastTheEndIsClampedWhenItIsRead() {
-    #expect(ScrollView<EmptyGroup>.clamp(offset: 9_999, content: 200, viewport: 100) == 100)
+    #expect(ScrollChrome.clamp(offset: 9_999, content: 200, viewport: 100) == 100)
 }
 
 /// **`flexShrink: 0` on the content node, pinned through `ScrollView` itself.**

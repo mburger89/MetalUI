@@ -301,7 +301,7 @@ private func fixedWidth(_ w: Float) -> Style {
 /// **The defect this pins was reported from a running demo as "scrolling
 /// stopped working intermittently", and the intermittency was the tell.**
 /// `Window.applyScroll` writes `offset -= delta` with no bound, and
-/// `ScrollView.resolvedOffset` used to clamp what it *read* while leaving what
+/// `ScrollChrome.resolvedOffset` used to clamp what it *read* while leaving what
 /// was *stored* alone. Scrolling hard against an end therefore banked an
 /// arbitrarily large excess that was invisible — the view sat at the end
 /// looking correct — and every reversing event then spent itself paying that
@@ -315,7 +315,7 @@ private func fixedWidth(_ w: Float) -> Style {
 /// **One frame per event, deliberately**, because that is both the regime the
 /// running app is in — `Window` dirties on every wheel event and the display
 /// link renders each one — and the regime in which the fix has to hold. The
-/// write-back in `resolvedOffset` bounds the stored value to one frame's worth
+/// write-back in `ScrollChrome.resolvedOffset` bounds the stored value to one frame's worth
 /// of events, not to zero; driving a whole batch between two frames would
 /// measure the looser bound and let a weaker implementation through.
 ///
@@ -595,7 +595,7 @@ private struct ScrollContextRecorder: Element, StyledElement {
 /// bound and does not run layout, so nothing clamps the five events against
 /// each other; only the render that follows does. The raw stored offset
 /// reaching frame 2's `requestLayout` is genuinely `5 × 37 = 185` —
-/// overscrolled by more than twice the 80pt ceiling — and `resolvedOffset`
+/// overscrolled by more than twice the 80pt ceiling — and `ScrollChrome.resolvedOffset`
 /// only bounds it to 80 in THAT SAME frame's own `prepaint`, which runs
 /// after `requestLayout` has already read and published the unclamped value.
 ///
