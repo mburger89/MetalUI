@@ -1,11 +1,15 @@
 # Grids decisions (plan task 7, stage G)
 
 Rulings for [`specs/2026-09-17-grids-design.md`](specs/2026-09-17-grids-design.md),
-on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-AJ`; next
-unused is **`GR-AK`**. A bare `GR-3` is a typo, not a citation.
+on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-AS`; next
+unused is **`GR-AT`**. A bare `GR-3` is a typo, not a citation.
 
-**Status, 2026-09-17: lanes 1 and 2 built** (`GR-W` and `GR-X` record their
-as-built amendments);
+**Status, 2026-09-21: all four lanes built.** `GR-W` and `GR-X` record lanes 1
+and 2's as-built amendments, `GR-AK`…`GR-AO` lane 3's, and `GR-AP`…`GR-AS`
+lane 4's — the six departures from its table, `GR-AC` item 3's mutation measured
+WRONG (`+40` reddens nothing), the preview grid's delta and the shape of a
+"marks after its content" mutant. At lane 4's head: **1492** tests, 97 goldens,
+**75** guards;
 the design was revised after **two** critic rounds — `GR-Q` records how each of
 the first round's fourteen findings was applied, `GR-Y` how each of the second
 round's fifteen was, and `GR-Z`…`GR-AF` are that round's new rulings. `GR-AG`
@@ -1829,3 +1833,153 @@ clause of this lane whose only reader was the implementation itself
 line in `reset(generation:)` **and** an arm in
 `resetClearsGridCellAttributeMarks`; the suite will not otherwise notice either
 being missing.
+
+---
+
+## GR-AP — lane 4 as built: what the spec's rows became
+
+**Ruling** (lane 4 implementer round, 2026-09-21; figures in record §20's lane-4
+section). Six departures from spec §6's lane-4 table, each because the table's
+spelling could not be written or could not discriminate.
+
+1. **4.9, 4.9b and 4.9c drive `@State` with a layout-time bump, not a click.**
+   The table says "clicked to 1". A click needs a `Window`, and the three tests
+   are about IDENTITY, which a window adds nothing to: they render the same
+   content twice against ONE `StateTable` (`Frame(stateTable:)`) and one
+   designated cell increments its counter during layout in the first frame only.
+   The discrimination is the same and stronger than a click's: after the `if`
+   vanishes, the cell that was second reads **0** (the removed cell's slot) and
+   the cell that was third reads **1** (the count it did not make). A click test
+   would read the same two numbers through the same ids. `onTap` dispatch
+   through a real window is covered by 4.14 and 4.15, and the hitbox is keyed on
+   the same id, so nothing is left unmeasured — but this is a **departure from
+   `GR-AF`'s wording**, which said "its focus and its `onTap`", and those two
+   halves are inferred from the shared id rather than driven.
+2. **4.2 asserts the PLAN, one arm per spelling per attribute**, exactly as lane
+   3's 3.10 does and for the same reason (`GR-AL` item 1): a wrapper changes the
+   geometry a rect comparison would need. Nineteen spellings × five reads
+   (span, anchor, column alignment, unsized axes, row token) = 95 arms, through
+   `LayoutTree.nativeGridPlan` under `@testable import MetalUILayout`. What the
+   arms hold is that each MetalUI spelling registers a node kind `GR-I`'s walk
+   agrees with; the walk itself stays 3.10's.
+3. **4.13 is `@testable`, not a plain import.** The table says plain; `Frame.init`
+   is `internal`, so an exit test that renders cannot be written against a plain
+   import. `EnvironmentTrapTests.swift` is `@testable` for the same reason, and
+   its `await MainActor.run { … }` shape is copied, since an exit test's body is
+   nonisolated. Nothing in the file reads past the public API otherwise.
+4. **4.17 and 4.20 live in `GridElementTests.swift`**, not `GridPipelineTests.swift`:
+   both are `Frame` tests (4.20 needs `recordsElementBounds`, which a `Window`'s
+   frames never set), and that file already holds the `Frame` helpers.
+5. **`GR-AD`'s "an arm per argument" became a fourth test**,
+   `markNativeGridCellForwardsItsOtherAttributesToTheKernel`, rather than arms of
+   the existing `columns` test, whose name would then have been wrong. Its three
+   arms each `#require` a control that answers differently; the unsized arm needs
+   a flexible leaf, which `GridUnderTest` gained.
+6. **The counts are 1492 and 75, not §6's 1489 and 75.** §6's 1489 was written
+   against a 1462 baseline; the measured baseline is **1464** (1463 plus
+   `GR-AO`'s test), and lane 4 adds 27 of its own plus the registrar test above.
+   Guards are 75 as predicted.
+
+**Cost if wrong.** (1) is the one with a gap: if a later change makes a hitbox
+id differ from the element id, 4.9b/4.9c would keep passing while the `onTap`
+half of the divergence changed. Nothing in the framework separates them today
+(`Frame.registerHandlers` keys the hitbox on the element's id) and 4.14 would
+redden, but the two tests do not see it themselves.
+
+---
+
+## GR-AQ — `GR-AC` item 3's mutation was wrong: `maxDepth + 40` reddens nothing
+
+**Finding** (lane 4, measured). `GR-AC` item 3 says test 4.21's mutation is
+"`maxDepth` raised by 40 (every arm's child dies)". Measured on the full suite,
+`NativeLayoutRun.maxDepth = 128`:
+
+| mutant | suite |
+|---|---|
+| `maxDepth` 128 (+40) | 4 issues — `aChainOf88GridsTraps` (2) and `aLoweredChainOneLevelPastTheNativeDepthLimitTraps` (2). **4.21 stays green: 0 issues.** |
+| `maxDepth` 200 (+112) | 9 issues — the two above plus `aChainOfMaxDepthNodesOfEveryKindSurvivesAOneMegabyteThread` (**5**, one per kind) |
+
+**Why.** 4.21 builds `maxDepth − 1` nodes, so at 128 the chains are 127 long, and
+127 is *exactly* the one-child vertical stack's 1 MB debug ceiling (`SA-L`'s
+table as re-taken by grids lane 1: 127 completes, 128 dies). Every other kind's
+ceiling is higher — padding 194, custom layout 156, the grid's placement path
+154, the fixed frame 168 — so at 128 nothing dies, and the binding kind survives
+by one level. Killing all five needs a chain above the LARGEST ceiling, which is
+`maxDepth` ≥ 196; 200 was used.
+
+**Ruling.** The mutation recorded for 4.21 is **`maxDepth = 200`**, and the +40
+reading is kept beside it: it is the measurement that says how little margin the
+stack kind has, which is the same finding `GR-AC` item 2 already carries as a
+dated obligation for `LR-Q`'s stage 6b re-bisection. A future re-bisection that
+lowers `maxDepth` should re-take both rows.
+
+**Cost if wrong.** None: the test is unchanged either way. The cost of NOT
+recording it is a reader who applies the spec's +40, sees the suite go red on two
+unrelated tests, and banks 4.21 as pinned when it was not exercised at all.
+
+---
+
+## GR-AR — the preview grid's delta, and why the 560 image moves wholesale
+
+**Ruling** (lane 4, delivering `GR-AE`). The grid is **appended to the preview's
+bottom `HStack`**, not inserted into the `VStack`. The `VStack` was already
+over-full at 920×560 (its children plus five 20pt gaps sum to about 428 in a
+392pt box, so its `Spacer()` has no slack), so an inserted row would have
+compressed everything and the delta could not have been read as the grid's. The
+bottom row has slack: 528pt of content in a 752pt inner width, and the grid is
+172×56, which fits beside it with nothing before it moving.
+
+**What the comparison read** (`CN-R`'s harness, `git archive`s of `cb2e708` and
+`12d4b28`):
+
+- the eight legacy 1024 images and `small560-default-light`: **0 differing
+  pixels, scenes identical** — the default demo is unchanged, as `GR-AE`
+  requires;
+- `preview-light` and `preview-dark` (1024): **7 680 differing pixels each, bbox
+  (624, 865)–(795, 920)**. That box is exactly 172 × 56, the grid's own answer,
+  and 7 680 is exactly 4 × 80 × 24, its four cells. The scene dump gains
+  **exactly four rects** and loses none, and no existing rect moves;
+- `small560-preview-light`: **52 033 px, bbox (0, 63)–(559, 497)** — the whole
+  panel.
+
+**The 560 image is not a defect, and the scene dump is what says so.** At 560 the
+preview's root already overflows (its answer is 696×604 in a 560² window) and a
+native root is **centred** at its answer (`CN-J`), so widening the root by 184
+(the grid's 172 plus its 12pt gap) moves everything left by 92. Every rect in the
+base has a counterpart in the head at exactly `x − 92` except five: the three
+backgrounds that widen with the root (696→880, 600→784), the trailing
+`PriorityPreviewPanel`, which is flexible and re-measures from 36 to 220 wide,
+and the final overlay. The four new rects are the grid's cells. **So `GR-AE`'s
+"anything outside that box is a defect" holds for the 1024 images and must be
+read as "anything the scene dump does not explain" for the 560 one**, whose
+geometry is a centring shift by construction.
+
+**The real window agrees** (`docs/probes/window-capture/capture.sh`, screen
+unlocked): `cb2e708` → head, the default window **0**; the preview window
+**30 720 px, bbox (1248, 900)–(1591, 1011)** — 344 × 112 device pixels at scale
+2, which is 172 × 56 points, and 30 720 is 4 × 160 × 48, the same four cells.
+
+**Cost if wrong.** If a later change to the preview's bottom row takes its slack
+away, the grid stops being appendable without reflow and this comparison stops
+being a clean signal; the scene-dump check is what would say so.
+
+---
+
+## GR-AS — a "marks after its content" clause is only mutable by MOVING the mark
+
+**Finding** (lane 4 mutation round). `GridRow` and `GridCellModifier` both mark
+**after** their content registers, and the obvious mutant — mark early as well —
+**left the ordering clause untouched**: adding an early mark and keeping the late
+one reddened four tests, all of them by the double REGISTRATION (a second
+`@State` bind and a second set of nodes), and left
+`aGridRowInsideAGridRowFlattensWithTheOutermostAlignment` green. Of course it
+did: `markNativeGridRow` overwrites, so the last mark still wins.
+
+**Ruling.** The mutant for such a clause **replaces** the late mark with the
+early one (mark a throwaway registration of the content, delete the real mark).
+That reddens 4.4 with 12 issues and much else besides, because the real nodes
+then carry no row token at all — broad, but it is the only mutant that moves the
+rule rather than the bookkeeping. Recorded so the next reader does not take the
+early-plus-late reading as evidence the clause is pinned.
+
+**Cost if wrong.** None; it is a note about instrument design.

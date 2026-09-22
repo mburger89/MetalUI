@@ -13,11 +13,12 @@ import MetalUICore
 // `LayoutTree.swift`'s `.grid` arms and its last extension are the only
 // callers.
 //
-// **Lanes 1, 2 and 3 of four**: the plan, its indexes and gaps, the nil×nil
-// solve, placement and the grid's edges (lane 1); the solve at any other
-// proposal, with indexed bookkeeping (lane 2); cell anchors, column alignment,
-// unsized axes and the column-sum rule (lane 3, whose modifier-chain walk lives
-// in `LayoutTree.gridChildMarks`). The element API is lane 4's.
+// **All four lanes**: the plan, its indexes and gaps, the nil×nil solve,
+// placement and the grid's edges (lane 1); the solve at any other proposal,
+// with indexed bookkeeping (lane 2); cell anchors, column alignment, unsized
+// axes and the column-sum rule (lane 3, whose modifier-chain walk lives in
+// `LayoutTree.gridChildMarks`). The element API — `Grid`, `GridRow` and the
+// four cell modifiers — is lane 4's and lives in `Sources/MetalUI/Grid.swift`.
 
 /// A set of layout axes: SwiftUI's `Axis.Set`, for `gridCellUnsizedAxes` (ruling
 /// GR-H). MetalUI has no `Axis.Set`, and `ProposalStackAxis` is a two-case enum

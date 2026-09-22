@@ -4,10 +4,11 @@ import MetalUILayout
 // Grids (plan task 7, stage G): `docs/superpowers/specs/2026-09-17-grids-design.md`,
 // rulings GR-A… in `docs/superpowers/2026-09-17-grids-decisions.md`.
 //
-// Lane 1 holds only the typed `LayoutPass` registrars. They live here, not in
-// `Passes.swift`, so the grid track edits no shared file (ruling GR-A); they
-// call `frame.tree` directly, which is internal to this module. Lane 4 adds
-// `Grid`, `GridRow` and the cell modifiers.
+// The typed `LayoutPass` registrars live here, not in `Passes.swift`, so the
+// grid track edits no shared file (ruling GR-A); they call `frame.tree`
+// directly, which is internal to this module. Below them, lane 4's element
+// API: `Grid`, `GridRow`, `GridCellModifier` and the four cell modifiers
+// (rulings GR-J, GR-K, GR-T).
 
 extension LayoutPass {
     /// Registers a grid over native children (`LayoutTree.newNativeGrid`; spec

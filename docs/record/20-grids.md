@@ -1639,6 +1639,281 @@ is still GF21.
 round, so `capture.sh` was not run; the only real-window reading for this lane
 is the implementer's, above, including its launch-noise finding.
 
-## For the integrator
+## Lane 4 — elements, identity and the pipeline (2026-09-21)
 
-(Written by lane 4; see spec §6, lane 4.)
+Base `920e2d6` (lane 3's verifier round), suite **1464**. Rulings delivered:
+`GR-J`, `GR-K`, `GR-T`'s element half, `GR-V`, `GR-AD`'s three remaining
+parameters, `GR-AE` (a grid in the preview) and `GR-AF` (identity, pinned wrong
+on purpose), plus the dispositions `GR-AP` (six departures from the spec's
+table), `GR-AQ` (`GR-AC` item 3's mutation measured wrong), `GR-AR` (the preview
+delta) and `GR-AS` (how a "marks after its content" clause must be mutated).
+
+### Red first (`cdfdf54`)
+
+The lane's tests were committed against lane 3's source, where they do not
+compile. `swift build --build-system native --build-tests` reported **223
+errors of eight distinct kinds** and no others:
+
+| error | where |
+|---|---|
+| `cannot find 'Grid' in scope` | 34 in `GridElementTests`, 5 in `GridPipelineTests`, 4 in `GridTrapTests` |
+| `cannot find 'GridRow' in scope` | 82, 7, 4 |
+| `value of type 'Cell' has no member 'gridCellColumns'` | 19 |
+| … `gridCellAnchor` / `gridColumnAlignment` / `gridCellUnsizedAxes` | 19 each |
+| `extra argument 'anchor' in call` | `GridRegistrarTests.swift:61:92` |
+| `extra argument 'columnAlignment' in call` | `:63:68` |
+| `extra argument 'unsizedAxes' in call` | `:66:64` |
+| `generic parameter 'some StringProtocol' could not be inferred` | 8, cascading on `#require` messages whose subexpressions did not typecheck |
+
+The four typecheck guards compile (their fixtures are strings) and are red at run
+time: each one's POSITIVE control does not typecheck either, so `#require` fails
+before the negative is read.
+
+### Source (`f0e72b1`)
+
+`Sources/MetalUI/Grid.swift`, appended below the lane-1 registrars:
+
+- **`Grid<Content: ProposalElementGroup>: ProposalElement`** — SwiftUI's argument
+  order, content numbered from 0 under its own id with a fresh cursor, one
+  `requestNativeGrid` with both spacings mapped to `Double`; `prepaint` and
+  `paint` forward once each and register and paint nothing of their own.
+- **`GridRow<Content>: ProposalElementGroup`** — a group with its OWN identity
+  level: `GlobalElementID.enteringGroupMember` for one cursor index and the
+  `@State` bind (`MC-H`'s shared helper), a fresh inner cursor for the cells, and
+  `markNativeGridRow` **after** the content registers so an enclosing row's mark
+  overwrites an inner one (`GR-T`). Its untyped `requestGroupLayout` unwraps the
+  typed entry's ids — not a copy, so there is nothing to pin separately. It has
+  no node and records no bounds (`GR-K`).
+- **`GridCellModifier<Content>` and `GridCellAttribute`** — layout- and
+  identity-transparent (`EnvironmentScope`'s shape: no node, no index, `parent`
+  and `cursor` forwarded), marking **every** node its content returns after it
+  registers, with **one `markNativeGridCell` call per modifier**: a merged call
+  would silently reverse the kernel's "the first mark on a node stands".
+- `.gridCellColumns`, `.gridCellAnchor`, `.gridColumnAlignment` and
+  `.gridCellUnsizedAxes` on `extension ProposalElementGroup`.
+- `LayoutPass.markNativeGridCell` gains `anchor:`, `columnAlignment:` and
+  `unsizedAxes:` (`GR-AD`'s note to lane 4), in the same change as
+  `GridCellModifier` and with a `GridRegistrarTests` test per argument.
+
+`Sources/MetalUIDemoContent/DemoContent.swift`: a two-row, two-column grid of
+80×24 `Rectangle`s, its last cell a tappable `GridPreviewCell` component,
+**appended to the preview's bottom `HStack`** (`GR-AR` says why, and why not the
+`VStack`).
+
+No `swift package clean` was needed (new types only, no stored property crossing
+a module boundary), and none was taken; the build and suite were clean without
+one.
+
+**Suite: `Test run with 1492 tests in 1 suite passed after 50.747 seconds`**
+(1464 + 27 lane tests + the registrar test), 0 `error:`, no `warning:` but
+SwiftPM's `--build-system native` deprecation notice. Goldens **97**, `git diff
+cb2e708 -- '*.json'` empty. Guards **75** (77 `canTypecheck` hits across fifteen
+files, less `Typecheck.swift`'s declaration and `UnitSafetyTests`' comment);
+`GridCompileGuards.swift` holds four.
+
+A fourth commit (`12d4b28`) added the three arms spec §6 asks of
+`everyModifierWrapperDelegatesEachPhaseExactlyOnce` — a `Grid`, a `GridRow`
+outside a grid, a `GridCellModifier` — with no new `@Test`; the suite stays at
+1492.
+
+### How an arm is read (the element tests' convention)
+
+A nil-proposal arm is wrapped in **`.fixedSize()`**, which proposes nil×nil to
+the grid: a window root is proposed the content size, so without it every arm
+would be the finite solve. An arm probed at a concrete proposal is the window
+root at exactly that size. The window is the arm's answer **plus 20 on each
+axis**, so `CN-J`'s centring offset is the integer 10 and a rect rounded
+absolutely equals the probe's rect rounded relatively — which is why the
+expected values are `roundLayout` of the probe's figures, `NativeGridTests`' `r`.
+Cell rects come from each leaf's own `prepaint` bounds with the ROOT element's
+origin subtracted; `.fixedSize()` adds no geometry, so the root's rect is the
+grid's.
+
+### Mutations
+
+Committed first; each applied from a copy of the committed file, `git status
+--short` showing exactly one modified file during and nothing after (checked on
+all 25 runs); full unfiltered native suite each time. "Reddened" lists the tests
+and their issue counts.
+
+| # | mutation | reddened |
+|---|---|---|
+| M1 | `Grid` passes `horizontalSpacing` as `verticalSpacing` and back | 4.1 (4) |
+| M2 | `GridCellModifier` drops its `.columnAlignment` case | 4.2 (15), 4.5 (1), 4.1 (1) |
+| M3 | … drops `.anchor` | 4.2 (15), 4.5 (3), 4.1 (1) |
+| M4 | … drops `.unsizedAxes` | 4.2 (15), 4.5 (3), 4.1 (4) |
+| M5 | … drops `.columns` | 4.2 (15), 4.5 (4), 4.1 (3) |
+| M6 | `GridCellModifier` marks only the FIRST node its content returns | 4.5 (3) |
+| M7 | … marks a throwaway early registration as well as the real one | 4.2 (60), 4.5 (11), 4.1 (9), 4.10 (2) |
+| M8 | … consumes a cursor index | 4.10 (1) |
+| M9 | `GridRow` marks early **as well as** late | 4.10 (1), 4.9 (1), 4.9b (1), 4.9c (1) — **and NOT 4.4**: `GR-AS` |
+| M9b | `GridRow` marks early **instead of** late | 4.4 (12), 4.1 (44), 4.2 (45), 4.5 (17), 4.6 (10), 4.17 (3), 4.11 (2), 4.12 (1), 4.15 (1), 4.20 (1), 4.10 (1), 4.9/4.9b/4.9c (1 each) |
+| M10 | `GridRow` forwards `parent` and `cursor` to its content | 4.8 (4), 4.20 (2), 4.9 (2), 4.10 (1) |
+| M11 | `GridRow` registers a one-node `HStack` over its cells | 4.2 (75), 4.1 (24), 4.5 (9), 4.13 (6), 4.6 (4), 4.3 (3), 4.17 (3), 4.4 (2), 4.7 (2), 4.20 (1) |
+| M12 | an empty `GridRow` registers an empty `ZStack` as its cell | 4.7 (2) |
+| M13 | `Grid.prepaint` delegates twice | `everyModifierWrapperDelegatesEachPhaseExactlyOnce` (2), 4.19 (1) |
+| M14 | `Grid.paint` delegates twice | 4.18 (1), the delegation test (2) |
+| M15 | `GridRow.prepaintGroup` records bounds of its own | 4.20 (2) |
+| M16 | `LayoutPass.markNativeGridCell` forwards `anchor: nil` | the registrar test (1), 4.2 (15), 4.5 (3), 4.1 (1) |
+| M17 | … `columnAlignment: nil` | the registrar test (1), 4.2 (15), 4.5 (1), 4.1 (1) |
+| M18 | … `unsizedAxes: []` | the registrar test (1), 4.2 (15), 4.5 (3), 4.1 (4) |
+| M19 | `markNativeGridRow` reuses one token for every row | 800 issues across 43 tests, 4.6 among them (5) |
+| M20 | `NativeLayoutRun.maxDepth` 200 (+112) | **4.21 (5, one per kind)**, `aChainOf88GridsTraps` (2), `aLoweredChainOneLevelPastTheNativeDepthLimitTraps` (2) |
+| M21 | `NativeLayoutRun.maxDepth` 128 (+40), the spec's own mutation | `aChainOf88GridsTraps` (2), `aLoweredChain…` (2) — **4.21 stays green**: `GR-AQ` |
+| M22 | `nativeGridCellRects` places every cell at its SLOT | 517 issues across 40 tests, 4.14 among them (1), 4.18 (1), 4.17 (1) |
+| M23 | the disabled gate dropped (`Frame.registerHandlers`' `enabled`, shared file) | 64 issues across 19 tests, 4.19 among them (1) |
+| M24 | `ModifiedContent.nativeWrapperNode`'s `count == 1` relaxed to `>= 1` (shared file) | 4.13 (4) |
+| M25 | `OnTapModifier`'s the same (shared file) | 4.13 (2) |
+| G1M | a legacy `Grid` init overload `where Content == Rectangle` | guard G1 (2) |
+| G2M | a `leading` case on `VerticalAlignment` | guard G2 (2), `aHorizontalCaseIsNotAnHStackAlignmentNorAVerticalCaseAVStacks` (2) |
+| G3M | `gridColumnAlignment` takes a `ProposalAlignment` | guard G3 (2) |
+| G4M | a public `UnitPoint` and a `gridCellAnchor(_: UnitPoint)` overload | guard G4 (2) |
+
+(Test numbers are spec §6's lane-4 table; "the registrar test" is
+`markNativeGridCellForwardsItsOtherAttributesToTheKernel`.)
+
+**No mutation left the suite green**, and two are findings rather than
+confirmations:
+
+- **M9 vs M9b** (`GR-AS`): marking early *and* late does not move the ordering
+  rule at all — the late mark still overwrites — so the four tests it reddens are
+  reddened by the double registration, not by the order. Only replacing the late
+  mark discriminates, and it does so broadly.
+- **M21** (`GR-AQ`): `GR-AC` item 3's stated mutation, `maxDepth + 40`, reddens
+  **nothing in 4.21**. At 128 the chains are 127 nodes and 127 is exactly the
+  one-child vertical stack's 1 MB ceiling — the binding kind survives by one
+  level and every other kind by 27 or more. The effective mutation is `maxDepth
+  = 200`, above the largest ceiling (padding's 194).
+
+**M7 and M9b are stand-ins, and that is itself a finding.** "Mark before the
+content registers" cannot be written straight: the marks need the nodes, which
+only the content's registration produces. Both mutants register the content a
+second time into a throwaway and mark that, which also duplicates `@State` binds
+and nodes — so their issue counts are wider than the clause they test. Lane 3
+met the same shape with its `Int32.max` clamps (`GR-AL` item 3).
+
+### Demo
+
+`CN-R`'s harness rebuilt in scratch (the scratchpad `gen-lib.py` of lanes 1–3 is
+not in the tree; this is a fresh `ZZDemoPixels.swift` generated into a `git
+archive` of each commit, `@testable import MetalUIDemoContent`, a real `Window`
+over `FakePlatformWindow`, raw RGBA plus a scene dump, twelve images). **Its
+controls reproduce §18's figures exactly**, which is what says it is the same
+instrument: light vs dark f0 **1 048 576**, default vs modal light **1 030 498**,
+default vs animation light **210 027**, preview light vs dark **1 048 576**, f0
+vs f3 **0**, and `default-light-f0` has **544** distinct pixel values.
+
+`git archive`s of `cb2e708` and `12d4b28`:
+
+| image | differing pixels | bbox | scene |
+|---|---|---|---|
+| the eight legacy 1024 images (default/modal/animation × light/dark, default also at f3) | **0** | — | identical |
+| `small560-default-light` | **0** | — | identical |
+| `preview-light`, `preview-dark` | **7 680** each | (624, 865)–(795, 920) | +4 rects |
+| `small560-preview-light` | 52 033 | (0, 63)–(559, 497) | see below |
+
+**The 1024 preview delta is exactly the grid** (`GR-AE`'s requirement): the box
+is 172 × 56, the grid's own answer; 7 680 = 4 × 80 × 24, its four cells; the
+scene dump gains exactly four rects — (624, 865), (716, 865), (624, 897),
+(716, 897), each 80 × 24 — **and no existing rect moves**.
+
+**The 560 preview moves wholesale, and the scene dump explains all of it**
+(`GR-AR`): at 560 the preview root already overflows (696 × 604 in a 560² window)
+and a native root is centred (`CN-J`), so widening it by 184 shifts everything
+left by 92. Every base rect has a head counterpart at exactly `x − 92` except
+five — the three backgrounds that widen with the root, the trailing
+`PriorityPreviewPanel` (flexible, 36 → 220 wide) and the final overlay — plus the
+four new cells. Nothing unexplained.
+
+### The real window
+
+The screen was **unlocked**: `docs/probes/appkit-screen-lock-state.swift` printed
+no `CGSSessionScreenIsLocked` line, `displayAsleep main: 0`,
+`preflightScreenCaptureAccess: true`. `docs/probes/window-capture/capture.sh
+<dir> cb2e708 12d4b28`:
+
+| pair | reading |
+|---|---|
+| `cb2e708` default, twice 1.5 s apart | 0 |
+| `cb2e708` preview, twice | 0 |
+| head default, twice | 102 614, bbox (0, 0)–(1839, 55) — lane 3's launch-noise band |
+| head preview, twice | 0 |
+| **`cb2e708` → head, default window** | **0** |
+| **`cb2e708` → head, preview window** | **30 720, bbox (1248, 900)–(1591, 1011)** |
+| control, default vs preview at head | 921 071, bbox (0, 15)–(1839, 1175) |
+
+The preview box is 344 × 112 device pixels at scale 2 = **172 × 56 points**, the
+grid's answer, and 30 720 = 4 × 160 × 48 = its four cells at scale 2. The
+offscreen harness and the real window agree to the pixel on what moved.
+
+The head's default window failed the harness's own precondition once (102 614 in
+the bottom 28 points), which is exactly the per-launch band lane 3 chased and
+reported; the cross-commit reading for that same window is 0, so the band did not
+enter it.
+
+### For the integrator
+
+Lane 4 does not edit CLAUDE.md, AGENTS.md, the plan or `docs/record/README.md`.
+What this stage owes them:
+
+1. **CLAUDE.md's vocabulary** (the proposal-path section): the proposal types
+   gain **`Grid(alignment:horizontalSpacing:verticalSpacing:)`**,
+   **`GridRow(alignment:)`** and the four cell modifiers
+   `.gridCellColumns(_:)`, `.gridCellAnchor(_:)`, `.gridColumnAlignment(_:)`,
+   `.gridCellUnsizedAxes(_:)`; the kernel types gain **`ProposalAxes`**. A
+   `GridRow` is the one proposal GROUP with an identity level of its own (one
+   cursor index, cells numbered under it); a `GridCellModifier` is transparent
+   like `EnvironmentScope`.
+2. **The registrar counts**: `LayoutPass` and `LayoutTree` each have **13**
+   `requestNative*` / `newNative*` registrars, plus **two mark functions each**
+   (`markNativeGridRow`, `markNativeGridCell`).
+3. **The divergence table** gains `GR-O`'s items — SwiftUI's span overflow not
+   ported (2.9), the model's residual disagreements (2.9, 3.12),
+   `gridCellColumns(0)` as 1 (3.11), nine-point anchors (guard G4), `Text` rows
+   at 8 rather than 0 (4.12), every proposal modifier on a multi-cell `GridRow`
+   trapping (4.13), a column count above `Int32.max` trapping (3.6), the stack's
+   infinite-flexibility tie (NOT grid-specific, task 6's), **a vanishing `if`
+   inside a grid moving the cells after it** (4.9b, 4.9c) and a runnable column
+   count still being unallocatable (3.13).
+4. **The inert table** gains `markNativeGridRow(alignment:)`'s horizontal factor
+   and `markNativeGridCell(columnAlignment:)`'s vertical factor; grid marks on a
+   node that never sits under a grid, and a `GridRow`'s alignment or a
+   `GridCellModifier` written outside a `Grid`; and
+   `NativeGridSolution`'s bookkeeping counter. **`ProposalAxes` is NOT inert** —
+   lane 3 gave it both a writer and a reader (`GR-O` says so itself).
+5. **CLAUDE.md's human-verification table gains an OPEN row** (`GR-AE`, owned by
+   plan task 15's closeout, `GR-N`), worded:
+
+   > the proposal preview's grid (`METALUI_NATIVE_LAYOUT_PREVIEW=1`): two rows
+   > and two columns of 80×24 cells at the right of the bottom row, the last
+   > cell changes colour on click and lights on hover, and nothing else on the
+   > preview moved | **open, nobody has looked at a grid on screen.** The
+   > offscreen and real-window captures both read the delta as exactly those
+   > four cells (record §20, lane 4), which is not a look.
+
+6. **Design §4.1 row G** should be marked built, and `GR-L`'s proposed **stage
+   G2 — lazy grids** (after stage 4) added to that table and to the plan's task 7
+   note.
+7. **`swift package clean` before the merged suite** (`GR-A`): both tracks add
+   stored properties to public classes that cross a module boundary.
+8. **Counts to re-take after that clean**: this track alone reads 1492 tests, 97
+   goldens, 75 guards.
+
+### Deferrals
+
+Nothing new from lane 4. Carried: `GR-N`'s table in full — lazy grids to stage
+G2, `UnitPoint` anchors and SwiftUI's font-derived 0 between `Text` rows to task
+11, a modifier distributing over a multi-cell `GridRow` and `.id()` on
+`Grid`/`GridRow` to task 8, proposal-path accessibility to task 12, the model's
+residual disagreements to task 15, `CN-B`'s stack tie to task 6, `SA-L`'s 0.60
+margin to `LR-Q`'s stage 6b re-bisection, and the human look at a grid to task
+15's closeout.
+
+**One thing lane 4 measured and did not fix**: how little room `GR-AC` item 2's
+breach leaves. `SA-L` wants `maxDepth` ≤ 0.60 × the smallest 1 MB debug ceiling;
+the smallest is the one-child vertical stack's **127**, so the rule gives 72 and
+`maxDepth` is 88 — a ratio of 0.693. M21 measures the practical consequence:
+raise `maxDepth` to 128 and 4.21's stack arm survives by exactly one level (127
+completes, 128 dies), so the headroom between "the guard admits the tree" and
+"the stack overflows" is **40 levels**, not the 0.60 rule's ~46%. Owner unchanged
+(`LR-Q`'s stage 6b re-bisection, `GR-N`).

@@ -13,13 +13,18 @@ Parent design:
 §4.1 row G ("no legacy twin; depends on nothing; exit test is its own probe's
 arms; goldens 0; demo 0 px").
 
-**Status, 2026-09-17: lanes 1 and 2 built** (lane 1: `432cb3d` red, `82a63fe`;
+**Status, 2026-09-21: all four lanes built** (lane 3: `5ceea23` red, `f3885a7`,
+amendments in `GR-AK`…`GR-AO`, record §20 "Lane 3"; lane 4: `cdfdf54` red,
+`f0e72b1`, `12d4b28`, amendments in `GR-AP`…`GR-AS`, record §20 "Lane 4". At
+lane 4's head: **1492** tests, 97 goldens, **75** guards; the default demo 0
+differing pixels in nine of twelve images and the preview's delta exactly the
+grid's four cells, offscreen and in a real window). Earlier: **lanes 1 and 2 built** (lane 1: `432cb3d` red, `82a63fe`;
 as-built amendments in `GR-W`, record §20 "Lane 1"; lane 2: `e4f95ff` red,
 `ea0a51b` scanning, `d467058`, `0196743`, `de0a51e`; amendments in `GR-X`,
 record §20 "Lane 2"; both re-verified since — lane 1 at `062a114`, `40c2fe9`
 and `723f26e`, lane 2 at `d6ad9ff` and `f6ed8a0` — with green mutations found
 and pinned at four of those five rounds: `GR-D`'s arms, `GR-AG`'s, `GR-AH`'s
-four, and `GR-AI` finding none left). Lanes 3–4 not started. The design was revised after **two**
+four, and `GR-AI` finding none left). The design was revised after **two**
 critic rounds (`GR-Q`, `GR-Y`). Baseline at `cb2e708`, measured in
 this worktree: `Test run with 1409 tests in 1 suite passed` (native,
 unfiltered), 97 goldens, 71 guards.
@@ -663,6 +668,33 @@ counts re-taken after `swift package clean`.
 **Expected count:** 1462 + 27 = **1489**; guards 71 + 4 = **75**, each mutated
 red once. **Demo:** default 0 px; preview non-zero by design (`GR-AE`); real
 windows the same.
+
+**As built** (`GR-AP`…`GR-AS`; record §20's lane-4 section). Six departures from
+the table above, each recorded there: 4.9/4.9b/4.9c drive `@State` with a
+layout-time bump against one shared `StateTable` rather than a click, because
+the claim is identity and `onTap` dispatch is 4.14's and 4.15's; 4.2 asserts the
+**plan**, nineteen spellings × five reads, as lane 3's 3.10 does and for the same
+reason; 4.13 is `@testable` (`Frame.init` is internal) and reaches each render
+through `MainActor.run`, as `EnvironmentTrapTests` does; 4.17 and 4.20 live in
+`GridElementTests.swift`, both being `Frame` tests; `GR-AD`'s "an arm per
+argument" became a fourth test rather than arms of a test whose name names
+`columns`; and the measured counts are **1492** and **75**, since the baseline
+was 1464, not §7's 1462.
+
+**4.21's mutation in the table is wrong** (`GR-AQ`, measured): `maxDepth + 40`
+reddens 4.21 not at all — its chains are then 127 nodes and 127 is exactly the
+one-child vertical stack's 1 MB ceiling. The mutation is **`maxDepth = 200`**,
+above padding's 194, which kills all five arms.
+
+**The preview's delta** (`GR-AR`): the grid is appended to the preview's bottom
+`HStack`, whose 752pt row has slack, not inserted into the `VStack`, which is
+already over-full. At 1024 the delta is **7 680 px in a (624, 865)–(795, 920)
+box** — exactly 172 × 56 and exactly four 80 × 24 cells, with four new scene
+rects and nothing moved; in the real window **30 720 px in 344 × 112 device
+pixels**, the same cells at scale 2. `small560-preview-light` moves wholesale
+(52 033) because the preview root already overflows 560 and is centred (`CN-J`):
+every rect shifts by exactly −92 except the three that widen with the root and
+the one flexible panel that re-measures.
 
 ## 7. Order, counts, and what each lane may assume
 
