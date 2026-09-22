@@ -55,7 +55,12 @@ word:
   GF21" rule is true of the source;
 - `docs/record/20-grids.md:1089` and the decisions doc both now read "of the
   eighteen, seventeen reddened and one — A — is green", and the "None was
-  green." sentence is gone.
+  green." sentence no longer states anything: its one surviving occurrence,
+  `docs/record/20-grids.md:1091`, is the **quoted erratum** that replaced it
+  ("This paragraph read 'None was green.' until the lane-4 docs round"). *Said
+  "the sentence is gone" until 2026-09-22; a `grep "None was green"` returns
+  one hit, not zero, and an adversarial reader checking the grep would have
+  read that as the fix not having landed.*
 
 Neither finding was executable — labels and prose only — and the verdict field
 predates the fix commit. The track was merged, with this paragraph as the
@@ -350,3 +355,130 @@ claims point at.
 
 **Nothing else in §1–§5 was refuted.** Every number this round re-took came back
 identical.
+
+## 7. Adversarial round (2026-09-22) — §1–§6 re-taken by a reader who did not merge
+
+A second, independent pass over the merged branch at `80a9f9a`. It repeats §6's
+work rather than reading it, on the principle that a round cannot verify itself:
+§6 was written by the integrator.
+
+### Suite, counts, goldens, guards
+
+`swift package clean`, then `swift build --build-system native --build-tests`
+(`Build complete! (34.89s)`, 0 `error:`, the only `warning:` SwiftPM's own
+`--build-system native` deprecation notice), then unfiltered
+`swift test --build-system native --no-parallel`:
+
+```
+􁁛  Test run with 1548 tests in 1 suite passed after 58.286 seconds.
+```
+
+One summary line. Exactly two tests skipped — `regenerateAllGoldens` and
+`aListsWorkIsTheSameFor100kRowsAsFor500`, the two known gated ones — and **no
+guard skipped**: `.build/arm64-apple-macosx/debug/Modules` is present and the
+four `GridCompileGuards` each took ~0.46 s of real `swiftc -typecheck`, which is
+the only way to tell a guard that ran from a guard that returned true for free
+(`08-when-ci-lands.md` item 3).
+
+`find Tests -name "*.json" | wc -l` → **97**, and `git diff --name-only cb2e708
+HEAD -- '*.json'` is empty. Guards: **77** `canTypecheck` hits across 15 files,
+less `Typecheck.swift`'s declaration and `UnitSafetyTests`' comment (3 hits, one
+at `:13` inside a comment) → **75**, per file exactly as `CLAUDE.md`'s table
+reads. `cmp CLAUDE.md AGENTS.md` clean.
+
+### Citation sweep
+
+Every backticked identifier of 15 characters or more in the fourteen documents
+changed since `cb2e708` (514 distinct) was checked against the set of all
+identifiers in `Sources/` and `Tests/`. **Thirteen are absent, and all thirteen
+are legitimate**: seven name work a later stage owes
+(`noProductionFrameReachesTheLegacyEngine` at 6b,
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` at 10,
+`aProposalTextBelowItsNarrowestWord…` in the retired-divergence-59 entry), three
+name symbols an earlier round deleted or renamed and say so at the citation
+(`aspectRatioSize`, `stackMainAllocations`,
+`aLegacyNodeRegisteredUnderANativeGridTraps`), and three are spec prose for
+types that were never built. No changed document cites a test that does not
+exist.
+
+Ruling ids: 294 distinct cited, all defined in a decisions doc except the
+deliberate "a bare `GR-3` is a typo" examples, the "next unused" pointers, and
+the six older numbered ids whose docs define them in tables rather than
+headings. **One real defect** (below). `CLAUDE.md`'s divergence table holds 58
+numbered rows and its prose says fifty-eight; 59 is absent and listed as
+retired. Every `file.swift:NNN` citation in `CLAUDE.md` resolves to a file that
+exists and a line within it.
+
+### Mutations — one central one per track, plus the integration's own
+
+Applied to the merged tree, full unfiltered native suite each time,
+`git status --short` empty after each revert.
+
+| id | track | mutant | read | recorded |
+|---|---|---|---|---|
+| `XM1` | stage 2 | `LegacyLowering.swift`'s `planLegacyItems`: `if isRow { grownH = true } else { grownV = true }` → the two swapped | **16 tests, 99 issues** — `aGridsColumnWidthReachesAGrowingChildInsideALoweredCell` (**X1**) 5, `aGrowingChildTakesTheRemainingMainSpace` 36, `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder` 10, `aZeroBasisGrowerTakesItsShareDownToItsContent` 9, `growingSiblingsShareTheSurplusEquallyWhereCSSAddsItToTheirBases` 8, eleven more | **exact**, every named figure |
+| `XM2` | stage G | `NativeGrid.swift`'s `NativeGridSolver.serve`: `width = Swift.max(shareW, widths[cell.column])` → `width = widths[cell.column]` | **21 tests, 359 issues** — **X1** 3 and **X3** 1 plus 19 grid tests: `theGridProbeCorpusAgreesCaseByCase` 144, `aFiniteProposalServesGroupsWithSharesAndCommits` 63, `theModelsDisagreementsWithSwiftUIArePinned` 23 | **exact** |
+| `XM4b` | integration | `Text.swift`'s lowered leaf de-unified: `proposalTextMeasurement` replaced inline by `cache.shaped(…).widestLine` with no `min(proposal, …)` | **`aLoweredTextAndAProposalTextSizeOneGridColumnIdentically` alone, 3 issues** | **exact** |
+
+`XM2` is the one §6 skipped ("`XM1` and `XM2` are the two halves of `X1`'s seam
+and `XM1` was"). It is also the grids track's single most central line, so it
+was taken here rather than inherited: both halves of the seam are now measured
+in the same round, and each reddens `X1` on its own.
+
+### Pixels, from a harness built a third time
+
+`CN-R`'s harness is a scratch artefact, so it was written again from the recipe
+— not copied from §6 — as a `DEMO_PIXELS_OUT`-gated test in `MetalUITests`
+(which already depends on `MetalUIDemoContent`, `LR-S`), rendering through a
+real `Window` over `FakePlatformWindow` and writing raw BGRA plus a scene dump.
+Twelve images on three separately built `git archive`s: `cb2e708`, `ac1ad1d`
+(`feat/grids`' head) and `80a9f9a`.
+
+**Controls first, on both the base and the head.** Every one reproduces §3's
+figure: light vs dark f0 **1 048 576**; f0 vs f3 **0**; f0 vs modal
+**1 030 498**; f0 vs animation **210 027**; preview light vs dark **1 048 576**;
+`small560-default-light` vs `small560-preview-light` **171 670** at the head and
+**178 634** at the base; **544** distinct pixel values in `default-light-f0`.
+That the same six figures fall out of a harness written independently is what
+says it is the same instrument.
+
+| pair | reading |
+|---|---|
+| `cb2e708` → HEAD, the nine legacy images | **0** each, scene dumps byte-identical |
+| `cb2e708` → HEAD, `preview-light` and `preview-dark` | **7 680** each, bbox **(624, 865)–(795, 920)** |
+| `cb2e708` → HEAD, `small560-preview-light` | **52 033**, bbox **(0, 63)–(559, 497)** |
+| HEAD vs `feat/grids`, all twelve | **0**, every scene identical |
+
+§3 and §6 to the pixel and to the bounding box, third instrument. The bbox is
+172 × 56 and 7 680 = 4 × 80 × 24, the preview grid's four cells.
+
+No real-window capture: the gate is unchanged and the offscreen half is what
+this round could take.
+
+### The one defect, and one wording fix
+
+1. **`docs/superpowers/2026-09-17-grids-decisions.md`'s header was stale.** It
+   read "Ids are lettered, `GR-A`…`GR-AS`; next unused is `GR-AT`" while the
+   file's own last section is `## GR-AT`, appended by the closing docs round in
+   `ac1ad1d`. `CLAUDE.md`'s ruling table and the spec both already read
+   `GR-A`…`GR-AT` / next `GR-AU`, so the decisions doc — the authority for its
+   own namespace — was the only document with the wrong answer, and the next
+   round to append would have reused `GR-AT`. Corrected, with the rule that a
+   round appending a ruling moves that line in the same commit.
+2. **§1's "the 'None was green.' sentence is gone" is not what the grep says.**
+   One occurrence survives, at `docs/record/20-grids.md:1091`, as the quoted
+   erratum that replaced it. The claim's substance holds — the tally is
+   corrected in both documents — but a reader checking it by grep reads one hit
+   and concludes the fix did not land. Reworded to say which hit survives and
+   why.
+
+**Nothing else was refuted.** Every number §1–§6 states and this round could
+re-take came back identical, including the two that a reader would most expect
+to have drifted: the guard census and the twelve-image bounding boxes. One claim
+this round set out to refute and could not — `CLAUDE.md`'s new human-verification
+row saying "the offscreen and real-window captures both read the delta as exactly
+those four cells" — is supported: the track's **lane 4** capture at `12d4b28`
+reads the preview window at **30 720** device pixels, bbox (1248, 900)–(1591,
+1011) = 4 × 160 × 48 at scale 2 = the same four cells (record §20). The lane-1
+capture at `a2c1216`, which reads 0, predates the preview grid (`f0e72b1`) and is
+not the one the row cites.

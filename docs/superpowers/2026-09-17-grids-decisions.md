@@ -1,8 +1,13 @@
 # Grids decisions (plan task 7, stage G)
 
 Rulings for [`specs/2026-09-17-grids-design.md`](specs/2026-09-17-grids-design.md),
-on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-AS`; next
-unused is **`GR-AT`**. A bare `GR-3` is a typo, not a citation.
+on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-AT`; next
+unused is **`GR-AU`**. A bare `GR-3` is a typo, not a citation. (This line read
+"`GR-A`…`GR-AS`; next unused `GR-AT`" until 2026-09-22: the closing docs round
+appended `## GR-AT` in `ac1ad1d` without moving the header with it, so the
+header disagreed with its own last section, with `CLAUDE.md`'s ruling table and
+with the spec, both of which already read `GR-AU`. **A round that appends a
+ruling moves this line in the same commit.**)
 
 **Status, 2026-09-21: all four lanes built.** `GR-W` and `GR-X` record lanes 1
 and 2's as-built amendments, `GR-AK`…`GR-AO` lane 3's, and `GR-AP`…`GR-AS`
