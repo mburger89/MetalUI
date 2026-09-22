@@ -1,8 +1,9 @@
 # SDL GPU experiment: record fixtures on macOS with the production Metal
 # renderer, then build Experiments/SDLGPU/Portable on Linux (no MetalUI, no
-# Apple frameworks) and replay them on Mesa llvmpipe (CPU Vulkan).
+# Apple frameworks) and replay them on Mesa llvmpipe (CPU Vulkan), and on
+# Windows through SDL's Direct3D 12 backend (WARP on GPU-less runners).
 
-name: SDL GPU Linux
+name: SDL GPU Linux + Windows
 
 on:
   push:
@@ -81,4 +82,54 @@ jobs:
         with:
           name: linux-dump-${{ matrix.arch }}
           path: Experiments/SDLGPU/linux-dump/
+          retention-days: 7
+
+  windows:
+    name: Build and replay (Windows x64, D3D12)
+    needs: record
+    runs-on: windows-latest
+    env:
+      SDL_VERSION: 3.4.16
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: fixtures
+          path: Experiments/SDLGPU/fixtures
+      - uses: compnerd/gha-setup-swift@v0.5.0
+        with:
+          swift-version: swift-6.4-release
+          swift-build: 6.4-RELEASE
+      - name: Install SDL3 (prebuilt VC package)
+        run: |
+          $zip = "$env:RUNNER_TEMP\sdl3.zip"
+          Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/SDL3-devel-$env:SDL_VERSION-VC.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $root = "$env:RUNNER_TEMP\SDL3-$env:SDL_VERSION"
+          "SDL3_INCLUDE=$root\include" >> $env:GITHUB_ENV
+          "SDL3_LIB=$root\lib\x64" >> $env:GITHUB_ENV
+          "$root\lib\x64" >> $env:GITHUB_PATH   # SDL3.dll at run time
+      - name: Adapters
+        run: Get-CimInstance Win32_VideoController | Format-Table Name, DriverVersion
+      - name: Build, test and replay
+        # No pkg-config on Windows: hand SwiftPM SDL's include and library paths.
+        working-directory: Experiments/SDLGPU/Portable
+        run: |
+          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB")
+          swift build @flags
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          swift test @flags
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force ..\windows-dump | Out-Null
+          $bin = (swift build @flags --show-bin-path)
+          & "$bin\PortableReplay.exe" ..\fixtures --driver direct3d12 --dump ..\windows-dump
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: windows-dump
+          path: Experiments/SDLGPU/windows-dump/
           retention-days: 7
