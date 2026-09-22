@@ -51,9 +51,10 @@ CLAUDE.md AGENTS.md` before committing.
   | `FR-` | frame and sizing, plan task 4 (`FR-A`…`FR-V`, next is `FR-W`) | lettered |
   | `OM-` | outer modifiers, plan task 5 (`OM-A`…`OM-AM`, next is `OM-AN`) | lettered, two-letter tails are deliberate |
   | `CN-` | containers, plan task 6 (`CN-A`…`CN-U`, next is `CN-V`) | lettered |
-  | `LR-` | engine replacement, plan task 7 (`LR-A`…`LR-AA`, next is `LR-AB`) | lettered, two-letter tails are deliberate |
+  | `LR-` | engine replacement, plan task 7 stages 1–2 (`LR-A`…`LR-BA`, next is `LR-BB`) | lettered, two-letter tails are deliberate |
+  | `GR-` | grids, plan task 7 stage G (`GR-A`…`GR-AT`, next is `GR-AU`) | lettered, two-letter tails are deliberate |
 
-  A bare `CS-3`, `TB-3`, `CO-3`, `AN-3`, `SA-3`, `MC-3`, `EV-3`, `AB-3`, `FR-3`, `OM-3`, `CN-3`, `LR-3` etc. is a typo, not a citation. Sweep
+  A bare `CS-3`, `TB-3`, `CO-3`, `AN-3`, `SA-3`, `MC-3`, `EV-3`, `AB-3`, `FR-3`, `OM-3`, `CN-3`, `LR-3`, `GR-3` etc. is a typo, not a citation. Sweep
   for stray citations case-insensitively. The animation milestone (M4 spec 3,
   on `feat/animation`) is specced at
   `docs/superpowers/specs/2026-09-03-animation-design.md`, planned at
@@ -107,11 +108,23 @@ CLAUDE.md AGENTS.md` before committing.
   `docs/probes/swiftui-stack-algorithms.swift` (revision 10, the V1–V8 spacing
   arms and V1l/V1m among them) and `swiftui-overlay-presentation.swift` (compiled form
   only).
-- **Engine replacement (plan task 7, `LR-`; stage 1 of fourteen landed, task
-  open)**: `specs/2026-09-17-engine-replacement-design.md` (the inventory of
+- **Engine replacement (plan task 7, `LR-`; stages 1 and 2 of fourteen landed,
+  task open)**: `specs/2026-09-17-engine-replacement-design.md` (the inventory of
   `FlexEngine` consumers is its §2, the stage plan its §4),
   `2026-09-17-engine-replacement-decisions.md`, record §18; probe
   `docs/probes/swiftui-engine-replacement-stage1.swift` (revision 2).
+  **Stage 2** (flex-item semantics): `specs/2026-09-17-engine-stage-2-design.md`,
+  the same decisions doc (`LR-AB`…`LR-BA`), record §19; probe
+  `docs/probes/swiftui-engine-replacement-stage2.swift` (revision 4).
+- **Grids (plan task 7 stage G, `GR-`; delivered, task open)**:
+  `specs/2026-09-17-grids-design.md`, `2026-09-17-grids-decisions.md`,
+  record §20; ten runnable probes in `docs/probes/` (`swiftui-grid.swift`
+  revision 6 with its corpus, default run and divergence list, plus nine
+  companions, each with positive controls). **Lazy grids
+  (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out of scope** and proposed as stage
+  G2 after stage 4, which owns the windowing they need (`GR-L`).
+- **Stages 2 and G integrated** on `integrate/stage-2-grids`: record §21 — the
+  two merges, the four cross-track tests and the mutations that prove them.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests. Sixteen numbered shapes of test that cannot fail, seven ways a
   record goes wrong, all observed here.
@@ -119,7 +132,8 @@ CLAUDE.md AGENTS.md` before committing.
   are the split pre-2026-09-09 file, `09` is the SwiftUI-alignment record,
   `10`–`12` the task 3/9/12 tracks and `13` their integration, `14`–`15`
   the task 4/5 tracks and `16` their integration, `17` task 6 (containers),
-  `18` task 7's stage 1 (engine replacement).
+  `18` task 7's stage 1 (engine replacement), `19` its stage 2, `20` its
+  stage G (grids) and `21` the stage 2 / stage G integration.
 
 ## Build and test
 
@@ -134,22 +148,26 @@ swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout preview window (value must be exactly "1")
 ```
 
-- **Counts, dated:** **1409 tests**, **97** browser-fixture goldens, **71**
-  `swiftc -typecheck` guards, 0 `error:`, 0 `warning:` — measured 2026-09-17 on
-  `feat/engine-replacement` (plan task 7 stage 1) at the Docs phase, after
+- **Counts, dated:** **1548 tests**, **97** browser-fixture goldens, **75**
+  `swiftc -typecheck` guards, 0 `error:`, 0 `warning:` — measured 2026-09-21 on
+  `integrate/stage-2-grids` (plan task 7 stages 2 and G merged), after
   `swift package clean`, unfiltered `swift test --build-system native
   --no-parallel` after `swift build --build-system native --build-tests` (one
   summary line; only the two gated tests skipped; the lone `warning:` is
-  SwiftPM's deprecation notice). Goldens unmoved against `c2290fc`. Delta from
-  1357 / 97 / 70: **+52 tests** (lane 1 +12, lane 2 +10, lane 3 +9, lane 4 +12,
-  lane 5 +9), **0 goldens, +1 guard** (`LayoutAuthorityCompileGuards`); record
-  §18. Guards per file:
-  `PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
+  SwiftPM's deprecation notice). Goldens unmoved against `cb2e708`. Delta from
+  1409 / 97 / 71: **+139 tests** (stage 2 +51, stage G +84, the integration's
+  four cross-track tests +4), **0 goldens, +4 guards** (all
+  `GridCompileGuards`; stage 2 added none); records §19, §20, §21. Guards per
+  file: `PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
   `EnvironmentCompileGuards` 8, `ProposalNodeIDCompileGuards` 6,
   `ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5,
-  `ContainerCompileGuards` 4, `AXNodeTests` 3, `DecorationCompileGuards` 3,
+  `ContainerCompileGuards` 4, `GridCompileGuards` 4, `AXNodeTests` 3,
+  `DecorationCompileGuards` 3,
   `UnitSafetyTests` 2 (3 hits, one a comment), `ModifiedElementCompileGuards` 2,
   `FrameSizingCompileGuards` 2, `LayoutAuthorityCompileGuards` 1.
+  Before that: 1409 / 97 / 71 on `feat/engine-replacement` (2026-09-17, plan
+  task 7 stage 1; +52 over 1357 / 97 / 70, the one new guard
+  `LayoutAuthorityCompileGuards`; record §18).
   Before that: 1357 / 97 / 70 — re-taken 2026-09-16
   at the containers closeout (`f80c2aa`: 1355 + the two `hidden()` regression
   tests, record §17 "Closeout"); first measured on `feat/containers` (plan
@@ -196,7 +214,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout previe
   `ProposalLayoutCompileGuards`, `ModifiedElementCompileGuards`,
   `ProposalNodeIDCompileGuards`, `EnvironmentCompileGuards`,
   `FrameSizingCompileGuards`, `DecorationCompileGuards`,
-  `ContainerCompileGuards`, `LayoutAuthorityCompileGuards`,
+  `ContainerCompileGuards`, `LayoutAuthorityCompileGuards`, `GridCompileGuards`,
   `MetalUICoreTests/UnitSafetyTests` (one hit is a comment) and
   `MetalUITests/AXNodeTests`.
   `Tests/MetalUITestSupport/Typecheck.swift` also matches and holds only the
@@ -204,10 +222,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout previe
   older ones and one of `EnvironmentCompileGuards`') use
   `typecheck(_:importing:)`, which wraps the fixture in a function in
   Swift 5 mode, so every fixture type is local and no `public` or file-scope
-  `extension` compiles; the other 31 — `ProposalLayoutCompileGuards`'
+  `extension` compiles; the other 35 — `ProposalLayoutCompileGuards`'
   six, `ModifiedElementCompileGuards`' two, `ProposalNodeIDCompileGuards`' six,
   `FrameSizingCompileGuards`' two, `DecorationCompileGuards`' three,
-  `ContainerCompileGuards`' four, `LayoutAuthorityCompileGuards`' one and seven
+  `ContainerCompileGuards`' four, `LayoutAuthorityCompileGuards`' one,
+  `GridCompileGuards`' four and seven
   of `EnvironmentCompileGuards`' — use
   `typecheckFile(_:importing:)` (whole file, `-swift-version 6`), pinned by
   its own instrument guard `typecheckFileChecksInTheSwift6LanguageMode`. A
@@ -809,8 +828,13 @@ component. Pinned wrong on purpose by `everyRegisteringSiteAnimatesItsStyle`'s
 its own `ModifiedElement` layer with its own `$anim` slot, so by reading it
 animates on a component too (no test drives it).
 **Everything on the proposal path snaps**: no `HStack`/`VStack`/`ZStack`,
-`ModifiedContent` wrapper, `Background`, `Rectangle`, `Color`, `ProposalText`
-or `ProposalScrollView` calls either helper.
+`ModifiedContent` wrapper, `Background`, `Rectangle`, `Color`, `ProposalText`,
+`ProposalScrollView`, `Grid` or `GridRow` calls either helper.
+**An animated `flexGrow` snaps its STRUCTURE** (task 7 stage 2, `LR-AS`): the
+lowering reads which wrappers exist from the *declared* style and only their
+values from the animated one, so a grow that appears or vanishes mid-flight
+jumps, and two equal declared factors stay equal mid-flight
+(`anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues`).
 `Style.aspectRatio` is deliberately never animated (it is inert; see the table).
 Constraints from its plan: no golden may move or be added, no test may sleep
 (drive `simulateTick(timestamp:)`), no Reduce Motion / exit transitions /
@@ -832,7 +856,7 @@ answer** (`CN-J`, probe R1/R2) by
 and a `ZStack` placed in bounds larger than its answer puts the union of its
 children at their origin (`CN-E`, divergence 58). Both entries share one
 private `runNativeLayout`; `measureNativeLayout` keeps its own bracket. The
-kernel is a private `NativeNode` enum in `LayoutTree.swift`: eleven built-in
+kernel is a private `NativeNode` enum in `LayoutTree.swift`: twelve built-in
 cases, which stay cases, plus `custom(any ProposalLayout)` (`SA-B`). Each
 native node still appends a placeholder `Style.default` row to the legacy
 arrays, through the private `appendNode`. Rounding is the legacy
@@ -884,6 +908,32 @@ in `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` in the same change.**
   root in `Frame.render`, `Element.prepaintGroup`, `AnyElement.prepaintGroup`,
   each inner `ModifiedElement` layer; a new group entry that hands off to
   members records too (`LR-AA`, mutation MA).
+
+**Stage 2 lowers the flex ITEM fields, by the parent** (`LR-AB`…`LR-BA`).
+Every lowered site records a `LoweredItem` and reports no item field itself; a
+lowered container consumes its children's records and wraps each, and **a
+record nobody consumes is reported by name** (`LR-AQ`) — a new lowering site
+that receives children consumes or marks them, or its children's fields go
+silent. Lowered: `stretch` and a non-stretch `alignSelf` as cross-axis frames
+(stretch's is **aliased as the element's rect**, so decoration, hitboxes,
+accessibility and text wrap follow it); `flexGrow` as a greedy main-axis frame
+shared equally; a zero `flexBasis` on an unsized grower; `flexShrink: 0` as
+`fixedSize` and any positive shrink as SwiftUI's compression; px/rem
+`minSize`/`maxSize` folded into a declared size as `max(min, min(size, max))`;
+`Style.border` as insets inside the declared size; a `Text`'s `Style.padding`
+around **its leaf** (glyphs paint and wrap at the leaf); `margin` as a native
+padding outside the item frame, unaliased, `.auto` as 0, negative accepted;
+`justifyContent`'s three distributions as native spacers plus a rigid gap leaf,
+with a declared main size only; `.rowReverse`/`.columnReverse` as the children's
+**nodes** reversed with the main factor mirrored (identity, paint, hit and
+accessibility order untouched). Still reported by name, each with an owner:
+percentages, unequal grow weights, a length `flexBasis`, a non-greedy `maxSize`,
+`space-*` on an unsized container a parent grows, `baseline`, `hidden()`.
+**Structure reads the declared style, values the animated one** (`LR-AS`); a new
+read of `Style` in the lowering owes an animated arm, or it is unpinned. A
+`Stack` and a `.frame` layer ignore a child's margin, as the legacy engine does.
+A child with **no record** — a proposal element such as a `Grid` — gets an empty
+plan: it is never stretched, grown or margined (record §21, X2).
 
 **`ProposalLayout` is the public algorithm protocol** (`SA-A`…`SA-F`):
 `sizeThatFits(proposal:subviews:)` and `placeSubviews(in:proposal:subviews:)`,
@@ -1031,10 +1081,17 @@ one counter across measurement and placement. It is 0.60 of the smallest debug
 ceiling on a 1 MB thread, rounded down to a multiple of 8. It is not
 `LayoutContext.maxDepth` and claims no parity with it. Raise it only after
 re-bisecting all four node kinds. A padded, sized legacy container lowers to 3
-native levels; the default demo's deepest lowered path is estimated at 22
-(`LR-Q`); 29 lowered `Box`es as a root (87 levels) lay out and 30 (90) trap
+native levels, and since stage 2 an item with a margin, a padding, a size and a
+stretch is **five**, so a chain of those reaches the 88/89 boundary at 122/123
+nodes (record §19, test 4.8). The default demo's deepest lowered path is
+**measured at 18** (stage 2's exit-test census, both modal states, 78 and 88
+native nodes), not the 22 `LR-Q` estimated;
+29 lowered `Box`es as a root (87 levels) lay out and 30 (90) trap
 (record §18, tests 5.8/5.9) — the exact 88/89 boundary rests on `SA-L`'s pins
-and 5.9's message.
+and 5.9's message. **`SA-L`'s own depth table is stale**: the vertical stack
+completes 128 levels at `cb2e708` where the 2026-09-14 table reads 151, which
+by `SA-L`'s rule would give 72 rather than 88 (found by the grids track; owner
+is `LR-Q`'s stage 6b re-bisection).
 
 **Work counters** (`SA-M`). Count native work with the internal
 `LayoutTree.lastNativeLayoutWork` (`measureCalls`, `cacheHits`,
@@ -1055,7 +1112,10 @@ initializers are deprecated), `ZStack`, `Spacer(minLength:)` (nil = 8),
 `Rectangle(color:)`
 (proposal-responsive) and `Rectangle(width:height:color:)` (fixed), `Color`,
 `ProposalFrame` (not `Frame`: `public final class Frame` exists), `Padding`,
-`Background`, `FixedSize`, `ProposalScrollView`, `ProposalText`. Modifiers on
+`Background`, `FixedSize`, `ProposalScrollView`, `ProposalText`,
+`Grid(alignment:horizontalSpacing:verticalSpacing:)` and `GridRow(alignment:)`
+with the four cell modifiers `.gridCellColumns(_:)`, `.gridCellAnchor(_:)`,
+`.gridColumnAlignment(_:)` and `.gridCellUnsizedAxes(_:)`. Modifiers on
 `extension ProposalElementGroup` return `ModifiedContent` over a closed
 `LayoutModifier` enum — `.frame(width:height:alignment:)` and
 `.frame(minWidth:idealWidth:maxWidth:minHeight:idealHeight:maxHeight:alignment:)`,
@@ -1067,7 +1127,7 @@ initializers are deprecated), `ZStack`, `Spacer(minLength:)` (nil = 8),
 (`MetalUILayout`): `ProposedSize`, `LayoutMeasurement`, `ProposalAlignment`
 (nine), `ProposalStackAxis`, `AspectRatioContentMode`,
 `ProposalMeasureFunction`, `ProposalLayout` and its four proxy types,
-`ProposalSpacing` (`platformDefault`), and
+`ProposalSpacing` (`platformDefault`), `ProposalAxes`, and
 `computeNativeLayout(root:proposal:centredIn:)`. **The `Native…` types and
 `native…` modifier methods are deprecated aliases** — 26 of the 34
 `@available(*, deprecated` hits (the others are task 9's `Binding` alias for
@@ -1076,10 +1136,11 @@ stack initializers and three `percent:` sizing modifiers): 17 typealiases (14 in
 `LayoutTree.swift`) and 9 methods — except the two `nativeFrame(...)`
 overloads, live undeprecated duplicates of `.frame` used by six test call
 sites; deprecating them breaks the 0-warning baseline. **The kernel's own
-`Native` names are not aliases and are not deprecated**: the 12
-`LayoutPass.requestNative*`, the 12 `LayoutTree.newNative*` (each set
-including the custom-layout registrar), `computeNativeLayout` and
-`isNativeLayoutNode` are the primary API. Shared spellings
+`Native` names are not aliases and are not deprecated**: the 13
+`LayoutPass.requestNative*`, the 13 `LayoutTree.newNative*` (each set
+including the grid and the custom-layout registrar), the **two mark functions
+each** — `markNativeGridRow` and `markNativeGridCell` — `computeNativeLayout`
+and `isNativeLayoutNode` are the primary API. Shared spellings
 resolve by receiver: every `.frame` spelling on a proposal value picks the
 proposal overload
 (`everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload`, seven
@@ -1088,6 +1149,35 @@ inference rows; `swift-frame-overload-resolution.swift`), on anything else
 `StyledElement` and `ProposalElementGroup` and is unambiguous only because no
 built-in type is both; `.padding` splits by argument type (there is no proposal
 `.padding(Pixels)`).
+
+**`Grid` and `GridRow` (task 7 stage G, `GR-`).** A column is as wide as its
+widest single-column cell and a row as tall as its tallest.
+- **A grid is a kernel CASE, not a `ProposalLayout`** (`GR-C`), so its algorithm
+  is not reachable through the public protocol. `Content: ProposalElementGroup`,
+  so `Grid { Box() }` is a compile error, not an `SA-G` trap (guard).
+- **A `GridRow` is the one proposal group with an identity level of its own**:
+  one cursor index, its cells numbering from 0 under it. A `GridCellModifier` is
+  layout- and identity-**transparent**, like `EnvironmentScope`.
+- **The row mark is written after the content registers, and the OUTERMOST row
+  mark wins**; a cell attribute keeps the **first** value written, so the
+  **innermost** modifier wins; `gridCellColumns` **sums** along a chain and
+  unsized axes **union**.
+- **Attributes are read through a modifier chain** (`frame`, `padding`,
+  `fixedSize`, `aspectRatio`, `layoutPriority`, an overlay attachment's child 0)
+  and the walk **stops** at a stack, a `ZStack`, an overlay's content side, a
+  scroll viewport, a custom layout, a nested grid, a spacer or a leaf.
+- **Spacing** `nil` is the largest platform-default pair spacing meeting at each
+  boundary, not one number for the grid (`GR-D`); a given value is used verbatim
+  on every gap of that axis, negative included.
+- **A vanishing `if` inside a grid moves the cells after it** — the framework's
+  universal trailing-sibling adoption, inside a row and between rows — and no
+  built-in proposal element has `.id()`, so the documented remedy cannot be
+  spelled until task 8.
+- A grid registers and paints nothing of its own, publishes nothing to
+  accessibility and never animates (`GR-K`). It **consumes no `LoweredItem`**, so
+  a legacy item field on a top-level cell reports `<site>.<field>.unconsumed`
+  (record §21, X4).
+- `LayoutTree` gained six stored mark tables, so **`swift package clean`**.
 
 **`Text.proposalLayout()`** returns a `ProposalText` carrying only the string,
 font family/size and foreground colour — a background, handlers, `elementID`
@@ -1136,12 +1226,12 @@ rulings above and `SA-N`'s findings below, not this list.
   (`aspectRatioUsesSwiftUIsBranchAtZeroAndNegativeProposalAxes`); the
   single-axis branch is unpinned.
 
-**Probed, and the kernel disagrees** (`SA-N`; `Spacer()`'s 8pt minimum,
-`aspectRatio` at nil×nil and a single-child stack's priority closed by `CN-C`,
-`CN-G`, `CN-D`):
-- padding places its child at the child's own size; the kernel stores bounds
-  minus insets, pinned wrong on purpose (task 7, `CN-Q`); it no longer shows at
-  a centred root (`CN-J`).
+**`SA-N`'s "probed, and the kernel disagrees" list is EMPTY.** `Spacer()`'s 8pt
+minimum, `aspectRatio` at nil×nil and a single-child stack's priority closed by
+`CN-C`, `CN-G`, `CN-D`; its last item — padding placing its child at the child's
+own size — closed by task 7 stage 2's lane 3 (`LR-AU`), on both entries, pinned
+by `aNativePaddingPlacesItsChildAtTheChildsOwnSize`. Do not re-add a row here
+without a probe run now.
 
 **The kernel's flexible frame is greedy** (`FR-A`, `FR-M`, closing the two
 task-4 `SA-N` items): with a maximum and a finite proposal it answers the
@@ -1240,7 +1330,14 @@ ones that cost a round of rework each. History in record §02.
   `AB-O` × `ModifiedElement` interaction was invisible on both branches
   (record §13). A per-layer mutation that reddens only the integration tests
   is the finding that the tracks' own suites could not see it (record §16,
-  M1).
+  M1). **A clause both tracks share can be pinned by neither**: dropping the
+  clamp from the lowered `Text` alone left all 1548 merged tests green, because
+  the engine track pinned it only through `ProposalText` (record §21, XM4).
+- **Re-run a mutation a doc comment names when the code under it changes.** A
+  later lane can delete the branch the mutation targeted (stage 1's V3, deleted
+  by stage 2's lane 4) or make the shape stop discriminating (stage 2's 2.9,
+  which `M2j` cannot reach because the sidebar is a grower either way). Both
+  were found by a verifier re-running the named mutation, not by reading.
 - **A mutant that stays green may be the correct spelling.** Prove it
   different; if it is the better answer, correct the design (`LR-X`: lane 2's
   paint-wrap mutant was right).
@@ -1270,6 +1367,8 @@ or any of text's three §4.2 failure modes; these are looks.
 | tasks 4 and 5 integrated (frame and sizing; outer modifiers): release-window capture of the default demo AND the preview window against a build of `c4b5853`, by `MC-J`'s method | **closed 2026-09-17 by real release-window captures** (`docs/probes/window-capture/capture.sh`: window-id capture, no shadow, no input, each window taken twice 1.5 s apart and reading 0; record §03). `c4b5853` → `9e439cb`: default 0, preview 0. No clipped edge is visible in the preview capture. The offscreen stand-in that preceded it: `FakePlatformWindow` pixels, ten images, merged vs `c4b5853`, **0 differing pixels and identical scene dumps in all ten**, with an instrument (element padding doubled plus the kernel's frame proposal less 10) that moves every image including the preview (record §16). At 920×560 the preview's content is 594pt tall, centred, overflowing 17pt top and bottom (`FR-U`): a look would report a clipped border. The 2026-09-17 capture shows no clipped content at any window edge; not investigated |
 | containers (plan task 6, `feat/containers`): release-window capture of the default demo and the preview against `9e439cb` | **closed 2026-09-17 by real release-window captures** (`docs/probes/window-capture/capture.sh`: window-id capture, no shadow, no input, each window taken twice 1.5 s apart and reading 0; record §03). `9e439cb` → `c2290fc`: default 0; preview 114 132 differing pixels, bbox (168,182)–(1671,1051), and by eye exactly the recorded change: the scroll view is as wide as its content (`CN-M`) and the column shifts with the toggle's extra point (`CN-G`). The offscreen stand-in that preceded it: `FakePlatformWindow` pixels, legacy images 0 differing in all nine, preview 1 109 per 1024 image (three rects: `CN-G`'s toggle and the `CN-M` scroll view) and 65 449 at 560 (every rect: `CN-B`'s distribution and `CN-J`'s centred, overflowing root as well), re-taken by the branch checker with identical figures (record §17). The lock check itself should be the CGS probe (`FR-V`), which no lane ran |
 | engine replacement stage 1 (plan task 7, `feat/engine-replacement`): release-window capture of the default demo and the preview against `c2290fc` | **closed 2026-09-17 by real release-window captures** (`docs/probes/window-capture/capture.sh`: window-id capture, no shadow, no input, each window taken twice 1.5 s apart and reading 0; record §03). `c2290fc` → `12abda1`: default 0, preview 0. The offscreen stand-in that preceded it: `FakePlatformWindow` pixels, **0 differing in all twelve** images at every lane and from archives by lane 5's verifier; the two-authority chrome pair 0 (control 8 214). Nothing in production runs under the proposal authority, so no demo look is owed until stage 6b (record §18) |
+| engine replacement stage 2 and grids (plan task 7 stages 2 and G, merged on `integrate/stage-2-grids`): release-window capture of the default demo and the preview against `cb2e708` | **the offscreen half is closed; the real-window half is open.** Offscreen (`CN-R`'s harness from `git archive`s of `cb2e708` and the merged HEAD, `DEMO_PIXELS_SMALL=1`): **nine of twelve at 0 differing pixels**, scenes identical — every default, modal and animation image, light and dark, and `small560-default-light`. The three **preview** images differ and are attributed: `preview-light`/`preview-dark` 7 680 px in bbox (624,865)–(795,920), which is exactly the grids track's four 80×24 preview cells (4 × 1 920) inside their 172×56 bounding box, and `small560-preview-light` 52 033 where the narrower preview reflows around the grid. **The merge itself renders nothing new**: merged HEAD vs `feat/grids` is 0 in all twelve. Controls non-zero and reproducing the tracks' figures (light/dark 1 048 576, modal 1 030 498, animation 210 027, f0 vs f3 0, preview light/dark 1 048 576, 544 distinct values); the two-authority chrome pair 0 with 216 distinct values. **No real-window capture**: the screen was locked at the merge (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`), so `capture.sh` was not run (`FR-V`; record §21) |
+| the proposal preview's **grid** (`METALUI_NATIVE_LAYOUT_PREVIEW=1`): two rows and two columns of 80×24 cells at the right of the bottom row, the last cell changes colour on click and lights on hover, and nothing else on the preview moved | **open, nobody has looked at a grid on screen** (owner: task 15's closeout, `GR-N`). The offscreen and real-window captures both read the delta as exactly those four cells (records §20, §21), which is not a look |
 | the focus ring (`focusBorder`) reads as a focus affordance | open: the demo declares none, so a look needs a demo-only commit first |
 | tasks 3, 9, 12 integrated: release-window capture of the default demo AND the `METALUI_NATIVE_LAYOUT_PREVIEW=1` window against a build of `f64e58a`, by `MC-J`'s method (`CGWindowListCopyWindowInfo` bounds, `screencapture -x -R…`, no input) | **closed 2026-09-17 by real release-window captures** (`docs/probes/window-capture/capture.sh`: window-id capture, no shadow, no input, each window taken twice 1.5 s apart and reading 0; record §03). `f64e58a` → `c4b5853`: default window 0 differing pixels, preview 0, both 1840×1176 @2x. The offscreen stand-in that preceded it: `FakePlatformWindow` pixels of `demoContent()` (light/dark, f0/f3, modal, settled **A**) and the preview, merged vs `f64e58a`, **0 differing pixels in all ten**, with a paint-order instrument that differs (record §13). It cannot see the drawable, the real window, input, hover, focus or a mid-flight animation |
 
@@ -1286,14 +1385,16 @@ before believing it.
 
 ## Known divergences — expected, measured, not defects
 
-Forty-eight entries; labels are stable ids. Retired and never reused: 3, 5, 6
+Fifty-eight entries; labels are stable ids. Retired and never reused: 3, 5, 6
 (sizing, fixed), 7 (renumbering), 8 (`Text.paint` wrap, fixed), 12 and 17
 (tombstones, closed for a **bounded** two-generation window above 256
 entries), 15 (nested scroll mask, fixed by `OM-U`: `pushClip` adds
 `activeOffset`), 36 (legacy frame squeezing an oversized child, fixed by
 `CN-N` for a frame over one node), 37 (the kernel frame answering its child at
 an infinite proposal, reversed by `CN-F`), 40 (`percent:` taking a fraction,
-now spelled `fraction:` with `percent:` deprecated, `CN-O`). Full entries with repro and pins in record §04.
+now spelled `fraction:` with `percent:` deprecated, `CN-O`), 59 (a text
+measurement below its narrowest word — task 7 stage 2's lane 3 clamps it to the
+proposal, which is SwiftUI's answer, `LR-AU`). Full entries with repro and pins in record §04.
 
 | # | kind | one line |
 |---|---|---|
@@ -1336,14 +1437,24 @@ now spelled `fraction:` with `percent:` deprecated, `CN-O`). Full entries with r
 | 49 | vs SwiftUI | `.border.cornerRadius` draws a rounded stroke that follows the arc; SwiftUI draws a square border clipped by the radius (`OM-W`, D2 vs M1). Pinned by `aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot`. |
 | 50 | vs SwiftUI | `.contentShape(inset:)` written before a wrapping modifier, with the `onClick` after it, is inert: the padded layer is hittable over its whole frame (centre/band/edge 1/1/1) where SwiftUI honours the inset (1/0/0); the reverse order agrees (probe S1/S2, record §16). Pinned wrong on purpose by `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`. |
 | 51 | vs SwiftUI | `ProposalText` beside `ProposalText` in a `VStack` is 8pt apart; SwiftUI's text edges are font-derived (text\|text 0, rect\|text 4.74, text\|rect 8.15; probe S, `CN-H`). Pinned by `aProposalTextStackUsesEightWhereSwiftUIUsesFontSpacing`; task 11. |
-| 52 | vs SwiftUI | Legacy `Row`/`Column` default to gap 0; `HStack`/`VStack` to 8 (probe S, `CN-P` 1). Pinned by `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`; task 7 stage 2. |
+| 52 | vs SwiftUI | Legacy `Row`/`Column` default to gap 0; `HStack`/`VStack` to 8 (probe S, `CN-P` 1). Pinned by `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`; task 7 stage 8 (stage 2's 5.8 characterizes it; closing it is a vocabulary change, `LR-AL`). |
 | 53 | vs SwiftUI | A legacy `Stack` offers a child fit-content; `ZStack` offers its proposal (A5: a greedy child fills 100×80; a childless `Box` is 0×0) (`CN-P` 2). Pinned by `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal`; lowered to SwiftUI's answer under the proposal authority (`aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent`); production at task 7 stage 6b. |
 | 54 | vs SwiftUI | A legacy `ScrollView` takes its cross axis from its parent; SwiftUI's takes its content's (SC2, `CN-P` 3). Pinned by `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents`; task 7 stage 3. |
-| 55 | vs SwiftUI | Legacy `Row`/`Column` compress by flex-shrink in proportion to base size and expand only by `flexGrow`, with no `Spacer`; a SwiftUI stack serves least flexible first (G1, `CN-P` 4). Covered by the CSS goldens; lowered to SwiftUI's answer under the proposal authority (`aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren`); production at task 7 stage 6b. |
+| 55 | vs SwiftUI | Legacy `Row`/`Column` compress by flex-shrink in proportion to base size and expand only by `flexGrow`, with no `Spacer`; a SwiftUI stack serves least flexible first (G1, `CN-P` 4). Covered by the CSS goldens; lowered to SwiftUI's answer under the proposal authority (`aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren`, and since stage 2 also `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight` and `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`); production at task 7 stage 6b. |
 | 56 | vs SwiftUI | A legacy `.frame` over a multi-member `Component` lays the members out as a flex row; SwiftUI frames each member (G7, `CN-N`). Pinned as it stands by `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren` and `chainedFramesRemainConcreteAndNestTheirLayoutNodes`; task 7 stage 3. |
 | 57 | vs SwiftUI | A non-clickable proposal primary does not block a click to its `.background` content; SwiftUI's does (overlay-presentation H3, `CN-K`). Unpinned; task 12. |
 | 58 | design | A `ZStack` placed by a kernel caller in bounds larger than its answer puts the union of its children at the bounds' origin (`CN-E`); SwiftUI has no such placement. Pinned by `aZStackPlacesItsChildrenAtItsOwnSizeWithinTheirUnion`. |
-| 59 | vs SwiftUI | `ProposalText` (and a lowered `Text`) proposed a width below its narrowest word answers its widest character with the hung space (11.18 at 13pt for probe T's string, 592 tall) where SwiftUI answers the proposal (stage-1 probe T3/T4, `LR-X`). Pinned wrong on purpose by `aProposalTextBelowItsNarrowestWordAnswersItsWidestCharacterWhereSwiftUIAnswersTheProposal`; task 7 stage 2. |
+| 60 | vs SwiftUI | SwiftUI's text measurement answers an **integer** width — `min(proposal, ceil(widest line))`: 19 / 11 / 18 / 45 for stage-2 probe Y's arms where `ProposalText` (and a lowered `Text`) answers 18.17 / 10.31 / 17.25 / 44.02 (`LR-AY` item 4). **Unpinned**; task 11, and it must be settled before task 7 stage 6b, when a lowered `Text` reaches production. |
+| 61 | vs SwiftUI | SwiftUI's grid **span overflow** is not ported. Pinned wrong on purpose by test 2.9 (`theModelsDisagreementsWithSwiftUIArePinned`); task 15's closeout. |
+| 62 | vs SwiftUI | The grid model's residual disagreements with `Grid` — spans, priorities, `Spacer`s, unsized axes; about one generated grid in three uses them — **plus arm O1**, where SwiftUI charges an open column outside a span W′/3 with nothing committed (245.33×100) and the model charges that column its group's share (106×100). Pinned wrong on purpose by `theModelsDisagreementsWithSwiftUIArePinned` and `theModelDisagreesWithSwiftUIOnTheDivergenceCorpus` against 65 committed cases; task 15's closeout. **Do not "fix" the outside term toward SwiftUI without re-deriving the reference model** — every other committed case is pinned against it. |
+| 63 | vs SwiftUI | `gridCellColumns(0)` lays out as 1. Pinned by `gridCellColumnsZeroLaysOutAsOne`. |
+| 64 | vs SwiftUI | A cell anchor is one of the nine `ProposalAlignment` points; there is no `UnitPoint`. Pinned by guard `aGridCellAnchorIsNinePoint`. |
+| 65 | vs SwiftUI | Two rows of `ProposalText` take the platform default 8, where SwiftUI's font-derived row spacing takes 0 (as `CN-H`'s stacks). Pinned wrong on purpose by `textRowsTakeTheDefaultRowSpacing`. |
+| 66 | vs SwiftUI | Every proposal modifier written on a **multi-cell** `GridRow` traps; SwiftUI applies it per cell. Pinned by `aModifierOnAMultiCellGridRowTraps`. |
+| 67 | vs SwiftUI | A column count above `Int32.max` traps naming `columns`, where SwiftUI lays out its low 32 bits. Pinned by `aColumnCountAboveInt32MaxTraps`. |
+| 68 | limit | A column count the kernel **accepts** can still be unallocatable — the trap is at `Int32.max`, not at what memory allows. Unpinned; `aColumnCountAboveInt32MaxTraps`' doc comment records it. |
+| 69 | design | **A vanishing `if` inside a grid moves the cells after it** — the framework's universal trailing-sibling adoption, within a row and between rows, because `OptionalGroup` advances no cursor. No built-in proposal element has `.id()`, so the remedy cannot be spelled until task 8. Pinned wrong on purpose by `removingACellFromARowHandsItsStateToTheNextCell` and `removingAWholeGridRowHandsItsStateToTheNextRow`. |
+| 70 | vs SwiftUI | A stack serves two **infinitely flexible** children in declaration order. **Not grid-specific — owned by task 6**, found by the grid corpus. Pinned by `aStackServesItsLeastFlexibleChildFirst` and grid tests 2.10/2.11. |
 | 18 | vs SwiftUI | `@State` behind a removed `if` is retained, not reset; indefinitely below 256 entries — but 256 is easier to reach than it reads, since every registering element mints a `$anim` entry unconditionally (measured on the committed `demoLikeRows(_:)` test fixture, which has no `.padding`: `2n + 7`, crossing at **125 rows**, 1007 at 500; the demo's own 500-row list is not that fixture and, since each row's `.padding` became a wrapper in `f1944f8` (now a `ModifiedElement` layer), holds more by an unmeasured amount). Reset explicitly or keep the value in data. Element-level consequence is unpinned. |
 
 ## Declared but inert — verify, do not remember
@@ -1356,11 +1467,11 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 |---|---|
 | `AlignItems.baseline` / `AlignSelf.baseline` | falls back to the start edge in flex and in `Stack`; needs baselines in the measure protocol |
 | `Style.aspectRatio`, `Style.overflow` | zero reads (`overflow` has one write, in `ScrollView`, that nothing consumes). The proposal `.aspectRatio(_:contentMode:)` modifier is a different, live API — do not delete it with this row |
-| `margin: .auto` | resolves to 0 on both axes; unreachable from modifiers, reachable via `Style` |
-| `Style.border` on a container | shrinks the content box and paints nothing (the engine discards the resolved edges; `paintDecoration` reads only `Decoration`'s borders). Unreachable from modifiers since `borderWidth(_:)` was deleted (`OM-M`), reachable via `Box(style:)`, on `margin: .auto`'s footing. Not the paint-only `.border(_:width:)`. By reading, unpinned |
+| `margin: .auto` | resolves to 0 on both axes; unreachable from modifiers, reachable via `Style`. **Under the proposal authority this is now explicit, not an accident**: task 7 stage 2 lowers it to nothing and reports nothing (`LR-AH`, `anAutoMarginLowersAsZero`) |
+| `Style.border` on a container | shrinks the content box and paints nothing (the engine discards the resolved edges; `paintDecoration` reads only `Decoration`'s borders). Unreachable from modifiers since `borderWidth(_:)` was deleted (`OM-M`), reachable via `Box(style:)`, on `margin: .auto`'s footing. Not the paint-only `.border(_:width:)`. By reading, unpinned. **Legacy-authority only**: under the proposal authority task 7 stage 2 lowers `Style.border` to native padding insets inside the declared size (`aStyleBorderLowersAsInsetsInsideTheDeclaredSize`), so it is live there |
 | `Position.relative`'s offset | makes a containing block, does not shift the box |
 | `Style.alignSelf` on a `Stack` child | ignored entirely |
-| `Style.padding`/`border`/`margin` on a **leaf** (`Text`) | **not** the `.padding(_:)` modifier on an element, which now wraps in a `ModifiedElement` layer: it offsets and enlarges the outer footprint of a fixed-size custom `StyledElement` (`paddingWrapsAnElementAndExpandsItsOuterFootprint`, whose `Leaf` is not a `Text`); that it does the same for a `Text` is by reading, unpinned. Holds for `Style.padding`/`Style.border` set directly and `.margin`: ignored on a **content-sized** leaf: no size moves, and it stays out of §9.7.4.c's shrink weight (`aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`). **Not inert once the leaf declares a main size**: ruling BM-4 puts the padding inside that base, so it comes off the shrink weight as CSS says — a 200 row of two `width: 200px` measured leaves, one with `padding: 0 40px`, lays out 125 / 75 (`aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`) |
+| `Style.padding`/`border`/`margin` on a **leaf** (`Text`) | **not** the `.padding(_:)` modifier on an element, which now wraps in a `ModifiedElement` layer: it offsets and enlarges the outer footprint of a fixed-size custom `StyledElement` (`paddingWrapsAnElementAndExpandsItsOuterFootprint`, whose `Leaf` is not a `Text`); that it does the same for a `Text` is by reading, unpinned. Holds for `Style.padding`/`Style.border` set directly and `.margin`: ignored on a **content-sized** leaf: no size moves, and it stays out of §9.7.4.c's shrink weight (`aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`). **Not inert once the leaf declares a main size**: ruling BM-4 puts the padding inside that base, so it comes off the shrink weight as CSS says — a 200 row of two `width: 200px` measured leaves, one with `padding: 0 40px`, lays out 125 / 75 (`aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`). **Legacy-authority only**: under the proposal authority a lowered `Text`'s `Style.padding` pads it — around **its leaf**, so the glyphs paint and wrap at the leaf (`paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt`, `LR-AH`) |
 | `hidden()` on a subtree that draws or is focusable | layout filters it, paint does not: glyphs stack at the window's top-left; a hidden focusable still claims keystrokes. Use a builder `if` instead. Directly after a one-node legacy `.frame` it filters layout and accessibility as anywhere else (`CN-N`'s regression, fixed: `hiddenAfterASingleChildLegacyFrameStillHidesTheElement`, `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`) |
 | `AnyElement` | works when hand-written; the builder never produces one and must not |
 | `@State` inside `AnyElement` | silently inert |
@@ -1377,7 +1488,9 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 | `ElementGroup.frame()` / `ProposalElementGroup.frame()` with no arguments | deprecated no-ops returning `self` (`FR-J`, guard `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`); declared on BOTH protocols on purpose — on `ElementGroup` alone the proposal call resolves to the all-defaulted fixed overload and builds a layer silently |
 | `LayoutAuthority.proposal` / `Window.layoutAuthority` | internal; works, pinned, and set by no production code until task 7 stage 6b — every production frame is `.legacy` |
 | `GlyphAtlas.evictUnusedSince`, `LayoutTree.reset(generation:)` | zero callers; guards kept for whoever calls them |
-| `Frame.scrollRegions` / `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount`, `LayoutTree.lastNativeLayoutWork`, `MeasurementSubview.isSpacer` / `PlacementSubview.isSpacer`, `Frame.elementBounds`, `Frame.unlowerableFields`, `Window.recordsElementBounds`/`lastElementBounds`, `StateTable.ids` | test observables with no production reader (`isSpacer`: read by no built-in since `CN-B`) |
+| `Frame.scrollRegions` / `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount`, `LayoutTree.lastNativeLayoutWork`, `MeasurementSubview.isSpacer` / `PlacementSubview.isSpacer`, `Frame.elementBounds`, `Frame.unlowerableFields`, `Window.recordsElementBounds`/`lastElementBounds`, `StateTable.ids`, `NativeGridSolution`'s bookkeeping counter (`GR-U`) | test observables with no production reader (`isSpacer`: read by no built-in since `CN-B`) |
+| `markNativeGridRow(alignment:)`'s **horizontal** factor, `markNativeGridCell(columnAlignment:)`'s **vertical** factor | each reads one axis only and discards the other (`GR-G`). The three other `markNativeGridCell` parameters — `anchor:`, `columnAlignment:`, `unsizedAxes:` — and `ProposalAxes` are **NOT** inert: lane 4 gave each a `LayoutPass` caller and an element modifier, and `NativeGridSolver.serve` reads the axes |
+| a grid mark on a node that never sits under a grid; a `GridRow`'s alignment or a `GridCellModifier` written **outside** a `Grid` | carried and never read — a `GridRow` outside a grid is simply its cells (`GR-I`, `aGridRowOutsideAGridIsItsCells`) |
 | `AXNode.children`, `AXNode.actions`, `Frame.axNodes`/`axNode(for:)`, `AXEmission.synthesizes` | always `[]` (hierarchy comes from records, `AB-C`) / declared, never read (`AB-H`) / no production reader, the bridge reads records; `axNode(for:)` validity lags one frame / no reader |
 | `ElementGroup.LayerBase` / `_wrap(_:)` on a custom conformer | a conformer that declares `LayerBase` and forwards `_wrap` to another value compiles, and its `.padding`/`.frame` silently drop the receiver (`MC-A`); no access-control spelling closes it |
 | `EnvironmentValues.layoutDirection` | carried; no layout reads it (divergence 25) |
@@ -1442,7 +1555,7 @@ has the mechanisms.
 - **Every typecheck guard skips when `.build` is not where `#filePath`
   resolution expects** — and that includes **the default build system**.
   `swiftbuild` writes modules flat into `.build/out/Products/Debug/` with no
-  `Modules` directory, so under it alone **all 71 guards skip**, the total does
+  `Modules` directory, so under it alone **all 75 guards skip**, the total does
   not move and the run passes. `--build-system native` writes
   `.build/<triple>/debug/Modules`, **and that directory survives**: once a
   checkout has ever been built that way the guards run under the default system

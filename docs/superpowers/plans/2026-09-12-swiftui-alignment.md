@@ -112,7 +112,10 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
     `.frame()` is deprecated in SwiftUI (task 4) — *closed 2026-09-16 by
     `FR-A`/`FR-M` and `FR-J`*;
   - padding places its child at the child's size (task 5) — *2026-09-16: task
-    5 did not take it (`OM-Q`, no kernel change); assigned to task 7 by `CN-Q`*;
+    5 did not take it (`OM-Q`, no kernel change); assigned to task 7 by `CN-Q`;
+    **closed 2026-09-21 by task 7 stage 2's lane 3 (`LR-AU`)**, on both entries,
+    pinned by `aNativePaddingPlacesItsChildAtTheChildsOwnSize`. `SA-N`'s list is
+    now empty*;
   - `Spacer()`'s 8pt default minimum, and a single-child stack passing its
     child's priority through (task 6) — *closed 2026-09-16 by `CN-C` and
     `CN-D` (`feat/containers`)*;
@@ -400,7 +403,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   probe `docs/probes/swiftui-engine-replacement-stage1.swift` (revision 2);
   record §18. **Stages:** 1 lowering foundation; 2 flex-item semantics onto
   SwiftUI's; 3 `ScrollView` and `Component` distribution; 4 windowed proposal
-  `List`; 5 `Deferred` presentation and absolute positioning; G grids; 6a custom
+  `List`; 5 `Deferred` presentation and absolute positioning; G grids (delivered
+  2026-09-21), G2 lazy grids after stage 4; 6a custom
   elements and the public legacy registrars deprecated; 6b the root switch
   (`noProductionFrameReachesTheLegacyEngine`); 7a goldens replaced; 7b
   non-golden CSS tests retired; 8 sizing vocabulary onto `.frame`; 9 engine
@@ -424,8 +428,52 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   differing pixels on both windows, record §03*). **Not done:** no production frame runs
   under the proposal authority; nothing deleted; no golden retired. Unspecified,
   ideal, min/max, fixed-size, priority, compression, expansion and custom
-  layouts exist on the proposal path; grids are still absent (stage G). The
+  layouts exist on the proposal path; grids are still absent (stage G — *delivered
+  2026-09-21, see the note below*). The
   handed items above each have a stage (`CN-Q`'s 2026-09-17 amendment).
+  *Progress 2026-09-21, stages 2 and G, integrated on `integrate/stage-2-grids`
+  (`356bb2b` merges `feat/engine-stage-2`, `a948f8a` merges `feat/grids`); task
+  still open.* **Stage 2 delivered** (spec
+  `specs/2026-09-17-engine-stage-2-design.md`; rulings `LR-AB`…`LR-BA` in the
+  same decisions doc; probe
+  `docs/probes/swiftui-engine-replacement-stage2.swift` revision 4; record §19;
+  five lanes, each red first, all verified `ok`, fourteen minors all
+  dispositioned): flex-item semantics lowered **by the parent** under the
+  proposal authority — item records and the unconsumed report, stretch and
+  `alignSelf`, `flexGrow`/`flexBasis`/`flexShrink`, CSS minima and maxima folded
+  into a declared size, the box model (border as insets, a `Text`'s padding
+  around its leaf, the `BM-4` floor as a divergence, margin as outer padding),
+  `justifyContent`'s distributions as spacers and the reverse directions as
+  reversed nodes, animated values with structure from the declared style — plus
+  two proposal-path answers that reach production (`SA-N` item 4, and a text
+  measurement never wider than its proposal, which **closes divergence 59**).
+  Its exit test reports no stage-2 field. **Stage G delivered** (spec
+  `specs/2026-09-17-grids-design.md`; rulings `GR-A`…`GR-AT` in
+  `../2026-09-17-grids-decisions.md`; ten runnable probes and three recorded
+  corpora; record §20; four lanes, each red first, lanes 1/3/4 verified `ok` and
+  lane 2's one major and one minor — both label-and-prose, no executable line —
+  applied in its docs round): SwiftUI's `Grid` and `GridRow` on the proposal path
+  as a kernel `NativeNode` case (`GR-C`), with the nil×nil and finite solves,
+  spans, cell anchors, per-column alignment, unsized axes, the modifier-chain
+  attribute walk, the element API and its identity rules, a grid in the proposal
+  preview, and depth and work pins. Fourteen green mutations were found by the
+  verifiers and pinned; two deliberately equivalent clamps are left unpinned and
+  say so in the source. **Integration** (record §21): two conflict-free merges,
+  four cross-track tests at the one seam the tracks share, each proven by a
+  mutation — one of which, XM4, found that the **lowered** half of stage 2's text
+  clamp was pinned by neither track. Suite 1409 → **1548** (stage 2 +51, stage G
+  +84, the integration +4), 97 goldens unmoved, 71 → **75** guards (all four
+  `GridCompileGuards`); nine of twelve offscreen demo images 0 differing pixels
+  and the three preview images attributed cell for cell to stage G's preview
+  grid, the merge itself 0 against `feat/grids`; no real-window capture (screen
+  locked, `FR-V`). **Not done:** production still runs the legacy authority
+  (stage 6b); percentages, unequal grow weights, a length `flexBasis`, a
+  non-greedy `maxSize`, `baseline`, `hidden()` and `space-*` on an unsized grown
+  container still report by name, each with an owner (stage 8, task 11);
+  divergence 60 (SwiftUI's integer text width) is new and unpinned; lazy grids
+  (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out of scope and proposed as **stage
+  G2, after stage 4**, which owns the windowing they need (`GR-L`); no human has
+  looked at a grid on screen (task 15's closeout, `GR-N`).
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and
