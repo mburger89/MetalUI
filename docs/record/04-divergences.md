@@ -879,3 +879,33 @@ share equally (2.2); a zero-basis `Text` grower breaks inside its word (2.4); a
 border sum keeps its frame (4.3); a negative margin past its own box clamps at 0
 (4.5); an animated `flexGrow` snaps its structure (2.13, now in `CLAUDE.md`'s
 animation snap list).
+
+## 2026-09-22: 48, 54 and 56 amended (plan task 7 stage 3)
+
+Record §24; rulings in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`.
+**No number is retired and none is added** — the table stays at **fifty-eight**.
+All three amendments are **proposal-authority only**: production still runs the
+legacy authority until stage 6b, so nothing here is production-visible yet.
+
+- **48** (`.width` on a `Component` overwrites its members' declared width).
+  **Answered under the proposal authority** by stage 3 lane 4 (`LR-BG`): the
+  amend is one native frame per member, aligned per axis, so each member keeps
+  its own width and is centred in its own 70 — SwiftUI's G7/G8. Still wrong on
+  purpose under the legacy authority; retirement is stage 6b's. New pins:
+  `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`,
+  `aComponentAmendsFrameIsCentredOnlyOnTheAxisItDeclares`.
+- **54** (a `ScrollView` takes its cross axis from its parent where a
+  `ProposalScrollView` takes its content's). **Survives the stage-3 lowering**,
+  and stage 3's first writing of `LR-BC` was wrong to say it closed: a lowered
+  `ScrollView` records a `LoweredItem`, so stage 2 wraps it in a stretch item
+  frame whose rect is aliased as the element's; `ProposalScrollView` records
+  none. Now pinned as a literal by
+  `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`, and
+  **removed from stage 6b's retirement row** — it is stage 11 / task 10's.
+- **56** (a `.frame` over a multi-member `Component` squeezes its members).
+  **Answered under the proposal authority** by stage 3 lane 5 (`LR-BH`): a row
+  of per-member frames at spacing 0, so the members keep 30 and 50 rather than
+  being shrunk to 26 and 44. The 140 against SwiftUI's 148 is the enclosing
+  stack's own 8pt spacing, and framed members staying one flex item is `TB-M`'s,
+  stage 11. Still wrong on purpose under the legacy authority. New pin:
+  `aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem`.

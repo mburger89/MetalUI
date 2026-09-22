@@ -1343,3 +1343,28 @@ since been cut to rules only.
   moved. **Open, nobody has looked at a grid on screen** (owner: task 15's
   closeout, `GR-N`). The offscreen and real-window captures both read the delta
   as exactly those four cells (records §22, §23), which is not a look.
+
+
+## 2026-09-22: one row added at engine replacement stage 3
+
+Record §24. Written into the root `CLAUDE.md`'s human-verification bullet at the
+`feat/engine-stage-3` Docs phase and recorded here in full.
+
+- **Release-window capture of the default demo and the preview against
+  `57893d0`** (plan task 7 stage 3, `feat/engine-stage-3`). **Open.** The screen
+  was locked at the end of all five lanes, at the verification round, and again
+  at the Docs phase (`docs/probes/appkit-screen-lock-state.swift`:
+  `session CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`,
+  `displayActive main: 0`; `IOConsoleLocked` not read, `FR-V`), so
+  `capture.sh` was never run.
+  **Offscreen stand-in** (`CN-R`'s harness, twelve images through a real
+  `Window` against `57893d0`): **0 differing pixels in all twelve at every
+  lane**, scene dumps byte-identical, and twice more in the verification round —
+  once with a harness written independently from the recipe — plus the
+  two-authority chrome pair at 0. Controls non-zero first each time.
+  **None of the twelve scenes is ever scrolled**, so `lastScrollTime` is
+  `-.infinity` and **no indicator is painted in any of them**: the
+  clamp-and-indicator fold's indicator half is pinned by tests (M1b–M1e), not by
+  pixels. Nothing in production runs under the proposal authority, so **no demo
+  look is owed by this stage** — the first one that is owed is stage 6b's root
+  switch.

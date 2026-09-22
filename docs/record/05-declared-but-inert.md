@@ -210,3 +210,25 @@ now points at this section and at the frozen copy in §19, which predates them.
     `aGridRowOutsideAGridIsItsCells`).
 - **Edited:** the test-observables row gains `NativeGridSolution`'s bookkeeping
   counter (`GR-U`).
+
+## 2026-09-22: rows changed at engine replacement stage 3
+
+Record §24; mechanisms in `LR-BB`…`LR-BP`. **No row is deleted**: nothing in
+production sets `LayoutAuthority.proposal` until stage 6b.
+
+- **Edited — `Style.overflow`.** Still exactly one write (in
+  `ScrollView.requestLayout`, now on the viewport style inside `loweredLayout`
+  as well) and still no reader. **The stage-3 lowering does not carry it
+  either**: the kernel reads `overflow` nowhere, and `loweredLayout` says so in
+  a comment beside the write — "Inert here as it is under the legacy engine …
+  the kernel reads `overflow` nowhere, and the lowering does not carry it". So
+  the property now has a write on **both** authorities and a read on neither.
+- **Edited — the test-observables row** (`Frame.scrollRegions` /
+  `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount`,
+  `LayoutTree.lastNativeLayoutWork`, `NativeGridSolution`'s counter) **gains
+  `LayoutAuthority.allCases`.** The `CaseIterable` conformance lane 3 added
+  exists only so `ScrollAuthorityCoverage.authorities` can be the single
+  `arguments:` list every parameterised scroll scenario is declared over
+  (`LR-BI`, corrected by `LR-BN`); it has no production reader. Its own doc
+  comment says so. Deleting it would mean hand-writing the authority list into
+  34 test declarations and losing mutation M3c's subject.

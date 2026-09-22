@@ -33,7 +33,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-BB`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-BQ`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`;
   rulings in its spec, no separate decisions doc). A numbered citation of a
   lettered prefix (`CS-3`, `LR-3`, `GR-3`) is a typo; sweep case-insensitively.
@@ -48,7 +48,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   (§16), 6 `CN-` (§17), 7 stage 1 of 14 `LR-` (§18, spec
   `specs/2026-09-17-engine-replacement-design.md`), 7 stage 2 `LR-AB`…`LR-BA`
   (§21, spec `specs/2026-09-17-engine-stage-2-design.md`, same decisions doc,
-  probe `swiftui-engine-replacement-stage2.swift` revision 4), 7 stage G grids
+  probe `swiftui-engine-replacement-stage2.swift` revision 4), 7 stage 3
+  `LR-BB`…`LR-BP` (§24, spec `specs/2026-09-22-engine-stage-3-design.md`, same
+  decisions doc, probe `swiftui-engine-replacement-stage3.swift` revision 2),
+  7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
@@ -71,23 +74,28 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-22, `integrate/stage-2-grids` at the merge of
-  `feat/sdl-uses-scene`): 1550 tests, 97 goldens, 77 typecheck guards**, 0
+- **Counts (2026-09-22, `feat/engine-stage-3`, plan task 7 stage 3): 1572
+  tests, 97 goldens, 77 typecheck guards**, 0
   `error:`, 0 `warning:`, taken after `swift package clean` with `swift build
   --build-system native --build-tests` then unfiltered `swift test
-  --build-system native --no-parallel` (one summary line, `Test run with 1550
+  --build-system native --no-parallel` (one summary line, `Test run with 1572
   tests in 1 suite passed`; only the two gated tests skipped). Goldens unmoved
-  against `cb2e708`. Guards per file: `PhaseSeparationTests` 19,
+  against `57893d0` (`git diff --name-only 57893d0 HEAD -- 'Tests/**/*.json'`
+  is empty). Delta from 1550 / 97 / 77: **+22 tests** (lane 1 +3, lane 2 +8,
+  lane 3 +2, lane 4 +6, lane 5 +3), **0 goldens, 0 guards** — stage 3 added no
+  typecheck guard, so the per-file list below is unchanged; record §24.
+  Guards per file: `PhaseSeparationTests` 19,
   `ErasureCompileGuards` 10, `EnvironmentCompileGuards` 8,
   `ProposalNodeIDCompileGuards` 6, `ProposalLayoutCompileGuards` 6,
   `ElementGroupTrapTests` 5, `ContainerCompileGuards` 4, `GridCompileGuards` 4,
   `AXNodeTests` 3, `DecorationCompileGuards` 3, `UnitSafetyTests` 2 (3 hits,
   one a comment), `ModifiedElementCompileGuards` 2, `FrameSizingCompileGuards`
   2, `SceneBoundaryCompileGuards` 2, `LayoutAuthorityCompileGuards` 1.
-  Two lines merged here: 1548 / 97 / 75 on `integrate/stage-2-grids`
+  Before stage 3: 1550 / 97 / 77 at `57893d0`, itself the merge of two lines —
+  1548 / 97 / 75 on `integrate/stage-2-grids`
   (2026-09-21, task 7 stages 2 and G; records §21, §22, §23) and 1411 / 97 / 73
   on `feat/portable-scene` (2026-09-22, `MetalUIScene`; record §20). Both
-  descend from 1409 / 97 / 71, so the merged total is 1409 + 139 + 2. History:
+  descend from 1409 / 97 / 71, so that merged total is 1409 + 139 + 2. History:
   record §06, §19 "Build and test". A count is stale the moment a test lands;
   re-measure.
 - **Read the printed counts, never the exit status.** `--build-system native`
@@ -383,6 +391,27 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   and a `.frame` layer ignore a child's margin, as the legacy engine does. A
   child with **no record** — a proposal element such as a `Grid` — gets an
   empty plan: it is never stretched, grown or margined (record §23, X2).
+- **Stage 3 lowers scrolling and `Component` distribution** (`LR-BB`…`LR-BP`).
+  A `ScrollView` lowers its content through `lowerLegacyNode` at site
+  `scrollView` (stage 2's container lowering entire) under a
+  `requestNativeScrollViewport`, and records **the viewport** as its own
+  `LoweredItem`; `flexShrink: 0` is not carried, and the content record is left
+  unconsumed, so a later field belongs on the **declared** content style or it
+  vanishes silently (`reportUnconsumedLoweredItems` never reads the animated
+  one). The lowered viewport **fills its proposal on the scrolling axis** where
+  the legacy one hugs; the cross axis agrees, and divergence 54 **survives**
+  because only a `ScrollView` records an item. `ScrollContext`, `$anim-content`
+  and `$anim-viewport` are unchanged, and `List` still windows against the
+  published context. A `Component`'s `.width`/`.height` lowers to **one native
+  frame per member**, aligned per axis (`.center` on a declared axis, 0 on an
+  `auto` one) with the member's record consumed and planned at
+  `parentKind: .stack`, which **drops** its `flexGrow`, `flexShrink`,
+  `flexBasis`, `alignSelf` and `margin`; `.padding` lowers as an ordinary
+  one-child container; a `.frame` layer over several member nodes is a row of
+  per-member frames at spacing 0. Site `component` has **no reachable report**
+  left. **Both scroll suites run under both authorities** — 34 scenarios, a
+  roll call that names any scenario that stops participating, and a new one
+  owes a `ScrollAuthorityCoverage.record` call and a bump of the 34.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -469,8 +498,13 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   alone reads 12 and is wrong.
   `.padding` splits by argument type (no proposal `.padding(Pixels)`).
   `Text.proposalLayout()` silently drops background, handlers, id and
-  hover/focus colours. `ProposalScrollView`'s clamp and indicator are private
-  copies of `ScrollView`'s — fix both.
+  hover/focus colours. **`ScrollView` and `ProposalScrollView` share one
+  `ScrollChrome`** (clamp, extent, delta, indicator bounds, `paintIndicator`,
+  both `resolvedOffset` overloads), a computed `var chrome` each side rebuilds
+  from its `axis`, `cornerRadius` and `indicatorVisibility`, never stored;
+  `ScrollView.clamp`/`.extent` are
+  gone. A re-inlined private copy on either side reddens
+  `theTwoScrollElementsShareOneChromeImplementation`.
 - **`SA-N`'s "probed, and the kernel disagrees" list is EMPTY.** Its last item
   — padding placing its child at the child's own size — was closed by stage 2's
   lane 3 (`LR-AU`) on both entries, pinned by
@@ -530,6 +564,14 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 - **A helper with two halves needs two per-site guards** (`OM-AI`); an order
   test needs a two-layer chain (`OM-AD`).
 - **A copy of a pinned implementation is unpinned** — mutate each copy.
+  **Record which branch a mutation was applied to**: a whole-file substitution
+  over two byte-identical call sites is a different mutation, with a different
+  reddened set, from a scoped one (stage 3's M2g).
+- **A fixture of fixed-size leaves cannot see a container lowering.**
+  `planLegacyItems`, `arrangeLegacyMainAxis` and `paddedAndSized` are all
+  no-ops over children that declare no item field, so "this lowers as the
+  container lowering" needs a child that gives the container something to do
+  (stage 3's M2b and M4b, the same finding one lane apart).
 - **Parallel tracks owe tests for the merge**; only the merged suite runs them.
   **A clause both tracks share can be pinned by neither**: dropping the clamp
   from the lowered `Text` alone left all 1548 merged tests green, because the
@@ -544,7 +586,9 @@ expected, measured facts:
 
 - **Known divergences** (**58 live**, stable labels; retired labels never
   reused: 3, 5–8, 12, 15, 17, 36, 37, 40, 59) — record §04 is current (its
-  2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows);
+  2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows, and
+  its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
+  adding a number);
   §19 "Known divergences" is the frozen 48-row copy. Many are *pinned wrong on
   purpose*; a test named for one reddening may be a fix, not a bug.
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
@@ -555,23 +599,34 @@ expected, measured facts:
   `locale`/`layoutDirection`/`dynamicTypeSize`, one axis each of
   `markNativeGridRow`/`markNativeGridCell`'s alignment, a grid mark outside a
   grid, …) — §19 "Declared but inert", record §05, whose 2026-09-21 section
-  carries the stage 2 and grids changes. **Three of those rows are
+  carries the stage 2 and grids changes and whose 2026-09-22 one carries stage
+  3's. **Three of those rows are
   legacy-authority only**: under `.proposal`, stage 2 lowers `margin: .auto`
   to nothing explicitly, `Style.border` on a container to insets, and a
-  `Text`'s `Style.padding` around its leaf. Implementing one: delete its row;
+  `Text`'s `Style.padding` around its leaf. `Style.overflow` is **not** one of
+  them: stage 3's lowering does not carry it either, and `loweredLayout` says
+  so in a comment. Implementing one: delete its row;
   adding an unimplementable property: add one.
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
-  2026-09-21 section adds the two stage 2 / grids rows. Nothing
+  2026-09-21 section adds the two stage 2 / grids rows and whose 2026-09-22 one
+  adds stage 3's. Nothing
   in the suite sees paint order, portals, scroll direction, presentation, the
   display link or real hover; those are looks. Padded legacy container rule:
   container modifiers and `.flexGrow(1)` before `.padding`; size, background,
-  corner radius after. **Two looks are open here**: the stage 2 / grids
+  corner radius after. **Three looks are open here**: the stage 2 / grids
   release-window capture (the screen was locked; the offscreen half read nine
   of twelve images at 0 and attributed the three preview images to the grids
-  track's four preview cells), and the preview's grid itself, which nobody has
-  seen on screen (`GR-N`).
+  track's four preview cells); the preview's grid itself, which nobody has
+  seen on screen (`GR-N`); and stage 3's capture against `57893d0` (the screen
+  was locked at every lane, at the verification round and at the Docs phase —
+  the offscreen stand-in read 0 in all twelve, twice more in verification, once
+  with an independently written harness, and the two-authority chrome pair 0,
+  but **none of the twelve scenes is ever scrolled**, so no indicator is
+  painted in any of them and the fold's indicator half is pinned by tests, not
+  pixels). Nothing in production runs under the proposal authority, so **no
+  demo look is owed until stage 6b**.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;
   re-measure before reasoning from them.
@@ -585,4 +640,15 @@ expected, measured facts:
   freeze-loop allocation pin checks only half itself on Apple toolchains
   (`FREEZE-ALLOC: strict per-pass bound NOT CHECKED`); `malloc_logger` tests
   need `--no-parallel`; E24 hard-fails under the root locale; seven
-  `AnimationTests` hard-fail without a display device.
+  `AnimationTests` hard-fail without a display device. Two more, added by
+  stage 3:
+  - `everyScrollScenarioRanUnderBothLayoutAuthorities` reads coverage
+    accumulated by two other files and so depends on Swift Testing's
+    **unspecified** cross-file order (measured on Swift 6.4 only). On a runner
+    with a different order it is a spurious red, and `swift test --filter
+    everyScrollScenario` hard-fails. It always names what it had not seen —
+    read the names before debugging.
+  - A proposal-authority regression that reports an `…unconsumed` field now
+    **traps in a `Window` test and truncates the run with no summary line**
+    (the first such test is #1251). Read the last lines of the log, not the
+    summary.
