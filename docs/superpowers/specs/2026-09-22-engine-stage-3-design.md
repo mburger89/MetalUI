@@ -8,7 +8,7 @@ re-measured green at the baseline.** Branch `feat/engine-stage-3` from
 `57893d0`. Plan task 7, stage 3 of the fourteen in
 [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 (its row 3), §4.2 (its dependency census) and §8 (its stage-3 row).
-Rulings `LR-BB`…`LR-BM` in
+Rulings `LR-BB`…`LR-BJ` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
 — the same decisions doc as stages 1 and 2. Record:
 `docs/record/24-engine-replacement-stage-3.md`. Probe:
@@ -442,7 +442,7 @@ Files: `ScrollView.swift`, `LoweringState.swift` (doc), `LayoutAuthority.swift`
 | 2.3 | **divergence pin** `aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows` — A4: viewport 160×50 → 100×50, `scenesEqual` and `hitboxesEqual` both **false** and asserted false | reported | **M2c** |
 | 2.4 | `aLoweredScrollViewsContentKeepsItsNaturalExtent` — A6's shape: the `Text` is 225 wide inside a 100pt viewport on **both** sides (the width derived from the shaping cache, `LR-F`), and the height disagreement (40 → 16) is asserted as stage 2's single-child stretch elision with `LR-AC` named | reported | **M2d** `flexShrink: 0` carried into the lowered content style (it becomes a `scrollView.flexShrink` record the viewport swallows — the report grows) |
 | 2.5 | `aLoweredScrollViewRecordsItsViewportAsItsItemAndConsumesItsContent` — `Box { ScrollView { … } }.alignItems(.stretch)` with a declared cross size stretches the viewport (the alias reaches its hitbox and its clip); and the content node's record is consumed, so nothing reports `…unconsumed` | reported | **M2e** the content node's record not consumed (`scrollView.…unconsumed` appears); **M2f** the viewport not recorded (its parent stops stretching it) |
-| 2.6 | `aLoweredScrollViewKeepsItsTwoAnimationSlots` — `$anim-content` and `$anim-viewport` still hold distinct entries under the proposal authority, and `theSevenRetentionSlotsAreMutuallyDistinct` still passes | reported | **M2g** both `animated(…)` calls given the bare `id` |
+| 2.6 | `aLoweredScrollViewKeepsItsTwoAnimationSlots` (`LR-BE`) — `$anim-content` and `$anim-viewport` still hold distinct entries under the proposal authority, and `theSevenRetentionSlotsAreMutuallyDistinct` still passes | reported | **M2g** both `animated(…)` calls given the bare `id` |
 | 2.7 | `aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork` (`SA-M`) — A1's tree, `LayoutTree.lastNativeLayoutWork`'s calls/hits/misses and the node count **derived by hand in the doc comment before the first run** | written against stage-2 API, so it compiles; the report carries `scrollView.noLowering` and the literals mismatch | **M2h** the content node registered twice |
 
 **Amended pins** (each with the red run it answers, from prototype P4):
@@ -456,7 +456,7 @@ reported); `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (§7).
 preview images 0 px (`ProposalScrollView` untouched by this lane); the 560²
 pair 0 px.
 
-### Lane 3 — the scroll suites under both authorities (the exit test)
+### Lane 3 — the scroll suites under both authorities (the exit test, `LR-BI`)
 
 Files: `ScrollRoutingTests.swift`, `ScrollIndicatorTests.swift`,
 `ScrollViewTests.swift`, `LoweringScrollTests.swift`.
