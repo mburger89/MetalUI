@@ -34,8 +34,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
   `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-BB`), `GR-` (next `GR-AU`),
-  `PS-` (next `PS-H`;
-  rulings in its spec, no separate decisions doc). A numbered citation of a
+  `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
+  (next `FT-L`; rulings in its spec, no separate decisions doc). A numbered citation of a
   lettered prefix (`CS-3`, `LR-3`, `GR-3`) is a typo; sweep case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
@@ -71,12 +71,13 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-22, `integrate/stage-2-grids` at the merge of
-  `feat/sdl-uses-scene`): 1550 tests, 97 goldens, 77 typecheck guards**, 0
-  `error:`, 0 `warning:`, taken after `swift package clean` with `swift build
+- **Counts (2026-09-22, `feat/freetype-raster` merged with `master` at
+  `57893d0`): 1558 tests, 97 goldens, 77 typecheck guards**, 0 `error:`, 0
+  `warning:`, taken after `swift package clean` with `swift build
   --build-system native --build-tests` then unfiltered `swift test
-  --build-system native --no-parallel` (one summary line, `Test run with 1550
-  tests in 1 suite passed`; only the two gated tests skipped). Goldens unmoved
+  --build-system native --no-parallel` (one summary line, `Test run with 1558
+  tests in 2 suites passed`; skipped: the two gated tests and the FreeType
+  oracle's gated `measure(file:)`). Goldens unmoved
   against `cb2e708`. Guards per file: `PhaseSeparationTests` 19,
   `ErasureCompileGuards` 10, `EnvironmentCompileGuards` 8,
   `ProposalNodeIDCompileGuards` 6, `ProposalLayoutCompileGuards` 6,
@@ -84,7 +85,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `AXNodeTests` 3, `DecorationCompileGuards` 3, `UnitSafetyTests` 2 (3 hits,
   one a comment), `ModifiedElementCompileGuards` 2, `FrameSizingCompileGuards`
   2, `SceneBoundaryCompileGuards` 2, `LayoutAuthorityCompileGuards` 1.
-  Two lines merged here: 1548 / 97 / 75 on `integrate/stage-2-grids`
+  The FreeType line (record §24) adds 8 tests and no guard to master's 1550 /
+  97 / 77. Before it, two lines merged: 1548 / 97 / 75 on `integrate/stage-2-grids`
   (2026-09-21, task 7 stages 2 and G; records §21, §22, §23) and 1411 / 97 / 73
   on `feat/portable-scene` (2026-09-22, `MetalUIScene`; record §20). Both
   descend from 1409 / 97 / 71, so the merged total is 1409 + 139 + 2. History:
@@ -95,8 +97,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   Two gated tests count toward the total while skipped. The lone `warning:`
   under native is SwiftPM's deprecation notice.
 - **Goldens must not move** on a change outside `Sources/MetalUILayout/`
-  (`find Tests -name "*.json" | wc -l`). WebKit is the oracle for the CSS
-  engine only. The proposal kernel shares `LayoutTree.swift` storage
+  (`find Tests/MetalUILayoutTests -name "*.json" | wc -l` — not all of
+  `Tests/`, where `Tests/PortableTests/.build/` holds JSON build artifacts).
+  WebKit is the oracle for the CSS engine only. The proposal kernel shares `LayoutTree.swift` storage
   (`newNode`, `reset`, `roundLayout`, the `SA-G`/`SA-I` preconditions), so a
   proposal-path edit there can move a golden — run the fixtures. No text
   fixture, ever (TX-B).
@@ -129,16 +132,23 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   stage added six stored mark tables to `LayoutTree`, and the `MetalUIScene`
   move relocated `Scene`, `FontKey`, `GlyphImage` and the atlas types across
   three modules.
-- **Targets:** ten one-way-dependent (`MetalUICore`, `MetalUILayout`,
-  `MetalUIScene`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
-  `MetalUIPlatform`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
-  `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so tests
-  can import it (`LR-S`). `MetalUIScene` holds `Scene`/`DrawRun`/`PrimitiveKind`,
-  the glyph atlas types and the `FontKey` struct; `MetalUIText` and
-  `MetalUIRender` re-export it (`PS-B`), so its types need no new import. It
-  is also a library product, consumed by `Experiments/SDLGPU/Portable`.
+- **Targets:** twelve one-way-dependent (`MetalUICore`, `MetalUILayout`,
+  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `MetalUIText`,
+  `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`, `MetalUI`,
+  `MetalUIDemoContent`, `MetalUIDemo`) plus `Tests/MetalUITestSupport`.
+  `MetalUIDemoContent` holds the demo tree so tests can import it (`LR-S`).
+  `MetalUIScene` holds `Scene`/`DrawRun`/`PrimitiveKind`, the glyph atlas
+  types and the `FontKey` struct; `MetalUIText` and `MetalUIRender` re-export
+  it (`PS-B`), so its types need no new import. It is also a library product,
+  consumed by `Experiments/SDLGPU/Portable`. `CFreeType` is FreeType 2.14.3,
+  vendored (`FT-A`; `Sources/CFreeType/VENDORED.md`), a C target with no
+  Swift API. `MetalUIFreeType` is the FreeType-backed glyph rasterizer
+  (`FreeTypeFont`, `FreeTypeRaster`, `FT-B`…`FT-E`) that matches
+  `GlyphRaster`'s contract exactly; also a library product, for non-Apple
+  backends. Nothing in production calls it — `GlyphRaster` stays the
+  rasterizer on Apple platforms (`FT-I`).
 
-Five constraints that fail silently:
+Six constraints that fail silently:
 
 - `MetalUILayout` imports only `MetalUICore` (anchored grep).
 - `MetalUIScene` imports only `MetalUIShaderTypes` — no Foundation, CoreText,
@@ -146,6 +156,12 @@ Five constraints that fail silently:
   workflow's `scene-linux` job can (`PS-G`). An initialiser that must stay
   unspellable outside the package is `package`, with a plain-import guard
   (`FontKey`, `GlyphImage`: `PS-D`, `PS-E`).
+- `MetalUIFreeType` imports only `MetalUIScene` and `CFreeType` — no
+  Foundation, CoreText, CoreGraphics or Metal (`FT-K`). macOS cannot see a
+  violation; the `scene-linux` job builds this target too, and
+  `Tests/PortableTests` (a separate package depending on the root's
+  `MetalUIFreeType` product) runs FreeType's own output through Linux and
+  Windows CI, pinned byte-for-byte against macOS (`FT-J`).
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (gamma-space compositing, §7.8).

@@ -21,9 +21,9 @@ jobs:
     - name: Run tests
       run: swift test -v --no-parallel
 
-  # MetalUIScene must build without Apple frameworks (ruling PS-G): a Metal,
-  # CoreText or CoreGraphics import there fails to compile on Linux, and
-  # macOS cannot see that.
+  # MetalUIScene and MetalUIFreeType must build without Apple frameworks
+  # (rulings PS-G, FT-K): a Metal, CoreText or CoreGraphics import there fails
+  # to compile on Linux, and macOS cannot see that.
   scene-linux:
     runs-on: ubuntu-24.04
     container: swift:6.4-noble
@@ -31,3 +31,44 @@ jobs:
     - uses: actions/checkout@v7
     - name: Build MetalUIScene
       run: swift build --target MetalUIScene
+    - name: Build MetalUIFreeType
+      run: swift build --target MetalUIFreeType
+
+  # FreeType's output is pinned byte for byte (size, bearings, coverage
+  # checksum) from macOS; Tests/PortableTests asserts the same values here
+  # (ruling FT-J). The root package's own tests cannot run off macOS.
+  freetype-portable-linux:
+    name: FreeType portable tests (Linux ${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: swift:6.4-noble
+    steps:
+    - uses: actions/checkout@v7
+    - name: Run portable tests
+      working-directory: Tests/PortableTests
+      run: swift test
+
+  freetype-portable-windows:
+    name: FreeType portable tests (Windows x64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+    - uses: actions/checkout@v7
+    - uses: compnerd/gha-setup-swift@v0.5.0
+      with:
+        swift-version: swift-6.4.0-release
+        swift-build: 6.4.0-RELEASE
+    - name: Run portable tests
+      working-directory: Tests/PortableTests
+      run: |
+        swift test
+        exit $LASTEXITCODE
