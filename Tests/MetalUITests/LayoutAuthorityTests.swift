@@ -166,14 +166,37 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
             "aborted, but not at the custom element's requestLeaf check:\n\(leafErr)")
 }
 
-/// **1.4** (exit test). `List` and `StyledComponent`'s amend trap by their OWN
-/// site, not by what they would reach next (ruling LR-C, critic round 1 findings
-/// 1 and 2): a `List` names `list`, not the `Box` it builds; a proposal
-/// component's `.width(70)` names `component.amend`, not `SA-G`'s `setStyle`
-/// precondition.
+/// **1.4** (exit test). `List` traps by its OWN site, not by what it would
+/// reach next (ruling LR-C, critic round 1 findings 1 and 2): it names `list`,
+/// not the `Box` it builds. **The component-amend half was the second trap and
+/// is now its inverse** (stage 3, lane 4): the amend lowers, so the arm
+/// requires a **production** proposal frame over a modified component to
+/// complete — `EXIT_SUCCESS` and an empty stderr — where before lane 4 it
+/// aborted on `component.amend`. The test keeps its name because the name names
+/// both halves.
+///
+/// **Why the agreement half is still a child process.** `Frame(…,
+/// layoutAuthority: .proposal)` without `reportsUnlowerableFields` traps rather
+/// than reports, so a regression here ends the whole run with no summary line
+/// (spec §6). In a child it reddens this test by name instead.
 ///
 /// Mutations that must redden it: **M1d**, `List`'s check removed (the message
-/// names `box`); **M1d′**, the amend's check removed (the message is `SA-G`'s).
+/// names `box`); **M4a′**, either op's lowered branch put back to
+/// `noteUnlowerable` (the child aborts again).
+///
+/// **Stage 3, lane 1 added a third arm, and lane 2 retired it** (spec §6 lanes
+/// 1 and 2, `LR-BI`). That arm ran a proposal-authority **`Window`** over a
+/// plain `ScrollView` and required it to abort, because `Window` never sets
+/// `reportsUnlowerableFields` — `Window.swift`'s `Frame(...)` call passes
+/// `layoutAuthority` and `recordsElementBounds` and nothing else — so
+/// `noteUnlowerable` takes its `preconditionFailure` branch and the process ends
+/// with no summary line and no list of what failed. That is why lane 3 cannot
+/// take a red-before by running the scroll suites under the proposal authority,
+/// and it was lane 3's red-before instead. Lane 2's lowering (`LR-BB`) makes a
+/// `ScrollView` build cleanly under this authority, so the arm is gone and its
+/// replacement is `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`
+/// in `LoweringScrollTests.swift`. **The test's name names the two arms that
+/// survive.**
 @Test func aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority() async {
     let list = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
@@ -189,18 +212,27 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
             "aborted, but not at List's own check:\n\(listErr)")
     #expect(!listErr.contains("box."), "a List must trap before it builds its Box:\n\(listErr)")
 
-    let amend = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+    let amend = await #expect(processExitsWith: .success,
+                              observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
-            var root = DifferentialRoot(width: 100, height: 100) { ProposalProbeComponent().width(Pixels(70)) }
+            // Both ops, in both orders, in one production frame.
+            var root = DifferentialRoot(width: 100, height: 100) {
+                ProposalProbeComponent().padding(Pixels(4)).width(Pixels(70))
+                ProposalProbeComponent().width(Pixels(70)).padding(Pixels(4))
+            }
             Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
                   layoutAuthority: .proposal).render(&root)
+            FileHandle.standardOutput.write(Data("AMEND-BUILT\n".utf8))
         }
     }
+    let amendOut = String(decoding: amend?.standardOutputContent ?? [], as: UTF8.self)
     let amendErr = String(decoding: amend?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(amendErr.contains("component.amend has no proposal lowering"),
-            "aborted, but not at the component amend's own check:\n\(amendErr)")
+    #expect(amendOut.contains("AMEND-BUILT\n"),
+            "the production proposal frame did not finish:\nstdout \(amendOut)\nstderr \(amendErr)")
+    #expect(!amendErr.contains("has no proposal lowering"),
+            "a component op still reports under the proposal authority:\n\(amendErr)")
     #expect(!amendErr.contains("setStyle on a native layout node"),
-            "the amend must trap by its own site before SA-G's setStyle precondition:\n\(amendErr)")
+            "the amend reached SA-G's setStyle precondition:\n\(amendErr)")
 }
 
 /// **1.5.** With diagnostics on, every legacy site reports `(site, field)` by
@@ -229,13 +261,45 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// layer (inner first, as before).
 ///
 /// **The `Component` amend arm runs in a child process** and prints its entries:
-/// in-process, a regression in the amend's check reaches `SA-G`'s `setStyle`
-/// precondition and ends the whole run with no summary line (lane-1 verifier,
-/// mutation M1d′); in a child it reddens this test by name.
+/// in-process, a regression that removes the amend's lowered branch reaches
+/// `SA-G`'s `setStyle` precondition and ends the whole run with no summary line
+/// (lane-1 verifier, mutation M1d′, re-aimed as M4a′ in lane 4); in a child it
+/// reddens this test by name.
+///
+/// **Stage 3, lane 2** lowers `ScrollView` (`LR-BB`), so its arm stops being a
+/// site-level `noLowering` entry and becomes a field-level one like `Box`'s and
+/// `Stack`'s. The field is **`flexGrow.weights`**, raised by two scroller
+/// children with unequal declared grow factors: `lowerLegacyNode` passes its
+/// `site:` to `planLegacyItems` as `parentSite:`, and that is the **only** field
+/// `planLegacyItems` raises at the parent's site — every per-child report is
+/// raised at `item.site`, the child's own (`LR-BM`). A **plain** `ScrollView`
+/// now reports nothing at all, which is 2.1's business, not this test's.
+///
+/// **Stage 3, lane 4 lowers both `Component` ops, and `component` has no
+/// reachable report left** (`LR-BO`). The two `Component` arms therefore assert
+/// the **absence** of an entry rather than its name — they are the only two
+/// arms of this test that do, and the reason is written down rather than
+/// inferred:
+///
+/// - an **amend** records its frame with `kind: .frameLayer`, which
+///   `reportUnconsumedLoweredItems` skips by construction, and its own
+///   `planLegacyItems` call has exactly one child, so it can never raise
+///   `flexGrow.weights` — the one entry `parentSite:` names (`LR-BM`);
+/// - a **wrap** lowers `paddingWrapperStyle`, whose every field is a default
+///   except a pixel `padding`, and it too has exactly one child.
+///
+/// So `LoweringSite.component` survives for `UnlowerableField.owningStage`'s
+/// trap message and for whatever field a later stage puts on it, and these two
+/// arms are what would notice a regression that made either op report again.
+/// The amend arm stays a **child process** for the reason above: in-process a
+/// regression that removed the branch entirely reaches `SA-G`'s `setStyle`
+/// precondition and ends the whole run with no summary line.
 ///
 /// Mutations that must redden it: **M1e**, `ScrollView`'s record dropped;
 /// **M1e′**, `List`'s check moved after its `Box` is built (row boxes appear);
-/// **M1d′**, the amend's check removed (the child exits on `SA-G`'s precondition).
+/// **M4a′**, either component op's lowered branch put back to
+/// `noteUnlowerable` (the entry reappears);
+/// **M2e**, the lowered content node registered with the wrong `site:`.
 @MainActor
 @Test func everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn() async throws {
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
@@ -252,8 +316,12 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     arms.append(("ModifiedElement, inner-layer registrar",
                  diagnostics { Box().padding(px(4)).position(.relative).padding(px(8)).inset(px(3)) },
                  [field(.modifierLayer, "position"), field(.modifierLayer, "inset")]))
-    arms.append(("ScrollView", diagnostics { ScrollView { ProbeLeaf(width: 10, height: 10) } },
-                 [field(.scrollView, "noLowering")]))
+    arms.append(("ScrollView", diagnostics {
+        ScrollView {
+            Box().width(px(10)).height(px(10)).flexGrow(1)
+            Box().width(px(10)).height(px(10)).flexGrow(2)
+        }
+    }, [field(.scrollView, "flexGrow.weights")]))
     // `list` first, and nothing else: the zero-row `Box` it lays out under
     // diagnostics lowers (the container since stage 1's lane 3; its spacer's
     // `flexShrink: 0` since stage 2's lane 2 — a declared 0 height, already rigid,
@@ -272,10 +340,9 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     }
     let amendOut = String(decoding: amendChild?.standardOutputContent ?? [], as: UTF8.self)
     let amendErr = String(decoding: amendChild?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(amendOut.contains("AMEND-ENTRIES [component.amend]\n"),
+    #expect(amendOut.contains("AMEND-ENTRIES []\n"),
             "Component amend: stdout \(amendOut)\nstderr \(amendErr)")
-    arms.append(("Component wrap", diagnostics { ProposalProbeComponent().padding(px(4)) },
-                 [field(.component, "wrap")]))
+    arms.append(("Component wrap", diagnostics { ProposalProbeComponent().padding(px(4)) }, []))
     arms.append(("custom requestNode", diagnostics { CustomNodeElement() },
                  [field(.customElement, "requestNode")]))
     arms.append(("custom requestLeaf", diagnostics { CustomLeafElement() },

@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-BB`** (stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-BQ`** (stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -1073,6 +1073,8 @@ a nil main offer" is stale on this point; the Docs phase owns it.
   `style`, if both), because the kernel frame has exactly one child and neither the
   legacy row nor a single frame is SwiftUI's per-member answer
   (component-distribution `G7`); stage 3 owns it with `Component` distribution.
+  **Retired by `LR-BH` (stage 3, lane 5):** the row is deleted and the layer
+  lowers to a row of per-member frames instead, which is `G7`'s answer.
   **Over no node** it lowers over a 0×0 native leaf: the legacy row with no children
   answers its declared size or 0, which the kernel frame answers for a fixed or
   min-only frame (4.4's arm agrees); a maximum over nothing is greedy on the
@@ -2499,3 +2501,1349 @@ already carries, so MJh would have been unreadable. (4) A mutation that reddens
 nothing is a broken instrument (practices); naming the real one keeps the coverage
 claim honest. (5) A name that no longer describes its subject sends the next reader
 to the wrong file. (6) A wrong literal on a passing test is a pin on a fiction.
+
+---
+
+# Stage 3 — scrolling and `Component` distribution (design, 2026-09-22)
+
+Rulings for
+[`specs/2026-09-22-engine-stage-3-design.md`](specs/2026-09-22-engine-stage-3-design.md),
+on `feat/engine-stage-3` from `57893d0`. **Design only: no file under
+`Sources/` or `Tests/` changed in a commit.** Every source patch cited as
+**prototype P4** was applied in this worktree, built, run and restored with
+`git checkout Sources Tests` (the scratch test file deleted), `git status
+--short` empty afterwards, and the suite re-measured green
+(`Test run with 1550 tests in 1 suite passed after 56.481 seconds`); the patch
+is kept in the session scratchpad (`s3proto-final.patch`, 133 lines), never
+committed.
+
+Probe: `docs/probes/swiftui-engine-replacement-stage3.swift`, groups **V** and
+**W**, cited below as the *stage-3 probe*. Run under `/usr/bin/swift` (Apple
+Swift 6.4, swiftlang-6.4.0.33.1) on macOS 27.0 (26A428); exit 0, run twice
+byte-identical, and `xcrun swiftc -O` produced the same lines with empty
+stderr. **Revision 2** (critic round 1, same day and toolchain) appends
+**W7–W9**: 18 lines, the first 15 unchanged, both forms identical, and the
+header block re-extracted and `diff`ed clean against the fresh run. Two existing probes were **re-run today and are byte-identical to their
+headers**: `swiftui-stack-algorithms.swift` (787 lines; its SC/SCG arms) and
+`swiftui-component-distribution.swift` (**25** output lines; G0–G16 — the
+first writing said 22, corrected in critic round 1 finding 10).
+
+Measurements are in `docs/record/25-engine-replacement-stage-3.md`.
+
+---
+
+## LR-BB — a lowered `ScrollView` is stage 2's container lowering under a kernel scroll viewport, and records the viewport as its own item
+
+**The ruling.** Under the proposal authority `ScrollView.requestLayout`:
+
+1. builds its content inside `pass.withScrollContext(…)`, unchanged;
+2. registers a **content node** through
+   `lowerLegacyNode(style, declared:children:site: .scrollView)` with a style
+   carrying **only** `flexDirection`;
+3. registers the **viewport** through `frame.requestNativeScrollViewport(child:axis:)`;
+4. records the viewport as this element's own `LoweredItem` — declared
+   `Style()`, animated the viewport style, `kind: .leaf`, content alignment
+   `.topLeading`.
+
+`Layout.node` stays the viewport and `Layout.contentNode` the content node, so
+`prepaint`, `paint`, `registerScrollRegion`, the clip and the indicator read the
+same two rects under both authorities.
+
+**The content node's record is left UNCONSUMED, and that is the diagnostic.**
+The viewport lowers no item field of its content — it measures the content with
+the scrolling axis unspecified and places it at its own answer — so an
+unconsumed record is the truthful state. Today the content style carries only
+`flexDirection`, every item field is at its default, and
+`reportUnconsumedLoweredItems` therefore names nothing; if a later stage puts a
+field on that style it reports `scrollView.<field>.unconsumed` instead of being
+dropped in silence.
+
+**Site `scrollView` is reachable, but not through the `ScrollView`'s own
+style.** `lowerLegacyNode` passes `site:` on to `planLegacyItems` as
+`parentSite:`, so a **child of the scroller** carrying **unequal grow weights**
+(`LR-AE`) reports at `scrollView.flexGrow.weights`. That, and the unconsumed
+content style above, are why the case stays in `LoweringSite`.
+
+*(This paragraph first also named `alignSelf: .baseline` and a percentage
+`flexBasis`. Both report at the **child's** site, not the parent's:
+`planLegacyItems` raises exactly one entry at `parentSite:` and every per-child
+entry at `item.site`. Corrected in lane 2 — `LR-BM` item 1, which is also where
+test 2.5 (c)'s shape comes from.)*
+
+**`flexShrink: 0` is not carried.** The legacy content node needs it so the
+freeze loop does not shrink it from max-content towards min-content — measured
+through the type itself (200 vs 508 for two `Text`s in a 200pt horizontal
+scroller; `ScrollView.swift`'s own doc). The kernel viewport has no freeze loop:
+it measures its content with the scrolling axis unspecified and places it at its
+own answer. With the record left unconsumed (above), carrying the field is not
+merely pointless but **reports**: `scrollView.flexShrink.unconsumed`. That is
+the lane's **M2d**, and it is what makes the omission observable at all.
+
+**Evidence.** Prototype P4, `LayoutDifferential.compare`, "agrees" meaning empty
+report, no disagreement, and equal scenes, hitboxes, accessibility records and
+state slots:
+
+| arm | shape | result |
+|---|---|---|
+| A1 | `Box { ScrollView(.vertical) { 3 × 80×40 } }.width(80).height(60)` | agrees, 6 ids |
+| A2 | the demo's own spelling (`.width(80).flexGrow(1).flexBasis(0).minHeight(0)` in a stretching column) | agrees, 8 ids |
+| A5 | 50×30 content in a 100×100 viewport | agrees, 4 ids |
+| A8 | 160×30 content in an 80×60 vertical viewport | agrees, 4 ids |
+| A9 | a `ScrollView` inside a `ScrollView` | agrees, 7 ids |
+
+and, over the whole suite, P4 produced **no new diagnostic anywhere**: the only
+red tests were five diagnostics expectations this stage owns (spec §2.3), and
+the demo's report lost `scrollView.noLowering` in both modal states.
+
+**Why the content goes through `lowerLegacyNode` rather than straight to
+`requestNativeLinearStack`** (which is what `ProposalScrollView` does): the
+legacy content node is an ordinary flex container, so its children's stretch,
+grow, margins, gaps and `justifyContent` are stage 2's business, already
+implemented and already pinned. Registering a bare stack would silently drop all
+of it — A2's stretch rows are what would move.
+
+**What it costs if wrong.** A content node registered the wrong way is invisible
+until a scroller holds anything but fixed-size rows: the demo's own scroller is
+a `List` of pinned-height rows, so the harness would agree and a caller's text
+or stretched row would be wrong in production at stage 6b. That is why A6 (a
+`Text` in a horizontal scroller) and A2 (the demo's spelling) are both in the
+lane and both carry their own mutation.
+
+**Amended, stage-3 critic round 1 (findings 2 and 9).** Prototype P4 *consumed*
+the content node's record, and the ruling as first written kept that step and
+justified `LoweringSite.scrollView`'s survival by "`LoweredItem.site` names it
+in a `…unconsumed` report". Both were wrong, and provably so from source:
+
+- `reportUnconsumedLoweredItems` skips consumed records
+  (`LoweringState.swift`'s `!item.consumed`), so the consumption made the
+  record invisible; and the content style's item fields are all at their
+  defaults, so **not** consuming it was equally silent. Neither the step nor
+  its absence could be seen — the design's **M2d** ("carry `flexShrink: 0`, the
+  viewport swallows the record, the report grows") and **M2e** ("the record is
+  not consumed, `scrollView.…unconsumed` appears") were **both inert**, and
+  §9's "nothing at site `scrollView` reports" was unpinned.
+- The viewport's own record (`declared: Style()`) can never carry an item
+  field: `ScrollView` is not a `StyledElement` and has no modifier surface. So
+  the reason given for keeping the case was unreachable too.
+
+Step 3 is therefore **deleted**: the content record stays unconsumed, which
+makes M2d live in one edit and turns a future field on that style into a
+diagnostic rather than a silent drop. The case stays for the reason now stated
+above — a scroller child's unlowerable item field reports at site `scrollView`
+through `planLegacyItems`' `parentSite:` — which spec test 2.5 produces on
+purpose with `alignSelf: .baseline`. `UnlowerableField.owningStage`'s
+`case .scrollView: return "3"` stays live with it.
+
+**Unpinned sub-clause, recorded rather than hidden.** Nothing distinguishes
+"the viewport deliberately lowers no item field of its content" from "the
+lowering forgot to"; they are the same code. What the lane pins is the
+consequence — the report names a carried field (M2d) and the content's rects
+agree (2.1, 2.4).
+
+## LR-BC — the lowered viewport fills its proposal on the scrolling axis; the cross axis agrees with the legacy engine, and divergence 54 is NOT what that shows
+
+**The ruling.** The kernel viewport answers its **proposal** on the scrolling
+axis when it has one, and its **content's answer** on the other (`CN-M`,
+`CN-F`). Lowering `ScrollView` onto it therefore changes the scrolling axis and
+leaves the cross axis where stage 2 put it. The scrolling-axis change is pinned
+as a legacy-vs-lowered divergence under the proposal authority and retires at
+the root switch. **Divergence 54 is a different proposition and does not retire
+here** (see the amendment below).
+
+**Measured, prototype P4:**
+
+| arm | parent | cross axis | scrolling axis |
+|---|---|---|---|
+| A10 | stretching column, declared 120×100 | **120 on both sides — agrees** | 60 → **100** |
+| A11 | centring `Column`, 120×100 | 50 on both sides — agrees | 60 → **100** |
+| A7 | centring `Row`, 120×100 | 50 — agrees | (0, 20) 50×60 → (0, 0) 50×**100**; both children move up 20 |
+| A4 | `Box`, 100×50, **horizontal** scroller | 50 — agrees | **160** → **100** (the legacy viewport overflowed its parent; the lowered one is bounded by it), `scenesEqual` and `hitboxesEqual` both false |
+
+**So divergence 54 is not what the lowering shows.** `CN-P` 3 records it as "a
+legacy `ScrollView` takes its cross axis from its parent where a proposal
+`ScrollView` takes its contents'" — a `ScrollView`-vs-`ProposalScrollView`
+difference. Under the lowering the **legacy-vs-lowered** cross axis agrees in
+every arm measured, because stage 2's stretch wrapper gives a stretched
+viewport the line's cross size (A10) and both sides hug when nothing stretches
+(A7, A11). What actually moves is the **scrolling** axis, and in the direction
+that makes a scroller a scroller.
+
+**Amended, stage-3 critic round 1 (finding 5): the lowering PRESERVES
+divergence 54; it does not close it.** The first wording said "divergence 54's
+cross-axis half is therefore closed by the lowering". That inverts the
+mechanism. The kernel viewport's own cross answer is `content.width`
+(`LayoutTree.swift`'s `scrollViewportSize`) — the **`ProposalScrollView`**
+side. A lowered `ScrollView` reads its parent's 120 in A10 only because it
+**records a `LoweredItem`**, so stage 2 wraps it in a stretch item frame and
+`LoweringState.alias` reports the frame's rect as the element's.
+`ProposalScrollView` records nothing (`ProposalScrollView.swift` calls
+`requestNativeScrollViewport` and no `recordLoweredItem`), so `consume` returns
+`nil` and it gets no such frame. In a stretching container the two therefore
+**still** disagree exactly as 54 says, after the lowering as before it. What the
+lowering closed is a *legacy-vs-lowered* cross-axis gap, which is a different
+proposition and is what A10/A11's "agrees" measures.
+
+Consequences, all applied:
+
+- **54 is removed from stage 6b's retirement row** (`LR-BJ`). The root switch
+  makes production `ScrollView` the lowered one; in the pin's own fixture (both
+  elements as window roots, where neither has a parent to stretch it) the two
+  would then agree, but under any stretching container they do not. Retiring 54
+  needs the two scroll types unified, which `LR-BF` already sends to **stage 11
+  / task 10**. That stage owns it.
+- The design's §2.3 and §3.2 sentences are softened to "legacy and lowered
+  agree on the cross axis", which is what was measured.
+- Lane 2 test 2.2 gains an arm that measures the **surviving** difference — a
+  lowered `ScrollView` and a `ProposalScrollView` as the two children of one
+  stretching lowered `Box` — so 54's persistence is a pinned literal rather
+  than a paragraph. `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents`
+  keeps its name and its legacy-authority assertions untouched.
+
+**SwiftUI's answer, stage-3 probe group V** (with V0 and V2 as controls):
+
+- **V1 vs V0/V2**: `VStack { 60×30; ScrollView { 60×300 } }` at 200 gives the
+  scroller **162** = 200 − 30 − 8, exactly what a maximally flexible `Color`
+  takes in the same shape (V2), while the same stack of two fixed colours hugs
+  (V0, a 68pt block centred at y 66). A `ScrollView` answers its proposal on the
+  scrolling axis.
+- **V3**: it fills even over a 20pt child, and places that child at the
+  viewport's own origin — `SCG2`'s leading-edge rule seen inside a stack.
+- **V4**: the horizontal axis is identical (62 = 100 − 30 − 8, content 300 and
+  overflowing).
+- **V5**: `.fixedSize()` **does** opt out — the viewport becomes its content's
+  300 and the 338pt stack overflows the 200pt host (`a` at y −69). So the
+  flexibility is a response to the proposal, and the ideal on the scrolling axis
+  is the content's size, which is also what stack-algorithms SC1 reads at nil×nil
+  (50×300).
+
+**Consequence named here, owned by stage 6b.** The demo's
+`.flexGrow(1).flexBasis(Pixels(0)).minHeight(Pixels(0))` on the scroller `Box`
+exists only to bound a viewport that would otherwise hug its 14 000pt content —
+`DemoContent.swift`'s own comment says so at length. A lowered viewport is
+bounded by construction, so that incantation becomes removable at the root
+switch; removing it before then would change a legacy production frame.
+
+**What it costs if wrong.** Pinning this the other way — lowering the viewport
+as a `fixedSize` over its content, which is the mutation the lane runs — would
+reproduce the legacy hug and make every lowered scroller un-scrollable at stage
+6b while every fixed-size test still agreed. Pinning it as stated when SwiftUI
+does something else would bake a wrong bound into production at 6b; V1–V5 are
+what stand behind it, with V0 and V2 making V1 attributable.
+
+## LR-BD — one clamp and one indicator, computed rather than stored
+
+**The ruling.** `ProposalScrollView.swift:97-170`'s seven private members —
+`clamp`, both `resolvedOffset` overloads, `paintIndicator`, `indicatorBounds`,
+`delta`, `extent` — are deleted and replaced by a `ScrollChrome` value
+(`Sources/MetalUI/ScrollChrome.swift`) carrying the axis, the corner radius and
+the indicator visibility. Both elements build it **computed from their existing
+stored properties**.
+
+**Computed, not stored**, deliberately: adding a stored property to a public
+type that crosses a module boundary is CLAUDE.md's incremental-build hazard
+(`Scene` twice, `Display`, `FontKey`), and it would put a `swift package clean`
+in a lane whose whole claim is that nothing observable changed. Computing it
+from `axis`, `cornerRadius` and `indicatorVisibility` changes no storage at all.
+
+**Two things do not fold.** (1) The two `resolvedOffset` overloads stay two
+functions: `PrepaintPass` and `PaintPass` have no common protocol, and
+`Passes.swift` records why inventing one would leak `PaintPass.frame` and with
+it `scaleFactor`. Four copies become two. (2) `ScrollContext` publication stays
+`ScrollView`'s alone (`LR-BF`).
+
+**Evidence that the copies had already drifted**: `ScrollView.paintIndicator`
+seeds `lastScroll` at `0` and `ProposalScrollView`'s at `-Double.infinity`.
+Both are dead — `withState` always runs its closure — but they are two different
+answers to the same question living ten lines apart, which is the shape
+CLAUDE.md's "a copy of a pinned implementation is unpinned" exists to catch.
+`ProposalScrollView`'s clamp, write-back, thumb floor, ramp and indicator clip
+have **no test of their own** today; the fold gives them `ScrollView`'s.
+
+**What it costs if wrong.** This is the one lane that edits production paint
+under **both** authorities, so a mistake here is visible in the shipping demo
+and the preview rather than only under the proposal authority. That is why its
+demo expectation (§8) treats a non-zero image as a finding that stops the lane,
+and why its mutations (**M1a** the write-back, **M1b** the indicator's clip
+offset, **M1c** the thumb floor, **M1d** `.hidden`'s position relative to
+`requestAnotherFrame`) must each redden a named `ScrollView` test **and** its
+new `ProposalScrollView` twin.
+
+**Amended, stage-3 critic round 1 (findings 3 and 12).** Four corrections, each
+from source:
+
+1. **The seven private members are at `:97-170`**, not `:94-166` (line 94 is a
+   call site inside `paint`). The stale citation was inherited from CLAUDE.md
+   and is corrected here; CLAUDE.md's own copy is the Docs phase's.
+2. **The fold carries the doc comments with the code.** Four pieces of prose at
+   the old sites are the only record of why their lines exist and must arrive
+   at `ScrollChrome` with them: the prepaint overload's overscroll measurement
+   ("twenty −37 events stored 740, seventeen of the twenty dead"),
+   `paintIndicator`'s `offsetBy: .zero` rationale, the `guard alpha > 0` /
+   `requestAnotherFrame()` ordering note, and why `.hidden` is checked first. A
+   fold that moves the code and leaves the prose behind is a silent loss of the
+   evidence the mutations M1b–M1d are named for.
+3. **`ScrollView.clamp` is not kept as a forwarder.** It is named by five
+   assertions (`ScrollViewTests.swift:78,79,80,89,97`) and by nothing in
+   `Sources/` once the fold lands; keeping it would add a production member
+   with no production caller — CLAUDE.md's declared-but-inert shape. The five
+   assertions re-point at `ScrollChrome.clamp` in lane 1.
+4. **Test 1.4 was unrunnable as specified.** The design claimed it was RED
+   before the fold because "the `lastScroll` seeds differ" — but this ruling
+   itself says both seeds are dead (`StateTable.withState` unconditionally
+   calls its closure, `StateTable.swift:334-342`), and the two implementations
+   are otherwise line-equivalent, so the test is **green at `57893d0`**. Its
+   specified mutation **M1f** ("either element's indicator given a different
+   thumb-floor constant") also cannot redden it *after* the fold, since there
+   is then one constant and both sides move together. 1.4 becomes a
+   **characterization** test of the property the fold creates — the two
+   elements' indicator rect, colour and clamped offset are equal for one
+   fixture — and its mutation becomes **re-inlining a private copy of
+   `paintIndicator` into one element with a different thumb floor**, which is
+   precisely the drift it guards against. Its `try #require` that the two
+   viewports agree first is satisfiable only with a fixture whose content
+   **fills the cross axis** (divergence 54, `LR-BC`), so the fixture is
+   specified that way.
+
+## LR-BE — `$anim-content` and `$anim-viewport` survive the lowering unchanged, and `ProposalScrollView` still never animates
+
+**The ruling.** The lowered branch calls `animated(_:_:for:pass:)` on the content
+style under `scrollViewContentAnimID(for: id)` and on the viewport style under
+`scrollViewViewportAnimID(for: id)`, exactly as the legacy branch does, and
+feeds the **animated** style to the lowering's lengths and the **declared** one
+to its structure (`LR-AS`). `ScrollView` therefore remains one of the nine
+animation-registering sites, with two named children and the `$anim` slot at a
+grandchild, and `theSevenRetentionSlotsAreMutuallyDistinct` is unaffected.
+
+`ProposalScrollView` gains nothing: it has no `Style` and no modifier surface,
+so there is nothing to interpolate. The fold shares **chrome**, not animation.
+
+**Evidence.** P4 kept both `animated` calls and every agreement arm reported
+`stateSlotsEqual == true`; the demo's `$anim` census (divergence 18's `2n + 7`
+shape) did not move — the exit test's 2036/2042 id counts and its state-slot
+comparison are unchanged.
+
+**What it costs if wrong.** Passing the bare `id` to both calls collapses the
+two nodes' fields onto one `$anim` retention slot — M4 spec 3 §5's original
+defect — and a scroller mid-animation would interpolate the viewport's style
+into the content's. It is silent: no test outside 2.6 and the slot-distinctness
+test can see it.
+
+## LR-BF — `ScrollContext` publication is unchanged, and `ProposalScrollView` does not get one
+
+**The ruling.** Nothing about `ScrollContext` changes. It is published from
+`ScrollState` during layout, its `viewportExtent` is written by the prepaint
+`resolvedOffset` from the element's `bounds`, and `Frame.bounds(of:)` resolves
+that through stage 2's alias. A native viewport is just another node to it.
+
+`ProposalScrollView` gains **no** publisher.
+
+**Evidence.** P4, a custom element recording `pass.scrollContext` inside and
+after a scroller, rendered under each authority:
+`["off=0.0 vp=0.0 ax=vertical", "nil"]` — identical, including the `nil` for the
+sibling declared after the scroller.
+
+**Why `ProposalScrollView` gets none.** Nothing can read it. No proposal element
+reads `pass.scrollContext`, and `List` is an `ElementGroup`, not a
+`ProposalElementGroup`, so it cannot be a `ProposalScrollView`'s content at all
+— the compiler refuses. A published-but-unreadable context is exactly the
+declared-but-inert row CLAUDE.md's table exists to keep out, and it would have to
+be deleted again by whoever unifies the two scroll types. Named deferral: stage
+11 / task 10.
+
+**What it costs if wrong.** `ScrollContext` is what `List` windows against, so
+if publication had moved with the viewport the failure would be a `List` that
+windows against a stale or absent context — one frame of blank rows, or a
+permanently unwindowed 500-row list, neither of which the legacy suite would
+see (it runs the legacy authority). Test 3.5 drives **two** frames per
+authority with a wheel between them, because on frame 1 `viewportExtent` is 0 on
+both sides and a one-frame comparison would be vacuous.
+
+## LR-BG — a `Component` amend lowers to one native frame per member, aligned per axis, and the op's payload becomes a size
+
+**The ruling.** `ComponentModifierOp.amend` stops carrying a
+`(inout Style) -> Void` closure and carries a **`Size<Dimension>`** — the only
+thing `Component.width`/`.height` ever wrote. The legacy branch applies it
+through `setStyle` exactly as before; the lowered branch registers **one native
+frame per member** with the declared axes, recorded with `kind: .frameLayer` so
+a parent stretches it only on an axis it leaves `nil` (`MC-Q` finding 7).
+
+**The frame's alignment is per axis**: `.center`'s factor on an axis the patch
+declares, `0` on an axis it leaves `auto`. The same value is recorded as the
+item's `contentAlignment`.
+
+**Evidence, prototype P4** (`Box` 300 wide, 40 tall, members 30×10 and 50×10):
+
+| arm | legacy | lowered | SwiftUI |
+|---|---|---|---|
+| C1 `Pair().width(70)` | members **70**×10 at x 0, 70 | 30 at x **20**, 50 at x **80** | W1 / component-distribution G7 |
+| C2 `Solo().width(70)` | 70×10 at x 0 | 30×10 at x **20** | G8 |
+| C4 `.padding(4).width(70)` | x 4, 74 | x **20**, **80** | G13's x 20 |
+| C5 `.width(70).padding(4)` | 70 wide at x 4, 82 | 30 at x **24**, 50 at x **92** | G14's x 24 |
+| C7 `Pair().height(20)` | 30×**20**, 50×**20** at y 0 | 30×**10**, 50×**10** at y **5** | W2's per-axis rule |
+| C3 `Pair().padding(8)` | — | **agrees** (the wrap needs no divergence) | G2 |
+
+**The per-axis alignment is a correction the prototype forced, and its ground
+is the legacy answer it must preserve.** Recording the amend frame's content
+alignment as `.center` unconditionally moved C1's members from y 0 to y **15**
+and C4's from y 4 to y 15: the item frame the parent registers reads
+`LoweredItem.contentAlignment`, so a width-only amend was centring its member
+on the height axis too. **The constraint that forced the fix is that the
+undeclared axis must not move** — divergence 48 is about the axis the caller
+declares, and an amend that also relocates the other axis is a second,
+undesigned divergence. Making the alignment per axis restored y 0 and y 4.
+
+**What SwiftUI contributes here, honestly stated.** Stage-3 probe arms
+**W7/W8** (`Pair().frame(height: 40, alignment: .top)` puts both members at
+y **30**, `.bottom` at y **60**, against the W0 control's y 45) and **W9** (the
+same for a single member) show that a frame declaring one axis is a **real**
+frame that aligns on the axis it declares. Given that, **W2**'s x 106/144 and
+**W5**'s x 135 — the control's own numbers with the frame now proved present —
+say the **undeclared** axis is passed through at the child's own size. But note
+what that means: in SwiftUI an undeclared axis leaves no free space, so *how* a
+frame would align a child on such an axis is **unobservable in principle**, and
+`LoweredItem.contentAlignment` — how a **parent's** item frame places a grown
+child — has no SwiftUI counterpart at all. So W2/W5/W7–W9 are the consistency
+check on this ruling, not its source.
+
+(The first writing of this ruling cited W2's byte-identity with the W0 control
+as positive evidence. It is not: "a per-member frame passing the undeclared
+axis through" and "no frame at all" predict the same W2 and W5 output — the
+host centres either way. That is practices shape 15, and W7–W9 were run to fix
+it; see the amendment below.)
+
+**Why the payload becomes a size rather than the lowering reporting a non-size
+amend.** `ComponentModifierOp.amend` takes an arbitrary closure, so a lowering
+that framed by `size` alone would silently drop anything else an amend wrote —
+the prototype did exactly that. The alternatives were a `component.amend`
+diagnostic for a non-size amend (a case no public API can reach today: the
+inert shape) or making the case unable to express one. The second deletes the
+hole instead of reporting it.
+
+**Divergence 48 is answered here under the proposal authority and retires at
+6b.** `aComponentsWidthStillOverwritesItsMembersDeclaredWidth` keeps its name
+and its wrong-on-purpose legacy assertion.
+
+**What it costs if wrong.** A frame registered around the whole group rather
+than per member reads the same OUTER size in every fixture — it is only the
+members' own rects that tell the two apart, which is why 4.1 asserts the member
+rects and not the group's. Getting the alignment wrong is invisible on any
+fixture whose members declare both axes, which is most of them; 4.3 exists for
+exactly that and pins the y 5 and y 0 the prototype measured.
+
+**Amended, stage-3 critic round 1 (findings 6 and 8).**
+
+1. **The evidence is re-grounded** (finding 6): the ruling's ground is the
+   legacy agreement it must preserve, with W7–W9 run **now** (2026-09-22,
+   both script and `-O` forms, byte-identical, recorded in the probe's header)
+   as the discriminating SwiftUI arms and W2/W5 demoted to "consistent with".
+   The probe's header carries the same reading.
+2. **`loweredComponentFrame` CONSUMES AND PLANS the member's own record**
+   (finding 8). As first specified it registered a `.frameLayer` frame around
+   the member and recorded *that*; the parent then consumed the frame and the
+   **member's** record was left unconsumed. `reportUnconsumedLoweredItems`
+   emits `<site>.<field>.unconsumed` for any non-default item field on an
+   unconsumed record, and in a production frame every report is a **trap** — so
+   `MyComponent().width(70)` over a member declaring `.flexGrow(1)` would work
+   under the legacy authority and **abort** under the proposal one at 6b. That
+   is not a divergence; it is a crash. `loweredComponentFrame` therefore
+   consumes the member's record and plans it through `planLegacyItems` exactly
+   as `lowerLegacyLayer`'s single-node arm does (`.wrap`, which routes through
+   `lowerLegacyNode`, already did this — which is why arm C3 agrees). Lane 4
+   gains an arm whose member declares `flexGrow` and one whose member declares
+   `margin`, with the mutation "do not consume" — and none of C1–C7 had one,
+   which is why the hole survived the prototype.
+
+## LR-BH — a `.frame` layer over several member nodes lowers to a row of per-member frames
+
+**The ruling.** `lowerLegacyLayer`'s frame arm, over more than one node, registers
+one native frame per node carrying the whole `FrameSpec` and rows them with
+`requestNativeLinearStack(axis: .horizontal, spacing: 0, alignment: spec.alignment)`.
+The `frame.multipleNodes` row is deleted from `legacyFrameLayerDiagnostics`;
+`display.none` is still checked first and alone (`LR-J`).
+
+**Evidence.** P4 arm C6, `Pair().frame(width: 70, height: 40)` in a 300×60 `Box`:
+legacy registers **one 70×40 frame** and the flex row squeezes the members to
+**26** and **44**; lowered registers a **140×40** row of two 70-wide frames with
+the members at their own 30 and 50, centred at x **20** and **80**, y 15 on both
+sides. Probe **W1**/**W4** read a at 96 and b at 164 in a 300pt host — a 148pt
+pair, which is 140 plus the enclosing `HStack`'s 8pt spacing. Spacing 0 is
+MetalUI's own container default (divergence 52), so the lowered rects are
+SwiftUI's geometry in MetalUI's spacing.
+
+**What still diverges, and why it cannot close here.** SwiftUI's framed members
+stay **siblings of the enclosing stack**; MetalUI's `ModifiedElement.requestLayout`
+returns one `LayoutNodeID`, so they are one flex item of the parent. Closing that
+needs `ElementGroup`'s associated-type change (`TB-M`). Stage 11 owns it, with the
+`ModifiedElement`/`ModifiedContent` unification.
+
+**Divergence 56 is answered here under the proposal authority.**
+`aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren` and
+`chainedFramesRemainConcreteAndNestTheirLayoutNodes` keep their names and their
+legacy assertions.
+
+**What it costs if wrong.** Rowing the per-member frames at the platform default
+spacing instead of 0 (the lane's **M5a**) reads 148 instead of 140 and would be
+indistinguishable from SwiftUI's own number while being wrong for MetalUI, where
+the enclosing container supplies the spacing. Applying the spec to only the first
+member is invisible on a single-member component, which is what most fixtures
+use.
+
+**Amended, stage-3 critic round 1 (finding 7): the multi-node arm must PLAN the
+members' item fields, not only frame them.** `lowerLegacyLayer` consumes every
+child's record up front (`children.map { frame.lowering.consume($0) }`) but
+runs `planLegacyItems` only when `children.count == 1`; for more it leaves
+`plans` as default `LegacyItemPlan()`s, which `registerLegacyItems` turns into
+a no-op, and returns `.first`. Today that path is unreachable because the
+`frame.multipleNodes` diagnostic short-circuits into `report(fields)`. Deleting
+that row — which this ruling does — makes the path live, and with the plans
+still defaulted **every member's `minSize`, `maxSize`, `margin`, `alignSelf`
+and `flexGrow` would be consumed and dropped with no diagnostic**, because a
+consumed record is skipped by `reportUnconsumedLoweredItems`. Lane 5 therefore
+runs `planLegacyItems(received, parent: declared, parentKind: .stack,
+parentSite: .modifierLayer, fields: &fields)` for the multi-child case too and
+registers the resulting item wrappers **per member**, rowing
+`registerLegacyItems(children, plans)` in full rather than taking `.first`. A
+new test whose two members declare `margin` and `minSize` pins it, with the
+mutation "skip the planning for `count > 1`". Lane 5's 5.1–5.3 as first
+specified used fixtures of two bare `Color`-like members, none of which could
+see this.
+
+## LR-BI — the scroll suites are parameterised by authority, and their two custom element types re-spell as native probe leaves
+
+**The ruling.** Every scenario in `ScrollRoutingTests` (16) and
+`ScrollIndicatorTests` (14), and `ScrollViewTests`' 7, becomes
+`@Test(arguments: LayoutAuthority.allCases)` and builds its frame or fake window
+under the argument. `LayoutAuthority` gains `CaseIterable` (internal, as the enum
+is). The two custom elements — `ScrollContextRecorder` (5 call sites) and
+`HitboxProbe` (2), which §4.2's census counted as **9** legacy registrations in
+its filtered run — take `ProbeLeaf`'s shape:
+`pass.lowersToProposal ? pass.frame.requestNativeLeaf { … } : pass.requestLeaf(…)`,
+answering the same size from the same `Style`.
+
+**A parameterised test counts as ONE test in the summary line** — measured on
+this suite: `aHardLineBreakEndsALineWhenNoWidthIsOffered(separator:)` runs 8
+cases and the total counts it once. So the suite total does not move for these
+37 scenarios, and the exit criterion cannot be read off the count. That is why
+`everyScrollScenarioRanUnderBothLayoutAuthorities` exists: a counter the
+parameterised arms increment, with a `try #require` on the arm count derived by
+hand (practices shape 13) and on both authorities having been seen.
+
+**Why parameterisation rather than a second copy of each suite.** A copy of a
+pinned implementation is unpinned (practices); a copy of a pinned *test* is
+worse, because the two drift silently and the mutation that reddens one leaves
+the other green. Parameterising keeps one body and one set of literals.
+
+**Red before.** See the amendment: lane 3 runs **after** lane 2, its red-before
+is a single exit test taken at lane 1's HEAD, and its evidence is its
+mutations.
+
+**What it costs if wrong.** Leaving the `arguments:` list at `[.legacy]` — the
+lane's **M3c** — passes every test and delivers nothing, and the suite count
+would not move to say so.
+
+**Amended, stage-3 critic round 1 (findings 1, 4, 11 and 12).**
+
+1. **The lane-3 red-before as first written could not be run: it aborts the
+   process and truncates the suite** (finding 1).
+   `Frame.noteUnlowerable` is `guard reportsUnlowerableFields else {
+   preconditionFailure(…) }` (`Frame.swift:1536`), and **`Window` never sets
+   `reportsUnlowerableFields`** — the only writers in the tree are test
+   helpers; `Window.swift`'s `Frame(...)` call passes `layoutAuthority` and
+   `recordsElementBounds` and nothing else. So a proposal-authority `Window`
+   holding a `ScrollView` aborts: no summary line, no list of which arms
+   failed, and nothing to record. That contradicts the design's own §6
+   preamble and CLAUDE.md ("a precondition … truncates the suite unless its
+   pinning test becomes an exit test first"). **Applied, option (a) plus one
+   exit test**: lane 3 is ordered **after lane 2**, so its arms are written
+   against a working lowering and its evidence is **M3a/M3b** plus lane 2's
+   **M2a** and lane 1's **M1c**; and the trap itself is pinned by **one** new
+   arm on the existing exit test
+   `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority`, added
+   in **lane 1** (where it passes) and converted to an agreement arm in lane 2.
+   Option (b) — an internal `Window.reportsUnlowerableFields` — is **rejected**:
+   it adds production surface whose only caller is a test, to buy a list that
+   the per-arm mutations give for free.
+2. **Test 3.5 was named for something stage 3 cannot do** (finding 4).
+   `aListInsideALoweredScrollerWindowsAgainstTheSameContextAsTheLegacyOne` runs
+   two frames through a `Window` per authority — and a `List` under the
+   proposal authority calls `noteUnlowerable(.list, "noLowering")` **before any
+   row** (`List.swift:351`), so through a `Window` it traps (item 1). Under
+   diagnostics, where P4 measured it, the `List` builds **zero** rows (record
+   §3.6: 45 ids, 40 legacy-only), so "windows against the same context" was
+   vacuous there too. Re-scoped and renamed to
+   `aScrollContextSurvivesALoweredViewportAcrossTwoFrames`: a **non-`List`**
+   recorder inside and after the scroller, two frames with a wheel between
+   them, comparing `offset`, `viewportExtent` and `axis` per authority. §9's
+   `List` row now says plainly that `List` windowing is checked **only under
+   the legacy authority** this stage, and stage 4 owns the proposal half.
+3. **Each lane states its predicted end-of-lane test count** (finding 11), so
+   "the count did not move unexpectedly" is falsifiable. A parameterised test
+   counts as one, re-verified this round: 1551 `@Test` hits minus one in a doc
+   comment = 1550, matching the summary line.
+4. **The baseline's one unattributed issue is attributed or retired BEFORE
+   lane 3** (finding 11), because lane 3 takes the count of real `Window`s in
+   `ScrollRoutingTests` + `ScrollIndicatorTests` from 37 to 74 — each a Metal
+   device on one shared main run loop — and four of those scenarios are
+   display-link timing tests. If the flake lives there, lane 3 doubles its
+   rate and the exit test becomes the flakiest thing in the suite. The check is
+   the two suites run unfiltered, whole log kept, enough times to attribute or
+   retire it; the result is recorded either way.
+5. **`ScrollViewTests`' dependency census is taken** in lane 3 (finding 12): it
+   was added to the lane without appearing in §4.2's census. If it registers no
+   custom legacy node the row says so; if it does, the type re-spells like the
+   other two.
+
+## LR-BJ — deferrals
+
+| item | why not stage 3 | owner |
+|---|---|---|
+| the demo scroll subtree's remaining width disagreement (0 vs 420) | it is the `List` reporting and building no rows, not the `ScrollView` | stage 4 |
+| `ProposalScrollView` publishing a `ScrollContext` | nothing can read one (`LR-BF`) | stage 11 / task 10 |
+| `ProposalScrollView`'s animation | no `Style`, no modifier surface | stage 11 |
+| the demo's `.flexGrow(1).flexBasis(0).minHeight(0)` on the scroller `Box` | a production respelling, and `LR-BC` makes it removable only once the root switches | stage 6b |
+| divergences 48 and 56 retiring | each is answered under the proposal authority here and pinned wrong-on-purpose under the legacy one | stage 6b |
+| **divergence 54 retiring** | the lowering **preserves** it, it does not close it: the kernel viewport's cross answer is the `ProposalScrollView` side, and a lowered `ScrollView` reads its parent's cross size only because it records a `LoweredItem` and `ProposalScrollView` does not (`LR-BC`, amended). Retiring it needs the two scroll types unified | stage 11 / task 10, with `LR-BF`'s unification |
+| framed component members staying one flex item | needs `ElementGroup`'s associated type (`TB-M`) | stage 11 |
+| the single-child stretch elision inside a scroller (A6, 40 → 16) | stage 2's `LR-AC`, unchanged here | stage 6b |
+| `Style.overflow`'s inert write in `ScrollView.requestLayout` | it documents intent on the legacy path; the lowering does not carry it | stage 10 |
+| two-axis scrolling | never designed | task 10 |
+
+---
+
+## LR-BK — stage-3 critic round 1: dispositions
+
+**Round.** 2026-09-22, after the stage-3 design commits `ca7272a` and
+`ec83625`. Twelve findings (1–11 individually, 12 a bundle of six smaller
+ones). The critic re-ran all three probes the design leans on
+(`swiftui-engine-replacement-stage3.swift`, `swiftui-component-distribution.swift`,
+`swiftui-stack-algorithms.swift`) and found each byte-identical to its header,
+and confirmed the worktree clean and the 97 goldens untouched; every defect
+was in how the design mapped those answers onto MetalUI's code, or in
+mutations and red-before runs that could not do what they claimed.
+
+**New evidence this round.** Stage-3 probe revision 2: arms **W7, W8, W9**
+(`Pair().frame(height: 40, alignment: .top/.bottom)` and the single-member
+`Solo` version), run 2026-09-22 under `/usr/bin/swift` twice byte-identical and
+under `xcrun swiftc -O` identical with empty stderr and exit 0; the header's
+recorded block was re-extracted and `diff`ed clean against the fresh run. The
+first 15 lines are unchanged. `swiftui-component-distribution.swift` re-run:
+**25** output lines, not the 22 two documents claimed. Everything else in this
+round is read from source and cited by file and line.
+
+| # | finding | disposition | where |
+|---|---|---|---|
+| 1 | lane 3's red-before aborts the process and truncates the suite (`Window` never sets `reportsUnlowerableFields`) | **applied**, option (a) + one exit-test arm: lane 3 moves after lane 2; the trap is pinned by an arm on the existing exit test, added in lane 1. Option (b), an internal `Window.reportsUnlowerableFields`, **rejected** — production surface whose only caller is a test | `LR-BI` amended; spec §6 preamble, lanes 1 and 3; record §5 |
+| 2 | **M2d** and **M2e** are provably inert (a consumed record is skipped; the content style carries no item field) | **applied**: step 3, the consumption, is **deleted** — the content record stays unconsumed, which makes M2d (`flexShrink: 0` carried → `scrollView.flexShrink.unconsumed`) live in one edit; M2e becomes the wrong `site:` argument | `LR-BB` amended; spec §3.1, §4.1, 2.4, 2.5 |
+| 3 | test 1.4 can be red neither before (the two implementations are line-equivalent and both `lastScroll` seeds are dead) nor after (**M1f** moves both sides together) | **applied**: 1.4 becomes characterization, its mutation becomes re-inlining a private `paintIndicator` copy with a different thumb floor, and its fixture's content fills the cross axis so the `#require` is satisfiable | `LR-BD` amended; spec 1.4 |
+| 4 | test 3.5 is named for something stage 3 cannot do, and §9's `List` row rests on it | **applied**: renamed and re-scoped to a non-`List` recorder over two frames; §9's row says `List` windowing is checked only under the legacy authority this stage | `LR-BI` amended; spec 3.5, §9 |
+| 5 | `LR-BC`'s headline is inverted — the lowering **preserves** divergence 54 — so "54 retires at 6b" is wrong | **applied**: 54 removed from the 6b row and sent to stage 11 / task 10 with the scroll types' unification; §2.3/§3.2 softened to "legacy and lowered agree"; lane 2 gains an arm measuring the surviving difference | `LR-BC`, `LR-BJ` amended; spec §2.3, §3.2, 2.2, §10 |
+| 6 | `LR-BG` cites probe arms that cannot discriminate, for a mechanism SwiftUI does not have | **applied, measured**: W7/W8/W9 run now (y 30 / y 60 / y 30 against the control's y 45); the ruling's ground restated as the legacy agreement; W2/W5 demoted to "consistent with"; the probe header carries the same reading | `LR-BG` amended; probe revision 2; spec §2.2, §2.3, §3.5 |
+| 7 | lane 5 drops every member's item fields silently (`planLegacyItems` runs only at `count == 1`; the result is `.first`) | **applied**: the multi-child arm plans and registers per member and rows them all; a new test whose members declare `margin` and `minSize`, mutation "skip the planning for `count > 1`" | `LR-BH` amended; spec 5.1a |
+| 8 | lane 4's amend orphans the member's `LoweredItem` — a production **trap** at 6b, not a divergence | **applied**: `loweredComponentFrame` consumes and plans the member as `lowerLegacyLayer`'s single-node arm does; a new arm whose member declares `flexGrow`/`margin`, mutation "do not consume" | `LR-BG` amended; spec §3.5, 4.6 |
+| 9 | `LoweringSite.scrollView` becomes unreachable and §4.1 gives the wrong reason | **applied, with a correction to the finding**: the site is **not** unreachable — `lowerLegacyNode` passes `site:` to `planLegacyItems` as `parentSite:`, so a scroller child's unlowerable item field reports at `scrollView.<field>`. §4.1's reason is replaced by that one and test 2.5 produces such a report on purpose (`alignSelf: .baseline`); the unconsumed content record (finding 2) is the second route | `LR-BB` amended; spec §4.1, 2.5 |
+| 10 | a recorded probe length does not reproduce (22 vs 25) in two documents | **applied, measured**: a fresh run emits **25** output lines, content byte-identical; both documents corrected | spec §2.1; record §2.1 |
+| 11 | the unattributed baseline failure is left live under the lane that doubles the most timing-dependent suite; no lane states its expected count | **applied**: the two scroll suites are re-run unfiltered, whole log kept, to attribute or retire it **before** lane 3, result recorded either way; every lane states a predicted end-of-lane total | `LR-BI` amended; spec §6, §1 |
+| 12 | six smaller ones: the `:94-166` citation; the fold losing its doc comments; `ScrollView.clamp`'s forwarder; `ComponentModifierOp`'s payload size; **M1e**'s false parenthetical; `ScrollViewTests` absent from the census | **all applied**: `:97-170`; the four doc comments named and required to move with the code; the forwarder dropped and the five assertions re-pointed at `ScrollChrome.clamp`; the clean **measured** in lane 4 rather than asserted; M1e restated as an arm that exists today; the census taken in lane 3 | `LR-BD`, `LR-BI` amended; spec §3.3, §5, 1.3, lanes 3–4 |
+
+**Nothing is rejected outright**; finding 1's option (b) and finding 9's
+premise are the two places where the disposition differs from what the finding
+asked for, each with its reason above.
+
+**What this round changes about the stage's shape.** Lane order becomes
+1 → 2 → 3 → 4 → 5 (lane 3 after lane 2, item 1), lanes 4 and 5 each gain one
+test for an item-field hole neither prototype fixture could see (findings 7 and
+8), and three of the design's mutations (M1f, M2d, M2e) are replaced because
+they could not redden anything. The count of lanes is unchanged at five.
+
+---
+
+## LR-BL — stage 3 lane 1's corrections: what was already pinned, two mutations that could not redden their test, and the harness that had to be rebuilt
+
+**Round.** 2026-09-22, implementing lane 1 (the shared scroll chrome, `LR-BD`)
+at `f0590d3`…`440fd78` on `feat/engine-stage-3`. Six corrections, every one of
+them forced by a measurement taken in the lane rather than by re-reading the
+design.
+
+**1. `ProposalScrollView`'s prepaint write-back was already pinned, and
+`LR-BD` says it was not.** That ruling's evidence paragraph reads
+"`ProposalScrollView`'s clamp, write-back, thumb floor, ramp and indicator clip
+have **no test of their own** today". Four of the five are right; the
+write-back is not.
+`aProposalScrollViewClampsAnOffsetPastItsContentEndOnPrepaint`
+(`NativeLayoutIntegrationTests.swift`) seeds a stored offset of 999, renders,
+and reads 170 back out of the state table — which is the write-back, and
+nothing else. **Mutation M1a reddens it**, alongside the two tests the ruling
+names. The claim is corrected here rather than in `LR-BD`, which keeps its own
+text as written; the fold's justification does not depend on it, because the
+thumb floor, the ramp, the indicator clip and the `.hidden` guard genuinely had
+no `ProposalScrollView` pin.
+
+**2. M1d cannot redden test 1.2 as specified, and the gap was real.** Moving
+`guard indicatorVisibility != .hidden` below `pass.requestAnotherFrame()`
+leaves every *rect* assertion unchanged: the guard still returns before the
+fill, so a `.hidden` scroller still paints nothing. The first run of M1d
+reddened `hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake` and nothing
+else. The mutant is observably different — it asks for a frame on every tick
+while nothing fades, which is spec §4.4's exit criterion — so this is a gap in
+1.2, not a broken instrument (practices, "a mutation that reddens nothing is a
+broken instrument or it is the finding"). **1.2's `.hidden` arm now reads
+`Frame.wantsAnotherFrame` on both halves of its differential**, `false` for
+`.hidden` and `true` for `.automatic`, and M1d then reddens it. No test was
+added; the arm was strengthened in place.
+
+**3. M1f cannot redden test 1.4 as specified, because 1.4's fixture makes the
+thumb floor inactive.** The design fixed 1.4's content at 200pt behind a 100pt
+viewport, where the thumb is the proportional `100 × (100/200) = 50` and
+`max(20, 50)` and `max(30, 50)` are the same number. A re-inlined private
+`paintIndicator` with a 30pt floor — the drift `LR-BD`'s amended finding 3 says
+only 1.4 can see — therefore left 1.4 green while reddening 1.2. Practices
+shape 2, a fixture too shallow to distinguish two models. **1.4 now runs two
+content heights**, 200 (the proportional regime) and 1000 (`100 × (100/1000) =
+10`, floored to 20, against a drifted 30), parameterised in place so the count
+does not move. M1f then reddens 1.4 and 1.2 both.
+
+**4. `ScrollChrome`'s isolation is per method, not per type.** The three
+members that take a pass (`resolvedOffset` ×2, `paintIndicator`) are
+`@MainActor`, because `PrepaintPass` and `PaintPass` are; `clamp`, `extent`,
+`delta` and `indicatorBounds` are not, so `ScrollChrome.clamp` stays the pure
+function `ScrollView.clamp` was and the five re-pointed `ScrollViewTests`
+assertions reach it unchanged. Marking the whole struct `@MainActor` would have
+worked and would have isolated a pure value for no reason.
+
+**5. `ScrollView.extent` folded with the rest.** §5 of the design listed
+`extent` among `ScrollChrome`'s members but described only
+`ProposalScrollView`'s copies as deleted. `ScrollView.extent` was `internal`
+rather than `private`, so it could have had a caller outside the type; it had
+none (an anchored grep, then the build), and it is deleted with the other six.
+
+**6. `CN-R`'s generator was not in the repository, and the rebuilt one is
+validated by its controls.** Record §18 cites `scratchpad/harness/gen-lib.py`;
+session scratchpads do not survive, and it is gone. Lane 1 rebuilt it from
+§18's and `CN-R`'s description — a test file injected into a `git archive` of
+the commit under test, `@testable import MetalUIDemoContent`, twelve images
+through a real `Window` over `FakePlatformWindow`, raw BGRA plus a scene dump
+per image. **It is the same instrument, and that is measured rather than
+assumed**: on an archive of `57893d0` it reproduces all five recorded controls
+exactly — light vs dark f0 **1 048 576**, default vs modal **1 030 498**,
+default vs animation **210 027**, f0 vs f3 **0**, preview light vs dark
+**1 048 576** — and both recorded distinct-value counts, **544** for
+`default-light-f0` and **216** for `chrome-legacy`. The harness lives in the
+session scratchpad again; **whoever needs it after this stage will have to
+rebuild it again, and the five controls plus the two counts above are what
+tells them they got it right.** Committing it is a named deferral (stage 6b,
+which owns the root switch and will want this comparison most).
+
+**What it costs if wrong.** Items 2 and 3 are the expensive ones: each was a
+test that looked like a pin and was not, in the one lane whose edit production
+runs. Had either stayed as written, the fold would have shipped with its two
+headline claims — "`.hidden` still costs nothing" and "the two elements cannot
+drift apart" — resting on assertions that a drifting implementation passes.
+
+**Amended, verification round (2026-09-22).** Three additions, none of them a
+defect in the fold (record §25 §7.6, §7.8, §7.9, §12.3):
+
+**7. The twelve `CN-R` images are blind to the indicator.** Item 6 and record
+§7.6 presented them as this lane's pixel evidence, "the lane where a non-zero
+reading would have been a finding". True for the clamp, the prepaint write-back
+and the content clip; **not** for the indicator: none of the twelve scenes is
+ever scrolled, so `lastScrollTime` is `-.infinity`, `alpha` is 0 and
+`paintIndicator` returns at its `guard alpha > 0` before the `pass.fill`.
+Measured by scanning every scene dump for the thumb's 3pt cross-axis rect — zero
+hits in `default-light-f0`, `chrome-legacy`, `chrome-proposal` and
+`preview-light`. The indicator half of the fold is pinned by **M1b–M1e** alone.
+
+**8. This lane falsifies `CLAUDE.md`/`AGENTS.md` lines 472–473** — "
+`ProposalScrollView`'s clamp and indicator are private copies of `ScrollView`'s
+— fix both" — and nothing recorded the obligation. Item 4 of the critic round's
+amendment deferred only the stale **line-range** citation
+(`ProposalScrollView.swift:97-170`), not the claim. A lane may not edit
+`CLAUDE.md`, so it is a **Docs-phase** obligation, now a deferral row in record
+§25 §7.8 with the replacement text in that record's "For the integrator"
+(followed by `cp CLAUDE.md AGENTS.md` and `cmp`). Practices: when a claim is
+refuted, grep for everywhere it was copied.
+
+**9. The fold concentrates a scroller's axis into one assignable property**,
+`var chrome`, and mis-wiring `ScrollView`'s is caught by exactly one test whose
+subject is the indicator rather than the scroll. Verifier mutation **V3**
+(`ScrollChrome(axis: .vertical, …)` at `ScrollView.swift:245`, so a horizontal
+scroller measures, translates and draws on the wrong axis) reddens only
+`theHorizontalIndicatorLiesAlongTheBottomOfItsViewport`;
+`aHorizontalScrollViewMovesOnDeltaXNotDeltaY` survives it, because it reads the
+stored offset and the region's axis and never a painted rect — so **the
+horizontal content clip's `chrome.delta(-offset)` translation is pinned
+nowhere**. Pre-existing thinness; the fold is what concentrates it. Recorded as
+a named unpinned sub-clause (record §25 §7.9); closing it is one assertion on
+the scrolled content rect's x translation, owed by whoever next edits
+`ScrollRoutingTests`, stage 6b at the latest. The verifier's other seven
+mutations (V1, V2, V4–V7, V9) are in record §25 §12.2; only **V1** — the
+`PaintPass` overload's read clamp — stayed green, and it is argued equivalent by
+reading (the prepaint overload writes the clamp back) rather than measured.
+
+
+## LR-BM — stage 3 lane 2's corrections: `parentSite:` names exactly one report, and two fixtures that were measuring the harness
+
+**Round.** 2026-09-22, implementing lane 2 (the `ScrollView` lowering, `LR-BB`
+and `LR-BC`) on `feat/engine-stage-3`. Everything below was measured in that
+lane: the lowering itself landed with all eight predicted literals green on the
+first implementation run, including test 2.7's hand-derived node and work
+counts, and the corrections are to the **design's supporting claims**, not to
+the mechanism.
+
+### 1. `planLegacyItems` raises exactly ONE report at `parentSite:`
+
+**The claim corrected.** `LR-BB`'s "Amended, stage-3 critic round 1" paragraph
+(critic round 1 finding 9) says `LoweringSite.scrollView` stays reachable
+because "a **child of the scroller** carrying an item field stage 2 does not
+lower — `alignSelf: .baseline` (`LR-AD`), a percentage `flexBasis` (`LR-AI`),
+unequal grow weights (`LR-AE`) — reports at `scrollView.<field>`", and spec
+§4.1 and test 2.5 (c) were written to produce `scrollView.alignSelf` from a
+child declaring `alignSelf: .baseline`.
+
+**It reports `box.alignSelf.baseline`.** `planLegacyItems` collects each child's
+entries into a local `reports` array and appends them as
+`fields += reports.map { UnlowerableField(site: item.site, field: $0) }` — the
+**child's** site. The **only** entry it raises at `parentSite:` is
+`flexGrow.weights`, appended once by the weights check before the per-child
+loop. Provable from source in two lines; no measurement was needed to find it,
+only reading the function the ruling cited.
+
+**So the route is the weights check**, which is a genuine scroller-**child**
+fact reported at the parent's site: two children of one `ScrollView` declaring
+unequal grow factors report `scrollView.flexGrow.weights`. Test 2.5 (c)
+produces exactly that, and `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s
+`ScrollView` arm — which lane 2 had to change anyway — uses the same shape, so
+the site is now pinned live at field level by two tests instead of by a
+paragraph. The **second** route `LR-BB` names, a field carried onto the content
+node's unconsumed record, is unaffected and is what mutation **M2d** exercises
+(`scrollView.flexShrink.unconsumed` appears in the demo's own report).
+
+`UnlowerableField.owningStage`'s `case .scrollView: return "3"` stays live, and
+`planLegacyItems`' doc comment now states the `parentSite:` rule where the
+function is, so the next reader does not have to re-derive it.
+
+**What it costs if wrong.** Nothing about the lowering moves; what moved is
+whether the site's survival is *pinned*. Had 2.5 (c) been written as designed it
+would have asserted `[scrollView.alignSelf]`, failed, and — on a less careful
+day — been "fixed" by asserting whatever came out, which is
+`box.alignSelf.baseline`: a green test proving the site is reachable while
+proving nothing of the kind.
+
+### 2. Two fixtures were measuring the harness, not the lowering
+
+Both were found by running a mutation and reading **which** tests it reddened,
+not how many.
+
+**(a) `ProbeLeaf` is never stretched under the proposal authority, and test 2.3
+was reading that.** `ProbeLeaf` registers a raw native leaf and records no
+`LoweredItem`, so `planLegacyItems` gives it no wrapper — where the legacy
+content container stretches it on the cross axis like any other flex item. Test
+2.3's first fixture was `Box { ScrollView(.horizontal) { 2 × 80×40 } }` in a
+100×**50** parent, so its two leaves read 80×50 legacy against 80×40 lowered and
+the arm's "the content itself does not move" assertion was measuring the probe
+type. The parent is now 40 tall, making the legacy stretch a no-op, and both
+sides read 80×40. **The same property holds for all five of 2.1's agreement
+arms** — every leaf's cross size already equals its container's — which is
+recorded in that test's own doc so the next fixture is not written by accident.
+
+**(b) Mutation M2b reddened four tests and test 2.1 was not among them.** The
+design predicted that registering the scroll content through
+`requestNativeLinearStack` instead of `lowerLegacyNode` would move "A2's stretch
+rows". It does not: every 2.1 arm's scroll content is fixed-size leaves that
+record no item field, so `planLegacyItems`, `arrangeLegacyMainAxis` and
+`paddedAndSized` are all no-ops over them and a bare stack produces **identical**
+geometry. The mutation was caught only by the three diagnostics tests and the
+demo census — that is, by "the records were not consumed", never by "the layout
+is wrong".
+
+Arm **A2b** closes it: the scroll content's second child declares
+`alignSelf(.center)`, 40 wide in an 80-wide content column, so the legacy column
+centres it at x 20 and only `lowerLegacyNode`'s alignment frame reproduces that.
+Re-run, M2b reddens 2.1 as well. It is an arm, not a test, so the lane's total
+stays at the predicted 1561.
+
+**What it costs if wrong.** This is the one that would have shipped. Without
+A2b, "the content node goes through the container lowering" — `LR-BB`'s central
+claim, and the reason the demo's own scroller is not the test — was pinned by
+**nothing geometric at all**. A future simplification that replaced
+`lowerLegacyNode` with a bare stack would have left every rect in the lane
+green, and would have been caught only by whichever diagnostics expectation
+happened to still name a consumed record.
+
+### 3. The demo's modal state changes two lowered widths in the scroll subtree
+
+Measured while amending `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`:
+with the modal on, the lowered `ScrollView` and the lowered `List` read **420**
+wide where they read 0 with it off. The cause is neither the modal nor the
+lowering. `Deferred` registers no node of its own and hands its child's node
+straight up (`Deferred.requestLayout` returns `nodes[0]`), so with the modal on
+the lowered content node has **two** children instead of one; stage 2's
+single-child stretch elision (`LR-AC`) applies only to a single child under a
+parent with no declared cross size, so both children are now stretched, the
+`List` takes a greedy item frame and reads the 420 its scroller was proposed,
+and the content stack — hence the viewport's non-scrolling axis (`CN-M`) —
+reads 420 with it. The `List`'s row `Box` stays 0×0 because the `List` still
+reports and still builds no rows.
+
+Recorded as three per-id overrides in the modal half of the exit test, with the
+cause named there. Nothing is wrong: it is stage 2 behaviour made visible by
+stage 3, and it disappears when stage 4 lowers `List`.
+
+### 4. Lane 2's evidence
+
+Full unfiltered `swift test --build-system native --no-parallel` after each
+edit; every mutation committed first, applied to a copy, and restored with
+`git status --short` empty afterwards.
+
+| # | mutation | tests reddened (by name) |
+|---|---|---|
+| **M2a** | the viewport registered as a plain native leaf | **8**: 2.1, 2.2, 2.2a, 2.3, 2.4, 2.5, 2.7, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` |
+| **M2b** | the content node registered through `requestNativeLinearStack` instead of `lowerLegacyNode` | **5** (after A2b; **4** before it): 2.1, 2.5, `anItemFieldNoLoweredContainerConsumesIsReportedByName`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`, the demo census |
+| **M2c** | the viewport lowered as a `fixedSize` over its content | **6**: 2.1, 2.2, 2.2a, 2.3, 2.5, the demo census |
+| **M2d** | `flexShrink: 0` carried onto the lowered content style | **10**: 2.1, 2.2, 2.2a, 2.3, 2.4, 2.5, 2.7, both diagnostics tests and the demo census — whose report becomes `[list.noLowering, scrollView.flexShrink.unconsumed]`, which is the entry the omission is observable through |
+| **M2e** | the content node registered with `site: .modifierLayer` | **2**: 2.5, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` |
+| **M2f** = **M2i** | `recordLoweredItem` dropped from the lowered `ScrollView` (the design lists these separately; they are the same edit) | **4**: 2.2, 2.2a, 2.5, 2.7 |
+| **M2g** | both `animated(…)` calls given the bare `id` | **4**: 2.1, 2.6, `everyRegisteringSiteAnimatesItsStyle`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows` |
+| **M2h** | the content node registered twice | **1**: 2.7 |
+
+Suite at the lane's HEAD: **`Test run with 1561 tests in 1 suite passed`** — the
+design's predicted total exactly. Goldens unchanged (97, `git diff --name-only
+57893d0 HEAD -- 'Tests/**/*.json'` empty). Typecheck guards 77, unchanged; the
+lane adds no public spelling and no guard.
+
+**Pixels: twelve of twelve read 0 differing pixels** against `57893d0`, every
+scene dump byte-identical. The `CN-R` harness had to be rebuilt again (it is
+still uncommitted; `LR-BL` item 6 and the stage's §10 own that), and it
+reproduces **all eight** of the control figures the record keeps for exactly
+this purpose — 1 048 576 / 1 030 498 / 210 027 / 0 / 1 048 576, 544 distinct
+values in `default-light-f0`, 216 in `chrome-legacy`, and 0 between the two
+chrome images.
+
+**No real-window capture.** The screen was **locked** when the lane finished
+(`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`; `IOConsoleLocked` not
+read, `FR-V`), as it was at the end of lane 1. The twelve offscreen images
+stand in.
+
+**Amended, verification round (2026-09-22).** Three rows of the table above are
+attribution defects — the behaviours are right, the mutations are not what the
+rows say — and one sentence of `loweredLayout`'s doc comment is broader than the
+code. Corrected in record §25 §8.5 and §12.3, and in the source comment:
+
+1. **M2g is two different mutations.** Scoped to `loweredLayout`'s two
+   `animated(…)` calls it reddens **2** —
+   `aLoweredScrollViewKeepsItsTwoAnimationSlots` and
+   `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape` (8 issues).
+   The recorded set is the **whole-file** spelling's, which also hits the legacy
+   branch's byte-identical pair (`ScrollView.swift:319/330`, `386/396`) and
+   reddens `aLoweredScrollViewKeepsItsTwoAnimationSlots` (once per authority),
+   `everyRegisteringSiteAnimatesItsStyle` and
+   `theResidentEntrySetStaysBoundedWhileScrolling10kRows` — and **not** 2.1,
+   because mutating both branches keeps the two `StateTable.ids` sets equal so
+   `stateSlotsEqual` stays true (`LayoutDifferential.swift:232`). Record which
+   branch a mutation touched.
+2. **M2c reddens 7, not 6**: 2.7's hand-derived node and work counts move when
+   the viewport's node kind changes. Spelled
+   `pass.frame.requestNativeFixedSize(child: contentNode)`.
+3. **M2h is not applicable as literally written.** The same children under a
+   second `requestNativeLinearStack` traps at `LayoutTree.swift:743` (`CN-L`'s
+   one node, one parent) and truncates the run with no summary line; the
+   recorded reddening is the **orphan childless** duplicate's.
+4. **`reportUnconsumedLoweredItems` reads `item.declared` only**, never
+   `item.animated`, so "a field a later stage puts on it reports rather than
+   vanishing" holds for the **declared** content style alone — a field added to
+   `contentStyle` would be dropped with no diagnostic, which is also why M2d has
+   to be applied to `declaredContent` to be observable. `LR-AS`'s convention
+   (structural item fields on the declared style) is the only thing that keeps
+   the case narrow; the doc comment now says so.
+
+---
+
+## LR-BN — stage 3 lane 3's corrections: a roll call rather than a counter, 34 scenarios rather than 37, and the fixtures whose cross axis had to be declared
+
+**Round.** 2026-09-22, implementing lane 3 (the scroll suites under both layout
+authorities, `LR-BI`) on `feat/engine-stage-3`. Everything below was measured in
+that lane; each item corrects or extends `LR-BI` rather than replacing it.
+
+### 1. The exit test is a roll call, not a counter
+
+**`LR-BI` asked for "a counter incremented by the parameterised arms, with a
+`try #require` on the arm count".** That shape cannot be made falsifiable in
+Swift Testing. Test ordering is not part of the framework's contract, so a
+counter read by a test that happens to run before the arms reads zero and
+passes — practices shape 14's "a test that cannot fail", paid for with the
+stage's exit criterion. `Test.all`, which would have let the check read the
+declared parameterisation instead of its executions, **does not exist in this
+toolchain** (Swift 6.4, `swiftlang-6.4.0.33.1`: `type 'Test' has no member
+'all'`, measured).
+
+**Applied.** `ScrollAuthorityCoverage` (`Tests/MetalUITests/`) holds the 34
+scenario names by hand and the single `arguments:` list every scenario is
+declared over, and the claim is split in two:
+
+- **Order-independent**: `record(_:_:)` verifies the whole set the moment the
+  last expected name first arrives. It skips the name it is called with, and
+  that is not a hole — Swift Testing runs one test's argument cases back to back
+  (measured: `… → .legacy` then `… → .proposal` for the same function), so every
+  *other* name has had all its arms by then, while that one has had exactly one.
+  A scenario recording a name not in `expected` reddens in its own arm.
+- **Order-dependent, and measured rather than assumed**:
+  `everyScrollScenarioRanUnderBothLayoutAuthorities` holds the literals — the
+  34, and `authorities == LayoutAuthority.allCases` — and reads what has been
+  recorded. Swift Testing runs a file's tests in source order and the files in
+  path order (measured twice, identical: `ScrollIndicatorTests` →
+  `ScrollRoutingTests` → `ScrollViewTests`), so the test is declared at the end
+  of the last of the three. If that order ever changes it fails **naming the
+  scenarios it had not yet seen**, rather than passing quietly.
+
+**M3c still reddens both halves**, which is the point: reducing `authorities`
+to `[.legacy]` fails the literal `#require` in 3.4 *and* raises 33 issues from
+`record`'s whole-set check (measured: 34 issues across 2 test names).
+
+### 2. 34 scenarios, not 37 — `ScrollViewTests`' census
+
+`LR-BI` counts `ScrollViewTests`' 7. **It declares no custom element type at
+all** (the census `LR-BI` item 5 asked for: no `requestNode`, no `requestLeaf`,
+nothing to re-spell), and **three of its seven are pure `ScrollChrome.clamp`
+tests** — `theOffsetClampsToTheScrollableRange`,
+`contentShorterThanTheViewportDoesNotScroll`,
+`aStoredOffsetPastTheEndIsClampedWhenItIsRead` — each one static call with three
+`Double`s. No element, no `Frame`, no authority anywhere in the call path, so an
+authority argument would be one the body never reads and the two cases would run
+the identical assertions: a parameter that cannot make either arm fail
+differently from the other. They stay unparameterised, and 34 is the hand-derived
+count 3.4 requires.
+
+### 3. Seven fixtures had to declare their cross axis, and it moved no legacy number
+
+A `ScrollView` whose **only** child declares just the scrolling axis relied on
+the legacy engine stretching that child across the definite viewport. The kernel
+viewport's cross answer is its CONTENT's (`CN-M`) and a single child is exempt
+from the stretch item frame (stage 2's elision, `LR-AC`), so the same fixture
+measures a **0-wide viewport centred at the window's midpoint** under the
+proposal authority — stage 2's ruled divergence, already pinned by lane 2's test
+2.4, and not what these scenarios are about. Measured, at 120×100:
+`ScrollView(.vertical) { Box(style: fixedHeight(200)) }` registers `(0, 0)
+120×100` under the legacy authority and `(60, 0) 0×100` under the proposal one.
+
+**Applied**: the single-child fixtures declare both axes, and the padded-row
+wrapper of `theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt`
+declares its width (a native root is centred at its own answer, `CN-J`, so that
+column's 117pt hug would put the viewport at x 39 rather than 17). **No legacy
+literal moves**: the stretch already produced exactly these numbers, which is
+what the unchanged legacy arms of all 34 scenarios say.
+
+The same could not be done for 3.5. A **vertical** scroller in a 100pt wrapper
+measures 200 under the legacy engine (the viewport hugs its content and
+overflows) and 100 under the proposal authority — which is `LR-BC`, pinned by
+2.2 — so 3.5 uses a **horizontal** scroller, whose scrolling axis is the cross
+axis of its column parent and where the two authorities agree at 120.
+
+### 4. Two probe types, and what the re-spelling does not carry
+
+`ScrollContextRecorder` and `HitboxProbe` take `ProbeLeaf`'s shape, as `LR-BI`
+says. Their declared `Style`s become a `width`/`height` pair, so the two arms
+cannot drift. **The cross axis they used to leave `.auto` is not carried**: under
+the legacy authority the parent stretches it, under the proposal authority it is
+the leaf's own answer. No scenario reads it — checked call site by call site —
+and `HitboxProbe`'s two sites declared both axes already, so the scrim covers
+the same 200×200 under either engine.
+
+### 5. Mutations, and one that becomes a process abort
+
+Re-taken at the lane's HEAD (`a1b8ff3`), full unfiltered runs, restored from a
+copy with `git status --short` empty after each.
+
+| # | mutation | tests reddened (by name) |
+|---|---|---|
+| **M3a** | `registerScrollRegion` given the content node's rect instead of the element's | **6** (8 issues): `theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove` (**both** arms), `aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting`, `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents`, `aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows`, `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`, `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel` |
+| **M3b** | the bounds alias dropped in `Frame.bounds(of:)` | **34** (202 issues) — and **none of them is a lane-3 arm**: see below |
+| **M3c** | the `arguments:` list reduced to `[.legacy]` | **2** (34 issues): `everyScrollScenarioRanUnderBothLayoutAuthorities`, `aScrollViewWithNoCornerRadiusClipsSquare` (the arm whose `record` completes the set) |
+| **M3d** | `withScrollContext` moved after the content build | **15**: `aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, `scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout`, `rawOffsetPublishedDuringRequestLayoutCanExceedTheClampedRange` and `nestedScrollViewsInnermostWinsAndPoppingRestoresTheOuterContext` (each under **both** authorities), plus 11 `List` and accessibility tests |
+| **M3e** | the prepaint overload's `viewportExtent` write removed | **13**: `aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, `scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout` (both authorities), plus 11 `List` and accessibility tests |
+| **M2a** (re-taken) | the viewport registered as a plain native leaf | **31** (77 issues), where lane 2 read **8** — 21 of the 34 parameterised scenarios are among the new ones. This is the lane's own headline: the scroll suites can now see the lowering |
+| **M2d** (re-taken) | `flexShrink: 0` carried onto the lowered content style | **aborts the process**: see below |
+| **M1c** (re-taken) | the 20pt thumb floor removed | **3**: `theThumbIsProportionalAndFlooredAtTwentyPoints` under **both** authorities (lane 1 read one arm), `theTwoScrollElementsShareOneChromeImplementation`, `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent` |
+
+**M3b reddens 34 tests and not one of them is a scroll scenario.** The alias is
+load-bearing for a scroller whose lowered parent stretches or grows it, and no
+fixture in the two scroll suites is in that position — they are window roots or
+single children. The claim is pinned, by lane 2's
+`aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel` and by stage
+2's `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, both of
+which M3b reddens. **Lane 3 owes no new test for it**; the design's expectation
+that "the lowered arms' regions move" was wrong about which fixtures could see
+it.
+
+**M2d no longer produces a list of red tests: it aborts the run.** At lane 3's
+HEAD the first proposal-authority `Window` holding a `ScrollView` is test #1251,
+`aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, and a production frame
+traps rather than reporting:
+
+```
+MetalUI/Frame.swift:1536: Fatal error: MetalUI: scrollView.flexShrink.unconsumed
+has no proposal lowering (plan task 7, stage 3); a tree containing it cannot run
+under the proposal layout authority.
+```
+
+Ten tests had already recorded issues by then — lane 2's ten exactly — so the
+mutation's evidence is unchanged; what is lost is the summary line. **This is the
+trade `LR-BI`'s amendment took deliberately** when it put real `Window`s under
+the proposal authority, and it is now a standing property of the suite: from this
+lane onward, an unlowerable-field regression reachable from a scroll fixture
+truncates the run at that test, with the field named on `stderr`. A per-fixture
+diagnostics pre-flight (what `WindowPair.init` does) would convert it back into a
+named failure, and was **not** applied.
+
+**Amended, verification round (2026-09-22).** The reason as first written —
+"these fixtures' content closures capture shared recorder boxes" — is broader
+than the measurement, and scopes the deferral larger than it needs to be.
+Measured (`awk '/^func |^@Test/{last=$0} /Seen\(\)/{print NR": "last}'` over
+`ScrollRoutingTests.swift`): **exactly four** of the 34 scenarios construct a
+`Seen` box —
+`scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout`,
+`rawOffsetPublishedDuringRequestLayoutCanExceedTheClampedRange`,
+`nestedScrollViewsInnermostWinsAndPoppingRestoresTheOuterContext` (two boxes)
+and `aSiblingAfterAScrollViewSeesNoScrollContext`. For those four a second
+render would add a phantom entry to every `Seen` and break the tests the
+pre-flight was protecting. `HitboxProbe` (`ScrollRoutingTests.swift:864`,
+`:902`) is stateless and captures nothing, so **the remaining 30 scenarios are
+eligible** for a `WindowPair`-style pre-flight. Stage 6b inherits a
+four-fixture problem, not an all-or-nothing one. (Record §25 §9.6, §12.3.)
+
+### 6. What it costs if wrong
+
+If item 1's ordering claim goes stale, 3.4 fails loudly and names what it had
+not seen — recoverable. If item 3's fixture changes had moved a legacy number,
+the 34 legacy arms would have said so on the first run; they did not. The
+genuine exposure is item 5's last paragraph: a future regression of the
+`…unconsumed` shape costs a run with no summary line before anyone sees the
+field's name.
+
+**Amended, verification round (2026-09-22).** Item 1's ordering dependence and
+item 5's truncation are both **CI-visible failure modes that `CLAUDE.md`'s "CI —
+what lapses silently" list does not carry**, and a lane may not edit that file.
+Two rows are owed in the Docs phase, with the text record §25's "For the
+integrator" gives: `everyScrollScenarioRanUnderBothLayoutAuthorities` is
+order-dependent (measured only on Swift 6.4, `swiftlang-6.4.0.33.1`) and
+`--filter`-hostile, and an `…unconsumed` regression truncates the run rather
+than failing by name.
+
+## LR-BO — stage 3 lane 4's corrections: a frame parent drops what a flex parent carries, `component` loses its last reachable report, and two fixtures that could not see their own subject
+
+Lane 4 implemented `LR-BG` as written; the amend frames each member, the wrap
+lowers through `lowerLegacyNode`, and **all seven of the design's prototype arms
+(C1, C2, C3, C4, C5, C7 and C1's y) reproduced on the first run**, literal for
+literal. Four things the design said were wrong or unreachable, and one mutation
+reddened nothing.
+
+**1. "The frame lowers with the field applied" is wrong for `flexGrow` and
+`margin`; they are consumed and DROPPED.** `LR-BG`'s amendment says
+`loweredComponentFrame` plans the member "exactly as `lowerLegacyLayer`'s
+single-node arm does", which is `parentKind: .stack` — and a stack or
+frame-layer parent ignores a child's `flexGrow`, `flexShrink`, `flexBasis`,
+`alignSelf` and `margin` outright (`LR-AZ`, `MC-Q` finding 7). The two claims
+cannot both hold. **The parent kind stays `.stack`**: a frame has one child and
+no axis, so there is no non-arbitrary `isRow` for it, and every other frame in
+the lowering already behaves this way. What planning buys is the rest:
+a `minSize` on an `auto` axis becomes the item frame W's minimum, a `maxSize`
+off a greedy axis reports at the member's site, and — the whole point of the
+amendment — the record is **consumed**, so nothing reaches
+`reportUnconsumedLoweredItems` and nothing traps at 6b.
+
+So `MyComponent().width(70)` over a member declaring `.flexGrow(1)` lays out
+differently under the two authorities: the legacy member grows to the enclosing
+row's 300, the lowered member stays 30 inside its own 70pt frame. That is a rect
+disagreement the differential harness prints, not a silent one and not a crash,
+and it is the same shape of loss `.frame(…)` over one member has had since
+`LR-H`. Making it **report** instead was considered and rejected for the reason
+critic round 1 finding 8 gave: a report is a trap in a production frame, and
+turning a working legacy tree into an abort is worse than laying it out
+differently. Applying the fields instead — `parentKind: .flex(isRow:)`, with
+`isRow` guessed from the patch — is **deferred to stage 6b**, which owns what
+production trips over; it needs a probe of its own, because SwiftUI has no
+`flexGrow` to be measured against.
+
+**2. `component` has no reachable report left, and the site survives for its
+trap message alone.** `component.amend` and `component.wrap` were its only two
+entries. After lane 4 neither op can raise anything at its own site: an amend
+records its frame with `kind: .frameLayer`, which `reportUnconsumedLoweredItems`
+skips by construction, and **both** ops plan exactly one child, so neither can
+raise `flexGrow.weights` — the one entry `parentSite:` names (`LR-BM`). Nothing
+else in `legacyContainerDiagnostics` or `legacyLeafDiagnostics` can fire on
+`paddingWrapperStyle`, whose every field is a default but a pixel `padding`.
+
+This is the shape critic round 1 finding 9 caught for `scrollView`, with the
+opposite outcome: `scrollView` had a route (`flexGrow.weights`, two scroller
+children) and `component` has none. The case stays in `LoweringSite` so that
+`UnlowerableField.owningStage` gives the right stage number to whatever field a
+later stage puts there, and
+`everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s two `Component` arms
+**invert**: they now assert the absence of an entry, which is what would notice
+a regression that made either op report again. The amend arm stays a child
+process, because in-process a regression that removes the branch entirely
+reaches `SA-G`'s `setStyle` precondition and ends the run with no summary line.
+
+**3. The `…unconsumed` entries the design predicted carry the MEMBER's site,
+not `component`'s.** The design's 4.6 row says mutation M4f produces
+`component.flexGrow.unconsumed` / `component.margin.unconsumed`.
+`reportUnconsumedLoweredItems` reports at `item.site` — the record's own — and
+the record belongs to the member. Measured under M4f: `[box.flexGrow.unconsumed]`,
+`[box.margin.unconsumed]`, `[box.minSize.unconsumed]`. The test asserts
+emptiness, which is site-agnostic and was unaffected.
+
+**4. Two fixtures could not see their own subject.**
+
+- **Test 4.6 needed a third arm.** With `parentKind: .stack`, neither of the
+  design's two arms (`flexGrow`, `margin`) is planned at all, so **M4g** —
+  "consumed but not planned" — could not redden either. A third arm whose member
+  declares `minWidth(40)` on an **`auto`** width is the discriminating one: only
+  the parent's plan can apply it, and M4g drops the member from 40 wide at x 15
+  to 0 wide at x 35. A declared width would not do: `paddedAndSized` folds
+  `max(min, min(size, max))` into the member's own frame, so the minimum would
+  be applied whether or not anything planned.
+- **Test 4.2 needed arm C3a, because M4b left all 1569 tests green.** C3's
+  members are fixed 30×10 leaves declaring no item field, so over them
+  `planLegacyItems`, `arrangeLegacyMainAxis` and `paddedAndSized` are no-ops and
+  a bare `requestNativePadding` produces byte-identical geometry. This is
+  `LR-BM`'s M2b finding again, in the same shape and for the same reason, one
+  lane later. C3a's member declares a `margin`, which only the container
+  lowering carries (the legacy wrapper's content box is the member's **margin**
+  box): both authorities read (12, 12, 30, 10), and M4b moves the lowered side
+  to (8, 8) and reports `box.margin.unconsumed`.
+
+**5. `swift package clean` was not needed, and that is a measurement.** Critic
+round 1 finding 12 asked for it either way. `ComponentModifierOp.amend`'s
+payload changed from a 2-word closure to a `Size<Dimension>`, and the enum is
+the element type of `ops` on the **public** generic `StyledComponent`. The
+incremental build over that change was correct — 1569 tests, all passing — and
+a `swift package clean` plus full rebuild read the same 1569. The reasoning
+("an `Array` is one word either way") held; it was still checked rather than
+asserted.
+
+**What it costs if any of this is wrong.** Item 1 is the load-bearing one: if
+dropping `flexGrow` and `margin` at an amend frame turns out to matter, stage 6b
+finds it as a demo pixel or a rect disagreement, not as a crash, and the fix is
+one argument. Item 2 costs a site that reports nothing; the risk is that a later
+stage adds a `component` field and forgets that the two arms assert absence —
+which is why both arms carry the reason at the arm.
+
+**Amended, verification round (2026-09-22).** Two of item 2's and the helper's
+claims are true but not where the load is; both are now in the source doc
+comments as well (record §25 §10.2, §12.3):
+
+- **`kind: .frameLayer` is the second reason `component` cannot report, and not
+  today's decisive one.** Verifier mutation **Vj** recorded the amend frame as
+  `kind: .stack` and the full 1569-test suite stayed **green**. Traced by
+  reading: `componentFrameStyle` carries no field
+  `reportUnconsumedLoweredItems` names — no `minSize`, no `maxSize`, no
+  `margin`, no grow or shrink — so the record would stay silent even unconsumed
+  and even as a `.stack`; and `planLegacyItems`' three `.frameLayer` branches
+  raise no report and plan no extra wrapper for it. `.frameLayer` is the guard
+  that **takes over** when that stops being true, so **whoever puts a bound into
+  `componentFrameStyle` — to carry a member's dropped minimum, say — owes a pin
+  in the same change**, or a stage-6b production trap arrives with nothing
+  seeing it go.
+- **`componentFrameStyle`'s `display = .stack` and its per-axis ternaries are
+  cosmetic.** Verifier mutation **Vk** (both ternaries a constant `.center`,
+  `display` deleted) stayed green, while **Vi** (both assignments deleted)
+  reddens four tests: so "non-nil and non-stretching" is the whole content of
+  those lines. `alignsByStretching` and `stretches` are false for `.start`,
+  `.flexStart` and `.center` alike, and `parentKind: .stack` is passed
+  explicitly at the call site, so this style's `display` is never consulted. The
+  per-axis alignment lives entirely in `componentFrameAlignment`; the spelling
+  is kept as documentation and the doc comment now warns that mutating it moves
+  no rect.
+
+## LR-BP — stage 3 lane 5's corrections: a dropped margin the mutation cannot see, an M5d with no subject left, and an M5a the demo cannot reach
+
+Lane 5 implemented `LR-BH` as written and as amended. `lowerLegacyLayer`'s frame
+arm registers one native frame per child node, rows more than one with
+`requestNativeLinearStack(axis: .horizontal, spacing: 0, alignment:
+spec.alignment)`, runs `planLegacyItems` for **every** child count and rows
+`registerLegacyItems(children, plans)` in full; `legacyFrameLayerDiagnostics`
+loses its `frame.multipleNodes` row. **Prototype arm C6 reproduced on the first
+run, literal for literal** — legacy one 70×40 frame with the members squeezed to
+26 and 44 at y 15, lowered a 140×40 row with the members at their own 30 and 50,
+centred at x 20 and 80, y 15 — and the whole suite read the design's predicted
+**1572**, to the test. Four things the design said were wrong.
+
+**1. The margin in 5.1a is consumed and DROPPED, so M5e cannot see it.** The
+design's M5e row says skipping the planning makes "both rects lose the margin
+and the floor". The parent kind is `.stack`, which `LR-BH`'s amendment
+prescribes and which `LR-BO` item 1 already established drops a child's
+`margin`, `flexGrow`, `flexShrink`, `flexBasis` and `alignSelf` outright
+(`LR-AZ`). A dropped field is dropped with or without the planning, so member
+a's rect is **identical** under M5e. Measured: M5e reddens exactly **one**
+assertion — member b's `auto` width with a 40pt `minWidth`, which reads
+(100, 15) 40×10 planned and (120, 15) **0**×10 unplanned. The margin member
+stays in the fixture because a dropped field should be pinned as dropped rather
+than left unmeasured, and the test says at the arm which half the mutation can
+see. This is `LR-BO` item 1 one lane later, in the same shape: the same wrong
+sentence was written twice, about the two frames that share the same
+`parentKind`.
+
+**2. M5d has no subject after the row is deleted, and restated it is stage 1's
+M4i.** §6's M5d is "`display.none` checked after the multi-node arm" —
+but `legacyFrameLayerDiagnostics` has no multi-node arm once
+`frame.multipleNodes` is gone; the only thing `display.none` can be moved behind
+is the `style` comparison, which is exactly M4i. Run as that: it reddens
+`aHiddenFrameLayerIsReportedAsDisplayNone`, 4 issues, the hidden arms reading
+`[modifierLayer.style]`. The re-spelled control arm is kept anyway, and its
+value is now the opposite of what it was: as a `frame.multipleNodes` expectation
+it pinned a diagnostic, and as an **empty** expectation it is the only
+discriminator in that test for "`display.none` is checked first **and alone**" —
+four arms that all expect one entry cannot tell that apart from a check that
+never reaches a second one.
+
+**3. M5a cannot redden the demo exit test, and §7's list is wrong to name it.**
+`theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` stayed green under
+M5a (which reddens 5.1 and 5.1a, 3 issues, and nothing else in 1572). The cause
+is structural, not incidental: `demoContent()` contains **no** `.frame` at all,
+and `DemoContent.swift`'s only two `.frame(` sites are inside
+`nativeLayoutPreviewContent()`, where they are proposal `ModifiedContent`
+wrappers and never reach `lowerLegacyLayer`. No shape in the demo is a
+`ModifiedElement` frame layer over a multi-member `Component`, so no lane-5
+mutation can reach that test. Same shape as `LR-BN` item 5's M3b: a mutation
+attributed to the corpus test by the milestone that wrote the corpus test,
+without checking that the corpus contains the shape.
+
+**4. The row is invisible to every rect; the node count is what pins it.**
+**M5c** — the `count > 1` arm entered at `count == 1`, so a lone frame is wrapped
+in a one-child row — moved **no rect anywhere in the suite** and reddened exactly
+one issue, 5.2's hand-derived node count. A one-child linear stack at spacing 0
+is geometrically transparent. So the design was right to spell 5.2 as a count,
+and the lane added the same instrument to 5.1: two per-member frames and one row
+are **+3** native nodes over the same component with no frame, where one member
+is **+1**. Without those two counts, "one frame per member, rowed, and no row
+wrapper at one node" would have been three claims pinned by two rect tables that
+cannot see any of them.
+
+**What the lane added to the design's test list.** 5.1 gained the +3 node count
+(the design had rects only) and the frame layer's own bounds as a third row
+(legacy 70×40, lowered **140**×40, which is what M5a's 148 moves); 5.2 gained a
+rect arm asserting the single-node geometry is unchanged, `mustDiffer: false` on
+both sides. No test was added or removed: 1569 + 3 = **1572**, as predicted.
+
+**What it costs if any of this is wrong.** Item 1 is a documentation defect with
+a live consequence only if someone later reads "the planning applies the margin"
+and removes the arm that pins the drop. Item 3 costs a false sense that the
+demo's corpus covers this lane; it does not, and the lane's own two tests are
+the whole coverage. Item 4 is the one that would have cost a real hole:
+everything about the row's *shape* is unobservable in a rect.
+
+**Amended, verification round (2026-09-22).** Item 4's "the node counts are the
+whole pin" is right about the row's presence and **wrong about one of its
+arguments**: the row's cross-axis `alignment: spec.alignment` is pinned by
+nothing. Verifier mutation **M5g** — the argument hard-coded to `.center` — left
+the full unfiltered suite green at **1572**, and the mutant is **not
+equivalent**: over uneven members (30×10 and 50×30) under
+`.frame(width: 70, alignment:)` a scratch differential reads y 0 / 0 for
+`.top`, 25 / 15 for `.center` and 50 / 30 for `.bottom`. Both committed tests
+declare a height (`.frame(width: 70/80, height: 40)`), which makes every
+per-member frame the same height and the row's alignment invisible; probe arms
+W7/W8 are equal-height frames for the same reason; and SwiftUI has **no row**
+here at all — the framed members are siblings of the enclosing stack, whose own
+alignment governs the cross axis — so `spec.alignment` on the row is an unprobed
+MetalUI choice rather than a measured one. Recorded as a green mutation in
+record §25 §11.5 and deferred in §11.10: **stage 11**, with the siblings
+question `TB-M` owns, or one uneven-height, height-free arm on 5.1 from whoever
+next edits `LoweringComponentTests`.

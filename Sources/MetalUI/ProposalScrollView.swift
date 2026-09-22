@@ -70,13 +70,25 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
                             content: contentLayout))
     }
 
+    /// The clamp, the offset resolution and the fading overlay indicator, all
+    /// of which this element shares with ``ScrollView`` (ruling `LR-BD`).
+    /// **Computed, not stored** — see `ScrollChrome`'s own doc for why, and for
+    /// what the fold deliberately left alone. Until stage 3 these seven members
+    /// lived here as private copies, untested and already drifting.
+    var chrome: ScrollChrome {
+        ScrollChrome(axis: axis, cornerRadius: cornerRadius,
+                     indicatorVisibility: indicatorVisibility)
+    }
+
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        let offset = resolvedOffset(id, bounds: bounds, layout: layout, pass: pass)
+        let chrome = self.chrome
+        let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
+                                           pass: pass)
         pass.registerScrollRegion(bounds, id: id, axis: axis)
         var result: Content.GroupPrepaint!
-        pass.clipped(to: bounds, offsetBy: delta(-offset),
+        pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
                      cornerRadii: Corners(all: cornerRadius)) {
             result = content.prepaintGroup(layout: &layout.content, pass: &pass)
         }
@@ -86,87 +98,20 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
-        let offset = resolvedOffset(id, bounds: bounds, layout: layout, pass: pass)
-        pass.clipped(to: bounds, offsetBy: delta(-offset),
+        let chrome = self.chrome
+        let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
+                                           pass: pass)
+        pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
                      cornerRadii: Corners(all: cornerRadius)) {
             content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
         }
-        paintIndicator(id, bounds: bounds, offset: offset, layout: layout, pass: &pass)
-    }
-
-    private func paintIndicator(_ id: GlobalElementID, bounds: Bounds<Pixels>, offset: Double,
-                                layout: Layout, pass: inout PaintPass) {
-        guard indicatorVisibility != .hidden else { return }
-        let content = extent(pass.bounds(of: layout.contentNode).size)
-        let viewport = extent(bounds.size)
-        let scrollable = max(0, content - viewport)
-        guard scrollable > 0 else { return }
-
-        var lastScroll = -Double.infinity
-        pass.withState(id, initial: ScrollState()) { lastScroll = $0.lastScrollTime }
-        let age = pass.timestamp - lastScroll
-        let alpha = age < 0.6 ? 1.0 : max(0, 1.0 - (age - 0.6) / 0.4)
-        guard alpha > 0 else { return }
-        pass.requestAnotherFrame()
-
-        let thumb = max(20, viewport * (viewport / content))
-        let travel = (offset / scrollable) * (viewport - thumb)
-        var color = pass.theme[.scrollIndicator]
-        color.a *= Float(alpha)
-        pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
-                     cornerRadii: Corners(all: cornerRadius)) {
-            pass.fill(indicatorBounds(bounds: bounds, thumb: thumb, travel: travel), color: color,
-                      cornerRadii: Corners(all: Pixels(3)))
-        }
-    }
-
-    private func resolvedOffset(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: Layout,
-                                pass: PrepaintPass) -> Double {
-        let viewport = extent(bounds.size)
-        let content = extent(pass.bounds(of: layout.contentNode).size)
-        var resolved = 0.0
-        pass.withState(id, initial: ScrollState()) {
-            $0.offset = clamp($0.offset, content: content, viewport: viewport)
-            $0.viewportExtent = viewport
-            resolved = $0.offset
-        }
-        return resolved
-    }
-
-    private func resolvedOffset(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: Layout,
-                                pass: PaintPass) -> Double {
-        let viewport = extent(bounds.size)
-        let content = extent(pass.bounds(of: layout.contentNode).size)
-        var stored = 0.0
-        pass.withState(id, initial: ScrollState()) { stored = $0.offset }
-        return clamp(stored, content: content, viewport: viewport)
-    }
-
-    private func clamp(_ offset: Double, content: Double, viewport: Double) -> Double {
-        min(max(0, offset), max(0, content - viewport))
-    }
-
-    private func indicatorBounds(bounds: Bounds<Pixels>, thumb: Double,
-                                 travel: Double) -> Bounds<Pixels> {
-        switch axis {
-        case .vertical:
-            Bounds(origin: Point(x: Pixels(bounds.origin.x.value + bounds.size.width.value - 5),
-                                 y: Pixels(bounds.origin.y.value + Float(travel))),
-                   size: Size(width: Pixels(3), height: Pixels(Float(thumb))))
-        case .horizontal:
-            Bounds(origin: Point(x: Pixels(bounds.origin.x.value + Float(travel)),
-                                 y: Pixels(bounds.origin.y.value + bounds.size.height.value - 5)),
-                   size: Size(width: Pixels(Float(thumb)), height: Pixels(3)))
-        }
-    }
-
-    private func delta(_ value: Double) -> Point<Pixels> {
-        axis == .vertical ? Point(x: Pixels(0), y: Pixels(Float(value)))
-                          : Point(x: Pixels(Float(value)), y: Pixels(0))
-    }
-
-    private func extent(_ size: Size<Pixels>) -> Double {
-        Double(axis == .vertical ? size.height.value : size.width.value)
+        // Outside the block above and emitted after it, for the reason
+        // `ScrollView.paint` spells out: inside it the thumb would inherit the
+        // `-offset` translation and scroll away with the content.
+        // `ScrollChrome.paintIndicator` pushes its own clip at the same bounds
+        // and radii with a ZERO offset.
+        chrome.paintIndicator(id, bounds: bounds, offset: offset,
+                              contentNode: layout.contentNode, pass: &pass)
     }
 }
 

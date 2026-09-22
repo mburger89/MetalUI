@@ -27,10 +27,13 @@ private func fixedHeight(_ h: Float) -> Style {
 /// is the same "run layout only" idiom `TextMeasureTests.laidOut` already uses,
 /// generalised to hand back the returned `LayoutState` instead of discarding it.
 @MainActor
-private func laidOut<E: Element>(_ element: inout E, width: Double, height: Double)
+private func laidOut<E: Element>(_ element: inout E, width: Double, height: Double,
+                                 authority: LayoutAuthority = .legacy)
     -> (Frame, LayoutNodeID, E.LayoutState) {
+    // Plan task 7, stage 3, lane 3 (`LR-BI`): `reportsUnlowerableFields` stays
+    // off, so this helper fails the way a production frame does.
     let frame = Frame(contentSize: Size(width: Pixels(Float(width)), height: Pixels(Float(height))),
-                      scaleFactor: 1)
+                      scaleFactor: 1, layoutAuthority: authority)
     var pass = LayoutPass(frame: frame)
     let (root, layout) = element.requestLayout(GlobalElementID.child(of: nil, at: 0, name: nil),
                                                pass: &pass)
@@ -54,8 +57,9 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// What a wrong `requestLayout` (e.g. one that resolved the content node's
 /// height instead of letting it overflow) catches here: the content height
 /// would read 100, matching the viewport, and the second `#expect` reddens.
-@MainActor
-@Test func theContentNodeOverflowsTheViewport() throws {
+@Test(arguments: ScrollAuthorityCoverage.authorities) @MainActor
+func theContentNodeOverflowsTheViewport(_ authority: LayoutAuthority) throws {
+    ScrollAuthorityCoverage.record(#function, authority)
     var view = ScrollView(.vertical) {
         Column {
             Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
@@ -63,7 +67,8 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
             Box(style: fixedHeight(40))
         }
     }
-    let (frame, root, layout) = laidOut(&view, width: 200, height: 100)
+    let (frame, root, layout) = laidOut(&view, width: 200, height: 100,
+                                        authority: authority)
     #expect(frame.bounds(of: root).size.height == px(100))
     #expect(frame.bounds(of: layout.contentNode).size.height == px(200),
             "five 40pt rows must measure 200, not the viewport's 100")
@@ -75,9 +80,9 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// unclamped as the upper bound (a `min` with no `max(0, …)` around it would
 /// give a negative ceiling instead of 0 for row three's case below).
 @Test @MainActor func theOffsetClampsToTheScrollableRange() {
-    #expect(ScrollView<EmptyGroup>.clamp(offset: -30, content: 200, viewport: 100) == 0)
-    #expect(ScrollView<EmptyGroup>.clamp(offset: 500, content: 200, viewport: 100) == 100)
-    #expect(ScrollView<EmptyGroup>.clamp(offset: 40, content: 200, viewport: 100) == 40)
+    #expect(ScrollChrome.clamp(offset: -30, content: 200, viewport: 100) == 0)
+    #expect(ScrollChrome.clamp(offset: 500, content: 200, viewport: 100) == 100)
+    #expect(ScrollChrome.clamp(offset: 40, content: 200, viewport: 100) == 40)
 }
 
 /// Content shorter than the viewport is not scrollable at all — a negative
@@ -86,7 +91,7 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// without flooring it at 0, which would clamp 25 down to -40 instead of up
 /// to 0.
 @Test @MainActor func contentShorterThanTheViewportDoesNotScroll() {
-    #expect(ScrollView<EmptyGroup>.clamp(offset: 25, content: 60, viewport: 100) == 0)
+    #expect(ScrollChrome.clamp(offset: 25, content: 60, viewport: 100) == 0)
 }
 
 /// Clamping happens on READ, not on write. The wheel handler has no layout to
@@ -94,7 +99,7 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// that a wildly out-of-range stored value (as if content shrank drastically
 /// between frames) still comes back clamped rather than passed through.
 @Test @MainActor func aStoredOffsetPastTheEndIsClampedWhenItIsRead() {
-    #expect(ScrollView<EmptyGroup>.clamp(offset: 9_999, content: 200, viewport: 100) == 100)
+    #expect(ScrollChrome.clamp(offset: 9_999, content: 200, viewport: 100) == 100)
 }
 
 /// **`flexShrink: 0` on the content node, pinned through `ScrollView` itself.**
@@ -117,7 +122,9 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// expected width is `CTLineGetTypographicBounds` on each label's own
 /// single-line `CTLine`, summed. Nothing in `MetalUIText` or `MetalUILayout`
 /// contributes to the expectation.
-@Test @MainActor func aScrollViewOfTextDoesNotShrinkItsContentToTheViewport() throws {
+@Test(arguments: ScrollAuthorityCoverage.authorities) @MainActor
+func aScrollViewOfTextDoesNotShrinkItsContentToTheViewport(_ authority: LayoutAuthority) throws {
+    ScrollAuthorityCoverage.record(#function, authority)
     let a = "The quick brown fox jumps over the lazy dog"
     let b = "Pack my box with five dozen liquor jugs"
     let ctFont = FontResolver.resolve(family: nil, size: 13).ctFont
@@ -131,7 +138,8 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
                  "the fixture must overflow a 200pt viewport by a wide margin, got \(expected)")
 
     var view = ScrollView(.horizontal) { Text(a); Text(b) }
-    let (frame, root, layout) = laidOut(&view, width: 200, height: 100)
+    let (frame, root, layout) = laidOut(&view, width: 200, height: 100,
+                                        authority: authority)
     let viewportWidth = Double(frame.bounds(of: root).size.width.value)
     let contentWidth = Double(frame.bounds(of: layout.contentNode).size.width.value)
 
@@ -158,11 +166,18 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// Three rows, each its own `Box` with a background, so each emits its own
 /// `MUIRect` inside the clipped block — proving the radius reaches every
 /// primitive the clip covers, not just the first.
-@Test @MainActor func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips() throws {
+@Test(arguments: ScrollAuthorityCoverage.authorities) @MainActor
+func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips(_ authority: LayoutAuthority) throws {
+    ScrollAuthorityCoverage.record(#function, authority)
+    // `.width(Pixels(50))` as well as the height: the legacy engine stretched
+    // these rows to the 50pt viewport, the kernel viewport's cross answer is its
+    // content's (`CN-M`), and a row that declares neither is 0 wide under the
+    // proposal authority (ruling `LR-BN`). 50 is the number the stretch already
+    // produced, so no legacy literal below moves.
     var view = ScrollView(.vertical) {
-        Box(decoration: Decoration(background: .surface)).height(Pixels(20))
-        Box(decoration: Decoration(background: .surface)).height(Pixels(20))
-        Box(decoration: Decoration(background: .surface)).height(Pixels(20))
+        Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
+        Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
+        Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
     }
     .cornerRadius(Pixels(14))
 
@@ -176,7 +191,7 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
         $0.lastScrollTime = 0
     }
     let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1,
-                      stateTable: table)
+                      stateTable: table, layoutAuthority: authority)
     frame.render(&view)
     let scene = frame.finalizedScene()
 
@@ -209,13 +224,16 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// `cornerRadius` would pass the test above and every existing clip test
 /// (none of which reads `maskCornerRadii` back) while rounding every
 /// `ScrollView` in the corpus that never asked for it.
-@Test @MainActor func aScrollViewWithNoCornerRadiusClipsSquare() throws {
+@Test(arguments: ScrollAuthorityCoverage.authorities) @MainActor
+func aScrollViewWithNoCornerRadiusClipsSquare(_ authority: LayoutAuthority) throws {
+    ScrollAuthorityCoverage.record(#function, authority)
     var view = ScrollView(.vertical) {
-        Box(decoration: Decoration(background: .surface)).height(Pixels(20))
-        Box(decoration: Decoration(background: .surface)).height(Pixels(20))
+        Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
+        Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
     }
 
-    let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1,
+                      layoutAuthority: authority)
     frame.render(&view)
     let scene = frame.finalizedScene()
 
@@ -226,4 +244,48 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
         #expect(rect.maskCornerRadii.bottomRight == 0)
         #expect(rect.maskCornerRadii.bottomLeft == 0)
     }
+}
+
+// MARK: - Plan task 7, stage 3, lane 3: the stage's exit criterion (spec 3.4)
+
+/// **3.4.** The roll call: every scroll scenario in `ScrollRoutingTests`,
+/// `ScrollIndicatorTests` and this file ran under **both** layout authorities.
+///
+/// **Why a test at all.** A `@Test(arguments:)` test counts as ONE test in the
+/// summary line — measured on this suite, `LR-BI` — so parameterising 34
+/// scenarios over two authorities moves the total by nothing and the exit
+/// criterion cannot be read off it. Reducing the `arguments:` list to `[.legacy]`
+/// (mutation **M3c**) would pass every test, move no count, and deliver none of
+/// the stage.
+///
+/// **Two halves, and only one of them is here** (`LR-BN`; see
+/// `ScrollAuthorityCoverage`'s doc for why the design's "counter" shape could not
+/// be made falsifiable). `ScrollAuthorityCoverage.record` verifies the whole set
+/// the moment the last expected name arrives, wherever that arm lands in the run.
+/// This test holds the hand-derived literals: the 34 names, and the `arguments:`
+/// list itself.
+///
+/// **Declared at the end of the last of the three files**, because its third
+/// `#require` reads what has been recorded so far. Swift Testing runs a file's
+/// tests in source order and the files in path order —
+/// `ScrollIndicatorTests` → `ScrollRoutingTests` → `ScrollViewTests`, measured
+/// twice at this HEAD — so by here all 34 have run. If that ever changes this
+/// fails naming the scenarios it had not yet seen, rather than passing quietly.
+@Test @MainActor func everyScrollScenarioRanUnderBothLayoutAuthorities() throws {
+    try #require(LayoutAuthority.allCases.count == 2,
+                 "the exit criterion is 'both authorities'; a third would need every literal in the three suites re-derived")
+    try #require(ScrollAuthorityCoverage.authorities == LayoutAuthority.allCases,
+                 "every scenario is declared over this one list — M3c reduces it and nothing else would say so")
+    try #require(ScrollAuthorityCoverage.expected.count == 34,
+                 "the hand-derived scenario count: 16 routing + 14 indicator + 4 ScrollViewTests")
+
+    let missing = ScrollAuthorityCoverage.expected.subtracting(ScrollAuthorityCoverage.seen.keys).sorted()
+    try #require(missing.isEmpty,
+                 "these scenarios recorded no coverage: \(missing)")
+    let all = Set(LayoutAuthority.allCases)
+    for (name, authorities) in ScrollAuthorityCoverage.seen.sorted(by: { $0.key < $1.key }) {
+        #expect(authorities == all, "\(name) ran under \(authorities.count) authority, not both")
+    }
+    #expect(ScrollAuthorityCoverage.verifiedWholeSet,
+            "record() must have verified the whole set once the last scenario arrived")
 }
