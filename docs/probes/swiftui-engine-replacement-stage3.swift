@@ -35,9 +35,13 @@
 //   - W0 — `Pair()` bare, the layout-transparency control (== G1 of the
 //     component-distribution probe).
 //
+// RE-RECORDED 2026-09-22 (PDT), design critic round 1, finding 6: W7-W9 added
+// because W2 and W5 could not DISCRIMINATE (see their note at the arms). The
+// V and W0-W6 lines below are byte-identical to the first recording.
+//
 // RECORDED OUTPUT, 2026-09-22 (PDT), macOS 27.0 (26A428), /usr/bin/swift
 // (Apple Swift 6.4, swiftlang-6.4.0.33.1). Run twice under the script form,
-// byte-identical; `xcrun swiftc -O` produced the same 15 lines, exit 0, empty
+// byte-identical; `xcrun swiftc -O` produced the same 18 lines, exit 0, empty
 // stderr in both forms. (`b none` on a ScrollView arm is the instrument saying
 // that arm has no `b` member, not a missing measurement.)
 //
@@ -56,6 +60,9 @@
 //     W4 Pair().frame(width: 70, height: 40)      : outer 300x100 a (96, 45) 30x10 b (164, 45) 50x10
 //     W5 Solo().frame(height: 40)                 : outer 300x100 a (135, 45) 30x10 b none
 //     W6 Pair().frame(maxWidth: .infinity, alignment: .leading): outer 300x100 a (0, 45) 30x10 b (154, 45) 50x10
+//     W7 Pair().frame(height: 40, alignment: .top): outer 300x100 a (106, 30) 30x10 b (144, 30) 50x10
+//     W8 Pair().frame(height: 40, alignment: .bottom): outer 300x100 a (106, 60) 30x10 b (144, 60) 50x10
+//     W9 Solo().frame(height: 40, alignment: .top): outer 300x100 a (135, 30) 30x10 b none
 //
 // WHAT IT SHOWS.
 //
@@ -86,10 +93,24 @@
 //   **164**). This re-measures `swiftui-component-distribution.swift`'s G7
 //   through a different host and agrees with it. W4 adding a height moves
 //   neither member's x.
-// - **W2/W5: a frame that declares only the CROSS axis leaves the other axis
-//   alone.** W2 is byte-identical to the W0 control, and W5's single member
-//   stays at x 135. So the per-member frame is PER AXIS: an undeclared axis is
-//   passed through, not centred in anything.
+// - **W7/W8/W9: the single-axis frame DOES exist, and it aligns on the axis it
+//   declares.** `.frame(height: 40, alignment: .top)` puts both members at
+//   y **30** and `.bottom` puts both at y **60**, against the W0 control's
+//   y 45 — 10pt members inside a 40pt frame whose own centre sits at y 50 in
+//   the 100pt host. W9 shows the same for a single member. So a frame
+//   declaring one axis is a real frame with real free space on that axis.
+// - **W2/W5: and the axis it does NOT declare is passed through.** Given
+//   W7/W8, W2's x 106/144 and W5's x 135 — the W0 control's own numbers, with
+//   the frame now proved present — say the undeclared axis takes the child's
+//   own size, so there is no free space to align in and the member is not
+//   recentred. **W2 and W5 alone cannot show this**: "a per-member frame
+//   passing the undeclared axis through" and "no frame at all" predict the
+//   same output there, which is why W7-W9 were added (practices shape 15).
+//   Note what this means for a MetalUI lowering: SwiftUI has no observable
+//   answer for "how should a frame align its child on an axis it does not
+//   declare", because in SwiftUI that case cannot arise. `LR-BG`'s per-axis
+//   alignment is therefore grounded on the LEGACY agreement it must preserve,
+//   with W2/W5/W7-W9 as the consistency check, not as its source.
 // - **W3/W6: a FLEXIBLE frame distributes too, and each member grows.** With
 //   `maxWidth: .infinity` each member gets its own greedy frame and they share
 //   the host minus the spacing (300 - 8 = 292, 146 each): a is centred in the
@@ -230,6 +251,23 @@ func run() {
     }
     measure("W6 Pair().frame(maxWidth: .infinity, alignment: .leading)", width: 300, height: 100) {
         HStack { Pair().frame(maxWidth: .infinity, alignment: .leading) }
+    }
+    // W7-W9 are the DISCRIMINATING arms for "does a single-axis frame exist at
+    // all, and does it carry alignment on the axis it declares?" W2 and W5
+    // cannot answer that: a frame whose undeclared axis equals its child's has
+    // no free space on that axis, so "a per-member frame passing the undeclared
+    // axis through" and "no frame at all" predict the SAME output there. On the
+    // DECLARED axis the 40pt frame does have free space, so `.top` and
+    // `.bottom` separate the two hypotheses: a frame gives y 30 and y 60, no
+    // frame gives the W0 control's y 45 in both.
+    measure("W7 Pair().frame(height: 40, alignment: .top)", width: 300, height: 100) {
+        HStack { Pair().frame(height: 40, alignment: .top) }
+    }
+    measure("W8 Pair().frame(height: 40, alignment: .bottom)", width: 300, height: 100) {
+        HStack { Pair().frame(height: 40, alignment: .bottom) }
+    }
+    measure("W9 Solo().frame(height: 40, alignment: .top)", width: 300, height: 100) {
+        HStack { Solo().frame(height: 40, alignment: .top) }
     }
 }
 

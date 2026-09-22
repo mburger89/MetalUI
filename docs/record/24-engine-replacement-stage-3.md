@@ -46,6 +46,14 @@ were not. **Lesson for the lanes: capture the whole test log, never its tail** �
 a single unattributed issue that cannot be named is a worse outcome than a red
 test.
 
+**It is attributed or retired in lane 1, before lane 3** (critic round 1
+finding 11): lane 3 takes the count of real `Window`s in `ScrollRoutingTests` +
+`ScrollIndicatorTests` from 37 to 74, four of the scenarios drive the display
+link, and the exit test is built out of them — so an unattributed flake living
+there would double in rate and land in the exit criterion. "Recorded rather
+than explained" is acceptable for a baseline; it is not acceptable under the
+lane that doubles the surface.
+
 ## 2. Probes
 
 ### 2.1 Re-run and byte-identical
@@ -53,12 +61,14 @@ test.
 | probe | lines | result |
 |---|---|---|
 | `swiftui-stack-algorithms.swift` | 787 | the recorded block was extracted from the header (lines 236–1022, de-indented) and `diff`ed against a fresh `/usr/bin/swift` run: **identical** |
-| `swiftui-component-distribution.swift` | 22 | fresh run **identical** to its header, G0–G16 |
+| `swiftui-component-distribution.swift` | **25** | fresh run **identical** to its header, G0–G16. (This row first said 22, and so did the design's §2.1. A fresh `/usr/bin/swift` run emits **25** output lines; `wc -l` of the extracted header block is also 25 and `diff`s clean. Content byte-identical, so nothing substantive moved — but a reader re-running the probe failed on the first number they compared. Critic round 1 finding 10.) |
 
 ### 2.2 New: `swiftui-engine-replacement-stage3.swift`
 
-15 lines. Script form run twice, byte-identical; `xcrun swiftc -O` produced the
-same 15 lines, exit 0, empty stderr in both forms. Recorded in its own header.
+15 lines at the first recording, **18** after critic round 1 added W7–W9 (§6).
+Script form run twice, byte-identical; `xcrun swiftc -O` produced the same
+lines, exit 0, empty stderr in both forms. Recorded in its own header. The
+block below is the first recording; W7–W9 are in §6.
 
 ```
 --- V: is a ScrollView flexible inside a stack? (host 100x200)
@@ -141,6 +151,16 @@ which is SwiftUI's answer (probe V1–V4) and the reason a scroller scrolls. So
 **divergence 54, stated as a cross-axis difference, is not what the lowering
 produces**; see `LR-BC`.
 
+**Correction, critic round 1 finding 5.** These arms measure **legacy against
+lowered**. Divergence 54 is `ScrollView` against `ProposalScrollView`, and the
+lowering **preserves** it: the kernel viewport's own cross answer is
+`content.width` (the `ProposalScrollView` side), and a lowered `ScrollView`
+reads its parent's 120 in A10 only because it records a `LoweredItem`, so stage
+2 wraps it in a stretch item frame and `LoweringState.alias` reports that
+frame's rect as the element's. `ProposalScrollView` records none. The first
+writing of `LR-BC` said the lowering "closed" 54's cross-axis half; it does not,
+and 54 has been moved out of stage 6b's retirement row.
+
 ### 3.3 `ScrollContext`
 
 A custom element recording `pass.scrollContext` inside the scroller and again as
@@ -177,11 +197,17 @@ C1/C6's "centred in its own 70" is W1/W4 and G7.
 Recording the amend frame's `contentAlignment` as `.center` unconditionally put
 C1's members at **y 15** instead of y 0, and C4's at y 15 instead of y 4: the
 item frame a parent registers reads `LoweredItem.contentAlignment`, so a
-width-only amend was centring its member on the height axis. Probe **W2**
-(`Pair().frame(height: 40)` byte-identical to the W0 control) and **W5** say
-SwiftUI passes an undeclared axis through. Making the alignment **per axis** —
-`.center`'s factor on a declared axis, 0 on an `auto` one — restored y 0 and
-y 4, which is also the legacy answer. Ruling `LR-BG`.
+width-only amend was centring its member on the height axis. Making the
+alignment **per axis** — `.center`'s factor on a declared axis, 0 on an `auto`
+one — restored y 0 and y 4. **The constraint that forced it is the legacy
+agreement**: divergence 48 is about the axis the caller declares, and an amend
+that also relocates the other axis is a second, undesigned divergence. Ruling
+`LR-BG`.
+
+The first writing of this section cited probe **W2** (`Pair().frame(height: 40)`
+byte-identical to the W0 control) and **W5** as the SwiftUI evidence. They are
+not evidence on their own — see the critic round below, and revision 2's
+W7–W9.
 
 ### 3.6 `List` inside a lowered scroller
 
@@ -191,6 +217,16 @@ legacy-only (the rows the legacy side built and the proposal side did not).
 The three disagreements are all width 80 → **0**, because the `List` reports and
 builds no rows, so the viewport's non-scrolling axis — the content's answer —
 is the empty content's 0. **That is stage 4's, not stage 3's.**
+
+**And it is the whole reason design test 3.5 was renamed** (critic round 1
+finding 4). This measurement was taken **under diagnostics**, where the `List`
+builds zero rows, so "windows against the same context" is vacuous here; and
+through a real `Window` it is not measurable at all, because `List` calls
+`noteUnlowerable(.list, "noLowering")` before any row (`List.swift:351`) and a
+`Window` aborts on that. 3.5 is now
+`aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, with a non-`List`
+recorder. `List` windowing is checked **only under the legacy authority** this
+stage.
 
 ### 3.7 The demo, through the exit test
 
@@ -237,10 +273,84 @@ Real-window captures are available again: the screen is unlocked (§1).
 - The design's lane order is load-bearing: **lane 1 is a refactor on the
   production path** and must be measured against the twelve images before
   anything else lands on top of it.
-- **Lane 3's red-before must be taken at lane 1's commit**, not at the stage's
-  head: once lane 2 lands, the parameterised scroll arms pass, and their
-  "red before" has to be recorded from the commit where a proposal-authority
-  window still traps.
+- **Lane 3 runs AFTER lane 2, and its red-before is one exit-test arm.** The
+  first writing of this section said the opposite — "lane 3's red-before must
+  be taken at lane 1's commit … where a proposal-authority window still traps".
+  That instruction cannot be carried out: `Window` never sets
+  `reportsUnlowerableFields`, so the trap is a `preconditionFailure` that
+  **aborts the process**, printing no summary line and no list of which arms
+  failed. Lane 1 adds one arm to the existing exit test
+  `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority` instead;
+  lane 2 converts it to an agreement arm. Critic round 1 finding 1.
 - Every count in §3 is a prototype's, not an implementation's. Re-derive each
   before writing it into a literal, and record any row that does not reproduce
   as a finding before the expectation is written.
+- **Three of the design's mutations were replaced because they could not
+  redden anything** (M1f, M2d, M2e). Before banking any mutation in a lane,
+  check that the mutant can differ from the original *in the observable the
+  test reads* — a consumed `LoweredItem` is skipped by
+  `reportUnconsumedLoweredItems`, and two folded implementations move together.
+
+## 6. Critic round 1 (2026-09-22, after `ec83625`)
+
+Twelve findings; dispositions in `LR-BK`. The critic re-ran all three probes
+the design leans on and found each byte-identical to its header, confirmed the
+worktree clean and the 97 goldens untouched, and located every defect in how
+the design mapped those answers onto MetalUI's code — or in mutations and
+red-before runs that could not do what they claimed.
+
+**New measurement this round: stage-3 probe revision 2.** Arms W7, W8, W9,
+added because W2 and W5 could not discriminate. Run 2026-09-22 (PDT) under
+`/usr/bin/swift` twice byte-identical and under `xcrun swiftc -O` identical,
+exit 0, empty stderr; the header's recorded block was re-extracted and `diff`ed
+clean against the fresh run. 18 lines; the first 15 unchanged.
+
+```
+  W0 control Pair()                           : outer 300x100 a (106, 45) 30x10 b (144, 45) 50x10
+  W2 Pair().frame(height: 40)                 : outer 300x100 a (106, 45) 30x10 b (144, 45) 50x10
+  W5 Solo().frame(height: 40)                 : outer 300x100 a (135, 45) 30x10 b none
+  W7 Pair().frame(height: 40, alignment: .top): outer 300x100 a (106, 30) 30x10 b (144, 30) 50x10
+  W8 Pair().frame(height: 40, alignment: .bottom): outer 300x100 a (106, 60) 30x10 b (144, 60) 50x10
+  W9 Solo().frame(height: 40, alignment: .top): outer 300x100 a (135, 30) 30x10 b none
+```
+
+**Why the new arms were needed.** W2 is byte-identical to the W0 control and W5
+puts its member where a bare `Solo()` would. Both outcomes are equally
+consistent with "a per-member frame that passes the undeclared axis through"
+**and** with "the frame did nothing at all" — the host centres either way
+(a 10pt member centred in 100 is y 45; two 40pt frames centred in 100 is y 30
+with the member centred in its own 40, also y 45). Reporting that as positive
+evidence is practices shape 15. W7/W8 put free space on the **declared** axis,
+where the two hypotheses separate: y 30 and y 60 against the control's y 45, so
+the frame exists and aligns there; W9 shows the same for one member. With the
+frame proved present, W2's and W5's unchanged x then do say the undeclared axis
+is passed through at the child's own size.
+
+**And what SwiftUI still cannot say.** `LoweredItem.contentAlignment` is how a
+**parent's** item frame places a grown child. SwiftUI has no counterpart: a
+frame with an undeclared axis has that axis equal to its child's size, so there
+is no free space and its alignment there is unobservable in principle. `LR-BG`'s
+per-axis alignment is therefore grounded on the **legacy agreement** it must
+preserve (y 0 and y 4 in §3.5), with W2/W5/W7–W9 as the consistency check.
+
+**Read from source, not measured** (each cited by file and line in `LR-BK`):
+`Window` never sets `reportsUnlowerableFields`;
+`reportUnconsumedLoweredItems` skips consumed records; `StateTable.withState`
+always calls its closure, so both `lastScroll` seeds are dead and the two
+indicator implementations are line-equivalent; `List` calls
+`noteUnlowerable(.list, "noLowering")` before any row; `ProposalScrollView`
+never calls `recordLoweredItem`, so `consume` returns `nil` for it and it gets
+no stretch item frame — which is why divergence 54 **survives** the lowering;
+`lowerLegacyNode` passes `site:` on to `planLegacyItems` as `parentSite:`, which
+is what keeps `LoweringSite.scrollView` reachable; `lowerLegacyLayer` plans only
+at `children.count == 1` and returns `.first`;
+`ProposalScrollView`'s private members are at `:97-170`, not `:94-166`; and
+`ScrollView.clamp` is named by five assertions
+(`ScrollViewTests.swift:78,79,80,89,97`).
+
+**Shape changes.** Lane order becomes 1 → 2 → 3 → 4 → 5; lanes 2, 4 and 5 each
+gain one test (2.2a, 4.6, 5.1a) for a hole no prototype fixture could see; three
+mutations are replaced; every lane states a predicted end-of-lane test count
+(1553 / 1561 / 1563 / 1569 / 1572 from 1550). No finding is rejected outright,
+and the two places where the disposition differs from what the finding asked
+for — finding 1's option (b) and finding 9's premise — are named in `LR-BK`.
