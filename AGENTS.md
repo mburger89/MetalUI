@@ -31,6 +31,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
   `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-AB`), `PS-` (next `PS-H`;
+  rulings in its spec, no separate decisions doc), `FT-` (next `FT-L`;
   rulings in its spec, no separate decisions doc). A numbered citation of a
   lettered prefix (`CS-3`, `LR-3`) is a typo; sweep case-insensitively.
 - **SwiftUI-alignment plan:** `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`.
@@ -56,11 +57,15 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-22, `feat/portable-scene`): 1411 tests, 97 goldens,
+- **Counts (2026-09-22, `feat/freetype-raster`): 1419 tests, 97 goldens,
   73 typecheck guards**, 0 `error:`, 0 `warning:`, taken after `swift package
   clean` with `swift build --build-system native --build-tests` then
   unfiltered `swift test --build-system native --no-parallel`. History: record
-  §06, §19 "Build and test". A count is stale the moment a test lands; re-measure.
+  §06, §19, §20, §21 "Build and test". A count is stale the moment a test
+  lands; re-measure. `find Tests -name "*.json" | wc -l` reads higher than 97
+  once `swift test` has run inside `Tests/PortableTests/` — its own gitignored
+  `.build/` grows JSON build artifacts there; only
+  `Tests/MetalUILayoutTests/Golden` holds goldens.
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line; the default build system may print six (sum them).
   Two gated tests count toward the total while skipped. The lone `warning:`
@@ -93,16 +98,23 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `Undefined symbols … direct field offset`. Causes: the untracked shader
   header symlink (`Sources/MetalUIShaderTypes/include/`), and any new
   case/stored property on a public type crossing a module boundary.
-- **Targets:** ten one-way-dependent (`MetalUICore`, `MetalUILayout`,
-  `MetalUIScene`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
-  `MetalUIPlatform`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
-  `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so tests
-  can import it (`LR-S`). `MetalUIScene` holds `Scene`/`DrawRun`/`PrimitiveKind`,
-  the glyph atlas types and the `FontKey` struct; `MetalUIText` and
-  `MetalUIRender` re-export it (`PS-B`), so its types need no new import. It
-  is also a library product, consumed by `Experiments/SDLGPU/Portable`.
+- **Targets:** twelve one-way-dependent (`MetalUICore`, `MetalUILayout`,
+  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `MetalUIText`,
+  `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`, `MetalUI`,
+  `MetalUIDemoContent`, `MetalUIDemo`) plus `Tests/MetalUITestSupport`.
+  `MetalUIDemoContent` holds the demo tree so tests can import it (`LR-S`).
+  `MetalUIScene` holds `Scene`/`DrawRun`/`PrimitiveKind`, the glyph atlas
+  types and the `FontKey` struct; `MetalUIText` and `MetalUIRender` re-export
+  it (`PS-B`), so its types need no new import. It is also a library product,
+  consumed by `Experiments/SDLGPU/Portable`. `CFreeType` is FreeType 2.14.3,
+  vendored (`FT-A`; `Sources/CFreeType/VENDORED.md`), a C target with no
+  Swift API. `MetalUIFreeType` is the FreeType-backed glyph rasterizer
+  (`FreeTypeFont`, `FreeTypeRaster`, `FT-B`…`FT-E`) that matches
+  `GlyphRaster`'s contract exactly; also a library product, for non-Apple
+  backends. Nothing in production calls it — `GlyphRaster` stays the
+  rasterizer on Apple platforms (`FT-I`).
 
-Five constraints that fail silently:
+Six constraints that fail silently:
 
 - `MetalUILayout` imports only `MetalUICore` (anchored grep).
 - `MetalUIScene` imports only `MetalUIShaderTypes` — no Foundation, CoreText,
@@ -110,6 +122,12 @@ Five constraints that fail silently:
   workflow's `scene-linux` job can (`PS-G`). An initialiser that must stay
   unspellable outside the package is `package`, with a plain-import guard
   (`FontKey`, `GlyphImage`: `PS-D`, `PS-E`).
+- `MetalUIFreeType` imports only `MetalUIScene` and `CFreeType` — no
+  Foundation, CoreText, CoreGraphics or Metal (`FT-K`). macOS cannot see a
+  violation; the `scene-linux` job builds this target too, and
+  `Tests/PortableTests` (a separate package depending on the root's
+  `MetalUIFreeType` product) runs FreeType's own output through Linux and
+  Windows CI, pinned byte-for-byte against macOS (`FT-J`).
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (gamma-space compositing, §7.8).
