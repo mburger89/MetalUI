@@ -2188,9 +2188,14 @@ side's own citations — its record's renumbering note, five in
   Three tests skipped and counted: `regenerateAllGoldens`,
   `aListsWorkIsTheSameFor100kRowsAsFor500`, and the FreeType oracle's gated
   `measure(file:)`.
-- **97 goldens**, `find Tests -name "*.json" | wc -l` and
-  `find Tests/MetalUILayoutTests -name "*.json" | wc -l` both 97;
-  `git diff --name-only b10594c HEAD -- 'Tests/**/*.json'` empty.
+- **97 goldens**, `find Tests/MetalUILayoutTests -name "*.json" | wc -l`;
+  `git diff --name-only b10594c HEAD -- 'Tests/**/*.json'` empty. The
+  **unscoped** `find Tests -name "*.json" | wc -l` also read 97 — but only
+  because `Tests/PortableTests/.build` did not exist yet. After the
+  determinism package had been run once in this round it read **115**, 18 of
+  them SwiftPM build artifacts. That is exactly the hazard CLAUDE.md's golden
+  bullet names, measured here in both states; the scoped count is the one to
+  quote.
 - **77 guards** — 79 `canTypecheck` hits minus `Typecheck.swift`'s declaration
   and `UnitSafetyTests`' comment. Per file unchanged: `PhaseSeparationTests` 19,
   `ErasureCompileGuards` 10, `EnvironmentCompileGuards` 8,
@@ -2206,3 +2211,42 @@ side's own citations — its record's renumbering note, five in
 - Twelve non-test targets, unchanged by stage 3 (its Package.swift diff against
   `57893d0` is empty) and extended by the FreeType line with `CFreeType` and
   `MetalUIFreeType`.
+
+### 15.1 The interaction check — where the two lines actually meet
+
+These two lines had never been built together, so the merge owes evidence that
+the seam between them is live rather than merely green. Three mutations, each
+run against the **whole unfiltered suite** (and, where it matters, the separate
+`Tests/PortableTests` package), each restored from a copy and each followed by
+an empty `git status --short`.
+
+**Where they meet is not the scroller.** `MetalUIFreeType` has no production
+caller (`FT-I`), so no scroll, lowering or layout code path reaches it. The one
+type both lines read is **`MetalUIScene.FontKey`**: `MetalUIText`'s
+`ShapingCache` keys every shape on it — which is how the stage-3 text arm
+`aLoweredScrollViewsContentKeepsItsNaturalExtent` derives its expected width —
+and `MetalUIFreeType`'s oracle and the portable determinism package read it off
+the resolved face. X2 below is the mutation that exercises that seam; X1 and X3
+establish that the stage-3 halves are live and that the FreeType halves do not
+depend on them.
+
+| id | mutation | reddens |
+|---|---|---|
+| **X1** | `ScrollChrome.clamp` loses its upper bound — `min(max(0, offset), max(0, content - viewport))` → `max(0, offset)` | 8 tests, 39 issues: `aStoredOffsetPastTheEndIsClampedWhenItIsRead`, `theOffsetClampsToTheScrollableRange`, `contentShorterThanTheViewportDoesNotScroll`, `aProposalScrollViewClampsAnOffsetPastItsContentEndOnPrepaint`, `aProposalScrollViewClampsAStoredOffsetPastTheEndAndWritesItBack`, `theTwoScrollElementsShareOneChromeImplementation`, `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask`, `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel`. The FreeType oracle suite **passed** in the same run |
+| **X2** | `FontKey.init` stores and hashes a constant size (`self.size = 13`, `hasher.combine(13.0)`) | **both lines, from one edit.** Main suite, 4 tests: `theKeyDistinguishesSizes`, `theFontKeyHashItselfDistinguishesEveryComponent`, `aForgedHashCollisionIsSettledByTheComponents`, `aFinitePositiveSizeResolvesOnBothPaths`. Portable determinism package: `theFontKeyIsReadOffTheFaceAtTheRequestedSize` (`key.size → 13.0`, `size → 26.0`). The in-package FreeType **oracle** suite passed — it never asks for a second size |
+| **X3** | the lowered scroll viewport's axis inverted in `ScrollView.loweredLayout` — `axis == .vertical ? .horizontal : .vertical` | 9 tests, 56 issues: `aLoweredScrollViewsContentKeepsItsNaturalExtent` (the text-measured-inside-a-scroller arm), `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`, `aLoweredScrollViewFillsItsProposalOnTheScrollingAxisWhereTheLegacyViewportHugs`, `aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows`, `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`, `aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork`, `aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`. FreeType oracle suite **passed** |
+
+**Baseline, unmutated, on the merged tree:** the root suite `Test run with 1580
+tests in 2 suites passed`, and `Tests/PortableTests` `Test run with 5 tests in 1
+suite passed` (one skipped, `record()`, which prints the expected table). After
+all three mutations were restored the suite read 1580 passed again and
+`git status --short` was empty.
+
+**What this does and does not establish.** X2 is the only mutation that crosses
+the two lines, and it crosses at `FontKey`, not at the scroller: a single edit
+in `MetalUIScene` reddens named tests on both sides, so the merged build really
+does have one `FontKey` and both lines read it. X1 and X3 show the stage-3
+scroll and lowering behaviour is pinned in the merged tree and that the FreeType
+suites are indifferent to it — which is the expected shape given `FT-I`, not a
+coverage gap. **No mutation here shows a scroll path reaching FreeType, because
+none does.**
