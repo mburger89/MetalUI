@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+output*/
+.tools/
+fixtures/
+linux-dump/
+mac-*/
+linux-*/
+windows-dump/

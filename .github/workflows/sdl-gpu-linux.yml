@@ -1,0 +1,136 @@
+# SDL GPU experiment: record fixtures on macOS with the production Metal
+# renderer, then build Experiments/SDLGPU/Portable on Linux (no MetalUI, no
+# Apple frameworks) and replay them on Mesa llvmpipe (CPU Vulkan), and on
+# Windows through SDL's Direct3D 12 backend (WARP on GPU-less runners).
+
+name: SDL GPU Linux + Windows
+
+on:
+  push:
+    paths:
+      - "Experiments/SDLGPU/**"
+      - ".github/workflows/sdl-gpu-linux.yml"
+  pull_request:
+    paths:
+      - "Experiments/SDLGPU/**"
+      - ".github/workflows/sdl-gpu-linux.yml"
+  workflow_dispatch:
+
+jobs:
+  record:
+    name: Record fixtures (macOS, Metal)
+    runs-on: xcode-27  # Swift 6.4 (Xcode 27, preview image)
+    defaults:
+      run:
+        working-directory: Experiments/SDLGPU
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install SDL3
+        run: brew install sdl3 pkg-config
+      - name: Compiled shaders match replay.hlsl
+        working-directory: Experiments/SDLGPU/Portable/Shaders
+        run: shasum -a 256 -c compiled/SOURCE.sha256
+      - name: Record, and check SDL Metal parity live
+        # --portable: the HLSL -> SPIR-V -> MSL stages, the same source Linux runs.
+        run: swift run Replay --portable --record "$PWD/fixtures"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fixtures
+          path: Experiments/SDLGPU/fixtures/
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    name: Build and replay (Linux ${{ matrix.arch }}, llvmpipe)
+    needs: record
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: fixtures
+          path: Experiments/SDLGPU/fixtures
+      - uses: docker/setup-buildx-action@v4
+      - name: Build image (Swift, SDL3 from source, Mesa)
+        uses: docker/build-push-action@v7
+        with:
+          context: Experiments/SDLGPU/Portable/linux
+          tags: metalui-portable
+          load: true
+          cache-from: type=gha,scope=portable-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=portable-${{ matrix.arch }}
+      - name: Build, test and replay
+        # --dump reports every frame, writes raw BGRA, and still fails over tolerance.
+        run: |
+          mkdir -p Experiments/SDLGPU/linux-dump
+          docker run --rm -v "$PWD/Experiments/SDLGPU":/work metalui-portable bash -ec '
+            vulkaninfo --summary 2>/dev/null | grep -E "deviceName|driverName" || true
+            swift build --scratch-path /tmp/build
+            swift test --scratch-path /tmp/build
+            $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../fixtures --driver vulkan --dump ../linux-dump
+          '
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: linux-dump-${{ matrix.arch }}
+          path: Experiments/SDLGPU/linux-dump/
+          retention-days: 7
+
+  windows:
+    name: Build and replay (Windows x64, D3D12)
+    needs: record
+    runs-on: windows-latest
+    env:
+      SDL_VERSION: 3.4.16
+      SDL_LOGGING: gpu=info   # logs the D3D12 adapter SDL picked
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: fixtures
+          path: Experiments/SDLGPU/fixtures
+      - uses: compnerd/gha-setup-swift@v0.5.0
+        with:
+          swift-version: swift-6.4.0-release
+          swift-build: 6.4.0-RELEASE
+      - name: Install SDL3 (prebuilt VC package)
+        run: |
+          $zip = "$env:RUNNER_TEMP\sdl3.zip"
+          Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/SDL3-devel-$env:SDL_VERSION-VC.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $root = "$env:RUNNER_TEMP\SDL3-$env:SDL_VERSION"
+          "SDL3_INCLUDE=$root\include" >> $env:GITHUB_ENV
+          "SDL3_LIB=$root\lib\x64" >> $env:GITHUB_ENV
+          "$root\lib\x64" >> $env:GITHUB_PATH   # SDL3.dll at run time
+      - name: Adapters
+        run: Get-CimInstance Win32_VideoController | Format-Table Name, DriverVersion
+      - name: Build, test and replay
+        # No pkg-config on Windows: hand SwiftPM SDL's include and library paths.
+        working-directory: Experiments/SDLGPU/Portable
+        run: |
+          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB")
+          swift build @flags
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          swift test @flags
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force ..\windows-dump | Out-Null
+          $bin = (swift build @flags --show-bin-path)
+          & "$bin\PortableReplay.exe" ..\fixtures --driver direct3d12 --dump ..\windows-dump
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: windows-dump
+          path: Experiments/SDLGPU/windows-dump/
+          retention-days: 7
