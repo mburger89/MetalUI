@@ -1058,3 +1058,165 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     #expect(work.cacheHits == 9, "cacheHits: \(work.cacheHits)")
     #expect(work.measureCalls == 3, "measureCalls: \(work.measureCalls)")
 }
+
+// MARK: - Lane 3 (`LR-BI`): `ScrollContext` across a lowered viewport
+
+/// A leaf that records `pass.scrollContext` every time its `requestLayout` runs,
+/// on both authorities — `ProbeLeaf`'s shape (`LayoutDifferential.swift`), so it
+/// registers a native leaf under the proposal authority and a legacy one under
+/// the legacy authority and answers the same size on both.
+///
+/// `ScrollRoutingTests` has its own copy, `private` to that file. This one exists
+/// because 3.5 drives **two windows in one body** and compares them, which that
+/// file's parameterised scenarios cannot.
+@MainActor
+private struct ContextProbe: Element {
+    final class Seen { var values: [ScrollContext?] = [] }
+
+    var width: Double = 0
+    var height: Double = 0
+    let seen: Seen
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        seen.values.append(pass.scrollContext)
+        let w = width, h = height
+        if pass.lowersToProposal {
+            return (pass.frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: w, height: h)) }, ())
+        }
+        return (pass.requestLeaf(style: Style()) { _, _ in SizeD(width: w, height: h) }, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                  pass: inout PrepaintPass) {}
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+               prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+@MainActor
+private func lane3Column() -> Style {
+    var s = Style()
+    s.flexDirection = .column
+    return s
+}
+
+@MainActor
+private func lane3Row() -> Style {
+    var s = Style()
+    s.flexDirection = .row
+    return s
+}
+
+@MainActor
+private func lane3RowFixed(_ w: Float, _ h: Float) -> Style {
+    var s = lane3Row()
+    s.size = Size(width: .length(.pixels(Pixels(w))), height: .length(.pixels(Pixels(h))))
+    return s
+}
+
+/// The root: a column the window's own size on both axes.
+///
+/// **Declared, not left to the root's own answer.** The legacy root takes the
+/// frame's definite 120x120; a native root is centred at whatever it measures
+/// (`CN-J`), and this column hugs its 60pt of content, so the whole tree would
+/// sit 30pt lower under the proposal authority. That is stage 1's root
+/// divergence, not this test's subject.
+@MainActor
+private func lane3Root() -> Style {
+    var s = lane3Column()
+    s.size = Size(width: .length(.pixels(Pixels(120))), height: .length(.pixels(Pixels(120))))
+    return s
+}
+
+/// **3.5.** A `ScrollView`'s published `ScrollContext` is the same, frame by
+/// frame, across a **lowered** viewport as across a legacy one — and the sibling
+/// after it still sees none (ruling `LR-BF`: publication is unchanged by the
+/// lowering, because it happens in the shared part of `requestLayout`, before
+/// either branch).
+///
+/// **Two frames, and the second is what makes this non-vacuous.** Frame 1 runs
+/// before any `prepaint` has stored a `viewportExtent`, so the context is
+/// `(0, 0, .horizontal)` under either authority — a pair of zeros a `ScrollView`
+/// publishing nothing at all would also produce. One wheel event of −37 (natural
+/// scrolling adds 37) and a second frame make it `(37, 120, …)`: the offset the
+/// window wrote, and the viewport extent frame 1's `prepaint` stored, which only
+/// `ScrollChrome.resolvedOffset`'s `PrepaintPass` overload ever writes.
+///
+/// **A HORIZONTAL scroller, and that is the fixture's load-bearing choice.**
+/// The scrolling axis has to be an axis on which the two authorities agree, or
+/// this test would be re-pinning ruling `LR-BC` instead of the `ScrollContext`.
+/// A vertical scroller inside a 100pt-tall wrapper measures **200** under the
+/// legacy engine — the viewport hugs its content and overflows the wrapper — and
+/// **100** under the proposal authority, which is exactly what test 2.2 above
+/// pins. On the CROSS axis of a column the legacy engine stretches the viewport
+/// to the parent's definite width and the kernel viewport reports its proposal,
+/// and both come out 120: measured on this fixture before the literals below
+/// were written.
+///
+/// **A non-`List` recorder, and that is a correction** (`LR-BI` amended, critic
+/// round 1 finding 4). The design's first writing windowed a `List` against the
+/// two contexts; a `List` under the proposal authority calls
+/// `noteUnlowerable(.list, "noLowering")` before any row (`List.swift`), so
+/// through a `Window` it **traps** and under diagnostics it builds zero rows —
+/// vacuous either way. `List` windowing under the proposal authority is stage
+/// 4's.
+///
+/// **Both authorities in one body**, rather than as two `@Test` arguments, so
+/// the two windows' recordings are compared against each other as well as
+/// against the literals.
+///
+/// Mutations that must redden it: **M3d**, `withScrollContext` moved after the
+/// content build (the inside probe sees `nil`); **M3e**, the prepaint overload's
+/// `viewportExtent` write removed (frame 2's extent reads 0 on both sides).
+@MainActor
+@Test func aScrollContextSurvivesALoweredViewportAcrossTwoFrames() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    var recorded: [LayoutAuthority: (inside: [ScrollContext?], after: [ScrollContext?])] = [:]
+
+    for authority in LayoutAuthority.allCases {
+        let inside = ContextProbe.Seen(), after = ContextProbe.Seen()
+        let (window, platform) = try makeFakeWindow(device: device, size: 120,
+                                                    layoutAuthority: authority) {
+            Box(style: lane3Root()) {
+                ScrollView(.horizontal, elementID: chromeListID) {
+                    Box(style: lane3Row()) {
+                        Box(style: lane3RowFixed(40, 40)); Box(style: lane3RowFixed(40, 40))
+                        Box(style: lane3RowFixed(40, 40)); Box(style: lane3RowFixed(40, 40))
+                        Box(style: lane3RowFixed(40, 40))
+                        ContextProbe(seen: inside)
+                    }
+                }
+                ContextProbe(width: 120, height: 20, seen: after)
+            }
+        }
+        window.drawFrameIfNeeded()
+        // The viewport, read back rather than assumed: 120 is what frame 2's
+        // `viewportExtent` must be, and it comes from this rect.
+        let region = try #require(window.lastScrollRegions.first)
+        #expect(region.axis == .horizontal)
+        #expect(region.bounds == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                        size: Size(width: Pixels(120), height: Pixels(40))),
+                "\(authority): the scroller is 120 wide — 5 x 40 of content behind it — on both authorities")
+
+        platform.simulateInput(.scrollWheel(ScrollEvent(
+            position: pt(60, 20), delta: Point(x: Pixels(-37), y: Pixels(0)), isMomentum: false)))
+        window.drawFrameIfNeeded()
+        recorded[authority] = (inside.values, after.values)
+    }
+
+    for authority in LayoutAuthority.allCases {
+        let seen = try #require(recorded[authority])
+        try #require(seen.inside.count == 2, "\(authority): one requestLayout per frame, two frames")
+        let first = try #require(seen.inside[0], "\(authority): the probe is inside the scroller")
+        #expect(first == ScrollContext(offset: 0, viewportExtent: 0, axis: .horizontal),
+                "\(authority): frame 1 — nothing scrolled, no prepaint has stored an extent yet")
+        let second = try #require(seen.inside[1])
+        #expect(second == ScrollContext(offset: 37, viewportExtent: 120, axis: .horizontal),
+                "\(authority): frame 2 — the wheel's 37, and the 120 frame 1's prepaint stored")
+
+        try #require(seen.after.count == 2)
+        #expect(seen.after.allSatisfy { $0 == nil },
+                "\(authority): the sibling after the scroller is not inside it")
+    }
+    #expect(recorded[.legacy]?.inside == recorded[.proposal]?.inside,
+            "the lowering must not change what a scroller publishes: \(String(describing: recorded))")
+}

@@ -41,7 +41,9 @@ enum ScrollAuthorityCoverage {
     /// declared over. **Mutation M3c edits this**, and 3.4 reads it: a lane that
     /// quietly reduced it to `[.legacy]` would otherwise pass every test and move
     /// no count.
-    static let authorities: [LayoutAuthority] = LayoutAuthority.allCases
+    /// **`nonisolated`**: `@Test(arguments:)` evaluates its list outside any
+    /// actor, so a main-actor-isolated one does not compile.
+    nonisolated static let authorities: [LayoutAuthority] = LayoutAuthority.allCases
 
     /// The 34 scenario names, written out by hand before the first run (practices
     /// shape 13: a count a later loop indexes on is a literal, not a derivation).
@@ -95,9 +97,9 @@ enum ScrollAuthorityCoverage {
     ]
 
     private(set) static var seen: [String: Set<LayoutAuthority>] = [:]
-    /// Set by `record` when the last expected name arrives and the whole set has
-    /// been verified — so a reader can tell "every scenario was checked" from
-    /// "the check never ran because the run was filtered".
+    /// Set by `record` when the last expected name arrives and every OTHER
+    /// scenario has been verified — so a reader can tell "the order-independent
+    /// half ran" from "it never ran because the run was filtered".
     private(set) static var verifiedWholeSet = false
 
     /// Called first thing by every parameterised scroll scenario, with `#function`
@@ -106,6 +108,15 @@ enum ScrollAuthorityCoverage {
     /// Raises its own issues, so a scenario whose name is not in `expected` — a
     /// rename, or one added without being listed — reddens **in its own arm**,
     /// wherever in the run that arm lands.
+    ///
+    /// **The whole-set check skips the name it is called with, and that is not a
+    /// hole.** Swift Testing runs one test's argument cases back to back
+    /// (measured: `… → .legacy` then `… → .proposal` for the same function), so
+    /// when the last expected name first arrives every OTHER name has had all its
+    /// arms — but that name itself has had exactly one, and including it would
+    /// make this fire on every healthy run. The one scenario it cannot speak for
+    /// is covered by `everyScrollScenarioRanUnderBothLayoutAuthorities`, which
+    /// runs after all of them.
     static func record(_ function: String, _ authority: LayoutAuthority,
                        sourceLocation: SourceLocation = #_sourceLocation) {
         let name = String(function.prefix { $0 != "(" })
@@ -116,8 +127,8 @@ enum ScrollAuthorityCoverage {
         guard !verifiedWholeSet, Set(seen.keys) == expected else { return }
         verifiedWholeSet = true
         let all = Set(LayoutAuthority.allCases)
-        for (name, authorities) in seen where authorities != all {
-            Issue.record("\(name) ran under \(authorities.map(\.self)) — the exit criterion is both authorities",
+        for (other, authorities) in seen where other != name && authorities != all {
+            Issue.record("\(other) ran under \(authorities.count) authority, not both — the exit criterion is both",
                          sourceLocation: sourceLocation)
         }
     }
