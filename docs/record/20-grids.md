@@ -1803,7 +1803,9 @@ instrument: light vs dark f0 **1 048 576**, default vs modal light **1 030 498**
 default vs animation light **210 027**, preview light vs dark **1 048 576**, f0
 vs f3 **0**, and `default-light-f0` has **544** distinct pixel values.
 
-`git archive`s of `cb2e708` and `12d4b28`:
+`git archive`s of `cb2e708` and `12d4b28`. (`12d4b28` is the last commit that
+changes rendering: the docs commit after it touches only two source DOC
+COMMENTS and the three track documents, so this is the head's comparison.)
 
 | image | differing pixels | bbox | scene |
 |---|---|---|---|
