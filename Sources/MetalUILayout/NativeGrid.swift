@@ -13,10 +13,11 @@ import MetalUICore
 // `LayoutTree.swift`'s `.grid` arms and its last extension are the only
 // callers.
 //
-// **Lanes 1 and 2 of four**: the plan, its indexes and gaps, the nil×nil solve,
-// placement and the grid's edges (lane 1); the solve at any other proposal,
-// with indexed bookkeeping (lane 2). Cell anchors, column alignment, unsized
-// axes, the column-sum rule and the modifier-chain walk are lane 3's.
+// **Lanes 1, 2 and 3 of four**: the plan, its indexes and gaps, the nil×nil
+// solve, placement and the grid's edges (lane 1); the solve at any other
+// proposal, with indexed bookkeeping (lane 2); cell anchors, column alignment,
+// unsized axes and the column-sum rule (lane 3, whose modifier-chain walk lives
+// in `LayoutTree.gridChildMarks`). The element API is lane 4's.
 
 /// A set of layout axes: SwiftUI's `Axis.Set`, for `gridCellUnsizedAxes` (ruling
 /// GR-H). MetalUI has no `Axis.Set`, and `ProposalStackAxis` is a two-case enum
@@ -35,9 +36,9 @@ struct NativeGridEdges: Equatable {
     var trailing: Bool
 }
 
-/// What the plan reads about one grid child, gathered by `LayoutTree` at the
-/// grid's registration (ruling GR-A). In lane 1 the marks are read on the child
-/// node alone.
+/// What the plan reads about one grid child, gathered by
+/// `LayoutTree.gridChildMarks` at the grid's registration, walking the child's
+/// modifier chain (rulings GR-A, GR-I).
 struct NativeGridChild {
     let node: LayoutNodeID
     /// The row token of the last `markNativeGridRow` over this node; nil for a
@@ -45,8 +46,15 @@ struct NativeGridChild {
     let rowToken: Int?
     /// The alignment written with that token (its vertical factor is read).
     let rowAlignment: ProposalAlignment?
-    /// `markNativeGridCell(_:columns:)`'s count, nil if unmarked.
+    /// The sum of this child's chain's `gridCellColumns` marks above 1, nil if
+    /// none (ruling GR-F; GX15's 3 and 2 span 5, GX16's 2 and 1 span 2).
     let columns: Int?
+    /// The innermost `gridCellAnchor` on the chain (rulings GR-G, GR-I).
+    let anchor: ProposalAlignment?
+    /// The innermost `gridColumnAlignment` on the chain.
+    let columnAlignment: ProposalAlignment?
+    /// The union of the chain's `gridCellUnsizedAxes` (ruling GR-H).
+    let unsizedAxes: ProposalAxes
     let priority: Double
     let horizontalEdges: NativeGridEdges
     let verticalEdges: NativeGridEdges
@@ -62,6 +70,18 @@ struct NativeGridCell {
     /// column.
     let span: Int
     let isRowCell: Bool
+    /// `gridCellAnchor`: overrides the column's and the row's and the grid's
+    /// alignment on BOTH axes, a non-row child included (ruling GR-G; GL10,
+    /// GL11, GL13).
+    let anchor: ProposalAlignment?
+    /// `gridColumnAlignment` as this cell declares it. A **non-row** cell
+    /// declares none (GX13's column half, the model's `where !c.isFull`), and a
+    /// spanning cell declares for its first column without being aligned by it
+    /// (GL8).
+    let columnAlignment: ProposalAlignment?
+    /// `gridCellUnsizedAxes` (ruling GR-H): on such an axis the cell is
+    /// proposed its current slot instead of a share.
+    let unsizedAxes: ProposalAxes
     /// `nativeLayoutPriority` of the child (the finite solve's groups).
     let priority: Double
     let horizontalEdges: NativeGridEdges
@@ -77,10 +97,12 @@ struct NativeGridCell {
 /// fall further (record §20, lane 1).
 final class NativeGridPlan {
     init(alignment: ProposalAlignment, cells: [NativeGridCell], columnCount: Int, rowCount: Int,
-         rowAlignments: [ProposalAlignment?], rowCells: [[Int]], columnSingleCells: [[Int]],
+         rowAlignments: [ProposalAlignment?], columnAlignments: [ProposalAlignment?],
+         rowCells: [[Int]], columnSingleCells: [[Int]],
          hgap: [Double], vgap: [Double]) {
         self.alignment = alignment; self.cells = cells; self.columnCount = columnCount
-        self.rowCount = rowCount; self.rowAlignments = rowAlignments; self.rowCells = rowCells
+        self.rowCount = rowCount; self.rowAlignments = rowAlignments
+        self.columnAlignments = columnAlignments; self.rowCells = rowCells
         self.columnSingleCells = columnSingleCells; self.hgap = hgap; self.vgap = vgap
     }
     let alignment: ProposalAlignment
@@ -90,6 +112,10 @@ final class NativeGridPlan {
     /// Per row: the row mark's alignment; nil for a non-row cell's row or an
     /// unaligned row.
     let rowAlignments: [ProposalAlignment?]
+    /// Per column: the **first** `gridColumnAlignment` declared for it in row
+    /// order, then cell order, by a ROW cell (ruling GR-G; GL4–GL7, and GX13's
+    /// column half, where a non-row child declares none).
+    let columnAlignments: [ProposalAlignment?]
     /// Per row: its cells' indexes into `cells`, in order.
     let rowCells: [[Int]]
     /// Per column: the indexes of the single-column cells starting there.
@@ -151,7 +177,18 @@ func makeNativeGridPlan(_ children: [NativeGridChild], alignment: ProposalAlignm
     func span(_ child: NativeGridChild) -> Int { Swift.max(1, child.columns ?? 1) }
     var columnCount = 0
     for group in groups where children[group.lowerBound].rowToken != nil {
-        columnCount = Swift.max(columnCount, children[group].reduce(0) { $0 + span($1) })
+        // The sum is checked as it grows, so a row of several huge spans traps
+        // with the parameter named instead of overflowing (ruling GR-S; GX24
+        // measures that SwiftUI honours such a sum, so this is a deliberate
+        // divergence). Each addend is at most `Int32.max`, so the running sum
+        // cannot overflow before the check sees it.
+        var sum = 0
+        for child in children[group] {
+            sum += span(child)
+            precondition(sum <= Int(Int32.max),
+                         "a grid row's gridCellColumns must not sum above Int32.max (GR-S), got \(sum)")
+        }
+        columnCount = Swift.max(columnCount, sum)
     }
     if columnCount == 0 { columnCount = 1 }
 
@@ -171,13 +208,26 @@ func makeNativeGridPlan(_ children: [NativeGridChild], alignment: ProposalAlignm
             if cellSpan == 1 { columnSingleCells[cellColumn].append(cells.count) }
             indexes.append(cells.count)
             cells.append(NativeGridCell(node: child.node, row: row, column: cellColumn, span: cellSpan,
-                                        isRowCell: isRow, priority: child.priority,
+                                        isRowCell: isRow, anchor: child.anchor,
+                                        columnAlignment: child.columnAlignment,
+                                        unsizedAxes: child.unsizedAxes, priority: child.priority,
                                         horizontalEdges: child.horizontalEdges,
                                         verticalEdges: child.verticalEdges))
             column += cellSpan
         }
         rowCells.append(indexes)
         rowAlignments.append(isRow ? children[group.lowerBound].rowAlignment : nil)
+    }
+
+    // A column's alignment is the FIRST one a ROW cell declares for it, in row
+    // order then cell order (GL6 vs GL7); a non-row child declares none (GX13's
+    // column half). Resolved here rather than at placement: it is a function of
+    // the plan alone.
+    var columnAlignments = Array(repeating: ProposalAlignment?.none, count: columnCount)
+    for cell in cells where cell.isRowCell {
+        if columnAlignments[cell.column] == nil, let alignment = cell.columnAlignment {
+            columnAlignments[cell.column] = alignment
+        }
     }
 
     func pair(_ explicit: Double?, _ trailingZero: Bool, _ leadingZero: Bool) -> Double {
@@ -211,6 +261,7 @@ func makeNativeGridPlan(_ children: [NativeGridChild], alignment: ProposalAlignm
 
     return NativeGridPlan(alignment: alignment, cells: cells, columnCount: columnCount,
                           rowCount: rowCells.count, rowAlignments: rowAlignments,
+                          columnAlignments: columnAlignments,
                           rowCells: rowCells, columnSingleCells: columnSingleCells,
                           hgap: hgapValues.map { $0 ?? 0 }, vgap: vgap)
 }
@@ -305,8 +356,16 @@ func nativeGridCellRects(_ plan: NativeGridPlan, solution: NativeGridSolution, x
             ? solution.proposals[index]
             : ProposedSize(width: slot.width, height: slot.height)
         let answer = measure(index, proposal)
-        let fx = plan.alignment.horizontalFactor
-        let fy = plan.rowAlignments[cell.row]?.verticalFactor ?? plan.alignment.verticalFactor
+        // The anchor wins on both axes (GL10, GL11, GL13); otherwise the column's
+        // alignment horizontally — but only for a SINGLE-column cell, so a span
+        // declares an alignment it is not itself subject to (GL8) — and the
+        // row's vertically; otherwise the grid's (ruling GR-G).
+        let fx = cell.anchor?.horizontalFactor
+            ?? (cell.span == 1 ? plan.columnAlignments[cell.column]?.horizontalFactor : nil)
+            ?? plan.alignment.horizontalFactor
+        let fy = cell.anchor?.verticalFactor
+            ?? plan.rowAlignments[cell.row]?.verticalFactor
+            ?? plan.alignment.verticalFactor
         return (LayoutRect(x: columnX[cell.column] + (slot.width - answer.width) * fx,
                            y: rowY[cell.row] + (slot.height - answer.height) * fy,
                            width: answer.width, height: answer.height),
@@ -550,7 +609,13 @@ final class NativeGridSolver {
         let cell = plan.cells[index]
         var width: Double?
         if let wPrime, let shareW {
-            if cell.span == 1 {
+            if cell.unsizedAxes.contains(.horizontal) {
+                // GR-H: an unsized axis is proposed the cell's CURRENT slot on
+                // that axis — its spanned columns' widths plus inner gaps, which
+                // for a single-column cell is just that column's width — instead
+                // of a share. Its answer still widens the column (GU5's 100).
+                width = spanWidth(cell)
+            } else if cell.span == 1 {
                 width = Swift.max(shareW, widths[cell.column])
             } else if wPrime.isInfinite {
                 width = wPrime
@@ -563,7 +628,9 @@ final class NativeGridSolver {
                 width = Swift.max(wPrime - outside + innerGaps(plan, cell), spanWidth(cell))
             }
         }
-        let height = shareH.map { Swift.max($0, heights[cell.row]) }
+        let height = shareH.map {
+            cell.unsizedAxes.contains(.vertical) ? heights[cell.row] : Swift.max($0, heights[cell.row])
+        }
         phase = .serve(position)
         request = (index, ProposedSize(width: width, height: height))
     }

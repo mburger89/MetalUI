@@ -72,8 +72,11 @@ public final class LayoutTree {
     /// Grid marks, by node index (ruling GR-A; `markNativeGridRow`,
     /// `markNativeGridCell`): the row token and row alignment of the last row
     /// mark over each node (an enclosing `GridRow` marks after the one it
-    /// contains, so it wins, nil alignment included; GR-T), and each node's
-    /// `gridCellColumns` count. Written before a grid registers and read once,
+    /// contains, so it wins, nil alignment included; GR-T), each node's
+    /// `gridCellColumns` **sum** of the marks above 1, its FIRST
+    /// `gridCellAnchor` and `gridColumnAlignment` (the inner modifier marks
+    /// first, so the inner declaration wins; GL15, GL16) and the union of its
+    /// `gridCellUnsizedAxes`. Written before a grid registers and read once,
     /// by `newNativeGrid`; cleared by `reset(generation:)`. `nextGridRowToken`
     /// makes each row mark's token fresh; it is never reset, which keeps tokens
     /// unique. Stored properties on a public class read across a module
@@ -81,6 +84,9 @@ public final class LayoutTree {
     private var gridRowTokens: [Int: Int] = [:]
     private var gridRowAlignments: [Int: ProposalAlignment] = [:]
     private var gridCellColumns: [Int: Int] = [:]
+    private var gridCellAnchors: [Int: ProposalAlignment] = [:]
+    private var gridCellColumnAlignments: [Int: ProposalAlignment] = [:]
+    private var gridCellUnsizedAxes: [Int: ProposalAxes] = [:]
     private var nextGridRowToken = 0
 
     /// The native run in progress, `nil` outside a native layout call.
@@ -705,6 +711,9 @@ public final class LayoutTree {
         gridRowTokens.removeAll(keepingCapacity: true)
         gridRowAlignments.removeAll(keepingCapacity: true)
         gridCellColumns.removeAll(keepingCapacity: true)
+        gridCellAnchors.removeAll(keepingCapacity: true)
+        gridCellColumnAlignments.removeAll(keepingCapacity: true)
+        gridCellUnsizedAxes.removeAll(keepingCapacity: true)
     }
 
     /// The storage index for `id`, after checking it belongs to this tree.
@@ -1577,13 +1586,31 @@ extension LayoutTree {
         }
     }
 
-    /// Marks `node` as a grid cell spanning `columns` columns (ruling GR-F;
-    /// `gridCellColumns`). **Lane 1: a later mark replaces an earlier one**;
-    /// lane 3 sums them and adds the anchor, column-alignment and unsized-axes
-    /// marks. 0 lays out as 1 (GX14). A negative count traps with the parameter
-    /// named, where SwiftUI traps (GT1; SA-J). Traps on a legacy node and on a
-    /// node that already has a native parent, as `markNativeGridRow` does.
-    public func markNativeGridCell(_ node: LayoutNodeID, columns: Int? = nil) {
+    /// Marks `node` as a grid cell: `columns` is `gridCellColumns`, `anchor`
+    /// `gridCellAnchor`, `columnAlignment` `gridColumnAlignment` and
+    /// `unsizedAxes` `gridCellUnsizedAxes` (rulings GR-F, GR-G, GR-H, GR-S).
+    /// Every argument is optional and a call writes only what it is given, so
+    /// one modifier is one call.
+    ///
+    /// **Several marks on one node combine as SwiftUI's modifiers do**
+    /// (ruling GR-I), and the inner modifier marks FIRST:
+    /// - `columns` **adds the marks above 1** (GX15: 3 and 2 span 5; GX16: 2 and
+    ///   1 span 2), so a count of 0 or 1 contributes nothing and a cell with no
+    ///   count above 1 spans one column. 0 lays out as 1 (GX14).
+    /// - `anchor` and `columnAlignment` keep the FIRST value written, so the
+    ///   inner declaration wins (GL15, GL16).
+    /// - `unsizedAxes` forms a union (GU12, GU13).
+    ///
+    /// A negative count traps with the parameter named, where SwiftUI traps
+    /// (GT1; SA-J), and so does a single count or a node's sum above
+    /// `Int32.max` (ruling GR-S: SwiftUI reads a 40-bit count as its low 32
+    /// bits, GX22, which the kernel will not reproduce silently). A row's sum
+    /// is checked by `newNativeGrid`. Traps on a legacy node and on a node that
+    /// already has a native parent, as `markNativeGridRow` does.
+    public func markNativeGridCell(_ node: LayoutNodeID, columns: Int? = nil,
+                                   anchor: ProposalAlignment? = nil,
+                                   columnAlignment: ProposalAlignment? = nil,
+                                   unsizedAxes: ProposalAxes = []) {
         let index = slot(node)
         precondition(nativeNodes[index] != nil,
                      "a grid cell mark written on a legacy node (SA-G), node \(index)")
@@ -1591,7 +1618,71 @@ extension LayoutTree {
                      "a grid cell mark written after its node was parented (GR-A), node \(index)")
         if let columns {
             precondition(columns >= 0, "grid cell columns must not be negative (GR-F, SA-J), got \(columns)")
-            gridCellColumns[index] = columns
+            precondition(columns <= Int(Int32.max),
+                         "grid cell columns must not exceed Int32.max (GR-S), got \(columns)")
+            if columns > 1 {
+                let sum = (gridCellColumns[index] ?? 0) + columns
+                precondition(sum <= Int(Int32.max),
+                             "grid cell columns must not exceed Int32.max (GR-S), summed to \(sum)")
+                gridCellColumns[index] = sum
+            }
+        }
+        if let anchor, gridCellAnchors[index] == nil { gridCellAnchors[index] = anchor }
+        if let columnAlignment, gridCellColumnAlignments[index] == nil {
+            gridCellColumnAlignments[index] = columnAlignment
+        }
+        if !unsizedAxes.isEmpty {
+            gridCellUnsizedAxes[index, default: []].formUnion(unsizedAxes)
+        }
+    }
+
+    /// What a grid reads about one child, gathered by walking its modifier
+    /// chain (ruling GR-I, probe group GW).
+    ///
+    /// The walk goes from the child node inwards through `frame`, `padding`,
+    /// `fixedSize`, `aspectRatio`, `layoutPriority` and an overlay attachment's
+    /// **primary** (child 0), and stops at anything else — a `linearStack`, an
+    /// `overlay` (`ZStack`), an overlay attachment's content side, a
+    /// `scrollViewport`, a `custom` layout, a nested grid, a `spacer` or a
+    /// `leaf`. It is `markSpacers`' list **without** the overlay content side,
+    /// which K2e reads for spacer marks and GW rejects for grid attributes.
+    ///
+    /// Combination along the chain: the row token (with its alignment) from the
+    /// **outermost** mark, the anchor and column alignment from the
+    /// **innermost**, the columns summed and the unsized axes unioned. A
+    /// wrapper MetalUI adds later that registers a node needs an arm here, or
+    /// attributes written inside it vanish silently; test 3.10
+    /// (`cellAttributesAndRowTokensAreReadThroughModifierNodesAndNotContainers`)
+    /// enumerates the node kinds and must gain an arm with it.
+    private func gridChildMarks(_ id: LayoutNodeID)
+        -> (rowToken: Int?, rowAlignment: ProposalAlignment?, columns: Int?,
+            anchor: ProposalAlignment?, columnAlignment: ProposalAlignment?, unsizedAxes: ProposalAxes) {
+        var rowToken: Int?
+        var rowAlignment: ProposalAlignment?
+        var columns = 0
+        var anchor: ProposalAlignment?
+        var columnAlignment: ProposalAlignment?
+        var unsizedAxes: ProposalAxes = []
+        var node = id
+        while true {
+            let index = node.index
+            if rowToken == nil, let token = gridRowTokens[index] {
+                rowToken = token
+                rowAlignment = gridRowAlignments[index]
+            }
+            columns += gridCellColumns[index] ?? 0
+            if let value = gridCellAnchors[index] { anchor = value }
+            if let value = gridCellColumnAlignments[index] { columnAlignment = value }
+            unsizedAxes.formUnion(gridCellUnsizedAxes[index] ?? [])
+            switch nativeNode(node) {
+            case .frame, .padding, .fixedSize, .aspectRatio, .layoutPriority, .overlayAttachment:
+                node = children(node)[0]
+            case .leaf, .spacer, .overlay, .linearStack, .scrollViewport, .custom, .grid:
+                precondition(columns <= Int(Int32.max),
+                             "grid cell columns must not exceed Int32.max (GR-S), summed to \(columns)")
+                return (rowToken, rowAlignment, columns == 0 ? nil : columns,
+                        anchor, columnAlignment, unsizedAxes)
+            }
         }
     }
 
@@ -1608,8 +1699,11 @@ extension LayoutTree {
     /// position, before any other read of it (SA-G); each given spacing is
     /// finite, the message naming `horizontalSpacing` or `verticalSpacing`
     /// (SA-J; SwiftUI answers nan and inf, GS9, GS10); each child has no other
-    /// parent (CN-L). The plan — rows, spans, gaps, priorities, edges — is
-    /// resolved here, once, and marks written later are not read.
+    /// parent (CN-L); and each row's sum of spans is at most `Int32.max`, the
+    /// message naming `gridCellColumns` (GR-S). The plan — rows, spans, gaps,
+    /// priorities, edges, anchors, column alignments and unsized axes — is
+    /// resolved here, once, each child's marks read by walking its modifier
+    /// chain (`gridChildMarks`, GR-I), and marks written later are not read.
     ///
     /// At a proposal with a non-nil axis the cells are served in
     /// flexibility-ordered, priority-grouped groups with shares and commits
@@ -1633,9 +1727,13 @@ extension LayoutTree {
         let inputs = children.map { child in
             let horizontal = zeroSpacingEdges(child, axis: .horizontal)
             let vertical = zeroSpacingEdges(child, axis: .vertical)
-            return NativeGridChild(node: child, rowToken: gridRowTokens[child.index],
-                                   rowAlignment: gridRowAlignments[child.index],
-                                   columns: gridCellColumns[child.index],
+            let marks = gridChildMarks(child)
+            return NativeGridChild(node: child, rowToken: marks.rowToken,
+                                   rowAlignment: marks.rowAlignment,
+                                   columns: marks.columns,
+                                   anchor: marks.anchor,
+                                   columnAlignment: marks.columnAlignment,
+                                   unsizedAxes: marks.unsizedAxes,
                                    priority: nativeLayoutPriority(child),
                                    horizontalEdges: NativeGridEdges(leading: horizontal.leading,
                                                                     trailing: horizontal.trailing),
