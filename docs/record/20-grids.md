@@ -1644,7 +1644,7 @@ is the implementer's, above, including its launch-noise finding.
 Base `920e2d6` (lane 3's verifier round), suite **1464**. Rulings delivered:
 `GR-J`, `GR-K`, `GR-T`'s element half, `GR-V`, `GR-AD`'s three remaining
 parameters, `GR-AE` (a grid in the preview) and `GR-AF` (identity, pinned wrong
-on purpose), plus the dispositions `GR-AP` (six departures from the spec's
+on purpose), plus the dispositions `GR-AP` (eight departures from the spec's
 table), `GR-AQ` (`GR-AC` item 3's mutation measured wrong), `GR-AR` (the preview
 delta) and `GR-AS` (how a "marks after its content" clause must be mutated).
 
@@ -1665,9 +1665,17 @@ errors of eight distinct kinds** and no others:
 | `extra argument 'unsizedAxes' in call` | `:66:64` |
 | `generic parameter 'some StringProtocol' could not be inferred` | 8, cascading on `#require` messages whose subexpressions did not typecheck |
 
-The four typecheck guards compile (their fixtures are strings) and are red at run
-time: each one's POSITIVE control does not typecheck either, so `#require` fails
-before the negative is read.
+**The four typecheck guards have no red-first reading at `cdfdf54`, and the
+first version of this paragraph claimed one it could not have taken.** It said
+the guards "are red at run time"; at `cdfdf54` the test target does not link at
+all (the 223 errors above, independently rebuilt from a `git archive` by the
+verifier), so no `@Test` in the target ran. What is true is only that their
+FIXTURES are strings, which is why they contributed no compile error of their
+own. Their red evidence is the head-side mutations **G1M–G4M** in the table
+below, each of which the verifier re-ran on its own (G1 2 issues, G2 2 plus
+`aHorizontalCaseIsNotAnHStackAlignmentNorAVerticalCaseAVStacks` 2, G3 2, G4 2),
+together with the `GRID GUARD 1..4` prints that say all four actually run rather
+than skipping (`CI — what lapses silently`).
 
 ### Source (`f0e72b1`)
 
@@ -1747,6 +1755,7 @@ and their issue counts.
 | M7 | … marks a throwaway early registration as well as the real one | 4.2 (60), 4.5 (11), 4.1 (9), 4.10 (2) |
 | M8 | … consumes a cursor index | 4.10 (1) |
 | M9 | `GridRow` marks early **as well as** late | 4.10 (1), 4.9 (1), 4.9b (1), 4.9c (1) — **and NOT 4.4**: `GR-AS` |
+| M9c | (verifier round) the KERNEL keeps the first row token and alignment instead of overwriting | 4.4 (8), lane 3's `consecutiveCellsOfOneRowTokenAreOneRowAndTheOutermostRowMarkWins` (9) — see the verifier round below and the amended `GR-AS` |
 | M9b | `GridRow` marks early **instead of** late | 4.4 (12), 4.1 (44), 4.2 (45), 4.5 (17), 4.6 (10), 4.17 (3), 4.11 (2), 4.12 (1), 4.15 (1), 4.20 (1), 4.10 (1), 4.9/4.9b/4.9c (1 each) |
 | M10 | `GridRow` forwards `parent` and `cursor` to its content | 4.8 (4), 4.20 (2), 4.9 (2), 4.10 (1) |
 | M11 | `GridRow` registers a one-node `HStack` over its cells | 4.2 (75), 4.1 (24), 4.5 (9), 4.13 (6), 4.6 (4), 4.3 (3), 4.17 (3), 4.4 (2), 4.7 (2), 4.20 (1) |
@@ -1775,10 +1784,13 @@ and their issue counts.
 **No mutation left the suite green**, and two are findings rather than
 confirmations:
 
-- **M9 vs M9b** (`GR-AS`): marking early *and* late does not move the ordering
-  rule at all — the late mark still overwrites — so the four tests it reddens are
-  reddened by the double registration, not by the order. Only replacing the late
-  mark discriminates, and it does so broadly.
+- **M9 vs M9b** (`GR-AS`, amended by the verifier round below): marking early
+  *and* late does not move the ordering rule at all — the late mark still
+  overwrites — so the four tests it reddens are reddened by the double
+  registration, not by the order. Only replacing the late mark discriminates on
+  the ELEMENT side, and it does so broadly. **M9c shows the rule itself is
+  narrowly mutable from the KERNEL side**, so the round's conclusion that such a
+  clause is "only mutable by MOVING the mark" was too strong.
 - **M21** (`GR-AQ`): `GR-AC` item 3's stated mutation, `maxDepth + 40`, reddens
   **nothing in 4.21**. At 128 the chains are 127 nodes and 127 is exactly the
   one-child vertical stack's 1 MB ceiling — the binding kind survives by one
@@ -1898,8 +1910,8 @@ What this stage owes them:
    note.
 7. **`swift package clean` before the merged suite** (`GR-A`): both tracks add
    stored properties to public classes that cross a module boundary.
-8. **Counts to re-take after that clean**: this track alone reads 1492 tests, 97
-   goldens, 75 guards.
+8. **Counts to re-take after that clean**: this track alone reads 1493 tests, 97
+   goldens, 75 guards (1492 at `12d4b28`, plus the verifier round's test 4.10b).
 
 ### Deferrals
 
@@ -1919,3 +1931,95 @@ raise `maxDepth` to 128 and 4.21's stack arm survives by exactly one level (127
 completes, 128 dies), so the headroom between "the guard admits the tree" and
 "the stack overflows" is **40 levels**, not the 0.60 rule's ~46%. Owner unchanged
 (`LR-Q`'s stage 6b re-bisection, `GR-N`).
+
+### Verifier round (lane 4)
+
+The verifier re-took the whole of lane 4 at `687f074` and found the suite, the
+goldens, the guard count, the red-first reading, the probe re-run, the offscreen
+demo comparison and the real-window capture all reproducible — including `GR-AR`'s
+560 explanation term for term and `GR-AQ`'s M21 finding. It raised **one major
+and three minors**, and ran **five mutations of its own** (V1–V5). Three of those
+were green, which is what the major and the first minor are.
+
+| verifier mutation | suite | disposition |
+|---|---|---|
+| **V1** — `Grid.requestProposalLayout` passes `.center` instead of its own `alignment` | **green** | the major: fixed below |
+| **V2** — `Grid` numbers its content from cursor 1 | 4.8 (4), 4.10 (1) | already pinned |
+| **V3** — `GridRow`'s UNTYPED `requestGroupLayout` returns no nodes | **green** | minor 1: fixed below |
+| **V4** — `GridCellModifier`'s the same | **green** | minor 1: fixed below |
+| **V5** — `GridRow` marks with `alignment: nil` | 4.4 (2), 4.1 (1) | already pinned (and the sibling hop V1 was not, which is what found the major) |
+| **M9c** — the KERNEL's `markNativeGridRow` keeps the FIRST token and alignment written on a node | 4.4 (8), lane 3's row-token test (9) | the finding behind minor 3 |
+
+#### The major: the `Grid` element's own `alignment` was unpinned (fixed)
+
+`requestNativeGridForwardsItsAlignmentToTheKernel` pins the `LayoutPass` →
+kernel hop and `GridRow`'s element → `LayoutPass` hop is pinned by V5, but
+nothing reached `Grid`'s. Every arm of test 4.1 used the default `.center`, and
+`grep -n "Grid(" Tests/MetalUITests/Grid*.swift` found exactly one non-default
+construction in the tree — GA3's spacings. This is the obligation lane 1's
+verifier handed to lane 4 ("For lane 4", item: *a non-centre grid alignment … each
+reached through `LayoutPass`, with a mutation dropping the forwarding*); it was
+neither delivered nor listed among `GR-AP`'s departures.
+
+**Fix** (`ddf66ec`): test 4.1 gains probe arm **GL1** —
+`Grid(alignment: .topLeading)` over GA1's four leaves in GA1's own window —
+whose expected rects are the probe's, `size 78x58 | a (0,0 30x10) |
+b (38,0 20x20) | c (0,28 10x30) | d (38,28 40x10)`. **GA1 is its discriminating
+control**: the same leaves under `.center` put `a` at y 5 and `b` at x 48, so the
+two arms disagree on both axes.
+
+Re-taking **V1** against it: `Test run with 1493 tests in 1 suite failed … with 4
+issues`, all four `gridAndGridRowLayOutAsTheProbeReadsThroughTheElementAPI`, at
+`GridElementTests.swift:169–172` — GL1's four rects and nothing else.
+
+#### Minor 1: both untyped group entries were unpinned (fixed)
+
+`GridRow`'s and `GridCellModifier`'s untyped `requestGroupLayout` shims each
+return `nodes.map(\.layoutNodeID)` over the typed entry. The lane recorded of the
+first that it is "not a copy — there is nothing here to pin separately (`MC-H`)",
+which is true of DRIFT and says nothing about REACHABILITY: `ProposalElementGroup`
+refines `ElementGroup`, so a legacy builder group calls them, and V3/V4 showed
+either can return `[]` with all 1492 tests green.
+
+**Fix** (`ddf66ec`): test **4.10b**,
+`theUntypedGroupEntriesOfARowAndACellModifierForwardEveryCellNode`, calls each
+untyped entry directly, `try #require`s the node count (shape 13 — so a dropping
+shim fails there rather than trapping later inside `requestNativeGrid` and
+truncating the run) and reads the marks those ids carry through a grid built from
+them: arm 1 both cells `isRowCell`, arm 2 both spans 2 through
+`.gridCellColumns(2)` on the row.
+
+Re-taking **V3** and **V4** against it: each gives `1 issue`, the new test's
+`nodes.count == 2` at `GridElementTests.swift:1072`, and nothing else.
+
+#### Minor 2: the red-first paragraph claimed a reading it could not have taken
+
+Corrected in place above: at `cdfdf54` the test target does not link, so the
+guards' red evidence is G1M–G4M at the head, not a run-time reading.
+
+#### Minor 3: `GR-AS` was stronger than what was measured
+
+`GR-AS` concluded that a "marks after its content" clause is *only* mutable by
+moving the mark. The verifier's **M9c** mutates the kernel instead —
+`markNativeGridRow` keeps the first token and alignment written on a node rather
+than overwriting, reversing `GR-T`'s "the outermost row wins" with **no double
+registration** — and gets a narrow 17 issues in exactly two tests. Re-taken here:
+`Test run with 1493 tests in 1 suite failed … with 17 issues`,
+`aGridRowInsideAGridRowFlattensWithTheOutermostAlignment` (8) and
+`consecutiveCellsOfOneRowTokenAreOneRowAndTheOutermostRowMarkWins` (9) — no
+collateral, against M9b's twelve-test spread. `GR-AS` is amended accordingly: the
+ordering RULE is narrowly pinned; what cannot be mutated in isolation is the
+ELEMENT-side placement of the call.
+
+#### Suite, goldens, guards, demo
+
+`Test run with 1493 tests in 1 suite passed after 50.054 seconds` (1492 + test
+4.10b; GL1 is an arm, not a `@Test`), 0 `error:`, no `warning:` but SwiftPM's
+deprecation notice. Goldens **97**, `git diff cb2e708 -- '*.json'` empty. Guards
+**75**, unchanged — this round adds no typecheck guard. `git status --short` was
+empty before and after each of the four mutation runs.
+
+**No demo comparison was re-taken, and none is owed**: `git diff 687f074 -- Sources/`
+is empty, so every rendered pixel is the one `12d4b28`'s comparison and the
+`cb2e708 → 12d4b28` real-window capture above already read. This round changes
+`Tests/` and the three track documents only.

@@ -6,10 +6,10 @@ unused is **`GR-AT`**. A bare `GR-3` is a typo, not a citation.
 
 **Status, 2026-09-21: all four lanes built.** `GR-W` and `GR-X` record lanes 1
 and 2's as-built amendments, `GR-AK`…`GR-AO` lane 3's, and `GR-AP`…`GR-AS`
-lane 4's — the six departures from its table, `GR-AC` item 3's mutation measured
-WRONG (`+40` reddens nothing), the preview grid's delta and the shape of a
-"marks after its content" mutant. At lane 4's head: **1492** tests, 97 goldens,
-**75** guards;
+lane 4's — the eight departures from its table, `GR-AC` item 3's mutation
+measured WRONG (`+40` reddens nothing), the preview grid's delta and the shape of
+a "marks after its content" mutant. At lane 4's head, after its verifier round:
+**1493** tests, 97 goldens, **75** guards;
 the design was revised after **two** critic rounds — `GR-Q` records how each of
 the first round's fourteen findings was applied, `GR-Y` how each of the second
 round's fifteen was, and `GR-Z`…`GR-AF` are that round's new rulings. `GR-AG`
@@ -1839,8 +1839,9 @@ being missing.
 ## GR-AP — lane 4 as built: what the spec's rows became
 
 **Ruling** (lane 4 implementer round, 2026-09-21; figures in record §20's lane-4
-section). Six departures from spec §6's lane-4 table, each because the table's
-spelling could not be written or could not discriminate.
+section; items 7 and 8 added by the lane's verifier round). Eight departures from
+spec §6's lane-4 table, each because the table's spelling could not be written,
+could not discriminate, or — for the last two — was simply missed.
 
 1. **4.9, 4.9b and 4.9c drive `@State` with a layout-time bump, not a click.**
    The table says "clicked to 1". A click needs a `Window`, and the three tests
@@ -1875,16 +1876,40 @@ spelling could not be written or could not discriminate.
    the existing `columns` test, whose name would then have been wrong. Its three
    arms each `#require` a control that answers differently; the unsized arm needs
    a flexible leaf, which `GridUnderTest` gained.
-6. **The counts are 1492 and 75, not §6's 1489 and 75.** §6's 1489 was written
+6. **The counts are 1493 and 75, not §6's 1489 and 75.** §6's 1489 was written
    against a 1462 baseline; the measured baseline is **1464** (1463 plus
-   `GR-AO`'s test), and lane 4 adds 27 of its own plus the registrar test above.
-   Guards are 75 as predicted.
+   `GR-AO`'s test), and lane 4 adds 27 of its own plus the registrar test above
+   — 1492 — plus the verifier round's test 4.10b below. Guards are 75 as
+   predicted.
+7. **Test 4.1 has an ELEVENTH arm, GL1, and it closes lane 1's handover**
+   (added in the verifier round at `ddf66ec`). Lane 1's verifier asked lane 4 to
+   pin each `LayoutPass` registrar's forwarding *through the element tests*, "a
+   non-centre grid alignment, a row alignment, and a column span, each reached
+   through `LayoutPass`". The row alignment and the span were delivered (V5
+   reddens 4.4 and 4.1; M5 reddens three tests); **the grid alignment was not,
+   and this list did not say so** — `Grid.requestProposalLayout` could pass
+   `.center` in place of its own `alignment` with all 1492 tests green.
+   `Grid(alignment: .topLeading)` over GA1's leaves, with GA1 itself as the
+   discriminating control, is the arm; mutation V1 reddens its four rects and
+   nothing else.
+8. **The two untyped `requestGroupLayout` shims get a test of their own**,
+   4.10b (`theUntypedGroupEntriesOfARowAndACellModifierForwardEveryCellNode`,
+   also `ddf66ec`). Item 2 of the source notes said of `GridRow`'s that there was
+   "nothing here to pin separately (`MC-H`)"; that is true of DRIFT between a
+   typed entry and its copy, and says nothing about REACHABILITY.
+   `ProposalElementGroup` refines `ElementGroup`, so a legacy builder group
+   reaches both shims, and either returning `[]` left the suite green
+   (mutations V3, V4). The test calls each entry directly and reads the marks
+   the returned ids carry.
 
 **Cost if wrong.** (1) is the one with a gap: if a later change makes a hitbox
 id differ from the element id, 4.9b/4.9c would keep passing while the `onTap`
 half of the divergence changed. Nothing in the framework separates them today
 (`Frame.registerHandlers` keys the hitbox on the element's id) and 4.14 would
-redden, but the two tests do not see it themselves.
+redden, but the two tests do not see it themselves. (7) and (8) are the cost of
+the original list itself having been incomplete: **a "departures" list is only
+as good as the obligations it was checked against**, and the lane-1 handover was
+not one of them.
 
 ---
 
@@ -1965,7 +1990,7 @@ being a clean signal; the scene-dump check is what would say so.
 
 ---
 
-## GR-AS — a "marks after its content" clause is only mutable by MOVING the mark
+## GR-AS — a "marks after its content" clause is only mutable, ON THE ELEMENT SIDE, by MOVING the mark
 
 **Finding** (lane 4 mutation round). `GridRow` and `GridCellModifier` both mark
 **after** their content registers, and the obvious mutant — mark early as well —
@@ -1975,11 +2000,35 @@ one reddened four tests, all of them by the double REGISTRATION (a second
 `aGridRowInsideAGridRowFlattensWithTheOutermostAlignment` green. Of course it
 did: `markNativeGridRow` overwrites, so the last mark still wins.
 
-**Ruling.** The mutant for such a clause **replaces** the late mark with the
-early one (mark a throwaway registration of the content, delete the real mark).
-That reddens 4.4 with 12 issues and much else besides, because the real nodes
-then carry no row token at all — broad, but it is the only mutant that moves the
-rule rather than the bookkeeping. Recorded so the next reader does not take the
-early-plus-late reading as evidence the clause is pinned.
+**Ruling.** The ELEMENT-side mutant for such a clause **replaces** the late mark
+with the early one (mark a throwaway registration of the content, delete the real
+mark). That reddens 4.4 with 12 issues and much else besides, because the real
+nodes then carry no row token at all — broad, but it is the only element-side
+mutant that moves the rule rather than the bookkeeping. Recorded so the next
+reader does not take the early-plus-late reading as evidence the clause is
+pinned.
 
-**Cost if wrong.** None; it is a note about instrument design.
+**Amended** (lane 4 verifier round, minor 3; measured, record §20's verifier
+round). The heading's original wording — "only mutable by MOVING the mark" —
+was **stronger than what was measured**, and two things have to be separated:
+
+- **The ordering RULE is narrowly mutable, from the kernel.** The verifier's
+  **M9c** wraps `LayoutTree.markNativeGridRow`'s two writes in
+  `if gridRowTokens[index] == nil { … }`, so the INNERMOST row's mark stands and
+  `GR-T`'s "the outermost row wins" is reversed with **no double registration**.
+  Full native suite: **17 issues in exactly two tests** —
+  `aGridRowInsideAGridRowFlattensWithTheOutermostAlignment` (8) and lane 3's
+  `consecutiveCellsOfOneRowTokenAreOneRowAndTheOutermostRowMarkWins` (9), no
+  collateral at all, against M9b's twelve-test spread. Re-taken by the
+  implementer at `ddf66ec`: the same 17, the same two tests.
+- **What cannot be mutated in isolation is the ELEMENT-side PLACEMENT of the
+  call** — `GridRow`'s and `GridCellModifier`'s "mark after the content
+  registers" — because the marks need nodes that only registration produces. M7
+  and M9b stay the broad stand-ins they were recorded as.
+
+So the clause is pinned after all; it is pinned by 4.4 plus lane 3's row-token
+test, reached from the kernel side, not by anything on the element side.
+
+**Cost if wrong.** None; it is a note about instrument design. The cost of the
+un-amended version is a reader who believes a whole class of ordering clause is
+unpinnable and stops looking for the mutant that holds it.
