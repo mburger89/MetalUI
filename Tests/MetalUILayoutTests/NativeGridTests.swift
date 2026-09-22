@@ -934,6 +934,49 @@ private let none = ProposedSize(width: nil, height: nil)
     #expect(control == size(100, 28), "the control's two-column span \(control)")
 }
 
+/// `GR-AO`: `reset(generation:)` clears lane 3's three cell-attribute marks as
+/// well as the spans and the row tokens. `reset` reuses node indexes, and
+/// `markNativeGridCell` writes only the arguments it is given, so a stale
+/// anchor, column alignment or unsized-axes mark on a reused index is read by
+/// the next generation's `newNativeGrid` unless `reset` clears it. Only the
+/// span's clearing was pinned: deleting all three `removeAll` calls left the
+/// whole suite green (verifier mutation V16).
+///
+/// Each attribute gets a stale arm and a control that writes the same mark
+/// **after** the reset, and the control is `#require`d to read the mark, so an
+/// arm cannot pass by reading nothing on both sides.
+///
+/// Mutations: drop each of the three `removeAll` calls in `reset(generation:)`
+/// on its own (its arm reddens), and all three together (all three redden).
+@Test func resetClearsGridCellAttributeMarks() throws {
+    func plan(_ mark: (LayoutTree, LayoutNodeID) -> Void, staleMark: Bool) throws -> NativeGridPlan {
+        let tree = LayoutTree(generation: 1)
+        let stale = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+        if staleMark { mark(tree, stale) }
+        tree.reset(generation: 2)
+        let a = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+        let b = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }
+        try #require(a.index == stale.index, "the new leaf reuses the marked index")
+        if !staleMark { mark(tree, a) }
+        tree.markNativeGridRow([a, b])
+        return try #require(tree.nativeGridPlan(tree.newNativeGrid(children: [a, b])))
+    }
+    let anchor: (LayoutTree, LayoutNodeID) -> Void = { $0.markNativeGridCell($1, anchor: .topLeading) }
+    try #require(plan(anchor, staleMark: false).cells[0].anchor == .topLeading, "the anchor control")
+    let staleAnchor = try plan(anchor, staleMark: true).cells[0].anchor
+    #expect(staleAnchor == nil, "a stale anchor survived the reset: \(String(describing: staleAnchor))")
+
+    let column: (LayoutTree, LayoutNodeID) -> Void = { $0.markNativeGridCell($1, columnAlignment: .trailing) }
+    try #require(plan(column, staleMark: false).columnAlignments[0] == .trailing, "the column-alignment control")
+    let staleColumn = try plan(column, staleMark: true).columnAlignments[0]
+    #expect(staleColumn == nil, "a stale column alignment survived the reset: \(String(describing: staleColumn))")
+
+    let unsized: (LayoutTree, LayoutNodeID) -> Void = { $0.markNativeGridCell($1, unsizedAxes: .horizontal) }
+    try #require(plan(unsized, staleMark: false).cells[0].unsizedAxes == .horizontal, "the unsized-axes control")
+    let staleUnsized = try plan(unsized, staleMark: true).cells[0].unsizedAxes
+    #expect(staleUnsized == [], "stale unsized axes survived the reset: \(staleUnsized)")
+}
+
 // MARK: - Lane 2: the finite solve
 //
 // Lane 2 ("the finite solve") of the grids spec: rulings GR-B, GR-E, GR-F at
