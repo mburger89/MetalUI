@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-BA`** (stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY` and its lane 4 `LR-AZ`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-BB`** (stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -2355,3 +2355,96 @@ alias is deleted and a later stage reintroduces a leaf that can answer wider tha
 its proposal, a padded or stretched text re-lines at paint with no test to see it.
 (5) A renamed report is a spelling stage 8's recipe reads; a wrong name sends a call
 site to the wrong owner.
+
+---
+
+## LR-BA — stage 2 lane 5's corrections: the overflow fallback the legacy engine actually takes, the arrangement's third return value, and the shape that can show a mispaired item plan
+
+**Evidence.** Record §19, lane 5: the stage-2 probe re-run twice this lane (254
+lines, the two runs byte-identical and identical to its header's OUTPUT block line
+for line, filtered stderr empty, `exit 0`); three rounds of a scratch differential
+that dumped the **legacy** answer for every shape in the lane before a literal was
+written (deleted before the red commit, `git status --short` clean); the red run
+(`Test run with 1459 tests in 1 suite failed after 48.683 seconds with 145 issues`,
+exactly the eight lane-5 tests that are not characterization); the implementation's
+first full run (15 issues: two pins to amend and one literal of the lane's own);
+a passing suite of 1459; twelve `CN-R` images at 0 differing pixels with the
+stage-1 controls exactly, the two-authority chrome pair at 0 and its M5d control at
+8 214; and the mutation table below.
+
+**The rulings.**
+
+1. **`space-around` and `space-evenly` overflow to `flex-start` in the legacy
+   engine, not to CSS's `center`, so spec 5.3 is not a divergence pin.** The design
+   predicted one from probe J9 (SwiftUI packs overflowing spacers from the start)
+   against CSS's documented fallback to `center`. Measured, three `.flexShrink(0)`
+   20s in a 40-long container: **0, 20, 40 for `spaceBetween`, `spaceEvenly` and
+   `spaceAround` alike** — because `Alignment.swift`'s `distributeMainAxis` clamps
+   its free space with `max(0, freeSpace)` in all three cases, so a negative free
+   space distributes nothing. The lowered spacers answer the same, so 5.3 became an
+   **agreement** arm, renamed
+   `spaceAroundAndSpaceEvenlyOverflowFromTheStartOnBothPaths`, with the overflow
+   itself (content 60 past a 40 container) as its `try #require`. The legacy
+   engine's own disagreement with CSS there is pre-existing, is encoded by no
+   golden, and is handed to the integrator rather than pinned here. The general
+   lesson is `LR-AZ` item 1's again, in the opposite direction: a CSS *reading* is
+   evidence about the spec, never about this engine.
+2. **The design's `arrangeLegacyMainAxis(_:_:) -> (nodes:, mainFactor:)` returns a
+   third value, the stack's spacing, and the factor is also available on its own.**
+   A distributed container's stack spacing must drop to 0 (a spacer already carries
+   the gap as its minimum, or a rigid leaf carries it), so the predicate "is this
+   container distributing?" decides the spacing too and the caller cannot recompute
+   it without duplicating the predicate. The signature is therefore
+   `arrangeLegacyMainAxis(_ items:, declared:, animated:) -> (nodes:, mainFactor:,
+   spacing:)`. Its `mainFactor` half is also needed **before** the diagnostics
+   bail-out, where no node may be registered (a reported container still records its
+   content alignment for its parent's item frame), so the mirroring lives in a
+   separate `legacyMainFactor(_:)` that registers nothing and the arrangement calls.
+3. **`alignSelf` cannot be the field that makes 5.7's item plans differ.** The test
+   needs three children whose item plans are distinguishable, so that mutation
+   **MJh** — the reversal applied before the wrappers, pairing each child with a
+   sibling's plan — is visible. The design's obvious choice, one child with
+   `.alignSelf(.flexEnd)`, made the **forward control** disagree: in a row with no
+   declared cross size the greedy alignment frame hugs where the legacy line places
+   at its end, which is lane 1's own divergence (1.6, probe X7). Measured, then
+   replaced by a grower / plain / `minWidth`-floored trio, whose forward control
+   agrees in every observation and whose plans are W-greedy-on-main / none /
+   W-with-a-minimum. MJh reddens 5.7 and nothing else.
+4. **MJd is the end spacers' minimum, not "the overflow centred".** The design named
+   5.3's mutation "the overflow centred". No spacer lowering can express that: the
+   spacers fill the stack, so the container's own main alignment factor has no free
+   space to place and changing it moves nothing. The mutation run instead is the end
+   spacers given the platform default minimum (`nil`, 8) in place of 0, which moves
+   only the overflowing arms — a fitting spacer's share is far above 8 — and reddens
+   5.3 (6 issues) beside 5.1 (8) and 5.4 (2).
+5. **`stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem` is
+   renamed, and `fourFieldContainer` loses `reverse`.** Lane 1 kept the first name
+   because its `space-*` half was still reported; this lane lowers that half too, so
+   both halves of the name are false and it is renamed
+   `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` — the container
+   table's inventory, whose five `space-*` and reverse arms stay in place expecting
+   `[]` (their rects are pinned in depth by lane 5's own tests) and whose hidden
+   reverse container still reports `display.none` alone. `fourFieldContainer`, the
+   report-order pin's subject, takes a percentage main-axis gap as its first
+   container row in `reverse`'s place, so the report is `[gap.percent, flexWrap,
+   position, inset]` and the production trap names `box.gap.percent`. Both were
+   found by the implementation's first full run, not predicted.
+6. **The two axes of 5.5 have different tables.** The reverse row's children are 20
+   and 30 long, the reverse column's 10 and 30, so their main-axis offsets differ
+   (`nil`: 180/150 against 190/160; `.center`: 105/75 against 110/80). The red
+   commit reused the row's figures for the column and the implementation's first run
+   named all eight, with `disagreeing` empty throughout — the two authorities agreed
+   and the literal was wrong. Corrected from the scratch dump taken before the red
+   run.
+
+**What it costs if wrong.** (1) A divergence pinned where none exists would have
+frozen a fiction into stage 6b's production behaviour and made any later fix of the
+legacy engine's fallback look like a regression; as it stands the two paths agree,
+and if the legacy fallback is ever corrected to CSS's `center` the lowering diverges
+and 5.3 goes red, which is the right alarm. (2) A caller that recomputed the spacing
+predicate would drift from the arrangement's; the single return keeps one predicate.
+(3) A shape whose control disagrees cannot tell a mutation from the divergence it
+already carries, so MJh would have been unreadable. (4) A mutation that reddens
+nothing is a broken instrument (practices); naming the real one keeps the coverage
+claim honest. (5) A name that no longer describes its subject sends the next reader
+to the wrong file. (6) A wrong literal on a passing test is a pin on a fiction.

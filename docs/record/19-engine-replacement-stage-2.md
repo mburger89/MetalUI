@@ -1083,3 +1083,239 @@ taken.** `IOConsoleLocked` was not read (`FR-V`).
   `padding.floor`, `padding.text`, a bare `border`, a bare percentage `minSize`
   or a lowered `margin` report must be re-checked after the merge.
 - **Retired mutations**: **M1k** (lane 3's clamp closed its window; see above).
+
+---
+
+## Lane 5 — justify distribution and reverse directions (2026-09-21, PDT)
+
+Implementer's record. Commits: `3ec113b` (red), `32f82d4` (implementation and the
+two amended pins), and this record's commit (docs, `LR-BA`, the spec's lane-5 rows).
+Rulings: `LR-BA`. This is stage 2's last lane.
+
+### Probe re-run before the tests
+
+Stage-2 probe `docs/probes/swiftui-engine-replacement-stage2.swift` (revision 4,
+unchanged source), its HOW TO RUN filter: run twice, exit 0, **254 lines**, the two
+runs byte-identical (`diff` empty) and identical to the header's OUTPUT block line
+for line (leading whitespace ignored); filtered stderr empty. Lane 5 cites J1–J9 and
+R1/R2 from this run. Both groups' controls move: J0 centres its three children at
+70/90/110 where J1 puts them at 0/90/180; R0 puts `a` at 0 where R1 puts it at 180.
+**No new arm was needed.**
+
+### Legacy answers measured before any literal was written (scratch, deleted)
+
+Three rounds of a scratch differential test (`Tests/MetalUITests/ScratchL5Tests.swift`,
+deleted; `git status --short` clean before the red commit) dumped both authorities'
+rects for every shape in the lane. Round 1 covered the distributions, round 2 the
+reverse arms with real gaps (round 1's gap loop never applied one — the arms it
+produced were duplicates and were discarded), round 3 5.7's replacement shape.
+
+| shape (children in declaration order) | legacy, measured |
+|---|---|
+| `spaceBetween` row, three 20×10 at 200, gap 0 **and** gap 10 | 0, 90, 180 in both |
+| the `Column` transpose, three 10×20 at 200 | 0, 90, 180 in both |
+| `spaceBetween` row, three rigid 20×10 at 50 | gap 0: 0, 20, 40; gap 10: 0, 30, 60 |
+| `spaceEvenly` row, three 20×10 at 200 | gap 0: 35, 90, 145; gap 10: 30, 90, 150 |
+| `spaceAround` row, three 20×10 at 200 | gap 0: **23, 90, 157** (23.33/156.67 cumulative-edge rounded); gap 10: 20, 90, 160 |
+| the `Column` transposes of both | identical offsets |
+| `spaceEvenly` / `spaceAround` / `spaceBetween`, three rigid 20s at **40** | **0, 20, 40 in all three** — the design's predicted divergence does not exist |
+| `spaceBetween` row with one child at 200 | child at 0 |
+| `spaceEvenly` / `spaceAround` row with one child at 200 | child at 90 (centred) |
+| `spaceBetween` row, `20.flexGrow(1)` beside a 20, at 200 | a 180 wide at 0, b at 180 |
+| `rowReverse` 200, children 20 and 30 long | `nil`/`flexStart` 180, 150 (gap 10: 180, 140); `center` 105, 75 (110, 70); `flexEnd` 30, 0 (40, 0); `spaceBetween` 180, 0 (180, 0) |
+| `columnReverse` 200, children 10 and 30 long | `nil`/`flexStart` 190, 160 (gap 10: 190, 150); `center` 110, 80 (115, 75); `flexEnd` 30, 0 (40, 0); `spaceBetween` 190, 0 (190, 0) |
+| forward `Row` gap 10 `.flexEnd` at 200, 20 and 30 | 140, 170 — the control the mirroring is read against |
+| `rowReverse` 100, two rigid 80s | a at 20, b at −60 (R2 exactly) |
+| unsized `Row { 20×10; 20×10 }`, `Column { 10×20; 10×20 }` | 40×10 and 10×40 — spacing 0, and the `gap: 8` controls 48 |
+| `Row { rowReverse.flexGrow(1); 40 }` at 300 | inner 260×10 at 0, its children at 240 and 210, the sibling at 260 |
+| the same with the inner row `.spaceBetween` | inner's children at 240 and 0; reports `[box.reverse, box.justifyContent.spaceBetween]` |
+| 5.7's trio (grower 20/plain 30/`minWidth` 40) in a 300 row | reverse: 70 (230 wide), 40, 0; forward: 0, 230, 260 |
+
+Two of the design's predictions were wrong, both recorded as `LR-BA`:
+
+- **The `space-around`/`space-evenly` overflow is not a divergence.**
+  `Alignment.swift`'s `distributeMainAxis` clamps with `max(0, freeSpace)` in all
+  three cases, so a negative free space distributes nothing and every distribution
+  degrades to `flex-start` — which is what the spacers answer. 5.3 became an
+  agreement arm and was renamed.
+- **5.7 could not use `alignSelf`.** With `.alignSelf(.flexEnd)` on one child the
+  **forward control** disagreed (lane 1's X7 divergence: a greedy alignment frame
+  hugs a cross-indefinite row where the legacy line places at its end). Measured in
+  round 3, then replaced by the grower / plain / floored trio above, whose forward
+  control agrees in every observation.
+
+### Red first (`3ec113b`, on lane 4's lowering `9a4a130`)
+
+`swift build --build-system native --build-tests`: 0 `error:`. `swift test
+--build-system native --no-parallel --skip-build`: **`Test run with 1459 tests in 1
+suite failed after 48.683 seconds with 145 issues`**, exactly the eight lane-5 tests
+that are not characterization:
+
+| test | issues | first red line |
+|---|---|---|
+| 5.1 `spaceBetweenLowersToSpacersAtTheGap` | 24 | `LoweringDistributionTests.swift:142` `r.unlowerable.isEmpty` (`box.justifyContent.spaceBetween`) |
+| 5.2 `spaceAroundAndSpaceEvenlyLowerToSpacersWhileTheyFit` | 33 | `:229` `r.unlowerable.isEmpty` |
+| 5.3 `spaceAroundAndSpaceEvenlyOverflowFromTheStartOnBothPaths` | 9 | `:302` `r.unlowerable.isEmpty` |
+| 5.4 `aSpacerBesideAGrowingChildTakesNothing` | 3 | `:328` `r.unlowerable.isEmpty` |
+| 5.5 `aReverseContainerPlacesItsChildrenFromTheMainEnd` | 60 | `:376` `r.unlowerable.isEmpty` (`box.reverse`) |
+| 5.6 `aReverseContainerOverflowsTowardItsMainStart` | 6 | `:417` `r.unlowerable.isEmpty` |
+| 5.7 `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder` | 6 | `:492` `r.unlowerable.isEmpty` |
+| 5.9 `aGrownReverseContainerPlacesFromTheMainEndOfItsItemFrame` | 4 | `:585` `r.unlowerable.isEmpty` |
+
+5.8 `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault` is
+characterization and passed on arrival, as spec §6 says. **Every forward control
+passed** — 5.5's `.flexEnd` row at 140/170 and 5.7's forward trio in all seven
+observations — which is what makes the reverse and distributed halves the only thing
+the implementation moves.
+
+**5.7's element count was corrected before the red run was banked**: the first
+spelling required 8 elements where a `Component` contributes no layout node, so the
+harness records 5 (the root, the row and the three boxes). The corrected run is the
+one above.
+
+### Implementation (`32f82d4`)
+
+`LegacyLowering.swift` only — no other source file, no signature and no public
+spelling changed:
+
+- `arrangeLegacyMainAxis(_:declared:animated:)` returns `(nodes, mainFactor,
+  spacing)`: it interleaves the distribution's spacers when the declared main size
+  is not `auto` and the declared `justifyContent` is one of the three (dropping the
+  stack's spacing to 0), then reverses the whole node list for a reverse direction.
+- `distributedLegacyItems` builds the pattern: `spaceBetween` → `Spacer(minLength:
+  gap)` between each pair; `spaceEvenly` → `Spacer(minLength: 0)` at both ends and
+  between; `spaceAround` → the same with the between-spacers doubled; a non-zero gap
+  under either of the last two → a rigid native leaf of that length (0 on the cross
+  axis) after the between-spacers.
+- `legacyMainFactor` mirrors `justifyContent`'s factor for a reverse direction
+  (`flexStart`/`nil` → 1, `flexEnd` → 0, `center` unchanged). It registers nothing,
+  so the diagnostics bail-out path can read it (`LR-BA` item 2).
+- `legacyContainerDiagnostics` loses its `reverse` row and its
+  `justifyContent.space*` block; `lowerLegacyNode`'s flex tail and the file header's
+  stage-2 paragraph say what lane 5 lowers.
+
+**First full run**: `Test run with 1459 tests in 1 suite failed after 48.906 seconds
+with 15 issues` — every lane-5 test green except one literal of its own, and only
+two pins to amend, each named by its red line:
+
+- `aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst`
+  (2): `fourFieldContainer` lost `reverse`. Re-spelled with a percentage main-axis
+  gap as its first container row — report `[gap.percent, flexWrap, position, inset]`,
+  trap `box.gap.percent`.
+- `stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem` (5): its
+  `space-*` and reverse arms stopped reporting. Renamed
+  `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, the five arms kept
+  expecting `[]` (`LR-BA` item 5).
+- `aReverseContainerPlacesItsChildrenFromTheMainEnd` (8, all in its **column** arms,
+  `disagreeing` empty throughout): the red commit reused the row's offsets for the
+  column, whose children are 10 and 30 long rather than 20 and 30. Corrected from
+  the round-2 scratch dump (`LR-BA` item 6).
+
+**Suite after the amendments**: `Test run with 1459 tests in 1 suite passed after
+48.703 seconds` (1450 + 9), 0 `error:`, the only `warning:` SwiftPM's
+`--build-system native` deprecation notice. Goldens **97**, `git diff --name-only
+cb2e708 -- '*.json'` empty. Guards **71** (73 `canTypecheck` hits less the
+declaration in `Typecheck.swift` and the comment in `UnitSafetyTests`); none added,
+so none to mutate. The exit test (2.15) re-ran **unchanged** and passed. No `swift
+package clean` was needed: no stored property on a public type changed.
+
+### Mutations
+
+`scratchpad/s2l5/mut/run.py` (lane 4's runner, new table): committed tree, file
+copied aside, the target asserted unique, applied, `swift build --build-system
+native --build-tests`, full unfiltered `swift test --build-system native
+--no-parallel --skip-build`, restored from the copy, `git status --short` read after
+each — **empty after all of them**. No build error, no truncated run; every run read
+1459 tests. Issue counts in parentheses.
+
+| mutation | what | reddened |
+|---|---|---|
+| **MJa** | the spacer's minimum 0 whatever the gap | 5.1 (4) |
+| **MJb** | `spaceAround`'s between-spacers not doubled | 5.2 (8) |
+| **MJc** | the gap as the between-spacer's minimum instead of a rigid leaf (J5), the leaf dropped | 5.2 (8) |
+| **MJd** | the end spacers given the platform default minimum (`nil`, 8) instead of 0 | 5.1 (8), **5.3 (6)**, 5.4 (2) |
+| **MJe** | each spacer wrapped in a `layoutPriority(0)` node | 5.4 (2) |
+| **MJf** | the node order not reversed | 5.5 (40), 5.7 (5), 5.6 (4), 5.9 (2) — 51 |
+| **MJg** | the main factor not mirrored | 5.5 (24), 5.6 (4), 5.9 (2) — 30 |
+| **MJh** | the reversal applied before the wrappers, so each child takes a sibling's item plan | **5.7 (5) and nothing else** |
+| **MJi** | the lowered stack given `spacing: nil` when the gap is 0 | 42 tests, 277 issues, including 5.8 (1), `aLoweredRowAndColumnAgreeWithTheLegacyContainersOverFixedChildren` (12), `aStretchedChildFillsTheLineOnItsCrossAxis` (42), `aLoweredSizedContainerPlacesItsContentByJustifyContentAndAlignItems` (36) |
+
+**Re-taken from lanes 1, 2 and 4** — every mutation whose target sits in
+`LegacyLowering.swift`, the one file lane 5 changed:
+
+| mutation | reddened |
+|---|---|
+| **M1a** W not aliased | 29 tests, 195 issues, including lane 5's 5.4 (2), 5.7 (10), 5.9 (2) and the exit test (3) |
+| **M1n** the alignment frame aliased | 5 tests, 16 issues (stage 1's 5.4 and 5.5, lane 1's 1.5, 1.6, 1.15) |
+| **M2i** a non-greedy maximum lowered onto W | 3 tests, 4 issues |
+| **M2j** a declared size lowered as `frame(maxWidth:maxHeight:)` | 18 tests, 103 issues, including lane 5's 5.1 (8), 5.3 (6), 5.6 (4) |
+| **M4c′** the size frame aligned `.topLeading` whatever the container | 13 tests, 124 issues, including lane 5's 5.5 (26) and 5.6 (4) |
+| **M5c′** the `flexGrow.weights` check always reporting | 21 tests, 140 issues, including lane 5's 5.4 (3), 5.7 (12), 5.9 (4) |
+
+### Pixels (CN-R)
+
+`gen-lib.py … chrome` into a `git archive` of `32f82d4`, `DEMO_PIXELS_SMALL=1`,
+compared with lane 1's `cb2e708` images (`s2l1/px-base`): **12 of 12 read 0
+differing pixels, scene identical.** Controls on the head images, the stage-1
+figures exactly: light vs dark f0 **1 048 576**; vs modal-light **1 030 498**; vs
+animation-light **210 027**; f0 vs f3 **0**; preview light vs dark **1 048 576**.
+
+**The two-authority chrome pair** on the same archive: `chrome-legacy` vs
+`chrome-proposal` **0 differing pixels, scene same**, not blank (216 distinct pixel
+values; 308 354 against `small560-default-light`). **Control, M5d** (lowered stack
+spacing + 50) applied to a second archive of the same commit: **8 214 differing
+pixels, scenes differ** — lanes 1, 2 and 4's figure exactly.
+
+So neither the spacers nor the reversal reaches a production root's pixels, as this
+lane's row predicted: the legacy authority still runs production, and the preview's
+proposal roots spell no `Row`/`Column` distribution or reverse direction.
+
+### Screen lock and captures
+
+`xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&
+/tmp/lockstate` at 17:02 PDT: `session CGSSessionScreenIsLocked = 1`, `displayAsleep
+main: 1`, `displayActive main: 0`. **No real-window capture was taken**, the brief's
+gate not being met. `IOConsoleLocked` was not read (`FR-V`).
+
+### Deferred from lane 5, by name
+
+- **`space-*` on a container with no declared main size that its parent grows or
+  stretches**: still reported at the child's site (`LR-AR`), because the child
+  registers its stack before it knows. Stage 8's recipe (declare the size, or
+  respell with `Spacer`s).
+- **Unequal `flexGrow` weights, percentages, `flexBasis` with a length, `maxSize` on
+  a non-greedy axis, `alignItems.baseline`/`alignSelf.baseline`, `hidden()`**:
+  unchanged by this lane; owners in spec §9.
+- **`Row`/`Column`'s default spacing (divergence 52)**: 5.8 characterizes it;
+  closing it is a vocabulary change, stage 8's (`LR-AL`).
+- **A negative main-axis gap under a distribution**: no test and no probe arm. The
+  lowering would hand `space-between` a negative `Spacer(minLength:)` (which the
+  kernel accepts, `SA-J`) and the other two a negative rigid leaf. Nothing in the
+  repo spells one.
+
+### For the integrator
+
+- **No new divergence is pinned by this lane.** The one the design predicted
+  (`space-around`/`space-evenly` overflow) does not exist between the two
+  authorities.
+- **A pre-existing legacy-vs-CSS gap, found here and not owned here**: CSS's
+  `space-around` and `space-evenly` fall back to `center` when the line overflows;
+  `Alignment.swift`'s `distributeMainAxis` clamps its free space at 0, so this
+  engine falls back to `flex-start`. No golden encodes it (the corpus has no
+  overflowing `space-*` fixture) and WebKit is the oracle for the CSS engine, so it
+  is a real disagreement with the oracle that the fixture corpus does not see. It
+  belongs to whoever owns the CSS engine's retirement (stage 9) or to a fixture
+  added before then; lane 5 records it rather than changing the engine, since
+  changing it would move the lowering's agreement in the opposite direction.
+- **Renamed test**: `stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem`
+  → `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`. Any other branch
+  citing the old name must be re-pointed.
+- **Re-spelled pin**: `fourFieldContainer` (in `LoweringContainerTests.swift`) no
+  longer declares `.rowReverse`; a branch that expects `box.reverse` anywhere must
+  be re-checked after the merge.
+- **Shared file touched**: `LegacyLowering.swift` only, appended (three new
+  functions at the end of the `LayoutPass` extension's body, before
+  `alignmentFactor`) plus four lines changed in `lowerLegacyNode`'s flex tail and
+  eleven removed from `legacyContainerDiagnostics`. No stored property, so no
+  `swift package clean` is needed for this lane's half of a merge.
+- **Retired mutations**: none. M1k stays retired (lane 4).

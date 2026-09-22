@@ -1,14 +1,15 @@
 # Engine replacement, stage 2 — flex-item semantics onto SwiftUI's (design)
 
-**Status, 2026-09-17 (PDT): designed, critic round 1 applied; lanes 1–4
+**Status, 2026-09-21 (PDT): designed, critic round 1 applied; all five lanes
 implemented** (lane 1: `0e4a209` red, `ba908ad` implementation, corrections `LR-AW`
 marked *lane 1*; lane 2: `27a9e23` red, `f25889a` implementation, `30737bd`,
 corrections `LR-AX` marked *lane 2*; lane 3: `8a2d753` and `d0c439a`, corrections
 `LR-AY`; lane 4: `ff8b05c` red, `55621aa` implementation, `9a4a130`, corrections
-`LR-AZ` marked *lane 4*; record §19).
+`LR-AZ` marked *lane 4*; lane 5: `3ec113b` red, `32f82d4` implementation,
+corrections `LR-BA` marked *lane 5*; record §19).
 Branch `feat/engine-stage-2` from `cb2e708`. Plan task 7, stage 2 of the fourteen
 in [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 (its row 2) and §8 (its stage-2 row). Rulings `LR-AB`…`LR-AV` in
+§4.1 (its row 2) and §8 (its stage-2 row). Rulings `LR-AB`…`LR-BA` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
 (the same decisions doc as stage 1; critic round 1's dispositions are `LR-AP`).
 Record: `docs/record/19-engine-replacement-stage-2.md`. Probe:
@@ -87,7 +88,7 @@ byte-identical; the reading is in its header). The arms this design rests on:
 | P7, P8, P9 | the same under `.leading`: child (12, 0); `.top`: (0, 12); centre: (0, 0) | 34×34 |
 | P3, P4 | padding outside a background is a margin; negative padding overlaps and clamps at 0 per axis | `margin` (agrees until the clamp) |
 | P6 | `Text("alpha").padding(10)`: 53×36, text at (10, 10) | Style padding on a content-sized leaf is inert (33×16) |
-| J1–J9 | spacers are `space-between` (min = gap), `space-evenly` / `space-around` (spacers at the ends, two between, a rigid gap leaf); overflowing, spacers pack from the start | `space-evenly`/`space-around` overflow falls back to `center` |
+| J1–J9 | spacers are `space-between` (min = gap), `space-evenly` / `space-around` (spacers at the ends, two between, a rigid gap leaf); overflowing, spacers pack from the start | CSS's `space-evenly`/`space-around` overflow falls back to `center` — but **this engine's does not** (`Alignment.swift` clamps its free space at 0, so all three degrade to `flex-start`; lane 5 measured it, `LR-BA` item 1) |
 | R1, R2 | reversed children in a trailing frame are `row-reverse`, overflow included | agrees |
 | C1, C2 | `containerRelativeFrame` is relative to the window (500), not the 200 parent; a `GeometryReader` child at `0.5 ×` its width is 100 (the reader takes 200) | percentages resolve against the parent |
 | Y0–Y9 | a `Text` breaks where CoreText's line-break loop breaks, inside a word that does not fit; width `min(proposal, ceil(widest line with its trailing space))` | the legacy leaf floors at the longest word |
@@ -221,7 +222,7 @@ stretched axis), where CSS stretches and then clamps.
 |---|---|---|---|
 | `flexDirection` `.rowReverse`/`.columnReverse` | the children's **nodes** in reverse order (identity, paint and hit order untouched), `justifyContent`'s main factor mirrored (flex-start → trailing) | — | 5 |
 | `justifyContent` `.spaceBetween`, declared main size | `Spacer(minLength: main gap)` between children, stack spacing 0 | unsized: flex-start (stage 1), reported if grown (§4.1) | 5 |
-| `justifyContent` `.spaceAround` / `.spaceEvenly`, declared main size | `Spacer(minLength: 0)` at both ends (evenly) or both ends and doubled between (around); a non-zero main gap as a rigid native leaf of that length beside the between-spacer | the same | 5 |
+| `justifyContent` `.spaceAround` / `.spaceEvenly`, declared main size | `Spacer(minLength: 0)` at both ends (evenly) or both ends and doubled between (around); a non-zero main gap as a rigid native leaf of that length beside the between-spacer. *Lane 5:* overflowing, both paths pack from the main start (`LR-BA` item 1) | the same | 5 |
 | `Style.border` px/rem | added to the native padding's insets (inside the declared size) | a fraction → `border.percent` (stage 8) | 4 |
 | `Style.padding` on a `Text` | native padding around the text leaf; glyphs painted at the **leaf's** origin and wrapped at the **leaf's** measured width | — | 4 |
 | declared size below the padding (+ border) sum | the fixed frame wins and the padding overflows by the container's content alignment (P1 `Box`, P7 `Row`, P8 `Column`) | — | 4 |
@@ -280,7 +281,13 @@ extension LayoutPass {
     func lowerLegacyItems(_ children: [LayoutNodeID], parent declared: Style,
                           parentSite: LoweringSite, fields: inout [UnlowerableField]) -> [LayoutNodeID]
     /// The main-axis arrangement: reverse order and justify distribution (lane 5).
-    func arrangeLegacyMainAxis(_ items: [LayoutNodeID], _ style: Style) -> (nodes: [LayoutNodeID], mainFactor: Double)
+    /// *Lane 5, `LR-BA` item 2*: it returns the stack's **spacing** too — a
+    /// distributed container's drops to 0 — and the factor alone is
+    /// `legacyMainFactor(_:)`, which registers nothing and is what the diagnostics
+    /// bail-out path reads.
+    func arrangeLegacyMainAxis(_ items: [LayoutNodeID], declared: Style, animated: Style)
+        -> (nodes: [LayoutNodeID], mainFactor: Double, spacing: Double)
+    private func legacyMainFactor(_ style: Style) -> Double
 }
 // Frame.render (lane 1): after the root registers, `lowering`'s unconsumed rows
 // join `unlowerableFields` (LR-AQ); the `ScrollView`/`List` site checks mark the
@@ -475,25 +482,32 @@ demo declares no margin, border or leaf padding).
 
 ### Lane 5 — justify distribution and reverse directions (`LR-AJ`)
 
-Files: `LegacyLowering.swift` (`arrangeLegacyMainAxis`); tests
-`LoweringDistributionTests.swift` (new); amended
+Files: `LegacyLowering.swift` (`arrangeLegacyMainAxis`, `legacyMainFactor`,
+`distributedLegacyItems`); tests `LoweringDistributionTests.swift` (new); amended
 `stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem` (its
-`space-*` and reverse arms move here) and
-`aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst`.
+`space-*` and reverse arms move here — *lane 5:* they stay in place expecting `[]`,
+and the test is **renamed** `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`,
+`LR-BA` item 5) and
+`aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst`
+(*lane 5:* `fourFieldContainer` takes a percentage main-axis gap in `reverse`'s
+place, so the trap names `box.gap.percent`).
 
 | # | test | red before | mutation |
 |---|---|---|---|
-| 5.1 | `spaceBetweenLowersToSpacersAtTheGap` — `Row`/`Column` × gap {0, 10} × three fixed children at 200 (J1, J2) and overflowing at 50 (J3); agrees | `box.justifyContent.spaceBetween` | **MJa** the spacer's minimum 0 whatever the gap |
-| 5.2 | `spaceAroundAndSpaceEvenlyLowerToSpacersWhileTheyFit` — around (J7) and evenly (J4) at gap 0; evenly and around at gap 10 (J8's rigid leaf); both axes; agrees | reported | **MJb** around's between-spacers not doubled; **MJc** the gap as `Spacer(minLength:)` (J5) |
-| 5.3 | **divergence pin** `spaceAroundAndSpaceEvenlyOverflowFromTheStartWhereCSSCentres` — three 20s at 40: lowered from x 0 (J9); legacy as `Alignment.swift` answers, read before the literal is written | reported | **MJd** the overflow centred |
-| 5.4 | `aSpacerBesideAGrowingChildTakesNothing` — `Row { a.flexGrow(1); b }.justifyContent(.spaceBetween).width(200)`: a 180, b at 180 (J6); agrees | reported | **MJe** spacers given priority 0 |
-| 5.5 | `aReverseContainerPlacesItsChildrenFromTheMainEnd` — `rowReverse`/`columnReverse` × `justifyContent` {nil, center, flexEnd, spaceBetween} × gap {0, 10} at 200 (R1); agrees | `box.reverse` | **MJf** the node order not reversed; **MJg** the main factor not mirrored |
-| 5.6 | `aReverseContainerOverflowsTowardItsMainStart` — two `flexShrink(0)` 80s in a `rowReverse` 100: a at 20, b at −60 (R2); agrees | reported | MJg |
-| 5.7 | `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder` — a reverse row of three clickable, labelled boxes with `@State`: `stateSlotsEqual`, `scenesEqual`, `hitboxesEqual`, `accessibilityEqual`; agrees | reported | **MJh** the children's *group* order reversed before registration |
-| 5.8 | **characterization** `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault` (`LR-AL`) — `Row { a; b }` lowered with spacing 0, not `nil` (8, stack-algorithms S); agrees | green on arrival | **MJi** the lowered stack given `spacing: nil` when the gap is 0 |
+| 5.1 | `spaceBetweenLowersToSpacersAtTheGap` — `Row`/`Column` × gap {0, 10} × three fixed children at 200 (J1, J2) and overflowing at 50 (J3); agrees. *Lane 5:* every overflowing child declares `.flexShrink(0)`, or the arm shows divergence 55 instead of the distribution | `box.justifyContent.spaceBetween` | **MJa** the spacer's minimum 0 whatever the gap |
+| 5.2 | `spaceAroundAndSpaceEvenlyLowerToSpacersWhileTheyFit` — around (J7) and evenly (J4) at gap 0; evenly and around at gap 10 (J8's rigid leaf); both axes; agrees. *Lane 5:* plus three single-child arms (between at the start, evenly and around centred), which the spacer pattern gives for free | reported | **MJb** around's between-spacers not doubled; **MJc** the gap as `Spacer(minLength:)` (J5) |
+| 5.3 | ~~**divergence pin**~~ **agreement, renamed** `spaceAroundAndSpaceEvenlyOverflowFromTheStartOnBothPaths` — three rigid 20s at 40: 0, 20, 40 on both paths, for all three distributions. *Lane 5, `LR-BA` item 1:* the design expected the legacy engine to centre, as CSS does; `distributeMainAxis` clamps its free space at 0 instead, so it packs from the start exactly as the spacers do. The overflow is the `try #require` | reported | **MJd** *(lane 5, `LR-BA` item 4)* the end spacers given the platform default minimum (8) instead of 0 — "the overflow centred" is not expressible, the spacers filling the stack |
+| 5.4 | `aSpacerBesideAGrowingChildTakesNothing` — `Row { a.flexGrow(1); b }.justifyContent(.spaceBetween).width(200)`: a 180, b at 180 (J6); agrees | reported | **MJe** each spacer wrapped in a `layoutPriority(0)` node |
+| 5.5 | `aReverseContainerPlacesItsChildrenFromTheMainEnd` — `rowReverse`/`columnReverse` × `justifyContent` {nil, flexStart, center, flexEnd, spaceBetween} × gap {0, 10} at 200 (R1), plus a forward `.flexEnd` control; agrees. *Lane 5, `LR-BA` item 6:* **the two axes have different tables** — the row's children are 20 and 30 long, the column's 10 and 30 | `box.reverse` | **MJf** the node order not reversed; **MJg** the main factor not mirrored |
+| 5.6 | `aReverseContainerOverflowsTowardItsMainStart` — two `flexShrink(0)` 80s in a `rowReverse` 100: a at 20, b at −60 (R2); *lane 5:* and the `columnReverse` transpose; agrees | reported | MJg |
+| 5.7 | `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder` — a reverse row of three clickable, labelled `@State` components: `stateSlotsEqual`, `scenesEqual`, `hitboxesEqual`, `accessibilityEqual`; agrees. *Lane 5, `LR-BA` item 3:* the three are a grower, a plain child and a `minWidth`-floored child, **not** an `alignSelf` — a greedy alignment frame in a cross-indefinite row is lane 1's own divergence and made the forward control disagree | reported | **MJh** the reversal applied to the children *before* they are wrapped, so each is paired with a sibling's item plan |
+| 5.8 | **characterization** `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault` (`LR-AL`) — `Row { a; b }` lowered with spacing 0, not `nil` (8, stack-algorithms S); agrees. *Lane 5:* a `gap: 8` control makes the two spellings distinguishable (`try #require`) | green on arrival | **MJi** the lowered stack given `spacing: nil` when the gap is 0 |
 | 5.9 | `aGrownReverseContainerPlacesFromTheMainEndOfItsItemFrame` — an unsized `rowReverse` row grown by its parent (the mirrored factor in W's content alignment); agrees; and its `spaceBetween` variant still reports (`LR-AR`) | reported | MJg (the grown arm) |
 
-**Demo expectation**: legacy 0 px; preview 0 px.
+**Demo expectation — met, measured** (record §"Lane 5"): all twelve `CN-R` images
+read 0 differing pixels, scenes identical, with the stage-1 controls exactly; the
+two-authority chrome pair 0 with its M5d control at 8 214; the 97 goldens did not
+move and the exit test (2.15) re-ran unchanged.
 
 ## 7. The exit test (`LR-AN`)
 
