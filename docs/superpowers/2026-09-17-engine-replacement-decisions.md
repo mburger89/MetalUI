@@ -3239,6 +3239,46 @@ runs. Had either stayed as written, the fold would have shipped with its two
 headline claims — "`.hidden` still costs nothing" and "the two elements cannot
 drift apart" — resting on assertions that a drifting implementation passes.
 
+**Amended, verification round (2026-09-22).** Three additions, none of them a
+defect in the fold (record §24 §7.6, §7.8, §7.9, §12.3):
+
+**7. The twelve `CN-R` images are blind to the indicator.** Item 6 and record
+§7.6 presented them as this lane's pixel evidence, "the lane where a non-zero
+reading would have been a finding". True for the clamp, the prepaint write-back
+and the content clip; **not** for the indicator: none of the twelve scenes is
+ever scrolled, so `lastScrollTime` is `-.infinity`, `alpha` is 0 and
+`paintIndicator` returns at its `guard alpha > 0` before the `pass.fill`.
+Measured by scanning every scene dump for the thumb's 3pt cross-axis rect — zero
+hits in `default-light-f0`, `chrome-legacy`, `chrome-proposal` and
+`preview-light`. The indicator half of the fold is pinned by **M1b–M1e** alone.
+
+**8. This lane falsifies `CLAUDE.md`/`AGENTS.md` lines 472–473** — "
+`ProposalScrollView`'s clamp and indicator are private copies of `ScrollView`'s
+— fix both" — and nothing recorded the obligation. Item 4 of the critic round's
+amendment deferred only the stale **line-range** citation
+(`ProposalScrollView.swift:97-170`), not the claim. A lane may not edit
+`CLAUDE.md`, so it is a **Docs-phase** obligation, now a deferral row in record
+§24 §7.8 with the replacement text in that record's "For the integrator"
+(followed by `cp CLAUDE.md AGENTS.md` and `cmp`). Practices: when a claim is
+refuted, grep for everywhere it was copied.
+
+**9. The fold concentrates a scroller's axis into one assignable property**,
+`var chrome`, and mis-wiring `ScrollView`'s is caught by exactly one test whose
+subject is the indicator rather than the scroll. Verifier mutation **V3**
+(`ScrollChrome(axis: .vertical, …)` at `ScrollView.swift:245`, so a horizontal
+scroller measures, translates and draws on the wrong axis) reddens only
+`theHorizontalIndicatorLiesAlongTheBottomOfItsViewport`;
+`aHorizontalScrollViewMovesOnDeltaXNotDeltaY` survives it, because it reads the
+stored offset and the region's axis and never a painted rect — so **the
+horizontal content clip's `chrome.delta(-offset)` translation is pinned
+nowhere**. Pre-existing thinness; the fold is what concentrates it. Recorded as
+a named unpinned sub-clause (record §24 §7.9); closing it is one assertion on
+the scrolled content rect's x translation, owed by whoever next edits
+`ScrollRoutingTests`, stage 6b at the latest. The verifier's other seven
+mutations (V1, V2, V4–V7, V9) are in record §24 §12.2; only **V1** — the
+`PaintPass` overload's read clamp — stayed green, and it is argued equivalent by
+reading (the prepaint overload writes the clamp back) rather than measured.
+
 
 ## LR-BM — stage 3 lane 2's corrections: `parentSite:` names exactly one report, and two fixtures that were measuring the harness
 
@@ -3383,6 +3423,38 @@ chrome images.
 read, `FR-V`), as it was at the end of lane 1. The twelve offscreen images
 stand in.
 
+**Amended, verification round (2026-09-22).** Three rows of the table above are
+attribution defects — the behaviours are right, the mutations are not what the
+rows say — and one sentence of `loweredLayout`'s doc comment is broader than the
+code. Corrected in record §24 §8.5 and §12.3, and in the source comment:
+
+1. **M2g is two different mutations.** Scoped to `loweredLayout`'s two
+   `animated(…)` calls it reddens **2** —
+   `aLoweredScrollViewKeepsItsTwoAnimationSlots` and
+   `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape` (8 issues).
+   The recorded set is the **whole-file** spelling's, which also hits the legacy
+   branch's byte-identical pair (`ScrollView.swift:319/330`, `386/396`) and
+   reddens `aLoweredScrollViewKeepsItsTwoAnimationSlots` (once per authority),
+   `everyRegisteringSiteAnimatesItsStyle` and
+   `theResidentEntrySetStaysBoundedWhileScrolling10kRows` — and **not** 2.1,
+   because mutating both branches keeps the two `StateTable.ids` sets equal so
+   `stateSlotsEqual` stays true (`LayoutDifferential.swift:232`). Record which
+   branch a mutation touched.
+2. **M2c reddens 7, not 6**: 2.7's hand-derived node and work counts move when
+   the viewport's node kind changes. Spelled
+   `pass.frame.requestNativeFixedSize(child: contentNode)`.
+3. **M2h is not applicable as literally written.** The same children under a
+   second `requestNativeLinearStack` traps at `LayoutTree.swift:743` (`CN-L`'s
+   one node, one parent) and truncates the run with no summary line; the
+   recorded reddening is the **orphan childless** duplicate's.
+4. **`reportUnconsumedLoweredItems` reads `item.declared` only**, never
+   `item.animated`, so "a field a later stage puts on it reports rather than
+   vanishing" holds for the **declared** content style alone — a field added to
+   `contentStyle` would be dropped with no diagnostic, which is also why M2d has
+   to be applied to `declaredContent` to be observable. `LR-AS`'s convention
+   (structural item fields on the declared style) is the only thing that keeps
+   the case narrow; the doc comment now says so.
+
 ---
 
 ## LR-BN — stage 3 lane 3's corrections: a roll call rather than a counter, 34 scenarios rather than 37, and the fixtures whose cross axis had to be declared
@@ -3519,9 +3591,23 @@ the proposal authority, and it is now a standing property of the suite: from thi
 lane onward, an unlowerable-field regression reachable from a scroll fixture
 truncates the run at that test, with the field named on `stderr`. A per-fixture
 diagnostics pre-flight (what `WindowPair.init` does) would convert it back into a
-named failure, and was **not** applied: these fixtures' content closures capture
-shared recorder boxes, so rendering the tree a second time would add a phantom
-entry to every `Seen` and break the very tests it was protecting.
+named failure, and was **not** applied.
+
+**Amended, verification round (2026-09-22).** The reason as first written —
+"these fixtures' content closures capture shared recorder boxes" — is broader
+than the measurement, and scopes the deferral larger than it needs to be.
+Measured (`awk '/^func |^@Test/{last=$0} /Seen\(\)/{print NR": "last}'` over
+`ScrollRoutingTests.swift`): **exactly four** of the 34 scenarios construct a
+`Seen` box —
+`scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout`,
+`rawOffsetPublishedDuringRequestLayoutCanExceedTheClampedRange`,
+`nestedScrollViewsInnermostWinsAndPoppingRestoresTheOuterContext` (two boxes)
+and `aSiblingAfterAScrollViewSeesNoScrollContext`. For those four a second
+render would add a phantom entry to every `Seen` and break the tests the
+pre-flight was protecting. `HitboxProbe` (`ScrollRoutingTests.swift:864`,
+`:902`) is stateless and captures nothing, so **the remaining 30 scenarios are
+eligible** for a `WindowPair`-style pre-flight. Stage 6b inherits a
+four-fixture problem, not an all-or-nothing one. (Record §24 §9.6, §12.3.)
 
 ### 6. What it costs if wrong
 
@@ -3531,6 +3617,15 @@ the 34 legacy arms would have said so on the first run; they did not. The
 genuine exposure is item 5's last paragraph: a future regression of the
 `…unconsumed` shape costs a run with no summary line before anyone sees the
 field's name.
+
+**Amended, verification round (2026-09-22).** Item 1's ordering dependence and
+item 5's truncation are both **CI-visible failure modes that `CLAUDE.md`'s "CI —
+what lapses silently" list does not carry**, and a lane may not edit that file.
+Two rows are owed in the Docs phase, with the text record §24's "For the
+integrator" gives: `everyScrollScenarioRanUnderBothLayoutAuthorities` is
+order-dependent (measured only on Swift 6.4, `swiftlang-6.4.0.33.1`) and
+`--filter`-hostile, and an `…unconsumed` regression truncates the run rather
+than failing by name.
 
 ## LR-BO — stage 3 lane 4's corrections: a frame parent drops what a flex parent carries, `component` loses its last reachable report, and two fixtures that could not see their own subject
 
@@ -3631,6 +3726,33 @@ one argument. Item 2 costs a site that reports nothing; the risk is that a later
 stage adds a `component` field and forgets that the two arms assert absence —
 which is why both arms carry the reason at the arm.
 
+**Amended, verification round (2026-09-22).** Two of item 2's and the helper's
+claims are true but not where the load is; both are now in the source doc
+comments as well (record §24 §10.2, §12.3):
+
+- **`kind: .frameLayer` is the second reason `component` cannot report, and not
+  today's decisive one.** Verifier mutation **Vj** recorded the amend frame as
+  `kind: .stack` and the full 1569-test suite stayed **green**. Traced by
+  reading: `componentFrameStyle` carries no field
+  `reportUnconsumedLoweredItems` names — no `minSize`, no `maxSize`, no
+  `margin`, no grow or shrink — so the record would stay silent even unconsumed
+  and even as a `.stack`; and `planLegacyItems`' three `.frameLayer` branches
+  raise no report and plan no extra wrapper for it. `.frameLayer` is the guard
+  that **takes over** when that stops being true, so **whoever puts a bound into
+  `componentFrameStyle` — to carry a member's dropped minimum, say — owes a pin
+  in the same change**, or a stage-6b production trap arrives with nothing
+  seeing it go.
+- **`componentFrameStyle`'s `display = .stack` and its per-axis ternaries are
+  cosmetic.** Verifier mutation **Vk** (both ternaries a constant `.center`,
+  `display` deleted) stayed green, while **Vi** (both assignments deleted)
+  reddens four tests: so "non-nil and non-stretching" is the whole content of
+  those lines. `alignsByStretching` and `stretches` are false for `.start`,
+  `.flexStart` and `.center` alike, and `parentKind: .stack` is passed
+  explicitly at the call site, so this style's `display` is never consulted. The
+  per-axis alignment lives entirely in `componentFrameAlignment`; the spelling
+  is kept as documentation and the doc comment now warns that mutating it moves
+  no rect.
+
 ## LR-BP — stage 3 lane 5's corrections: a dropped margin the mutation cannot see, an M5d with no subject left, and an M5a the demo cannot reach
 
 Lane 5 implemented `LR-BH` as written and as amended. `lowerLegacyLayer`'s frame
@@ -3707,3 +3829,21 @@ and removes the arm that pins the drop. Item 3 costs a false sense that the
 demo's corpus covers this lane; it does not, and the lane's own two tests are
 the whole coverage. Item 4 is the one that would have cost a real hole:
 everything about the row's *shape* is unobservable in a rect.
+
+**Amended, verification round (2026-09-22).** Item 4's "the node counts are the
+whole pin" is right about the row's presence and **wrong about one of its
+arguments**: the row's cross-axis `alignment: spec.alignment` is pinned by
+nothing. Verifier mutation **M5g** — the argument hard-coded to `.center` — left
+the full unfiltered suite green at **1572**, and the mutant is **not
+equivalent**: over uneven members (30×10 and 50×30) under
+`.frame(width: 70, alignment:)` a scratch differential reads y 0 / 0 for
+`.top`, 25 / 15 for `.center` and 50 / 30 for `.bottom`. Both committed tests
+declare a height (`.frame(width: 70/80, height: 40)`), which makes every
+per-member frame the same height and the row's alignment invisible; probe arms
+W7/W8 are equal-height frames for the same reason; and SwiftUI has **no row**
+here at all — the framed members are siblings of the enclosing stack, whose own
+alignment governs the cross axis — so `spec.alignment` on the row is an unprobed
+MetalUI choice rather than a measured one. Recorded as a green mutation in
+record §24 §11.5 and deferred in §11.10: **stage 11**, with the siblings
+question `TB-M` owns, or one uneven-height, height-free arm on 5.1 from whoever
+next edits `LoweringComponentTests`.

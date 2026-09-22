@@ -495,6 +495,17 @@ lane's HEAD `440fd78`. `chrome-legacy` vs `chrome-proposal` reads 0 as well.
 This is the lane where a non-zero reading would have been a finding rather than
 a surprise, because its edit is on the production path under both authorities.
 
+**The twelve images never paint an indicator, so they cover less of this lane
+than that sentence suggests** (verification round, §12, lane 1's issue 1). None
+of the twelve scenes is ever scrolled, so `lastScrollTime` is `-.infinity`,
+`alpha` is 0 and `ScrollChrome.paintIndicator` returns at its `guard alpha > 0`
+before the `pass.fill`. Measured by the verifier, by scanning every scene dump
+for the thumb's 3pt cross-axis rect — `grep '^R ' … | awk '{print $3}' | grep -c
+'^3\.0x'` reads **0** in `default-light-f0`, `chrome-legacy`, `chrome-proposal`
+and `preview-light`. The pixel evidence covers **the clamp, the prepaint
+write-back and the content clip only**; the indicator half of the fold rests on
+M1b–M1e alone.
+
 The rebuilt harness is in the session scratchpad again and is **not committed**;
 the seven numbers above are what tells the next person who rebuilds it that they
 got it right. Committing it is deferred to stage 6b (§7.8).
@@ -517,6 +528,32 @@ stages 1 and 2.
 | committing the `CN-R` harness | it has now been lost once and rebuilt once; the rebuild costs an hour and is only checkable against §7.6's seven numbers | stage 6b, which owns the root switch and needs this comparison most |
 | a real-window capture of the fold | the screen locked again between the design phase and the end of the lane | whoever runs the next lane with an unlocked screen |
 | a `ProposalScrollView` twin for `hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake`'s display-link half | the property is now shared by construction, and 1.2's `wantsAnotherFrame` assertions catch the mutation that would break it; a twin would be a second window test for one shared line | — (judged not worth a test) |
+| **rewriting `CLAUDE.md`/`AGENTS.md` lines 472–473**, "`ProposalScrollView`'s clamp and indicator are private copies of `ScrollView`'s — fix both" | this lane **falsifies** that sentence (both are `ScrollChrome` now), and the lane may not edit `CLAUDE.md`; `LR-BD`'s critic amendment deferred only the stale *line-range* citation, not this claim (verification round, §12, lane 1's issue 2) | the Docs phase, then `cp CLAUDE.md AGENTS.md` and `cmp` |
+
+### 7.9 An unpinned sub-clause of the fold
+
+In the shape record §09 uses for "unpinned sub-clauses, found by verifier
+mutations that stayed green" — this one did not stay green, but it reddened one
+test whose subject is the wrong half:
+
+- **A scroller's axis is now one assignable property, `var chrome`, and
+  mis-wiring `ScrollView`'s is caught only by an indicator test.** Verifier
+  mutation **V3** — `ScrollChrome(axis: .vertical, …)` hard-coded in
+  `ScrollView.chrome` (`ScrollView.swift:245`), so a horizontal scroller
+  measures its extent, translates its content and lays out its thumb on the
+  vertical axis — reddens exactly **one** test of 1553,
+  `theHorizontalIndicatorLiesAlongTheBottomOfItsViewport`.
+  `aHorizontalScrollViewMovesOnDeltaXNotDeltaY`
+  (`ScrollRoutingTests.swift:284`, parameterised by authority since lane 3)
+  survives it: it reads
+  `stateTable.peek(region.id, as: ScrollState.self)?.offset` and the region's
+  axis and never a painted rect, so **the horizontal content clip's
+  `chrome.delta(-offset)` translation is pinned nowhere**. Pre-existing
+  thinness; what the fold adds is the single property that concentrates it.
+  Closing it is one assertion on the scrolled content rect's x translation in
+  that routing test — not taken here, because the lane is closed and the change
+  belongs with a test-owning lane (stage 6b, or whoever next edits
+  `ScrollRoutingTests`).
 
 
 ## 8. Lane 2 — the `ScrollView` lowering (`LR-BB`, `LR-BC`; corrections in `LR-BM`)
@@ -627,12 +664,12 @@ Commit first, `cp` the file aside, apply, native build, **full unfiltered**
 |---|---|---|
 | **M2a** | the viewport registered as a plain native leaf | **8**: `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`, `aLoweredScrollViewFillsItsProposalOnTheScrollingAxisWhereTheLegacyViewportHugs`, `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`, `aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows`, `aLoweredScrollViewsContentKeepsItsNaturalExtent`, `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`, `aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` |
 | **M2b** | the content node through `requestNativeLinearStack` instead of `lowerLegacyNode` | **5**: `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`, `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`, `anItemFieldNoLoweredContainerConsumesIsReportedByName`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`. **Before arm A2b it reddened only the last four** — see §8.6 |
-| **M2c** | the viewport lowered as a `fixedSize` over its content | **6**: 2.1, 2.2, 2.2a, 2.3, 2.5 and the demo census |
+| **M2c** | the viewport lowered as a `fixedSize` over its content (`pass.frame.requestNativeFixedSize(child: contentNode)` in place of `requestNativeScrollViewport`) | **7**: 2.1, 2.2, 2.2a, 2.3, 2.5, **2.7** and the demo census. *Recorded as 6 by the lane and corrected in the verification round (§12): 2.7's hand-derived node and work counts move when the viewport's node kind changes. More reddening than recorded, not less* |
 | **M2d** | `flexShrink: 0` carried onto the lowered content style | **10**: 2.1, 2.2, 2.2a, 2.3, 2.4, 2.5, 2.7, `anItemFieldNoLoweredContainerConsumesIsReportedByName`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` and the demo census, whose report becomes `[list.noLowering, scrollView.flexShrink.unconsumed]` — read off the failure, and the entry the omission is observable through |
 | **M2e** | the content node registered with `site: .modifierLayer` | **2**: `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` |
 | **M2f** = **M2i** | `recordLoweredItem` dropped from the lowered `ScrollView` (the design lists two ids; it is one edit) | **4**: 2.2, 2.2a, 2.5, 2.7 |
-| **M2g** | both `animated(…)` calls given the bare `id` | **4**: `aLoweredScrollViewKeepsItsTwoAnimationSlots`, `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`, `everyRegisteringSiteAnimatesItsStyle`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows` |
-| **M2h** | the content node registered twice | **1**: `aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork` |
+| **M2g** | **`loweredLayout`'s two** `animated(…)` calls given the bare `id` | **2**: `aLoweredScrollViewKeepsItsTwoAnimationSlots`, `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape` (8 issues). *The lane recorded 4; that set is the **whole-file** spelling's, which hits the legacy branch's two byte-identical calls as well (`ScrollView.swift:319/330` and `386/396`) and reddens `aLoweredScrollViewKeepsItsTwoAnimationSlots` (once per authority), `everyRegisteringSiteAnimatesItsStyle` and `theResidentEntrySetStaysBoundedWhileScrolling10kRows` — and **not** 2.1, because mutating both branches keeps the two `StateTable.ids` sets equal and `stateSlotsEqual` stays true (`LayoutDifferential.swift:232`). Corrected in the verification round, §12* |
+| **M2h** | the content node registered twice, **as an orphan childless duplicate stack** | **1**: `aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork` (node count 10 → 11). *The literal reading — the same `children` array under a second `requestNativeLinearStack` — is **not applicable**: it traps at `LayoutTree.swift:743` (`native layout node … registered under a second parent … MC-G hole 4, ruling CN-L`) and truncates the run with no summary line. Spelled out in the verification round so a re-take does not hit that precondition* |
 
 ### 8.6 Three findings, and what each cost
 
@@ -669,9 +706,11 @@ Commit first, `cp` the file aside, apply, native build, **full unfiltered**
   the design's predicted 1561 exactly. Whole logs kept, never tailed.
 - Goldens: `git diff --name-only 57893d0 HEAD -- 'Tests/**/*.json'` **empty**;
   `find Tests -name "*.json" | wc -l` still **97**.
-- Typecheck guards: **77**, unchanged (78 `canTypecheck` hits across the 15 guard
-  files minus `UnitSafetyTests`' comment). The lane adds no public spelling, so
-  it adds no guard.
+- Typecheck guards: **77**, unchanged — **79** `canTypecheck` hits across the 15
+  guard files and `Typecheck.swift`, minus that file's declaration and
+  `UnitSafetyTests`' comment (the arithmetic is §1's; this paragraph first
+  subtracted only one of the two, corrected in the verification round, §12). The
+  lane adds no public spelling, so it adds no guard.
 
 ### 8.8 Pixels (`CN-R`), and the harness rebuilt a second time
 
@@ -858,9 +897,19 @@ Lane 2's ten tests had already recorded their issues by then, so the mutation's
 evidence is intact; the summary line is not. **This is the trade `LR-BI`'s
 amendment took deliberately**, and it is now a standing property of the suite.
 The obvious mitigation — a per-fixture diagnostics pre-flight, as
-`WindowPair.init` runs — was **not** applied: these fixtures' content closures
-capture shared recorder boxes, so rendering the tree a second time would add a
-phantom entry to every `Seen` and break the tests it was protecting.
+`WindowPair.init` runs — was **not** applied, and the reason as first written
+was broader than the measured fact. Corrected in the verification round (§12):
+**exactly four of the 34 scenarios construct a `Seen` box**, all in
+`ScrollRoutingTests` —
+`scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout`,
+`rawOffsetPublishedDuringRequestLayoutCanExceedTheClampedRange`,
+`nestedScrollViewsInnermostWinsAndPoppingRestoresTheOuterContext` (two boxes)
+and `aSiblingAfterAScrollViewSeesNoScrollContext` (measured: `awk
+'/^func |^@Test/{last=$0} /Seen\(\)/{print NR": "last}'`). For those four, a
+second render would add a phantom entry to every `Seen` and break the tests the
+pre-flight was protecting. `HitboxProbe` (`:864`, `:902`) is stateless and
+captures nothing, and **the remaining 30 scenarios are eligible** — so stage 6b
+inherits a four-fixture problem, not an all-or-nothing one.
 
 ### 9.7 Suite, goldens, guards
 
@@ -873,8 +922,14 @@ phantom entry to every `Seen` and break the tests it was protecting.
   holds).
 - Goldens: `git diff --name-only 57893d0 HEAD -- 'Tests/**/*.json'` **empty**;
   `find Tests -name "*.json" | wc -l` still **97**.
-- Typecheck guards: **77**, unchanged (78 `canTypecheck` hits minus
-  `UnitSafetyTests`' comment). The lane adds no public spelling.
+- Typecheck guards: **77** — **79** `canTypecheck` hits minus
+  `Tests/MetalUITestSupport/Typecheck.swift`'s declaration **and**
+  `UnitSafetyTests`' comment, the same arithmetic as §1's baseline. (This
+  paragraph first read "78 hits minus `UnitSafetyTests`' comment", which lands
+  on 77 by subtracting one of the two; a reader re-deriving it computes 78 and
+  concludes the count moved. Corrected in the verification round, §12 — the same
+  class of defect as critic round 1's finding 10.) The lane adds no public
+  spelling.
 - The one `Sources/` change is `CaseIterable` on the internal `LayoutAuthority`.
 
 ### 9.8 Pixels (`CN-R`), and the harness rebuilt a third time
@@ -963,7 +1018,16 @@ the component's slot 0. Three structs instead.
   with `kind: .frameLayer`. `componentFrameAlignment` is the per-axis rule;
   `componentFrameStyle` is the declared style it plans against — a
   `display: .stack` whose `justifyItems`/`alignItems` are non-stretching on
-  every axis, so the frame aligns and never stretches.
+  every axis, so the frame aligns and never stretches. **Only "non-nil and
+  non-stretching" is load-bearing there; the per-axis spelling is cosmetic**
+  (verification round, §12): deleting both assignments reddens four tests
+  (verifier mutation **Vi**), but replacing both ternaries with a constant
+  `.center` *and* dropping `display` reddens nothing (**Vk**) —
+  `alignsByStretching` and `stretches` are false for `.start`, `.flexStart` and
+  `.center` alike, and `parentKind: .stack` is passed explicitly, so this
+  style's `display` is never read. The per-axis alignment lives entirely in
+  `componentFrameAlignment`; the helper's doc comment now says so, in the change
+  that recorded this.
 - **`.wrap`** lowers through `lowerLegacyNode(style, declared: style,
   children: [current], site: .component)`.
 
@@ -1048,7 +1112,7 @@ only the design's `flexGrow` and `margin` arms it reddens nothing at all.
 | suite | **1569 tests**, passed after 52.478 s — the design's predicted total, to the test |
 | `error:` / `warning:` | 0 / only SwiftPM's `--build-system native` deprecation notice |
 | goldens | `git diff --name-only 57893d0 HEAD -- 'Tests/**/*.json'` **empty**; `find Tests -name "*.json" \| wc -l` = **97** |
-| typecheck guards | **77** (78 `canTypecheck` hits minus `UnitSafetyTests`' comment), per-file counts unchanged from the baseline; the lane adds none |
+| typecheck guards | **77** (**79** `canTypecheck` hits minus `Typecheck.swift`'s declaration and `UnitSafetyTests`' comment — §1's arithmetic; the lane's own line subtracted one of the two and is corrected in §12), per-file counts unchanged from the baseline; the lane adds none |
 | `swift package clean` | **a measurement, not an assertion** (critic round 1 finding 12): the incremental build over `ComponentModifierOp.amend`'s payload change was already correct at 1569, and a `swift package clean` + full rebuild + unfiltered run read **the same 1569**. The reasoning ("an `Array` is one word either way") held and was still checked |
 
 ### 10.7 Pixels (`CN-R`)
@@ -1210,8 +1274,9 @@ every time). Every run read `Test run with 1572 tests`.
 | **M5d** | `display.none` moved below the style comparison (= stage 1's M4i) | `aHiddenFrameLayerIsReportedAsDisplayNone` (4: the hidden arms read `[modifierLayer.style]`) |
 | **M5e** | the planning skipped for `count > 1` | `aFrameOverSeveralMembersStillPlansEachMembersItemFields` (**1** — b reads (120, 15) **0**×10; a is unchanged) |
 | **M5f** | `registerLegacyItems(children, plans)` reduced to `.first` | 5.1 (3), 5.1a (1) |
+| **M5g** (verifier's, verification round §12) | the row's `alignment: spec.alignment` hard-coded to `.center` | **nothing — 1572 green.** Not an equivalent mutant: over uneven member heights (30×10, 50×30) under `.frame(width: 70, alignment:)` a scratch differential reads y 0/0 for `.top`, 25/15 for `.center`, 50/30 for `.bottom`. Both committed tests fix a height (`.frame(width: 70/80, height: 40)`), which makes every per-member frame the same height and the row's cross alignment invisible; probe arms W7/W8 are equal-height frames too, and SwiftUI has no row here at all (the framed members are siblings of the enclosing stack), so `spec.alignment` on the row is an unprobed MetalUI choice. Deferred, §11.10 |
 
-**Every one of the six reddened its named test.** The two that reddened exactly
+**Every one of the six the lane took reddened its named test.** The two that reddened exactly
 one issue are the informative ones: M5c says the row is geometrically invisible
 at one child, and M5e says only the `minSize` half of 5.1a discriminates.
 
@@ -1277,7 +1342,664 @@ stage's to close (`TB-M`, stage 11).
 |---|---|---|
 | a per-member frame applying its member's `flexGrow`/`margin` rather than dropping them | the multi-node arm has an axis its row supplies, but no reason to differ from the one-node arm, and SwiftUI has no `flexGrow` to probe | stage 6b |
 | framed members staying **one** flex item where SwiftUI's stay siblings (the 140 vs 148) | `ElementGroup`'s associated type (`TB-M`) | stage 11 |
+| **the per-member row's cross-axis `alignment: spec.alignment`** — unpinned (verifier mutation M5g stays green) and unprobed | both committed tests declare a height, so every per-member frame is the same height and the row's alignment cannot move a rect; and SwiftUI has no row to probe, which makes the choice between `spec.alignment` and the enclosing container's alignment part of the siblings question | stage 11, with `TB-M` and the siblings question — or one uneven-height, height-free arm on 5.1 by whoever next edits `LoweringComponentTests` |
 | divergence 56's retirement | answered here under the proposal authority, still wrong on purpose under the legacy one | stage 6b |
 | a demo shape that exercises a frame over a multi-member component | there is none, so the corpus test cannot cover this lane; its two tests are the whole coverage | whoever adds one, or 6b |
 | committing the `CN-R` harness | survived from lane 4 only because this lane ran in the same session | stage 6b |
 | a real-window capture | the screen has been locked at the end of all five lanes | whoever runs with an unlocked screen |
+
+---
+
+## 12. Verification round (2026-09-22, PDT) — this commit
+
+Every lane's verifier returned **`ok: true`**. Between them they raised
+**thirteen minor issues** — three on lane 1, four on lane 2, three on lane 3,
+two on lane 4 and one on lane 5 — none blocking, and **not one a defect in a
+landed behaviour**: eight were attribution or wording in this record and the
+rulings, three were claims that are true but unpinned or not decisive, one was a
+source doc comment broader than the code, and one is an obligation on the Docs
+phase that nothing had written down. All thirteen are dispositioned below.
+
+**Nothing executable changed in this round.** The three edits to `Sources/` are
+doc comments: `ScrollView.loweredLayout`'s "unconsumed" paragraph, and
+`loweredComponentFrame`'s and `componentFrameStyle`'s in `LegacyLowering.swift`.
+The suite is re-run after them, and that run is this stage's final figure.
+
+### 12.1 What the verifiers reproduced independently
+
+This is the part worth keeping: four of the five verifiers did not read the
+lane's numbers, they re-took them.
+
+- **Lane 1's verifier ran 16 full unfiltered runs** — the baseline HEAD at 1553
+  green, `f0590d3` at 1553 green, and 14 mutation runs — and **every issue in
+  every one was attributable to a named test**. No unattributed flake appeared
+  in any of them, which is a second, larger corroboration of §7.1's retirement
+  of §1.1's single unexplained issue.
+- **Lane 2's verifier rebuilt from scratch**: `git archive HEAD` into a clean
+  tree with `.build` removed, full build, unfiltered run — `Test run with 1561
+  tests in 1 suite passed after 53.577 seconds`, matching the incremental
+  53.025 s run. It also **replayed the red-first run** at the test-only commit
+  `5380d5d`: all 8 lane tests red, **49** issues — the lane's reported 46 from
+  its filtered run **plus test 2.3's 3**, which that filter did not match (§8.6
+  finding 2's own lesson, confirmed from the other side) — and 2.1's 26 = 5 arms
+  × 5 assertions + A2's literal, exactly as §8.1 records.
+- **Lane 2's verifier re-took the twelve `CN-R` images with its own harness**, a
+  `VPixels.swift` it wrote itself and injected into `git archive` trees of
+  `57893d0` and HEAD. All eight controls reproduced exactly at both trees, and
+  **12 of 12 read 0 differing pixels with every scene dump byte-identical**.
+  That is the strongest form this comparison has taken in three stages: the
+  instrument was written twice, independently, and agrees.
+- **Lane 1's verifier regenerated all twelve images too**, with the scratchpad
+  harness, controls first (1 048 576 / 1 030 498 / 210 027 / 0 / 1 048 576, 544
+  and 216 distinct, chrome pair 0): 12 of 12 at **0**.
+- **Lane 3's verifier re-took M3a, M3b, M3c, M3d, M3e and M1c** and reproduced
+  **each lane figure to the test and to the issue count**, and lanes 4 and 5's
+  verifiers reproduced their lanes' tables the same way (lane 4's M4c 12 issues,
+  M4d 20, M4e 6, M4f 3, M4g 1; lane 5's six rows).
+- **The probe was re-run by two verifiers** under `/usr/bin/swift`: exit 0, 18
+  lines, empty stderr, byte-identical to its header.
+
+### 12.2 The verifiers' own mutations
+
+Twenty mutations the lanes did not take. None found a defect; four stayed green
+and three of those are now recorded as gaps rather than assumed equivalent.
+
+| lane | mutation | reddened |
+|---|---|---|
+| 1 | **V2** — `ScrollChrome.extent` reads the wrong axis | **33** across routing, the indicator, `List` windowing, accessibility frames and clipping — the fold's instrument is alive |
+| 1 | **V6** — the prepaint overload stops writing `$0.viewportExtent` (the `ScrollContext` / `List`-windowing hazard the brief names) | **12**, including `scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows`, `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` — `List` windowing still depends on the published context, measured rather than argued |
+| 1 | **V7** — a private `paintIndicator` re-inlined into **`ScrollView`** with a 30pt floor (M1f's drift in the other direction, which the lane never tested) | **2**: `theTwoScrollElementsShareOneChromeImplementation`, `theThumbIsProportionalAndFlooredAtTwentyPoints` |
+| 1 | **V4** / **V5** — `ProposalScrollView.chrome` built with `cornerRadius: 0` / `indicatorVisibility: .automatic` | **1** each (`aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent`) |
+| 1 | **V9** — `ScrollView.chrome` built with `indicatorVisibility: .automatic` | **2**: `hiddenEmitsNoIndicatorRect`, `hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake` |
+| 1 | **V3** — `ScrollView.chrome` built with a hard-coded `axis: .vertical` | **1** only — §7.9, the lane's one named gap |
+| 1 | **V1** — the `PaintPass` overload's read clamp removed (`return stored`) | **nothing**. Argued equivalent **by reading, not measured**: the prepaint overload writes the clamped value back, so in any fixture that prepaints before painting the stored offset is already clamped and the paint-side clamp is belt and braces. Banked as an unpinned sub-clause, not as an equivalence proof |
+| 3 | **V1** — the lowered viewport's axis inverted (`requestNativeScrollViewport(child:axis:)` given the other axis), touching **only** the proposal branch | **29 tests / 56 issues**, of which **20 of the 34 parameterised scenarios, every one on the `.proposal` arm and none on `.legacy`**. This is the exit criterion answering the question it exists for: a lowering defect invisible to the legacy arm is caught by 20 scenarios written years before the lowering |
+| 3 | **V4** — one scenario's `ScrollAuthorityCoverage.record` call deleted | `everyScrollScenarioRanUnderBothLayoutAuthorities`, failing at `ScrollViewTests.swift:283` with `these scenarios recorded no coverage: ["theIndicatorIsTheLastPrimitiveInTheScene"]` — **it names the offender** |
+| 3 | **V5** — one scenario's `@Test(arguments:)` reduced to `[.legacy]` (one arm dropped quietly, rather than the whole list as M3c does) | both halves of the split claim fire: `everyScrollScenarioRanUnderBothLayoutAuthorities` and `record`'s order-independent whole-set check in `aScrollViewWithNoCornerRadiusClipsSquare` |
+| 4 | **M4a variant** — the ops applied once to the whole group instead of per member | 4 of the 6 lane-4 tests (a single-member component is unaffected by construction, so it reaches less than the lane's own M4a) |
+| 4 | **M4a′ re-taken with BOTH ops reverted** to `noteUnlowerable` | 8 tests / 41 issues, both inverted arms naming themselves (`AMEND-ENTRIES [component.amend]`, `[component.wrap]`) — the lane mutated the amend alone and read 33 |
+| 4 | **Vh** — the legacy branch's two `if patch.<axis> != .auto` guards replaced by `style.size = patch` | **8 tests / 21 issues**, including `widthAndHeightComposeOnAChainedModifier` — the new "an `.auto` axis means *not named*" semantics the payload change introduced is pinned |
+| 4 | **Vi** — `componentFrameStyle`'s `justifyItems`/`alignItems` assignments deleted | **4 tests / 6 issues** — the two fields are load-bearing |
+| 4 | **Vj** — the amend frame's record written with `kind: .stack` | **nothing** — §12.3 item 4 |
+| 4 | **Vk** — `componentFrameStyle`'s `display = .stack` removed **and** both ternaries made constant `.center` | **nothing** — §12.3 item 5 |
+| 5 | **M5g** — the per-member row's `alignment: spec.alignment` hard-coded to `.center` | **nothing**, and the mutant is **not** equivalent (§11.5's row has the uneven-height measurement) — §12.3 item 6 |
+| 2 | **M2c, M2g, M2h re-taken** with the spelling written out | the three attribution corrections of §12.3 items 1–3 |
+
+### 12.3 The thirteen, and what each cost
+
+**Lane 1 (3).**
+
+1. **The twelve images never paint an indicator.** §7.6 presented them as this
+   lane's pixel evidence, and the verifier measured that no scene in any of the
+   twelve contains the thumb's 3pt rect — none of them is ever scrolled, so
+   `alpha` is 0 and `paintIndicator` returns at its guard. The pixel evidence
+   covers the clamp, the write-back and the content clip; **the indicator half
+   rests on M1b–M1e alone**. Recorded in §7.6.
+2. **The lane falsified a sentence in `CLAUDE.md` and nothing said so.** Lines
+   472–473, "`ProposalScrollView`'s clamp and indicator are private copies of
+   `ScrollView`'s — fix both", is now false. `LR-BD`'s critic amendment deferred
+   only the stale *line-range* citation, so the Docs phase had nothing pointing
+   at the claim itself. Added as a deferral row in §7.8 and named in "For the
+   integrator"; practices' "when a claim is refuted, grep for everywhere it was
+   copied".
+3. **The fold concentrates a scroller's axis into one assignable property** and
+   only an indicator test catches `ScrollView`'s (V3). Recorded as §7.9, a named
+   unpinned sub-clause, with the one assertion that would close it.
+
+**Lane 2 (4).**
+
+1. **M2g's row was the union of two spellings.** Scoped to `loweredLayout`'s two
+   `animated(…)` calls it reddens **2**; applied whole-file it also hits the
+   legacy branch's byte-identical pair and reddens 3 — a different set, and
+   **not** 2.1, because mutating both branches keeps the two `StateTable.ids`
+   sets equal. §8.5's row now names the branch and the set.
+2. **M2c under-counted by one** (2.7's hand-derived node and work counts move
+   when the viewport's kind changes): 7, not 6. §8.5 corrected, with the exact
+   `requestNativeFixedSize` spelling.
+3. **M2h is not applicable as literally written**: the same children under a
+   second parent traps at `LayoutTree.swift:743` (`CN-L`'s one node, one slot)
+   and truncates the run. The observation stands for the **orphan childless**
+   duplicate; §8.5 says so.
+4. **`loweredLayout`'s doc comment overstated which style carries the
+   diagnostic.** `Frame.reportUnconsumedLoweredItems` reads `item.declared`
+   only, never `item.animated` — a field added to `contentStyle` alone would
+   vanish silently, which is why M2d has to be applied to `declaredContent` to
+   be observable. The comment now names the declared style and `LR-AS`.
+
+**Lane 3 (3).**
+
+1. **§9.7's guard arithmetic was wrong** (78 hits less one, landing on the right
+   77 by luck): it is **79** hits less `Typecheck.swift`'s declaration **and**
+   `UnitSafetyTests`' comment, as §1 states. Corrected in §9.7 — **and in §8.7
+   and §10.6, which carried the same slip**, because staleness is systematic.
+2. **The pre-flight deferral was scoped larger than the measurement.** Exactly
+   **four** of the 34 scenarios construct a `Seen` box; `HitboxProbe` is
+   stateless; **30 are eligible** for a `WindowPair`-style diagnostics
+   pre-flight. §9.6 and `LR-BN` item 5 now say four by name, so stage 6b
+   inherits the true scope.
+3. **The exit test's ordering dependence is not in `CLAUDE.md`'s CI list.** It
+   is disclosed and ruled (`LR-BN` items 1 and 6) and it fails loudly naming
+   what it had not seen, but on a runner whose file order differs it is a
+   spurious red, and `swift test --filter everyScrollScenario` hard-fails. No
+   code change; handed to the Docs phase in "For the integrator".
+
+**Lane 4 (2).**
+
+4. **`.frameLayer` is not today's decisive reason site `component` cannot
+   report.** Vj — the amend frame's record as `kind: .stack` — left 1569 green,
+   and the verifier traced why by reading: `componentFrameStyle` carries no
+   field `reportUnconsumedLoweredItems` names, so the record stays silent even
+   unconsumed and even as a `.stack`. `.frameLayer` is the guard that *takes
+   over* when that stops being true. Written into `LR-BO` item 2 and
+   `loweredComponentFrame`'s doc, with the obligation it creates: whoever puts a
+   bound into `componentFrameStyle` owes a pin in the same change.
+5. **`componentFrameStyle`'s per-axis ternaries are cosmetic.** Vk (constant
+   `.center`, `display` dropped) left 1569 green; Vi (both fields deleted)
+   reddens 4. So "non-nil and non-stretching" is the whole content of those two
+   lines, and the per-axis alignment lives in `componentFrameAlignment`.
+   Recorded in §10.2 and in the helper's doc rather than collapsed, because the
+   spelling documents intent; the doc now warns that mutating it moves no rect.
+
+**Lane 5 (1).**
+
+6. **M5g stays green and the mutant is not equivalent.** The per-member row's
+   `alignment: spec.alignment` is pinned by nothing: both committed tests
+   declare a height, so every per-member frame is the same height and the row's
+   cross alignment cannot move a rect; the probe's W7/W8 are equal-height frames
+   too, and SwiftUI has no row here at all. The verifier's scratch differential
+   over uneven members (30×10, 50×30) reads y 0/0, 25/15, 50/30 for
+   `.top`/`.center`/`.bottom`, so the argument is settled by measurement.
+   Recorded as a green mutation in §11.5 and as a deferral in §11.10, owned by
+   stage 11 with the siblings question — or by one uneven-height arm from
+   whoever next edits `LoweringComponentTests`.
+
+### 12.4 Suite, goldens, guards after the round
+
+- `swift build --build-system native --build-tests`: 0 `error:`, the only
+  `warning:` SwiftPM's `--build-system native` deprecation notice.
+- Unfiltered `swift test --build-system native --no-parallel`:
+  **`Test run with 1572 tests in 1 suite passed after 52.055 seconds`**, exit 0,
+  whole log kept.
+- Goldens **97**; `git diff --name-only 57893d0 HEAD -- 'Tests/**/*.json'`
+  **empty**.
+- Typecheck guards **77** (79 `canTypecheck` hits less `Typecheck.swift`'s
+  declaration and `UnitSafetyTests`' comment) — **none added by any lane**, so
+  "mutate each new guard red once" is vacuous for this stage.
+- `@available(*, deprecated` hits **34**, unchanged.
+- Screen: `docs/probes/appkit-screen-lock-state.swift` at the round —
+  **`session CGSSessionScreenIsLocked = 1`**, `displayAsleep main: 1`,
+  `displayActive main: 0`. **No real-window capture was taken at any point in
+  this stage.** `IOConsoleLocked` was never read (`FR-V`).
+
+---
+
+## What landed, in one place
+
+Branch `feat/engine-stage-3` from `57893d0`, 2026-09-22 (PDT), twenty-four
+commits:
+
+| commit | what |
+|---|---|
+| `ca7272a`, `ec83625`, `bafcc6a` | the stage-3 design, its ruling range, and critic round 1 applied (`LR-BB`…`LR-BK`, probe arms W7–W9) |
+| `f0590d3`, `72762cc`, `b2d888b`, `440fd78`, `5996637` | **lane 1** — the shared scroll chrome (`ScrollChrome.swift`), two tests strengthened by their own mutations, `LR-BL` and record §7 |
+| `5380d5d`, `1798d2f`, `512bc02`, `5c06966` | **lane 2** — the `ScrollView` lowering, arm A2b, `LR-BM` and record §8 |
+| `5fb562b`, `a1b8ff3`, `116bab6` | **lane 3** — the exit test: both scroll suites under both authorities, `LR-BN` and record §9 |
+| `7f07b2a`, `801bb36`, `9e217ee`, `0a34f3a`, `275d8fb` | **lane 4** — `Component` amend and wrap, arm C3a, `LR-BO` and record §10 |
+| `d47989b`, `4401713`, `3a4346b` | **lane 5** — a frame layer over several member nodes, `LR-BP` and record §11 |
+| (this commit) | the verification round: three doc comments, the record's corrections, record §12 and this closing half |
+
+**The behaviour.** Under the **proposal authority only** — production still runs
+the legacy authority until stage 6b — scrolling and `Component` distribution
+lower onto the kernel:
+
+- **`ScrollView` lowers** (`LR-BB`): its content node through `lowerLegacyNode`
+  at site `scrollView`, so stage 2's whole container lowering applies to the
+  scroll content; its viewport through `requestNativeScrollViewport`, recorded
+  as the element's own `LoweredItem`, so a lowered parent stretches or grows it
+  through stage 2's item frame and rect alias. `flexShrink: 0` is deliberately
+  not carried (the kernel has no freeze loop), and the content record is left
+  unconsumed so a later stage's field on the **declared** content style reports
+  rather than vanishing.
+- **The lowered viewport fills its proposal on the scrolling axis** where the
+  legacy viewport hugs its content (`LR-BC`) — SwiftUI's answer, probe V1–V4,
+  and the reason a scroller scrolls. The cross axis agrees. **Divergence 54
+  survives**, and is now pinned as a literal
+  (`divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`): only a
+  `ScrollView` records an item, so only it gets the stretch frame that reports
+  the parent's cross size.
+- **One clamp and one indicator** (`LR-BD`): `ScrollChrome`, a computed struct
+  both elements build per frame, holding `clamp`, `extent`, `delta`,
+  `indicatorBounds`, `paintIndicator` and both `resolvedOffset` overloads.
+  `ProposalScrollView`'s private copies are **gone**, and
+  `ScrollView.clamp`/`.extent` with them. This is the stage's only edit that
+  runs in production under both authorities.
+- **`$anim-content` and `$anim-viewport` survive the lowering unchanged**
+  (`LR-BE`), and **`ScrollContext` publication is untouched** (`LR-BF`) — same
+  ids, same `withScrollContext` bracket before the content build, same
+  `viewportExtent` write-back from prepaint, which is what `List` windows
+  against (pinned by test 3.5 across two frames, and by the verifier's V6).
+- **A `Component` amend is a per-member native frame** (`LR-BG`):
+  `ComponentModifierOp.amend` carries a `Size<Dimension>` rather than a closure,
+  the legacy branch writes only the axes the patch declares, and the lowered
+  branch consumes and plans the member's record, then frames it, **aligned per
+  axis** — `.center` on a declared axis, 0 on an `auto` one, which is what keeps
+  the undeclared axis where the legacy engine puts it. `.wrap` lowers through
+  `lowerLegacyNode` as an ordinary one-child container.
+- **A `.frame` layer over several member nodes is a row of per-member frames**
+  (`LR-BH`), at spacing 0, with every member's item fields planned;
+  `frame.multipleNodes` leaves the diagnostics.
+- **The exit criterion is met** (`LR-BI`): `ScrollRoutingTests`,
+  `ScrollIndicatorTests` and `ScrollViewTests` run **34 scenarios under both
+  authorities**, their two custom element types (`ScrollContextRecorder`,
+  `HitboxProbe`, 9 registrations) re-spelled as native probe leaves, with a roll
+  call that fails naming any scenario that stopped participating. Inverting the
+  lowered viewport's axis reddens 20 of the 34 — on the `.proposal` arm only.
+
+**What did not move**, deliberately and measured: production pixels (twelve
+offscreen images, 0, at every lane and twice more in the verification round),
+the 97 goldens, the seven reserved identity slots, wheel routing and the single
+hitbox list, the overscroll clamp's behaviour, `List` windowing, hit testing,
+accessibility records and the disabled gate.
+
+## Tests and guards, per file
+
+`@Test` functions, current count and the delta against `57893d0`. The deltas sum
+to **+22**, exactly the suite delta 1550 → **1572**: a parameterised test counts
+as **one** entry in the summary line, so lane 3's 34 scenarios × 2 authorities
+add nothing to the total.
+
+| file | now | delta | lane |
+|---|---|---|---|
+| `Tests/MetalUITests/LoweringScrollTests.swift` (new) | 12 | **+12** | 1 (3), 2 (8), 3 (3.5) |
+| `Tests/MetalUITests/LoweringComponentTests.swift` (new) | 9 | **+9** | 4 (6), 5 (3) |
+| `Tests/MetalUITests/ScrollViewTests.swift` | 8 | **+1** | 3 — `everyScrollScenarioRanUnderBothLayoutAuthorities`, the roll call |
+| `Tests/MetalUITests/ScrollAuthorityCoverage.swift` (new) | 0 | 0 | 3 — the recorder and the 34 hand-derived names; no `@Test` of its own |
+| `Tests/MetalUITests/ScrollIndicatorTests.swift` | 14 | 0 | 1, 3 — arms strengthened, all 14 parameterised by authority |
+| `Tests/MetalUITests/ScrollRoutingTests.swift` | 16 | 0 | 3 — all 16 parameterised; the two probe types re-spelled |
+| `Tests/MetalUITests/LayoutAuthorityTests.swift` | 11 | 0 | 1, 2, 4 — the exit-test arm added then retired, the site inventory inverted at `component`, the `ScrollView` arm moved to `flexGrow.weights` |
+| `Tests/MetalUITests/LoweringCorpusTests.swift` | 3 | 0 | 2 — the demo census's report and three rows |
+| `Tests/MetalUITests/LoweringStackAndLayerTests.swift` | 12 | 0 | 5 — `aHiddenFrameLayerIsReportedAsDisplayNone`'s control arm re-spelled |
+| `Tests/MetalUITests/LoweringItemTests.swift` | 28 | 0 | 2 — `anItemFieldNoLoweredContainerConsumesIsReportedByName`'s `ScrollView` arm becomes an agreement arm |
+| `Tests/MetalUITests/ComponentTests.swift`, `Fakes.swift`, `AbsoluteOverlayTests.swift`, `StateTests.swift` | — | 0 | 3, 4 — the authority parameter on the fakes, doc re-points |
+
+By lane: **+3** (1), **+8** (2), **+2** (3), **+6** (4), **+3** (5), **0**
+(verification round).
+
+**Guards: 77, unchanged — this stage added none**, and per-file counts are
+`57893d0`'s exactly (`PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
+`EnvironmentCompileGuards` 8, `ProposalNodeIDCompileGuards` 6,
+`ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5, `GridCompileGuards`
+4, `ContainerCompileGuards` 4, `DecorationCompileGuards` 3, `AXNodeTests` 3,
+`UnitSafetyTests` 2, `SceneBoundaryCompileGuards` 2,
+`ModifiedElementCompileGuards` 2, `FrameSizingCompileGuards` 2,
+`LayoutAuthorityCompileGuards` 1). Nothing in stage 3 narrows an access level or
+adds a spelling that must not compile: `ScrollChrome` is internal, so is
+`ComponentModifierOp`, and the authority's own guard already covers the seam.
+
+## Probes
+
+`docs/probes/swiftui-engine-replacement-stage3.swift`, **revision 2**, **18
+lines** of recorded output in its header. Groups: **V** — is a `ScrollView`
+flexible inside a stack (V0–V5, V5 under `.fixedSize()`); **W** — a flexible or
+single-axis frame on a multi-member custom view (W0–W6, plus W7–W9 from critic
+round 1).
+
+- Recorded 2026-09-22 by the design session (revision 1, 15 lines); revision 2
+  adds W7–W9, because W2 and W5 were byte-identical to their control and
+  therefore consistent with "the frame did nothing" (practices shape 15).
+- **V5 was wrong in the first revision** — its label said `.fixedSize()` and its
+  body did not apply it, so it printed V1's numbers; with the modifier applied
+  the answer inverts. Found by reading the output against the label, in the same
+  pass that took it.
+- **Re-run before its tests by lanes 2, 3, 4 and 5 and by two verifiers**, under
+  `/usr/bin/swift` and (design phase) `xcrun swiftc -O`: exit 0, empty stderr,
+  byte-identical to the header every time. No arm has ever moved.
+- `swiftui-component-distribution.swift` (**25** lines, G0–G16) and
+  `swiftui-stack-algorithms.swift` (787 lines) were re-run and diffed clean.
+  The component probe's line count was recorded as 22 in the design and is 25;
+  critic round 1 finding 10, and the reason §12.3's guard-arithmetic finding is
+  treated as the same class of defect.
+- **The one question in this stage SwiftUI cannot answer** is named as such:
+  how a frame aligns on an axis with no free space (`LoweredItem.contentAlignment`
+  has no SwiftUI counterpart). `LR-BG`'s per-axis rule is grounded on the legacy
+  agreement it must preserve, with W2/W5/W7–W9 as the consistency check.
+
+## Red runs, in one place
+
+Full unfiltered runs unless noted. Lanes 1 and 4/5's characterization arms are
+recorded honestly as green-on-arrival where they were.
+
+| lane | commit | run | red |
+|---|---|---|---|
+| 1 | `f0590d3` | 1553 | **none — all four tests are characterization and were green on arrival**, which is what `LR-BD` predicted (the two implementations were line-equivalent before the fold). The lane's evidence is its six mutations. Its one genuine red-before is the transient exit-test arm (a proposal-authority `Window` over a `ScrollView` exiting non-zero with `scrollView.noLowering`), which lane 2 retired |
+| 2 | `5380d5d` | 8 tests red; filtered 7 / 46 issues at the time, **49 across all 8** when the verifier replayed it unfiltered | exactly the eight lane-2 tests |
+| 3 | `5fb562b` | 1562, 1 issue | `everyScrollScenarioRanUnderBothLayoutAuthorities`, naming all 34 scenarios as having recorded no coverage |
+| 4 | `7f07b2a` | 6 tests, 34 issues | exactly the six lane-4 tests; **no `legacy:` assertion failed in any of them** |
+| 5 | `d47989b` | 3 tests, 8 issues, plus the re-spelled control arm (1) | the two new pins; `aFrameOverOneMemberIsUnchanged` is characterization, and neither `try #require(…elements == 5)` failed |
+
+## Verifier verdicts, in one place
+
+| lane | verdict | minors |
+|---|---|---|
+| 1 | `ok: true` | 3 — the twelve images paint no indicator; the falsified `CLAUDE.md` sentence with no owner; the axis pinned only by an indicator test (V3) |
+| 2 | `ok: true` | 4 — M2g's union of two spellings, M2c's under-count, M2h not applicable as written, the doc comment's unqualified "a field a later stage puts on it" |
+| 3 | `ok: true` | 3 — §9.7's guard arithmetic, the pre-flight deferral scoped larger than measured, the exit test's order dependence missing from CI's list |
+| 4 | `ok: true` | 2 — `.frameLayer` cited as decisive when it is latent (Vj), the cosmetic per-axis ternaries (Vk) |
+| 5 | `ok: true` | 1 — M5g green and the row's alignment unpinned |
+
+All thirteen are dispositioned in §12.3: eleven applied in this commit, one
+(lane 3's CI row) handed to the Docs phase with the text it should carry, and
+one (lane 1's `CLAUDE.md` sentence) recorded as a deferral pointing at the same
+phase.
+
+## Mutations that stayed green, and what has no mutation
+
+- **M4b over C3 alone** (lane 4) — the `.wrap` as a bare `requestNativePadding`.
+  The **finding**: fixed 30×10 leaves declare no item field, so
+  `planLegacyItems`, `arrangeLegacyMainAxis` and `paddedAndSized` are all
+  no-ops and the two spellings are byte-identical. Closed by arm **C3a**, whose
+  member declares a `margin`; M4b reddens there.
+- **M2b before arm A2b** (lane 2) — the same shape one lane earlier, over fixed
+  leaves in 2.1. Closed by **A2b**, whose content child declares
+  `alignSelf(.center)`. **The lesson did not transfer from lane 2 to lane 4**,
+  which is the stage's most repeatable finding.
+- **M1d and M1f before their tests changed** (lane 1) — a `.hidden` guard that
+  moves no rect, and a 30pt floor invisible where `max(20, 50)` and
+  `max(30, 50)` agree. Both closed in place: 1.2 reads `wantsAnotherFrame`, 1.4
+  gained a second content height.
+- **Vj** (lane 4) — the amend frame recorded as `kind: .stack`. Green, and
+  traced by reading to a narrower true statement (§12.3 item 4); the kind is a
+  latent guard, with an obligation attached rather than a pin.
+- **Vk** (lane 4) — constant `.center` and no `display`. Green and **argued
+  equivalent by reading**, not banked as a gap; recorded so nobody mutates the
+  ternary expecting a rect.
+- **M5g** (lane 5) — the row's cross alignment. Green, **not equivalent**
+  (measured on uneven members), deferred with an owner.
+- **V1** (lane 1) — the `PaintPass` overload's read clamp. Green; argued
+  equivalent by reading only, recorded as an unpinned sub-clause.
+- **Has no mutation, by name**: the horizontal content clip's
+  `chrome.delta(-offset)` translation (§7.9); `measureNativeLayout`'s bracket
+  and the other stage-1/stage-2 holes this stage did not touch.
+
+## Demo comparisons, in one place
+
+Every lane re-took the twelve `CN-R` images from a `git archive` of its own last
+`Sources/`-changing commit against an archive of `57893d0`, controls read first.
+
+| taker | twelve images | two-authority chrome pair |
+|---|---|---|
+| lane 1 (`72762cc`, then `440fd78`) | 12/12 **0**, scene dumps identical, taken twice | **0** |
+| lane 2 (`512bc02`) | 12/12 **0** | **0** |
+| lane 3 (`a1b8ff3`) | 12/12 **0** | **0** |
+| lane 4 (`275d8fb`) | 12/12 **0** | **0** |
+| lane 5 (`3a4346b`) | 12/12 **0** | **0** |
+| lane 1's verifier (scratchpad harness, regenerated at both trees) | 12/12 **0** | **0** |
+| lane 2's verifier (**an independently written harness**, `VPixels.swift`, injected into `git archive` trees of both commits) | 12/12 **0**, every scene dump byte-identical | **0** |
+
+Controls on the head images, `57893d0`'s figures exactly, at every taking: light
+vs dark f0 **1 048 576**; vs modal-light **1 030 498**; vs animation-light
+**210 027**; f0 vs f3 **0**; preview light vs dark **1 048 576**; 544 distinct
+values in `default-light-f0`; 216 in `chrome-legacy`.
+
+**What the twelve images cannot see, and it matters this stage**: none of them
+is ever scrolled, so no scene contains an indicator (§7.6). The pixel evidence
+covers the clamp, the prepaint write-back and the content clip; the indicator
+half of lane 1's fold is pinned by M1b–M1e.
+
+**Real windows: none.** `docs/probes/appkit-screen-lock-state.swift` read
+`CGSSessionScreenIsLocked = 1` / `displayAsleep main: 1` at the end of every one
+of the five lanes and again at the verification round (`CGSSessionScreenLockedTime
+= 1790087900` throughout). The screen was unlocked during the design phase only,
+when there was nothing to capture. `IOConsoleLocked` was never read (`FR-V`).
+
+## Hazards this stage introduced or exposed
+
+1. **An `…unconsumed` regression now truncates the suite.** Since lane 3 the
+   first proposal-authority `Window` holding a `ScrollView` is test #1251, and a
+   production frame traps rather than reporting — no summary line, no list of
+   failures. Deliberate (`LR-BI` as amended), and now a standing property.
+   Mitigation is a `WindowPair`-style diagnostics pre-flight, eligible for **30
+   of the 34** scenarios; the other four capture shared `Seen` boxes that a
+   second render would double (§9.6, corrected).
+2. **The exit test depends on cross-file declaration order**, which Swift
+   Testing does not specify. It fails loudly and names what it had not seen, but
+   on a different toolchain's file order that red is spurious, and
+   `--filter everyScrollScenario` hard-fails by construction. Measured on
+   Swift 6.4 (`swiftlang-6.4.0.33.1`) twice. **A new scroll scenario owes a
+   `ScrollAuthorityCoverage.record` call and a bump of the 34 literal.**
+3. **A scroller's axis is one assignable property now** (`var chrome`).
+   Mis-wiring `ScrollView`'s reddens exactly one indicator test; the horizontal
+   content clip's translation is pinned nowhere (§7.9).
+4. **`reportUnconsumedLoweredItems` reads `item.declared` only.** A field a
+   later stage adds to an animated style alone is dropped with no diagnostic —
+   `LR-AS`'s convention is the only thing closing it. Now in
+   `loweredLayout`'s doc.
+5. **Site `component` has no reachable report left** (`LR-BO` item 2), and the
+   two reasons are not equally strong: the decisive one is that
+   `componentFrameStyle` carries no reportable field, and `.frameLayer` is the
+   guard that takes over if that changes. Whoever puts a bound into that style
+   owes a pin in the same change.
+6. **The `CN-R` harness is still uncommitted**, and this stage rebuilt it three
+   times and reused it twice; a fourth independent rebuild (lane 2's verifier)
+   agreed with it, which is the strongest evidence yet that the eight control
+   figures are a sufficient specification — and also the strongest argument for
+   committing it. Owner: stage 6b.
+7. **Shared-file collisions with any parallel track.** `ScrollView.swift` was
+   rewritten heavily (the chrome removed, `loweredLayout` added),
+   `ProposalScrollView.swift` lost 105 lines, `LegacyLowering.swift` and
+   `Component.swift` gained the amend path, and **all three scroll test files
+   are now parameterised by authority** — a merge that adds a scroll test
+   without a `record` call turns the exit criterion red.
+8. **No public type's storage moved** (`ScrollChrome` is a computed internal
+   struct; `ComponentModifierOp` is internal), so `swift package clean` was not
+   required. Lanes 4 and 5 ran it anyway and read the same totals. Re-run it
+   after the merge regardless — CLAUDE.md's rule is about the merge, not the
+   lane.
+
+## Deferred, each with an owner
+
+| deferred | owner |
+|---|---|
+| `List` windowing under the proposal authority (it traps through a `Window` and builds zero rows under diagnostics; the demo's scroll-subtree widths stay 0 because of it) | **stage 4** |
+| turning an `…unconsumed` trap back into a named failure in a scroll fixture (30 of 34 scenarios are eligible) | stage 6b |
+| committing the `CN-R` harness | stage 6b |
+| a real-window capture of the fold and of the demo | whoever runs with an unlocked screen; `capture.sh` is ready |
+| divergences **48** and **56**' retirement (answered here under the proposal authority, still wrong on purpose under the legacy one) | stage 6b |
+| divergence **54**'s retirement — it **survives** the lowering and is now pinned as a literal | stage 11 / task 10, with `ProposalScrollView`'s own lowering |
+| `ProposalScrollView` publishing a `ScrollContext`; `ProposalScrollView` animating | stage 11 / task 10 (`LR-BF`, `LR-BJ`) |
+| an amend frame or a per-member frame applying a member's `flexGrow`/`margin` rather than dropping them | stage 6b (needs a non-arbitrary main axis, and SwiftUI has no `flexGrow` to probe) |
+| framed members staying **one** flex item where SwiftUI's are siblings (140 vs 148) | stage 11, `TB-M`'s associated type |
+| the per-member row's cross-axis `alignment:` (M5g green, unprobed) | stage 11 with the siblings question, or one uneven-height arm |
+| the horizontal content clip's translation, unpinned (§7.9) | whoever next edits `ScrollRoutingTests`; stage 6b at the latest |
+| a reachable diagnostic at site `component` | whoever first needs one |
+| a demo shape exercising a frame over a multi-member component | whoever adds one, or stage 6b |
+| everything stages 4–14 already own: percentages, unequal grow weights, a length `flexBasis`, a non-greedy `maxSize`, `baseline`, `hidden()`, `Deferred`, absolute positioning, custom elements, the root switch, the deletions | unchanged by this stage |
+
+## For the integrator
+
+**Verdict: all five lanes verified `ok: true`.** Thirteen minor issues in total,
+none blocking and none a defect in a landed behaviour; eleven applied in this
+commit (three source doc comments and the record's and rulings' corrections),
+one handed to the Docs phase with its text below, one recorded as a deferral.
+No lane needed a fix round.
+
+This branch's figures at this commit: **1572 tests, 97 goldens, 77 guards, 0
+`error:` / 0 `warning:`** (the lone `warning:` in a native log is SwiftPM's
+deprecation notice); 34 `@available(*, deprecated` hits, unchanged. Re-take
+every count after the merge, **after `swift package clean`**.
+
+**`CLAUDE.md` (rules only; then `cp CLAUDE.md AGENTS.md` and `cmp`):**
+
+1. **Ruling table.** `` `LR-` (next `LR-BB`) `` → `` `LR-` (next `LR-BQ`) ``. In
+   the per-task list, after the stage-2 entry: `` 7 stage 3 `LR-BB`…`LR-BP`
+   (§24, spec `specs/2026-09-22-engine-stage-3-design.md`, same decisions doc,
+   probe `swiftui-engine-replacement-stage3.swift` revision 2) ``.
+2. **Counts.** 1550 / 97 / 77 → **1572 / 97 / 77** on `feat/engine-stage-3`
+   (**+22 tests**: lane 1 +3, lane 2 +8, lane 3 +2, lane 4 +6, lane 5 +3;
+   **0 goldens, 0 guards** — no typecheck guard was added, so the per-file guard
+   list and the "all 77 guards skip under the default build system" sentence are
+   unchanged); record §24. Then re-take after the merge.
+3. **The layout-authority paragraph**, after the stage-2 one, rules only:
+   > "**Stage 3 lowers scrolling and `Component` distribution** (`LR-BB`…`LR-BP`).
+   > A `ScrollView` lowers its content through `lowerLegacyNode` at site
+   > `scrollView` (stage 2's container lowering entire) under a
+   > `requestNativeScrollViewport`, and records **the viewport** as its own
+   > `LoweredItem`; `flexShrink: 0` is not carried, and the content record is
+   > left unconsumed, so a later field belongs on the **declared** content style
+   > or it vanishes silently (`reportUnconsumedLoweredItems` never reads the
+   > animated one). The lowered viewport **fills its proposal on the scrolling
+   > axis** where the legacy one hugs; the cross axis agrees, and divergence 54
+   > **survives** because only a `ScrollView` records an item. `ScrollContext`,
+   > `$anim-content` and `$anim-viewport` are unchanged, and `List` still windows
+   > against the published context. A `Component`'s `.width`/`.height` lowers to
+   > **one native frame per member**, aligned per axis (`.center` on a declared
+   > axis, 0 on an `auto` one) with the member's record consumed and planned at
+   > `parentKind: .stack`, which **drops** its `flexGrow`, `flexShrink`,
+   > `flexBasis`, `alignSelf` and `margin`; `.padding` lowers as an ordinary
+   > one-child container; a `.frame` layer over several member nodes is a row of
+   > per-member frames at spacing 0. Site `component` has **no reachable report**
+   > left. **Both scroll suites run under both authorities** — 34 scenarios, a
+   > roll call that names any scenario that stops participating, and a new one
+   > owes a `ScrollAuthorityCoverage.record` call and a bump of the 34."
+4. **The falsified sentence** (this is a correction, not an addition): lines
+   472–473, "`ProposalScrollView`'s clamp and indicator are private copies of
+   `ScrollView`'s — fix both" → "`ScrollView` and `ProposalScrollView` share one
+   `ScrollChrome` (clamp, extent, delta, indicator bounds, `paintIndicator`,
+   both `resolvedOffset` overloads), built computed per frame from `axis`,
+   `cornerRadius` and `indicatorVisibility`; `ScrollView.clamp`/`.extent` are
+   gone. A re-inlined private copy on either side reddens
+   `theTwoScrollElementsShareOneChromeImplementation`." Then **grep the file for
+   "private copies"** — the claim is copied in the spec too, which is this
+   stage's own document and already corrected.
+5. **CI — what lapses silently.** Two new rows:
+   - "`everyScrollScenarioRanUnderBothLayoutAuthorities` reads coverage
+     accumulated by two other files and so depends on Swift Testing's
+     **unspecified** cross-file order (measured on Swift 6.4 only). On a runner
+     with a different order it is a spurious red, and
+     `swift test --filter everyScrollScenario` hard-fails. It always names what
+     it had not seen — read the names before debugging."
+   - "A proposal-authority regression that reports an `…unconsumed` field now
+     **traps in a `Window` test and truncates the run with no summary line**
+     (first such test is #1251). Read the last lines of the log, not the
+     summary."
+6. **Human verification.** Add a row: "engine replacement stage 3 (plan task 7,
+   `feat/engine-stage-3`): release-window capture of the default demo and the
+   preview against `57893d0` | **open** — the screen was locked at the end of
+   all five lanes and at the verification round (`CGSSessionScreenIsLocked = 1`,
+   `displayAsleep main: 1`). Offscreen stand-in: twelve images 0 differing at
+   every lane and twice more in verification, once with an independently written
+   harness, the two-authority chrome pair 0. **None of the twelve scenes is ever
+   scrolled**, so no indicator is painted in any of them; the fold's indicator
+   half is pinned by tests, not by pixels. Nothing in production runs under the
+   proposal authority, so no demo look is owed until stage 6b (record §24)".
+7. **Practices.** Add: "**A fixture of fixed-size leaves cannot see a container
+   lowering** — `planLegacyItems`, `arrangeLegacyMainAxis` and `paddedAndSized`
+   are all no-ops over children that declare no item field, so 'this lowers as
+   the container lowering' needs a child that gives the container something to
+   do (stage 3's M2b and M4b, the same finding one lane apart)." And: "**Record
+   which branch a mutation was applied to** — a whole-file substitution over two
+   byte-identical call sites is a different mutation, with a different reddened
+   set, from a scoped one (stage 3's M2g)."
+8. **Nothing else in the rules changes.** Wheel routing, divergence 16, the
+   seven reserved slots, `List`'s four requirements, hit testing, accessibility
+   and the disabled gate are untouched by this stage, and their tests now run
+   under both authorities.
+
+**The plan's task 7 entry: do NOT tick it.** Append under the existing notes:
+
+> *Progress 2026-09-22 on `feat/engine-stage-3` (`ca7272a..`record commit),
+> stage 3 of 14, task still open.* Spec
+> `specs/2026-09-22-engine-stage-3-design.md`; rulings `LR-BB`…`LR-BP` in
+> `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages 1 and
+> 2); probe `docs/probes/swiftui-engine-replacement-stage3.swift` (revision 2,
+> groups V and W); record §24. **Stage 3 delivered** (five lanes, each with its
+> own mutation table, all verified `ok`, thirteen minors all dispositioned):
+> `ScrollView` lowers onto the kernel scroll viewport with stage 2's container
+> lowering as its content and the viewport as its own item record; the lowered
+> viewport fills its proposal on the scrolling axis, and divergence 54
+> **survives** the lowering (pinned as a literal) rather than closing;
+> `ProposalScrollView`'s private clamp and indicator fold into one shared
+> `ScrollChrome`, the stage's only production-path edit; `$anim-content`,
+> `$anim-viewport` and `ScrollContext` publication are unchanged, and `List`
+> still windows against the published context; a `Component` amend lowers to one
+> per-member native frame aligned per axis and a `.frame` layer over several
+> members to a row of per-member frames, which is SwiftUI's answer to
+> divergences 48 and 56 under the proposal authority. **Exit criterion met**:
+> `ScrollRoutingTests` + `ScrollIndicatorTests` + `ScrollViewTests` run 34
+> scenarios under **both** authorities, their 9 custom registrations re-spelled
+> as native probe leaves, with a roll call that names any scenario that stops
+> participating — inverting the lowered viewport's axis reddens 20 of the 34, on
+> the proposal arm only. Suite 1550 → **1572**, 97 goldens unmoved, 77 guards
+> (none added); twelve offscreen demo images 0 differing at every lane and twice
+> more in verification, once with an independently written harness; **no
+> real-window capture** (screen locked throughout, `FR-V`). **Not done:**
+> production still runs the legacy authority (stage 6b); `List` windowing under
+> the proposal authority is stage 4's and is checked only under the legacy one
+> here; an `…unconsumed` regression now truncates the suite instead of failing
+> by name; `ProposalScrollView` still publishes no `ScrollContext` and never
+> animates (stage 11 / task 10).
+
+**README:**
+
+- The count sentence → "On `feat/engine-stage-3` (2026-09-22, plan task 7
+  stage 3) … **1572 tests** … **97** … **77** guards"; re-take after the merge.
+- "Fifty-eight measured divergences" stays **fifty-eight**: this stage retires
+  none and adds none. 48, 54 and 56 gain text, not numbers.
+- In the record list, after `23-integration-stage-2-grids.md`: "and
+  [`24-engine-replacement-stage-3.md`](docs/record/24-engine-replacement-stage-3.md)
+  for its third stage — scrolling and `Component` distribution". In the specs
+  list, extend the engine-replacement entry: "stages 1, 2, G and 3 of 14 landed;
+  production still uses the CSS engine".
+
+**Other owned documents:**
+
+- `docs/record/README.md`: add `` | `24-engine-replacement-stage-3.md` | plan
+  task 7 stage 3 on `feat/engine-stage-3`: `ScrollView` lowered onto the kernel
+  scroll viewport, one shared `ScrollChrome` for both scrollers, `Component`
+  amend and wrap as per-member native frames, a frame layer over several members
+  as a row, and both scroll suites running under both layout authorities (the
+  exit test); five lanes, red runs, verifier verdicts (all `ok`, thirteen
+  minors), mutation tables including the verifiers' twenty, the twelve offscreen
+  images and the independently rebuilt harness; counts 1572 / 97 / 77 | ``.
+- **`docs/record/04-divergences.md`** — three rows gain text, none is retired
+  and no number is added:
+  - **48** (`.width` on a `Component` overwrites its members' declared width):
+    append "**Answered under the proposal authority** by stage 3 lane 4
+    (`LR-BG`): the amend is one native frame per member, aligned per axis, so
+    each member keeps its own width and is centred in its own 70 — SwiftUI's
+    G7/G8. Still wrong on purpose under the legacy authority; retirement is
+    stage 6b's. New pins:
+    `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`,
+    `aComponentAmendsFrameIsCentredOnlyOnTheAxisItDeclares`."
+  - **54** (`ScrollView` takes its cross axis from its parent where
+    `ProposalScrollView` takes its content's): append "**Survives the stage-3
+    lowering**, and stage 3's first writing of `LR-BC` was wrong to say it
+    closed: a lowered `ScrollView` records a `LoweredItem`, so stage 2 wraps it
+    in a stretch item frame whose rect is aliased as the element's;
+    `ProposalScrollView` records none. Now pinned as a literal by
+    `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`, and
+    **removed from stage 6b's retirement row** — it is stage 11 / task 10's."
+  - **56** (a `.frame` over a multi-member `Component` squeezes its members):
+    append "**Answered under the proposal authority** by stage 3 lane 5
+    (`LR-BH`): a row of per-member frames at spacing 0, so the members keep 30
+    and 50 rather than being shrunk to 26 and 44. The 140 against SwiftUI's 148
+    is the enclosing stack's own 8pt spacing, and framed members staying one
+    flex item is `TB-M`'s, stage 11. Still wrong on purpose under the legacy
+    authority. New pin:
+    `aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem`."
+- **`docs/record/05-declared-but-inert.md`** — one row edited, one added:
+  - `Style.overflow`: it still has exactly one write (in `ScrollView`) and no
+    reader; add "the stage-3 lowering does not carry it either — the kernel
+    reads `overflow` nowhere, and `loweredLayout` says so in a comment".
+  - Add to the test-observables row (`Frame.scrollRegions`,
+    `StateTable.isDirty`, …): `` `LayoutAuthority.allCases` `` — the
+    `CaseIterable` conformance lane 3 added exists for
+    `ScrollAuthorityCoverage`'s roll call and has no production reader.
+  - **No row is deleted**: nothing in production sets
+    `LayoutAuthority.proposal` until stage 6b.
+- The `SA-`, `FR-`, `CN-`, `GR-` decisions docs: no change this stage.
+- This stage's own decisions doc: `LR-BB`…`LR-BP` are appended; `LR-BL`,
+  `LR-BM`, `LR-BN`, `LR-BO` and `LR-BP` carry paragraphs headed **Amended,
+  verification round**; **`LR-BQ` is the next id**, and the header's "next
+  unused" line already says so — unmoved, because this round appended no
+  ruling.

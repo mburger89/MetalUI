@@ -360,6 +360,18 @@ extension LayoutPass {
     /// Recorded with `kind: .frameLayer`, so a parent stretches it only on an axis
     /// the patch leaves `auto` (`MC-Q` finding 7) and its own record is never
     /// reported unconsumed.
+    ///
+    /// **`.frameLayer` is the second reason site `component` cannot report, and it
+    /// is not today's decisive one** (verification round, record §12; the
+    /// verifier's mutation Vj wrote this record as `kind: .stack` and the whole
+    /// 1569-test suite stayed green). The decisive reason is that
+    /// `componentFrameStyle` carries no field `reportUnconsumedLoweredItems`
+    /// names — no `minSize`, no `maxSize`, no `margin`, no grow or shrink — so this
+    /// record would stay silent even unconsumed and even as a `.stack`. The kind is
+    /// what takes over the moment that stops being true: whoever puts a bound into
+    /// `componentFrameStyle` (to carry a member's dropped minimum, say) owes a pin
+    /// for it in the same change, or a stage-6b production trap arrives with no
+    /// test seeing it go.
     func loweredComponentFrame(_ node: LayoutNodeID, _ size: Size<Dimension>) -> LayoutNodeID {
         let alignment = componentFrameAlignment(size)
         let declared = componentFrameStyle(size)
@@ -402,6 +414,16 @@ extension LayoutPass {
     /// on every axis, so the frame aligns its member and never stretches it —
     /// which is what `FrameSpec.style()`'s own `switch` guarantees for a `.frame`
     /// layer (`CN-N`).
+    ///
+    /// **Only "non-nil and non-stretching" is load-bearing here; the per-axis
+    /// spelling is cosmetic** (verification round, record §12). Deleting both
+    /// assignments reddens four tests (verifier mutation Vi), but replacing the two
+    /// ternaries with a constant `.center` and dropping `display` entirely reddens
+    /// nothing (Vk): `alignsByStretching` and `stretches` are false for `.start`,
+    /// `.flexStart` and `.center` alike, and `parentKind: .stack` is passed to
+    /// `planLegacyItems` explicitly, so this style's `display` is never consulted.
+    /// The per-axis alignment lives entirely in `componentFrameAlignment` — do not
+    /// mutate the ternary here expecting a rect to move.
     private func componentFrameStyle(_ size: Size<Dimension>) -> Style {
         var style = Style()
         style.display = .stack

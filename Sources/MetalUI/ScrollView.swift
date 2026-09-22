@@ -365,7 +365,14 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// state.** The viewport lowers no item field of its content. Today that
     /// style carries only `flexDirection`, every item field is at its default and
     /// `reportUnconsumedLoweredItems` names nothing; a field a later stage puts
-    /// on it reports rather than vanishing.
+    /// on the **declared** style (`declaredContent`) reports rather than
+    /// vanishing. Which of the two styles carries it decides whether there is a
+    /// diagnostic at all: `reportUnconsumedLoweredItems` reads `item.declared`
+    /// only, never `item.animated`, so a field added to `contentStyle` alone is
+    /// dropped silently — which is also why mutation M2d has to be applied to
+    /// `declaredContent` to be observable. `LR-AS` puts structural item fields on
+    /// the declared style, so the case is narrow; it is not closed by anything
+    /// but that convention (verification round, record §12).
     ///
     /// **The viewport is recorded as this element's own `LoweredItem`** —
     /// declared `Style()` (this element has no modifier surface), the animated

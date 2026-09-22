@@ -1,7 +1,17 @@
 # Engine replacement, stage 3 — scrolling and `Component` distribution (design)
 
-**Status, 2026-09-22 (PDT): ALL FIVE LANES IMPLEMENTED** (record §7, §8, §9,
-§10, §11). The design-phase status below describes the state before lane 1.
+**Status, 2026-09-22 (PDT): DELIVERED — all five lanes implemented and
+verified** (record §7–§11, verification round §12). Every lane's verifier
+returned `ok: true`; thirteen minor issues, none a defect in a landed behaviour,
+are dispositioned in record §12.3 — eleven applied in the verification round
+(three source doc comments and the record's and rulings' corrections), one
+handed to the Docs phase, one recorded as a deferral. Final figures: **1572
+tests, 97 goldens, 77 guards**, 0 `error:`, SwiftPM's deprecation notice the
+only `warning:`; twelve offscreen `CN-R` images 0 differing pixels at every lane
+and twice more in verification (once with an independently written harness); no
+real-window capture — the screen was locked at the end of all five lanes and at
+the verification round. The design-phase status below describes the state before
+lane 1.
 
 **Status, 2026-09-22 (PDT): DESIGNED. No file under `Sources/` or `Tests/`
 changed in a commit; every source patch cited as *prototype P4* was applied in
@@ -608,7 +618,12 @@ unattributed flake living there would double in rate and land in the exit test.
 
 **Demo expectation**: **all twelve images 0 px** — and this lane is the one
 where a non-zero reading is a real finding rather than an expectation, because
-its edit is on the production path under both authorities.
+its edit is on the production path under both authorities. *Measured: 0 in all
+twelve, twice in the lane and twice again in the verification round. **But the
+twelve images never paint an indicator** — none of the scenes is ever scrolled,
+so `alpha` is 0 and `paintIndicator` returns at its guard — so this expectation
+covers the clamp, the prepaint write-back and the content clip only, and the
+indicator half of the fold is pinned by M1b–M1e alone (record §7.6, §12.3).*
 
 ### Lane 2 — the `ScrollView` lowering (`LR-BB`, `LR-BC`)
 
@@ -818,7 +833,11 @@ A later lane that rebuilds it again checks itself against those seven numbers.
 
 - **Lane 1 is the one that can genuinely move a pixel** (it edits production
   paint on both authorities and the preview's `ProposalScrollView`). A non-zero
-  reading there stops the lane.
+  reading there stops the lane. *Verification round: it read 0, and the reading
+  is **blind to the indicator** — no scene among the twelve is scrolled, so no
+  thumb is painted in any of them (measured by scanning every scene dump for the
+  3pt cross-axis rect: zero hits). The pixel evidence covers the clamp, the
+  prepaint write-back and the content clip.*
 - Lanes 2–5 touch only the proposal-authority branch of legacy elements, which
   no production frame takes until stage 6b, so 0 is by construction; the images
   are still taken, because "by construction" has been wrong before.
