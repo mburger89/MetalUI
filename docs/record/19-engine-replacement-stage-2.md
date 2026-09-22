@@ -1,11 +1,19 @@
-# 19 — Engine replacement, stage 2 (plan task 7): design
+# 19 — Engine replacement, stage 2 (plan task 7)
 
 Spec: `docs/superpowers/specs/2026-09-17-engine-stage-2-design.md`. Rulings
-`LR-AB`…`LR-AO` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`.
-Probe: `docs/probes/swiftui-engine-replacement-stage2.swift`. Branch
+`LR-AB`…`LR-BA` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`
+(the same doc as stage 1; `LR-BB` is next). Probe:
+`docs/probes/swiftui-engine-replacement-stage2.swift` (revision 4). Branch
 `feat/engine-stage-2` from `cb2e708`, worktree
-`/Users/maxburger/Developer/MetalUI-engine-stage-2`. **Design only**: nothing
-under `Sources/` or `Tests/` is committed by this record's commit.
+`/Users/maxburger/Developer/MetalUI-engine-stage-2`.
+
+This file was opened by the design session — the sections up to "Critic round 1"
+are its, and **design only**: nothing under `Sources/` or `Tests/` was committed by
+that pass. The five lane sections, the verification round and the closing summaries
+were appended as the stage landed; **"For the integrator" at the end of the file is
+the one to read**, the per-lane ones being its inputs. Stage 2 is **delivered**:
+1460 tests, 97 goldens, 71 guards, the exit test reporting no stage-2 field, and no
+production frame running under the proposal authority (stage 6b).
 
 ## Baseline (2026-09-17, PDT)
 
@@ -615,7 +623,9 @@ by a scratch `max` in `NativeLayoutRun.enter` restored afterwards (`git status
 `scratchpad/s2l2/mut/run.py` (lane 1's runner, new table): committed tree
 (`30737bd`), file copied aside, target asserted unique, applied, native build, full
 unfiltered `swift test --build-system native --no-parallel --skip-build`, restored
-from the copy, `git status --short` read after each — **empty after all 43**. No
+from the copy, `git status --short` read after each — **empty after all 42** (the
+record first said 43; the table has 42 rows and lane 1's M1j was not re-run, so 42
+is the number applied — corrected by the lane's verifier). No
 build error, no truncated run (every log has its summary line). Lane 1's mutations
 were re-run too, re-spelled against the restructured `planLegacyItems` (the whole
 table re-taken, practices record-shape 3). Issue counts in parentheses.
@@ -668,8 +678,16 @@ table re-taken, practices record-shape 3). Issue counts in parentheses.
 Lane 1's **M1j** (a stack lowering `alignSelf`) was not re-run: its insertion
 point is the same stack branch as M1j′ and nothing in lane 2 touched the stack's
 `alignSelf` handling. **M1t** is retired (`LR-AX` item 9). Every lane-2 test is
-reddened by its spec mutation; 2.15 by M1a, M2a, M1d, M2k and M5c′ (M1m′: not, as
-spec §7 allowed).
+reddened by its spec mutation **with one exception, found by the lane's verifier**:
+**2.9** is not reddened by **M2j**, the mutation its doc comment and the spec's 2.9
+row named. The sidebar the test is built on also declares `.flexGrow(1)`, so W is
+greedy either way and a 196 maximum still answers 196; M2j reddens fifteen other
+tests and never reaches it. 2.9 is reddened by lane 1's **M1b** (stretch on the main
+axis) — see that row above, which lists 2.9 (1) — and its subject, divergence 55, is
+separately pinned by 2.6 under M2f. The test carries a live `try #require(legacy !=
+lowered)` and exact literals on both sides; the defect was the attribution, not the
+coverage. Doc comment and spec row corrected in `901e243`. 2.15 is reddened by M1a,
+M2a, M1d, M2k and M5c′ (M1m′: not, as spec §7 allowed).
 
 ### Pixels (CN-R)
 
@@ -802,7 +820,7 @@ Commit first, `cp` aside, apply, full unfiltered
 |---|---|---|
 | **M3a** | the padding's bounds-minus-insets placement restored | 3.1 (2), 3.2 (1, the exit test) — 3 issues in 1440, and nothing else |
 | **M3b** | the text clamp removed | 3.3 (2), 3.4 (2) — 4 issues in 1441 |
-| **M3c** | the clamp applied as the proposal whenever a line breaks | 48 issues in 10 tests: 3.4, `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock`, `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth`, `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent`, `aLoweredContainerPaddingSitsInsideItsDeclaredSize`, `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`, `aLoweredWindowPublishesTheSameAccessibilityTree`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm`, the exit test (2.15) |
+| **M3c** | the clamp over-applied. *The implementer's entry read "the clamp applied as the proposal whenever a line breaks — 48 issues in 10 tests …" and did not preserve the expression; the lane's verifier could not reproduce that count from either natural reading, so the entry is replaced by two exact spellings, measured by the verifier on the committed tree at suite 1450.* **M3c** `width = lines.count > 1 ? proposal : widestLine`: 11 issues in 4 tests — `aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal` (6), `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent` (2), `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock` (2), `theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm` (1); the exit test stays green. **M3c′** `width = proposal.width ?? widestLine`: 117 issues in 18 tests, including the exit test 2.15 (8), `everyContainerFieldIsIgnoredOnALoweredLeaf` (24), `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement` (18), `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth` (16) |
 
 M3a leaves 3.3/3.4 green and M3b leaves 3.1/3.2 green: the two commits' pins are
 independent.
@@ -992,6 +1010,12 @@ re-taken on `9a4a130`. Issue counts in parentheses.
 | **M4g** | `LoweredItem.hasMargin` counting `.auto` | **none on `55621aa`** — the finding: a 0-inset padding is a no-op, so 4.6's consumed arm cannot see it. 4.6 gained an unconsumed arm (`9a4a130`) with a px margin's `margin.unconsumed` as its control; re-run there: 4.6 (1) |
 | **M4h** | `margin.percent` lowered as 0 | 4.7 (1), 2.3 `everyStageOneUnlowerableNodeFieldIsReported…` (2) |
 | **M4i** | `NativeLayoutRun.maxDepth` 96 | 4.8 trap (2), 2.14 trap (2), stage 1's 5.9 (2) |
+| **V4j** | *(the verifier's; `LR-AZ` item 2 reversed)* a `.stack` / `.leaf` / `.frameLayer` parent plans the child's margin like a flex parent | 4.4 (4) |
+| **V4q** | *(the verifier's)* the `border.percent` entry removed from `legacyLeafDiagnostics` | 2.3 (4), 4.7 (1), the container inventory (1) |
+| **V4n** | *(the verifier's, and a coverage gap when it was taken)* `plan.marginInsets` read from the declared style (`d.margin`) instead of the animated one | **none at the time — 1450 green.** Closed after the lane by spec **4.9** `aLoweredMarginRegistersItsAnimatedValue`; re-taken on `901e243`: 4.9 (2) and nothing else |
+| **V4v** | *(the verifier's)* the top border edge dropped from the insets, to show each edge is load-bearing and not only the transpose | 4.1 (6) |
+| **V4m** | *(the verifier's)* `textLeaf: site == .text → false`, so no leaf is recorded in `LoweringState.textLeaves` | 4.2 (2) |
+| **V4l** | *(the verifier's)* the margin padding registered between W and the alignment frame instead of outermost | **none — argued equivalent, not banked as a gap.** No test combines a margin with an `alignSelf` differing from the parent's `alignItems`, and the two orders place identically by construction (`t + f·(L − t − b − h)` outside against `f·(L − (h + t + b)) + t` inside). The load-bearing half of "outermost" — the margin node is **not** aliased, so `Frame.bounds(of:)` still reports the border box — is pinned by M4d |
 
 **Re-taken from lanes 1–2** — every mutation whose target sits in code lane 4
 changed (`paddedAndSized`, `planLegacyItems`, `registerLegacyItems`, `Text.paint`),
@@ -1082,7 +1106,11 @@ taken.** `IOConsoleLocked` was not read (`FR-V`).
   arms), 3.5's container arm. Any other branch's test that expects
   `padding.floor`, `padding.text`, a bare `border`, a bare percentage `minSize`
   or a lowered `margin` report must be re-checked after the merge.
-- **Retired mutations**: **M1k** (lane 3's clamp closed its window; see above).
+- **Retired mutations**: **M1k** (lane 3's clamp closed its window; see above) and
+  stage 1's **V3** (the height half of the `padding.floor` check deleted) — this
+  lane deleted the `padding.floor` branch from `legacyLeafDiagnostics` outright, so
+  V3 has no target left. 2.3's doc comment dropped the citation in `901e243` and
+  cites M4h and V4q in its place.
 
 ---
 
@@ -1233,7 +1261,7 @@ each — **empty after all of them**. No build error, no truncated run; every ru
 | **MJa** | the spacer's minimum 0 whatever the gap | 5.1 (4) |
 | **MJb** | `spaceAround`'s between-spacers not doubled | 5.2 (8) |
 | **MJc** | the gap as the between-spacer's minimum instead of a rigid leaf (J5), the leaf dropped | 5.2 (8) |
-| **MJd** | the end spacers given the platform default minimum (`nil`, 8) instead of 0 | 5.1 (8), **5.3 (6)**, 5.4 (2) |
+| **MJd** | **every** spacer's minimum replaced with the platform default (`nil`, 8) — `func spacer() { frame.requestNativeSpacer(minLength: nil) }`. *(Re-spelled by the lane's verifier: the record and `LR-BA` item 4 first said "the end spacers", which cannot reach 5.1 or 5.4 at all, `space-between` registering no end spacer. The counts below are that spelling's, reproduced exactly; the end-spacers-only variant is a real but weaker mutant — 5.3 alone, 4 issues.)* | 5.1 (8), **5.3 (6)**, 5.4 (2) |
 | **MJe** | each spacer wrapped in a `layoutPriority(0)` node | 5.4 (2) |
 | **MJf** | the node order not reversed | 5.5 (40), 5.7 (5), 5.6 (4), 5.9 (2) — 51 |
 | **MJg** | the main factor not mirrored | 5.5 (24), 5.6 (4), 5.9 (2) — 30 |
@@ -1307,6 +1335,17 @@ gate not being met. `IOConsoleLocked` was not read (`FR-V`).
   belongs to whoever owns the CSS engine's retirement (stage 9) or to a fixture
   added before then; lane 5 records it rather than changing the engine, since
   changing it would move the lowering's agreement in the opposite direction.
+- **The inventory's five new arms compare since `901e243`.** As landed, the three
+  sized `space-*` and two reverse arms of
+  `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` called a
+  proposal-only render and asserted only that nothing is reported, so the *agrees*
+  half of the test's new name was unchecked for them; the two reverse arms are
+  **unsized and ungrown**, a shape `LoweringDistributionTests.swift` does not carry
+  (every reverse arm there declares a main size or is grown by its parent). They now
+  go through `LayoutDifferential.compare` with `expectFullAgreement`, and all five
+  agree in rects, scene, hitboxes, accessibility and state slots. Shown live: under
+  **MJf** (the node order not reversed) the test reddens with 2 issues, where before
+  the change it did not move — MJf's total goes 51 → 53.
 - **Renamed test**: `stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem`
   → `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`. Any other branch
   citing the old name must be re-pointed.
@@ -1319,3 +1358,536 @@ gate not being met. `IOConsoleLocked` was not read (`FR-V`).
   eleven removed from `legacyContainerDiagnostics`. No stored property, so no
   `swift package clean` is needed for this lane's half of a merge.
 - **Retired mutations**: none. M1k stays retired (lane 4).
+
+---
+
+## Verification round (2026-09-21, PDT) — `901e243`
+
+Every lane's verifier returned **`ok: true`**. Between them they raised **fourteen
+minor issues**, none blocking and none a defect in a landed behaviour; eleven were
+attribution or wording, two were missing pins and one was API with no reader. All of
+them are applied or carried in `901e243`, whose full run is this stage's final
+figure.
+
+**The two that changed the tree.**
+
+1. **The animated margin had no pin** (lane 4's verifier). Lane 4 added a second
+   consumer of the animated style — `planLegacyItems`' `plan.marginInsets`, four
+   `marginEdge(a.margin.…)` calls of its own, not the `style` argument
+   `paddedAndSized` receives — and mutation **V4n** (that expression reading
+   `d.margin`) left the whole 1450-test suite green. Not an equivalent mutant: under
+   `withAnimation` a margin would jump to its target on the frame the change is
+   declared, which is the failure `LR-AS` exists to prevent and which 2.13 arm C /
+   M2p and 2.3c / V7 pin for the neighbouring fields. Spec **4.9**
+   `aLoweredMarginRegistersItsAnimatedValue` closes it: `Row { a20.margin(px(0 →
+   40)); b20 }` under `withAnimation(.linear(duration: 1))`, one `Frame` per
+   authority with an explicit `transaction:`/`timestamp:` (no window, no ticks),
+   reading x 0 at the transaction's first frame and **20** half-way on both paths.
+   **V4n re-taken on the committed tree: 4.9 (2 issues) and nothing else**, `git
+   status --short` empty after restoring. `Style.border`, lane 4's other new
+   animated consumer, needs no arm: `paddedAndSized` has no declared style in scope,
+   so the only mutant that can reach it is the call site 2.3c already reddens
+   (`LR-AS` as amended).
+2. **`arrangeLegacyMainAxis`' `mainFactor` had no reader** (lane 5's verifier) —
+   API that compiles and does nothing, the thing CLAUDE.md's inert table exists for.
+   `lowerLegacyNode` needs the factor *before* the call (the diagnostics bail-out
+   registers no node and still records its content alignment), so it computes
+   `legacyMainFactor(_:)` itself and consumed only `nodes` and `spacing`. The tuple
+   is now `(nodes:, spacing:)`; `legacyMainFactor(_:)` stays, for the reason `LR-BA`
+   item 2 gives. No behaviour, no test moved.
+
+**The two that added evidence to a landed test.**
+
+3. **The container inventory's five lane-5 arms now compare.** Three sized
+   `space-*`, `rowReverse` and `columnReverse` called a proposal-only render and
+   asserted only that nothing is reported, so the *agrees* half of
+   `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`'s new name was
+   unchecked for them — and the two reverse arms are **unsized and ungrown**, a
+   shape `LoweringDistributionTests.swift` does not carry (every reverse arm there
+   declares a main size or is grown by its parent). They now go through
+   `LayoutDifferential.compare` + `expectFullAgreement`; all five agree in rects,
+   scene, hitboxes, accessibility and state slots. **Shown live by re-running MJf**
+   (the node order not reversed): the inventory reddens with **2 issues**, where
+   before the change it did not move — MJf's total goes 51 → 53 issues.
+4. **Two lane-4 behaviours had no mutation row** although they were pinned: the
+   `.stack`/`.leaf`/`.frameLayer` arm of `planLegacyItems` (`LR-AZ` item 2, the
+   lane's own headline correction) and the `border.percent` report that replaced the
+   bare `border` row. The verifier measured both — **V4j** reddens 4.4 (4), **V4q**
+   reddens 2.3 (4), 4.7 (1) and the inventory (1) — and they are now rows in lane
+   4's table, with V4v, V4m and V4l beside them.
+
+**The ten that were attribution or wording**, each corrected in place: 2.9's doc
+comment and the spec's 2.9 row named **M2j**, which cannot redden it (the sidebar is
+a grower, so W is greedy either way and a 196 maximum still answers 196) — the
+mutation that does is lane 1's **M1b**, and lane 2's "every lane-2 test is reddened
+by its spec mutation" now records the exception; stage 1's **V3** was retired by lane
+4's deletion of the `padding.floor` branch and left 2.3's doc comment pointing at
+nothing; the spec's 2.4 parenthetical for M2d′ said 150 where the test says 75 / 75;
+lane 2's prose said 43 mutations against a 42-row table; `LR-AS` still described
+2.13's pin as `WindowPair`, superseded by `LR-AX` item 3; `LR-BA` item 4's MJd was
+the end spacers' minimum, which cannot reach 5.1 or 5.4; lane 3's M3c was too loosely
+described to reproduce and is replaced by two exact expressions with the verifier's
+counts. Two findings were carried rather than changed: 3.1's caller-bounds arm
+applies `N`'s placement rule to an entry SwiftUI cannot spell (re-check it at stage
+6b, when a production proposal root could be a `Padding`), and 3.4's width assertion
+restates the implementation's formula — left as is, because 3.3 carries the literal
+answers and `try #require(clamped == 2)`.
+
+**Suite after the round**: `Test run with 1460 tests in 1 suite passed after 50.963
+seconds` (1459 + 4.9), after `swift build --build-system native --build-tests` with
+0 `error:` and SwiftPM's `--build-system native` deprecation notice as the only
+`warning:`. Goldens **97**, `git diff --name-only cb2e708 -- '*.json'` empty. Guards
+**71** (73 `canTypecheck` hits less `Typecheck.swift`'s declaration and
+`UnitSafetyTests`' comment) — **none added by any lane of this stage**, so "mutate
+each new guard red once" is vacuous. `@available(*, deprecated` hits **34**,
+unchanged.
+
+### Real-window captures (the first on this branch)
+
+`xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&
+/tmp/lockstate` at **18:11 PDT**: **no `CGSSessionScreenIsLocked` line**,
+`displayAsleep main: 0`, `displayActive main: 1`, `preflightScreenCaptureAccess:
+true`. The gate is met, so `docs/probes/window-capture/capture.sh` ran for the first
+time at this stage's head (lane 2's verifier ran it at `f25889a`; lanes 1, 3, 4 and 5
+were all locked). Release builds from `git archive`, window-id capture with no
+shadow, no input, each window twice 1.5 s apart:
+
+| capture | result |
+|---|---|
+| `cb2e708` default, a vs b | 1840×1176 differing **0** |
+| `cb2e708` preview, a vs b | **0** |
+| `901e243` default, a vs b | **0** |
+| `901e243` preview, a vs b | **0** |
+| `cb2e708` → `901e243` **default** | **0** |
+| `cb2e708` → `901e243` **preview** | **0** |
+| control, default vs preview at `901e243` | **890 803** |
+
+So the whole stage — five lanes, including lane 3's two production kernel changes —
+moves **no pixel of the real release window**, in either mode, and the instrument is
+live (the control is the same 890 803 lane 2's verifier read).
+
+---
+
+## What landed, in one place
+
+Branch `feat/engine-stage-2` from `cb2e708`, 2026-09-17 to 2026-09-21, twenty-two
+commits:
+
+| commit | what |
+|---|---|
+| `5b67545`, `c7fdfc4` | the stage-2 design and its critic round 1 (`LR-AP`…`LR-AV`) |
+| `0e4a209`, `ba908ad`, `9245c1f`, `25fd9fb` | **lane 1** — item records, the bounds alias, the cross axis, unconsumed records |
+| `27a9e23`, `f25889a`, `30737bd`, `9e86124` | **lane 2** — the main axis, animated fields, depth, the exit test |
+| `8a2d753`, `d0c439a`, `51c4628` | **lane 3** — the two proposal-path answers that reach production |
+| `ff8b05c`, `55621aa`, `9a4a130`, `4bde004` | **lane 4** — the box model |
+| `3ec113b`, `32f82d4`, `45ba049` | **lane 5** — justify distribution and reverse directions |
+| `901e243` | the verification round above |
+| (this commit) | record §19 |
+
+**The behaviour.** Under the **proposal authority only** — production still runs the
+legacy authority until stage 6b — a lowered legacy tree now carries flex-item
+semantics as SwiftUI spells them:
+
+- every lowered site records a `LoweredItem` (`LoweringState.swift`) and reports no
+  item field itself; a lowered container **consumes** its children's records and
+  wraps each (`planLegacyItems`), and a record nobody consumes is reported by name
+  (`LR-AQ`);
+- **cross axis**: `alignItems`/`alignSelf` `.stretch` as a greedy cross-axis item
+  frame W, **aliased as the element's rect** so decoration, hitboxes, accessibility
+  and text wrap follow it; a non-stretch `alignSelf` as an unaliased alignment frame;
+  a nil-axis frame layer under a stretching `Box` (MC-Q finding 7);
+- **main axis**: `flexGrow` as W greedy on the main axis, shared equally (unequal
+  declared factors report `flexGrow.weights` on the parent); a zero `flexBasis` on an
+  unsized grower as `auto`; `flexShrink: 0` as `fixedSize`; any positive shrink as
+  SwiftUI's compression; px/rem `minSize`/`maxSize` as W's minimum and maximum, folded
+  into a declared size as CSS's used size; a parent re-checks the free space it
+  creates (`LR-AR`);
+- **the box model**: `Style.border` as insets inside the declared size; a `Text`'s
+  `Style.padding` around **its leaf**, glyphs painted and wrapped at the leaf; a
+  declared size below the padding + border sum keeping its frame (`BM-4`'s floor is a
+  divergence, 4.3); `margin` as a native padding **outside** the item frame,
+  unaliased, negative margins accepted, `.auto` as 0, and a `Stack` or `.frame` layer
+  ignoring it exactly as the legacy engine does;
+- **the container's main axis**: `justifyContent`'s three distributions as native
+  spacers with a rigid gap leaf (declared main size only); `.rowReverse` /
+  `.columnReverse` as the children's **nodes** reversed with the main factor mirrored,
+  identity, paint, hit and accessibility order untouched;
+- **structure from the declared style, values from the animated one** (`LR-AS`), with
+  an animated pin per new consumer (2.13, 2.3c, 4.9);
+- **two production kernel answers** (lane 3, proposal path, reaching the preview):
+  `SA-N` item 4 — a padding places its child at the child's own size — and a text
+  measurement never answering wider than its proposal.
+
+**The exit criterion is met.** The rewritten 2.15
+`theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` reports **no stage-2
+field**: modal off `[list.noLowering, scrollView.noLowering]`, modal on
+`[stack.position, stack.inset, list.noLowering, scrollView.noLowering]` — the two
+site entries later stages own, plus the modal's stage-5 fields — with every
+remaining disagreement (30 ids, 36 with the modal) carrying a named cause and a probe
+arm.
+
+## Tests and guards, per file
+
+`@Test` functions, current count and the delta against `cb2e708`. The deltas sum to
+**+51**, exactly the suite delta 1409 → **1460** (no parameterized test was added, so
+one `@Test` is one suite entry).
+
+| file | now | delta | lanes |
+|---|---|---|---|
+| `Tests/MetalUITests/LoweringItemTests.swift` (new) | 28 | +28 | 1, 2 |
+| `Tests/MetalUITests/LoweringBoxModelTests.swift` (new) | 10 | +10 | 4, and 4.9 from the verification round |
+| `Tests/MetalUITests/LoweringDistributionTests.swift` (new) | 9 | +9 | 5 |
+| `Tests/MetalUITests/LoweringPipelineParityTests.swift` | 8 | +2 | 1, 2 |
+| `Tests/MetalUITests/LoweringLeafTests.swift` | 11 | +1 | 3 — divergence 59's test renamed `aProposalTextBelowItsWidestBrokenLineAnswersTheProposal` and `aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal` added (one rename + one new = +1); lanes 2 and 4 amended arms here (2.3, 2.3c, 3.4) |
+| `Tests/MetalUILayoutTests/NativeValidationAcceptanceTests.swift` | 10 | +1 | 3 |
+| `Tests/MetalUITests/LoweringCorpusTests.swift` | 3 | 0 | 2.15 rewritten; the corpus tests re-pinned |
+| `Tests/MetalUITests/LoweringContainerTests.swift` | 9 | 0 | 1, 5 and the verification round (the inventory) |
+| `Tests/MetalUITests/LoweringStackAndLayerTests.swift` | 12 | 0 | arms amended |
+| `Tests/MetalUITests/LayoutAuthorityTests.swift` | 11 | 0 | arms amended |
+
+By lane: **+15** (1), **+15** (2), **+2** (3), **+9** (4), **+9** (5), **+1**
+(verification round).
+
+**Guards: 71, unchanged — this stage added none.** 73 `canTypecheck` hits less
+`Typecheck.swift`'s declaration and `UnitSafetyTests`' comment, the same arithmetic
+as stage 1. Nothing in stage 2 narrows an access level or adds a spelling that must
+not compile: `ProposalNodeID`'s and the authority's guards already cover the seam.
+
+## Probes
+
+`docs/probes/swiftui-engine-replacement-stage2.swift`, **revision 4**, 906 lines,
+254 lines of recorded output in its header. Groups: **F** main-axis growth, **X**
+cross-axis fill, **P** the padding family, **J** justify distribution spelled with
+`Spacer(minLength:)`, **R** reverse as reversed children, **C**
+`containerRelativeFrame` (percentages), **V** `.hidden()`, **Y** breaking inside a
+word, **Z** (revision 3, lane 1) a greedy cross frame over a child taller than the
+line, **N** (revision 4, lane 3) where a padding places its child. Every group opens
+with a control that must differ from at least one arm (practices shape 15).
+
+- Recorded 2026-09-17 by the design session (revision 1, 157 lines), extended by the
+  critic round (2), lane 1 (3, Z0/Z1) and lane 3 (4, N0–N2).
+- **Re-run before its tests by lanes 2, 3, 4 and 5 and by three verifiers**, each
+  time twice, `exit 0`, stdout byte-identical between the two runs and identical to
+  the header's OUTPUT block line for line, filtered stderr empty. No arm has ever
+  moved.
+- Stage-1's probe (`swiftui-engine-replacement-stage1.swift`) and the
+  stack-algorithms probe were re-run where a lane cited them; `LR-AL`'s re-run reads
+  787 lines, identical.
+- The only SwiftUI claim in this stage with no arm of its own is named as such: see
+  hazard 6.
+
+## Red runs, in one place
+
+Every lane wrote its tests first and ran them against the previous lane's lowering.
+No red run was skipped, and each is a full unfiltered run, not a filter.
+
+| lane | commit | run | red |
+|---|---|---|---|
+| 1 | `0e4a209` | 1424 tests, 197 issues | 17 tests (1.1–1.15 and two corpus pins) |
+| 2 | `27a9e23` | 1439 tests, 92 issues | exactly the 16 lane-2 tests |
+| 3 | `8a2d753` / `d0c439a` | 1440 / 1441 | each commit's own pair |
+| 4 | `ff8b05c` | 1450 tests, 72 issues | exactly the nine lane-4 tests |
+| 5 | `3ec113b` | 1459 tests, 145 issues | exactly the eight non-characterization lane-5 tests |
+
+Lane 4's red run was **replayed independently** by its verifier (Sources at
+`51c4628` + Tests at `ff8b05c`): 72 issues, the nine tests, with the record's
+per-test counts to the number. Lane 2's was corroborated from `27a9e23`'s diff
+(tests only) and the recorded log.
+
+## Verifier verdicts, in one place
+
+| lane | verdict | minors |
+|---|---|---|
+| 1 | `ok: true` | 2 — a retired mutation still cited (V3), two behaviours without a mutation row (V4j, V4q) |
+| 2 | `ok: true` | 4 — 2.9's mutation attribution, the spec's M2d′ parenthetical, "43 applied", `LR-AS`'s superseded pin shape |
+| 3 | `ok: true` | 4 — the text ceiling unowned, 3.1's caller-bounds extension, 3.4's restated formula, M3c not reproducible as spelled |
+| 4 | `ok: true` | 1 — the animated margin unpinned (V4n) |
+| 5 | `ok: true` | 3 — `mainFactor` with no reader, MJd mis-spelled, the inventory's five arms not comparing |
+
+All fourteen are dispositioned above; twelve are applied in `901e243`, one (the text
+ceiling) is handed to the integrator with a number and an owner, one (3.1's
+extension) is carried to stage 6b.
+
+## Mutations that stayed green, and what has no mutation
+
+- **M4g** on `55621aa` — `LoweredItem.hasMargin` counting `.auto`. The **finding**:
+  a 0-inset padding is a no-op, so 4.6's consumed arm cannot see it. 4.6 gained an
+  unconsumed arm (`9a4a130`) and the mutation reddens it there (`LR-AZ` item 3).
+- **V4n** on `4bde004` — `plan.marginInsets` from the declared style. The
+  **finding**: an unpinned animated read; closed by 4.9 (above), where V4n reddens
+  with 2 issues.
+- **M1k** on every tree since lane 3 — the bounds alias missing from
+  `PaintPass.measuredWidth(of:)`. **Retired**, attributed by experiment: with lane
+  3's clamp reverted *and* M1k applied, 1.10 reddens again. The alias there is
+  redundant as the code stands and is kept as intent (`LR-AZ` item 4); the
+  integrator inherits the keep-or-delete choice.
+- **V4l** — the margin padding registered between W and the alignment frame rather
+  than outermost. **Argued equivalent, not banked as a gap**: no test combines a
+  margin with an `alignSelf` differing from the parent's `alignItems`, and the two
+  orders place identically by construction. The load-bearing half of "outermost" —
+  the margin node is not aliased — is pinned by M4d. Equivalence is argued, not
+  measured; a later stage that makes the two orders differ owes the arm.
+- **M2j against 2.9** — not a green mutant but a green *test*: the mutation named in
+  2.9's doc comment cannot reach it (above). 2.9 is reddened by M1b.
+- **Has no mutation, by name**: the five arms lane 5 added to the container
+  inventory are agreement characterizations, reddened by MJf (2) since the
+  verification round but by no mutation of their own; an unsized, ungrown reverse
+  container's rects were pinned by nothing until that change.
+
+## Demo comparisons, in one place
+
+Every lane re-took the twelve `CN-R` images from a `git archive` of its own last
+`Sources/`-changing commit against an archive of `cb2e708`, with
+`DEMO_PIXELS_SMALL=1`, controls read first.
+
+| lane | twelve images | two-authority chrome pair | M5d control |
+|---|---|---|---|
+| 1 | 12/12 **0**, scene same | 0, 216 distinct values | 8 214 |
+| 2 | 12/12 **0** | 0 | 8 214 |
+| 3 | 12/12 **0**, twice (one archive per commit) | 0 | — |
+| 4 | 12/12 **0** | 0 | 8 214 |
+| 5 | 12/12 **0** | 0 | 8 214 |
+| verifiers | lanes 1, 2, 4 and 5's re-taken from their own archives: 12/12 **0** | 0 | 8 214 |
+
+Controls on the head images, the stage-1 figures exactly, at every lane: light vs
+dark f0 **1 048 576**; vs modal-light **1 030 498**; vs animation-light **210 027**;
+f0 vs f3 **0**; preview light vs dark **1 048 576**; 544 distinct values in
+default-light-f0; the chrome pair 308 354 against `small560-default-light`.
+
+**Real windows**: the verification round's table above — `cb2e708` → `901e243`,
+default **0** and preview **0**, control 890 803. Lane 2's verifier read the same
+figures at `f25889a`. Lanes 1, 3, 4 and 5 were locked and took none (`FR-V`:
+`IOConsoleLocked` was not read at any point).
+
+**Why the preview does not move although lane 3 changed the kernel**: no preview
+root is a `Padding` over a hugging child, and no preview text is proposed a width
+below its widest broken line. Both changes are reachable in principle from a
+production proposal root — that is why lane 3 is its own lane, with its own commits.
+
+## Hazards this stage introduced or exposed
+
+1. **A stored property on a public class, again.** `LoweringState` gained stored
+   properties (lane 4's `textLeaves` among them) and `Frame.lowering` is stage 1's.
+   `swift package clean` after merging, or the incremental build disagrees about
+   layout (CLAUDE.md's "when the impossible happens"). Lane 4 cleaned before its
+   suite for this reason.
+2. **Shared-file collisions with the parallel track.** This branch touched
+   `LegacyLowering.swift` (heavily, appended), `LoweringState.swift`, `Frame.swift`
+   (one call), `Passes.swift` (one expression), `Text.swift` (`paintGlyphs`),
+   `ScrollView.swift` (one line), `ProposalText.swift` (one expression) and
+   **`LayoutTree.swift` (one case of `placeNative`)**. The last is a semantic
+   collision waiting to happen: **any padding test the other track wrote against
+   bounds-minus-insets placement must be re-checked after the merge**, and it is on
+   its own commit (`8a2d753`) so it can be identified.
+3. **A branch that lowers from a style needs an animated arm.** Three of stage 1's
+   verifiers found a declared-style mutant green; stage 2's lane-4 verifier found
+   the fourth (V4n). Every new read of `Style` in the lowering owes an arm in the
+   shape of 2.3c or 4.9, or it is unpinned.
+4. **A mutation named in a doc comment goes stale when a later lane edits the code
+   it targets.** Two instances here: stage 1's V3 (the branch was deleted) and 2.9's
+   M2j (the shape stopped discriminating). Both were caught by verifiers re-running
+   the named mutation, not by reading. Re-run the named mutation when the code under
+   it changes.
+5. **The depth budget is consumed faster the more item fields lower.** Stage 1
+   estimated the demo's deepest lowered path at 22; measured, it is **18** — but a
+   padded, sized, margined, stretched item is five native levels, so 4.8's chain
+   reaches the 88/89 boundary at **122/123 nodes** where 2.14's reaches it at
+   fewer. `SA-L`'s 88 was not raised, and raising it still means re-bisecting all
+   four node kinds.
+6. **A legacy-vs-CSS gap this stage found and does not own.** CSS falls back to
+   `center` when a `space-around`/`space-evenly` line overflows;
+   `Alignment.swift`'s `distributeMainAxis` clamps free space at 0 and packs from
+   `flex-start`. No golden encodes it (the corpus has no overflowing `space-*`
+   fixture), and WebKit is the oracle for the CSS engine, so this is a real
+   disagreement with the oracle that the fixture corpus cannot see. Lane 5 recorded
+   it rather than changing the engine — changing it would move the lowering's
+   agreement in the opposite direction.
+7. **`SA-N` item 4's caller-bounds arm is an extension, not a measurement** (3.1):
+   SwiftUI cannot spell a `Padding` root placed in caller bounds, so the arm applies
+   `N`'s rule rather than measuring it. A proposal root that is a `Padding` over a
+   hugging child now under-fills the window where it used to stretch. No demo or
+   preview root has that shape today; re-check at stage 6b.
+
+## Deferred, each with an owner
+
+| deferred | owner |
+|---|---|
+| Percentages — `size`, `padding`, `border`, `margin`, `gap`, `minSize`/`maxSize`, fractional `flexBasis` (all reported by name; 4.7 is the eight-arm inventory) | stage 8's recipe, stage 10's deletion (`LR-AI`) |
+| Unequal `flexGrow` weights (reported on the parent) | stage 8 (`LR-AE`) |
+| A non-zero length `flexBasis`; a sized zero-basis grower | stage 8 (`LR-AE` as amended) |
+| `maxSize` on a non-greedy, unsized axis | stage 8 (`LR-AG`) |
+| `space-*` on a container with no declared main size that a parent grows or stretches | stage 8's recipe (`LR-AR`) |
+| `Row`/`Column` default spacing, divergence 52 (5.8 characterizes it) | stage 8, a vocabulary change (`LR-AL`) |
+| `alignItems.baseline` / `alignSelf.baseline` | task 11 |
+| `hidden()` — SwiftUI keeps the space, and `AB-O`'s suppression must move off `display` first | its own change, with constraints (`LR-AV`) |
+| W2 (the long label at priority 1) | task 11, as a stack-allocation question (`LR-AM`, `LR-AY` item 6) |
+| **SwiftUI's integer ceiling on a text answer** (probe Y: SwiftUI 19 / 11 / 18 / 45 where MetalUI answers 18.17 / 10.31 / 17.25 / 44.02 — `min(proposal, ceil(widest line))`) | **task 11**, and it must be settled before **stage 6b**, when a lowered `Text` reaches production. Given divergence **60** below, rather than left in a decisions-doc paragraph |
+| A `Stack`'s or a `.frame` layer's margin (lowered as absent, because the legacy engine treats it as absent) | a re-spelling, not a lowering; whoever wants SwiftUI's answer (`LR-AZ` item 2) |
+| A negative main-axis gap under a distribution (no test, no probe arm, nothing in the repo spells one) | stage 8 |
+| The redundant alias in `PaintPass.measuredWidth(of:)` | the integrator's keep-or-delete choice (`LR-AZ` item 4) |
+| 3.1's caller-bounds placement extension | stage 6b, re-checked against a SwiftUI shape that can be spelled |
+| `ScrollView`, `List`, `Component` distribution, `Deferred`, absolute positioning, grids, custom elements, the root switch | stages 3, 4, 5, G, 6a, 6b — unchanged by this stage |
+
+## For the integrator
+
+**Verdict: all five lanes verified `ok: true`.** Fourteen minor issues in total,
+none blocking; twelve applied in `901e243` (the verification round above), one
+carried to stage 6b (3.1's extension) and one handed here with a number and an owner
+(the text ceiling). No lane needed a fix round.
+
+This branch's figures at `901e243`: **1460 tests, 97 goldens, 71 guards, 0 `error:`
+/ 0 `warning:`** (the lone `warning:` in a native log is SwiftPM's deprecation
+notice); 34 `@available(*, deprecated` hits, unchanged. Re-take every count after
+the merge, **after `swift package clean`** (hazard 1).
+
+**`CLAUDE.md` (rules only; then `cp CLAUDE.md AGENTS.md` and `cmp`):**
+
+1. **Ruling table.** `` | `LR-` | engine replacement, plan task 7 (`LR-A`…`LR-AA`,
+   next is `LR-AB`) | `` → `` (`LR-A`…`LR-BA`, next is `LR-BB`) ``. In "Where things
+   are", after the stage-1 line: `` stage 2 (flex-item semantics):
+   `specs/2026-09-17-engine-stage-2-design.md`, same decisions doc (`LR-AB`…`LR-BA`),
+   record §19; probe `docs/probes/swiftui-engine-replacement-stage2.swift`
+   (revision 4). ``
+2. **Counts.** 1409 / 97 / 71 → **1460 / 97 / 71** on `feat/engine-stage-2` at
+   `901e243` (**+51 tests**: lane 1 +15, lane 2 +15, lane 3 +2, lane 4 +9, lane 5
+   +9, verification round +1; **0 goldens, 0 guards** — this stage added no
+   typecheck guard, so the per-file guard list and the "the other 31 …" sentence are
+   unchanged); record §19. Then re-take after the merge.
+3. **The layout-authority paragraph** (the one stage 1 added). Append, keeping it
+   rules-only:
+   > "**Stage 2 lowers the flex ITEM fields, by the parent** (`LR-AB`…`LR-BA`).
+   > Every lowered site records a `LoweredItem` and reports no item field itself; a
+   > lowered container consumes its children's records and wraps each, and **a
+   > record nobody consumes is reported by name** (`LR-AQ`) — a new lowering site
+   > that receives children consumes or marks them, or its children's fields go
+   > silent. Lowered: `stretch` and a non-stretch `alignSelf` as cross-axis frames
+   > (stretch's is **aliased as the element's rect**, so decoration, hitboxes,
+   > accessibility and text wrap follow it); `flexGrow` as a greedy main-axis frame
+   > shared equally; a zero `flexBasis` on an unsized grower; `flexShrink: 0` as
+   > `fixedSize` and any positive shrink as SwiftUI's compression; px/rem
+   > `minSize`/`maxSize` folded into a declared size as `max(min, min(size, max))`;
+   > `Style.border` as insets inside the declared size; a `Text`'s `Style.padding`
+   > around **its leaf** (glyphs paint and wrap at the leaf); `margin` as a native
+   > padding outside the item frame, unaliased, `.auto` as 0, negative accepted;
+   > `justifyContent`'s three distributions as native spacers plus a rigid gap leaf,
+   > with a declared main size only; `.rowReverse`/`.columnReverse` as the children's
+   > **nodes** reversed with the main factor mirrored (identity, paint, hit and
+   > accessibility order untouched). Still reported by name, each with an owner:
+   > percentages, unequal grow weights, a length `flexBasis`, a non-greedy `maxSize`,
+   > `space-*` on an unsized container a parent grows, `baseline`, `hidden()`.
+   > **Structure reads the declared style, values the animated one** (`LR-AS`); a new
+   > read of `Style` in the lowering owes an animated arm (2.3c, 2.13, 4.9) or it is
+   > unpinned. A `Stack` and a `.frame` layer ignore a child's margin, as the legacy
+   > engine does."
+4. **Divergence table** (and record §04 gains the index rows):
+   - **Retire 59.** Lane 3's clamp makes `ProposalText` (and a lowered `Text`)
+     answer the proposal below its narrowest word, which is SwiftUI's answer; the
+     test is renamed and now pins the agreement
+     (`aProposalTextBelowItsWidestBrokenLineAnswersTheProposal`,
+     `aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal`). Do not
+     reuse the number.
+   - **Add 60**: "| 60 | vs SwiftUI | SwiftUI's text measurement answers an
+     **integer** width — `min(proposal, ceil(widest line))`: 19 / 11 / 18 / 45 for
+     probe Y's arms where `ProposalText` (and a lowered `Text`) answers 18.17 /
+     10.31 / 17.25 / 44.02 (stage-2 probe Y, `LR-AY` item 4). Unpinned; task 11, and
+     it must be settled before task 7 stage 6b, when a lowered `Text` reaches
+     production. |" README's "Forty-eight" → forty-eight still (59 out, 60 in).
+   - **52**: owner "task 7 stage 2" → "task 7 stage 8" (5.8 characterizes it; closing
+     it is a vocabulary change, `LR-AL`).
+   - **53, 55**: append nothing new — both already say "lowered to SwiftUI's answer
+     under the proposal authority; production at stage 6b". **55** gains a second
+     pin: `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight` and
+     `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`.
+   - **No other divergence is retired**: production is unchanged, and this stage's
+     other new disagreements are **proposal-authority only**. They are pinned by
+     name, not numbered, and are listed per lane above: growers share equally (2.2);
+     a zero-basis `Text` grower breaks inside its word (2.4); a `Text`'s
+     `Style.padding` pads it (4.2); a declared size below the padding + border sum
+     keeps its frame (4.3); a negative margin past its own box clamps at 0 (4.5); an
+     animated `flexGrow` snaps its structure and equal declared factors stay equal
+     mid-flight (2.13). **CLAUDE.md's animation snap list gains the last one.**
+   - **`SA-N` item 4 leaves "Probed, and the kernel disagrees"** (lane 3): delete the
+     padding row there; the kernel now places a padding's child at the child's own
+     size on both entries.
+5. **Declared-but-inert table:**
+   - **Edit** the `Style.padding`/`border`/`margin`-on-a-**leaf** row and the legacy
+     `borderWidth(_:)` row: both stay true of the **legacy** authority, and under the
+     proposal authority `Style.border` and a `Text`'s padding are **live** (they
+     lower into the padding's insets and around the leaf). Same for the
+     `margin: .auto` row: still 0 on both axes, now by an explicit lowering.
+   - **No row is deleted**: `LayoutAuthority.proposal` is still set by no production
+     code until stage 6b.
+6. **Depth guard** (`SA-L`). "the default demo's deepest lowered path is estimated at
+   22 (`LR-Q`)" → "**measured at 18** (2.15's census, both modal states, 78 and 88
+   native nodes)"; add "an item with a margin, a padding, a size and a stretch is
+   **five** native levels, so 4.8's chain reaches the 88/89 boundary at 122/123
+   nodes".
+7. **Practices.** Add: "**Re-run a mutation named in a doc comment when the code
+   under it changes** — a later lane can delete the branch (stage 1's V3) or make the
+   shape stop discriminating (2.9's M2j); both were found by a verifier re-running
+   the named mutation, not by reading."
+8. **Human verification.** Add a row: "engine replacement stage 2 (plan task 7,
+   `feat/engine-stage-2`): release-window capture of the default demo and the preview
+   against `cb2e708` | **closed 2026-09-21 by real release-window captures**
+   (`capture.sh`, window-id, no shadow, no input, each window twice 1.5 s apart and
+   reading 0): `cb2e708` → `901e243` default **0**, preview **0**, control
+   default-vs-preview 890 803. Offscreen stand-in at every lane: twelve images 0
+   differing, the two-authority chrome pair 0 (control 8 214). Nothing in production
+   runs under the proposal authority, so no demo look is owed until stage 6b (record
+   §19)".
+
+**The plan's task 7 entry: do NOT tick it.** Append under the existing notes:
+
+> *Progress 2026-09-21 on `feat/engine-stage-2` (`5b67545..`record commit), stage 2
+> of 14, task still open.* Spec `specs/2026-09-17-engine-stage-2-design.md`; rulings
+> `LR-AB`…`LR-BA` in `../2026-09-17-engine-replacement-decisions.md` (the same doc
+> as stage 1); probe `docs/probes/swiftui-engine-replacement-stage2.swift`
+> (revision 4); record §19. **Stage 2 delivered** (five lanes, each red first, all
+> verified `ok`, fourteen minors all dispositioned): flex-item semantics lowered by
+> the parent under the proposal authority — item records and the unconsumed report,
+> stretch and `alignSelf`, `flexGrow`/`flexBasis`/`flexShrink`, CSS minima and
+> maxima folded into a declared size, the box model (border as insets, a `Text`'s
+> padding around its leaf, the `BM-4` floor as a divergence, margin as outer
+> padding), `justifyContent`'s distributions as spacers and the reverse directions
+> as reversed nodes, animated values with structure from the declared style — plus
+> two proposal-path answers that reach production (`SA-N` item 4, and a text
+> measurement never wider than its proposal, which closes divergence 59). Exit test
+> 2.15 reports **no stage-2 field**: only `list.noLowering`/`scrollView.noLowering`,
+> and the modal's `stack.position`/`stack.inset`. Suite 1460 (1409 + 51), 97 goldens
+> unmoved, 71 guards (none added); twelve offscreen demo images 0 differing at every
+> lane and **real release-window captures 0** for the default demo and the preview.
+> **Not done:** production still runs the legacy authority (stage 6b); percentages,
+> unequal grow weights, a length `flexBasis`, a non-greedy `maxSize`, `baseline`,
+> `hidden()` and `space-*` on an unsized grown container still report by name, each
+> with an owner (stage 8, task 11); divergence 60 (SwiftUI's integer text width) is
+> new and unpinned.
+
+**README:**
+
+- The count sentence ("On `feat/engine-replacement` … **1409 tests** … **71**
+  guards") → "On `feat/engine-stage-2` (2026-09-21, plan task 7 stage 2) …
+  **1460** … **97** … **71**"; re-take after the merge.
+- "Forty-eight measured divergences" stays **forty-eight** (59 retires, 60 is added).
+- In the record list, after `18-engine-replacement-stage-1.md`: "and
+  [`19-engine-replacement-stage-2.md`](docs/record/19-engine-replacement-stage-2.md)
+  for its second". In the specs list, extend the engine-replacement entry: "stages 1
+  and 2 of 14 landed: legacy elements lower onto the kernel under an internal
+  proposal authority, with SwiftUI's flex-item semantics; production still uses the
+  CSS engine".
+
+**Other owned documents:**
+
+- `docs/record/README.md`: add `` | `19-engine-replacement-stage-2.md` | plan task 7
+  stage 2 on `feat/engine-stage-2`: flex-item semantics lowered by the parent — item
+  records and the unconsumed report, the cross and main axes, the box model,
+  distribution and reverse, animated fields; the two proposal-path answers that reach
+  production; five lanes, red runs, verifier verdicts (all `ok`, fourteen minors) and
+  mutation tables; the offscreen pixels, the chrome pair and the first real-window
+  captures; counts 1460 / 97 / 71 | ``.
+- `docs/record/04-divergences.md`: retire 59 (do not reuse), index 60, edit 52's
+  owner and 55's pins.
+- The `SA-` decisions doc: `SA-N` item 4 is **closed** (`LR-AU`, lane 3); the
+  padding row leaves the list.
+- `FR-`/`CN-` decisions docs: no change this stage.
+- This stage's own doc: `LR-AS`, `LR-AZ` and `LR-BA` carry amendment paragraphs
+  written in the verification round; `LR-BB` is the next id.

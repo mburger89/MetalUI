@@ -1,7 +1,12 @@
 # Engine replacement, stage 2 — flex-item semantics onto SwiftUI's (design)
 
-**Status, 2026-09-21 (PDT): designed, critic round 1 applied; all five lanes
-implemented** (lane 1: `0e4a209` red, `ba908ad` implementation, corrections `LR-AW`
+**Status, 2026-09-21 (PDT): DELIVERED — designed, critic round 1 applied, all five
+lanes implemented and verified (`ok` from every lane's verifier; fourteen minors,
+twelve applied in `901e243`'s verification round, one carried to stage 6b, one handed
+to the integrator as divergence 60). Suite 1460, 97 goldens unmoved, 71 guards, real
+release-window captures 0 for the default demo and the preview. The exit test
+reports no stage-2 field.**
+**Lanes** (lane 1: `0e4a209` red, `ba908ad` implementation, corrections `LR-AW`
 marked *lane 1*; lane 2: `27a9e23` red, `f25889a` implementation, `30737bd`,
 corrections `LR-AX` marked *lane 2*; lane 3: `8a2d753` and `d0c439a`, corrections
 `LR-AY`; lane 4: `ff8b05c` red, `55621aa` implementation, `9a4a130`, corrections
