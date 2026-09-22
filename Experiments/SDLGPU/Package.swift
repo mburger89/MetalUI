@@ -1,4 +1,4 @@
-// swift-tools-version: 6.3
+// swift-tools-version: 6.4
 import PackageDescription
 
 // The Apple half: draws fixtures with the production Metal renderer, compares

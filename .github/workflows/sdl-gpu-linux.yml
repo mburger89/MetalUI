@@ -18,7 +18,7 @@ on:
 jobs:
   record:
     name: Record fixtures (macOS, Metal)
-    runs-on: macos-latest
+    runs-on: xcode-27  # Swift 6.4 (Xcode 27, preview image)
     defaults:
       run:
         working-directory: Experiments/SDLGPU

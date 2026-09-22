@@ -1,7 +1,7 @@
 # Linux build and replay of Portable/: no MetalUI, no Apple frameworks.
 # SDL3 is built from source (Ubuntu 24.04 ships only SDL2). Rendering uses
 # Mesa lavapipe, a CPU Vulkan driver, with SDL's offscreen video driver.
-FROM swift:6.2-noble
+FROM swift:6.4-noble
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git cmake ninja-build pkg-config libvulkan1 mesa-vulkan-drivers vulkan-tools \
     && rm -rf /var/lib/apt/lists/*

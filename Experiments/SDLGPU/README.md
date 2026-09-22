@@ -34,7 +34,7 @@ run kinds and any run past its buffer, since the C bridge trusts all of them.
 
 ## Run on macOS
 
-Requires the repository's Swift 6.3 toolchain, a Metal-capable Mac, and SDL3
+Requires the repository's Swift 6.4 toolchain, a Metal-capable Mac, and SDL3
 available through `pkg-config` (`brew install sdl3 pkg-config` if needed).
 
 From this directory:
@@ -114,7 +114,7 @@ docker --context orbstack run --rm -v "$PWD":/work metalui-portable bash -c \
    $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../fixtures --driver vulkan'
 ```
 
-Swift 6.2.4 on Ubuntu 24.04 with SDL 3.4.16 built from source (headless:
+Swift 6.4 on Ubuntu 24.04 with SDL 3.4.16 built from source (headless:
 `SDL_UNIX_CONSOLE_BUILD`, offscreen video) and Mesa llvmpipe, a CPU Vulkan
 driver. `Portable/` builds, its 19 tests pass, and `PortableReplay` links
 SDL3 and swift-corelibs-foundation only. Parity:
