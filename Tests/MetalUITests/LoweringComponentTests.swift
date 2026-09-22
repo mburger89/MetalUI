@@ -156,9 +156,20 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
 /// probe **G2** (`Pair().padding(8)` measures 120×26, each member padded, and
 /// each member keeps its own 30 and 50).
 ///
+/// **C3a exists because M4b reddened NOTHING on its first run** — the same
+/// finding lane 2 took on `M2b` (`LR-BM`), in the same shape. C3's members are
+/// fixed 30×10 leaves that declare no item field, so over them
+/// `planLegacyItems`, `arrangeLegacyMainAxis` and `paddedAndSized` are all
+/// no-ops and a bare `requestNativePadding` produces byte-identical geometry.
+/// **C3a gives the member a `margin`**, which only the container lowering can
+/// carry (`planLegacyItems` plans it as the outermost native padding, `LR-AH`):
+/// the legacy wrapper's content box is the member's MARGIN box, and matching it
+/// needs the plan. A bare padding both moves the member and leaves its record
+/// for `reportUnconsumedLoweredItems`.
+///
 /// Mutation **M4b**: the wrap registered as a bare native padding instead of
-/// through `lowerLegacyNode` — the member's own item record stops being
-/// consumed and the stretch the legacy padding node performs disappears.
+/// through `lowerLegacyNode` — C3a's member loses its margin and its record is
+/// reported `box.margin.unconsumed`.
 @MainActor
 @Test func aComponentsPaddingLowersAsAnOrdinaryOneChildContainer() throws {
     let c3 = LayoutDifferential.compare(width: 400, height: 100) {
@@ -169,6 +180,14 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
     try lane4Rects(c3, "C3 a", lane4MemberA, legacy: bnd(8, 8, 30, 10), lowered: bnd(8, 8, 30, 10),
                    mustDiffer: false)
     try lane4Rects(c3, "C3 b", lane4MemberB, legacy: bnd(54, 8, 50, 10), lowered: bnd(54, 8, 50, 10),
+                   mustDiffer: false)
+
+    // C3a: a member the container lowering must actually do something for.
+    let c3a = LayoutDifferential.compare(width: 400, height: 100) {
+        Box { Lane4MarginSolo().padding(px(8)) }.width(px(300)).height(px(40))
+    }
+    lane4ExpectAgreement(c3a, "C3a")
+    try lane4Rects(c3a, "C3a a", lane4MemberA, legacy: bnd(12, 12, 30, 10), lowered: bnd(12, 12, 30, 10),
                    mustDiffer: false)
 }
 
