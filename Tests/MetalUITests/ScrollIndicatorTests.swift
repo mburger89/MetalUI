@@ -484,6 +484,15 @@ private func wheel(at position: Point<Pixels>, deltaY: Float, timestamp: Double)
 /// Without that half, a fixture that could not scroll at all would pass the
 /// first half for the wrong reason — `guard scrollable > 0` returns just as
 /// early as `guard alpha > 0` does.
+///
+/// **The `ProposalScrollView` arm** (stage 3 lane 1, test 1.3, `LR-BD`) is the
+/// same claim for the element that held the second copy of the chrome. It is
+/// writable and green at `57893d0` — `ProposalScrollView` already reads
+/// `ScrollState()`, so it already inherits the `-.infinity` default — and the
+/// fold is what must not change it. **Mutation M1e**, `ScrollState.lastScrollTime`'s
+/// default (and its init's parameter default) set to `0`, must redden **both**
+/// arms: with `age == 0` on the pre-tick frame every scrollable scroller of
+/// either kind paints its thumb at full strength and asks for another frame.
 @Test @MainActor func aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
@@ -515,6 +524,42 @@ private func wheel(at position: Point<Pixels>, deltaY: Float, timestamp: Double)
     #expect(abs(Double(rect.background.a) - 0.35) < 0.001,
             "control: age 0 after a real scroll is the token's full 0.35")
     #expect(window.needsRedraw, "control: a thumb that just appeared must request the frames that fade it")
+
+    // The `ProposalScrollView` arm, in its own window so the two cannot share
+    // a `ScrollState`. Its content is five 40pt rectangles in a zero-spacing
+    // `VStack` — 200pt of content behind a 120pt viewport, the same overflow
+    // the legacy arm has, and the rectangles paint, so "no indicator" here is
+    // a rect COUNT rather than an empty scene.
+    let (proposalWindow, proposalPlatformWindow) =
+        try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
+            ProposalScrollView(.vertical, elementID: listID) {
+                VStack(spacing: Pixels(0)) {
+                    Rectangle(width: Pixels(120), height: Pixels(40), color: .accent)
+                    Rectangle(width: Pixels(120), height: Pixels(40), color: .accent)
+                    Rectangle(width: Pixels(120), height: Pixels(40), color: .accent)
+                    Rectangle(width: Pixels(120), height: Pixels(40), color: .accent)
+                    Rectangle(width: Pixels(120), height: Pixels(40), color: .accent)
+                }
+            }
+        }
+    let proposalFramesBefore = proposalWindow.framesDrawn
+    proposalWindow.drawFrameIfNeeded()
+    try #require(proposalWindow.framesDrawn == proposalFramesBefore + 1,
+                 "set up: the pre-tick first frame must actually draw")
+    #expect(proposalWindow.lastScene.rects.count == 5,
+            "the five content rectangles and no thumb: a never-scrolled ProposalScrollView must not paint its indicator on the window's first frame either")
+    #expect(!proposalWindow.needsRedraw,
+            "and must not request another frame from it")
+
+    proposalPlatformWindow.simulateInput(wheel(at: pt(60, 60), deltaY: -20))
+    try #require(proposalWindow.needsRedraw, "set up: the scroll itself must dirty the window")
+    proposalWindow.drawFrameIfNeeded()
+    let proposalRect = try #require(proposalWindow.lastScene.rects.last,
+                                    "control: the same fixture, scrolled at the same instant, must paint the thumb")
+    #expect(proposalWindow.lastScene.rects.count == 6, "five rectangles plus the thumb")
+    #expect(abs(Double(proposalRect.background.a) - 0.35) < 0.001,
+            "control: age 0 after a real scroll is the token's full 0.35 here too")
+    #expect(proposalWindow.needsRedraw, "control: a thumb that just appeared must request the frames that fade it")
 }
 
 // MARK: - 6. The fade is a RAMP, and it uses the scroll-indicator token

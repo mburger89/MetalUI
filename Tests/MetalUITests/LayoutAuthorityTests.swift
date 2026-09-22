@@ -174,6 +174,18 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 ///
 /// Mutations that must redden it: **M1d**, `List`'s check removed (the message
 /// names `box`); **M1d′**, the amend's check removed (the message is `SA-G`'s).
+///
+/// **Stage 3, lane 1 adds a third arm, and it is transient** (spec §6 lane 1,
+/// `LR-BI`): a proposal-authority **`Window`** over a plain `ScrollView`
+/// aborts. `Window` never sets `reportsUnlowerableFields` — `Window.swift`'s
+/// `Frame(...)` call passes `layoutAuthority` and `recordsElementBounds` and
+/// nothing else — so `noteUnlowerable` takes its `preconditionFailure` branch
+/// and the process ends with no summary line and no list of what failed. That
+/// is why lane 3 cannot take a red-before by running the scroll suites under
+/// the proposal authority, and why this arm is its red-before instead. **Lane 2
+/// lowers `ScrollView` and retires this arm**, converting it to an agreement
+/// arm in `LoweringScrollTests.swift`; the test's name names the two arms that
+/// survive that.
 @Test func aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority() async {
     let list = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
@@ -201,6 +213,26 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
             "aborted, but not at the component amend's own check:\n\(amendErr)")
     #expect(!amendErr.contains("setStyle on a native layout node"),
             "the amend must trap by its own site before SA-G's setStyle precondition:\n\(amendErr)")
+
+    // Stage 3 lane 1's transient arm, retired by lane 2. Through a real
+    // `Window`, not a `Frame`, because that is the shape lane 3's scroll
+    // scenarios take, and the point of the arm is that under this authority
+    // they abort rather than fail.
+    let scroller = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            guard let device = MTLCreateSystemDefaultDevice() else {
+                fatalError("no Metal device; run on macOS hardware")
+            }
+            guard let (window, _) = try? makeFakeWindow(device: device, size: 60, content: {
+                ScrollView(.vertical) { ProbeLeaf(width: 10, height: 40) }
+            }) else { fatalError("the fake window could not be built") }
+            window.layoutAuthority = .proposal
+            window.drawFrameIfNeeded()
+        }
+    }
+    let scrollerErr = String(decoding: scroller?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(scrollerErr.contains("scrollView.noLowering has no proposal lowering"),
+            "aborted, but not at ScrollView's own check — a window that could not be built aborts too:\n\(scrollerErr)")
 }
 
 /// **1.5.** With diagnostics on, every legacy site reports `(site, field)` by
