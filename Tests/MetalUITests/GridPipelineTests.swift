@@ -249,14 +249,18 @@ private struct TapCell: ProposalElement {
     let device = try #require(MTLCreateSystemDefaultDevice())
     func hitboxes(disabled: Bool) throws -> Int {
         let log = TapLog()
+        // `.disabled` is an `EnvironmentScope`, a GROUP, so it is wrapped in a
+        // `ZStack` to be a window root; the scope itself is what is under test.
         let (window, _) = try makeFakeWindow(device: device, size: 200) {
-            Grid {
-                GridRow {
-                    TapCell("a", log, 40, 40).onTap { log.taps["a", default: 0] += 1 }
-                    TapCell("b", log, 40, 40).onTap { log.taps["b", default: 0] += 1 }
+            ZStack {
+                Grid {
+                    GridRow {
+                        TapCell("a", log, 40, 40).onTap { log.taps["a", default: 0] += 1 }
+                        TapCell("b", log, 40, 40).onTap { log.taps["b", default: 0] += 1 }
+                    }
                 }
+                .disabled(disabled)
             }
-            .disabled(disabled)
         }
         window.drawFrameIfNeeded()
         return window.lastHitboxes.filter { $0.handlers.onClick != nil }.count
