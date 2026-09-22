@@ -307,19 +307,24 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
     try #require(long.grid > short.grid, "the control: a longer string must widen the column")
     #expect(long.legacy == long.proposal, "one measurement, two spellings, at a second width")
 
-    // The clamp's own arms, on both sides of its boundary. A word far wider than
-    // the grid's offer: the typesetter breaks inside it, and below about 13 points
-    // the line it produces is still wider than the offer, so `min(proposal, widest
-    // line)` is the only thing making the answer the offer exactly. The arms above
-    // cannot see a missing clamp, since there the widest line already fits.
+    // The clamp's own arms, on both sides of its boundary, and the reason this
+    // test exists. A word far wider than the grid's offer: the typesetter breaks
+    // INSIDE it, and the line it produces can be wider than the offer — one
+    // character plus the space it hangs (stage 1's T3/T4 read 11.18 against a
+    // proposal of 5). `min(proposal, widest line)` is the only thing that makes
+    // the answer the offer there.
     //
-    // Measured, not assumed: at an offer of 16 this string answers 15 (unclamped)
-    // and at 12 it answers 12 (clamped), so 12 is inside the clamp and 16 outside.
+    // **Measured, not assumed, and this is the arm that had no owner.** Dropping
+    // that clamp from the lowered `Text` alone left all 1548 merged tests green
+    // (mutation XM4) until this arm existed: lane 3 pinned the clamp through
+    // `ProposalText`, and no test reached it through a lowered `Text`. At an offer
+    // of 12 or 16 the broken line already fits (12 and 15), so only a very narrow
+    // offer discriminates.
     let word = "supercalifragilisticexpialidocious"
-    let clamped = try loweredFirst(word, offer: 12)
-    #expect(clamped.legacy == 12, "the lowered Text is clamped to the grid's offer")
-    #expect(clamped.proposal == 12, "and so is the ProposalText")
-    #expect(clamped.grid == 12, "so the column is the offer")
+    let clamped = try loweredFirst(word, offer: 5)
+    #expect(clamped.legacy == 5, "the lowered Text is clamped to the grid's offer")
+    #expect(clamped.proposal == 5, "and so is the ProposalText")
+    #expect(clamped.grid == 5, "so the column is the offer")
 
     let unclamped = try loweredFirst(word, offer: 16)
     try #require(unclamped.grid < 16, "the control: at 16 the broken line fits, so no clamp applies")
