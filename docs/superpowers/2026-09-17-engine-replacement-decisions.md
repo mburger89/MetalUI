@@ -1927,6 +1927,23 @@ already reads a frame layer's bounds from the animated style.
   factor. Pinned by spec 2.13 through `WindowPair`, driven by `simulateTick`
   (no sleep). The integrator adds both to CLAUDE.md's snap list.
 
+**Amended, stage-2 lanes 2 and 4 (`LR-AX` item 3, `LR-AZ` as amended).** Two
+corrections to the pin half. (1) **Not `WindowPair`:** a parked transaction is
+consumed by exactly one frame build, so two windows driven together cannot both see
+it; spec 2.13 drives **one fake window per authority, in turn**
+(`animatedWidths(_:ids:_:)`), which is what landed. (2) **The values half has a
+second path, and it was unpinned until after lane 4's verification.** `margin`'s
+insets are not read through the `style` argument `paddedAndSized` receives — the
+argument spec 2.3c pins as the animated one — but through `planLegacyItems`'
+`plan.marginInsets`, four `marginEdge(a.margin.…)` calls of its own; reading the
+declared style there passed the whole 1450-test suite (verifier mutation **V4n**).
+Spec 4.9 (`aLoweredMarginRegistersItsAnimatedValue`) is the arm that sees it: a
+margin going 0 → 40 under `withAnimation(.linear(duration: 1))` reads 0 at the
+transaction's first frame and **20** half-way, on both authorities. `Style.border`,
+lane 4's other new animated consumer, needs no arm of its own: it is read from the
+same single `style` argument, in a function with no declared style in scope, so the
+only mutant that can reach it is the call site 2.3c already reddens.
+
 **What it costs if wrong.** An animated grow or shrink factor jumps under the
 proposal authority; stage 6b's demo has none (the **A** look animates a width and
 a colour).
@@ -2344,6 +2361,19 @@ differing pixels with the stage-1 controls; and the mutation table below.
    arm swaps `padding.floor` for `border.percent`. Every one of those was found by
    the implementation's first full run, not predicted.
 
+**Amended after the lane's verification.** Item 2's claim — a `.stack`, `.leaf` or
+`.frameLayer` parent plans no margin padding — and lane 4's renaming of the `border`
+report to `border.percent` (item 5) each carry a mutation of their own, added to
+record §19's lane-4 table by the verifier: **V4j** (a stack or frame-layer parent
+plans the margin like a flex parent, i.e. this item reversed) reddens 4.4 with 4
+issues, and **V4q** (the `border.percent` entry removed) reddens 2.3 (4), 4.7 (1)
+and the container inventory (1). A sixth ruling follows from the same round:
+6. **`plan.marginInsets` reads the animated style, and that read now has its own
+   arm.** See `LR-AS` as amended: mutation **V4n** left the whole suite green, and
+   spec 4.9 closes it. Stage 1's mutation **V3** (the height half of the
+   `padding.floor` check deleted) is **retired** by item 5 — the branch it targets no
+   longer exists — and 2.3's doc comment no longer cites it.
+
 **What it costs if wrong.** (1) A wrong legacy literal would have made 4.3 a pin on
 a fiction, and the divergence it names is the one stage 6b ships to production. (2)
 If the legacy stack does honour margins in some shape this lane did not reach, a
@@ -2436,6 +2466,27 @@ stage-1 controls exactly, the two-authority chrome pair at 0 and its M5d control
    named all eight, with `disagreeing` empty throughout — the two authorities agreed
    and the literal was wrong. Corrected from the scratch dump taken before the red
    run.
+
+**Amended after the lane's verification.** Three corrections, none behavioural but
+each a claim a later reader would act on. (1) **Item 2's third return value is
+withdrawn.** Nothing reads the tuple's `mainFactor`: `lowerLegacyNode` needs the
+factor *before* the arrangement (the diagnostics bail-out registers no node and
+still records its content alignment), so it calls `legacyMainFactor(_:)` itself and
+the copy in the tuple is API that compiles and does nothing. The signature is
+`arrangeLegacyMainAxis(_ items:, declared:, animated:) -> (nodes:, spacing:)`; the
+separate `legacyMainFactor(_:)` stays, for the reason item 2 gives. (2) **Item 4's
+MJd is *every* spacer's minimum, not the end spacers'.** As item 4 spelled it the
+mutation cannot reach 5.1 or 5.4 at all — both are `space-between`, which registers
+no end spacer — so the recorded counts (5.1 8, 5.3 6, 5.4 2) belong to
+`func spacer() { requestNativeSpacer(minLength: nil) }`, every spacer's minimum
+replaced with the platform default. The end-spacers-only variant is a real but
+weaker mutant: 5.3 alone, 4 issues. (3) **Item 5's five inventory arms now compare,
+not just report.** They went through a proposal-only render, so the *agrees* half of
+the test's new name was unchecked for them, and the two reverse arms are unsized and
+ungrown — a shape `LoweringDistributionTests.swift` does not carry, every reverse arm
+there declaring a main size or being grown by its parent. They now go through
+`LayoutDifferential.compare` with `expectFullAgreement`; all five agree in rects,
+hitboxes, accessibility and state slots.
 
 **What it costs if wrong.** (1) A divergence pinned where none exists would have
 frozen a fiction into stage 6b's production behaviour and made any later fix of the

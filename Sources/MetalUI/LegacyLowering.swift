@@ -388,7 +388,11 @@ extension LayoutPass {
 
     /// Arranges one lowered flex container's already-wrapped `items` on its main
     /// axis (lane 5, ruling LR-AJ), returning the nodes to hand the native linear
-    /// stack, the container's main factor and the stack's spacing.
+    /// stack and the stack's spacing. The container's main factor is **not**
+    /// returned: `lowerLegacyNode` needs it before this call, to build the content
+    /// alignment it reports with when a field is unlowerable, so it computes
+    /// `legacyMainFactor(_:)` itself (`LR-BA` item 2, as amended); a second copy in
+    /// this tuple had no reader.
     ///
     /// **`justifyContent`'s distributions lower to native spacers**, and only with a
     /// declared main size — an unsized container has no free space to distribute and
@@ -418,7 +422,7 @@ extension LayoutPass {
     /// Structure reads the **declared** style and lengths the **animated** one
     /// (`LR-AS`).
     func arrangeLegacyMainAxis(_ items: [LayoutNodeID], declared: Style, animated: Style)
-        -> (nodes: [LayoutNodeID], mainFactor: Double, spacing: Double) {
+        -> (nodes: [LayoutNodeID], spacing: Double) {
         let isRow = declared.flexDirection.isRow
         // `Axes.horizontal` is the gap between a row's items, `vertical` between a
         // column's (CSS `column-gap` / `row-gap`); the cross-axis gap separates
@@ -434,7 +438,7 @@ extension LayoutPass {
             spacing = 0
         }
         if declared.flexDirection.isReverse { nodes.reverse() }
-        return (nodes, legacyMainFactor(animated), spacing)
+        return (nodes, spacing)
     }
 
     /// `items` interleaved with the spacers and rigid gap leaves `distribution`

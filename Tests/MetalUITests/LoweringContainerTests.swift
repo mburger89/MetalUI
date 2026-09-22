@@ -311,8 +311,13 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 /// other half lowered too, so nothing named in the old name is reported any more and
 /// the name would have been a lie. What is left is the container table's inventory —
 /// every container field either lowers and agrees, or is reported by name — so the
-/// five `space-*` and reverse arms stay here, expecting `[]`, and their rects are
-/// pinned in depth by `LoweringDistributionTests.swift` (5.1, 5.2, 5.5). The hidden
+/// five `space-*` and reverse arms stay here. **After the lane's verification** they
+/// go through `LayoutDifferential.compare` rather than a proposal-only render, so
+/// their rects, hitboxes, accessibility and state slots are compared here as well as
+/// their reports: `LoweringDistributionTests.swift` (5.1, 5.2, 5.5) pins the same
+/// mechanisms in depth at other shapes, but every reverse arm there declares a main
+/// size or is grown by its parent, so an unsized, ungrown reverse container was
+/// pinned by nothing. The hidden
 /// reverse container still reports `display.none` alone, which is the arm that shows
 /// `display: none` is checked before the direction.
 @MainActor
@@ -375,21 +380,39 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
     func report<C: ElementGroup>(@ElementBuilder _ make: @MainActor () -> C) -> [UnlowerableField] {
         LayoutDifferential.render(authority: .proposal, width: 100, height: 100, make).unlowerableFields
     }
+    // Lane 5's five arms go through `LayoutDifferential.compare`, not `report`, so the
+    // **agrees** half of this test's name is checked for them too (added after the
+    // lane's verification, which found it was not): the two unsized reverse arms are a
+    // shape `LoweringDistributionTests.swift` does not carry — every reverse arm there
+    // declares a main size or is grown by its parent.
+    let sizedBetween = LayoutDifferential.compare(width: 100, height: 100) {
+        Row { fixed(20, 10); fixed(30, 10) }.width(px(100)).justifyContent(.spaceBetween)
+    }
+    expectFullAgreement(sizedBetween, "sized spaceBetween")
+    let sizedAround = LayoutDifferential.compare(width: 100, height: 100) {
+        Column { fixed(20, 10); fixed(30, 10) }.height(px(100)).justifyContent(.spaceAround)
+    }
+    expectFullAgreement(sizedAround, "sized spaceAround")
+    let sizedEvenly = LayoutDifferential.compare(width: 100, height: 100) {
+        Row { fixed(20, 10); fixed(30, 10) }.width(px(100)).justifyContent(.spaceEvenly)
+    }
+    expectFullAgreement(sizedEvenly, "sized spaceEvenly")
+    let rowReverse = LayoutDifferential.compare(width: 100, height: 100) {
+        Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.rowReverse).alignItems(.flexStart)
+    }
+    expectFullAgreement(rowReverse, "unsized rowReverse")
+    let columnReverse = LayoutDifferential.compare(width: 100, height: 100) {
+        Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.columnReverse).alignItems(.center)
+    }
+    expectFullAgreement(columnReverse, "unsized columnReverse")
     let arms: [Arm] = [
         ("two-child stretch (lowered since stage 2)", twoChild.unlowerable, []),
         ("sized single-child stretch (lowered since stage 2)", sizedSingle.unlowerable, []),
-        ("sized spaceBetween (lowered since lane 5)",
-         report { Row { fixed(20, 10); fixed(30, 10) }.width(px(100)).justifyContent(.spaceBetween) }, []),
-        ("sized spaceAround (lowered since lane 5)",
-         report { Column { fixed(20, 10); fixed(30, 10) }.height(px(100)).justifyContent(.spaceAround) }, []),
-        ("sized spaceEvenly (lowered since lane 5)",
-         report { Row { fixed(20, 10); fixed(30, 10) }.width(px(100)).justifyContent(.spaceEvenly) }, []),
-        ("rowReverse (lowered since lane 5)",
-         report { Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.rowReverse).alignItems(.flexStart) },
-         []),
-        ("columnReverse (lowered since lane 5)",
-         report { Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.columnReverse).alignItems(.center) },
-         []),
+        ("sized spaceBetween (lowered since lane 5)", sizedBetween.unlowerable, []),
+        ("sized spaceAround (lowered since lane 5)", sizedAround.unlowerable, []),
+        ("sized spaceEvenly (lowered since lane 5)", sizedEvenly.unlowerable, []),
+        ("rowReverse (lowered since lane 5)", rowReverse.unlowerable, []),
+        ("columnReverse (lowered since lane 5)", columnReverse.unlowerable, []),
         ("baseline", report { Row { fixed(20, 10); fixed(30, 10) }.alignItems(.baseline) },
          [field(.box, "alignItems.baseline")]),
         ("wrap", report { Row { fixed(20, 10); fixed(30, 10) }.flexWrap(.wrap) }, [field(.box, "flexWrap")]),

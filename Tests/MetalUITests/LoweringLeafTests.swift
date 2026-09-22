@@ -165,9 +165,12 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// margin — and `alignSelf` as `.baseline`, which reports `alignSelf.baseline`: a
 /// `.center` `alignSelf` lowers since lane 1). 46 arms.
 ///
-/// Mutations that must redden it: **M2c**, the `margin` check deleted; **V3**, the
-/// height half of the floor check deleted; **V4**, `display: none` no longer
-/// returned alone; **V5**, only the last of several fields recorded.
+/// Mutations that must redden it: **M2c**, the `margin` check deleted; **V4**,
+/// `display: none` no longer returned alone; **V5**, only the last of several fields
+/// recorded; **M4h**, `margin.percent` no longer reported (2 issues); **V4q**, the
+/// `border.percent` entry removed (4). Stage 1's **V3** (the height half of the floor
+/// check deleted) is **retired**: lane 4 deleted the `padding.floor` branch outright,
+/// so the mutation has no target left (record §19's verification section).
 @MainActor
 @Test func everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf() throws {
     typealias Row = (name: String, edit: (inout Style) -> Void, onBox: Bool)

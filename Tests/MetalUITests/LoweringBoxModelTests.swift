@@ -609,3 +609,47 @@ private func marginItemChain(deeperInnermost: Bool) -> some Element {
     let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
     #expect(err.contains("native layout recursion exceeded 88 levels"), "stderr:\n\(err)")
 }
+
+// MARK: - 4.9 — the animated margin
+
+/// **4.9** (`LR-AS`, `LR-AZ` as amended; added after the lane's verification, which
+/// found the read unpinned). `margin` is the one box-model field the lowering reads
+/// from the **animated** style through a path of its own — `planLegacyItems`'
+/// `plan.marginInsets`, four `marginEdge(a.margin.…)` calls — rather than through the
+/// `style` argument `paddedAndSized` receives, which 2.3c already pins for the
+/// declared size and which carries `Style.border` too (`LR-AS`'s values half).
+///
+/// A margin going 0 → 40 under `withAnimation(.linear(duration: 1))` puts the first
+/// child at x 0 on the frame that starts the transaction and at x 20 half-way, under
+/// the proposal authority exactly as under the legacy one. Without the arm, reading
+/// the declared style there passes the whole suite (the verifier's V4n), while a
+/// declared read would snap a margin to its target on the frame the change is
+/// declared — the failure `LR-AS` exists to prevent.
+///
+/// Mutation that must redden it: **V4n**, `plan.marginInsets` read from `d.margin`
+/// instead of `a.margin` (the half-way frame reads 40 under the proposal authority
+/// and 20 under the legacy one, so the two authorities part company).
+@MainActor
+@Test func aLoweredMarginRegistersItsAnimatedValue() throws {
+    let a = child(containerID, 0)
+    for authority in [LayoutAuthority.legacy, .proposal] {
+        let table = StateTable()
+        func xAt(_ margin: Float, timestamp: Double, animating: Bool) -> Pixels? {
+            var root = DifferentialRoot(width: 200, height: 100) {
+                MetalUI.Row { fixed(20, 10).margin(px(margin)); fixed(20, 10) }
+            }
+            let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                              stateTable: table, timestamp: timestamp,
+                              transaction: animating ? .linear(duration: 1) : nil,
+                              layoutAuthority: authority,
+                              reportsUnlowerableFields: authority == .proposal,
+                              recordsElementBounds: true)
+            frame.render(&root)
+            #expect(frame.unlowerableFields.isEmpty, "\(authority): \(frame.unlowerableFields)")
+            return frame.elementBounds[a]?.origin.x
+        }
+        #expect(xAt(0, timestamp: 0, animating: false) == px(0), "\(authority) baseline")
+        #expect(xAt(40, timestamp: 0, animating: true) == px(0), "\(authority) transaction start")
+        #expect(xAt(40, timestamp: 0.5, animating: false) == px(20), "\(authority) half-way")
+    }
+}
