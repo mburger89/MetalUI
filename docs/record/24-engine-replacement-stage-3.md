@@ -3,13 +3,14 @@
 Plan task 7, stage 3 of the fourteen in
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1.
 Design: `docs/superpowers/specs/2026-09-22-engine-stage-3-design.md`.
-Rulings: `LR-BB`…`LR-BJ`, `LR-BK` (critic round 1), `LR-BL`, `LR-BM`, `LR-BN` (lanes 1–3) in
+Rulings: `LR-BB`…`LR-BJ`, `LR-BK` (critic round 1), `LR-BL`, `LR-BM`, `LR-BN`,
+`LR-BO`, `LR-BP` (lanes 1–5) in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md` (the same
 decisions doc as stages 1 and 2).
 Branch `feat/engine-stage-3` from `57893d0`, worktree
 `/Users/maxburger/Developer/MetalUI-stage-3`.
 
-**Status: lanes 1, 2 and 3 implemented** (§7, §8, §9). Sections 1–6 are the design phase, in
+**Status: all five lanes implemented** (§7–§11). Sections 1–6 are the design phase, in
 which no file under `Sources/` or `Tests/` changed in any commit. Everything
 here was measured on 2026-09-22 (PDT).
 
@@ -1097,3 +1098,186 @@ an axis with no free space — is grounded on the legacy agreement instead.
 | framed members staying one flex item | `TB-M`'s associated type | stage 11 |
 | committing the `CN-R` harness | still uncommitted; it survived from lane 3 only because this lane ran in the same session | stage 6b |
 | a real-window capture | the screen has been locked at the end of all four lanes | whoever runs a lane with an unlocked screen |
+
+## 11. Lane 5 — a frame layer over several member nodes (`LR-BH`; corrections in `LR-BP`)
+
+Commits: `d47989b` (tests, red), `4401713` (the lowering), and this one (docs).
+Branch `feat/engine-stage-3`, on top of lane 4's `275d8fb`.
+
+### 11.1 Red first
+
+Three tests written against lane 4's tree, run before any `Sources/` change,
+plus the re-spelled control arm in `LoweringStackAndLayerTests.swift`:
+
+```
+Test run with 3 tests in 0 suites failed after 0.017 seconds with 8 issues.
+  aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem  5 issues
+  aFrameOverSeveralMembersStillPlansEachMembersItemFields                         3 issues
+  aFrameOverOneMemberIsUnchanged                                                   0 (characterization)
+
+Test run with 1 test in 0 suites failed after 0.007 seconds with 1 issue.
+  aHiddenFrameLayerIsReportedAsDisplayNone
+    two nodes, not hidden: [modifierLayer.frame.multipleNodes]
+```
+
+Every lowered rect read `(0, 0) 0×0` — the leaf `report(fields)` leaves behind
+after `modifierLayer.frame.multipleNodes`. **No `legacy:` assertion failed and
+neither `try #require(…elements == 5)` failed**, so the legacy half of both
+divergence pins and the id derivation were right before the lowering existed.
+The id derivation is the part that could have been wrong and was worth
+checking in the red run: `.frame(…)` on a component is **not** a distributing
+op like `.width`, it is the `Component` side door that returns a
+`ModifiedElement`, so the layer takes the enclosing `Box`'s cursor slot and the
+component sits one level deeper — `child(Box, 0)` → `child(layer, 0)` →
+members. Lane 4's fixtures have the component at `child(Box, 0)`.
+
+### 11.2 What the lowering is
+
+- `lowerLegacyLayer`'s frame arm builds the `requestNativeFrame` call in a local
+  `framed(_:)` and applies it **per child node**. Over one node (or none) the
+  result is that one frame, exactly as before — no row wrapper. Over several it
+  is `requestNativeLinearStack(children: items.map(framed), axis: .horizontal,
+  spacing: 0, alignment: spec.alignment)`.
+- `planLegacyItems(received, parent: declared, parentKind: .stack, parentSite:
+  .modifierLayer, fields: &fields)` now runs for **every** child count, and
+  `registerLegacyItems(children, plans)` is rowed in full rather than reduced to
+  `.first`.
+- `legacyFrameLayerDiagnostics` loses its `frame.multipleNodes` row and keeps
+  two checks; `childCount` survives for the `lowered(_:childCount:)` comparison,
+  which reads it to know whether an unmodified layer's display is `.stack` (one
+  node) or a flex row (several).
+- The recorded item is unchanged: `kind: .frameLayer`, `contentAlignment:
+  spec.alignment`, site `modifierLayer`.
+
+### 11.3 The prototype's arm, re-measured
+
+**C6 reproduced on the first run, literal for literal.**
+
+| | legacy | lowered |
+|---|---|---|
+| the frame layer | (0, 0) **70**×40 | (0, 0) **140**×40 |
+| member a (30×10) | (0, **15**) **26**×10 | (**20**, 15) **30**×10 |
+| member b (50×10) | (**26**, 15) **44**×10 | (**80**, 15) **50**×10 |
+
+The legacy 26/44 are the 10pt overflow shared 30/80 : 50/80 by the flex row
+inside the 70pt frame; y 15 on both sides is the members' 10pt height centred in
+the 40. SwiftUI (stage-3 probe **W1**/**W4**, re-run today and byte-identical to
+its header, 18 lines) reads a at **96** and b at **164** in a 300pt host — a
+**148**pt pair, which is this 140 plus the enclosing `HStack`'s own 8pt spacing.
+
+Two arms the design did not have:
+
+- **the node counts.** Two per-member frames and one row are **+3** native nodes
+  over `Box { Pair() }`; one member is **+1** over `Box { Solo() }`.
+- **5.1a's field pair**, in an 80×40 frame so the legacy row does not shrink:
+  a member declaring `width(30).margin(4)` reads legacy (5, 15) 30×10 and
+  lowered (**25**, 15) 30×10 — the margin **dropped**; a member declaring
+  `height(10).minWidth(40)` reads legacy (39, 15) **40**×10 and lowered
+  (**100**, 15) **40**×10 — the floor carried into the item frame W.
+
+### 11.4 Four corrections (`LR-BP`)
+
+1. **The margin in 5.1a is dropped, so M5e cannot see it.** `parentKind: .stack`
+   drops a member's `margin`, `flexGrow`, `flexShrink`, `flexBasis` and
+   `alignSelf` with or without the planning (`LR-AZ`, `LR-BO` item 1), so the
+   design's "both rects lose the margin and the floor" is wrong by one half.
+   Measured: M5e reddens exactly one assertion. Same wrong sentence as lane 4's,
+   about the two frames that share the same parent kind.
+2. **M5d has no subject after the row is deleted**, and restated ("moved below
+   the style comparison") it is stage 1's **M4i**. The re-spelled control arm is
+   kept, its value inverted: as an empty expectation it is the only
+   discriminator in that test for "`display.none` is checked first **and
+   alone**".
+3. **M5a cannot redden the demo exit test**, and §7's list was wrong to name it.
+   `demoContent()` contains no `.frame` at all; `DemoContent.swift`'s only two
+   `.frame(` sites are in `nativeLayoutPreviewContent()` and are proposal
+   `ModifiedContent`. `LR-BN` item 5's M3b again.
+4. **No rect can see the row.** M5c wrapped a lone frame in a one-child row and
+   moved **no rect in the suite**; the node counts are the whole pin.
+
+### 11.5 Mutations
+
+Protocol: commit first, `cp Sources/MetalUI/LegacyLowering.swift` aside, apply,
+native build, full unfiltered `swift test --build-system native --no-parallel`,
+restore from the copy, `git status --short` empty after each (checked and empty
+every time). Every run read `Test run with 1572 tests`.
+
+| mutation | what it changes | tests it reddens (issues) |
+|---|---|---|
+| **M5a** | the row's `spacing: 0` → `nil` (the platform default 8) | 5.1 (2: the layer 148 not 140, b at 88 not 80), 5.1a (1). **Not** the demo exit test — §11.4 item 3 |
+| **M5b** | `framed` applied to the first member only | 5.1 (3), 5.1a (1) |
+| **M5c** | `items.count > 1` → `>= 1` (a lone frame rowed on its own) | `aFrameOverOneMemberIsUnchanged` (**1** — the node count alone; no rect anywhere moved) |
+| **M5d** | `display.none` moved below the style comparison (= stage 1's M4i) | `aHiddenFrameLayerIsReportedAsDisplayNone` (4: the hidden arms read `[modifierLayer.style]`) |
+| **M5e** | the planning skipped for `count > 1` | `aFrameOverSeveralMembersStillPlansEachMembersItemFields` (**1** — b reads (120, 15) **0**×10; a is unchanged) |
+| **M5f** | `registerLegacyItems(children, plans)` reduced to `.first` | 5.1 (3), 5.1a (1) |
+
+**Every one of the six reddened its named test.** The two that reddened exactly
+one issue are the informative ones: M5c says the row is geometrically invisible
+at one child, and M5e says only the `minSize` half of 5.1a discriminates.
+
+### 11.6 Suite, goldens, guards, clean
+
+| measure | value |
+|---|---|
+| suite | **1572 tests**, passed after 52.245 s at the lowering's commit and 51.844 s on the restored tree after the mutations — the design's predicted total, to the test |
+| `error:` / `warning:` | 0 / only SwiftPM's `--build-system native` deprecation notice |
+| goldens | `git diff --name-only 57893d0 HEAD -- 'Tests/**/*.json'` **empty**; `find Tests -name "*.json" \| wc -l` = **97** |
+| typecheck guards | **77** (79 `canTypecheck` hits minus `UnitSafetyTests`' comment and `Typecheck.swift`'s declaration), per-file counts unchanged; the lane adds none |
+| `swift package clean` | **not required and checked anyway**: the lane changes only function bodies inside one `internal extension LayoutPass`, no stored property and no public type's layout. A `swift package clean`, full rebuild and unfiltered run read the same **1572** (52.811 s) |
+
+### 11.7 Pixels (`CN-R`)
+
+The lane-4 harness (`cnr/CNRPixels.swift`) was still in this session's
+scratchpad and was reused rather than rebuilt — and re-validated before being
+believed. On a fresh `git archive` of `57893d0` it reproduces **all eight**
+control figures, and the same eight at this lane's HEAD:
+
+| control | recorded | base archive | lane HEAD |
+|---|---|---|---|
+| light vs dark, f0 | 1 048 576 | **1 048 576** | **1 048 576** |
+| default vs modal (light) | 1 030 498 | **1 030 498** | **1 030 498** |
+| default vs animation (light) | 210 027 | **210 027** | **210 027** |
+| f0 vs f3 (light) | 0 | **0** | **0** |
+| preview light vs dark | 1 048 576 | **1 048 576** | **1 048 576** |
+| distinct, `default-light-f0` | 544 | **544** | **544** |
+| distinct, `chrome-legacy` | 216 | **216** | **216** |
+| `chrome-legacy` vs `chrome-proposal` | 0 | **0** | **0** |
+
+**Twelve of twelve read 0 differing pixels against `57893d0`, every scene dump
+byte-identical**: `animation-{light,dark}`, `chrome-{legacy,proposal}`,
+`default-{light,dark}-{f0,f3}`, `modal-{light,dark}`, `preview-{light,dark}`.
+
+Expected, and for a reason this lane can state exactly rather than by
+construction: production runs the legacy authority, and `demoContent()` has no
+`.frame` at all (§11.4 item 3), so the edited arm is not merely unreached — the
+shape it lowers does not exist in any of the twelve images.
+
+### 11.8 Screen lock and captures
+
+`xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&
+/tmp/lockstate` at the end of the lane: **`session CGSSessionScreenIsLocked =
+1`**, `CGSSessionScreenLockedTime = 1790087900`, `displayAsleep main: 1`,
+`displayActive main: 0`. Locked, as at the end of lanes 1–4, so **no real-window
+capture was taken** in any lane of this stage. `IOConsoleLocked` was not read
+(`FR-V`).
+
+### 11.9 Probes
+
+`docs/probes/swiftui-engine-replacement-stage3.swift` re-run today under
+`/usr/bin/swift`: exit 0, 18 lines, **byte-identical to its recorded header**,
+arms W1/W4 (and W0 as the control) being the ones this lane rests on. No new
+probe was needed: lane 5 asks SwiftUI nothing that group W does not already
+answer, and the one question it cannot answer — whether the per-member frames
+should be siblings of the enclosing stack, as SwiftUI's are — is not this
+stage's to close (`TB-M`, stage 11).
+
+### 11.10 Deferred out of lane 5
+
+| item | why | owner |
+|---|---|---|
+| a per-member frame applying its member's `flexGrow`/`margin` rather than dropping them | the multi-node arm has an axis its row supplies, but no reason to differ from the one-node arm, and SwiftUI has no `flexGrow` to probe | stage 6b |
+| framed members staying **one** flex item where SwiftUI's stay siblings (the 140 vs 148) | `ElementGroup`'s associated type (`TB-M`) | stage 11 |
+| divergence 56's retirement | answered here under the proposal authority, still wrong on purpose under the legacy one | stage 6b |
+| a demo shape that exercises a frame over a multi-member component | there is none, so the corpus test cannot cover this lane; its two tests are the whole coverage | whoever adds one, or 6b |
+| committing the `CN-R` harness | survived from lane 4 only because this lane ran in the same session | stage 6b |
+| a real-window capture | the screen has been locked at the end of all five lanes | whoever runs with an unlocked screen |

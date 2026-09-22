@@ -1,8 +1,7 @@
 # Engine replacement, stage 3 — scrolling and `Component` distribution (design)
 
-**Status, 2026-09-22 (PDT): lanes 1, 2, 3 and 4 IMPLEMENTED** (record §7, §8,
-§9, §10); lane 5 designed. The design-phase status below describes the state
-before lane 1.
+**Status, 2026-09-22 (PDT): ALL FIVE LANES IMPLEMENTED** (record §7, §8, §9,
+§10, §11). The design-phase status below describes the state before lane 1.
 
 **Status, 2026-09-22 (PDT): DESIGNED. No file under `Sources/` or `Tests/`
 changed in a commit; every source patch cited as *prototype P4* was applied in
@@ -12,7 +11,7 @@ re-measured green at the baseline.** Branch `feat/engine-stage-3` from
 `57893d0`. Plan task 7, stage 3 of the fourteen in
 [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 (its row 3), §4.2 (its dependency census) and §8 (its stage-3 row).
-Rulings `LR-BB`…`LR-BJ`, critic round 1 `LR-BK`, lane 1 `LR-BL`, lane 2 `LR-BM`, lane 3 `LR-BN`, lane 4 `LR-BO`, in
+Rulings `LR-BB`…`LR-BJ`, critic round 1 `LR-BK`, lane 1 `LR-BL`, lane 2 `LR-BM`, lane 3 `LR-BN`, lane 4 `LR-BO`, lane 5 `LR-BP`, in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
 — the same decisions doc as stages 1 and 2. Record:
 `docs/record/24-engine-replacement-stage-3.md`. Probe:
@@ -375,6 +374,13 @@ exists to keep out. Named deferral: whoever unifies the two scroll types (stage
   `planLegacyItems(received, parent: declared, parentKind: .stack,
   parentSite: .modifierLayer, fields: &fields)` for `count > 1` too and rows
   `registerLegacyItems(children, plans)` **in full** rather than taking `.first`.
+  **What that planning does and does not carry is `LR-BO` item 1's answer again**
+  (`LR-BP` item 1): at `parentKind: .stack` a member's `margin`, `flexGrow`,
+  `flexShrink`, `flexBasis` and `alignSelf` are consumed and **dropped**, and a
+  `minSize` on an `auto` axis is the only field the plan applies — into the item
+  frame W. The planning's other purpose is the consume itself, which keeps
+  `reportUnconsumedLoweredItems` — and so a 6b trap — off a member that declares
+  any of them.
 - Both amend frames and per-member frames record `kind: .frameLayer`, so a
   parent stretches them only on an axis they leave `nil` (`MC-Q` finding 7).
 
@@ -427,7 +433,7 @@ the same shape.
 | `.width(p)` / `.height(p)` (amend) | one native frame per member, per-axis alignment | `LR-BG`; divergence 48's SwiftUI answer |
 | `.padding(p)` (wrap) | `lowerLegacyNode` per member at site `component` | agrees with legacy (C3) |
 | `.frame(…)` over **one** member node | unchanged (`lowerLegacyLayer`'s frame arm, `LR-H`) | |
-| `.frame(…)` over **several** member nodes | a row of per-member frames | `LR-BH`; divergence 56's SwiftUI answer |
+| `.frame(…)` over **several** member nodes | a row of per-member frames, at site `modifierLayer` | `LR-BH`; divergence 56's SwiftUI answer. Each member's record is consumed and planned as the single-node arm's is, so the same fields are dropped (`LR-BO` item 1, `LR-BP` item 1) |
 | a non-size amend | **not expressible** | the op's payload becomes `Size<Dimension>` |
 | a member's `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`, `margin` | consumed and **dropped** | `LR-BO` item 1; a stack/frame parent ignores them (`LR-AZ`) |
 | a member's `minSize` on an `auto` axis | the item frame W's minimum | `LR-BO` item 4 |
@@ -559,7 +565,7 @@ deviation from the prediction is a finding, not a rounding.
 | 2 | 2.1, 2.2, 2.2a, 2.3, 2.4, 2.5, 2.6, 2.7 — 8 (A2b is an arm of 2.1) | **1561** ✓ measured |
 | 3 | 3.4, 3.5 — 2 (3.1–3.3 parameterise in place) | **1563** ✓ measured |
 | 4 | 4.1–4.6 — 6 (C3a and the `minWidth` arm are arms, not tests) | **1569** ✓ measured |
-| 5 | 5.1, 5.1a, 5.2 — 3 (5.3 amends, 5.4 re-runs) | **1572** |
+| 5 | 5.1, 5.1a, 5.2 — 3 (5.3 amends, 5.4 re-runs) | **1572** ✓ measured |
 
 ### Lane 1 — the shared scroll chrome (`LR-BD`)
 
@@ -713,17 +719,18 @@ item 2: `component` has no reachable report left, and the site survives for
 (divergence 48) keeps its name and its wrong-on-purpose legacy assertion and
 gains a sentence naming 4.1 as the proposal-authority answer.
 
-### Lane 5 — a frame layer over several member nodes (`LR-BH`)
+### Lane 5 — a frame layer over several member nodes (`LR-BH`, corrections in `LR-BP`)
 
-Files: `LegacyLowering.swift`; tests `LoweringComponentTests.swift`.
+Files: `LegacyLowering.swift`; tests `LoweringComponentTests.swift` and
+`LoweringStackAndLayerTests.swift` (5.3's arm).
 
 | # | test | red before | mutation |
 |---|---|---|---|
-| 5.1 | **divergence pin** `aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem` — C6: legacy one 70×40 frame with members **26** and **44**; lowered a **140**×40 row with members 30 and 50 at x **20**/**80**; probe W1/W4 named | `modifierLayer.frame.multipleNodes` | **M5a** the per-member frames rowed at the platform default spacing instead of 0 (140 → 148); **M5b** the spec applied to only the first member |
-| 5.1a | `aFrameOverSeveralMembersStillPlansEachMembersItemFields` — the same C6 shape but with the two members declaring `margin` and `minSize`. `lowerLegacyLayer` consumes every child's record up front and today plans only at `count == 1`, returning `.first`; once the `frame.multipleNodes` row is deleted that path goes live, and without planning both members' fields are **consumed and dropped with no diagnostic** (critic round 1 finding 7, `LR-BH`). The margin's offset and the minimum's floor are literal on both sides | reported (`modifierLayer.frame.multipleNodes`) | **M5e** the planning skipped for `count > 1` (the plans stay default, `registerLegacyItems` is a no-op, both rects lose the margin and the floor); **M5f** `registerLegacyItems(children, plans)` reduced to `.first` again (only one member survives) |
-| 5.2 | `aFrameOverOneMemberIsUnchanged` — the existing single-node arm still takes `lowerLegacyLayer`'s frame arm, node count by hand | characterization | **M5c** the `count > 1` arm entered at `count == 1` |
-| 5.3 | `aHiddenFrameLayerIsReportedAsDisplayNone`'s "two nodes, not hidden" arm re-spelled: it now **agrees** rather than reporting; the hidden arms are unchanged (`display.none` is still checked first and alone, `LR-J`) | its literal `[modifierLayer.frame.multipleNodes]` | **M5d** `display.none` checked after the multi-node arm (the hidden arms stop reporting) |
-| 5.4 | the exit test re-run and its table re-measured (§7) | — | **M2a**, **M4a**, **M5a** |
+| 5.1 | **divergence pin** `aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem` — C6: legacy one 70×40 frame with members **26** and **44** at y 15; lowered a **140**×40 row with members 30 and 50 at x **20**/**80**, y 15; probe W1/W4 named. **Built, `LR-BP` item 4: the layer's own bounds and a node count as well as the members' rects** — two per-member frames and one row are **+3** native nodes over the same component with no frame, and no rect can see the row at all | `modifierLayer.frame.multipleNodes` | **M5a** the per-member frames rowed at the platform default spacing instead of 0 (140 → 148; reddens 5.1 and 5.1a, **and nothing else — not the demo exit test**, `LR-BP` item 3); **M5b** the spec applied to only the first member |
+| 5.1a | `aFrameOverSeveralMembersStillPlansEachMembersItemFields` — the same C6 shape but with the two members declaring `margin` and `minSize`. `lowerLegacyLayer` consumes every child's record up front and today plans only at `count == 1`, returning `.first`; once the `frame.multipleNodes` row is deleted that path goes live, and without planning both members' fields are **consumed and dropped with no diagnostic** (critic round 1 finding 7, `LR-BH`). The margin's offset and the minimum's floor are literal on both sides | reported (`modifierLayer.frame.multipleNodes`) | **M5e** the planning skipped for `count > 1` (the plans stay default and `registerLegacyItems` is a no-op). **Corrected, `LR-BP` item 1: only the `minSize` floor moves** — the margin is dropped at `parentKind: .stack` with or without the planning (`LR-AZ`, `LR-BO` item 1), so the member declaring it reads the same rect either way and M5e reddens exactly one assertion, b's 40×10 at x 100 becoming 0×10 at x 120; **M5f** `registerLegacyItems(children, plans)` reduced to `.first` again (only one member survives) |
+| 5.2 | `aFrameOverOneMemberIsUnchanged` — the existing single-node arm still takes `lowerLegacyLayer`'s frame arm, node count by hand (**+1** over the same component with no frame), plus a rect arm asserting the single-node geometry is unchanged on both sides | characterization, green at lane 4's HEAD | **M5c** the `count > 1` arm entered at `count == 1` — which moves **no rect in the whole suite** and reddens this test's node count alone (`LR-BP` item 4) |
+| 5.3 | `aHiddenFrameLayerIsReportedAsDisplayNone`'s "two nodes, not hidden" arm re-spelled: it now **agrees** rather than reporting; the hidden arms are unchanged (`display.none` is still checked first and alone, `LR-J`). The arm's value inverts — as an empty expectation it is that test's only discriminator for "first **and alone**" | its literal `[modifierLayer.frame.multipleNodes]` | **M5d** `display.none` checked after the multi-node arm — which **has no subject once the row is deleted** (`LR-BP` item 2); restated as "moved below the style comparison" it is literally stage 1's **M4i**, and reddens the four hidden arms with `[modifierLayer.style]` |
+| 5.4 | the exit test re-run and its table re-measured (§7) | — | **M2a**, **M4a**; **not M5a** (`LR-BP` item 3) |
 
 ## 7. The exit test
 
@@ -778,8 +785,13 @@ expectation:
    check the lane makes before believing the number.
 
 Mutations that must redden it: **M2a**, **M2d** (which adds
-`scrollView.flexShrink.unconsumed` to the demo's report), **M4a**, **M5a**, and
-stage 2's **M1a** and **M2a** (unchanged). **M2e** is no longer in this list:
+`scrollView.flexShrink.unconsumed` to the demo's report), **M4a**, and stage 2's
+**M1a** and **M2a** (unchanged). **M5a is NOT in this list** (`LR-BP` item 3,
+measured): `demoContent()` contains no `.frame` at all — `DemoContent.swift`'s
+only two `.frame(` sites are inside `nativeLayoutPreviewContent()` and are
+proposal `ModifiedContent` wrappers — so no shape in the demo is a
+`ModifiedElement` frame layer over a multi-member `Component` and no lane-5
+mutation can reach this test. **M2e** is no longer in this list:
 restated as "the content node registered with the wrong `site:`", it does not
 change the demo's report, because the demo's scroller children produce no
 item-field entry — 2.5 (c)'s unequal-`flexGrow` arm is what sees it (`LR-BM`
@@ -857,5 +869,5 @@ Each row names how the stage checks it rather than asserting it.
 | committing the `CN-R` twelve-image harness | lane 1 had to rebuild it from record §18's prose, its own copy having been lost with a session scratchpad; the rebuild is only checkable against §8's five controls plus record §24 §7.6's two distinct-value counts (`LR-BL` item 6) | stage 6b |
 | the single-child stretch elision inside a `ScrollView` (A6's 40 → 16) | stage 2's `LR-AC`, unchanged here | stage 6b (the root and demo respelling) |
 | `Style.overflow`'s inert write in `ScrollView.requestLayout` | it documents intent under the legacy authority and is not carried by the lowering | stage 10, with `Style`'s CSS fields |
-| **an amend frame APPLYING its member's `flexGrow`/`margin` instead of dropping them** (`parentKind: .flex(isRow:)`, with `isRow` read off the patch) | lane 4 kept `.stack`, which is every other frame's parent kind, so those fields are consumed and dropped (`LR-BO` item 1). Applying them needs a non-arbitrary main axis for a one-child frame and a probe SwiftUI cannot supply — it has no `flexGrow` | stage 6b, which owns what production trips over |
+| **an amend frame or a per-member frame APPLYING its member's `flexGrow`/`margin` instead of dropping them** (`parentKind: .flex(isRow:)`, with `isRow` read off the patch) | lanes 4 and 5 both kept `.stack`, which is every other frame's parent kind, so those fields are consumed and dropped (`LR-BO` item 1, `LR-BP` item 1). Applying them needs a non-arbitrary main axis for a one-child frame and a probe SwiftUI cannot supply — it has no `flexGrow`. The multi-node arm has an axis (its row is horizontal) but not a reason to differ from the one-node arm | stage 6b, which owns what production trips over |
 | **site `component` having no reachable report** | both ops lower and neither can raise an entry at its own site (`LR-BO` item 2); the case stays for `owningStage`'s trap message | whoever first needs a component-level diagnostic |

@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-BP`** (stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN` and its lane 4 `LR-BO`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-BQ`** (stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -1073,6 +1073,8 @@ a nil main offer" is stale on this point; the Docs phase owns it.
   `style`, if both), because the kernel frame has exactly one child and neither the
   legacy row nor a single frame is SwiftUI's per-member answer
   (component-distribution `G7`); stage 3 owns it with `Component` distribution.
+  **Retired by `LR-BH` (stage 3, lane 5):** the row is deleted and the layer
+  lowers to a row of per-member frames instead, which is `G7`'s answer.
   **Over no node** it lowers over a 0×0 native leaf: the legacy row with no children
   answers its declared size or 0, which the kernel frame answers for a fixed or
   min-only frame (4.4's arm agrees); a maximum over nothing is greedy on the
@@ -3628,3 +3630,80 @@ finds it as a demo pixel or a rect disagreement, not as a crash, and the fix is
 one argument. Item 2 costs a site that reports nothing; the risk is that a later
 stage adds a `component` field and forgets that the two arms assert absence —
 which is why both arms carry the reason at the arm.
+
+## LR-BP — stage 3 lane 5's corrections: a dropped margin the mutation cannot see, an M5d with no subject left, and an M5a the demo cannot reach
+
+Lane 5 implemented `LR-BH` as written and as amended. `lowerLegacyLayer`'s frame
+arm registers one native frame per child node, rows more than one with
+`requestNativeLinearStack(axis: .horizontal, spacing: 0, alignment:
+spec.alignment)`, runs `planLegacyItems` for **every** child count and rows
+`registerLegacyItems(children, plans)` in full; `legacyFrameLayerDiagnostics`
+loses its `frame.multipleNodes` row. **Prototype arm C6 reproduced on the first
+run, literal for literal** — legacy one 70×40 frame with the members squeezed to
+26 and 44 at y 15, lowered a 140×40 row with the members at their own 30 and 50,
+centred at x 20 and 80, y 15 — and the whole suite read the design's predicted
+**1572**, to the test. Four things the design said were wrong.
+
+**1. The margin in 5.1a is consumed and DROPPED, so M5e cannot see it.** The
+design's M5e row says skipping the planning makes "both rects lose the margin
+and the floor". The parent kind is `.stack`, which `LR-BH`'s amendment
+prescribes and which `LR-BO` item 1 already established drops a child's
+`margin`, `flexGrow`, `flexShrink`, `flexBasis` and `alignSelf` outright
+(`LR-AZ`). A dropped field is dropped with or without the planning, so member
+a's rect is **identical** under M5e. Measured: M5e reddens exactly **one**
+assertion — member b's `auto` width with a 40pt `minWidth`, which reads
+(100, 15) 40×10 planned and (120, 15) **0**×10 unplanned. The margin member
+stays in the fixture because a dropped field should be pinned as dropped rather
+than left unmeasured, and the test says at the arm which half the mutation can
+see. This is `LR-BO` item 1 one lane later, in the same shape: the same wrong
+sentence was written twice, about the two frames that share the same
+`parentKind`.
+
+**2. M5d has no subject after the row is deleted, and restated it is stage 1's
+M4i.** §6's M5d is "`display.none` checked after the multi-node arm" —
+but `legacyFrameLayerDiagnostics` has no multi-node arm once
+`frame.multipleNodes` is gone; the only thing `display.none` can be moved behind
+is the `style` comparison, which is exactly M4i. Run as that: it reddens
+`aHiddenFrameLayerIsReportedAsDisplayNone`, 4 issues, the hidden arms reading
+`[modifierLayer.style]`. The re-spelled control arm is kept anyway, and its
+value is now the opposite of what it was: as a `frame.multipleNodes` expectation
+it pinned a diagnostic, and as an **empty** expectation it is the only
+discriminator in that test for "`display.none` is checked first **and alone**" —
+four arms that all expect one entry cannot tell that apart from a check that
+never reaches a second one.
+
+**3. M5a cannot redden the demo exit test, and §7's list is wrong to name it.**
+`theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` stayed green under
+M5a (which reddens 5.1 and 5.1a, 3 issues, and nothing else in 1572). The cause
+is structural, not incidental: `demoContent()` contains **no** `.frame` at all,
+and `DemoContent.swift`'s only two `.frame(` sites are inside
+`nativeLayoutPreviewContent()`, where they are proposal `ModifiedContent`
+wrappers and never reach `lowerLegacyLayer`. No shape in the demo is a
+`ModifiedElement` frame layer over a multi-member `Component`, so no lane-5
+mutation can reach that test. Same shape as `LR-BN` item 5's M3b: a mutation
+attributed to the corpus test by the milestone that wrote the corpus test,
+without checking that the corpus contains the shape.
+
+**4. The row is invisible to every rect; the node count is what pins it.**
+**M5c** — the `count > 1` arm entered at `count == 1`, so a lone frame is wrapped
+in a one-child row — moved **no rect anywhere in the suite** and reddened exactly
+one issue, 5.2's hand-derived node count. A one-child linear stack at spacing 0
+is geometrically transparent. So the design was right to spell 5.2 as a count,
+and the lane added the same instrument to 5.1: two per-member frames and one row
+are **+3** native nodes over the same component with no frame, where one member
+is **+1**. Without those two counts, "one frame per member, rowed, and no row
+wrapper at one node" would have been three claims pinned by two rect tables that
+cannot see any of them.
+
+**What the lane added to the design's test list.** 5.1 gained the +3 node count
+(the design had rects only) and the frame layer's own bounds as a third row
+(legacy 70×40, lowered **140**×40, which is what M5a's 148 moves); 5.2 gained a
+rect arm asserting the single-node geometry is unchanged, `mustDiffer: false` on
+both sides. No test was added or removed: 1569 + 3 = **1572**, as predicted.
+
+**What it costs if any of this is wrong.** Item 1 is a documentation defect with
+a live consequence only if someone later reads "the planning applies the margin"
+and removes the arm that pins the drop. Item 3 costs a false sense that the
+demo's corpus covers this lane; it does not, and the lane's own two tests are
+the whole coverage. Item 4 is the one that would have cost a real hole:
+everything about the row's *shape* is unobservable in a rect.
