@@ -101,8 +101,8 @@ jobs:
           path: Experiments/SDLGPU/fixtures
       - uses: compnerd/gha-setup-swift@v0.5.0
         with:
-          swift-version: swift-6.4-release
-          swift-build: 6.4-RELEASE
+          swift-version: swift-6.4.0-release
+          swift-build: 6.4.0-RELEASE
       - name: Install SDL3 (prebuilt VC package)
         run: |
           $zip = "$env:RUNNER_TEMP\sdl3.zip"
