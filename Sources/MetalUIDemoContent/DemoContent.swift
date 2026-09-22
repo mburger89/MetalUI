@@ -947,6 +947,24 @@ private struct PreviewToggle: Component {
     }
 }
 
+/// One tappable cell of the preview's grid (ruling GR-AE): it toggles its own
+/// colour, so a human looking at the preview can tell a live grid cell from a
+/// painted rectangle.
+@MainActor
+private struct GridPreviewCell: Component {
+    @State private var isSelected = false
+
+    var elementID: ElementID? { ElementID("native-preview-grid-cell") }
+
+    var content: some ProposalElementGroup {
+        Rectangle(width: Pixels(80), height: Pixels(24),
+                  color: isSelected ? .accent : .separator)
+            .onTap(hoverColor: .surface) { isSelected.toggle() }
+    }
+}
+
+extension GridPreviewCell: ProposalElementGroup {}
+
 extension PreviewToggle: ProposalElementGroup {}
 
 /// A private flexible leaf for the migration preview. Its ideal width makes
@@ -1032,6 +1050,24 @@ public func nativeLayoutPreviewContent() -> some Element {
                         .opacity(0.35)
                         .onTap {}
                         .allowsHitTesting(false)
+                    // Stage G's grid on screen (ruling GR-AE): two rows, two
+                    // columns, the last cell tappable. It is APPENDED to this
+                    // row, and its 172x56 fits the 752pt inner width beside the
+                    // 528pt already here, so nothing declared before it moves —
+                    // which is what lets lane 4's preview pixel delta be read as
+                    // "the grid's own box and nothing else".
+                    Grid(horizontalSpacing: Pixels(12), verticalSpacing: Pixels(8)) {
+                        GridRow {
+                            Rectangle(width: Pixels(80), height: Pixels(24), color: .accent)
+                            Rectangle(width: Pixels(80), height: Pixels(24),
+                                      color: .surfaceSecondary)
+                        }
+                        GridRow {
+                            Rectangle(width: Pixels(80), height: Pixels(24),
+                                      color: .surfaceSecondary)
+                            GridPreviewCell()
+                        }
+                    }
                 }
             }
             .padding(Edges(all: Pixels(36)))

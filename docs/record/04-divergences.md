@@ -827,3 +827,55 @@ divergence is retired: production frames still run under the legacy authority.
   `aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren`; production at stage
   6b (`LR-L`).
 - **52** → task 7 stage 2; **54** and **56** → stage 3 (`LR-L`).
+
+## 2026-09-21: 59 retired, 60–70 added (plan task 7 stages 2 and G, integrated)
+
+Added to `CLAUDE.md`'s table at the `integrate/stage-2-grids` Docs phase
+(records §21, §22, §23). The table goes from forty-eight entries to
+**fifty-eight**: 59 out, 60–70 in. Production frames still run under the legacy
+authority, so **nothing here is production-visible yet** except 60, which is
+about a measurement both the proposal path and the future production path use.
+
+**Retired, and never reused:**
+
+- **59** — a text measurement proposed a width below its narrowest word.
+  Stage 2's lane 3 clamps every text answer to `min(proposal, widest line)`
+  (`LR-AU`), which is SwiftUI's answer, so `ProposalText` and a lowered `Text`
+  now agree with SwiftUI here. The test was renamed and now pins the agreement:
+  `aProposalTextBelowItsWidestBrokenLineAnswersTheProposal` and
+  `aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal`.
+  The **lowered** half of that clamp was pinned by nothing until the
+  integration's X3 (record §23, mutation XM4).
+
+| # | kind | ruling (decisions doc) | pin |
+|---|---|---|---|
+| 60 | vs SwiftUI | `LR-AY` item 4, `swiftui-engine-replacement-stage2.swift` group Y | **unpinned** (task 11; must be settled before stage 6b) |
+| 61 | vs SwiftUI | `GR-O` 1 | test 2.9 `theModelsDisagreementsWithSwiftUIArePinned`, wrong on purpose (task 15) |
+| 62 | vs SwiftUI | `GR-O` 2, `GR-AH` item 4 (arm O1) | `theModelsDisagreementsWithSwiftUIArePinned`, `theModelDisagreesWithSwiftUIOnTheDivergenceCorpus`, wrong on purpose (task 15) |
+| 63 | vs SwiftUI | `GR-O` 3 | `gridCellColumnsZeroLaysOutAsOne` |
+| 64 | vs SwiftUI | `GR-O` 4 | guard `aGridCellAnchorIsNinePoint` |
+| 65 | vs SwiftUI | `GR-O` 5 | `textRowsTakeTheDefaultRowSpacing`, wrong on purpose |
+| 66 | vs SwiftUI | `GR-O` 6 | `aModifierOnAMultiCellGridRowTraps` |
+| 67 | vs SwiftUI | `GR-O` 7, `GR-S` | `aColumnCountAboveInt32MaxTraps` |
+| 68 | limit | `GR-S` | unpinned; `aColumnCountAboveInt32MaxTraps`' doc comment records it |
+| 69 | design | `GR-O` 9, `GR-AF` | `removingACellFromARowHandsItsStateToTheNextCell`, `removingAWholeGridRowHandsItsStateToTheNextRow`, wrong on purpose (task 8) |
+| 70 | vs SwiftUI | `GR-X`, `GR-O` 8 | `aStackServesItsLeastFlexibleChildFirst`, grid tests 2.10/2.11 — **owned by task 6**, found by the grid corpus |
+
+**Amended, not retired:**
+
+- **52**: owner "task 7 stage 2" → **"task 7 stage 8"**. Stage 2's test 5.8
+  characterizes the gap-vs-spacing default; closing it is a vocabulary change
+  (`LR-AL`), not a lowering.
+- **55**: gains two pins beside `aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren`
+  — `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight` and
+  `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`.
+- **53**: unchanged; still "lowered under the proposal authority, production at
+  stage 6b".
+
+**Not numbered, deliberately.** Stage 2's other new disagreements are
+**proposal-authority only** and are pinned by name rather than numbered: growers
+share equally (2.2); a zero-basis `Text` grower breaks inside its word (2.4); a
+`Text`'s `Style.padding` pads it (4.2); a declared size below the padding +
+border sum keeps its frame (4.3); a negative margin past its own box clamps at 0
+(4.5); an animated `flexGrow` snaps its structure (2.13, now in `CLAUDE.md`'s
+animation snap list).

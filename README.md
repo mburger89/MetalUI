@@ -108,9 +108,9 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-replacement` (2026-09-17, plan task 7 stage 1) the suite
-reports **1409 tests**. That total includes **97** layout goldens generated
-from WebKit and **71** `swiftc -typecheck` guards.
+On `integrate/stage-2-grids` (2026-09-21, plan task 7 stages 2 and G merged)
+the suite reports **1548 tests**. That total includes **97** layout goldens
+generated from WebKit and **75** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them.
@@ -256,14 +256,15 @@ controls (`docs/probes/swiftui-frame-semantics.swift`, `…-negative-sizes.swift
 and `docs/probes/` holds the other re-runnable SwiftUI probes; the earliest
 probes survive only as prose.
 
-Forty-eight measured divergences from CSS, SwiftUI or WebKit are tabled in
+Fifty-eight measured divergences from CSS, SwiftUI or WebKit are tabled in
 [`CLAUDE.md`](CLAUDE.md). One is an unfixed defect (19, one element value
 placed twice shares a `@State` box); the rest are deliberate decisions or known
 limits. Divergence 15 was fixed by task 5; 36, 37 and 40 were retired by task 6
-(40's `percent:` modifiers are now spelled `fraction:`).
+(40's `percent:` modifiers are now spelled `fraction:`); 59 was retired by task
+7 stage 2, which clamps a text answer to its proposal as SwiftUI does.
 [`docs/record/04-divergences.md`](docs/record/04-divergences.md) holds the
-original eleven in full and index tables for 20–34, 35–50 and 51–58; divergence
-19 is recorded only in `CLAUDE.md`.
+original eleven in full and index tables for 20–34, 35–50, 51–58, 59 and 60–70;
+divergence 19 is recorded only in `CLAUDE.md`.
 
 ## Milestones
 
@@ -304,7 +305,16 @@ transforms, and text colour animation.
   [`16-integration-tasks-4-5.md`](docs/record/16-integration-tasks-4-5.md) for
   theirs, [`17-containers.md`](docs/record/17-containers.md) for task 6, and
   [`18-engine-replacement-stage-1.md`](docs/record/18-engine-replacement-stage-1.md)
-  for task 7's first stage.
+  for task 7's first stage,
+  [`21-engine-replacement-stage-2.md`](docs/record/21-engine-replacement-stage-2.md)
+  for its second and [`22-grids.md`](docs/record/22-grids.md) for its grids
+  stage, and
+  [`23-integration-stage-2-grids.md`](docs/record/23-integration-stage-2-grids.md)
+  for their integration. Two files are not task tracks:
+  [`19-claude-md-full-2026-09-21.md`](docs/record/19-claude-md-full-2026-09-21.md)
+  is the root `CLAUDE.md` as it read before it was cut to rules only, and
+  [`20-portable-scene.md`](docs/record/20-portable-scene.md) is the
+  `MetalUIScene` move.
 - [`docs/superpowers/`](docs/superpowers/) — a decisions document per
   completed milestone, each ruling with its reasoning and what it costs if wrong.
 - SwiftUI alignment:
@@ -325,8 +335,13 @@ transforms, and text colour animation.
   - [containers spec](docs/superpowers/specs/2026-09-16-containers-design.md)
     (plan task 6, done: the legacy containers are audited; replacing them is task 7)
   - [engine replacement spec](docs/superpowers/specs/2026-09-17-engine-replacement-design.md)
-    (plan task 7, stage 1 of 14 landed: legacy elements lower onto the kernel
-    under an internal proposal authority; production still uses the CSS engine)
+    and its [stage 2 spec](docs/superpowers/specs/2026-09-17-engine-stage-2-design.md)
+    (plan task 7, stages 1 and 2 of 14 landed: legacy elements lower onto the
+    kernel under an internal proposal authority, with SwiftUI's flex-item
+    semantics; production still uses the CSS engine)
+  - [grids spec](docs/superpowers/specs/2026-09-17-grids-design.md)
+    (plan task 7 stage G, delivered: SwiftUI's `Grid` and `GridRow` on the
+    proposal path as a kernel node; lazy grids are proposed as stage G2)
 - [`docs/practices/verifying-tests-can-fail.md`](docs/practices/verifying-tests-can-fail.md)
   — sixteen numbered shapes of test that cannot fail, every one observed here.
 

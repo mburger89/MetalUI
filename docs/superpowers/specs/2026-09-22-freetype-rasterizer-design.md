@@ -1,7 +1,7 @@
 # FreeType rasterizer — design
 
 **Status:** implemented, 2026-09-22, on `feat/freetype-raster`. Record:
-`docs/record/21-freetype-rasterizer.md`.
+`docs/record/24-freetype-rasterizer.md`.
 **Ruling prefix:** `FT-` (lettered; next `FT-L`).
 **Builds on:** `MetalUIScene` (`PS-`), whose `GlyphImage` and `FontKey` have
 `package` initialisers meant for a second producer inside this package.
@@ -70,7 +70,7 @@ until then ids come from CoreText's shaper or from tests), font discovery
   (dims/bearings off by exactly one pixel each — e.g. Noto Sans "o" at 11 pt:
   exact top 6.006 px, 26.6-scaled top 6.000 px, one row short). After scaling
   the unhinted design-unit bbox instead, dims and bearings agree in 832/832
-  cases (record §21).
+  cases (record §24).
 - **FT-E — unhinted, grayscale.** `FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP`,
   smooth renderer, 256-level coverage: CoreText on macOS is unhinted and
   grayscale-only (spec §6.1). No LCD filtering.
@@ -124,14 +124,14 @@ until then ids come from CoreText's shaper or from tests), font discovery
   `glyphRasterAdjustsTheseSizesAwayFromTheOutline`, checks that exactly those
   four (font, size) pairs cross `glyphRasterMeanTolerance` and no others;
   it reddens if CoreText changes this behaviour. Full per-cell figures and
-  the mutation table are in record §21.
+  the mutation table are in record §24.
 - **FT-I — no behaviour change on Apple.** `GlyphRaster` stays the production
   rasterizer; nothing calls `FreeTypeRaster` outside tests. Measured counts
   (`swift package clean`, `--build-system native`): **1419 tests** (1411 + 8,
   one gated on `METALUI_FREETYPE_MEASURE=1` and skipped), **97 goldens**, **73
   typecheck guards** (unchanged — no new guard file), 0 `error:`, 1
   `warning:` (SwiftPM's `--build-system native` deprecation notice, the
-  project's standing baseline; record §21).
+  project's standing baseline; record §24).
 - **FT-J — cross-platform determinism.** FreeType's rasterizer is integer
   arithmetic, so its output should be byte-identical on every platform. A
   small package at `Tests/PortableTests/` depends on the root's
@@ -145,7 +145,7 @@ until then ids come from CoreText's shaper or from tests), font discovery
 
 ## Verification
 
-Done; full tables in record §21.
+Done; full tables in record §24.
 
 - Clean native build and full suite, counts read from the summary: done (FT-I).
 - Mutations, each run and reverted, each reddening the named tests on macOS

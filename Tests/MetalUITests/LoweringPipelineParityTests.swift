@@ -35,8 +35,9 @@ private func child(_ parent: GlobalElementID, _ index: Int, _ name: String? = ni
     GlobalElementID.child(of: parent, at: index, name: name.map { ElementID($0) })
 }
 
-/// Where the counter element sits under the harness root: named, like the demo's.
-private let counterElementID = child(rootID, 0, "counter")
+/// Where the counter element sits: named, like the demo's, the one child of a
+/// 400-wide `Column` under the harness root (`counterColumn()`).
+private let counterElementID = child(child(rootID, 0), 0, "counter")
 
 @MainActor
 private func click(_ platform: FakePlatformWindow, at position: Point<Pixels>) {
@@ -49,56 +50,23 @@ private func keyDown(_ characters: String) -> InputEvent {
                       modifiers: [], timestamp: 0))
 }
 
-/// The demo's `CounterPanel`, over the corpus's lowerable chrome
-/// (`StageOneCorpus.counterChrome`: the library's `CounterPanel.chrome` minus its
-/// `.alignSelf(.flexStart)`, ruling LR-AA).
+/// The demo's own `CounterPanel()`, imported from `MetalUIDemoContent` (ruling
+/// LR-S), in a 400-wide `Column` (its centring default).
 ///
-/// **The one copy in this lane, and why.** `CounterPanel` itself applies
-/// `.alignSelf(.flexStart)` inside `requestLayout`, which traps under the
-/// proposal authority in a `Window` (a production frame). This element repeats
-/// its `requestLayout` wiring — one `@State` count, the chrome's minus and plus
-/// closures and the two `onAction` handlers capturing the same `State` — and
-/// drops only what is the demo's rather than the counter's: publishing
-/// `counterID` and focusing itself on the first frame (the test focuses by the
-/// same id instead). Stage 2, which lowers `alignSelf`, replaces this with
-/// `CounterPanel()` itself.
+/// **Stage 2 replaced the lane-5 copy** (`LowerableCounter`, which cleared the
+/// chrome's `.alignSelf(.flexStart)` because stage 1 could not lower it; ruling
+/// LR-AA item 2). The chrome's `alignSelf` is an item field, lowered by its parent
+/// (ruling LR-AD), so the panel needs a lowered flex parent: directly under the
+/// harness root — a proposal overlay — its record is unconsumed and reports
+/// `box.alignSelf.unconsumed` (ruling LR-AQ). The column declares its width, so its
+/// greedy alignment frame (divergence X14) and the legacy column agree at 400; the
+/// chrome sits at x 0 under both.
 @MainActor
-private struct LowerableCounter: Element {
-    @State var count = 0
-
-    var elementID: ElementID? { ElementID("counter") }
-
-    private var built: Box<CounterPanel.Chrome> = StageOneCorpus.counterChrome()
-
-    mutating func requestLayout(_ id: GlobalElementID,
-                                pass: inout LayoutPass) -> (LayoutNodeID, Box<CounterPanel.Chrome>.Layout) {
-        let state = _count
-        var box = StageOneCorpus.counterChrome(count: state.wrappedValue,
-                                               minus: { state.wrappedValue -= 1 },
-                                               plus: { state.wrappedValue += 1 })
-        box = box
-            .onAction(Increment.self) { _ in state.wrappedValue += 1 }
-            .onAction(Decrement.self) { _ in state.wrappedValue -= 1 }
-        let result = box.requestLayout(id, pass: &pass)
-        built = box
-        return result
-    }
-
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                           layout: inout Box<CounterPanel.Chrome>.Layout,
-                           pass: inout PrepaintPass) -> CounterPanel.Chrome.GroupPrepaint {
-        built.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
-    }
-
-    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                        layout: inout Box<CounterPanel.Chrome>.Layout,
-                        prepaint: inout CounterPanel.Chrome.GroupPrepaint,
-                        pass: inout PaintPass) {
-        built.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
-    }
+private func counterColumn() -> some ElementGroup {
+    Column { CounterPanel() }.width(px(400))
 }
 
-/// The count `LowerableCounter` holds in `window`'s state table.
+/// The count `CounterPanel` holds in `window`'s state table.
 @MainActor
 private func count(in window: Window) -> Int? {
     window.stateTable.peek(child(counterElementID, 0, "$state0"), as: Int.self)
@@ -119,12 +87,12 @@ private func expectWindowAgreement(_ r: LayoutDifferential.Report, _ step: Strin
 
 // MARK: - 5.4 — clicks, focus and keys
 
-/// **5.4.** Through a real `Window` per authority, the counter — the demo's chrome
-/// inside `DifferentialRoot` (400×400) — dispatches clicks, focus and a keymap
-/// action to the same elements:
+/// **5.4.** Through a real `Window` per authority, the counter — the demo's
+/// `CounterPanel()` in a 400-wide column inside `DifferentialRoot` (400×400) —
+/// dispatches clicks, focus and a keymap action to the same elements:
 ///
-/// 1. the first frame: 8 elements (root, counter, three boxes, three texts), all
-///    agreeing, the chrome at (0, 0) 260×60 and "+" at (212, 12) 36×36;
+/// 1. the first frame: 9 elements (root, column, counter, three boxes, three
+///    texts), all agreeing, the chrome at (0, 0) 260×60 and "+" at (212, 12) 36×36;
 /// 2. "+" clicked twice at its centre (230, 30): count 2 under both;
 /// 3. `window.focus(counter)`: the counter is focused under both (its
 ///    `focusBackground` paints — the scenes still agree);
@@ -135,18 +103,20 @@ private func expectWindowAgreement(_ r: LayoutDifferential.Report, _ step: Strin
 /// table's ids — and nothing trapped, which a production frame would have if the
 /// tree did not lower.
 ///
-/// Mutation that must redden it: **M5d**, lowered stack spacing + 50 (the chrome
-/// is 360 wide, "+" at x 312, and the click at 230 lands on the readout: count 0).
+/// Mutations that must redden it: **M5d**, lowered stack spacing + 50 (the chrome
+/// is 360 wide, "+" at x 312, and the click at 230 lands on the readout: count 0);
+/// **M1n** (stage 2, lane 1), the chrome's alignment frame aliased as its rect
+/// (the chrome's bounds widen to the column's 400).
 @MainActor
 @Test func aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let pair = try WindowPair(device: device, size: 400) { LowerableCounter() }
+    let pair = try WindowPair(device: device, size: 400) { counterColumn() }
     pair.both { window, _ in
         window.keymap = Keymap { KeyBinding("=", Increment(), context: "Counter") }
         window.drawFrameIfNeeded()
     }
     let first = pair.report()
-    try #require(first.elements == 8, "\(first.elements)")
+    try #require(first.elements == 9, "\(first.elements)")
     expectWindowAgreement(first, "first frame")
     #expect(pair.lowered.window.lastElementBounds[counterElementID] == bounds(0, 0, 260, 60))
     #expect(pair.lowered.window.lastElementBounds[child(counterElementID, 2)] == bounds(212, 12, 36, 36))
@@ -187,11 +157,14 @@ private func expectWindowAgreement(_ r: LayoutDifferential.Report, _ step: Strin
 /// tree is not empty: it holds the "Decrement" and "Increment" buttons with their
 /// frames at (12, 12) and (212, 12).
 ///
-/// Mutation that must redden it: **M5d** (the buttons' geometry moves).
+/// The pair records 9 elements (a `try #require`, stage 2 lane 1).
+///
+/// Mutations that must redden it: **M5d** (the buttons' geometry moves); **M1n**
+/// (the counter's accessibility frame widens to the column's 400).
 @MainActor
 @Test func aLoweredWindowPublishesTheSameAccessibilityTree() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let pair = try WindowPair(device: device, size: 400) { LowerableCounter() }
+    let pair = try WindowPair(device: device, size: 400) { counterColumn() }
     pair.both { window, platform in
         #expect(platform.simulateAccessibilityRequest(.activate))
         window.drawFrameIfNeeded()
@@ -209,7 +182,9 @@ private func expectWindowAgreement(_ r: LayoutDifferential.Report, _ step: Strin
         return last.geometry[id]?.frame
     }
     #expect(Set(frames.map { "\($0)" }) == Set([bounds(12, 12, 36, 36), bounds(212, 12, 36, 36)].map { "\($0)" }))
-    expectWindowAgreement(pair.report(), "accessibility")
+    let report = pair.report()
+    try #require(report.elements == 9, "\(report.elements)")
+    expectWindowAgreement(report, "accessibility")
 }
 
 // MARK: - 5.6 — state slots and animation
@@ -219,8 +194,8 @@ private final class WidthModel {
     var wide = false
 }
 
-/// **5.6.** The same root mints the same `StateTable` ids — the counter's
-/// `$state0` (written by a click on "+"; an unwritten count had no entry when this
+/// **5.6.** The same root mints the same `StateTable` ids — `CounterPanel()`'s (in
+/// `counterColumn()`, stage 2 lane 1) `$state0` (written by a click on "+"; an unwritten count had no entry when this
 /// was first run), `$focus` and `$anim` slots, and the "+" button's `$ax` slot
 /// (its declared label; a synthesized node is a record, never a slot, `AB-U`, so
 /// the unlabelled counter has none — also found by the first run) — and animates
@@ -239,7 +214,7 @@ private final class WidthModel {
 @MainActor
 @Test func aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let counter = try WindowPair(device: device, size: 400) { LowerableCounter() }
+    let counter = try WindowPair(device: device, size: 400) { counterColumn() }
     counter.both { window, platform in
         #expect(platform.simulateAccessibilityRequest(.activate))
         window.drawFrameIfNeeded()
@@ -439,6 +414,92 @@ private func nestedPaddedBoxes(_ n: Int) -> Box<AnyElement> {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             var root = nestedPaddedBoxes(30)
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
+                  layoutAuthority: .proposal).render(&root)
+        }
+    }
+    let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(err.contains("native layout recursion exceeded 88 levels"), "stderr:\n\(err)")
+}
+
+// MARK: - Stage 2, lane 2 — 2.14, the depth guard with three item wrappers per level
+
+/// A chain of `rows` nested `Row`s (plan task 7, stage 2, spec 2.14; ruling LR-AB as
+/// amended): the outermost a production root declaring 100×100; each inner row the
+/// first of its parent's two children (the second a fixed 10×10), declaring
+/// `flexShrink(0)`, `flexGrow(1)` and `alignSelf(.flexEnd)`. In a centring `Row` with
+/// an `auto` main size, those three are the three item wrappers a parent registers
+/// around the child, innermost first: `fixedSize` (horizontal), the greedy item frame
+/// W, and the alignment frame (vertical, factor 1 against the row's ½). The innermost
+/// row's first child declares the same three fields and is
+///
+/// - (`containerInnermost` false) `Box().height(10)` with `Style.padding` 1: its own
+///   fixed frame over a native padding over its 0×0 leaf — 3 native levels;
+/// - (true) a `Box` with `Style.padding` 1 over `Box().height(10)`: a native padding
+///   over its linear stack over the child's frame over its leaf — 4 levels.
+///
+/// **Native depth, by hand** (`NativeLayoutRun.enter` on every `measureNative` and
+/// `placeNative`, one counter): the root's fixed frame is 1 and its stack 2; each of
+/// the 20 inner rows adds its parent's three wrappers and its own stack, 4 levels, so
+/// the 21st row's stack is at 2 + 20·4 = 82; its first child's three wrappers reach
+/// 85, and the child's own nodes **88** (3 levels) or **89** (4). No axis is proposed
+/// `nil` on a cross axis anywhere in the chain (the root proposes 100 tall, and W and
+/// the alignment frame pass concrete proposals through), so no stack re-measures
+/// itself during placement at one level deeper than its measurement.
+///
+/// **Nodes, by hand**: 21 rows × (a stack + the fixed sibling's frame and leaf) = 63;
+/// the root's frame 1; 20 inner rows' wrappers 60; the innermost child's wrappers 3 and
+/// its own nodes 3 (or 4): **130** (or **131**).
+@MainActor
+private func itemChain(containerInnermost: Bool) -> some Element {
+    var padded = Style()
+    padded.padding = Edges(all: .pixels(px(1)))
+    var element = containerInnermost
+        ? AnyElement(Box(style: padded) { Box().height(px(10)) }.flexShrink(0).flexGrow(1).alignSelf(.flexEnd))
+        : AnyElement(Box(style: padded).height(px(10)).flexShrink(0).flexGrow(1).alignSelf(.flexEnd))
+    for _ in 0..<20 {
+        let inner = element
+        element = AnyElement(Row { inner; Box().width(px(10)).height(px(10)) }
+            .flexShrink(0).flexGrow(1).alignSelf(.flexEnd))
+    }
+    let inner = element
+    return Row { inner; Box().width(px(10)).height(px(10)) }.width(px(100)).height(px(100))
+}
+
+/// **2.14, limit** (`LR-AB` as amended, `SA-L`). `itemChain(containerInnermost: false)`
+/// — 88 native levels, `NativeLayoutRun.maxDepth` itself, every level of the 20 inner
+/// rows carrying three item wrappers — lays out as a production frame's root under the
+/// proposal authority, in a child process that must exit successfully and print the
+/// node count derived by hand (130). With 2.14's trap arm this pins the boundary at
+/// exactly 88 / 89.
+///
+/// **Red before** (lane 1): the chain's `flexGrow` and `flexShrink` are reported, and a
+/// production frame traps on the first.
+@Test func aLoweredItemChainWithThreeWrappersPerLevelAtTheNativeDepthLimitLaysOut() async {
+    let result = await #expect(processExitsWith: .success,
+                               observing: [\.standardOutputContent, \.standardErrorContent]) {
+        await MainActor.run {
+            var root = itemChain(containerInnermost: false)
+            let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
+                              layoutAuthority: .proposal)
+            frame.render(&root)
+            FileHandle.standardOutput.write(Data("LANE2-2.14 nodes=\(frame.tree.nodeCount)\n".utf8))
+        }
+    }
+    let out = String(decoding: result?.standardOutputContent ?? [], as: UTF8.self)
+    let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(out.contains("LANE2-2.14 nodes=130\n"), "stdout:\n\(out)\nstderr:\n\(err)")
+}
+
+/// **2.14, one past** (`SA-L`). `itemChain(containerInnermost: true)` — 89 native
+/// levels — traps with `SA-L`'s message, as an exit test.
+///
+/// Mutation that must redden it: **M2q** `NativeLayoutRun.maxDepth` raised by 8 (the
+/// child succeeds).
+@Test func aLoweredItemChainWithThreeWrappersPerLevelOnePastTheNativeDepthLimitTraps() async {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var root = itemChain(containerInnermost: true)
             Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
                   layoutAuthority: .proposal).render(&root)
         }

@@ -604,8 +604,11 @@ public struct PaintPass {
     ///
     /// **Width only, and no origin** — see `LayoutTree.measuredWidth(_:)`.
     /// Painting at a fractional origin is the thing rounding exists to prevent.
+    ///
+    /// Through the lowering's bounds alias, as `Frame.bounds(of:)` is (plan task 7,
+    /// stage 2, ruling LR-AB): a stretched `Text` wraps at its item frame's width.
     public func measuredWidth(of node: LayoutNodeID) -> Double {
-        frame.tree.measuredWidth(node)
+        frame.tree.measuredWidth(frame.lowering.alias(node))
     }
 
     /// The active theme (spec §7.9): the nearest `.theme(_:)`, else the

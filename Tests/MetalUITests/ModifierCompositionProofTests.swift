@@ -902,6 +902,18 @@ private func frameStyle(width: Float, height: Float) -> Style {
         HStack { CountingProposalLeaf("x", log: log).environment(\.layoutDirection, .rightToLeft) }
     }
 
+    // The grid (stage G's lane 4): a `Grid` is an element and a `GridRow` and a
+    // `GridCellModifier` are groups, and all three hand each phase to their
+    // content exactly once. Mutation: `Grid.prepaint` or `Grid.paint` calling
+    // its content twice reads `[1, 2, 1]` / `[1, 1, 2]` on the Grid arm.
+    try once("Grid") { log in Grid { GridRow { CountingProposalLeaf("x", log: log) } } }
+    try once("GridRow, outside a Grid") { log in
+        HStack { GridRow { CountingProposalLeaf("x", log: log) } }
+    }
+    try once("GridCellModifier") { log in
+        Grid { GridRow { CountingProposalLeaf("x", log: log).gridCellAnchor(.top) } }
+    }
+
     // The builder wrappers.
     try once("ProposalFrame") { log in
         HStack { ProposalFrame(width: 30, height: 30) { CountingProposalLeaf("x", log: log) } }

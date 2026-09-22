@@ -178,3 +178,35 @@ check, which found this section missing.
 - **Edited:** the leaf-padding row no longer lists `.borderWidth(_:)` or a
   `Component`'s distributed `.padding` (a component's padding now wraps,
   `OM-D`); the `.allowsHitTesting(false)` row covers both paths (`OM-AK`).
+
+## 2026-09-21: rows changed at the stage 2 / grids integration
+
+Records §21–§23; mechanisms in the cited rulings. These rows were written into
+the root `CLAUDE.md` at the `integrate/stage-2-grids` Docs phase and are
+recorded here because that file has since been cut to rules only — `CLAUDE.md`
+now points at this section and at the frozen copy in §19, which predates them.
+
+- **Three rows are now legacy-authority only.** Under the **proposal**
+  authority task 7 stage 2 lowers each of them, so each is live there:
+  - `margin: .auto` — lowered to nothing and reported as nothing, which makes
+    the old "resolves to 0 by accident" explicit (`LR-AH`,
+    `anAutoMarginLowersAsZero`).
+  - `Style.border` on a container — lowered to native padding insets **inside**
+    the declared size (`aStyleBorderLowersAsInsetsInsideTheDeclaredSize`).
+  - `Style.padding` on a **leaf** (`Text`) — a lowered `Text`'s padding pads it,
+    around **its leaf**, so the glyphs paint and wrap at the leaf
+    (`paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt`, `LR-AH`).
+- **Added (grids, `GR-`):**
+  - `markNativeGridRow(alignment:)`'s **horizontal** factor and
+    `markNativeGridCell(columnAlignment:)`'s **vertical** factor — each reads
+    one axis only and discards the other (`GR-G`). The three other
+    `markNativeGridCell` parameters (`anchor:`, `columnAlignment:`,
+    `unsizedAxes:`) and `ProposalAxes` are **NOT** inert: lane 4 gave each a
+    `LayoutPass` caller and an element modifier, and `NativeGridSolver.serve`
+    reads the axes.
+  - a grid mark on a node that never sits under a grid, and a `GridRow`'s
+    alignment or a `GridCellModifier` written **outside** a `Grid` — carried and
+    never read; a `GridRow` outside a grid is simply its cells (`GR-I`,
+    `aGridRowOutsideAGridIsItsCells`).
+- **Edited:** the test-observables row gains `NativeGridSolution`'s bookkeeping
+  counter (`GR-U`).

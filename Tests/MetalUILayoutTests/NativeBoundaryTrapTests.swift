@@ -82,7 +82,7 @@ private struct PassThroughLayout: ProposalLayout {
             "aborted, but not at the legacy-child check this test is about:\n\(stderr)")
 }
 
-/// The positive control for the native-child check: all twelve native
+/// The positive control for the native-child check: all thirteen native
 /// registrars accept native children without trapping. They must not route
 /// through the checking `newNode`, because every one of them hands native
 /// children to the storage append.
@@ -109,8 +109,9 @@ private struct PassThroughLayout: ProposalLayout {
         ids.append(tree.newNativeLinearStack(children: [leaf(), leaf()], axis: .vertical)) // 10
         ids.append(tree.newNativeScrollViewport(child: leaf(), axis: .vertical))     // 11
         ids.append(tree.newNativeLayout(PassThroughLayout(), children: [leaf(), leaf()])) // 12
-        // 12 registered nodes plus 14 leaves registered as their children.
-        precondition(tree.nodeCount == 26, "node count \(tree.nodeCount)")
+        ids.append(tree.newNativeGrid(children: [leaf(), leaf()]))                   // 13 newNativeGrid
+        // 13 registered nodes plus 16 leaves registered as their children.
+        precondition(tree.nodeCount == 29, "node count \(tree.nodeCount)")
         for id in ids {
             precondition(tree.isNativeLayoutNode(id))
             precondition(tree.style(id) == .default)

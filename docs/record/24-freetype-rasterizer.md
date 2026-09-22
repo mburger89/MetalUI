@@ -1,4 +1,4 @@
-# 21 — FreeType rasterizer (`MetalUIFreeType`), 2026-09-22
+# 24 — FreeType rasterizer (`MetalUIFreeType`), 2026-09-22
 
 Spec and rulings: `docs/superpowers/specs/2026-09-22-freetype-rasterizer-design.md`
 (`FT-A`…`FT-K`). Branch `feat/freetype-raster` from `3d184d8`.
@@ -232,3 +232,8 @@ package on Linux aarch64: 4/4 pass.
   mutant now reddens it alone. The portable package runs 5 tests.
 - The verifier counted 71 guards because it used a pre-`PS-` file list; the
   list in CLAUDE.md includes `SceneBoundaryCompileGuards` (2), so 73.
+
+Renumbered from §21 to §24 at merge (2026-09-22): `master` had meanwhile taken
+§21–§23 for engine stage 2, grids and their integration.
+Re-taken on the merged tree (clean native build): 1558 tests (1550 + 8), 97
+goldens unmoved against `cb2e708`, 77 guards, 0 errors, 0 warnings.

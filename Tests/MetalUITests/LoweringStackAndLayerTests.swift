@@ -106,12 +106,14 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
 /// - **container fields a stack does not read** — `flexDirection(.column)`, a gap,
 ///   `justifyContent(.spaceBetween)`, `flexWrap`, `alignContent` on a sized
 ///   `.bottomTrailing` stack — report nothing and agree;
-/// - **reported** (the report is exactly this): a `Box` declaring `display: .stack`
-///   with its `nil` alignments → `[alignItems.stretch, justifyItems.stretch]` (lane
-///   3's `noLowering` for it, amended as `LR-Y` requires); a `Stack` with
-///   `.alignItems(.stretch)` → `[alignItems.stretch]`; with `.alignItems(.baseline)`
-///   → `[alignItems.baseline]`; with `.margin(2)` → `[margin]`; hidden with a
-///   stretch → `[display.none]` alone.
+/// - **reported** (the report is exactly this): a `Stack` with
+///   `.alignItems(.baseline)` → `[alignItems.baseline]`; with `.margin(2)` →
+///   `[margin.unconsumed]` (an item field its parent reads since stage 2, and the
+///   harness root is a proposal overlay, ruling LR-AQ); hidden with a stretch →
+///   `[display.none]` alone. **Stage 2, lane 1 moved the two stretch arms** — a
+///   `Box` declaring `display: .stack` with `nil` alignments, and a `Stack` with
+///   `.alignItems(.stretch)` — to `aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields`
+///   (`LoweringItemTests.swift`), where they lower and agree.
 ///
 /// Mutation that must redden it: **M4a**, the overlay's horizontal and vertical
 /// factors swapped.
@@ -155,22 +157,16 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
     expectFullAgreement(ignoredReport, "container fields a stack does not read")
     #expect(lowered(ignoredReport, [a, b]) == [bounds(80, 50, 20, 10), bounds(90, 30, 10, 30)])
 
-    var stackStyle = Style()
-    stackStyle.display = .stack
     let reported: [(String, [UnlowerableField], [UnlowerableField])] = [
-        ("Box with display: .stack", report { Box(style: stackStyle) { fixed(20, 10); fixed(10, 30) } },
-         [field(.box, "alignItems.stretch"), field(.box, "justifyItems.stretch")]),
-        ("Stack alignItems stretch", report { Stack { fixed(20, 10); fixed(10, 30) }.alignItems(.stretch) },
-         [field(.stack, "alignItems.stretch")]),
         ("Stack alignItems baseline", report { Stack { fixed(20, 10); fixed(10, 30) }.alignItems(.baseline) },
          [field(.stack, "alignItems.baseline")]),
         ("Stack margin", report { Stack { fixed(20, 10); fixed(10, 30) }.margin(px(2)) },
-         [field(.stack, "margin")]),
+         [field(.stack, "margin.unconsumed")]),
         ("hidden stretching Stack",
          report { Stack { fixed(20, 10); fixed(10, 30) }.alignItems(.stretch).hidden() },
          [field(.stack, "display.none")]),
     ]
-    try #require(reported.count == 5)
+    try #require(reported.count == 3)
     for (name, entries, expected) in reported {
         #expect(entries == expected, "\(name): \(entries)")
     }

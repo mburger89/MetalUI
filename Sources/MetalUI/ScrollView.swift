@@ -287,8 +287,11 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // `ScrollView` has no proposal lowering until stage 3, so it traps by
         // name — after its content (which checks its own sites first) and before
         // either node or `$anim` prefix. Under diagnostics one 0×0 native leaf
-        // stands for both the viewport and the content node.
+        // stands for both the viewport and the content node. The item records its
+        // content returned are consumed first (plan task 7, stage 2, ruling LR-AQ):
+        // this site's own entry already makes the tree unlowerable.
         if pass.lowersToProposal {
+            for child in children { _ = pass.frame.lowering.consume(child) }
             let node = pass.frame.unlowerable(UnlowerableField(site: .scrollView, field: "noLowering"))
             return (node, Layout(node: node, contentNode: node, inner: inner))
         }

@@ -1505,6 +1505,10 @@ public final class Frame {
     /// `reportsUnlowerableFields`**.
     private(set) var unlowerableFields: [UnlowerableField] = []
 
+    /// The proposal lowering's item records and bounds aliases (plan task 7, stage
+    /// 2; rulings LR-AB, LR-AT). Empty under the legacy authority.
+    var lowering = LoweringState()
+
     /// Whether `elementBounds` is filled. Set only by tests (the differential
     /// harness, ruling LR-D).
     let recordsElementBounds: Bool
@@ -1706,8 +1710,14 @@ public final class Frame {
 
     /// A node's resolved bounds, **absolute to the root** — the engine stores
     /// absolute rects, so no parent offset is added here.
+    ///
+    /// **Through the lowering's bounds alias** (plan task 7, stage 2, ruling LR-AB):
+    /// under the proposal authority an element its parent grew or stretched is the
+    /// item frame the parent registered around it, so every reader of an element's
+    /// rect — decoration, hitbox, accessibility, glyph origin — sees the CSS box. A
+    /// reader of `tree.layout` for an element would bypass it.
     func bounds(of node: LayoutNodeID) -> Bounds<Pixels> {
-        let rect = tree.layout(node)
+        let rect = tree.layout(lowering.alias(node))
         return Bounds(
             origin: Point(x: Pixels(Float(rect.x)), y: Pixels(Float(rect.y))),
             size: Size(width: Pixels(Float(rect.width)), height: Pixels(Float(rect.height))))
@@ -1879,6 +1889,7 @@ public final class Frame {
         var layoutPass = LayoutPass(frame: self)
         let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
         var state = layoutState
+        reportUnconsumedLoweredItems(root: root)
 
         computeRootLayout(root: root)
         let rootBounds = bounds(of: root)
