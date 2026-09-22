@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-BL`** (stage 3's design took `LR-BB`…`LR-BJ` and its critic round 1 `LR-BK`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-BM`** (stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK` and its lane 1 `LR-BL`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -3148,3 +3148,87 @@ asked for, each with its reason above.
 test for an item-field hole neither prototype fixture could see (findings 7 and
 8), and three of the design's mutations (M1f, M2d, M2e) are replaced because
 they could not redden anything. The count of lanes is unchanged at five.
+
+---
+
+## LR-BL — stage 3 lane 1's corrections: what was already pinned, two mutations that could not redden their test, and the harness that had to be rebuilt
+
+**Round.** 2026-09-22, implementing lane 1 (the shared scroll chrome, `LR-BD`)
+at `f0590d3`…`440fd78` on `feat/engine-stage-3`. Six corrections, every one of
+them forced by a measurement taken in the lane rather than by re-reading the
+design.
+
+**1. `ProposalScrollView`'s prepaint write-back was already pinned, and
+`LR-BD` says it was not.** That ruling's evidence paragraph reads
+"`ProposalScrollView`'s clamp, write-back, thumb floor, ramp and indicator clip
+have **no test of their own** today". Four of the five are right; the
+write-back is not.
+`aProposalScrollViewClampsAnOffsetPastItsContentEndOnPrepaint`
+(`NativeLayoutIntegrationTests.swift`) seeds a stored offset of 999, renders,
+and reads 170 back out of the state table — which is the write-back, and
+nothing else. **Mutation M1a reddens it**, alongside the two tests the ruling
+names. The claim is corrected here rather than in `LR-BD`, which keeps its own
+text as written; the fold's justification does not depend on it, because the
+thumb floor, the ramp, the indicator clip and the `.hidden` guard genuinely had
+no `ProposalScrollView` pin.
+
+**2. M1d cannot redden test 1.2 as specified, and the gap was real.** Moving
+`guard indicatorVisibility != .hidden` below `pass.requestAnotherFrame()`
+leaves every *rect* assertion unchanged: the guard still returns before the
+fill, so a `.hidden` scroller still paints nothing. The first run of M1d
+reddened `hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake` and nothing
+else. The mutant is observably different — it asks for a frame on every tick
+while nothing fades, which is spec §4.4's exit criterion — so this is a gap in
+1.2, not a broken instrument (practices, "a mutation that reddens nothing is a
+broken instrument or it is the finding"). **1.2's `.hidden` arm now reads
+`Frame.wantsAnotherFrame` on both halves of its differential**, `false` for
+`.hidden` and `true` for `.automatic`, and M1d then reddens it. No test was
+added; the arm was strengthened in place.
+
+**3. M1f cannot redden test 1.4 as specified, because 1.4's fixture makes the
+thumb floor inactive.** The design fixed 1.4's content at 200pt behind a 100pt
+viewport, where the thumb is the proportional `100 × (100/200) = 50` and
+`max(20, 50)` and `max(30, 50)` are the same number. A re-inlined private
+`paintIndicator` with a 30pt floor — the drift `LR-BD`'s amended finding 3 says
+only 1.4 can see — therefore left 1.4 green while reddening 1.2. Practices
+shape 2, a fixture too shallow to distinguish two models. **1.4 now runs two
+content heights**, 200 (the proportional regime) and 1000 (`100 × (100/1000) =
+10`, floored to 20, against a drifted 30), parameterised in place so the count
+does not move. M1f then reddens 1.4 and 1.2 both.
+
+**4. `ScrollChrome`'s isolation is per method, not per type.** The three
+members that take a pass (`resolvedOffset` ×2, `paintIndicator`) are
+`@MainActor`, because `PrepaintPass` and `PaintPass` are; `clamp`, `extent`,
+`delta` and `indicatorBounds` are not, so `ScrollChrome.clamp` stays the pure
+function `ScrollView.clamp` was and the five re-pointed `ScrollViewTests`
+assertions reach it unchanged. Marking the whole struct `@MainActor` would have
+worked and would have isolated a pure value for no reason.
+
+**5. `ScrollView.extent` folded with the rest.** §5 of the design listed
+`extent` among `ScrollChrome`'s members but described only
+`ProposalScrollView`'s copies as deleted. `ScrollView.extent` was `internal`
+rather than `private`, so it could have had a caller outside the type; it had
+none (an anchored grep, then the build), and it is deleted with the other six.
+
+**6. `CN-R`'s generator was not in the repository, and the rebuilt one is
+validated by its controls.** Record §18 cites `scratchpad/harness/gen-lib.py`;
+session scratchpads do not survive, and it is gone. Lane 1 rebuilt it from
+§18's and `CN-R`'s description — a test file injected into a `git archive` of
+the commit under test, `@testable import MetalUIDemoContent`, twelve images
+through a real `Window` over `FakePlatformWindow`, raw BGRA plus a scene dump
+per image. **It is the same instrument, and that is measured rather than
+assumed**: on an archive of `57893d0` it reproduces all five recorded controls
+exactly — light vs dark f0 **1 048 576**, default vs modal **1 030 498**,
+default vs animation **210 027**, f0 vs f3 **0**, preview light vs dark
+**1 048 576** — and both recorded distinct-value counts, **544** for
+`default-light-f0` and **216** for `chrome-legacy`. The harness lives in the
+session scratchpad again; **whoever needs it after this stage will have to
+rebuild it again, and the five controls plus the two counts above are what
+tells them they got it right.** Committing it is a named deferral (stage 6b,
+which owns the root switch and will want this comparison most).
+
+**What it costs if wrong.** Items 2 and 3 are the expensive ones: each was a
+test that looked like a pin and was not, in the one lane whose edit production
+runs. Had either stayed as written, the fold would have shipped with its two
+headline claims — "`.hidden` still costs nothing" and "the two elements cannot
+drift apart" — resting on assertions that a drifting implementation passes.

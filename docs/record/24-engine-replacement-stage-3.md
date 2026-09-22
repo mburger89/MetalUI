@@ -9,8 +9,9 @@ decisions doc as stages 1 and 2).
 Branch `feat/engine-stage-3` from `57893d0`, worktree
 `/Users/maxburger/Developer/MetalUI-stage-3`.
 
-**Status: design phase only.** No file under `Sources/` or `Tests/` is changed
-in any commit of this phase. Everything below was measured on 2026-09-22 (PDT).
+**Status: lane 1 implemented** (§7). Sections 1–6 are the design phase, in
+which no file under `Sources/` or `Tests/` changed in any commit. Everything
+here was measured on 2026-09-22 (PDT).
 
 ---
 
@@ -53,6 +54,10 @@ link, and the exit test is built out of them — so an unattributed flake living
 there would double in rate and land in the exit criterion. "Recorded rather
 than explained" is acceptable for a baseline; it is not acceptable under the
 lane that doubles the surface.
+
+**Retired in lane 1** (§7.1): three unfiltered whole-log runs at the baseline
+tree and six more in the lane, all `Test run with 1550`/`1553 tests … passed`.
+It did not reproduce.
 
 ## 2. Probes
 
@@ -354,3 +359,160 @@ mutations are replaced; every lane states a predicted end-of-lane test count
 (1553 / 1561 / 1563 / 1569 / 1572 from 1550). No finding is rejected outright,
 and the two places where the disposition differs from what the finding asked
 for — finding 1's option (b) and finding 9's premise — are named in `LR-BK`.
+
+## 7. Lane 1 — the shared scroll chrome (`LR-BD`, corrections in `LR-BL`)
+
+Four commits on `feat/engine-stage-3`:
+
+| commit | what |
+|---|---|
+| `f0590d3` | the lane's four tests, written and read before the fold |
+| `72762cc` | `ScrollChrome.swift`, and both elements folded onto it |
+| `b2d888b` | 1.2's `.hidden` arm strengthened, found by M1d |
+| `440fd78` | 1.4 given a second content height, found by M1f |
+
+### 7.1 The baseline flake, retired
+
+Three unfiltered whole-log runs at the baseline tree (`bafcc6a`, whose
+`Sources/` and `Tests/` are byte-identical to `57893d0`):
+`Test run with 1550 tests in 1 suite passed` after **52.087 s**, **51.817 s**
+and **52.674 s**, exit 0, no `error:`, no `warning:` besides SwiftPM's
+`--build-system native` deprecation notice. Six further unfiltered runs in the
+lane were green as well; the only red runs were the six mutations. **§1.1's
+single unattributed issue did not reproduce and is retired**, which is the
+condition lane 3 was waiting on (critic round 1 finding 11). Every log in this
+lane was kept whole, never tailed.
+
+### 7.2 Red first — and it is honestly "green first"
+
+All four tests are **characterization** and were green on arrival, at 1553
+(1550 + 3, the prediction exactly: 1.3 is an arm of an existing test and the
+exit-test arm is an arm). That is what `LR-BD`'s amended finding 3 predicts —
+before the fold the two implementations were line-equivalent — so the lane's
+evidence is §7.4's mutations, not a red run. The one genuinely new red-before
+in the lane is **lane 3's**: the third arm on
+`aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority`, a
+proposal-authority `Window` over a `ScrollView`, which exits non-zero with
+`scrollView.noLowering has no proposal lowering` on `stderr`. Lane 2 retires it.
+
+### 7.3 What folded, and what did not
+
+`Sources/MetalUI/ScrollChrome.swift`: `clamp` (static), `extent`, `delta`,
+`indicatorBounds`, `paintIndicator` and both `resolvedOffset` overloads — seven
+members, built **computed** from `axis`, `cornerRadius` and
+`indicatorVisibility`, so no public type's storage moves and no
+`swift package clean` was needed. The three pass-taking members are `@MainActor`
+and the four pure ones are not (`LR-BL` item 4). The four load-bearing doc
+comments moved with the code: the prepaint overload's overscroll measurement
+("twenty −37 events stored 740, seventeen of the twenty dead"),
+`paintIndicator`'s `offsetBy: .zero` rationale, the `guard alpha > 0` /
+`requestAnotherFrame()` ordering note, and why `.hidden` is checked first.
+
+`ScrollView.clamp` is **deleted**, not forwarded; the five assertions at
+`ScrollViewTests.swift:78,79,80,89,97` re-point at `ScrollChrome.clamp`.
+`ScrollView.extent` was `internal` and had no caller outside the type, so it
+went with the rest (`LR-BL` item 5). Fourteen doc comments across
+`ScrollView.swift`, `StateTable.swift`, `Window.swift`, `Hitbox.swift` and four
+test files were re-pointed at `ScrollChrome`.
+
+Unchanged, deliberately: the two `resolvedOffset` overloads stay two functions
+(`Passes.swift` records why a shared pass protocol must not be invented) — four
+copies became two, not one — and `ScrollContext` publication stays
+`ScrollView`'s alone (`LR-BF`).
+
+### 7.4 Mutations
+
+Commit first, `cp` the file aside, apply, native build, **full unfiltered**
+`swift test --build-system native --no-parallel`, restore from the copy,
+`git status --short` empty. Every figure below is the final HEAD's (`440fd78`);
+M1a–M1c were re-taken there after 1.2 and 1.4 changed.
+
+| # | mutation | tests reddened (by name) |
+|---|---|---|
+| **M1a** | the prepaint overload's write-back deleted (the clamp still applied on read) | **8**: `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind`, `aProposalScrollViewClampsAStoredOffsetPastTheEndAndWritesItBack` (the required pair), `theTwoScrollElementsShareOneChromeImplementation`, `rawOffsetPublishedDuringRequestLayoutCanExceedTheClampedRange`, `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel`, `aProposalScrollViewClampsAnOffsetPastItsContentEndOnPrepaint`, `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`, `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` |
+| **M1b** | the indicator's own clip given `delta(-offset)` instead of `.zero` | **8**: `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent`, `theTwoScrollElementsShareOneChromeImplementation`, `theThumbReachesTheEndOfItsTrackAtMaximumOffset`, `theIndicatorIsTheLastPrimitiveInTheScene`, `theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt`, `theHorizontalIndicatorLiesAlongTheBottomOfItsViewport`, `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind`, `aProposalScrollViewClampsAStoredOffsetPastTheEndAndWritesItBack` |
+| **M1c** | the 20pt thumb floor removed | **3**: `theTwoScrollElementsShareOneChromeImplementation`, `theThumbIsProportionalAndFlooredAtTwentyPoints`, `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent` |
+| **M1d** | `.hidden` checked after `requestAnotherFrame()` | **2**: `hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake`, `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent`. **Before `b2d888b` it reddened only the first** — see below |
+| **M1e** | `ScrollState.lastScrollTime`'s default and its init default set to `0` | **4**: `aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame` (**both** arms: `ScrollIndicatorTests.swift:513` and `:515` for the legacy arm, `:549` and `:551` for the `ProposalScrollView` one), `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, `aProposalScrollViewsCornerRadiusMasksItsScrollingContent` |
+| **M1f** | a private `paintIndicator` copy re-inlined into `ProposalScrollView` with a 30pt thumb floor | **2**: `theTwoScrollElementsShareOneChromeImplementation`, `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent`. **Before `440fd78` it reddened only the second** — see below |
+
+**Two mutations reddened the wrong test first, and both were findings rather
+than broken instruments** (`LR-BL` items 2 and 3).
+
+- **M1d** changes no rect at all: the `.hidden` guard still returns before the
+  fill wherever it sits, so a rect-count assertion cannot see it. What it
+  changes is that a hidden scroller asks for a frame on every tick, holding the
+  display link awake — spec §4.4's exit criterion. 1.2's `.hidden` arm now reads
+  `Frame.wantsAnotherFrame` on both halves of its differential.
+- **M1f**'s 30pt floor is invisible at 1.4's original fixture, because
+  `max(20, 100 × (100/200))` and `max(30, …)` are both 50. 1.4 now runs a second
+  content height of 1000, where the proportional answer is 10 and the floor is
+  what decides the thumb.
+
+Both corrections were made in place; no test was added, and the total stayed at
+1553.
+
+### 7.5 Suite, goldens, guards
+
+- `swift build --build-system native --build-tests`: 0 `error:`, the only
+  `warning:` SwiftPM's deprecation notice.
+- `swift test --build-system native --no-parallel`, unfiltered, at `440fd78`:
+  **`Test run with 1553 tests in 1 suite passed after 52.693 seconds`** — the
+  design's predicted 1553 exactly.
+- Goldens: `git diff --name-only 57893d0 HEAD -- 'Tests/**/*.json'` **empty**;
+  `find Tests -name "*.json" | wc -l` still **97**.
+- Typecheck guards: **77**, unchanged — the lane adds no public spelling and no
+  guard.
+
+### 7.6 Pixels (`CN-R`), and the harness that had to be rebuilt
+
+Record §18's generator (`scratchpad/harness/gen-lib.py`) lived in a session
+scratchpad and is gone. The lane rebuilt it from §18's and `CN-R`'s description:
+a test file injected into a `git archive` of the commit under test,
+`@testable import MetalUIDemoContent`, twelve images through a real `Window`
+over `FakePlatformWindow` — eight legacy demo at 1024² (light/dark × f0/f3,
+modal light/dark, animation light/dark), two preview at 1024², and the 560²
+two-authority chrome pair (`DifferentialRoot(560) { Column { CounterPanel() }.width(560) }`,
+one window per authority) — writing raw BGRA and a scene dump per image.
+
+**It is the same instrument, measured rather than assumed.** On an archive of
+`57893d0` it reproduces every recorded figure exactly:
+
+| control | recorded | rebuilt harness |
+|---|---|---|
+| light vs dark, f0 | 1 048 576 | **1 048 576** |
+| default vs modal (light) | 1 030 498 | **1 030 498** |
+| default vs animation (light) | 210 027 | **210 027** |
+| f0 vs f3 (light) | 0 | **0** |
+| preview light vs dark | 1 048 576 | **1 048 576** |
+| distinct values, `default-light-f0` | 544 | **544** |
+| distinct values, `chrome-legacy` | 216 | **216** |
+
+**Twelve of twelve read 0 differing pixels against `57893d0`, every scene dump
+byte-identical**, taken twice: at the fold's commit `72762cc` and again at the
+lane's HEAD `440fd78`. `chrome-legacy` vs `chrome-proposal` reads 0 as well.
+This is the lane where a non-zero reading would have been a finding rather than
+a surprise, because its edit is on the production path under both authorities.
+
+The rebuilt harness is in the session scratchpad again and is **not committed**;
+the seven numbers above are what tells the next person who rebuilds it that they
+got it right. Committing it is deferred to stage 6b (§7.8).
+
+### 7.7 Screen lock and captures
+
+`xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&
+/tmp/lockstate`, run at the end of the lane: **`session CGSSessionScreenIsLocked
+= 1`**, `CGSSessionScreenLockedTime = 1790087900`, `displayAsleep main: 1`,
+`displayActive main: 0`. The screen was unlocked when the design phase measured
+it this morning and is locked again now, so **no real-window capture was
+taken** — the one the design called load-bearing for this lane. `IOConsoleLocked`
+was not read (`FR-V`). The twelve offscreen images stand in, as they did for
+stages 1 and 2.
+
+### 7.8 Deferred out of lane 1
+
+| item | why | owner |
+|---|---|---|
+| committing the `CN-R` harness | it has now been lost once and rebuilt once; the rebuild costs an hour and is only checkable against §7.6's seven numbers | stage 6b, which owns the root switch and needs this comparison most |
+| a real-window capture of the fold | the screen locked again between the design phase and the end of the lane | whoever runs the next lane with an unlocked screen |
+| a `ProposalScrollView` twin for `hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake`'s display-link half | the property is now shared by construction, and 1.2's `wantsAnotherFrame` assertions catch the mutation that would break it; a twin would be a second window test for one shared line | — (judged not worth a test) |

@@ -8,7 +8,7 @@ re-measured green at the baseline.** Branch `feat/engine-stage-3` from
 `57893d0`. Plan task 7, stage 3 of the fourteen in
 [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 (its row 3), §4.2 (its dependency census) and §8 (its stage-3 row).
-Rulings `LR-BB`…`LR-BJ` in
+Rulings `LR-BB`…`LR-BJ`, critic round 1 `LR-BK`, lane 1 `LR-BL`, in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
 — the same decisions doc as stages 1 and 2. Record:
 `docs/record/24-engine-replacement-stage-3.md`. Probe:
@@ -69,7 +69,9 @@ At `57893d0`, measured 2026-09-22 in `/Users/maxburger/Developer/MetalUI-stage-3
 | typecheck guards | **77** in 15 guard files (79 `canTypecheck` hits minus `Typecheck.swift`'s declaration and `UnitSafetyTests`' comment) | per-file `grep -c canTypecheck`; `PhaseSeparationTests` 19, `ErasureCompileGuards` 10, `EnvironmentCompileGuards` 8, `ProposalNodeIDCompileGuards` 6, `ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5, `GridCompileGuards` 4, `ContainerCompileGuards` 4, `DecorationCompileGuards` 3, `AXNodeTests` 3, `UnitSafetyTests` 2, `SceneBoundaryCompileGuards` 2, `ModifiedElementCompileGuards` 2, `FrameSizingCompileGuards` 2, `LayoutAuthorityCompileGuards` 1 |
 | screen | **UNLOCKED** at 09:1x PDT: no `CGSSessionScreenIsLocked` line, `displayAsleep main: 0`, `displayActive main: 1`, one 2056×1329 screen at scale 2 | `docs/probes/appkit-screen-lock-state.swift` (`FR-V`: `IOConsoleLocked` not read) |
 
-**One baseline caveat, recorded rather than explained away.** The *first*
+**One baseline caveat, retired in lane 1 (`LR-BL`): it did not reproduce in
+three unfiltered whole-log runs at the baseline tree, nor in any later run of
+the lane.** The *first*
 unfiltered run at this commit printed `Test run with 1550 tests in 1 suite
 failed after 54.393 seconds with 1 issue`. The harness kept only the last 30
 lines of that run, so the failing test's name is lost. A clean rebuild and a
@@ -549,9 +551,9 @@ tests `LoweringScrollTests.swift` (new).
 | # | test | red before | mutation that must redden it |
 |---|---|---|---|
 | 1.1 | `aProposalScrollViewClampsAStoredOffsetPastTheEndAndWritesItBack` — `ProposalScrollView`'s half of `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind` and of `aStoredOffsetPastTheEndIsClampedWhenItIsRead`, driven through a real `Window` with wheel events; the numbers derived from the fixture, not copied | **characterization** — `ProposalScrollView`'s clamp was never pinned | **M1a** the prepaint overload's write-back deleted (must redden this **and** `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind`) |
-| 1.2 | `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent` — `ProposalScrollView` arms of `theIndicatorFadesOnARampAndTakesItsColourFromTheScrollIndicatorToken`, `theThumbIsProportionalAndFlooredAtTwentyPoints`, `theThumbReachesTheEndOfItsTrackAtMaximumOffset`, `theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt`, `hiddenEmitsNoIndicatorRect` | characterization | **M1b** the indicator's clip given `delta(-offset)` instead of `.zero`; **M1c** the 20pt thumb floor removed; **M1d** `.hidden` checked after `requestAnotherFrame()` |
+| 1.2 | `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent` — `ProposalScrollView` arms of `theIndicatorFadesOnARampAndTakesItsColourFromTheScrollIndicatorToken`, `theThumbIsProportionalAndFlooredAtTwentyPoints`, `theThumbReachesTheEndOfItsTrackAtMaximumOffset`, `theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt`, `hiddenEmitsNoIndicatorRect` | characterization | **M1b** the indicator's clip given `delta(-offset)` instead of `.zero`; **M1c** the 20pt thumb floor removed; **M1d** `.hidden` checked after `requestAnotherFrame()`. **Built, `LR-BL` item 2**: M1d changes no rect, so the `.hidden` arm reads `Frame.wantsAnotherFrame` on both halves of its differential or M1d reddens only `hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake` |
 | 1.3 | `aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame` gains a `ProposalScrollView` arm | characterization. (The first writing said "the fold is what makes the second arm exist" — false: `ProposalScrollView` already reads `ScrollState()` at `57893d0`, so the arm is writable and green today. It is the fold that must not change it) | **M1e** `ScrollState.lastScrollTime`'s default set to `0` (must redden both arms) |
-| 1.4 | `theTwoScrollElementsShareOneChromeImplementation` — the same fixture (same axis, corner radius, content extent, offset, timestamps) rendered as a `ScrollView` and as a `ProposalScrollView`, asserting the **indicator rect and colour are equal** and the clamped offsets are equal. The fixture's **content fills the cross axis**, so the `try #require` that the two viewport rects agree first is satisfiable — divergence 54 is a cross-axis difference between exactly these two types (`LR-BC`), and a hugging fixture would fail the require rather than pass it | **characterization**, green at `57893d0`: the two implementations are line-equivalent and both `lastScroll` seeds are dead (`withState` always overwrites), so there is no discriminator before the fold. The first writing claimed RED here and was wrong | **M1f** (replacing the old one, which post-fold moved both sides together): **re-inline a private copy of `paintIndicator` into one element with a different thumb floor** — the drift this test actually guards |
+| 1.4 | `theTwoScrollElementsShareOneChromeImplementation` — the same fixture (same axis, corner radius, content extent, offset, timestamps) rendered as a `ScrollView` and as a `ProposalScrollView`, asserting the **indicator rect and colour are equal** and the clamped offsets are equal. The fixture's **content fills the cross axis**, so the `try #require` that the two viewport rects agree first is satisfiable — divergence 54 is a cross-axis difference between exactly these two types (`LR-BC`), and a hugging fixture would fail the require rather than pass it. **Built, `LR-BL` item 3: two content heights, not one** — at 200 over a 100pt viewport the thumb is the proportional 50 and the floor is inactive, so M1f's 30pt floor answers the same number; the 1000pt arm is where the floor decides it | **characterization**, green at `57893d0`: the two implementations are line-equivalent and both `lastScroll` seeds are dead (`withState` always overwrites), so there is no discriminator before the fold. The first writing claimed RED here and was wrong | **M1f** (replacing the old one, which post-fold moved both sides together): **re-inline a private copy of `paintIndicator` into one element with a different thumb floor** — the drift this test actually guards |
 
 Existing pins that must stay green, named because they are the regression
 surface: all 14 `ScrollIndicatorTests`, all 16 `ScrollRoutingTests`, all 7
@@ -567,9 +569,11 @@ at this HEAD and is lane 3's whole red-before; lane 2 converts it to an
 agreement arm. It is an arm, not a new test, so the count does not move for it.
 
 **Before lane 3 (taken here, recorded here): attribute or retire §1's
-unattributed baseline issue.** Run `ScrollRoutingTests` and
-`ScrollIndicatorTests` unfiltered, **whole log kept**, enough times to name it
-or to retire it as not reproducing. Lane 3 takes the count of real `Window`s in
+unattributed baseline issue. RETIRED — it did not reproduce** in three
+unfiltered whole-log runs at the baseline tree (52.087 s, 51.817 s, 52.674 s,
+all `Test run with 1550 tests in 1 suite passed`) or in any of the lane's six
+later green runs. Run the suite unfiltered, **whole log kept**, enough times to
+name it or to retire it as not reproducing. Lane 3 takes the count of real `Window`s in
 those two suites from 37 to 74 — each a Metal device on one shared main run
 loop — and four of the scenarios are display-link timing tests, so an
 unattributed flake living there would double in rate and land in the exit test.
@@ -726,11 +730,21 @@ item-field entry — 2.5's `alignSelf: .baseline` arm is what sees it.
 ## 8. Demo, pixels and captures
 
 At the end of **every** lane, against `57893d0`, the twelve `CN-R` images (eight
-legacy demo, two preview, two 560² two-authority chrome), generated by
-`gen-lib.py` (record §18) into a `git archive` of the lane's commit,
+legacy demo, two preview, two 560² two-authority chrome), generated by the
+`CN-R` harness into a `git archive` of the lane's commit,
 `DEMO_PIXELS_SMALL=1`, with the controls read **non-zero first**: light vs dark
 1 048 576; default vs modal 1 030 498; default vs animation 210 027; f0 vs f3 0;
 preview light vs dark 1 048 576. **Expected: 0 in all twelve at every lane.**
+
+**The generator is not in the repository, and lane 1 had to rebuild it**
+(`LR-BL` item 6): record §18's `scratchpad/harness/gen-lib.py` lived in a
+session scratchpad and is gone. The rebuilt one is a test file injected into the
+archive (`@testable import MetalUIDemoContent`, twelve images through a real
+`Window` over `FakePlatformWindow`, raw BGRA plus a scene dump each). **Its
+controls are what prove it is the same instrument** — on an archive of
+`57893d0` it reproduces all five recorded figures exactly, plus record §18's two
+distinct-value counts (544 for `default-light-f0`, 216 for `chrome-legacy`).
+A later lane that rebuilds it again checks itself against those seven numbers.
 
 - **Lane 1 is the one that can genuinely move a pixel** (it edits production
   paint on both authorities and the preview's `ProposalScrollView`). A non-zero
@@ -781,5 +795,6 @@ Each row names how the stage checks it rather than asserting it.
 | **divergence 54's retirement** | the lowering **preserves** it: the kernel viewport's cross answer is the `ProposalScrollView` side, and a lowered `ScrollView` reads its parent's cross size only because it records a `LoweredItem` where `ProposalScrollView` records none (§3.2, `LR-BC` amended, critic round 1 finding 5). Retiring it needs the two scroll types unified; 2.2a pins the surviving difference meanwhile | stage 11 / task 10, with `LR-BF`'s unification |
 | framed component members staying **one** flex item where SwiftUI's stay siblings | needs `ElementGroup`'s associated type (`TB-M`) | stage 11 |
 | two-axis scrolling | never designed | task 10 |
+| committing the `CN-R` twelve-image harness | lane 1 had to rebuild it from record §18's prose, its own copy having been lost with a session scratchpad; the rebuild is only checkable against §8's five controls plus record §24 §7.6's two distinct-value counts (`LR-BL` item 6) | stage 6b |
 | the single-child stretch elision inside a `ScrollView` (A6's 40 → 16) | stage 2's `LR-AC`, unchanged here | stage 6b (the root and demo respelling) |
 | `Style.overflow`'s inert write in `ScrollView.requestLayout` | it documents intent under the legacy authority and is not carried by the lowering | stage 10, with `Style`'s CSS fields |
