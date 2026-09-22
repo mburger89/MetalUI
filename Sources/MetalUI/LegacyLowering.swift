@@ -236,7 +236,12 @@ extension LayoutPass {
         if declared.display == .none { return report(fields) }
         // A frame over one node is a stack (`CN-N`): it stretches nothing (its
         // `FrameSpec.style()` alignment is never `stretch`) and ignores its child's
-        // flex fields; a child's `minSize`, `maxSize` or `margin` still reports.
+        // flex fields. A child's `maxSize` off a greedy axis still reports and a
+        // `minSize` on an `auto` axis still becomes W's minimum; its **margin**
+        // does NOT report — a stack or frame-layer parent drops it outright
+        // (`LR-AZ`), as this comment used to say it did not. Same for `flexGrow`,
+        // `flexShrink`, `flexBasis` and `alignSelf`: consumed and dropped, which
+        // `loweredComponentFrame` inherits by planning the same way (`LR-BO`).
         var plans: [LegacyItemPlan] = received.map { _ in LegacyItemPlan() }
         if children.count == 1 {
             plans = planLegacyItems(received, parent: declared, parentKind: .stack, parentSite: .modifierLayer,
