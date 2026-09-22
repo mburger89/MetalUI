@@ -77,7 +77,7 @@ There is still no iOS support: everything is macOS only.
 
 ## Requirements
 
-macOS 14+, Swift 6.3 toolchain, a Metal-capable device.
+macOS 14+, Swift 6.4 toolchain, a Metal-capable device.
 
 ## Try it
 
