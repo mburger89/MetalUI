@@ -157,22 +157,35 @@ private func leaf(_ tree: LayoutTree) -> LayoutNodeID {
 /// die by allocation with no message (`GR-AB`); the kernel's own per-column
 /// cost is `aLargeColumnCountCostsTheKernelOnePassPerColumn`.
 ///
-/// Three arms, **registration only**, so a mutant that drops a check exits
-/// `.success` rather than dying in a 2³¹-column allocation:
-/// (a) one mark of `Int(Int32.max) + 1`; (b) two marks of 2³⁰ on one node, whose
-/// sum is `Int32.max + 1`; (c) one row of two cells each marked `Int32.max`,
-/// whose row sum `newNativeGrid` rejects, naming `gridCellColumns`.
+/// **Four arms, registration only**, so a mutant that drops a check exits
+/// `.success` rather than dying in a 2³¹-column allocation. The bound is
+/// written in THREE places and each arm reaches exactly one of them, so each
+/// asserts the message that place produces — arms (a) and (b) differ only in
+/// their tail, and asserting the shared prefix let the single-count check be
+/// deleted with the suite green (`GR-AM`):
+/// - (a) one mark of `Int(Int32.max) + 1` — `markNativeGridCell`'s single-count
+///   check, `got 2147483648`;
+/// - (b) two marks of 2³⁰ on one node — its per-node sum, `summed to 2147483648`;
+/// - (c) one row of two cells each marked `Int32.max` — `makeNativeGridPlan`'s
+///   row sum, naming `gridCellColumns`;
+/// - (d) 2³⁰ on a leaf and 2³⁰ on a `padding` around it — `gridChildMarks`' sum
+///   along the CHAIN, which neither mark alone exceeds.
 ///
-/// Mutations: (a) drop the single-count check; (b) drop the per-node sum check;
-/// (c) drop the row-sum check — each arm's child then exits otherwise than by
-/// the named trap.
+/// Mutations, each dropping one check: (a), (b) and (d) then exit otherwise than
+/// by the named trap. **(c) and (d) cannot be mutated by a bare deletion**: what
+/// the check prevents is the allocation itself, so the child then asks for
+/// 2 × `Int32.max` columns and the run HANGS instead of failing (observed; the
+/// process was killed). The mutants used clamp as well as delete — (c) clamps
+/// each SPAN to 2 in `makeNativeGridPlan`, (d) clamps the walk's sum to 4 — so
+/// the child registers and exits `.success`, which is the discrimination these
+/// arms were written for. Recorded as substitutions in record §20.
 @Test func aColumnCountAboveInt32MaxTraps() async {
     // Arm a: one count above Int32.max.
     let single = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         let tree = LayoutTree(generation: 0)
         tree.markNativeGridCell(leaf(tree), columns: Int(Int32.max) + 1)
     }
-    #expect(stderrText(single).contains("grid cell columns must not exceed Int32.max"),
+    #expect(stderrText(single).contains("grid cell columns must not exceed Int32.max (GR-S), got 2147483648"),
             "aborted, but not at the single-count check:\n\(stderrText(single))")
 
     // Arm b: two counts on one node whose sum is above Int32.max.
@@ -182,7 +195,7 @@ private func leaf(_ tree: LayoutTree) -> LayoutNodeID {
         tree.markNativeGridCell(cell, columns: 1 << 30)
         tree.markNativeGridCell(cell, columns: 1 << 30)
     }
-    #expect(stderrText(sum).contains("grid cell columns must not exceed Int32.max"),
+    #expect(stderrText(sum).contains("grid cell columns must not exceed Int32.max (GR-S), summed to 2147483648"),
             "aborted, but not at the per-node sum check:\n\(stderrText(sum))")
 
     // Arm c: a ROW whose spans sum above Int32.max, rejected by the grid.
@@ -196,4 +209,16 @@ private func leaf(_ tree: LayoutTree) -> LayoutNodeID {
     }
     #expect(stderrText(rowSum).contains("a grid row's gridCellColumns must not sum above Int32.max"),
             "aborted, but not at the row-sum check:\n\(stderrText(rowSum))")
+
+    // Arm d: the sum along one modifier CHAIN, which neither mark alone exceeds.
+    let chainSum = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        let tree = LayoutTree(generation: 0)
+        let cell = leaf(tree)
+        tree.markNativeGridCell(cell, columns: 1 << 30)
+        let padded = tree.newNativePadding(child: cell, insets: Edges(all: 1))
+        tree.markNativeGridCell(padded, columns: 1 << 30)
+        _ = tree.newNativeGrid(children: [padded])
+    }
+    #expect(stderrText(chainSum).contains("grid cell columns must not exceed Int32.max (GR-S), summed to 2147483648"),
+            "aborted, but not at the chain's sum check:\n\(stderrText(chainSum))")
 }

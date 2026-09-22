@@ -110,6 +110,11 @@ private final class Arm {
         return node
     }
 
+    /// `dbl`: twice the proposed width (20 at nil), fixed height (lane 3).
+    func dbl(_ name: String, _ h: Double = 10) -> LayoutNodeID {
+        leaf(name) { SizeD(width: ($0.width ?? 10) * 2, height: h) }
+    }
+
     /// A `.padding(inset)` wrapper (lane 3).
     func pad(_ node: LayoutNodeID, _ inset: Double) -> LayoutNodeID {
         tree.newNativePadding(child: node, insets: Edges(all: inset))
@@ -2083,9 +2088,26 @@ private func buildGridCase(_ corpusCase: GridCorpusCase)
 /// - GX23 `[a, b] [x 100x10 span 3]`: the third column, which only the span
 ///   covers, takes the whole shortfall (100×38).
 ///
-/// Mutation: take the largest mark instead of the sum (GX15 reads 3 columns for
-/// c: its d moves and the answer changes).
-@Test func gridCellColumnsDeclaredTwiceAddTheirValuesAboveOne() {
+/// **W0–W3 are the CHAIN's sum** (`GR-AM`), from the companion probe
+/// `docs/probes/swiftui-grid-lane3-discriminators.swift`. GWI1 and GWI2 cross a
+/// wrapper but write 2 and 1, and 1 is not above 1, so "sum the marks above 1"
+/// and "take the largest mark" both answer 2 — mutating the walk's
+/// `columns += …` to a `max` left the whole suite green until these arms
+/// existed. `c` is a fixed 100×10 leaf inside a `padding(1)`:
+///
+/// - W0 `.columns(2).padding(1)` and W1 `.padding(1).columns(2)`: one mark of 2
+///   wherever it is written, 115×40 with a at x 11.
+/// - W2 `.columns(2).padding(1).columns(2)`: span 4, a at x **0** — `#require`d
+///   to differ from W0.
+/// - W3, W2 with a four-cell top row, where the two rules give different COLUMN
+///   COUNTS: 115×40 at span 4 against 130×40 at span 2.
+///
+/// Mutations: take the largest mark instead of the sum (GX15 reads 3 columns for
+/// c: its d moves and the answer changes); `columns > 1` relaxed to
+/// `columns >= 1` (GX16's c spans 3); and, for the chain, `columns +=` in
+/// `LayoutTree.gridChildMarks` replaced by a `max` (W2 and W3 redden, W0 and W1
+/// do not).
+@Test func gridCellColumnsDeclaredTwiceAddTheirValuesAboveOne() throws {
     do { // GX15
         let arm = Arm()
         let c = arm.span(arm.span(arm.fx("c", 100, 10), 3), 2)
@@ -2128,6 +2150,34 @@ private func buildGridCase(_ corpusCase: GridCorpusCase)
         #expect(arm.run(root, nil, nil) == size(100, 38), "GX23 size")
         expectRects(arm, "GX23", ["a": r(0, 5, 30, 10), "b": r(38, 0, 20, 20), "x": r(0, 28, 100, 10)])
     }
+    // W0, W1, W2: one mark on either side of a padding, then both.
+    func wArm(inner: Int?, outer: Int?) -> Arm {
+        let arm = Arm()
+        var c = arm.fx("c", 100, 10)
+        if let inner { c = arm.span(c, inner) }
+        c = arm.pad(c, 1)
+        if let outer { c = arm.span(c, outer) }
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20)), row(c, arm.fx("d", 5, 5))])
+        #expect(arm.run(root, nil, nil) == size(115, 40), "W size")
+        return arm
+    }
+    let w0 = wArm(inner: 2, outer: nil), w1 = wArm(inner: nil, outer: 2), w2 = wArm(inner: 2, outer: 2)
+    try #require(w0["a"] != w2["a"], "W0 and W2 must differ, or the second mark reads nothing")
+    expectRects(w0, "W0", ["a": r(11, 5, 30, 10), "b": r(71, 0, 20, 20),
+                           "c": r(1, 29, 100, 10), "d": r(110, 31.5, 5, 5)])
+    expectRects(w1, "W1", ["a": r(11, 5, 30, 10), "b": r(71, 0, 20, 20),
+                           "c": r(1, 29, 100, 10), "d": r(110, 31.5, 5, 5)])
+    expectRects(w2, "W2", ["a": r(0, 5, 30, 10), "b": r(38, 0, 20, 20),
+                           "c": r(1, 29, 100, 10), "d": r(110, 31.5, 5, 5)])
+    do { // W3: the value arm — a span of 2 would answer 130x40 with four columns
+        let arm = Arm()
+        let c = arm.span(arm.pad(arm.span(arm.fx("c", 100, 10), 2), 1), 2)
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20), arm.fx("e", 5, 5), arm.fx("f", 7, 7)),
+                             row(c, arm.fx("d", 5, 5))])
+        #expect(arm.run(root, nil, nil) == size(115, 40), "W3 size (a span of 2 answers 130x40)")
+        expectRects(arm, "W3", ["a": r(2, 5, 30, 10), "b": r(44, 0, 20, 20), "e": r(76, 7.5, 5, 5),
+                                "f": r(93, 6.5, 7, 7), "c": r(1, 29, 100, 10), "d": r(110, 31.5, 5, 5)])
+    }
 }
 
 // MARK: 3.7 unsized axes
@@ -2147,8 +2197,20 @@ private func buildGridCase(_ corpusCase: GridCorpusCase)
 /// - GU7, GU8: an unsized cell in a later flexibility group.
 /// - GU11: a lone flexible cell unsized on both axes answers 0×0.
 ///
+/// **U0 and U1 read the proposal a SPAN is given** (`GR-AM`), from the
+/// companion probe `docs/probes/swiftui-grid-lane3-discriminators.swift`. GU3
+/// is the only unsized span above, and its leaf follows its proposal, so the
+/// wrong proposal is re-measured away at placement and no rect moves — reading
+/// `widths[cell.column]` instead of `spanWidth(cell)` left the whole suite
+/// green. `c` here answers **twice** its proposed width, so the proposal
+/// survives into the grid's size: unsized, c is offered its two columns' widths
+/// plus their gap (30 + 8 + 20 = 58) and the grid answers 116; not unsized, it
+/// is offered 200 and the grid answers 400; offered its first column's 30 it
+/// would answer 60.
+///
 /// Mutation: do not absorb an unsized cell's answer on that axis (GU5 reads
-/// 78 wide).
+/// 78 wide); per axis, the width half alone and the height half alone; and the
+/// unsized branch reading `widths[cell.column]` (U1 reads 60 wide).
 @Test func anUnsizedAxisIsProposedItsCurrentSlotAndItsAnswerStillCounts() throws {
     let gu1 = Arm()
     gu1.run(gu1.grid([row(gu1.fx("a", 30, 10), gu1.fx("b", 20, 20)),
@@ -2207,6 +2269,14 @@ private func buildGridCase(_ corpusCase: GridCorpusCase)
         #expect(arm.run(root, 200, 100) == size(0, 0), "GU11 size")
         expectRects(arm, "GU11", ["a": r(0, 0, 0, 0)])
     }
+    let u0 = Arm()
+    u0.run(u0.grid([row(u0.fx("a", 30, 10), u0.fx("b", 20, 20)), row(u0.span(u0.dbl("c"), 2))]), 200, 200)
+    let u1 = Arm()
+    u1.run(u1.grid([row(u1.fx("a", 30, 10), u1.fx("b", 20, 20)),
+                    row(u1.unsized(u1.span(u1.dbl("c"), 2), .horizontal))]), 200, 200)
+    try #require(u0["c"] != u1["c"], "U0 and U1 must differ, or the unsized mark reads nothing")
+    expectRects(u0, "U0", ["a": r(85.5, 5, 30, 10), "b": r(294.5, 0, 20, 20), "c": r(0, 28, 400, 10)])
+    expectRects(u1, "U1", ["a": r(14.5, 5, 30, 10), "b": r(81.5, 0, 20, 20), "c": r(0, 28, 116, 10)])
 }
 
 // MARK: 3.8 an unsized non-row child
@@ -2338,8 +2408,9 @@ private func gridWrapperKinds() -> [GridWrapperKind] {
 /// (anchor, column alignment and the span through a padding) and 3.9's GWI5
 /// (unsized axes).
 ///
-/// Mutation: stop the chain at `padding` (every `padding` arm here reddens, and
-/// so do 3.4's GWI3/GWI4 and 3.5's GWI1/GWI2).
+/// Mutations: stop the chain at `padding` (every `padding` arm here reddens, and
+/// so do 3.4's GWI3/GWI4 and 3.5's GWI1/GWI2); and, for R2, take the
+/// **innermost** row token instead of the outermost.
 @Test func cellAttributesAndRowTokensAreReadThroughModifierNodesAndNotContainers() throws {
     for kind in gridWrapperKinds() {
         // Span.
@@ -2409,6 +2480,29 @@ private func gridWrapperKinds() -> [GridWrapperKind] {
             let plan = try #require(tree.nativeGridPlan(tree.newNativeGrid(children: [child, other])))
             #expect(plan.cells[0].priority == (kind.carriesPriority ? 1 : 0), "priority through \(kind.name)")
         }
+    }
+    // R2 (`GR-AM`, probe `docs/probes/swiftui-grid-lane3-discriminators.swift`):
+    // with a row mark on BOTH ends of one chain the OUTERMOST wins, so the
+    // padded cell joins its enclosing row instead of making one of its own.
+    // SwiftUI spells it `Grid { GridRow { GridRow { a }.padding(1); b } }` and
+    // answers 60×20, one row of two columns; the innermost mark winning would
+    // put a and b in rows of their own and answer 32×40. Every row arm above
+    // writes ONE token per chain, so the clause was unpinned until this one.
+    do {
+        let tree = LayoutTree(generation: 0)
+        let a = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 30, height: 10)) }
+        tree.markNativeGridRow([a])
+        let padded = tree.newNativePadding(child: a, insets: Edges(all: 1))
+        let b = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }
+        tree.markNativeGridRow([padded, b])
+        let grid = tree.newNativeGrid(children: [padded, b])
+        let plan = try #require(tree.nativeGridPlan(grid))
+        try #require(plan.rowCount == 1, "R2: the outermost row mark makes ONE row, not \(plan.rowCount)")
+        let answer = tree.measureNativeLayout(root: grid, proposal: none).size
+        #expect(answer == size(60, 20), "R2 answer (the innermost mark winning reads 32x40)")
+        tree.computeNativeLayout(root: grid, proposal: none, in: LayoutRect(x: 0, y: 0, width: 60, height: 20))
+        #expect(tree.layout(a) == r(1, 5, 30, 10), "R2 a: \(tree.layout(a))")
+        #expect(tree.layout(b) == r(40, 0, 20, 20), "R2 b: \(tree.layout(b))")
     }
 }
 
