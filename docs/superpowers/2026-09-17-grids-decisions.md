@@ -708,9 +708,12 @@ is removed: probed and ruled, `GR-R`.)
    112 tall). It affects every `HStack`/`VStack` in the framework; grid arms
    GE10 and GE19 merely expose it. Pinned wrong on purpose by tests 2.10
    (GE10) and 2.11 (GE19), and — since the second critic round, finding 9 — the
-   **no-grid** T7 arm moves out of 2.11 into the stack's own test file (lane 3),
-   so a later reader does not take it for grid behaviour. **Owner: plan task 6,
-   the stacks task** (`GR-N`), not this stage.
+   **no-grid** T7 arm **moved** (lane 3) out of 2.11 into
+   `NativeStackDistributionTests.swift`'s `aStackServesItsLeastFlexibleChildFirst`,
+   so a later reader does not take it for grid behaviour; breaking the tie by the
+   answer at main 0 reddens that test and the two grid arms together (record §20,
+   mutation MT7). **Owner: plan task 6, the stacks task** (`GR-N`), not this
+   stage.
 
 9. **A vanishing `if` inside a grid moves the cells after it** (second critic
    round, finding 13; `GR-AF`): `OptionalGroup` returns no node **without
@@ -739,9 +742,11 @@ spacing", is withdrawn: `GR-R` ports SwiftUI's positional rule.)
   alignment or a `GridCellModifier` outside a `Grid` (`GR-I`);
 - `NativeGridSolution`'s bookkeeping counter (`GR-U`): a test observable with no
   production reader.
-- `ProposalAxes` (`NativeGrid.swift`), public from lane 1 with no reader or
-  writer until lane 3's `unsizedAxes` mark; delete this item when lane 3 lands
-  (verifier finding, lane 1).
+- ~~`ProposalAxes` (`NativeGrid.swift`), public from lane 1 with no reader or
+  writer until lane 3's `unsizedAxes` mark~~ — **struck at lane 3**, which gave
+  it its writer (`markNativeGridCell(unsizedAxes:)`) and its reader
+  (`NativeGridSolver.serve`). It is not inert and must not reach the
+  integrator's inert table.
 
 ---
 
@@ -1573,3 +1578,169 @@ before `b nilx72`, at 100×100 it asks `b 100x46` before `a 100x46`.
 unchanged; what changes is that a future edit to the width guard is now visible.
 The residual risk is the one the rule names: other clauses may still be written
 twice somewhere the suite reaches only one copy.
+
+---
+
+## GR-AK — the placement path re-bisected: 154 levels, the gate cleared, `placeGrid` unchanged
+
+**Round:** lane 3, first item, before any new behaviour (`GR-AC` item 4, second
+critic round finding 6).
+
+**What was wrong with the earlier bisections.** Lanes 1 and 2 bisected chains of
+**one-cell** grids. A one-cell grid's column is as wide as its cell's answer and
+its row as tall, so the slot always equals the answer, and `GR-C`'s placement
+rule then re-uses the proposal the answer was measured at — a cache hit.
+`nativeGridCellRects`' **fresh-measurement branch**, the one that recurses from
+inside an `Array.map` closure, was therefore never on the measured stack, and
+neither was `solveNativeGrid`'s placement-time solver loop doing real work. Both
+shapes were rejected for the MEASUREMENT path (110 levels through a `map`, 65
+from inside the solve), so their presence on the placement path was an untested
+risk, not a measured one.
+
+**The chain that reaches it.** Level *k* is a two-cell row `[G(k−1), b_k]` where
+`b_k` is a leaf 1 × (10 + k), so the row is exactly one point taller than the
+inner grid's answer: the inner cell's slot differs from its answer at **every**
+level, the fresh branch runs at every level, and the fresh proposal is finite,
+so each level also drives the inner grid's finite solve. Method as lanes 1 and
+2: `NativeLayoutRun.maxDepth` temporarily `100_000`, one `swift test
+--build-system native --skip-build --filter` per depth on a `Thread` with a
+**1 MB** stack, the scratch test never committed.
+
+| chain | 1 MB debug | note |
+|---|---|---|
+| two-cell rows, slot ≠ answer at every level (placement) | **154 / 155** | 155 completes on 4 MB |
+| the same chain, measurement only (`measureNativeLayout` at nil×nil) | 167 / 168 | so the 13 levels lost are placement's |
+| one-cell grid, nil×nil | 167 / 168 | unchanged from lane 2 |
+| one-cell grid, 400×400 (the finite solve) | **154 / 155** | 155 / 156 in lane 2: one level for lane 3's locals |
+| one-child vertical `linearStack` | 127 / 128 | unchanged |
+| padding | 194 / 195 | unchanged |
+
+The placement figure was taken **twice**, before lane 3's code and after it, and
+read 154 / 155 both times.
+
+**Ruling.** 154 ≥ `GR-M`'s gate of 147, so `placeGrid` is **not** restructured:
+it keeps its solver loop and `nativeGridCellRects` keeps measuring inside its
+`map`. `GR-AC` item 4's conditional ("if the ceiling falls below the gate") is
+not triggered, and the lane records both numbers as that ruling asks.
+
+**The margin is seven levels, and that is the whole disclosure.** A future
+change that adds one more frame to the placement recursion — another wrapper
+between `placeGrid` and `measureNative`, or a larger local in
+`nativeGridCellRects` — can spend it. Whoever touches the placement path
+re-bisects with **this** chain, not a one-cell one; a one-cell chain will keep
+reading 167 and say nothing. The binding kind is still the stack at 127
+(`GR-AC` item 2, owner `LR-Q`'s stage 6b), not the grid.
+
+**Cost if wrong.** If the placement ceiling were below 147 and this went
+unmeasured, a tree the depth guard admits could overflow the stack instead of
+trapping with attribution — the exact failure `SA-L`'s margin exists to prevent.
+It is measured, so the remaining risk is only that the margin is thin.
+
+---
+
+## GR-AL — lane 3 as built: what the spec's rows became
+
+**Round:** lane 3 (2026-09-21), the implementer round. Five departures from spec
+§6's lane-3 table, each with its reason.
+
+**1. Test 3.10 asserts the PLAN, not rects.** The spec's "red before" column
+said "every wrapped arm reads the unwrapped control's rect", but a wrapper
+changes the geometry it wraps — a `padding(1)` inset, a `frame(12×12)` size, an
+`aspectRatio` square — so a rect comparison against an unwrapped control cannot
+be written without one hand-derived figure per (wrapper × attribute) pair, 66 of
+them, most of which say nothing about the walk. The test instead reads
+`LayoutTree.nativeGridPlan`'s `span`, `anchor`, `columnAlignments`,
+`unsizedAxes`, `isRowCell` and `priority` — exactly what `gridChildMarks`
+computes — one arm per node kind per attribute, and the geometric consequences
+of the walk stay pinned by the GWI arms of tests 3.4 (anchor, column alignment),
+3.5 (the span) and 3.9 (unsized axes), which ARE rects through a `padding`. The
+named mutation (stop the chain at `padding`) reddens both halves.
+
+**2. The GX13 column-alignment arm is the kernel's own, and it is corpus-backed,
+not arm-backed.** GX13 itself cannot show it: its three columns are each exactly
+as wide as their cell, so no alignment can move anything. Test 3.1's GX13c is a
+kernel-authored shape — `[a 11×10, b 20×20, e 5×5]` over a non-row `x 88×10`
+carrying `.gridColumnAlignment(.trailing)`, whose 36pt shortfall widens every
+column — where honouring x's declaration would move `a` from x 6 to x 12. Its
+authority is the reference model (`for c in structure.cells where !c.isFull`)
+and the **17 corpus cases that write a column alignment on a `.spanning` cell**,
+all of which SwiftUI and the model agree on and test 2.13 now runs.
+
+**3. Test 3.6's arm (c) is mutated with a cap, not a bare deletion.** "Drop the
+row-sum check" leaves the child allocating 2 × `Int32.max` columns — about
+34 GB of `columnSingleCells` and `hgap` alone — which dies, so the exit test's
+`.failure` still holds and only its stderr-fragment `#expect` reddens, at the
+cost of a run that thrashes the machine. The mutant used instead drops the
+precondition **and** clamps `columnCount` to 4, so the child registers and exits
+`.success`: the arm's own expectation fails, which is the discrimination the
+test was written for. Recorded as a substitution, per spec §7.
+
+**4. `markNativeGridCell(columns:)` writes nothing for a count of 0 or 1.** The
+sum rule is "add the marks **above 1**" (GX16: 2 and 1 span 2), so a mark of 0
+or 1 contributes nothing and is not stored. One consequence: test 3.11's
+mutation cannot be "clamp 0 to 2" in the plan — `columns(0)` no longer reaches
+the plan at all — so it is written at the mark instead (`columns == 0` adds 2).
+
+**5. The counts.** Spec §6 predicted 1450 + 13 = **1463** and spec §7's table
+said 1462; the measured total is **1463**, 13 new `@Test`s, guards **71**
+unchanged, goldens **97** unmoved. The 1462 was an arithmetic slip in §7, not a
+missing test.
+
+**Cost if wrong.** (1) is the only one with residual risk: a plan-level
+assertion cannot see a walk that is right and a consumer that ignores it. The
+consumers are pinned separately — 3.1–3.5 for the anchor, column alignment and
+span, 3.7–3.9 for the unsized axes — and the `GWI` arms cross both.
+
+---
+
+## GR-AM — two clauses the lane's own arms could not hold: the chain's column SUM, and the redundant single-count check
+
+**Round:** lane 3's mutation round (2026-09-21). Two of the round's mutations
+left the whole 1463-test suite green; both are findings, not instrument
+failures, and both are now pinned.
+
+**1. The chain walk's `columns += …` was unpinned** (`M3.5b`). `GR-F`'s rule is
+"two `gridCellColumns` on one view add their values above 1", and `GR-I` carries
+it along the modifier chain. The suite's chain arms are GWI1 and GWI2, which
+write **2 and 1** — and 1 is not above 1, so "sum the marks above 1" and "take
+the largest mark" both answer 2. Replacing `columns += gridCellColumns[index] ?? 0`
+with `columns = max(columns, …)` in `gridChildMarks` therefore moved nothing:
+1463 tests, 0 issues. The per-node sum is pinned (GX15's 3 and 2 span 5), the
+chain's was not. This is `CLAUDE.md`'s "a copy of a pinned implementation is
+unpinned" again — the third time in this stage, after `GR-AG` and `GR-AJ` — and
+the tell was the same: the two arms that cross the wrapper were written from the
+probe, and the probe has no arm with two marks above 1 on one chain.
+
+**The probe:** `docs/probes/swiftui-grid-chain-span-sum.swift`, four arms, all
+four hand-derived from the reference model **before** the run and all four
+exactly as predicted; `/usr/bin/swift` = Apple Swift 6.4
+(swiftlang-6.4.0.33.1), macOS 27.0 (26A428), exit 0, run twice, byte-identical.
+
+| arm | written on `c` (fixed 100×10) | SwiftUI |
+|---|---|---|
+| W0 | `.gridCellColumns(2).padding(1)` | 115×40, a (11,5 30×10) |
+| W1 | `.padding(1).gridCellColumns(2)` | the same as W0 |
+| W2 | `.gridCellColumns(2).padding(1).gridCellColumns(2)` | 115×40, a (**0**,5 30×10) |
+| W3 | W2 with a four-cell top row | 115×40, a (2,5); under "take the largest" it would be **130×40** |
+
+W0 and W1 agree (one mark is one mark wherever it is written) and both disagree
+with W2 (a's x), so the arms respond to the second mark; W3 turns the
+disagreement into a grid WIDTH, which is what pins the value 4 rather than
+"more than 2". **Pinned by test 3.5's W0/W1/W2/W3 arms**, with a `#require` that
+W0 and W2 differ.
+
+**2. The single-count `Int32.max` check is redundant in effect** (`M3.6a`).
+`markNativeGridCell` checks `columns <= Int32.max` and then, for a count above
+1, checks the node's running sum against the same bound. A first mark above
+`Int32.max` trips **both**, and the messages differ only in their tail
+("got N" against "summed to N"), which test 3.6's arm (a) did not assert.
+Deleting the single-count check left the suite green. The check is kept — it
+names the offending count rather than a sum of one — and **arm (a) now asserts
+`got 2147483648` and arm (b) `summed to 2147483648`**, so each check has an arm
+that only it can satisfy.
+
+**Cost if wrong.** (1) was a real hole: a future edit to the chain's
+accumulation would have been invisible, and a caller writing
+`.gridCellColumns(2).padding(…).gridCellColumns(2)` would silently have got a
+span of 2. (2) was cosmetic — the trap fires either way — but the arm was
+proving less than it read.

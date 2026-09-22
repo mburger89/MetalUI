@@ -552,6 +552,33 @@ second critic round's code added 3 tests before this lane and 2 rows to it; the
 baseline was 1449 when this row was written and lane 1's follow-up added
 `resetClearsGridCellColumnMarks`, so measure it rather than trust it.)
 
+**As built** (`GR-AK`, `GR-AL`, `GR-AM`; record §20's lane-3 section). Five
+departures from the table above, each recorded there: 3.10 asserts the **plan**,
+one arm per node kind per attribute, because a wrapper changes the geometry a
+rect comparison against an unwrapped control would need, and the rect
+consequences stay pinned by 3.4's, 3.5's and 3.9's GWI arms; 3.1's GX13c arm is
+kernel-authored and corpus-backed, since GX13's own columns are each exactly as
+wide as their cell and no alignment can move anything in it; 3.6's arms (c) and
+(d) are mutated with a clamp as well as a deletion, because a bare deletion
+leaves the child asking for 2 × `Int32.max` columns and the run HANGS; a
+`columns` mark of 0 or 1 is not stored at all, so 3.11's mutation is written at
+the mark; and the measured total is **1463**, not §7's 1462.
+
+**Four clauses the table's arms could not hold** (`GR-AM`), found by the
+mutation round and pinned by ten arms of a new companion probe
+`docs/probes/swiftui-grid-lane3-discriminators.swift`:
+- the chain walk's `columns +=` — GWI1/GWI2 write 2 and 1, and 1 is not above 1,
+  so "sum" and "largest" agree. **Test 3.5 gains W0–W3.**
+- the walk's "outermost row token wins" — every row arm writes ONE token per
+  chain. **Test 3.10 gains R2**, SwiftUI's
+  `Grid { GridRow { GridRow { a }.padding(1); b } }` at 60×20.
+- the unsized branch's `spanWidth(cell)` — GU3's leaf follows its proposal, so
+  placement re-measures the wrong proposal away. **Test 3.7 gains U0/U1** with a
+  leaf that doubles its proposal, 400×38 against 116×38.
+- test 3.6's arms (a) and (b), which asserted the shared prefix of two messages.
+  They now assert `got …` and `summed to …`, and a new **arm (d)** covers the
+  walk's own copy of the bound.
+
 **2.14's `ncols` arm is load-bearing, not a nicety** (`GR-AI`): the
 first-group/later-group split in `NativeGridSolver.finishGroup` has **no
 behavioural witness in the suite and can have none** — deleting it moves no
@@ -644,7 +671,7 @@ windows the same.
 | 1 | `cb2e708` | 22 | 1431 | 71 | yes |
 | 2 | lane 1 | 14 | 1445 (as built 1446: lane 1's verifier test) | 71 | no |
 | — | the second critic round's code (`1b6c698`) | 3 | **1449** (measured) | 71 | no |
-| 3 | lanes 1–2 and that round | 13 | 1462 | 71 | yes |
+| 3 | lanes 1–2 and that round | 13 | 1462 (**as built 1463**: 1450 + 13; the 1462 was an arithmetic slip in this row, §6's own estimate said 1463) | 71 | yes |
 | 4 | lanes 1–3 | 27 (4 of them guards) | 1489 | 75 | no |
 
 Counts are design estimates: each lane re-takes them and explains a difference.

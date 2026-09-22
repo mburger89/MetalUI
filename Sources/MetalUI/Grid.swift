@@ -30,7 +30,15 @@ extension LayoutPass {
     }
 
     /// Marks `node` as a grid cell spanning `columns` columns
-    /// (`LayoutTree.markNativeGridCell`; GR-F). A negative count traps.
+    /// (`LayoutTree.markNativeGridCell`; GR-F). Counts on one node **add above
+    /// 1**; a negative count traps, and so does one above `Int32.max` (GR-S).
+    ///
+    /// **This forwards `columns` only.** The kernel's mark also takes `anchor:`,
+    /// `columnAlignment:` and `unsizedAxes:` (lane 3; GR-G, GR-H), which nothing
+    /// in this module writes yet: lane 4 adds them here together with
+    /// `GridCellModifier`, and `GR-AD` asks for a `GridRegistrarTests` arm per
+    /// argument in the same change rather than an exported parameter with no
+    /// caller.
     public func markNativeGridCell(_ node: ProposalNodeID, columns: Int? = nil) {
         frame.tree.markNativeGridCell(node.layoutNodeID, columns: columns)
     }

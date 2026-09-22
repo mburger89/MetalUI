@@ -1286,6 +1286,262 @@ executable line moved there is nothing for a capture to see.
 - Arm ids `GF14`–`GF18` belong to test 2.1 and `GF19`/`GF20` to test 2.2; the
   next free `GF` is **GF21**.
 
+
+## Lane 3 — cell attributes and the modifier-chain walk (2026-09-21)
+
+Base `d7a785f` (lane 2's implementer round), suite **1450**. Rulings delivered:
+`GR-F`'s column sum and `columns(0)`, `GR-G` (anchors, column alignment,
+inner-wins), `GR-H` (`gridCellUnsizedAxes`), `GR-I` (the walk) and `GR-S` (the
+`Int32.max` ceiling), plus the dispositions `GR-AK` (the placement
+re-bisection), `GR-AL` (what the spec's rows became) and `GR-AM` (four clauses
+the lane's own arms could not hold).
+
+### First: the placement path, re-bisected before any new behaviour
+
+`GR-AC` item 4 required this ahead of the lane's own work; `GR-AK` holds it in
+full. Lanes 1 and 2 bisected chains of ONE-cell grids, whose slot always equals
+the cell's answer, so `nativeGridCellRects`' fresh-measurement branch — the one
+that recurses from inside an `Array.map` closure — was never on the measured
+stack. Method as before: a scratch test (never committed), `maxDepth`
+temporarily `100_000`, one `swift test --build-system native --skip-build
+--filter` per depth on a `Thread` with a 1 MB stack.
+
+| chain | 1 MB debug | note |
+|---|---|---|
+| two-cell rows, slot ≠ answer at EVERY level (placement) | **154 / 155** | 155 completes on 4 MB, so it is a stack ceiling |
+| the same chain, measurement only, at nil×nil | 167 / 168 | the 13 levels lost are placement's |
+| one-cell grid, nil×nil | 167 / 168 | unchanged from lane 2 |
+| one-cell grid, 400×400 (the finite solve) | **154 / 155** | 155 / 156 in lane 2: one level for lane 3's locals |
+| one-child vertical `linearStack` | 127 / 128 | unchanged |
+| padding | 194 / 195 | unchanged |
+
+The placement figure was taken twice, before lane 3's code and after it, and
+read 154 / 155 both times. 154 ≥ `GR-M`'s gate of 147, so `placeGrid` keeps its
+shape and `nativeGridCellRects` keeps measuring inside its `map`;
+`NativeLayoutRun.maxDepth`'s table carries the paragraph. `maxDepth` restored
+and the scratch file deleted before the suite (`git status --short` empty).
+
+### Red first (`5ceea23`)
+
+The lane's tests were committed against lane 2's source, where they do not
+compile. `swift build --build-system native --build-tests` reported ten distinct
+errors and their "cannot infer contextual base" follow-ons, no others:
+`markNativeGridCell` had no `anchor:`, `columnAlignment:` or `unsizedAxes:`
+(three sites), `NativeGridCell` no `anchor` or `unsizedAxes`, `NativeGridPlan`
+no `columnAlignments`, and `GridCorpus`' builder passed three arguments the
+registrar did not take. The commit message lists them with line numbers.
+
+### Source (`f3885a7`)
+
+- `markNativeGridCell(_:columns:anchor:columnAlignment:unsizedAxes:)`: columns
+  **sum above 1**, anchor and column alignment **keep the first value written**
+  (the inner modifier marks first), unsized axes **union**; a single count or a
+  node's sum above `Int32.max` traps naming `columns`.
+- `LayoutTree.gridChildMarks(_:)`, the walk of `GR-I`: through `frame`,
+  `padding`, `fixedSize`, `aspectRatio`, `layoutPriority` and an overlay
+  attachment's child 0, stopping at a linear stack, a `ZStack`, the overlay
+  content side, a scroll viewport, a custom layout, a nested grid, a spacer or a
+  leaf. The row token (with its alignment) from the **outermost** mark, the
+  anchor and column alignment from the **innermost**, columns summed, unsized
+  axes unioned, and the chain's sum checked against `Int32.max`.
+- `makeNativeGridPlan`: each row's sum of spans checked **as it grows** (so a
+  row of several huge spans cannot overflow before the check sees it), the
+  message naming `gridCellColumns`; `columnAlignments` per column, the first
+  declaration by a **row** cell in row then cell order.
+- `NativeGridSolver.serve`: an unsized axis is proposed `spanWidth(cell)` or
+  `heights[cell.row]` instead of a share — only where that axis's proposal is
+  non-nil, so nil×nil is untouched (GU4).
+- `nativeGridCellRects`: `fx` = anchor ?? (span == 1 ? the column's : nil) ?? the
+  grid's; `fy` = anchor ?? the row's ?? the grid's.
+
+`swift package clean` before the suite (three new stored dictionaries on
+`LayoutTree`, a public class read across a module boundary):
+**`Test run with 1463 tests in 1 suite passed after 48.790 seconds`** (1450 +
+13, spec §6's estimate exactly; §7's table said 1462 and was an arithmetic
+slip). Goldens 97, unmoved (`git diff cb2e708 -- '*.json'` empty); guards **71**
+(73 `canTypecheck` hits across fourteen files less `Typecheck.swift`'s
+declaration and `UnitSafetyTests`' comment).
+
+### Mutations
+
+Committed first; each applied from a copy, `git status --short` showing exactly
+one modified file during and nothing after (checked on all 42 runs); full native
+suite each time. "Reddened" lists the tests and their issue counts.
+
+| # | mutation | reddened |
+|---|---|---|
+| M3.1 | the LAST column-alignment declaration wins | 3.1 (4), 2.13 (3 corpus cases) |
+| M3.1b | a non-row child declares a column alignment too | 3.1 (1: GX13c) |
+| M3.2 | a span is aligned by its first column's alignment | 3.2 (1), 2.13 (4) |
+| M3.2b | a span declares for its LAST column | 3.2 (1) |
+| M3.3 | the column alignment read before the anchor in `fx` | 3.3 (1), 2.13 (2) |
+| M3.4 | a later mark on one node overwrites an earlier one | 3.4 (2: GL15, GL16) |
+| M3.4b | the walk takes the OUTERMOST anchor and column alignment | 3.4 (2: GWI3, GWI4) |
+| M3.5 | the largest per-node mark instead of the sum | 3.5 (6) |
+| M3.5b | the CHAIN's `columns +=` becomes a `max` | **green before the fix**; after: 3.5 (1: W2/W3), 3.6 (2: arm d) |
+| M3.5c | `columns > 1` relaxed to `columns >= 1` | 3.5 (11) |
+| M3.6a | drop the single-count `Int32.max` check | **green before the fix**; after: 3.6 (1: arm a) |
+| M3.6b | drop the per-node sum check | 3.6 (2) |
+| M3.6c | drop the row-sum check, spans clamped to 2 | 3.6 (2), 3.5 (9), 3.13 (1), 2.9 (1), 2.14 (1) |
+| M3.6d | drop the walk's sum check, the walk's answer clamped to 4 | 3.6 (4), 3.5 (4), 3.13 (1) |
+| M3.7 | do not absorb an unsized cell's answer, either axis | 3.7 (8), 2.13 (119) |
+| M3.7h | the same, WIDTH only | 3.7 (5), 2.13 (70) |
+| M3.7v | the same, HEIGHT only | 3.7 (3), 2.13 (55), 3.12 (3) |
+| M3.8 | ignore unsized axes on a non-row cell | 3.8 (1), 2.13 (4) |
+| M3.9 | a later unsized mark on one node replaces the axes | 3.9 (3) |
+| M3.9b | the walk's union becomes "the innermost replaces" | 3.9 (5: GWI5) |
+| M3.10 | stop the chain at `padding` | 3.10 (10), 3.5 (5), 3.4 (2), 3.9 (3) |
+| M3.11 | `columns(0)` treated as 2 | 3.11 (3) |
+| M3.12a | GZ0's control: every group offered W′/ncols, commits ignored | **416 issues** across 17 tests, 2.13's 46 corpus cases and 3.12's divergences 11, 33, 36, 54 |
+| M3.12b | model variant 4 (a span keeps its columns open) | 2.13 (3), 2.9 (7); **none of 3.12's five** |
+| M3.12c | model variant 6 (a column with no single-column cell is always open) | 2.13 (7), 2.9 (5), 3.12 (2: divergence 22) |
+| M3.13 | the first group's commit sweep visits only its own cells' columns | 3.13 (2), 2.14 (5), 2.13 (11), 2.9 (5), 3.12 (2) |
+| M3.AX | `fx` ignores the anchor | 3.3 (3), 3.4 (2), 2.13 (8) |
+| M3.AY | `fy` ignores the anchor | 3.3 (2), 3.4 (2), 2.13 (15) |
+| M3.RT | the walk takes the INNERMOST row token | **green before the fix**; after: 3.10 (1: R2) |
+| M3.UH | drop the unsized WIDTH branch in `serve` | 3.7 (1), 3.8 (1), 3.9 (15), 2.13 (34) |
+| M3.UV | drop the unsized HEIGHT branch in `serve` | 3.7 (4), 3.9 (6), 2.13 (35) |
+| M3.UW | the unsized width reads `widths[cell.column]`, not `spanWidth` | **green before the fix**; after: 3.7 (3: U0/U1) |
+| M2.14b | delete `finishGroup`'s `isFirstGroup` branch | 2.14 only (**4** issues, where lane 2 read 2 — the two new arms) |
+| MT7 | break an infinite-flexibility tie by the answer at main 0 | `aStackServesItsLeastFlexibleChildFirst` (3: T7), 2.10 (3), 2.11 (6), two native work tests (2) |
+
+(Test numbers are spec §6's; 2.9 is `theModelsDisagreementsWithSwiftUIArePinned`,
+2.10 `aGridPassesNoPriorityToAnEnclosingStack`, 2.11
+`aGridInAStackLaysOutAsTheModelInAStack`, 2.13
+`theGridProbeCorpusAgreesCaseByCase`, 2.14
+`theSolversBookkeepingIsLinearInTheCells`.)
+
+**Two mutants are not runnable as bare deletions**, and that is itself the
+finding: dropping the row-sum check (M3.6c) or the walk's check (M3.6d) leaves
+the child asking for 2 × `Int32.max` or 2³⁰ columns, and the run **hangs** —
+observed on the first attempt at M3.6c, which had to be killed after the suite
+sat on the trap test with no progress. A first stand-in that clamped
+`columnCount` to 4 crashed instead ("Index out of range": a cell's column then
+exceeds the column count). The mutants recorded above clamp the **span** (M3.6c)
+and the walk's answer (M3.6d), which keeps the plan self-consistent, so the
+child registers and exits `.success` — the discrimination the arms were written
+for. Both substitutions are `GR-AL`'s item 3.
+
+### Four green mutations, four holes (`GR-AM`), and the probe that closed them
+
+`M3.5b`, `M3.6a`, `M3.RT` and `M3.UW` each left all 1463 tests green. None was
+a broken instrument: each names a clause whose only arms could not tell the two
+rules apart.
+
+- **The chain's column sum.** GWI1 and GWI2 write 2 and 1; 1 is not above 1, so
+  "sum the marks above 1" and "take the largest" both answer 2.
+- **The chain's row token.** Every row arm writes one token per chain.
+- **The unsized SPAN's proposal.** GU3's leaf follows its proposal, so a wrong
+  proposal is re-measured away at placement and no rect moves.
+- **The single-count `Int32.max` check.** Redundant in effect with the per-node
+  sum check, whose message differs only in its tail, which arm (a) did not
+  assert.
+
+New probe `docs/probes/swiftui-grid-lane3-discriminators.swift`: ten arms
+(W0–W3, R0–R3, U0–U1), every one hand-derived from the reference model **before**
+the run and every one exactly as predicted; `/usr/bin/swift` = Apple Swift 6.4
+(swiftlang-6.4.0.33.1), macOS 27.0 (26A428), exit 0, run twice byte-identical,
+and the committed file re-run reproduces the stdout in its own header. Its
+readings: SwiftUI ADDS two `gridCellColumns` written on opposite sides of a
+`.padding()` (W2, W3); it flattens a nested `GridRow` through a `.padding()`
+into the enclosing row, so the OUTERMOST row mark wins (R2 at 60×20, against
+R3's 30×38 for two real rows); and an unsized span is proposed its spanned
+columns' widths plus their inner gap, `c 58x172` in U1's measurement log, not
+its first column's 30. Pinned by tests 3.5 (W0–W3), 3.10 (R2) and 3.7 (U0/U1),
+and by test 3.6's sharpened arms (a)/(b) plus its new arm (d) (`c49fada`).
+
+### Demo
+
+`CN-R`'s harness (`scratchpad/harness/gen-lib.py`, `DEMO_PIXELS_SMALL=1`,
+default build system) in fresh `git archive`s of `cb2e708` and the lane's head:
+**12 of 12 images 0 differing pixels, scenes identical.** Controls on the head
+images, all non-zero where they must be: light vs dark f0 1 048 576; default vs
+modal (light) 1 030 498; default vs animation (light) 210 027; preview light vs
+dark 1 048 576; f0 vs f3 0 (the demo is static after frame 0, as in lanes 1 and
+2); 544 distinct pixel values in `default-light-f0`.
+`grep -rn "Grid\b" Sources/MetalUIDemoContent Sources/MetalUIDemo`: no hits — no
+grid reaches the demo until lane 4 (`GR-AE`).
+
+### The real window, and a harness limit this lane found
+
+The screen was **unlocked** (`docs/probes/appkit-screen-lock-state.swift`: no
+`CGSSessionScreenIsLocked` line, `displayAsleep main: 0`,
+`preflightScreenCaptureAccess: true`), so
+`docs/probes/window-capture/capture.sh <dir> cb2e708 c49fada` was run — twice,
+because the first table was not believable.
+
+| pair | run 1 | run 2 |
+|---|---|---|
+| each window against itself, 1.5 s apart (the harness's own precondition) | 0 in all four | 0 in all four |
+| `cb2e708` → head, default window | **0** | 102 614, bbox (0,0)–(1839,55) |
+| `cb2e708` → head, preview window | 102 614, bbox (0,0)–(1839,55) | 102 614, same bbox |
+| control, default vs preview at head | — | 890 803, bbox (0,15)–(1839,1175) |
+
+**That table says nothing about the commits, and the control that proves it is
+the same commit at two launches**: `cb2e708`'s own default window from run 1
+against `cb2e708`'s own default window from run 2 reads **102 614 in the same
+bbox**, while `cb2e708` (run 1) against the head (run 2) reads **0**. The
+delta is a per-launch coin flip, not a commit difference.
+
+What it is, as far as it was chased: every differing pixel in every pair lies in
+the **same 56 buffer rows**, which are the window's **bottom 28 points** (the
+rounded-corner, partly transparent band — `pixdiff` draws through a `CGContext`
+whose origin is bottom-left, so its row 0 is the image's bottom). The band's
+mean colour is identical to the integer in every image, (14, 21, 38, 253); the
+content is not shifted (aligning the images at offsets 1…6 rows only makes the
+count worse, 167 871 at 1 row against 102 614 at 0); and the two bands are
+indistinguishable by eye. So: **outside that band, every pair reads 0**, which
+is the reading the capture was taken for.
+
+**For the harness** (`GR-M`): its stated precondition — capture each window
+twice 1.5 s apart and require 0 — holds within a launch and does **not** cover
+this. A future capture should either compare the same commit across two launches
+as a control, as this lane did, or mask the bottom 28 points. Reported, not
+fixed: `capture.sh` is shared with the other tracks.
+
+### For lane 4
+
+- **The placement path's ceiling is 154, seven levels above the gate**
+  (`GR-AK`). Lane 4's test 4.21 builds a chain of ONE-cell grids, which measures
+  167 and says nothing about placement; use `GR-AK`'s two-cell chain if the
+  placement half is to be covered, and do not raise `maxDepth`.
+- **`markNativeGridCell` takes four attributes in one call and writes only what
+  it is given**, so `GridCellModifier` must make ONE call per modifier: a merged
+  call would silently reverse the "inner declaration wins" rule, which is "the
+  first mark on a node stands".
+- **`LayoutPass.markNativeGridCell` still forwards `columns:` alone**
+  (`Sources/MetalUI/Grid.swift`). Lane 3 deliberately did not widen it: an
+  exported parameter with no caller is what `GR-AD` was written about. Lane 4
+  adds `anchor:`, `columnAlignment:` and `unsizedAxes:` there **in the same
+  change as `GridCellModifier`**, with a `GridRegistrarTests` arm per argument.
+- **A `GridRow`'s cell attributes must mark AFTER its content has registered**
+  (`GR-T`; lane 4's test 4.5 mutation (b)), so a cell's own modifier has already
+  marked and wins the anchor and the column alignment, while spans add and
+  unsized axes union.
+- **`ProposalAxes` is no longer inert** — `GR-O`'s inert list loses that item,
+  which says so itself.
+- Arm ids: `GW`/`GL`/`GU`/`GX` are the main probe's; lane 3 added **GX13c** (a
+  non-row child's column alignment, kernel-authored and corpus-backed) and
+  **W0–W3 / R0–R3 / U0–U1** from the lane-3 discriminator probe. The next free
+  `GF` is still GF21.
+- **Mutate each per-axis twin on its own** (`GR-AJ`, carried): lane 3 added two
+  pairs — `serve`'s width and height unsized branches, and the two absorb sites
+  in `provide` — and mutated each singly (M3.UH, M3.UV, M3.7h, M3.7v). Both
+  halves of each pair reddened, so neither is a copy the suite reaches only once.
+- **A check whose job is to prevent an allocation cannot be mutated by deleting
+  it**: the mutant hangs. Clamp as well as delete, and keep the plan
+  self-consistent while doing so (`GR-AL` item 3).
+- **The real-window harness needs a same-commit cross-launch control** before
+  its cross-commit table means anything (above); lane 4 owes real-window
+  captures by `GR-M` and will meet the same band.
+
+### Deferrals
+
+Nothing new. `GR-O` item 8 (the stack's infinite-flexibility tie, now pinned by
+`aStackServesItsLeastFlexibleChildFirst`'s T7 arm as well as GE10 and GE19)
+stays owned by plan task 6; `GR-O` item 2 (the divergence corpus, now with test
+3.12's five cases in it) by plan task 15.
+
 ## For the integrator
 
 (Written by lane 4; see spec §6, lane 4.)
