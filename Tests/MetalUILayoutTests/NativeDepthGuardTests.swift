@@ -130,3 +130,190 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
         while !t.isFinished { usleep(1000) }
     }
 }
+
+// MARK: - Grids (lane 1 of `docs/superpowers/specs/2026-09-17-grids-design.md`)
+//
+// A grid is ONE native level (spec §4.5): its solver runs in functions called
+// from `measureNative` and `placeNative`, and each cell is entered once. The
+// depth literals are literals on purpose (ruling GR-M, critic finding 2), not
+// `NativeLayoutRun.maxDepth` arithmetic: a leaf under 88 nested one-cell grids
+// is 89 levels and traps; under 87 it is 88 levels and lays out. Both lay out
+// at a nil proposal (lane 1's branch; the finite solve's ceiling is also in the
+// table below and clears the same gate), on a 4 MB thread as above. The one-cell-grid debug ceiling is in
+// `NativeLayoutRun.maxDepth`'s table.
+
+/// Mutation: `NativeLayoutRun.maxDepth` 89 (the child exits `.success`).
+@Test func aChainOf88GridsTraps() async {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        let t = Thread {
+            let tree = LayoutTree(generation: 0)
+            var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            for _ in 0..<88 {
+                node = tree.newNativeGrid(children: [node])
+            }
+            tree.computeNativeLayout(root: node, proposal: ProposedSize(width: nil, height: nil),
+                                     in: LayoutRect(x: 0, y: 0, width: 10, height: 10))
+        }
+        t.stackSize = 4 * 1024 * 1024
+        t.start()
+        while !t.isFinished { usleep(1000) }
+    }
+    #expect(stderrText(result).contains("native layout recursion exceeded"),
+            "aborted, but not at the native depth guard:\n\(stderrText(result))")
+}
+
+/// Mutation: `NativeLayoutRun.maxDepth` 87 (the child traps).
+@Test func aChainOf87GridsDoesNotTrap() async {
+    await #expect(processExitsWith: .success) {
+        let t = Thread {
+            let tree = LayoutTree(generation: 0)
+            var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            for _ in 0..<87 {
+                node = tree.newNativeGrid(children: [node])
+            }
+            let size = tree.computeNativeLayout(root: node, proposal: ProposedSize(width: nil, height: nil),
+                                                in: LayoutRect(x: 0, y: 0, width: 10, height: 10)).size
+            precondition(size == SizeD(width: 10, height: 10), "answered \(size)")
+        }
+        t.stackSize = 4 * 1024 * 1024
+        t.start()
+        while !t.isFinished { usleep(1000) }
+    }
+}
+
+// MARK: - Every node kind at `maxDepth − 1` on a 1 MB thread (lane 4, GR-AC item 3)
+//
+// `SA-L` sets `maxDepth` at 0.60 of the SMALLEST debug ceiling over every native
+// node kind, and `GR-AC` records that the fraction is already breached at
+// `cb2e708` by the one-child vertical stack (128 → 76 < 88), a dated obligation
+// owned by `LR-Q`'s stage 6b re-bisection. The half that CAN be tested is the
+// hard one: that every kind still *completes* a chain the guard admits, on the
+// 1 MB stack the fraction is stated about — not the 4 MB thread every other test
+// in this file uses, which is chosen to isolate the guard from the stack.
+//
+// So this test is the only one here that runs on 1 MB, and it fails the day any
+// kind's ceiling falls below `maxDepth` itself, which is the condition the 0.60
+// margin exists to keep far away. It cannot see the margin.
+
+/// A custom layout that measures its one child and places it: the shape the
+/// `maxDepth` table bisected as "custom `ProposalLayout`, measuring and placing
+/// through the proxy", so both recursions grow with the chain.
+private struct PassesThroughItsChild: ProposalLayout {
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        subviews[0].sizeThatFits(proposal)
+    }
+
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {
+        subviews[0].place(at: Point(x: bounds.x, y: bounds.y), proposal: proposal)
+    }
+}
+
+/// **A chain of `maxDepth − 1` nodes of every kind lays out on a 1 MB thread**
+/// (`GR-AC` item 3): padding, a fixed frame, the one-child vertical
+/// `linearStack`, a custom `ProposalLayout` and the grid, each over a leaf, each
+/// expected to exit `.success`. The control is the same padding chain at
+/// `maxDepth + 8`, which must exit `.failure` at the guard — so "it completed"
+/// cannot be read off a harness that never runs the body.
+///
+/// Green on arrival. Mutation: `NativeLayoutRun.maxDepth` raised, so that
+/// `maxDepth − 1` exceeds a kind's ceiling; the lane records which arms die at
+/// which raise (the ceilings differ by a factor of 1.5, so a single raise does
+/// not kill them all).
+@Test func aChainOfMaxDepthNodesOfEveryKindSurvivesAOneMegabyteThread() async {
+    // Each body below is written out in full: an exit test's body is re-entered
+    // in a subprocess and must not capture context, so no shared helper and no
+    // captured `chain` constant.
+    await #expect(processExitsWith: .success) {
+        let t = Thread {
+            let tree = LayoutTree(generation: 0)
+            var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            for _ in 0..<(NativeLayoutRun.maxDepth - 1) {
+                node = tree.newNativePadding(child: node, insets: Edges(all: 1))
+            }
+            tree.computeNativeLayout(root: node, proposal: ProposedSize(width: 400, height: 400),
+                                     in: LayoutRect(x: 0, y: 0, width: 400, height: 400))
+        }
+        t.stackSize = 1024 * 1024
+        t.start()
+        while !t.isFinished { usleep(1000) }
+    }
+    await #expect(processExitsWith: .success) {
+        let t = Thread {
+            let tree = LayoutTree(generation: 0)
+            var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            for _ in 0..<(NativeLayoutRun.maxDepth - 1) {
+                node = tree.newNativeFrame(child: node, width: 100, height: 100)
+            }
+            tree.computeNativeLayout(root: node, proposal: ProposedSize(width: 400, height: 400),
+                                     in: LayoutRect(x: 0, y: 0, width: 400, height: 400))
+        }
+        t.stackSize = 1024 * 1024
+        t.start()
+        while !t.isFinished { usleep(1000) }
+    }
+    await #expect(processExitsWith: .success) {
+        let t = Thread {
+            let tree = LayoutTree(generation: 0)
+            var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            for _ in 0..<(NativeLayoutRun.maxDepth - 1) {
+                node = tree.newNativeLinearStack(children: [node], axis: .vertical, spacing: nil)
+            }
+            tree.computeNativeLayout(root: node, proposal: ProposedSize(width: 400, height: 400),
+                                     in: LayoutRect(x: 0, y: 0, width: 400, height: 400))
+        }
+        t.stackSize = 1024 * 1024
+        t.start()
+        while !t.isFinished { usleep(1000) }
+    }
+    await #expect(processExitsWith: .success) {
+        let t = Thread {
+            let tree = LayoutTree(generation: 0)
+            var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            for _ in 0..<(NativeLayoutRun.maxDepth - 1) {
+                node = tree.newNativeLayout(PassesThroughItsChild(), children: [node])
+            }
+            tree.computeNativeLayout(root: node, proposal: ProposedSize(width: 400, height: 400),
+                                     in: LayoutRect(x: 0, y: 0, width: 400, height: 400))
+        }
+        t.stackSize = 1024 * 1024
+        t.start()
+        while !t.isFinished { usleep(1000) }
+    }
+    // The grid, on the PLACEMENT path lane 3 bisected: a two-cell row whose
+    // inner cell's slot differs from its answer at every level, so
+    // `nativeGridCellRects`' fresh-measurement branch is on the measured stack
+    // (`GR-AK`).
+    await #expect(processExitsWith: .success) {
+        let t = Thread {
+            let tree = LayoutTree(generation: 0)
+            var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            for _ in 0..<(NativeLayoutRun.maxDepth - 1) {
+                let tall = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 1, height: 11)) }
+                tree.markNativeGridRow([node, tall])
+                node = tree.newNativeGrid(children: [node, tall])
+            }
+            tree.computeNativeLayout(root: node, proposal: ProposedSize(width: 400, height: 400),
+                                     in: LayoutRect(x: 0, y: 0, width: 400, height: 400))
+        }
+        t.stackSize = 1024 * 1024
+        t.start()
+        while !t.isFinished { usleep(1000) }
+    }
+    // The control: eight levels past the guard must abort at the guard.
+    let over = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        let t = Thread {
+            let tree = LayoutTree(generation: 0)
+            var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            for _ in 0..<(NativeLayoutRun.maxDepth + 8) {
+                node = tree.newNativePadding(child: node, insets: Edges(all: 1))
+            }
+            tree.computeNativeLayout(root: node, proposal: ProposedSize(width: 400, height: 400),
+                                     in: LayoutRect(x: 0, y: 0, width: 400, height: 400))
+        }
+        t.stackSize = 4 * 1024 * 1024
+        t.start()
+        while !t.isFinished { usleep(1000) }
+    }
+    #expect(stderrText(over).contains("native layout recursion exceeded"),
+            "the control aborted, but not at the native depth guard:\n\(stderrText(over))")
+}
