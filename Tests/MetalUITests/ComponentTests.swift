@@ -1085,6 +1085,14 @@ private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = C
 /// member's own `Style.size.width`, so both members read 70 here — `CO-U`'s
 /// measurement (30/50 → 70/70), re-taken. When task 4 makes `width` wrap,
 /// this test flips to G7's numbers.
+///
+/// **Under the PROPOSAL authority it already reads G7's numbers**, since plan
+/// task 7 stage 3 lane 4 (`LR-BG`): the amend lowers to one native frame per
+/// member, so `Pair().width(70)` keeps its members 30 and 50 wide at x 20 and
+/// 80. `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`
+/// (`LoweringComponentTests.swift`) is that answer, with this test's assertions
+/// as its legacy half. This test stays legacy-only and wrong on purpose until
+/// stage 6b switches the root; it is not the place where divergence 48 closes.
 @MainActor
 @Test func aComponentsWidthStillOverwritesItsMembersDeclaredWidth() {
     let bareLog = ComponentLog()

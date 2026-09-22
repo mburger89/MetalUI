@@ -52,9 +52,15 @@ enum LoweringSite: String, Sendable {
 ///
 /// `field` is `"noLowering"` for a site that lowers nothing yet — in lane 1 every
 /// site; lanes 2–4 replace `box`, `stack`, `text` and `modifierLayer` with
-/// field-level names (`"flexGrow"`, `"alignItems.stretch"`, …). `component`
-/// reports `"amend"` or `"wrap"`, `customElement` `"requestNode"` or
-/// `"requestLeaf"`.
+/// field-level names (`"flexGrow"`, `"alignItems.stretch"`, …).
+/// `customElement` reports `"requestNode"` or `"requestLeaf"`.
+///
+/// **`component` reports nothing at all since stage 3's lane 4** (`LR-BO`): it
+/// read `"amend"` or `"wrap"` until both ops were lowered, and neither lowering
+/// can raise an entry at its own site — an amend's frame is recorded
+/// `kind: .frameLayer`, which the unconsumed report skips, and both ops plan
+/// exactly one child, so neither can raise `flexGrow.weights`, the one entry
+/// `parentSite:` names (`LR-BM`).
 struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
     let site: LoweringSite
     let field: String
@@ -74,6 +80,10 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
         // through `planLegacyItems`' `parentSite:` — `flexGrow.weights`, the only
         // field raised there (`LR-BM`) — and for a field a later stage puts on the
         // content node's unconsumed record (`<field>.unconsumed`, `LR-BB`).
+        // `component` survives for THIS MESSAGE only: lane 4 left it with no
+        // reachable entry (`LR-BO`), and the case is kept so that a later stage
+        // naming a component field gets the right stage number rather than a
+        // fresh `switch` arm nobody remembers to add.
         case .scrollView, .component:
             return "3"
         case .list:

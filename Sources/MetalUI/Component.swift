@@ -264,8 +264,8 @@ extension Component {
 /// modifiers task, ruling `OM-E`).
 ///
 /// Two kinds, because the legacy path now has two kinds of modifier. `.amend`
-/// is distribution as the `Component` milestone measured it (`CO-U`): a plain
-/// write onto the member node's own `Style`, which is what `width`/`height`
+/// is distribution as the `Component` milestone measured it (`CO-U`): a size
+/// written onto the member node's own `Style`, which is what `width`/`height`
 /// still are (`OM-F`). `.wrap` is what `.padding` became when `MC-A` made it a
 /// wrapper on the `Element` path: a real legacy node registered around the
 /// member, carrying the same `Style` a `ModifierLayer` carries.
@@ -276,9 +276,21 @@ extension Component {
 /// `.width(70).padding(4)` (the member is 70 wide, then padded to 78) differ —
 /// `aModifierOnAComponentAppliesInTheOrderItIsWritten`. Keeping an amend set
 /// beside a wrap set would collapse those two into one answer.
+///
+/// **The amend's payload is a `Size<Dimension>`, not a closure, since stage 3
+/// lane 4** (ruling `LR-BG`). It was `@Sendable (inout Style) -> Void`, and
+/// `width`/`height` were its only writers; the proposal lowering frames a
+/// member by its size, so an arbitrary closure would have let a future amend
+/// write a field the lowering silently dropped. Making the case unable to
+/// express one deletes the hole instead of reporting it, and it is why there
+/// is no `component.amend` diagnostic for "an amend wrote something other
+/// than a size". Only the axes the patch declares are written: an `.auto` axis
+/// leaves the member's own value alone, so `.width(p).height(q)` is two ops
+/// that do not fight.
 enum ComponentModifierOp {
-    /// Writes into the current node's own `Style`. `width`/`height`.
-    case amend(@Sendable (inout Style) -> Void)
+    /// The size written onto the current node's own `Style`, `.auto` on an axis
+    /// the caller did not name. `width`/`height`.
+    case amend(Size<Dimension>)
     /// Registers a legacy node with `style` around the current node, which the
     /// new node then replaces. `padding`.
     case wrap(Style)
@@ -342,6 +354,13 @@ enum ComponentModifierOp {
 /// `Component.width` wrap is a sizing-semantics change the outer-modifiers
 /// task was told not to make; task 4's frame work owns it. Until then, a
 /// component's declared sizes belong inside the component.
+///
+/// **Under the proposal authority that is already SwiftUI's answer** (plan
+/// task 7, stage 3, lane 4, `LR-BG`): the amend lowers to one native frame per
+/// member, so the same `Pair().width(70)` reads 30 and 50 at x 20 and 80. The
+/// two authorities disagree here on purpose until stage 6b switches the root,
+/// and `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt` pins
+/// both sides as literals.
 ///
 /// **Order is observable, and it is MetalUI's order, not SwiftUI's member
 /// geometry.** `.padding(4).width(70)` reads outer 70 with the member 30 wide
@@ -409,12 +428,16 @@ enum ComponentModifierOp {
 /// `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration` and
 /// `aPaddingModifierOnAProposalComponentTraps`
 /// (`NativeBoundaryIntegrationTests.swift`). **That is the legacy authority's
-/// answer.** Under the proposal authority (plan task 7) each op checks the
-/// authority first and traps by its own name, `component.amend` or
-/// `component.wrap`, before either precondition — and under diagnostics an
-/// amend is recorded and skipped (ruling LR-C; pinned by
-/// `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority` and
-/// `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`).
+/// answer, and it is the only one that traps.** Under the proposal authority
+/// (plan task 7) both ops LOWER since stage 3's lane 4 (`LR-BG`): an amend
+/// registers one native frame per member and a wrap goes through
+/// `lowerLegacyNode` at site `component`, so a component over proposal content
+/// builds cleanly and neither op reports anything (`LR-BO`). Pinned by
+/// `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority` — whose
+/// component half is now an agreement arm — and by
+/// `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s two `Component`
+/// arms, which assert the absence of an entry. The lowering's own geometry is
+/// `LoweringComponentTests.swift`.
 public struct StyledComponent<C: Component>: ElementGroup {
     var component: C
     /// In declaration order. `Component.padding/width/height` start the list
@@ -434,23 +457,32 @@ public struct StyledComponent<C: Component>: ElementGroup {
             var current = member
             for op in ops {
                 switch op {
-                case .amend(let amend):
-                    // Each op checks the authority itself (plan task 7, ruling
-                    // LR-C, critic round 1 finding 1): under the proposal
-                    // authority an amend traps by name — or, under diagnostics,
-                    // is recorded and SKIPPED, so `SA-G`'s `setStyle`
-                    // precondition is never the message — and a wrap traps or
-                    // registers a 0×0 native leaf. Stage 3 lowers both.
+                case .amend(let patch):
+                    // Each op branches on the authority itself (plan task 7,
+                    // ruling LR-C). Stage 3 lane 4 LOWERS both (LR-BG): an amend
+                    // that overwrote the member's `Style` becomes one native
+                    // frame AROUND it — SwiftUI's answer to divergence 48 — and
+                    // so it REPLACES `current` on this path where it left it
+                    // alone on the legacy one. Neither reports any more.
                     if pass.lowersToProposal {
-                        pass.frame.noteUnlowerable(UnlowerableField(site: .component, field: "amend"))
+                        current = pass.loweredComponentFrame(current, patch)
                     } else {
                         var style = pass.style(current)
-                        amend(&style)
+                        // Only the axes the patch declares: an `.auto` axis is
+                        // "not named", not "reset to auto", or `.width(p)` then
+                        // `.height(q)` would undo each other.
+                        if patch.width != .auto { style.size.width = patch.width }
+                        if patch.height != .auto { style.size.height = patch.height }
                         pass.setStyle(current, style)
                     }
                 case .wrap(let style):
+                    // A `.padding` wrapper is an ordinary one-child legacy
+                    // container, so it lowers through the container lowering at
+                    // its own site (LR-BG; prototype arm C3 agrees with the
+                    // legacy engine in every observation).
                     current = pass.lowersToProposal
-                        ? pass.frame.unlowerable(UnlowerableField(site: .component, field: "wrap"))
+                        ? pass.lowerLegacyNode(style, declared: style, children: [current],
+                                               site: .component)
                         : pass.frame.requestNode(style: style, children: [current])
                 }
             }
@@ -470,6 +502,18 @@ public struct StyledComponent<C: Component>: ElementGroup {
                                     pass: inout PaintPass) {
         component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
     }
+}
+
+/// The amend patch `Component.width`/`StyledComponent.width` carries: the
+/// declared axis, and `.auto` on the other — "not named", which neither the
+/// legacy write nor the lowered frame touches (`LR-BG`).
+private func componentWidth(_ points: Pixels) -> Size<Dimension> {
+    Size(width: .length(.pixels(points)), height: .auto)
+}
+
+/// The amend patch `Component.height`/`StyledComponent.height` carries.
+private func componentHeight(_ points: Pixels) -> Size<Dimension> {
+    Size(width: .auto, height: .length(.pixels(points)))
 }
 
 /// The `Style` a padding wrapper carries: the same one `StyledElement.padding`
@@ -494,13 +538,13 @@ extension Component {
     /// Matches `StyledElement.width(_ points:)` (`Box.swift`). An amend of each
     /// member's own width (`OM-F`).
     public func width(_ points: Pixels) -> StyledComponent<Self> {
-        StyledComponent(component: self, ops: [.amend { $0.size.width = .length(.pixels(points)) }])
+        StyledComponent(component: self, ops: [.amend(componentWidth(points))])
     }
 
     /// Matches `StyledElement.height(_ points:)` (`Box.swift`). An amend of
     /// each member's own height (`OM-F`).
     public func height(_ points: Pixels) -> StyledComponent<Self> {
-        StyledComponent(component: self, ops: [.amend { $0.size.height = .length(.pixels(points)) }])
+        StyledComponent(component: self, ops: [.amend(componentHeight(points))])
     }
 }
 
@@ -526,12 +570,10 @@ extension StyledComponent {
     }
 
     public func width(_ points: Pixels) -> StyledComponent<C> {
-        StyledComponent(component: component,
-                        ops: ops + [.amend { $0.size.width = .length(.pixels(points)) }])
+        StyledComponent(component: component, ops: ops + [.amend(componentWidth(points))])
     }
 
     public func height(_ points: Pixels) -> StyledComponent<C> {
-        StyledComponent(component: component,
-                        ops: ops + [.amend { $0.size.height = .length(.pixels(points)) }])
+        StyledComponent(component: component, ops: ops + [.amend(componentHeight(points))])
     }
 }

@@ -303,6 +303,86 @@ extension LayoutPass {
         return fields
     }
 
+    /// One `Component` **amend** — a caller's `.width`/`.height` — as ONE native
+    /// frame around ONE member (stage 3, lane 4, ruling `LR-BG`). Registered once
+    /// per member, since a `Component` is layout-transparent and its modifiers
+    /// distribute (`CO-U`, `OM-F`).
+    ///
+    /// The legacy branch writes `size` onto the member's own `Style` and so
+    /// OVERWRITES whatever the member declared (divergence 48); this frames it
+    /// instead, which is SwiftUI's answer — component-distribution probe `G7`/`G8`
+    /// (`Pair().frame(width: 70)` keeps its members 30 and 50 wide, each centred
+    /// in its own 70) and stage-3 probe `W1`.
+    ///
+    /// **It consumes and plans the member's own record** (`LR-BG` as amended,
+    /// critic round 1 finding 8), exactly as `lowerLegacyLayer`'s single-node arm
+    /// does. Without the consume, `reportUnconsumedLoweredItems` emits
+    /// `<site>.<field>.unconsumed` for every non-default item field the member
+    /// declares — and in a production frame every report is a **trap**, so
+    /// `MyComponent().width(70)` over a member declaring `.flexGrow(1)` would work
+    /// under the legacy authority and abort under the proposal one at stage 6b.
+    ///
+    /// **The parent kind is `.stack`**, as a frame's is everywhere else in the
+    /// lowering, so the member's `flexGrow`, `flexShrink`, `flexBasis`,
+    /// `alignSelf` and `margin` are consumed and DROPPED (`LR-AZ`, `MC-Q` finding
+    /// 7) while a `minSize` on an `auto` axis is planned into the item frame W.
+    /// The drop is a rect disagreement the differential harness shows, and never a
+    /// trap (`LR-BO`).
+    ///
+    /// Recorded with `kind: .frameLayer`, so a parent stretches it only on an axis
+    /// the patch leaves `auto` (`MC-Q` finding 7) and its own record is never
+    /// reported unconsumed.
+    func loweredComponentFrame(_ node: LayoutNodeID, _ size: Size<Dimension>) -> LayoutNodeID {
+        let alignment = componentFrameAlignment(size)
+        let declared = componentFrameStyle(size)
+        var fields: [UnlowerableField] = []
+        let plans = planLegacyItems([frame.lowering.consume(node)], parent: declared,
+                                    parentKind: .stack, parentSite: .component, fields: &fields)
+        if !fields.isEmpty {
+            return recordLoweredItem(report(fields), animated: declared, declared: declared,
+                                     site: .component, contentAlignment: alignment, kind: .frameLayer)
+        }
+        let child = registerLegacyItems([node], plans).first ?? node
+        let framed = frame.requestNativeFrame(child: child,
+                                              width: resolvedDimension(size.width),
+                                              height: resolvedDimension(size.height),
+                                              alignment: alignment)
+        return recordLoweredItem(framed, animated: declared, declared: declared, site: .component,
+                                 contentAlignment: alignment, kind: .frameLayer)
+    }
+
+    /// An amend frame's alignment: **per axis** — `.center`'s factor on an axis
+    /// the patch declares, `0` on an axis it leaves `auto` (ruling `LR-BG`).
+    ///
+    /// **The ground is the legacy answer the undeclared axis must preserve.**
+    /// Recording `.center` unconditionally moved a width-only amend's members from
+    /// y 0 to y **15** in the design's prototype, because the same value is the
+    /// item's `contentAlignment` and the parent's item frame reads it — a second,
+    /// undesigned divergence on an axis the caller never mentioned. Stage-3 probe
+    /// arms `W7`/`W8`/`W9` show SwiftUI's single-axis frame is a real frame that
+    /// aligns on the axis it declares, and `W2`/`W5` that the undeclared axis
+    /// passes through at the child's own size; SwiftUI has no observable answer
+    /// for how such a frame aligns where there is no free space, so those arms are
+    /// the consistency check, not the source.
+    func componentFrameAlignment(_ size: Size<Dimension>) -> ProposalAlignment {
+        proposalAlignment(horizontal: size.width == .auto ? 0 : 0.5,
+                          vertical: size.height == .auto ? 0 : 0.5)
+    }
+
+    /// The **declared** style an amend frame plans its member against: a stack
+    /// whose size is the patch and whose two alignment fields are non-stretching
+    /// on every axis, so the frame aligns its member and never stretches it —
+    /// which is what `FrameSpec.style()`'s own `switch` guarantees for a `.frame`
+    /// layer (`CN-N`).
+    private func componentFrameStyle(_ size: Size<Dimension>) -> Style {
+        var style = Style()
+        style.display = .stack
+        style.size = size
+        style.justifyItems = size.width == .auto ? .start : .center
+        style.alignItems = size.height == .auto ? .flexStart : .center
+        return style
+    }
+
     /// Records every entry of a non-empty diagnostics list: in production the first
     /// entry traps; under diagnostics each is recorded and the frame completes on
     /// one 0×0 leaf, which is returned.
