@@ -2,6 +2,7 @@ import Testing
 import MetalUICore
 import MetalUIShaderTypes
 @testable import MetalUIRender
+@testable import MetalUIScene  // DrawRun/AtlasSlot memberwise inits (PS-F)
 // `@testable` so this file can build an `AtlasSlot` directly (its init is
 // internal to `MetalUIText`) without pulling in CoreText/font rasterization
 // just to exercise the `MUIGlyph` converter below.
