@@ -92,6 +92,29 @@ private final class Arm {
         return node
     }
 
+    /// A written `.gridCellAnchor(a)` (lane 3).
+    func anchor(_ node: LayoutNodeID, _ alignment: ProposalAlignment) -> LayoutNodeID {
+        tree.markNativeGridCell(node, anchor: alignment)
+        return node
+    }
+
+    /// A written `.gridColumnAlignment(a)` (lane 3).
+    func colAlign(_ node: LayoutNodeID, _ alignment: ProposalAlignment) -> LayoutNodeID {
+        tree.markNativeGridCell(node, columnAlignment: alignment)
+        return node
+    }
+
+    /// A written `.gridCellUnsizedAxes(axes)` (lane 3).
+    func unsized(_ node: LayoutNodeID, _ axes: ProposalAxes) -> LayoutNodeID {
+        tree.markNativeGridCell(node, unsizedAxes: axes)
+        return node
+    }
+
+    /// A `.padding(inset)` wrapper (lane 3).
+    func pad(_ node: LayoutNodeID, _ inset: Double) -> LayoutNodeID {
+        tree.newNativePadding(child: node, insets: Edges(all: inset))
+    }
+
     /// Marks each row child, then registers the grid over every child's nodes,
     /// named "grid".
     func grid(alignment: ProposalAlignment = .center,
@@ -1677,8 +1700,12 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 /// serving the grid (58 tall at 0, ∞ at ∞) before the flexible z declared
 /// first; MetalUI's stack keeps declaration order on that tie (CN-B), so z takes
 /// 46 and the grid answers 58 to its 46 offer: 200×112. The cause is the stack's,
-/// not the grid's: the control T7 (`VStack{z flexible; b height ≥ 58}`, no grid)
-/// reads z 46 here where SwiftUI reads 34 (probe `swiftui-grid-stack-ties.swift`).
+/// not the grid's: the control T7 (`VStack{z flexible; b height ≥ 58}`, **no
+/// grid at all**) reads z 46 where SwiftUI reads 34 (probe
+/// `swiftui-grid-stack-ties.swift`). **T7 lives in
+/// `NativeStackDistributionTests.swift`** since lane 3 (second critic round,
+/// finding 9; `GR-O` item 8), where `CN-B`'s tie belongs, so a later reader
+/// does not take it for grid behaviour.
 ///
 /// Mutation (GZ0's control): every group offered W′/ncols, commits ignored (GE17
 /// moves; recorded by the lane).
@@ -1702,12 +1729,6 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
         #expect(arm["stack"] == r(0, 0, 200, 112), "GE19 size (pinned wrong on purpose, GR-X)")
         expectRects(arm, "GE19 (pinned wrong on purpose, GR-X)",
                     ["a": r(0, 54, 152, 20), "b": r(170, 54, 20, 20), "c": r(71, 82, 10, 30), "d": r(160, 92, 40, 10), "z": r(0, 0, 200, 46)])
-    }
-    do { // T7, the stack-only control for GE19 (probe swiftui-grid-stack-ties.swift): SwiftUI z 34, b 58
-        let arm = Arm()
-        let b = arm.leaf("b") { SizeD(width: $0.width ?? 10, height: Swift.max($0.height ?? 10, 58)) }
-        arm.run(arm.vstack("stack", [arm.fl("z"), b]), 200, 100)
-        expectRects(arm, "T7 (pinned wrong on purpose, GR-X)", ["stack": r(0, 0, 200, 112), "z": r(0, 0, 200, 46), "b": r(0, 54, 200, 58)])
     }
     do { // GE20
         let arm = Arm()
@@ -1793,57 +1814,692 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 /// a span a column mark on the cell's outermost node, a `spacer` a bare
 /// `newNativeSpacer()` — laid out at its proposal at the origin and compared
 /// with the recorded answer (to 1e-9) and `roundLayout` of every recorded rect.
-/// **Lane 2 filters** to the cases with no anchor, column alignment or unsized
-/// axis, which it requires to be 18; lane 3 drops the filter.
+/// **Lane 3 drops lane 2's filter**: anchors, column alignment and unsized axes
+/// are implemented, so all 120 cases run and `#require` says so.
 ///
-/// Mutation (GZ0's control): recorded by the lane, how many of the 18 redden.
+/// Mutations, each with how many of the 120 it reddens, recorded by the lane:
+/// GZ0's control (every group offered W′/ncols, commits ignored); the last
+/// column-alignment declaration winning instead of the first; and not absorbing
+/// an unsized cell's answer on its unsized axis.
 @Test func theGridProbeCorpusAgreesCaseByCase() throws {
     try #require(gridCorpus.count == 120, "the corpus holds 120 cases")
-    let cases = gridCorpus.filter { corpusCase in
-        corpusCase.cells.allSatisfy { $0.anchor == nil && $0.columnAlignment == nil && !$0.unsizedHorizontal && !$0.unsizedVertical }
-    }
-    try #require(cases.count == 18, "lane 2 runs the 18 cases with no anchor, column alignment or unsized axis")
-    for corpusCase in cases {
-        let tree = LayoutTree(generation: 0)
-        var children: [LayoutNodeID] = []
-        var leaves: [LayoutNodeID] = []
-        func cell(_ cell: GridCorpusCase.Cell) -> LayoutNodeID {
-            var node: LayoutNodeID
-            switch cell.kind {
-            case .spacer:
-                node = tree.newNativeSpacer()
-            default:
-                let kind = cell.kind
-                node = tree.newNativeLeaf { LayoutMeasurement(size: kind.answer($0)) }
-            }
-            leaves.append(node)
-            if cell.priority != 0 { node = tree.newNativeLayoutPriority(child: node, priority: cell.priority) }
-            if cell.span != 1 { tree.markNativeGridCell(node, columns: cell.span) }
-            return node
-        }
-        for child in corpusCase.children {
-            switch child {
-            case let .row(alignment, cells):
-                let nodes = cells.map(cell)
-                tree.markNativeGridRow(nodes, alignment: alignment)
-                children += nodes
-            case let .spanning(spanning):
-                children.append(cell(spanning))
-            }
-        }
-        let grid = tree.newNativeGrid(children: children, alignment: corpusCase.alignment,
-                                      horizontalSpacing: corpusCase.horizontalSpacing,
-                                      verticalSpacing: corpusCase.verticalSpacing)
+    for corpusCase in gridCorpus {
+        let built = buildGridCase(corpusCase)
+        let tree = built.tree
         let at = ProposedSize(width: corpusCase.proposal.0, height: corpusCase.proposal.1)
-        let answer = tree.measureNativeLayout(root: grid, proposal: at).size
+        let answer = tree.measureNativeLayout(root: built.grid, proposal: at).size
         let expected = SizeD(width: corpusCase.size.0, height: corpusCase.size.1)
         #expect(close(answer, expected), "corpus \(corpusCase.id) answer \(answer), recorded \(expected)")
-        tree.computeNativeLayout(root: grid, proposal: at, in: LayoutRect(x: 0, y: 0, width: answer.width, height: answer.height))
-        try #require(leaves.count == corpusCase.rects.count, "corpus \(corpusCase.id) leaf count")
-        for (index, leaf) in leaves.enumerated() {
+        tree.computeNativeLayout(root: built.grid, proposal: at, in: LayoutRect(x: 0, y: 0, width: answer.width, height: answer.height))
+        try #require(built.leaves.count == corpusCase.rects.count, "corpus \(corpusCase.id) leaf count")
+        for (index, leaf) in built.leaves.enumerated() {
             let recorded = corpusCase.rects[index]
             let rect = r(recorded.0, recorded.1, recorded.2, recorded.3)
             #expect(tree.layout(leaf) == rect, "corpus \(corpusCase.id) leaf c\(index + 1): \(tree.layout(leaf)), recorded \(rect)")
+        }
+    }
+}
+
+/// Builds one generated case into a fresh tree: a written priority is a
+/// `layoutPriority` node, and the span, anchor, column alignment and unsized
+/// axes are marked on the cell's **outermost** node, as the probe writes them
+/// outside `.layoutPriority`. A `spacer` kind is a bare `newNativeSpacer()`.
+/// Shared by 2.13 (the agreeing corpus) and 3.12 (the divergence handful).
+private func buildGridCase(_ corpusCase: GridCorpusCase)
+    -> (tree: LayoutTree, grid: LayoutNodeID, leaves: [LayoutNodeID]) {
+    let tree = LayoutTree(generation: 0)
+    var children: [LayoutNodeID] = []
+    var leaves: [LayoutNodeID] = []
+    func cell(_ cell: GridCorpusCase.Cell) -> LayoutNodeID {
+        var node: LayoutNodeID
+        switch cell.kind {
+        case .spacer:
+            node = tree.newNativeSpacer()
+        default:
+            let kind = cell.kind
+            node = tree.newNativeLeaf { LayoutMeasurement(size: kind.answer($0)) }
+        }
+        leaves.append(node)
+        if cell.priority != 0 { node = tree.newNativeLayoutPriority(child: node, priority: cell.priority) }
+        var axes: ProposalAxes = []
+        if cell.unsizedHorizontal { axes.insert(.horizontal) }
+        if cell.unsizedVertical { axes.insert(.vertical) }
+        if cell.span != 1 || cell.anchor != nil || cell.columnAlignment != nil || !axes.isEmpty {
+            tree.markNativeGridCell(node, columns: cell.span == 1 ? nil : cell.span,
+                                    anchor: cell.anchor, columnAlignment: cell.columnAlignment,
+                                    unsizedAxes: axes)
+        }
+        return node
+    }
+    for child in corpusCase.children {
+        switch child {
+        case let .row(alignment, cells):
+            let nodes = cells.map(cell)
+            tree.markNativeGridRow(nodes, alignment: alignment)
+            children += nodes
+        case let .spanning(spanning):
+            children.append(cell(spanning))
+        }
+    }
+    let grid = tree.newNativeGrid(children: children, alignment: corpusCase.alignment,
+                                  horizontalSpacing: corpusCase.horizontalSpacing,
+                                  verticalSpacing: corpusCase.verticalSpacing)
+    return (tree, grid, leaves)
+}
+
+// MARK: - Lane 3: cell attributes and the modifier-chain walk
+//
+// Rulings GR-F's column sum, GR-G (anchors, column alignment, inner-wins),
+// GR-H (`gridCellUnsizedAxes`), GR-I (which wrappers carry a cell attribute)
+// and GR-S. Arm names are SwiftUI's, read by `docs/probes/swiftui-grid.swift`
+// (the GL, GU, GW and GX groups; the recorded output is
+// `docs/probes/swiftui-grid-default-run.txt`).
+//
+// **An arm line's `<- w x h` is the PLACEMENT proposal, not the measured one**
+// (the probe's header says so), so an arm whose measured proposals differ from
+// SwiftUI's can still agree on every rect: GU5 and GU6 are exactly that — the
+// reference model keeps an unsized cell in its flexibility group (GR-H) where
+// SwiftUI serves it later — and the rects below are the ones both produce.
+
+// MARK: 3.1 column alignment
+
+/// GR-G: `gridColumnAlignment` sets the horizontal alignment of a whole column
+/// from any row, and **the first declaration in row order, then cell order,
+/// wins**. A non-row child declares none (the model's `where !c.isFull`; GX13).
+///
+/// - GL4 GA1 with b trailing: b at 58, d at 38 (column 1 is 40 wide).
+/// - GL5 the declaration in the later row: `[a 10x10, b] [c 30x30 trailing, d]`,
+///   a at 20.
+/// - GL6 `[a leading] [b] [c 30x10 trailing]`: a and b at 0, not 20.
+/// - GL7 reversed `[a trailing] [b] [c leading]`: a and b at 20.
+/// - GX13c, the kernel's own arm for GX13's column-alignment half: a non-row
+///   child's `gridColumnAlignment` is **ignored**, so column 0 keeps the grid's
+///   centre. Backed by the model and by the 17 corpus cases that write a column
+///   alignment on a `.spanning` cell (test 2.13), not by a GL arm of its own.
+///
+/// Mutation: the last declaration wins (GL6's a at x 20). GX13c's own: honour a
+/// non-row child's column alignment (its a at x 12).
+@Test func columnAlignmentIsTheFirstDeclarationInRowOrder() {
+    do { // GL4
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.colAlign(arm.fx("b", 20, 20), .trailing)),
+                             row(arm.fx("c", 10, 30), arm.fx("d", 40, 10))])
+        #expect(arm.run(root, nil, nil) == size(78, 58), "GL4 size")
+        expectRects(arm, "GL4", ["a": r(0, 5, 30, 10), "b": r(58, 0, 20, 20),
+                                 "c": r(10, 28, 10, 30), "d": r(38, 38, 40, 10)])
+    }
+    do { // GL5
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 10, 10), arm.fx("b", 20, 20)),
+                             row(arm.colAlign(arm.fx("c", 30, 30), .trailing), arm.fx("d", 40, 10))])
+        #expect(arm.run(root, nil, nil) == size(78, 58), "GL5 size")
+        expectRects(arm, "GL5", ["a": r(20, 5, 10, 10), "b": r(48, 0, 20, 20),
+                                 "c": r(0, 28, 30, 30), "d": r(38, 38, 40, 10)])
+    }
+    do { // GL6
+        let arm = Arm()
+        let root = arm.grid([row(arm.colAlign(arm.fx("a", 10, 10), .leading)),
+                             row(arm.fx("b", 10, 10)),
+                             row(arm.colAlign(arm.fx("c", 30, 10), .trailing))])
+        #expect(arm.run(root, nil, nil) == size(30, 46), "GL6 size")
+        expectRects(arm, "GL6", ["a": r(0, 0, 10, 10), "b": r(0, 18, 10, 10), "c": r(0, 36, 30, 10)])
+    }
+    do { // GL7
+        let arm = Arm()
+        let root = arm.grid([row(arm.colAlign(arm.fx("a", 10, 10), .trailing)),
+                             row(arm.fx("b", 10, 10)),
+                             row(arm.colAlign(arm.fx("c", 30, 10), .leading))])
+        #expect(arm.run(root, nil, nil) == size(30, 46), "GL7 size")
+        expectRects(arm, "GL7", ["a": r(20, 0, 10, 10), "b": r(20, 18, 10, 10), "c": r(0, 36, 30, 10)])
+    }
+    do { // GX13c
+        let arm = Arm()
+        let x = arm.colAlign(arm.fx("x", 88, 10), .trailing)
+        let root = arm.grid([row(arm.fx("a", 11, 10), arm.fx("b", 20, 20), arm.fx("e", 5, 5)), .full(x)])
+        #expect(arm.run(root, nil, nil) == size(88, 38), "GX13c size")
+        expectRects(arm, "GX13c", ["a": r(6, 5, 11, 10), "b": r(37, 0, 20, 20),
+                                   "e": r(77, 7.5, 5, 5), "x": r(0, 28, 88, 10)])
+    }
+}
+
+// MARK: 3.2 a span and column alignment
+
+/// GR-G: a spanning cell **declares** a column alignment for its first column
+/// and **is not itself aligned by it** (GL8 `[a 10x10, b 10x10] [c 30x10 span 2
+/// trailing] [d 40x10]`: a at 30 and d at 0 in a 40-wide column 0, while c sits
+/// centred at 14 in its 58-wide slot).
+///
+/// Mutation: align a span by its first column's alignment (c at x 28).
+@Test func aSpanDeclaresColumnAlignmentForItsFirstColumnAndIsNotAlignedByIt() {
+    let arm = Arm()
+    let c = arm.colAlign(arm.span(arm.fx("c", 30, 10), 2), .trailing)
+    let root = arm.grid([row(arm.fx("a", 10, 10), arm.fx("b", 10, 10)), row(c), row(arm.fx("d", 40, 10))])
+    #expect(arm.run(root, nil, nil) == size(58, 46), "GL8 size")
+    expectRects(arm, "GL8", ["a": r(30, 0, 10, 10), "b": r(48, 0, 10, 10),
+                             "c": r(14, 18, 30, 10), "d": r(0, 36, 40, 10)])
+}
+
+// MARK: 3.3 anchors
+
+/// GR-G: `gridCellAnchor` overrides the column alignment and the row's and the
+/// grid's alignment, on **both** axes, and applies to a non-row child.
+///
+/// - GL10 `[a 10x10 anchor topLeading + column trailing, b 10x30] [c 40x10]`:
+///   a at (0, 0), not (30, 0).
+/// - GL11 `[a 40x10, b 10x30] x 10x10 anchor .trailing (non-row)`: x at (48, 38)
+///   in its 58-wide slot — an anchor DOES reach a non-row child, where its
+///   column alignment (3.1's GX13c) does not.
+/// - GL13 `Grid(.topLeading) {[row .bottom: a 10x10 column trailing, b 20x40,
+///   e 10x10 anchor center] [c, d, f]}`: a (20, 30) by column and row, e
+///   (96, 15) by its anchor on both axes.
+///
+/// Mutation: read the column alignment before the anchor in `fx` (GL10's a at
+/// x 30, GL13's e at x 86).
+@Test func aCellAnchorBeatsColumnAndRowAlignmentAndAppliesToNonRowChildren() {
+    do { // GL10
+        let arm = Arm()
+        let a = arm.anchor(arm.colAlign(arm.fx("a", 10, 10), .trailing), .topLeading)
+        let root = arm.grid([row(a, arm.fx("b", 10, 30)), row(arm.fx("c", 40, 10))])
+        #expect(arm.run(root, nil, nil) == size(58, 48), "GL10 size")
+        expectRects(arm, "GL10", ["a": r(0, 0, 10, 10), "b": r(48, 0, 10, 30), "c": r(0, 38, 40, 10)])
+    }
+    do { // GL11
+        let arm = Arm()
+        let x = arm.anchor(arm.fx("x", 10, 10), .trailing)
+        let root = arm.grid([row(arm.fx("a", 40, 10), arm.fx("b", 10, 30)), .full(x)])
+        #expect(arm.run(root, nil, nil) == size(58, 48), "GL11 size")
+        expectRects(arm, "GL11", ["a": r(0, 10, 40, 10), "b": r(48, 0, 10, 30), "x": r(48, 38, 10, 10)])
+    }
+    do { // GL13
+        let arm = Arm()
+        let a = arm.colAlign(arm.fx("a", 10, 10), .trailing)
+        let e = arm.anchor(arm.fx("e", 10, 10), .center)
+        let root = arm.grid(alignment: .topLeading,
+                            [row(a, arm.fx("b", 20, 40), e, alignment: .bottom),
+                             row(arm.fx("c", 30, 30), arm.fx("d", 40, 10), arm.fx("f", 30, 30))])
+        #expect(arm.run(root, nil, nil) == size(116, 78), "GL13 size")
+        expectRects(arm, "GL13", ["a": r(20, 30, 10, 10), "b": r(38, 0, 20, 40), "e": r(96, 15, 10, 10),
+                                  "c": r(0, 48, 30, 30), "d": r(38, 48, 40, 10), "f": r(86, 48, 30, 30)])
+    }
+}
+
+// MARK: 3.4 two marks on one node
+
+/// GR-G, GR-I: on one view the **inner** declaration wins for an anchor and for
+/// a column alignment — the inner modifier marks first, so the first mark on a
+/// node stands — and the same holds across a wrapper, where the innermost
+/// node's mark wins.
+///
+/// - GL15 `a.columnAlignment(.leading).columnAlignment(.trailing)`: a at 0.
+/// - GL16 `c.anchor(.topLeading).anchor(.bottomTrailing)`: c at (0, 58).
+/// - GWI3 inner anchor `.topLeading`, `padding(1)`, outer `.bottomTrailing`:
+///   the padding at (0, 58) and c at (1, 59).
+/// - GWI4 inner column `.leading`, `padding(1)`, outer `.trailing`: a at (1, 1).
+///
+/// Mutation: a later mark overwrites an earlier one (GL16's c at (40, 98)).
+@Test func onOneNodeTheInnerAnchorAndColumnAlignmentWin() {
+    do { // GL15
+        let arm = Arm()
+        let a = arm.colAlign(arm.colAlign(arm.fx("a", 10, 10), .leading), .trailing)
+        let root = arm.grid([row(a), row(arm.fx("e", 50, 10))])
+        #expect(arm.run(root, nil, nil) == size(50, 28), "GL15 size")
+        expectRects(arm, "GL15", ["a": r(0, 0, 10, 10), "e": r(0, 18, 50, 10)])
+    }
+    do { // GL16
+        let arm = Arm()
+        let c = arm.anchor(arm.anchor(arm.fx("c", 10, 10), .topLeading), .bottomTrailing)
+        let root = arm.grid([row(arm.fx("a", 50, 10), arm.fx("b", 20, 50)), row(c, arm.fx("d", 20, 50))])
+        #expect(arm.run(root, nil, nil) == size(78, 108), "GL16 size")
+        expectRects(arm, "GL16", ["a": r(0, 20, 50, 10), "b": r(58, 0, 20, 50),
+                                  "c": r(0, 58, 10, 10), "d": r(58, 58, 20, 50)])
+    }
+    do { // GWI3
+        let arm = Arm()
+        let padded = arm.anchor(arm.pad(arm.anchor(arm.fx("c", 10, 10), .topLeading), 1), .bottomTrailing)
+        let root = arm.grid([row(arm.fx("a", 50, 10), arm.fx("b", 20, 50)), row(padded, arm.fx("d", 20, 50))])
+        #expect(arm.run(root, nil, nil) == size(78, 108), "GWI3 size")
+        expectRects(arm, "GWI3", ["a": r(0, 20, 50, 10), "b": r(58, 0, 20, 50),
+                                  "c": r(1, 59, 10, 10), "d": r(58, 58, 20, 50)])
+    }
+    do { // GWI4
+        let arm = Arm()
+        let padded = arm.colAlign(arm.pad(arm.colAlign(arm.fx("a", 10, 10), .leading), 1), .trailing)
+        let root = arm.grid([row(padded), row(arm.fx("e", 50, 10))])
+        #expect(arm.run(root, nil, nil) == size(50, 30), "GWI4 size")
+        expectRects(arm, "GWI4", ["a": r(1, 1, 10, 10), "e": r(0, 20, 50, 10)])
+    }
+}
+
+// MARK: 3.5 the column sum
+
+/// GR-F, GR-S: two `gridCellColumns` on one view **add their values above 1**,
+/// and a count is honoured up to `Int32.max`.
+///
+/// - GX15 `c.columns(3).columns(2)` spans 5: 109×38, d in column 5 at x 108.
+/// - GX16 `c.columns(2).columns(1)` spans 2: 126×38, a at 10.5.
+/// - GWI1 inner span 2, `padding(1)`, outer span 1, and GWI2 the reverse: both
+///   115×40 — the sum crosses a wrapper (GR-I).
+/// - GX21 `columns(100_000)`: 100_001 columns, 71×38, d at x 66.
+/// - GX23 `[a, b] [x 100x10 span 3]`: the third column, which only the span
+///   covers, takes the whole shortfall (100×38).
+///
+/// Mutation: take the largest mark instead of the sum (GX15 reads 3 columns for
+/// c: its d moves and the answer changes).
+@Test func gridCellColumnsDeclaredTwiceAddTheirValuesAboveOne() {
+    do { // GX15
+        let arm = Arm()
+        let c = arm.span(arm.span(arm.fx("c", 100, 10), 3), 2)
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20), arm.fx("e", 5, 5), arm.fx("f", 5, 5)),
+                             row(c, arm.fx("d", 1, 1))])
+        #expect(arm.run(root, nil, nil) == size(109, 38), "GX15 size")
+        expectRects(arm, "GX15", ["a": r(0, 5, 30, 10), "b": r(38, 0, 20, 20), "e": r(66, 7.5, 5, 5),
+                                  "f": r(79, 7.5, 5, 5), "c": r(0, 28, 100, 10), "d": r(108, 32.5, 1, 1)])
+    }
+    do { // GX16
+        let arm = Arm()
+        let c = arm.span(arm.span(arm.fx("c", 100, 10), 2), 1)
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20), arm.fx("e", 5, 5), arm.fx("f", 5, 5)),
+                             row(c, arm.fx("d", 1, 1))])
+        #expect(arm.run(root, nil, nil) == size(126, 38), "GX16 size")
+        expectRects(arm, "GX16", ["a": r(10.5, 5, 30, 10), "b": r(69.5, 0, 20, 20), "e": r(108, 7.5, 5, 5),
+                                  "f": r(121, 7.5, 5, 5), "c": r(0, 28, 100, 10), "d": r(110, 32.5, 1, 1)])
+    }
+    for (label, inner, outer) in [("GWI1", 2, 1), ("GWI2", 1, 2)] {
+        let arm = Arm()
+        let c = arm.span(arm.pad(arm.span(arm.fx("c", 100, 10), inner), 1), outer)
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20), arm.fx("e", 5, 5)),
+                             row(c, arm.fx("d", 5, 5))])
+        #expect(arm.run(root, nil, nil) == size(115, 40), "\(label) size")
+        expectRects(arm, label, ["a": r(11, 5, 30, 10), "b": r(71, 0, 20, 20), "e": r(110, 7.5, 5, 5),
+                                 "c": r(1, 29, 100, 10), "d": r(110, 31.5, 5, 5)])
+    }
+    do { // GX21
+        let arm = Arm()
+        let c = arm.span(arm.fx("c", 10, 10), 100_000)
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20)), row(c, arm.fx("d", 5, 5))])
+        #expect(arm.run(root, nil, nil) == size(71, 38), "GX21 size")
+        expectRects(arm, "GX21", ["a": r(0, 5, 30, 10), "b": r(38, 0, 20, 20),
+                                  "c": r(24, 28, 10, 10), "d": r(66, 30.5, 5, 5)])
+    }
+    do { // GX23
+        let arm = Arm()
+        let x = arm.span(arm.fx("x", 100, 10), 3)
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20)), row(x)])
+        #expect(arm.run(root, nil, nil) == size(100, 38), "GX23 size")
+        expectRects(arm, "GX23", ["a": r(0, 5, 30, 10), "b": r(38, 0, 20, 20), "x": r(0, 28, 100, 10)])
+    }
+}
+
+// MARK: 3.7 unsized axes
+
+/// GR-H: on an unsized axis a cell is proposed **its current slot on that axis**
+/// — its spanned columns' current widths plus inner gaps, or its row's current
+/// height — instead of a share, and its answer **still widens** that column or
+/// row. Only a non-nil proposal axis has a share, so nil×nil is unaffected
+/// (GU4).
+///
+/// - GU1 `[a 30x10, b] [c flexible unsized h, d 40x10]` at 200×200 is 78×200,
+///   against the control GU2 (c not unsized) at 200×200; a `#require` says they
+///   differ.
+/// - GU3 unsized on both axes and spanning 2: c is proposed 58×0 and answers it.
+/// - GU4 at nil and GU5 at 200×200: c's 100 widens column 0 either way (148×58).
+/// - GU6 unsized vertically: c is proposed its row's 0 and its 50 sets the row.
+/// - GU7, GU8: an unsized cell in a later flexibility group.
+/// - GU11: a lone flexible cell unsized on both axes answers 0×0.
+///
+/// Mutation: do not absorb an unsized cell's answer on that axis (GU5 reads
+/// 78 wide).
+@Test func anUnsizedAxisIsProposedItsCurrentSlotAndItsAnswerStillCounts() throws {
+    let gu1 = Arm()
+    gu1.run(gu1.grid([row(gu1.fx("a", 30, 10), gu1.fx("b", 20, 20)),
+                      row(gu1.unsized(gu1.fl("c"), .horizontal), gu1.fx("d", 40, 10))]), 200, 200)
+    let gu2 = Arm()
+    gu2.run(gu2.grid([row(gu2.fx("a", 30, 10), gu2.fx("b", 20, 20)),
+                      row(gu2.fl("c"), gu2.fx("d", 40, 10))]), 200, 200)
+    try #require(gu1["c"] != gu2["c"], "GU1 and its control GU2 must differ")
+    expectRects(gu1, "GU1", ["a": r(0, 5, 30, 10), "b": r(48, 0, 20, 20),
+                             "c": r(0, 28, 30, 172), "d": r(38, 109, 40, 10)])
+    expectRects(gu2, "GU2", ["a": r(61, 5, 30, 10), "b": r(170, 0, 20, 20),
+                             "c": r(0, 28, 152, 172), "d": r(160, 109, 40, 10)])
+
+    do { // GU3
+        let arm = Arm()
+        let c = arm.span(arm.unsized(arm.fl("c"), [.horizontal, .vertical]), 2)
+        #expect(arm.run(arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20)), row(c)]), 200, 200) == size(58, 28),
+                "GU3 size")
+        expectRects(arm, "GU3", ["a": r(0, 5, 30, 10), "b": r(38, 0, 20, 20), "c": r(0, 28, 58, 0)])
+    }
+    for (label, width, height) in [("GU4", Double?.none, Double?.none), ("GU5", 200, 200)] {
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20)),
+                             row(arm.unsized(arm.fx("c", 100, 30), .horizontal), arm.fx("d", 40, 10))])
+        #expect(arm.run(root, width, height) == size(148, 58), "\(label) size")
+        expectRects(arm, label, ["a": r(35, 5, 30, 10), "b": r(118, 0, 20, 20),
+                                 "c": r(0, 28, 100, 30), "d": r(108, 38, 40, 10)])
+    }
+    do { // GU6
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20)),
+                             row(arm.unsized(arm.fx("c", 10, 50), .vertical), arm.fx("d", 40, 10))])
+        #expect(arm.run(root, 200, 200) == size(78, 78), "GU6 size")
+        expectRects(arm, "GU6", ["a": r(0, 5, 30, 10), "b": r(48, 0, 20, 20),
+                                 "c": r(10, 28, 10, 50), "d": r(38, 48, 40, 10)])
+    }
+    do { // GU7
+        let arm = Arm()
+        let root = arm.grid([row(arm.unsized(arm.fl("a"), .horizontal), arm.fl("b")),
+                             row(arm.fx("c", 30, 30), arm.fx("d", 40, 10))])
+        #expect(arm.run(root, 200, 100) == size(134, 100), "GU7 size")
+        expectRects(arm, "GU7", ["a": r(0, 0, 30, 62), "b": r(38, 0, 96, 62),
+                                 "c": r(0, 70, 30, 30), "d": r(66, 80, 40, 10)])
+    }
+    do { // GU8
+        let arm = Arm()
+        let root = arm.grid([row(arm.unsized(arm.cw("a", 0, 50), .horizontal), arm.fl("b")),
+                             row(arm.fx("c", 30, 30), arm.fx("d", 40, 10))])
+        #expect(arm.run(root, 200, 100) == size(200, 100), "GU8 size")
+        expectRects(arm, "GU8", ["a": r(0, 26, 30, 10), "b": r(38, 0, 162, 62),
+                                 "c": r(0, 70, 30, 30), "d": r(99, 80, 40, 10)])
+    }
+    do { // GU11
+        let arm = Arm()
+        let root = arm.grid([row(arm.unsized(arm.fl("a"), [.horizontal, .vertical]))])
+        #expect(arm.run(root, 200, 100) == size(0, 0), "GU11 size")
+        expectRects(arm, "GU11", ["a": r(0, 0, 0, 0)])
+    }
+}
+
+// MARK: 3.8 an unsized non-row child
+
+/// GR-H: a divider-like non-row child unsized horizontally is proposed its
+/// spanned columns' widths plus inner gaps, so it **stops widening the grid**
+/// (GU9 58×100) where the same child without the mark takes the whole proposal
+/// (GU10 200×100). A `#require` says the two differ.
+///
+/// Mutation: ignore unsized axes on non-row cells (GU9 reads 200).
+@Test func anUnsizedNonRowChildStopsWideningTheGrid() throws {
+    let gu9 = Arm()
+    let x9 = gu9.unsized(gu9.fl("x"), .horizontal)
+    let answer9 = gu9.run(gu9.grid([row(gu9.fx("a", 30, 10), gu9.fx("b", 20, 20)), .full(x9)]), 200, 100)
+    let gu10 = Arm()
+    let answer10 = gu10.run(gu10.grid([row(gu10.fx("a", 30, 10), gu10.fx("b", 20, 20)), .full(gu10.fl("x"))]), 200, 100)
+    try #require(answer9 != answer10, "GU9 and its control GU10 must differ")
+    #expect(answer9 == size(58, 100), "GU9 size")
+    expectRects(gu9, "GU9", ["a": r(0, 5, 30, 10), "b": r(38, 0, 20, 20), "x": r(0, 28, 58, 72)])
+    #expect(answer10 == size(200, 100), "GU10 size")
+    expectRects(gu10, "GU10", ["a": r(35.5, 5, 30, 10), "b": r(144.5, 0, 20, 20), "x": r(0, 28, 200, 72)])
+}
+
+// MARK: 3.9 unsized axes declared twice
+
+/// GR-H: declarations on one view form a **union**.
+///
+/// - GU12 `.unsized(.vertical).unsized(.horizontal)`: 78×38, c 30×10.
+/// - GU13 `.unsized(.horizontal).unsized([])`: 78×200, as GU1.
+/// - GWI5 unsized vertically, `padding(1)`, unsized horizontally: the union
+///   crosses a wrapper (GR-I), 78×38 with c at (1, 29) 28×8.
+///
+/// Mutation: a later mark replaces the axes (GU12 reads 78×200, horizontal only).
+@Test func unsizedAxesDeclaredTwiceFormAUnion() {
+    do { // GU12
+        let arm = Arm()
+        let c = arm.unsized(arm.unsized(arm.fl("c"), .vertical), .horizontal)
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20)), row(c, arm.fx("d", 40, 10))])
+        #expect(arm.run(root, 200, 200) == size(78, 38), "GU12 size")
+        expectRects(arm, "GU12", ["a": r(0, 5, 30, 10), "b": r(48, 0, 20, 20),
+                                  "c": r(0, 28, 30, 10), "d": r(38, 28, 40, 10)])
+    }
+    do { // GU13
+        let arm = Arm()
+        let c = arm.unsized(arm.unsized(arm.fl("c"), .horizontal), [])
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20)), row(c, arm.fx("d", 40, 10))])
+        #expect(arm.run(root, 200, 200) == size(78, 200), "GU13 size")
+        expectRects(arm, "GU13", ["a": r(0, 5, 30, 10), "b": r(48, 0, 20, 20),
+                                  "c": r(0, 28, 30, 172), "d": r(38, 109, 40, 10)])
+    }
+    do { // GWI5
+        let arm = Arm()
+        let c = arm.unsized(arm.pad(arm.unsized(arm.fl("c"), .vertical), 1), .horizontal)
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20)), row(c, arm.fx("d", 40, 10))])
+        #expect(arm.run(root, 200, 200) == size(78, 38), "GWI5 size")
+        expectRects(arm, "GWI5", ["a": r(0, 5, 30, 10), "b": r(48, 0, 20, 20),
+                                  "c": r(1, 29, 28, 8), "d": r(38, 28, 40, 10)])
+    }
+}
+
+// MARK: 3.10 the modifier-chain walk
+
+/// One wrapper kind, and what the two walks do with it. `carriesAttribute` is
+/// `GR-I`'s grid walk (`newNativeGrid`'s `gridAttributes(of:)`);
+/// `carriesPriority` is the existing `nativeLayoutPriority` walk (`SA-D`,
+/// `CN-C`, `CN-D`), and the two DIFFER: a `padding`, a `frame`, a `fixedSize`
+/// and an `aspectRatio` carry a cell attribute and hide a priority, while a
+/// one-child `HStack`/`ZStack` does the opposite.
+private struct GridWrapperKind {
+    let name: String
+    let carriesAttribute: Bool
+    let carriesPriority: Bool
+    let wrap: (LayoutTree, LayoutNodeID) -> LayoutNodeID
+}
+
+private func gridWrapperKinds() -> [GridWrapperKind] {
+    func filler(_ tree: LayoutTree) -> LayoutNodeID {
+        tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 1, height: 1)) }
+    }
+    return [
+        GridWrapperKind(name: "padding(0)", carriesAttribute: true, carriesPriority: false) {
+            $0.newNativePadding(child: $1, insets: Edges(all: 0))
+        },
+        GridWrapperKind(name: "padding(1)", carriesAttribute: true, carriesPriority: false) {
+            $0.newNativePadding(child: $1, insets: Edges(all: 1))
+        },
+        GridWrapperKind(name: "frame(12x12)", carriesAttribute: true, carriesPriority: false) {
+            $0.newNativeFrame(child: $1, width: 12, height: 12)
+        },
+        GridWrapperKind(name: "frame(maxWidth: inf)", carriesAttribute: true, carriesPriority: false) {
+            $0.newNativeFrame(child: $1, maxWidth: .infinity)
+        },
+        GridWrapperKind(name: "fixedSize()", carriesAttribute: true, carriesPriority: false) {
+            $0.newNativeFixedSize(child: $1, horizontal: true, vertical: true)
+        },
+        GridWrapperKind(name: "aspectRatio(1, .fit)", carriesAttribute: true, carriesPriority: false) {
+            $0.newNativeAspectRatio(child: $1, ratio: 1, contentMode: .fit)
+        },
+        GridWrapperKind(name: "layoutPriority(1)", carriesAttribute: true, carriesPriority: true) {
+            $0.newNativeLayoutPriority(child: $1, priority: 1)
+        },
+        GridWrapperKind(name: "overlayAttachment primary", carriesAttribute: true, carriesPriority: true) { tree, node in
+            tree.newNativeOverlayAttachment(child: node, overlay: filler(tree))
+        },
+        GridWrapperKind(name: "overlayAttachment content", carriesAttribute: false, carriesPriority: false) { tree, node in
+            tree.newNativeOverlayAttachment(child: filler(tree), overlay: node)
+        },
+        GridWrapperKind(name: "HStack{one}", carriesAttribute: false, carriesPriority: true) {
+            $0.newNativeLinearStack(children: [$1], axis: .horizontal, spacing: nil)
+        },
+        GridWrapperKind(name: "ZStack{one}", carriesAttribute: false, carriesPriority: true) {
+            $0.newNativeOverlay(children: [$1], alignment: .center)
+        },
+    ]
+}
+
+/// GR-I: the plan resolves each grid child's attributes by walking its modifier
+/// chain from the child node through `frame`, `padding`, `fixedSize`,
+/// `aspectRatio`, `layoutPriority` and an overlay attachment's **primary**, and
+/// stops at anything else — a one-child `HStack` or `ZStack`, an overlay
+/// attachment's content side, a nested grid, a scroll viewport, a custom layout
+/// or a leaf. MetalUI's paint-only proposal modifiers register no node, so they
+/// carry attributes by construction and need no arm.
+///
+/// This is `GW`'s reading (GWS/GWA/GWC/GWU rows 1–4, 6, 11, 12, 15–18, and
+/// GWP's priority rows): the plan is asserted directly, one arm per node kind
+/// per attribute, because the geometric consequence differs by wrapper. The
+/// RECTS that follow from the walk are pinned by 3.4's and 3.5's GWI arms
+/// (anchor, column alignment and the span through a padding) and 3.9's GWI5
+/// (unsized axes).
+///
+/// Mutation: stop the chain at `padding` (every `padding` arm here reddens, and
+/// so do 3.4's GWI3/GWI4 and 3.5's GWI1/GWI2).
+@Test func cellAttributesAndRowTokensAreReadThroughModifierNodesAndNotContainers() throws {
+    for kind in gridWrapperKinds() {
+        // Span.
+        do {
+            let tree = LayoutTree(generation: 0)
+            let inner = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            tree.markNativeGridCell(inner, columns: 2)
+            let child = kind.wrap(tree, inner)
+            let other = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            tree.markNativeGridRow([child, other])
+            let plan = try #require(tree.nativeGridPlan(tree.newNativeGrid(children: [child, other])))
+            #expect(plan.cells[0].span == (kind.carriesAttribute ? 2 : 1), "span through \(kind.name)")
+        }
+        // Anchor.
+        do {
+            let tree = LayoutTree(generation: 0)
+            let inner = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            tree.markNativeGridCell(inner, anchor: .topLeading)
+            let child = kind.wrap(tree, inner)
+            let other = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            tree.markNativeGridRow([child, other])
+            let plan = try #require(tree.nativeGridPlan(tree.newNativeGrid(children: [child, other])))
+            #expect(plan.cells[0].anchor == (kind.carriesAttribute ? .topLeading : nil), "anchor through \(kind.name)")
+        }
+        // Column alignment.
+        do {
+            let tree = LayoutTree(generation: 0)
+            let inner = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            tree.markNativeGridCell(inner, columnAlignment: .trailing)
+            let child = kind.wrap(tree, inner)
+            let other = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            tree.markNativeGridRow([child, other])
+            let plan = try #require(tree.nativeGridPlan(tree.newNativeGrid(children: [child, other])))
+            #expect(plan.columnAlignments[0] == (kind.carriesAttribute ? .trailing : nil),
+                    "column alignment through \(kind.name)")
+        }
+        // Unsized axes.
+        do {
+            let tree = LayoutTree(generation: 0)
+            let inner = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            tree.markNativeGridCell(inner, unsizedAxes: .horizontal)
+            let child = kind.wrap(tree, inner)
+            let other = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            tree.markNativeGridRow([child, other])
+            let plan = try #require(tree.nativeGridPlan(tree.newNativeGrid(children: [child, other])))
+            #expect(plan.cells[0].unsizedAxes == (kind.carriesAttribute ? .horizontal : []),
+                    "unsized axes through \(kind.name)")
+        }
+        // A row token: with no other row mark, a carried token makes the wrapped
+        // child a row cell and leaves the sibling a non-row child.
+        do {
+            let tree = LayoutTree(generation: 0)
+            let inner = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            tree.markNativeGridRow([inner])
+            let child = kind.wrap(tree, inner)
+            let other = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            let plan = try #require(tree.nativeGridPlan(tree.newNativeGrid(children: [child, other])))
+            #expect(plan.cells[0].isRowCell == kind.carriesAttribute, "row token through \(kind.name)")
+        }
+        // GWP: the priority walk, which the kernel already had.
+        do {
+            let tree = LayoutTree(generation: 0)
+            let inner = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            let child = kind.wrap(tree, tree.newNativeLayoutPriority(child: inner, priority: 1))
+            let other = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            tree.markNativeGridRow([child, other])
+            let plan = try #require(tree.nativeGridPlan(tree.newNativeGrid(children: [child, other])))
+            #expect(plan.cells[0].priority == (kind.carriesPriority ? 1 : 0), "priority through \(kind.name)")
+        }
+    }
+}
+
+// MARK: 3.11 gridCellColumns(0)
+
+/// Divergence pin (`GR-O` item 3), **green on arrival**: `gridCellColumns(0)`
+/// lays out as 1 in the kernel. SwiftUI puts such a cell in column 0 **without
+/// consuming it**, so GX14 `[a 30x10, b 20x20] [c 10x10 columns(0), d 5x5]`
+/// reads c (0, 28 10×10) and d (12.5, 30.5 5×5) — d shares column 0 — where the
+/// kernel reads c (10, 28) and d (45.5, 30.5), d in column 1. Both answer 58×38.
+/// Accepted rather than reproduced (`SA-J`: SwiftUI does not reject it).
+///
+/// Mutation: treat 0 as 2 (c spans two columns and d moves to column 2).
+@Test func gridCellColumnsZeroLaysOutAsOne() {
+    let arm = Arm()
+    let c = arm.span(arm.fx("c", 10, 10), 0)
+    let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20)), row(c, arm.fx("d", 5, 5))])
+    #expect(arm.run(root, nil, nil) == size(58, 38), "GX14 size")
+    expectRects(arm, "GX14 (pinned wrong on purpose, GR-O 3)",
+                ["a": r(0, 5, 30, 10), "b": r(38, 0, 20, 20), "c": r(10, 28, 10, 10), "d": r(45.5, 30.5, 5, 5)])
+}
+
+// MARK: 3.12 the divergence corpus
+
+/// Divergence pin (`GR-O` item 2, `GR-AA`), **wrong on purpose**: five of the
+/// 65 cases the replay corpus throws away
+/// (`docs/probes/swiftui-grid-divergences.txt`, same generator, seed and budget
+/// as `GridCorpus.swift`), at the **model's** figures, which the kernel ports
+/// (`GR-B`). SwiftUI's are in the table below. One per symptom of `GR-F`'s
+/// `classify-spans` table, plus two with no span:
+///
+/// | id | symptom | SwiftUI | the model (asserted) |
+/// |---|---|---|---|
+/// | 11 | SwiftUI wider | 64×80, c1 (0,0 64×42) | 52×80, c1 (0,0 52×42) |
+/// | 22 | the model wider | 114.8×100, c2 (38,0 76.8×100) | 200×100, c2 (38,0 162×100) |
+/// | 33 | equal sizes, different rects | 100×80, c2 (0,10 66.67×70) | 100×80, c2 (0,10 100×70) |
+/// | 36 | no span, the model wider | 114×45, c4 (76,35 19×10) | 132×45, c4 (76,35 28×10) |
+/// | 54 | no span, equal sizes, different rects | 38×80, c3 (0,48 20×20), c4 (0,76 20×4) | 38×80, c3 (0,48 20×24), c4 (0,80 20×0) |
+///
+/// The corpus itself is by construction the grids on which model and SwiftUI
+/// AGREE, so no test in this stage can see agreement getting worse; this handful
+/// is the committed shape of the disagreement. Owner: plan task 15's closeout,
+/// which re-runs the GZ table and decides whether to close the gap.
+///
+/// Mutations: GZ0's control (every group offered W′/ncols, commits ignored), and
+/// the two one-rule model variants `classify-spans` names — variant 4 (a span
+/// keeps its columns open while it is unprocessed) and variant 6 (a column
+/// holding no single-column cell counts as open for every share and never
+/// commits). The lane records which of the five each moves.
+@Test func theModelDisagreesWithSwiftUIOnTheDivergenceCorpus() throws {
+    let cases: [GridCorpusCase] = [
+        GridCorpusCase(id: 11, proposal: (nil, 80.0), alignment: .topTrailing, horizontalSpacing: 12.0, verticalSpacing: nil,
+            children: [.row(.bottom, [.init(.flex, span: 3)]),
+                       .row(nil, [.init(.clampW(0.0, 150.0, 10.0), columnAlignment: .trailing),
+                                  .init(.fixed(30.0, 30.0), unsizedVertical: true)])],
+            size: (52.0, 80.0), rects: [(0.0, 0.0, 52.0, 42.0), (0.0, 50.0, 10.0, 10.0), (22.0, 50.0, 30.0, 30.0)]),
+        GridCorpusCase(id: 22, proposal: (200.0, 100.0), alignment: .center, horizontalSpacing: nil, verticalSpacing: nil,
+            children: [.row(.bottom, [.init(.flexH(30.0), span: 3), .init(.flex, span: 2, anchor: .center)])],
+            size: (200.0, 100.0), rects: [(0.0, 0.0, 30.0, 100.0), (38.0, 0.0, 162.0, 100.0)]),
+        GridCorpusCase(id: 33, proposal: (nil, 80.0), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: 0.0,
+            children: [.spanning(.init(.fixed(100.0, 10.0), span: 3)),
+                       .row(.bottom, [.init(.spacer, span: 2, columnAlignment: .trailing)])],
+            size: (100.0, 80.0), rects: [(0.0, 0.0, 100.0, 10.0), (0.0, 10.0, 100.0, 70.0)]),
+        GridCorpusCase(id: 36, proposal: (150.0, nil), alignment: .bottomLeading, horizontalSpacing: 3.0, verticalSpacing: 5.0,
+            children: [.spanning(.init(.clampW(30.0, 50.0, 10.0))),
+                       .row(.bottom, [.init(.clampW(0.0, 20.0, 30.0)),
+                                      .init(.clampW(30.0, 50.0, 20.0), priority: -1.0, unsizedVertical: true),
+                                      .init(.half)])],
+            size: (132.0, 45.0), rects: [(0.0, 0.0, 50.0, 10.0), (0.0, 15.0, 20.0, 30.0), (23.0, 25.0, 50.0, 20.0), (76.0, 35.0, 28.0, 10.0)]),
+        GridCorpusCase(id: 54, proposal: (nil, 80.0), alignment: .bottomLeading, horizontalSpacing: nil, verticalSpacing: nil,
+            children: [.row(nil, [.init(.half, columnAlignment: .trailing), .init(.fixed(10.0, 40.0), priority: 1.0)]),
+                       .row(nil, [.init(.clampBoth(20.0, 50.0))]),
+                       .row(nil, [.init(.flexH(20.0), priority: -1.0)])],
+            size: (38.0, 80.0), rects: [(10.0, 30.0, 10.0, 10.0), (28.0, 0.0, 10.0, 40.0), (0.0, 48.0, 20.0, 24.0), (0.0, 80.0, 20.0, 0.0)]),
+    ]
+    try #require(cases.count == 5, "one per classify-spans symptom, and two with no span")
+    for divergent in cases {
+        let built = buildGridCase(divergent)
+        let tree = built.tree
+        let at = ProposedSize(width: divergent.proposal.0, height: divergent.proposal.1)
+        let answer = tree.measureNativeLayout(root: built.grid, proposal: at).size
+        let expected = SizeD(width: divergent.size.0, height: divergent.size.1)
+        #expect(close(answer, expected), "divergence \(divergent.id) answer \(answer), the model's \(expected)")
+        tree.computeNativeLayout(root: built.grid, proposal: at,
+                                 in: LayoutRect(x: 0, y: 0, width: answer.width, height: answer.height))
+        try #require(built.leaves.count == divergent.rects.count, "divergence \(divergent.id) leaf count")
+        for (index, leaf) in built.leaves.enumerated() {
+            let recorded = divergent.rects[index]
+            let rect = r(recorded.0, recorded.1, recorded.2, recorded.3)
+            #expect(tree.layout(leaf) == rect,
+                    "divergence \(divergent.id) leaf c\(index + 1): \(tree.layout(leaf)), the model's \(rect)")
         }
     }
 }

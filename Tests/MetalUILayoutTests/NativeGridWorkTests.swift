@@ -145,27 +145,136 @@ private final class LeafLog: @unchecked Sendable {
 /// cost and is indistinguishable in behaviour — 20 000 differential solves
 /// byte-identical — so the counter is the only witness the split has.
 @Test func theSolversBookkeepingIsLinearInTheCells() throws {
-    func solve(_ rows: Int) throws -> NativeGridSolution {
-        let tree = LayoutTree(generation: 0)
-        var children: [LayoutNodeID] = []
-        for _ in 0..<rows {
-            let cells = (0..<3).map { _ in tree.newNativeLeaf { _ in LayoutMeasurement(size: .zero) } }
-            tree.markNativeGridRow(cells)
-            children += cells
-        }
-        let plan = try #require(tree.nativeGridPlan(tree.newNativeGrid(children: children)))
-        return solveNativeGrid(plan, proposal: ProposedSize(width: 300, height: nil)) { index, proposal in
-            switch index % 3 {
-            case 0: SizeD(width: 20, height: 10)
-            case 1: SizeD(width: Swift.min(Swift.max(proposal.width ?? 10, 0), 50), height: 10)
-            default: SizeD(width: proposal.width ?? 10, height: 10)
-            }
-        }
-    }
-    let two = try solve(200), one = try solve(100)
+    let two = try solveKindsByColumn(rows: 200, columns: 3, width: 300)
+    let one = try solveKindsByColumn(rows: 100, columns: 3, width: 300)
     try #require(two.size == SizeD(width: 300, height: 3592), "three groups at n = 200: \(two.size)")
     #expect(two.bookkeepingSteps == 2203, "steps at n = 200: \(two.bookkeepingSteps)")
     #expect(one.bookkeepingSteps == 1103, "steps at n = 100: \(one.bookkeepingSteps)")
     #expect(two.bookkeepingSteps - 2 * one.bookkeepingSteps <= 3,
             "linear: \(two.bookkeepingSteps) − 2 · \(one.bookkeepingSteps)")
+
+    // Lane 3, arm B: the `ncols` term, at a FIXED row count — the dimension the
+    // arms above never vary. Same formula, 10/3 · rows · columns + rows +
+    // columns, derived by hand: at 20 rows, 15 columns is 1000 + 35 = 1035 and
+    // 30 columns is 2000 + 50 = 2050. The `+ columns` is the first group's full
+    // commit sweep; without the `isFirstGroup` split the totals would be
+    // 2 · rows · columns + 3(rows + columns) = 705 and 1350, and no rect would
+    // move (`GR-AI`).
+    let narrow = try solveKindsByColumn(rows: 20, columns: 15, width: 2932)
+    let wide = try solveKindsByColumn(rows: 20, columns: 30, width: 2932)
+    try #require(narrow.size == SizeD(width: 2932, height: 352), "arm B narrow: \(narrow.size)")
+    try #require(wide.size == SizeD(width: 2932, height: 352), "arm B wide: \(wide.size)")
+    #expect(narrow.bookkeepingSteps == 1035, "steps at 20 × 15: \(narrow.bookkeepingSteps)")
+    #expect(wide.bookkeepingSteps == 2050, "steps at 20 × 30: \(wide.bookkeepingSteps)")
+
+    // Lane 3, arm C: SPANNING cells, which the arms above have none of, so
+    // `serve`'s `steps += columnCount` and `spanWidth`'s `steps += cell.span`
+    // were never exercised. Two rows of six columns — row 0
+    // `[s span 3 (fixed 100×10), a, b, c]`, row 1 six 20×10 cells — at 300 × nil.
+    // Derived by hand: 10 (the level fill) + 6 (`serve`'s span sum over every
+    // column) + 3 (`spanWidth` inside `serve`) + 10 (the decrements) + 3 + 3
+    // (`spanWidth` and the shortfall spread in `finishGroup`) + 6 + 2 (the first
+    // group's commit sweep) = **43**.
+    let spanning = try solveSpanningRow()
+    try #require(spanning.size == SizeD(width: 184, height: 28), "arm C size: \(spanning.size)")
+    #expect(spanning.bookkeepingSteps == 43, "arm C steps: \(spanning.bookkeepingSteps)")
+}
+
+/// `rows` × `columns` of `[fixed 20×10, width 0…50 h10, width-flexible h10]`
+/// repeating by column (so `columns` must be a multiple of 3), solved at
+/// `width` × nil: three groups of `rows · columns / 3` single-column cells.
+private func solveKindsByColumn(rows: Int, columns: Int, width: Double) throws -> NativeGridSolution {
+    let tree = LayoutTree(generation: 0)
+    var children: [LayoutNodeID] = []
+    for _ in 0..<rows {
+        let cells = (0..<columns).map { _ in tree.newNativeLeaf { _ in LayoutMeasurement(size: .zero) } }
+        tree.markNativeGridRow(cells)
+        children += cells
+    }
+    let plan = try #require(tree.nativeGridPlan(tree.newNativeGrid(children: children)))
+    return solveNativeGrid(plan, proposal: ProposedSize(width: width, height: nil)) { index, proposal in
+        switch index % 3 {
+        case 0: SizeD(width: 20, height: 10)
+        case 1: SizeD(width: Swift.min(Swift.max(proposal.width ?? 10, 0), 50), height: 10)
+        default: SizeD(width: proposal.width ?? 10, height: 10)
+        }
+    }
+}
+
+/// Arm C's grid: row 0 `[s span 3 (100×10), a, b, c]` over row 1's six 20×10
+/// cells, six columns, at 300 × nil.
+private func solveSpanningRow() throws -> NativeGridSolution {
+    let tree = LayoutTree(generation: 0)
+    func cell(_ width: Double) -> LayoutNodeID {
+        tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: width, height: 10)) }
+    }
+    let s = cell(100)
+    tree.markNativeGridCell(s, columns: 3)
+    let top = [s, cell(20), cell(20), cell(20)]
+    let bottom = (0..<6).map { _ in cell(20) }
+    tree.markNativeGridRow(top)
+    tree.markNativeGridRow(bottom)
+    let plan = try #require(tree.nativeGridPlan(tree.newNativeGrid(children: top + bottom)))
+    return solveNativeGrid(plan, proposal: ProposedSize(width: 300, height: nil)) { index, _ in
+        SizeD(width: index == 0 ? 100 : 20, height: 10)
+    }
+}
+
+// MARK: - 3.13 the kernel's per-column cost (GR-AB, GR-O item 10)
+
+/// `GR-AB`: SwiftUI honours a column count up to `Int32.max` at about **300
+/// bytes and 1.5 µs per column** (GX24: a two-cell row summing to 2 × 10⁷
+/// columns took 31.5 s and 5.95 GB), so both engines die by allocation
+/// somewhere between 10⁷ and 2³¹ with no message. The kernel keeps `GR-S`'s
+/// `Int32.max` traps (test 3.6) and adds no cap below them; this arm states its
+/// own shape, in **work, never wall clock**.
+///
+/// The grid is one row `[s span n (fixed 100×10), a (20×10)]` at 300 × nil, so
+/// `n + 1` columns hold two cells. **Derived by hand before the run**
+/// (`bookkeepingSteps`): 2 (the level fill) + (n + 1) (`serve`'s span sum over
+/// every column) + n (`spanWidth` inside `serve`) + 2 (the decrements) + n + n
+/// (`spanWidth` and the shortfall spread) + (n + 1) + 1 (the first group's
+/// commit sweep over every column and the one row) = **5n + 7**: 163 847 at
+/// n = 32 768 and 327 687 at n = 65 536. Per column the kernel keeps `hgap` and
+/// `columnSingleCells` in the plan, `widths`, `levelInColumn`,
+/// `unprocessedSingles` and `committedColumn` per solve and `columnX` at
+/// placement — about 50 bytes — against SwiftUI's ~300.
+///
+/// **Measurement work does not grow with the column count**: the same grid laid
+/// out through the tree is 6 leaf calls, 7 misses and 8 hits whatever n is (one
+/// grid miss; each cell at 0×0 and ∞×∞ and then at its served proposal, 6 misses
+/// and 6 calls; placement re-solves into 6 hits and places both cells at slots
+/// equal to their answers, 2 more hits).
+///
+/// Mutation: make the first group's commit sweep visit only its own cells'
+/// columns (the counter loses its `ncols` term; 5n + 7 becomes 4n + 8).
+@Test func aLargeColumnCountCostsTheKernelOnePassPerColumn() throws {
+    func grid(_ n: Int) throws -> (tree: LayoutTree, plan: NativeGridPlan, root: LayoutNodeID) {
+        let tree = LayoutTree(generation: 0)
+        let s = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 100, height: 10)) }
+        let a = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 10)) }
+        tree.markNativeGridCell(s, columns: n)
+        tree.markNativeGridRow([s, a])
+        let node = tree.newNativeGrid(children: [s, a])
+        return (tree, try #require(tree.nativeGridPlan(node)), node)
+    }
+    func solved(_ n: Int) throws -> NativeGridSolution {
+        let built = try grid(n)
+        try #require(built.plan.columnCount == n + 1, "n = \(n): \(built.plan.columnCount) columns")
+        return solveNativeGrid(built.plan, proposal: ProposedSize(width: 300, height: nil)) { index, _ in
+            SizeD(width: index == 0 ? 100 : 20, height: 10)
+        }
+    }
+    let small = try solved(32_768), large = try solved(65_536)
+    try #require(small.size == SizeD(width: 128, height: 10), "n = 32 768 answer \(small.size)")
+    try #require(large.size == SizeD(width: 128, height: 10), "n = 65 536 answer \(large.size)")
+    #expect(small.bookkeepingSteps == 163_847, "5n + 7 at n = 32 768: \(small.bookkeepingSteps)")
+    #expect(large.bookkeepingSteps == 327_687, "5n + 7 at n = 65 536: \(large.bookkeepingSteps)")
+
+    let built = try grid(65_536)
+    let answer = built.tree.computeNativeLayout(root: built.root, proposal: ProposedSize(width: 300, height: nil),
+                                                in: LayoutRect(x: 0, y: 0, width: 128, height: 10))
+    #expect(answer.size == SizeD(width: 128, height: 10), "the tree answer: \(answer.size)")
+    #expect(built.tree.lastNativeLayoutWork == NativeLayoutWork(measureCalls: 6, cacheHits: 8, cacheMisses: 7),
+            "measurement work is O(cells), not O(columns): \(built.tree.lastNativeLayoutWork)")
 }

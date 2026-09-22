@@ -152,9 +152,20 @@ private func p(_ width: Double?, _ height: Double?) -> ProposedSize { ProposedSi
 ///   a at 40.
 /// - X4 `{a 0..100 ideal 50; b 40..60 ideal 50}` at 70: b (20) at 35 → 40, a
 ///   at 30.
+/// - **T7, pinned wrong on purpose** (`GR-O` item 8; moved here from the grids
+///   track's test 2.11 by its lane 3, second critic round finding 9): when two
+///   children's answers at main ∞ are **both infinite** their flexibilities tie,
+///   and this stack serves them in declaration order. `VStack{z flexible;
+///   b height ≥ 58}` at 200×100 gives z 46 and b 58, the stack 112 tall; SwiftUI
+///   serves the one larger at main 0 first and reads z **34**, the stack 100
+///   (probe `docs/probes/swiftui-grid-stack-ties.swift`). **No grid is
+///   involved** — the grids track's GE10 and GE19 arms merely expose it — and
+///   the owner is plan task 6, the stacks task.
 ///
 /// Mutations: sort by flexibility descending (G1 a 60…); no sort (G1r's b
-/// served first at 50 → 60 is the same, but G1's a is served at 50).
+/// served first at 50 → 60 is the same, but G1's a is served at 50). T7's own:
+/// break an infinite-flexibility tie by the answer at main 0, larger first (T7
+/// then reads SwiftUI's z 34 and stack 100).
 @Test func aStackServesItsLeastFlexibleChildFirst() {
     do { // G1
         let arm = Arm()
@@ -192,6 +203,15 @@ private func p(_ width: Double?, _ height: Double?) -> ProposedSize { ProposedSi
         #expect(arm.run(root, 70, 50) == size(70, 20), "X4 size")
         #expect(arm["a"] == rect(0, 0, 30, 20), "X4 a")
         #expect(arm["b"] == rect(30, 0, 40, 20), "X4 b")
+    }
+    do { // T7: an infinite-flexibility tie, at the stack's default spacing
+        let arm = Arm()
+        let z = arm.leaf("z", minW: 0, idealW: 10, maxW: .infinity, minH: 0, idealH: 10, maxH: .infinity)
+        let b = arm.leaf("b", minW: 0, idealW: 10, maxW: .infinity, minH: 58, idealH: 10, maxH: .infinity)
+        let root = arm.name(arm.tree.newNativeLinearStack(children: [z, b], axis: .vertical, spacing: nil), "s")
+        #expect(arm.run(root, 200, 100) == size(200, 112), "T7 size (pinned wrong on purpose: SwiftUI 200×100)")
+        #expect(arm["z"] == rect(0, 0, 200, 46), "T7 z (pinned wrong on purpose: SwiftUI 34)")
+        #expect(arm["b"] == rect(0, 54, 200, 58), "T7 b")
     }
 }
 
