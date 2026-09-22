@@ -58,4 +58,18 @@ public struct GlyphImage: Sendable {
     package static let empty = GlyphImage(width: 0, height: 0, bytes: [])
 
     public var isEmpty: Bool { width == 0 || height == 0 }
+
+    /// How many fractional x-positions every rasterizer renders a glyph at.
+    /// `GlyphRaster.subpixelVariants` documents why four; it and
+    /// `FreeTypeRaster` both read this one value (ruling FT-C).
+    public static let subpixelVariants = 4
+
+    /// The horizontal offset, in device pixels, that `variant` rasterizes at.
+    package static func subpixelOffset(variant: Int) -> Double {
+        Double(variant) / Double(subpixelVariants)
+    }
+
+    /// Device pixels of empty margin on every side of the ink box, in every
+    /// rasterizer (`GlyphRaster.inkPadding` documents why; ruling FT-D).
+    package static let inkPadding = 1
 }

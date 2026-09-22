@@ -9,6 +9,8 @@ let package = Package(
         // Platform-free per-frame data (ruling PS-A), for backends outside this
         // package; first consumer: Experiments/SDLGPU/Portable.
         .library(name: "MetalUIScene", targets: ["MetalUIScene"]),
+        // FreeType glyph rasterizer (ruling FT-B), for non-Apple backends.
+        .library(name: "MetalUIFreeType", targets: ["MetalUIFreeType"]),
         .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
     ],
     targets: [
@@ -54,6 +56,28 @@ let package = Package(
         // — with no Apple framework import, so it builds on Linux and Windows
         // (ruling PS-A). Re-exported by MetalUIText and MetalUIRender (PS-B).
         .target(name: "MetalUIScene", dependencies: ["MetalUIShaderTypes"]),
+
+        // FreeType 2.14.3, vendored (ruling FT-A; Sources/CFreeType/VENDORED.md).
+        // Only the per-module amalgamation files compile; each #includes the
+        // rest of its module.
+        .target(
+            name: "CFreeType",
+            exclude: ["LICENSE.TXT", "FTL.TXT", "VENDORED.md"],
+            sources: [
+                "src/base/ftbase.c", "src/base/ftinit.c", "src/base/ftsystem.c",
+                "src/base/ftdebug.c", "src/base/ftbbox.c", "src/base/ftbitmap.c",
+                "src/base/ftmm.c",
+                "src/sfnt/sfnt.c", "src/truetype/truetype.c", "src/cff/cff.c",
+                "src/psaux/psaux.c", "src/psnames/psnames.c", "src/smooth/smooth.c",
+            ],
+            cSettings: [.define("FT2_BUILD_LIBRARY")]
+        ),
+
+        // Glyph rasterization with no Apple framework (rulings FT-B, FT-K):
+        // imports only MetalUIScene and CFreeType.
+        .target(name: "MetalUIFreeType", dependencies: ["MetalUIScene", "CFreeType"]),
+        // Fonts load from Tests/Fonts by #filePath, not as resources (FT-G).
+        .testTarget(name: "MetalUIFreeTypeTests", dependencies: ["MetalUIFreeType", "MetalUIText"]),
 
         .target(name: "MetalUIText", dependencies: ["MetalUICore", "MetalUIScene"]),
         .testTarget(name: "MetalUITextTests", dependencies: ["MetalUIText"]),

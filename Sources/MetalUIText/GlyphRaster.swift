@@ -16,7 +16,10 @@ public enum GlyphRaster {
     /// text slides. Four variants put the residual error at 1/8 of a device
     /// pixel (see ``subpixelPlacement(forDeviceX:)``), which on a 2x display is
     /// 1/16 pt, at a cost of four atlas entries per glyph rather than one.
-    public static let subpixelVariants = 4
+    ///
+    /// Defined once in `MetalUIScene` (``GlyphImage/subpixelVariants``) so the
+    /// FreeType rasterizer shares it rather than copying it (ruling FT-C).
+    public static let subpixelVariants = GlyphImage.subpixelVariants
 
     /// Splits a device-space pen position into the whole pixel to blit at and
     /// the rasterization variant that carries the remainder — §6.1's "pick
@@ -43,7 +46,7 @@ public enum GlyphRaster {
 
     /// The horizontal offset, in **device pixels**, that `variant` rasterizes at.
     static func subpixelOffset(variant: Int) -> Double {
-        Double(variant) / Double(subpixelVariants)
+        GlyphImage.subpixelOffset(variant: variant)
     }
 
     /// Device pixels of empty margin added on every side of the ink box.
@@ -58,7 +61,7 @@ public enum GlyphRaster {
     /// edge to edge: linear filtering at a sprite's boundary samples at most
     /// half a texel outside it, and this margin is already inside the slot, so
     /// a second gutter in the packer would be padding the padding.
-    static let inkPadding = 1
+    static let inkPadding = GlyphImage.inkPadding  // shared with FreeTypeRaster (FT-D)
 
     /// Rasterizes `glyph` from `font` at `scaleFactor` device pixels per point,
     /// shifted right by `subpixelVariant / subpixelVariants` of a device pixel.
