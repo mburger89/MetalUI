@@ -354,9 +354,17 @@ private func wheelEvent(at position: Point<Pixels>, deltaY: Float) -> InputEvent
 /// seeds (`0` and `-.infinity`) are dead because `StateTable.withState` always
 /// runs its closure. There was no discriminator to be red about. What the test
 /// guards is the *future*: **mutation M1f** re-inlines a private copy of
-/// `ScrollChrome.paintIndicator` into one of the two elements with a different thumb floor,
-/// which is exactly the drift the fold exists to prevent, and only this test
-/// sees it.
+/// `ScrollChrome.paintIndicator` into one of the two elements with a different
+/// thumb floor, which is exactly the drift the fold exists to prevent.
+///
+/// **Two content heights, because one of them cannot see that mutation.** The
+/// first writing used a single 200pt content behind a 100pt viewport, where the
+/// thumb is the proportional `100 × (100/200) = 50` and the 20pt floor is
+/// inactive — so a re-inlined copy with a **30**pt floor answers the same 50 and
+/// M1f left this test green while reddening 1.2 (practices shape 2, a fixture
+/// too shallow to distinguish two implementations). The 1000pt arm is where the
+/// floor bites: `100 × (100/1000) = 10`, floored to 20, against a drifted
+/// copy's 30.
 ///
 /// **The `try #require` that the two viewports agree comes first, and the
 /// fixture is built so it can pass.** Divergence 54 is a *cross-axis*
@@ -367,55 +375,68 @@ private func wheelEvent(at position: Point<Pixels>, deltaY: Float) -> InputEvent
 /// viewports are the same 120×100 rect. A hugging fixture would fail the
 /// require rather than pass it.
 ///
-/// The numbers, hand-derived: a stored 999 clamps to `200 − 100 = 100`; the
-/// thumb is `max(20, 100 × (100/200)) = 50` and the travel
-/// `(100/100) × (100 − 50) = 50`, so the rect is 3×50 at (115, 50); at age 0.2
-/// the colour is the scroll-indicator token's own 0.35.
+/// The numbers, hand-derived, for a stored 999 at age 0.2:
+///
+/// | content | clamped offset | thumb | travel | thumb rect |
+/// |---|---|---|---|---|
+/// | 200 | `200 − 100 = 100` | `max(20, 50) = 50` | `(100/100) × (100 − 50) = 50` | (115, 50) 3×50 |
+/// | 1000 | `1000 − 100 = 900` | `max(20, 10) = 20` | `(900/900) × (100 − 20) = 80` | (115, 80) 3×20 |
+///
+/// 115 is `120 − 5` on both, and the colour is the scroll-indicator token's own
+/// 0.35 (age 0.2 is inside the fully-opaque window).
 @Test @MainActor func theTwoScrollElementsShareOneChromeImplementation() throws {
-    var legacy = ScrollView(.vertical, elementID: chromeListID) {
-        Box(style: {
-            var s = Style()
-            s.size = Size(width: .length(.pixels(Pixels(120))), height: .length(.pixels(Pixels(200))))
-            return s
-        }())
+    func fixedBox(_ height: Float) -> Style {
+        var s = Style()
+        s.size = Size(width: .length(.pixels(Pixels(120))), height: .length(.pixels(Pixels(height))))
+        return s
     }
-    let legacyTable = chromeScrolledState(chromeRootID, offset: 999, lastScrollTime: 100)
-    let (legacyFrame, legacyLayout) = chromeRendered(&legacy, width: 120, height: 100,
-                                                     stateTable: legacyTable, timestamp: 100.2)
 
-    var proposal = proposalScroller(contentHeight: 200)
-    let proposalTable = chromeScrolledState(chromeRootID, offset: 999, lastScrollTime: 100)
-    let (proposalFrame, proposalLayout) = chromeRendered(&proposal, width: 120, height: 100,
-                                                         stateTable: proposalTable, timestamp: 100.2)
+    for (contentHeight, clamped, thumbY, thumbHeight) in
+        [(Float(200), 100.0, 50.0, 50.0), (Float(1000), 900.0, 80.0, 20.0)] {
+        var legacy = ScrollView(.vertical, elementID: chromeListID) {
+            Box(style: fixedBox(contentHeight))
+        }
+        let legacyTable = chromeScrolledState(chromeRootID, offset: 999, lastScrollTime: 100)
+        let (legacyFrame, legacyLayout) = chromeRendered(&legacy, width: 120, height: 100,
+                                                         stateTable: legacyTable, timestamp: 100.2)
 
-    let legacyViewport = legacyFrame.bounds(of: legacyLayout.node)
-    let proposalViewport = proposalFrame.bounds(of: proposalLayout.node)
-    try #require(legacyViewport == proposalViewport,
-                 "the two chrome implementations can only be compared over one viewport; got \(legacyViewport) and \(proposalViewport)")
-    try #require(legacyViewport.size == Size(width: Pixels(120), height: Pixels(100)),
-                 "and it must be the hand-derived 120×100, or every number below is measuring something else")
-    try #require(legacyFrame.bounds(of: legacyLayout.contentNode).size.height == Pixels(200))
-    try #require(proposalFrame.bounds(of: proposalLayout.contentNode).size.height == Pixels(200))
+        var proposal = proposalScroller(contentHeight: contentHeight)
+        let proposalTable = chromeScrolledState(chromeRootID, offset: 999, lastScrollTime: 100)
+        let (proposalFrame, proposalLayout) = chromeRendered(&proposal, width: 120, height: 100,
+                                                             stateTable: proposalTable, timestamp: 100.2)
 
-    // The clamp, through each element's own prepaint write-back.
-    #expect(legacyTable.peek(chromeRootID, as: ScrollState.self)?.offset == 100)
-    #expect(proposalTable.peek(chromeRootID, as: ScrollState.self)?.offset == 100,
-            "both elements must clamp a stored 999 to the same 100 and write it back")
+        let legacyViewport = legacyFrame.bounds(of: legacyLayout.node)
+        let proposalViewport = proposalFrame.bounds(of: proposalLayout.node)
+        try #require(legacyViewport == proposalViewport,
+                     "the two chrome implementations can only be compared over one viewport; got \(legacyViewport) and \(proposalViewport)")
+        try #require(legacyViewport.size == Size(width: Pixels(120), height: Pixels(100)),
+                     "and it must be the hand-derived 120×100, or every number below is measuring something else")
+        try #require(legacyFrame.bounds(of: legacyLayout.contentNode).size.height == Pixels(contentHeight))
+        try #require(proposalFrame.bounds(of: proposalLayout.contentNode).size.height == Pixels(contentHeight))
 
-    let legacyThumb = try #require(legacyFrame.finalizedScene().rects.last)
-    let proposalThumb = try #require(proposalFrame.finalizedScene().rects.last)
-    #expect(Double(legacyThumb.bounds.origin.x) == 115 && Double(legacyThumb.bounds.origin.y) == 50,
-            "hand-derived: 120 - 5 across, and a travel of (100/100) × (100 - 50) along")
-    #expect(Double(legacyThumb.bounds.size.width) == 3 && Double(legacyThumb.bounds.size.height) == 50)
-    #expect(Double(proposalThumb.bounds.origin.x) == Double(legacyThumb.bounds.origin.x)
-            && Double(proposalThumb.bounds.origin.y) == Double(legacyThumb.bounds.origin.y),
-            "one implementation, so the two thumbs must sit at the same point")
-    #expect(Double(proposalThumb.bounds.size.width) == Double(legacyThumb.bounds.size.width)
-            && Double(proposalThumb.bounds.size.height) == Double(legacyThumb.bounds.size.height),
-            "and be the same size — a re-inlined copy with a different thumb floor shows up here")
-    #expect(proposalThumb.background.a == legacyThumb.background.a
-            && proposalThumb.background.l == legacyThumb.background.l,
-            "and carry the same colour off the same ramp")
-    #expect(abs(Double(legacyThumb.background.a) - 0.35) < 0.001,
-            "age 0.2 is inside the fully-opaque window, so the token's own 0.35 — not some other alpha both sides happen to share")
+        // The clamp, through each element's own prepaint write-back.
+        #expect(legacyTable.peek(chromeRootID, as: ScrollState.self)?.offset == clamped)
+        #expect(proposalTable.peek(chromeRootID, as: ScrollState.self)?.offset == clamped,
+                "both elements must clamp a stored 999 to the same \(clamped) and write it back")
+
+        let legacyThumb = try #require(legacyFrame.finalizedScene().rects.last)
+        let proposalThumb = try #require(proposalFrame.finalizedScene().rects.last)
+        #expect(Double(legacyThumb.bounds.origin.x) == 115
+                && Double(legacyThumb.bounds.origin.y) == thumbY,
+                "hand-derived: 120 - 5 across, and a travel of \(thumbY) along")
+        #expect(Double(legacyThumb.bounds.size.width) == 3
+                && Double(legacyThumb.bounds.size.height) == thumbHeight,
+                "and a \(thumbHeight)pt thumb — the 1000pt arm is the one where the 20pt floor decides it")
+        #expect(Double(proposalThumb.bounds.origin.x) == Double(legacyThumb.bounds.origin.x)
+                && Double(proposalThumb.bounds.origin.y) == Double(legacyThumb.bounds.origin.y),
+                "one implementation, so the two thumbs must sit at the same point")
+        #expect(Double(proposalThumb.bounds.size.width) == Double(legacyThumb.bounds.size.width)
+                && Double(proposalThumb.bounds.size.height) == Double(legacyThumb.bounds.size.height),
+                "and be the same size — a re-inlined copy with a different thumb floor shows up here")
+        #expect(proposalThumb.background.a == legacyThumb.background.a
+                && proposalThumb.background.l == legacyThumb.background.l,
+                "and carry the same colour off the same ramp")
+        #expect(abs(Double(legacyThumb.background.a) - 0.35) < 0.001,
+                "age 0.2 is inside the fully-opaque window, so the token's own 0.35 — not some other alpha both sides happen to share")
+    }
 }
