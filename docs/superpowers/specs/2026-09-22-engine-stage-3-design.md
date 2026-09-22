@@ -1,8 +1,8 @@
 # Engine replacement, stage 3 — scrolling and `Component` distribution (design)
 
-**Status, 2026-09-22 (PDT): lanes 1, 2 and 3 IMPLEMENTED** (record §7, §8, §9);
-lanes 4–5 designed. The design-phase status below describes the state before
-lane 1.
+**Status, 2026-09-22 (PDT): lanes 1, 2, 3 and 4 IMPLEMENTED** (record §7, §8,
+§9, §10); lane 5 designed. The design-phase status below describes the state
+before lane 1.
 
 **Status, 2026-09-22 (PDT): DESIGNED. No file under `Sources/` or `Tests/`
 changed in a commit; every source patch cited as *prototype P4* was applied in
@@ -12,7 +12,7 @@ re-measured green at the baseline.** Branch `feat/engine-stage-3` from
 `57893d0`. Plan task 7, stage 3 of the fourteen in
 [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 (its row 3), §4.2 (its dependency census) and §8 (its stage-3 row).
-Rulings `LR-BB`…`LR-BJ`, critic round 1 `LR-BK`, lane 1 `LR-BL`, lane 2 `LR-BM`, lane 3 `LR-BN`, in
+Rulings `LR-BB`…`LR-BJ`, critic round 1 `LR-BK`, lane 1 `LR-BL`, lane 2 `LR-BM`, lane 3 `LR-BN`, lane 4 `LR-BO`, in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
 — the same decisions doc as stages 1 and 2. Record:
 `docs/record/24-engine-replacement-stage-3.md`. Probe:
@@ -347,6 +347,15 @@ exists to keep out. Named deferral: whoever unifies the two scroll types (stage
   `lowerLegacyLayer`'s single-node arm does. (`.wrap` already did, through
   `lowerLegacyNode` — which is why arm C3 agrees and the hole survived P4: none
   of C1–C7 has a member with an item field.)
+- **Corrected in lane 4 (`LR-BO` item 1): "the frame lowers with the field
+  applied" is wrong for `flexGrow` and `margin`.** Planning at
+  `parentKind: .stack` — which is what "exactly as `lowerLegacyLayer`'s
+  single-node arm does" means — makes a stack parent IGNORE a child's
+  `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf` and `margin` (`LR-AZ`,
+  `MC-Q` finding 7). The parent kind stays `.stack` and those fields are
+  consumed and **dropped**: a rect disagreement the harness prints, never a
+  report and never a 6b trap. A `minSize` on an `auto` axis IS planned, into
+  the item frame W, and that is the only arm mutation M4g can redden.
 - `.wrap` (a `.padding`) lowers through `lowerLegacyNode(style, declared: style,
   children: [current], site: .component)` — the padding wrapper is an ordinary
   one-child legacy container. Prototype arm C3 agrees.
@@ -420,6 +429,9 @@ the same shape.
 | `.frame(…)` over **one** member node | unchanged (`lowerLegacyLayer`'s frame arm, `LR-H`) | |
 | `.frame(…)` over **several** member nodes | a row of per-member frames | `LR-BH`; divergence 56's SwiftUI answer |
 | a non-size amend | **not expressible** | the op's payload becomes `Size<Dimension>` |
+| a member's `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`, `margin` | consumed and **dropped** | `LR-BO` item 1; a stack/frame parent ignores them (`LR-AZ`) |
+| a member's `minSize` on an `auto` axis | the item frame W's minimum | `LR-BO` item 4 |
+| anything at all | **nothing reports at site `component` any more** | `LR-BO` item 2: the amend's record is `.frameLayer` (skipped) and both ops plan exactly one child, so neither can raise `flexGrow.weights` |
 
 ## 5. API and files
 
@@ -546,7 +558,7 @@ deviation from the prediction is a finding, not a rounding.
 | 1 | 1.1, 1.2, 1.4 — 3 (1.3 and the exit-test trap arm are arms of existing tests) | **1553** ✓ measured |
 | 2 | 2.1, 2.2, 2.2a, 2.3, 2.4, 2.5, 2.6, 2.7 — 8 (A2b is an arm of 2.1) | **1561** ✓ measured |
 | 3 | 3.4, 3.5 — 2 (3.1–3.3 parameterise in place) | **1563** ✓ measured |
-| 4 | 4.1–4.6 — 6 | **1569** |
+| 4 | 4.1–4.6 — 6 (C3a and the `minWidth` arm are arms, not tests) | **1569** ✓ measured |
 | 5 | 5.1, 5.1a, 5.2 — 3 (5.3 amends, 5.4 re-runs) | **1572** |
 
 ### Lane 1 — the shared scroll chrome (`LR-BD`)
@@ -680,17 +692,24 @@ Files: `Component.swift`, `LegacyLowering.swift`; tests
 | # | test | red before | mutation |
 |---|---|---|---|
 | 4.1 | **divergence pin** `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt` — C1 and C2: legacy members 70 wide at x 0/70, lowered 30 and 50 at x **20**/**80**; probe W1/G7 named as SwiftUI's answer | `component.amend` | **M4a** the frame registered around the whole group rather than per member |
-| 4.2 | `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer` — C3 agrees (4 ids) | `component.wrap` | **M4b** the wrap registered as a bare padding without `lowerLegacyNode` (the members' own item fields stop being consumed) |
+| 4.2 | `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer` — C3 agrees (4 ids), plus **C3a** (added in lane 4, `LR-BO` item 4): a member declaring a `margin`, both sides (12, 12, 30, 10) | `component.wrap` | **M4b** the wrap registered as a bare padding without `lowerLegacyNode`. **Over C3 alone it reddens NOTHING** — fixed leaves make `planLegacyItems`, `arrangeLegacyMainAxis` and `paddedAndSized` no-ops, `LR-BM`'s M2b finding again. C3a moves to (8, 8) and reports `box.margin.unconsumed` |
 | 4.3 | **divergence pin** `aComponentAmendsFrameIsCentredOnlyOnTheAxisItDeclares` — C7 (`height(20)`: lowered 30×10 at y **5**) and C1's y **0**; the control is the same tree with both axes declared. This is §2.3's correction, pinned | reported | **M4c** the alignment `.center` unconditionally (C1's members move to y 15 — the exact value the prototype read) |
 | 4.4 | `theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities` — C4 and C5: legacy x 4/74 and 4/82, lowered **20**/**80** and **24**/**92**, the lowered pair matching probe G13/G14's 20 and 24 | reported | **M4d** `ops` applied in reverse |
 | 4.5 | `chainedComponentAmendsComposeTheSameWayUnderBothAuthorities` — the payload change is internal, so it is pinned by behaviour, not by a guard: `.width(p).height(q)` is two ops and lowers to two nested frames; `.width(p).width(q)` leaves the later one standing (`OM-E`); both read the same outer size under both authorities, with the member rects literal | characterization | **M4e** the two amends collapsed into one frame (the `.width(p).width(q)` arm keeps the earlier value) |
-| 4.6 | `anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned` — two arms whose **member** declares an item field: `.flexGrow(1)` and a `margin`. The amend must consume and plan the member's record, so the frame lowers with the field applied and **nothing reports**. Without it the record is left unconsumed and `component.flexGrow.unconsumed` / `component.margin.unconsumed` appear — a **trap** in a production frame at 6b, not a divergence (critic round 1 finding 8, `LR-BG`) | reported (`component.amend`) | **M4f** the member's record not consumed (the `…unconsumed` entries appear); **M4g** consumed but not planned (the field is silently dropped: the member's rect stops moving) |
+| 4.6 | `anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned` — **three** arms whose **member** declares an item field: `.flexGrow(1)`, a `margin` and (added in lane 4, `LR-BO` item 4) `minWidth(40)` on an `auto` width. The amend must consume and plan the member's record so **nothing reports**. Without it the record is left unconsumed and the `…unconsumed` entries appear — a **trap** in a production frame at 6b, not a divergence (critic round 1 finding 8, `LR-BG`) — **at the MEMBER's site, `box`, not `component`** (`LR-BO` item 3) | reported (`component.amend`) | **M4f** the member's record not consumed (`box.flexGrow.unconsumed`, `box.margin.unconsumed`, `box.minSize.unconsumed` appear); **M4g** consumed but not planned — only the `minWidth` arm can see it (40 wide at x 15 → 0 wide at x 35); the other two are dropped either way |
 
 **Amended pins**: `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority`
 — the component-amend half no longer traps; it becomes an agreement arm and the
-test keeps its `List` half and its name (the name names both);
+test keeps its `List` half and its name (the name names both). It stays a
+**child process** and now requires `EXIT_SUCCESS` with an empty stderr over a
+**production** proposal frame carrying both ops in both orders, because a
+production frame traps rather than reports and an in-process regression would
+end the run with no summary line.
 `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s `Component amend` and
-`Component wrap` arms; `aComponentsWidthStillOverwritesItsMembersDeclaredWidth`
+`Component wrap` arms **invert to assert the absence of an entry** (`LR-BO`
+item 2: `component` has no reachable report left, and the site survives for
+`owningStage`'s trap message alone); its arm count stays 10.
+`aComponentsWidthStillOverwritesItsMembersDeclaredWidth`
 (divergence 48) keeps its name and its wrong-on-purpose legacy assertion and
 gains a sentence naming 4.1 as the proposal-authority answer.
 
@@ -838,3 +857,5 @@ Each row names how the stage checks it rather than asserting it.
 | committing the `CN-R` twelve-image harness | lane 1 had to rebuild it from record §18's prose, its own copy having been lost with a session scratchpad; the rebuild is only checkable against §8's five controls plus record §24 §7.6's two distinct-value counts (`LR-BL` item 6) | stage 6b |
 | the single-child stretch elision inside a `ScrollView` (A6's 40 → 16) | stage 2's `LR-AC`, unchanged here | stage 6b (the root and demo respelling) |
 | `Style.overflow`'s inert write in `ScrollView.requestLayout` | it documents intent under the legacy authority and is not carried by the lowering | stage 10, with `Style`'s CSS fields |
+| **an amend frame APPLYING its member's `flexGrow`/`margin` instead of dropping them** (`parentKind: .flex(isRow:)`, with `isRow` read off the patch) | lane 4 kept `.stack`, which is every other frame's parent kind, so those fields are consumed and dropped (`LR-BO` item 1). Applying them needs a non-arbitrary main axis for a one-child frame and a probe SwiftUI cannot supply — it has no `flexGrow` | stage 6b, which owns what production trips over |
+| **site `component` having no reachable report** | both ops lower and neither can raise an entry at its own site (`LR-BO` item 2); the case stays for `owningStage`'s trap message | whoever first needs a component-level diagnostic |

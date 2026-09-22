@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-BO`** (stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM` and its lane 3 `LR-BN`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-BP`** (stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN` and its lane 4 `LR-BO`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -3529,3 +3529,102 @@ the 34 legacy arms would have said so on the first run; they did not. The
 genuine exposure is item 5's last paragraph: a future regression of the
 `…unconsumed` shape costs a run with no summary line before anyone sees the
 field's name.
+
+## LR-BO — stage 3 lane 4's corrections: a frame parent drops what a flex parent carries, `component` loses its last reachable report, and two fixtures that could not see their own subject
+
+Lane 4 implemented `LR-BG` as written; the amend frames each member, the wrap
+lowers through `lowerLegacyNode`, and **all seven of the design's prototype arms
+(C1, C2, C3, C4, C5, C7 and C1's y) reproduced on the first run**, literal for
+literal. Four things the design said were wrong or unreachable, and one mutation
+reddened nothing.
+
+**1. "The frame lowers with the field applied" is wrong for `flexGrow` and
+`margin`; they are consumed and DROPPED.** `LR-BG`'s amendment says
+`loweredComponentFrame` plans the member "exactly as `lowerLegacyLayer`'s
+single-node arm does", which is `parentKind: .stack` — and a stack or
+frame-layer parent ignores a child's `flexGrow`, `flexShrink`, `flexBasis`,
+`alignSelf` and `margin` outright (`LR-AZ`, `MC-Q` finding 7). The two claims
+cannot both hold. **The parent kind stays `.stack`**: a frame has one child and
+no axis, so there is no non-arbitrary `isRow` for it, and every other frame in
+the lowering already behaves this way. What planning buys is the rest:
+a `minSize` on an `auto` axis becomes the item frame W's minimum, a `maxSize`
+off a greedy axis reports at the member's site, and — the whole point of the
+amendment — the record is **consumed**, so nothing reaches
+`reportUnconsumedLoweredItems` and nothing traps at 6b.
+
+So `MyComponent().width(70)` over a member declaring `.flexGrow(1)` lays out
+differently under the two authorities: the legacy member grows to the enclosing
+row's 300, the lowered member stays 30 inside its own 70pt frame. That is a rect
+disagreement the differential harness prints, not a silent one and not a crash,
+and it is the same shape of loss `.frame(…)` over one member has had since
+`LR-H`. Making it **report** instead was considered and rejected for the reason
+critic round 1 finding 8 gave: a report is a trap in a production frame, and
+turning a working legacy tree into an abort is worse than laying it out
+differently. Applying the fields instead — `parentKind: .flex(isRow:)`, with
+`isRow` guessed from the patch — is **deferred to stage 6b**, which owns what
+production trips over; it needs a probe of its own, because SwiftUI has no
+`flexGrow` to be measured against.
+
+**2. `component` has no reachable report left, and the site survives for its
+trap message alone.** `component.amend` and `component.wrap` were its only two
+entries. After lane 4 neither op can raise anything at its own site: an amend
+records its frame with `kind: .frameLayer`, which `reportUnconsumedLoweredItems`
+skips by construction, and **both** ops plan exactly one child, so neither can
+raise `flexGrow.weights` — the one entry `parentSite:` names (`LR-BM`). Nothing
+else in `legacyContainerDiagnostics` or `legacyLeafDiagnostics` can fire on
+`paddingWrapperStyle`, whose every field is a default but a pixel `padding`.
+
+This is the shape critic round 1 finding 9 caught for `scrollView`, with the
+opposite outcome: `scrollView` had a route (`flexGrow.weights`, two scroller
+children) and `component` has none. The case stays in `LoweringSite` so that
+`UnlowerableField.owningStage` gives the right stage number to whatever field a
+later stage puts there, and
+`everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s two `Component` arms
+**invert**: they now assert the absence of an entry, which is what would notice
+a regression that made either op report again. The amend arm stays a child
+process, because in-process a regression that removes the branch entirely
+reaches `SA-G`'s `setStyle` precondition and ends the run with no summary line.
+
+**3. The `…unconsumed` entries the design predicted carry the MEMBER's site,
+not `component`'s.** The design's 4.6 row says mutation M4f produces
+`component.flexGrow.unconsumed` / `component.margin.unconsumed`.
+`reportUnconsumedLoweredItems` reports at `item.site` — the record's own — and
+the record belongs to the member. Measured under M4f: `[box.flexGrow.unconsumed]`,
+`[box.margin.unconsumed]`, `[box.minSize.unconsumed]`. The test asserts
+emptiness, which is site-agnostic and was unaffected.
+
+**4. Two fixtures could not see their own subject.**
+
+- **Test 4.6 needed a third arm.** With `parentKind: .stack`, neither of the
+  design's two arms (`flexGrow`, `margin`) is planned at all, so **M4g** —
+  "consumed but not planned" — could not redden either. A third arm whose member
+  declares `minWidth(40)` on an **`auto`** width is the discriminating one: only
+  the parent's plan can apply it, and M4g drops the member from 40 wide at x 15
+  to 0 wide at x 35. A declared width would not do: `paddedAndSized` folds
+  `max(min, min(size, max))` into the member's own frame, so the minimum would
+  be applied whether or not anything planned.
+- **Test 4.2 needed arm C3a, because M4b left all 1569 tests green.** C3's
+  members are fixed 30×10 leaves declaring no item field, so over them
+  `planLegacyItems`, `arrangeLegacyMainAxis` and `paddedAndSized` are no-ops and
+  a bare `requestNativePadding` produces byte-identical geometry. This is
+  `LR-BM`'s M2b finding again, in the same shape and for the same reason, one
+  lane later. C3a's member declares a `margin`, which only the container
+  lowering carries (the legacy wrapper's content box is the member's **margin**
+  box): both authorities read (12, 12, 30, 10), and M4b moves the lowered side
+  to (8, 8) and reports `box.margin.unconsumed`.
+
+**5. `swift package clean` was not needed, and that is a measurement.** Critic
+round 1 finding 12 asked for it either way. `ComponentModifierOp.amend`'s
+payload changed from a 2-word closure to a `Size<Dimension>`, and the enum is
+the element type of `ops` on the **public** generic `StyledComponent`. The
+incremental build over that change was correct — 1569 tests, all passing — and
+a `swift package clean` plus full rebuild read the same 1569. The reasoning
+("an `Array` is one word either way") held; it was still checked rather than
+asserted.
+
+**What it costs if any of this is wrong.** Item 1 is the load-bearing one: if
+dropping `flexGrow` and `margin` at an amend frame turns out to matter, stage 6b
+finds it as a demo pixel or a rect disagreement, not as a crash, and the fix is
+one argument. Item 2 costs a site that reports nothing; the risk is that a later
+stage adds a `component` field and forgets that the two arms assert absence —
+which is why both arms carry the reason at the arm.

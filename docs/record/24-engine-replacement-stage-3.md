@@ -914,3 +914,186 @@ anyway.
 | a real-window capture | the screen has been locked at the end of all three lanes | whoever runs a lane with an unlocked screen |
 | turning an `…unconsumed` trap back into a named failure in a scroll fixture | §9.6 finding 2: the pre-flight `WindowPair` uses would double-record every shared `Seen` box | stage 6b, which switches the root and owns what production traps on |
 | `List` windowing under the proposal authority | it traps through a `Window` and builds zero rows under diagnostics | stage 4 |
+
+## 10. Lane 4 — `Component` amend and wrap (`LR-BG`; corrections in `LR-BO`)
+
+Commits: `7f07b2a` (tests, red), `801bb36` (the lowering), `9e217ee` (arm C3a,
+after M4b), and this one (docs). Branch `feat/engine-stage-3`, on top of lane
+3's `116bab6`.
+
+### 10.1 Red first
+
+Six tests written against stage-2 API, run before any `Sources/` change:
+
+```
+Test run with 6 tests in 0 suites failed after 0.043 seconds with 34 issues.
+  aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt            5 issues
+  aComponentsPaddingLowersAsAnOrdinaryOneChildContainer                      4 issues
+  aComponentAmendsFrameIsCentredOnlyOnTheAxisItDeclares                      6 issues
+  theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities 6 issues
+  chainedComponentAmendsComposeTheSameWayUnderBothAuthorities                7 issues
+  anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned                   6 issues
+```
+
+Every issue is one of two shapes: `…unlowerable.isEmpty → false` with
+`[component.amend]` or `[component.wrap]`, or `r.loweredBounds[id] == lowered`
+against whatever the reported 0×0 leaf left behind. **No `legacy:` assertion
+failed in any of the six** — the legacy half of every divergence pin was green
+before the lowering existed, which is what makes each a pin rather than a guess.
+
+**One fixture defect the red run found**, before it could have mattered: 4.6's
+three arms were one component with a builder `switch` over an enum, and every id
+read `nil`. A builder `switch` is an `EitherGroup`, and its branch does not take
+the component's slot 0. Three structs instead.
+
+### 10.2 What the lowering is
+
+- `ComponentModifierOp.amend` carries a `Size<Dimension>`, not a
+  `@Sendable (inout Style) -> Void`. `Component.width`/`.height` and
+  `StyledComponent`'s three build it through two file-private helpers.
+- **Legacy branch unchanged in effect**: it writes the axes the patch declares
+  and leaves an `.auto` axis alone — "not named", not "reset" — so
+  `.width(p).height(q)` does not undo itself. That guard is new; the old closure
+  could not have this bug because each closure wrote one field.
+- **Lowered branch**: `LayoutPass.loweredComponentFrame(_:_:)` consumes the
+  member's `LoweredItem`, plans it (`planLegacyItems`, `parentKind: .stack`,
+  `parentSite: .component`), registers the planned wrappers and one
+  `requestNativeFrame` with the patch's declared axes, and records the frame
+  with `kind: .frameLayer`. `componentFrameAlignment` is the per-axis rule;
+  `componentFrameStyle` is the declared style it plans against — a
+  `display: .stack` whose `justifyItems`/`alignItems` are non-stretching on
+  every axis, so the frame aligns and never stretches.
+- **`.wrap`** lowers through `lowerLegacyNode(style, declared: style,
+  children: [current], site: .component)`.
+
+### 10.3 The prototype's arms, re-measured
+
+**All seven reproduced on the first run, literal for literal**, with the
+lowered rects as the design predicted them. The table is the design's §2.3 with
+the lane's own numbers in it:
+
+| arm | shape | legacy | lowered |
+|---|---|---|---|
+| C1 | `Pair().width(70)` | (0, 0, 70, 10), (70, 0, 70, 10) | (**20**, 0, 30, 10), (**80**, 0, 50, 10) |
+| C2 | `Solo().width(70)` | (0, 0, 70, 10) | (**20**, 0, 30, 10) |
+| C3 | `Pair().padding(8)` | (8, 8, 30, 10), (54, 8, 50, 10) | **identical** — agrees in every observation |
+| C3a | `MarginSolo().padding(8)`, the member declaring `margin(4)` | (12, 12, 30, 10) | **identical** |
+| C4 | `.padding(4).width(70)` | (4, 4, 30, 10), (74, 4, 50, 10) | (**20**, 4, 30, 10), (**80**, 4, 50, 10) |
+| C5 | `.width(70).padding(4)` | (4, 4, 70, 10), (82, 4, 70, 10) | (**24**, 4, 30, 10), (**92**, 4, 50, 10) |
+| C7 | `Pair().height(20)` | (0, 0, 30, **20**), (30, 0, 50, **20**) | (0, **5**, 30, 10), (30, **5**, 50, 10) |
+| control | `.width(70).height(20)` | (0, 0, 70, 20), (70, 0, 70, 20) | (**20**, **5**, 30, 10), (**80**, **5**, 50, 10) |
+
+Two arms the design did not have:
+
+- `.width(70).width(90)` — legacy 90 wide at x 0 and 90 (`OM-E`, the later
+  assignment wins); lowered two nested frames, members 30 and 50 at x **30** and
+  **110**. **Both read the same outer 180**, measured through a 5×5 sibling
+  written after the component, whose x is the only way to see an outer size the
+  amend frames never report as elements.
+- the `minWidth(40)` arm of 4.6 — legacy (0, 0, 70, 10), lowered (**15**, 0,
+  **40**, 10): the member's `auto` width with a 40pt minimum, planned into the
+  item frame W and centred in its own 70pt frame.
+
+### 10.4 Four corrections and one dead mutation (`LR-BO`)
+
+1. **`flexGrow` and `margin` on a member are consumed and DROPPED**, not
+   "applied": `parentKind: .stack` is what "exactly as `lowerLegacyLayer`'s
+   single-node arm does" means, and a stack parent ignores them (`LR-AZ`). Kept
+   as `.stack`; the alternative is deferred to 6b with its reason.
+2. **Site `component` has no reachable report left.** Both ops lower; an
+   amend's record is `.frameLayer` (skipped by the unconsumed report) and both
+   ops plan exactly one child, so neither can raise `flexGrow.weights`. The two
+   `Component` arms of `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
+   invert to assert absence.
+3. **M4f's `…unconsumed` entries name the MEMBER's site.** Measured:
+   `[box.flexGrow.unconsumed]`, `[box.margin.unconsumed]`,
+   `[box.minSize.unconsumed]` — not `component.*` as the design's 4.6 row said.
+4. **Two fixtures could not see their subject** — 4.6 needed the `minWidth` arm
+   for M4g, and 4.2 needed C3a for M4b (§10.5).
+
+### 10.5 Mutations
+
+Protocol: commit first, `cp` both source files aside, apply, native build, full
+unfiltered `swift test --build-system native --no-parallel`, restore from the
+copy, `git status --short` empty. Every run read `Test run with 1569 tests`.
+
+| mutation | what it changes | tests it reddens (issues) |
+|---|---|---|
+| **M4a** | one frame around the whole group rather than one per member | all six lane-4 tests (19) |
+| **M4b** | the wrap a bare `requestNativePadding`, not `lowerLegacyNode` | **over C3 alone: NOTHING, 1569 green.** With C3a: `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer` (3) |
+| **M4c** | `componentFrameAlignment` returns `.center` unconditionally | 4.1, 4.3, 4.4, 4.5, 4.6 (12) |
+| **M4d** | `ops` applied in reverse | `aModifierOnAComponentAppliesInTheOrderItIsWritten`, `everyRegisteringSiteAnimatesItsStyle`, 4.4, 4.5 (20) |
+| **M4e** | every amend collapsed into one patch, the earlier axis winning | `chainedComponentAmendsComposeTheSameWayUnderBothAuthorities` (6) |
+| **M4f** | the member's record read, not consumed | `anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned` (3) |
+| **M4g** | consumed, never planned | `anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned` (**1** — the `minWidth` arm alone) |
+| **M4a′** | the amend's lowered branch put back to `noteUnlowerable` | `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`, and all six lane-4 tests (33) |
+
+**M4b is the lane's one dead mutation, and its death is the finding.** Over C3
+the two spellings are byte-identical, because fixed 30×10 leaves declare no item
+field and make `planLegacyItems`, `arrangeLegacyMainAxis` and `paddedAndSized`
+no-ops. This is exactly `LR-BM`'s M2b, one lane later, in the same shape — which
+says the lesson from lane 2 did not transfer to lane 4's fixture design, and
+that a "the lowering is the container lowering" claim needs a fixture whose
+child gives the container something to do. C3a's member declares a `margin`, and
+the legacy wrapper's content box is that member's **margin** box.
+
+**M4g reddening exactly one issue is the third arm earning its place.** With
+only the design's `flexGrow` and `margin` arms it reddens nothing at all.
+
+### 10.6 Suite, goldens, guards, clean
+
+| measure | value |
+|---|---|
+| suite | **1569 tests**, passed after 52.478 s — the design's predicted total, to the test |
+| `error:` / `warning:` | 0 / only SwiftPM's `--build-system native` deprecation notice |
+| goldens | `git diff --name-only 57893d0 HEAD -- 'Tests/**/*.json'` **empty**; `find Tests -name "*.json" \| wc -l` = **97** |
+| typecheck guards | **77** (78 `canTypecheck` hits minus `UnitSafetyTests`' comment), per-file counts unchanged from the baseline; the lane adds none |
+| `swift package clean` | **a measurement, not an assertion** (critic round 1 finding 12): the incremental build over `ComponentModifierOp.amend`'s payload change was already correct at 1569, and a `swift package clean` + full rebuild + unfiltered run read **the same 1569**. The reasoning ("an `Array` is one word either way") held and was still checked |
+
+### 10.7 Pixels (`CN-R`)
+
+The lane-3 harness was still in this session's scratchpad and was reused rather
+than rebuilt, and it was re-validated before being believed: on the archive of
+`57893d0` it reproduces **all eight** control figures (light vs dark 1 048 576,
+default vs modal 1 030 498, default vs animation 210 027, f0 vs f3 0, preview
+light vs dark 1 048 576, distinct `default-light-f0` 544, distinct
+`chrome-legacy` 216, `chrome-legacy` vs `chrome-proposal` 0), and the same eight
+at this lane's HEAD.
+
+**Twelve of twelve read 0 differing pixels against `57893d0`, every scene dump
+byte-identical**: `animation-{light,dark}`, `chrome-{legacy,proposal}`,
+`default-{light,dark}-{f0,f3}`, `modal-{light,dark}`, `preview-{light,dark}`.
+
+Expected, and the reason is worth writing down rather than assuming: production
+runs the legacy authority, the legacy amend and wrap are byte-for-byte what they
+were, and the demo's one `Component` (`PreviewToggle`) carries no modifier at
+all — so no `ComponentModifierOp` is constructed anywhere in the twelve images.
+
+### 10.8 Screen lock and captures
+
+`xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&
+/tmp/lockstate` at the end of the lane: **`session CGSSessionScreenIsLocked =
+1`**, `CGSSessionScreenLockedTime = 1790087900`, `displayAsleep main: 1`,
+`displayActive main: 0`. Locked, as at the end of lanes 1, 2 and 3, so **no
+real-window capture was taken**. `IOConsoleLocked` was not read (`FR-V`).
+
+### 10.9 Probes
+
+Both probes this lane rests on were **re-run today** and every recorded line
+reproduced verbatim against the header:
+`swiftui-engine-replacement-stage3.swift` (18 lines, arms W1/W2/W4/W5/W7–W9) and
+`swiftui-component-distribution.swift` (25 lines, arms G7/G8/G13/G14). No new
+probe was needed: lane 4 asks no question of SwiftUI that those two do not
+already answer, and `LR-BG`'s one unanswerable question — how a frame aligns on
+an axis with no free space — is grounded on the legacy agreement instead.
+
+### 10.10 Deferred out of lane 4
+
+| item | why | owner |
+|---|---|---|
+| an amend frame applying a member's `flexGrow`/`margin` rather than dropping them | needs a non-arbitrary main axis for a one-child frame, and SwiftUI has no `flexGrow` to probe | stage 6b |
+| a reachable diagnostic at site `component` | nothing can raise one after this lane, and adding a check would be a 6b trap rather than a divergence | whoever first needs one |
+| divergence 48's retirement | answered here under the proposal authority, still wrong on purpose under the legacy one | stage 6b |
+| framed members staying one flex item | `TB-M`'s associated type | stage 11 |
+| committing the `CN-R` harness | still uncommitted; it survived from lane 3 only because this lane ran in the same session | stage 6b |
+| a real-window capture | the screen has been locked at the end of all four lanes | whoever runs a lane with an unlocked screen |
