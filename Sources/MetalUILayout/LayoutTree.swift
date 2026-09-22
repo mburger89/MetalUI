@@ -916,14 +916,22 @@ public final class LayoutTree {
                                        width: measurement.size.width, height: measurement.size.height),
                         proposal: childProposal, run: run)
         case .padding(let insets):
+            // `SA-N` item 4 (ruling `LR-AU`; stage-2 probe revision 4, group N):
+            // SwiftUI places a padded child at the padding's origin plus the
+            // leading and top insets, at the CHILD's own answer — never at the
+            // padding's rect minus its insets. The two rules agree whenever the
+            // padding's rect is its own answer and nothing clamps (N2); they part
+            // when the response clamps (N1: a −15 pad answers 0×0 and the child
+            // is still 20×20, not 30×30) or when a caller places the padding in
+            // bounds of its own choosing.
             let childProposal = paddingProposal(proposal, insets: insets)
             let child = children(id)[0]
-            _ = measureNative(child, proposal: childProposal, run: run)
+            let measurement = measureNative(child, proposal: childProposal, run: run)
             placeNative(child,
                         in: LayoutRect(x: bounds.x + insets.left,
                                        y: bounds.y + insets.top,
-                                       width: Swift.max(0, bounds.width - insets.left - insets.right),
-                                       height: Swift.max(0, bounds.height - insets.top - insets.bottom)),
+                                       width: measurement.size.width,
+                                       height: measurement.size.height),
                         proposal: childProposal, run: run)
         case .fixedSize(let horizontal, let vertical):
             let childProposal = fixedSizeProposal(proposal, horizontal: horizontal,

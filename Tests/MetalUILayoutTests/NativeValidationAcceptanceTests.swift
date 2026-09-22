@@ -54,11 +54,15 @@ import MetalUILayout
 /// at bounds (40, 50) with its own clamped answer as the size, so the −15 child
 /// lands at (25, 35) and the leading −30 child at x 10.
 ///
-/// **The child's stored WIDTH is pinned wrong on purpose.** The kernel stores a
-/// padded child at the padding's bounds minus its insets: 0 + 15 + 15 = 30 for
-/// −15 on 20, where SwiftUI keeps the child at its own 20 (P2b). That is ruling
-/// SA-N item 4, plan task 5's; when task 5 fixes it, this arm reddens
-/// deliberately and must be re-derived, not deleted.
+/// **The child's stored SIZE is SwiftUI's own 20×20** (P2b, re-run 2026-09-17:
+/// the −15 arm's `placed inner at (185.0, 185.0, 20.0, 20.0)`). Until stage 2's
+/// lane 3 the kernel stored a padded child at the padding's bounds minus its
+/// insets — 0 + 15 + 15 = 30 here — and this arm was pinned wrong on purpose as
+/// `SA-N` item 4; `LR-AU` moved item 4 into that lane and re-derived this
+/// precondition. The measurement arms above are untouched by that change: only
+/// a padding whose rect is not its child's size plus the insets (a clamped
+/// response, or a caller's larger bounds) can see it
+/// (`aNativePaddingPlacesItsChildAtTheChildsOwnSize`).
 @Test func negativePaddingIsAcceptedAndItsResponseClampsPerAxis() async {
     await #expect(processExitsWith: .success) {
         func fixed(_ tree: LayoutTree) -> LayoutNodeID {
@@ -80,9 +84,8 @@ import MetalUILayout
         let clampedRect = clamped.layout(clampedChild)
         precondition(clampedRect.x == 25 && clampedRect.y == 35,
                      "−15 child stored at \(clampedRect), SwiftUI's origin is (25, 35)")
-        // Pinned wrong on purpose (SA-N item 4): SwiftUI's width is 20.
-        precondition(clampedRect.width == 30 && clampedRect.height == 30,
-                     "−15 child stored at \(clampedRect); today's bounds-minus-insets size is 30×30")
+        precondition(clampedRect.width == 20 && clampedRect.height == 20,
+                     "−15 child stored at \(clampedRect), SwiftUI's size is 20×20 (SA-N item 4)")
 
         let lopsided = LayoutTree(generation: 0)
         let lopsidedChild = fixed(lopsided)
@@ -107,6 +110,64 @@ import MetalUILayout
         precondition(fillingSize == SizeD(width: 100, height: 100),
                      "−5 on a filling child offered 100 answered \(fillingSize), SwiftUI 100×100")
     }
+}
+
+/// Where a padding PLACES its child, once its own rect is not the child's size
+/// plus its insets (`SA-N` item 4, ruling `LR-AU`; stage-2 probe revision 4,
+/// group N, and the input-validation probe's P2b). SwiftUI always places the
+/// child at the padding's origin plus the leading and top insets, at the
+/// CHILD's own answer — never at the padding's rect minus its insets.
+///
+/// Three arms, the first two discriminating:
+/// - **a clamped response in a stack** (N1): `HStack(spacing: 0) {
+///   a20×20.padding(−15); b20×20 }` — the padding answers 0×0 and sits at
+///   (0, 10) in the 20×20 stack, the child at (−15, −5) **20×20**, where the
+///   rect minus the insets is 30×30. This is the shape a lowered element can
+///   reach in production; every other in-tree caller places a padding at its
+///   own answer, where both rules agree (N2).
+/// - **the caller-bounds entry**: `computeNativeLayout(root:proposal:in:)` is
+///   the one entry that places a node in bounds of the caller's choosing
+///   (`CN-J` centres a window root at its answer instead). A rigid 20×20 child
+///   under insets (top 1, right 2, bottom 3, left 4) placed in (10, 20, 100,
+///   100) stores the child at (14, 21) 20×20; the old rule read 94×96. SwiftUI
+///   cannot spell this bounds — `place(at:anchor:proposal:)` sizes a subview by
+///   its own answer — so the arm applies N's rule, it does not measure it.
+/// - **control** (N2): a proposal-filling child offered 100×100 under the same
+///   asymmetric insets is offered 94×96 and placed at (4, 1) 94×96 — the two
+///   rules agree here, so this arm must NOT move when the placement changes.
+@Test func aNativePaddingPlacesItsChildAtTheChildsOwnSize() {
+    let insets = Edges(top: 1.0, right: 2.0, bottom: 3.0, left: 4.0)
+
+    let stack = LayoutTree(generation: 0)
+    let a = stack.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }
+    let padded = stack.newNativePadding(child: a, insets: Edges(all: -15))
+    let b = stack.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }
+    let row = stack.newNativeLinearStack(children: [padded, b], axis: .horizontal, spacing: 0)
+    let rowSize = stack.computeNativeLayout(root: row, proposal: .unspecified,
+                                            in: LayoutRect(x: 0, y: 0, width: 20, height: 20)).size
+    #expect(rowSize == SizeD(width: 20, height: 20))
+    #expect(stack.layout(padded) == LayoutRect(x: 0, y: 10, width: 0, height: 0))
+    #expect(stack.layout(a) == LayoutRect(x: -15, y: -5, width: 20, height: 20))
+    #expect(stack.layout(b) == LayoutRect(x: 0, y: 0, width: 20, height: 20))
+
+    let caller = LayoutTree(generation: 0)
+    let rigid = caller.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }
+    let callerPadding = caller.newNativePadding(child: rigid, insets: insets)
+    caller.computeNativeLayout(root: callerPadding, proposal: .unspecified,
+                               in: LayoutRect(x: 10, y: 20, width: 100, height: 100))
+    #expect(caller.layout(callerPadding) == LayoutRect(x: 10, y: 20, width: 100, height: 100))
+    #expect(caller.layout(rigid) == LayoutRect(x: 14, y: 21, width: 20, height: 20))
+
+    let filling = LayoutTree(generation: 0)
+    let echo = filling.newNativeLeaf { proposal in
+        LayoutMeasurement(size: SizeD(width: proposal.width ?? 10, height: proposal.height ?? 10))
+    }
+    let fillingPadding = filling.newNativePadding(child: echo, insets: insets)
+    let fillingSize = filling.computeNativeLayout(root: fillingPadding,
+                                                  proposal: ProposedSize(width: 100, height: 100),
+                                                  in: LayoutRect(x: 0, y: 0, width: 100, height: 100)).size
+    #expect(fillingSize == SizeD(width: 100, height: 100))
+    #expect(filling.layout(echo) == LayoutRect(x: 4, y: 1, width: 94, height: 96))
 }
 
 // MARK: - Frame minimum and maximum (P4, P4b, P4c, P9)

@@ -97,7 +97,10 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// size (CSS border-box; stage-1 probe B1): a 60×60 box padded (12, 4, 8, 12) is
 /// 60×60 on both sides; an unsized box padded (top 3, right 5, bottom 7, left 11)
 /// is 16×10 on both sides (the padding sums); a 10×10 box padded 8 on every edge
-/// (a declared size below the padding sum, `BM-4`) is reported `padding.floor`.
+/// (a declared size below the padding sum, `BM-4`) reports nothing **since stage 2's
+/// lane 4** and keeps its fixed 10×10 frame where CSS floors the border box at 16×16
+/// — the divergence spec 4.3 pins (`LR-AH` as amended); this arm only holds that the
+/// report is gone and the frame is the declared size.
 ///
 /// Mutation that must redden it: **M2b**, padding placed outside the size frame
 /// (the first arm's lowered box reads 76×80).
@@ -130,22 +133,44 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
             $0.padding = Edges(all: .pixels(px(8)))
         })
     }
-    #expect(floor.unlowerable == [field(.box, "padding.floor")])
+    #expect(floor.unlowerable.isEmpty, "\(floor.unlowerable)")
+    #expect(floor.legacyBounds[leafID] == bounds(0, 0, 16, 16))
+    #expect(floor.loweredBounds[leafID] == bounds(0, 0, 10, 10))
 }
 
 // MARK: - 2.3, 2.4 — which fields a leaf reports
 
 /// **2.3.** Every "otherwise" row of spec §5.4's **every node** table is reported
-/// by its field name on a leaf — on a childless `Box` and on a `Text`, except
-/// `padding.text`, which names a `Text` (on a `Box` padding lowers, 2.2). One arm
-/// per row, each setting only that field; each report is exactly one entry. Four
-/// combined rows follow on both sites: `padding.floor` on the width axis alone and
-/// on the height axis alone; `display: none` with a margin, reported alone (`LR-J`);
-/// `margin` with `flexGrow`, both reported in the table's order.
+/// by its field name on a leaf — on a childless `Box` and on a `Text`. One arm
+/// per row, each setting only that field; each report is exactly one entry. Three
+/// combined rows follow on both sites: a percentage padding and a percentage border
+/// together, in the table's order; `display: none` with a margin, reported alone
+/// (`LR-J`); `margin` with `flexGrow`, both in the table's order.
 ///
-/// Mutations that must redden it: **M2c**, the `margin` check deleted; **V3**, the
-/// height half of the floor check deleted; **V4**, `display: none` no longer
-/// returned alone; **V5**, only the last of several fields recorded.
+/// **Stage 2, lane 4 (rulings LR-AH, LR-AI).** The box-model rows are gone or
+/// renamed: `padding.floor` lowers (the fixed frame wins, spec 4.3), `padding.text`
+/// lowers (native padding around the leaf, spec 4.2), and a px/rem `border` lowers
+/// into the padding's insets — only `border.percent` still reports.
+///
+/// **Stage 2, lane 1 (rulings LR-AB, LR-AQ).** The item rows — `minSize`, `maxSize`,
+/// `margin`, `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf` — are the parent's
+/// to read. Directly under the harness root (a proposal overlay) no lowered
+/// container consumes the leaf's record, so each reports `<field>.unconsumed` after
+/// the root returns, in `LR-AQ`'s order (`flexGrow` before `margin` in the combined
+/// row). Inside a lowered `Row` the parent consumes the record and reports what
+/// stage 2 cannot lower, at the leaf's site: seven more arms per site
+/// (`minSize.percent`, `maxSize` on the row's unstretched cross axis, a negative
+/// `flexGrow` and `flexShrink` — lane 2 lowers a positive grow, a zero shrink and a
+/// px minimum — `flexBasis` a length, `margin.percent` — lane 4 lowers a px/rem
+/// margin — and `alignSelf` as `.baseline`, which reports `alignSelf.baseline`: a
+/// `.center` `alignSelf` lowers since lane 1). 46 arms.
+///
+/// Mutations that must redden it: **M2c**, the `margin` check deleted; **V4**,
+/// `display: none` no longer returned alone; **V5**, only the last of several fields
+/// recorded; **M4h**, `margin.percent` no longer reported (2 issues); **V4q**, the
+/// `border.percent` entry removed (4). Stage 1's **V3** (the height half of the floor
+/// check deleted) is **retired**: lane 4 deleted the `padding.floor` branch outright,
+/// so the mutation has no target left (record §19's verification section).
 @MainActor
 @Test func everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf() throws {
     typealias Row = (name: String, edit: (inout Style) -> Void, onBox: Bool)
@@ -153,21 +178,16 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         ("display.none", { $0.display = .none }, true),
         ("size.percent", { $0.size.width = .length(.percent(0.5)) }, true),
         ("padding.percent", { $0.padding.left = .percent(0.1) }, true),
-        ("padding.floor", {
-            $0.size = Size(width: .length(.pixels(px(10))), height: .length(.pixels(px(10))))
-            $0.padding = Edges(all: .pixels(px(8)))
-        }, true),
-        ("padding.text", { $0.padding = Edges(all: .pixels(px(4))) }, false),
-        ("minSize", { $0.minSize.width = .length(.pixels(px(5))) }, true),
-        ("maxSize", { $0.maxSize.height = .length(.pixels(px(50))) }, true),
-        ("margin", { $0.margin.top = .length(.pixels(px(3))) }, true),
-        ("border", { $0.border.right = .pixels(px(2)) }, true),
+        ("minSize.unconsumed", { $0.minSize.width = .length(.pixels(px(5))) }, true),
+        ("maxSize.unconsumed", { $0.maxSize.height = .length(.pixels(px(50))) }, true),
+        ("margin.unconsumed", { $0.margin.top = .length(.pixels(px(3))) }, true),
+        ("border.percent", { $0.border.right = .percent(0.1) }, true),
         ("position", { $0.position = .relative }, true),
         ("inset", { $0.inset.left = .length(.pixels(px(4))) }, true),
-        ("flexGrow", { $0.flexGrow = 1 }, true),
-        ("flexShrink", { $0.flexShrink = 0 }, true),
-        ("flexBasis", { $0.flexBasis = .length(.pixels(px(10))) }, true),
-        ("alignSelf", { $0.alignSelf = .center }, true),
+        ("flexGrow.unconsumed", { $0.flexGrow = 1 }, true),
+        ("flexShrink.unconsumed", { $0.flexShrink = 0 }, true),
+        ("flexBasis.unconsumed", { $0.flexBasis = .length(.pixels(px(10))) }, true),
+        ("alignSelf.unconsumed", { $0.alignSelf = .center }, true),
     ]
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
     var arms: [Arm] = []
@@ -193,16 +213,10 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     // unlowerable field reports `display.none` ALONE (`LR-J`); a leaf with two
     // unlowerable fields reports both, in the table's order.
     let combined: [(name: String, edit: (inout Style) -> Void, expected: [String])] = [
-        ("padding.floor width only", {
-            $0.size.width = .length(.pixels(px(10)))
-            $0.padding = Edges(top: .pixels(px(0)), right: .pixels(px(8)),
-                               bottom: .pixels(px(0)), left: .pixels(px(8)))
-        }, ["padding.floor"]),
-        ("padding.floor height only", {
-            $0.size = Size(width: .length(.pixels(px(100))), height: .length(.pixels(px(10))))
-            $0.padding = Edges(top: .pixels(px(8)), right: .pixels(px(0)),
-                               bottom: .pixels(px(8)), left: .pixels(px(0)))
-        }, ["padding.floor"]),
+        ("padding and border percent together", {
+            $0.padding.left = .percent(0.1)
+            $0.border.right = .percent(0.1)
+        }, ["padding.percent", "border.percent"]),
         ("display.none with margin", {
             $0.display = .none
             $0.margin.top = .length(.pixels(px(3)))
@@ -210,7 +224,7 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         ("margin and flexGrow", {
             $0.flexGrow = 1
             $0.margin.top = .length(.pixels(px(3)))
-        }, ["margin", "flexGrow"]),
+        }, ["flexGrow.unconsumed", "margin.unconsumed"]),
     ]
     for row in combined {
         let s = style(row.edit)
@@ -226,7 +240,34 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                      }.unlowerableFields,
                      row.expected.map { field(.text, $0) }))
     }
-    try #require(arms.count == 37)
+    // Consumed by a lowered `Row` (stage 2, lane 1): the parent reports at the leaf's
+    // site, under the stage-1 name, what stage 2 does not lower. Re-spelled in lane 2,
+    // which lowers a px `minSize`, a positive `flexGrow` and `flexShrink: 0`: the
+    // `minSize` arm is a percentage, and the grow and shrink arms are negative.
+    let consumed: [(name: String, edit: (inout Style) -> Void)] = [
+        ("minSize.percent", { $0.minSize.width = .length(.percent(0.5)) }),
+        ("maxSize", { $0.maxSize.height = .length(.pixels(px(50))) }),
+        ("margin.percent", { $0.margin.top = .length(.percent(0.1)) }),
+        ("flexGrow", { $0.flexGrow = -1 }),
+        ("flexShrink", { $0.flexShrink = -1 }),
+        ("flexBasis", { $0.flexBasis = .length(.pixels(px(10))) }),
+        ("alignSelf.baseline", { $0.alignSelf = .baseline }),
+    ]
+    for row in consumed {
+        let s = style(row.edit)
+        arms.append(("Box in a Row \(row.name)",
+                     LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                         MetalUI.Row { Box(style: s) }
+                     }.unlowerableFields,
+                     [field(.box, row.name)]))
+        let t = text("ab", row.edit)
+        arms.append(("Text in a Row \(row.name)",
+                     LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                         MetalUI.Row { t }
+                     }.unlowerableFields,
+                     [field(.text, row.name)]))
+    }
+    try #require(arms.count == 46)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }
@@ -234,16 +275,22 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 
 /// **2.3b** (exit test). In production — diagnostics off — a leaf declaring two
 /// unlowerable fields traps naming the **first** in the table's order
-/// (`box.margin`), not the last (`box.flexGrow`).
+/// (`box.size.percent`), not the last (`box.inset`).
+///
+/// **Re-spelled in stage 2, lane 1** from `margin` + `flexGrow`: both are item
+/// fields now, reported `…unconsumed` after the root returns (ruling LR-AQ), so the
+/// pair no longer exercised the leaf table's order. `size.percent` and `inset` are
+/// every-node rows the leaf still reports itself (spec §6 lane 2's amendment, taken
+/// in lane 1, where the change lands).
 ///
 /// Mutation that must redden it: **V5**, the loop recording every field but the
-/// last deleted (the trap then names `flexGrow`).
+/// last deleted (the trap then names `inset`).
 @Test func aLeafWithTwoUnlowerableFieldsTrapsNamingTheFirstInProduction() async {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             var s = Style()
-            s.flexGrow = 1
-            s.margin.top = .length(.pixels(Pixels(3)))
+            s.size.width = .length(.percent(0.5))
+            s.inset.left = .length(.pixels(Pixels(4)))
             let box = Box(style: s)
             var root = DifferentialRoot(width: 100, height: 100) { box }
             Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
@@ -251,9 +298,9 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         }
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("box.margin has no proposal lowering"),
+    #expect(stderr.contains("box.size.percent has no proposal lowering"),
             "aborted, but not at the first unlowerable field:\n\(stderr)")
-    #expect(!stderr.contains("box.flexGrow"), "the trap must name the first field:\n\(stderr)")
+    #expect(!stderr.contains("box.inset"), "the trap must name the first field:\n\(stderr)")
 }
 
 /// **2.3c.** A lowered `Box` registers its **animated** style, not its declared
@@ -392,26 +439,26 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     try #require(legacy.size.width != lowered.size.width)
 }
 
-/// **2.7, characterization — pinned wrong on purpose; owner stage 2.** Below its
-/// narrowest word, `proposalTextMeasurement` (which a lowered `Text` shares with
-/// `ProposalText`, unchanged, `LR-F`) answers **wider than the proposal** — at
-/// widths 0 and 5 — where SwiftUI answers the proposal itself (stage-1 probe T3:
-/// 0×592, T4: 5×592). Green on arrival; stage 2's `Text`/`ProposalText`
-/// unification owns the answer, with probe group W as its evidence.
+/// **3.3** (stage 1's 2.7, re-derived and renamed; ruling `LR-AU`). Below the
+/// width of its widest broken line, `proposalTextMeasurement` — which a lowered
+/// `Text` shares with `ProposalText`, one measurement for both (`LR-F`,
+/// `LR-AM`) — now answers **the proposal**, as SwiftUI does (stage-1 probe T3:
+/// 0×592, T4: 5×592).
 ///
-/// **What it answers is its widest character, not its widest word** (measured in
-/// lane 2, ruling `LR-X`; the spec said "widest word"): it wraps at
+/// Until this lane it answered its widest **character**: it wraps at
 /// `smallestWrapWidth`, and the typesetter breaks inside a word it cannot fit, so
 /// every line is one character — 11.18 here, a character with the trailing space
 /// the typesetter hangs on its line (7.91 without it), against a tokenizer
-/// min-content of 40.44 (`textMeasure`'s doc comment records the same split). The
-/// oracle shapes each such line unwrapped, one at a time; the height (592, one 16pt
-/// line per non-space character) is SwiftUI's too.
+/// min-content of 40.44 (`textMeasure`'s doc comment records the same split).
+/// That answer was pinned wrong on purpose and is now the clamp's subject: the
+/// `try #require` below keeps it as the discriminator, so an arm whose widest
+/// broken line already fits the proposal cannot stand in for one that does not.
+/// The height is unchanged and is SwiftUI's too (592, one 16pt line per
+/// non-space character); only the width moves.
 ///
-/// Mutation that must redden it: **M2g**, a `min(widest, proposal)` clamp added to
-/// `proposalTextMeasurement`.
+/// Mutation that must redden it: **M3b**, the clamp removed.
 @MainActor
-@Test func aProposalTextBelowItsNarrowestWordAnswersItsWidestCharacterWhereSwiftUIAnswersTheProposal() throws {
+@Test func aProposalTextBelowItsWidestBrokenLineAnswersTheProposal() throws {
     let cache = ShapingCache()
     let font = cache.resolveFont(family: nil, size: 13)
     // One line per character; a word's last character keeps its trailing space
@@ -429,14 +476,79 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         .map { cache.shaped($0, font: font, wrappingAt: nil).widestLine }
         .max() ?? 0
     let minContent = cache.minContentWidth(longString, font: font)
+    // The discriminator: both proposals are BELOW the widest broken line, so an
+    // unclamped answer is wider than the proposal at both.
     try #require(widestCharacter > 5 && widestCharacter < minContent)
     for width in [0.0, 5.0] {
         let answer = proposalTextMeasurement(longString, font: font, cache: cache,
                                              proposal: ProposedSize(width: width, height: nil))
-        #expect(answer.size.width > width, "at \(width): \(answer.size)")
-        #expect(abs(answer.size.width - widestCharacter) < 0.001, "at \(width): \(answer.size) widestCharacter \(widestCharacter)")
+        #expect(answer.size.width == width, "at \(width): \(answer.size)")
         #expect(answer.size.height == Double(lines.count) * 16, "at \(width): \(answer.size)")
     }
+}
+
+/// **3.4** (ruling `LR-AU`). The measurement breaks **inside** a word that does
+/// not fit and answers its widest resulting line, **up to the proposal** — probe
+/// group Y, whose ten arms this test replays at the same strings and widths.
+///
+/// Two halves, each able to fail alone:
+/// - **the line count** is probe Y's, as a literal per arm (1, 2, 2, 4, 5, 2, 2,
+///   12, 7 for Y1–Y9, and 1 for the nil control Y0), read off the answer's
+///   height at 16pt per line. This is what "breaks inside a word" means: "alpha"
+///   holds no space at all, and at 25 it is two lines (Y2) rather than one
+///   32.84-wide line overflowing its proposal; at 5 it is five (Y5), one per
+///   character. `longString` at 30 is twelve (Y8) although its widest word
+///   ("charlie", the tokenizer's 40.44 min-content) fits on no line there.
+/// - **the width** is `min(w, cache.shaped(s, wrappingAt: w).widestLine)`, derived
+///   from the shaping cache rather than written as a literal (`LR-F`). Y5 (5
+///   against 7.86) and Y8 (30 against 33.31) are the two arms the clamp decides;
+///   the other seven are below their proposal and must NOT move.
+///
+/// **SwiftUI ceils and MetalUI does not** — Y2 reads 19 against our 18.17, Y9 45
+/// against 44.02 — so the widths come from the cache, not from the probe's
+/// printed integers. The `try #require` on the clamped arms is what keeps this
+/// test honest: without it every arm could pass by hugging.
+///
+/// Mutations that must redden it: **M3b**, the clamp removed (Y5 and Y8 answer
+/// wider than the proposal); **M3c**, the clamp applied as the proposal whenever
+/// a line breaks (Y2's 18.17 would read 25).
+@MainActor
+@Test func aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal() throws {
+    let cache = ShapingCache()
+    let font = cache.resolveFont(family: nil, size: 13)
+    // Probe Y's three strings: a single word, a shorter one, and the sentence.
+    let word = "alpha"
+    let short = "Short"
+
+    // Y0, the control: no proposal, one line at its own unwrapped width.
+    let unwrapped = cache.shaped(word, font: font, wrappingAt: nil)
+    let control = proposalTextMeasurement(word, font: font, cache: cache,
+                                          proposal: .unspecified)
+    #expect(control.size.height == 16, "Y0: \(control.size)")
+    #expect(abs(control.size.width - unwrapped.widestLine) < 0.001, "Y0: \(control.size)")
+
+    // Y1–Y9: (arm, string, proposed width, probe Y's line count).
+    let arms: [(String, String, Double, Int)] = [
+        ("Y1", word, 33, 1), ("Y2", word, 25, 2), ("Y3", word, 20, 2),
+        ("Y4", word, 12, 4), ("Y5", word, 5, 5),
+        ("Y6", short, 21, 2), ("Y7", short, 18, 2),
+        ("Y8", longString, 30, 12), ("Y9", longString, 45, 7),
+    ]
+    try #require(arms.count == 9)
+    var clamped = 0
+    for (arm, string, width, expectedLines) in arms {
+        let widest = cache.shaped(string, font: font, wrappingAt: width).widestLine
+        if widest > width { clamped += 1 }
+        let answer = proposalTextMeasurement(string, font: font, cache: cache,
+                                             proposal: ProposedSize(width: width, height: nil))
+        #expect(answer.size.height == Double(expectedLines) * 16,
+                "\(arm): \(answer.size), probe Y reads \(expectedLines) lines")
+        #expect(abs(answer.size.width - Swift.min(width, widest)) < 0.001,
+                "\(arm): \(answer.size), widest line \(widest) at proposal \(width)")
+    }
+    // Y5 and Y8 are the only arms whose widest line exceeds their proposal; the
+    // other seven cannot see the clamp at all.
+    try #require(clamped == 2)
 }
 
 /// **2.8.** A `Text` with a declared width or height keeps its legacy bounds and
