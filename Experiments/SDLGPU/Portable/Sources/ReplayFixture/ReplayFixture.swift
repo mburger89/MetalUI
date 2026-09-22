@@ -1,7 +1,8 @@
 // A recorded frame: everything a backend needs to draw a finalized MetalUI
 // Scene, plus the production Metal renderer's pixels for that frame.
-// Standard library only — no Foundation, Metal, CoreText or MetalUI — so the
-// replay side builds wherever SDL3 does.
+// Imports only MetalUIScene (no Foundation, Metal or CoreText), so the replay
+// side builds wherever SDL3 does. Primitive records are the real `MUIRect` /
+// `MUIGlyph` bytes, in host order — little-endian on every supported target.
 //
 // Layout (little-endian, no padding):
 //   "MUIRPLY\0"  u32 version
@@ -12,6 +13,9 @@
 //   u32 atlasWidth, atlasHeight, atlasWidth × atlasHeight R8 bytes
 //   16 × f32 projection (column-major)
 //   width × height × 4 BGRA8 reference bytes
+
+import MetalUIScene
+import MetalUIShaderTypes
 
 public struct FixtureRun: Equatable, Sendable {
     public enum Kind: UInt32, Sendable { case rect = 0, glyph = 1 }
@@ -25,10 +29,12 @@ public struct FixtureRun: Equatable, Sendable {
 
 public struct ReplayFixture: Equatable, Sendable {
     public static let version: UInt32 = 1
-    /// The scalar-packed MetalUI primitive ABI the portable shaders expect
-    /// (`MemoryLayout<MUIRect>.stride`, `MemoryLayout<MUIGlyph>.stride`).
-    public static let rectStride: UInt32 = 120
-    public static let glyphStride: UInt32 = 88
+    /// The primitive ABI, read off the real structs. `replay.hlsl` hard-codes
+    /// the layout these imply (rect 8 lanes, glyph 6, after the bridge pads
+    /// 120 → 128 and 88 → 96), so a changed struct must fail loudly:
+    /// `thePrimitiveABIIsTheOneTheShadersRead` pins both values.
+    public static let rectStride = UInt32(MemoryLayout<MUIRect>.stride)
+    public static let glyphStride = UInt32(MemoryLayout<MUIGlyph>.stride)
     public static let maxDimension: UInt32 = 4096
 
     public var width: UInt32
@@ -53,6 +59,20 @@ public struct ReplayFixture: Equatable, Sendable {
         self.atlasWidth = atlasWidth; self.atlasHeight = atlasHeight; self.atlas = atlas
         self.projection = projection; self.reference = reference
         try validate()
+    }
+
+    /// A fixture of one finalized frame: the scene's primitives and draw list,
+    /// the atlas they sample, and the reference pixels to compare against.
+    public init(scene: Scene, atlas: GlyphAtlas, width: UInt32, height: UInt32,
+                projection: [Float], reference: [UInt8]) throws(FixtureError) {
+        try self.init(width: width, height: height,
+            rects: scene.rects.withUnsafeBytes { Array($0) },
+            glyphs: scene.glyphs.withUnsafeBytes { Array($0) },
+            runs: scene.drawList.map {
+                FixtureRun(kind: $0.kind == .glyph ? .glyph : .rect, start: UInt32($0.start), count: UInt32($0.count))
+            },
+            atlasWidth: UInt32(atlas.width), atlasHeight: UInt32(atlas.height), atlas: atlas.pixels,
+            projection: projection, reference: reference)
     }
 
     /// Everything the C bridge trusts, checked once here: it indexes the
@@ -212,17 +232,15 @@ public struct Parity: Equatable, Sendable {
 }
 
 extension ReplayFixture {
-    /// Glyph bounds (the first four floats of each 88-byte record), as
-    /// recorded, before the projection.
+    /// Glyph bounds (`MUIGlyph.bounds`), as recorded, before the projection.
     public var glyphBounds: [(x: Float, y: Float, width: Float, height: Float)] {
-        (0..<glyphCount).map { index in
-            let base = index * Int(Self.glyphStride)
-            func float(_ k: Int) -> Float {
-                let o = base + k * 4
-                return Float(bitPattern: UInt32(glyphs[o]) | UInt32(glyphs[o + 1]) << 8
-                                        | UInt32(glyphs[o + 2]) << 16 | UInt32(glyphs[o + 3]) << 24)
-            }
-            return (float(0), float(1), float(2), float(3))
+        glyphRecords.map { ($0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height) }
+    }
+
+    /// The glyph records as the struct the renderer draws.
+    public var glyphRecords: [MUIGlyph] {
+        glyphs.withUnsafeBytes { raw in
+            (0..<glyphCount).map { raw.loadUnaligned(fromByteOffset: $0 * Int(Self.glyphStride), as: MUIGlyph.self) }
         }
     }
 

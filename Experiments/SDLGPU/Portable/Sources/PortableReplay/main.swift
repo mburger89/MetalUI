@@ -6,39 +6,12 @@
 //                  [--shaders <dir>] [--dump <dir>] [--nearest] [--show]
 import Foundation  // swift-corelibs-foundation off Apple platforms
 import ReplayFixture
-import SDLBridge
-
-struct ReplayError: Error, CustomStringConvertible {
-    let description: String
-    init(_ description: String) { self.description = description }
-}
+import SDLReplay
 
 func option(_ name: String) -> String? {
     let arguments = CommandLine.arguments
     guard let index = arguments.firstIndex(of: name), index + 1 < arguments.count else { return nil }
     return arguments[index + 1]
-}
-
-func render(_ fixture: ReplayFixture, runs: [FixtureRun], gpu: OpaquePointer) throws -> [UInt8] {
-    let cRuns = runs.map { ReplayRun(kind: $0.kind.rawValue, start: $0.start, count: $0.count) }
-    var output = [UInt8](repeating: 0, count: fixture.reference.count)
-    let ok = fixture.rects.withUnsafeBytes { rects in
-        fixture.glyphs.withUnsafeBytes { glyphs in
-            cRuns.withUnsafeBufferPointer { runBuffer in
-                fixture.atlas.withUnsafeBufferPointer { atlas in
-                    fixture.projection.withUnsafeBufferPointer { projection in
-                        replay_render(gpu, fixture.width, fixture.height,
-                            rects.baseAddress, UInt32(rects.count), glyphs.baseAddress, UInt32(glyphs.count),
-                            runBuffer.baseAddress, UInt32(cRuns.count),
-                            atlas.baseAddress, fixture.atlasWidth, fixture.atlasHeight,
-                            projection.baseAddress, &output)
-                    }
-                }
-            }
-        }
-    }
-    guard ok else { throw ReplayError("SDL render: \(String(cString: replay_error()))") }
-    return output
 }
 
 func run() throws {
@@ -60,20 +33,17 @@ func run() throws {
         catch { throw ReplayError("\(name): \(error)") }
     }
 
-    guard let gpu = shaders.withCString({ replay_create_portable($0, driver) }) else {
-        throw ReplayError("SDL create: \(String(cString: replay_error()))")
-    }
-    defer { replay_destroy(gpu) }
+    let replayer = try SDLReplayer(shaderDirectory: shaders, driver: driver)
     // --nearest: diagnostic arm; output no longer matches the linear-filtered reference.
     if CommandLine.arguments.contains("--nearest") {
-        guard replay_use_nearest_filter(gpu) else { throw ReplayError("nearest sampler: \(String(cString: replay_error()))") }
+        try replayer.useNearestFilter()
         print("atlas filter: nearest (diagnostic)")
     }
-    print("SDL GPU driver: \(String(cString: replay_driver(gpu))); fixtures: \(names.count) from \(directory)")
+    print("SDL GPU driver: \(replayer.driver); fixtures: \(names.count) from \(directory)")
 
     var parityFailures = 0
     for (name, fixture) in zip(names, fixtures) {
-        let pixels = try render(fixture, runs: fixture.runs, gpu: gpu)
+        let pixels = try replayer.render(fixture)
         // --dump <dir>: raw BGRA8 of this backend's output, for offline diffing.
         if let dump = option("--dump") {
             guard FileManager.default.createFile(atPath: dump + "/" + name + ".bgra", contents: Data(pixels)) else {
@@ -90,7 +60,7 @@ func run() throws {
     }
     // Positive control: the same comparison must see a backend that breaks painter order.
     let last = fixtures[fixtures.count - 1]
-    let mutant = try render(last, runs: last.orderMutatedRuns, gpu: gpu)
+    let mutant = try replayer.render(last, runs: last.orderMutatedRuns)
     // Count only pixels no rounding explains: a backend may differ by one
     // step on every edge (llvmpipe does, on ~11k pixels a frame).
     let delta = pixelDifference(last.reference, mutant, above: 16)
@@ -101,8 +71,8 @@ func run() throws {
     print(control)
 
     if CommandLine.arguments.contains("--show") {
-        _ = try render(last, runs: last.runs, gpu: gpu)
-        guard replay_show(gpu, 30) else { throw ReplayError("SDL window: \(String(cString: replay_error()))") }
+        _ = try replayer.render(last)
+        try replayer.show(seconds: 30)
     }
     // --dump reports every frame instead of stopping at the first failure.
     print(parityFailures == 0 ? "PASS" : "FAIL: \(parityFailures) frame(s) over tolerance")

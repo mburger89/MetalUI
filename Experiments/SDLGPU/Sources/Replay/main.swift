@@ -4,8 +4,8 @@ import simd
 import MetalUI
 import MetalUIText
 import MetalUIShaderTypes
-import SDLBridge
 import ReplayFixture
+import SDLReplay
 import AppKit
 
 struct ProbeError: Error, CustomStringConvertible {
@@ -130,31 +130,6 @@ func metalPixels(_ scene: Scene, atlas: GlyphAtlas, renderer: Renderer,
     return bytes
 }
 
-func sdlPixels(_ scene: Scene, atlas: GlyphAtlas, gpu: OpaquePointer,
-               width: Int, height: Int, projection: simd_float4x4, mutation: Bool = false) throws -> [UInt8] {
-    var runs = scene.drawList.map { ReplayRun(kind: $0.kind == .glyph ? 1 : 0, start: UInt32($0.start), count: UInt32($0.count)) }
-    // Positive control: make the backend violate painter order, without changing the Metal reference.
-    if mutation { runs = runs.filter { $0.kind == 0 } + runs.filter { $0.kind == 1 } }
-    var output = [UInt8](repeating: 0, count: width * height * 4)
-    var matrix = projection
-    let ok = scene.rects.withUnsafeBytes { rects in
-        scene.glyphs.withUnsafeBytes { glyphs in
-            runs.withUnsafeBufferPointer { runBuffer in
-                atlas.pixels.withUnsafeBufferPointer { pixels in
-                    withUnsafeBytes(of: &matrix) { transform in
-                        replay_render(gpu, UInt32(width), UInt32(height), rects.baseAddress, UInt32(rects.count),
-                            glyphs.baseAddress, UInt32(glyphs.count), runBuffer.baseAddress, UInt32(runs.count),
-                            pixels.baseAddress, UInt32(atlas.width), UInt32(atlas.height),
-                            transform.bindMemory(to: Float.self).baseAddress, &output)
-                    }
-                }
-            }
-        }
-    }
-    try require(ok, "SDL render: \(String(cString: replay_error()))")
-    return output
-}
-
 func savePNG(_ bytes: [UInt8], width: Int, height: Int, path: URL) throws {
     guard let provider = CGDataProvider(data: Data(bytes) as CFData),
           let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
@@ -166,20 +141,9 @@ func savePNG(_ bytes: [UInt8], width: Int, height: Int, path: URL) throws {
     try png.write(to: path)
 }
 
-// The primitive ABI crosses as raw bytes; pin it here, where both sides are visible.
-func recordedFixture(_ scene: Scene, atlas: GlyphAtlas, width: Int, height: Int,
-                     projection: simd_float4x4, reference: [UInt8]) throws -> ReplayFixture {
-    try require(MemoryLayout<MUIRect>.stride == Int(ReplayFixture.rectStride)
-                && MemoryLayout<MUIGlyph>.stride == Int(ReplayFixture.glyphStride),
-                "MUIRect/MUIGlyph stride changed; update ReplayFixture and replay.hlsl")
-    let runs = scene.drawList.map {
-        FixtureRun(kind: $0.kind == .glyph ? .glyph : .rect, start: UInt32($0.start), count: UInt32($0.count))
-    }
-    let matrix = withUnsafeBytes(of: projection) { Array($0.bindMemory(to: Float.self)) }
-    return try ReplayFixture(width: UInt32(width), height: UInt32(height),
-        rects: scene.rects.withUnsafeBytes { Array($0) }, glyphs: scene.glyphs.withUnsafeBytes { Array($0) },
-        runs: runs, atlasWidth: UInt32(atlas.width), atlasHeight: UInt32(atlas.height),
-        atlas: Array(atlas.pixels), projection: matrix, reference: reference)
+/// Column-major, as `simd_float4x4` stores it and the shaders read it.
+func floats(_ m: simd_float4x4) -> [Float] {
+    withUnsafeBytes(of: m) { Array($0.bindMemory(to: Float.self)) }
 }
 
 @MainActor
@@ -194,15 +158,11 @@ func run() throws {
     let driver = arguments.firstIndex(of: "--driver").flatMap { $0 + 1 < arguments.count ? arguments[$0 + 1] : nil }
     let portable = arguments.contains("--portable") || driver != nil
     let shaderDirectory = ProcessInfo.processInfo.environment["REPLAY_SHADERS"] ?? "Portable/Shaders/compiled"
-    let created = portable
-        ? shaderDirectory.withCString { replay_create_portable($0, driver ?? "metal") }
-        : source.withCString { replay_create($0) }
-    guard let gpu = created else {
-        throw ProbeError("SDL create: \(String(cString: replay_error()))")
-    }
-    defer { replay_destroy(gpu) }
+    let replayer = portable
+        ? try SDLReplayer(shaderDirectory: shaderDirectory, driver: driver ?? "metal")
+        : try SDLReplayer(msl: source)
     print("Shader path: \(portable ? (driver == "vulkan" ? "HLSL -> SPIR-V" : driver == "direct3d12" ? "HLSL -> SPIR-V -> DXIL" : "HLSL -> SPIR-V -> MSL") : "adapted native MSL")")
-    print("SDL GPU driver: \(String(cString: replay_driver(gpu))); reference device: \(device.name)")
+    print("SDL GPU driver: \(replayer.driver); reference device: \(device.name)")
     let atlas = GlyphAtlas(width: 1024, height: 1024)
     // --record <dir> writes each frame as a fixture Portable/ can replay alone.
     let record = arguments.firstIndex(of: "--record").flatMap { $0 + 1 < arguments.count ? arguments[$0 + 1] : nil }
@@ -216,7 +176,7 @@ func run() throws {
         var projection = matrix_identity_float4x4
         if index == 3 { projection.columns.0.x = 0.85; projection.columns.1.y = 0.85 }
         let metal = try metalPixels(scene, atlas: atlas, renderer: renderer, width: width, height: height, projection: projection)
-        let sdl = try sdlPixels(scene, atlas: atlas, gpu: gpu, width: width, height: height, projection: projection)
+        let sdl = try replayer.render(scene, atlas: atlas, width: width, height: height, projection: floats(projection))
         let delta = pixelDifference(metal, sdl)
         let line = "frame \(index) \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta)"
         print(line); report.append(line)
@@ -225,25 +185,29 @@ func run() throws {
         try require(delta.maxDelta <= 1, "Parity failed: \(line)")
         if let record {
             let path = URL(fileURLWithPath: record).appendingPathComponent("frame-\(index).muireplay")
-            try Data(recordedFixture(scene, atlas: atlas, width: width, height: height,
-                                     projection: projection, reference: metal).encoded()).write(to: path)
+            try Data(ReplayFixture(scene: scene, atlas: atlas, width: UInt32(width), height: UInt32(height),
+                                   projection: floats(projection), reference: metal).encoded()).write(to: path)
         }
         // This tolerance only permits UNORM rounding, never misplaced edges.
         reference = metal; lastScene = scene
     }
     var projection = matrix_identity_float4x4
     projection.columns.0.x = 0.85; projection.columns.1.y = 0.85
-    let mutant = try sdlPixels(lastScene, atlas: atlas, gpu: gpu, width: 640, height: 380, projection: projection, mutation: true)
+    // Positive control: make the backend violate painter order, without changing the Metal reference.
+    let last = try ReplayFixture(scene: lastScene, atlas: atlas, width: 640, height: 380,
+                                 projection: floats(projection), reference: reference)
+    let mutant = try replayer.render(lastScene, atlas: atlas, width: 640, height: 380,
+                                     projection: floats(projection), runs: last.orderMutatedRuns)
     let delta = pixelDifference(reference, mutant)
     try savePNG(mutant, width: 640, height: 380, path: output.appendingPathComponent("mutant-order.png"))
     try require(delta.pixels > 100 && delta.maxDelta > 16, "Broken comparison: draw-order mutation did not move enough pixels")
     let control = "draw-order mutation: differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta) (detected)"
     print(control); report.append(control)
     // Restore the final live window to the correct scene after the control.
-    _ = try sdlPixels(lastScene, atlas: atlas, gpu: gpu, width: 640, height: 380, projection: matrix_identity_float4x4)
+    _ = try replayer.render(lastScene, atlas: atlas, width: 640, height: 380, projection: floats(matrix_identity_float4x4))
     try report.joined(separator: "\n").appending("\n").write(to: output.appendingPathComponent("results.txt"), atomically: true, encoding: .utf8)
     if CommandLine.arguments.contains("--show") {
-        try require(replay_show(gpu, 30), "SDL window: \(String(cString: replay_error()))")
+        try replayer.show(seconds: 30)
     }
     print("PASS; artifacts: \(output.path)")
 }
