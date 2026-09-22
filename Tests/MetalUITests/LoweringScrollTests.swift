@@ -1,8 +1,9 @@
 import Testing
 import Metal
 import MetalUICore
-import MetalUILayout
+@testable import MetalUILayout
 import MetalUIRender
+@testable import MetalUIText
 @testable import MetalUI
 
 // Plan task 7, stage 3 of the engine replacement — the scroll lane.
@@ -439,4 +440,565 @@ private func wheelEvent(at position: Point<Pixels>, deltaY: Float) -> InputEvent
         #expect(abs(Double(legacyThumb.background.a) - 0.35) < 0.001,
                 "age 0.2 is inside the fully-opaque window, so the token's own 0.35 — not some other alpha both sides happen to share")
     }
+}
+
+// MARK: - Lane 2: the `ScrollView` lowering (`LR-BB`, `LR-BC`)
+//
+// Under the proposal authority `ScrollView.requestLayout` stops reporting
+// `scrollView.noLowering` and registers, in the same order and under the same
+// ids as the legacy branch: the content children, a **content node** through
+// stage 2's `lowerLegacyNode` at site `scrollView` with a style carrying only
+// `flexDirection`, and a **viewport** through
+// `Frame.requestNativeScrollViewport`, recorded as the element's own
+// `LoweredItem` so a lowered container above it stretches or grows it as the
+// legacy flex line did.
+//
+// Every test below is RED at lane 1's HEAD: each renders a tree holding a
+// `ScrollView` under the proposal authority with diagnostics on, so the report
+// carries `scrollView.noLowering` and the viewport and content rects are the
+// 0×0 leaf `Frame.unlowerable` returns.
+
+private func lane2Px(_ v: Float) -> Pixels { Pixels(v) }
+
+private func lane2Bounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixels> {
+    Bounds(origin: Point(x: Pixels(x), y: Pixels(y)), size: Size(width: Pixels(w), height: Pixels(h)))
+}
+
+private let lane2Root = GlobalElementID.child(of: nil, at: 0, name: nil)
+
+private func lane2Child(_ parent: GlobalElementID, _ index: Int) -> GlobalElementID {
+    GlobalElementID.child(of: parent, at: index, name: nil)
+}
+
+private func lane2Field(_ site: LoweringSite, _ name: String) -> UnlowerableField {
+    UnlowerableField(site: site, field: name)
+}
+
+/// A fixed-size childless `Box` — the one shape that can carry an item field.
+@MainActor
+private func lane2Fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
+    Box().width(lane2Px(w)).height(lane2Px(h))
+}
+
+/// Every whole-frame observation agrees and nothing was reported.
+@MainActor
+private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
+                                  sourceLocation: SourceLocation = #_sourceLocation) {
+    #expect(r.unlowerable.isEmpty, "\(arm): \(r.unlowerable)", sourceLocation: sourceLocation)
+    #expect(r.disagreeing.isEmpty, "\(arm): \(r.disagreeing)", sourceLocation: sourceLocation)
+    #expect(r.legacyOnly.isEmpty && r.loweredOnly.isEmpty,
+            "\(arm): legacyOnly \(r.legacyOnly) loweredOnly \(r.loweredOnly)", sourceLocation: sourceLocation)
+    #expect(r.scenesEqual, "\(arm): scenes", sourceLocation: sourceLocation)
+    #expect(r.hitboxesEqual, "\(arm): hitboxes", sourceLocation: sourceLocation)
+    #expect(r.accessibilityEqual, "\(arm): accessibility", sourceLocation: sourceLocation)
+    #expect(r.stateSlotsEqual, "\(arm): state slots", sourceLocation: sourceLocation)
+}
+
+// MARK: - 2.1 The bounded shapes, where the two authorities agree
+
+/// **Test 2.1** (`LR-BB`). The five prototype-P4 arms in which the lowered
+/// `ScrollView` and the legacy one agree in **every** observation — element
+/// rects, the emitted and finalized scenes, the hitbox list (a scroll region is
+/// a hitbox with an axis), the accessibility records and the `StateTable` ids —
+/// with the id count of each `try #require`d, derived by hand here before the
+/// first run.
+///
+/// | arm | shape | ids |
+/// |---|---|---|
+/// | **A1** | `Box { ScrollView(.vertical) { 3 × 80×40 } }.width(80).height(60)` | root, `Box`, `ScrollView`, 3 leaves = **6** |
+/// | **A2** | the demo's own spelling: the scroller `Box` `.width(80).flexGrow(1).flexBasis(0).minHeight(0)` as the second child of a stretching 120×120 column | root, column, the 20×10 sibling, `Box`, `ScrollView`, 3 leaves = **8** |
+/// | **A5** | content (50×30) **smaller** than a 100×100 viewport | root, `Box`, `ScrollView`, leaf = **4** |
+/// | **A8** | content **wider** than a vertical viewport (160×30 in 80×60) | **4** |
+/// | **A9** | a `ScrollView` inside a `ScrollView` | root, `Box`, outer, inner, 3 leaves = **7** |
+///
+/// **Why each agrees is a different sentence, which is why there are five.**
+/// A1 and A5 and A8: the scroller's parent declares a cross size, so stage 2
+/// wraps the lowered viewport in a stretch item frame and the alias reports
+/// that frame's rect — the same number the legacy flex line stretched to.
+/// **A2 is the one that shows the two mechanisms are not the same**: the
+/// scroller `Box` declares no height, so stage 2's single-child stretch elision
+/// (`LR-AC`) leaves the `ScrollView` unstretched, and the lowered viewport
+/// still fills its 110pt allocation — because it answers its **proposal** on
+/// the scrolling axis (`LR-BC`), not because anything stretched it. A9 is the
+/// nested case, where the inner viewport's scrolling axis is proposed `nil` by
+/// the outer content stack and it answers its content's own 120.
+///
+/// Mutations that must redden it: **M2a** the viewport registered as a plain
+/// native leaf (A1's content rects collapse); **M2b** the content node
+/// registered through `requestNativeLinearStack` directly instead of
+/// `lowerLegacyNode` (A2's rows move).
+@MainActor
+@Test func aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape() throws {
+    let a1 = LayoutDifferential.compare(width: 200, height: 200) {
+        Box {
+            ScrollView(.vertical) {
+                ProbeLeaf(width: 80, height: 40)
+                ProbeLeaf(width: 80, height: 40)
+                ProbeLeaf(width: 80, height: 40)
+            }
+        }
+        .width(lane2Px(80)).height(lane2Px(60))
+    }
+    try #require(a1.elements == 6, "A1 ids: \(a1.elements)")
+    lane2ExpectAgreement(a1, "A1")
+
+    let a2 = LayoutDifferential.compare(width: 200, height: 200) {
+        Column {
+            lane2Fixed(20, 10)
+            Box {
+                ScrollView(.vertical) {
+                    ProbeLeaf(width: 80, height: 40)
+                    ProbeLeaf(width: 80, height: 40)
+                    ProbeLeaf(width: 80, height: 40)
+                }
+            }
+            .width(lane2Px(80)).flexGrow(1).flexBasis(lane2Px(0)).minHeight(lane2Px(0))
+        }
+        .alignItems(.stretch).width(lane2Px(120)).height(lane2Px(120))
+    }
+    try #require(a2.elements == 8, "A2 ids: \(a2.elements)")
+    lane2ExpectAgreement(a2, "A2")
+    // The number the arm exists for: the scroller is 110 tall on BOTH sides
+    // (120 − the 10pt sibling), and the lowered one gets there without a
+    // stretch wrapper.
+    let a2Column = lane2Child(lane2Root, 0), a2Scroller = lane2Child(a2Column, 1)
+    #expect(a2.loweredBounds[lane2Child(a2Scroller, 0)] == lane2Bounds(0, 10, 80, 110),
+            "\(String(describing: a2.loweredBounds[lane2Child(a2Scroller, 0)]))")
+
+    let a5 = LayoutDifferential.compare(width: 200, height: 200) {
+        Box { ScrollView(.vertical) { ProbeLeaf(width: 50, height: 30) } }
+            .width(lane2Px(100)).height(lane2Px(100))
+    }
+    try #require(a5.elements == 4, "A5 ids: \(a5.elements)")
+    lane2ExpectAgreement(a5, "A5")
+
+    let a8 = LayoutDifferential.compare(width: 200, height: 200) {
+        Box { ScrollView(.vertical) { ProbeLeaf(width: 160, height: 30) } }
+            .width(lane2Px(80)).height(lane2Px(60))
+    }
+    try #require(a8.elements == 4, "A8 ids: \(a8.elements)")
+    lane2ExpectAgreement(a8, "A8")
+
+    let a9 = LayoutDifferential.compare(width: 200, height: 200) {
+        Box {
+            ScrollView(.vertical) {
+                ScrollView(.vertical) {
+                    ProbeLeaf(width: 80, height: 40)
+                    ProbeLeaf(width: 80, height: 40)
+                    ProbeLeaf(width: 80, height: 40)
+                }
+            }
+        }
+        .width(lane2Px(80)).height(lane2Px(60))
+    }
+    try #require(a9.elements == 7, "A9 ids: \(a9.elements)")
+    lane2ExpectAgreement(a9, "A9")
+}
+
+// MARK: - 2.2 The scrolling axis fills, where the legacy viewport hugs
+
+/// **Test 2.2** — a **divergence pin** (`LR-BC`). The lowered viewport answers
+/// its **proposal** on the scrolling axis; the legacy one answers whatever the
+/// flex line gives it, which for an unconstrained item is its content's size.
+/// Probe V1/V2/V3/V4 (stage-3 probe group V) say the fill is SwiftUI's answer:
+/// `VStack { 60×30; ScrollView { 60×300 } }` at 200 gives the scroller 162,
+/// exactly what a maximally flexible `Color` takes in the same shape, and V5
+/// says the hug is reachable there only through `.fixedSize()`.
+///
+/// Three arms, each `try #require`ing that the two authorities **disagree**
+/// before any equality is read:
+///
+/// - **A7**, a centring `Row` parent 120×100 over a vertical scroller of two
+///   50×30: legacy (0, 20) 50×**60** — hugging 60 and centred in the 100pt
+///   cross axis — against lowered (0, 0) 50×**100**. Both children move up 20.
+/// - **A11**, a centring `Column` parent, the same content: the scroller is now
+///   on the column's **main** axis, so the stack offers it the whole 100 and it
+///   takes it: legacy (35, 0) 50×60 → lowered (35, 0) 50×100. 35 is
+///   `(120 − 50)/2` on both sides, which is the arm's own control — the cross
+///   axis does not move.
+/// - **A10**, the control that the **cross** axis agrees: the same column with
+///   `.alignItems(.stretch)`. The lowered viewport's own cross answer is its
+///   content's 50 (`LayoutTree.scrollViewportSize`), and it reads 120 only
+///   because it records a `LoweredItem` and stage 2 wraps it in a stretch item
+///   frame whose rect the alias reports. Legacy (0, 0) 120×60 → lowered
+///   (0, 0) 120×100: **120 on both sides**, and only the scrolling axis moves.
+///
+/// Mutation that must redden it: **M2c** the viewport lowered as a `fixedSize`
+/// over the content — both sides read 60 and every `#require` fails.
+@MainActor
+@Test func aLoweredScrollViewFillsItsProposalOnTheScrollingAxisWhereTheLegacyViewportHugs() throws {
+    let a7 = LayoutDifferential.compare(width: 200, height: 200) {
+        Row {
+            ScrollView(.vertical) {
+                ProbeLeaf(width: 50, height: 30)
+                ProbeLeaf(width: 50, height: 30)
+            }
+        }
+        .width(lane2Px(120)).height(lane2Px(100))
+    }
+    #expect(a7.unlowerable.isEmpty, "A7: \(a7.unlowerable)")
+    let a7Scroller = lane2Child(lane2Child(lane2Root, 0), 0)
+    try #require(a7.legacyBounds[a7Scroller] != a7.loweredBounds[a7Scroller],
+                 "A7: the two authorities agree at \(String(describing: a7.legacyBounds[a7Scroller]))")
+    #expect(a7.legacyBounds[a7Scroller] == lane2Bounds(0, 20, 50, 60),
+            "A7 legacy: \(String(describing: a7.legacyBounds[a7Scroller]))")
+    #expect(a7.loweredBounds[a7Scroller] == lane2Bounds(0, 0, 50, 100),
+            "A7 lowered: \(String(describing: a7.loweredBounds[a7Scroller]))")
+    #expect(a7.legacyBounds[lane2Child(a7Scroller, 0)] == lane2Bounds(0, 20, 50, 30)
+            && a7.legacyBounds[lane2Child(a7Scroller, 1)] == lane2Bounds(0, 50, 50, 30),
+            "A7 legacy children")
+    #expect(a7.loweredBounds[lane2Child(a7Scroller, 0)] == lane2Bounds(0, 0, 50, 30)
+            && a7.loweredBounds[lane2Child(a7Scroller, 1)] == lane2Bounds(0, 30, 50, 30),
+            "A7 lowered children: both up 20")
+
+    let a11 = LayoutDifferential.compare(width: 200, height: 200) {
+        Column {
+            ScrollView(.vertical) {
+                ProbeLeaf(width: 50, height: 30)
+                ProbeLeaf(width: 50, height: 30)
+            }
+        }
+        .width(lane2Px(120)).height(lane2Px(100))
+    }
+    #expect(a11.unlowerable.isEmpty, "A11: \(a11.unlowerable)")
+    let a11Scroller = lane2Child(lane2Child(lane2Root, 0), 0)
+    try #require(a11.legacyBounds[a11Scroller] != a11.loweredBounds[a11Scroller],
+                 "A11: the two authorities agree at \(String(describing: a11.legacyBounds[a11Scroller]))")
+    #expect(a11.legacyBounds[a11Scroller] == lane2Bounds(35, 0, 50, 60),
+            "A11 legacy: \(String(describing: a11.legacyBounds[a11Scroller]))")
+    #expect(a11.loweredBounds[a11Scroller] == lane2Bounds(35, 0, 50, 100),
+            "A11 lowered: \(String(describing: a11.loweredBounds[a11Scroller]))")
+
+    let a10 = LayoutDifferential.compare(width: 200, height: 200) {
+        Column {
+            ScrollView(.vertical) {
+                ProbeLeaf(width: 50, height: 30)
+                ProbeLeaf(width: 50, height: 30)
+            }
+        }
+        .alignItems(.stretch).width(lane2Px(120)).height(lane2Px(100))
+    }
+    #expect(a10.unlowerable.isEmpty, "A10: \(a10.unlowerable)")
+    let a10Scroller = lane2Child(lane2Child(lane2Root, 0), 0)
+    try #require(a10.legacyBounds[a10Scroller] != a10.loweredBounds[a10Scroller],
+                 "A10: the two authorities agree at \(String(describing: a10.legacyBounds[a10Scroller]))")
+    #expect(a10.legacyBounds[a10Scroller] == lane2Bounds(0, 0, 120, 60),
+            "A10 legacy: \(String(describing: a10.legacyBounds[a10Scroller]))")
+    #expect(a10.loweredBounds[a10Scroller] == lane2Bounds(0, 0, 120, 100),
+            "A10 lowered, cross 120 on both sides: \(String(describing: a10.loweredBounds[a10Scroller]))")
+}
+
+// MARK: - 2.2a Divergence 54 survives the lowering
+
+/// **Test 2.2a** — a **divergence pin** (`LR-BC` as amended by stage-3 critic
+/// round 1, finding 5). The lowering does **not** close divergence 54, and the
+/// mechanism is worth a literal rather than a paragraph.
+///
+/// The kernel viewport's own cross answer is its content's
+/// (`LayoutTree.scrollViewportSize`) — the **`ProposalScrollView`** side. A
+/// lowered `ScrollView` reads its parent's cross size only because it records a
+/// `LoweredItem`: stage 2 wraps it in a stretch item frame and
+/// `LoweringState.alias` reports that frame's rect as the element's.
+/// `ProposalScrollView` records none — it calls `requestNativeScrollViewport`
+/// and never `recordLoweredItem` — so `consume` returns `nil` and it gets no
+/// such frame.
+///
+/// Both as children of ONE stretching lowered `Box` 120×60, both **horizontal**
+/// so the scrollers' cross axis is the `Box`'s cross axis, each over a 40×10
+/// content. The stack hands each child 60 of the 120pt main axis; the
+/// `ScrollView`'s stretch frame then makes it 60×**60** and the
+/// `ProposalScrollView` stays 60×**10**.
+///
+/// **Rendered under the proposal authority only**, not through
+/// `LayoutDifferential.compare`: a `ProposalScrollView` inside a legacy `Box`
+/// is a native node under a legacy node, which `SA-G` traps on the legacy side.
+///
+/// Mutation that must redden it: **M2i** `recordLoweredItem` dropped from the
+/// lowered `ScrollView` — the two agree at 60×10 and the `#require` fails,
+/// which is also how the surviving divergence would silently close.
+@MainActor
+@Test func divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem() throws {
+    let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) {
+        Box {
+            ScrollView(.horizontal) { ProbeLeaf(width: 40, height: 10) }
+            ProposalScrollView(.horizontal) {
+                Rectangle(width: lane2Px(40), height: lane2Px(10), color: .accent)
+            }
+        }
+        .alignItems(.stretch).width(lane2Px(120)).height(lane2Px(60))
+    }
+    #expect(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
+    let box = lane2Child(lane2Root, 0)
+    let legacyScroller = frame.elementBounds[lane2Child(box, 0)]
+    let proposalScroller = frame.elementBounds[lane2Child(box, 1)]
+    try #require(legacyScroller?.size != proposalScroller?.size,
+                 "divergence 54 has closed: both \(String(describing: legacyScroller))")
+    #expect(legacyScroller == lane2Bounds(0, 0, 60, 60),
+            "the lowered ScrollView takes the line's cross size through its stretch item frame: \(String(describing: legacyScroller))")
+    #expect(proposalScroller == lane2Bounds(60, 0, 60, 10),
+            "the ProposalScrollView records no item, so it keeps its content's 10: \(String(describing: proposalScroller))")
+}
+
+// MARK: - 2.3 A horizontal scroller is bounded by its parent
+
+/// **Test 2.3** — a **divergence pin** (`LR-BC`), arm **A4**.
+/// `Box { ScrollView(.horizontal) { 2 × 80×40 } }.width(100).height(50)`: the
+/// legacy viewport's automatic minimum floors it at its content's 160 and it
+/// **overflows** its 100pt parent; the lowered one answers the 100 it was
+/// proposed. Probe V4 is SwiftUI's answer for the horizontal axis (the scroller
+/// takes 62 = 100 − 30 − 8 while its 300pt content overflows it).
+///
+/// `scenesEqual` and `hitboxesEqual` are asserted **false**, with the reason:
+/// the viewport's rect is the clip `ScrollView.paint` pushes, so every content
+/// rect carries a different `contentMask`; and the scroll region registered in
+/// `prepaint` is a hitbox with an axis, so the hitbox list differs too.
+///
+/// Mutation that must redden it: **M2c** (the viewport a `fixedSize` over its
+/// content).
+@MainActor
+@Test func aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows() throws {
+    let a4 = LayoutDifferential.compare(width: 200, height: 200) {
+        Box {
+            ScrollView(.horizontal) {
+                ProbeLeaf(width: 80, height: 40)
+                ProbeLeaf(width: 80, height: 40)
+            }
+        }
+        .width(lane2Px(100)).height(lane2Px(50))
+    }
+    #expect(a4.unlowerable.isEmpty, "A4: \(a4.unlowerable)")
+    let scroller = lane2Child(lane2Child(lane2Root, 0), 0)
+    try #require(a4.legacyBounds[scroller] != a4.loweredBounds[scroller],
+                 "A4: the two authorities agree at \(String(describing: a4.legacyBounds[scroller]))")
+    #expect(a4.legacyBounds[scroller] == lane2Bounds(0, 0, 160, 50),
+            "A4 legacy — the viewport overflows its 100pt parent: \(String(describing: a4.legacyBounds[scroller]))")
+    #expect(a4.loweredBounds[scroller] == lane2Bounds(0, 0, 100, 50),
+            "A4 lowered — bounded by construction: \(String(describing: a4.loweredBounds[scroller]))")
+    #expect(!a4.scenesEqual,
+            "the viewport's rect IS the content clip, so every content rect carries a different mask")
+    #expect(!a4.hitboxesEqual,
+            "a scroll region is a hitbox with an axis, and it is registered at the viewport's rect")
+    // The content itself does not move: both sides lay two 80pt leaves side by
+    // side inside the viewport, and only the window onto them changed.
+    #expect(a4.legacyBounds[lane2Child(scroller, 1)] == a4.loweredBounds[lane2Child(scroller, 1)],
+            "the second leaf: \(String(describing: a4.legacyBounds[lane2Child(scroller, 1)]))")
+}
+
+// MARK: - 2.4 The content keeps its natural extent
+
+/// **Test 2.4** (`LR-BB`), arm **A6**: `ScrollView(.horizontal) { Text(…) }` in
+/// a 100×40 `Box`. The point of the arm is the **width**: the content is
+/// measured with the scrolling axis unspecified on both sides, so the `Text`
+/// keeps its natural extent inside a viewport a fifth as wide — which is why
+/// the legacy content node's `flexShrink: 0` has no counterpart in the lowering
+/// and is deliberately not carried (`LR-BB`; the kernel viewport has no freeze
+/// loop).
+///
+/// Both widths are derived from the shaping cache rather than written as
+/// literals (`LR-F`), and the arm `try #require`s that the derived width
+/// genuinely overflows the viewport, or it would prove nothing.
+///
+/// The **height** disagrees, 40 → one line, and that is stage 2's single-child
+/// stretch elision (`LR-AC`, X9), not a scroll fact: the legacy content row
+/// stretches its only child to the viewport's 40, and the lowered content stack
+/// does not stretch a single child under a parent with no declared cross size.
+/// `accessibilityEqual` is false for the same reason — a `Text`'s accessibility
+/// record carries its geometry.
+///
+/// Mutation that must redden it: **M2d** `flexShrink: 0` carried into the
+/// lowered content style. With the content node's record left unconsumed
+/// (`LR-BB` as amended) that **reports** `scrollView.flexShrink.unconsumed`.
+@MainActor
+@Test func aLoweredScrollViewsContentKeepsItsNaturalExtent() throws {
+    let sentence = "Scrolling content keeps its own extent"
+    let cache = ShapingCache()
+    let font = cache.resolveFont(family: nil, size: 13)
+    let shaped = cache.shaped(sentence, font: font, wrappingAt: nil)
+    let naturalWidth = Float(shaped.widestLine.rounded())
+    let lineHeight = Float(shaped.totalHeight.rounded())
+    try #require(naturalWidth > 100,
+                 "the fixture must overflow its 100pt viewport, or the arm measures nothing: \(naturalWidth)")
+    try #require(lineHeight != 40, "and its one line must not already be the viewport's height")
+
+    let a6 = LayoutDifferential.compare(width: 200, height: 200) {
+        Box { ScrollView(.horizontal) { Text(sentence) } }
+            .width(lane2Px(100)).height(lane2Px(40))
+    }
+    #expect(a6.unlowerable.isEmpty, "A6: \(a6.unlowerable)")
+    let text = lane2Child(lane2Child(lane2Child(lane2Root, 0), 0), 0)
+    #expect(a6.legacyBounds[text] == lane2Bounds(0, 0, naturalWidth, 40),
+            "A6 legacy text: \(String(describing: a6.legacyBounds[text]))")
+    #expect(a6.loweredBounds[text] == lane2Bounds(0, 0, naturalWidth, lineHeight),
+            "A6 lowered text: \(String(describing: a6.loweredBounds[text]))")
+    #expect(!a6.accessibilityEqual,
+            "the text's accessibility record carries its geometry, and the heights differ (LR-AC)")
+}
+
+// MARK: - 2.5 The viewport is the element's item, and site `scrollView` stays reachable
+
+/// **Test 2.5** (`LR-BB` as amended, critic round 1 findings 2 and 9). Three
+/// things the lowering's bookkeeping owes, none of which any rect above can
+/// see:
+///
+/// **(a) The viewport is recorded as the element's own `LoweredItem`**, so a
+/// lowered container above it stretches it exactly as the legacy flex line did,
+/// and the alias reaches the element's hitbox and its clip. A **horizontal**
+/// scroller in a stretching 100×60 `Box`: the viewport's own answer is
+/// 100×**10** (its content's height on the non-scrolling axis), and the stretch
+/// item frame makes the element 100×**60** — read three ways, through
+/// `elementBounds`, through the registered scroll region and through the
+/// `contentMask` the content leaf's rect carries.
+///
+/// **(b) The content node's record is left UNCONSUMED, and with only
+/// `flexDirection` on that style nothing reports.** Asserted structurally: of
+/// the two records at site `scrollView`, the `.flex` one (the content node) is
+/// unconsumed and the `.leaf` one (the viewport) is consumed by its parent
+/// `Box`. An unconsumed record is the truthful state — the viewport lowers no
+/// item field of its content — and it is what turns a field a later stage puts
+/// on that style into a diagnostic rather than a silent drop.
+///
+/// **(c) `LoweringSite.scrollView` stays reachable, and this arm produces a
+/// report on purpose** rather than asserting the case is live. `lowerLegacyNode`
+/// passes `site:` to `planLegacyItems` as `parentSite:`, and the field
+/// `planLegacyItems` reports **at the parent's site** is `flexGrow.weights`:
+/// two scroller children with unequal declared grow factors report
+/// `scrollView.flexGrow.weights`. (The design said an `alignSelf: .baseline`
+/// child would report `scrollView.alignSelf`; it does not — every per-child
+/// report is raised at `item.site`, the child's own. See `LR-BM`.)
+///
+/// Mutations that must redden it: **M2e** the content node registered with
+/// `site: .modifierLayer` — (c) reads the wrong site; **M2f** the viewport not
+/// recorded — (a)'s three readings collapse to 100×10.
+@MainActor
+@Test func aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable() throws {
+    // (a)
+    let stretched = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) {
+        Box { ScrollView(.horizontal) { ProbeLeaf(width: 40, height: 10) } }
+            .alignItems(.stretch).width(lane2Px(100)).height(lane2Px(60))
+    }
+    #expect(stretched.unlowerableFields.isEmpty, "(a): \(stretched.unlowerableFields)")
+    let scroller = lane2Child(lane2Child(lane2Root, 0), 0)
+    #expect(stretched.elementBounds[scroller] == lane2Bounds(0, 0, 100, 60),
+            "(a) element rect: \(String(describing: stretched.elementBounds[scroller]))")
+    let region = try #require(stretched.scrollRegions.first)
+    #expect(region.bounds == lane2Bounds(0, 0, 100, 60), "(a) scroll region: \(region.bounds)")
+    let contentRect = try #require(stretched.scene.rects.first)
+    #expect(Double(contentRect.contentMask.size.height) == 60,
+            "(a) the content clip is the stretched viewport: \(contentRect.contentMask)")
+
+    // (b)
+    let records = stretched.lowering.order.compactMap { stretched.lowering.items[$0] }
+        .filter { $0.site == .scrollView }
+    try #require(records.count == 2, "a content node and a viewport: \(records.count)")
+    let content = try #require(records.first { if case .flex = $0.kind { true } else { false } })
+    let viewport = try #require(records.first { $0.kind == .leaf })
+    #expect(!content.consumed, "the content node's record is left unconsumed (LR-BB)")
+    #expect(viewport.consumed, "the viewport's record is consumed by its parent Box")
+    #expect(viewport.declared == Style(), "the viewport records a default declared style")
+
+    // (c)
+    let weights = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) {
+        Box {
+            ScrollView(.vertical) {
+                lane2Fixed(20, 10).flexGrow(1)
+                lane2Fixed(20, 10).flexGrow(2)
+            }
+        }
+        .width(lane2Px(80)).height(lane2Px(60))
+    }
+    #expect(weights.unlowerableFields == [lane2Field(.scrollView, "flexGrow.weights")],
+            "(c): \(weights.unlowerableFields)")
+    #expect(UnlowerableField(site: .scrollView, field: "flexGrow.weights").owningStage == "3",
+            "and the entry still names stage 3")
+}
+
+// MARK: - 2.6 Both animation slots survive
+
+/// **Test 2.6** (`LR-BE`). `ScrollView` registers **two** nodes from one element
+/// id, so `requestLayout` passes a named child id to `animated(_:_:for:)` per
+/// node — `$anim-content` and `$anim-viewport`, which are id PREFIXES, not
+/// slots: the stored value ends up at a **grandchild**,
+/// `child(child(id, "$anim-content"), "$anim")`. The lowered branch must keep
+/// both calls, or a scroller mid-animation would interpolate the viewport's
+/// style into the content's.
+///
+/// Asserted under **both** authorities, with the two ids built by calling the
+/// same `scrollViewContentAnimID`/`scrollViewViewportAnimID` the element calls
+/// (a test with its own copy of the two string literals cannot catch a rename —
+/// `AnimatedStyle.swift`'s own doc records that mistake being made).
+///
+/// Mutation that must redden it: **M2g** both `animated(…)` calls given the
+/// bare `id` (the two slots collapse onto one).
+@MainActor
+@Test func aLoweredScrollViewKeepsItsTwoAnimationSlots() throws {
+    let scroller = lane2Child(lane2Child(lane2Root, 0), 0)
+    let contentSlot = animRetentionSlot(for: scrollViewContentAnimID(for: scroller))
+    let viewportSlot = animRetentionSlot(for: scrollViewViewportAnimID(for: scroller))
+    try #require(contentSlot != viewportSlot, "the two slot ids must differ before anything is read")
+
+    for authority in [LayoutAuthority.legacy, .proposal] {
+        let frame = LayoutDifferential.render(authority: authority, width: 200, height: 200) {
+            Box { ScrollView(.vertical) { ProbeLeaf(width: 80, height: 40) } }
+                .width(lane2Px(80)).height(lane2Px(60))
+        }
+        let ids = frame.stateTable.ids
+        #expect(ids.contains(contentSlot), "\(authority): no $anim-content slot")
+        #expect(ids.contains(viewportSlot), "\(authority): no $anim-viewport slot")
+    }
+}
+
+// MARK: - 2.7 The native work the lowering registers
+
+/// **Test 2.7** (`SA-M`'s method). A1's tree — `Box { ScrollView(.vertical) {
+/// 3 × 80×40 } }.width(80).height(60)` in a 200×200 harness root — counted in
+/// nodes and in `LayoutTree.lastNativeLayoutWork`, both **derived by hand here
+/// before the first run**.
+///
+/// **The registered tree, 10 nodes.** Each `ProbeLeaf` is one native leaf
+/// (`L1`, `L2`, `L3`). The `ScrollView` lowers to a vertical linear stack `SC`
+/// (the content node: `lowerLegacyNode` over the three leaves, no padding and
+/// no declared size, so `paddedAndSized` adds nothing) inside a scroll viewport
+/// `V`. The `Box` stretches its only child on the cross axis — it declares a
+/// height, so the single-child elision does not apply — which is one item frame
+/// `W`; then its own horizontal stack `SB` and its fixed 80×60 frame `FB`. The
+/// harness root is an overlay `O` in a fixed 200×200 frame `R`.
+/// 3 + 1 + 1 + 1 + 1 + 1 + 1 + 1 = **10**.
+///
+/// **Measurement, 10 misses / 0 hits / 3 calls.** `R` at (200, 200) → `O` at
+/// (200, 200) → `FB` at (200, 200) → `SB` at (80, 60). `SB` has ONE child, so
+/// `solveLinearStack` skips its flexibility probes entirely and offers `W` the
+/// whole 80: `W` at (80, 60) → `V` at (80, 60) → `SC` at (80, **nil**) — the
+/// scrolling axis is unspecified for the content — where the vertical stack's
+/// main axis is nil, so each leaf is measured once at (80, nil). Ten distinct
+/// keys, three leaf closures, nothing repeated.
+///
+/// **Placement, 1 miss / 9 hits.** The root is placed at its answer, then `O`
+/// re-measures its children at its OWN size (`CN-E`): `FB` at (80, 60) is a new
+/// key — the one placement miss — and everything under it is already cached.
+/// The nine hits are `O` (from `R`), `SB` (inside that new `FB`), `SB` again
+/// (from placing `FB`), `W` (from `SB`'s re-solve), `V` (from placing `W`),
+/// `SC` (from placing `V`) and the three leaves (from `SC`'s re-solve).
+///
+/// **Totals: 11 misses, 9 hits, 3 calls.**
+///
+/// Mutation that must redden it: **M2h** the content node registered twice (the
+/// node count and the figures move).
+@MainActor
+@Test func aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork() throws {
+    let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) {
+        Box {
+            ScrollView(.vertical) {
+                ProbeLeaf(width: 80, height: 40)
+                ProbeLeaf(width: 80, height: 40)
+                ProbeLeaf(width: 80, height: 40)
+            }
+        }
+        .width(lane2Px(80)).height(lane2Px(60))
+    }
+    try #require(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
+    #expect(frame.tree.nodeCount == 10, "nodes: \(frame.tree.nodeCount)")
+    let work = frame.tree.lastNativeLayoutWork
+    #expect(work.cacheMisses == 11, "cacheMisses: \(work.cacheMisses)")
+    #expect(work.cacheHits == 9, "cacheHits: \(work.cacheHits)")
+    #expect(work.measureCalls == 3, "measureCalls: \(work.measureCalls)")
 }
