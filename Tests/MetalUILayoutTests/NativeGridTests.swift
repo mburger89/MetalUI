@@ -1027,7 +1027,7 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 ///   non-row children at 200×100.
 /// - GF1–GF9: half, width-flexible, height-flexible, clamped and flexible cells;
 ///   GF7 overflows to 138 and its d is proposed 120 wide (b's column).
-/// - GF19–GF18: a greedy `frame(maxWidth: .infinity)` cell (and at nil), a
+/// - GF14–GF18: a greedy `frame(maxWidth: .infinity)` cell (and at nil), a
 ///   proposal-responsive leaf standing for `Color` (and at nil), a frame
 ///   greedy on both axes.
 /// - GR2 `[a odd, b 20x20]` at 200×200: a placed at the 96×200 it was measured
@@ -1119,17 +1119,17 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
         #expect(arm.run(root, 100, 100) == size(93, 10), "GF9 size")
         expectRects(arm, "GF9", ["a": r(0, 0, 30, 10), "b": r(38, 0, 55, 10)])
     }
-    do { // GF19
+    do { // GF14
         let arm = Arm()
         let a = arm.tree.newNativeFrame(child: arm.fx("a", 30, 10), maxWidth: .infinity)
-        #expect(arm.run(withFirst(arm, a), 200, 100) == size(200, 58), "GF19 size")
-        expectRects(arm, "GF19", ["a": r(61, 5, 30, 10), "b": r(170, 0, 20, 20), "c": r(71, 28, 10, 30), "d": r(160, 38, 40, 10)])
+        #expect(arm.run(withFirst(arm, a), 200, 100) == size(200, 58), "GF14 size")
+        expectRects(arm, "GF14", ["a": r(61, 5, 30, 10), "b": r(170, 0, 20, 20), "c": r(71, 28, 10, 30), "d": r(160, 38, 40, 10)])
     }
-    do { // GF20
+    do { // GF15
         let arm = Arm()
         let a = arm.tree.newNativeFrame(child: arm.fx("a", 30, 10), maxWidth: .infinity)
-        #expect(arm.run(withFirst(arm, a), nil, nil) == size(78, 58), "GF20 size")
-        expectRects(arm, "GF20", ["a": r(0, 5, 30, 10), "b": r(48, 0, 20, 20), "c": r(10, 28, 10, 30), "d": r(38, 38, 40, 10)])
+        #expect(arm.run(withFirst(arm, a), nil, nil) == size(78, 58), "GF15 size")
+        expectRects(arm, "GF15", ["a": r(0, 5, 30, 10), "b": r(48, 0, 20, 20), "c": r(10, 28, 10, 30), "d": r(38, 38, 40, 10)])
     }
     do { // GF16
         let arm = Arm()

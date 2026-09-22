@@ -1438,11 +1438,21 @@ reproduces the corpus is what makes the rest of the run readable.**
 lane 1's verifier had written arms F1, O1, R1, T1 and T2 into lane 2's tests
 (`GR-AH`). Nothing in `Sources/` changed this round except doc comments.
 
-**Eighteen mutations of the finite solve: sixteen reddened, two are green and
-equivalent.** Twelve were run against the full suite directly (H, M1, M2, M3,
+**Eighteen mutations of the finite solve: seventeen reddened, one (A) is green
+and equivalent** — and a *nineteenth*, A's `openRows` twin, is green too.
+Twelve were run against the full suite directly (H, M1, M2, M3,
 M4, M5, M6, M9, M11, M12, M13, M14), and six more (A, B, C, D, E, F) were
 filtered first through a scratch differential digest; five of those six were
 then run against the suite. Record §20 has the table.
+
+**This heading's count was wrong twice and is restated here from the table.**
+It first read "every one reddened" (A had not been run at all), then "sixteen
+reddened, two are green", which counted **M5** as the second green mutation.
+M5 is not green: it reddens `theSolversBookkeepingIsLinearInTheCells` (test
+2.14, 2 issues). The claim the heading was reaching for is about **clauses, not
+mutants**: two clauses below have no behavioural witness — `finishGroup`'s split,
+whose only witness is 2.14's *cost counter* rather than any rect, and
+`startGroup`'s two clamps, whose mutants are the green ones.
 
 **Two corrections, both re-measured by the lane-2 implementer round at
 `f7aec53`, not argued:**
@@ -2032,3 +2042,59 @@ test, reached from the kernel side, not by anything on the element side.
 **Cost if wrong.** None; it is a note about instrument design. The cost of the
 un-amended version is a reader who believes a whole class of ordering clause is
 unpinnable and stops looking for the mutant that holds it.
+
+---
+
+## GR-AT — the docs round: an arm-id namespace is shared inside a file, and a mutation tally is not a clause count
+
+**Round:** the closing docs round (2026-09-21), after all four lanes and their
+verifier rounds. It moves **no executable line**: the only source-tree change is
+six assertion labels and one doc-comment range in
+`Tests/MetalUILayoutTests/NativeGridTests.swift`. Suite before and after:
+`Test run with 1493 tests in 1 suite passed`. It applies the lane-2 verifier's
+two findings, which were the only ones this track closes outside the lane that
+produced them.
+
+**1. A whole-file find-and-replace is not a rename** (the major). `f7aec53`
+named test 2.2's two new arms `GF14`/`GF15`; `1be7017` renamed them to
+`GF19`/`GF20` with a replace over the whole file, which also renamed test 2.1's
+**pre-existing** `GF14`/`GF15` — the arms carrying the probe corpus's own
+`GF14`/`GF15` cases. For three commits two different grids answered to each of
+the ids `GF19` and `GF20` inside one file (test 2.1's 200×58 greedy-frame arm and
+test 2.2's 10×100 nil-width arm), the probe link for two corpus cases was
+severed, test 2.1's doc comment read the impossible range "GF19–GF18", and three
+documents asserted an id scheme the source no longer had. Reverted here: test
+2.1 is `GF14`/`GF15` again, test 2.2 keeps `GF19`/`GF20`, the next free is
+**GF21**.
+
+*The rule.* **Arm ids are a namespace shared by every test in a file, and a
+rename is per-test, not per-file.** The same reading applies to any label a
+failure message is chased by. Nothing in the suite can see this class of defect —
+the ids are strings — so the only instrument is reading the diff of a rename
+before committing it, and `grep`ing the id afterwards to see that each occurs
+once per test that owns it. Lane 4's `GridElementTests.swift` GF14 arm, written
+independently against the probe, is the control that showed which side was wrong.
+
+**2. A mutation count is not a clause count** (the minor). `GR-AI`'s headline
+read, in turn, "every one reddened" (before A had been run at all), then
+"sixteen reddened, two are green" — which reached the right *claim* through the
+wrong arithmetic: it counted **M5** as the second green mutation. M5 is not
+green; it reddens `theSolversBookkeepingIsLinearInTheCells` (2 issues). Of the
+eighteen, **seventeen reddened and one (A) is green**; A's `openRows` twin is a
+nineteenth mutation, also green. What the heading was reaching for is that **two
+CLAUSES have no behavioural witness** — `finishGroup`'s split, whose only witness
+is a *cost counter* rather than any rect, and the two unreachable clamps.
+Restated in `GR-AI`, in the spec's lane-2 sentence and in record §20's table
+preamble.
+
+*The rule.* **State the clause claim as a clause claim.** "N mutations, M green"
+is a measurement of the round; "this clause has no behavioural witness" is a
+claim about the code, and the two are restated from the table, never from each
+other. A mutation whose only red is a cost counter belongs on the *reddened*
+side of the tally and in the *no behavioural witness* list at the same time.
+
+**Cost if wrong.** For 1: a reader chasing a `GF19 size` failure finds two
+incompatible grids and the wrong one in the record; a later lane writing "the
+next free GF" collides. For 2: the two clauses that genuinely cannot be pinned
+are the ones a later lane must not try to test, and an inflated green count
+invites a search for a third.

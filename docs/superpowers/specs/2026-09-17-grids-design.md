@@ -1,6 +1,6 @@
 # Grids — design (plan task 7, stage G)
 
-`feat/grids` from `cb2e708`. Rulings `GR-A`…`GR-AG` in
+`feat/grids` from `cb2e708`. Rulings `GR-A`…`GR-AT` (next free: `GR-AU`) in
 [`../2026-09-17-grids-decisions.md`](../2026-09-17-grids-decisions.md); probes
 `docs/probes/swiftui-grid.swift` (**revision 6**; arm ids below are its),
 `docs/probes/swiftui-grid-corpus.txt` (its `corpus` mode at revision 6),
@@ -13,7 +13,19 @@ Parent design:
 §4.1 row G ("no legacy twin; depends on nothing; exit test is its own probe's
 arms; goldens 0; demo 0 px").
 
-**Status, 2026-09-21: all four lanes built** (lane 3: `5ceea23` red, `f3885a7`,
+**Status, 2026-09-21: COMPLETE — all four lanes built and verified, the docs
+round applied.** At the docs round's head: **1493** tests, **97** goldens
+(unmoved), **75** guards; 0 `error:`, no `warning:` but SwiftPM's own. Lanes 1,
+3 and 4 came back `ok`; lane 2's verifier raised one major and one minor, both
+label-and-prose with no executable line (the `GF14`/`GF15` rename that
+over-reached, and a mutation tally restated as a clause claim), applied in the
+docs round and ruled in `GR-AT`, with record §20's closing tables and its "For
+the integrator" section. Sixteen green mutations were found across the verifier
+rounds: fourteen are pinned, two are the deliberately equivalent `startGroup`
+clamps. Deferred with owners in `GR-N`, lazy grids proposed as **stage G2** after
+stage 4 (`GR-L`). Detail below —
+
+**All four lanes built** (lane 3: `5ceea23` red, `f3885a7`,
 amendments in `GR-AK`…`GR-AO`, record §20 "Lane 3"; lane 4: `cdfdf54` red,
 `f0e72b1`, `12d4b28`, amendments in `GR-AP`…`GR-AS`, record §20 "Lane 4". At
 lane 4's head: **1492** tests, 97 goldens, **75** guards; the default demo 0
@@ -492,9 +504,11 @@ transcribed verbatim with its comment header kept).
 **Re-verified at `d6ad9ff`** (suite 1450, goldens 97, guards 71, demo 12/12 at
 0 px): one green mutation found and pinned, `GR-AG`, test 2.8's S1 and S2 arms;
 no count moved. **Re-verified again at `f6ed8a0`** (`GR-AI`; suite 1450, goldens
-97, guards 71, demo 12/12 at 0 px): eighteen mutations, sixteen reddening the
-suite and **two measured green and equivalent** — `finishGroup`'s
-first-group/later-group split, whose only witness is test 2.14's counter, and
+97, guards 71, demo 12/12 at 0 px): eighteen mutations, **seventeen reddening
+the suite and one — `startGroup`'s `openColumns` clamp — measured green and
+equivalent**, its `openRows` twin a nineteenth mutation and green too. **Two
+CLAUSES have no behavioural witness**: `finishGroup`'s first-group/later-group
+split, whose only witness is test 2.14's *cost counter* and not any rect, and
 `startGroup`'s two unreachable `Swift.max(…, 1)` clamps, which are green on the
 full suite and leave 20 000 differential solves byte-identical. The depth
 boundary was re-bisected at the head and is unchanged (155/156 at 400×400,
