@@ -34,6 +34,13 @@ private struct GridUnderTest: ProposalElement {
     var rowAlignments: [ProposalAlignment?]
     var rows: [[(name: String, width: Double, height: Double)]]
     var spans: [String: Int] = [:]
+    /// Lane 4: the three cell attributes `LayoutPass.markNativeGridCell` gained
+    /// alongside `GridCellModifier` (ruling GR-AD), and a flexible leaf, which is
+    /// the only kind an unsized axis can move.
+    var anchors: [String: ProposalAlignment] = [:]
+    var columnAlignments: [String: ProposalAlignment] = [:]
+    var unsizedAxes: [String: ProposalAxes] = [:]
+    var flexible: Set<String> = []
     var horizontalSpacing: Double?
     var verticalSpacing: Double?
 
@@ -44,8 +51,20 @@ private struct GridUnderTest: ProposalElement {
             var marked: [ProposalNodeID] = []
             for cell in cells {
                 let size = SizeD(width: cell.width, height: cell.height)
-                let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: size) }
+                let node: ProposalNodeID = flexible.contains(cell.name)
+                    ? pass.requestNativeLeaf { proposal in
+                        LayoutMeasurement(size: SizeD(width: proposal.width ?? 10,
+                                                      height: proposal.height ?? 10))
+                    }
+                    : pass.requestNativeLeaf { _ in LayoutMeasurement(size: size) }
                 if let span = spans[cell.name] { pass.markNativeGridCell(node, columns: span) }
+                if let anchor = anchors[cell.name] { pass.markNativeGridCell(node, anchor: anchor) }
+                if let alignment = columnAlignments[cell.name] {
+                    pass.markNativeGridCell(node, columnAlignment: alignment)
+                }
+                if let axes = unsizedAxes[cell.name] {
+                    pass.markNativeGridCell(node, unsizedAxes: axes)
+                }
                 probe.cells[cell.name] = node
                 marked.append(node)
             }
@@ -178,4 +197,66 @@ private func r(_ x: Double, _ y: Double, _ width: Double, _ height: Double) -> L
     #expect(rects["b"] == r(33, 0, 20, 20), "GA3 b: \(String(describing: rects["b"]))")
     #expect(rects["c"] == r(0, 25, 10, 30), "GA3 c: \(String(describing: rects["c"]))")
     #expect(rects["d"] == r(33, 25, 40, 10), "GA3 d: \(String(describing: rects["d"]))")
+}
+
+/// `LayoutPass.markNativeGridCell` hands its three OTHER attributes to the
+/// kernel — `anchor:`, `columnAlignment:` and `unsizedAxes:`, which lane 3 added
+/// to `LayoutTree`'s mark and lane 4 exports here alongside `GridCellModifier`
+/// (ruling GR-AD: one arm per argument, so an exported parameter cannot be
+/// dropped with the suite green).
+///
+/// Each arm `#require`s a control that answers differently:
+/// - **anchor** — `[a 10x10, b 10x30]`: a is centred in its 30pt row at y 10, and
+///   `.topLeading` puts it at y 0 (GL10's rule);
+/// - **column alignment** — `[a 10x10] [c 30x10]`: column 0 is c's 30 wide, a is
+///   centred at x 10, and a declaring `.trailing` puts it at x 20 (GL6);
+/// - **unsized axes** — `[a 30x10] [x flexible]` in the 140pt frame: x takes the
+///   whole 140 and widens column 0 to it, and `.horizontal` unsized proposes x
+///   the column's current 30 instead, so the grid stays 30 wide (GU9's rule).
+///
+/// Mutation: each of the three arguments dropped at the forward in turn — the
+/// arm reads its own control's figure and fails while the control holds.
+@MainActor
+@Test func markNativeGridCellForwardsItsOtherAttributesToTheKernel() throws {
+    do { // anchor
+        let rows = [[(name: "a", width: 10.0, height: 10.0), (name: "b", width: 10.0, height: 30.0)]]
+        let centred = GridProbe()
+        let control = cellRects(GridUnderTest(probe: centred, alignment: .center,
+                                              rowAlignments: [nil], rows: rows), centred)
+        try #require(control["a"] == r(0, 10, 10, 10),
+                     "the unanchored control: \(String(describing: control["a"]))")
+
+        let probe = GridProbe()
+        let rects = cellRects(GridUnderTest(probe: probe, alignment: .center, rowAlignments: [nil],
+                                            rows: rows, anchors: ["a": .topLeading]), probe)
+        #expect(rects["a"] == r(0, 0, 10, 10), "anchored a: \(String(describing: rects["a"]))")
+    }
+    do { // column alignment
+        let rows = [[(name: "a", width: 10.0, height: 10.0)], [(name: "c", width: 30.0, height: 10.0)]]
+        let centred = GridProbe()
+        let control = cellRects(GridUnderTest(probe: centred, alignment: .center,
+                                              rowAlignments: [nil, nil], rows: rows), centred)
+        try #require(control["a"] == r(10, 0, 10, 10),
+                     "the undeclared control: \(String(describing: control["a"]))")
+
+        let probe = GridProbe()
+        let rects = cellRects(GridUnderTest(probe: probe, alignment: .center, rowAlignments: [nil, nil],
+                                            rows: rows, columnAlignments: ["a": .trailing]), probe)
+        #expect(rects["a"] == r(20, 0, 10, 10), "trailing a: \(String(describing: rects["a"]))")
+    }
+    do { // unsized axes
+        let rows = [[(name: "a", width: 30.0, height: 10.0)], [(name: "x", width: 0.0, height: 0.0)]]
+        let sized = GridProbe()
+        let control = cellRects(GridUnderTest(probe: sized, alignment: .center,
+                                              rowAlignments: [nil, nil], rows: rows,
+                                              flexible: ["x"]), sized)
+        try #require(control["x"]?.width == 140,
+                     "the sized control: \(String(describing: control["x"]))")
+
+        let probe = GridProbe()
+        let rects = cellRects(GridUnderTest(probe: probe, alignment: .center, rowAlignments: [nil, nil],
+                                            rows: rows, unsizedAxes: ["x": .horizontal],
+                                            flexible: ["x"]), probe)
+        #expect(rects["x"]?.width == 30, "unsized x: \(String(describing: rects["x"]))")
+    }
 }
