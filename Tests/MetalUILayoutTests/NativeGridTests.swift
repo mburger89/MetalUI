@@ -2409,8 +2409,9 @@ private func gridWrapperKinds() -> [GridWrapperKind] {
 /// (unsized axes).
 ///
 /// Mutations: stop the chain at `padding` (every `padding` arm here reddens, and
-/// so do 3.4's GWI3/GWI4 and 3.5's GWI1/GWI2); and, for R2, take the
-/// **innermost** row token instead of the outermost.
+/// so do 3.4's GWI3/GWI4 and 3.5's GWI1/GWI2); for R2, take the **innermost**
+/// row token instead of the outermost; and for R4, keep the token from the
+/// outermost mark but take the ALIGNMENT from the innermost (`GR-AN`).
 @Test func cellAttributesAndRowTokensAreReadThroughModifierNodesAndNotContainers() throws {
     for kind in gridWrapperKinds() {
         // Span.
@@ -2503,6 +2504,31 @@ private func gridWrapperKinds() -> [GridWrapperKind] {
         tree.computeNativeLayout(root: grid, proposal: none, in: LayoutRect(x: 0, y: 0, width: 60, height: 20))
         #expect(tree.layout(a) == r(1, 5, 30, 10), "R2 a: \(tree.layout(a))")
         #expect(tree.layout(b) == r(40, 0, 20, 20), "R2 b: \(tree.layout(b))")
+    }
+    // R4 (`GR-AN`, probe `docs/probes/swiftui-grid-row-alignment-inheritance.swift`):
+    // the outermost row mark brings its ALIGNMENT with it, not only its token.
+    // R2 above writes a nil alignment at both ends of the chain, so it reads the
+    // membership only; splitting the two — the token from the outermost mark and
+    // the alignment from the innermost — left the whole suite green. SwiftUI
+    // spells it `Grid { GridRow(.top) { GridRow(.bottom) { a }.padding(1); b } }`
+    // and puts a at (1, 1) (probe arm A3), and the reverse nesting at (1, 29)
+    // (A4); the innermost mark winning would swap the two.
+    for (label, outer, inner, y) in [("R4a", ProposalAlignment.top, ProposalAlignment.bottom, 1.0),
+                                     ("R4b", ProposalAlignment.bottom, ProposalAlignment.top, 29.0)] {
+        let tree = LayoutTree(generation: 0)
+        let a = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 30, height: 10)) }
+        tree.markNativeGridRow([a], alignment: inner)
+        let padded = tree.newNativePadding(child: a, insets: Edges(all: 1))
+        let b = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 40)) }
+        tree.markNativeGridRow([padded, b], alignment: outer)
+        let grid = tree.newNativeGrid(children: [padded, b])
+        let plan = try #require(tree.nativeGridPlan(grid))
+        #expect(plan.rowAlignments[0] == outer, "\(label) row alignment: \(String(describing: plan.rowAlignments[0]))")
+        let answer = tree.measureNativeLayout(root: grid, proposal: none).size
+        #expect(answer == size(60, 40), "\(label) answer")
+        tree.computeNativeLayout(root: grid, proposal: none, in: LayoutRect(x: 0, y: 0, width: 60, height: 40))
+        #expect(tree.layout(a) == r(1, y, 30, 10), "\(label) a: \(tree.layout(a))")
+        #expect(tree.layout(b) == r(40, 0, 20, 40), "\(label) b: \(tree.layout(b))")
     }
 }
 
