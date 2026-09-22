@@ -1,0 +1,84 @@
+# SDL GPU experiment: record fixtures on macOS with the production Metal
+# renderer, then build Experiments/SDLGPU/Portable on Linux (no MetalUI, no
+# Apple frameworks) and replay them on Mesa llvmpipe (CPU Vulkan).
+
+name: SDL GPU Linux
+
+on:
+  push:
+    paths:
+      - "Experiments/SDLGPU/**"
+      - ".github/workflows/sdl-gpu-linux.yml"
+  pull_request:
+    paths:
+      - "Experiments/SDLGPU/**"
+      - ".github/workflows/sdl-gpu-linux.yml"
+  workflow_dispatch:
+
+jobs:
+  record:
+    name: Record fixtures (macOS, Metal)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: Experiments/SDLGPU
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDL3
+        run: brew install sdl3 pkg-config
+      - name: Compiled shaders match replay.hlsl
+        working-directory: Experiments/SDLGPU/Portable/Shaders
+        run: shasum -a 256 -c compiled/SOURCE.sha256
+      - name: Record, and check SDL Metal parity live
+        # --portable: the HLSL -> SPIR-V -> MSL stages, the same source Linux runs.
+        run: swift run Replay --portable --record "$PWD/fixtures"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fixtures
+          path: Experiments/SDLGPU/fixtures/
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    name: Build and replay (Linux ${{ matrix.arch }}, llvmpipe)
+    needs: record
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: fixtures
+          path: Experiments/SDLGPU/fixtures
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image (Swift, SDL3 from source, Mesa)
+        uses: docker/build-push-action@v6
+        with:
+          context: Experiments/SDLGPU/Portable/linux
+          tags: metalui-portable
+          load: true
+          cache-from: type=gha,scope=portable-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=portable-${{ matrix.arch }}
+      - name: Build, test and replay
+        # --dump reports every frame, writes raw BGRA, and still fails over tolerance.
+        run: |
+          mkdir -p Experiments/SDLGPU/linux-dump
+          docker run --rm -v "$PWD/Experiments/SDLGPU":/work metalui-portable bash -ec '
+            vulkaninfo --summary 2>/dev/null | grep -E "deviceName|driverName" || true
+            swift build --scratch-path /tmp/build
+            swift test --scratch-path /tmp/build
+            $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../fixtures --driver vulkan --dump ../linux-dump
+          '
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: linux-dump-${{ matrix.arch }}
+          path: Experiments/SDLGPU/linux-dump/
+          retention-days: 7

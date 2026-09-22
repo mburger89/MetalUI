@@ -2,7 +2,6 @@
 .swiftpm/
 output*/
 .tools/
-Shaders/compiled/
 fixtures/
 linux-dump/
 mac-*/

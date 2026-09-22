@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Compile the four HLSL stages and reflect the exact bindings used by SDL."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -23,4 +24,6 @@ for kind in ("rect", "glyph"):
             subprocess.run([compiler, str(spirv), "-s", "SPIRV", "-d", fmt, "-t", stage, "-o", str(out / f"{name}.{extension}")], check=True)
         reflection = json.loads((out / f"{name}.json").read_text())
         print(name, reflection)
+# CI compares this with the source, so a stale compiled/ fails loudly.
+(out / "SOURCE.sha256").write_text(hashlib.sha256((root / "Shaders/replay.hlsl").read_bytes()).hexdigest() + "  replay.hlsl\n")
 print("Compiled four stages to SPIR-V, DXIL, MSL, and reflection JSON:", out)

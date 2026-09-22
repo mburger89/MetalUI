@@ -93,6 +93,18 @@ The control counts pixels off by more than 16 steps (`above: 16`): llvmpipe
 differs from Metal by one step on ~11–14k pixels in every frame, so a raw
 changed-pixel count proves nothing there.
 
+### CI
+
+`.github/workflows/sdl-gpu-linux.yml` runs on any change under
+`Experiments/SDLGPU/` (and on demand). A macOS job checks that
+`Portable/Shaders/compiled/` matches `replay.hlsl` (`SOURCE.sha256`), records
+fixtures with the production Metal renderer, and uploads them. Linux jobs on
+x86_64 and aarch64 build the Dockerfile's image, build and test `Portable/`,
+and replay the fixtures on llvmpipe; on failure they upload the raw frames.
+
+The compiled shaders are committed: no SDL_shadercross release exists to
+fetch in CI. After editing `replay.hlsl`, rerun `compile-shaders.py`.
+
 ### Linux (2026-09-21)
 
 ```sh
