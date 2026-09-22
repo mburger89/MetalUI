@@ -87,6 +87,7 @@ performance measurement: the probe compiles shaders and waits for GPU readback.
 | HLSL → SPIR-V → MSL (`--portable`) | SDL Metal | 0 / 0 / 0 / 0 | 283 px, Δ152 |
 | HLSL → SPIR-V (`--driver vulkan`) | SDL Vulkan, MoltenVK 1.4.2 | 0 / 0 / 0 / 0 | 283 px, Δ152 |
 | `PortableReplay` from fixtures | SDL Metal and SDL Vulkan | 0 / 0 / 0 / 0 | 205 px >16, Δ152 |
+| `PortableReplay`, **Windows** x64 (GitHub, Server 2025) | SDL Direct3D 12, DXIL stages | outside glyphs max Δ1 every frame; inside glyphs Δ1 / 1 / 1 / 2 | 205 px >16, Δ153 |
 | `PortableReplay`, **Linux** aarch64 (OrbStack) | SDL Vulkan, Mesa llvmpipe (LLVM 20) | outside glyphs max Δ1 every frame; inside glyphs Δ1 / 1 / 1 / 3 | 205 px >16, Δ151 |
 
 The control counts pixels off by more than 16 steps (`above: 16`): llvmpipe
@@ -101,6 +102,15 @@ changed-pixel count proves nothing there.
 fixtures with the production Metal renderer, and uploads them. Linux jobs on
 x86_64 and aarch64 build the Dockerfile's image, build and test `Portable/`,
 and replay the fixtures on llvmpipe; on failure they upload the raw frames.
+
+A Windows x64 job installs Swift 6.4 (`compnerd/gha-setup-swift`) and SDL's
+prebuilt VC package, passes its include/lib paths with `-Xcc -I` and
+`-Xswiftc -L` (no pkg-config), and replays through SDL's Direct3D 12 backend
+with the committed DXIL. The runner has no GPU (only "Microsoft Hyper-V
+Video"), so D3D12 runs on DXGI's software adapter; `SDL_LOGGING=gpu=info`
+prints which. `SDLBridge` declares `linkedLibrary("SDL3")` itself: the CSDL
+module map's `link` only applies where Swift imports CSDL, and without
+pkg-config nothing else links SDL.
 
 The compiled shaders are committed: no SDL_shadercross release exists to
 fetch in CI. After editing `replay.hlsl`, rerun `compile-shaders.py`.
@@ -156,8 +166,8 @@ The portable HLSL is an independent re-expression of the shader math (float4
 lanes, 128/96-byte strides packed by the C bridge), and the Vulkan run
 exercises SDL's Vulkan backend: descriptor sets, SPIR-V loading, transfer
 pitch, readback. But MoltenVK translates SPIR-V back to MSL on the same Apple
-GPU, so it does not prove behaviour on a native Vulkan driver, and the DXIL
-stages have never executed. Pixel identity there is expected; on other GPUs
+GPU, so it does not prove behaviour on a native Vulkan driver (Linux CI's
+llvmpipe does); the DXIL stages run on Windows CI. Pixel identity there is expected; on other GPUs
 the one-UNORM-step tolerance may matter.
 
 Text still uses MetalUI's CoreText implementation. The portable-looking C bridge
@@ -176,13 +186,13 @@ validated public renderer API.
 
 ## Next experiments
 
-1. Done on macOS (table above). Still owed: the same readback corpus on native
-   Linux Vulkan and Windows D3D12 hardware.
+1. Done: macOS (Metal, MoltenVK), Linux (llvmpipe) and Windows (D3D12) in CI.
+   Still owed: real GPUs other than Apple's.
 2. Done inside the experiment (`Portable/`, 2026-09-21): recorded fixtures replay
    at 0 differing pixels on SDL Metal and SDL Vulkan with no MetalUI module
    built or linked. Production is untouched: `Scene` still lives in
    `MetalUIRender` (which imports Metal) and `GlyphAtlas` in `MetalUIText`
-   (CoreText). Built and run on Linux (above); not on Windows.
+   (CoreText). Built and run on Linux and Windows (above).
 3. Add asynchronous resource lifetime and atlas-update stress cases before
    benchmarking or integrating with `Window`.
 4. Introduce a renderer protocol only after the two implementations establish

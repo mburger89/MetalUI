@@ -90,6 +90,7 @@ jobs:
     runs-on: windows-latest
     env:
       SDL_VERSION: 3.4.16
+      SDL_LOGGING: gpu=info   # logs the D3D12 adapter SDL picked
     defaults:
       run:
         shell: pwsh
