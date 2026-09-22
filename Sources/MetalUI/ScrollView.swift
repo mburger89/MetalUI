@@ -276,17 +276,16 @@ public struct ScrollView<Content: ElementGroup>: Element {
             content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         }
 
-        // The site's own authority check (plan task 7, ruling LR-C): a
-        // `ScrollView` has no proposal lowering until stage 3, so it traps by
-        // name — after its content (which checks its own sites first) and before
-        // either node or `$anim` prefix. Under diagnostics one 0×0 native leaf
-        // stands for both the viewport and the content node. The item records its
-        // content returned are consumed first (plan task 7, stage 2, ruling LR-AQ):
-        // this site's own entry already makes the tree unlowerable.
+        // The lowered branch (plan task 7, stage 3, ruling LR-BB): the same two
+        // nodes in the same order under the same ids, registered on the kernel.
+        // The content node goes through stage 2's container lowering whole, so
+        // its children's stretch, grow, margins, gaps and `justifyContent` are
+        // lowered exactly as they are under any other container; the viewport is
+        // the kernel's own scroll viewport, which answers its proposal on the
+        // scrolling axis and its content's answer on the other (`CN-M`, `CN-F`,
+        // ruling LR-BC). See `loweredLayout(_:children:inner:pass:)`.
         if pass.lowersToProposal {
-            for child in children { _ = pass.frame.lowering.consume(child) }
-            let node = pass.frame.unlowerable(UnlowerableField(site: .scrollView, field: "noLowering"))
-            return (node, Layout(node: node, contentNode: node, inner: inner))
+            return loweredLayout(id, children: children, inner: inner, pass: &pass)
         }
 
         var contentStyle = Style()
@@ -332,6 +331,74 @@ public struct ScrollView<Content: ElementGroup>: Element {
                                       pass: &pass)
         let node = pass.frame.requestNode(style: viewportStyle, children: [contentNode])
 
+        return (node, Layout(node: node, contentNode: contentNode, inner: inner))
+    }
+
+    /// `requestLayout`'s proposal-authority branch (plan task 7, stage 3, ruling
+    /// `LR-BB`), split out only for length. `children` are the content's already
+    /// registered nodes and `inner` its group layout; both come from the shared
+    /// `withScrollContext` build above, so the ids, the `@State` slots and the
+    /// published `ScrollContext` are the legacy branch's (`LR-BF`).
+    ///
+    /// **The content node is stage 2's container lowering, entire.** It goes
+    /// through `lowerLegacyNode` at site `scrollView` rather than straight to
+    /// `requestNativeLinearStack` (which is what `ProposalScrollView` does)
+    /// because the legacy content node is an ordinary flex container: its
+    /// children's stretch, grow, margins, gaps and `justifyContent` are already
+    /// implemented and already pinned there, and a bare stack would drop all of
+    /// it silently. Passing `site:` is also what keeps `LoweringSite.scrollView`
+    /// reachable — `lowerLegacyNode` hands it to `planLegacyItems` as
+    /// `parentSite:`, so scroller children with unequal grow factors report
+    /// `scrollView.flexGrow.weights` (ruling `LR-BM`).
+    ///
+    /// **`flexShrink: 0` is deliberately NOT carried.** Under the legacy engine
+    /// that line stops the freeze loop shrinking the content node from its
+    /// max-content flex base towards its min-content floor (the type doc
+    /// measures it: 200 against 508). The kernel viewport has no freeze loop — it
+    /// measures its content with the scrolling axis unspecified and places it at
+    /// its own answer — so the line has no counterpart here. It is not merely
+    /// pointless: with the content record left unconsumed (below), carrying it
+    /// would **report** `scrollView.flexShrink.unconsumed`, which is what makes
+    /// the omission observable at all.
+    ///
+    /// **The content node's record is left unconsumed, and that is the truthful
+    /// state.** The viewport lowers no item field of its content. Today that
+    /// style carries only `flexDirection`, every item field is at its default and
+    /// `reportUnconsumedLoweredItems` names nothing; a field a later stage puts
+    /// on it reports rather than vanishing.
+    ///
+    /// **The viewport is recorded as this element's own `LoweredItem`** —
+    /// declared `Style()` (this element has no modifier surface), the animated
+    /// viewport style for its values, `kind: .leaf`, content alignment
+    /// `.topLeading` — so a lowered container above it stretches or grows it
+    /// exactly as the legacy flex line did, through the item frame stage 2
+    /// registers and the rect alias that reports it.
+    private mutating func loweredLayout(_ id: GlobalElementID, children: [LayoutNodeID],
+                                        inner: Content.GroupLayout,
+                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var declaredContent = Style()
+        declaredContent.flexDirection = axis == .vertical ? .column : .row
+        // Structure from the declared style, lengths from the animated one
+        // (ruling LR-AS). Neither `flexDirection` nor anything else on this style
+        // is animatable, so the two are equal today; the split is kept because
+        // `lowerLegacyNode`'s checks must never be tripped by an interpolation.
+        var contentStyle = declaredContent
+        (contentStyle, _) = animated(contentStyle, Decoration(), for: scrollViewContentAnimID(for: id),
+                                     pass: &pass)
+        let contentNode = pass.lowerLegacyNode(contentStyle, declared: declaredContent,
+                                               children: children, site: .scrollView)
+
+        var viewportStyle = Style()
+        viewportStyle.flexDirection = axis == .vertical ? .column : .row
+        // Inert here as it is under the legacy engine (CLAUDE.md's table): the
+        // kernel reads `overflow` nowhere, and the lowering does not carry it.
+        viewportStyle.overflow = Axes(both: .scroll)
+        (viewportStyle, _) = animated(viewportStyle, Decoration(), for: scrollViewViewportAnimID(for: id),
+                                      pass: &pass)
+        let node = pass.frame.requestNativeScrollViewport(
+            child: contentNode, axis: axis == .vertical ? .vertical : .horizontal)
+        _ = pass.recordLoweredItem(node, animated: viewportStyle, declared: Style(), site: .scrollView,
+                                   contentAlignment: .topLeading, kind: .leaf)
         return (node, Layout(node: node, contentNode: contentNode, inner: inner))
     }
 

@@ -704,8 +704,11 @@ private struct AtOrigin: ProposalLayout {
 ///   `box.alignSelf.unconsumed`, `.flexShrink(0)` → `box.flexShrink.unconsumed`,
 ///   `.flexBasis(0)` → `box.flexBasis.unconsumed`, `.margin(3)` →
 ///   `box.margin.unconsumed`; a `Text` with `.flexGrow(1)` → `text.flexGrow.unconsumed`;
-/// - a legacy `ScrollView` over the same child reports only `scrollView.noLowering`
-///   (the site marks the record it receives);
+/// - a legacy `ScrollView` over the same child **consumes** the record and reports
+///   nothing, since stage 3's lowering (`LR-BB`): its content node goes through
+///   `lowerLegacyNode`, which consumes every child record it receives exactly as
+///   a `Row` does. Until then the arm read `[scrollView.noLowering]`, the site
+///   marking the record it received;
 /// - the control `Row { same }` consumes the record: no `…unconsumed` entry, and
 ///   since lane 2 no entry at all (lane 1 reported `box.flexGrow` there);
 /// - **the frame's root** (a `Frame` rendering the element itself, no harness):
@@ -754,7 +757,7 @@ private struct AtOrigin: ProposalLayout {
     arms.append(("HStack Text flexGrow", report { HStack { LegacyUnderProposal(Text("ab").flexGrow(1)) } },
                  [field(.text, "flexGrow.unconsumed")]))
 
-    arms.append(("legacy ScrollView", report { ScrollView { grow() } }, [field(.scrollView, "noLowering")]))
+    arms.append(("legacy ScrollView", report { ScrollView { grow() } }, []))
     arms.append(("control Row", report { Row { grow() } }, []))
 
     // The frame's root.

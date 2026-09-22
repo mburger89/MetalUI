@@ -523,6 +523,15 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// nested case, where the inner viewport's scrolling axis is proposed `nil` by
 /// the outer content stack and it answers its content's own 120.
 ///
+/// **Every leaf's cross size equals its container's, deliberately.**
+/// `ProbeLeaf` registers a raw native leaf and records no `LoweredItem`, so no
+/// lowered container ever stretches it, where the legacy container stretches it
+/// like any other flex item. A fixture whose leaves are narrower (or shorter)
+/// than the content node would therefore disagree on the **probe type**, not on
+/// the scroller — 2.3 hit exactly that on the first full run. Here the three
+/// 80×40 leaves sit in an 80-wide column, A5's 50×30 in a 50-wide one, and so on,
+/// so the legacy stretch is a no-op and the arms measure the viewport alone.
+///
 /// Mutations that must redden it: **M2a** the viewport registered as a plain
 /// native leaf (A1's content rects collapse); **M2b** the content node
 /// registered through `requestNativeLinearStack` directly instead of
@@ -742,7 +751,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 // MARK: - 2.3 A horizontal scroller is bounded by its parent
 
 /// **Test 2.3** — a **divergence pin** (`LR-BC`), arm **A4**.
-/// `Box { ScrollView(.horizontal) { 2 × 80×40 } }.width(100).height(50)`: the
+/// `Box { ScrollView(.horizontal) { 2 × 80×40 } }.width(100).height(40)`: the
 /// legacy viewport's automatic minimum floors it at its content's 160 and it
 /// **overflows** its 100pt parent; the lowered one answers the 100 it was
 /// proposed. Probe V4 is SwiftUI's answer for the horizontal axis (the scroller
@@ -752,6 +761,18 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// the viewport's rect is the clip `ScrollView.paint` pushes, so every content
 /// rect carries a different `contentMask`; and the scroll region registered in
 /// `prepaint` is a hitbox with an axis, so the hitbox list differs too.
+///
+/// **The parent is 40 tall, not 50, and that is a fixture requirement rather
+/// than a choice.** `ProbeLeaf` registers a raw native leaf and records no
+/// `LoweredItem`, so `planLegacyItems` gives it no wrapper and **no lowered
+/// container ever stretches it** — where the legacy content row stretches it to
+/// the viewport's cross size like any other flex item. At a 50pt parent the two
+/// leaves read 80×50 legacy against 80×40 lowered and the arm would be measuring
+/// the harness's probe type, not the viewport. Giving the parent the leaves' own
+/// 40 makes the legacy stretch a no-op, so the content agrees on both sides and
+/// the only thing left moving is the window onto it. (The same is true of 2.1's
+/// five agreement arms, where every leaf's cross size already equals its
+/// container's; found by this assertion failing on the first full run.)
 ///
 /// Mutation that must redden it: **M2c** (the viewport a `fixedSize` over its
 /// content).
@@ -764,15 +785,15 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 ProbeLeaf(width: 80, height: 40)
             }
         }
-        .width(lane2Px(100)).height(lane2Px(50))
+        .width(lane2Px(100)).height(lane2Px(40))
     }
     #expect(a4.unlowerable.isEmpty, "A4: \(a4.unlowerable)")
     let scroller = lane2Child(lane2Child(lane2Root, 0), 0)
     try #require(a4.legacyBounds[scroller] != a4.loweredBounds[scroller],
                  "A4: the two authorities agree at \(String(describing: a4.legacyBounds[scroller]))")
-    #expect(a4.legacyBounds[scroller] == lane2Bounds(0, 0, 160, 50),
+    #expect(a4.legacyBounds[scroller] == lane2Bounds(0, 0, 160, 40),
             "A4 legacy — the viewport overflows its 100pt parent: \(String(describing: a4.legacyBounds[scroller]))")
-    #expect(a4.loweredBounds[scroller] == lane2Bounds(0, 0, 100, 50),
+    #expect(a4.loweredBounds[scroller] == lane2Bounds(0, 0, 100, 40),
             "A4 lowered — bounded by construction: \(String(describing: a4.loweredBounds[scroller]))")
     #expect(!a4.scenesEqual,
             "the viewport's rect IS the content clip, so every content rect carries a different mask")
@@ -780,8 +801,10 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
             "a scroll region is a hitbox with an axis, and it is registered at the viewport's rect")
     // The content itself does not move: both sides lay two 80pt leaves side by
     // side inside the viewport, and only the window onto them changed.
-    #expect(a4.legacyBounds[lane2Child(scroller, 1)] == a4.loweredBounds[lane2Child(scroller, 1)],
-            "the second leaf: \(String(describing: a4.legacyBounds[lane2Child(scroller, 1)]))")
+    #expect(a4.legacyBounds[lane2Child(scroller, 1)] == lane2Bounds(80, 0, 80, 40),
+            "the second leaf, legacy: \(String(describing: a4.legacyBounds[lane2Child(scroller, 1)]))")
+    #expect(a4.loweredBounds[lane2Child(scroller, 1)] == lane2Bounds(80, 0, 80, 40),
+            "the second leaf, lowered: \(String(describing: a4.loweredBounds[lane2Child(scroller, 1)]))")
 }
 
 // MARK: - 2.4 The content keeps its natural extent

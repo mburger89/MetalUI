@@ -64,6 +64,11 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
         switch site {
         case .box, .stack, .text, .modifierLayer:
             return field == "noLowering" ? "1" : "2"
+        // Stage 3 lowered both. `scrollView` survives for a scroller **child**'s
+        // unlowerable item field, which `lowerLegacyNode` reports at this site
+        // through `planLegacyItems`' `parentSite:` — `flexGrow.weights`, the only
+        // field raised there (`LR-BM`) — and for a field a later stage puts on the
+        // content node's unconsumed record (`<field>.unconsumed`, `LR-BB`).
         case .scrollView, .component:
             return "3"
         case .list:

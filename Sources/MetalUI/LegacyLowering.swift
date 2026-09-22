@@ -671,6 +671,13 @@ extension LayoutPass {
     /// **Still reported** at the child's site: `alignSelf.baseline` (task 11) and
     /// `margin` (lane 4). A `.frame` layer child reports nothing: its item fields are
     /// its own frame's.
+    ///
+    /// **`parentSite:` names exactly one report, `flexGrow.weights`** (ruling LR-BM).
+    /// Every other entry this function appends is raised at `item.site`, the
+    /// **child's** own — which is why a lowered container whose own site is
+    /// otherwise unreachable (`scrollView`, stage 3) stays reachable through the
+    /// weights check and through an unconsumed record, and not through, say, a
+    /// child's `alignSelf: .baseline`.
     func planLegacyItems(_ received: [LoweredItem?], parent: Style, parentKind: LoweredItem.Kind,
                          parentSite: LoweringSite, fields: inout [UnlowerableField]) -> [LegacyItemPlan] {
         let single = received.count == 1

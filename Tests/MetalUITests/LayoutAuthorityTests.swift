@@ -175,17 +175,19 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// Mutations that must redden it: **M1d**, `List`'s check removed (the message
 /// names `box`); **M1d′**, the amend's check removed (the message is `SA-G`'s).
 ///
-/// **Stage 3, lane 1 adds a third arm, and it is transient** (spec §6 lane 1,
-/// `LR-BI`): a proposal-authority **`Window`** over a plain `ScrollView`
-/// aborts. `Window` never sets `reportsUnlowerableFields` — `Window.swift`'s
-/// `Frame(...)` call passes `layoutAuthority` and `recordsElementBounds` and
-/// nothing else — so `noteUnlowerable` takes its `preconditionFailure` branch
-/// and the process ends with no summary line and no list of what failed. That
-/// is why lane 3 cannot take a red-before by running the scroll suites under
-/// the proposal authority, and why this arm is its red-before instead. **Lane 2
-/// lowers `ScrollView` and retires this arm**, converting it to an agreement
-/// arm in `LoweringScrollTests.swift`; the test's name names the two arms that
-/// survive that.
+/// **Stage 3, lane 1 added a third arm, and lane 2 retired it** (spec §6 lanes
+/// 1 and 2, `LR-BI`). That arm ran a proposal-authority **`Window`** over a
+/// plain `ScrollView` and required it to abort, because `Window` never sets
+/// `reportsUnlowerableFields` — `Window.swift`'s `Frame(...)` call passes
+/// `layoutAuthority` and `recordsElementBounds` and nothing else — so
+/// `noteUnlowerable` takes its `preconditionFailure` branch and the process ends
+/// with no summary line and no list of what failed. That is why lane 3 cannot
+/// take a red-before by running the scroll suites under the proposal authority,
+/// and it was lane 3's red-before instead. Lane 2's lowering (`LR-BB`) makes a
+/// `ScrollView` build cleanly under this authority, so the arm is gone and its
+/// replacement is `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`
+/// in `LoweringScrollTests.swift`. **The test's name names the two arms that
+/// survive.**
 @Test func aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority() async {
     let list = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
@@ -214,25 +216,6 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     #expect(!amendErr.contains("setStyle on a native layout node"),
             "the amend must trap by its own site before SA-G's setStyle precondition:\n\(amendErr)")
 
-    // Stage 3 lane 1's transient arm, retired by lane 2. Through a real
-    // `Window`, not a `Frame`, because that is the shape lane 3's scroll
-    // scenarios take, and the point of the arm is that under this authority
-    // they abort rather than fail.
-    let scroller = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            guard let device = MTLCreateSystemDefaultDevice() else {
-                fatalError("no Metal device; run on macOS hardware")
-            }
-            guard let (window, _) = try? makeFakeWindow(device: device, size: 60, content: {
-                ScrollView(.vertical) { ProbeLeaf(width: 10, height: 40) }
-            }) else { fatalError("the fake window could not be built") }
-            window.layoutAuthority = .proposal
-            window.drawFrameIfNeeded()
-        }
-    }
-    let scrollerErr = String(decoding: scroller?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(scrollerErr.contains("scrollView.noLowering has no proposal lowering"),
-            "aborted, but not at ScrollView's own check — a window that could not be built aborts too:\n\(scrollerErr)")
 }
 
 /// **1.5.** With diagnostics on, every legacy site reports `(site, field)` by
@@ -265,9 +248,19 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// precondition and ends the whole run with no summary line (lane-1 verifier,
 /// mutation M1d′); in a child it reddens this test by name.
 ///
+/// **Stage 3, lane 2** lowers `ScrollView` (`LR-BB`), so its arm stops being a
+/// site-level `noLowering` entry and becomes a field-level one like `Box`'s and
+/// `Stack`'s. The field is **`flexGrow.weights`**, raised by two scroller
+/// children with unequal declared grow factors: `lowerLegacyNode` passes its
+/// `site:` to `planLegacyItems` as `parentSite:`, and that is the **only** field
+/// `planLegacyItems` raises at the parent's site — every per-child report is
+/// raised at `item.site`, the child's own (`LR-BM`). A **plain** `ScrollView`
+/// now reports nothing at all, which is 2.1's business, not this test's.
+///
 /// Mutations that must redden it: **M1e**, `ScrollView`'s record dropped;
 /// **M1e′**, `List`'s check moved after its `Box` is built (row boxes appear);
-/// **M1d′**, the amend's check removed (the child exits on `SA-G`'s precondition).
+/// **M1d′**, the amend's check removed (the child exits on `SA-G`'s precondition);
+/// **M2e**, the lowered content node registered with the wrong `site:`.
 @MainActor
 @Test func everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn() async throws {
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
@@ -284,8 +277,12 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     arms.append(("ModifiedElement, inner-layer registrar",
                  diagnostics { Box().padding(px(4)).position(.relative).padding(px(8)).inset(px(3)) },
                  [field(.modifierLayer, "position"), field(.modifierLayer, "inset")]))
-    arms.append(("ScrollView", diagnostics { ScrollView { ProbeLeaf(width: 10, height: 10) } },
-                 [field(.scrollView, "noLowering")]))
+    arms.append(("ScrollView", diagnostics {
+        ScrollView {
+            Box().width(px(10)).height(px(10)).flexGrow(1)
+            Box().width(px(10)).height(px(10)).flexGrow(2)
+        }
+    }, [field(.scrollView, "flexGrow.weights")]))
     // `list` first, and nothing else: the zero-row `Box` it lays out under
     // diagnostics lowers (the container since stage 1's lane 3; its spacer's
     // `flexShrink: 0` since stage 2's lane 2 — a declared 0 height, already rigid,

@@ -15,7 +15,10 @@ import MetalUILayout
 /// reports none of these fields itself.
 struct LoweredItem {
     enum Kind: Equatable {
-        /// A childless `Box` or a `Text`.
+        /// A childless `Box`, a `Text`, or — since stage 3 — a `ScrollView`'s kernel
+        /// scroll **viewport** (ruling LR-BB): it is a leaf to its parent, whatever
+        /// its content is, and its own record's `declared` is a bare `Style()`
+        /// because `ScrollView` has no modifier surface.
         case leaf
         /// A flex container: a `Box` with children, and so `Row`, `Column` and a
         /// `.padding` layer.
