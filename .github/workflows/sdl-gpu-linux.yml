@@ -71,7 +71,8 @@ jobs:
         # --dump reports every frame, writes raw BGRA, and still fails over tolerance.
         run: |
           mkdir -p Experiments/SDLGPU/linux-dump
-          docker run --rm -v "$PWD/Experiments/SDLGPU":/work metalui-portable bash -ec '
+          # The whole repo: Portable/ depends on the root package's MetalUIScene.
+          docker run --rm -v "$PWD":/work -w /work/Experiments/SDLGPU/Portable metalui-portable bash -ec '
             vulkaninfo --summary 2>/dev/null | grep -E "deviceName|driverName" || true
             swift build --scratch-path /tmp/build
             swift test --scratch-path /tmp/build

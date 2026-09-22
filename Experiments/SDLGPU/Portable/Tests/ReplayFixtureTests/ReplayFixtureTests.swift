@@ -1,5 +1,7 @@
 import Testing
 import ReplayFixture
+import MetalUIScene
+import MetalUIShaderTypes
 
 // Distinct byte values everywhere, so a field read from the wrong offset or
 // in the wrong byte order changes the decoded fixture.
@@ -186,4 +188,41 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
     let parity = fixture.parity(of: output)
     #expect(parity.outside.maxDelta == 3)
     #expect(!parity.passes)
+}
+
+// MARK: - From MetalUIScene
+
+@Test func thePrimitiveABIIsTheOneTheShadersRead() {
+    // replay.hlsl reads a rect as 8 float4 lanes and a glyph as 6, after the
+    // bridge pads 120 -> 128 and 88 -> 96. A struct change must redden here.
+    #expect(ReplayFixture.rectStride == 120)
+    #expect(ReplayFixture.glyphStride == 88)
+}
+
+@Test func aFixtureFromASceneCarriesItsPrimitivesDrawListAndAtlas() throws {
+    var scene = Scene()
+    var rect = MUIRect()
+    rect.bounds = MUIBounds(origin: MUIPoint(x: 1, y: 2), size: MUISize(width: 3, height: 4))
+    rect.order = 2
+    var glyph = MUIGlyph()
+    glyph.bounds = MUIBounds(origin: MUIPoint(x: 5, y: 6), size: MUISize(width: 7, height: 8))
+    glyph.order = 1
+    scene.insert(rect)
+    scene.insert(glyph)
+    scene.insert(rect)
+    scene.finalize()
+    // finalize sorts by order: glyph (1) before both rects (2) — two runs.
+    try #require(scene.drawList.count == 2)
+
+    let atlas = GlyphAtlas(width: 4, height: 2)
+    let fixture = try ReplayFixture(scene: scene, atlas: atlas, width: 3, height: 2,
+                                    projection: [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+                                    reference: [UInt8](repeating: 0, count: 3 * 2 * 4))
+    #expect(fixture.rectCount == 2 && fixture.glyphCount == 1)
+    #expect(fixture.runs == [FixtureRun(kind: .glyph, start: 0, count: 1),
+                             FixtureRun(kind: .rect, start: 0, count: 2)])
+    #expect(fixture.atlasWidth == 4 && fixture.atlasHeight == 2 && fixture.atlas == atlas.pixels)
+    let record = try #require(fixture.glyphRecords.first)
+    #expect(record.bounds.origin.x == 5 && record.bounds.size.height == 8 && record.order == 1)
+    #expect(try ReplayFixture(decoding: fixture.encoded()) == fixture)
 }

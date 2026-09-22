@@ -2,27 +2,33 @@
 
 An isolated feasibility probe, outside the production package. It consumes the
 existing `Scene`, shader structs, and CPU `GlyphAtlas` through their public APIs.
-No production source or root package dependency is changed.
+The only production change it needs is the root package's `MetalUIScene`
+library product (2026-09-22).
 
 ## Layout
 
-- `Portable/` — its own package with **no MetalUI dependency**: the C SDL
-  bridge, the HLSL shaders and compile script, `ReplayFixture` (fixture
-  format; standard library only) and `PortableReplay`. It imports only
-  Foundation, `SDLBridge` and `ReplayFixture`, and links only SDL3 and Foundation.
+- `Portable/` — its own package whose only MetalUI dependency is the
+  **`MetalUIScene` product** (`Scene`, `GlyphAtlas`, the shader structs; no
+  Apple framework import, ruling PS-A): the C SDL bridge, the HLSL shaders and
+  compile script, `ReplayFixture` (the fixture format, built from a `Scene` and
+  `GlyphAtlas` and read back as `MUIRect`/`MUIGlyph` bytes), `SDLReplay`
+  (`SDLReplayer`: one SDL GPU device that draws a live `Scene` or a fixture)
+  and `PortableReplay`. It links SDL3 and Foundation, and builds on Linux and
+  Windows with `MetalUIScene` inside it.
 - `.` — the Apple half (`Replay`): builds the fixture scenes with MetalUI's
   CoreText atlas, renders them with the production Metal renderer, compares
-  SDL live, and with `--record <dir>` writes each frame as a `.muireplay`
-  fixture (scene primitive bytes, draw runs, atlas, projection, Metal pixels).
-  It checks `MemoryLayout<MUIRect/MUIGlyph>.stride` against the fixture ABI
-  (120/88) before writing.
+  SDL live through `SDLReplayer`, and with `--record <dir>` writes each frame
+  as a `.muireplay` fixture (`ReplayFixture(scene:atlas:…)`: primitive bytes,
+  draw runs, atlas, projection, Metal pixels). The record strides come from
+  `MemoryLayout<MUIRect/MUIGlyph>` directly; `thePrimitiveABIIsTheOneTheShadersRead`
+  pins them at 120/88, the layout `replay.hlsl` reads.
 
 ## Record on macOS, replay anywhere SDL3 builds
 
 ```sh
 swift run --build-system native Replay --portable --record "$PWD/fixtures"
 cd Portable
-swift test                                             # fixture format and parity, 19 tests
+swift test                                             # fixture format and parity, 21 tests
 swift run PortableReplay ../fixtures                   # SDL Metal
 SDL_VULKAN_LIBRARY=/opt/homebrew/lib/libvulkan.1.dylib \
   swift run PortableReplay ../fixtures --driver vulkan  # SDL Vulkan (MoltenVK)
@@ -126,7 +132,7 @@ docker --context orbstack run --rm -v "$PWD":/work metalui-portable bash -c \
 
 Swift 6.4 on Ubuntu 24.04 with SDL 3.4.16 built from source (headless:
 `SDL_UNIX_CONSOLE_BUILD`, offscreen video) and Mesa llvmpipe, a CPU Vulkan
-driver. `Portable/` builds, its 19 tests pass, and `PortableReplay` links
+driver. `Portable/` builds, its tests pass, and `PortableReplay` links
 SDL3 and swift-corelibs-foundation only. Parity:
 
 - Frames 0–2 (identity projection): every difference is exactly one step,
@@ -188,11 +194,16 @@ validated public renderer API.
 
 1. Done: macOS (Metal, MoltenVK), Linux (llvmpipe) and Windows (D3D12) in CI.
    Still owed: real GPUs other than Apple's.
-2. Done inside the experiment (`Portable/`, 2026-09-21): recorded fixtures replay
-   at 0 differing pixels on SDL Metal and SDL Vulkan with no MetalUI module
-   built or linked. Production is untouched: `Scene` still lives in
-   `MetalUIRender` (which imports Metal) and `GlyphAtlas` in `MetalUIText`
-   (CoreText). Built and run on Linux and Windows (above).
+2. Done. Recorded fixtures replay on SDL Metal, Vulkan and D3D12 (2026-09-21);
+   since 2026-09-22 `Scene` and `GlyphAtlas` live in `MetalUIScene`, which
+   `Portable/` depends on directly (no Metal, CoreText or AppKit). Switching
+   left the fixture files byte-identical to the earlier hand-rolled writer
+   (all four frames, `cmp`). Mutations on the new path: swapped run kinds and
+   glyph bytes read from the rect array redden
+   `aFixtureFromASceneCarriesItsPrimitivesDrawListAndAtlas`; a misaligned
+   `MUIGlyph` read traps the test run; dropping the atlas pixels passes the
+   unit tests (only `MetalUIText`'s rasterizer can put ink in an atlas) and
+   fails the replay: frame 0, 6625 glyph pixels off by up to 214 steps.
 3. Add asynchronous resource lifetime and atlas-update stress cases before
    benchmarking or integrating with `Window`.
 4. Introduce a renderer protocol only after the two implementations establish

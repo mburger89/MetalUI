@@ -12,4 +12,5 @@ RUN git clone --depth 1 --branch ${SDL_TAG} https://github.com/libsdl-org/SDL.gi
     && cmake --build /tmp/SDL/build && cmake --install /tmp/SDL/build && ldconfig \
     && rm -rf /tmp/SDL
 ENV SDL_VIDEO_DRIVER=offscreen
-WORKDIR /work/Portable
+# Mount the repository at /work: Portable/ depends on ../../.. (MetalUIScene).
+WORKDIR /work/Experiments/SDLGPU/Portable

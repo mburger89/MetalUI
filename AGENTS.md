@@ -99,7 +99,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so tests
   can import it (`LR-S`). `MetalUIScene` holds `Scene`/`DrawRun`/`PrimitiveKind`,
   the glyph atlas types and the `FontKey` struct; `MetalUIText` and
-  `MetalUIRender` re-export it (`PS-B`), so its types need no new import.
+  `MetalUIRender` re-export it (`PS-B`), so its types need no new import. It
+  is also a library product, consumed by `Experiments/SDLGPU/Portable`.
 
 Five constraints that fail silently:
 

@@ -6,6 +6,9 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "MetalUI", targets: ["MetalUI"]),
+        // Platform-free per-frame data (ruling PS-A), for backends outside this
+        // package; first consumer: Experiments/SDLGPU/Portable.
+        .library(name: "MetalUIScene", targets: ["MetalUIScene"]),
         .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
     ],
     targets: [
