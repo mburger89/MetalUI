@@ -1797,3 +1797,35 @@ exist (the arms are the W group of
 `docs/probes/swiftui-grid-lane3-discriminators.swift`), and test 3.10's header
 named a walk `gridAttributes(of:)` that does not exist (it is
 `LayoutTree.gridChildMarks(_:)`).
+
+## GR-AO — `reset(generation:)`'s three new mark tables were cleared and unpinned
+
+**Ruling.** Lane 3 added three stored dictionaries to `LayoutTree` —
+`gridCellAnchors`, `gridCellColumnAlignments`, `gridCellUnsizedAxes` — and three
+matching `removeAll` calls in `reset(generation:)`. **Deleting all three left
+the whole 1463-test suite green** (verifier mutation V16), and so did deleting
+each on its own.
+
+**Why it matters.** `reset(generation:)` reuses node indexes, and
+`markNativeGridCell` writes only the arguments it is given, so a mark left
+behind at an index is read by the **next** generation's `newNativeGrid` — a
+silent wrong layout on a reused tree, with nothing to read in a diff. This is
+the hazard `resetClearsGridCellColumnMarks` and `resetClearsGridRowMarks`
+already pin for the span and the row token; the three attributes had no such
+arm. `CLAUDE.md` records the same shape twice before, for `nativeParents` and
+`spacerAxes`.
+
+**Pinned** by `resetClearsGridCellAttributeMarks`: three attributes, each with a
+stale arm (mark before the reset, expect nothing) and a control (the same mark
+after the reset, `#require`d to be read, so neither side can pass by reading
+nothing). Each of the three `removeAll` deletions reddens it with one issue, and
+all three together redden it with three. The suite goes to **1464**.
+
+**Not a defect in the source** — `reset` does clear them. It is the third
+clause of this lane whose only reader was the implementation itself
+(`GR-AM`'s two, `GR-AN`'s one, this).
+
+**For lane 4.** A mark table added to `LayoutTree` owes, in the same change, a
+line in `reset(generation:)` **and** an arm in
+`resetClearsGridCellAttributeMarks`; the suite will not otherwise notice either
+being missing.

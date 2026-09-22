@@ -1545,7 +1545,8 @@ stays owned by plan task 6; `GR-O` item 2 (the divergence corpus, now with test
 ### Verifier round (lane 3)
 
 Re-taken at `1630443` on a `swift package clean` build: **`Test run with 1463
-tests in 1 suite passed after 48.618 seconds`**, 0 `error:`, no `warning:` but
+tests in 1 suite passed after 48.618 seconds`** (**1464** at the verifier's own
+head, one test added by `GR-AO`), 0 `error:`, no `warning:` but
 SwiftPM's deprecation notice, goldens **97** (`git diff cb2e708 -- '*.json'`
 empty), guards **71** (73 `canTypecheck` hits less `Typecheck.swift`'s
 declaration and `UnitSafetyTests`' comment). Lane 3 adds no typecheck guard, so
@@ -1561,7 +1562,7 @@ nothing else. Restored, `git status --short` empty.
 docs/probes/swiftui-grid-lane3-discriminators.swift` exits 0 and its twenty
 stdout lines match its header byte for byte.
 
-**Mutations: fifteen, each from a copy of the committed file, `git status
+**Mutations: nineteen, each from a copy of the committed file, `git status
 --short` showing exactly one modified file during and nothing after, full native
 suite each time.** Eleven re-take the implementer's and read the same tests;
 four are the verifier's own.
@@ -1583,6 +1584,8 @@ four are the verifier's own.
 | V15 | **verifier's own**: the unsized-horizontal branch applies at a NIL width proposal too | 2.13 (4) |
 | V12 | **verifier's own**: the token from the outermost mark, the ALIGNMENT from the innermost | **green** — `GR-AN` |
 | V12b | the same after the fix | 3.10 (4: R4a, R4b) |
+| V16 | **verifier's own**: `reset(generation:)` clears none of the three new mark tables | **green** — `GR-AO` |
+| V16b/c/d | each of the three `removeAll` calls on its own, after the fix | `resetClearsGridCellAttributeMarks` (1 each); all three together, 3 |
 
 V10 reddens more than `M3.10` recorded because the implementer's table was taken
 before `c49fada` added 3.5's W arms and 3.6's arm (d); the tests named still
@@ -1602,13 +1605,24 @@ row's alignment, with a wrapper (A3 a (1,1), A4 a (1,29)) and without one (A2),
 so the kernel was right and the coverage was missing. Pinned by arm **R4** of
 test 3.10 (`c3868d9`); the suite stays at 1463.
 
+**The second green mutation is `GR-AO`**: lane 3's three new mark dictionaries
+on `LayoutTree` are cleared by `reset(generation:)`, and nothing read that.
+`reset` reuses node indexes and `markNativeGridCell` writes only what it is
+given, so a stale anchor, column alignment or unsized-axes mark is picked up by
+the next generation's `newNativeGrid` — the shape `resetClearsGridCellColumnMarks`
+and `resetClearsGridRowMarks` already pin for the span and the row token. Pinned
+by `resetClearsGridCellAttributeMarks` (`68ff523`), three attributes each with a
+stale arm and a `#require`d control; the suite goes to **1464**.
+
 **Two citations that could not be followed, fixed in the same pass**: `GR-AM`
 named a probe `swiftui-grid-chain-span-sum.swift` that does not exist (its arms
 are the W group of `swiftui-grid-lane3-discriminators.swift`), and test 3.10's
 header named a walk `gridAttributes(of:)` that does not exist (it is
 `LayoutTree.gridChildMarks(_:)`).
 
-**Demo, re-taken by the verifier.** `CN-R`'s harness (`gen-lib.py`,
+**Demo, re-taken by the verifier.** `Sources/` is unchanged from `1630443` to
+the verifier's head (both new commits are tests and docs), so this is the head's
+comparison. `CN-R`'s harness (`gen-lib.py`,
 `DEMO_PIXELS_SMALL=1`, default build system) in fresh `git archive`s of
 `cb2e708` and `1630443`: **12 of 12 images 0 differing pixels, every scene dump
 identical.** Controls on the head images, each reproducing the implementer's
@@ -1617,7 +1631,7 @@ vs animation (light) 210 027; preview light vs dark 1 048 576; f0 vs f3 0.
 `grep -rn Grid Sources/MetalUIDemoContent Sources/MetalUIDemo`: no hits.
 
 **Arm ids.** This round added **A0–A4** (the new probe) and test 3.10's **R4**;
-`GR-` reaches **GR-AN**, so the next free ruling is `GR-AO`. The next free `GF`
+`GR-` reaches **GR-AO**, so the next free ruling is `GR-AP`. The next free `GF`
 is still GF21.
 
 **No real window.** `docs/probes/appkit-screen-lock-state.swift` read
