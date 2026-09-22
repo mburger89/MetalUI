@@ -121,15 +121,17 @@ private func measureAlone<E: ProposalElement>(_ element: E, _ width: Double?,
 
 /// **`Grid`, `GridRow` and the four cell modifiers lay out as the probe reads.**
 ///
-/// Ten arms, each SwiftUI's: GA1 (the shape), GA3 (explicit spacing), GP2 (a
-/// flexible cell at 200×100), GL3 (`GridRow(alignment:)`), GX1
-/// (`.gridCellColumns(2)`), GL5 (`.gridColumnAlignment(.trailing)`), GL11
-/// (`.gridCellAnchor(.trailing)` on a non-row child), GU9
-/// (`.gridCellUnsizedAxes(.horizontal)`), GF14 (`.frame(maxWidth: .infinity)`
-/// inside a cell) and GF16 (a `Color` cell).
+/// Eleven arms, each SwiftUI's: GA1 (the shape), GL1 (`Grid(alignment:)`), GA3
+/// (explicit spacing), GP2 (a flexible cell at 200×100), GL3
+/// (`GridRow(alignment:)`), GX1 (`.gridCellColumns(2)`), GL5
+/// (`.gridColumnAlignment(.trailing)`), GL11 (`.gridCellAnchor(.trailing)` on a
+/// non-row child), GU9 (`.gridCellUnsizedAxes(.horizontal)`), GF14
+/// (`.frame(maxWidth: .infinity)` inside a cell) and GF16 (a `Color` cell).
 ///
-/// Mutation: `Grid` passes `horizontalSpacing` as `verticalSpacing` (GA3's b
-/// reads 38 and its c 25 → the arm fails on both axes).
+/// Mutations: `Grid` passes `horizontalSpacing` as `verticalSpacing` (GA3's b
+/// reads 38 and its c 25 → the arm fails on both axes); `Grid` discards its own
+/// `alignment` and always passes `.center` to `requestNativeGrid` (GL1's four
+/// rects, and only GL1's).
 @MainActor
 @Test func gridAndGridRowLayOutAsTheProbeReadsThroughTheElementAPI() throws {
     do { // GA1 78×58
@@ -146,6 +148,28 @@ private func measureAlone<E: ProposalElement>(_ element: E, _ width: Double?,
         #expect(rects["b"] == r(48, 0, 20, 20), "GA1 b: \(String(describing: rects["b"]))")
         #expect(rects["c"] == r(10, 28, 10, 30), "GA1 c: \(String(describing: rects["c"]))")
         #expect(rects["d"] == r(38, 38, 40, 10), "GA1 d: \(String(describing: rects["d"]))")
+    }
+    do { // GL1 — Grid(alignment: .topLeading) over GA1's leaves
+        // GA1 above is the discriminating control: the same four leaves in the
+        // same window, whose `a` sits at y 5 and whose `b` at x 48 under the
+        // default `.center`; here both take their slots' leading edge. This arm
+        // is what pins the `Grid` ELEMENT's own `alignment` property reaching
+        // `requestNativeGrid` — the `LayoutPass` → kernel hop alone is
+        // `requestNativeGridForwardsItsAlignmentToTheKernel`'s (lane 1's
+        // verifier handed this arm to lane 4; ruling `GR-AP` item 7).
+        let p = CellProbe()
+        let frame = laidOut(98, 78) {
+            Grid(alignment: .topLeading) {
+                GridRow { p.fx("a", 30, 10); p.fx("b", 20, 20) }
+                GridRow { p.fx("c", 10, 30); p.fx("d", 40, 10) }
+            }.fixedSize()
+        }
+        #expect(try rootSize(frame) == size(78, 58), "GL1 size")
+        let rects = try cells(frame, p)
+        #expect(rects["a"] == r(0, 0, 30, 10), "GL1 a: \(String(describing: rects["a"]))")
+        #expect(rects["b"] == r(38, 0, 20, 20), "GL1 b: \(String(describing: rects["b"]))")
+        #expect(rects["c"] == r(0, 28, 10, 30), "GL1 c: \(String(describing: rects["c"]))")
+        #expect(rects["d"] == r(38, 28, 40, 10), "GL1 d: \(String(describing: rects["d"]))")
     }
     do { // GA3 73×55, spacing 3/5
         let p = CellProbe()
@@ -1017,6 +1041,54 @@ private func twoFrames<Root: Element>(_ make: (Int) -> Root) {
         }
     }
     #expect(probe.reads["b"] == 1, "b across a changing anchor: \(String(describing: probe.reads["b"]))")
+}
+
+// MARK: - 4.10b the two untyped group entries
+
+/// **`GridRow`'s and `GridCellModifier`'s UNTYPED `requestGroupLayout` entries
+/// forward every node their typed entries registered.**
+///
+/// Both are one-line shims over the typed entry (`nodes.map(\.layoutNodeID)`),
+/// so there is no drift for a copy-comparison to catch (`MC-H`) — but
+/// `ProposalElementGroup` refines `ElementGroup`, so a legacy builder group
+/// reaches them, and a shim that returned `[]` would silently drop the row's
+/// cells with nothing else moving. Lane 4's verifier measured exactly that: both
+/// entries changed to `return ([], layout)` left the whole suite green.
+///
+/// Each arm calls the untyped entry directly, requires the node COUNT first (so
+/// a dropping shim fails here rather than trapping later in `requestNativeGrid`)
+/// and then reads the marks those ids carry through a grid built from them.
+///
+/// Mutations: `GridRow.requestGroupLayout` returns `([], layout)` (arm 1's
+/// `#require`); `GridCellModifier.requestGroupLayout` the same (arm 2's).
+@MainActor
+@Test func theUntypedGroupEntriesOfARowAndACellModifierForwardEveryCellNode() throws {
+    func plan<G: ProposalElementGroup>(_ make: () -> G) throws -> NativeGridPlan {
+        var group = make()
+        let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1)
+        var pass = LayoutPass(frame: frame)
+        var cursor = 0
+        let (nodes, _) = group.requestGroupLayout(under: rootID, at: &cursor, pass: &pass)
+        try #require(nodes.count == 2, "the untyped entry returned \(nodes.count) nodes, not 2")
+        let grid = pass.requestNativeGrid(children: nodes.map { ProposalNodeID($0) })
+        return try #require(frame.tree.nativeGridPlan(grid.layoutNodeID),
+                            "the registered node is not a grid")
+    }
+    let p = CellProbe()
+
+    // 1 — GridRow's untyped entry: both cells arrive, and both carry its row
+    // token, which is what says the ids are the ones it marked.
+    let row = try plan { GridRow { p.fx("a", 10, 10); p.fx("b", 10, 10) } }
+    #expect(row.cells.map(\.isRowCell) == [true, true],
+            "row tokens through the untyped entry: \(row.cells.map(\.isRowCell))")
+
+    // 2 — GridCellModifier's untyped entry over that row: both cells arrive with
+    // the attribute it wrote over each of them.
+    let modified = try plan {
+        GridRow { p.fx("a", 10, 10); p.fx("b", 10, 10) }.gridCellColumns(2)
+    }
+    #expect(modified.cells.map(\.span) == [2, 2],
+            "spans through the untyped entry: \(modified.cells.map(\.span))")
 }
 
 // MARK: - 4.11 a form of text cells
