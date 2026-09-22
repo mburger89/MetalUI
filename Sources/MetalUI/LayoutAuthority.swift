@@ -19,7 +19,12 @@ import MetalUILayout
 /// **Internal until stage 6b**, which decides whether any public spelling
 /// survives; pinned by the plain-import guard
 /// `aPlainImportCannotChooseTheLayoutAuthority`.
-enum LayoutAuthority: Sendable, Equatable {
+///
+/// **`CaseIterable` for the tests** (plan task 7, stage 3, lane 3, ruling LR-BI):
+/// the two scroll suites and `ScrollViewTests` are parameterised over
+/// `allCases`, so "both authorities" is one list rather than a literal repeated
+/// at 34 declarations. Internal, like the enum.
+enum LayoutAuthority: Sendable, Equatable, CaseIterable {
     case legacy
     case proposal
 }

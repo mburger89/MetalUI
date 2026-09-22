@@ -227,3 +227,47 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
         #expect(rect.maskCornerRadii.bottomLeft == 0)
     }
 }
+
+// MARK: - Plan task 7, stage 3, lane 3: the stage's exit criterion (spec 3.4)
+
+/// **3.4.** The roll call: every scroll scenario in `ScrollRoutingTests`,
+/// `ScrollIndicatorTests` and this file ran under **both** layout authorities.
+///
+/// **Why a test at all.** A `@Test(arguments:)` test counts as ONE test in the
+/// summary line — measured on this suite, `LR-BI` — so parameterising 34
+/// scenarios over two authorities moves the total by nothing and the exit
+/// criterion cannot be read off it. Reducing the `arguments:` list to `[.legacy]`
+/// (mutation **M3c**) would pass every test, move no count, and deliver none of
+/// the stage.
+///
+/// **Two halves, and only one of them is here** (`LR-BN`; see
+/// `ScrollAuthorityCoverage`'s doc for why the design's "counter" shape could not
+/// be made falsifiable). `ScrollAuthorityCoverage.record` verifies the whole set
+/// the moment the last expected name arrives, wherever that arm lands in the run.
+/// This test holds the hand-derived literals: the 34 names, and the `arguments:`
+/// list itself.
+///
+/// **Declared at the end of the last of the three files**, because its third
+/// `#require` reads what has been recorded so far. Swift Testing runs a file's
+/// tests in source order and the files in path order —
+/// `ScrollIndicatorTests` → `ScrollRoutingTests` → `ScrollViewTests`, measured
+/// twice at this HEAD — so by here all 34 have run. If that ever changes this
+/// fails naming the scenarios it had not yet seen, rather than passing quietly.
+@Test @MainActor func everyScrollScenarioRanUnderBothLayoutAuthorities() throws {
+    try #require(LayoutAuthority.allCases.count == 2,
+                 "the exit criterion is 'both authorities'; a third would need every literal in the three suites re-derived")
+    try #require(ScrollAuthorityCoverage.authorities == LayoutAuthority.allCases,
+                 "every scenario is declared over this one list — M3c reduces it and nothing else would say so")
+    try #require(ScrollAuthorityCoverage.expected.count == 34,
+                 "the hand-derived scenario count: 16 routing + 14 indicator + 4 ScrollViewTests")
+
+    let missing = ScrollAuthorityCoverage.expected.subtracting(ScrollAuthorityCoverage.seen.keys).sorted()
+    try #require(missing.isEmpty,
+                 "these scenarios recorded no coverage: \(missing)")
+    let all = Set(LayoutAuthority.allCases)
+    for (name, authorities) in ScrollAuthorityCoverage.seen.sorted(by: { $0.key < $1.key }) {
+        #expect(authorities == all, "\(name) ran under \(authorities.count) authority, not both")
+    }
+    #expect(ScrollAuthorityCoverage.verifiedWholeSet,
+            "record() must have verified the whole set once the last scenario arrived")
+}
