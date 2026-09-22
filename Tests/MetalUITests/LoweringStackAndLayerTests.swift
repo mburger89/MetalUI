@@ -556,12 +556,19 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
 /// **4.9.** `hidden()` after a frame sets `display: none` on the frame layer, which
 /// `ModifierLayer.lowered` keeps; it is reported `display.none` **before** the style
 /// comparison, alone (ruling LR-J): over one node, over two (a two-member component),
-/// with a sizing modifier also written after it, and on an inner layer. A frame over
-/// two nodes that is not hidden reports `frame.multipleNodes` (ruling LR-Z; stage 3
-/// owns a frame over a multi-member component).
+/// with a sizing modifier also written after it, and on an inner layer.
+///
+/// **The last arm is the control, and it changed in stage 3's lane 5.** A frame over
+/// two nodes that is not hidden used to report `frame.multipleNodes` (ruling LR-Z);
+/// `LR-BH` deletes that row and lowers the layer to a row of per-member frames, so
+/// the arm now reports **nothing**. It stays here as the discriminator for
+/// "`display.none` is checked first and **alone**": the hidden arms on their own
+/// cannot tell a first-and-alone check from one that never reaches a second entry.
+/// The lowered geometry is `LoweringComponentTests.swift`'s 5.1.
 ///
 /// Mutation that must redden it: **M4i**, the `display.none` check moved after the
-/// comparison (the entries read `modifierLayer.style`).
+/// style comparison (the entries read `modifierLayer.style`) — which, with the
+/// `frame.multipleNodes` row deleted, is also stage 3's **M5d** (`LR-BP` item 2).
 @MainActor
 @Test func aHiddenFrameLayerIsReportedAsDisplayNone() throws {
     let hidden = field(.modifierLayer, "display.none")
@@ -570,8 +577,7 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
         ("two nodes", report { TwoBoxes().frame(width: px(40)).hidden() }, [hidden]),
         ("with a width after it", report { fixed(10, 10).frame(width: px(40)).hidden().width(px(60)) }, [hidden]),
         ("inner layer", report { fixed(10, 10).frame(width: px(40)).hidden().padding(px(4)) }, [hidden]),
-        ("two nodes, not hidden", report { TwoBoxes().frame(width: px(40)) },
-         [field(.modifierLayer, "frame.multipleNodes")]),
+        ("two nodes, not hidden", report { TwoBoxes().frame(width: px(40)) }, []),
     ]
     try #require(arms.count == 5)
     for (name, entries, expected) in arms {

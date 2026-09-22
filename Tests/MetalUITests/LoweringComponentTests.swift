@@ -5,8 +5,9 @@ import MetalUICore
 
 // Plan task 7, stage 3 of the engine replacement — the `Component` distribution
 // lane. Design: `docs/superpowers/specs/2026-09-22-engine-stage-3-design.md`
-// §3.5 and §6 lane 4; rulings `LR-BG` (amend and wrap) and `LR-BO` (this lane's
-// corrections).
+// §3.5 and §6 lanes 4 and 5; rulings `LR-BG` (amend and wrap), `LR-BO` (lane
+// 4's corrections), `LR-BH` (a frame layer over several member nodes) and
+// `LR-BP` (lane 5's corrections).
 //
 // **What the lane changes.** `ComponentModifierOp.amend` stops carrying a
 // `(inout Style) -> Void` closure and carries a `Size<Dimension>` patch. The
@@ -371,4 +372,146 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
     }
     #expect(minimum.unlowerable.isEmpty, "minWidth: \(minimum.unlowerable)")
     try lane4Rects(minimum, "minWidth", lane4MemberA, legacy: bnd(0, 0, 70, 10), lowered: bnd(15, 0, 40, 10))
+}
+
+// MARK: - 5.1, 5.1a, 5.2 — a `.frame` layer over several member nodes (LR-BH)
+
+/// `.frame(…)` on a component is NOT a distributing op: it is a
+/// `ModifiedElement` layer around the whole body (`Component`'s side door), so
+/// the layer takes the `Box`'s cursor slot and the component numbers from 0
+/// under it — one level deeper than lane 4's `StyledComponent` fixtures.
+private let lane5Layer = GlobalElementID.child(of: lane4Box, at: 0, name: nil)
+private let lane5Component = GlobalElementID.child(of: lane5Layer, at: 0, name: nil)
+private let lane5MemberA = GlobalElementID.child(of: lane5Component, at: 0, name: nil)
+private let lane5MemberB = GlobalElementID.child(of: lane5Component, at: 1, name: nil)
+
+/// Two members that give the item planning something to carry: a `margin` — which
+/// a **stack or frame-layer** parent drops (`LR-AZ`, `LR-BO` item 1) — and an
+/// `auto` width with a `minWidth`, which only the parent's item frame W can
+/// apply. Widths 30 and (floored) 40, heights 10, as `Lane4Pair`'s are.
+private struct Lane5FieldPair: Component {
+    var content: some ElementGroup {
+        Box().width(px(30)).height(px(10)).margin(px(4))
+        Box().height(px(10)).minWidth(px(40))
+    }
+}
+
+/// **Test 5.1** (`LR-BH`), a **divergence pin** (divergence 56). A `.frame` layer
+/// over a multi-member component is ONE flex row under the legacy authority,
+/// which squeezes the members to fit; under the proposal one it is a **row of
+/// per-member frames**, each carrying the whole `FrameSpec`, spaced 0 — which is
+/// SwiftUI's answer.
+///
+/// Prototype arm **C6**, `Pair().frame(width: 70, height: 40)` in a 300×40 `Box`:
+///
+/// | | legacy | lowered |
+/// |---|---|---|
+/// | the layer | (0, 0) **70**×40 | (0, 0) **140**×40 |
+/// | member a (30 wide) | (0, 15) **26**×10 — shrunk by 30/80 of the 10pt overflow | (**20**, 15) **30**×10 — its own width, centred in its own 70 |
+/// | member b (50 wide) | (26, 15) **44**×10 | (**80**, 15) **50**×10 |
+///
+/// SwiftUI: stage-3 probe **W1**/**W4** read `Pair().frame(width: 70)` (and with
+/// `height: 40`) as a at **96** and b at **164** in a 300pt host — a **148**pt
+/// pair, each member at its own width centred in its own 70. 148 is 140 plus the
+/// enclosing `HStack`'s 8pt spacing; MetalUI's container supplies its own spacing
+/// (divergence 52), so the row is spaced **0** and the pair is 140.
+///
+/// **The node count is the second half of the pin**: the rects alone cannot tell
+/// "two frames rowed at spacing 0" from several other trees. Two per-member
+/// frames and one row are **+3** nodes over the same component with no frame.
+///
+/// Mutations: **M5a** the row at the platform default spacing (140 → 148, b at
+/// 88); **M5b** the `FrameSpec` applied to the first member only (the row 120
+/// wide, b at 70).
+@MainActor
+@Test func aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem() throws {
+    let c6 = LayoutDifferential.compare(width: 400, height: 100) {
+        Box { Lane4Pair().frame(width: px(70), height: px(40)) }.width(px(300)).height(px(40))
+    }
+    #expect(c6.unlowerable.isEmpty, "C6: \(c6.unlowerable)")
+    try #require(c6.elements == 5, "C6 ids: root, Box, the frame layer and the two members; got \(c6.elements)")
+    try lane4Rects(c6, "C6 layer", lane5Layer, legacy: bnd(0, 0, 70, 40), lowered: bnd(0, 0, 140, 40))
+    try lane4Rects(c6, "C6 a", lane5MemberA, legacy: bnd(0, 15, 26, 10), lowered: bnd(20, 15, 30, 10))
+    try lane4Rects(c6, "C6 b", lane5MemberB, legacy: bnd(26, 15, 44, 10), lowered: bnd(80, 15, 50, 10))
+
+    // Two per-member frames and one row: +3 native nodes over the bare component.
+    let framed = LayoutDifferential.render(authority: .proposal, width: 400, height: 100) {
+        Box { Lane4Pair().frame(width: px(70), height: px(40)) }.width(px(300)).height(px(40))
+    }
+    let bare = LayoutDifferential.render(authority: .proposal, width: 400, height: 100) {
+        Box { Lane4Pair() }.width(px(300)).height(px(40))
+    }
+    #expect(framed.tree.nodeCount == bare.tree.nodeCount + 3,
+            "two per-member frames and one row; got \(framed.tree.nodeCount) against \(bare.tree.nodeCount)")
+}
+
+/// **Test 5.1a** (`LR-BH` as amended by stage-3 critic round 1 finding 7).
+/// `lowerLegacyLayer` **consumes** every child's `LoweredItem` up front and, before
+/// this lane, ran `planLegacyItems` only at `children.count == 1`, leaving the
+/// plans at their defaults (which make `registerLegacyItems` a no-op) and
+/// returning `.first`. The `frame.multipleNodes` diagnostic short-circuited before
+/// any of it; deleting that row makes the path live, so the multi-node arm must
+/// plan the members' item fields too — otherwise every member's `minSize`,
+/// `maxSize`, `margin`, `alignSelf` and `flexGrow` is consumed and **dropped with
+/// no diagnostic**, since a consumed record is skipped by
+/// `reportUnconsumedLoweredItems`.
+///
+/// C6's shape with two members that give the planning something to carry, in an
+/// 80×40 frame (78pt of content, so the legacy row does not shrink):
+///
+/// | | legacy | lowered |
+/// |---|---|---|
+/// | a, `width(30).margin(4)` | (**5**, 15) 30×10 — 1pt of centred free space, then the 4pt margin | (**25**, 15) 30×10 — the margin **dropped** |
+/// | b, `height(10).minWidth(40)` | (**39**, 15) **40**×10 | (**100**, 15) **40**×10 — the floor carried into the item frame W |
+///
+/// **The margin is consumed and DROPPED, not applied** (`LR-BP` item 1,
+/// correcting the design's M5e row): the parent kind is `.stack`, as every other
+/// frame's in the lowering is, and a stack or frame-layer parent ignores a
+/// child's `margin`, `flexGrow`, `flexShrink`, `flexBasis` and `alignSelf`
+/// (`LR-AZ`, `LR-BO` item 1). So it is member **b**'s 40pt floor that both
+/// mutations below can see; member a is here because a dropped field must be
+/// pinned as dropped rather than left unmeasured.
+///
+/// Mutations: **M5e** the planning skipped for `count > 1` (b loses its 40pt
+/// floor and reads 0 wide at x 120); **M5f** `registerLegacyItems(children, plans)`
+/// reduced to `.first` again (only member a is rowed).
+@MainActor
+@Test func aFrameOverSeveralMembersStillPlansEachMembersItemFields() throws {
+    let fields = LayoutDifferential.compare(width: 400, height: 100) {
+        Box { Lane5FieldPair().frame(width: px(80), height: px(40)) }.width(px(300)).height(px(40))
+    }
+    #expect(fields.unlowerable.isEmpty, "fields: \(fields.unlowerable)")
+    try #require(fields.elements == 5,
+                 "fields ids: root, Box, the frame layer and the two members; got \(fields.elements)")
+    try lane4Rects(fields, "fields a", lane5MemberA, legacy: bnd(5, 15, 30, 10), lowered: bnd(25, 15, 30, 10))
+    try lane4Rects(fields, "fields b", lane5MemberB, legacy: bnd(39, 15, 40, 10), lowered: bnd(100, 15, 40, 10))
+}
+
+/// **Test 5.2** (`LR-BH`), characterization. A frame over **one** node is
+/// unchanged by this lane: it still takes `lowerLegacyLayer`'s existing frame arm
+/// and registers ONE native frame — no row wrapper, no second node. Counted by
+/// hand against the same component with no frame: **+1**.
+///
+/// Mutation **M5c**: the `count > 1` arm entered at `count == 1` (the one member
+/// is framed and then rowed on its own, +2).
+@MainActor
+@Test func aFrameOverOneMemberIsUnchanged() throws {
+    let framed = LayoutDifferential.render(authority: .proposal, width: 400, height: 100) {
+        Box { Lane4Solo().frame(width: px(70), height: px(40)) }.width(px(300)).height(px(40))
+    }
+    let bare = LayoutDifferential.render(authority: .proposal, width: 400, height: 100) {
+        Box { Lane4Solo() }.width(px(300)).height(px(40))
+    }
+    #expect(framed.unlowerableFields.isEmpty, "one member: \(framed.unlowerableFields)")
+    #expect(framed.tree.nodeCount == bare.tree.nodeCount + 1,
+            "one native frame and no row; got \(framed.tree.nodeCount) against \(bare.tree.nodeCount)")
+
+    // And the geometry the single-node arm has always produced: the member keeps
+    // its own 30×10 and is centred in the 70×40 frame.
+    let one = LayoutDifferential.compare(width: 400, height: 100) {
+        Box { Lane4Solo().frame(width: px(70), height: px(40)) }.width(px(300)).height(px(40))
+    }
+    #expect(one.unlowerable.isEmpty, "one member compare: \(one.unlowerable)")
+    try lane4Rects(one, "one member", lane5MemberA, legacy: bnd(20, 15, 30, 10), lowered: bnd(20, 15, 30, 10),
+                   mustDiffer: false)
 }
