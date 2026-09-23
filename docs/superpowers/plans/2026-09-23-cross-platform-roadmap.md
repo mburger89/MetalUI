@@ -64,9 +64,10 @@ Apple-bound:
    portable target and run the Core and Layout suites (486 + 22 on Linux).
    `feat/portable-core-layout`, spec
    `specs/2026-09-23-portable-core-layout-design.md` (`PC-`), record §34.
-6. [ ] **Text seam** — `Text`/`ProposalText` measure and draw through a
-   text-system protocol with two implementations: today's CoreText path and
-   `PortableText`. Selected once per app, not per element.
+6. [x] **Text seam** — `TextSystem` (`MetalUITextSystem`), with
+   `CoreTextTextSystem` and `PortableTextSystem`; `Text`/`ProposalText` draw
+   identical sprites through either. `feat/text-seam`, spec
+   `specs/2026-09-23-text-seam-design.md` (`TS-`), record §35.
 7. [ ] **Render seam** — `Window` renders through a backend protocol; the
    Metal `Renderer` is one implementation, and the SDL GPU replayer is
    promoted out of `Experiments/` into a real target as the other, with its

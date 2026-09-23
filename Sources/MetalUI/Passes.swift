@@ -1,6 +1,7 @@
 import MetalUICore
 import MetalUILayout
 import MetalUIText
+import MetalUITextSystem
 
 // Spec §4.1: "`LayoutPass` / `PrepaintPass` / `PaintPass` are thin structs over
 // one `@MainActor final class Frame`, exposing only what is legal in that phase
@@ -232,6 +233,10 @@ public struct LayoutPass {
     /// that shapes survive the frame. Making it public would also make
     /// `ShapingCache`'s whole surface part of `MetalUI`'s API by reachability.
     var shapingCache: ShapingCache { frame.shapingCache }
+
+    /// The window's text engine (ruling TS-A) — internal for `shapingCache`'s
+    /// reason: `Text` lives inside this module.
+    var textSystem: any TextSystem { frame.textSystem }
 
     /// Whether this frame records accessibility (`Frame.collectsAccessibility`).
     var collectsAccessibility: Bool { frame.collectsAccessibility }
@@ -742,6 +747,9 @@ public struct PaintPass {
     /// The window's shaping cache (spec §3.2). See `LayoutPass.shapingCache`.
     var shapingCache: ShapingCache { frame.shapingCache }
 
+    /// The window's text engine. See `LayoutPass.textSystem`.
+    var textSystem: any TextSystem { frame.textSystem }
+
     /// Logical points to device pixels for this frame's target.
     ///
     /// **The one place in the paint phase that may read it**, because a glyph
@@ -752,6 +760,11 @@ public struct PaintPass {
 
     /// Emits one glyph sprite. See `Frame.draw(_:color:)`.
     func draw(_ glyph: PlacedGlyph, color: Hsla) {
+        frame.draw(glyph, color: color)
+    }
+
+    /// Emits one glyph the text system placed. See `Frame.draw(_:color:)`.
+    func draw(_ glyph: TextGlyph, color: Hsla) {
         frame.draw(glyph, color: color)
     }
 

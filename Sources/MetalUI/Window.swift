@@ -4,6 +4,7 @@ import MetalUICore
 import MetalUIRender
 import MetalUIPlatform
 import MetalUIText
+import MetalUITextSystem
 
 @MainActor
 public final class Window {
@@ -51,7 +52,12 @@ public final class Window {
     /// stream of distinct strings therefore grows unboundedly; eviction is the
     /// atlas's problem first (spec §3.5) and this cache's next, and neither is
     /// M2's.
-    private let shapingCache = ShapingCache()
+    private let shapingCache: ShapingCache
+
+    /// The text engine this window's `Text`s measure and draw through (ruling
+    /// TS-A): the app's choice, made once when the window opens, or the
+    /// CoreText system over ``shapingCache``.
+    private let textSystem: any TextSystem
 
     /// The glyph atlas (spec §3.5), owned here for the same reason
     /// `shapingCache` is — a `Frame` lives for one frame and an atlas that died
@@ -452,7 +458,11 @@ public final class Window {
     init<Root: Element>(platformWindow: any PlatformWindow,
                         renderer: Renderer,
                         startsDisplayLink: Bool = true,
+                        textSystem: (any TextSystem)? = nil,
                         content: @escaping @MainActor () -> Root) {
+        let shapingCache = ShapingCache()
+        self.shapingCache = shapingCache
+        self.textSystem = textSystem ?? CoreTextTextSystem(cache: shapingCache)
         self.platformWindow = platformWindow
         self.renderer = renderer
         self.theme = Theme.forAppearance(platformWindow.appearance)
@@ -881,6 +891,7 @@ public final class Window {
                           scaleFactor: surfaceFrame.scaleFactor,
                           stateTable: stateTable,
                           shapingCache: shapingCache,
+                          textSystem: textSystem,
                           glyphAtlas: glyphAtlas,
                           theme: theme,
                           timestamp: lastTick,

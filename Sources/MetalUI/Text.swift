@@ -1,6 +1,7 @@
 import MetalUICore
 import MetalUILayout
 import MetalUIText
+import MetalUITextSystem
 
 /// The smallest width this module will ever ask the shaper to wrap at.
 ///
@@ -69,7 +70,7 @@ let smallestWrapWidth = 0.5
 /// sees into §4.5's floor; reporting the run width and the shape's height is
 /// CSS's own split.
 @MainActor
-func textMeasure(_ string: String, font: ResolvedFont, cache: ShapingCache,
+func textMeasure(_ string: String, font: FontKey, system: any TextSystem,
                  known: OptionalSizeD, available: AvailableSpace) -> SizeD {
     // The width the text is typeset at, and — on the min-content branch — the
     // width to report, which is not the same number. See the doc comment.
@@ -88,7 +89,7 @@ func textMeasure(_ string: String, font: ResolvedFont, cache: ShapingCache,
             // character-breaks a word it cannot fit, so `shape(wrappingAt: tiny)`
             // answers "the widest character" (11.489) where §4.5 needs "the
             // longest word" (110.348) — hence runs rather than a narrow typeset.
-            let minContent = cache.minContentWidth(string, font: font)
+            let minContent = system.minContentWidth(string, font: font)
             wrapWidth = max(minContent, smallestWrapWidth)
             reportedWidth = minContent
         case .definite(let offered):
@@ -96,18 +97,29 @@ func textMeasure(_ string: String, font: ResolvedFont, cache: ShapingCache,
         }
     }
 
-    let shaped = cache.shaped(string, font: font, wrappingAt: wrapWidth)
+    let shaped = system.measure(string, font: font, wrappingAt: wrapWidth)
     return SizeD(width: reportedWidth ?? shaped.widestLine,
                  height: known.height ?? shaped.totalHeight)
+}
+
+/// ``textMeasure(_:font:system:known:available:)`` over a CoreText shaping
+/// cache — the spelling the measurement tests use to ask the Apple path
+/// directly.
+@MainActor
+func textMeasure(_ string: String, font: ResolvedFont, cache: ShapingCache,
+                 known: OptionalSizeD, available: AvailableSpace) -> SizeD {
+    cache.registerFont(font)
+    return textMeasure(string, font: font.key, system: CoreTextTextSystem(cache: cache),
+                       known: known, available: available)
 }
 
 /// The overload the engine's `MeasureFunction` shape calls, which takes the
 /// whole `AvailableSpaceSize` and reads only its width. Separate so that the
 /// function above cannot be *given* a height question it silently ignores.
 @MainActor
-func textMeasure(_ string: String, font: ResolvedFont, cache: ShapingCache,
+func textMeasure(_ string: String, font: FontKey, system: any TextSystem,
                  known: OptionalSizeD, available: AvailableSpaceSize) -> SizeD {
-    textMeasure(string, font: font, cache: cache, known: known, available: available.width)
+    textMeasure(string, font: font, system: system, known: known, available: available.width)
 }
 
 /// A run of text: the framework's first leaf, and `newLeaf`'s first production
@@ -191,68 +203,19 @@ public struct Text: Element, StyledElement {
 
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
-        let cache = pass.shapingCache
-        // Memoized per `(family, size)` request on the window's cache — see
-        // `ShapingCache.resolveFont(family:size:)`. `paint` below asks the same
-        // question and gets the same `ResolvedFont` back.
-        let font = cache.resolveFont(family: fontFamily, size: fontSize)
-        // Registered here, on the main actor, so that the `@Sendable` closure
-        // below can reach the font by its `Sendable` key instead of capturing
-        // the font itself — see the capture list note below.
-        cache.registerFont(font)
-
-        let key = font.key
+        let system = pass.textSystem
+        // Resolved and registered by the text system under its `Sendable`
+        // key; the closures below capture the key and the system, never a
+        // font or the request (`FontKey`'s rule). `paint` asks the same
+        // question and gets the same key back.
+        let key = system.resolveFont(family: fontFamily, size: fontSize)
         let string = self.string
 
-        // **The captures are the whole concurrency story, and each one is
-        // settled by the compiler rather than by argument.**
-        //
-        // - `cache` is a `@MainActor final class`, so it is implicitly
-        //   `Sendable` and a `@Sendable` closure may hold it.
-        // - `font` is **not** capturable: `ResolvedFont` wraps a `CTFont`, a
-        //   CoreFoundation class with no `Sendable` guarantee. `key` is the
-        //   `Sendable` stand-in that crosses instead, and the font is fetched
-        //   back out of the cache once the block is already isolated.
-        // - `MainActor.assumeIsolated<T>` requires `T: Sendable`, so the block
-        //   must reduce to `SizeD` before returning. A `ShapedText` never
-        //   escapes it — which is the same reason it may hold a `CTLine`.
-        //
-        // The assumption itself is sound because `computeLayout` runs
-        // synchronously inside `Frame.computeRootLayout`, which is `@MainActor`;
-        // the engine is non-isolated code on the caller's thread, not a hop.
-        //
-        // **It is also a latent release trap that no test can guard, which is
-        // why it is stated here and in CLAUDE.md rather than only implied.**
-        // `assumeIsolated` terminates the process when the assumption is false,
-        // so laying out a tree containing a text leaf from any other executor —
-        // a background actor, a `Task.detached`, the 4 MB worker thread
-        // `LayoutContext`'s depth test spins up — kills the app. Nothing in the
-        // repo can notice: every off-main-actor layout here builds a leafless
-        // tree, and a test that got it wrong would crash the run rather than
-        // redden. If layout ever moves off the main actor, this closure is the
-        // first thing to rewrite — the cache would have to become an actor, or
-        // the shaped size would have to be computed before the closure is
-        // built.
-        // The site's own authority check (plan task 7, ruling LR-C). Under the
-        // proposal authority a `Text` lowers (ruling LR-F, `LegacyLowering.swift`)
-        // to a native leaf measured by `proposalTextMeasurement` — unchanged, the
-        // same function `ProposalText` uses, so it hugs its widest line at a
-        // proposed width — inside a fixed `.topLeading` frame when a size is
-        // declared. The leaf's closure makes the same `assumeIsolated` assumption
-        // as the legacy one below, for the same reason: `computeNativeLayout` runs
-        // synchronously on the caller's thread, inside `Frame.computeRootLayout`.
         if pass.lowersToProposal {
             let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
                 pass.frame.requestNativeLeaf { proposal in
                     MainActor.assumeIsolated {
-                        guard let font = cache.font(for: key) else {
-                            preconditionFailure("""
-                                No font registered for \(key) on the shaping cache a lowered \
-                                Text's measure function captured (see the legacy closure below).
-                                """)
-                        }
-                        return proposalTextMeasurement(string, font: font, cache: cache,
-                                                       proposal: proposal)
+                        proposalTextMeasurement(string, font: key, system: system, proposal: proposal)
                     }
                 }
             }
@@ -260,54 +223,7 @@ public struct Text: Element, StyledElement {
         }
         let node = pass.frame.requestLeaf(style: style) { known, available in
             MainActor.assumeIsolated {
-                // **A hit here rests on three things, and this comment once
-                // named two of them and called the guard unable to fire.**
-                //
-                // 1. Same instance: `registerFont` ran on this exact
-                //    `ShapingCache` object above, and the closure captures the
-                //    object, not a copy.
-                // 2. No removal: `fonts` is written only by `registerFont`, and
-                //    `endFrame()` sweeps `storage` and `minContent`, not it —
-                //    deliberately; `ShapingCache.fonts` says why, and that
-                //    sweeping it means rewriting this argument.
-                // 3. **`key == key`.** `FontKey`'s `==` is synthesized, so it
-                //    compares `size` by IEEE equality. Both halves above held
-                //    for `Text("x").font(family: "Menlo", size: .nan)`, and
-                //    this still missed: `CTFontCreateWithName` keeps a NaN
-                //    point size, the key was unequal to itself, and the process
-                //    died here with a message blaming cache identity.
-                //
-                // The third now holds by precondition upstream:
-                // `FontResolver.resolve` traps on a size that is not finite
-                // and positive, naming the size, before any key exists. The
-                // key's other components come from CoreText; at 13pt and
-                // 1e-300pt on both resolver paths they were probed finite
-                // (identity matrix, no NaN variation coordinate), which is a
-                // measurement of those sizes, not a proof for all of them.
-                //
-                // A miss traps rather than substituting a zero size, because a
-                // text run silently measuring 0x0 is the invisible failure
-                // nothing else here would report.
-                //
-                // **A hit is the font last registered under `key`, which is
-                // this `Text`'s own only when no other request shares the key.**
-                // `FontKey` does not identify shaping behaviour: a 13pt `Text`
-                // with no family and one declared `.font(family: "System
-                // Font", size: 13)` share a key and shape non-Latin text
-                // differently, and one shape serves both — see
-                // `ShapingCache.fonts`.
-                guard let font = cache.font(for: key) else {
-                    preconditionFailure("""
-                        No font registered for \(key) on the shaping cache this \
-                        measure function captured. Text.requestLayout registers \
-                        the font on that same instance before building the \
-                        closure and ShapingCache never removes one, so either \
-                        the key is not equal to itself (a NaN component) or the \
-                        closure holds a different cache.
-                        """)
-                }
-                return textMeasure(string, font: font, cache: cache,
-                                   known: known, available: available)
+                textMeasure(string, font: key, system: system, known: known, available: available)
             }
         }
         return (node, Layout(node: node))
@@ -427,7 +343,8 @@ public struct Text: Element, StyledElement {
                                       pass: inout PaintPass) {
         // The same memoized request `requestLayout` made — a dictionary hit,
         // not a second `CTFont` creation.
-        let font = pass.shapingCache.resolveFont(family: fontFamily, size: fontSize)
+        let system = pass.textSystem
+        let font = system.resolveFont(family: fontFamily, size: fontSize)
         // **The width layout MEASURED at, not the rounded box it stored** —
         // the fix for what CLAUDE.md carried as divergence 8, and the reason
         // this reads `pass.measuredWidth(of:)` rather than `bounds`.
@@ -474,14 +391,11 @@ public struct Text: Element, StyledElement {
         let glyphNode = pass.frame.lowering.textLeaves[layout.node]
         let origin = glyphNode.map { pass.bounds(of: $0).origin } ?? bounds.origin
         let width = max(pass.measuredWidth(of: glyphNode ?? layout.node), smallestWrapWidth)
-        let shaped = pass.shapingCache.shaped(string, font: font, wrappingAt: width)
         let color = pass.theme[foregroundColor ?? .textPrimary]
 
-        for glyph in shaped.placedGlyphs(
-            at: (x: Double(origin.x.value), y: Double(origin.y.value)),
-            font: font,
-            scaleFactor: pass.scaleFactor
-        ) {
+        for glyph in system.placeGlyphs(string, font: font, wrappingAt: width,
+                                        origin: (x: Double(origin.x.value), y: Double(origin.y.value)),
+                                        scaleFactor: pass.scaleFactor) {
             pass.draw(glyph, color: color)
         }
     }
