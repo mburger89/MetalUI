@@ -513,7 +513,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `specs/2026-09-23-engine-stage-4-design.md`; rulings `LR-BQ`…`LR-CG` in
   `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages 1–3);
   **no new probe** — the SwiftUI answer is `swiftui-stack-algorithms.swift`'s
-  K6, re-run and diffed byte-identical five times; record §26. **Stage 4
+  K6, re-run and diffed byte-identical five times; record §27. **Stage 4
   delivered** (five lanes, each with its own mutation table, all verified `ok`,
   fifteen minors all dispositioned): `List`'s explicit site check is **deleted**
   and its realized rows are placed by a `WindowedRowsLayout` at
@@ -543,7 +543,9 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   authority (stage 6b); `Deferred` as a presentation root (stage 5) and
   `display: none` keep one `List` scenario each on the legacy arm; the
   nil-width measurement path is `O(logicalCount)`; five small test-file
-  obligations are listed in record §26 §11.3.
+  obligations are listed in record §27 §11.3. *Merged with `master` at
+  `f5e5651` (the HarfBuzz shaper line, record §26) on 2026-09-23: 1617 / 97 /
+  77 on the merged tree; this stage's record renumbered §26 → §27.*
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

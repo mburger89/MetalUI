@@ -127,7 +127,7 @@ private extension AccessibilityTree {
 /// `height`, so no automatic minimum is in play, and where it is a flex item
 /// (`aClientDoesNotChangeStateRetention`'s `Row`) the axis it names is the cross
 /// one. Measured, not argued: dropping it and running the whole suite unfiltered
-/// left 1593 tests / 3 issues, the three lane 2 left red for lane 5 (record §26
+/// left 1593 tests / 3 issues, the three lane 2 left red for lane 5 (record §27
 /// §9.2). That is why it goes, rather than the fixture being wrapped in a host.
 @Test func aRootMinHeightOnTheScrollerFixtureAbortsAProductionProposalFrame() async {
     let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
@@ -175,7 +175,7 @@ private extension AccessibilityTree {
 ///
 /// M4b's count is restated against a test that CAN run on both paths —
 /// `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`' zero-
-/// `rowHeight` arm, which is the same `AB-X` rule 1 on the same gate (record §26
+/// `rowHeight` arm, which is the same `AB-X` rule 1 on the same gate (record §27
 /// §9.5).
 @Test func aHiddenListAbortsAProductionProposalFrame() async {
     let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
@@ -234,7 +234,7 @@ private extension AccessibilityTree {
 /// in the one place it is a flex item (`aClientDoesNotChangeStateRetention`'s
 /// `Row`) the axis it names is the cross one. The whole suite unfiltered with it
 /// dropped and nothing else changed read 1593 tests / 3 issues — the three lane 2
-/// left red for lane 5 (record §26 §9.2).
+/// left red for lane 5 (record §27 §9.2).
 @MainActor private func scrolledList(_ count: Int, height: Float,
                                      label: String? = nil, rowHeight: Float = 28,
                                      clickableRows: Bool = false,

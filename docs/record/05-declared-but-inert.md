@@ -237,7 +237,7 @@ production sets `LayoutAuthority.proposal` until stage 6b.
 
 ## 2026-09-23: rows changed at engine replacement stage 4
 
-Record §26; mechanisms in `LR-BQ`…`LR-CG`. **One row edited, one added, none
+Record §27; mechanisms in `LR-BQ`…`LR-CG`. **One row edited, one added, none
 deleted.** `LayoutAuthority.proposal` in production is **still inert** —
 nothing sets it until stage 6b — so no row is deleted here either.
 

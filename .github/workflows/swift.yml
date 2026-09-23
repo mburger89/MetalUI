@@ -21,9 +21,9 @@ jobs:
     - name: Run tests
       run: swift test -v --no-parallel
 
-  # MetalUIScene and MetalUIFreeType must build without Apple frameworks
-  # (rulings PS-G, FT-K): a Metal, CoreText or CoreGraphics import there fails
-  # to compile on Linux, and macOS cannot see that.
+  # MetalUIScene, MetalUIFreeType and MetalUIHarfBuzz must build without Apple
+  # frameworks (rulings PS-G, FT-K, SH-K): a Metal, CoreText or CoreGraphics
+  # import there fails to compile on Linux, and macOS cannot see that.
   scene-linux:
     runs-on: ubuntu-24.04
     container: swift:6.4-noble
@@ -33,12 +33,17 @@ jobs:
       run: swift build --target MetalUIScene
     - name: Build MetalUIFreeType
       run: swift build --target MetalUIFreeType
+    - name: Build MetalUIHarfBuzz
+      run: swift build --target MetalUIHarfBuzz
 
-  # FreeType's output is pinned byte for byte (size, bearings, coverage
-  # checksum) from macOS; Tests/PortableTests asserts the same values here
-  # (ruling FT-J). The root package's own tests cannot run off macOS.
-  freetype-portable-linux:
-    name: FreeType portable tests (Linux ${{ matrix.arch }})
+  # Tests/PortableTests is one package with two test targets, and these jobs run
+  # all of it: FreeType's rasterizer output, pinned byte for byte (size,
+  # bearings, coverage checksum) from macOS (ruling FT-J), and HarfBuzz's
+  # shaping — glyph ids, clusters, design-unit positions and one rasterized
+  # end-to-end run — likewise (ruling SH-I). The root package's own tests cannot
+  # run off macOS.
+  portable-linux:
+    name: Portable tests (Linux ${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
@@ -55,8 +60,8 @@ jobs:
       working-directory: Tests/PortableTests
       run: swift test
 
-  freetype-portable-windows:
-    name: FreeType portable tests (Windows x64)
+  portable-windows:
+    name: Portable tests (Windows x64)
     runs-on: windows-latest
     defaults:
       run:

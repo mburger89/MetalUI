@@ -3854,7 +3854,7 @@ next edits `LoweringComponentTests`.
 
 **The question.** §4.1 row 4 asks for "a windowed `ProposalLayout` placing
 realized rows at `index × rowHeight`". Before designing one, stage 4 measured
-what it would replace. Prototype **P1b** (record §26 §2.2) deleted `List`'s
+what it would replace. Prototype **P1b** (record §27 §2.2) deleted `List`'s
 four-line site check and changed nothing else, so the existing structure — a
 leading spacer `Box` sized `window.lowerBound × rowHeight`, `flexShrink: 0` and
 `minSize.height: 0` on every row, a declared `size.height` of
@@ -4048,7 +4048,7 @@ registers each row `Box` under the `List`'s id as before, and then:
   `[windowedNode]`.
 
 **Three things prototype P2 established, none of which was assumed** (record
-§26 §2.4): a group may return one node that wraps its members, and the
+§27 §2.4): a group may return one node that wraps its members, and the
 enclosing `Box`'s `lowerLegacyNode` consumes its record exactly as it consumes
 a child element's, with `reportUnconsumedLoweredItems` naming nothing; the rows
 get their cross-axis stretch from the group's own `planLegacyItems` call, which
@@ -4510,7 +4510,7 @@ directly: ten rows at y = 60…312, all ten, no window.
 So today, through this harness: the "windowed at `firstIndex 3`" arm the design
 specifies is **unreachable**, and `accessibilityEqual` over a `List` compares
 one record with one record and passes **vacuously** — the "a harness that
-compares nothing agrees" shape record §26 §2.4 warns about in its own note, hit
+compares nothing agrees" shape record §27 §2.4 warns about in its own note, hit
 by the design that wrote the note.
 
 **And the literals the design offered for that arm are not the real thing
@@ -4833,7 +4833,7 @@ wrapper) will have hit other fixtures nobody has re-checked.
 Lane 2 built `WindowedRowsLayout`, gave `ListRows` its proposal branch and
 deleted `List`'s site check. Four things the design (`LR-BQ`, `LR-BR`, `LR-CA`,
 spec §3.1, §3.2 and §6 lane 2) got wrong, each found by running rather than by
-reading, each corrected here. Measurements are record §26 §7.
+reading, each corrected here. Measurements are record §27 §7.
 
 ### 1. `planLegacyItems`' single-child stretch elision must NOT fire under this layout
 
@@ -4962,7 +4962,7 @@ Lane 3 re-spelled `ListTests`' `Row` through the legacy lowering, parameterised
 its scenarios over both authorities, and renamed the roll call. Four things the
 design (`LR-BW`, `LR-BY`, `LR-CB`, spec §6 lane 3 and §6 lane 4) got wrong or
 left unstated, each found by running rather than by reading. Measurements are
-record §26 §8.
+record §27 §8.
 
 ### 1. The host box needs a declared HEIGHT, not only a width
 
@@ -4991,7 +4991,7 @@ unchanged on both authorities, measured.
 **Amended, verification round (2026-09-23).** *The ruling stands and the code is
 right; the mechanism above was an inference presented as a measurement, and the
 lane never ran the mutation that would have checked it.* The verifier did, and
-the reading is record §26 §8.4.2: dropping the declared height back to `.auto`
+the reading is record §27 §8.4.2: dropping the declared height back to `.auto`
 — P1a6's shape exactly — reddens **eleven** scenarios, not six, **`.proposal`
 arms only**, 14 issues, every `.legacy` arm green. **Four of the eleven are
 three-row, 84pt fixtures with no negative free space at all**; for those the
@@ -5005,9 +5005,9 @@ host — which is why `aWindowedListStillReportsItsFullContentHeight` needs
 `frameHeight: 1200` at all. That sentence is deleted above. **The criterion a
 later reader should apply is not "is there negative free space?" but "does the
 host's main axis resolve to something other than the frame — by squeezing **or**
-by centring?"** Spec §6 lane 3 and record §26 §8.3 carry the correction; two doc
+by centring?"** Spec §6 lane 3 and record §27 §8.3 carry the correction; two doc
 comments in `ListTests.swift` still repeat the old reason and are named as an
-obligation in record §26 §11.3.
+obligation in record §27 §11.3.
 
 **What it costs if wrong.** Nothing production-visible: this is a test harness.
 The cost of *not* doing it is worse than a wrong number — it is a file of
@@ -5329,7 +5329,7 @@ carries the name and runs the identical instrument at 40 against 160, and
 
 **What it costs if wrong.** A lane could reduce the gated test to `[.legacy]`
 and no roll call would say so. The exit test is run by hand, once, and its
-result is recorded (record §26 §10.4); the two ungated twins are what a later
+result is recorded (record §27 §10.4); the two ungated twins are what a later
 regression would trip over.
 
 **Amended, verification round (2026-09-23).** *Only one of the two twins can
@@ -5337,7 +5337,7 @@ trip over anything.* `aListsWorkIsTheSameFor160RowsAsFor40` is discriminating �
 its `.proposal` arm expects `NativeLayoutWork(17, 103, 120)` where `.legacy`
 expects `NativeLayoutWork()`. `theResidentEntrySetStaysBoundedWhileScrolling10kRows`
 is **not**: hard-coding its `renderFrame` to `layoutAuthority: .legacy` leaves
-the whole 1602-test suite green (mutation MV5e, record §26 §10.6). The mutant is
+the whole 1602-test suite green (mutation MV5e, record §27 §10.6). The mutant is
 **not equivalent** — it deletes a production `.proposal` frame over a 10 000-row
 `List`, which is what says the re-spelled `StatefulListRow` does not abort at
 scale and that reaping is unchanged — so this is a banked gap, not an
@@ -5345,7 +5345,7 @@ equivalence. The roll call cannot close it: `AuthorityCoverage.record` sees the
 argument, not the frame. The fix is one authority-discriminating read per arm
 (`frame.tree.lastNativeLayoutWork != NativeLayoutWork()` under `.proposal`,
 `==` under `.legacy`), the same control the work test already uses; owner in
-record §26 §11.3. Four prose and message literals in `AuthorityCoverage.swift`
+record §27 §11.3. Four prose and message literals in `AuthorityCoverage.swift`
 and `ZZAuthorityRollCall.swift` also still say `65` and "nine files" after this
 item moved `expected` to 67 and added a tenth.
 

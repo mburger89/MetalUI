@@ -1,8 +1,11 @@
-# Test fonts (ruling FT-G)
+# Test fonts (rulings FT-G, SH-F)
 
-Two static, open-licensed faces for the FreeType rasterizer's CoreText oracle
-tests (`Tests/MetalUIFreeTypeTests/FreeTypeOracleTests.swift`), one per
-outline format so both FreeType drivers are exercised. Loaded by path from
+Three static, open-licensed faces. The first two are the FreeType
+rasterizer's CoreText oracle (`Tests/MetalUIFreeTypeTests/
+FreeTypeOracleTests.swift`), one per outline format so both FreeType drivers
+are exercised; all three are the HarfBuzz shaper's CoreText oracle
+(`Tests/MetalUIHarfBuzzTests/HarfBuzzOracleTests.swift`), which needs an
+Arabic face for joining, lam-alef and marks (SH-F). Loaded by path from
 `#filePath`, not as SwiftPM resources. Not a layout fixture (TX-B bans text
 from the WebKit goldens only).
 
@@ -10,11 +13,13 @@ from the WebKit goldens only).
 | --- | --- | --- | --- |
 | `NotoSans-Regular.ttf` | TrueType (`glyf`/`loca`), no `fvar` | Noto Sans v2.015, unhinted build | SIL OFL 1.1, `NotoSans-OFL.txt` |
 | `SourceSans3-Regular.otf` | CFF (`CFF `), no `fvar` | Source Sans 3 3.052R | SIL OFL 1.1, `SourceSans3-LICENSE.md` |
+| `NotoSansArabic-Regular.ttf` | TrueType (`glyf`/`loca`), no `fvar` | Noto Sans Arabic v2.013, unhinted build | SIL OFL 1.1, `NotoSansArabic-OFL.txt` |
 
 Outline tables were checked by reading each file's sfnt table directory:
 Noto Sans has sfnt version `00 01 00 00` and tables `GDEF GPOS GSUB OS/2 cmap
 glyf head hhea hmtx loca maxp name post`; Source Sans 3 has `OTTO` and `BASE
-CFF  DSIG GDEF GPOS GSUB OS/2 cmap head hhea hmtx maxp name post`.
+CFF  DSIG GDEF GPOS GSUB OS/2 cmap head hhea hmtx maxp name post`; Noto Sans
+Arabic has `00 01 00 00` and the same table list as Noto Sans.
 
 ## Noto Sans Regular
 
@@ -36,3 +41,25 @@ CFF  DSIG GDEF GPOS GSUB OS/2 cmap head hhea hmtx maxp name post`.
 - Licence: https://raw.githubusercontent.com/adobe-fonts/source-sans/3.052R/LICENSE.md
   -> `SourceSans3-LICENSE.md`, SHA-256
   `89ad2c4f66dd29127527493e729c31e731f111cf10faf5774c3db9275ed0c22c`
+
+## Noto Sans Arabic Regular
+
+- Release: https://github.com/notofonts/arabic/releases/tag/NotoSansArabic-v2.013
+- Archive: https://github.com/notofonts/arabic/releases/download/NotoSansArabic-v2.013/NotoSansArabic-v2.013.zip
+  (SHA-256 `1301aceaea84c501cf2e6dcfb3182e2328c8eae5725817fcb239672bda7154f1`)
+- Member `NotoSansArabic/unhinted/ttf/NotoSansArabic-Regular.ttf`, SHA-256
+  `bd86ca02f087d7f3c3788ba458fb6b73744c7639ed276b8d870dba6def6c40d0`
+- Member `OFL.txt` -> `NotoSansArabic-OFL.txt`, SHA-256
+  `a7a5a25eb188bf1cd96982030d53e23c33485c69b1044a562254226857ee13af`
+
+Read back from the file (the same numbers
+`theArabicFontHasAnArabicCmapAndJoiningFeatures` asserts): name id 6
+`NotoSansArabic-Regular`, name id 5 `Version 2.013`; the `cmap` has four
+subtables, of which `(3, 10)` is format 12 with 1250 mappings, 256 of them in
+the Arabic block U+0600..U+06FF (alef U+0627 -> glyph 8, lam U+0644 -> 68,
+Arabic-Indic zero U+0660 -> 128, fatha U+064E -> 370) and **no Latin letters**
+(U+0041 and U+0061 are unmapped, so a Latin string in this face would be all
+.notdef — the Latin corpus never uses it). `GSUB` covers scripts `DFLT arab`
+with features `aalt ccmp dlig fina init liga locl medi pnum rlig rtlm tnum` —
+the joining set `init`/`medi`/`fina` plus `rlig` (lam-alef) and `ccmp`; `GPOS`
+has `kern mark mkmk`.

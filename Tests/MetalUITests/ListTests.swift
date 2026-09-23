@@ -31,7 +31,7 @@ private func items(_ n: Int) -> [Item] {
 /// lane 3 used for its nine custom nodes: `ProbeLeaf` registers a **native leaf
 /// directly**, so it records no `LoweredItem`, `planLegacyItems` cannot plan it
 /// and no lowered container ever stretches it — measured at 7×3 against the
-/// legacy engine's 7×10 (record §26 §2.2, P1a2). Two tests here read a row's own
+/// legacy engine's 7×10 (record §27 §2.2, P1a2). Two tests here read a row's own
 /// **height**, so a row needs the lowered spelling. Mutation **M3b** makes the
 /// proposal branch a bare `requestNativeLeaf` and must redden
 /// `aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent`.
@@ -156,12 +156,12 @@ private func subjectID(named name: ElementID?) -> GlobalElementID {
 ///   zero-substituting `??`. With the substitution,
 ///   `anEmptyListHasZeroHeightAndTrapsNothing` asserted 0 against a 0 the
 ///   mutation itself produced and stayed green: a pin that could not see its
-///   own subject. Measured, then fixed, then M3c re-run (record §26 §8.4);
+///   own subject. Measured, then fixed, then M3c re-run (record §27 §8.4);
 /// - a **prepaint pass**: `elementBounds` is written by `Element.prepaintGroup`,
 ///   which is prepaint-time, so a layout-only helper records nothing. That is a
 ///   behaviour change for every test using this helper — hitboxes, scroll
 ///   regions, focus entries and accessibility records all register in prepaint —
-///   and the full unfiltered suite was run after it (record §26 §8).
+///   and the full unfiltered suite was run after it (record §27 §8).
 @MainActor
 private func laidOut<E: Element>(_ element: E, authority: LayoutAuthority,
                                  width: Float = 400, height: Float = 600)
@@ -334,7 +334,7 @@ func anEmptyListHasZeroHeightAndTrapsNothing(_ authority: LayoutAuthority) throw
     let (frame, listBounds) = laidOut(list, authority: authority)
     // `try #require`, not `listBounds?.size.height == px(0)`: an unrecorded
     // bounds and a 0pt one are the same answer to `??`, so the substituting
-    // spelling could not see mutation M3c at all (record §26 §8.4).
+    // spelling could not see mutation M3c at all (record §27 §8.4).
     #expect(try #require(listBounds).size.height == px(0))
     #expect(frame.scrollRegions.isEmpty)
 }
@@ -759,7 +759,7 @@ func theListsSpacerIsANodeNotAnElement(_ authority: LayoutAuthority) throws {
 /// `windowIsBounded` is false. Every `List` arm of every differential test was
 /// therefore comparing an UNWINDOWED list, and its `accessibilityEqual` was
 /// comparing one table record with one table record and passing vacuously —
-/// "a harness that compares nothing agrees" (record §26 §2.4).
+/// "a harness that compares nothing agrees" (record §27 §2.4).
 ///
 /// This is the anti-vacuity check itself: the harness must reach a bounded
 /// window and a non-empty row-record set, or no later lane's `List` arm means

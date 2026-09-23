@@ -912,7 +912,7 @@ legacy authority until stage 6b, so nothing here is production-visible yet.
 
 ## 2026-09-23: 13, 14 and 18 amended (plan task 7 stage 4)
 
-Record §26; rulings `LR-BQ`…`LR-CG` in
+Record §27; rulings `LR-BQ`…`LR-CG` in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md`.
 **No number is retired and none is added** — the table stays at **fifty-eight**.
 13 and 14 gain text, not numbers; 18's *numbers* move, and its divergence does
@@ -941,7 +941,7 @@ not.
   **125 → 126** rows, and the count at 500 rows **1007 → 1006**. Measured on a
   fresh `StateTable` per row — `demoLikeRows(n)` cold, then three frames of
   `demoLikeRows(0)`, past `staleAfterGenerations` (2), so only the size gate can
-  keep the rows (record §26 §6.3):
+  keep the rows (record §27 §6.3):
 
   | *n* | before, cold | reaped? | after, cold | reaped? |
   |---|---|---|---|---|

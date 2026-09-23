@@ -50,7 +50,7 @@ private func lNamed(_ parent: GlobalElementID, _ name: String) -> GlobalElementI
     GlobalElementID.child(of: parent, at: 0, name: ElementID(name))
 }
 
-/// A `column` style of the given width — P1a6's host shape (record §26 §2.2):
+/// A `column` style of the given width — P1a6's host shape (record §27 §2.2):
 /// a declared cross size on the container is what removes `DifferentialRoot`'s
 /// own divergence 53 from every arm below, so what the arms measure is the
 /// `List` and not the harness root.
@@ -62,12 +62,12 @@ private func lColumn(width: Float) -> Style {
 }
 
 /// A fixed-size leaf spelled **through the lowering** on both authorities —
-/// P3's re-spelling (`LR-BW`, record §26 §2.5), not `ProbeLeaf`'s.
+/// P3's re-spelling (`LR-BW`, record §27 §2.5), not `ProbeLeaf`'s.
 ///
 /// The difference is the whole of `LR-BW`: `ProbeLeaf` registers a native leaf
 /// **directly** under the proposal authority, so it records no `LoweredItem`,
 /// `planLegacyItems` cannot plan it and no lowered container ever stretches it
-/// — measured at 7×3 against the legacy engine's 7×10 (record §26 §2.2, P1a2).
+/// — measured at 7×3 against the legacy engine's 7×10 (record §27 §2.2, P1a2).
 /// A `List` row's content has to be stretched by its row `Box` exactly as the
 /// legacy engine stretches it, so a row fixture here goes through
 /// `lowerLegacyLeaf`.
@@ -175,7 +175,7 @@ private func lRequireBoundedWindow(_ legacy: Frame, _ lowered: Frame, count: Int
 // MARK: - The scrolled host, and the ids inside it
 
 /// The one host shape in which a `List` inside the differential harness reaches
-/// a **bounded** window, found by measurement in lane 1 (record §26 §6.7) and
+/// a **bounded** window, found by measurement in lane 1 (record §27 §6.7) and
 /// re-used here: `DifferentialRoot`'s legacy arm is a `display: .stack` that
 /// offers its children fit-content, so a bare `ScrollView { List }` takes its
 /// content's full extent as its viewport and windows nothing. The demo's own
@@ -228,12 +228,12 @@ private let lHostList = lChild(lHostScroller, 0)
 /// table record and passes vacuously.
 ///
 /// **The literals are lane 1's, taken on the LEGACY side before this lane
-/// existed** (record §26 §6.7) — the `List` at (0, 0) 100×200, row *i* at
+/// existed** (record §27 §6.7) — the `List` at (0, 0) 100×200, row *i* at
 /// (0, 10·i) 100×10, its content at (0, 10·i) 0×10, realized 0…11 unwindowed
 /// and 3…16 at a stored offset of 50 — so they are an oracle rather than a
 /// transcription of this lane's first green run.
 ///
-/// **Measured, not predicted** (record §26 §7.4). This test is reddened by
+/// **Measured, not predicted** (record §27 §7.4). This test is reddened by
 /// **M2a** (`firstIndex` ignored: 30 issues across B3 and B4), **M2d**
 /// (`planLegacyItems` skipped and the rows registered raw: every arm), **M2f**
 /// (the rows' records not consumed: every arm) and **M2h** (the planning

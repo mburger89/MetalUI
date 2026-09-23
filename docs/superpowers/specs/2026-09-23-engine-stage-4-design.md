@@ -3,20 +3,20 @@
 **Status, 2026-09-23 (PDT): DELIVERED — all five lanes implemented, all five
 verified `ok`, fifteen minors dispositioned in the verification round.**
 Lane 1's four commits are on `feat/engine-stage-4` (`511ae3d`, `136f171`,
-`eb42883`, `ca5a546`); its corrections are `LR-CC` and record §26 §6. Lane 2's
+`eb42883`, `ca5a546`); its corrections are `LR-CC` and record §27 §6. Lane 2's
 are `a494777`, `13c12f0` and `c124f40`; its corrections are `LR-CD` and record
-§26 §7. Lane 3's are `c4ce2f0`, `7c031b1` and `352f838`; its corrections are
-`LR-CE` and record §26 §8. Lane 4's are `a0cdc0a`, `779a6a4` and `684ef95`; its
-corrections are `LR-CF` and record §26 §9. Lane 5's are `a36a2cf`, `de2b6a5`,
-`6c719e0` and `a53daeb`; its corrections are `LR-CG` and record §26 §10. The verification round is record
-§26 §11, and the closing sections after it — including **For the integrator** —
+§27 §7. Lane 3's are `c4ce2f0`, `7c031b1` and `352f838`; its corrections are
+`LR-CE` and record §27 §8. Lane 4's are `a0cdc0a`, `779a6a4` and `684ef95`; its
+corrections are `LR-CF` and record §27 §9. Lane 5's are `a36a2cf`, `de2b6a5`,
+`6c719e0` and `a53daeb`; its corrections are `LR-CG` and record §27 §10. The verification round is record
+§27 §11, and the closing sections after it — including **For the integrator** —
 are what the Docs phase works from. Final figures: **1602 tests, 97 goldens, 77
 guards** (none added), goldens unmoved against `f2e981f`; twelve offscreen demo
 images at 0 differing at every lane and twice more in verification, and **three
 real-window captures at 0**. Every source patch cited
 below as a *prototype* was applied in `/Users/maxburger/Developer/MetalUI-stage-4`,
 built, run and restored from a `cp` copy, with `git status --short` clean
-afterwards; the measurements are in `docs/record/26-engine-replacement-stage-4.md`.
+afterwards; the measurements are in `docs/record/27-engine-replacement-stage-4.md`.
 
 **Critic round 1 raised 15 defects; all 15 were confirmed against the source and
 all 15 are applied.** Five carried a design decision of their own and are ruled
@@ -146,7 +146,7 @@ one SwiftUI-facing correction is a *cost*, not a behaviour (§3.2, `LR-CA`).
 ### 2.3 Prototypes (scratch, applied and restored)
 
 Four prototypes, all in the worktree, all restored (`git status --short` empty
-after each; the full tables are record §26 §2).
+after each; the full tables are record §27 §2).
 
 **P1a — today's baseline.** `ScrollView { List(20 rows, rowHeight 10) { ProbeLeaf } }`
 through `LayoutDifferential.compare` at 100×100: report `[list.noLowering]`,
@@ -711,7 +711,7 @@ entries are where `Element`'s group defaults live
 `recordElementBounds`, `StateBinder.bind`'s per-phase re-bind and
 `Frame.suppressingAccessibilityIfHidden` **only** by going through them. Skipping
 them compiles, and costs: no row reaches `elementBounds` (so every differential
-arm over the list agrees vacuously — record §26 §2.4's own note), `@State` stops
+arm over the list agrees vacuously — record §27 §2.4's own note), `@State` stops
 re-binding per phase (`MC-H`, divergence 19), and a `display: none` layer stops
 suppressing the rows below it (`AB-O`). `_wrap` has a default, so `ListRows`
 owes no witness for it.
@@ -819,7 +819,7 @@ so on frame 1 it is 0; `visibleRange` then takes its guard and returns
 the `withAccessibilitySuppressed(except: id)` branch that publishes **the table
 and no rows**. Prototype P1a3 shows it directly: all ten rows at y = 60…312, no
 window. So today `accessibilityEqual` over a `List` compares one record with one
-record and passes **vacuously** — record §26 §2.4's own "a harness that compares
+record and passes **vacuously** — record §27 §2.4's own "a harness that compares
 nothing agrees". Lane 1 gives `render` a `stateTable:` parameter and a `frames:`
 parameter (default 1), threads one `StateTable` through the frames of one side,
 and returns the last; `compare` grows **`frames:` only**. It cannot grow
@@ -867,7 +867,7 @@ the measured reason row identity is safe, not as a gap). **M1f**: `render`'s
 `aListInTheDifferentialHarnessReachesABoundedWindow`; if it does not, the
 anti-vacuity check is itself vacuous and the lane says so).
 
-**What lane 1 actually read** (record §26 §6.4, `LR-CC`). M1a reddened 13 issues
+**What lane 1 actually read** (record §27 §6.4, `LR-CC`). M1a reddened 13 issues
 across 12 tests, the two named among them. **M1b reddened nothing** — and the
 instrument was already blind at `f2e981f`: deleting `spacerStyle.flexShrink`
 leaves that test green there, and deleting `rowStyle.flexShrink` leaves the whole
@@ -932,7 +932,7 @@ evidence is their mutations** — M2b, M2c and the two work counts below — exa
 as stage 3's lane 1 characterization tests did. The lane's commit message says
 which four, so a reader does not mistake the absence of a red for an oversight.
 
-**Mutations, predicted and then measured** (record §26 §7.4; the three
+**Mutations, predicted and then measured** (record §27 §7.4; the three
 corrections are `LR-CD`). The prediction is kept beside the reading so a later
 reader can see which way each went.
 
@@ -985,7 +985,7 @@ resolves to something other than the frame **either by squeezing or by
 centring**, and the mutation that drops the height back to `.auto` reddens
 **eleven** scenarios on the `.proposal` arm alone, four of them 84pt fixtures
 with no negative free space at all, whose rows read ys `[258, 286, 314]` —
-record §26 §8.4.2. The first writing of this parenthesis said "six … with
+record §27 §8.4.2. The first writing of this parenthesis said "six … with
 hundreds of points of negative free space", which is neither the count nor the
 whole mechanism) —
 and to read the `List`'s own bounds out of that wrapper, three further things
@@ -1024,7 +1024,7 @@ of `ListTests`' host shape with the legacy-spelled `Row`, capturing and
 recording the trap message. Then the re-spelling and the `.proposal` arms land
 **in one commit**, and from there the reds are ordinary assertion failures.
 
-**Mutations, predicted and then measured** (record §26 §8.4; corrections in
+**Mutations, predicted and then measured** (record §27 §8.4; corrections in
 `LR-CE`).
 
 | # | what | predicted | **measured** |
@@ -1033,7 +1033,7 @@ recording the trap message. Then the re-spelling and the `.proposal` arms land
 | M3b | the re-spelled `Row`'s proposal branch made a bare `requestNativeLeaf` | `aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent` under `.proposal`, because a directly-registered native leaf records no `LoweredItem` — the measured reason `ProbeLeaf` is not the re-spelling, §2.3 | **exactly that**, `.proposal` arm only, 3 issues (one per row's height) |
 | M3c | `recordsElementBounds` dropped back to its default in `laidOut` | the three tests that read the `List`'s bounds; if it reddens nothing, they are not reading what the lane thinks they read | **two of the three** — `anEmptyListHasZeroHeightAndTrapsNothing` could not see it, because the helper substituted a 0×0 bounds for an unrecorded one and the test asserts 0 (`LR-CE` item 2). Both helpers now return an `Optional` each reader `try #require`s; re-run, M3c reddens all three, 6 issues |
 
-**What lane 3 read, beyond the mutations** (record §26 §8). Exactly one literal
+**What lane 3 read, beyond the mutations** (record §27 §8). Exactly one literal
 moved — `aWindowedListStillReportsItsFullContentHeight`'s frame, 600 → 1200, for
 the reason in `LR-CE` item 1 — and every other literal in the file is unchanged
 on both authorities. Adding a prepaint pass to `laidOut` moved nothing anywhere
@@ -1196,7 +1196,7 @@ removed (must redden the cold-frame row count at both authorities — `MP-I`).
 M5c: the demo census's `report.elements` literal (must redden 2.15; a count a
 later loop indexes on is `try #require`, shape 13).
 
-**Run (`LR-CG`, record §26 §10).** All three behave, and M5a's conditional is
+**Run (`LR-CG`, record §27 §10).** All three behave, and M5a's conditional is
 resolved in the direction the lane hoped: `List.overscan` 2 → 3 reddens the two
 native-work **literals** in both work tests' `.proposal` arms and leaves every
 **equality** green, because both counts move together. So the equality is
@@ -1254,7 +1254,7 @@ parameterises anything:
   5 derives the exact numbers on a branching count, not by reading them off the
   first run).
 
-**Done, and run** (`LR-CG`; record §26 §10). The literals are **17 measure calls,
+**Done, and run** (`LR-CG`; record §27 §10). The literals are **17 measure calls,
 103 cache hits, 120 cache misses** at r = 16 realized rows, derived as lane 5's
 section above sets out; under `.legacy` the same read is `NativeLayoutWork()`,
 which is the control saying the proposal numbers are this frame's own run.
@@ -1316,10 +1316,10 @@ non-zero reading is a **finding**, not a number to record.
 
 **Lane 1 read 0 in all twelve at `eb42883`; lane 2 read 0 in all twelve at
 `c124f40`**, every scene dump byte-identical, with all eight controls
-reproducing their recorded values exactly (record §26 §7.5). Lane 2's only
+reproducing their recorded values exactly (record §27 §7.5). Lane 2's only
 change on the legacy path is `List.requestLayout` losing a branch that fired
 only under the proposal authority, so a zero was expected by construction and
-taken anyway. **Lanes 3, 4 and 5 likewise read 0 in all twelve** (record §26
+taken anyway. **Lanes 3, 4 and 5 likewise read 0 in all twelve** (record §27
 §8.6, §9.8, §10.6); lane 5 touches no file under `Sources/` at all, and the run
 was taken anyway for the reason the harness exists.
 
@@ -1341,7 +1341,7 @@ main: 0`; then `docs/probes/window-capture/capture.sh <scratch dir> f2e981f
 | `String(describing: datum.id)` not being injective (two ids that describe alike share one `StateTable` entry) — unchanged by this stage, still unguarded | unowned; `ElementID` is `String`-backed, a framework-wide job |
 | Variable row heights (a prefix-sum index) | out of scope for task 7 entirely |
 | ~~Committing the `CN-R` harness~~ | **retired: lane 1 commits it** (`LR-CB`), ending `LR-BJ`'s carry |
-| A real-window capture of the demo at stage 4's final HEAD | lane 3 took one at `352f838` (record §26 §8.7); lanes 4 and 5 both found `CGSSessionScreenIsLocked = 1` and `displayAsleep main: 1`, so neither could. Whoever next runs with an unlocked screen |
+| A real-window capture of the demo at stage 4's final HEAD | lane 3 took one at `352f838` (record §27 §8.7); lanes 4 and 5 both found `CGSSessionScreenIsLocked = 1` and `displayAsleep main: 1`, so neither could. Whoever next runs with an unlocked screen |
 | `ProposalScrollView` publishing a `ScrollContext`, so a `List` could window inside one | stage 11 / task 10 (carried from `LR-BF`) |
 | Everything stages 5–14 already own | unchanged |
 

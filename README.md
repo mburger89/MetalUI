@@ -108,9 +108,9 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-4` (2026-09-23 — plan task 7 stage 4) the suite reports
-**1602 tests**, in one summary
-line over two suites. That total includes **97** layout goldens
+On `feat/engine-stage-4` (2026-09-23 — plan task 7 stage 4, merged with the
+HarfBuzz shaper line on `master`) the suite reports **1617 tests**, in one
+summary line over three suites. That total includes **97** layout goldens
 generated from WebKit and **77** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
@@ -314,15 +314,17 @@ transforms, and text colour animation.
   for their integration, and
   [`25-engine-replacement-stage-3.md`](docs/record/25-engine-replacement-stage-3.md)
   for its third stage — scrolling and `Component` distribution — and
-  [`26-engine-replacement-stage-4.md`](docs/record/26-engine-replacement-stage-4.md)
-  for its fourth stage — the windowed proposal `List`. Three files are
+  [`27-engine-replacement-stage-4.md`](docs/record/27-engine-replacement-stage-4.md)
+  for its fourth stage — the windowed proposal `List`. Four files are
   not task tracks:
   [`19-claude-md-full-2026-09-21.md`](docs/record/19-claude-md-full-2026-09-21.md)
   is the root `CLAUDE.md` as it read before it was cut to rules only,
   [`20-portable-scene.md`](docs/record/20-portable-scene.md) is the
   `MetalUIScene` move, and
   [`24-freetype-rasterizer.md`](docs/record/24-freetype-rasterizer.md) is the
-  FreeType rasterizer (`MetalUIFreeType`).
+  FreeType rasterizer (`MetalUIFreeType`), and
+  [`26-harfbuzz-shaper.md`](docs/record/26-harfbuzz-shaper.md) is the
+  HarfBuzz shaper (`MetalUIHarfBuzz`).
 - [`docs/superpowers/`](docs/superpowers/) — a decisions document per
   completed milestone, each ruling with its reasoning and what it costs if wrong.
 - SwiftUI alignment:

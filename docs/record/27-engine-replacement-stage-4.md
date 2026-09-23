@@ -1,4 +1,11 @@
-# §26 — Engine replacement, stage 4: the windowed proposal `List`
+# §27 — Engine replacement, stage 4: the windowed proposal `List`
+
+**Renumbered from §26 to §27 at merge with `master` (2026-09-23):** the
+HarfBuzz shaper line (PR #9, `f5e5651`) was pushed first and keeps §26, so
+every `§26` this track wrote was repointed to `§27` and the file renamed. The
+HarfBuzz line's own `§26` citations were left alone. Counts re-taken on the
+merged tree: **1617 / 97 / 77** (`CLAUDE.md` "Build and test"). Figures
+below that read 1602 are this branch's own, before the merge.
 
 Plan task 7, stage 4 (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 4).
@@ -2294,14 +2301,14 @@ clean`** — `List` is public and its stored `box`'s generic argument changed.
 
 1. **Ruling table**, line 36: `` `LR-` (next `LR-BQ`) `` → `` `LR-` (next
    `LR-CH`) ``. In the per-task list (around line 52), after the stage-3 entry:
-   `` 7 stage 4 `LR-BQ`…`LR-CG` (§26, spec
+   `` 7 stage 4 `LR-BQ`…`LR-CG` (§27, spec
    `specs/2026-09-23-engine-stage-4-design.md`, same decisions doc; no new
    probe — its SwiftUI claims are `swiftui-stack-algorithms.swift`'s K6) ``.
 2. **Counts** (the bullet at line 84): 1580 / 97 / 77 → **1602 / 97 / 77** on
    `feat/engine-stage-4` (**+22 tests**: lane 1 +3, lane 2 +9, lane 3 +1, lane 4
    +5, lane 5 +4; **0 goldens, 0 guards** — no typecheck guard was added, so the
    per-file guard list and the "all 77 guards skip under the default build
-   system" sentence are unchanged); record §26. The arithmetic sentence becomes
+   system" sentence are unchanged); record §27. The arithmetic sentence becomes
    **1602 = 1580 + 22**. Then re-take after the merge.
 3. **The `List` paragraph** (lines 249–255) — rules only. Keep the four
    load-bearing requirements, divergence 14, "frame 0 builds every row", `TB-AH`
@@ -2359,7 +2366,7 @@ clean`** — `List` is public and its stored `box`'s generic argument changed.
    verification. **The demo's `List` is never windowed in any of them** (one
    cold frame, `firstIndex == 0`), so the windowing is pinned by tests, not by
    pixels. Nothing in production runs under the proposal authority, so no demo
-   look is owed until stage 6b (record §26)". The three open looks listed in the
+   look is owed until stage 6b (record §27)". The three open looks listed in the
    "Human verification" bullet keep their text; stage 3's "the screen was locked
    at every lane" sentence is about stage 3 and stays.
 8. **Lazy grids** (the `GR-L` sentence, around line 55): "proposed as stage G2
@@ -2387,7 +2394,7 @@ clean`** — `List` is public and its stored `box`'s generic argument changed.
 > `specs/2026-09-23-engine-stage-4-design.md`; rulings `LR-BQ`…`LR-CG` in
 > `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages 1–3);
 > no new probe — the SwiftUI answer is `swiftui-stack-algorithms.swift`'s K6,
-> re-run and diffed byte-identical five times; record §26. **Stage 4 delivered**
+> re-run and diffed byte-identical five times; record §27. **Stage 4 delivered**
 > (five lanes, each with its own mutation table, all verified `ok`, fifteen
 > minors all dispositioned): `List`'s explicit site check is **deleted** and its
 > realized rows are placed by a `WindowedRowsLayout` at `(firstIndex + i) ×
@@ -2417,7 +2424,7 @@ clean`** — `List` is public and its stored `box`'s generic argument changed.
 > (stage 6b); `Deferred` as a presentation root (stage 5) and `display: none`
 > keep one `List` scenario each on the legacy arm; the nil-width measurement path
 > is `O(logicalCount)`; five small test-file obligations are listed in record
-> §26 §11.3.
+> §27 §11.3.
 
 **README:**
 
@@ -2427,14 +2434,14 @@ clean`** — `List` is public and its stored `box`'s generic argument changed.
 - "Fifty-eight measured divergences" (line 260) stays **fifty-eight**: this
   stage retires none and adds none. 13 and 14 gain text, not numbers.
 - In the record list, after `25-engine-replacement-stage-3.md` (line 315): "and
-  [`26-engine-replacement-stage-4.md`](docs/record/26-engine-replacement-stage-4.md)
+  [`27-engine-replacement-stage-4.md`](docs/record/27-engine-replacement-stage-4.md)
   for its fourth stage — the windowed proposal `List`".
 - In the specs list (line 345), extend the engine-replacement entry: "stages 1,
   2, G, 3 and 4 of 14 landed; production still uses the CSS engine".
 
 **Other owned documents:**
 
-- `docs/record/README.md`: add `` | `26-engine-replacement-stage-4.md` | plan
+- `docs/record/README.md`: add `` | `27-engine-replacement-stage-4.md` | plan
   task 7 stage 4 on `feat/engine-stage-4`: `List`'s site check replaced by a
   windowed `ProposalLayout` placing realized rows at `(firstIndex + i) ×
   rowHeight`, the rows as a group with the spacer demoted to a bare node, and
@@ -2468,7 +2475,7 @@ clean`** — `List` is public and its stored `box`'s generic argument changed.
     `2n + 7` → **`2n + 6`** on the committed `demoLikeRows(_:)` fixture, the
     crossing 125 → **126** rows, and 1007 → **1006** at 500 — because the
     windowing spacer is no longer an element and mints no `$anim` entry (record
-    §26 §6.3, the whole before/after table at *n* = 40/124/125/126/127/500, with
+    §27 §6.3, the whole before/after table at *n* = 40/124/125/126/127/500, with
     the before column reproducing the old figures exactly). The element-level
     consequence is still unpinned.
 - **`docs/record/05-declared-but-inert.md`** — one row edited, one added, none
