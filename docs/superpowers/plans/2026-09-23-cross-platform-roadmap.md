@@ -20,8 +20,8 @@ pinned on Linux and Windows by `Tests/PortableTests`):
   Direct3D 12 at pixel parity with the Metal renderer, including portable
   text (frame 4).
 
-Portable in source but **not built off macOS by CI**: `MetalUICore`,
-`MetalUILayout` (both import nothing).
+`MetalUICore` and `MetalUILayout` are built and tested on Linux and
+Windows CI (item 5).
 
 Apple-bound:
 
@@ -59,9 +59,11 @@ Apple-bound:
 
 ### The seams inside `MetalUI`
 
-5. [ ] **Core and layout build off macOS** — add `MetalUICore` and
-   `MetalUILayout` to `scene-linux` (and a Windows build), and run their
-   tests there if they can.
+5. [x] **Core and layout build off macOS** — the root package declares its
+   Apple-bound targets on macOS only; Linux and Windows CI build every
+   portable target and run the Core and Layout suites (486 + 22 on Linux).
+   `feat/portable-core-layout`, spec
+   `specs/2026-09-23-portable-core-layout-design.md` (`PC-`), record §34.
 6. [ ] **Text seam** — `Text`/`ProposalText` measure and draw through a
    text-system protocol with two implementations: today's CoreText path and
    `PortableText`. Selected once per app, not per element.

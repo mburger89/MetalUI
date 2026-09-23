@@ -39,7 +39,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
   rulings in its spec, no separate decisions doc), `LB-` (next `LB-P`;
   rulings in its three specs: line breaking, lines emission, content sizes),
-  `FN-` (next `FN-E`; rulings in its spec). A numbered citation
+  `FN-` (next `FN-E`; rulings in its spec), `PC-` (next `PC-D`; rulings in
+  its spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -68,7 +69,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Nine record files are not tasks of
+  and G2 is unblocked rather than waiting. Ten record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
@@ -81,9 +82,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   `specs/2026-09-23-portable-line-breaking-design.md`) and §31 portable
   metrics and multi-line emission (`LB-F`, `LB-H`…, spec
   `specs/2026-09-23-portable-lines-emit-design.md`) and §32 portable min-
-  and max-content (`LB-L`…, spec `specs/2026-09-23-portable-content-sizes-design.md`)
-  and §33 portable font resolution (`FN-`, spec
-  `specs/2026-09-23-portable-font-resolver-design.md`). **Cross-platform work
+  and max-content (`LB-L`…, spec `specs/2026-09-23-portable-content-sizes-design.md`),
+  §33 portable font resolution (`FN-`, spec
+  `specs/2026-09-23-portable-font-resolver-design.md`) and §34 Core and
+  Layout off macOS (`PC-`, spec `specs/2026-09-23-portable-core-layout-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -219,6 +221,15 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   stage added six stored mark tables to `LayoutTree`, and the `MetalUIScene`
   move relocated `Scene`, `FontKey`, `GlyphImage` and the atlas types across
   three modules.
+- **The manifest is two lists** (`PC-A`): targets that import no Apple
+  framework are declared on every platform; everything else — and the
+  portable oracles, which compare against CoreText — under `#if os(macOS)`.
+  **A new target goes in the list its imports allow**; Linux and Windows CI
+  (`scene-linux`, `root-windows`) build every portable target and run
+  `MetalUICoreTests` and `MetalUILayoutTests` (486 + 22 on Linux). A test there
+  that needs WebKit or Darwin is compiled out by `#if canImport(…)` per
+  declaration (`PC-B`); typecheck guards read only this platform's `.build`
+  (`PC-C`) and skip off macOS.
 - **Targets:** sixteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
   `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`, `CUnibreak`,
   `MetalUIHarfBuzz`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
@@ -278,7 +289,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 
 Eight constraints that fail silently:
 
-- `MetalUILayout` imports only `MetalUICore` (anchored grep).
+- `MetalUILayout` imports only `MetalUICore` (anchored grep; since `PC-A`
+  an Apple import also fails the Linux and Windows builds).
 - `MetalUIScene` imports only `MetalUIShaderTypes` — no Foundation, CoreText,
   CoreGraphics or Metal (`PS-A`). macOS cannot see a violation; the Swift
   workflow's `scene-linux` job can (`PS-G`). An initialiser that must stay

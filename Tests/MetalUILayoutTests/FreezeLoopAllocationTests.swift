@@ -1,5 +1,7 @@
 import Testing
+#if canImport(Darwin)
 import Darwin
+#endif
 import MetalUICore
 @testable import MetalUILayout
 
@@ -20,6 +22,7 @@ import MetalUICore
 
 // MARK: - Counting allocations on this thread
 
+#if canImport(Darwin)
 private typealias MallocLogger = @convention(c) (UInt32, UInt, UInt, UInt, UInt, UInt32) -> Void
 
 /// `MALLOC_LOG_TYPE_ALLOCATE` from libmalloc: set for `malloc`, `calloc`,
@@ -69,6 +72,7 @@ private func countAllocations(_ body: () -> Void) throws -> Int {
     countedThread = nil
     return allocationsSeen
 }
+#endif
 
 /// Allocates exactly `count` distinct, non-empty buffers the optimiser cannot
 /// elide, for calibrating the counter.
@@ -120,6 +124,7 @@ private func shrinkContainer(fillers: Int) -> Double { 100 * Double(fillers + 1)
 
 // MARK: - Tests
 
+#if canImport(Darwin)
 /// The freeze loop's allocations do not grow with the number of items on the
 /// line, and a pass allocates at most one buffer.
 ///
@@ -246,6 +251,7 @@ private func shrinkContainer(fillers: Int) -> Double { 100 * Double(fillers + 1)
             """)
     }
 }
+#endif
 
 /// Branch counts from `referenceResolveFlexibleLengths`, so the comparison
 /// below can require that its random lines actually reached every branch the

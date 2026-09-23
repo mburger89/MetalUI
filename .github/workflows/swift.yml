@@ -24,19 +24,43 @@ jobs:
   # MetalUIScene, MetalUIFreeType, MetalUIHarfBuzz and MetalUIPortableText must
   # build without Apple frameworks (rulings PS-G, FT-K, SH-K, PT-A): a Metal, CoreText or CoreGraphics
   # import there fails to compile on Linux, and macOS cannot see that.
+  # The root package on Linux declares only the targets that import no Apple
+  # framework (ruling PC-A): MetalUICore, MetalUILayout, MetalUIScene, the
+  # vendored C libraries, MetalUIFreeType, MetalUIHarfBuzz,
+  # MetalUIPortableText, MetalUIShaderTypes and the Core and Layout tests —
+  # all of them built, and those tests run, here (roadmap item 5). An Apple
+  # import in any of them fails this job; macOS cannot see one.
   scene-linux:
+    name: Root package (Linux)
     runs-on: ubuntu-24.04
     container: swift:6.4-noble
     steps:
     - uses: actions/checkout@v7
-    - name: Build MetalUIScene
-      run: swift build --target MetalUIScene
-    - name: Build MetalUIFreeType
-      run: swift build --target MetalUIFreeType
-    - name: Build MetalUIHarfBuzz
-      run: swift build --target MetalUIHarfBuzz
-    - name: Build MetalUIPortableText
-      run: swift build --target MetalUIPortableText
+    - name: Build every portable target and its tests
+      run: swift build --build-tests
+    - name: Test MetalUICore and MetalUILayout (goldens included)
+      run: swift test --skip-build
+
+  root-windows:
+    name: Root package (Windows x64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+    - uses: actions/checkout@v7
+    - uses: compnerd/gha-setup-swift@v0.5.0
+      with:
+        swift-version: swift-6.4.0-release
+        swift-build: 6.4.0-RELEASE
+    - name: Build every portable target and its tests
+      run: |
+        swift build --build-tests
+        exit $LASTEXITCODE
+    - name: Test MetalUICore and MetalUILayout (goldens included)
+      run: |
+        swift test --skip-build
+        exit $LASTEXITCODE
 
   # Tests/PortableTests is one package with three test targets, and these jobs
   # run all of it: FreeType's rasterizer output, pinned byte for byte (size,
@@ -44,8 +68,9 @@ jobs:
   # shaping — glyph ids, clusters, design-unit positions and one rasterized
   # end-to-end run — likewise (ruling SH-I); and the portable text pipeline's
   # emitted glyph rects, atlas dirty rect and coverage (ruling PT-H), and its
-  # line breaking's opportunities and wrapped lines (ruling LB-G). The root package's own tests cannot
-  # run off macOS.
+  # line breaking's opportunities and wrapped lines (ruling LB-G). The root package's Core and Layout tests run
+  # off macOS in the scene-linux and root-windows jobs above; its portable
+  # text oracles compare against CoreText and cannot.
   portable-linux:
     name: Portable tests (Linux ${{ matrix.arch }})
     strategy:
