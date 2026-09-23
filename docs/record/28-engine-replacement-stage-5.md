@@ -278,3 +278,75 @@ its recorded value (1048576, 1030498, 210027, 0, 1048576, 0; distinct 544 and
 216; indicator rects 0), and **all twelve images `differing=0`, scene
 identical**. Lock probe at 03:11 PDT: `CGSSessionScreenIsLocked = 1`,
 `displayAsleep main: 1` — locked, so `capture.sh` was not run (not owed).
+
+## 7. Lane 2 — the exit suites under both authorities (`LR-CN`, `LR-CO`; corrections `LR-CR`)
+
+Commits: `52ff491` (red first: the five scenarios parameterised **before**
+hosting, 2.5, 2.7, 2.8, the roll call at 74), `985c443` (hosted; the five
+pass-level tests each say why they are not parameterised; headers), and the
+commit carrying this section (`LR-CR`, the spec's host row corrected). Tests only:
+`DeferredTests`, `AbsoluteOverlayTests`, `ListTests`, `AuthorityCoverage`,
+`ZZAuthorityRollCall`.
+
+### 7.1 Suite
+
+At `985c443`, `swift build --build-system native --build-tests` (0 `error:`, the
+only `warning:` SwiftPM's deprecation notice), then unfiltered `swift test
+--build-system native --no-parallel`: **`Test run with 1626 tests in 3 suites
+passed after 64.289 seconds`** — 1624 + 2 (2.5
+`aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities` and
+2.7 `anAbsoluteBoxOutsideADeferredTrapsAProductionProposalFrame`; the six
+parameterised in place move no count). The log carries `FR-J no-argument frame:
+succeeded=` (guards ran). No golden moved; no guard added (77).
+`AuthorityCoverage.expected` **74** (67 + 5 `DeferredTests` + 1
+`AbsoluteOverlayTests` + 1 `ListTests`), read back green by
+`everyParameterisedScenarioRanUnderBothLayoutAuthorities`. The exit criterion
+(spec §8): **5 of `DeferredTests`' 10** under both authorities (the other five
+pass-level) and **1 of 1** in `AbsoluteOverlayTests`, plus its exit test 2.7.
+
+### 7.2 Red first
+
+Filtered, `52ff491` over lane 1's source, unhosted, proposal frames with
+diagnostics on:
+
+- `aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting(_:)` →
+  `.proposal`: `inner.bounds.origin.x == 30 → false` (inner x 155, width 145; outer
+  x 125 — the native root centred, `CN-J`).
+- `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt(_:)` → `.proposal`:
+  `scene.rects.first { … == 22 && … == 20 } → nil` (report `[box.position,
+  box.inset]`; every rect 0×0 at (0, 0), mask (100, 85) 0×60).
+- Green unhosted under both: the identity, hoist and scrolled tests and 2.8.
+- 2.5 with lane 1's `Deferred` branch disabled (`guard false, …`, scratch, restored):
+  `frame.unlowerableFields.isEmpty` → `[stack.position, stack.inset]` (`.proposal`).
+- 2.7 with the `position`/`inset` owning-stage line removed (scratch, restored):
+  stderr `MetalUI: box.position has no proposal lowering (plan task 7, stage 2)`.
+- 2.5's first draft in a **column** host: `.legacy`, `markerY` 30 against −10 —
+  the finding behind `LR-CR` item 1 (`viewportExtent` 300 in a 70pt clip).
+
+### 7.3 Mutations
+
+Each: committed tree (`985c443`), source copied with `cp`, one edit, build (0
+errors), unfiltered suite, source restored from the copy, `git status --short`
+empty after every one. Every run printed its summary line; every row is 1626
+tests.
+
+| id | edit (file, branch) | issues | reddened |
+|---|---|---|---|
+| M2a | `Deferred.prepaint`: `pass.deferred { … }` removed, `content.prepaintGroup` called directly | 20 | `aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting` (both), 2.5 (both; the two hitbox assertions), `aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel`, `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor`, `aDeferredScrollViewTakesTheWheelFromAnOverlappingSiblingBeneathIt` (both), `anOpaqueDeferredScrimSwallowsAWheelEventInsteadOfScrollingTheListBeneath` (both), `withinOneLayerTheLastRegisteredRegionStillWins` (both) |
+| M2b | `Deferred.paint`: `pass.deferred { … }` removed | 20 | `aDeferredElementHoistsItsChildAboveASiblingDeclaredAfterIt` (both), `aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll` (both), 2.5 (both: scrim rect, mask, paint order, card), `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt` (both; the portal's mask) |
+| M2d | `owningStage`: the `position`/`inset` line's `"10"` → `"2"` | 1 | 2.7 only |
+| M2e | `Deferred.requestLayout`: `pass.withoutScrollContext { … }` removed | 2 | `aListInsideADeferredIgnoresTheEscapedScrollersOffset` (both) |
+
+### 7.4 Pixels and screen
+
+`docs/probes/demo-pixels/compare.sh <scratch> e5caefb 985c443`: every control at
+its recorded value (1048576, 1030498, 210027, 0, 1048576, 0; distinct 544 and
+216; indicator rects 0), and **all twelve images `differing=0`, scene
+identical**. Lock probe at 04:02 PDT: `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1` — locked, so `capture.sh` was not run (not owed).
+
+### 7.5 Deferred
+
+Nothing of lane 2's. The erratum to record §27 §8.2 (`LR-CN`) belongs to the
+Record phase, as `LR-CN` says.
+

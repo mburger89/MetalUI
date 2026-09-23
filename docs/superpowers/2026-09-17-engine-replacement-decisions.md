@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CR`** (stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP` and its lane 1 `LR-CQ`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CS`** (stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ` and its lane 2 `LR-CR`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -5784,3 +5784,55 @@ every one of M1a–M1t run through the full unfiltered suite (record §28 §6.3)
 
 Pixels: the twelve `CN-R` images read 0 against `e5caefb`. The screen was locked
 (no capture owed).
+
+## LR-CR — stage 5 lane 2's corrections: the scroll hosts are rows, not columns, two reddened sets wider than predicted, and the red-befores as measured
+
+**Stage 5 lane 2** (record §28 §7). Tests only; the lane's commits are `52ff491`
+(red first, unhosted) and `985c443` (hosted, green at **1626**). Measured:
+
+1. **The two scroll hosts are window-sized, cross-stretching ROW `Box`es, not the
+   "sized column `Box`" `LR-CO` and spec §7 named.** A legacy `ScrollView` that
+   is a column host's direct child keeps its content's height: its viewport node
+   is `flexShrink: 0` (`ScrollView.swift`'s four-row table). 2.5's first draft,
+   in a 200×100 column host with 30 top padding, read the scroller's region
+   clipped to 200×70 while its `ScrollState.viewportExtent` read **300**, so the
+   offset of 40 clamped to 0 and the in-flow marker stayed at y 30 under
+   `.legacy` (the proposal viewport read 70 and scrolled — the lowered viewport
+   fills its proposal, `LR-BC`). On a row's cross axis the viewport is stretched
+   to the host's height under both authorities. `DeferredTests`' scrolled test
+   and 2.5 use `renderInRowHost`; `AbsoluteOverlayTests` hosts in the same shape
+   (its own wrapper already bounds its viewport, so either host works there; the
+   row is kept for one shape). `ListTests`' `hostStyle` column works for its
+   subjects because none is a `ScrollView` scrolled through `ScrollState`: they
+   push a `ScrollContext` directly. **Every legacy literal is unchanged by
+   hosting** in all five hosted tests (measured: each passes its unchanged
+   legacy assertions hosted).
+2. **M2a reddens more than the nested-scroll test**: also 2.5 under both
+   authorities (its two hitbox assertions) and five existing tests
+   (`aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel`,
+   `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor`,
+   `aDeferredScrollViewTakesTheWheelFromAnOverlappingSiblingBeneathIt(_:)`,
+   `anOpaqueDeferredScrimSwallowsAWheelEventInsteadOfScrollingTheListBeneath(_:)`,
+   `withinOneLayerTheLastRegisteredRegionStillWins(_:)`). **M2b** reddens, beyond
+   the hoist, scrolled and scrim tests the spec named, 2.6
+   `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt(_:)` under both
+   authorities (the portal half's whole-surface mask). Wider sets, not wrong
+   predictions: each named test is among them.
+3. **The red-befores, as measured** (spec §7's lane 2 table predicted them from
+   S5): unhosted under `.proposal`, only two of the five then-parameterised
+   scenarios were red — the nested-scroll test (inner region x **155**, width
+   **145**, outer x 125: the centred root, `CN-J`) and 2.6 (report `[box.position,
+   box.inset]`, and every rect **0×0 at (0, 0)** with mask (100, 85) 0×60 — S5's
+   "(100, 85)" is the mask's origin, not a rect's). The identity, hoist and
+   scrolled tests and 2.8 were green unhosted (the hoist test asserts widths and
+   paint order, not the x S5 saw move). 2.5 with lane 1's branch disabled in a
+   scratch copy: the pre-flight read `[stack.position, stack.inset]`. 2.7 with
+   the `position`/`inset` owning-stage line removed (e5caefb's behaviour): the
+   child's stderr named `box.position … stage 2`.
+4. **M2d reddens 2.7 only** (1 issue) — lane 1's 1.5 does not see it because its
+   owning-stage assertion reads only the `…absolute` fields.
+
+Pixels: the twelve `CN-R` images read 0 against `e5caefb`. The screen was locked
+at 04:02 PDT (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`): no
+capture owed.
+

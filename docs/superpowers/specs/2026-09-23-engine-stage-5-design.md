@@ -416,10 +416,14 @@ Tests only: `DeferredTests.swift`, `AbsoluteOverlayTests.swift`,
   `LayoutDifferential.render(authority:width:height:)` (`DifferentialRoot`,
   top-leading, fixed size); `aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll`
   and `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt` need a
-  scroller that can scroll, so they host in a **sized column `Box`** of the
-  frame's size (`ListTests`' `hostStyle` pattern) over one shared `StateTable`
-  — `DifferentialRoot`'s legacy stack offers fit-content and the viewport would
-  hug its 340pt content (§2.2, S6). **Every legacy literal must be unchanged by
+  scroller that can scroll, so they host in a **sized, cross-stretching row
+  `Box`** of the frame's size over one shared `StateTable` — `DifferentialRoot`'s
+  legacy stack offers fit-content and the viewport would hug its 340pt content
+  (§2.2, S6). (Lane 2's corrections, `LR-CR` item 1: this read "a **sized column
+  `Box`** of the frame's size (`ListTests`' `hostStyle` pattern)" — measured, a
+  column cannot scroll a legacy `ScrollView` that is its direct child, whose
+  viewport is `flexShrink: 0`; 2.5's draft read `viewportExtent` 300 and the
+  offset clamped to 0.) **Every legacy literal must be unchanged by
   hosting; one that moves is a finding the lane records before changing it.**
 - **The five pass-level tests are not parameterised** — no element, no layout,
   no authority in their call path (`LR-BN`) — and each says so at its
