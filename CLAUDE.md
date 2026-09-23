@@ -37,8 +37,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
-  rulings in its spec, no separate decisions doc). A numbered citation
-  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`) is a typo; sweep
+  rulings in its spec, no separate decisions doc), `LB-` (next `LB-H`; `LB-F`
+  reserved; rulings in its spec). A numbered citation
+  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
@@ -63,7 +64,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Five record files are not tasks of
+  and G2 is unblocked rather than waiting. Six record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
@@ -71,7 +72,11 @@ milestones append their record to `docs/record/` and put only the rule here.
   §26 the HarfBuzz shaper (`SH-`, spec
   `specs/2026-09-22-harfbuzz-shaper-design.md`, rulings in that spec) and
   §28 the portable text pipeline (`PT-`, spec
-  `specs/2026-09-23-portable-text-design.md`, rulings in that spec).
+  `specs/2026-09-23-portable-text-design.md`, rulings in that spec) and §29
+  portable line breaking (`LB-`, spec
+  `specs/2026-09-23-portable-line-breaking-design.md`). **Cross-platform work
+  follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
+  ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
   — each stage record was renumbered (24→25, 26→27) at its merge because the
   other line was pushed first (record §25's and §27's headers, and the
@@ -94,16 +99,19 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 ```
 
 - **Counts (2026-09-23, `feat/portable-text` merged with `master` at
-  `e5caefb`, stage 4; then `PT-J`, +5): 1630 tests, 97 goldens, 77 typecheck guards**, 0
+  `e5caefb`, stage 4; then `PT-J`, +5; then line breaking, +6): 1636 tests,
+  97 goldens, 77 typecheck guards**, 0
   `error:`, 0 `warning:` on both build systems, taken after `swift package
   clean` with `swift build --build-system native --build-tests` then
   unfiltered `swift test --build-system native --no-parallel` (**one summary
-  line**, `Test run with 1630 tests in 3 suites passed`; five skipped:
-  the two gated tests and the FreeType, HarfBuzz and portable text oracles'
-  gated measurement tests; the guards ran — the log carries `FR-J
+  line**, `Test run with 1636 tests in 3 suites passed`; six skipped:
+  the two gated tests and the FreeType, HarfBuzz, portable text and line
+  breaking oracles' gated measurement tests; the guards ran — the log carries `FR-J
   no-argument frame: succeeded=`). Goldens unmoved against `e5caefb`. The
   portable text line (record §28) adds 8 tests (`MetalUIPortableTextTests`),
-  and its `PT-J` follow-up 5 more (`EmitParameterTests`),
+  its `PT-J` follow-up 5 more (`EmitParameterTests`), and line breaking
+  (record §29) 6 more (the `LB-E` oracle, its gated measurement, contract
+  tests),
   and no golden or guard to master's 1617; `Tests/PortableTests` separately
   runs 4 + 6 + 5. Master's 1617 was taken the same way (**1617 = 1580 + 15 +
   22**: master `f5e5651`
@@ -139,11 +147,13 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Five** gated tests count toward the total while skipped —
+  **Six** gated tests count toward the total while skipped —
   `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`, the
   FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
   (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
-  `theMeasuredDifferences` (`METALUI_PORTABLE_ORACLE_MEASURE=1`). The lone `warning:`
+  `theMeasuredDifferences` (`METALUI_PORTABLE_ORACLE_MEASURE=1`) and the line
+  breaking oracle's `measureWrapDifferences` (`METALUI_LINEBREAK_MEASURE=1`).
+  The lone `warning:`
   under native is SwiftPM's deprecation notice.
 - **Goldens must not move** on a change outside `Sources/MetalUILayout/`
   (`find Tests/MetalUILayoutTests -name "*.json" | wc -l` — not all of
@@ -183,8 +193,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   stage added six stored mark tables to `LayoutTree`, and the `MetalUIScene`
   move relocated `Scene`, `FontKey`, `GlyphImage` and the atlas types across
   three modules.
-- **Targets:** fifteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
-  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`,
+- **Targets:** sixteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
+  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`, `CUnibreak`,
   `MetalUIHarfBuzz`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
   `MetalUIPlatform`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
   `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so
@@ -209,8 +219,14 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   on one line into `MUIGlyph`s plus atlas coverage with `Frame.draw`'s
   arithmetic (`PT-D`), taking the mask's corner radii, `order` and `layer`
   that `Frame.draw` reads from frame state (`PT-J`; defaults square/0/0) — no
-  line breaking, bidi, itemization or fallback. Also
-  a library product; nothing in production calls it (`PT-I`). The subpixel
+  bidi, itemization or fallback. It also wraps:
+  `PortableText.lines(_:font:wrappingAt:)` gives `Shaper.shape(wrappingAt:)`'s
+  display lines (UAX #14 via `CUnibreak`, libunibreak 8.0 vendored, `LB-A`),
+  equal to CoreText's over 13,464 cases; its four fitting rules are measured
+  (`LB-D`: whitespace hangs, advance is the paragraph's share, cluster-then-
+  grapheme emergency breaks, 28 pt tab stops) — do not simplify one without
+  re-running the oracle. Emitting wrapped lines is roadmap item 2. Also a
+  library product; nothing in production calls it (`PT-I`). The subpixel
   placement rule lives once, in `GlyphImage.subpixelPlacement(forDeviceX:)`
   (`PT-C`); `GlyphRaster` forwards — do not re-inline it on either side.
   `Experiments/SDLGPU`'s frame 4 is drawn from it (`PT-G`).
@@ -237,7 +253,7 @@ Eight constraints that fail silently:
   ids, clusters and design-unit positions byte-for-byte against macOS on
   Linux and Windows CI (`SH-I`).
 - `MetalUIPortableText` imports only `MetalUIScene`, `MetalUIShaderTypes`,
-  `MetalUIHarfBuzz` and `MetalUIFreeType` — no Foundation, CoreText,
+  `MetalUIHarfBuzz`, `MetalUIFreeType` and `CUnibreak` — no Foundation, CoreText,
   CoreGraphics or Metal (`PT-A`). macOS cannot see a violation; the
   `scene-linux` job builds this target too, and `Tests/PortableTests`' third
   target, `PortableTextDeterminismTests`, pins its emitted rects, advance,

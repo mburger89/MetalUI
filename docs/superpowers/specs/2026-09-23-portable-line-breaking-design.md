@@ -1,8 +1,10 @@
 # Portable line breaking — design
 
-**Status:** in progress, 2026-09-23. Decided with the user: vendor libunibreak
+**Status:** implemented on `feat/portable-linebreak`, 2026-09-23 (record
+§29); roadmap item 1 of `plans/2026-09-23-cross-platform-roadmap.md`. Decided with the user: vendor libunibreak
 for UAX #14 rather than write it or vendor ICU.
-**Ruling prefix:** `LB-` (lettered; next `LB-H`).
+**Ruling prefix:** `LB-` (lettered; next `LB-H`; `LB-F` is reserved for
+roadmap item 2).
 **Builds on:** `MetalUIPortableText` (`PT-`), `MetalUIHarfBuzz` (`SH-`).
 
 ## Goal
@@ -11,7 +13,8 @@ for UAX #14 rather than write it or vendor ICU.
 lines. This step gives the portable pipeline what `Shaper.shape(_:font:
 wrappingAt:)` gives the Apple one — a string split into display lines at an
 offered width, one line per hard break when no width is offered — and emits
-those lines, with CoreText's own answers as the oracle.
+those lines' ranges and advances, with CoreText's own answers as the oracle.
+Emitting them (`LB-F`) is roadmap item 2.
 
 **Not in this step:** bidi across lines, script itemization, font fallback,
 hyphenation, justification, `Text`/`Shaper` changes.
@@ -35,19 +38,31 @@ hyphenation, justification, `Text`/`Shaper` changes.
   break opens no empty line; an empty string is one empty line; a
   non-positive width traps.
 - **LB-D — greedy, and the fitting rule is measured, not assumed.** Each line
-  ends at the last break opportunity whose line fits the width; what "fits"
-  means (whether trailing whitespace counts, how a word wider than the line
-  is broken) is set from the oracle's measurements (LB-E) and recorded here.
+  ends at the last break opportunity whose line fits the width. The rules,
+  each set from a measured disagreement with CoreText (LB-E, record §29):
+  1. **Whitespace hangs** — a space, tab or hard break never makes a line
+     overflow, so a line ends after its trailing whitespace.
+  2. **A line's advance is its share of the paragraph's shaping** — the
+     kerning its last glyph had against the next line's first is kept, and a
+     hard break is zero wide (HarfBuzz gives it a glyph advance).
+  3. **A word too wide breaks before its overflowing cluster; a cluster too
+     wide (a ligature) between graphemes** (Swift `Character`, UAX #29),
+     keeping at least one; a line that ends inside a cluster is re-shaped
+     alone, and **shaping restarts at a line start inside a cluster**.
+  4. **Tabs go to stops every 28 pt** from the line's start, at every size
+     (CoreText's default interval, measured at 11–26 pt).
 - **LB-E — the oracle is `Shaper.shape(wrappingAt:)`.** For a corpus of
   strings, fonts, sizes and widths, line boundaries (`CTLineGetStringRange`)
   and advances are compared. Boundaries must be equal; a disagreement is
   investigated and either fixed or pinned with its measurement, never
-  absorbed.
-- **LB-F — multi-line emission.** `PortableText.emitLines` emits each line
-  with `emit`, baselines one line height apart; the line height's portable
-  derivation is measured against `FontMetrics.lineHeight`.
-- **LB-G — cross-platform pins** in `Tests/PortableTests` for break
-  opportunities and wrapped lines; SDL frame 4 gains a wrapped paragraph.
+  absorbed. Measured: 13,464 cases (2 fonts × 4 sizes × 99 widths × 17
+  strings), 0 boundary and 0 advance differences at 1e-9 pt.
+- **LB-F — multi-line emission** — reserved for roadmap item 2 (font
+  metrics, line height, `emitLines`, and a wrapped paragraph in SDL frame 4).
+- **LB-G — cross-platform pins** in `Tests/PortableTests`
+  (`LineBreakingDeterminismTests`): the break opportunities over an
+  82-unit multi-script string, and four wrapped cases' line ranges and
+  advance bits, recorded on macOS.
 
 ## Verification
 

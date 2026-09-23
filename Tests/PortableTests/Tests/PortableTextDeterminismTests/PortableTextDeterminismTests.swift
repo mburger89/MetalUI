@@ -148,6 +148,98 @@ func pin(_ emitCase: EmitCase) throws -> PinnedEmit {
                       advance: advance.bitPattern, dirty: dirty, coverage: fnv1a64(atlas.pixels))
 }
 
+// MARK: - Line breaking (LB-G)
+
+/// Break opportunities over scripts libunibreak classifies differently —
+/// Latin, CJK ideographs (break anywhere), Thai (SA, no dictionary here),
+/// Arabic, emoji with a ZWJ sequence, and the hard-break characters.
+let breakCorpus = "Hello, world! 日本語のテキスト。 สวัสดีครับ مرحبا بالعالم 👩\u{200D}💻 ok\r\nx\u{2028}y\tz\u{A0}w (a) \"q\" 1,234.5"
+
+struct WrapCase: CustomStringConvertible {
+    let font: String, text: String, size: Double, width: Double?
+    var description: String { "\(font) \(size)pt w=\(width.map { "\($0)" } ?? "nil") \"\(text)\"" }
+}
+
+let wrapCorpus: [WrapCase] = [
+    WrapCase(font: notoSans, text: "The quick brown fox jumps over the lazy dog.", size: 13, width: 60),
+    WrapCase(font: notoSans, text: "Affix the fluffy waffle: AV To Ty LT jig!", size: 11, width: 7.25),
+    WrapCase(font: sourceSans, text: "tab\tseparated\tcolumns and Supercalifragilistic words", size: 17, width: 90),
+    WrapCase(font: sourceSans, text: "Ready\nSet\r\nGo\u{2028}now", size: 26, width: nil),
+]
+
+/// FNV-1a 64 over each line's range bounds (Int32 LE) and its advance's bit
+/// pattern (UInt64 LE), in order, plus the line count.
+struct PinnedWrap: Equatable, CustomStringConvertible {
+    let lines: Int
+    let checksum: UInt64
+    var description: String { "\(lines) lines, fnv \(hex(checksum))" }
+}
+
+func pinWrap(_ wrapCase: WrapCase) throws -> PinnedWrap {
+    let font = try PortableFont(data: fontBytes(wrapCase.font), size: wrapCase.size)
+    let lines = try PortableText.lines(wrapCase.text, font: font, wrappingAt: wrapCase.width)
+    var bytes: [UInt8] = []
+    for line in lines {
+        appendLittleEndian(Int32(line.range.lowerBound), to: &bytes)
+        appendLittleEndian(Int32(line.range.upperBound), to: &bytes)
+        let bits = line.advance.bitPattern
+        for shift in stride(from: 0, through: 56, by: 8) { bytes.append(UInt8(truncatingIfNeeded: bits >> UInt64(shift))) }
+    }
+    return PinnedWrap(lines: lines.count, checksum: fnv1a64(bytes))
+}
+
+/// The opportunities as one byte each (0 mandatory, 1 allowed, 2 none).
+func breakBytes() -> [UInt8] {
+    PortableText.lineBreaks(in: breakCorpus).map { opportunity in
+        switch opportunity {
+        case .mandatory: return 0
+        case .allowed: return 1
+        case .none: return 2
+        }
+    }
+}
+
+@Suite struct LineBreakingDeterminismTests {
+    @Test func breakOpportunitiesMatchTheValuesRecordedOnMacOS() {
+        let bytes = breakBytes()
+        #expect(bytes.count == expectedBreakCount)
+        #expect(fnv1a64(bytes) == expectedBreakChecksum,
+                "measured \(hex(fnv1a64(bytes))), recorded on macOS \(hex(expectedBreakChecksum))")
+    }
+
+    @Test func wrappedLinesMatchTheValuesRecordedOnMacOS() throws {
+        try #require(expectedWraps.count == wrapCorpus.count)
+        for (index, wrapCase) in wrapCorpus.enumerated() {
+            let got = try pinWrap(wrapCase)
+            #expect(got == expectedWraps[index], "\(wrapCase): measured \(got), recorded on macOS \(expectedWraps[index])")
+        }
+    }
+
+    /// Not degenerate: every kind of opportunity occurs, and every case
+    /// wraps to more than one line.
+    @Test func theCorpusIsNotDegenerate() throws {
+        let bytes = Set(breakBytes())
+        #expect(bytes == [0, 1, 2])
+        for wrapCase in wrapCorpus { #expect(try pinWrap(wrapCase).lines > 1, "\(wrapCase)") }
+    }
+
+    @Test(.enabled(if: recording, "set METALUI_PORTABLE_RECORD=1 to print the expected values"))
+    func record() throws {
+        let bytes = breakBytes()
+        try #require(Set(bytes) == [0, 1, 2], "the break corpus measured nothing")
+        var lines = ["let expectedBreakCount = \(bytes.count)",
+                     "let expectedBreakChecksum: UInt64 = \(hex(fnv1a64(bytes)))",
+                     "let expectedWraps: [PinnedWrap] = ["]
+        for wrapCase in wrapCorpus {
+            let pinned = try pinWrap(wrapCase)
+            try #require(pinned.lines > 1, "\(wrapCase) did not wrap")
+            lines.append("    PinnedWrap(lines: \(pinned.lines), checksum: \(hex(pinned.checksum))),  // \(wrapCase)")
+        }
+        lines.append("]")
+        print(lines.joined(separator: "\n"))
+    }
+}
+
 let recording = ProcessInfo.processInfo.environment["METALUI_PORTABLE_RECORD"] == "1"
 
 // MARK: - Tests

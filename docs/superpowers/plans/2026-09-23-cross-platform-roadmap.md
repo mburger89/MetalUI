@@ -13,7 +13,8 @@ pinned on Linux and Windows by `Tests/PortableTests`):
 - `MetalUIScene` — `Scene`, glyph atlas, `FontKey` (`PS-`).
 - `MetalUIFreeType` — glyph rasterizer (`FT-`).
 - `MetalUIHarfBuzz` — shaper, one run (`SH-`).
-- `MetalUIPortableText` — string → `MUIGlyph`s + atlas, one line (`PT-`).
+- `MetalUIPortableText` — string → `MUIGlyph`s + atlas (`PT-`), and display
+  lines at a width (`LB-`, item 1); emission is one line per call.
 - `Experiments/SDLGPU` — SDL3 GPU replays a `Scene` on Metal, Vulkan and
   Direct3D 12 at pixel parity with the Metal renderer, including portable
   text (frame 4).
@@ -34,10 +35,10 @@ Apple-bound:
 
 ### Text
 
-1. [ ] **Line breaking** (UAX #14, libunibreak) — `PortableText.lines(_:font:
-   wrappingAt:)` with `Shaper.shape(wrappingAt:)`'s contract, oracle-checked
-   against CoreText. *In progress: `feat/portable-linebreak`, spec
-   `specs/2026-09-23-portable-line-breaking-design.md` (`LB-`).*
+1. [x] **Line breaking** (UAX #14, libunibreak) — `PortableText.lines(_:font:
+   wrappingAt:)` with `Shaper.shape(wrappingAt:)`'s contract, equal to
+   CoreText over 13,464 cases. `feat/portable-linebreak`, spec
+   `specs/2026-09-23-portable-line-breaking-design.md` (`LB-`), record §29.
 2. [ ] **Font metrics and multi-line emission** — ascent, descent, leading and
    `lineHeight` from the font's own tables (FreeType), measured against
    `FontMetrics`; `emitLines` (`LB-F`).
