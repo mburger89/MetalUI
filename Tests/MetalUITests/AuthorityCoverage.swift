@@ -9,9 +9,10 @@ import Testing
 // same goes for `everyScrollScenarioRanUnderBothLayoutAuthorities`, now
 // `everyParameterisedScenarioRanUnderBothLayoutAuthorities`.
 //
-// `ScrollRoutingTests`, `ScrollIndicatorTests`, `ScrollViewTests`, `ListTests`
-// and — since stage 4's lane 4 — `AXNodeTests`, `AccessibilityDefaultsTests`,
-// `AccessibilityTreeTests`, `FocusTests` and `TombstoneTests`
+// `ScrollRoutingTests`, `ScrollIndicatorTests`, `ScrollViewTests`, `ListTests`,
+// — since stage 4's lane 4 — `AXNodeTests`, `AccessibilityDefaultsTests`,
+// `AccessibilityTreeTests`, `FocusTests` and `TombstoneTests`, and — since its
+// lane 5 — `MeasurePerformanceTests`
 // run their scenarios under **both** layout authorities, as `@Test(arguments:)`
 // cases. A parameterised test counts as ONE test in the summary line, so the
 // suite total cannot say whether the second authority ran — hence this registry
@@ -52,9 +53,11 @@ import Testing
 /// `ZZDemoPixels.swift`'s, chosen so that no future test file can sort after it
 /// without being named for the purpose. The nine contributing files sort
 /// `AXNodeTests` → `AccessibilityDefaultsTests` → `AccessibilityTreeTests` →
-/// `FocusTests` → `ListTests` → `ScrollIndicatorTests` → `ScrollRoutingTests` →
-/// `ScrollViewTests` → `TombstoneTests`, all before `ZZAuthorityRollCall`.
-/// Measured twice at this HEAD, identical both times.
+/// `FocusTests` → `ListTests` → `MeasurePerformanceTests` →
+/// `ScrollIndicatorTests` → `ScrollRoutingTests` → `ScrollViewTests` →
+/// `TombstoneTests`, all before `ZZAuthorityRollCall`.
+/// Measured twice at stage 4 lane 5's HEAD as it was at lane 4's, identical
+/// both times.
 ///
 /// `ListLoweringTests.swift` arrived in stage 4's lane 1 and is **not** in the
 /// argument, because it contributes no name: its nine tests each run both
@@ -74,8 +77,17 @@ enum AuthorityCoverage {
     /// actor, so a main-actor-isolated one does not compile.
     nonisolated static let authorities: [LayoutAuthority] = LayoutAuthority.allCases
 
-    /// The 65 scenario names, written out by hand before the first run (practices
+    /// The 67 scenario names, written out by hand before the first run (practices
     /// shape 13: a count a later loop indexes on is a literal, not a derivation).
+    ///
+    /// **65 + 2 since stage 4's lane 5**, which parameterised the two ungated
+    /// `List` performance scenarios spec §4.1 rows 5 and 6 protect. The third,
+    /// `aListsWorkIsTheSameFor100kRowsAsFor500`, is parameterised too and is
+    /// deliberately **not** here: it is env-gated
+    /// (`METALUI_RUN_100K_LIST_TEST`), so its name would be permanently missing
+    /// from `seen` and would redden the roll call on every healthy run. Its own
+    /// declaration says so, and `aListsWorkIsTheSameFor160RowsAsFor40` is the
+    /// ungated twin that carries the name.
     ///
     /// **54 + 11 since stage 4's lane 4**, which parameterised the suites holding
     /// what spec §4.1 rows 2, 3 and 4 protect: the two excursion pins,
@@ -178,6 +190,9 @@ enum AuthorityCoverage {
         "aFocusedListRowSurvivesABoundedExcursionButNotALongerOne",
         // TombstoneTests (1) — stage 4, lane 4 (`LR-BU`)
         "aListRowsStateSurvivesABoundedExcursionButNotALongerOne",
+        // MeasurePerformanceTests (2) — stage 4, lane 5 (`LR-CG`)
+        "aListsWorkIsTheSameFor160RowsAsFor40",
+        "theResidentEntrySetStaysBoundedWhileScrolling10kRows",
     ]
 
     private(set) static var seen: [String: Set<LayoutAuthority>] = [:]

@@ -18,7 +18,7 @@ import Testing
 /// and `TombstoneTests` ran under **both** layout authorities.
 ///
 /// **Why a test at all.** A `@Test(arguments:)` test counts as ONE test in the
-/// summary line — measured on this suite, `LR-BI` — so parameterising 65
+/// summary line — measured on this suite, `LR-BI` — so parameterising 67
 /// scenarios over two authorities moves the total by nothing and the exit
 /// criterion cannot be read off it. Reducing the `arguments:` list to `[.legacy]`
 /// (stage 3's mutation **M3c**, stage 4's **M3a** and **M4d**) would pass every
@@ -35,21 +35,22 @@ import Testing
 /// reads what has been recorded so far. Swift Testing runs a file's tests in
 /// source order and the files in path order — `AXNodeTests` →
 /// `AccessibilityDefaultsTests` → `AccessibilityTreeTests` → `FocusTests` →
-/// `ListTests` → `ScrollIndicatorTests` → `ScrollRoutingTests` →
-/// `ScrollViewTests` → `TombstoneTests` → here — measured twice at stage 4 lane
-/// 4's HEAD as it was measured twice at stage 3's and at lane 3's, so by here all
-/// 65 have run. If that ever changes this fails **naming the scenarios it had not
+/// `ListTests` → `MeasurePerformanceTests` → `ScrollIndicatorTests` →
+/// `ScrollRoutingTests` → `ScrollViewTests` → `TombstoneTests` → here —
+/// measured twice at stage 4 lane 5's HEAD as it was measured twice at stage 3's
+/// and at lanes 3's and 4's, so by here all 67 have run. If that ever changes this fails **naming the scenarios it had not
 /// yet seen**, rather than passing quietly.
 @Test @MainActor func everyParameterisedScenarioRanUnderBothLayoutAuthorities() throws {
     try #require(LayoutAuthority.allCases.count == 2,
                  "the exit criterion is 'both authorities'; a third would need every literal in the nine suites re-derived")
     try #require(AuthorityCoverage.authorities == LayoutAuthority.allCases,
                  "every scenario is declared over this one list — M3c/M4d reduce it and nothing else would say so")
-    try #require(AuthorityCoverage.expected.count == 65,
+    try #require(AuthorityCoverage.expected.count == 67,
                  """
                  the hand-derived scenario count: 16 routing + 14 indicator + 4 ScrollViewTests \
                  + 20 ListTests + 3 AXNodeTests + 5 AccessibilityDefaultsTests \
-                 + 1 AccessibilityTreeTests + 1 FocusTests + 1 TombstoneTests
+                 + 1 AccessibilityTreeTests + 1 FocusTests + 1 TombstoneTests \
+                 + 2 MeasurePerformanceTests
                  """)
 
     let missing = AuthorityCoverage.expected.subtracting(AuthorityCoverage.seen.keys).sorted()

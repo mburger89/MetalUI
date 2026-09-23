@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import MetalUICore
-import MetalUILayout
+@testable import MetalUILayout
 @testable import MetalUIText
 @testable import MetalUI
 
@@ -16,14 +16,97 @@ struct MeasurePerformanceTests {
 
     /// Builds a frame over `content` and returns it, so a caller can read the
     /// counters the render just moved.
+    ///
+    /// **`reportsUnlowerableFields` is a parameter, and a `.proposal` caller must
+    /// pass it** (plan task 7, stage 4, lane 5; `LR-BX`, `LR-CG`). This builds a
+    /// PRODUCTION frame by default — the shape `Window` builds — and
+    /// `demoLikeRows`' root `Box` declares `.minHeight(Pixels(0))`, which
+    /// `reportUnconsumedLoweredItems` still reports for a root, so a `.proposal`
+    /// arm without the flag does not fail, it aborts the whole run with no
+    /// summary line. `aProductionFrameOverDemoLikeRowsAbortsUnderTheProposal`
+    /// `Authority` at the foot of this file is that abort kept as an observable,
+    /// and the diagnostics frame beside it is the positive control.
+    ///
+    /// **`demoLikeRows` is NOT changed to drop the modifier**, deliberately: its
+    /// own header says removing a pin from it "would silently inflate every later
+    /// before/after ratio measured against this harness", and every committed
+    /// literal in this file is measured against it.
+    ///
+    /// A diagnostics frame replaces a site with no lowering by a 0×0 native leaf
+    /// (`Frame.unlowerable`), so a non-empty report means the counters beside it
+    /// were taken over a partly degenerate tree. Every `.proposal` arm therefore
+    /// asserts `unlowerableFields` **exactly**, against
+    /// `demoLikeRowsReport(_:)` below.
     static func render(_ content: () -> some Element,
                        size: Size<Pixels> = Size(width: Pixels(920), height: Pixels(560)),
-                       states: StateTable, shapingCache: ShapingCache = ShapingCache()) -> Frame {
+                       states: StateTable, shapingCache: ShapingCache = ShapingCache(),
+                       authority: LayoutAuthority = .legacy,
+                       reportsUnlowerableFields: Bool = false) -> Frame {
         let frame = Frame(contentSize: size, scaleFactor: 2, stateTable: states,
-                          shapingCache: shapingCache, theme: .dark)
+                          shapingCache: shapingCache, theme: .dark,
+                          layoutAuthority: authority,
+                          reportsUnlowerableFields: reportsUnlowerableFields)
         var root = content()
         frame.render(&root)
         return frame
+    }
+
+    /// `demoLikeRows(_:)`'s whole diagnostics report, at either authority.
+    ///
+    /// **One entry, and it is the root's own and nothing to do with `List`.**
+    /// `reportUnconsumedLoweredItems` exempts a root from `flexGrow`,
+    /// `flexShrink`, `flexBasis` and `alignSelf` and from nothing else
+    /// (`LoweringState.swift`), so the fixture's root `.minHeight(Pixels(0))`
+    /// reports — the shape
+    /// `anItemFieldNoLoweredContainerConsumesIsReportedByName`'s root arms already
+    /// document. **Any other entry is a finding**, and the work numbers taken
+    /// alongside it are not this stage's (spec §6 lane 5).
+    static func demoLikeRowsReport(_ authority: LayoutAuthority) -> [UnlowerableField] {
+        authority == .proposal ? [UnlowerableField(site: .box, field: "minSize.unconsumed")] : []
+    }
+
+    /// The native layout work one warm `demoLikeRows(_:)` frame does, at either
+    /// authority — `LayoutTree.lastNativeLayoutWork` after `Frame.render`, which
+    /// under `.proposal` is `computeRootLayout`'s own
+    /// `computeNativeLayout` call and under `.legacy` is nothing at all
+    /// (ruling `SA-M`; `LR-CG`).
+    ///
+    /// **Derived before it was read, from the window and from the cold sweep.**
+    /// `visibleRange` at `offset == 0` over a 370pt viewport of 28pt rows takes
+    /// `first = max(0, 0 − 2) = 0` and `last = ceil(370/28) + 2 = 14 + 2 = 16`,
+    /// so a warm frame realizes **r = 16** rows whatever the logical count. A
+    /// COLD frame realizes all `n` of them (`MP-I`), which gives the same function
+    /// at four points two orders of magnitude apart — measured at
+    /// n = 40 / 160 / 500 / 2000:
+    ///
+    /// | n | `measureCalls` | `cacheHits` | `cacheMisses` |
+    /// |---|---|---|---|
+    /// | 40 | 41 | 247 | 288 |
+    /// | 160 | 161 | 967 | 1128 |
+    /// | 500 | 501 | 3007 | 3508 |
+    /// | 2000 | 2001 | 12007 | 14008 |
+    ///
+    /// — exactly `r + 1`, `6r + 7` and `7r + 8`. The `+ 1` is
+    /// `WindowedRowsLayout.sizeThatFits` itself, the `r` the realized rows'
+    /// `Text` leaf closures; `measureCalls` counts leaf closures as well as
+    /// custom `sizeThatFits` bodies (`NativeLayoutWork.measureCalls`' own doc),
+    /// which is `ListLoweringTests`' test 2.3's correction applied here rather
+    /// than re-learnt. Evaluated at r = 16 the model predicts **17 / 103 / 120**,
+    /// and the warm frames read exactly that at every one of the four counts —
+    /// the prediction was made on the cold column and confirmed on the warm one.
+    ///
+    /// **`O(window)`, not `O(logicalCount)`: that is the whole exit criterion**
+    /// (spec §7), and these three literals are what make
+    /// `aListsWorkIsTheSameFor100kRowsAsFor500`'s equality say something. An
+    /// equality alone would hold just as well if the counters were stuck.
+    ///
+    /// **The `.legacy` arm's zero is a control, not a gap**: it says the proposal
+    /// numbers are this frame's own native run and not something ambient left on
+    /// a shared tree.
+    static func demoLikeRowsWarmWork(_ authority: LayoutAuthority) -> NativeLayoutWork {
+        authority == .proposal
+            ? NativeLayoutWork(measureCalls: 17, cacheHits: 103, cacheMisses: 120)
+            : NativeLayoutWork()
     }
 
     @Test
@@ -132,26 +215,67 @@ struct MeasurePerformanceTests {
         #expect(cold.count == 1)
     }
 
-    @Test
-    func aListsWorkIsTheSameFor160RowsAsFor40() throws {
+    /// **The ungated twin of the 100 000-row exit test**, and since plan task 7's
+    /// stage 4 lane 5 the one that runs on every unfiltered suite under **both**
+    /// layout authorities (`LR-CG`).
+    ///
+    /// **The tokenizer half is vacuous under `.proposal`, and says so rather than
+    /// reading `0 == 0`.** A lowered `Text` measures through
+    /// `proposalTextMeasurement`, which never reaches
+    /// `Shaper.unbreakableRuns` — there is no min-content probe on the proposal
+    /// path — so the counter stays at 0 at both row counts and the equality
+    /// below would hold whether windowing worked or not (CLAUDE.md's own warning
+    /// about this instrument turning into `0 == 0`). The arms therefore split:
+    /// `.legacy` requires a non-zero count before comparing it, `.proposal`
+    /// asserts the zero as the divergence it is, and the **native work** counters
+    /// are what carry the proposal arm.
+    @Test(arguments: AuthorityCoverage.authorities)
+    func aListsWorkIsTheSameFor160RowsAsFor40(authority: LayoutAuthority) throws {
+        AuthorityCoverage.record(#function, authority)
+        let diagnostics = authority == .proposal
         let states40 = StateTable(), states160 = StateTable()
-        _ = Self.render({ demoLikeRows(40) }, states: states40)
-        _ = Self.render({ demoLikeRows(160) }, states: states160)
+        _ = Self.render({ demoLikeRows(40) }, states: states40,
+                        authority: authority, reportsUnlowerableFields: diagnostics)
+        _ = Self.render({ demoLikeRows(160) }, states: states160,
+                        authority: authority, reportsUnlowerableFields: diagnostics)
 
         let counter40 = Shaper.RunCallCounter()
         let f40 = Shaper.$runCallCounter.withValue(counter40) {
-            Self.render({ demoLikeRows(40) }, states: states40)
+            Self.render({ demoLikeRows(40) }, states: states40,
+                        authority: authority, reportsUnlowerableFields: diagnostics)
         }
         let calls40 = counter40.count
 
         let counter160 = Shaper.RunCallCounter()
         let f160 = Shaper.$runCallCounter.withValue(counter160) {
-            Self.render({ demoLikeRows(160) }, states: states160)
+            Self.render({ demoLikeRows(160) }, states: states160,
+                        authority: authority, reportsUnlowerableFields: diagnostics)
         }
         let calls160 = counter160.count
 
+        // The diagnostics frame's whole cost, asserted exactly: one entry, the
+        // root's own, or the counters below were taken over a degenerate tree.
+        #expect(f40.unlowerableFields == Self.demoLikeRowsReport(authority), "\(f40.unlowerableFields)")
+        #expect(f160.unlowerableFields == Self.demoLikeRowsReport(authority), "\(f160.unlowerableFields)")
+
+        // The native half — `O(window)`, hand-derived in `demoLikeRowsWarmWork`.
+        #expect(f40.tree.lastNativeLayoutWork == Self.demoLikeRowsWarmWork(authority),
+                "40 rows: \(f40.tree.lastNativeLayoutWork)")
+        #expect(f160.tree.lastNativeLayoutWork == Self.demoLikeRowsWarmWork(authority),
+                "160 rows: \(f160.tree.lastNativeLayoutWork)")
+
+        switch authority {
+        case .legacy:
+            // The reachability control: without it the equality below is
+            // `0 == 0` for any reason at all, not only the proposal path's.
+            try #require(calls40 > 0, "the legacy warm frame must reach the tokenizer at all")
+        case .proposal:
+            #expect(calls40 == 0 && calls160 == 0,
+                    "a lowered Text has no min-content probe: \(calls40) / \(calls160)")
+        }
+
         // Equal, not merely close: with a uniform row height the window is
-        // computed by division, so the same ~13 rows are built either way and
+        // computed by division, so the same 16 rows are built either way and
         // the extra 120 rows cost nothing at all.
         #expect(calls160 == calls40)
         // `shapingCache.storageCount` rather than `scene.glyphs.count`: the
@@ -258,35 +382,82 @@ struct MeasurePerformanceTests {
     /// (`Tests/MetalUILayoutTests/GeneratorTests.swift`) — an expensive
     /// deliberate act, not a per-run guard. Enable deliberately:
     ///   METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
-    @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_100K_LIST_TEST"] == "1"))
-    func aListsWorkIsTheSameFor100kRowsAsFor500() throws {
+    ///
+    /// **Parameterised over both layout authorities since plan task 7's stage 4,
+    /// lane 5** — spec §4.1 row 4's exit test, which is why it now also counts
+    /// `LayoutTree.lastNativeLayoutWork` against the literals
+    /// `demoLikeRowsWarmWork(_:)` derives, and prints the cold frame at **each**
+    /// authority (spec §4.1 row 5: `MP-I`'s cold frame is re-measured, not
+    /// re-reasoned).
+    ///
+    /// **It does NOT call `AuthorityCoverage.record`, and must not.** The roll
+    /// call's `expected` set is checked for completeness on every unfiltered run;
+    /// a gated scenario would be permanently missing from `seen` and would redden
+    /// `everyParameterisedScenarioRanUnderBothLayoutAuthorities` on every healthy
+    /// run. Its ungated twin `aListsWorkIsTheSameFor160RowsAsFor40` carries the
+    /// name instead, and runs the identical instrument at 40 against 160.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_100K_LIST_TEST"] == "1"),
+          arguments: AuthorityCoverage.authorities)
+    func aListsWorkIsTheSameFor100kRowsAsFor500(authority: LayoutAuthority) throws {
+        let diagnostics = authority == .proposal
         let states500 = StateTable(), states100k = StateTable()
-        _ = Self.render({ demoLikeRows(500) }, states: states500)   // warm
+        _ = Self.render({ demoLikeRows(500) }, states: states500,
+                        authority: authority, reportsUnlowerableFields: diagnostics)   // warm
 
         let clock = ContinuousClock()
         let coldElapsed = clock.measure {
-            _ = Self.render({ demoLikeRows(100_000) }, states: states100k)   // warm — ruling MP-I's cold frame
+            // warm — ruling MP-I's cold frame
+            _ = Self.render({ demoLikeRows(100_000) }, states: states100k,
+                            authority: authority, reportsUnlowerableFields: diagnostics)
         }
         // Step 2 of the brief: report, do not assert. Printing keeps the
         // number in `swift test`'s own output rather than in a threshold
         // this repo's own practice document says would flake on a loaded box.
-        print("MeasurePerformanceTests: cold frame at 100,000 rows took \(coldElapsed)")
+        print("MeasurePerformanceTests: cold frame at 100,000 rows, \(authority), took \(coldElapsed)")
 
         let counter500 = Shaper.RunCallCounter()
         let f500 = Shaper.$runCallCounter.withValue(counter500) {
-            Self.render({ demoLikeRows(500) }, states: states500)
+            Self.render({ demoLikeRows(500) }, states: states500,
+                        authority: authority, reportsUnlowerableFields: diagnostics)
         }
         let calls500 = counter500.count
 
         let counter100k = Shaper.RunCallCounter()
         let f100k = Shaper.$runCallCounter.withValue(counter100k) {
-            Self.render({ demoLikeRows(100_000) }, states: states100k)
+            Self.render({ demoLikeRows(100_000) }, states: states100k,
+                        authority: authority, reportsUnlowerableFields: diagnostics)
         }
         let calls100k = counter100k.count
 
+        // The diagnostics frame's whole cost, exactly — a second entry would mean
+        // every count below was taken over a partly degenerate tree.
+        #expect(f500.unlowerableFields == Self.demoLikeRowsReport(authority), "\(f500.unlowerableFields)")
+        #expect(f100k.unlowerableFields == Self.demoLikeRowsReport(authority), "\(f100k.unlowerableFields)")
+
+        // **The new half, and the one the proposal arm rests on**: the kernel's
+        // own work is the same at 500 and at 100,000, and equal to the literal
+        // `demoLikeRowsWarmWork(_:)` derives from the window alone. The equality
+        // by itself would hold for a stuck counter; the literals are what make it
+        // say `O(window)`.
+        #expect(f500.tree.lastNativeLayoutWork == Self.demoLikeRowsWarmWork(authority),
+                "500 rows: \(f500.tree.lastNativeLayoutWork)")
+        #expect(f100k.tree.lastNativeLayoutWork == Self.demoLikeRowsWarmWork(authority),
+                "100k rows: \(f100k.tree.lastNativeLayoutWork)")
+        #expect(f100k.tree.lastNativeLayoutWork == f500.tree.lastNativeLayoutWork)
+
+        switch authority {
+        case .legacy:
+            try #require(calls500 > 0, "the legacy warm frame must reach the tokenizer at all")
+        case .proposal:
+            // `0 == 0` below, and not a defect: a lowered `Text` measures through
+            // `proposalTextMeasurement` and never takes a min-content probe. See
+            // `aListsWorkIsTheSameFor160RowsAsFor40`.
+            #expect(calls500 == 0 && calls100k == 0, "\(calls500) / \(calls100k)")
+        }
+
         // Equal, not merely close — same reasoning as the 160-vs-40 test
         // above: a uniform row height means the window is found by division,
-        // so the same ~13 rows are built regardless of whether the list holds
+        // so the same 16 rows are built regardless of whether the list holds
         // 500 rows or 100,000.
         #expect(calls100k == calls500)
         #expect(f100k.shapingCache.storageCount == f500.shapingCache.storageCount)
@@ -386,8 +557,21 @@ struct MeasurePerformanceTests {
     /// single stale entry with `storage.count == 1`, nowhere near the
     /// threshold, retained forever. Read that test for the size-gate claim;
     /// read this one only for "the bound holds at scale."
-    @Test
-    func theResidentEntrySetStaysBoundedWhileScrolling10kRows() throws {
+    ///
+    /// **Under both layout authorities since plan task 7's stage 4, lane 5**
+    /// (spec §4.1 rows 5 and 6; `LR-CG`). Every literal below — the cold `2n + 5`
+    /// and all three checkpoints — reads identically on both, which is the
+    /// measurement that says the windowed `ProposalLayout` changed what a row's
+    /// rect comes through and changed nothing about which rows are built or when
+    /// they are reaped. **A PRODUCTION frame on both arms**: this fixture sets no
+    /// `reportsUnlowerableFields`, so anything unlowered aborts rather than
+    /// reporting — which is why `StatefulListRow` had to be re-spelled through
+    /// `lowerLegacyNode` first, and why
+    /// `aLegacySpelledStatefulListRowAbortsAProductionProposalFrame` keeps the
+    /// old spelling as an observable.
+    @Test(arguments: AuthorityCoverage.authorities)
+    func theResidentEntrySetStaysBoundedWhileScrolling10kRows(authority: LayoutAuthority) throws {
+        AuthorityCoverage.record(#function, authority)
         func px(_ v: Float) -> Pixels { Pixels(v) }
         let rowHeight = px(20)
         let n = 10_000
@@ -407,7 +591,8 @@ struct MeasurePerformanceTests {
                                                     lastScrollTime: current.lastScrollTime,
                                                     viewportExtent: current.viewportExtent))
             }
-            let frame = Frame(contentSize: contentSize, scaleFactor: 1, stateTable: table)
+            let frame = Frame(contentSize: contentSize, scaleFactor: 1, stateTable: table,
+                              layoutAuthority: authority)
             frame.render(&tree)
         }
 
@@ -538,6 +723,20 @@ func demoLikeRows(_ n: Int) -> some Element {
 /// `elementID` is computed rather than stored so `Mirror` sees only `count`:
 /// its ordinal is 0, matching `TombstoneTests.ExcursionRow` and every other
 /// single-`@State` fixture in this suite (`$state0`).
+///
+/// **Spelled through the legacy lowering on both authorities** (plan task 7,
+/// stage 4, lane 5; `ListTests.Row`'s own re-spelling, `LR-BW`). It registered
+/// `pass.requestNode` outright until then, which under `.proposal` hits
+/// `Frame.requestNode`'s backstop and **aborts the run** —
+/// `aLegacySpelledStatefulListRowAbortsAProductionProposalFrame` is that abort
+/// kept as an observable. `lowerLegacyNode` over no children forwards to
+/// `lowerLegacyLeaf` over a 0×0 native leaf by itself, which is the lowering of
+/// a childless `Box`, so the two branches describe the same box.
+///
+/// **The `@State` write stays outside the branch**, as
+/// `TombstoneTests.ExcursionRow`'s does: it is what this fixture exists for, and
+/// a count that depended on the authority would make the two arms incomparable
+/// rather than comparable.
 private struct StatefulListRow: Element {
     @State var count = 0
     var elementID: ElementID? { nil }
@@ -545,6 +744,10 @@ private struct StatefulListRow: Element {
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Void) {
         count += 1
+        if pass.lowersToProposal {
+            return (pass.lowerLegacyNode(Style(), declared: Style(), children: [],
+                                         site: .customElement), ())
+        }
         return (pass.requestNode(style: Style(), children: []), ())
     }
 
