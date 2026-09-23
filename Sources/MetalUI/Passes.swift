@@ -1,6 +1,8 @@
 import MetalUICore
 import MetalUILayout
+#if canImport(MetalUIText)
 import MetalUIText
+#endif
 import MetalUITextSystem
 
 // Spec §4.1: "`LayoutPass` / `PrepaintPass` / `PaintPass` are thin structs over
@@ -759,9 +761,11 @@ public struct PaintPass {
     var scaleFactor: Float { frame.scaleFactor }
 
     /// Emits one glyph sprite. See `Frame.draw(_:color:)`.
+    #if canImport(MetalUIText)
     func draw(_ glyph: PlacedGlyph, color: Hsla) {
         frame.draw(glyph, color: color)
     }
+    #endif
 
     /// Emits one glyph the text system placed. See `Frame.draw(_:color:)`.
     func draw(_ glyph: TextGlyph, color: Hsla) {

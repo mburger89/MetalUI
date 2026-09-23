@@ -1,5 +1,8 @@
 import Metal
 import MetalUICore
+// The MetalUICore → shader-struct conversions moved to MetalUIPrimitives (ruling
+// XP-A); re-exported so every importer of MetalUIRender still sees them.
+@_exported import MetalUIPrimitives
 import MetalUIShaderTypes
 import MetalUIText
 import simd

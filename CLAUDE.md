@@ -2,9 +2,11 @@
 
 A GPU-accelerated UI framework for Swift, modeled on
 [gpui](https://github.com/zed-industries/zed/tree/main/crates/gpui), written as
-idiomatic Swift. **macOS only today** (`platforms: [.macOS(.v14)]`, no UIKit,
-`App.swift` builds `AppKitPlatform` unguarded, no `.touch` input). The spec's
-iOS target is unmet. `PlatformWindow`'s `onAccessibilityRequest` and
+idiomatic Swift. **macOS with AppKit and Metal by default; the framework also
+builds on Linux and Windows** (`XP-A`), drawing through `Backends/SDL`
+(`App(platform:textSystem:)`, `XP-B`) with the portable text system — see
+`plans/2026-09-23-cross-platform-roadmap.md` for what is left. No UIKit, no
+`.touch` input: the spec's iOS target is unmet. `PlatformWindow`'s `onAccessibilityRequest` and
 `publishAccessibilityTree(_:)` have no default implementations (`AB-R`).
 
 **This file is rules only.** The full pre-2026-09-21 version (120 KB: every
@@ -41,7 +43,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   rulings in its three specs: line breaking, lines emission, content sizes),
   `FN-` (next `FN-E`; rulings in its spec), `PC-` (next `PC-D`; rulings in
   its spec), `TS-` (next `TS-E`; rulings in its spec), `RS-` (next `RS-E`;
-  rulings in its spec), `SP-` (next `SP-D`; rulings in its spec). A numbered citation
+  rulings in its spec), `SP-` (next `SP-D`; rulings in its spec), `XP-`
+  (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -70,7 +73,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Thirteen record files are not tasks of
+  and G2 is unblocked rather than waiting. Fourteen record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
@@ -88,8 +91,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   `specs/2026-09-23-portable-font-resolver-design.md`), §34 Core and
   Layout off macOS (`PC-`, spec `specs/2026-09-23-portable-core-layout-design.md`),
   §35 the text seam (`TS-`, spec `specs/2026-09-23-text-seam-design.md`),
-  §36 the render seam (`RS-`, spec `specs/2026-09-23-render-seam-design.md`)
-  and §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`). **Cross-platform work
+  §36 the render seam (`RS-`, spec `specs/2026-09-23-render-seam-design.md`),
+  §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`)
+  and §38 MetalUI off Apple (`XP-`, spec `specs/2026-09-23-metalui-portable-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -119,22 +123,23 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 
 - **Counts (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
   with `master` at `42b9ab4`, the portable text line; then `PT-J`, +5; then line breaking, +6; then
-  lines emission, +14; then content sizes, +10; then font resolution, +6; then the text seam, +5): 1686 tests, 97
+  lines emission, +14; then content sizes, +10; then font resolution, +6; then the text seam, +5; then MetalUI off Apple, +3): 1689 tests, 97
   goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:`, taken after
   `swift package clean` with `swift build --build-system native
   --build-tests` then unfiltered `swift test --build-system native
-  --no-parallel` (**one summary line**, `Test run with 1686 tests in 3 suites
-  passed`; nine skipped: the two gated tests and the FreeType, HarfBuzz,
+  --no-parallel` (**one summary line**, `Test run with 1689 tests in 3 suites
+  passed`; ten skipped: the two gated tests, the FreeType, HarfBuzz,
   portable text, line breaking, lines emission (two) and content sizes
-  oracles' gated measurement tests; the guards ran — the log
+  oracles' gated measurement tests, and the demo-frame recorder; the guards ran — the log
   carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
   `e5caefb` (`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` is
-  empty). **1686 = 1640 + 5 + 6 + 14 + 10 + 6 + 5**: the `PT-J` follow-up's
+  empty). **1689 = 1640 + 5 + 6 + 14 + 10 + 6 + 5 + 3**: the `PT-J` follow-up's
   `EmitParameterTests` (record §28), line breaking's 6 (the `LB-E` oracle,
   its gated measurement, contract tests; record §30) and lines emission's 14
   (ten metric/placement oracle tests, two of them gated, and four
   `EmitLinesTests`; record §31), content sizes' 10 (record §32) and font
-  resolution's 6 (record §33) and the text seam's 5 (record §35;
+  resolution's 6 (record §33), the text seam's 5 (record §35) and
+  `MetalUICrossPlatformTests`' 3 (record §38, one a gated recorder;
   `Tests/PortableTests` separately runs 16 + 6 + 5); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
   15 (lane 1, the presentation root, +7; lane 2, the exit suites, +2; lane 3,
   the must-not-move set through real windows, +6; record §29) plus the
@@ -175,7 +180,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Nine** gated tests count toward the total while skipped —
+  **Ten** gated tests count toward the total while skipped —
   `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`, the
   FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
   (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
@@ -184,7 +189,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   and the lines emission oracle's `measureLineEmissionDifferences` and
   `measurePatchedFaceMetrics` (both `METALUI_LINES_EMIT_MEASURE=1`) and the
   content sizes oracle's `measureContentSizeDifferences`
-  (`METALUI_CONTENT_MEASURE=1`).
+  (`METALUI_CONTENT_MEASURE=1`) and `recordDemoFrames`
+  (`METALUI_CROSSPLATFORM_RECORD=1`).
   The lone `warning:`
   under native is SwiftPM's deprecation notice.
 - **Goldens must not move** on a change outside `Sources/MetalUILayout/`
@@ -229,8 +235,13 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   framework are declared on every platform; everything else — and the
   portable oracles, which compare against CoreText — under `#if os(macOS)`.
   **A new target goes in the list its imports allow**; Linux and Windows CI
-  (`scene-linux`, `root-windows`) build every portable target and run
-  `MetalUICoreTests` and `MetalUILayoutTests` (486 + 22 on Linux). A test there
+  (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
+  and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
+  appended on macOS in the manifest — and run `MetalUICoreTests`,
+  `MetalUILayoutTests` and `MetalUICrossPlatformTests` (486 + 22 + 3), the
+  last pinning the demo's whole frame byte-for-byte against macOS (`XP-C`).
+  Inside `MetalUI`, CoreText stays behind `#if canImport(MetalUIText)`; off
+  Apple a `Frame`/`Window` without a text system traps (`XP-B`). A test there
   that needs WebKit or Darwin is compiled out by `#if canImport(…)` per
   declaration (`PC-B`); typecheck guards read only this platform's `.build`
   (`PC-C`) and skip off macOS.

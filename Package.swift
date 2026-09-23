@@ -22,8 +22,19 @@ var products: [Product] = [
         // (Backends/SDL; ruling RS-A).
         .library(name: "MetalUIPlatform", targets: ["MetalUIPlatform"]),
         .library(name: "MetalUICore", targets: ["MetalUICore"]),
+        // The framework itself, on every platform (ruling XP-A), and the
+        // demo's content, which `Backends/SDL`'s demo draws (roadmap item 10).
+        .library(name: "MetalUI", targets: ["MetalUI"]),
+        .library(name: "MetalUIDemoContent", targets: ["MetalUIDemoContent"]),
 
 ]
+
+var metalUIDependencies: [Target.Dependency] = [
+    "MetalUICore", "MetalUILayout", "MetalUITextSystem", "MetalUIPlatform", "MetalUIPrimitives",
+]
+#if os(macOS)
+metalUIDependencies += ["MetalUIText", "MetalUIRender", "MetalUIAppKit"]
+#endif
 
 var targets: [Target] = [
         // Test-support only: the single copy of the `swiftc -typecheck` machinery
@@ -135,11 +146,27 @@ var targets: [Target] = [
         // AppKit implementation is `MetalUIAppKit`, the SDL one `Backends/SDL`.
         .target(name: "MetalUIPlatform", dependencies: ["MetalUICore", "MetalUIScene"]),
 
+        // MetalUICore's geometry and colours as the shader ABI's structs
+        // (`MUIRect`, `MUIGlyph`, …) — what `Frame` builds a `Scene` from.
+        // Portable (ruling XP-A); re-exported by MetalUIRender.
+        .target(name: "MetalUIPrimitives", dependencies: ["MetalUICore", "MetalUIScene"]),
+
+        // The framework (ruling XP-A): portable on its own; on macOS it also
+        // depends on CoreText, Metal and AppKit — appended below — for
+        // `CoreTextTextSystem` (the default text system) and `AppKitPlatform`.
+        .target(name: "MetalUI", dependencies: metalUIDependencies),
+        // The demo's content, a library so `MetalUITests` can import it (ruling
+        // LR-S) and `Backends/SDL`'s demo can draw it.
+        .target(name: "MetalUIDemoContent", dependencies: ["MetalUI"]),
+        // The whole framework's frame, pinned byte-for-byte across platforms
+        // (ruling XP-C): runs on macOS, Linux and Windows.
+        .testTarget(name: "MetalUICrossPlatformTests",
+                    dependencies: ["MetalUI", "MetalUIDemoContent", "MetalUIPortableText"]),
+
 ]
 
 #if os(macOS)
 products += [
-        .library(name: "MetalUI", targets: ["MetalUI"]),
         .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
 
 ]
@@ -164,7 +191,7 @@ targets += [
         .target(
             name: "MetalUIRender",
             dependencies: ["MetalUICore", "MetalUIShaderTypes", "MetalUIScene", "MetalUIText",
-                           "MetalUIPlatform"],
+                           "MetalUIPlatform", "MetalUIPrimitives"],
             resources: [.copy("Shaders")]
         ),
         // `MetalUIText` is a dependency of `MetalUIRender` already; it is named
@@ -182,13 +209,6 @@ targets += [
         .testTarget(name: "MetalUIPlatformTests",
                     dependencies: ["MetalUIPlatform", "MetalUIAppKit", "MetalUIRender"]),
 
-        .target(
-            name: "MetalUI",
-            dependencies: [
-                "MetalUICore", "MetalUILayout", "MetalUIText", "MetalUITextSystem", "MetalUIRender",
-                "MetalUIPlatform", "MetalUIAppKit",
-            ]
-        ),
         // `MetalUIText` is a dependency of `MetalUI` already; it is named again
         // here so the tests may `@testable import` it. `ShapingCache.misses` is
         // internal, and the two-frame cache test is the only thing in the repo
@@ -204,7 +224,6 @@ targets += [
         // The demo's content, a library so `MetalUITests` can import it (ruling
         // LR-S). In no product: it is demo content, not framework API. It makes
         // the non-test targets nine; CLAUDE.md's "eight" is the Docs phase's.
-        .target(name: "MetalUIDemoContent", dependencies: ["MetalUI"]),
         .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI", "MetalUIDemoContent"]),
 
 ]

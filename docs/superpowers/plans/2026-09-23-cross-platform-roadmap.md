@@ -81,9 +81,11 @@ Apple-bound:
    Linux; the Fonts directory or DirectWrite on Windows) and register them
    with `PortableFontResolver`, choosing the platform's default face for
    `family: nil`.
-9. [ ] **`MetalUI` builds without AppKit/Metal** — `App` chooses its platform
-   by `#if canImport(AppKit)`; Apple-only dependencies become
-   `.when(platforms:)`; CI builds `MetalUI` on Linux and Windows.
+9. [x] **`MetalUI` builds without AppKit/Metal** — declared everywhere,
+   Apple dependencies appended on macOS; `App(platform:textSystem:)`; the
+   demo's whole frame pinned across platforms and equal on Linux.
+   `feat/metalui-portable`, spec `specs/2026-09-23-metalui-portable-design.md`
+   (`XP-`), record §38.
 
 ### End to end
 
