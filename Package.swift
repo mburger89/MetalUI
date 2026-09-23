@@ -13,6 +13,8 @@ let package = Package(
         .library(name: "MetalUIFreeType", targets: ["MetalUIFreeType"]),
         // HarfBuzz shaper (ruling SH-B), for non-Apple text.
         .library(name: "MetalUIHarfBuzz", targets: ["MetalUIHarfBuzz"]),
+        // The portable text pipeline (ruling PT-A).
+        .library(name: "MetalUIPortableText", targets: ["MetalUIPortableText"]),
         .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
     ],
     targets: [
@@ -88,6 +90,11 @@ let package = Package(
             cSettings: [.define("FT2_BUILD_LIBRARY")]
         ),
 
+        // String -> MUIGlyphs + atlas coverage with no Apple framework
+        // (rulings PT-A, PT-D): HarfBuzz shapes, FreeType rasterizes.
+        .target(name: "MetalUIPortableText",
+                dependencies: ["MetalUIScene", "MetalUIHarfBuzz", "MetalUIFreeType"]),
+
         // Shaping with no Apple framework (rulings SH-B, SH-K): imports only
         // CHarfBuzz. One run: no line breaking, bidi, itemization or fallback.
         .target(name: "MetalUIHarfBuzz", dependencies: ["CHarfBuzz"]),
@@ -95,6 +102,9 @@ let package = Package(
         // Glyph rasterization with no Apple framework (rulings FT-B, FT-K):
         // imports only MetalUIScene and CFreeType.
         .target(name: "MetalUIFreeType", dependencies: ["MetalUIScene", "CFreeType"]),
+        .testTarget(name: "MetalUIPortableTextTests",
+                    dependencies: ["MetalUIPortableText", "MetalUIText"]),
+
         .testTarget(name: "MetalUIHarfBuzzTests", dependencies: ["MetalUIHarfBuzz", "MetalUIFreeType"]),
 
         // Fonts load from Tests/Fonts by #filePath, not as resources (FT-G).
