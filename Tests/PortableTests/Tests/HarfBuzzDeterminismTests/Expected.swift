@@ -38,7 +38,7 @@ let expectedRuns: [PinnedRun] = [
     PinnedRun(ids: [9, 316, 16, 27, 31, 79], clusters: [4, 3, 3, 2, 1, 0], isRightToLeft: true, advance: 2104, positions: 0x09b6dcdf0319c6ad),  // NotoSansArabic-Regular.ttf arabic word
     PinnedRun(ids: [77, 72, 9, 48, 72, 9, 316, 19, 3, 9, 316, 16, 27, 31, 79], clusters: [12, 11, 10, 9, 8, 7, 6, 6, 5, 4, 3, 3, 2, 1, 0], isRightToLeft: true, advance: 4818, positions: 0xcf7143613dee8ba6),  // NotoSansArabic-Regular.ttf arabic sentence
     PinnedRun(ids: [10, 73], clusters: [1, 0], isRightToLeft: true, advance: 582, positions: 0xa1692dba2d5d6852),  // NotoSansArabic-Regular.ttf arabic lam-alef
-    PinnedRun(ids: [9, 374, 316, 16, 370, 27, 378, 31, 370, 79], clusters: [8, 6, 6, 6, 4, 4, 2, 2, 0, 0], isRightToLeft: true, advance: 2104, positions: 0xc876ef3d6cdcd57c),  // NotoSansArabic-Regular.ttf arabic harakat
+    PinnedRun(ids: [9, 374, 316, 16, 370, 27, 378, 31, 370, 79], clusters: [8, 7, 6, 6, 5, 4, 3, 2, 1, 0], isRightToLeft: true, advance: 2104, positions: 0xc876ef3d6cdcd57c),  // NotoSansArabic-Regular.ttf arabic harakat
     PinnedRun(ids: [137, 136, 135, 134, 133, 132, 131, 130, 129, 128], clusters: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], isRightToLeft: true, advance: 5720, positions: 0xd3c753db6451b955),  // NotoSansArabic-Regular.ttf arabic-indic digits
 ]
 let expectedEndToEnd = PinnedRaster(glyphs: 35, coverageBytes: 2917, checksum: 0xa1d6b34dfbba93a7)

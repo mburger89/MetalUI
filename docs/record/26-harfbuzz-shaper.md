@@ -169,24 +169,34 @@ this constant.
 
 ### The two pinned disagreements with CoreText
 
-**`harfBuzzMergesMarkClustersIntoTheirBase`** — مَرْحَبًا, ids and drawn
-positions identical (`[9,374,316,16,370,27,378,31,370,79]`, 0.0 pt diff,
-total identical):
+**Cluster level: shipped as CoreText's, after the measurement.** For
+مَرْحَبًا, ids and drawn positions are identical either way
+(`[9,374,316,16,370,27,378,31,370,79]`, 0.0 pt difference, same total); only
+the attribution of marks to characters differed:
 
-| | clusters |
+| cluster level | clusters |
 |---|---|
-| HarfBuzz | `[8, 6, 6, 6, 4, 4, 2, 2, 0, 0]` |
-| CoreText | `[8, 7, 6, 6, 5, 4, 3, 2, 1, 0]` |
+| `MONOTONE_GRAPHEMES` (HarfBuzz's default) | `[8, 6, 6, 6, 4, 4, 2, 2, 0, 0]` |
+| `MONOTONE_CHARACTERS` (shipped) = CoreText | `[8, 7, 6, 6, 5, 4, 3, 2, 1, 0]` |
 
-Every difference is a mark reported at its base's offset instead of its
-own — HarfBuzz's default cluster level `HB_BUFFER_CLUSTER_LEVEL_
-MONOTONE_GRAPHEMES`, which is exactly what `ShapedGlyph.cluster`'s own
-contract states ("several glyphs can share a cluster \[a decomposed
-mark]"). **Measured, not assumed:** adding
-`hb_buffer_set_cluster_level(buffer, HB_BUFFER_CLUSTER_LEVEL_
-MONOTONE_CHARACTERS)` to `HarfBuzzShaper.shape` makes this case's clusters
-equal CoreText's exactly and changes **no other case** in the corpus — no
-id, no cluster, no position moves. **Reverted, not shipped** — see Open.
+The default reports each combining mark at its base's offset. The oracle
+lane measured that `hb_buffer_set_cluster_level(buffer,
+HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS)` makes this case equal
+CoreText's string indices exactly and changes **no other case** in the
+corpus — no id, no other cluster, no position — but left it unshipped. On
+review (2026-09-23) it was shipped: the user chose CoreText parity, since
+`cluster` exists to map a glyph back to the text a caller hit-tests or
+carets through, and a mark that reports its base's offset cannot do that.
+The pin is now `markClustersNumberEveryCharacterAsCoreTextDoes`, whose
+literal is CoreText's sequence; reverting the one line reddens it **and**
+`clusterSequencesAgreeWithCoreText` (measured). Note that the ligature still
+holds one cluster for two characters (the two 6s), which the pin asserts —
+`MONOTONE_CHARACTERS` numbers characters, it does not split ligatures.
+`ShapedGlyph.cluster`'s doc comment was corrected to match, and the portable
+harakat row was re-recorded (one row; the other 30 were unaffected, as
+measured).
+
+**One pinned disagreement with CoreText remains**
 
 **`harfBuzzGuessesDirectionFromScriptWhereCoreTextRunsBidi`** —
 ٠١٢٣٤٥٦٧٨٩:
@@ -310,12 +320,11 @@ Measured in this worktree at `ce1088e`, clean tree, this session:
 - No OpenType feature control (no way to force `kern`/`liga` off through the
   API) and no variable-font support — `HarfBuzzFont` takes no variation
   axes, and all three bundled fonts are static.
-- `HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS` was measured to fix the one
-  cluster disagreement with **no other change anywhere in the corpus**, and
-  was reverted rather than shipped, so `HarfBuzzShaper.shape` still uses
-  HarfBuzz's default cluster level. Switching it is a one-line,
-  fully-measured follow-up whenever a caller needs CoreText-identical mark
-  clusters.
+- Recording the portable pins is fragile: the record test prints its table
+  on the same stream Swift Testing writes its own progress to, and a
+  framework line landed **inside** a printed row, producing a file that did
+  not compile. Re-recording now validates every row against a regex and the
+  row count before the file is written.
 - `hb_buffer_guess_segment_properties`'s script-based direction guess will
   disagree with CoreText's bidi algorithm on any text whose paragraph
   direction is not implied by its dominant script (not just Arabic digits);
@@ -334,3 +343,12 @@ taken §25 for engine stage 3.
 Re-taken on the merged tree with `master` (clean native build): 1595 tests
 (1580 + 15), 97 goldens unmoved against `b10594c`, 77 guards, 0 errors,
 0 warnings.
+
+## Review change (2026-09-23)
+
+`HarfBuzzShaper.shape` now sets `HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS`
+(above): 31 of 31 corpus cases agree with CoreText on ids and clusters, one
+pinned disagreement remains (direction from script vs bidi). Re-taken after
+the change: oracle 15 tests green, portable package 6 + 5 green on macOS and
+on Linux (aarch64), and reverting the line reddens both the pin and the
+corpus-wide cluster test.

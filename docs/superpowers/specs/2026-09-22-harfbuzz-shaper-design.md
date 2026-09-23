@@ -79,8 +79,8 @@ variable-font instances, and any change to `Shaper`/`ShapedText`.
   case is investigated and either fixed (SH-C…SH-E) or pinned as a measured,
   explained difference — never loosened into a tolerance.
 
-  **Implemented: 29 of 31 corpus cases agree on ids and clusters; two are
-  pinned (below).** CoreText has no per-glyph offset — every offset derived
+  **Implemented: 30 of 31 corpus cases agree on ids and clusters after the
+  cluster-level change of 2026-09-23 (below); the remaining one is pinned.** CoreText has no per-glyph offset — every offset derived
   from `positions − walk(advances)` is zero to `7.11e-15` pt over 404 glyph
   values — while HarfBuzz reports advance and offset separately; in the
   Arabic mark cases the two conventions differ by up to 2.366 pt of raw
@@ -104,15 +104,14 @@ variable-font instances, and any change to `Shaper`/`ShapedText`.
 
   **The two pinned disagreements**, each named and never loosened into a
   tolerance:
-  - `harfBuzzMergesMarkClustersIntoTheirBase` (مَرْحَبًا): ids and drawn
-    positions identical; HarfBuzz's clusters `[8,6,6,6,4,4,2,2,0,0]` merge
-    each mark into its base's cluster where CoreText's
-    `[8,7,6,6,5,4,3,2,1,0]` keep every character distinct — HarfBuzz's
-    default cluster level, `MONOTONE_GRAPHEMES`, which is exactly what
-    `ShapedGlyph.cluster`'s own contract states. Measured but not shipped:
-    `HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS` makes this case match
-    CoreText exactly and changes no other case in the corpus; left as an
-    Open item rather than the default, since nothing yet needs it.
+  - **Cluster level (resolved 2026-09-23, one pin remains below).** Shaping
+    sets `HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS`, so a combining mark
+    reports its own character offset as CoreText's string indices do, rather
+    than HarfBuzz's default `MONOTONE_GRAPHEMES`, which reports its base's.
+    Measured: the change makes مَرْحَبًا agree exactly and alters no id,
+    cluster or position anywhere else in the corpus. Pinned by
+    `markClustersNumberEveryCharacterAsCoreTextDoes`; with it, 31 of 31 cases
+    agree on ids and clusters.
   - `harfBuzzGuessesDirectionFromScriptWhereCoreTextRunsBidi` (٠١٢٣٤٥٦٧٨٩):
     `.auto` guesses RTL from Arabic's script (`SH-C`); CoreText runs bidi and
     finds these Arabic-indic digits (bidi class AN, not strong) give a

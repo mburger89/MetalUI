@@ -33,10 +33,12 @@ import MetalUIHarfBuzz
 // per-glyph advances are asserted on the 27 cases where HarfBuzz reports no
 // offset at all and the two representations coincide.
 //
-// Ids and clusters are never traded for a tolerance (SH-G). Two cases disagree
-// and each is pinned by name, with the experiment that explains it:
-// `harfBuzzMergesMarkClustersIntoTheirBase` and
-// `harfBuzzGuessesDirectionFromScriptWhereCoreTextRunsBidi`.
+// Ids and clusters are never traded for a tolerance (SH-G). One case disagrees
+// and is pinned by name, with the experiment that explains it:
+// `harfBuzzGuessesDirectionFromScriptWhereCoreTextRunsBidi`. A second case
+// (mark clusters) used to disagree and no longer does: the shaper sets
+// `MONOTONE_CHARACTERS`, pinned by
+// `markClustersNumberEveryCharacterAsCoreTextDoes`.
 //
 // Re-measure with `METALUI_HARFBUZZ_MEASURE=1 swift test --build-system native
 // --no-parallel --filter HarfBuzzOracleTests/measure` before changing a
@@ -139,8 +141,8 @@ let latinCorpus: [ShapingCase] = corpus.filter { $0.file != notoSansArabic }
 /// comparison is meaningless for it; the run total is still asserted.
 let orderPin = "\(notoSansArabic) arabic-indic digits"
 /// The one case whose CLUSTERS CoreText does not reproduce, pinned by
-/// `harfBuzzMergesMarkClustersIntoTheirBase`. Its ids, order, positions and
-/// total are all still asserted.
+/// `markClustersNumberEveryCharacterAsCoreTextDoes`, which pins the cluster
+/// level itself. Its ids, order, positions and total are all still asserted.
 let clusterPin = "\(notoSansArabic) arabic harakat"
 
 // MARK: - Loading
@@ -374,7 +376,7 @@ func comparisons() throws -> [Comparison] {
 
     @Test(arguments: corpus)
     func clusterSequencesAgreeWithCoreText(shapingCase: ShapingCase) throws {
-        guard shapingCase.description != orderPin, shapingCase.description != clusterPin else { return }
+        guard shapingCase.description != orderPin else { return }
         let comparison = try Comparison(shapingCase, font: OracleFont(shapingCase.file))
         #expect(comparison.harfBuzz.glyphs.map(\.cluster) == comparison.coreText.glyphs.map(\.cluster))
     }
@@ -476,35 +478,28 @@ func comparisons() throws -> [Comparison] {
 
     // MARK: SH-G — the two pinned disagreements
 
-    /// HarfBuzz's default cluster level (`MONOTONE_GRAPHEMES`) merges a mark
-    /// into its base, which `ShapedGlyph.cluster`'s contract states ("several
-    /// glyphs can share a cluster"); CoreText's string indices number each
-    /// character. For `مَرْحَبًا` HarfBuzz answers [8,6,6,6,4,4,2,2,0,0] where
-    /// CoreText answers [8,7,6,6,5,4,3,2,1,0] — every difference is a mark
-    /// reported at its base's offset instead of its own.
+    /// **Marks number their own character, like CoreText.** HarfBuzz's default
+    /// cluster level, `MONOTONE_GRAPHEMES`, merges a combining mark into its
+    /// base: for `مَرْحَبًا` it answers `[8,6,6,6,4,4,2,2,0,0]` where CoreText's
+    /// string indices are `[8,7,6,6,5,4,3,2,1,0]`. `HarfBuzzShaper` sets
+    /// `MONOTONE_CHARACTERS` instead (SH-C), which was measured to make this
+    /// case agree exactly and to change no id, cluster or position anywhere
+    /// else in the corpus.
     ///
-    /// Measured, not assumed: setting
-    /// `hb_buffer_set_cluster_level(buffer, HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS)`
-    /// in `HarfBuzzShaper.shape` makes this case's clusters equal CoreText's
-    /// exactly and changes no other case in the corpus — no id, no cluster, no
-    /// position moves. The difference is the cluster level alone; the shaping
-    /// is identical, which the id and position assertions below pin.
-    @Test func harfBuzzMergesMarkClustersIntoTheirBase() throws {
+    /// This test is the level's pin: reverting the `hb_buffer_set_cluster_level`
+    /// line reddens it (and `clusterSequencesAgreeWithCoreText`), and the
+    /// literal below is the sequence CoreText reports, not HarfBuzz's.
+    @Test func markClustersNumberEveryCharacterAsCoreTextDoes() throws {
         let shapingCase = try #require(corpus.first { $0.description == clusterPin })
         let comparison = try Comparison(shapingCase, font: OracleFont(shapingCase.file))
-        #expect(comparison.harfBuzz.glyphs.map(\.cluster) == [8, 6, 6, 6, 4, 4, 2, 2, 0, 0])
+        #expect(comparison.harfBuzz.glyphs.map(\.cluster) == [8, 7, 6, 6, 5, 4, 3, 2, 1, 0])
         #expect(comparison.coreText.glyphs.map(\.cluster) == [8, 7, 6, 6, 5, 4, 3, 2, 1, 0])
-        // Same glyphs, drawn in the same places: only the attribution differs.
+        // The ligature keeps one cluster for two characters: the two 6s.
+        #expect(Set(comparison.harfBuzz.glyphs.map(\.cluster)).count == 9)
+        // Same glyphs, drawn in the same places.
         #expect(comparison.idsAgree)
         let maxima = try #require(comparison.maxima)
         #expect(maxima.position <= positionTolerance)
-        // Each HarfBuzz cluster is its CoreText character's grapheme base: the
-        // base offsets of this string are the even ones.
-        for (harfBuzz, coreText) in zip(comparison.harfBuzz.glyphs, comparison.coreText.glyphs) {
-            #expect(harfBuzz.cluster <= coreText.cluster)
-            #expect(harfBuzz.cluster % 2 == 0)
-            #expect(coreText.cluster - harfBuzz.cluster <= 1)
-        }
     }
 
     /// `hb_buffer_guess_segment_properties` takes the direction from the

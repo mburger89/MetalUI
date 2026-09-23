@@ -6,8 +6,9 @@ public struct ShapedGlyph: Equatable, Sendable {
     public let id: UInt16
     /// Offset of the character this glyph came from, in **UTF-16 units** —
     /// the unit CoreText's string indices use, so the two are comparable.
-    /// Several glyphs can share a cluster (a decomposed mark), and one glyph
-    /// can cover several characters (a ligature).
+    /// One glyph can cover several characters (a ligature), so clusters do not
+    /// increase by one per glyph; a combining mark reports its own offset, not
+    /// its base's (`MONOTONE_CHARACTERS`, matching CoreText's string indices).
     public let cluster: Int
     public let xAdvance: Double
     public let yAdvance: Double
@@ -46,10 +47,18 @@ public enum HarfBuzzShaper {
 
         // Clusters are UTF-16 offsets (SH-C): feed HarfBuzz UTF-16 so its
         // cluster values index the same units CoreText reports.
+        //
+        // MONOTONE_CHARACTERS, not HarfBuzz's default MONOTONE_GRAPHEMES: the
+        // default merges a combining mark into its base's cluster, so a mark
+        // reports its base's offset. Measured against CoreText's string
+        // indices over the whole oracle corpus, this level makes the Arabic
+        // harakat case agree exactly and changes nothing else — no id, no
+        // other cluster, no position (record §26).
         let utf16 = Array(text.utf16)
         utf16.withUnsafeBufferPointer { units in
             hb_buffer_add_utf16(buffer, units.baseAddress, Int32(units.count), 0, Int32(units.count))
         }
+        hb_buffer_set_cluster_level(buffer, HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS)
         switch direction {
         case .auto: hb_buffer_guess_segment_properties(buffer)
         case .leftToRight, .rightToLeft:
