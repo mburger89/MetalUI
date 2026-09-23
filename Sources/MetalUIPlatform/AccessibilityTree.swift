@@ -30,6 +30,8 @@ public struct AccessibilityNodeID: Hashable {
 /// NSAccessibility role the bridge publishes.
 public enum AccessibilityRole: Equatable, Sendable {
     case group, button, staticText, image, table, row
+    /// An editable line of text (ruling TI-C).
+    case textField
 }
 
 /// What a client may ask a node to do. **Derived from live handlers, never from

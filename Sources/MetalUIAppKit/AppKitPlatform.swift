@@ -197,13 +197,50 @@ final class MetalHostView: NSView {
             timestamp: event.timestamp)))
     }
 
+    override func mouseDragged(with event: NSEvent) {
+        _ = onInput?(.mouseDragged(MouseEvent(position: point(event),
+                                              modifiers: modifiers(event))))
+    }
+
+    private func keyEvent(_ event: NSEvent) -> KeyEvent {
+        KeyEvent(charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
+                 characters: event.characters ?? "",
+                 modifiers: modifiers(event),
+                 isRepeat: event.isARepeat,
+                 timestamp: event.timestamp)
+    }
+
+    // MARK: Text input (ruling TI-A)
+
+    /// The caret `setTextInputArea` last gave, in view points; nil while no
+    /// text field is focused, and then every key is a plain `keyDown`.
+    var textInputCaret: Bounds<Pixels>? {
+        didSet {
+            if textInputCaret == nil && oldValue != nil && !markedText.isEmpty {
+                markedText = ""
+                inputContext?.discardMarkedText()
+            }
+        }
+    }
+
+    /// The input method's current marked text, for `hasMarkedText`.
+    private(set) var markedText = ""
+
+    /// The key event the input context is handling, so `doCommand(by:)` can
+    /// re-deliver it as the `keyDown` it was.
+    private var keyInFlight: NSEvent?
+
+    /// While text input is active a non-command key goes through the input
+    /// context first: it answers with `insertText`, `setMarkedText` or
+    /// `doCommand(by:)`. A command key, or any key with text input off, is a
+    /// plain `keyDown`, so shortcuts behave as before.
     override func keyDown(with event: NSEvent) {
-        _ = onInput?(.keyDown(KeyEvent(
-            charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
-            characters: event.characters ?? "",
-            modifiers: modifiers(event),
-            isRepeat: event.isARepeat,
-            timestamp: event.timestamp)))
+        if textInputCaret != nil, !event.modifierFlags.contains(.command) {
+            keyInFlight = event
+            defer { keyInFlight = nil }
+            if inputContext?.handleEvent(event) == true { return }
+        }
+        _ = onInput?(.keyDown(keyEvent(event)))
     }
 
     override func keyUp(with event: NSEvent) {
@@ -216,6 +253,85 @@ final class MetalHostView: NSView {
 
     override func flagsChanged(with event: NSEvent) {
         _ = onInput?(.modifiersChanged(modifiers(event)))
+    }
+}
+
+/// The host view is AppKit's text-input client (ruling TI-A): the input
+/// context hands it committed text, marked text and editing commands, and
+/// asks where the caret is for its candidate window. MetalUI's field owns the
+/// text, so the ranges answered here describe only the marked text.
+extension MetalHostView: @preconcurrency NSTextInputClient {
+    private static func plain(_ string: Any) -> String {
+        (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
+    }
+
+    func insertText(_ string: Any, replacementRange: NSRange) {
+        markedText = ""
+        _ = onInput?(.textInput(Self.plain(string)))
+    }
+
+    func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+        let text = Self.plain(string)
+        markedText = text
+        _ = onInput?(.textComposition(TextComposition(
+            text: text, selection: Self.characterRange(selectedRange, in: text))))
+    }
+
+    func unmarkText() {
+        guard !markedText.isEmpty else { return }
+        let text = markedText
+        markedText = ""
+        _ = onInput?(.textInput(text))
+    }
+
+    /// `doCommand(by:)` is the input context declining a key — an arrow,
+    /// delete, return, escape — so it reaches MetalUI as the key it was.
+    override func doCommand(by selector: Selector) {
+        if let keyInFlight { _ = onInput?(.keyDown(keyEvent(keyInFlight))) }
+    }
+
+    func selectedRange() -> NSRange { NSRange(location: 0, length: 0) }
+
+    func markedRange() -> NSRange {
+        markedText.isEmpty ? NSRange(location: NSNotFound, length: 0)
+            : NSRange(location: 0, length: (markedText as NSString).length)
+    }
+
+    func hasMarkedText() -> Bool { !markedText.isEmpty }
+
+    func attributedSubstring(forProposedRange range: NSRange,
+                             actualRange: NSRangePointer?) -> NSAttributedString? { nil }
+
+    func validAttributesForMarkedText() -> [NSAttributedString.Key] { [] }
+
+    /// The caret rectangle in screen coordinates, where the candidate window
+    /// goes.
+    func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
+        guard let caret = textInputCaret, let window else { return .zero }
+        let local = NSRect(x: CGFloat(caret.origin.x.value), y: CGFloat(caret.origin.y.value),
+                           width: CGFloat(caret.size.width.value), height: CGFloat(caret.size.height.value))
+        return window.convertToScreen(convert(local, to: nil))
+    }
+
+    func characterIndex(for point: NSPoint) -> Int { NSNotFound }
+
+    /// An `NSRange` of UTF-16 units in `text` as Character offsets, clamped.
+    static func characterRange(_ range: NSRange, in text: String) -> Range<Int> {
+        // The Characters that end at or before `unit` — rounding down inside
+        // a grapheme.
+        func characters(upTo unit: Int) -> Int {
+            var units = 0, characters = 0
+            for character in text {
+                units += character.utf16.count
+                if units > unit { break }
+                characters += 1
+            }
+            return characters
+        }
+        guard range.location != NSNotFound else { return text.count..<text.count }
+        let lower = characters(upTo: range.location)
+        let upper = max(lower, characters(upTo: range.location + range.length))
+        return lower..<upper
     }
 }
 
@@ -243,6 +359,21 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         set { accessibilityBridge.onRequest = newValue }
     }
     func publishAccessibilityTree(_ tree: AccessibilityTree) { accessibilityBridge.publish(tree) }
+
+    /// Ruling TI-A: the host view becomes a live text-input client while a
+    /// caret is set.
+    func setTextInputArea(_ caret: Bounds<Pixels>?) {
+        let changed = hostView.textInputCaret != caret
+        hostView.textInputCaret = caret
+        if changed, caret != nil { hostView.inputContext?.invalidateCharacterCoordinates() }
+    }
+
+    func readClipboard() -> String? { NSPasteboard.general.string(forType: .string) }
+
+    func writeClipboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
 
     /// Owned here and by the host view; it holds the host view weakly (AB-D).
     let accessibilityBridge: AppKitAccessibilityBridge

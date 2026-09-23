@@ -78,13 +78,37 @@ public struct KeyEvent: Sendable {
     }
 }
 
+/// An input method's uncommitted ("marked") text (ruling TI-A): shown at the
+/// caret until committed through `.textInput`, or cancelled with an empty
+/// composition. `selection` is in Character offsets into `text`.
+public struct TextComposition: Sendable, Equatable {
+    public var text: String
+    public var selection: Range<Int>
+
+    public init(text: String, selection: Range<Int>) {
+        self.text = text
+        self.selection = selection
+    }
+
+    /// No composition in progress.
+    public static let none = TextComposition(text: "", selection: 0..<0)
+}
+
 public enum InputEvent: Sendable {
     case mouseDown(MouseEvent)
     case mouseUp(MouseEvent)
     case mouseMoved(MouseEvent)
+    /// Pointer motion with the primary button held (ruling TI-A).
+    case mouseDragged(MouseEvent)
     case scrollWheel(ScrollEvent)
     case keyDown(KeyEvent)
     case keyUp(KeyEvent)
     case modifiersChanged(Modifiers)
+    /// Committed text — a typed character after the keyboard layout and dead
+    /// keys, or an input method's commit (ruling TI-A). Sent only while text
+    /// input is active (`PlatformWindow.setTextInputArea`).
+    case textInput(String)
+    /// An input method's marked text; ``TextComposition/none`` ends it.
+    case textComposition(TextComposition)
     // Reserved: focusMove (tvOS), spatial (visionOS). See spec 3.2.
 }

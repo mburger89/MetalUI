@@ -118,9 +118,12 @@ state and, if the text changed, the new text. Offsets are **grapheme
 | ⌘C / ⌘X / ⌘V | copy / cut / paste through the platform clipboard |
 | return | `onSubmit`, not claimed if there is none |
 
-Control is ⌘'s stand-in off macOS: SDL's `SDLKeys` maps the platform's
-primary shortcut modifier to `.command` (control on Linux and Windows), so
-the table holds everywhere. Pointer: one click places the caret at the
+The table is macOS's. **Off Apple platforms it is the Windows/Linux
+convention**, chosen at compile time (`TextEditing.platform`): ⌘A/C/X/V are
+ctrl-A/C/X/V, word motion and word delete are ctrl-←/→ and ctrl-delete, and
+start/end are Home/End only (⌘←/→ and ⌘delete have no counterpart). `SDLKeys`
+still reports control as `.control`, so a `Keymap`'s bindings are untouched;
+an SDL window on macOS uses the macOS table. Pointer: one click places the caret at the
 nearest grapheme boundary, two select the word, three select all, ⇧-click
 extends; a drag extends from the press. A word is a run of letters, digits
 and `_`.

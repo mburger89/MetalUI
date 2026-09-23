@@ -244,6 +244,7 @@ enum AccessibilityTreeBuilder {
         case .button: return .button
         case .text: return .staticText
         case .image: return .image
+        case .textField: return .textField
         case .container, .generic: return .group
         }
     }
