@@ -739,7 +739,7 @@ and is owed to the human** (`LR-DM`).
 | exit criterion (parent spec §4.1 row 6b) | reading |
 |---|---|
 | `Window`'s default authority becomes `.proposal` | `Frame.defaultLayoutAuthority` (`LR-DF`); `Frame.init`'s default and `Window.layoutAuthority`'s initial value both read it, one constant |
-| every red test of record §38 §4's classification table owned by 6b resolved | the 92-row table (§3) disposed by name in `LR-DI`: 14 X untouched (green once traps are fatal again), 2 D rewritten, 75 RP/P-6b re-spelled to `LR-DG`'s rule, 5 AV closed by lowering `hidden()` (`LR-DH`), the root's px/rem min/max folded (`LR-DI` item 4 amended by `LR-DO` item 1), 12 CSS + 1 RP+CSS-frame + 3 N9 + 1 RT pinned `.legacy` with a named owner (7b or 9) |
+| every red test of record §38 §4's classification table owned by 6b resolved | the 92-row table (§3) disposed by name in `LR-DI`: 14 X untouched (green once traps are fatal again; 12 after lane 1, `LR-DQ` item 1), 2 D rewritten, 75 RP/P-6b disposed by `LR-DG`'s rule (73 re-spelled, 2 pinned by `LR-DQ` item 2), 5 AV closed by lowering `hidden()` (`LR-DH`), the root's px/rem min/max folded (`LR-DI` item 4 amended by `LR-DO` item 1), 12 CSS + 1 RP+CSS-frame + 3 N9 + 1 RT pinned `.legacy` with a named owner (7b or 9) — with `LR-DQ` item 2's two and the second tokenizer test, **20** pins |
 | the demo re-spelled for the semantics stage 2 changed, each pixel change probe-backed and named | one re-spelling (`.height(Pixels(28))` on the list row's inner `Box`, `LR-DJ`); every one of the fourteen images' deltas falls in 55, its re-wrap, cause C or a one-point centring round (§4, §12.6) — none outside |
 | root placement ruled (divergence 4 vs `CN-J`) | `CN-J` kept, unchanged (`LR-DG`); divergence 4 stays a legacy-authority-only row, retired with the CSS engine by 7b |
 | the native depth limit re-bisected in release and re-measured on every production root | `NativeLayoutRun.maxDepth` 88 → 72 (`LR-DK`; debug governs, release headroom 9×); production roots re-measured at the new default: demo 29 → 30 after the re-spelling, preview 10, `ScrollView { List }` 15–16 (§5, §12.3) |
@@ -796,8 +796,9 @@ and is owed to the human** (`LR-DM`).
   literals as `(W − w) / 2` and run `.proposal` (R-centre); 43 pass under
   either authority once given the window's extent explicitly on an `auto` root
   axis (R-fill); 2 keep a greedy frame; 20 are pinned `.legacy` with a named
-  owner (16 CSS/7b, 3 N9/9, 1 RT/9) plus 2 more `LR-DQ` item 2 found (fill →
-  neither once the root fold changed their reachable path); one new test,
+  owner (`LR-DQ` item 2): §5.4's 16 (12 CSS and 1 RP+CSS-frame for 7b, 3 N9
+  for 9), the 2 `LR-DQ` item 2 found that neither recipe greens (7b), and
+  §5.5's 2 tokenizer tests (9); one new test,
   `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, maps
   every `animated(` call the lowering makes, closing `LR-DO` item 2's hazard
   seven proposal tests exposed.
@@ -835,10 +836,10 @@ answer, so **M1b2** (both hidden branches) is the mutation that actually
 separates; **VH** (§10.3, `LR-DP` item 7) reddens nothing until test 1.9 is
 added, then reddens exactly it — a leaf-site gate the suite had never pinned.
 Lane 3's **M2a**, re-taken at the new default with no instrument (§12.5),
-reddens 75 tests including 20 of the 28 R-centred ones (the other 8 read a
-centre answer at both defaults and cannot separate, `LR-DQ` item 6) — the same
-mutation lane 2 read as 88-red under the instrument (§11.4), the 13-test gap
-being the X/D rows the instrument keeps green-but-non-fatal.
+reddens 75 tests including **all 28** R-centred ones (it is M2b, the
+window-rect placement, that misses 8 of them, `LR-DQ` item 6) — the same
+mutation lane 2 read as 88-red under the instrument (§11.4): 88 − 14 (the 12 X
+and 2 D, red there only through the instrument) + 1 (3.2, new) = 75.
 
 ## 16. Demo comparisons
 
@@ -886,14 +887,14 @@ see §18 below for what that leaves open.
 - **CLAUDE.md's "measured at 18" for the demo's deepest native level predates
   stages 3 and 4** (the scroll viewport and the windowed `List` add levels); the
   Record phase corrects it to 30 (§18).
-- **Divergence 4 and the 12 CSS + 1 RP+CSS-frame + 3 N9 + 1 RT pinned rows**
-  (33 total, `LR-DI`) are 7b's and 9's to retire, each with the owner named in
+- **Divergence 4 and the 20 tests pinned `.legacy`** (`LR-DI`, counted by
+  `LR-DQ` item 2: 15 for 7b, 5 for 9) are 7b's and 9's to retire, each with the owner named in
   its own doc comment — not this stage's to fix, since the CSS engine they
   read is still production's answer under `.legacy` and no production frame
   ever asks for `.legacy` again.
 - **Owed to the human**: the real-window capture, and the demo-layout
-  human-verification rows §03 re-opens (§18) — the sidebar now reading 196 (was
-  88 at 1024²), the animation panel at 320, the modal card's height, the list
+  human-verification rows §03 re-opens (§18) — the sidebar now reading 196 (the CSS
+  engine shrank it to 96 at 1024², 88 at 920×560), the animation panel at 320, the modal card's height, the list
   rows' labels now vertically centred in their 28 pt row. The screen was
   locked at every check this stage took; none of these was seen on a real
   display.
@@ -932,7 +933,7 @@ not copied from the lane verdicts), `AGENTS.md` (copied, `cmp` clean),
 `docs/record/04-divergences.md` (divergence 4's row amended: still live, now
 legacy-authority-only, owned by 7b) and `docs/record/05-declared-but-inert.md`
 (the `LayoutAuthority.proposal` in production row deleted — it is inert no
-longer), `docs/record/03-human-verification.md` (the demo-layout rows
+longer), `docs/record/03-verified-on-real-hardware.md` (the demo-layout rows
 re-opened, `LR-DM`), `docs/record/README.md` (the §39 row),
 `docs/superpowers/plans/2026-09-12-swiftui-alignment.md` (task 7's stage-6b
 progress paragraph, appended after stage 6a's; the task's own checkbox stays

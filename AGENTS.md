@@ -795,17 +795,22 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   frames keep trapping, never reporting, on an unlowerable field. Of stage
   6a's 92 still-red rows at the flipped default (record §38 §4, this stage's
   work list): the 14 exit-trap tests are untouched (green once traps are
-  fatal again), the 2 `D` tests are rewritten to assert `.proposal`, `hidden()`
-  now lowers (closing the 5 `AV` rows, `LR-DH`), a declared root axis folds its
-  px/rem `minSize`/`maxSize` (closing the root-fold rows, `LR-DI` amended by
-  `LR-DO`), and the remaining 75 root-placement rows are each made independent
-  of the default — 28 re-derive their literals as `(W − w) / 2` and run
-  `.proposal` (root placement is unmoved, `CN-J`; divergence 4, the legacy
-  engine's top-left window-filling root, stays a legacy-authority-only row,
-  retired with the CSS engine by 7b), 43 pass under either authority once
-  given the window's extent explicitly on an `auto` root axis, 2 keep a greedy
-  frame, and 20 are pinned `.legacy` with a named owner (16 CSS/7b, 3 N9/9, 1
-  tokenizer/9) — `LR-DG`'s fixture rule. `NativeLayoutRun.maxDepth` moves 88 →
+  fatal again; **12** by lane 2's reading — lane 1 turned three into passing
+  tests of the new behaviour and added one, `LR-DQ` item 1), the 2 `D` tests
+  are rewritten to assert `.proposal`, `hidden()` now lowers (closing the 5
+  `AV` rows, `LR-DH`), a declared root axis folds its px/rem
+  `minSize`/`maxSize` (closing the root-fold rows, `LR-DI` amended by
+  `LR-DO`), and the 75 root-placement rows (54 RP and 21 of the 23 CE+RP) are
+  disposed by `LR-DG`'s fixture rule — 28 re-derive their literals as
+  `(W − w) / 2` and run `.proposal` (root placement is unmoved, `CN-J`;
+  divergence 4, the legacy engine's top-left window-filling root, stays a
+  legacy-authority-only row, retired with the CSS engine by 7b), 43 pass under
+  either authority once given the window's extent explicitly on an `auto` root
+  axis, 2 keep a greedy frame and 2 that neither recipe greens are pinned
+  `.legacy`. **20 tests in all are pinned `.legacy`
+  by this stage, each with a named owner** (`LR-DQ` item 2): 15 for 7b (12
+  CSS, 1 RP+CSS-frame, the 2 neither-recipe rows) and 5 for 9 (3 N9, the 2
+  tokenizer tests). `NativeLayoutRun.maxDepth` moves 88 →
   72, the first release re-bisection alongside debug (`LR-DK`, "Depth guard"
   below); the demo's list row gains `.height(Pixels(28))` so its labels stay
   centred under the switch (`LR-DJ`), moving its deepest native level 29 → 30.
@@ -849,12 +854,13 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   governs, release's smallest ceiling (653, also the stacks) is 9× headroom.
   A padded, sized legacy container lowers to 3 native levels, and since
   stage 2 an item with a margin, a padding, a size and a stretch is **five**,
-  so a chain of those now reaches the 72/73 boundary at 72/73 nodes (record
-  §39 §5, `NativeLayoutRun.maxDepth`'s doc comment). **Production roots,
+  so a chain of those now reaches the 72/73 boundary at 100/101 nodes (test
+  4.8, `LANE4-4.8 nodes=100 deepest=72`; 122/123 at 88; record §39 §10.1). **Production roots,
   measured through a real `Window` at the new default** (record §39 §5,
   §12.3): the demo's deepest native level is **30** (modal off, on, and
-  animating — one more than 88's-era "measured at 18" and one more than the
-  pre-re-spelling 29, `LR-DJ`'s list-row height), the proposal preview 10, a
+  animating — one more than the pre-re-spelling 29, `LR-DJ`'s list-row
+  height; the earlier "measured at 18" predated stages 3 and 4, whose scroll
+  viewport and windowed `List` add levels), the proposal preview 10, a
   `ScrollView { List }` root 15–16 depending on whether its row declares a
   height. **`SA-L`'s pre-6b table was stale in the direction that mattered**:
   the vertical stack completed 128 levels at `cb2e708` where the 2026-09-14
@@ -1097,8 +1103,9 @@ expected, measured facts:
   screen was locked at every check across all three lanes and the critic
   round, so `capture.sh` was never run; the fourteen-image offscreen
   comparison stands in and reads exactly those four named causes and nothing
-  else. **Four looks a human still owes**: the real-window capture itself, the
-  sidebar now reading 196 (was 88 at 1024²) rather than the CSS-shrunk figure,
+  else. **Five looks a human still owes**: the real-window capture itself, the
+  sidebar now reading 196 where the CSS engine shrank it (to 96 at 1024², 88
+  at the demo's own 920×560),
   the animation panel at 320, the modal card's new height, and the list rows'
   labels now centred in their declared 28 pt row — none of these was ever seen
   on a real display.

@@ -1433,8 +1433,8 @@ pointed at as "the first one still owed."**
   in all twelve) and arm H (re-spelling plus flip: the labels' group gone,
   every other group unchanged). **Four looks a human still owes, none of them
   seen on a real display by anyone in this stage**: the real-window capture
-  itself; the sidebar/panel now reading 196 pt (was 88 pt at 1024² under the
-  legacy engine) and 320 pt animated; the modal card's new height; and the
+  itself; the sidebar/panel now reading 196 pt (the legacy engine shrank it
+  to 96 pt at 1024² and 88 pt at the demo's own 920×560) and 320 pt animated; the modal card's new height; and the
   list rows' labels now vertically centred in their declared 28 pt row where
   they previously sat at the row's top. The demo's deepest native level also
   moves from 29 (post-switch, pre-re-spelling) to **30** after the

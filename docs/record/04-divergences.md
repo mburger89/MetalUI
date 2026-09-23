@@ -1043,10 +1043,11 @@ proposal-authority-only evidence row.
   pinned by its own CSS-engine tests
   (`anAutoRootWithNoOfferedExtentMeasuresItsContent` and the root-sizing tests
   in `MetalUILayoutTests`), which stay green because they construct that
-  authority explicitly. The row is not retired here: it retires with the CSS
-  engine and the legacy authority at stage 9, alongside the 33 other rows
-  (12 CSS, 1 RP+CSS-frame, 3 N9, 1 tokenizer test) `LR-DI` pinned `.legacy`
-  from the same flip. **What it costs if wrong**: a hugging production root
+  authority explicitly. The row is not retired here: it retires with those
+  CSS-engine tests at 7b (`LR-DG` item 2), alongside the 15 tests this stage
+  pinned `.legacy` for 7b (12 CSS, 1 RP+CSS-frame, the 2 of `LR-DQ` item 2);
+  its other 5 pins (3 N9, 2 tokenizer tests) are stage 9's (`LR-DQ` item 2:
+  20 pins in all). **What it costs if wrong**: a hugging production root
   that regressed to `CS-I`'s top-left, window-filling answer would move every
   such root from the window's centre back to its top-left corner — loud on
   the first frame, and pinned by `aHuggingLegacyRootIsCentredInAProductionWindow`
