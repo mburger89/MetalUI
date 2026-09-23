@@ -328,3 +328,92 @@ reads 13 too).
 **Rejected, with reason in `LR-DO`:** lowering an auto-axis root min/max as a
 flexible frame (no probe records a lone `frame(minHeight:)`/`frame(maxHeight:)`
 at a root), and splitting lane 2 (tests only, mechanical, three-lane cap).
+
+## 10. Lane 1 — `hidden()`, the root fold, depth (`LR-DH`, `LR-DO` item 1, `LR-DK`, `LR-DP`)
+
+Commits: `403d6d6` (red first; Sources carry only inert scaffolding —
+`Frame.hiddenNodes`, never written, and `LayoutTree.lastNativeLayoutDeepestLevel`),
+`ef48a0a` (implementation), `f72ebfd` (root arms of 1.2/1.3), then this record,
+the spec note and `LR-DP`. Default authority unchanged (`.legacy`).
+
+### 10.1 Red before (at `403d6d6`)
+
+The proposal arms trap, so each was run filtered; every one aborted with
+`MetalUI/Frame.swift:1550: Fatal error: MetalUI: box.display.none has no proposal
+lowering (plan task 7, stage 2)` — 1.2, 1.3, 1.5, `aListInsideHiddenContent…`,
+`hiddenContentIsNotPublished…`, `aHiddenRootPublishesNothing` — or with
+`modifierLayer.display.none` — 1.4, `aHiddenInnerModifierLayerSuppresses…`,
+`aHiddenOneNodeFrameLayerPublishes…`. In-process reds: 1.1, 6 issues (report
+non-empty; lowered `c.y` 20 not 40; column 40 not 60; `b`; the hidden `Stack`'s
+report and rects); 1.7, 3 issues (`box.minSize.unconsumed` ×2,
+`box.maxSize.unconsumed`; the heights were already 370/500/300 on both — the
+element's own frame folded them, only the report was wrong); 1.8's px control
+(`.signal(SIGTRAP)`); the eight depth tests (trap arms exit success, at-limit
+arms print `limit=88`); `everyStageOneUnlowerable…` 4, `aLoweredStackPlaces…` 1,
+`aHiddenFrameLayerLowersAsIfShown` 5, `everyContainerField…` 1,
+`anItemFieldNoLoweredContainer…` 2, `aListsWorkIsTheSameFor160RowsAsFor40` 2,
+and the three inverted exit tests (SIGTRAP). 1.6 green on arrival: the legacy
+path emits a 0×0 accent rect, glyphs at (0, 2) and (−1, 18) — the doc of
+`Box.hidden()` measured the same — and one 0×0 opaque hitbox.
+
+Printed at-limit lines (hand derivation in each fixture's doc):
+`LANE5-5.8 nodes=72 deepest=72`, `LANE2-2.14 nodes=106 deepest=72`,
+`LANE4-4.8 nodes=100 deepest=72`.
+
+### 10.2 After
+
+`swift build --build-system native --build-tests`: 0 `error:`, only SwiftPM's
+deprecation `warning:`. Unfiltered `swift test --build-system native
+--no-parallel`: **`Test run with 1696 tests in 3 suites passed`** (1688 + 6 in
+`HiddenLoweringTests` + 2 in `RootFieldLoweringTests`), `FR-J no-argument frame:
+succeeded=true` in the log; no pre-existing test reddened beyond those
+rewritten. Roll call 87. Goldens: `git diff --name-only aef88ce HEAD --
+'Tests/**/*.json'` empty. `git apply --check
+docs/probes/stage-6b-flip-instrument.patch` clean at `ef48a0a` — not regenerated.
+
+### 10.3 Mutations (each committed first, restored from a copy, full unfiltered suite, `git status --short` clean after)
+
+| id | mutation | reddened (all others green) |
+|---|---|---|
+| M1a | the three `frame.hiddenNodes.insert(node)` removed | 1.2, 1.3, 1.4, 1.5 and the five AV tests' **proposal** arms only (28 issues) |
+| M1b | `lowerLegacyLeaf`'s hidden branch → 0×0 leaf | **only** `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` (1 issue) — a broken instrument for 1.1 (`LR-DP` item 5) |
+| M1b2 | both hidden branches (`lowerLegacyNode`'s and `lowerLegacyLeaf`'s) → 0×0 leaf | 1.1, 1.4, `everyStageOneUnlowerable…` (7 issues) |
+| M1c | `Element.paintGroup`'s skip removed | 1.2 (2 issues) |
+| M1d | `Element.prepaintGroup`'s pointer-disable scope removed | 1.3 (2) |
+| M1e | `ModifiedElement`'s per-layer skip and scope removed | 1.4 (4) |
+| M1f | `AnyElement`'s entry gates removed | 1.5 (3) |
+| M1g | `paintGroup`'s skip reads `isHidden` (`display == .none` too) | 1.6, at its `#require` on a non-empty legacy emission (1) |
+| M1h | the root fold removed | 1.7, 1.8, `aListsWorkIsTheSameFor160RowsAsFor40` (both arms), `anItemFieldNoLoweredContainerConsumesIsReportedByName`, `aProductionFrameOverDemoLikeRowsCompletesUnderTheProposalAuthority`, `aRootMinHeightOnTheScrollerFixtureNoLongerAbortsAProductionProposalFrame` (10 issues). The font-resolver test is still `.legacy` at lane 1, so it does not appear; lane 2 owns it |
+| M1i | `render`'s root paint skip removed | 1.2 (1) |
+| M1j | `render`'s root pointer-disable scope removed | 1.3 (1) |
+| M3e | `maxDepth` back to 88 | the eight: `aChainOf72GridsTraps`, `aChainOf71GridsDoesNotTrap`, `aLoweredChainAtTheNativeDepthLimitLaysOut`, `aLoweredChainOneLevelPastTheNativeDepthLimitTraps`, both 2.14 and both 4.8 arms (12 issues) |
+| M3f | `maxDepth` 71 | the same eight (11 issues): the at-limit arms trap, and the trap arms trap with `exceeded 71` where they expect `72` |
+
+M3f reddening the trap arms too is the message literal, not a depth claim.
+
+### 10.4 Depth re-checked at `ef48a0a`
+
+`bisect.sh … ef48a0a debug stack padding grid custom`: controls ok; stack
+**127 / 128**, padding 194 / 195, grid 155 / 156, custom 178 / 179 — identical to
+§5 at `aef88ce`, so the `deepestLevel` store in `enter` costs no debug level and
+72 stands. Release `stack custom`: stack **647 / 648**, custom 1021 / 1022 (§5:
+653 / 654, 1037 / 1038) — six and sixteen levels lower, release only; not
+governing (72 / 647 = 0.11). The doc table in `NativeLayoutRun.maxDepth` carries
+§5's `aef88ce` columns.
+
+### 10.5 Pixels
+
+`docs/probes/demo-pixels/compare.sh <scratch> aef88ce ef48a0a`: every control at
+its recorded value (1048576, 1030498, 210027, 0, 1048576, 0, 544, 216, 0), and
+**all twelve images `differing=0`, scene identical** — expected: the default
+is still `.legacy`, the demo uses no `hidden()`, and the preview's native depth
+(10) is far under 72.
+
+### 10.6 Handed on
+
+- Lane 2: the font-resolver test's report is empty (`LR-DP` item 6), and
+  `OuterModifierMatrixTests`' `box.display.none` is gone as spec §5.4 said.
+- `LR-DP` item 1's limitation (a hidden `Box(style:)` declaring `.stack` lowers
+  as flex) — no owner needed until such a tree exists; a `MetalUILayout` field
+  would close it.
+- The §5 production-root depths (29 / 10 / 15) are lane 3's to re-measure (3.3).

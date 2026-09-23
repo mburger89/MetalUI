@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DP`** (stage 6b's design took `LR-DF`…`LR-DN` and its critic round 1 `LR-DO`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DQ`** (stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO` and its lane 1 `LR-DP`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -6807,3 +6807,83 @@ only one folded; 1.7's separating arms show it. Item 2: a site the map calls
 pinned that is not — each mapped test is named, so a reader can mutate it.
 Item 3: two more images to account; a region nobody can attribute is the point.
 
+---
+
+## LR-DP — stage 6b lane 1: "as if shown" needs the overwritten display, the root takes the gates too, and five corrections to the lane-1 rows
+
+**Evidence.** Lane 1 on `feat/engine-stage-6b`: red-first commit `403d6d6`,
+implementation `ef48a0a`; record §39 §10 has every red line, the suite line and
+the mutation table.
+
+**The ruling.**
+
+1. **The display a hidden node lowers as.** `hidden()` overwrites
+   `Style.display`, so "as if shown" (`LR-DH` item 1) has to recover the
+   display it replaced. A node lowered at site `stack` is shown as `.stack`;
+   every other container site (`box`, `modifierLayer`'s padding layer,
+   `component`, `scrollView`) as `.flex`; a leaf's display is never read. A
+   `.frame` layer is shown as `lowered(frameSpec.style(), childCount:)`
+   registers it — `.stack` over one node, a flex row otherwise (`CN-N`) — so the
+   frame layer's `style` comparison sees what it would see shown, and a
+   modifier written after `.hidden()` is still reported `modifierLayer.style`
+   (`aHiddenFrameLayerLowersAsIfShown`). **Limitation, recorded:** a `Box`
+   whose caller set `display: .stack` through `Box(style:)` and then hid it
+   lowers as a flex container — the `Style` keeps no trace of the stack, and
+   adding one is a `MetalUILayout` change this stage does not own. No such tree
+   exists in the repository; the lowering reports nothing for it, so it is a
+   rect disagreement, never a trap.
+2. **The root takes the same gates** (widens `LR-DH` item 3). `render` calls
+   the root's `prepaint` and `paint` directly, not through the group defaults,
+   so a root in `hiddenNodes` prepaints under the pointer-disable scope and
+   skips its paint there, as every other element does in `paintGroup` /
+   `prepaintGroup`. Legacy unchanged (`hiddenNodes` is empty on that path).
+3. **Test 1.8's red-before is not "green on arrival" for one arm.** Its
+   percentage-`maxWidth` control is the same root with a **px** `maxWidth` on
+   the declared width, which is exactly what the fold makes lowerable, so that
+   control arm was red before the fold (SIGTRAP) and is one of M1h's reds. The
+   three failure arms were green on arrival as the spec said.
+4. **The eight depth tests are re-derived with an at-limit reading.** Each
+   at-limit arm now also requires `LayoutTree.lastNativeLayoutDeepestLevel ==
+   72` and `NativeLayoutRun.maxDepth == 72` (the child prints or checks both),
+   which is what makes spec §10's "M3e: the eight red again" true — without
+   it an at-limit chain still lays out at 88 and only the four trap arms
+   redden. The four-wrapper chain (4.8) cannot reach 72 with a two-level
+   innermost child (6 + 5·N + 2 has no whole N), so its innermost is a bare
+   `Box()` (one level: its 0×0 leaf) and `Box().height(10)` for the trap arm,
+   13 inner rows: 100 / 101 nodes. The three-wrapper chain (2.14) is 16 inner
+   rows, 106 / 107 nodes; the padded-box chain 24 / 25 boxes, 72 nodes.
+   Measured by the printed lines, each equal to the hand derivation.
+5. **M1b as first spelled could not reach 1.1.** Replacing only
+   `lowerLegacyLeaf`'s hidden branch with a 0×0 leaf left 1.1 green: a
+   childless hidden `Box` goes through `lowerLegacyNode`'s hidden branch and
+   reaches `lowerLegacyLeaf` with its display already shown. The mutant
+   reddened only `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf`
+   (its hidden-`Text` arm). **M1b re-spelled as M1b2** — both hidden branches
+   (`lowerLegacyNode`'s and `lowerLegacyLeaf`'s) return a 0×0 leaf — reddens
+   1.1, 1.4 and the leaf table (7 issues).
+6. **Tests rewritten because they asserted `display.none` was reported**
+   (each red on the red-first commit and green after `ef48a0a`):
+   `aHiddenFrameLayerIsReportedAsDisplayNone` → `aHiddenFrameLayerLowersAsIfShown`;
+   `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` (the
+   `display.none` row replaced by "alone" → `[]` and "with margin" →
+   `margin.unconsumed`; stage 1's V4 retired with the row);
+   `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes`
+   and `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` (their
+   hidden arms → `[]`); `aHiddenListAbortsAProductionProposalFrame` →
+   `aHiddenListNoLongerAbortsAProductionProposalFrame`. Because of the root
+   fold: `aProductionFrameOverDemoLikeRowsAbortsUnderTheProposalAuthority` →
+   `…CompletesUnderTheProposalAuthority`;
+   `aRootMinHeightOnTheScrollerFixtureAbortsAProductionProposalFrame` →
+   `…NoLongerAbortsAProductionProposalFrame`; `demoLikeRowsReport(.proposal)`
+   → `[]` (read by `aListsWorkIsTheSameFor160RowsAsFor40`); and
+   `anItemFieldNoLoweredContainerConsumesIsReportedByName`'s root arms
+   (declared-width min/max → `[]`, two auto-width arms added reporting;
+   24 → 26 arms). **Spec §5.5 changes with it**: lane 2's font-resolver test
+   asserts an empty `demoLikeRowsReport(.proposal)`, which is what `LR-DO`
+   item 1 already said.
+
+**What it costs if wrong.** Item 1: a hidden custom-display `Box` laid out as a
+row — a rect disagreement the harness would show. Item 2: a hidden root that
+painted or took clicks under the proposal authority — pinned by root arms added
+to 1.2 and 1.3 (`f72ebfd`); mutations M1i (the root paint skip removed) and M1j
+(the root pointer-disable scope removed) redden exactly 1.2 and exactly 1.3.

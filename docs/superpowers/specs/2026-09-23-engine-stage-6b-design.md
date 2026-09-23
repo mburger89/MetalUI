@@ -122,6 +122,19 @@ that the instrument patch still applies (`git apply --check` clean) and that
    `git apply --check` fails, lane 1 regenerates it against its own HEAD and
    commits the regenerated patch, so lane 2 measures with the same instrument.
 
+**Lane 1 (`LR-DP`) — overrides the rows it names.** (a) A hidden node lowers
+as the display `hidden()` overwrote: `.stack` at site `stack`, a frame layer as
+`lowered(frameSpec.style(), childCount:)`, `.flex` elsewhere; a `Box(style:)`
+that declared `.stack` itself and was hidden lowers as flex (recorded
+limitation). (b) The root carries `LR-DH`'s paint and hit gates too (root arms
+in 1.2/1.3; M1i, M1j). (c) 1.8's px control is red before the fold. (d) The
+eight depth tests' at-limit arms also read `lastNativeLayoutDeepestLevel == 72`
+and `maxDepth == 72`; 4.8's chain is 13 inner rows over a bare `Box()` (no
+whole N reaches 72 with a two-level innermost). (e) M1b re-spelled as M1b2
+(both hidden branches), the first spelling being unable to reach 1.1. (f) The
+rewritten tests are listed by name in `LR-DP` item 6; §5.5's font-resolver
+report is empty. Measured in record §39 §10.
+
 **Suite count:** 1688 + 6 (lane 1, `hidden()`) + 2 (lane 1, 1.7–1.8) + 1 (lane
 2, 2.1) + 3 (lane 3) = **1700**, re-measured by each lane.
 
