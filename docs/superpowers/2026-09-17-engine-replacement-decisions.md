@@ -5680,6 +5680,14 @@ only; none exists, and 1.7 pins the order.
 **What it costs if wrong.** A hosting choice that moves a legacy literal is caught
 by the literal itself; a lane split that proves wrong costs one merged lane.
 
+**Amended, stage-5 lane 2** (`LR-CR` item 1). The two scroll hosts are
+window-sized, cross-stretching **row** `Box`es, not the "sized column `Box`"
+this ruling named: a legacy `ScrollView` that is a column host's direct child
+keeps its content's height (its viewport node is `flexShrink: 0`), so a sized
+column host never scrolls and the offset clamps to 0. On a row's cross axis the
+viewport stretches to the host's height under both authorities, so the row is
+the host `DeferredTests`' scrolled test and 2.5 use (`renderInRowHost`).
+
 ## LR-CP — stage 5 critic round 1: the frame arm's undropped count, a clamped root's containing block, a named animation curve, a red-before that exists, and a narrower SwiftUI claim
 
 **Stage 5 critic round 1** (spec `specs/2026-09-23-engine-stage-5-design.md`,

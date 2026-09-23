@@ -958,3 +958,49 @@ not.
   rather than a differently-shaped fixture. The **element-level consequence is
   still unpinned**, exactly as the entry says: no test asserts that a `@State`
   in a vanished `if` comes back holding its old value.
+
+## 2026-09-23: 9, 10 and 11 amended (plan task 7 stage 5)
+
+Record §28; rulings `LR-CH`…`LR-CS` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **No number is
+retired and none is added** — the table stays at **fifty-eight**. All three
+amendments are **proposal-authority only**: production still runs the legacy
+authority until stage 6b, so nothing here is production-visible yet.
+
+- **9** (an all-`auto`-inset absolute box sits at its containing block's
+  origin, not CSS's static position). **Survives, on both authorities.**
+  Stage 5 makes a `Deferred` whose one content node is `.position(.absolute)`
+  a presentation root; inside it, the element lowers to the legacy answer —
+  the containing-block origin, not a static position (`LR-CI`). A new arm of
+  `PresentationLoweringTests`' 1.1 pins it under `.proposal` alongside the
+  existing legacy pin.
+- **10** (`Deferred` escapes every ancestor clip regardless of containing
+  block; no way to ask for CSS's answer). **Unchanged**, and its pins now run
+  under both authorities — lane 3's must-not-move set
+  (`PresentationWindowTests`) and lane 2's hoisted `DeferredTests` scenarios
+  exercise the same escape through the proposal lowering, not a second
+  mechanism. The row gains SwiftUI evidence it lacked: probe
+  `swiftui-overlay-presentation.swift` group P/Q shows this agrees with
+  SwiftUI's **presentation** (a sheet/popover, P4/P5 — outside the presenting
+  view's layout and render tree) and disagrees with SwiftUI's **overlay**
+  (`.overlay`/`.zIndex`, P1/P2 — an in-flow sibling that paints on top, not a
+  portal). Stage 5's design narrowed the probe claim from "SwiftUI has no
+  in-flow portal at all" to "no probed SwiftUI spelling is an in-flow portal"
+  (`LR-CP` item 5); this row's SwiftUI comparison is stated at that narrower
+  strength.
+- **11** (an absolute box inside a `ScrollView` is still clipped and scrolled
+  by it; the escape is `Deferred`). **Becomes legacy-only from here.** Under
+  the proposal authority an absolute box outside a `Deferred` is removed
+  (`LR-CK`): it reports `[<site>.position, <site>.inset]` by name (owner stage
+  10) rather than lower to a different answer, so `AbsoluteOverlayTests`'
+  `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt`'s `.proposal`
+  arm asserts the report, not the clip. The divergence itself — the legacy
+  engine's behaviour — is unretired; it retires with the legacy authority at
+  stage 9, the same stage that deletes the `deferred.*` reports (`LR-CL`).
+
+**An erratum to record §27, found while measuring these:** §27 §8.2 says
+`aListInsideADeferredIgnoresTheEscapedScrollersOffset` "aborts" under
+`.proposal`. Measured at `e5caefb` (record §28 §2.3), switched to `.proposal`
+it **passes**; the claim was never run. It was not a divergence row and
+retracts nothing here — noted because it was found by the same measurement
+pass.

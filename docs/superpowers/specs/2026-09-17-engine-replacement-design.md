@@ -26,8 +26,13 @@ record §27, spec
 It departs from §4.1 row 4's wording in two ruled places — the windowed layout
 answers `rowHeight × logicalCount` on the height rather than probe K6's greedy
 answer (`LR-BR`), and `ListTests`' custom rows are re-spelled through the
-legacy lowering rather than as native probe leaves (`LR-BW`). §4.1's table
-below is still the plan of record for the remaining stages; the **live** per-stage status is the
+legacy lowering rather than as native probe leaves (`LR-BW`). **Stage 5
+(`Deferred`'s absolute content as a presentation root) has landed on
+`feat/engine-stage-5`, not yet merged** (record §28, spec
+[`2026-09-23-engine-stage-5-design.md`](2026-09-23-engine-stage-5-design.md)):
+it matches §4.1 row 5's wording, and its own two proposal-only answers
+(`LR-CJ`) are noted there rather than as a departure from this table. §4.1's
+table below is still the plan of record for the remaining stages; the **live** per-stage status is the
 stage list under task 7 in
 `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, and task 7's box there
 is still open. Production still runs the legacy authority until stage 6b.

@@ -262,3 +262,16 @@ nothing sets it until stage 6b — so no row is deleted here either.
   source. It is the same shape as stage 3's "site `component` has no reachable
   report": an enum case that compiles, is kept so a later stage gets the right
   stage number, and that no production path can now raise.
+
+## 2026-09-23: no row changed at engine replacement stage 5
+
+Record §28; rulings `LR-CH`…`LR-CS`. **Checked and none added, edited or
+deleted.** Stage 5's new consumer-side reports
+(`deferred.containingBlock`/`.nested`/`.root`/`.amended`, `<site>.minSize`/
+`maxSize.absolute`, and `position`/`inset` moved to the consumer for an
+absolute box outside a `Deferred`) are diagnostics raised and read by the
+report mechanism itself, not stored-but-unread state, so none is this table's
+shape. `LoweredItem.Kind.presentation`'s placeholder record is consumed by
+`Deferred` at lowering (`LR-CK`) — not a new `.list`/`.component`-shaped "no
+reader left" case. `LayoutAuthority.proposal` in production is **still
+inert**, unchanged, until stage 6b.

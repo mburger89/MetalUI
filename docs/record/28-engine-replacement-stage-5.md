@@ -7,7 +7,7 @@ Design: `docs/superpowers/specs/2026-09-23-engine-stage-5-design.md`. Rulings
 Branch `feat/engine-stage-5` from `e5caefb`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-5`.
 
-**Status, 2026-09-23 (PDT): all three lanes landed — lane 1 (§6, `LR-CQ`), lane 2 (§7, `LR-CR`), lane 3 (§8, `LR-CS`); the stage is closed in §9–§16 and waits on the Record phase (CLAUDE.md, the divergence rows) and integration.** Every
+**Status, 2026-09-23 (PDT): all three lanes landed — lane 1 (§6, `LR-CQ`), lane 2 (§7, `LR-CR`), lane 3 (§8, `LR-CS`); the stage is closed in §9–§16, and the Record phase (§17) has updated CLAUDE.md, AGENTS.md, records §03/§04/§05/README and the plan. Only integration (the §28→§29 renumber) is left.** Every
 measurement in §2 was taken from a scratch test file
 (`Tests/MetalUITests/ZZScratchStage5.swift`, kept in the session scratchpad,
 never committed) and one temporary edit to `ListTests.swift` restored from a `cp`
@@ -564,3 +564,57 @@ acceptance: no legacy path changed, and the offscreen twelve read 0).
   `.proposal`), the stage list (stage 5 → record §29, `LR-CH`…`LR-CS`), the
   counts, the roll call's 67 → 82 and its file list, divergence rows 9/10/11
   (record §04), and "no demo look owed until 6b". `AGENTS.md` copied after.
+
+## 17. Record phase (2026-09-23, PDT) — docs pass over `d1f295a..HEAD`
+
+No file under `Sources/` changed in this pass.
+
+**Two lane-2 minor issues fixed, not deferred.** The verifier's lane-2 verdict
+flagged two doc drifts, both still present at `1627f7c`: `LR-CO`'s body still
+read "a sized column `Box`" for the scroll host after `LR-CR` item 1
+corrected it, with no amendment pointer — fixed with an **Amended, stage-5
+lane 2** paragraph on `LR-CO`, in the same style as `LR-CP`'s amendments to
+`LR-CK`/`LR-CL`; and `ZZAuthorityRollCall.swift`'s first `#require` message
+still said "the nine suites" after the contributing count reached fifteen —
+fixed to "the fifteen suites" (`Tests/MetalUITests/ZZAuthorityRollCall.swift`
+line 56 — the file's doc comment and the 82-scenario literal were already
+correct; only this one string had not moved).
+
+**Suite, re-taken.** `swift package clean`, then `swift build --build-system
+native --build-tests` (0 `error:`, the only `warning:` SwiftPM's deprecation
+notice), then unfiltered `swift test --build-system native --no-parallel`:
+`Test run with 1632 tests in 3 suites passed after 67.485 seconds.` The log
+carries `FR-J no-argument frame: succeeded=true` (guards ran). Goldens 97
+(`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` empty). Guards 77
+by CLAUDE.md's per-file split, re-counted file by file and matching exactly
+(`UnitSafetyTests` 2 guards, 3 `canTypecheck` hits, one a comment). `git
+status --short` after the two doc fixes: only the two files above (no
+`Sources/` or other `Tests/` file touched).
+
+**Docs updated in this pass**: `CLAUDE.md` (the `Deferred` paragraph gains
+its proposal-authority half; the `LR-` next-unused note; the counts block
+gains this stage's layer on top of `e5caefb`'s; the SwiftUI-alignment
+stage-5 bullet; the roll call's fifteen-file count in the CI-hazards bullet
+and the presentation-window trap note; the known-divergences and
+declared-but-inert bullets gain this stage's dated sub-clauses; the
+human-verification bullet's fourth open look), `AGENTS.md` (copied,
+`cmp` clean), `docs/record/04-divergences.md` (a new 2026-09-23 dated
+section amending 9, 10 and 11, plus the record §27 §8.2 erratum),
+`docs/record/05-declared-but-inert.md` (a new 2026-09-23 dated section
+recording that no row changed), `docs/record/03-verified-on-real-hardware.md`
+(a new 2026-09-23 dated section for the open capture), `docs/record/README.md`
+(the §28 row), `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`
+(task 7's stage-5 progress paragraph, appended after stage 4's; the checkbox
+stays unticked), `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`
+("Where the task actually stands" gains a stage-5 sentence), this spec's
+Status line (DESIGN → DELIVERED, with lane commits and corrections), and
+`README.md` (the branch/count line, the record-file list, the engine-replacement
+spec bullet).
+
+**Left as found**: this file's own §16 "Record number collision" note
+(the §28→§29 renumbering is integration's, not this pass's); the two
+`LayoutAuthority.proposal`-is-inert-in-production facts, unchanged; the four
+`deferred.*`/`…absolute`/`position`·`inset` reports, each still owned by its
+named future stage. **Verdict: mergeable** (subject to the pending
+`e5caefb`→`master` portable-text rebase noted in §16, which is integration's
+job, not this pass's).

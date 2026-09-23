@@ -1,13 +1,19 @@
 # Engine replacement, stage 5 — `Deferred`'s absolute content as a presentation root (plan task 7)
 
-**Status, 2026-09-23 (PDT): DESIGN.** No file under `Sources/` or `Tests/`
-changed in a commit. Every measurement below was taken on
+**Status, 2026-09-23 (PDT): DELIVERED — all three lanes implemented, all
+three verified `ok`.** Lane 1's commits are `b447c9a` (red first), `1f83f45`
+(source) and `97306d4` (corrections); its corrections are `LR-CQ` and record
+§28 §6. Lane 2's are `52ff491` (red first) and `985c443` (hosted); its
+corrections are `LR-CR` and record §28 §7. Lane 3's are `7c0c414` and
+`be5c697`; its corrections are `LR-CS` and record §28 §8. Suite **1632**
+tests, 97 goldens, 77 guards, none moved. Every measurement below was taken on
 `feat/engine-stage-5` at `e5caefb` in
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-5`, from a scratch test file
 (`ZZScratchStage5.swift`) and one temporary edit to `ListTests.swift`, both
 restored before commit with `git status --short` showing only this design's
 docs and probe; the measurements are in `docs/record/28-engine-replacement-stage-5.md`
-§2. Rulings `LR-CH`…`LR-CO`, and critic round 1's `LR-CP`, in
+§2. Rulings `LR-CH`…`LR-CO`, critic round 1's `LR-CP`, and lanes 1–3's
+`LR-CQ`…`LR-CS`, in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Probe: `docs/probes/swiftui-overlay-presentation.swift`, **revision 2** (group Q
 added; P and H unchanged and re-run).
