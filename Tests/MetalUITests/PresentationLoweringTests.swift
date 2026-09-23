@@ -48,11 +48,18 @@ private func absBox(_ edges: Edges<MetalUICore.Dimension>) -> Box<EmptyGroup> {
 @MainActor
 private func rootDiagnostics<E: Element>(width: Float = 200, height: Float = 100,
                                          _ make: () -> E) -> [String] {
+    rootFields(width: width, height: height, make).map(\.description)
+}
+
+/// `rootDiagnostics`' fields themselves, for an assertion on their owning stage.
+@MainActor
+private func rootFields<E: Element>(width: Float = 200, height: Float = 100,
+                                    _ make: () -> E) -> [UnlowerableField] {
     var root = make()
     let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1,
                       layoutAuthority: .proposal, reportsUnlowerableFields: true)
     frame.render(&root)
-    return frame.unlowerableFields.map(\.description)
+    return frame.unlowerableFields
 }
 
 /// Every whole-frame observation agrees and nothing was reported.
@@ -253,9 +260,13 @@ private struct PresentingPair: Component {
 ///
 /// Mutations that must redden it: **M1g** the filter removed from
 /// `lowerLegacyNode` (the column, stack, scroll and `.padding` arms); **M1h**
-/// removed from `lowerLegacyLayer`'s frame arm only (the two `.frame` arms);
-/// **M1o** the frame arm's `legacyFrameLayerDiagnostics` handed the **dropped**
-/// count (both `.frame` arms report `[modifierLayer.style]`).
+/// removed from `lowerLegacyLayer`'s frame arm only — **the two-member `.frame`
+/// arm only**, measured (lane 1's corrections, `LR-CQ`): over one node the
+/// undropped 0×0 placeholder sits inside a fixed 50×50 frame whose answer does
+/// not depend on it, and the `Deferred`'s rect is aliased to its content, so the
+/// one-node arm agrees under M1h and cannot see it; **M1o** the frame arm's
+/// `legacyFrameLayerDiagnostics` handed the **dropped** count (both `.frame` arms
+/// report `[modifierLayer.style]`).
 @MainActor
 @Test func aPresentationPlaceholderIsDroppedByEveryLoweredContainer() throws {
     func presented() -> Deferred<Box<EmptyGroup>> {
@@ -330,7 +341,14 @@ private struct PresentingPair: Component {
 /// - an absolute box in a column with no `Deferred` → `[box.position, box.inset]`
 ///   at the consumer; an absolute root → the `.unconsumed` pair;
 /// - `minWidth` on an absolute box's `auto` axis → `box.minSize.absolute`;
-/// - `Component().width(70)` over a `Deferred`-absolute member → `deferred.amended`.
+///   `maxHeight` on one → `box.maxSize.absolute`; a percentage `minWidth` on a
+///   declared axis → `box.minSize.percent` (lane 1's corrections, `LR-CQ`);
+/// - `Component().width(70)` over a `Deferred`-absolute member → `deferred.amended`;
+/// - a presentation inside a **bordered** `inset(0)` presentation →
+///   `deferred.nested` (its padding box is the window inset by the border;
+///   `LR-CQ`);
+/// - and every `<field>.absolute` the frame reports is owned by **stage 8**
+///   (`LR-CQ`).
 ///
 /// Red-before: every `Deferred` arm reads `[box.position, box.inset]`; the
 /// absolute-root arm reads `[box.position, box.inset]`.
@@ -340,7 +358,12 @@ private struct PresentingPair: Component {
 /// `coversWindow` always false (the `inset(0)` arm reads `[deferred.nested]`);
 /// **M1l** `planLegacyItems`' `position` entry deleted (the column arm reads
 /// `[box.inset]`); **M1p** the check's `minSize`/`maxSize` clause deleted (the two
-/// clamped-frame arms read `[]`).
+/// clamped-frame arms read `[]`). Lane 1's corrections (`LR-CQ`) add **M1q**
+/// `owningStage` for `.absolute` → "2" (the stage-8 assertion); **M1r** the
+/// `maxSize.absolute` report deleted (the `maxHeight` arm reads `[]`, and the
+/// owning-stage `#require`); **M1s** the `minSize.percent` report deleted (the
+/// percentage arm reads `[]`); **M1t** `presentationCoversWindow` ignoring the
+/// border (the bordered `inset(0)` arm reads `[]`).
 @MainActor
 @Test func aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName() throws {
     func presented() -> Deferred<Box<EmptyGroup>> {
@@ -392,9 +415,42 @@ private struct PresentingPair: Component {
     arms.append(("root .frame(maxWidth: 300) (the separating arm)", rootDiagnostics {
         Box { presented() }.frame(maxWidth: px(300))
     }, []))
-    try #require(arms.count == 15)
+    // Lane 1 corrections (`LR-CQ`): four claims the source made that no arm saw.
+    arms.append(("maxHeight on an auto axis", rootDiagnostics {
+        Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).width(px(10)).maxHeight(px(50)) } }
+    }, ["box.maxSize.absolute"]))
+    var percentMinimum = Style()
+    percentMinimum.minSize.width = .length(.percent(0.5))
+    arms.append(("percentage minWidth on a declared axis", rootDiagnostics {
+        Box {
+            Deferred {
+                Box(style: percentMinimum).background(.accent).onClick {}.position(.absolute)
+                    .inset(insets(top: dim(5), left: dim(5))).width(px(40)).height(px(10))
+            }
+        }
+    }, ["box.minSize.percent"]))
+    var borderedCover = Style()
+    borderedCover.border = Edges(all: .pixels(px(3)))
+    arms.append(("inside a bordered inset(0) presentation", rootDiagnostics {
+        Box {
+            Deferred {
+                Box(style: borderedCover) { presented() }.background(.surface).position(.absolute).inset(px(0))
+            }
+        }
+    }, ["deferred.nested"]))
+    try #require(arms.count == 18)
     for arm in arms {
         #expect(arm.got == arm.expected, "\(arm.name): \(arm.got)")
+    }
+    // `<field>.absolute` belongs to stage 8's min/max recipe (`LR-CJ` item 3), read
+    // off the fields the frame really reported, not off a hand-built value.
+    let absoluteFields = rootFields {
+        Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).minWidth(px(50)).maxHeight(px(50)) } }
+    }
+    try #require(absoluteFields.map(\.description) == ["box.minSize.absolute", "box.maxSize.absolute"],
+                 "\(absoluteFields)")
+    for field in absoluteFields {
+        #expect(field.owningStage == "8", "\(field) is owned by stage \(field.owningStage)")
     }
 }
 
