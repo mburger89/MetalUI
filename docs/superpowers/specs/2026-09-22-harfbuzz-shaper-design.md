@@ -1,6 +1,7 @@
 # HarfBuzz shaper — design
 
-**Status:** draft for approval, 2026-09-22. Decided with the user: vendor the
+**Status:** implemented, 2026-09-22 (record `docs/record/25-harfbuzz-shaper.md`,
+commit `ce1088e` on `feat/harfbuzz-shaper`). Decided with the user: vendor the
 HarfBuzz source; this step shapes one run, checked on Latin and on Arabic.
 **Ruling prefix:** `SH-` (lettered; next `SH-L`). (`HB-` was free but matches
 FreeType's license text case-insensitively, `ft-hb-ft.c`.)
@@ -30,8 +31,12 @@ variable-font instances, and any change to `Shaper`/`ShapedText`.
   a module map and an umbrella header over `hb.h`/`hb-ot.h`. `VENDORED.md`
   records version, tarball SHA-256, the file list and every edit. **No
   `unsafeFlags`** (SwiftPM refuses them in a URL dependency; lesson from
-  `FT-A`): any warning is silenced by a scoped pragma in a vendored header,
-  measured with and without.
+  `FT-A`). **Implemented: no pragma needed either.** Unlike `CFreeType`
+  (`FT-A`'s `-Wshorten-64-to-32`, silenced with a scoped pragma under
+  `FT2_BUILD_LIBRARY`), the vendored HarfBuzz amalgamation compiles with 0
+  warnings on both macOS build systems and in the Linux container with no
+  edit to any vendored file — measured from `rm -rf .build` on the default
+  build system.
 - **SH-B — one new target, `MetalUIHarfBuzz`, depending on `CHarfBuzz` only**
   (it needs nothing from `MetalUIScene`). No Foundation, CoreText, CoreGraphics
   or Metal. Library product. Joins `scene-linux` and CLAUDE.md's
@@ -73,6 +78,49 @@ variable-font instances, and any change to `Shaper`/`ShapedText`.
   advance likewise. Where the two shapers disagree on ids or clusters, the
   case is investigated and either fixed (SH-C…SH-E) or pinned as a measured,
   explained difference — never loosened into a tolerance.
+
+  **Implemented: 29 of 31 corpus cases agree on ids and clusters; two are
+  pinned (below).** CoreText has no per-glyph offset — every offset derived
+  from `positions − walk(advances)` is zero to `7.11e-15` pt over 404 glyph
+  values — while HarfBuzz reports advance and offset separately; in the
+  Arabic mark cases the two conventions differ by up to 2.366 pt of raw
+  advance and 2.262 pt of raw offset for the *same* drawn position. A raw
+  tolerance would have needed to be ~2.4 pt, wide enough to hide a real
+  shaping difference, so the tolerances below bound only what the two
+  conventions share by construction (pen advance, drawn position, run
+  total), and raw per-glyph advances are asserted only on the 27 cases where
+  HarfBuzz reports no offset at all:
+
+  | Constant | Value | Measured max | Margin |
+  |---|---|---|---|
+  | `advanceTolerance` (pen advance, and raw advance on offset-free cases) | 1e-12 pt | 1.7763568394002505e-15 | ~560× |
+  | `offsetTolerance` (CoreText's derived per-glyph offset; it has none) | 1e-12 pt | 7.105427357601002e-15 | ~140× |
+  | `positionTolerance` (drawn glyph position, pen + offset) | 1e-12 pt | 5.684341886080802e-14 | ~18× |
+  | `totalAdvanceTolerance` (run total vs `CTLineGetTypographicBounds`) | 1e-12 pt | 5.684341886080802e-14 | ~18× |
+
+  `1e-12` pt is four orders of magnitude below one design unit at 13 pt
+  (0.013 pt for Noto Sans), so none of these bounds can absorb a real
+  shaping difference.
+
+  **The two pinned disagreements**, each named and never loosened into a
+  tolerance:
+  - `harfBuzzMergesMarkClustersIntoTheirBase` (مَرْحَبًا): ids and drawn
+    positions identical; HarfBuzz's clusters `[8,6,6,6,4,4,2,2,0,0]` merge
+    each mark into its base's cluster where CoreText's
+    `[8,7,6,6,5,4,3,2,1,0]` keep every character distinct — HarfBuzz's
+    default cluster level, `MONOTONE_GRAPHEMES`, which is exactly what
+    `ShapedGlyph.cluster`'s own contract states. Measured but not shipped:
+    `HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS` makes this case match
+    CoreText exactly and changes no other case in the corpus; left as an
+    Open item rather than the default, since nothing yet needs it.
+  - `harfBuzzGuessesDirectionFromScriptWhereCoreTextRunsBidi` (٠١٢٣٤٥٦٧٨٩):
+    `.auto` guesses RTL from Arabic's script (`SH-C`); CoreText runs bidi and
+    finds these Arabic-indic digits (bidi class AN, not strong) give a
+    paragraph level of 0, so it is LTR. Measured separating arm: the same
+    digits after one strong Arabic letter give an overall-RTL CoreText line
+    with the digits still ascending — the LTR answer is the *paragraph
+    level*, not a property of the digit glyphs. `direction: .leftToRight`
+    reproduces CoreText's ids, clusters and positions exactly.
 - **SH-H — glyph ids agree with FreeType.** For every Latin corpus string,
   each shaped glyph id rasterizes through `FreeTypeRaster` to a non-empty
   image unless it is a space, and ids from `FreeTypeFont.glyph(for:)` equal
@@ -87,7 +135,10 @@ variable-font instances, and any change to `Shaper`/`ShapedText`.
   shaper; nothing calls `HarfBuzzShaper` outside tests. Counts: 1558 + the new
   tests, 97 goldens, 77 guards (or more), 0 errors, 0 warnings — on the
   native build system **and** the default one (`FT-A` found warnings only the
-  default one shows).
+  default one shows). **Implemented: 1573 tests (1558 + 15), 97 goldens
+  unmoved, 77 guards (no new guard file), 0 errors, 0 warnings on both build
+  systems** (1 `warning:` under `--build-system native` is SwiftPM's own
+  deprecation notice for that flag, not a real warning).
 - **SH-K — the Linux boundary.** `MetalUIHarfBuzz` imports only `CHarfBuzz`;
   the `scene-linux` job builds it.
 
@@ -102,6 +153,14 @@ variable-font instances, and any change to `Shaper`/`ShapedText`.
   checksum changed.
 - Linux and Windows CI green with the portable pins.
 
+**Implemented:** eighteen mutations run in detached `git worktree`s and
+reverted (eight against the oracle suite, ten against the portable package);
+every one of the 14 running oracle tests and all 6 HarfBuzz portable tests
+were reddened by at least one mutant (full tables: `docs/record/
+25-harfbuzz-shaper.md`). Windows CI carries the only Windows run of the
+portable pins and the first Windows compile of the vendored C++ amalgamation;
+not run locally (no Windows host or container available).
+
 ## Order of work
 
 1. Vendor HarfBuzz (SH-A); `CHarfBuzz` builds with 0 warnings on both macOS
@@ -110,3 +169,6 @@ variable-font instances, and any change to `Shaper`/`ShapedText`.
 3. Arabic font (SH-F) and the CoreText oracle (SH-G, SH-H); measure, then set
    tolerances.
 4. Portable tests and CI (SH-I, SH-K); mutations; CLAUDE.md, record, spec.
+
+All four steps done as of this Status line; record `docs/record/
+25-harfbuzz-shaper.md` has the full detail, tables and open items.

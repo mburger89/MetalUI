@@ -35,8 +35,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
   `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-BB`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
-  (next `FT-L`; rulings in its spec, no separate decisions doc). A numbered citation of a
-  lettered prefix (`CS-3`, `LR-3`, `GR-3`) is a typo; sweep case-insensitively.
+  (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
+  `SH-L`; rulings in its spec, no separate decisions doc). A numbered citation
+  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`) is a typo; sweep
+  case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
   grids doc's header was a letter behind for a whole round (record §23 §7).
@@ -71,27 +73,34 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-22, `feat/freetype-raster` merged with `master` at
-  `57893d0`): 1558 tests, 97 goldens, 77 typecheck guards**, 0 `error:`, 0
-  `warning:`, taken after `swift package clean` with `swift build
+- **Counts (2026-09-22, `feat/harfbuzz-shaper` at `ce1088e`): 1573 tests, 97
+  goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:` under the default
+  build system, 1 `warning:` under `--build-system native` (its own
+  deprecation notice) — taken after `swift package clean` with `swift build
   --build-system native --build-tests` then unfiltered `swift test
-  --build-system native --no-parallel` (one summary line, `Test run with 1558
-  tests in 2 suites passed`; skipped: the two gated tests and the FreeType
-  oracle's gated `measure(file:)`). Goldens unmoved
-  against `cb2e708`. Guards per file: `PhaseSeparationTests` 19,
-  `ErasureCompileGuards` 10, `EnvironmentCompileGuards` 8,
-  `ProposalNodeIDCompileGuards` 6, `ProposalLayoutCompileGuards` 6,
-  `ElementGroupTrapTests` 5, `ContainerCompileGuards` 4, `GridCompileGuards` 4,
-  `AXNodeTests` 3, `DecorationCompileGuards` 3, `UnitSafetyTests` 2 (3 hits,
-  one a comment), `ModifiedElementCompileGuards` 2, `FrameSizingCompileGuards`
-  2, `SceneBoundaryCompileGuards` 2, `LayoutAuthorityCompileGuards` 1.
-  The FreeType line (record §24) adds 8 tests and no guard to master's 1550 /
-  97 / 77. Before it, two lines merged: 1548 / 97 / 75 on `integrate/stage-2-grids`
-  (2026-09-21, task 7 stages 2 and G; records §21, §22, §23) and 1411 / 97 / 73
-  on `feat/portable-scene` (2026-09-22, `MetalUIScene`; record §20). Both
-  descend from 1409 / 97 / 71, so the merged total is 1409 + 139 + 2. History:
-  record §06, §19 "Build and test". A count is stale the moment a test lands;
-  re-measure.
+  --build-system native --no-parallel` (one summary line, `Test run with 1573
+  tests in 3 suites passed`; skipped: the two gated tests, the FreeType
+  oracle's gated `measure(file:)` and the HarfBuzz oracle's gated
+  `measure()`). Goldens unmoved against `cb2e708`
+  (`find Tests/MetalUILayoutTests -name "*.json" | wc -l`, and 97 again over
+  all of `Tests/` with `-not -path "*/.build/*"`). Guards per file:
+  `PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
+  `EnvironmentCompileGuards` 8, `ProposalNodeIDCompileGuards` 6,
+  `ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5,
+  `ContainerCompileGuards` 4, `GridCompileGuards` 4, `AXNodeTests` 3,
+  `DecorationCompileGuards` 3, `UnitSafetyTests` 2 (3 hits, one a comment),
+  `ModifiedElementCompileGuards` 2, `FrameSizingCompileGuards` 2,
+  `SceneBoundaryCompileGuards` 2, `LayoutAuthorityCompileGuards` 1.
+  `MetalUIHarfBuzz` adds no import boundary beyond `SH-K`'s Linux build check,
+  so no new guard file. The HarfBuzz line (record §25) adds 15 tests to
+  `feat/freetype-raster`'s merged 1558 / 97 / 77 (record §24; that line itself
+  added 8 tests and no guard to master's 1550 / 97 / 77). Before that, two
+  lines merged: 1548 / 97 / 75 on `integrate/stage-2-grids` (2026-09-21, task 7
+  stages 2 and G; records §21, §22, §23) and 1411 / 97 / 73 on
+  `feat/portable-scene` (2026-09-22, `MetalUIScene`; record §20). Both descend
+  from 1409 / 97 / 71, so the merged total is 1409 + 139 + 2 + 8 + 15. History:
+  record §06, §19 "Build and test", §25. A count is stale the moment a test
+  lands; re-measure.
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line; the default build system may print six (sum them).
   Two gated tests count toward the total while skipped. The lone `warning:`
@@ -132,23 +141,29 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   stage added six stored mark tables to `LayoutTree`, and the `MetalUIScene`
   move relocated `Scene`, `FontKey`, `GlyphImage` and the atlas types across
   three modules.
-- **Targets:** twelve one-way-dependent (`MetalUICore`, `MetalUILayout`,
-  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `MetalUIText`,
-  `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`, `MetalUI`,
-  `MetalUIDemoContent`, `MetalUIDemo`) plus `Tests/MetalUITestSupport`.
-  `MetalUIDemoContent` holds the demo tree so tests can import it (`LR-S`).
-  `MetalUIScene` holds `Scene`/`DrawRun`/`PrimitiveKind`, the glyph atlas
-  types and the `FontKey` struct; `MetalUIText` and `MetalUIRender` re-export
-  it (`PS-B`), so its types need no new import. It is also a library product,
-  consumed by `Experiments/SDLGPU/Portable`. `CFreeType` is FreeType 2.14.3,
-  vendored (`FT-A`; `Sources/CFreeType/VENDORED.md`), a C target with no
-  Swift API. `MetalUIFreeType` is the FreeType-backed glyph rasterizer
-  (`FreeTypeFont`, `FreeTypeRaster`, `FT-B`…`FT-E`) that matches
-  `GlyphRaster`'s contract exactly; also a library product, for non-Apple
-  backends. Nothing in production calls it — `GlyphRaster` stays the
-  rasterizer on Apple platforms (`FT-I`).
+- **Targets:** fourteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
+  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`,
+  `MetalUIHarfBuzz`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
+  `MetalUIPlatform`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
+  `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so
+  tests can import it (`LR-S`). `MetalUIScene` holds
+  `Scene`/`DrawRun`/`PrimitiveKind`, the glyph atlas types and the `FontKey`
+  struct; `MetalUIText` and `MetalUIRender` re-export it (`PS-B`), so its
+  types need no new import. It is also a library product, consumed by
+  `Experiments/SDLGPU/Portable`. `CFreeType` is FreeType 2.14.3, vendored
+  (`FT-A`; `Sources/CFreeType/VENDORED.md`), a C target with no Swift API.
+  `MetalUIFreeType` is the FreeType-backed glyph rasterizer (`FreeTypeFont`,
+  `FreeTypeRaster`, `FT-B`…`FT-E`) that matches `GlyphRaster`'s contract
+  exactly; also a library product, for non-Apple backends. Nothing in
+  production calls it — `GlyphRaster` stays the rasterizer on Apple platforms
+  (`FT-I`). `CHarfBuzz` is HarfBuzz 14.5.0, vendored (`SH-A`;
+  `Sources/CHarfBuzz/VENDORED.md`), a C++ target with no Swift API.
+  `MetalUIHarfBuzz` is the HarfBuzz-backed shaper (`HarfBuzzFont`,
+  `HarfBuzzShaper`, `SH-B`…`SH-E`), depending on `CHarfBuzz` only; also a
+  library product. Nothing in production calls it — `Shaper` stays the shaper
+  on Apple platforms (`SH-J`).
 
-Six constraints that fail silently:
+Seven constraints that fail silently:
 
 - `MetalUILayout` imports only `MetalUICore` (anchored grep).
 - `MetalUIScene` imports only `MetalUIShaderTypes` — no Foundation, CoreText,
@@ -162,6 +177,13 @@ Six constraints that fail silently:
   `Tests/PortableTests` (a separate package depending on the root's
   `MetalUIFreeType` product) runs FreeType's own output through Linux and
   Windows CI, pinned byte-for-byte against macOS (`FT-J`).
+- `MetalUIHarfBuzz` imports only `CHarfBuzz` — no Foundation, CoreText,
+  CoreGraphics or Metal (`SH-K`). macOS cannot see a violation; the
+  `scene-linux` job builds this target too, and `Tests/PortableTests` (a
+  second test target, `HarfBuzzDeterminismTests`, depending on the root's
+  `MetalUIHarfBuzz` and `MetalUIFreeType` products) pins HarfBuzz's glyph
+  ids, clusters and design-unit positions byte-for-byte against macOS on
+  Linux and Windows CI (`SH-I`).
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (gamma-space compositing, §7.8).
