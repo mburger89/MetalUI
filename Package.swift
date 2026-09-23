@@ -71,6 +71,16 @@ let package = Package(
             sources: ["src/harfbuzz.cc"]
         ),
 
+        // libunibreak 8.0, vendored (ruling LB-A; Sources/CUnibreak/VENDORED.md):
+        // UAX #14 line breaking only. The two *data.c files are #included by
+        // the sources, not compiled on their own.
+        .target(
+            name: "CUnibreak",
+            exclude: ["LICENCE", "VENDORED.md", "src/linebreakauxdata.c",
+                      "src/eastasianwidthdata.c"],
+            sources: ["src"]
+        ),
+
         // FreeType 2.14.3, vendored (ruling FT-A; Sources/CFreeType/VENDORED.md).
         // Only the per-module amalgamation files compile; each #includes the
         // rest of its module.
@@ -93,7 +103,8 @@ let package = Package(
         // String -> MUIGlyphs + atlas coverage with no Apple framework
         // (rulings PT-A, PT-D): HarfBuzz shapes, FreeType rasterizes.
         .target(name: "MetalUIPortableText",
-                dependencies: ["MetalUIScene", "MetalUIHarfBuzz", "MetalUIFreeType"]),
+                dependencies: ["MetalUIScene", "MetalUIHarfBuzz", "MetalUIFreeType",
+                               "CUnibreak"]),
 
         // Shaping with no Apple framework (rulings SH-B, SH-K): imports only
         // CHarfBuzz. One run: no line breaking, bidi, itemization or fallback.
