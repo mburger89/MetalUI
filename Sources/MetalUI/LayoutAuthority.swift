@@ -60,7 +60,8 @@ enum LoweringSite: String, Sendable {
 /// `field` is `"noLowering"` for a site that lowers nothing yet — in lane 1 every
 /// site; lanes 2–4 replace `box`, `stack`, `text` and `modifierLayer` with
 /// field-level names (`"flexGrow"`, `"alignItems.stretch"`, …).
-/// `customElement` reports `"requestNode"` or `"requestLeaf"`.
+/// `customElement` reports `"requestNode"` or `"requestLeaf"` — the deprecated
+/// public registrars since stage 6a, owned by stage 9 (`LR-CW`).
 ///
 /// **`component` reports nothing at all since stage 3's lane 4** (`LR-BO`): it
 /// read `"amend"` or `"wrap"` until both ops were lowered, and neither lowering
@@ -112,8 +113,13 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
         // post-`LR-BO` position.
         case .list:
             return "4"
+        // Stage 6a (`LR-CW`): a custom element on the deprecated public
+        // registrars is **removed** from the proposal authority rather than
+        // lowered — its replacement is `requestNativeLeaf` or a
+        // `ProposalLayout` — and stage 9 deletes the pair (`LR-CK`'s precedent
+        // for `position`/`inset`).
         case .customElement:
-            return "6a"
+            return "9"
         // Stage 5 (`LR-CL`): every `deferred` entry protects a legacy containing
         // block that is not the window, and goes with the legacy authority.
         case .deferred:

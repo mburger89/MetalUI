@@ -647,6 +647,9 @@ private struct LegacySpelledAXListLeaf: Element {
 ///     MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestNode
 ///     has no proposal lowering (plan task 7, stage 6a); a tree containing it
 ///     cannot run under the proposal layout authority.
+///
+/// The message names **stage 9** since stage 6a moved `.customElement`'s owner
+/// (`LR-CW`); the assertion below reads the part before the stage.
 @Test func aLegacySpelledAXListRowAbortsAProductionProposalFrame() async {
     let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {

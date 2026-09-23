@@ -39,7 +39,16 @@ public struct LayoutPass {
     /// calls `Frame.requestNode` after its own authority check), so under the
     /// proposal authority it reports `customElement.requestNode` — a trap in
     /// production, a diagnostic under the differential harness (ruling LR-C).
-    /// Stage 6a deprecates it and moves every caller (ruling LR-R).
+    ///
+    /// **Deprecated in stage 6a** (rulings `LR-R`, `LR-CX`), and every in-repo
+    /// caller moved in the same change, so the build stays at 0 `warning:`.
+    /// Production still runs the legacy authority, where this still registers
+    /// exactly `Frame.requestNode` (`aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`);
+    /// under the proposal authority it reports `customElement.requestNode`, owned
+    /// by stage 9, which deletes it (`LR-CW`). An external caller is warned
+    /// toward `requestNativeLeaf(measure:)` or a `ProposalLayout`
+    /// (`aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes`).
+    @available(*, deprecated, message: "a custom element registers through requestNativeLeaf(measure:) or a ProposalLayout; this legacy registrar traps under the proposal layout authority and is deleted by plan task 7's stage 9 (ruling LR-R)")
     public func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
         if lowersToProposal {
             return frame.unlowerable(UnlowerableField(site: .customElement, field: "requestNode"))
@@ -63,6 +72,13 @@ public struct LayoutPass {
     ///
     /// Under the proposal authority it reports `customElement.requestLeaf`, as
     /// `requestNode` above reports its own name (ruling LR-C).
+    ///
+    /// **Deprecated in stage 6a** with `requestNode` (rulings `LR-R`, `LR-CX`):
+    /// production still runs the legacy authority, where this still registers
+    /// exactly `Frame.requestLeaf`; under the proposal authority it reports
+    /// `customElement.requestLeaf`, owned by stage 9 (`LR-CW`). A leaf outside
+    /// this module now reports its size through `requestNativeLeaf(measure:)`.
+    @available(*, deprecated, message: "a custom element registers through requestNativeLeaf(measure:) or a ProposalLayout; this legacy registrar traps under the proposal layout authority and is deleted by plan task 7's stage 9 (ruling LR-R)")
     public func requestLeaf(style: Style,
                             measure: @escaping MeasureFunction) -> LayoutNodeID {
         if lowersToProposal {
