@@ -172,7 +172,10 @@ struct ContentSwapper<Content: ElementGroup>: Element {
                                 pass: inout LayoutPass) -> (LayoutNodeID, Content.GroupLayout) {
         var cursor = 0
         let (children, layout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
-        return (pass.requestNode(style: Style(), children: children), layout)
+        // A native overlay over the children since stage 6a (record §30,
+        // disposition R): the traps below are the element groups', which read
+        // no authority, so the helper's frame runs under the proposal one.
+        return (pass.frame.requestNativeOverlay(children: children), layout)
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -192,7 +195,8 @@ struct ContentSwapper<Content: ElementGroup>: Element {
 @MainActor
 private func renderSwapper<Content: ElementGroup>(_ content: Content,
                                                   replacedBy replacement: Content?) {
-    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
+                      layoutAuthority: .proposal)
     var element = ContentSwapper(content: content, replacement: replacement)
     frame.render(&element)
 }
@@ -341,6 +345,17 @@ func columnCannotBeTurnedIntoARowByAModifier() throws {
 
 // MARK: - Duplicate sibling ids (pinned, not trapped)
 
+/// The fixed size a `Style` declares in pixels, 0 on an axis it leaves `auto`:
+/// what `StateProbe`'s legacy leaf answered before stage 6a re-spelled it.
+private func declaredSize(_ style: Style) -> LayoutMeasurement {
+    func pixels(_ dimension: Dimension) -> Double {
+        if case .length(.pixels(let p)) = dimension { return Double(p.value) }
+        precondition(dimension == .auto, "StateProbe declares only pixel sizes")
+        return 0
+    }
+    return LayoutMeasurement(size: SizeD(width: pixels(style.size.width), height: pixels(style.size.height)))
+}
+
 /// An element that increments a cross-frame counter and records what it saw.
 @MainActor
 struct StateProbe: Element, StyledElement {
@@ -360,7 +375,9 @@ struct StateProbe: Element, StyledElement {
 
     func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
-        let node = pass.requestNode(style: style, children: [])
+        // A native leaf of the size `style` declares since stage 6a (record §30,
+        // disposition R); the two tests below run under the proposal authority.
+        let node = pass.requestNativeLeaf { _ in declaredSize(style) }.layoutNodeID
         return (node, node)
     }
 
@@ -408,7 +425,7 @@ struct StateProbe: Element, StyledElement {
     let log = ElementLog()
     let table = StateTable()
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)),
-                      scaleFactor: 1, stateTable: table)
+                      scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
     var column = Column {
         StateProbe("left", log: log).id("a").width(px(10)).height(px(10))
         StateProbe("right", log: log).id("a").width(px(10)).height(px(10))
@@ -439,7 +456,7 @@ struct StateProbe: Element, StyledElement {
     let log = ElementLog()
     let table = StateTable()
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)),
-                      scaleFactor: 1, stateTable: table)
+                      scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
     var column = Column {
         StateProbe("left", log: log).id("a").width(px(10)).height(px(10))
         StateProbe("right", log: log).id("b").width(px(10)).height(px(10))

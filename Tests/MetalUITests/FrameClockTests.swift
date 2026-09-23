@@ -16,7 +16,9 @@ private struct RequestingBox: Element, StyledElement {
 
     func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
-        let node = pass.requestNode(style: style, children: [])
+        // A native leaf since stage 6a (record §30, disposition R); `style` is
+        // never set by any caller, so the leaf answers `Style()`'s 0×0.
+        let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }.layoutNodeID
         return (node, node)
     }
 
@@ -45,7 +47,9 @@ private struct TimestampRecorder: Element, StyledElement {
 
     func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
-        let node = pass.requestNode(style: style, children: [])
+        // A native leaf since stage 6a (record §30, disposition R); `style` is
+        // never set by any caller, so the leaf answers `Style()`'s 0×0.
+        let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }.layoutNodeID
         return (node, node)
     }
 
@@ -118,7 +122,8 @@ private struct TimestampRecorder: Element, StyledElement {
     // discarded window is deallocated immediately and `simulateTick` below
     // fires into a nil `self` — no render, no recorded timestamps, and a test
     // that fails fast for a reason unrelated to what it claims to check.
-    let (window, platformWindow) = try makeFakeWindow(device: device, startsDisplayLink: true) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, startsDisplayLink: true,
+                                                      layoutAuthority: .proposal) {
         Row {
             TimestampRecorder(elementID: ElementID("a"), seen: seen)
             TimestampRecorder(elementID: ElementID("b"), seen: seen)

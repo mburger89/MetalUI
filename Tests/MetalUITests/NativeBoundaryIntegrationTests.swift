@@ -32,7 +32,7 @@ private struct Toggle: Component, ProposalElementGroup {
 /// trap below backstops.
 private struct LegacyNodeUnderAProposalMarker: ProposalElement {
     func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
-        (ProposalNodeID(pass.requestNode(style: Style(), children: [])), ())
+        (ProposalNodeID(pass.frame.requestNode(style: Style(), children: [])), ())
     }
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
                   pass: inout PrepaintPass) {}
@@ -145,6 +145,10 @@ private struct RegisteredAfterTheContainer: ProposalElement {
 /// `newNativeLinearStack` and no sibling, this test stayed green. The sibling
 /// is registered only if registration got past the `HStack`, and then it traps
 /// with its own message, which lacks the fragment.
+///
+/// Pinned to the legacy authority by stage 6a (N9, record §30 §4): its subject
+/// is a legacy node, which `LegacyNodeUnderAProposalMarker` registers through
+/// `Frame`'s internal registrar; stage 9 deletes it with the legacy authority.
 @Test func aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer() async {
     let result = await #expect(processExitsWith: .failure,
                                observing: [\.standardErrorContent]) {
@@ -153,7 +157,8 @@ private struct RegisteredAfterTheContainer: ProposalElement {
                 HStack { LegacyNodeUnderAProposalMarker() }
                 RegisteredAfterTheContainer()
             }
-            Frame(contentSize: Size(width: Pixels(140), height: Pixels(90)), scaleFactor: 1)
+            Frame(contentSize: Size(width: Pixels(140), height: Pixels(90)), scaleFactor: 1,
+                  layoutAuthority: .legacy)
                 .render(&root)
         }
     }

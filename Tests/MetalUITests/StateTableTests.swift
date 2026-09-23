@@ -163,16 +163,18 @@ private func id(_ names: String...) -> GlobalElementID {
 /// element: structural identity's tests differ from these only in whether the
 /// element is named, and two copies of this probe would be two things to keep
 /// in step.
+///
+/// **A native 10×10 leaf since stage 6a** (record §30, disposition R): its
+/// tests are about the state table and identity, not the leaf's layout, so a
+/// test that puts it under a legacy container (`IdentityTests`' `Row`s) runs
+/// under the proposal authority.
 struct CountingElement: Element {
     let elementID: ElementID?
     init(_ name: String?) { elementID = name.map(ElementID.init) }
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Int) {
         pass.withState(id, initial: 0) { $0 += 1 }
-        var style = Style()
-        style.size = Size(width: .length(.pixels(Pixels(10))),
-                          height: .length(.pixels(Pixels(10))))
-        return (pass.requestNode(style: style, children: []), 0)
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID, 0)
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

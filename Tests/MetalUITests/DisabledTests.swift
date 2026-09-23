@@ -108,6 +108,10 @@ private struct TargetProbe<Inner: Element>: Element {
 }
 
 /// A fixed 10×10 leaf that records `pass.environment.isEnabled` in paint.
+///
+/// **A native leaf since stage 6a** (record §30, disposition R): its one test
+/// reads the environment, which reads no authority, and runs under the proposal
+/// authority.
 private struct EnabledRecorder: Element {
     let label: String
     let log: ProbeLog
@@ -118,9 +122,7 @@ private struct EnabledRecorder: Element {
     }
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        var style = Style()
-        style.size = Size(width: .length(.pixels(px(10))), height: .length(.pixels(px(10))))
-        return (pass.requestNode(style: style, children: []), ())
+        (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID, ())
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -207,7 +209,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         Row { Row { EnabledRecorder("B8", log) } }.disabled(true)
     }
     Frame(contentSize: Size(width: px(200), height: px(50)), scaleFactor: 1,
-          stateTable: StateTable(), theme: .light).render(&root)
+          stateTable: StateTable(), theme: .light, layoutAuthority: .proposal).render(&root)
 
     let labels = ["B0", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8"]
     #expect(labels.map { log.enabled[$0] } == [true, false, true, false, false, true, false, false, false])

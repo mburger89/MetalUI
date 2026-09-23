@@ -41,7 +41,7 @@ private struct OrphanLegacyNode: ProposalElement {
 
     mutating func requestProposalLayout(_ id: GlobalElementID,
                                         pass: inout LayoutPass) -> (ProposalNodeID, Void) {
-        _ = pass.requestNode(style: Style(), children: [])
+        _ = pass.frame.requestNode(style: Style(), children: [])
         return (tenByTen(&pass, probe), ())
     }
 
@@ -63,7 +63,7 @@ private struct StatefulLegacyLeaf: Element {
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
         value += 1
         probe.ids["legacy leaf"] = id
-        return (pass.requestNode(style: Style(), children: []), ())
+        return (pass.frame.requestNode(style: Style(), children: []), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -126,12 +126,17 @@ private struct OrphanLegacySubtree: ProposalElement {
 /// §10): the suite printed no summary line, stopping here after 953 tests — so
 /// the test becomes an exit test first. Nothing in this design closes arm b
 /// short of detecting state bound by an unregistered subtree.
+///
+/// Pinned to the legacy authority by stage 6a (N9, record §30 §4): its subject
+/// is a legacy registration, which `OrphanLegacyNode` and `StatefulLegacyLeaf`
+/// make through `Frame`'s internal registrar; stage 9 deletes it with the
+/// legacy authority.
 @MainActor
 @Test func anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected() throws {
     // Arm a.
     do {
         let probe = TypedIDProbe()
-        let frame = Frame(contentSize: frameSize, scaleFactor: 1)
+        let frame = Frame(contentSize: frameSize, scaleFactor: 1, layoutAuthority: .legacy)
         var root = VStack {
             HStack { OrphanLegacyNode(probe: probe) }
             Rectangle(width: Pixels(5), height: Pixels(5), color: .accent)
@@ -152,7 +157,7 @@ private struct OrphanLegacySubtree: ProposalElement {
     // Arm b's disagreeing oracle: the orphan subtree, attached, paints.
     do {
         let probe = TypedIDProbe()
-        let frame = Frame(contentSize: frameSize, scaleFactor: 1)
+        let frame = Frame(contentSize: frameSize, scaleFactor: 1, layoutAuthority: .legacy)
         var attached = orphanBox(probe)
         frame.render(&attached)
         let rects = frame.finalizedScene().rects
@@ -163,7 +168,7 @@ private struct OrphanLegacySubtree: ProposalElement {
     // Arm b.
     do {
         let probe = TypedIDProbe()
-        let frame = Frame(contentSize: frameSize, scaleFactor: 1)
+        let frame = Frame(contentSize: frameSize, scaleFactor: 1, layoutAuthority: .legacy)
         var root = VStack {
             HStack { OrphanLegacySubtree(probe: probe) }
             Rectangle(width: Pixels(5), height: Pixels(5), color: .accent)

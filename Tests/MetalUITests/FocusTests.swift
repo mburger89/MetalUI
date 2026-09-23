@@ -717,7 +717,7 @@ private struct Datum: Identifiable { let id: Int }
 @Test @MainActor func isFocusedDuringPaintTracksTheWindowsFocus() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let probe = FocusProbe()
-    let (window, _) = try makeFakeWindow(device: device, size: 100) {
+    let (window, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
         Box { FocusReader(probe: probe) }.id("root")
     }
     window.drawFrameIfNeeded()
@@ -751,16 +751,17 @@ private final class FocusProbe {
 /// Hand-written rather than a `Box`, because a `Box` has nowhere to record what
 /// it saw — the answer has to leave the frame, and only a bespoke element can
 /// carry a reference out.
+///
+/// **A native 20×20 leaf since stage 6a** (record §30, disposition R), as is
+/// `SelfFocuser` below: focus reads no authority, so the three windows over
+/// them run under the proposal authority. No assertion moved.
 private struct FocusReader: Element {
     let probe: FocusProbe
     var elementID: ElementID? { ElementID("reader") }
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Void) {
-        var style = Style()
-        style.size = Size(width: .length(.pixels(Pixels(20))),
-                          height: .length(.pixels(Pixels(20))))
-        return (pass.requestNode(style: style, children: []), ())
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }.layoutNodeID, ())
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -802,7 +803,7 @@ private struct FocusReader: Element {
 @Test @MainActor func focusingFromInsideAFrameSurvivesThatFrame() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let probe = SelfFocusProbe()
-    let (window, _) = try makeFakeWindow(device: device, size: 100) {
+    let (window, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
         Box { SelfFocuser(probe: probe) }.id("root")
     }
     probe.window = window
@@ -841,7 +842,7 @@ private struct FocusReader: Element {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let probe = SelfFocusProbe()
     probe.registersFocusable = false
-    let (window, _) = try makeFakeWindow(device: device, size: 100) {
+    let (window, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
         Box { SelfFocuser(probe: probe) }.id("root")
     }
     probe.window = window
@@ -881,10 +882,7 @@ private struct SelfFocuser: Element {
         -> (LayoutNodeID, Void) {
         probe.focusCalls += 1
         probe.window?.focus(id)
-        var style = Style()
-        style.size = Size(width: .length(.pixels(Pixels(20))),
-                          height: .length(.pixels(Pixels(20))))
-        return (pass.requestNode(style: style, children: []), ())
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }.layoutNodeID, ())
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
