@@ -1535,7 +1535,8 @@ no named cause fails by name rather than hiding in a count.
 
 ### 10.8 The twelve `CN-R` images
 
-`docs/probes/demo-pixels/compare.sh <scratch>/pix5 f2e981f de2b6a5`. All nine
+`docs/probes/demo-pixels/compare.sh <scratch>/pix5 f2e981f de2b6a5`, and again
+at the lane's final HEAD `6c719e0`. All nine
 controls reproduce their recorded values exactly before any commit-to-commit row:
 
 | control | recorded | this run |
@@ -1550,8 +1551,8 @@ controls reproduce their recorded values exactly before any commit-to-commit row
 | distinct values, `chrome-legacy` | 216 | **216** |
 | indicator rects in all twelve | 0 | **0** |
 
-**`f2e981f` → `de2b6a5`: 0 differing pixels in all twelve, every scene dump
-identical.** Expected by construction — lane 5 changes no file under `Sources/`
+**`f2e981f` → `de2b6a5` and `f2e981f` → `6c719e0`: 0 differing pixels in all
+twelve, every scene dump identical, both runs.** Expected by construction — lane 5 changes no file under `Sources/`
 at all — and taken anyway, because "expected by construction" is what the harness
 exists to stop a lane from asserting. The demo is never scrolled in these images,
 so no scroll indicator is painted in any of them.
