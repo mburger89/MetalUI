@@ -49,3 +49,39 @@ bool mui_renderer_finish(MUIRenderer *r,
 bool mui_renderer_read_offscreen(MUIRenderer *r, uint8_t *bgra);
 // The window's device pixels per point (SDL_GetWindowPixelDensity).
 float mui_window_pixel_density(void *window);
+
+// ---- The SDL platform (ruling SP-A) --------------------------------------
+// Windows and events for MetalUIPlatform's `Platform`/`PlatformWindow`,
+// flattened so Swift never touches SDL's event union.
+enum {
+    MUI_EVENT_NONE = 0, MUI_EVENT_QUIT, MUI_EVENT_CLOSE, MUI_EVENT_RESIZE,
+    MUI_EVENT_MOUSE_DOWN, MUI_EVENT_MOUSE_UP, MUI_EVENT_MOUSE_MOVE, MUI_EVENT_WHEEL,
+    MUI_EVENT_KEY_DOWN, MUI_EVENT_KEY_UP, MUI_EVENT_THEME, MUI_EVENT_EXPOSED
+};
+enum { MUI_MOD_SHIFT = 1, MUI_MOD_CONTROL = 2, MUI_MOD_OPTION = 4, MUI_MOD_COMMAND = 8 };
+typedef struct {
+    uint32_t kind;
+    uint32_t window_id;
+    float x, y;            // pointer position in points, top-left origin
+    float dx, dy;          // wheel, in lines (SDL's unit), direction applied
+    uint32_t modifiers;    // MUI_MOD_*
+    int32_t clicks;
+    uint32_t keycode;      // SDL_Keycode
+    bool repeat;
+    double timestamp;      // seconds
+} MUIEvent;
+bool mui_platform_init(void);
+bool mui_poll_event(MUIEvent *event);
+bool mui_wait_event(MUIEvent *event, int32_t timeout_ms);
+// Pushes a synthetic SDL event built from `event` — for tests.
+bool mui_push_event(const MUIEvent *event);
+void *mui_window_create(const char *title, int32_t width, int32_t height, bool hidden);
+void mui_window_destroy(void *window);
+uint32_t mui_window_id(void *window);
+void mui_window_size(void *window, int32_t *width, int32_t *height);
+bool mui_window_set_title(void *window, const char *title);
+const char *mui_window_title(void *window);
+bool mui_window_show(void *window);
+// 0 light, 1 dark (SDL_GetSystemTheme; unknown reads as light).
+int32_t mui_system_theme(void);
+double mui_now(void);

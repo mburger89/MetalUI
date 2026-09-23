@@ -73,10 +73,10 @@ Apple-bound:
    `MetalWindowRenderer`; AppKit in `MetalUIAppKit`; the SDL replayer
    promoted to `Backends/SDL` with `SDLWindowRenderer`. `feat/render-seam`,
    spec `specs/2026-09-23-render-seam-design.md` (`RS-`), record §36.
-8. [ ] **Platform: SDL3** — a `PlatformWindow`/`Platform` over SDL3: window,
-   resize, scale factor, input events, frame ticks, appearance, close.
-   `publishAccessibilityTree` publishes nothing, recorded as a divergence
-   (AB-R forbids a default, so the stub is explicit).
+8. [x] **Platform: SDL3** — `SDLPlatform`/`SDLWindow` in `Backends/SDL`:
+   windows, input (keys in AppKit's vocabulary), resize, scale, frame ticks,
+   theme, close; accessibility an explicit no-op. `feat/sdl-platform`, spec
+   `specs/2026-09-23-sdl-platform-design.md` (`SP-`), record §37.
    8b. [ ] **System font discovery** — find installed fonts (fontconfig on
    Linux; the Fonts directory or DirectWrite on Windows) and register them
    with `PortableFontResolver`, choosing the platform's default face for

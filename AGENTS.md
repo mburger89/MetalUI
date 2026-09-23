@@ -41,7 +41,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   rulings in its three specs: line breaking, lines emission, content sizes),
   `FN-` (next `FN-E`; rulings in its spec), `PC-` (next `PC-D`; rulings in
   its spec), `TS-` (next `TS-E`; rulings in its spec), `RS-` (next `RS-E`;
-  rulings in its spec). A numbered citation
+  rulings in its spec), `SP-` (next `SP-D`; rulings in its spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -70,7 +70,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Twelve record files are not tasks of
+  and G2 is unblocked rather than waiting. Thirteen record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
@@ -87,8 +87,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   §33 portable font resolution (`FN-`, spec
   `specs/2026-09-23-portable-font-resolver-design.md`), §34 Core and
   Layout off macOS (`PC-`, spec `specs/2026-09-23-portable-core-layout-design.md`),
-  §35 the text seam (`TS-`, spec `specs/2026-09-23-text-seam-design.md`)
-  and §36 the render seam (`RS-`, spec `specs/2026-09-23-render-seam-design.md`). **Cross-platform work
+  §35 the text seam (`TS-`, spec `specs/2026-09-23-text-seam-design.md`),
+  §36 the render seam (`RS-`, spec `specs/2026-09-23-render-seam-design.md`)
+  and §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -244,7 +245,10 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   types need no new import. It is also a library product, consumed by
   `Backends/SDL` — a **separate package** (`MetalUISDL`, so the root never
   needs SDL3) holding `SDLWindowRenderer` and the replay parity harness
-  (`RS-D`). **Windows draw through `PlatformWindow.renderer`, a
+  (`RS-D`), and `SDLPlatform`/`SDLWindow`, the SDL3 `Platform` (`SP-A`;
+  keys translated to AppKit's characters so `Keymap` works, `SP-C`; **no
+  accessibility**, explicitly — a divergence until roadmap item 13, `SP-B`).
+  **Windows draw through `PlatformWindow.renderer`, a
   `WindowRenderer`** (`RS-A`: `beginFrame() -> Float?`, then
   `finishFrame(scene:atlas:)`), declared in `MetalUIPlatform`, which is now
   portable (imports only `MetalUICore`, `MetalUIScene`). `MetalWindowRenderer`
