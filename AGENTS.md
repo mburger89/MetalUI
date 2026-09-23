@@ -763,7 +763,7 @@ expected, measured facts:
   stage 3 (the first renamed and widened by stage 4) and one by stage 4:
   - `everyParameterisedScenarioRanUnderBothLayoutAuthorities` (stage 3's
     `everyScrollScenario…`, renamed and moved to `ZZAuthorityRollCall.swift` by
-    stage 4) reads coverage accumulated by **nine** other files and so depends
+    stage 4) reads coverage accumulated by **ten** other files and so depends
     on Swift Testing's **unspecified** cross-file order (measured on Swift 6.4
     only). On a runner with a different order it is a spurious red, and
     `swift test --filter everyParameterisedScenario` hard-fails. It always

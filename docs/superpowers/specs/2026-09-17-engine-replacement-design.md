@@ -19,8 +19,15 @@ as the task's state. **Stages 1, 2, G and 3 of the fourteen have landed** — 2 
 G merged on `integrate/stage-2-grids` (records §21, §22, §23), 3 on
 `feat/engine-stage-3` (record §25, spec
 [`2026-09-22-engine-stage-3-design.md`](2026-09-22-engine-stage-3-design.md)) —
-and each has its own design beside this one. §4.1's table below is still the
-plan of record for the remaining stages; the **live** per-stage status is the
+and each has its own design beside this one. **Stage 4 (the windowed proposal
+`List`) has landed too** (branch checker, 2026-09-23): `feat/engine-stage-4`,
+record §27, spec
+[`2026-09-23-engine-stage-4-design.md`](2026-09-23-engine-stage-4-design.md).
+It departs from §4.1 row 4's wording in two ruled places — the windowed layout
+answers `rowHeight × logicalCount` on the height rather than probe K6's greedy
+answer (`LR-BR`), and `ListTests`' custom rows are re-spelled through the
+legacy lowering rather than as native probe leaves (`LR-BW`). §4.1's table
+below is still the plan of record for the remaining stages; the **live** per-stage status is the
 stage list under task 7 in
 `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, and task 7's box there
 is still open. Production still runs the legacy authority until stage 6b.

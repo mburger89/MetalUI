@@ -253,6 +253,8 @@ assumed:
   merge.** `List` is public and crosses a module boundary, and both its stored
   `box` property's type and its `Layout` change.
 - **`aWindowedListAgreesWithTheLegacyEngineOnEveryWindowedShape`'s literals are
+  (the design-time name; it landed as
+  `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape` — branch checker)
   §2.4's and §2.5's tables**, written before the implementation exists. They
   came from a prototype of the fallback, which is what makes them a red-first
   oracle rather than a transcription of the first green run.
