@@ -77,10 +77,15 @@ static SDL_GPUGraphicsPipeline *pipeline(ReplayGPU *g, const char *source, bool 
     return result;
 }
 
+/* Each device holds one reference on SDL's video subsystem, released by
+   replay_destroy. **Not SDL_Init/SDL_Quit**: SDL_Quit tears down every
+   subsystem whoever else is using it, and on Linux that unloads the Vulkan
+   loader while another device's Mesa llvmpipe threads are still running —
+   a crash two devices into a test run (ruling RS-D, measured in CI). */
 static ReplayGPU *create(const char *source, const char *directory, const char *driver) {
-    if (!SDL_Init(SDL_INIT_VIDEO)) return NULL;
+    if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return NULL;
     ReplayGPU *g = calloc(1, sizeof(*g));
-    if (!g) { SDL_SetError("allocation failed"); SDL_Quit(); return NULL; }
+    if (!g) { SDL_SetError("allocation failed"); SDL_QuitSubSystem(SDL_INIT_VIDEO); return NULL; }
     g->portable = directory != NULL;
     g->shader_dir = directory; // borrowed only while this function builds pipelines
     if (!strcmp(driver, "metal")) g->format = SDL_GPU_SHADERFORMAT_MSL;
@@ -139,7 +144,7 @@ void replay_destroy(ReplayGPU *g) {
         if (g->glyph) SDL_ReleaseGPUGraphicsPipeline(g->device, g->glyph);
         SDL_DestroyGPUDevice(g->device);
     }
-    free(g); SDL_Quit();
+    free(g); SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
 static SDL_GPUTexture *texture(ReplayGPU *g, uint32_t w, uint32_t h, bool target) {

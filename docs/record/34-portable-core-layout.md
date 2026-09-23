@@ -33,8 +33,10 @@ because `Thread.sleep` is unavailable in the async exit-test bodies that
 call it, and a direct call there warns).
 
 The macOS suite is unchanged (1681; the guards compiled out are
-`canImport`-true on macOS). Windows is measured by CI only.
+`canImport`-true on macOS). **Windows, measured by CI** (run 35881939079,
+windows-latest, Swift 6.4.0): the root package builds, and `swift test`
+passes 486 layout tests (68 s) and the 22 core tests.
 
 ## Counts
 
-macOS: **1681** (unchanged), 97 goldens, 77 guards. Linux: 486 + 22.
+macOS: **1681** (unchanged), 97 goldens, 77 guards. Linux and Windows: 486 + 22.
