@@ -89,6 +89,22 @@ private func inRow<E: Element>(_ make: @escaping @MainActor () -> E) -> some Ele
     }.alignItems(.flexStart)
 }
 
+/// `inRow` with the window's extent declared on both of the row's axes — stage
+/// 6b's R-fill (`LR-DG`). The legacy root filled every `auto` axis with the
+/// window (`CS-I`, divergence 4) and sat at (0, 0); a proposal root is centred
+/// at its own answer (`CN-J`), so a fixture that reads absolute coordinates off
+/// a hugging row spells the window's extent itself. `Self`-returning sizing adds
+/// no layer, so identity is unchanged, and the legacy answer is unchanged
+/// because it is the one `CS-I` computed.
+@MainActor
+private func inFilledRow<E: Element>(side: Int,
+                                     _ make: @escaping @MainActor () -> E) -> some Element {
+    Row {
+        make()
+        Box().width(px(1)).height(px(1)).background(.scrim)
+    }.alignItems(.flexStart).width(px(Float(side))).height(px(Float(side)))
+}
+
 /// Whether `rect` was filled with exactly `token` out of `theme`, ignoring the
 /// alpha — so an opacity scope does not read as a different colour.
 @MainActor
@@ -188,10 +204,10 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     @MainActor func box() -> Box<EmptyGroup> { Box().width(px(40)).height(px(40)) }
 
     let (_, fillOnly) = try render(side: side) {
-        inRow { box().background(.accent) }
+        inFilledRow(side: side) { box().background(.accent) }
     }
     let (_, borderOnly) = try render(side: side) {
-        inRow { box().background(.separator) }
+        inFilledRow(side: side) { box().background(.separator) }
     }
     let accentByte = pixel(fillOnly, 20, 20, side: side)
     let separatorByte = pixel(borderOnly, 20, 20, side: side)
@@ -201,7 +217,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
                      + "\(accentByte), separator \(separatorByte)"))
 
     let (window, platform) = try render(side: side) {
-        inRow { box().background(.accent).border(.separator, width: px(4)) }
+        inFilledRow(side: side) { box().background(.accent).border(.separator, width: px(4)) }
     }
     #expect(pixel(platform, 1, 1, side: side) == separatorByte,
             why("SwiftUI B1: the border colour at (1, 1). got \(pixel(platform, 1, 1, side: side))"))
@@ -216,7 +232,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 
     // Layout-neutral, SwiftUI L2. The marker is the element after the subject in
     // the row, so its x IS the subject's outer width.
-    let (bare, _) = try render(side: side) { inRow { box().background(.accent) } }
+    let (bare, _) = try render(side: side) { inFilledRow(side: side) { box().background(.accent) } }
     let bareMarker = try rect(bare.lastScene, 1, 1)
     let borderedMarker = try rect(window.lastScene, 1, 1)
     #expect(borderedMarker.bounds.origin.x == bareMarker.bounds.origin.x,
@@ -289,10 +305,10 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 @Test @MainActor func aBorderIsVisibleOverAChildThatFillsTheBox() throws {
     let side = 64
     let (_, separatorRef) = try render(side: side) {
-        inRow { Box().width(px(40)).height(px(40)).background(.separator) }
+        inFilledRow(side: side) { Box().width(px(40)).height(px(40)).background(.separator) }
     }
     let (_, accentRef) = try render(side: side) {
-        inRow { Box().width(px(40)).height(px(40)).background(.accent) }
+        inFilledRow(side: side) { Box().width(px(40)).height(px(40)).background(.accent) }
     }
     let separatorByte = pixel(separatorRef, 1, 1, side: side)
     let accentByte = pixel(accentRef, 1, 1, side: side)
@@ -301,7 +317,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
                      + "\(accentByte)"))
 
     let (_, platform) = try render(side: side) {
-        inRow {
+        inFilledRow(side: side) {
             Box { Box().width(px(40)).height(px(40)).background(.accent) }
                 .width(px(40)).height(px(40))
                 .border(.separator, width: px(4))
@@ -462,7 +478,10 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 /// site that latched a token rather than re-reading the state each frame is red
 /// at the end.
 @Test @MainActor func aFocusRingOutranksAHoverBorderAndABorder() throws {
-    let (window, platform) = try render(side: 100) { BorderSubject.box() }
+    // Stage 6b (`LR-DG`, R-centre): the 40x40 root is centred in the 100x100
+    // window at (100 - 40) / 2 = 30, so the hover point is (50, 50) where the
+    // legacy top-left root read (20, 20); (80, 80) is off it on both.
+    let (window, platform) = try render(side: 100, authority: .proposal) { BorderSubject.box() }
     let theme = window.theme
 
     @MainActor func expectBorder(_ token: ColorToken, _ state: String) throws {
@@ -483,7 +502,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     window.drawFrameIfNeeded()
     try expectBorder(.separator, "focused, pointer elsewhere")
 
-    platform.simulateInput(mouseMoved(to: pt(20, 20)))
+    platform.simulateInput(mouseMoved(to: pt(50, 50)))
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
     try expectBorder(.separator, "focused AND hovered — focus outranks hover")
@@ -512,7 +531,11 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 @Test @MainActor func everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain() throws {
     @MainActor func check<E: Element>(_ site: String,
                                       _ make: @escaping @MainActor () -> E) throws {
-        let (window, platform) = try render(side: 100) { make() }
+        // Stage 6b (`LR-DG`, R-centre — predicted "fill", but every subject
+        // declares both axes): each root is centred in the 100x100 window — the
+        // 40x40 subjects at 30..70, `modifiedInner`'s 56x56 chain at 22..78 with
+        // its bordered inner layer at 30..70 — so (50, 50) is inside every one.
+        let (window, platform) = try render(side: 100, authority: .proposal) { make() }
         let theme = window.theme
 
         @MainActor func borderToken(_ state: String) throws -> MUIRect {
@@ -536,7 +559,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
                     + describe(focused)))
 
         window.focus(nil)
-        platform.simulateInput(mouseMoved(to: pt(20, 20)))
+        platform.simulateInput(mouseMoved(to: pt(50, 50)))
         window.setNeedsRedraw()
         window.drawFrameIfNeeded()
         let hovered = try borderToken("hovered")
@@ -596,7 +619,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
         @MainActor func reading(_ opacity: Float, _ clipped: Bool,
                                 _ bordered: Bool) throws -> (ContentReading, Scene) {
             let (window, _) = try render(side: 200) {
-                inRow { make(opacity, clipped, bordered) }
+                inFilledRow(side: 200) { make(opacity, clipped, bordered) }
             }
             return (try read(window.lastScene), window.lastScene)
         }
@@ -744,10 +767,10 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 @Test @MainActor func aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot() throws {
     let side = 64
     let (_, fillRef) = try render(side: side) {
-        inRow { Box().width(px(40)).height(px(40)).background(.accent) }
+        inFilledRow(side: side) { Box().width(px(40)).height(px(40)).background(.accent) }
     }
     let (_, borderRef) = try render(side: side) {
-        inRow { Box().width(px(40)).height(px(40)).background(.separator) }
+        inFilledRow(side: side) { Box().width(px(40)).height(px(40)).background(.separator) }
     }
     let fillByte = pixel(fillRef, 20, 20, side: side)
     let borderByte = pixel(borderRef, 20, 20, side: side)
@@ -756,7 +779,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
                      + "\(borderByte)"))
 
     let (_, platform) = try render(side: side) {
-        inRow {
+        inFilledRow(side: side) {
             Box().width(px(40)).height(px(40)).background(.accent)
                 .border(.separator, width: px(4)).cornerRadius(px(12))
         }
@@ -961,7 +984,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 @Test @MainActor func aChainsOuterLayerScopesContainTheLayersInsideIt() throws {
     @MainActor func innerLayerRect(faded: Bool, clipped: Bool) throws -> MUIRect {
         let (window, _) = try render(side: 200) {
-            inRow {
+            inFilledRow(side: 200) {
                 { () -> ModifiedElement<Box<EmptyGroup>> in
                     let chain = Box().width(px(20)).height(px(20))
                         .padding(Edges(all: .pixels(px(4))))
@@ -1067,7 +1090,7 @@ func aDeferredPortalInsideAFadedSubtreeIsStillFaded(_ authority: LayoutAuthority
 @Test @MainActor func clippedCutsTheSubtreeToTheElementsBoxAndRoundsItByTheCornerRadius() throws {
     @MainActor func childMask(clipped: Bool) throws -> MUIRect {
         let (window, _) = try render(side: 200) {
-            inRow {
+            inFilledRow(side: 200) {
                 { () -> Box<Box<EmptyGroup>> in
                     let box = Box {
                         Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
@@ -1192,8 +1215,11 @@ func aDeferredPortalInsideAFadedSubtreeIsStillFaded(_ authority: LayoutAuthority
             let counter = ClickCounter()
             let device = try #require(MTLCreateSystemDefaultDevice(),
                                       "no Metal device; run on macOS hardware")
+            // Stage 6b (`LR-DG`, R-fill): the window's extent declared on the
+            // row's two auto axes, so the row sits at (0, 0) on both authorities.
             let (window, platform) = try makeFakeWindow(device: device, size: 200) {
                 Row { make(clipped, counter) }.alignItems(.flexStart)
+                    .width(px(200)).height(px(200))
             }
             window.drawFrameIfNeeded()
             let boxes = window.lastHitboxes

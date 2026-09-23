@@ -60,12 +60,32 @@ private func inRow<E: ElementGroup>(_ make: @escaping @MainActor () -> E) -> som
     }.alignItems(.flexStart)
 }
 
-/// Renders `make` in a fresh `side`x`side` fake window and returns it.
+/// `inRow` with the 200x200 window's extent declared on both of the row's axes
+/// — stage 6b's R-fill (`LR-DG`). The legacy root filled every `auto` axis with
+/// the window (`CS-I`, divergence 4) and sat at (0, 0); a proposal root is
+/// centred at its own answer (`CN-J`), so a fixture reading absolute
+/// coordinates off a hugging row spells the window's extent itself.
+/// `Self`-returning sizing adds no layer, so identity is unchanged, and the
+/// legacy answer is the one `CS-I` computed.
 @MainActor
-private func render<E: Element>(side: Int = 200, _ make: @escaping @MainActor () -> E) throws
+private func inFilledRow<E: ElementGroup>(_ make: @escaping @MainActor () -> E) -> some Element {
+    Row {
+        make()
+        Box().width(px(1)).height(px(1)).background(.scrim)
+    }.alignItems(.flexStart).width(px(200)).height(px(200))
+}
+
+/// Renders `make` in a fresh `side`x`side` fake window and returns it. `nil`
+/// leaves the window's default authority; the two CSS answers pinned by stage
+/// 6b (`LR-DI`) pass `.legacy`.
+@MainActor
+private func render<E: Element>(side: Int = 200, authority: LayoutAuthority? = nil,
+                                _ make: @escaping @MainActor () -> E) throws
     -> (Window, FakePlatformWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
-    let (window, platform) = try makeFakeWindow(device: device, size: side, content: make)
+    let (window, platform) = try authority.map {
+        try makeFakeWindow(device: device, size: side, layoutAuthority: $0, content: make)
+    } ?? makeFakeWindow(device: device, size: side, content: make)
     window.drawFrameIfNeeded()
     return (window, platform)
 }
@@ -158,7 +178,7 @@ private struct TwoMembers: Component {
 @Test @MainActor func aFrameLayersClipAndBorderBoundTheChildTheFrameCannotShrink() throws {
     @MainActor func arm(clipped: Bool) throws -> (child: MUIRect, scene: Scene) {
         let (window, _) = try render {
-            inRow {
+            inFilledRow {
                 { () -> ModifiedElement<Box<EmptyGroup>> in
                     let chain = Box().width(px(200)).height(px(160)).background(.accent)
                         .frame(width: px(60), height: px(40))
@@ -228,7 +248,10 @@ private struct TwoMembers: Component {
     @MainActor func regions<E: ElementGroup>(_ make: @escaping @MainActor (ClickCounter) -> E)
         throws -> (regions: [String], counter: ClickCounter, platform: FakePlatformWindow, window: Window) {
         let counter = ClickCounter()
-        let (window, platform) = try render { inRow { make(counter) } }
+        // P-CSS, owner 7b (stage 6b, `LR-DI`): the flexible arm is `FR-E`'s
+        // legacy frame (the minimum, never the proposal), a CSS answer the
+        // proposal authority does not give; the whole test stays on `.legacy`.
+        let (window, platform) = try render(authority: .legacy) { inRow { make(counter) } }
         return (window.lastHitboxes.map(describe), counter, platform, window)
     }
 
@@ -299,7 +322,7 @@ private struct TwoMembers: Component {
     @MainActor func check(_ name: String, size: (Float, Float), origin: (Float, Float),
                           hoveredAtCornerReads: ColorToken,
                           _ make: @escaping @MainActor () -> some ElementGroup) throws {
-        let (window, platform) = try render { inRow { make() } }
+        let (window, platform) = try render { inFilledRow { make() } }
         let theme = window.theme
         @MainActor func bordered(_ state: String) throws -> MUIRect {
             let all = window.lastScene.rects.map(describe).joined(separator: " | ")
@@ -361,7 +384,10 @@ private struct TwoMembers: Component {
 @Test @MainActor func aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembers() throws {
     @MainActor func nodeCount<E: ElementGroup>(_ make: @escaping @MainActor () -> E) -> Int {
         var root = inRow(make)
-        let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1)
+        // P-CSS, owner 7b (stage 6b, `LR-DI`): the node counts are the legacy
+        // tree's shape (CSS-structure); the whole test stays on `.legacy`.
+        let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
+                          layoutAuthority: .legacy)
         frame.render(&root)
         return frame.tree.nodeCount
     }
@@ -380,14 +406,16 @@ private struct TwoMembers: Component {
     #expect(framed == bare + 1, "the frame is ONE node around the body, not one per member; \(framed) vs \(bare)")
     #expect(padded == bare + 3, "a per-member padding (OM-D) under the frame: two wrappers and one frame; \(padded) vs \(bare)")
 
-    let (control, _) = try render { inRow { TwoMembers().frame(width: px(100), height: px(40)) } }
-    let (decorated, _) = try render {
+    let (control, _) = try render(authority: .legacy) {
+        inRow { TwoMembers().frame(width: px(100), height: px(40)) }
+    }
+    let (decorated, _) = try render(authority: .legacy) {
         inRow {
             TwoMembers().frame(width: px(100), height: px(40)).opacity(0.5)
                 .border(.separator, width: px(2)).clipped()
         }
     }
-    let (paddedWindow, _) = try render {
+    let (paddedWindow, _) = try render(authority: .legacy) {
         inRow { TwoMembers().padding(px(4)).frame(width: px(100), height: px(40)).opacity(0.5) }
     }
 
@@ -442,7 +470,7 @@ private struct TwoMembers: Component {
         -> (frame: Bounds<Pixels>, regions: [String], counter: ClickCounter,
             id: AccessibilityNodeID, node: AccessibilityNode, platform: FakePlatformWindow, window: Window) {
         let counter = ClickCounter()
-        let (window, platform) = try render { inRow { make(counter) } }
+        let (window, platform) = try render { inFilledRow { make(counter) } }
         platform.simulateAccessibilityRequest(.activate)
         drawUntilClean(window)
         let tree = try #require(platform.publishedAccessibilityTrees.last, "\(name): nothing published")
@@ -511,7 +539,7 @@ private struct TwoMembers: Component {
     }
     @MainActor func read<E: ElementGroup>(_ name: String, _ make: @escaping @MainActor (ClickCounter) -> E) throws -> Reading {
         let counter = ClickCounter()
-        let (window, platform) = try render { inRow { make(counter) } }
+        let (window, platform) = try render { inFilledRow { make(counter) } }
         let theme = window.theme
         @MainActor func borderToken() -> ColorToken? {
             guard let r = window.lastScene.rects.first(where: { $0.borderColor.a > 0 }) else { return nil }
@@ -664,7 +692,7 @@ private struct TwoMembers: Component {
 /// first. All four agree with SwiftUI.
 @Test @MainActor func aBackgroundBeforeOrAfterALegacyFrameFillsTheBoxItWasWrittenOnAsSwiftUIDoes() throws {
     @MainActor func read<E: ElementGroup>(_ make: @escaping @MainActor () -> E) throws -> [String] {
-        let (window, _) = try render { inRow(make) }
+        let (window, _) = try render { inFilledRow(make) }
         let theme = window.theme
         let accent = theme[.accent]
         let surface = theme[.surface]

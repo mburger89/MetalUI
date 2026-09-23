@@ -148,7 +148,17 @@ private func makeWindow(device: any MTLDevice)
 @Test func resizingTheWindowDirtiesItAndTheNextFrameLaysOutAtTheNewSize() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
-    let (window, platformWindow) = try makeWindow(device: device)
+    // Stage 6b (`LR-DG`): the root must answer the WINDOW's size at every size
+    // this test drives, on both authorities — that is what "lays out at the new
+    // size" reads. R-fill (declaring the window's extent on the root) would
+    // make the rect follow the declaration rather than the window and hollow
+    // the test out, so the root is a greedy flexible frame instead: it fills
+    // its proposal under the proposal authority (`FR-A`, `FR-M`) and fills the
+    // window under the legacy one (`FR-O`, both maximums infinite), and the
+    // background written after the frame paints the frame's box (`OM-C`).
+    let (window, platformWindow) = try makeFakeWindow(device: device) {
+        Box().frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity)).background(.surface)
+    }
 
     window.drawFrameIfNeeded()
     #expect(!window.needsRedraw)
@@ -243,8 +253,16 @@ private struct FrameCounter: Element, StyledElement {
     let window = try app.openWindow(title: title,
                                     size: Size(width: Pixels(400), height: Pixels(300)),
                                     startsDisplayLink: false) {
-        Box().background(.surface)
+        Box().frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity)).background(.surface)
     }
+    // Stage 6b (`LR-DG`): the root must answer the WINDOW's size at every size
+    // this test drives, on both authorities — that is what "lays out at the new
+    // size" reads. R-fill (declaring the window's extent on the root) would
+    // make the rect follow the declaration rather than the window and hollow
+    // the test out, so the root is a greedy flexible frame instead: it fills
+    // its proposal under the proposal authority (`FR-A`, `FR-M`) and fills the
+    // window under the legacy one (`FR-O`, both maximums infinite), and the
+    // background written after the frame paints the frame's box (`OM-C`).
     let nsWindow = try #require(NSApplication.shared.windows.first { $0.title == title })
     let scale = Float(nsWindow.backingScaleFactor)
 

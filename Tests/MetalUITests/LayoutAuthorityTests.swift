@@ -598,12 +598,16 @@ private struct InternalRegistrarRow: Element {
 ///
 /// Mutations that must redden it: **M1f**, inner-layer recording removed; **M1g**,
 /// root recording removed.
+///
+/// Stage 6b (`LR-DG`, R-fill): the root declares the 200×100 frame's extent on
+/// its two auto axes — what divergence 4 gave the legacy root, now spelled — so
+/// the rects above hold under both authorities.
 @MainActor
 @Test func theElementBoundsLogRecordsTheRootEveryGroupMemberAndEveryInnerModifierLayer() throws {
     var root = Stack(alignment: .topLeading) {
         Box().width(px(20)).height(px(10))
         Box().width(px(30)).height(px(40)).padding(px(4)).padding(px(8))
-    }
+    }.width(px(200)).height(px(100))
     let frame = Frame(contentSize: Size(width: px(200), height: px(100)), scaleFactor: 1,
                       recordsElementBounds: true)
     frame.render(&root)

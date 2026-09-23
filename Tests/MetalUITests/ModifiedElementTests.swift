@@ -586,17 +586,22 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
 /// Green on the skeleton. Mutation (record §10): an unnamed inner layer named by
 /// its style, `ElementID("\(inner[k].style.padding)")`, reads 0 here.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): the `Row` root declares the 100×100 window's
+/// extent on its two auto axes — what `CS-I` gave the legacy root, now spelled
+/// — so the readings hold on both authorities; identity is unchanged (sizing
+/// adds no layer).
 @Test @MainActor func changingALayersValueKeepsTheWrappedElementsState() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = LayerLog()
     let generation = Generation()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .legacy) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
             LayerLeaf("leaf", log: log)
                 .padding(generation.value == 0 ? 4 : 12)
                 .frame(width: generation.value == 0 ? 60 : 80, height: 40)
         }
+        .width(px(100)).height(px(100))
     }
     window.drawFrameIfNeeded()
     let bounds = try #require(log.bounds["leaf"])
@@ -635,15 +640,19 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
 /// `#require` fails; so does moving `setNeedsRedraw()` out of the
 /// `withAnimation` body (the instrument's check).
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): the `Row` root declares the 100×100 window's
+/// extent on its two auto axes — what `CS-I` gave the legacy root, now spelled
+/// — so the readings hold on both authorities; identity is unchanged (sizing
+/// adds no layer).
 @Test @MainActor func aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = LayerLog()
     let generation = Generation()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
-                                                      startsDisplayLink: true,
-                                                      layoutAuthority: .legacy) {
+                                                      startsDisplayLink: true) {
         Row { growableChain(log, adding: generation.value > 0) }
+            .width(px(100)).height(px(100))
     }
     let p = GlobalElementID.child(of: rootID, at: 0, name: nil)
     let p0 = GlobalElementID.child(of: p, at: 0, name: nil)

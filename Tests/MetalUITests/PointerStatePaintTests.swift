@@ -63,6 +63,13 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// EP-8), so a 40pt-tall child of a 100pt-tall root occupies y = 30…70 — the
 /// same geometry `aMouseMovedEventMakesTheBoxUnderItHoveredOnTheNextFrame`
 /// relies on.
+///
+/// Stage 6b (`LR-DG`, R-fill): every `auto` axis of the window's root carries
+/// the window's extent (`.width`/`.height`, `Self`-returning — no layer, no id
+/// level). The legacy root filled those axes itself (`CS-I`, divergence 4) and
+/// sat at (0, 0); under the proposal authority a hugging root is centred at its
+/// own answer (`CN-J`), so the literals below — written for a top-left root —
+/// hold on both authorities only with the fill spelled.
 @Test @MainActor func aHoveredBoxPaintsItsHoverBackground() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
@@ -72,7 +79,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
                 .background(.surface)
                 .hoverBackground(.accent)
                 .onClick {}
-        }
+        }.width(px(100)).height(px(100))
     }
     window.drawFrameIfNeeded()
     let cold = try buttonRect(window.lastScene)
@@ -138,6 +145,13 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// back off the registered hitbox rather than reconstructed — a hand-built path
 /// would pass whatever this test believed the identity to be, and pass equally
 /// well if the framework disagreed.
+///
+/// Stage 6b (`LR-DG`, R-fill): every `auto` axis of the window's root carries
+/// the window's extent (`.width`/`.height`, `Self`-returning — no layer, no id
+/// level). The legacy root filled those axes itself (`CS-I`, divergence 4) and
+/// sat at (0, 0); under the proposal authority a hugging root is centred at its
+/// own answer (`CN-J`), so the literals below — written for a top-left root —
+/// hold on both authorities only with the fill spelled.
 @Test @MainActor func focusOutranksHoverWhenAnElementIsBoth() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
@@ -149,7 +163,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
                 .focusBackground(.separator)
                 .focusable()
                 .onClick {}
-        }
+        }.width(px(100)).height(px(100))
     }
     window.drawFrameIfNeeded()
     #expect(isFilled(try buttonRect(window.lastScene), with: .surface, in: window.theme),

@@ -42,11 +42,19 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     GlobalElementID.child(of: nil, at: 0, name: ElementID(name))
 }
 
-@MainActor private func render<E: Element>(_ element: inout E) -> Frame {
-    let frame = Frame(contentSize: Size(width: px(300), height: px(300)),
-                      scaleFactor: 1, stateTable: StateTable(),
-                      shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 256, height: 256),
-                      theme: Theme.forAppearance(.light))
+/// `authority` `nil` leaves `Frame`'s default; the tests whose literals were
+/// re-derived for `CN-J`'s centred root (stage 6b, `LR-DG`) pass `.proposal`.
+@MainActor private func render<E: Element>(_ element: inout E,
+                                           authority: LayoutAuthority? = nil) -> Frame {
+    let frame = authority.map {
+        Frame(contentSize: Size(width: px(300), height: px(300)),
+              scaleFactor: 1, stateTable: StateTable(),
+              shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 256, height: 256),
+              theme: Theme.forAppearance(.light), layoutAuthority: $0)
+    } ?? Frame(contentSize: Size(width: px(300), height: px(300)),
+               scaleFactor: 1, stateTable: StateTable(),
+               shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 256, height: 256),
+               theme: Theme.forAppearance(.light))
     frame.render(&element)
     return frame
 }
@@ -56,10 +64,11 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// throwing, so one silent arm cannot hide the arms after it.
 @MainActor private func expectEmits<E: StyledElement>(_ name: String, _ element: E,
                                                       declaring node: AXNode,
-                                                      at expectedBounds: Bounds<Pixels>) {
+                                                      at expectedBounds: Bounds<Pixels>,
+                                                      authority: LayoutAuthority? = nil) {
     var element = element
     element.handlers.axNode = node
-    let frame = render(&element)
+    let frame = render(&element, authority: authority)
     let id = rootID(name)
 
     guard let emitted = frame.axNodes[id] else {
@@ -83,27 +92,36 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// arm declares a DIFFERENT role/label and a different non-square size, so an
 /// emission under the wrong id, with a transposed width/height, or of another
 /// arm's node is a mismatch rather than a coincidence (taxonomy shape 1). The
-/// expected bounds are the declared sizes at the root origin — constants, not
-/// read back from layout (shape 12).
+/// expected bounds are the declared sizes at the root's centred origin —
+/// constants, not read back from layout (shape 12).
+///
+/// Stage 6b (`LR-DG`, R-centre): every root declares both axes, so under the
+/// proposal authority it is centred in the 300x300 frame at its own answer
+/// (`CN-J`): origin `((300 - w) / 2, (300 - h) / 2)`, rounded as
+/// `roundLayout` rounds each edge (half away from zero, so an odd side's .5
+/// origin rounds up and the width is kept): 41x23 at (130, 139), 43x29 at
+/// (129, 136), 47x31 at (127, 135), 53x37 at (124, 132), 59x19 at (121, 141),
+/// 61x17 at (120, 142), 55x37 at (123, 132); the inner layer 7 in from
+/// (122.5, 131.5), so (130, 139).
 @Test @MainActor func aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers() {
     expectEmits("box", Box().width(px(41)).height(px(23)).id("box"),
                 declaring: AXNode(role: .button, label: "box-label"),
-                at: rect(0, 0, 41, 23))
+                at: rect(130, 139, 41, 23), authority: .proposal)
     expectEmits("column", Column { Box().width(px(10)).height(px(10)) }
                     .width(px(43)).height(px(29)).id("column"),
                 declaring: AXNode(role: .container, label: "column-label"),
-                at: rect(0, 0, 43, 29))
+                at: rect(129, 136, 43, 29), authority: .proposal)
     expectEmits("row", Row { Box().width(px(10)).height(px(10)) }
                     .width(px(47)).height(px(31)).id("row"),
                 declaring: AXNode(role: .generic, label: "row-label"),
-                at: rect(0, 0, 47, 31))
+                at: rect(127, 135, 47, 31), authority: .proposal)
     expectEmits("stack", Stack { Box().width(px(10)).height(px(10)) }
                     .width(px(53)).height(px(37)).id("stack"),
                 declaring: AXNode(role: .image, label: "stack-label"),
-                at: rect(0, 0, 53, 37))
+                at: rect(124, 132, 53, 37), authority: .proposal)
     expectEmits("text", Text("Hi").width(px(59)).height(px(19)).id("text"),
                 declaring: AXNode(role: .text, label: "text-label"),
-                at: rect(0, 0, 59, 19))
+                at: rect(121, 141, 59, 19), authority: .proposal)
     // `List` writes a `.container` node for itself when none is declared, so
     // this arm only shows that a DECLARED one reaches the frame through the
     // wrapped `Box` — `aCallerDeclaredAXNodeOnAListSurvivesLogicalCountBeingAdded`
@@ -111,7 +129,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     expectEmits("list", List([Datum(id: 0)], rowHeight: px(17)) { _ in Box() }
                     .width(px(61)).height(px(17)).id("list"),
                 declaring: AXNode(role: .button, label: "list-label"),
-                at: rect(0, 0, 61, 17))
+                at: rect(120, 142, 61, 17), authority: .proposal)
 
     // Ruling MC-I: a `.padding`/`.frame` chain is ONE `ModifiedElement` that
     // registers each layer's handlers — and so emits each layer's declared
@@ -122,7 +140,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
                     .padding(Edges(all: .pixels(px(7))))
                     .width(px(55)).height(px(37)).id("modifiedOuter"),
                 declaring: AXNode(role: .container, label: "modified-outer-label"),
-                at: rect(0, 0, 55, 37))
+                at: rect(123, 132, 55, 37), authority: .proposal)
     // The INNER arm declares its node on the padding-5 layer before the
     // padding-7 layer wraps it, so it is emitted under the inner layer's id,
     // `.positional(0)` under the root's. Its bounds, by hand: the outermost
@@ -134,13 +152,13 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
         inner.handlers.axNode = AXNode(role: .image, label: "modified-inner-label")
         var chain = inner.padding(Edges(all: .pixels(px(7)))).width(px(55)).height(px(37))
             .id("modifiedInner")
-        let frame = render(&chain)
+        let frame = render(&chain, authority: .proposal)
         let innerID = GlobalElementID.child(of: rootID("modifiedInner"), at: 0, name: nil)
         if let emitted = frame.axNodes[innerID] {
             #expect(emitted.role == .image && emitted.label == "modified-inner-label",
                     "modifiedInner: emitted \(emitted.role)/\(emitted.label ?? "nil")")
-            #expect(emitted.frame == rect(7, 7, 41, 23),
-                    "modifiedInner: emitted at \(emitted.frame), its resolved bounds are (7, 7, 41, 23)")
+            #expect(emitted.frame == rect(130, 139, 41, 23),
+                    "modifiedInner: emitted at \(emitted.frame), its resolved bounds are (130, 139, 41, 23)")
             #expect(frame.axNode(for: innerID)?.label == "modified-inner-label",
                     "modifiedInner: emitted into Frame.axNodes but wrote no $ax retention copy")
         } else {
@@ -155,6 +173,10 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// a 30 x 20 `Box` then a 20 x 10 `Text` puts the `Text` at x = 30 (after the
 /// box; no gap) and y = (40 - 10) / 2 = 15 (EP-8: a `Row` centres its cross
 /// axis). Hand-computed, not read off the engine.
+///
+/// Stage 6b (`LR-DG`, R-centre): the 100x40 root is centred in the 300x300
+/// frame at ((300 - 100) / 2, (300 - 40) / 2) = (100, 130), so the `Text` is at
+/// (130, 145).
 @Test @MainActor func aNestedTextEmitsItsDeclaredAXNodeAtItsAbsoluteBounds() throws {
     var label = Text("Hi").width(px(20)).height(px(10)).id("label")
     label.handlers.axNode = AXNode(role: .text, label: "nested")
@@ -163,12 +185,12 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
         label
     }.width(px(100)).height(px(40)).id("row")
 
-    let frame = render(&row)
+    let frame = render(&row, authority: .proposal)
     let labelID = GlobalElementID.child(of: rootID("row"), at: 1, name: ElementID("label"))
     let node = try #require(frame.axNodes[labelID],
                             "a Text nested in a Row declared an AXNode and emitted none")
     #expect(node.role == .text && node.label == "nested")
-    #expect(node.frame == rect(30, 15, 20, 10), "got \(node.frame)")
+    #expect(node.frame == rect(130, 145, 20, 10), "got \(node.frame)")
     #expect(frame.axNodes.count == 1,
             "only the Text declared a node; the Row and the Box declared none — got \(frame.axNodes.count)")
 }

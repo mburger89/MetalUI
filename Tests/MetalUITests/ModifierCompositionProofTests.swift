@@ -1108,46 +1108,51 @@ private struct Placement: Equatable, CustomStringConvertible {
 /// dropping `justifyContent = .center`. Lane 2 (record §10): `ModifiedElement`
 /// minting its layer styles outermost-first swaps O1 and O2.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): the `Row` and `Column` roots declare the
+/// 200×200 frame's extent on their two auto axes — what `CS-I` gave the legacy
+/// root, now spelled — and the test reads both authorities.
 @Test @MainActor func modifierOrderChangesSizeAndPlacementAsSwiftUIDoes() throws {
-    func place<Chain: Element>(_ chain: (CompositionLog) -> Chain) throws -> Placement {
-        let size = Size(width: px(200), height: px(200))
-        let rowLog = CompositionLog()
-        var row = Row {
-            chain(rowLog)
-            CountingLeaf("probe", log: rowLog, width: 1, height: 1)
-        }.alignItems(.flexStart)
-        Frame(contentSize: size, scaleFactor: 1, layoutAuthority: .legacy).render(&row)
-        let columnLog = CompositionLog()
-        var column = Column {
-            chain(columnLog)
-            CountingLeaf("probe", log: columnLog, width: 1, height: 1)
-        }.alignItems(.flexStart)
-        Frame(contentSize: size, scaleFactor: 1, layoutAuthority: .legacy).render(&column)
-        let leaf = try #require(rowLog.bounds["leaf"])
-        return Placement(width: try #require(rowLog.bounds["probe"]).origin.x.value,
-                         height: try #require(columnLog.bounds["probe"]).origin.y.value,
-                         x: leaf.origin.x.value, y: leaf.origin.y.value)
+    for authority in [LayoutAuthority.legacy, .proposal] {
+        func place<Chain: Element>(_ chain: (CompositionLog) -> Chain) throws -> Placement {
+            let size = Size(width: px(200), height: px(200))
+            let rowLog = CompositionLog()
+            var row = Row {
+                chain(rowLog)
+                CountingLeaf("probe", log: rowLog, width: 1, height: 1)
+            }.alignItems(.flexStart).width(px(200)).height(px(200))
+            Frame(contentSize: size, scaleFactor: 1, layoutAuthority: authority).render(&row)
+            let columnLog = CompositionLog()
+            var column = Column {
+                chain(columnLog)
+                CountingLeaf("probe", log: columnLog, width: 1, height: 1)
+            }.alignItems(.flexStart).width(px(200)).height(px(200))
+            Frame(contentSize: size, scaleFactor: 1, layoutAuthority: authority).render(&column)
+            let leaf = try #require(rowLog.bounds["leaf"])
+            return Placement(width: try #require(rowLog.bounds["probe"]).origin.x.value,
+                             height: try #require(columnLog.bounds["probe"]).origin.y.value,
+                             x: leaf.origin.x.value, y: leaf.origin.y.value)
+        }
+
+        let k0 = try place { CountingLeaf("leaf", log: $0) }
+        let k1 = try place { CountingLeaf("leaf", log: $0).padding(8) }
+        let k2 = try place { CountingLeaf("leaf", log: $0).padding(16) }
+        let o1 = try place { CountingLeaf("leaf", log: $0).padding(8).frame(width: 60, height: 60) }
+        let o2 = try place { CountingLeaf("leaf", log: $0).frame(width: 60, height: 60).padding(8) }
+        let o3 = try place { CountingLeaf("leaf", log: $0).padding(4).frame(width: 40, height: 40).padding(8) }
+        let o4 = try place { CountingLeaf("leaf", log: $0).frame(width: 40, height: 40).padding(4).padding(8) }
+
+        try #require(o1 != o2, "the instrument cannot see order: O1 \(o1), O2 \(o2)")
+        try #require(o3 != o4, "the instrument cannot see order: O3 \(o3), O4 \(o4)")
+
+        #expect(k0 == Placement(width: 20, height: 20, x: 0, y: 0), "K0 \(k0), \(authority)")
+        #expect(k1 == Placement(width: 36, height: 36, x: 8, y: 8), "K1 \(k1), \(authority)")
+        #expect(k2 == Placement(width: 52, height: 52, x: 16, y: 16), "K2 \(k2), \(authority)")
+        #expect(o1 == Placement(width: 60, height: 60, x: 20, y: 20), "O1 \(o1), \(authority)")
+        #expect(o2 == Placement(width: 76, height: 76, x: 28, y: 28), "O2 \(o2), \(authority)")
+        #expect(o3 == Placement(width: 56, height: 56, x: 18, y: 18), "O3 \(o3), \(authority)")
+        #expect(o4 == Placement(width: 64, height: 64, x: 22, y: 22), "O4 \(o4), \(authority)")
     }
-
-    let k0 = try place { CountingLeaf("leaf", log: $0) }
-    let k1 = try place { CountingLeaf("leaf", log: $0).padding(8) }
-    let k2 = try place { CountingLeaf("leaf", log: $0).padding(16) }
-    let o1 = try place { CountingLeaf("leaf", log: $0).padding(8).frame(width: 60, height: 60) }
-    let o2 = try place { CountingLeaf("leaf", log: $0).frame(width: 60, height: 60).padding(8) }
-    let o3 = try place { CountingLeaf("leaf", log: $0).padding(4).frame(width: 40, height: 40).padding(8) }
-    let o4 = try place { CountingLeaf("leaf", log: $0).frame(width: 40, height: 40).padding(4).padding(8) }
-
-    try #require(o1 != o2, "the instrument cannot see order: O1 \(o1), O2 \(o2)")
-    try #require(o3 != o4, "the instrument cannot see order: O3 \(o3), O4 \(o4)")
-
-    #expect(k0 == Placement(width: 20, height: 20, x: 0, y: 0), "K0 \(k0)")
-    #expect(k1 == Placement(width: 36, height: 36, x: 8, y: 8), "K1 \(k1)")
-    #expect(k2 == Placement(width: 52, height: 52, x: 16, y: 16), "K2 \(k2)")
-    #expect(o1 == Placement(width: 60, height: 60, x: 20, y: 20), "O1 \(o1)")
-    #expect(o2 == Placement(width: 76, height: 76, x: 28, y: 28), "O2 \(o2)")
-    #expect(o3 == Placement(width: 56, height: 56, x: 18, y: 18), "O3 \(o3)")
-    #expect(o4 == Placement(width: 64, height: 64, x: 22, y: 22), "O4 \(o4)")
 }
 
 // MARK: - 11: a key the overlay declines bubbles to its holder (ruling MC-P)

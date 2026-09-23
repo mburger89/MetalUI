@@ -284,7 +284,11 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
     let pad = 9.0
     let boxWidth = 400.0 - 2 * pad
 
+    // Stage 6b (`LR-DG`, R-fill): the window's 400x600 declared on the root's
+    // two auto axes, after its `.padding` (the legacy container rule), so the
+    // padded root sits at (0, 0) on both authorities.
     var padded = Column { Text(word) }.padding(Pixels(Float(pad))).alignItems(.stretch)
+        .width(Pixels(400)).height(Pixels(600))
     let (_, scene) = painted(&padded, width: 400)
     try #require(scene.glyphs.count == word.count)
 
@@ -333,6 +337,7 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
     // which the per-glyph loop above cannot see because it hands the emitter's
     // own origin to the oracle.
     var unpadded = Column { Text(word) }.alignItems(.stretch)
+        .width(Pixels(400)).height(Pixels(600))
     let (_, flush) = painted(&unpadded, width: 400)
     try #require(flush.glyphs.count == scene.glyphs.count)
     for i in 0..<flush.glyphs.count {
@@ -765,7 +770,9 @@ private func lineClusterCount(_ scene: Scene, font: ResolvedFont, scaleFactor: D
 /// `lineClusterCount`.
 @MainActor
 @Test func paintWrapsAtTheWidthLayoutMeasuredAtNotTheRoundedBox() {
-    var row = Row { Text(wrapDivergenceSample) }
+    // Stage 6b (`LR-DG`, R-fill): the window's 900x600 declared on the row's
+    // two auto axes — what `CS-I` gave the legacy root, now spelled.
+    var row = Row { Text(wrapDivergenceSample) }.width(Pixels(900)).height(Pixels(600))
     let (frame, root, scene) = renderedWithRoot(&row, width: 900)
     let child = frame.tree.children(root)[0]
     let box = frame.tree.layout(child)

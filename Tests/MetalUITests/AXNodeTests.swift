@@ -527,7 +527,10 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     box.elementID = ElementID("root")
     box.handlers.axNode = AXNode(role: .button, label: "Go")
 
-    let frame = bareFrame()
+    // Stage 6b (`LR-DG`, R-centre): the 40x20 root declares both axes, so under
+    // the proposal authority it is centred in the 300x300 frame at
+    // ((300 - 40) / 2, (300 - 20) / 2) = (130, 140) (`CN-J`).
+    let frame = bareFrame(authority: .proposal)
     frame.render(&box)
 
     // Named explicitly, rather than left `nil`, so this id is `.named("root")`
@@ -537,7 +540,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     let rootID = GlobalElementID.child(of: nil, at: 0, name: box.elementID)
     let node = try #require(frame.axNodes[rootID])
     #expect(node.role == .button && node.label == "Go")
-    #expect(node.frame == rect(0, 0, 40, 20), "the box's own resolved bounds")
+    #expect(node.frame == rect(130, 140, 40, 20), "the box's own resolved bounds")
     #expect(node.children.isEmpty,
             "Box cannot yet enumerate its own children's ids — see Box.prepaint's own comment")
 }

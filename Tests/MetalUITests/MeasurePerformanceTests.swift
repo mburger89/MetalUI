@@ -116,12 +116,17 @@ struct MeasurePerformanceTests {
 
     @Test
     func aWarmFrameTokenizesEachDistinctStringAtMostOnce() throws {
+        // Pinned to the legacy authority by stage 6b (`LR-DI`, `LR-DO` item 1),
+        // owner stage 9, for its OWN reason only: its subject is the legacy
+        // min-content probe pair (the last paragraph below), which the proposal
+        // path does not take. `demoLikeRows`' root no longer reports under the
+        // proposal authority (lane 1's fold), so the pin is not about a trap.
         let states = StateTable()
-        _ = Self.render({ demoLikeRows(40) }, states: states)   // warm
+        _ = Self.render({ demoLikeRows(40) }, states: states, authority: .legacy)   // warm
 
         let counter = Shaper.RunCallCounter()
         Shaper.$runCallCounter.withValue(counter) {
-            _ = Self.render({ demoLikeRows(40) }, states: states)
+            _ = Self.render({ demoLikeRows(40) }, states: states, authority: .legacy)
         }
 
         // 40 rows share no strings, so 40 distinct strings is the ceiling a
@@ -180,12 +185,16 @@ struct MeasurePerformanceTests {
     /// process-wide and an earlier test may already have created it.
     @Test
     func aColdFrameCreatesAtMostOneLineBreakTokenizer() throws {
+        // Pinned to the legacy authority by stage 6b (`LR-DI`, `LR-DO` item 1),
+        // owner stage 9, for its own reason: `calls == 40` counts the legacy
+        // min-content probes, and a lowered `Text` takes none (the proposal arm
+        // would read 0 and fail the reachability control, not the claim).
         let states = StateTable()
         let calls = Shaper.RunCallCounter()
         let creations = Shaper.RunCallCounter()
         Shaper.$runCallCounter.withValue(calls) {
             Shaper.$tokenizerCreationCounter.withValue(creations) {
-                _ = Self.render({ demoLikeRows(40) }, states: states)
+                _ = Self.render({ demoLikeRows(40) }, states: states, authority: .legacy)
             }
         }
         #expect(calls.count == 40)
@@ -210,20 +219,35 @@ struct MeasurePerformanceTests {
     /// did build and paint `Text`s, so a zero is not a frame that built none.
     @Test
     func aWarmFrameReachesTheUncachedFontResolverZeroTimes() throws {
+        // Stage 6b (`LR-DI`, `LR-DO` item 1): runs at the helper's default
+        // authority — stage 6b's flip makes it `.proposal` — with diagnostics
+        // on, and asserts each render's report EXACTLY against
+        // `demoLikeRowsReport(_:)` (empty at both since lane 1's root fold), so
+        // a report reads red here instead of aborting the suite (`LR-BX`'s
+        // pattern). Before lane 1 a production frame over this fixture trapped
+        // on the root's `box.minSize.unconsumed`.
         let states = StateTable()
         let cache = ShapingCache()
 
         let cold = FontResolver.CallCounter()
+        var coldFrame: Frame?
         FontResolver.$resolveCallCounter.withValue(cold) {
-            _ = Self.render({ demoLikeRows(40) }, states: states, shapingCache: cache)
+            coldFrame = Self.render({ demoLikeRows(40) }, states: states, shapingCache: cache,
+                                    reportsUnlowerableFields: true)
         }
 
         let lookupsBefore = cache.lookups
         let warm = FontResolver.CallCounter()
+        var warmFrame: Frame?
         FontResolver.$resolveCallCounter.withValue(warm) {
-            _ = Self.render({ demoLikeRows(40) }, states: states, shapingCache: cache)
+            warmFrame = Self.render({ demoLikeRows(40) }, states: states, shapingCache: cache,
+                                    reportsUnlowerableFields: true)
         }
 
+        for (name, frame) in [("cold", try #require(coldFrame)), ("warm", try #require(warmFrame))] {
+            #expect(frame.unlowerableFields == Self.demoLikeRowsReport(frame.layoutAuthority),
+                    "\(name) frame at \(frame.layoutAuthority): \(frame.unlowerableFields)")
+        }
         #expect(cache.lookups > lookupsBefore)
         #expect(warm.count == 0)
         #expect(cold.count == 1)

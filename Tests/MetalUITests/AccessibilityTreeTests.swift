@@ -351,15 +351,22 @@ private struct Item: Identifiable { let id: Int }
     #expect(target2.frame.origin.y == 60,
             "the emitted frame must carry the scroll translation, as the hitbox does")
 
-    // The published half: the same scroll, collected.
-    let (_, tree) = collect(makeTree(), stateTable: stateTable, width: 200, height: 100)
+    // The published half: the same scroll, collected. Stage 6b (`LR-DG`,
+    // R-centre — predicted "fill", but the root is a `ScrollView`, which takes
+    // no `Self`-returning size): under the proposal authority the viewport
+    // fills its proposal on the scrolling axis and hugs its 20pt content on the
+    // cross axis (`LR-BB`), and the root is centred at that answer (`CN-J`):
+    // x = (200 - 20) / 2 = 90, y = (100 - 100) / 2 = 0. Only x moves; the
+    // halves above read y alone and hold on both authorities.
+    let (_, tree) = collect(makeTree(), stateTable: stateTable, width: 200, height: 100,
+                            authority: .proposal)
     let target = try #require(tree.id(labelled: "target"))
     let top = try #require(tree.id(labelled: "top"))
     let targetGeometry = try #require(tree.geometry[target])
     let topGeometry = try #require(tree.geometry[top])
-    #expect(targetGeometry.frame == rect(0, 60, 20, 20))
-    #expect(targetGeometry.visibleFrame == rect(0, 60, 20, 20), "control: wholly inside the viewport")
-    #expect(topGeometry.frame == rect(0, -40, 20, 20), "frame is unclipped (AB-E)")
+    #expect(targetGeometry.frame == rect(90, 60, 20, 20))
+    #expect(targetGeometry.visibleFrame == rect(90, 60, 20, 20), "control: wholly inside the viewport")
+    #expect(topGeometry.frame == rect(90, -40, 20, 20), "frame is unclipped (AB-E)")
     #expect(topGeometry.visibleFrame.size.height == 0,
             "visibleFrame is clipped to the viewport, and this box is scrolled fully out (AB-W)")
 

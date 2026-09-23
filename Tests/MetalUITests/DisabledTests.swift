@@ -220,6 +220,13 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// inside `.disabled(true)` fires, 1) and P9 (a tap under a raw `false` write
 /// with no `.disabled` is blocked, 0). A gate counting `.disabled` scopes gets
 /// both backwards.
+///
+/// Stage 6b (`LR-DG`, R-fill): every `auto` axis of the window's root carries
+/// the window's extent (`.width`/`.height`, `Self`-returning — no layer, no id
+/// level). The legacy root filled those axes itself (`CS-I`, divergence 4) and
+/// sat at (0, 0); under the proposal authority a hugging root is centred at its
+/// own answer (`CN-J`), so the literals below — written for a top-left root —
+/// hold on both authorities only with the fill spelled.
 @MainActor
 @Test func theGateReadsTheEnvironmentValueNotTheModifier() throws {
     let device = try device()
@@ -230,7 +237,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
             Box().width(px(40)).height(px(40)).onClick { log.names.append("P8") }
                 .environment(\.isEnabled, true)
                 .disabled(true)
-        }
+        }.width(px(100)).height(px(100))
     }
     p8.drawFrameIfNeeded()
     click(p8Platform, at: pt(10, 50))
@@ -240,7 +247,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         Row {
             Box().width(px(40)).height(px(40)).onClick { log.names.append("P9") }
                 .environment(\.isEnabled, false)
-        }
+        }.width(px(100)).height(px(100))
     }
     p9.drawFrameIfNeeded()
     click(p9Platform, at: pt(10, 50))
@@ -278,6 +285,13 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// wherever an `HStack` root places it; every legacy arm sits at the start of a
 /// `Row` root, which centres its 100pt cross axis (ruling EP-8), so (10, 50) is
 /// inside every 40×40 and 20×20 arm.
+///
+/// Stage 6b (`LR-DG`, R-fill): every `auto` axis of the window's root carries
+/// the window's extent (`.width`/`.height`, `Self`-returning — no layer, no id
+/// level). The legacy root filled those axes itself (`CS-I`, divergence 4) and
+/// sat at (0, 0); under the proposal authority a hugging root is centred at its
+/// own answer (`CN-J`), so the literals below — written for a top-left root —
+/// hold on both authorities only with the fill spelled.
 @MainActor
 @Test func everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled() throws {
     let device = try device()
@@ -301,28 +315,28 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     }
 
     try arm("box") { d in
-        Row { Box().width(px(40)).height(px(40)).onClick { log.names.append("box") }.disabled(d) }
+        Row { Box().width(px(40)).height(px(40)).onClick { log.names.append("box") }.disabled(d) }.width(px(100)).height(px(100))
     }
     try arm("column") { d in
         Row {
             Column { Box().width(px(40)).height(px(40)) }
                 .width(px(40)).height(px(40)).onClick { log.names.append("column") }.disabled(d)
-        }
+        }.width(px(100)).height(px(100))
     }
     try arm("row") { d in
         Row {
             Row { Box().width(px(40)).height(px(40)) }
                 .width(px(40)).height(px(40)).onClick { log.names.append("row") }.disabled(d)
-        }
+        }.width(px(100)).height(px(100))
     }
     try arm("stack") { d in
         Row {
             Stack { Box().width(px(40)).height(px(40)) }
                 .width(px(40)).height(px(40)).onClick { log.names.append("stack") }.disabled(d)
-        }
+        }.width(px(100)).height(px(100))
     }
     try arm("text") { d in
-        Row { Text("x").width(px(40)).height(px(40)).onClick { log.names.append("text") }.disabled(d) }
+        Row { Text("x").width(px(40)).height(px(40)).onClick { log.names.append("text") }.disabled(d) }.width(px(100)).height(px(100))
     }
     // The `onClick` is on the inner (padding) layer; the frame layer outside it.
     try arm("padding-frame") { d in
@@ -331,7 +345,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
                 .onClick { log.names.append("padding-frame") }
                 .frame(width: px(20), height: px(20))
                 .disabled(d)
-        }
+        }.width(px(100)).height(px(100))
     }
     try arm("proposal", at: pt(50, 50)) { d in
         HStack {
@@ -339,7 +353,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         }
     }
     try arm("component") { d in
-        Row { ClickComponent(log: log).disabled(d) }
+        Row { ClickComponent(log: log).disabled(d) }.width(px(100)).height(px(100))
     }
     try arm("list-row") { d in
         Row {
@@ -349,13 +363,13 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
                 }
             }
             .width(px(40))
-        }
+        }.width(px(100)).height(px(100))
     }
     try arm("list") { d in
         Row {
             List([Datum(id: 0)], rowHeight: px(40)) { _ in Box() }
                 .width(px(40)).height(px(40)).onClick { log.names.append("list") }.disabled(d)
-        }
+        }.width(px(100)).height(px(100))
     }
 
     // EV-X: after the scope fires (O2); the same layers with the scope written
@@ -364,7 +378,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         Row {
             Box().width(px(20)).height(px(20)).disabled(true)
                 .frame(width: px(40), height: px(40)).onClick { log.names.append("after") }
-        }
+        }.width(px(100)).height(px(100))
     }
     #expect(after == 1, "a handler written after .disabled sits outside the scope and fires (EV-X, O2)")
     try arm("inside") { d in
@@ -372,7 +386,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
             Box().width(px(20)).height(px(20))
                 .frame(width: px(40), height: px(40)).onClick { log.names.append("inside") }
                 .disabled(d)
-        }
+        }.width(px(100)).height(px(100))
     }
 }
 
@@ -390,6 +404,13 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 ///   sibling already lets the click through, and a disabled one now does the
 ///   same. The **reference** arm makes that concrete with
 ///   `.allowsHitTesting(false)`, which reads exactly as the disabled arm does.
+///
+/// Stage 6b (`LR-DG`, R-fill): every `auto` axis of the window's root carries
+/// the window's extent (`.width`/`.height`, `Self`-returning — no layer, no id
+/// level). The legacy root filled those axes itself (`CS-I`, divergence 4) and
+/// sat at (0, 0); under the proposal authority a hugging root is centred at its
+/// own answer (`CN-J`), so the literals below — written for a top-left root —
+/// hold on both authorities only with the fill spelled.
 @MainActor
 @Test func aDisabledClickTargetPassesTheClickToWhatIsUnderIt() throws {
     let device = try device()
@@ -412,7 +433,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
                 Box().width(px(20)).height(px(20)).onClick { log.names.append("child") }.disabled(d)
             }
             .width(px(40)).height(px(40)).onClick { log.names.append("parent") }
-        }
+        }.width(px(100)).height(px(100))
     }
     #expect(try clicks(at: pt(10, 40)) { ancestor(false) } == ["child"],
             "control (N0/N3): an enabled child takes the click and the parent does not")
@@ -792,6 +813,13 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// No `Window` edit reaches this: with no hitbox for a disabled target, a press
 /// over it makes nothing `active` (R1), and a release over it finds no hitbox
 /// with the pressed id (R2) — `dispatchClick`'s `hit.id == pressed`.
+///
+/// Stage 6b (`LR-DG`, R-fill): every `auto` axis of the window's root carries
+/// the window's extent (`.width`/`.height`, `Self`-returning — no layer, no id
+/// level). The legacy root filled those axes itself (`CS-I`, divergence 4) and
+/// sat at (0, 0); under the proposal authority a hugging root is centred at its
+/// own answer (`CN-J`), so the literals below — written for a top-left root —
+/// hold on both authorities only with the fill spelled.
 @MainActor
 @Test func aClickNeedsTheTargetEnabledAtPressAndAtRelease() throws {
     let device = try device()
@@ -804,7 +832,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
             Row {
                 Box().width(px(40)).height(px(40)).onClick { log.names.append("x") }
                     .disabled(model.disabled)
-            }
+            }.width(px(100)).height(px(100))
         }
         window.drawFrameIfNeeded()
         platform.simulateInput(.mouseDown(MouseEvent(position: pt(20, 50))))
@@ -831,6 +859,13 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// the disabled child, the PARENT is the hitbox under it and paints `.accent`,
 /// as it does over any child without an `onClick`. Its control (child enabled)
 /// moves both rects the other way.
+///
+/// Stage 6b (`LR-DG`, R-fill): every `auto` axis of the window's root carries
+/// the window's extent (`.width`/`.height`, `Self`-returning — no layer, no id
+/// level). The legacy root filled those axes itself (`CS-I`, divergence 4) and
+/// sat at (0, 0); under the proposal authority a hugging root is centred at its
+/// own answer (`CN-J`), so the literals below — written for a top-left root —
+/// hold on both authorities only with the fill spelled.
 @MainActor
 @Test func aDisabledTargetIsNeitherHoveredNorPressed() throws {
     let device = try device()
@@ -842,7 +877,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
                 TargetProbe("x", probes, Box().width(px(40)).height(px(40)).onClick {}
                         .hoverBackground(.accent).background(.surface))
                     .disabled(d)
-            }
+            }.width(px(100)).height(px(100))
         }
         window.drawFrameIfNeeded()
         platform.simulateInput(.mouseMoved(MouseEvent(position: pt(20, 50))))
@@ -878,7 +913,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
                 }
                 .width(px(40)).height(px(40)).onClick {}
                 .hoverBackground(.accent).background(.surface)
-            }
+            }.width(px(100)).height(px(100))
         }
         window.drawFrameIfNeeded()
         platform.simulateInput(.mouseMoved(MouseEvent(position: pt(10, 40))))
@@ -940,6 +975,13 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// either way is a decision rather than an accident. Control: the same scroller
 /// enabled reads the same offset, and a wheel that misses reads 0, so the
 /// instrument can tell a scroll from none.
+///
+/// Stage 6b (`LR-DG`, R-fill): every `auto` axis of the window's root carries
+/// the window's extent (`.width`/`.height`, `Self`-returning — no layer, no id
+/// level). The legacy root filled those axes itself (`CS-I`, divergence 4) and
+/// sat at (0, 0); under the proposal authority a hugging root is centred at its
+/// own answer (`CN-J`), so the literals below — written for a top-left root —
+/// hold on both authorities only with the fill spelled.
 @MainActor
 @Test func aDisabledScrollViewStillScrollsOnTheWheel() throws {
     let device = try device()
@@ -951,7 +993,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
                         .disabled(disabled)
                 }
                 .width(px(120)).height(px(120))
-            }
+            }.width(px(200)).height(px(200))
         }
         window.drawFrameIfNeeded()
         platform.simulateInput(.scrollWheel(ScrollEvent(position: point, delta: Point(x: px(0), y: px(-37)))))

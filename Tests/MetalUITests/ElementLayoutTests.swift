@@ -199,15 +199,18 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 /// Without this, "the builder never boxes" would be indistinguishable from
 /// "boxing is impossible", and a future reader could delete the erasure as dead.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): every root declares its frame's extent on its
+/// two auto axes — what `CS-I` gave the legacy root, now spelled — so the
+/// literals hold on both authorities.
 @MainActor
 @Test func anExplicitAnyElementIsStillAcceptedAsAChild() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .legacy)
+    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var row = Row {
         AnyElement(Probe("erased", log: log).width(px(40)).height(px(25)))
         Probe("plain", log: log).width(px(60)).height(px(15))
-    }
+    }.width(px(200)).height(px(80))
 
     frame.render(&row)
 
@@ -366,7 +369,9 @@ private enum Fixture {
 /// Every one of those is an integer, so `roundLayout` is a no-op here and these
 /// numbers pin centring alone.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// P-CSS, owner 7b (stage 6b, `LR-DI`): its oracle is `computeLayout` itself,
+/// the CSS engine. Pinned to the legacy authority since stage 6a (then CE+RP,
+/// record §38 §4).
 @MainActor
 @Test func aNestedLayoutMatchesTheEngineRunDirectly() {
     let log = ElementLog()
@@ -418,16 +423,19 @@ private enum Fixture {
 /// equal children a reversed or rotated order is invisible, which is the point
 /// of 30/50/70 rather than 50/50/50.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): every root declares its frame's extent on its
+/// two auto axes — what `CS-I` gave the legacy root, now spelled — so the
+/// literals hold on both authorities.
 @MainActor
 @Test func childrenAreRegisteredAndLaidOutInSourceOrder() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
     var row = Row {
         Probe("first", log: log).width(px(30)).height(px(10))
         Probe("second", log: log).width(px(50)).height(px(20))
         Probe("third", log: log).width(px(70)).height(px(30))
-    }
+    }.width(px(300)).height(px(40))
 
     frame.render(&row)
 
@@ -454,23 +462,26 @@ private enum Fixture {
 /// that had quietly kept `Style`'s default `.row` would still pass every rect
 /// assertion written against a row.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): every root declares its frame's extent on its
+/// two auto axes — what `CS-I` gave the legacy root, now spelled — so the
+/// literals hold on both authorities.
 @MainActor
 @Test func columnStacksOnTheAxisRowDoesNot() {
     let rowLog = ElementLog()
-    let rowFrame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .legacy)
+    let rowFrame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var row = Row {
         Probe("one", log: rowLog).width(px(40)).height(px(25))
         Probe("two", log: rowLog).width(px(60)).height(px(15))
-    }
+    }.width(px(200)).height(px(80))
     rowFrame.render(&row)
 
     let columnLog = ElementLog()
-    let columnFrame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .legacy)
+    let columnFrame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var column = Column {
         Probe("one", log: columnLog).width(px(40)).height(px(25))
         Probe("two", log: columnLog).width(px(60)).height(px(15))
-    }
+    }.width(px(200)).height(px(80))
     columnFrame.render(&column)
 
     // **Was `(40, 0, …)` and `(0, 25, …)` before ruling EP-8.** Under stretch
@@ -532,22 +543,25 @@ private enum Fixture {
 ///   argument for the split stated as a number: the engine's `stretch` default
 ///   is load-bearing for WebKit agreement, and EP-8 must not touch it.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): every root declares its frame's extent on its
+/// two auto axes — what `CS-I` gave the legacy root, now spelled — so the
+/// literals hold on both authorities.
 @MainActor
 @Test func aStackCentresOnTheCrossAxisWhereABoxStretches() {
     let stackLog = ElementLog()
-    let stackFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1, layoutAuthority: .legacy)
+    let stackFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1)
     var column = Column {
         Probe("stacked", log: stackLog).width(px(60)).height(px(20))
-    }
+    }.width(px(200)).height(px(90))
     stackFrame.render(&column)
 
     let boxLog = ElementLog()
-    let boxFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1, layoutAuthority: .legacy)
+    let boxFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1)
     var box = Box {
         Probe("boxed", log: boxLog).width(px(60)).height(px(20))
     }
-    .flexDirection(.column)
+    .flexDirection(.column).width(px(200)).height(px(90))
     boxFrame.render(&box)
 
     // (200 - 60) / 2 = 70, integral, so `roundLayout` is a no-op.
@@ -560,10 +574,10 @@ private enum Fixture {
     // row tests that read it incidentally — none of them is named for it.
     // Cross extent 90, child 20 tall: y = (90 - 20) / 2 = 35.
     let rowLog = ElementLog()
-    let rowFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1, layoutAuthority: .legacy)
+    let rowFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1)
     var row = Row {
         Probe("rowed", log: rowLog).width(px(60)).height(px(20))
-    }
+    }.width(px(200)).height(px(90))
     rowFrame.render(&row)
     #expect(rect(rowLog.bounds["rowed"]!) == (0, 35, 60, 20))
 }
@@ -784,16 +798,19 @@ private func pathID(_ names: String...) -> GlobalElementID {
 /// Asymmetric on purpose: `gap(12)` sets both axes equal and cannot detect an
 /// engine — or a modifier — reading the wrong one.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): every root declares its frame's extent on its
+/// two auto axes — what `CS-I` gave the legacy root, now spelled — so the
+/// literals hold on both authorities.
 @MainActor
 @Test func gapIsPerAxisAndTheRowReadsTheHorizontalOne() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1, layoutAuthority: .legacy)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
     var row = Row {
         Probe("first", log: log).width(px(30)).height(px(10))
         Probe("second", log: log).width(px(50)).height(px(20))
     }
-    .gap(horizontal: px(20), vertical: px(5))
+    .gap(horizontal: px(20), vertical: px(5)).width(px(300)).height(px(60))
 
     frame.render(&row)
 
@@ -808,7 +825,10 @@ private func pathID(_ names: String...) -> GlobalElementID {
 
 /// A `hidden()` child contributes no box, and its siblings close over it.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// P-CSS, owner 7b (stage 6b, `LR-DI`): SwiftUI keeps a hidden child's space
+/// (probe H1), so "takes no space" is the CSS answer `LR-DH` leaves on the
+/// legacy authority. Pinned to the legacy authority since stage 6a (then CE+RP,
+/// record §38 §4).
 @MainActor
 @Test func aHiddenChildTakesNoSpace() {
     let log = ElementLog()
@@ -859,7 +879,16 @@ private func pathID(_ names: String...) -> GlobalElementID {
 /// is now an `alignSelf` that *agrees with the old default* — so a build that
 /// dropped `alignSelf` in favour of the container's value moves all three.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// P-CSS, owner 7b (stage 6b, `LR-DQ` item 2): pinned to the legacy authority
+/// since stage 6a (then CE+RP, record §38 §4), and **kept** there — neither of
+/// `LR-DG`'s recipes greens it. R-filled, the proposal authority placed `start`
+/// at y 80 and `centred` at y 60, the container's `flexEnd` for both: `Probe`'s
+/// proposal branch is `declaredSizeNativeLeaf`, which records no `LoweredItem`,
+/// so the item's `alignSelf` never reaches the lowering (record §23, X2 — a
+/// child with no record gets an empty plan). What the test names — the two
+/// modifiers reaching the engine — is therefore the CSS engine's answer; the
+/// proposal-side twin is `LoweringItemTests`'
+/// `alignSelfPlacesOneChildOnTheCrossAxisOfADefiniteContainer`.
 @MainActor
 @Test func alignItemsAndAlignSelfBothReachTheEngine() {
     let log = ElementLog()
