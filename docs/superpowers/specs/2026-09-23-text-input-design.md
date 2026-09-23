@@ -92,8 +92,8 @@ deprecated alias of `KeyBinding`), and a controlled field needs none.
 - Text longer than the field **scrolls horizontally** to keep the caret
   visible; glyphs are clipped to the field.
 - **Paint:** selection behind the glyphs (`accent` at 30 % opacity), the
-  text — or the placeholder in `textSecondary` when the text and composition
-  are empty — the composition inline at the caret, underlined, and a 1-point
+  text — or the placeholder in `textPrimary` at 45 % opacity when the text
+  and composition are empty (the theme has no secondary text token) — the composition inline at the caret, underlined, and a 1-point
   caret in the text colour when focused and nothing is selected. **The caret
   does not blink** — a blink keeps the display link awake forever.
 - **Accessibility:** a new `AccessibilityRole.textField` — AppKit's
