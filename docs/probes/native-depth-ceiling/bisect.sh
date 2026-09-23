@@ -27,7 +27,7 @@
 #   kinds: padding frame flexframe stack hstack overlay custom scroll grid
 set -e
 W=$1; C=$2; CFG=$3; shift 3
-KINDS=(${@:-padding frame flexframe stack hstack overlay custom scroll grid})
+if (( $# )); then KINDS=($@); else KINDS=(padding frame flexframe stack hstack overlay custom scroll grid); fi
 HERE=${0:A:h}; REPO=$(git -C $HERE rev-parse --show-toplevel)
 sha=$(git -C $REPO rev-parse --short $C)
 SRC=$W/depth-src-$sha
@@ -39,7 +39,11 @@ if [ ! -d $SRC ]; then
     $SRC/Sources/MetalUILayout/NativeLayoutRun.swift
 fi
 cd $SRC
-swift build --build-system native -c $CFG --build-tests > $W/depth-build-$sha-$CFG.log 2>&1
+# Built through `swift test` (the probe returns at once without its variables):
+# `swift build -c release --build-tests` does not enable testable imports, and
+# the tests' `@testable import` then fails with ModuleNotTestable.
+swift test --build-system native -c $CFG --filter zzDepthCeilingProbe \
+  > $W/depth-build-$sha-$CFG.log 2>&1
 
 ok() {  # ok <kind> <n>
   METALUI_DEPTH_KIND=$1 METALUI_DEPTH_N=$2 swift test --build-system native -c $CFG \
