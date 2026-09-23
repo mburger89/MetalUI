@@ -673,9 +673,11 @@ private func pFlexible(_ name: String, _ idealW: Double, _ idealH: Double, _ log
 private func pp(_ width: Double?, _ height: Double?) -> ProposedSize { ProposedSize(width: width, height: height) }
 
 @MainActor
-private func render<Root: Element>(_ root: Root, _ width: Float, _ height: Float) -> Frame {
+private func render<Root: Element>(_ root: Root, _ width: Float, _ height: Float,
+                                   authority: LayoutAuthority = .legacy) -> Frame {
     var root = root
-    let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1,
+                      layoutAuthority: authority)
     frame.render(&root)
     return frame
 }
@@ -1401,6 +1403,10 @@ private final class AnswerRecord: @unchecked Sendable {
 
 /// A childless legacy leaf recording its prepaint bounds; `nil` sizes leave
 /// that axis content-sized (0).
+///
+/// **Registers through `Frame`'s internal legacy registrar since stage 6a**
+/// (record §38, disposition P-CSS): it is the legacy arm of three CSS-answer
+/// pins, which pass `.legacy` explicitly so stage 6b's flip cannot reach them.
 private struct LegacyMark: StyledElement {
     let name: String
     let log: Lane4Log
@@ -1417,7 +1423,7 @@ private struct LegacyMark: StyledElement {
     }
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.requestNode(style: style, children: []), ())
+        (pass.frame.requestNode(style: style, children: []), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -1446,13 +1452,15 @@ private func gap(_ log: Lane4Log, horizontal: Bool) throws -> Float {
 /// Legacy: gap 0 on both axes. Proposal: 8 on both. Required to disagree.
 /// Owner: task 7. Green on arrival (a pin). Mutation: `Row`/`Column` default
 /// gap 8 (measured at design time, 22 tests redden; this one among them).
+///
+/// Pinned to the legacy authority by stage 6a (CSS, record §38 §4).
 @MainActor
 @Test func aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight() throws {
     let row = Lane4Log(), column = Lane4Log(), hStack = Lane4Log(), vStack = Lane4Log()
     _ = render(Row { LegacyMark("a", row, width: 20, height: 20); LegacyMark("b", row, width: 20, height: 20) },
-               100, 100)
+               100, 100, authority: .legacy)
     _ = render(Column { LegacyMark("a", column, width: 20, height: 20); LegacyMark("b", column, width: 20, height: 20) },
-               100, 100)
+               100, 100, authority: .legacy)
     _ = render(HStack { pFixed("a", 20, 20, hStack); pFixed("b", 20, 20, hStack) }, 100, 100)
     _ = render(VStack { pFixed("a", 20, 20, vStack); pFixed("b", 20, 20, vStack) }, 100, 100)
 
@@ -1474,10 +1482,13 @@ private func gap(_ log: Lane4Log, horizontal: Bool) throws -> Float {
 /// container's `alignItems` and `justifyItems` to `.stretch` in `Stack.init`
 /// (measured at design time: 7 tests redden and the child reads (0, 0) 100×80;
 /// this pin must be the 8th).
+///
+/// Pinned to the legacy authority by stage 6a (CSS, record §38 §4).
 @MainActor
 @Test func aLegacyStackOffersFitContentWhereAZStackOffersItsProposal() throws {
     let legacy = Lane4Log(), proposal = Lane4Log()
-    _ = render(Stack { LegacyMark("a", legacy); LegacyMark("b", legacy, width: 20, height: 20) }, 100, 80)
+    _ = render(Stack { LegacyMark("a", legacy); LegacyMark("b", legacy, width: 20, height: 20) }, 100, 80,
+               authority: .legacy)
     _ = render(ZStack { pGreedy("a", proposal); pFixed("b", 20, 20, proposal) }, 100, 80)
 
     let legacyA = try #require(legacy.bounds["a"]), proposalA = try #require(proposal.bounds["a"])
@@ -1496,10 +1507,13 @@ private func gap(_ log: Lane4Log, horizontal: Bool) throws -> Float {
 ///
 /// Owner: task 7. Green on arrival (a pin, after lane 4). Mutation: revert lane
 /// 4's cross-axis line (the proposal viewport answers its proposal).
+///
+/// Pinned to the legacy authority by stage 6a (CSS, record §38 §4).
 @MainActor
 @Test func aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents() throws {
     let legacy = Lane4Log(), proposal = Lane4Log()
-    let legacyFrame = render(ScrollView(.vertical) { LegacyMark("c", legacy, width: 50, height: 30) }, 100, 100)
+    let legacyFrame = render(ScrollView(.vertical) { LegacyMark("c", legacy, width: 50, height: 30) }, 100, 100,
+                             authority: .legacy)
     let proposalFrame = render(ProposalScrollView(.vertical) { pFixed("c", 50, 30, proposal) }, 100, 100)
 
     let legacyRegion = try #require(legacyFrame.scrollRegions.first).bounds

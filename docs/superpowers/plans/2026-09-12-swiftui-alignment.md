@@ -590,6 +590,48 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   deletion once their owning stage lands; the real-window capture this stage
   owes stays open until the screen is next unlocked (not owed for acceptance:
   no legacy path changed).
+  *Progress 2026-09-23 on `feat/engine-stage-6a` (from `b3c29b9`, `master`'s
+  tip after the stage-5/portable-text merge), stage 6a of 14, task still
+  open.* Spec `specs/2026-09-23-engine-stage-6a-design.md`; rulings
+  `LR-CT`…`LR-DE` in `../2026-09-17-engine-replacement-decisions.md` (the
+  same doc as stages 1–5); **no new probe** — the stage's only probe,
+  `docs/probes/swift-deprecated-witness-silence.sh`, is a compiler
+  determinism check (a deprecated protocol witness stays silent), not a
+  SwiftUI claim; record §38. **Stage 6a delivered** (a critic round plus
+  three lanes, each with its own mutation table, all verified `ok`): the
+  public `LayoutPass.requestNode`/`requestLeaf` are deprecated and every
+  in-repo test caller — 67 sites in 35 files — moves in the same change,
+  onto `requestNativeLeaf`/a `ProposalLayout` where the test is
+  authority-independent (R) or onto the internal, undeprecated
+  `Frame.requestNode`/`requestLeaf` where the test is about a CSS answer or
+  a root-placement question stage 6b has not ruled yet (P); `Frame`'s
+  internal registrars are untouched — every production site already called
+  them, not the public pair (`LR-R`'s premise was stale). A custom element
+  that still calls the deprecated pair under `.proposal` now traps naming
+  **stage 9**, not stage 6a (`LR-CW`). **The entry measurement** — the
+  default authority and the eight test-helper `.legacy` parameter defaults
+  flipped together, diagnostics on — classifies all 153 resulting reds
+  (X 13 instrument artefacts, D 2, N9 5, RP 54, CE 6, CE+RP 23, AV 5, RT 1,
+  43 CSS rows split six ways, and one previously unattributed row) and
+  hands the table to stage 6b (root placement, ~78 of the reds) and stage
+  7b (the 43 CSS reds) as their own baseline. **Exit criterion met**: 0
+  `warning:` on both build systems with the deprecation in place, and
+  `aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`
+  green. Suite 1640 → **1642** (the exit test plus its plain-import guard),
+  97 goldens unmoved, 77 → **78** guards (`LayoutAuthorityCompileGuards`
+  1 → 2); twelve offscreen demo images 0 differing at every lane; **no
+  real-window capture** (screen locked at every measurement). Lane 3's own
+  verification found one caller misclassified: `FR-P`'s test 2.10 could not
+  see its named mutation under `.proposal` and moves from R to **P-CSS-frame**,
+  owned by 7b (`LR-DE`) — the stage's final split is 11 R, 47 P (17 CE+RP,
+  30 CSS) in the lane-3 files alone. **Not done:** production still runs the
+  legacy authority (stage 6b); root placement (divergence 4 vs `CN-J`) is
+  still unruled and is more than half of what this stage measured;
+  `hidden()`/`display: none` under `.proposal` is owned by **6b** as a
+  prerequisite of its flip (`LR-DA` item 5; `LR-AV` named no stage); the 43 CSS rows (33 of them pinned here)
+  wait for stage 7b; the two P-9 tests, the Dep fixtures, the L fixtures'
+  legacy branches, the Dual elements' legacy branches, `LoweringSite.customElement`
+  and the internal pair itself all wait for stage 9's deletion.
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

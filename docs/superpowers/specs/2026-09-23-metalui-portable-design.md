@@ -1,6 +1,6 @@
 # MetalUI without AppKit or Metal — design
 
-**Status: implemented** on `feat/metalui-portable` (record §38); roadmap
+**Status: implemented** on `feat/metalui-portable` (record §39; written as §38, renumbered when stage 6a took §38); roadmap
 item 9 of `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:**
 `XP-` (`XP-A`…`XP-C`, next `XP-D`; rulings here — `MP-` is the
 measure-performance milestone's).

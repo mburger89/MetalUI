@@ -80,16 +80,19 @@ func emittingAPrimitiveDuringPaintCompiles() throws {
 
 // MARK: - Registering a layout node is legal only in layout
 
+/// Spelled with `requestNativeLeaf` since stage 6a (`LR-CU` item 6): the claim —
+/// `PaintPass` cannot register a node — is unchanged; the registrar named is the
+/// one that survives stage 9's deletion of the legacy pair.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func registeringALayoutNodeDuringPaintDoesNotCompile() throws {
     let result = try typecheck("""
         @MainActor func probe(pass: inout PaintPass) -> LayoutNodeID {
-            pass.requestNode(style: Style(), children: [])
+            pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID
         }
         """, importing: "MetalUI")
     #expect(!result.succeeded,
             "the tree's shape is fixed once layout has run; PaintPass must not extend it")
-    #expect(result.messages.contains("requestNode"),
+    #expect(result.messages.contains("requestNativeLeaf"),
             "rejected, but not for the reason this test is about:\n\(result.output)")
 }
 
@@ -97,7 +100,7 @@ func registeringALayoutNodeDuringPaintDoesNotCompile() throws {
 func registeringALayoutNodeDuringLayoutCompiles() throws {
     let result = try typecheck("""
         @MainActor func probe(pass: inout LayoutPass) -> LayoutNodeID {
-            pass.requestNode(style: Style(), children: [])
+            pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID
         }
         """, importing: "MetalUI")
     #expect(result.succeeded,

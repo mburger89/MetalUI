@@ -1,8 +1,10 @@
-# 38 — MetalUI without AppKit or Metal, 2026-09-23
+# 39 — MetalUI without AppKit or Metal, 2026-09-23
 
 Branch `feat/metalui-portable`, from `feat/sdl-platform` (PR #20, record
 §37). Spec: `docs/superpowers/specs/2026-09-23-metalui-portable-design.md`,
-rulings `XP-A`…`XP-C` (next `XP-D`). Roadmap item 9.
+rulings `XP-A`…`XP-C` (next `XP-D`). Roadmap item 9. Written as §38 and
+renumbered 38→39 when plan task 7 stage 6a reached `master` first with its own
+§38 (the precedent: record §23 §8, §25, §27, §29).
 
 ## What changed
 

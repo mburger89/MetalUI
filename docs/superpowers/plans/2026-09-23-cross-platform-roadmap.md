@@ -85,7 +85,7 @@ Apple-bound:
    Apple dependencies appended on macOS; `App(platform:textSystem:)`; the
    demo's whole frame pinned across platforms and equal on Linux.
    `feat/metalui-portable`, spec `specs/2026-09-23-metalui-portable-design.md`
-   (`XP-`), record §38.
+   (`XP-`), record §39.
 
 ### End to end
 
@@ -93,7 +93,7 @@ Apple-bound:
     rebuilds the demo natively and matches macOS's Metal frame (scene
     byte-for-byte, pixels within parity) on llvmpipe and WARP.
     `feat/demo-cross-platform`, spec
-    `specs/2026-09-23-demo-cross-platform-design.md` (`DC-`), record §39.
+    `specs/2026-09-23-demo-cross-platform-design.md` (`DC-`), record §40.
 
 ### After the demo runs
 

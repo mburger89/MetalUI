@@ -1,7 +1,7 @@
-# 39 — The demo on Linux and Windows, 2026-09-23
+# 40 — The demo on Linux and Windows, 2026-09-23
 
 Branch `feat/demo-cross-platform`, from `feat/metalui-portable` (PR #21,
-record §38). Spec: `docs/superpowers/specs/2026-09-23-demo-cross-platform-design.md`,
+record §39). Spec: `docs/superpowers/specs/2026-09-23-demo-cross-platform-design.md`,
 rulings `DC-A`…`DC-C` (next `DC-D`). Roadmap item 10.
 
 ## What changed

@@ -29,7 +29,12 @@ private func child(_ parent: GlobalElementID, _ index: Int) -> GlobalElementID {
 
 /// A custom element outside the stage-1 lowering table: it registers through the
 /// public legacy `requestNode`, which reports `customElement` (ruling LR-C).
+///
+/// **Spelled with the deprecated registrar on purpose since stage 6a** (record
+/// §38, disposition Dep, `LR-CV`): the public registrar is its subject, and a
+/// deprecated witness is not diagnosed at the call site.
 private struct CustomNodeElement: Element {
+    @available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: it is the subject of aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority and everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn, which read the customElement report (stage 6a, LR-CV)")
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
         (pass.requestNode(style: Style(), children: []), ())
     }
@@ -41,6 +46,7 @@ private struct CustomNodeElement: Element {
 
 /// As `CustomNodeElement`, through the public legacy `requestLeaf`.
 private struct CustomLeafElement: Element {
+    @available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: it is the subject of aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority and everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn, which read the customElement report (stage 6a, LR-CV)")
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
         (pass.requestLeaf(style: Style()) { _, _ in SizeD(width: 10, height: 10) }, ())
     }
@@ -165,6 +171,164 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     #expect(leafErr.contains("customElement.requestLeaf has no proposal lowering"),
             "aborted, but not at the custom element's requestLeaf check:\n\(leafErr)")
 }
+
+// MARK: - Stage 6a — the deprecated registrars (spec §8, rulings LR-CV, LR-CW, LR-CX)
+
+/// The nodes a `DeprecatedRegistrarRow` or `InternalRegistrarRow` registered, so
+/// the exit test can read their rects off the frame's tree.
+@MainActor private final class RegistrarLog {
+    var leaf: LayoutNodeID?
+    var node: LayoutNodeID?
+}
+
+/// The three registrations both stage 6a fixtures make: a 40×10 node, and a
+/// 200×100 root row aligned `flexStart` over the two children in registration
+/// order. The 30×20 leaf's measure is spelled at each call site.
+private func registrarNodeStyle() -> Style {
+    var style = Style()
+    style.size = Size(width: .length(.pixels(Pixels(40))), height: .length(.pixels(Pixels(10))))
+    return style
+}
+
+private func registrarRootStyle() -> Style {
+    var style = Style()
+    style.flexDirection = .row
+    style.alignItems = .flexStart
+    style.size = Size(width: .length(.pixels(Pixels(200))), height: .length(.pixels(Pixels(100))))
+    return style
+}
+
+/// **A custom element on the deprecated public registrars**, both of them, as a
+/// caller outside the package still spells one after stage 6a: a leaf through
+/// `requestLeaf`, a node and a root through `requestNode`. `leafFirst` picks
+/// which child registers first, so the trap half can name each registrar.
+private struct DeprecatedRegistrarRow: Element {
+    var leafFirst = true
+    var log: RegistrarLog?
+
+    @available(*, deprecated, message: "exercises the deprecated registrars on purpose: it is the subject of aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne (stage 6a, LR-CV)")
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        let children: [LayoutNodeID]
+        if leafFirst {
+            let leaf = pass.requestLeaf(style: Style()) { _, _ in SizeD(width: 30, height: 20) }
+            let node = pass.requestNode(style: registrarNodeStyle(), children: [])
+            log?.leaf = leaf
+            log?.node = node
+            children = [leaf, node]
+        } else {
+            let node = pass.requestNode(style: registrarNodeStyle(), children: [])
+            let leaf = pass.requestLeaf(style: Style()) { _, _ in SizeD(width: 30, height: 20) }
+            log?.leaf = leaf
+            log?.node = node
+            children = [node, leaf]
+        }
+        return (pass.requestNode(style: registrarRootStyle(), children: children), ())
+    }
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                           pass: inout PrepaintPass) {}
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                        prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// `DeprecatedRegistrarRow`'s **oracle**: the same three registrations through
+/// `Frame`'s internal, undeprecated registrars — what the public pair forwards
+/// to under the legacy authority (`Passes.swift`).
+private struct InternalRegistrarRow: Element {
+    var log: RegistrarLog?
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        let leaf = pass.frame.requestLeaf(style: Style()) { _, _ in SizeD(width: 30, height: 20) }
+        let node = pass.frame.requestNode(style: registrarNodeStyle(), children: [])
+        log?.leaf = leaf
+        log?.node = node
+        return (pass.frame.requestNode(style: registrarRootStyle(), children: [leaf, node]), ())
+    }
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                           pass: inout PrepaintPass) {}
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                        prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **Stage 6a's exit test** (spec §8, `LR-CX`): the public `requestNode` and
+/// `requestLeaf`, deprecated, still lay out under the legacy authority exactly as
+/// `Frame`'s internal registrars do, and still trap under the proposal authority,
+/// naming the registrar and **stage 9** (`LR-CW`: a custom element is removed
+/// from the proposal authority, not lowered).
+///
+/// - **Legacy half.** A 200×100 `.legacy` frame over `DeprecatedRegistrarRow`
+///   and over its oracle `InternalRegistrarRow`: the two children's rects agree,
+///   and the `#require`s make the agreement non-vacuous (neither is 0×0, and they
+///   differ from each other). Hand-derived and confirmed by a run: the leaf at
+///   (0, 0) 30×20, the node after it at (30, 0) 40×10 — a `flexStart` row.
+/// - **Trap half.** Two child processes, each a **production** `.proposal`
+///   frame (no diagnostics): with the leaf registered first the process aborts
+///   naming `customElement.requestLeaf`, with the node first naming
+///   `customElement.requestNode`, both `(plan task 7, stage 9)`.
+///
+/// **Red before** (at lane 3's red-first commit): the trap half only — the
+/// message said `stage 6a` until `owningStage` moved. **The legacy half has no
+/// red-before**: it passes at `b3c29b9`, because the stage's change on the
+/// legacy path is the `@available` attribute, which only the plain-import guard
+/// `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` can see.
+///
+/// Mutations that must redden it (record §38 §10): **M3c**, the legacy
+/// `requestNode` forwarder registers `Style()` in place of `style` (legacy
+/// half); **M3d**, the legacy `requestLeaf` forwarder passes a 0×0 measure
+/// (legacy half); **M3e**, the proposal forwarder skips its report and calls
+/// `frame.requestNode` (trap half); **M3f**, `owningStage` for
+/// `.customElement` back to `"6a"` (trap half only).
+@Test func aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne() async throws {
+    typealias Rects = (leaf: LayoutRect, node: LayoutRect)
+    let (deprecated, oracle) = try await MainActor.run { () throws -> (Rects, Rects) in
+        @MainActor func rects(_ log: RegistrarLog, _ frame: Frame) throws -> Rects {
+            (frame.tree.layout(try #require(log.leaf)), frame.tree.layout(try #require(log.node)))
+        }
+        let deprecatedLog = RegistrarLog()
+        var deprecatedRoot = DeprecatedRegistrarRow(leafFirst: true, log: deprecatedLog)
+        let deprecatedFrame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                                    layoutAuthority: .legacy)
+        deprecatedFrame.render(&deprecatedRoot)
+
+        let oracleLog = RegistrarLog()
+        var oracleRoot = InternalRegistrarRow(log: oracleLog)
+        let oracleFrame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                                layoutAuthority: .legacy)
+        oracleFrame.render(&oracleRoot)
+        return (try rects(deprecatedLog, deprecatedFrame), try rects(oracleLog, oracleFrame))
+    }
+    try #require(oracle.leaf.width > 0 && oracle.leaf.height > 0 && oracle.node.width > 0 && oracle.node.height > 0,
+                 "the oracle's children must have a size, or equality is vacuous: \(oracle)")
+    try #require(oracle.leaf != oracle.node, "the oracle's two children must differ: \(oracle)")
+    #expect(deprecated.leaf == oracle.leaf,
+            "the deprecated requestLeaf must register what Frame.requestLeaf does: \(deprecated.leaf) vs \(oracle.leaf)")
+    #expect(deprecated.node == oracle.node,
+            "the deprecated requestNode must register what Frame.requestNode does: \(deprecated.node) vs \(oracle.node)")
+    #expect(oracle.leaf == LayoutRect(x: 0, y: 0, width: 30, height: 20), "oracle leaf \(oracle.leaf)")
+    #expect(oracle.node == LayoutRect(x: 30, y: 0, width: 40, height: 10), "oracle node \(oracle.node)")
+
+    let leaf = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var root = DeprecatedRegistrarRow(leafFirst: true)
+            Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                  layoutAuthority: .proposal).render(&root)
+        }
+    }
+    let leafErr = String(decoding: leaf?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(leafErr.contains("MetalUI: customElement.requestLeaf has no proposal lowering (plan task 7, stage 9)"),
+            "aborted, but not at the deprecated requestLeaf's stage 9 report:\n\(leafErr)")
+
+    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var root = DeprecatedRegistrarRow(leafFirst: false)
+            Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                  layoutAuthority: .proposal).render(&root)
+        }
+    }
+    let nodeErr = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(nodeErr.contains("MetalUI: customElement.requestNode has no proposal lowering (plan task 7, stage 9)"),
+            "aborted, but not at the deprecated requestNode's stage 9 report:\n\(nodeErr)")
+}
+
 
 /// **1.4** (exit test). A modified `Component` in a **production** proposal
 /// frame completes — `EXIT_SUCCESS` and an empty stderr — where before stage

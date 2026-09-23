@@ -65,10 +65,12 @@ import MetalUIRender
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
 
-private func leafStyle() -> Style {
-    var style = Style()
-    style.size = Size(width: .length(.pixels(px(10))), height: .length(.pixels(px(10))))
-    return style
+/// The fixtures' 10×10 leaf. Registered natively since stage 6a (record §38,
+/// disposition R): these tests are about `@State`, not the leaf's layout, so a
+/// test whose tree holds a legacy container runs under the proposal authority.
+@MainActor
+private func leafNode(_ pass: LayoutPass) -> LayoutNodeID {
+    pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID
 }
 
 /// One `@State` slot that increments itself every `requestLayout`, the same
@@ -81,7 +83,7 @@ private struct CounterElement: Element {
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Int) {
         count += 1
-        return (pass.requestNode(style: leafStyle(), children: []), 0)
+        return (leafNode(pass), 0)
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -105,7 +107,7 @@ private struct ConditionalReadElement: Element {
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Int) {
         if touch { count = 42 }
-        return (pass.requestNode(style: leafStyle(), children: []), 0)
+        return (leafNode(pass), 0)
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -125,7 +127,7 @@ private struct ReflectOnceElement: Element {
     var elementID: ElementID?
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Int) {
-        (pass.requestNode(style: leafStyle(), children: []), 0)
+        (leafNode(pass), 0)
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -146,7 +148,7 @@ private struct ReflectOnceElement: Element {
     var tree = Box(content: CounterElement(elementID: ElementID("counter")))
 
     for _ in 0..<3 {
-        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&tree)
     }
 
     #expect(tree.content.count == 3)
@@ -188,7 +190,7 @@ private struct ReflectOnceElement: Element {
     var tree = Box(content: ArrayGroup((0..<40).map { _ in ReflectOnceElement() }))
 
     for _ in 0..<2 {
-        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&tree)
     }
 
     #expect(StateBinder.reflectionCount == 2)
@@ -232,7 +234,7 @@ private struct TwoOrdinalElement: Element {
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Int) {
         first = 11
         second = 22
-        return (pass.requestNode(style: leafStyle(), children: []), 0)
+        return (leafNode(pass), 0)
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

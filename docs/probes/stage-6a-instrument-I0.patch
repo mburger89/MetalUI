@@ -1,0 +1,23 @@
+diff --git a/Sources/MetalUI/Frame.swift b/Sources/MetalUI/Frame.swift
+index bc73de7..ff58178 100644
+--- a/Sources/MetalUI/Frame.swift
++++ b/Sources/MetalUI/Frame.swift
+@@ -1533,7 +1533,7 @@ public final class Frame {
+     /// argument (ruling LR-C). For a site that registers nothing in place of the
+     /// field — `StyledComponent`'s amend — this is the whole check.
+     func noteUnlowerable(_ field: UnlowerableField) {
+-        guard reportsUnlowerableFields else { preconditionFailure(field.trapMessage) }
++        if !reportsUnlowerableFields { print("SIXA-WOULD-TRAP: \(field)") }
+         unlowerableFields.append(field)
+     }
+ 
+@@ -1582,7 +1582,8 @@ public final class Frame {
+ 
+     /// `requestNode`/`requestLeaf`'s backstop under the proposal authority.
+     private func unguardedLegacyRegistration(_ registrar: String) -> LayoutNodeID {
+-        precondition(reportsUnlowerableFields, """
++        if !reportsUnlowerableFields { print("SIXA-WOULD-TRAP: backstop \(registrar)") }
++        precondition(true, """
+             MetalUI: Frame.\(registrar) reached under the proposal layout authority by a \
+             site that did not check the authority itself (plan task 7, ruling LR-C).
+             """)
