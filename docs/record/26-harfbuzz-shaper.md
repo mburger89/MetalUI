@@ -330,3 +330,7 @@ Measured in this worktree at `ce1088e`, clean tree, this session:
 
 Renumbered from §25 to §26 at merge (2026-09-22): `master` had meanwhile
 taken §25 for engine stage 3.
+
+Re-taken on the merged tree with `master` (clean native build): 1595 tests
+(1580 + 15), 97 goldens unmoved against `b10594c`, 77 guards, 0 errors,
+0 warnings.

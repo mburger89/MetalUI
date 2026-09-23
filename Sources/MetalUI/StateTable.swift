@@ -241,7 +241,7 @@ final class StateTable {
     /// `Style.overflow` shape: a production write with no production read.
     ///
     /// **Deliberately NOT raised by `withState`.** `ScrollView`'s per-frame
-    /// offset bookkeeping (`resolvedOffset`, `ScrollView.swift`) goes through
+    /// offset bookkeeping (`ScrollChrome.resolvedOffset`) goes through
     /// `withState` on every render, scrolled or not — if that raised this
     /// flag, every frame would mark it dirty, which would defeat the point
     /// of an observable meant to distinguish a `@State` write from routine

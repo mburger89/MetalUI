@@ -402,7 +402,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   rulings `LR-A`…`LR-AA` in `../2026-09-17-engine-replacement-decisions.md`;
   probe `docs/probes/swiftui-engine-replacement-stage1.swift` (revision 2);
   record §18. **Stages:** 1 lowering foundation; 2 flex-item semantics onto
-  SwiftUI's; 3 `ScrollView` and `Component` distribution; 4 windowed proposal
+  SwiftUI's; 3 `ScrollView` and `Component` distribution (delivered
+  2026-09-22); 4 windowed proposal
   `List`; 5 `Deferred` presentation and absolute positioning; G grids (delivered
   2026-09-21), G2 lazy grids after stage 4; 6a custom
   elements and the public legacy registrars deprecated; 6b the root switch
@@ -474,6 +475,37 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out of scope and proposed as **stage
   G2, after stage 4**, which owns the windowing they need (`GR-L`); no human has
   looked at a grid on screen (task 15's closeout, `GR-N`).
+  *Progress 2026-09-22 on `feat/engine-stage-3` (`ca7272a` through the
+  Docs-phase commit, from `57893d0`), stage 3 of 14, task still open.* Spec
+  `specs/2026-09-22-engine-stage-3-design.md`; rulings `LR-BB`…`LR-BP` in
+  `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages 1 and
+  2); probe `docs/probes/swiftui-engine-replacement-stage3.swift` (revision 2,
+  groups V and W); record §25. **Stage 3 delivered** (five lanes, each with its
+  own mutation table, all verified `ok`, thirteen minors all dispositioned):
+  `ScrollView` lowers onto the kernel scroll viewport with stage 2's container
+  lowering as its content and the viewport as its own item record; the lowered
+  viewport fills its proposal on the scrolling axis, and divergence 54
+  **survives** the lowering (pinned as a literal) rather than closing;
+  `ProposalScrollView`'s private clamp and indicator fold into one shared
+  `ScrollChrome`, the stage's only production-path edit; `$anim-content`,
+  `$anim-viewport` and `ScrollContext` publication are unchanged, and `List`
+  still windows against the published context; a `Component` amend lowers to one
+  per-member native frame aligned per axis and a `.frame` layer over several
+  members to a row of per-member frames, which is SwiftUI's answer to
+  divergences 48 and 56 under the proposal authority. **Exit criterion met**:
+  `ScrollRoutingTests` + `ScrollIndicatorTests` + `ScrollViewTests` run 34
+  scenarios under **both** authorities, their 9 custom registrations re-spelled
+  as native probe leaves, with a roll call that names any scenario that stops
+  participating — inverting the lowered viewport's axis reddens 20 of the 34, on
+  the proposal arm only. Suite 1550 → **1572**, 97 goldens unmoved, 77 guards
+  (none added); twelve offscreen demo images 0 differing at every lane and twice
+  more in verification, once with an independently written harness; **no
+  real-window capture** (screen locked throughout, `FR-V`). **Not done:**
+  production still runs the legacy authority (stage 6b); `List` windowing under
+  the proposal authority is stage 4's and is checked only under the legacy one
+  here; an `…unconsumed` regression now truncates the suite instead of failing
+  by name; `ProposalScrollView` still publishes no `ScrollContext` and never
+  animates (stage 11 / task 10).
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

@@ -446,10 +446,14 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
 /// `MetalUIDemoContent`** (ruling LR-S), at 920×560 in the harness root under
 /// diagnostics, animation off.
 ///
-/// **1. The report, exactly.** Modal off: `[list.noLowering, scrollView.noLowering]`;
-/// modal on: `[stack.position, stack.inset, list.noLowering, scrollView.noLowering]`.
-/// No stage-2 field and no `…unconsumed` entry: every item field the demo declares
-/// lowers (grow, stretch, `alignSelf`, the scroller box's zero basis and minimum, the
+/// **1. The report, exactly.** Modal off: `[list.noLowering]`; modal on:
+/// `[stack.position, stack.inset, list.noLowering]`. Since stage 3's lane 2
+/// (`LR-BB`) `scrollView.noLowering` is gone from both, and **nothing replaces
+/// it**: the demo's scroller declares no field the lowering cannot take, its
+/// content node's record is left unconsumed with every item field at its default,
+/// and `flexShrink: 0` is deliberately not carried onto it. No stage-2 field and
+/// no `…unconsumed` entry either: every item field the demo declares lowers
+/// (grow, stretch, `alignSelf`, the scroller box's zero basis and minimum, the
 /// `List` spacer's `flexShrink(0)` on a declared height).
 ///
 /// **2. Every disagreement, with its cause** (modal off: 2036 ids, 6 agreeing — the
@@ -468,8 +472,8 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
 /// | **R** the harness root offers its proposal (divergence 53) and the demo's greedy column fills it | stack-algorithms A5; stage-2 X4, X18 | `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent`, 1.7, 2.10 | outer padding layer 920×439 → 920×560; outer column 888×407 → 888×528; body row 888×310 → 888×431; the sidebar's and main pane's layers' and the main column's heights; the scroller `Box`'s height 0 → 73 |
 /// | **55** a declared 196 sidebar is served first where CSS shrinks it to 88 | F5; stack-algorithms G9, G4r | 2.9 | sidebar layer 88 → 196 wide; its column, "Library" and the four bars 60 → 168 wide; main-pane layer x 116 → 224, 788 → 680 wide; main column 756 → 648; every main-pane descendant x + 108; "Text renders" 756 → 648 wide; the paragraph 756×48 → 648×64; the scroller `Box` y 439 → 455 |
 /// | **X9** a stretched single-child container does not stretch its child (`LR-AC`) | X9 | 1.3 | the sidebar column 282 → 160 tall |
-/// | **3** `ScrollView` has no lowering | — (site-level) | stage 3 | the `ScrollView` (420×0 → 0×0 at the box's origin) |
-/// | **4** `List` has no lowering | — (site-level) | stage 4 | the `List` (420×14000 → 0×0 at 0, 0) and its row `Box` (420×0 → 0×0) |
+/// | **3** the lowered viewport fills its proposal (`LR-BC`) | stage-3 V1–V4; A7, A10, A11 | stage 3, lane 2 | the `ScrollView` 420×0 → 0×**73**, the 73 being cause **R**'s own 73 arriving one level deeper (the scroller `Box`'s new height) |
+/// | **4** `List` has no lowering | — (site-level) | stage 4 | the `List` (420×14000 → 0×14000) and its row `Box` (420×0 → 0×0), both now at the viewport's origin. **The three widths stay 0** because the `List` reports and builds no rows, so the viewport's non-scrolling axis — its content's answer (`CN-M`) — is the empty content's 0. That half is stage 4's |
 ///
 /// **Measured first against the prediction** (prototype P3 and scratch R2, record
 /// §21): identical in both modal states, every pair (record §21, lane 2).
@@ -482,7 +486,10 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
 /// Mutations that must redden it: **M1a** (stretch not aliased), **M2a** (grow on the
 /// cross axis), **M1d** (the elision removed: the X9 row moves), **M2k** (cause R's
 /// rows move), **M1m′** (only if the demo reaches a `noLowering` site's records —
-/// recorded either way), **M5c′** (the `flexGrow.weights` check always reporting).
+/// recorded either way), **M5c′** (the `flexGrow.weights` check always reporting);
+/// and, from stage 3's lane 2, **M2a** (the viewport a plain native leaf: the 73
+/// collapses) and **M2d** (`flexShrink: 0` carried onto the lowered content style:
+/// `scrollView.flexShrink.unconsumed` joins the report).
 @MainActor
 @Test func theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn() throws {
     func entry(_ site: LoweringSite, _ field: String) -> UnlowerableField {
@@ -491,8 +498,7 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
     demoModel.animationDemoActive = false
     demoModel.showModal = false
     let report = LayoutDifferential.compare(width: 920, height: 560) { demoContent() }
-    #expect(report.unlowerable == [entry(.list, "noLowering"), entry(.scrollView, "noLowering")],
-            "\(report.unlowerable)")
+    #expect(report.unlowerable == [entry(.list, "noLowering")], "\(report.unlowerable)")
     try #require(report.elements == 2036, "\(report.elements)")
     #expect(report.agreeing.count == 6 && report.legacyOnly.count == 2000 && report.loweredOnly.isEmpty,
             "agreeing \(report.agreeing.count) legacyOnly \(report.legacyOnly.count) loweredOnly \(report.loweredOnly.count)")
@@ -584,10 +590,15 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
          bounds(240, loweredParagraphY, 648, loweredParagraph)),
         (scrollerBox, bounds(132, legacyScrollerY, 420, 0),
          bounds(240, loweredScrollerY, 420, 129 + loweredMain - loweredScrollerY)),
-        // 3 and 4, site-level
-        (scroll, bounds(132, legacyScrollerY, 420, 0), bounds(240, loweredScrollerY, 0, 0)),
-        (child(scroll, 0), bounds(132, legacyScrollerY, 420, 14000), bounds(0, 0, 0, 0)),
-        (child(child(scroll, 0), 0), bounds(132, legacyScrollerY, 420, 0), bounds(0, 0, 0, 0)),
+        // 3 (the lowered viewport, stage 3 lane 2) and 4 (`List`, site-level).
+        // The viewport takes the scroller `Box`'s own height and its subtree
+        // moves to its origin; every width stays 0 until the `List` lowers.
+        (scroll, bounds(132, legacyScrollerY, 420, 0),
+         bounds(240, loweredScrollerY, 0, 129 + loweredMain - loweredScrollerY)),
+        (child(scroll, 0), bounds(132, legacyScrollerY, 420, 14000),
+         bounds(240, loweredScrollerY, 0, 14000)),
+        (child(child(scroll, 0), 0), bounds(132, legacyScrollerY, 420, 0),
+         bounds(240, loweredScrollerY, 0, 0)),
     ]
     try #require(expected.count == 30)
     // The predictions the derivations must reproduce (P3, R2; record §21).
@@ -610,7 +621,7 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
     defer { demoModel.showModal = false }
     let modal = LayoutDifferential.compare(width: 920, height: 560) { demoContent() }
     #expect(modal.unlowerable == [entry(.stack, "position"), entry(.stack, "inset"),
-                                  entry(.list, "noLowering"), entry(.scrollView, "noLowering")],
+                                  entry(.list, "noLowering")],
             "\(modal.unlowerable)")
     try #require(modal.elements == 2042, "\(modal.elements)")
     #expect(Set(modal.agreeing) == agreeingExpected)
@@ -620,12 +631,28 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
     for id in [deferred, stack, card, column, child(column, 0), child(column, 1)] {
         #expect(modalPairs[id] != nil, "modal id \(id)")
     }
+    // **Two of the scroll subtree's lowered widths change with the modal on, and
+    // the cause is stage 2's single-child stretch elision, not the modal.** The
+    // `Deferred` contributes no node of its own but hands its child's node
+    // straight up, so with the modal on the lowered content node has **two**
+    // children instead of one. The elision (`LR-AC`) only applies to a single
+    // child under a parent with no declared cross size, so both children are now
+    // stretched: the `List` gets a greedy item frame and reads the 420 its
+    // scroller was proposed, and the content stack — and therefore the viewport's
+    // non-scrolling axis (`CN-M`) — reads 420 with it. The `List`'s row `Box`
+    // stays 0×0 because the `List` still reports and still builds no rows.
+    let modalLowered: [GlobalElementID: Bounds<Pixels>] = [
+        scroll: bounds(240, loweredScrollerY, 420, 129 + loweredMain - loweredScrollerY),
+        child(scroll, 1): bounds(240, loweredScrollerY, 420, 14000),
+        child(child(scroll, 1), 0): bounds(240, loweredScrollerY, 0, 0),
+    ]
     for row in expected {
         // The `List` and its row box sit one index later, after the `Deferred`.
         let id = row.id == child(scroll, 0) ? child(scroll, 1)
             : row.id == child(child(scroll, 0), 0) ? child(child(scroll, 1), 0) : row.id
         let got = modalPairs[id]
-        #expect(got?.0 == row.legacy && got?.1 == row.lowered,
-                "modal \(id): expected \(row.legacy) → \(row.lowered), got \(String(describing: got))")
+        let lowered = modalLowered[id] ?? row.lowered
+        #expect(got?.0 == row.legacy && got?.1 == lowered,
+                "modal \(id): expected \(row.legacy) → \(lowered), got \(String(describing: got))")
     }
 }

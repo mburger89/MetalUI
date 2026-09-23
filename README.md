@@ -108,9 +108,10 @@ swift build
 swift test --no-parallel
 ```
 
-On `integrate/stage-2-grids` (2026-09-21, plan task 7 stages 2 and G merged)
-the suite reports **1548 tests**. That total includes **97** layout goldens
-generated from WebKit and **75** `swiftc -typecheck` guards.
+On `integrate/stage-3` (2026-09-22 — plan task 7 stage 3 merged with the
+FreeType rasterizer line) the suite reports **1580 tests**, in one summary
+line over two suites. That total includes **97** layout goldens
+generated from WebKit and **77** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them.
@@ -310,11 +311,16 @@ transforms, and text colour animation.
   for its second and [`22-grids.md`](docs/record/22-grids.md) for its grids
   stage, and
   [`23-integration-stage-2-grids.md`](docs/record/23-integration-stage-2-grids.md)
-  for their integration. Two files are not task tracks:
+  for their integration, and
+  [`25-engine-replacement-stage-3.md`](docs/record/25-engine-replacement-stage-3.md)
+  for its third stage — scrolling and `Component` distribution. Three files are
+  not task tracks:
   [`19-claude-md-full-2026-09-21.md`](docs/record/19-claude-md-full-2026-09-21.md)
-  is the root `CLAUDE.md` as it read before it was cut to rules only, and
+  is the root `CLAUDE.md` as it read before it was cut to rules only,
   [`20-portable-scene.md`](docs/record/20-portable-scene.md) is the
-  `MetalUIScene` move.
+  `MetalUIScene` move, and
+  [`24-freetype-rasterizer.md`](docs/record/24-freetype-rasterizer.md) is the
+  FreeType rasterizer (`MetalUIFreeType`).
 - [`docs/superpowers/`](docs/superpowers/) — a decisions document per
   completed milestone, each ruling with its reasoning and what it costs if wrong.
 - SwiftUI alignment:
@@ -335,10 +341,12 @@ transforms, and text colour animation.
   - [containers spec](docs/superpowers/specs/2026-09-16-containers-design.md)
     (plan task 6, done: the legacy containers are audited; replacing them is task 7)
   - [engine replacement spec](docs/superpowers/specs/2026-09-17-engine-replacement-design.md)
-    and its [stage 2 spec](docs/superpowers/specs/2026-09-17-engine-stage-2-design.md)
-    (plan task 7, stages 1 and 2 of 14 landed: legacy elements lower onto the
-    kernel under an internal proposal authority, with SwiftUI's flex-item
-    semantics; production still uses the CSS engine)
+    and its [stage 2](docs/superpowers/specs/2026-09-17-engine-stage-2-design.md)
+    and [stage 3](docs/superpowers/specs/2026-09-22-engine-stage-3-design.md)
+    specs (plan task 7, stages 1, 2, G and 3 of 14 landed: legacy elements
+    lower onto the kernel under an internal proposal authority, with SwiftUI's
+    flex-item semantics, scrolling and `Component` distribution; production
+    still uses the CSS engine)
   - [grids spec](docs/superpowers/specs/2026-09-17-grids-design.md)
     (plan task 7 stage G, delivered: SwiftUI's `Grid` and `GridRow` on the
     proposal path as a kernel node; lazy grids are proposed as stage G2)

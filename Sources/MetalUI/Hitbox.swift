@@ -82,7 +82,7 @@ struct Hitbox {
     /// the axis cannot be recovered from elsewhere: the scroller's id is
     /// `Hitbox.id` already, and the content and viewport extents are not read
     /// here at all — `Window.applyScroll` deliberately writes unbounded and
-    /// leaves the clamp to `ScrollView.resolvedOffset`, which has the layout
+    /// leaves the clamp to `ScrollChrome.resolvedOffset`, which has the layout
     /// this list does not. Declaring extents nobody reads would be a row in
     /// CLAUDE.md's declared-but-inert table on the day it landed.
     ///

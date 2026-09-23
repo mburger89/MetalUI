@@ -215,16 +215,17 @@ extension LayoutPass {
     ///   lowers through `lowerLegacyNode` at site `modifierLayer`: native padding
     ///   over the child, and whatever a caller's `Self`-returning modifier wrote on
     ///   the layer is checked by the container table.
-    /// - A **`.frame` layer** lowers to ONE native frame (ruling LR-H): fixed
-    ///   `width`/`height`, and finite minima and maxima, from the **animated**
-    ///   style's fields that `FrameSpec.style()` wrote (`size`, `minSize`,
-    ///   `maxSize`), so an animated frame lays out its interpolated value; ideals,
-    ///   infinite maxima and the alignment from `frameSpec`, which `Style` cannot
-    ///   carry. The kernel frame is SwiftUI's (`FR-A`/`FR-M`): a finite maximum is
-    ///   greedy and a single infinite maximum fills its axis (spec 4.5), where the
+    /// - A **`.frame` layer** lowers to ONE native frame **per child node** (rulings
+    ///   LR-H, LR-BH): fixed `width`/`height`, and finite minima and maxima, from the
+    ///   **animated** style's fields that `FrameSpec.style()` wrote (`size`,
+    ///   `minSize`, `maxSize`), so an animated frame lays out its interpolated value;
+    ///   ideals, infinite maxima and the alignment from `frameSpec`, which `Style`
+    ///   cannot carry. The kernel frame is SwiftUI's (`FR-A`/`FR-M`): a finite maximum
+    ///   is greedy and a single infinite maximum fills its axis (spec 4.5), where the
     ///   legacy layer clamps (`FR-E`) or is inert (`FR-O`). Over no node the frame
-    ///   wraps a 0×0 native leaf. What cannot be lowered is reported by
-    ///   `legacyFrameLayerDiagnostics`.
+    ///   wraps a 0×0 native leaf; over **several** — a multi-member `Component`,
+    ///   divergence 56 — the per-member frames are rowed horizontally at spacing 0.
+    ///   What cannot be lowered is reported by `legacyFrameLayerDiagnostics`.
     func lowerLegacyLayer(_ layer: ModifierLayer, declared: Style,
                           children: [LayoutNodeID]) -> LayoutNodeID {
         guard let spec = layer.frameSpec else {
@@ -234,20 +235,28 @@ extension LayoutPass {
         let received = children.map { frame.lowering.consume($0) }
         var fields = legacyFrameLayerDiagnostics(layer, declared: declared, childCount: children.count)
         if declared.display == .none { return report(fields) }
-        // A frame over one node is a stack (`CN-N`): it stretches nothing (its
-        // `FrameSpec.style()` alignment is never `stretch`) and ignores its child's
-        // flex fields; a child's `minSize`, `maxSize` or `margin` still reports.
-        var plans: [LegacyItemPlan] = received.map { _ in LegacyItemPlan() }
-        if children.count == 1 {
-            plans = planLegacyItems(received, parent: declared, parentKind: .stack, parentSite: .modifierLayer,
-                                    fields: &fields)
-        }
+        // A frame is a stack (`CN-N`): it stretches nothing (its `FrameSpec.style()`
+        // alignment is never `stretch`) and ignores its children's flex fields. A
+        // child's `maxSize` off a greedy axis still reports and a `minSize` on an
+        // `auto` axis still becomes W's minimum; its **margin** does NOT report — a
+        // stack or frame-layer parent drops it outright (`LR-AZ`), as this comment
+        // used to say it did not. Same for `flexGrow`, `flexShrink`, `flexBasis` and
+        // `alignSelf`: consumed and dropped, which `loweredComponentFrame` inherits
+        // by planning the same way (`LR-BO`).
+        //
+        // **Planned for EVERY child count, not only one** (`LR-BH` as amended):
+        // `received` is consumed above whatever the count, so a `count > 1` arm that
+        // left the plans at their defaults would drop every member's item fields
+        // with no diagnostic — `reportUnconsumedLoweredItems` skips a consumed
+        // record. Before this stage the `frame.multipleNodes` row short-circuited
+        // ahead of it and the hole could not be reached.
+        let plans = planLegacyItems(received, parent: declared, parentKind: .stack,
+                                    parentSite: .modifierLayer, fields: &fields)
         if !fields.isEmpty {
             return recordLoweredItem(report(fields), animated: layer.style, declared: declared,
                                      site: .modifierLayer, contentAlignment: spec.alignment, kind: .frameLayer)
         }
-        let child = registerLegacyItems(children, plans).first
-            ?? frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
+        let items = registerLegacyItems(children, plans)
         let style = layer.style
         // A bound `FrameSpec.style()` wrote, read back from the animated style;
         // the declared style equals `style()`'s (the check above), so the case is a
@@ -262,17 +271,34 @@ extension LayoutPass {
             guard let declared else { return nil }
             return declared.value.isFinite ? bound(declared, dimension) : Double(declared.value)
         }
-        let node = frame.requestNativeFrame(
-            child: child,
-            width: bound(spec.width, style.size.width),
-            height: bound(spec.height, style.size.height),
-            minWidth: bound(spec.minWidth, style.minSize.width),
-            idealWidth: spec.idealWidth.map { Double($0.value) },
-            maxWidth: maximum(spec.maxWidth, style.maxSize.width),
-            minHeight: bound(spec.minHeight, style.minSize.height),
-            idealHeight: spec.idealHeight.map { Double($0.value) },
-            maxHeight: maximum(spec.maxHeight, style.maxSize.height),
-            alignment: spec.alignment)
+        func framed(_ child: LayoutNodeID) -> LayoutNodeID {
+            frame.requestNativeFrame(
+                child: child,
+                width: bound(spec.width, style.size.width),
+                height: bound(spec.height, style.size.height),
+                minWidth: bound(spec.minWidth, style.minSize.width),
+                idealWidth: spec.idealWidth.map { Double($0.value) },
+                maxWidth: maximum(spec.maxWidth, style.maxSize.width),
+                minHeight: bound(spec.minHeight, style.minSize.height),
+                idealHeight: spec.idealHeight.map { Double($0.value) },
+                maxHeight: maximum(spec.maxHeight, style.maxSize.height),
+                alignment: spec.alignment)
+        }
+        // Over one node (or none) ONE frame, as before. Over several — a
+        // `ModifiedElement` over a multi-member `Component`, divergence 56 — one
+        // frame per member, rowed horizontally at spacing **0** (`LR-BH`): SwiftUI
+        // frames each member too, and its 148pt pair is this 140 plus the enclosing
+        // stack's own 8pt spacing, which in MetalUI the enclosing container supplies
+        // (divergence 52). No row wrapper at one node, so the node count and every
+        // existing single-node rect are unchanged.
+        let node: LayoutNodeID
+        if items.count > 1 {
+            node = frame.requestNativeLinearStack(children: items.map(framed), axis: .horizontal,
+                                                  spacing: 0, alignment: spec.alignment)
+        } else {
+            node = framed(items.first
+                ?? frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) })
+        }
         return recordLoweredItem(node, animated: layer.style, declared: declared, site: .modifierLayer,
                                  contentAlignment: spec.alignment, kind: .frameLayer)
     }
@@ -287,11 +313,14 @@ extension LayoutPass {
     ///    gets): a caller's `Self`-returning modifier written after `.frame` —
     ///    `.width`, `.minWidth`, `.flexGrow`, `.alignItems`, `.position` — lands on
     ///    the layer. An animation never trips it, because the animated style is not
-    ///    what is compared;
-    /// 3. `frame.multipleNodes` — a frame over more than one node (a multi-member
-    ///    `Component`), which the legacy engine lays out as a flex row and SwiftUI
-    ///    frames member by member (component-distribution `G7`); stage 3's (ruling
-    ///    LR-Z).
+    ///    what is compared.
+    ///
+    /// There is no third check. A frame over **more than one node** (a multi-member
+    /// `Component`) reported `frame.multipleNodes` until stage 3's lane 5, which
+    /// lowers it to a row of per-member frames instead (ruling `LR-BH`, retiring
+    /// `LR-Z`'s deferral). `childCount` survives for the `lowered(_:childCount:)`
+    /// comparison alone, which reads it to know whether an unmodified layer's
+    /// display is `.stack` (one node) or a flex row (several).
     func legacyFrameLayerDiagnostics(_ layer: ModifierLayer, declared: Style,
                                      childCount: Int) -> [UnlowerableField] {
         func entry(_ name: String) -> UnlowerableField { UnlowerableField(site: .modifierLayer, field: name) }
@@ -299,8 +328,109 @@ extension LayoutPass {
         if declared.display == .none { return [entry("display.none")] }
         var fields: [UnlowerableField] = []
         if declared != layer.lowered(spec.style(), childCount: childCount) { fields.append(entry("style")) }
-        if childCount > 1 { fields.append(entry("frame.multipleNodes")) }
         return fields
+    }
+
+    /// One `Component` **amend** — a caller's `.width`/`.height` — as ONE native
+    /// frame around ONE member (stage 3, lane 4, ruling `LR-BG`). Registered once
+    /// per member, since a `Component` is layout-transparent and its modifiers
+    /// distribute (`CO-U`, `OM-F`).
+    ///
+    /// The legacy branch writes `size` onto the member's own `Style` and so
+    /// OVERWRITES whatever the member declared (divergence 48); this frames it
+    /// instead, which is SwiftUI's answer — component-distribution probe `G7`/`G8`
+    /// (`Pair().frame(width: 70)` keeps its members 30 and 50 wide, each centred
+    /// in its own 70) and stage-3 probe `W1`.
+    ///
+    /// **It consumes and plans the member's own record** (`LR-BG` as amended,
+    /// critic round 1 finding 8), exactly as `lowerLegacyLayer`'s single-node arm
+    /// does. Without the consume, `reportUnconsumedLoweredItems` emits
+    /// `<site>.<field>.unconsumed` for every non-default item field the member
+    /// declares — and in a production frame every report is a **trap**, so
+    /// `MyComponent().width(70)` over a member declaring `.flexGrow(1)` would work
+    /// under the legacy authority and abort under the proposal one at stage 6b.
+    ///
+    /// **The parent kind is `.stack`**, as a frame's is everywhere else in the
+    /// lowering, so the member's `flexGrow`, `flexShrink`, `flexBasis`,
+    /// `alignSelf` and `margin` are consumed and DROPPED (`LR-AZ`, `MC-Q` finding
+    /// 7) while a `minSize` on an `auto` axis is planned into the item frame W.
+    /// The drop is a rect disagreement the differential harness shows, and never a
+    /// trap (`LR-BO`).
+    ///
+    /// Recorded with `kind: .frameLayer`, so a parent stretches it only on an axis
+    /// the patch leaves `auto` (`MC-Q` finding 7) and its own record is never
+    /// reported unconsumed.
+    ///
+    /// **`.frameLayer` is the second reason site `component` cannot report, and it
+    /// is not today's decisive one** (verification round, record §12; the
+    /// verifier's mutation Vj wrote this record as `kind: .stack` and the whole
+    /// 1569-test suite stayed green). The decisive reason is that
+    /// `componentFrameStyle` carries no field `reportUnconsumedLoweredItems`
+    /// names — no `minSize`, no `maxSize`, no `margin`, no grow or shrink — so this
+    /// record would stay silent even unconsumed and even as a `.stack`. The kind is
+    /// what takes over the moment that stops being true: whoever puts a bound into
+    /// `componentFrameStyle` (to carry a member's dropped minimum, say) owes a pin
+    /// for it in the same change, or a stage-6b production trap arrives with no
+    /// test seeing it go.
+    func loweredComponentFrame(_ node: LayoutNodeID, _ size: Size<Dimension>) -> LayoutNodeID {
+        let alignment = componentFrameAlignment(size)
+        let declared = componentFrameStyle(size)
+        var fields: [UnlowerableField] = []
+        let plans = planLegacyItems([frame.lowering.consume(node)], parent: declared,
+                                    parentKind: .stack, parentSite: .component, fields: &fields)
+        if !fields.isEmpty {
+            return recordLoweredItem(report(fields), animated: declared, declared: declared,
+                                     site: .component, contentAlignment: alignment, kind: .frameLayer)
+        }
+        let child = registerLegacyItems([node], plans).first ?? node
+        let framed = frame.requestNativeFrame(child: child,
+                                              width: resolvedDimension(size.width),
+                                              height: resolvedDimension(size.height),
+                                              alignment: alignment)
+        return recordLoweredItem(framed, animated: declared, declared: declared, site: .component,
+                                 contentAlignment: alignment, kind: .frameLayer)
+    }
+
+    /// An amend frame's alignment: **per axis** — `.center`'s factor on an axis
+    /// the patch declares, `0` on an axis it leaves `auto` (ruling `LR-BG`).
+    ///
+    /// **The ground is the legacy answer the undeclared axis must preserve.**
+    /// Recording `.center` unconditionally moved a width-only amend's members from
+    /// y 0 to y **15** in the design's prototype, because the same value is the
+    /// item's `contentAlignment` and the parent's item frame reads it — a second,
+    /// undesigned divergence on an axis the caller never mentioned. Stage-3 probe
+    /// arms `W7`/`W8`/`W9` show SwiftUI's single-axis frame is a real frame that
+    /// aligns on the axis it declares, and `W2`/`W5` that the undeclared axis
+    /// passes through at the child's own size; SwiftUI has no observable answer
+    /// for how such a frame aligns where there is no free space, so those arms are
+    /// the consistency check, not the source.
+    func componentFrameAlignment(_ size: Size<Dimension>) -> ProposalAlignment {
+        proposalAlignment(horizontal: size.width == .auto ? 0 : 0.5,
+                          vertical: size.height == .auto ? 0 : 0.5)
+    }
+
+    /// The **declared** style an amend frame plans its member against: a stack
+    /// whose size is the patch and whose two alignment fields are non-stretching
+    /// on every axis, so the frame aligns its member and never stretches it —
+    /// which is what `FrameSpec.style()`'s own `switch` guarantees for a `.frame`
+    /// layer (`CN-N`).
+    ///
+    /// **Only "non-nil and non-stretching" is load-bearing here; the per-axis
+    /// spelling is cosmetic** (verification round, record §12). Deleting both
+    /// assignments reddens four tests (verifier mutation Vi), but replacing the two
+    /// ternaries with a constant `.center` and dropping `display` entirely reddens
+    /// nothing (Vk): `alignsByStretching` and `stretches` are false for `.start`,
+    /// `.flexStart` and `.center` alike, and `parentKind: .stack` is passed to
+    /// `planLegacyItems` explicitly, so this style's `display` is never consulted.
+    /// The per-axis alignment lives entirely in `componentFrameAlignment` — do not
+    /// mutate the ternary here expecting a rect to move.
+    private func componentFrameStyle(_ size: Size<Dimension>) -> Style {
+        var style = Style()
+        style.display = .stack
+        style.size = size
+        style.justifyItems = size.width == .auto ? .start : .center
+        style.alignItems = size.height == .auto ? .flexStart : .center
+        return style
     }
 
     /// Records every entry of a non-empty diagnostics list: in production the first
@@ -671,6 +801,13 @@ extension LayoutPass {
     /// **Still reported** at the child's site: `alignSelf.baseline` (task 11) and
     /// `margin` (lane 4). A `.frame` layer child reports nothing: its item fields are
     /// its own frame's.
+    ///
+    /// **`parentSite:` names exactly one report, `flexGrow.weights`** (ruling LR-BM).
+    /// Every other entry this function appends is raised at `item.site`, the
+    /// **child's** own — which is why a lowered container whose own site is
+    /// otherwise unreachable (`scrollView`, stage 3) stays reachable through the
+    /// weights check and through an unconsumed record, and not through, say, a
+    /// child's `alignSelf: .baseline`.
     func planLegacyItems(_ received: [LoweredItem?], parent: Style, parentKind: LoweredItem.Kind,
                          parentSite: LoweringSite, fields: inout [UnlowerableField]) -> [LegacyItemPlan] {
         let single = received.count == 1

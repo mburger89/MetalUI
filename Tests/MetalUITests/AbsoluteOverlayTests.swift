@@ -111,7 +111,7 @@ private func sized(_ w: Float, _ h: Float) -> Style {
     // flow — but the emission is translated with everything else under the
     // viewport's stack entry, so it leaves the window entirely.
     // 12, not a rounder number: 80pt of content in a 60pt viewport leaves 20pt
-    // of travel, and `ScrollView.resolvedOffset` clamps anything past it — an
+    // of travel, and `ScrollChrome.resolvedOffset` clamps anything past it — an
     // offset of 40 would silently become 20 and the assertion below would be
     // measuring the clamp rather than the translation.
     let listID = try #require(firstFrame.scrollRegions.first).id

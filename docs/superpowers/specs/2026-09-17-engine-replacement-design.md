@@ -13,6 +13,18 @@ the level of §4's table; each needs its own design. Record:
 `docs/record/18-engine-replacement-stage-1.md`, whose "For the integrator"
 section names the documentation edits.
 
+**Where the task actually stands (branch checker, 2026-09-22).** The status
+paragraph above is stage 1's own and was never re-dated; read it as history, not
+as the task's state. **Stages 1, 2, G and 3 of the fourteen have landed** — 2 and
+G merged on `integrate/stage-2-grids` (records §21, §22, §23), 3 on
+`feat/engine-stage-3` (record §25, spec
+[`2026-09-22-engine-stage-3-design.md`](2026-09-22-engine-stage-3-design.md)) —
+and each has its own design beside this one. §4.1's table below is still the
+plan of record for the remaining stages; the **live** per-stage status is the
+stage list under task 7 in
+`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, and task 7's box there
+is still open. Production still runs the legacy authority until stage 6b.
+
 Plan task 7 (`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`): *"Port
 advanced layout, then remove the legacy engine. … Migrate the remaining
 elements off `FlexEngine` (including a windowed proposal `List` and a proposal
