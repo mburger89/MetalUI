@@ -16,9 +16,10 @@ pinned on Linux and Windows by `Tests/PortableTests`):
 - `MetalUIPortableText` — string → `MUIGlyph`s + atlas (`PT-`), and display
   lines at a width (`LB-`, item 1), line metrics and wrapped emission
   (item 2).
-- `Experiments/SDLGPU` — SDL3 GPU replays a `Scene` on Metal, Vulkan and
-  Direct3D 12 at pixel parity with the Metal renderer, including portable
-  text (frame 4).
+- `Backends/SDL` — `SDLWindowRenderer`, SDL3 GPU drawing a `Scene` on Metal,
+  Vulkan and Direct3D 12 at pixel parity with the Metal renderer (item 7);
+  `Experiments/SDLGPU` records the parity fixtures, including portable text
+  (frame 4).
 
 `MetalUICore` and `MetalUILayout` are built and tested on Linux and
 Windows CI (item 5).
@@ -68,10 +69,10 @@ Apple-bound:
    `CoreTextTextSystem` and `PortableTextSystem`; `Text`/`ProposalText` draw
    identical sprites through either. `feat/text-seam`, spec
    `specs/2026-09-23-text-seam-design.md` (`TS-`), record §35.
-7. [ ] **Render seam** — `Window` renders through a backend protocol; the
-   Metal `Renderer` is one implementation, and the SDL GPU replayer is
-   promoted out of `Experiments/` into a real target as the other, with its
-   HLSL shaders and compiled stages.
+7. [x] **Render seam** — `WindowRenderer` (portable `MetalUIPlatform`);
+   `MetalWindowRenderer`; AppKit in `MetalUIAppKit`; the SDL replayer
+   promoted to `Backends/SDL` with `SDLWindowRenderer`. `feat/render-seam`,
+   spec `specs/2026-09-23-render-seam-design.md` (`RS-`), record §36.
 8. [ ] **Platform: SDL3** — a `PlatformWindow`/`Platform` over SDL3: window,
    resize, scale factor, input events, frame ticks, appearance, close.
    `publishAccessibilityTree` publishes nothing, recorded as a divergence

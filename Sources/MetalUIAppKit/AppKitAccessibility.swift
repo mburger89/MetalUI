@@ -1,6 +1,7 @@
 #if os(macOS)
 import AppKit
 import MetalUICore
+import MetalUIPlatform
 
 // The AppKit half of the accessibility bridge (spec
 // `docs/superpowers/specs/2026-09-15-accessibility-bridge-design.md`, lane 2;
@@ -113,7 +114,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
     /// `AppKitWindow.init` runs before `Window.init` assigns this handler: at
     /// that moment nobody is listening, so the bridge records `isActive` and
     /// sends the `.activate` here, synchronously, with no run-loop turn.
-    var onRequest: ((AccessibilityRequest) -> Bool)? {
+    var onRequest: ((MetalUIPlatform.AccessibilityRequest) -> Bool)? {
         didSet {
             guard activationIsPending, let onRequest else { return }
             activationIsPending = false
@@ -433,7 +434,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
 
     /// A disallowed action returns `false` without sending anything; an allowed
     /// one returns the window's answer (AB-H).
-    private func perform(_ action: AccessibilityActions, _ request: AccessibilityRequest) -> Bool {
+    private func perform(_ action: AccessibilityActions, _ request: MetalUIPlatform.AccessibilityRequest) -> Bool {
         guard allows(action), let onRequest = bridge?.onRequest else { return false }
         return onRequest(request)
     }

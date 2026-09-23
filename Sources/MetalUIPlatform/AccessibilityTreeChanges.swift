@@ -12,21 +12,23 @@ import MetalUICore
 /// **Every list is in tree order** — pre-order from the roots, the order the
 /// window recorded — never a dictionary's, so the notifications posted from it
 /// come out in the same order on every run.
-struct AccessibilityTreeChanges: Equatable {
+/// `package`: computed here, consumed by `MetalUIAppKit`'s accessibility
+/// bridge (ruling RS-C moved AppKit out of this target).
+package struct AccessibilityTreeChanges: Equatable {
     /// Ids in `old` and not in `new`, in old-tree order.
-    var removed: [AccessibilityNodeID]
+    package var removed: [AccessibilityNodeID]
     /// The id set, the roots, any node's children, or any node's role changed:
     /// what makes a client re-read children (`.layoutChanged`).
-    var structureChanged: Bool
+    package var structureChanged: Bool
     /// Ids in both trees whose label changed, in new-tree order.
-    var labelChanged: [AccessibilityNodeID]
+    package var labelChanged: [AccessibilityNodeID]
     /// Ids in both trees whose value changed, in new-tree order.
-    var valueChanged: [AccessibilityNodeID]
+    package var valueChanged: [AccessibilityNodeID]
     /// Ids in both trees whose `rowCount` changed, in new-tree order.
-    var rowCountChanged: [AccessibilityNodeID]
-    var focusChanged: Bool
+    package var rowCountChanged: [AccessibilityNodeID]
+    package var focusChanged: Bool
 
-    init(from old: AccessibilityTree, to new: AccessibilityTree) {
+    package init(from old: AccessibilityTree, to new: AccessibilityTree) {
         removed = Self.preOrder(old).filter { new.nodes[$0] == nil }
         focusChanged = old.focused != new.focused
         var structureChanged = !removed.isEmpty || old.roots != new.roots
@@ -52,7 +54,7 @@ struct AccessibilityTreeChanges: Equatable {
 
     /// Every node reachable from the roots, parents before children, siblings
     /// in published order. Iterative, so a deep tree cannot exhaust the stack.
-    static func preOrder(_ tree: AccessibilityTree) -> [AccessibilityNodeID] {
+    package static func preOrder(_ tree: AccessibilityTree) -> [AccessibilityNodeID] {
         var result: [AccessibilityNodeID] = []
         result.reserveCapacity(tree.nodes.count)
         var stack = Array(tree.roots.reversed())

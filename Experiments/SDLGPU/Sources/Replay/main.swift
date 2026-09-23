@@ -232,7 +232,7 @@ func run() throws {
     // --driver implies the portable shaders: only they exist as SPIR-V/DXIL.
     let driver = arguments.firstIndex(of: "--driver").flatMap { $0 + 1 < arguments.count ? arguments[$0 + 1] : nil }
     let portable = arguments.contains("--portable") || driver != nil
-    let shaderDirectory = ProcessInfo.processInfo.environment["REPLAY_SHADERS"] ?? "Portable/Shaders/compiled"
+    let shaderDirectory = ProcessInfo.processInfo.environment["REPLAY_SHADERS"] ?? "../../Backends/SDL/Shaders/compiled"
     let replayer = portable
         ? try SDLReplayer(shaderDirectory: shaderDirectory, driver: driver ?? "metal")
         : try SDLReplayer(msl: source)

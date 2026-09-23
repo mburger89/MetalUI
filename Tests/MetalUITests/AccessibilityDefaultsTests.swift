@@ -7,6 +7,7 @@ import MetalUICore
 import MetalUILayout
 import MetalUIText
 @testable import MetalUIPlatform
+@testable import MetalUIAppKit
 @testable import MetalUI
 
 // Lane 3 of the accessibility bridge: what a `Text`, an `onClick` element, a

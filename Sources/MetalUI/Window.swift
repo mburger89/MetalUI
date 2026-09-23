@@ -9,7 +9,6 @@ import MetalUITextSystem
 @MainActor
 public final class Window {
     private let platformWindow: any PlatformWindow
-    private let renderer: Renderer
 
     /// Builds and walks the root element for one frame.
     ///
@@ -456,7 +455,6 @@ public final class Window {
     private var isFlushing = false
 
     init<Root: Element>(platformWindow: any PlatformWindow,
-                        renderer: Renderer,
                         startsDisplayLink: Bool = true,
                         textSystem: (any TextSystem)? = nil,
                         content: @escaping @MainActor () -> Root) {
@@ -464,7 +462,6 @@ public final class Window {
         self.shapingCache = shapingCache
         self.textSystem = textSystem ?? CoreTextTextSystem(cache: shapingCache)
         self.platformWindow = platformWindow
-        self.renderer = renderer
         self.theme = Theme.forAppearance(platformWindow.appearance)
         self.renderRoot = { frame in
             var root = content()
@@ -850,17 +847,9 @@ public final class Window {
         // lost" claim it exists to let a test check.
         stateTable.clearDirty()
 
-        let surfaceFrame: SurfaceFrame
-        do {
-            surfaceFrame = try platformWindow.surface.nextFrame()
-        } catch {
-            // No drawable is an ordinary condition. Stay dirty and retry.
-            setNeedsRedraw()
-            return
-        }
-
-        guard let view = surfaceFrame.views.first,
-              let commandBuffer = renderer.commandQueue.makeCommandBuffer() else {
+        // No drawable is an ordinary condition: stay dirty and retry (the
+        // window's `WindowRenderer` says so with `nil`, ruling RS-A).
+        guard let drawScaleFactor = platformWindow.renderer.beginFrame() else {
             setNeedsRedraw()
             return
         }
@@ -888,7 +877,7 @@ public final class Window {
         // contains anything that can use it.
         let transaction = Animation.takeParkedTransaction()
         let frame = Frame(contentSize: platformWindow.contentSize,
-                          scaleFactor: surfaceFrame.scaleFactor,
+                          scaleFactor: drawScaleFactor,
                           stateTable: stateTable,
                           shapingCache: shapingCache,
                           textSystem: textSystem,
@@ -1003,17 +992,10 @@ public final class Window {
         // wrong** — do not remove it in the same change, because the atlas is
         // the only persistent CPU-mutated GPU resource in the renderer and it
         // would be the only thing standing between a torn glyph and a frame.
-        renderer.upload(glyphAtlas)
-
-        do {
-            try renderer.encode(scene, view: view, in: commandBuffer)
-        } catch {
+        guard platformWindow.renderer.finishFrame(scene: scene, atlas: glyphAtlas) else {
             setNeedsRedraw()
             return
         }
-
-        platformWindow.surface.present(surfaceFrame, in: commandBuffer)
-        commandBuffer.commit()
         framesDrawn += 1
     }
 

@@ -3,6 +3,7 @@ import AppKit
 import Metal
 import QuartzCore
 import MetalUICore
+import MetalUIPlatform
 import MetalUIRender
 
 /// Hosts the CAMetalLayer and funnels AppKit events into InputEvent.
@@ -237,7 +238,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// clients on the host view (`AppKitAccessibility.swift`, lane 2 of the
     /// accessibility bridge). Assigning the handler delivers an activation the
     /// signal reported before anyone listened (AB-B).
-    var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)? {
+    var onAccessibilityRequest: ((MetalUIPlatform.AccessibilityRequest) -> Bool)? {
         get { accessibilityBridge.onRequest }
         set { accessibilityBridge.onRequest = newValue }
     }
@@ -250,9 +251,10 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// a scripted one through `AppKitPlatform(device:accessibilitySignal:)`
     /// (AB-AC). It is observed synchronously here, so a running screen reader
     /// activates the bridge before `Window.init` has assigned a handler.
-    init(device: any MTLDevice, title: String, size: Size<Pixels>,
+    init(device: any MTLDevice, renderer: Renderer, title: String, size: Size<Pixels>,
          accessibilitySignal: any AccessibilityClientSignal) throws {
         metalSurface = MetalLayerSurface(device: device)
+        windowRenderer = MetalWindowRenderer(renderer: renderer, surface: metalSurface)
         hostView = MetalHostView(surface: metalSurface)
         accessibilityBridge = AppKitAccessibilityBridge(signal: accessibilitySignal,
                                                         poster: SystemAccessibilityNotificationPoster())
@@ -326,7 +328,14 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         return dark ? .dark : .light
     }
 
+    /// The layer surface, still reachable for the platform tests that draw
+    /// into it directly; `Window` draws through ``renderer`` (ruling RS-C).
     var surface: any RenderSurface { metalSurface }
+
+    /// This window's `WindowRenderer`: the platform's shared Metal renderer,
+    /// drawing into this window's layer.
+    let windowRenderer: MetalWindowRenderer
+    var renderer: any WindowRenderer { windowRenderer }
 
     var title: String {
         get { window.title }
@@ -390,6 +399,9 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 @MainActor
 public final class AppKitPlatform: Platform {
     private let device: any MTLDevice
+    /// One Metal renderer for every window — the app's when it hands one in,
+    /// else made on the first window.
+    private var sharedRenderer: Renderer?
     private var windows: [AppKitWindow] = []
     private let makeAccessibilitySignal: @MainActor () -> any AccessibilityClientSignal
 
@@ -397,6 +409,12 @@ public final class AppKitPlatform: Platform {
     /// as their accessibility signal (AB-B).
     public convenience init(device: any MTLDevice) {
         self.init(device: device, accessibilitySignal: { VoiceOverSignal() })
+    }
+
+    /// A platform whose windows draw with `renderer` — the one the app made.
+    public convenience init(renderer: Renderer) {
+        self.init(device: renderer.device, accessibilitySignal: { VoiceOverSignal() })
+        sharedRenderer = renderer
     }
 
     /// The test path (AB-AC): `App.openWindow` cannot pass a signal, so a test
@@ -410,7 +428,9 @@ public final class AppKitPlatform: Platform {
     }
 
     public func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
-        let window = try AppKitWindow(device: device, title: title, size: size,
+        let renderer = try sharedRenderer ?? Renderer(device: device)
+        sharedRenderer = renderer
+        let window = try AppKitWindow(device: device, renderer: renderer, title: title, size: size,
                                       accessibilitySignal: makeAccessibilitySignal())
         windows.append(window)
         window.makeKeyAndVisible()
