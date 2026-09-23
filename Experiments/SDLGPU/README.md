@@ -115,7 +115,9 @@ performance measurement: the probe compiles shaders and waits for GPU readback.
 **Frame 4 (portable text), 2026-09-23, same machine:** `Replay --portable`
 0 differing pixels (128 glyphs); `PortableReplay` on SDL Metal and on SDL
 Vulkan (MoltenVK) 0 px outside and inside glyphs in all five frames; the order
-mutation, now on frame 4, 302 px >16, Δ154. Linux and Windows: see CI.
+mutation, now on frame 4, 302 px >16, Δ154. In CI (PR #10): Linux llvmpipe
+on x86_64 and aarch64 max Δ1 outside and inside glyphs; Windows D3D12 max Δ1
+outside and inside; the order mutation 302 px >16, Δ154 on all three.
 
 The control counts pixels off by more than 16 steps (`above: 16`): llvmpipe
 differs from Metal by one step on ~11–14k pixels in every frame, so a raw

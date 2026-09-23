@@ -64,9 +64,18 @@ drawn off an Apple platform.
 | `PortableReplay` SDL Metal | 0 / 0 px in and out of glyphs | 0 / 0 | frame 4: 302 px >16, Δ154 |
 | `PortableReplay` SDL Vulkan (MoltenVK) | 0 / 0 | 0 / 0 | frame 4: 302 px >16, Δ154 |
 
-Linux and Windows: not yet run — the first CI run of this branch is where the
-first non-Apple text pixels are drawn. The expectation, from frames 0–3's
-history (SDLGPU README), is ≤1 outside glyphs and a few steps inside.
+**Linux and Windows (PR #10's CI, run `35836528556` at `9175a15`, 2026-09-23)**
+— the first text this project has drawn with no Apple framework in the path:
+
+| Runner | Backend | Frame 4 outside glyphs | Frame 4 inside glyphs | Order mutation |
+|---|---|---|---|---|
+| Linux x86_64 | Vulkan, llvmpipe (LLVM 20.1.2, 256 bits) | 8034 px, max Δ1 | 4239 px, max Δ1 | 302 px >16, Δ154 |
+| Linux aarch64 | Vulkan, llvmpipe (LLVM 20.1.2, 128 bits) | 8034 px, max Δ1 | 4239 px, max Δ1 | 302 px >16, Δ154 |
+| Windows x64 | Direct3D 12 (software adapter) | 8034 px, max Δ1 | 4270 px, max Δ1 | 302 px >16, Δ154 |
+
+Every differing pixel is one UNORM step, inside the ≤1 / ≤8 rule, and all five
+frames pass on all three. The `PT-H` pins held byte-for-byte on all three
+runners (`Portable tests` jobs, run `35836528581`).
 
 `--expect 5` over a directory holding only frames 0–3 fails with `expected 5
 fixtures, found 4` (measured), which is mutation M8 below.
@@ -128,8 +137,6 @@ all passing on macOS.
 
 ## Open
 
-- **Linux and Windows pixels** for frame 4 and the PT-H pins: owed to the
-  first CI run of this branch.
 - **Rounded content masks.** `emit` takes a `contentMask` but no corner radii,
   so frame 4's clipped line is clipped square where frames 0–3 round it. A
   caller clipping text to a rounded box needs a `maskCornerRadii` parameter.
