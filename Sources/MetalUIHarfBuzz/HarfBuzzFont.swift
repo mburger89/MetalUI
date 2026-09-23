@@ -73,6 +73,10 @@ public final class HarfBuzzFont {
         return UInt16(truncatingIfNeeded: id)
     }
 
-    /// Design units to points at this font's size (SH-D).
-    func points(_ units: Int32) -> Double { Double(units) * size / Double(unitsPerEm) }
+    /// Design units to points at this font's size (SH-D), as CoreText scales
+    /// them: `units × (size / unitsPerEm)`, the ratio taken first. The other
+    /// association (`units × size / unitsPerEm`) differs in the last bit, and
+    /// a pen summed from those advances lands on the other side of a subpixel
+    /// boundary from CoreText's (measured, LB-I, record §31).
+    func points(_ units: Int32) -> Double { Double(units) * (size / Double(unitsPerEm)) }
 }

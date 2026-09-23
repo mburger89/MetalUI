@@ -85,7 +85,7 @@ corpus-reach test, the gated measurement, three contract tests), guards ran,
 ## Open
 
 - **Emission** — `emitLines`, font metrics and line height (`LB-F`),
-  roadmap item 2.
+  roadmap item 2: done, record §31.
 - **Not compared**: RTL and mixed-direction paragraphs (no bidi yet, roadmap
   item 12), CJK and Thai wrapping (the bundled fonts have no CJK or Thai
   glyphs, so CoreText would fall back to another font; roadmap item 11).

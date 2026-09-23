@@ -3,8 +3,8 @@
 **Status:** implemented on `feat/portable-linebreak`, 2026-09-23 (record
 §30); roadmap item 1 of `plans/2026-09-23-cross-platform-roadmap.md`. Decided with the user: vendor libunibreak
 for UAX #14 rather than write it or vendor ICU.
-**Ruling prefix:** `LB-` (lettered; next `LB-H`; `LB-F` is reserved for
-roadmap item 2).
+**Ruling prefix:** `LB-` (lettered; `LB-F` and `LB-H`…`LB-K` are in
+`2026-09-23-portable-lines-emit-design.md`, roadmap item 2; next `LB-L`).
 **Builds on:** `MetalUIPortableText` (`PT-`), `MetalUIHarfBuzz` (`SH-`).
 
 ## Goal
@@ -14,7 +14,8 @@ lines. This step gives the portable pipeline what `Shaper.shape(_:font:
 wrappingAt:)` gives the Apple one — a string split into display lines at an
 offered width, one line per hard break when no width is offered — and emits
 those lines' ranges and advances, with CoreText's own answers as the oracle.
-Emitting them (`LB-F`) is roadmap item 2.
+Emitting them (`LB-F`, `LB-H`) is roadmap item 2, in
+`2026-09-23-portable-lines-emit-design.md`.
 
 **Not in this step:** bidi across lines, script itemization, font fallback,
 hyphenation, justification, `Text`/`Shaper` changes.
@@ -57,8 +58,8 @@ hyphenation, justification, `Text`/`Shaper` changes.
   investigated and either fixed or pinned with its measurement, never
   absorbed. Measured: 13,464 cases (2 fonts × 4 sizes × 99 widths × 17
   strings), 0 boundary and 0 advance differences at 1e-9 pt.
-- **LB-F — multi-line emission** — reserved for roadmap item 2 (font
-  metrics, line height, `emitLines`, and a wrapped paragraph in SDL frame 4).
+- **LB-F — line metrics** — ruled in `2026-09-23-portable-lines-emit-design.md`
+  (roadmap item 2), with `LB-H`…`LB-K`.
 - **LB-G — cross-platform pins** in `Tests/PortableTests`
   (`LineBreakingDeterminismTests`): the break opportunities over an
   82-unit multi-script string, and four wrapped cases' line ranges and

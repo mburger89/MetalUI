@@ -14,7 +14,8 @@ pinned on Linux and Windows by `Tests/PortableTests`):
 - `MetalUIFreeType` — glyph rasterizer (`FT-`).
 - `MetalUIHarfBuzz` — shaper, one run (`SH-`).
 - `MetalUIPortableText` — string → `MUIGlyph`s + atlas (`PT-`), and display
-  lines at a width (`LB-`, item 1); emission is one line per call.
+  lines at a width (`LB-`, item 1), line metrics and wrapped emission
+  (item 2).
 - `Experiments/SDLGPU` — SDL3 GPU replays a `Scene` on Metal, Vulkan and
   Direct3D 12 at pixel parity with the Metal renderer, including portable
   text (frame 4).
@@ -39,9 +40,11 @@ Apple-bound:
    wrappingAt:)` with `Shaper.shape(wrappingAt:)`'s contract, equal to
    CoreText over 13,464 cases. `feat/portable-linebreak`, spec
    `specs/2026-09-23-portable-line-breaking-design.md` (`LB-`), record §30.
-2. [ ] **Font metrics and multi-line emission** — ascent, descent, leading and
-   `lineHeight` from the font's own tables (FreeType), measured against
-   `FontMetrics`; `emitLines` (`LB-F`).
+2. [x] **Font metrics and multi-line emission** — `PortableFont.metrics` from
+   `hhea`, exact against `FontMetrics` on TrueType faces; `emitLines`, equal
+   in placement to `placedGlyphs` over 26,928 cases. `feat/portable-lines-emit`,
+   spec `specs/2026-09-23-portable-lines-emit-design.md` (`LB-F`, `LB-H`…`LB-K`),
+   record §31.
 3. [ ] **Min- and max-content** — the portable counterpart of
    `unbreakableRuns(of:)` (TX-F: `CFStringTokenizer`'s longest word) and of
    max-content (TX-K: one line per hard break), so a portable `Text` can be
