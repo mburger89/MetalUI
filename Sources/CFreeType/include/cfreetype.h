@@ -5,3 +5,4 @@
 #include FT_BBOX_H
 #include FT_TRUETYPE_TABLES_H
 #include FT_FONT_FORMATS_H
+#include FT_SFNT_NAMES_H

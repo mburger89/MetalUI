@@ -51,9 +51,11 @@ Apple-bound:
    class pairs. `feat/portable-content-sizes`, spec
    `specs/2026-09-23-portable-content-sizes-design.md` (`LB-L`…`LB-O`),
    record §32.
-4. [ ] **Font resolution** — a portable `FontResolver`: family/weight →
-   font file. Bundled fonts first; system discovery (fontconfig on Linux,
-   DirectWrite on Windows) after.
+4. [x] **Font resolution** — `PortableFontResolver`: registered font files
+   matched by name with CoreText's rules, `nil`/unmatched to a default face.
+   `feat/portable-font-resolver`, spec
+   `specs/2026-09-23-portable-font-resolver-design.md` (`FN-`), record §33.
+   System discovery moved to 8b (it needs a file system).
 
 ### The seams inside `MetalUI`
 
@@ -71,6 +73,10 @@ Apple-bound:
    resize, scale factor, input events, frame ticks, appearance, close.
    `publishAccessibilityTree` publishes nothing, recorded as a divergence
    (AB-R forbids a default, so the stub is explicit).
+   8b. [ ] **System font discovery** — find installed fonts (fontconfig on
+   Linux; the Fonts directory or DirectWrite on Windows) and register them
+   with `PortableFontResolver`, choosing the platform's default face for
+   `family: nil`.
 9. [ ] **`MetalUI` builds without AppKit/Metal** — `App` chooses its platform
    by `#if canImport(AppKit)`; Apple-only dependencies become
    `.when(platforms:)`; CI builds `MetalUI` on Linux and Windows.
