@@ -22,9 +22,20 @@ public final class PortableFont {
     /// that hands the halves different files fails at construction rather than
     /// silently drawing one font's outlines for another font's ids — the same
     /// hazard `FontKey` exists to prevent inside one engine.
-    public init(data: [UInt8], faceIndex: Int = 0, size: Double) throws {
-        shaping = try HarfBuzzFont(data: data, faceIndex: faceIndex, size: size)
-        raster = try FreeTypeFont(data: data, faceIndex: faceIndex, size: size)
+    public convenience init(data: [UInt8], faceIndex: Int = 0, size: Double) throws {
+        try self.init(shapingData: data, rasterData: data, faceIndex: faceIndex, size: size)
+    }
+
+    /// Opens a **separate** byte array in each engine.
+    ///
+    /// Internal, and the only way to make the two halves disagree: the public
+    /// initializer takes one `data` precisely so a caller cannot. It exists so
+    /// that the cross-engine check below can be exercised at all — a test hands
+    /// the halves two different font files and watches the check throw — which
+    /// the public spelling makes impossible by construction.
+    init(shapingData: [UInt8], rasterData: [UInt8], faceIndex: Int, size: Double) throws {
+        shaping = try HarfBuzzFont(data: shapingData, faceIndex: faceIndex, size: size)
+        raster = try FreeTypeFont(data: rasterData, faceIndex: faceIndex, size: size)
         self.size = size
         guard shaping.unitsPerEm == raster.unitsPerEm else {
             throw PortableTextError("the shaping and raster faces disagree on unitsPerEm: "
