@@ -4,6 +4,7 @@ import simd
 import MetalUI
 import MetalUIText
 import MetalUIShaderTypes
+import MetalUIPortableText
 import ReplayFixture
 import SDLReplay
 import AppKit
@@ -109,6 +110,69 @@ func fixture(width: Int, height: Int, atlas: GlyphAtlas, addedText: Bool) throws
     return scene
 }
 
+/// The repository's `Tests/Fonts/`, from this file's path.
+func repositoryFont(_ file: String) throws -> [UInt8] {
+    let url = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()   // main.swift -> Replay
+        .deletingLastPathComponent()   // Sources
+        .deletingLastPathComponent()   // SDLGPU
+        .deletingLastPathComponent()   // Experiments
+        .deletingLastPathComponent()   // the repository
+        .appendingPathComponent("Tests/Fonts").appendingPathComponent(file)
+    return [UInt8](try Data(contentsOf: url))
+}
+
+/// Frame 4 (ruling PT-G): the same layout as ``fixture``, with every glyph and
+/// its coverage made by `PortableText` — HarfBuzz shapes, FreeType rasterizes,
+/// into a `GlyphAtlas` no CoreText call has touched. Everything is emitted at
+/// `order: 0`, as production does, so emission sequence alone is paint order
+/// and the translucent rectangle still covers glyphs drawn before it.
+func portableFixture(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
+    var scene = Scene()
+    let mask = bounds(0, 0, Float(width), Float(height))
+    let bytes = try repositoryFont("NotoSans-Regular.ttf")
+    var fonts: [Double: PortableFont] = [:]
+    func rect(_ b: MUIBounds, _ c: MUIHsla, radius: Float = 0, border: Float = 0,
+              clip: MUIBounds? = nil, clipRadius: Float = 0) {
+        scene.insert(MUIRect(bounds: b, contentMask: clip ?? mask,
+            maskCornerRadii: corners(clipRadius), background: c,
+            borderColor: color(0.13, 0.85, 0.7), cornerRadii: corners(radius),
+            borderWidths: MUIEdges(top: border, right: border, bottom: border, left: border),
+            order: 0, _reserved: 0))
+    }
+    // `emit` takes the baseline, not the box's top-left: `size` below the top
+    // is close to where ``fixture``'s CoreText lines sit, and nothing compares
+    // the two frames' positions.
+    func text(_ value: String, x: Double, y: Double, size: Double, clip: MUIBounds? = nil) throws {
+        let font: PortableFont
+        if let cached = fonts[size] { font = cached } else {
+            font = try PortableFont(data: bytes, size: size)
+            fonts[size] = font
+        }
+        try PortableText.emit(value, font: font, origin: (x, y + size), scaleFactor: 1,
+                              color: color(0.55, 0.1, 0.95), contentMask: clip ?? mask,
+                              into: &scene, atlas: atlas)
+    }
+    atlas.beginFrame()
+    defer { atlas.endFrame() }
+    rect(mask, color(0.62, 0.22, 0.12))
+    rect(bounds(18.25, 18.75, Float(width - 36), Float(height - 36)), color(0.61, 0.25, 0.2), radius: 22, border: 2)
+    try text("MetalUI / SDL GPU", x: 36.25, y: 33, size: 26)
+    try text("Portable text: HarfBuzz + FreeType.", x: 37, y: 72, size: 15)
+    rect(bounds(36.5, 112.25, 160, 105), color(0.48, 0.75, 0.43), radius: 24, border: 5)
+    rect(bounds(160, 139, 145, 70), color(0.94, 0.8, 0.6, 0.55), radius: 17)
+    try text("overlap / clipping", x: 48, y: 146, size: 19)
+    rect(bounds(155, 152, 92, 25), color(0.08, 0.95, 0.5, 0.65), radius: 5)
+    let clip = bounds(36, 237, Float(width - 72), 58)
+    rect(bounds(20, 230, Float(width), 82), color(0.73, 0.5, 0.45), clip: clip, clipRadius: 12)
+    // The mask carries no radius here: `emit` takes a content mask but not
+    // its corner radii, so a glyph under the rounded corner is clipped square.
+    try text("Rounded clip: abcdefghijklmnopqrstuvwxyz", x: 25, y: 249, size: 21, clip: clip)
+    try text("Kerning AV To Ty, ligatures fi fl ffi, Ω Ж", x: 37.4, y: 315, size: 19)
+    scene.finalize()
+    return scene
+}
+
 @MainActor
 func metalPixels(_ scene: Scene, atlas: GlyphAtlas, renderer: Renderer,
                  width: Int, height: Int, projection: simd_float4x4) throws -> [UInt8] {
@@ -170,26 +234,33 @@ func run() throws {
     var report = [String]()
     var reference = [UInt8]()
     var lastScene = Scene()
-    for (index, dimensions) in [(640, 380), (420, 360), (640, 380), (640, 380)].enumerated() {
+    // Frame 4's text is PortableText's, into its own atlas (ruling PT-G).
+    let portableAtlas = GlyphAtlas(width: 1024, height: 1024)
+    for (index, dimensions) in [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380)].enumerated() {
         let (width, height) = dimensions
-        let scene = try fixture(width: width, height: height, atlas: atlas, addedText: index > 0)
+        let portable = index == 4
+        let frameAtlas = portable ? portableAtlas : atlas
+        let scene = portable
+            ? try portableFixture(width: width, height: height, atlas: portableAtlas)
+            : try fixture(width: width, height: height, atlas: atlas, addedText: index > 0)
         var projection = matrix_identity_float4x4
         if index == 3 { projection.columns.0.x = 0.85; projection.columns.1.y = 0.85 }
-        let metal = try metalPixels(scene, atlas: atlas, renderer: renderer, width: width, height: height, projection: projection)
-        let sdl = try replayer.render(scene, atlas: atlas, width: width, height: height, projection: floats(projection))
+        let metal = try metalPixels(scene, atlas: frameAtlas, renderer: renderer, width: width, height: height, projection: projection)
+        let sdl = try replayer.render(scene, atlas: frameAtlas, width: width, height: height, projection: floats(projection))
         let delta = pixelDifference(metal, sdl)
-        let line = "frame \(index) \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta)"
+        let line = "frame \(index)\(portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))
         try require(delta.maxDelta <= 1, "Parity failed: \(line)")
         if let record {
             let path = URL(fileURLWithPath: record).appendingPathComponent("frame-\(index).muireplay")
-            try Data(ReplayFixture(scene: scene, atlas: atlas, width: UInt32(width), height: UInt32(height),
+            try Data(ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
                                    projection: floats(projection), reference: metal).encoded()).write(to: path)
         }
         // This tolerance only permits UNORM rounding, never misplaced edges.
-        reference = metal; lastScene = scene
+        // The control below stays on frame 3, whose projection it assumes.
+        if index == 3 { reference = metal; lastScene = scene }
     }
     var projection = matrix_identity_float4x4
     projection.columns.0.x = 0.85; projection.columns.1.y = 0.85

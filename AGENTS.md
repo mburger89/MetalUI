@@ -36,8 +36,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-CH`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
-  `SH-L`; rulings in its spec, no separate decisions doc). A numbered citation
-  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`) is a typo; sweep
+  `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-J`;
+  rulings in its spec, no separate decisions doc). A numbered citation
+  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
@@ -62,17 +63,20 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Four record files are not tasks of
+  and G2 is unblocked rather than waiting. Five record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
-  `specs/2026-09-22-freetype-rasterizer-design.md`, rulings in that spec) and
+  `specs/2026-09-22-freetype-rasterizer-design.md`, rulings in that spec),
   §26 the HarfBuzz shaper (`SH-`, spec
-  `specs/2026-09-22-harfbuzz-shaper-design.md`, rulings in that spec).
+  `specs/2026-09-22-harfbuzz-shaper-design.md`, rulings in that spec) and
+  §28 the portable text pipeline (`PT-`, spec
+  `specs/2026-09-23-portable-text-design.md`, rulings in that spec).
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
   — each stage record was renumbered (24→25, 26→27) at its merge because the
   other line was pushed first (record §25's and §27's headers, and the
-  precedent in record §23 §8).
+  precedent in record §23 §8). §28 was written as §27 and renumbered when
+  stage 4 reached `master` first.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -89,20 +93,22 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-23, `feat/engine-stage-4` — plan task 7 stage 4 merged
-  with `master` at `f5e5651`, the HarfBuzz shaper line): 1617 tests, 97
-  goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:`, taken after
-  `swift package clean` with `swift build --build-system native
-  --build-tests` then unfiltered `swift test --build-system native
-  --no-parallel` (**one summary line**, `Test run with 1617 tests in 3 suites
-  passed` — the extra suites are `MetalUIFreeTypeTests` and
-  `MetalUIHarfBuzzTests`; four skipped: the two gated tests and the FreeType
-  and HarfBuzz oracles' gated measurement tests). Goldens unmoved against
-  `f2e981f` and `f5e5651` (`git diff --name-only f2e981f HEAD --
-  'Tests/**/*.json'` is empty). **1617 = 1580 + 15 + 22**: master `f5e5651`
+- **Counts (2026-09-23, `feat/portable-text` merged with `master` at
+  `e5caefb`, stage 4): 1625 tests, 97 goldens, 77 typecheck guards**, 0
+  `error:`, 0 `warning:` on both build systems, taken after `swift package
+  clean` with `swift build --build-system native --build-tests` then
+  unfiltered `swift test --build-system native --no-parallel` (**one summary
+  line**, `Test run with 1625 tests in 3 suites passed`; five skipped:
+  the two gated tests and the FreeType, HarfBuzz and portable text oracles'
+  gated measurement tests; the guards ran — the log carries `FR-J
+  no-argument frame: succeeded=`). Goldens unmoved against `e5caefb`. The
+  portable text line (record §28) adds 8 tests (`MetalUIPortableTextTests`)
+  and no golden or guard to master's 1617; `Tests/PortableTests` separately
+  runs 4 + 6 + 5. Master's 1617 was taken the same way (**1617 = 1580 + 15 +
+  22**: master `f5e5651`
   (1595) is `integrate/stage-3`'s 1580 plus the HarfBuzz line's 15 (record
   §26), and stage 4 adds 22 (lane 1 +3, lane 2 +9, lane 3 +1, lane 4 +5,
-  lane 5 +4; record §27). **Neither line added a golden or a guard**, so
+  lane 5 +4; record §27)). **None of these lines added a golden or a guard**, so
   97 / 77 are unchanged, the per-file list below is unchanged and so is the
   "all 77 guards skip under the default build system" sentence. **`List` is
   public and its stored `box`'s generic argument changed at stage 4, so
@@ -132,10 +138,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Four** gated tests count toward the total while skipped —
+  **Five** gated tests count toward the total while skipped —
   `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`, the
-  FreeType oracle's `measure(file:)` and the HarfBuzz oracle's `measure()`
-  (`METALUI_HARFBUZZ_MEASURE=1`). The lone `warning:`
+  FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
+  (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
+  `theMeasuredDifferences` (`METALUI_PORTABLE_ORACLE_MEASURE=1`). The lone `warning:`
   under native is SwiftPM's deprecation notice.
 - **Goldens must not move** on a change outside `Sources/MetalUILayout/`
   (`find Tests/MetalUILayoutTests -name "*.json" | wc -l` — not all of
@@ -161,8 +168,10 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `EnvironmentCompileGuards`'. A guard about what an external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
-  (default swiftbuild system, `--scratch-path`, `-c release`, a worktree) —
-  the total does not move and the run passes.
+  (default swiftbuild system, `--scratch-path`, `-c release`) — the total
+  does not move and the run passes. A worktree with its own `.build` at its
+  root runs them (measured under `~/Developer/worktrees/`, record §28); grep
+  the log for `FR-J no-argument frame: succeeded=` rather than assume.
 - **Adding an AppKit or WebKit test? Run the whole suite unfiltered** (shared
   process and run loop; `--filter` is a different program).
 - **`swift package clean` when the impossible happens**: SIGSEGV, a truncated
@@ -173,9 +182,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   stage added six stored mark tables to `LayoutTree`, and the `MetalUIScene`
   move relocated `Scene`, `FontKey`, `GlyphImage` and the atlas types across
   three modules.
-- **Targets:** fourteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
+- **Targets:** fifteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
   `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`,
-  `MetalUIHarfBuzz`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
+  `MetalUIHarfBuzz`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
   `MetalUIPlatform`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
   `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so
   tests can import it (`LR-S`). `MetalUIScene` holds
@@ -193,9 +202,17 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `MetalUIHarfBuzz` is the HarfBuzz-backed shaper (`HarfBuzzFont`,
   `HarfBuzzShaper`, `SH-B`…`SH-E`), depending on `CHarfBuzz` only; also a
   library product. Nothing in production calls it — `Shaper` stays the shaper
-  on Apple platforms (`SH-J`).
+  on Apple platforms (`SH-J`). `MetalUIPortableText` joins the two
+  (`PT-A`…`PT-E`): `PortableFont` opens one file in both engines and **checks
+  they agree** at construction (`PT-B`), and `PortableText.emit` turns one run
+  on one line into `MUIGlyph`s plus atlas coverage with `Frame.draw`'s
+  arithmetic (`PT-D`) — no line breaking, bidi, itemization or fallback. Also
+  a library product; nothing in production calls it (`PT-I`). The subpixel
+  placement rule lives once, in `GlyphImage.subpixelPlacement(forDeviceX:)`
+  (`PT-C`); `GlyphRaster` forwards — do not re-inline it on either side.
+  `Experiments/SDLGPU`'s frame 4 is drawn from it (`PT-G`).
 
-Seven constraints that fail silently:
+Eight constraints that fail silently:
 
 - `MetalUILayout` imports only `MetalUICore` (anchored grep).
 - `MetalUIScene` imports only `MetalUIShaderTypes` — no Foundation, CoreText,
@@ -216,6 +233,16 @@ Seven constraints that fail silently:
   `MetalUIHarfBuzz` and `MetalUIFreeType` products) pins HarfBuzz's glyph
   ids, clusters and design-unit positions byte-for-byte against macOS on
   Linux and Windows CI (`SH-I`).
+- `MetalUIPortableText` imports only `MetalUIScene`, `MetalUIShaderTypes`,
+  `MetalUIHarfBuzz` and `MetalUIFreeType` — no Foundation, CoreText,
+  CoreGraphics or Metal (`PT-A`). macOS cannot see a violation; the
+  `scene-linux` job builds this target too, and `Tests/PortableTests`' third
+  target, `PortableTextDeterminismTests`, pins its emitted rects, advance,
+  atlas dirty rect and coverage byte-for-byte against macOS (`PT-H`). **That
+  pin's Arabic case is the only test that sees a shaping offset**: the Apple
+  oracle's Latin corpus has none (`noCorpusGlyphCarriesAShapingOffset`), so
+  dropping `xOffset` from `emit`'s pen walk reddens nothing on macOS except
+  the portable package.
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (gamma-space compositing, §7.8).

@@ -21,8 +21,8 @@ jobs:
     - name: Run tests
       run: swift test -v --no-parallel
 
-  # MetalUIScene, MetalUIFreeType and MetalUIHarfBuzz must build without Apple
-  # frameworks (rulings PS-G, FT-K, SH-K): a Metal, CoreText or CoreGraphics
+  # MetalUIScene, MetalUIFreeType, MetalUIHarfBuzz and MetalUIPortableText must
+  # build without Apple frameworks (rulings PS-G, FT-K, SH-K, PT-A): a Metal, CoreText or CoreGraphics
   # import there fails to compile on Linux, and macOS cannot see that.
   scene-linux:
     runs-on: ubuntu-24.04
@@ -35,12 +35,15 @@ jobs:
       run: swift build --target MetalUIFreeType
     - name: Build MetalUIHarfBuzz
       run: swift build --target MetalUIHarfBuzz
+    - name: Build MetalUIPortableText
+      run: swift build --target MetalUIPortableText
 
-  # Tests/PortableTests is one package with two test targets, and these jobs run
-  # all of it: FreeType's rasterizer output, pinned byte for byte (size,
-  # bearings, coverage checksum) from macOS (ruling FT-J), and HarfBuzz's
+  # Tests/PortableTests is one package with three test targets, and these jobs
+  # run all of it: FreeType's rasterizer output, pinned byte for byte (size,
+  # bearings, coverage checksum) from macOS (ruling FT-J); HarfBuzz's
   # shaping — glyph ids, clusters, design-unit positions and one rasterized
-  # end-to-end run — likewise (ruling SH-I). The root package's own tests cannot
+  # end-to-end run — likewise (ruling SH-I); and the portable text pipeline's
+  # emitted glyph rects, atlas dirty rect and coverage (ruling PT-H). The root package's own tests cannot
   # run off macOS.
   portable-linux:
     name: Portable tests (Linux ${{ matrix.arch }})

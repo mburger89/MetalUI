@@ -71,8 +71,14 @@ public final class FreeTypeFont {
         storage.deallocate()
     }
 
-    /// The face's glyph for a Unicode scalar, or 0 (`.notdef`) — for tests,
-    /// until a shaper supplies glyph ids.
+    /// The face's design units per em — the unit its outlines are stored in
+    /// (`FT-D` scales them to device pixels). `PortableFont` checks it against
+    /// HarfBuzz's (`PT-B`).
+    public var unitsPerEm: Int { Int(face.pointee.units_per_EM) }
+
+    /// The face's glyph for a Unicode scalar, or 0 (`.notdef`) — for tests
+    /// and for `PT-B`'s cross-engine check; a shaper supplies the ids that
+    /// are actually drawn.
     public func glyph(for scalar: Unicode.Scalar) -> UInt16 {
         UInt16(truncatingIfNeeded: FT_Get_Char_Index(face, FT_ULong(scalar.value)))
     }
