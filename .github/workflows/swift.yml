@@ -43,7 +43,8 @@ jobs:
   # bearings, coverage checksum) from macOS (ruling FT-J); HarfBuzz's
   # shaping — glyph ids, clusters, design-unit positions and one rasterized
   # end-to-end run — likewise (ruling SH-I); and the portable text pipeline's
-  # emitted glyph rects, atlas dirty rect and coverage (ruling PT-H). The root package's own tests cannot
+  # emitted glyph rects, atlas dirty rect and coverage (ruling PT-H), and its
+  # line breaking's opportunities and wrapped lines (ruling LB-G). The root package's own tests cannot
   # run off macOS.
   portable-linux:
     name: Portable tests (Linux ${{ matrix.arch }})
