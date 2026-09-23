@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DE`** (stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC` and its lane 3 `LR-DD`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DF`** (stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -6371,4 +6371,46 @@ declaring a fraction would lay out a 0-wide leaf and could pass on the wrong
 geometry; kept, a future flip of a P test to `.proposal` traps loudly at the
 first fraction. Item 4: a required argument makes every call site name its
 authority — 6b's re-spelling of a P-6b test edits the call, not a default.
+
+**Amended, stage-6a lane 3 verification (`LR-DE`).** Item 1's counts are
+**47 P tests (17 CE+RP, 30 CSS)** and **11 R tests**:
+`aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare` moved from R to
+P-CSS-frame. Item 3's "must not silently get a 0 where a fraction was declared"
+is the whole of what the precondition buys: a wrong **nonzero** pixel answer
+from `declaredSizeNativeLeaf` reddens no R test (the verifier's VC), so its
+answer is pinned only at 0×0 (M3h).
+
+## LR-DE — stage 6a lane 3 verification: `FR-P`'s test 2.10 is a CSS pin, and the Dual leaf's answer is seen only at 0×0
+
+**Evidence.** Record §30 §10.5 (last paragraph) and §10.7. The verifier's VA
+(`FrameSpec.style()`'s two fixed-axis `minSize` writes replaced by
+`flexShrink = 0`) over `92914cb`: 1642 passed, nothing red; its VA2 (the same,
+test 2.10's three `widthInRow` calls set back to `.legacy`): 2.10 red alone.
+Fix at `b504e9f`; VA re-run there: `1642 … failed … with 1 issue`,
+`aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare` at
+`FrameSizingTests.swift:942` alone. VC (`declaredSizeNativeLeaf` + 7 on the
+width) reddened no R test.
+
+**The ruling.**
+
+1. **A test is R only if its named mutation is read under the proposal
+   authority.** `aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare` lays
+   out no lane-3 element of its own but is about `FR-P`, a choice inside the
+   legacy `FrameSpec.style()` — a CSS answer. It passes `.legacy` with the §5
+   doc line, class **P-CSS-frame**, owned by 7b. It is green under the flipped
+   default, so it was never in §4's red set and is outside M3g's 46; its
+   mutation, VA, is its pin. Lane 3 is **11 R, 47 P (17 CE+RP, 30 CSS)**;
+   lanes 2 and 3 hand 7b **33** CSS pins. Lanes 1 and 2 were read for the same
+   shape (an R test whose named mutation is a legacy lowering) and have none
+   (record §30 §10.7).
+2. **`declaredSizeNativeLeaf`'s answer is pinned only at 0×0.** Lane 3's R
+   tests assert identity, phase counts, state and hit targets, not the Dual
+   leaf's geometry, so a wrong nonzero answer is invisible (VC); M3h's 0×0 is
+   seen through the CE rows. Nothing is added: an R test is not about the
+   leaf's size, and 9 deletes the leaf's legacy branch, not this one.
+
+**What it costs if wrong.** Item 1: were 2.10 left on `.proposal`, `FR-P` would
+be unpinned until 7b — a `flexShrink = 0` regression in the production
+authority's frame lowering would ship green. Item 2: a test that later starts
+reading a Dual leaf's size under `.proposal` must pin that answer itself.
 

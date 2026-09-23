@@ -21,7 +21,10 @@ to **67 (9)**. **Lane 2 (R, the P-only files) ran: §9, `LR-DC`** — no
 re-spelled test was red; the one Dual element was not dual. **Lane 3 (the
 Dual files, the deprecation, the exit test) ran: §10, `LR-DD`** — the gate
 closed at `e531260` with 1642 tests and 0 `warning:`; M3g reddened exactly the
-46 predicted pins. **The stage's exit criteria are read in §11.**
+46 predicted pins. **Lane 3's verification moved one R test to P (§10.7,
+`LR-DE`)**: FR-P's test 2.10, which under `.proposal` could not see its own
+mutation — lane 3 is 11 R and 47 P (30 CSS). **The stage's exit criteria are
+read in §11.**
 
 ## 1. Baseline at `b3c29b9`
 
@@ -815,7 +818,7 @@ Every run printed `FR-J no-argument frame: succeeded=`.
 | **Dual** | `Probe` (`ElementLayoutTests`) | `pass.lowersToProposal ? declaredSizeNativeLeaf(style, pass) : pass.frame.requestNode(style:children:)` | R `.proposal`: 3 (4 frames). P `.legacy`: 8 CE+RP, 1 CSS-structure, 2 CSS-box (14 frames) |
 | **Dual** | `Leaf` (`ComponentTests`) | as `Probe` | R `.proposal`: `aComponentContributesNoLayoutNodeOfItsOwn`, `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`. P `.legacy`: 2 CE+RP, 8 CSS-structure, 5 CSS-d48 (21 frames) |
 | R | `CounterLeaf` (`ComponentTests`) | `requestNativeLeaf` 10×10 | `stateInsideAComponentsContentIsAlsoSeeded`, `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`, `.proposal` |
-| **Dual** | `Mark` (`FrameSizingTests`) | as `Probe` | R `.proposal`: `aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare` (3 `widthInRow` calls). P `.legacy`: 4 CE+RP, 10 CSS-frame (57 helper calls, 4 frames/windows) |
+| **Dual** | `Mark` (`FrameSizingTests`) | as `Probe` | ~~R `.proposal`: `aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare`~~ — P `.legacy` (CSS-frame) since `b504e9f`, §10.7. P `.legacy`: 4 CE+RP, 10 CSS-frame (57 helper calls, 4 frames/windows), and 2.10's 3 `widthInRow` calls |
 | **Dual** | `LayerLeaf` (`ModifiedElementTests`) | as `Probe` | R `.proposal`: `anIDAfterAChainsLastWrapperNamesTheOutermostLayer` (3 `observe`), `addingALayerAtRunTimeResetsTheWrappedElementsState` (window). P `.legacy`: 2 CE+RP (windows), `aGenericWrapOverAChainIsIdenticalToTheFlatChain` (8 `observe`) |
 | P-CSS | `ChainLeaf` (`ModifiedElementTests`) | `pass.frame.requestNode` | `legacyModifierChainsInferOneConcreteType` `.legacy` |
 | **Dual** | `CountingLeaf` (`ModifierCompositionProofTests`) | as `Probe` | R `.proposal`: `everyModifierWrapperDelegatesEachPhaseExactlyOnce` (its `counts` frame, every arm), `stateSurvivesFramesUnderALegacyModifierChain`, `aModifierChainRegistersAndPaintsOuterLayersFirst` (windows). P `.legacy`: `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes` (2 frames), `aModifierChainIsIdenticalToHandBuiltNestedBoxes` (8 `observe`) |
@@ -835,10 +838,10 @@ parameter defaults" (spec §10), and a required argument is one no sweep of
 defaults can reach.
 
 **46 P tests** (17 CE+RP owned by 6b, 29 CSS owned by 7b — exactly spec §5's
-lane-3 count), each with the doc line `Pinned to the legacy authority by stage
+lane-3 count; **47, 30 CSS, since §10.7**), each with the doc line `Pinned to the legacy authority by stage
 6a (<class>, record §30 §4).`, the class read off §4 (`CE+RP`, `CSS-structure`,
 `CSS-box`, `CSS-frame`, `CSS-d48`). **12 R tests** run under an explicit
-`.proposal`. No `#expect`/`#require` line changed (`git diff d306d97 e531260 --
+`.proposal` (**11 since §10.7**). No `#expect`/`#require` line changed (`git diff d306d97 e531260 --
 Tests | grep -E '^[-+].*#(expect|require)'` returns only 3.1's and 3.2's new
 lines).
 
@@ -914,7 +917,7 @@ oracle's.
    found for its rows: `anEmptyComponentContributesNoNodes` (listed under
    `CounterLeaf`; renders `Row { Nothing() }` and `Row { EmptyGroup() }`) and
    `contentIsMaterializedExactlyOncePerFrame` (listed under `Leaf`; renders a
-   `Box` over an empty component). Both untouched. Lane 3's R count is **12**,
+   `Box` over an empty component). Both untouched. Lane 3's R count is **12** (**11** after §10.7),
    not the spec's 14.
 2. **M3e reddens one test the spec did not name**:
    `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`, whose custom-element
@@ -951,6 +954,17 @@ oracle's.
 **No mutation of an R test's authority** (spec §7, §6): each way back traps,
 loudly, at a pinned site.
 
+**`declaredSizeNativeLeaf`'s answer is pinned only at 0×0.** The R tests assert
+identity, phase counts, state and hit targets, never the Dual leaf's geometry:
+the verifier's **VC** (`declaredSizeNativeLeaf` answering its declared width
+**+ 7**, run in one suite with M3a and M3d) reddened only the tests M3a and M3d
+target (3.2, and 3.1's legacy half) — no R test. So a wrong but nonzero native
+answer is invisible to lane 3's R tests; only M3h's 0×0, which makes the CE
+rows' clicks miss and C-3's two rects compare equal, is seen. The precondition
+above stops a **fraction** reaching the proposal branch; it does not make an R
+test see a wrong pixel size, and §10.1's "so an R test cannot silently get a
+wrong size" is to be read as *a wrong size from a non-pixel dimension*.
+
 ### 10.6 Handed on
 
 - **To the Record phase**: CLAUDE.md's counts (1642 / 97 / 78;
@@ -959,12 +973,67 @@ loudly, at a pinned site.
   `requestNode`/`requestLeaf` are deprecated and trap naming stage 9; records
   §03/§04/§05/README; the plan's 6a row; the parent spec's status.
 - **To 6b**: the 17 CE+RP pins of this lane (23 with lane 2's six), and the
-  twelve R tests now under `.proposal` — nothing moves for them when the
-  default flips.
-- **To 7b**: the 29 CSS pins of this lane (32 with lane 2's three).
+  eleven R tests now under `.proposal` (twelve until §10.7) — nothing moves for
+  them when the default flips.
+- **To 7b**: the 30 CSS pins of this lane (33 with lane 2's three; 29 and 32
+  until §10.7). One of them, FR-P's test 2.10, is **green** under the flipped
+  default: 7b retires it with `FrameSpec.style()`, not because a flip reddened
+  it.
 - **To 9**: the five Dual elements' legacy branches, `ChainLeaf`,
   `BoxWithoutAnimated`, the seven Dep fixtures and 3.1's legacy half, with the
   pair.
+
+### 10.7 Verification fix: FR-P's test 2.10 is a CSS pin, not an R test — `LR-DE`
+
+The lane-3 verifier found that `aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare`
+(`FrameSizingTests`, test 2.10, ruling `FR-P`), which lane 3 moved to
+`.proposal` as an R test because it lays out a `Text` and no `Mark` of its own
+(the `Mark` in it is `widthInRow`'s sibling), **cannot see the mutation it is
+named for** under the proposal authority. `FR-P` is the legacy
+`FrameSpec.style()`'s choice of an axis-named `minSize` over `flexShrink = 0` —
+a CSS answer the proposal lowering never reads. The verifier's **VA** (both
+fixed axes' `minSize` writes in `FrameLayer.swift` replaced by `flexShrink = 0`)
+over `92914cb` read `Test run with 1642 tests in 3 suites passed`: after lane
+3's re-spelling nothing in the suite pinned `FR-P`, and the test's doc comment
+("This test reddens where 2.2 does not") was false. Its **VA2** (the same with
+the test's three `widthInRow` calls set back to `.legacy`) failed it alone.
+
+**Fix, `b504e9f`**: the three calls pass `.legacy`, and the doc comment gains
+the §5 line `Pinned to the legacy authority by stage 6a (CSS-frame, record §30
+§4).` with the reason. No assertion changed. Class **P-CSS-frame**, owned by
+7b. Suite on `b504e9f`: `Test run with 1642 tests in 3 suites passed after
+78.591 seconds`, 0 `error:`, the only `warning:` SwiftPM's notice, `FR-J
+no-argument frame: succeeded=` printed.
+
+**VA re-run on `b504e9f`** (`FrameLayer.swift` copied to the scratchpad; in
+`FrameSpec.style()` the two lines `style.minSize.width = .length(.pixels(width))`
+and `style.minSize.height = .length(.pixels(height))` each replaced by
+`style.flexShrink = 0`; full unfiltered suite; the copy restored, `git status
+--short` empty): **`Test run with 1642 tests in 3 suites failed after 78.953
+seconds with 1 issue`** — `aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare`
+alone, at `FrameSizingTests.swift:942`, its `try #require(framed <
+unconstrained)`: under `flexShrink = 0` the framed text reads its full
+unwrapped width, as wide as the unconstrained arm, so the precondition that
+the row is over-constrained fails before the `#expect`. `FR-P` is pinned again,
+by this test alone.
+
+**It is the one lane-3 P test M3g cannot see.** It was green under §4's flipped
+default (so §4 never listed it) and is green under `.proposal` now, so M3g's
+"exactly the 46" stands as taken, and the 47th P test is pinned by VA instead.
+Lane 3's counts become **11 R** (12 − 1) and **47 P: 17 CE+RP, 30 CSS** (29 +
+1); lanes 2 and 3 together hand 7b **33** CSS pins.
+
+**The same shape elsewhere, checked by reading, not by running a mutation.**
+Lane 1 moved no R test (L, Dep, G only). Lane 2's R tests (§9.1), by subject:
+`@State` seeding and retention, environment reads and their work counts, the
+disabled gate, focus, the frame clock, glyph emission, the element-group traps
+and the pipeline's phase write-back — none is about a `Style` a legacy site
+lowers. Lane 3's other ten R tests' doc comments name mutations in
+`GlobalElementID` (`Element.requestGroupLayout`'s parent), `ModifiedElement`'s
+content cursor, content id, `animated` calls and per-phase delegation, handler
+registration and fill order, and `ModifiedElement.elementID` — code read under
+either authority. 2.10 was the only R test whose named mutation is in a legacy
+lowering.
 
 ## 11. Stage close
 
@@ -977,3 +1046,4 @@ loudly, at a pinned site.
 | the flipped-default classification table recorded as the entry measurement | §4 (153 reds), attributed in §7.2 |
 | production behaviour unmoved | twelve `CN-R` images 0 differing at every lane; `Sources/` diff is two attributes, one `owningStage` literal, doc comments |
 | suite count | 1640 → **1642**, the two added tests; goldens 97 unmoved; guards 77 → 78 |
+| lane 3's classification after verification | 11 R, 47 P (17 CE+RP, 30 CSS): FR-P's test 2.10 moved R → P-CSS-frame at `b504e9f`, its mutation VA red again (§10.7) |
