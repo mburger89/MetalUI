@@ -29,7 +29,12 @@ private func child(_ parent: GlobalElementID, _ index: Int) -> GlobalElementID {
 
 /// A custom element outside the stage-1 lowering table: it registers through the
 /// public legacy `requestNode`, which reports `customElement` (ruling LR-C).
+///
+/// **Spelled with the deprecated registrar on purpose since stage 6a** (record
+/// §30, disposition Dep, `LR-CV`): the public registrar is its subject, and a
+/// deprecated witness is not diagnosed at the call site.
 private struct CustomNodeElement: Element {
+    @available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: it is the subject of aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority and everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn, which read the customElement report (stage 6a, LR-CV)")
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
         (pass.requestNode(style: Style(), children: []), ())
     }
@@ -41,6 +46,7 @@ private struct CustomNodeElement: Element {
 
 /// As `CustomNodeElement`, through the public legacy `requestLeaf`.
 private struct CustomLeafElement: Element {
+    @available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: it is the subject of aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority and everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn, which read the customElement report (stage 6a, LR-CV)")
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
         (pass.requestLeaf(style: Style()) { _, _ in SizeD(width: 10, height: 10) }, ())
     }

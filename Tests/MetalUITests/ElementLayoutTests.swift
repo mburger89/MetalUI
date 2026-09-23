@@ -49,10 +49,36 @@ final class ElementLog {
     }
 }
 
+/// The native leaf a stage 6a **Dual** fixture registers under the proposal
+/// authority (record §30, spec §5's R spelling): one node answering the pixel
+/// size its `Style` declares, 0 on an axis it leaves `auto` — what its legacy
+/// node resolved to as a flex item nobody stretches or grows. Shared by lane 3's
+/// five Dual elements (`Probe` here, `ComponentTests.Leaf`, `FrameSizingTests.Mark`,
+/// `ModifiedElementTests.LayerLeaf`, `ModifierCompositionProofTests.CountingLeaf`);
+/// their legacy branch registers through `Frame`'s internal registrar, and
+/// which branch runs is the test's authority.
+@MainActor
+func declaredSizeNativeLeaf(_ style: Style, _ pass: LayoutPass) -> LayoutNodeID {
+    func pixels(_ dimension: MetalUICore.Dimension) -> Double {
+        if case .length(.pixels(let p)) = dimension { return Double(p.value) }
+        precondition(dimension == .auto,
+                     "a stage 6a Dual fixture's proposal branch answers only pixel sizes; got \(dimension)")
+        return 0
+    }
+    let size = SizeD(width: pixels(style.size.width), height: pixels(style.size.height))
+    return pass.requestNativeLeaf { _ in LayoutMeasurement(size: size) }.layoutNodeID
+}
+
 /// A childless element that records the bounds and identity its phases receive.
 ///
 /// Conforms to `StyledElement`, so the production modifiers apply to it and a
 /// modifier that writes the wrong `Style` field shows up as a wrong rect here.
+///
+/// **A Dual fixture since stage 6a** (record §30, spec §5 lane 3): under the
+/// proposal authority it is `declaredSizeNativeLeaf`, and its three R tests pass
+/// `.proposal`; under the legacy one it registers through `Frame`'s internal
+/// legacy registrar, and its eleven P tests pass `.legacy` explicitly so stage
+/// 6b's flip cannot reach them.
 @MainActor
 struct Probe: Element, StyledElement {
     var style = Style()
@@ -72,7 +98,9 @@ struct Probe: Element, StyledElement {
     func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
         log.registered.append(name)
-        let node = pass.requestNode(style: style, children: [])
+        let node = pass.lowersToProposal
+            ? declaredSizeNativeLeaf(style, pass)
+            : pass.frame.requestNode(style: style, children: [])
         log.nodes[name] = node
         return (node, node)
     }
@@ -170,10 +198,12 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 ///
 /// Without this, "the builder never boxes" would be indistinguishable from
 /// "boxing is impossible", and a future reader could delete the erasure as dead.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
 @MainActor
 @Test func anExplicitAnyElementIsStillAcceptedAsAChild() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .legacy)
     var row = Row {
         AnyElement(Probe("erased", log: log).width(px(40)).height(px(25)))
         Probe("plain", log: log).width(px(60)).height(px(15))
@@ -335,10 +365,12 @@ private enum Fixture {
 ///
 /// Every one of those is an integer, so `roundLayout` is a no-op here and these
 /// numbers pin centring alone.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
 @MainActor
 @Test func aNestedLayoutMatchesTheEngineRunDirectly() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Fixture.contentSize, scaleFactor: 1)
+    let frame = Frame(contentSize: Fixture.contentSize, scaleFactor: 1, layoutAuthority: .legacy)
     var tree = Fixture.elementTree(log: log)
 
     frame.render(&tree)
@@ -366,10 +398,12 @@ private enum Fixture {
 /// column containing a *row*. Five nodes for five boxes is the whole claim, and
 /// the rect assertions above are what make a sixth node visible as more than a
 /// count.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
 @MainActor
 @Test func theBuilderContributesNoNodesOfItsOwn() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Fixture.contentSize, scaleFactor: 1)
+    let frame = Frame(contentSize: Fixture.contentSize, scaleFactor: 1, layoutAuthority: .legacy)
     var tree = Fixture.elementTree(log: log)
 
     frame.render(&tree)
@@ -383,10 +417,12 @@ private enum Fixture {
 /// Three children of **different widths** at three different x positions: with
 /// equal children a reversed or rotated order is invisible, which is the point
 /// of 30/50/70 rather than 50/50/50.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
 @MainActor
 @Test func childrenAreRegisteredAndLaidOutInSourceOrder() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
     var row = Row {
         Probe("first", log: log).width(px(30)).height(px(10))
         Probe("second", log: log).width(px(50)).height(px(20))
@@ -417,10 +453,12 @@ private enum Fixture {
 /// Same children, same sizes, one fixture each: without the pair, a `Column`
 /// that had quietly kept `Style`'s default `.row` would still pass every rect
 /// assertion written against a row.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
 @MainActor
 @Test func columnStacksOnTheAxisRowDoesNot() {
     let rowLog = ElementLog()
-    let rowFrame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
+    let rowFrame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .legacy)
     var row = Row {
         Probe("one", log: rowLog).width(px(40)).height(px(25))
         Probe("two", log: rowLog).width(px(60)).height(px(15))
@@ -428,7 +466,7 @@ private enum Fixture {
     rowFrame.render(&row)
 
     let columnLog = ElementLog()
-    let columnFrame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
+    let columnFrame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .legacy)
     var column = Column {
         Probe("one", log: columnLog).width(px(40)).height(px(25))
         Probe("two", log: columnLog).width(px(60)).height(px(15))
@@ -493,17 +531,19 @@ private enum Fixture {
 ///   file that reddens is the `Box` half below. That 84-to-1 asymmetry is the
 ///   argument for the split stated as a number: the engine's `stretch` default
 ///   is load-bearing for WebKit agreement, and EP-8 must not touch it.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
 @MainActor
 @Test func aStackCentresOnTheCrossAxisWhereABoxStretches() {
     let stackLog = ElementLog()
-    let stackFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1)
+    let stackFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1, layoutAuthority: .legacy)
     var column = Column {
         Probe("stacked", log: stackLog).width(px(60)).height(px(20))
     }
     stackFrame.render(&column)
 
     let boxLog = ElementLog()
-    let boxFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1)
+    let boxFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1, layoutAuthority: .legacy)
     var box = Box {
         Probe("boxed", log: boxLog).width(px(60)).height(px(20))
     }
@@ -520,7 +560,7 @@ private enum Fixture {
     // row tests that read it incidentally — none of them is named for it.
     // Cross extent 90, child 20 tall: y = (90 - 20) / 2 = 35.
     let rowLog = ElementLog()
-    let rowFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1)
+    let rowFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1, layoutAuthority: .legacy)
     var row = Row {
         Probe("rowed", log: rowLog).width(px(60)).height(px(20))
     }
@@ -585,7 +625,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
 @MainActor
 @Test func aContainerGivesItsChildrenPathsBuiltFromItsOwn() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
     var tree = Column {
         Row {
             Probe("left", log: log).id("leaf").width(px(10)).height(px(10))
@@ -625,7 +665,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
 @MainActor
 @Test func anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
     var tree = Column {
         Row {
             Probe("deep", log: log).id("named").width(px(10)).height(px(10))
@@ -675,10 +715,12 @@ private func pathID(_ names: String...) -> GlobalElementID {
 ///   y      = top  = **4**             (transposing top/bottom gives 12)
 ///   width  = 400 - 16 - 8  = **376**
 ///   height = 120 -  4 - 12 = **104**  (stretch fills the content box)
+///
+/// Pinned to the legacy authority by stage 6a (CSS-box, record §30 §4).
 @MainActor
 @Test func paddingEdgesAreNotTransposed() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(400), height: px(120)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(400), height: px(120)), scaleFactor: 1, layoutAuthority: .legacy)
     var row = Row {
         Probe("only", log: log).flexGrow(1)
     }
@@ -717,10 +759,12 @@ private func pathID(_ names: String...) -> GlobalElementID {
 ///   width  = 400 - 16 - 8  = **376**     (the item grows into what the margins left)
 ///   height = 120 -  4 - 12 = **104**     (stretch subtracts the cross margins —
 ///                                         the clause that was once missing)
+///
+/// Pinned to the legacy authority by stage 6a (CSS-box, record §30 §4).
 @MainActor
 @Test func marginEdgesAreNotTransposed() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(400), height: px(120)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(400), height: px(120)), scaleFactor: 1, layoutAuthority: .legacy)
     var row = Row {
         Probe("only", log: log).flexGrow(1)
             .margin(Edges(top: .pixels(px(4)), right: .pixels(px(8)),
@@ -739,10 +783,12 @@ private func pathID(_ names: String...) -> GlobalElementID {
 ///
 /// Asymmetric on purpose: `gap(12)` sets both axes equal and cannot detect an
 /// engine — or a modifier — reading the wrong one.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
 @MainActor
 @Test func gapIsPerAxisAndTheRowReadsTheHorizontalOne() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1, layoutAuthority: .legacy)
     var row = Row {
         Probe("first", log: log).width(px(30)).height(px(10))
         Probe("second", log: log).width(px(50)).height(px(20))
@@ -761,10 +807,12 @@ private func pathID(_ names: String...) -> GlobalElementID {
 }
 
 /// A `hidden()` child contributes no box, and its siblings close over it.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
 @MainActor
 @Test func aHiddenChildTakesNoSpace() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1, layoutAuthority: .legacy)
     var row = Row {
         Probe("first", log: log).width(px(30)).height(px(10))
         Probe("gone", log: log).width(px(50)).height(px(20)).hidden()
@@ -810,10 +858,12 @@ private func pathID(_ names: String...) -> GlobalElementID {
 /// Three distinct answers, none of them the container's default, and the third
 /// is now an `alignSelf` that *agrees with the old default* — so a build that
 /// dropped `alignSelf` in favour of the container's value moves all three.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
 @MainActor
 @Test func alignItemsAndAlignSelfBothReachTheEngine() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(90)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(90)), scaleFactor: 1, layoutAuthority: .legacy)
     var row = Row {
         Probe("container", log: log).width(px(30)).height(px(20))
         Probe("start", log: log).width(px(40)).height(px(10)).alignSelf(.flexStart)
@@ -844,12 +894,12 @@ private func pathID(_ names: String...) -> GlobalElementID {
 @MainActor
 @Test func aNodeIDDoesNotSilentlyResolveAgainstAnotherFramesTree() {
     let firstLog = ElementLog()
-    let first = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
+    let first = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
     var firstTree = Row { Probe("x", log: firstLog).width(px(20)).height(px(10)) }
     first.render(&firstTree)
 
     let secondLog = ElementLog()
-    let second = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
+    let second = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
     var secondTree = Row { Probe("y", log: secondLog).width(px(60)).height(px(40)) }
     second.render(&secondTree)
 
