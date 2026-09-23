@@ -922,14 +922,21 @@ private func nodeCount<Root: Element>(authority: LayoutAuthority, _ make: (SizeL
 ///
 /// Mutation: replace the axis-named pin with `flexShrink = 0` on any fixed
 /// axis. This test reddens where 2.2 does not, which is the whole finding.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// `FR-P` is a choice inside the legacy `FrameSpec.style()`, which the
+/// proposal authority never reads: run under `.proposal` (as lane 3 first
+/// spelled it) the mutation above left the whole suite green (record §30
+/// §10.7, VA). It is green under the flipped default, so it is the one lane-3
+/// P test that M3g cannot see; the mutation is its pin.
 @Test @MainActor func aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare() throws {
-    let framed = try widthInRow(authority: .proposal, siblingWidth: 200) { _ in
+    let framed = try widthInRow(authority: .legacy, siblingWidth: 200) { _ in
         Text("alpha bravo charlie delta").font(size: 12).frame(height: px(40))
     }
-    let bare = try widthInRow(authority: .proposal, siblingWidth: 200) { _ in
+    let bare = try widthInRow(authority: .legacy, siblingWidth: 200) { _ in
         Text("alpha bravo charlie delta").font(size: 12)
     }
-    let unconstrained = try widthInRow(authority: .proposal, rowWidth: 1000, siblingWidth: 200) { _ in
+    let unconstrained = try widthInRow(authority: .legacy, rowWidth: 1000, siblingWidth: 200) { _ in
         Text("alpha bravo charlie delta").font(size: 12)
     }
     try #require(framed < unconstrained,
