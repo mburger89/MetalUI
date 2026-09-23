@@ -593,6 +593,56 @@ private struct AXListLeaf: Element {
                         layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
 }
 
+// MARK: - The red-before for the three `List` tests' `.proposal` arms (`LR-BX`)
+
+/// **`AXListLeaf`'s registration exactly as it stood at `16d6696`**, kept as a
+/// live fixture so the probe below keeps a subject after `AXListLeaf` is
+/// re-spelled through `lowerLegacyNode` (stage 4, lane 4). It emits no `AXNode`:
+/// the probe reads a trap from `requestLayout`, which runs first.
+private struct LegacySpelledAXListLeaf: Element {
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        (pass.requestNode(style: Style(), children: []), ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {}
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **The red this lane could not take in-process** (`LR-BX`, spec §6 lane 4), the
+/// twin of `TombstoneTests.aLegacySpelledExcursionRowAbortsAProductionProposalFrame`.
+/// The three `List` tests below are about to run under both layout authorities;
+/// under `.proposal` a row spelled `pass.requestNode(style:children:)` hits
+/// `Frame.requestNode`'s backstop and aborts the run rather than failing it.
+///
+/// Recorded, with the assertion temporarily pointed at a string that cannot
+/// match (reverted; `git status --short` clean afterwards):
+///
+///     MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestNode
+///     has no proposal lowering (plan task 7, stage 6a); a tree containing it
+///     cannot run under the proposal layout authority.
+@Test func aLegacySpelledAXListRowAbortsAProductionProposalFrame() async {
+    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var list = List((0..<20).map(AXListRow.init), rowHeight: Pixels(28)) { _ in
+                LegacySpelledAXListLeaf()
+            }
+            list.elementID = ElementID("list")
+            Frame(contentSize: Size(width: Pixels(600), height: Pixels(600)),
+                  scaleFactor: 1, stateTable: StateTable(),
+                  layoutAuthority: .proposal).render(&list)
+        }
+    }
+    let err = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(err.contains("customElement.requestNode has no proposal lowering"),
+            "aborted, but not at the row's requestNode:\n\(err)")
+}
+
 /// Runs the full three-phase pipeline over `list` with `context` pushed onto
 /// `frame`'s scroll-context stack before `requestLayout` runs —
 /// `ListTests.swift`'s own `renderWindowed`, reproduced here because that one

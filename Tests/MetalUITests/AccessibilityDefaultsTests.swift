@@ -80,6 +80,131 @@ private extension AccessibilityTree {
     var directions: [AccessibilityAdjustmentDirection] = []
 }
 
+// MARK: - The two red-befores for this file's `.proposal` arms (`LR-BX`, `LR-CF`)
+
+/// **`scrolledList`'s root exactly as it stood at `16d6696`**, kept as a live
+/// fixture so the probe below keeps a subject after the `.minHeight(px(0))` is
+/// dropped from `scrolledList` itself (stage 4, lane 4).
+@MainActor private func legacySpelledScrolledListRoot(_ count: Int, height: Float) -> some Element {
+    let list = List((0..<count).map(Item.init), rowHeight: px(28)) { item in
+        Box { Text("Row \(item.id)") }.width(px(180)).height(px(28))
+    }
+    return Box { ScrollView(.vertical) { list } }
+        .width(px(200)).height(px(height)).minHeight(px(0))
+}
+
+/// **The red this lane could not take in-process, and the measured reason
+/// `scrolledList` loses one modifier** (`LR-CF`; spec §6 lane 4 did not predict
+/// it — it names only the two row spellings).
+///
+/// Four of this file's six `List` tests make `scrolledList(...)` the **root** of
+/// their frame or of their window, and its root `Box` carried
+/// `.minHeight(px(0))`. A root's `LoweredItem` is by definition unconsumed, and
+/// `reportUnconsumedLoweredItems` reports a root's non-`.auto` `minSize`
+/// (`LoweringState.swift:120-127`; `anItemFieldNoLoweredContainerConsumesIsReportedByName`'s
+/// root arms already document it) — so a production `.proposal` frame over that
+/// fixture aborts before the first assertion. It is **not** the `List`: the
+/// identical fixture with the modifier dropped runs to completion, which the
+/// second half of this probe is.
+///
+/// Recorded, with the assertion temporarily pointed at a string that cannot
+/// match (reverted; `git status --short` clean afterwards):
+///
+///     MetalUI/Frame.swift:1536: Fatal error: MetalUI: box.minSize.unconsumed
+///     has no proposal lowering (plan task 7, stage 2); a tree containing it
+///     cannot run under the proposal layout authority.
+///
+/// The modifier is **inert under the legacy engine** — the box declares
+/// `height`, so no automatic minimum is in play, and where it is a flex item
+/// (`aClientDoesNotChangeStateRetention`'s `Row`) the axis it names is the cross
+/// one. Measured, not argued: dropping it and running the whole suite unfiltered
+/// left 1593 tests / 3 issues, the three lane 2 left red for lane 5 (record §26
+/// §9.2). That is why it goes, rather than the fixture being wrapped in a host.
+@Test func aRootMinHeightOnTheScrollerFixtureAbortsAProductionProposalFrame() async {
+    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var element = legacySpelledScrolledListRoot(50, height: 200)
+            Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
+                  stateTable: StateTable(), theme: Theme.forAppearance(.light),
+                  collectsAccessibility: true, layoutAuthority: .proposal).render(&element)
+        }
+    }
+    let err = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(err.contains("box.minSize.unconsumed has no proposal lowering"),
+            "aborted, but not at the root's minSize:\n\(err)")
+
+    // The control: the same tree without that one modifier completes. Without
+    // this half the probe above would pass just as well if the `List`, the
+    // `ScrollView` or the `Text` were what aborted.
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            let list = List((0..<50).map(Item.init), rowHeight: px(28)) { item in
+                Box { Text("Row \(item.id)") }.width(px(180)).height(px(28))
+            }
+            var element = Box { ScrollView(.vertical) { list } }.width(px(200)).height(px(200))
+            Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
+                  stateTable: StateTable(), theme: Theme.forAppearance(.light),
+                  collectsAccessibility: true, layoutAuthority: .proposal).render(&element)
+        }
+    }
+}
+
+/// **Why `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` stays
+/// legacy-only** (`LR-CF`). Spec §6 lane 4 lists it as a both-authorities arm and
+/// makes it half of mutation M4b's required failure count. It cannot be one:
+/// its subject IS `.hidden()`, and `display: none` has no proposal lowering —
+/// `LegacyLowering.swift:161` returns `display.none` before any other field is
+/// read, and the parent design's §4.1 stage table assigns it to a later stage
+/// (the trap says stage 2; stage 2 deferred it, §8).
+///
+/// Recorded, with the assertion temporarily pointed at a string that cannot
+/// match (reverted; `git status --short` clean afterwards):
+///
+///     MetalUI/Frame.swift:1536: Fatal error: MetalUI: box.display.none has no
+///     proposal lowering (plan task 7, stage 2); a tree containing it cannot run
+///     under the proposal layout authority.
+///
+/// M4b's count is restated against a test that CAN run on both paths —
+/// `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`' zero-
+/// `rowHeight` arm, which is the same `AB-X` rule 1 on the same gate (record §26
+/// §9.5).
+@Test func aHiddenListAbortsAProductionProposalFrame() async {
+    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            let box = Box {
+                List((0..<50).map(Item.init), rowHeight: px(28)) { _ in
+                    Box().width(px(20)).height(px(28))
+                }
+            }
+            .width(px(40)).height(px(40))
+            var element = Column { box.hidden(); Text("shown") }
+            Frame(contentSize: Size(width: px(300), height: px(300)), scaleFactor: 1,
+                  stateTable: StateTable(), theme: Theme.forAppearance(.light),
+                  collectsAccessibility: true, layoutAuthority: .proposal).render(&element)
+        }
+    }
+    let err = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(err.contains("box.display.none has no proposal lowering"),
+            "aborted, but not at the hidden box:\n\(err)")
+
+    // The control: the same tree SHOWN completes, so what aborts is `hidden()`
+    // and not the list inside it.
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            let box = Box {
+                List((0..<50).map(Item.init), rowHeight: px(28)) { _ in
+                    Box().width(px(20)).height(px(28))
+                }
+            }
+            .width(px(40)).height(px(40))
+            var element = Column { box; Text("shown") }
+            Frame(contentSize: Size(width: px(300), height: px(300)), scaleFactor: 1,
+                  stateTable: StateTable(), theme: Theme.forAppearance(.light),
+                  collectsAccessibility: true, layoutAuthority: .proposal).render(&element)
+        }
+    }
+}
+
 /// A 200pt-wide scroller of `height` over a `count`-row `List` whose rows are a
 /// 28pt `Box` holding `Text("Row N")` — the demo's row shape, `demoLikeRows`'
 /// footing. `rowHeight` is the list's declared row height (each row's content

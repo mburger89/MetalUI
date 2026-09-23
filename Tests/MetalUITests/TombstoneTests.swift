@@ -111,6 +111,87 @@ private struct ExcursionItem: Identifiable {
     let id: String
 }
 
+// MARK: - The red-before for the excursion test's `.proposal` arm (`LR-BX`)
+
+/// **`ExcursionRow`'s registration exactly as it stood at `16d6696`**, kept as a
+/// live fixture so the probe below keeps a subject after `ExcursionRow` itself is
+/// re-spelled through `lowerLegacyNode` (stage 4, lane 4).
+///
+/// It carries no `@State`: the probe never reads a slot, it reads a trap.
+private struct LegacySpelledExcursionRow: Element {
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        (pass.requestNode(style: Style(), children: []), ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {}
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **The red this lane could not take in-process** (`LR-BX`, spec §6 lane 4).
+/// `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` is about to run
+/// under both layout authorities. Running it under `.proposal` with its row
+/// spelled as `pass.requestNode(style:children:)` does not fail — it hits
+/// `Frame.requestNode`'s backstop (the one
+/// `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` pins) and **aborts the
+/// whole run**, with no summary line and no list of what failed. So the red is
+/// taken here, in a child process, in `ListTests`'
+/// `aLegacySpelledListRowAbortsAProductionProposalFrame`'s shape.
+///
+/// A **production** frame: no `reportsUnlowerableFields`, which is what the
+/// excursion test builds and what `Window` builds.
+///
+/// Recorded, with the assertion temporarily pointed at a string that cannot
+/// match (reverted; `git status --short` clean afterwards):
+///
+///     MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestNode
+///     has no proposal lowering (plan task 7, stage 6a); a tree containing it
+///     cannot run under the proposal layout authority.
+@Test func aLegacySpelledExcursionRowAbortsAProductionProposalFrame() async {
+    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            let data = (0..<12).map { ExcursionItem(id: "row\($0)") }
+            var tree = ScrollView(.vertical, elementID: ElementID("scroller")) {
+                List(data, rowHeight: Pixels(20)) { _ in LegacySpelledExcursionRow() }
+            }
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(20)),
+                  scaleFactor: 1, stateTable: StateTable(),
+                  layoutAuthority: .proposal).render(&tree)
+        }
+    }
+    let err = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(err.contains("customElement.requestNode has no proposal lowering"),
+            "aborted, but not at the row's requestNode:\n\(err)")
+}
+
+/// **The design's premise about `FocusTests`' row, measured and found wrong.**
+/// Spec §6 lane 4 says `TombstoneTests.ExcursionRow` and `FocusTests`' row "both
+/// abort under `.proposal` today". Only the first does.
+/// `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne` builds its rows as
+/// `Box().focusable()` — a `Box`, which stage 1 lowered, and `focusable()` is a
+/// `Self`-returning modifier that writes `handlers`, not a registration — so the
+/// identical tree under `.proposal` **runs to completion**. This arm is the
+/// positive control for the one above: the abort is the row's spelling, not the
+/// `List`, not the `ScrollView` and not `@State`. `LR-CF` records the correction.
+@Test func aBoxSpelledListRowDoesNotAbortAProductionProposalFrame() async {
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            let data = (0..<12).map { ExcursionItem(id: "row\($0)") }
+            var tree = ScrollView(.vertical, elementID: ElementID("scroller")) {
+                List(data, rowHeight: Pixels(20)) { _ in Box().focusable() }
+            }
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(20)),
+                  scaleFactor: 1, stateTable: StateTable(),
+                  layoutAuthority: .proposal).render(&tree)
+        }
+    }
+}
+
 /// **Divergence 12, closed as BOUNDED, not absolute.** A `List` row scrolled
 /// out of the window and back keeps its `@State` — *within the retention
 /// window* (`StateTable.staleAfterGenerations`, 2 generations) — and loses it
