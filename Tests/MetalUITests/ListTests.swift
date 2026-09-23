@@ -151,7 +151,12 @@ private func subjectID(named name: ElementID?) -> GlobalElementID {
 /// - `recordsElementBounds: true` — `Frame.elementBounds` is written only when
 ///   it is set, and `Frame(contentSize:scaleFactor:)` defaults it to `false`.
 ///   Mutation **M3c** drops it back and must redden the three tests that read a
-///   bounds out of this helper;
+///   bounds out of this helper — **and it reddened two**, which is why the
+///   return is an `Optional` a caller `try #require`s rather than a
+///   zero-substituting `??`. With the substitution,
+///   `anEmptyListHasZeroHeightAndTrapsNothing` asserted 0 against a 0 the
+///   mutation itself produced and stayed green: a pin that could not see its
+///   own subject. Measured, then fixed, then M3c re-run (record §26 §8.4);
 /// - a **prepaint pass**: `elementBounds` is written by `Element.prepaintGroup`,
 ///   which is prepaint-time, so a layout-only helper records nothing. That is a
 ///   behaviour change for every test using this helper — hitboxes, scroll
@@ -160,7 +165,7 @@ private func subjectID(named name: ElementID?) -> GlobalElementID {
 @MainActor
 private func laidOut<E: Element>(_ element: E, authority: LayoutAuthority,
                                  width: Float = 400, height: Float = 600)
-    -> (Frame, Bounds<Pixels>) {
+    -> (Frame, Bounds<Pixels>?) {
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)),
                       scaleFactor: 1, layoutAuthority: authority,
                       recordsElementBounds: true)
@@ -172,8 +177,7 @@ private func laidOut<E: Element>(_ element: E, authority: LayoutAuthority,
     var state = layout
     var prepaintPass = PrepaintPass(frame: frame)
     _ = host.prepaint(hostID, bounds: frame.bounds(of: root), layout: &state, pass: &prepaintPass)
-    return (frame, frame.elementBounds[subject] ?? Bounds(origin: Point(x: px(0), y: px(0)),
-                                                          size: Size(width: px(0), height: px(0))))
+    return (frame, frame.elementBounds[subject])
 }
 
 /// The full three-phase pipeline over `element` inside the host box, with no
@@ -214,7 +218,7 @@ func aListSizesItselfToCountTimesRowHeight(_ authority: LayoutAuthority) throws 
     AuthorityCoverage.record(#function, authority)
     let list = List(items(10), rowHeight: px(28)) { Row($0) }
     let (_, listBounds) = laidOut(list, authority: authority)
-    #expect(listBounds.size.height == px(280))
+    #expect(try #require(listBounds).size.height == px(280))
 }
 
 /// Identity comes from the DATA, not from position — the property windowing
@@ -328,7 +332,10 @@ func anEmptyListHasZeroHeightAndTrapsNothing(_ authority: LayoutAuthority) throw
     AuthorityCoverage.record(#function, authority)
     let list = List([Item](), rowHeight: px(28)) { Row($0) }
     let (frame, listBounds) = laidOut(list, authority: authority)
-    #expect(listBounds.size.height == px(0))
+    // `try #require`, not `listBounds?.size.height == px(0)`: an unrecorded
+    // bounds and a 0pt one are the same answer to `??`, so the substituting
+    // spelling could not see mutation M3c at all (record §26 §8.4).
+    #expect(try #require(listBounds).size.height == px(0))
     #expect(frame.scrollRegions.isEmpty)
 }
 
@@ -340,7 +347,7 @@ func aWidthModifierOnAListReachesItsLayoutNode(_ authority: LayoutAuthority) thr
     AuthorityCoverage.record(#function, authority)
     let list = List(items(3), rowHeight: px(28)) { Row($0) }.width(px(123))
     let (_, listBounds) = laidOut(list, authority: authority)
-    #expect(listBounds.size.width == px(123))
+    #expect(try #require(listBounds).size.width == px(123))
 }
 
 /// Runs the full three-phase pipeline over `element` **inside the host box**,
@@ -359,7 +366,7 @@ func aWidthModifierOnAListReachesItsLayoutNode(_ authority: LayoutAuthority) thr
 private func renderWindowed<E: Element>(_ element: E, context: ScrollContext,
                                         authority: LayoutAuthority,
                                         frameHeight: Float = 600)
-    -> (Frame, Bounds<Pixels>) {
+    -> (Frame, Bounds<Pixels>?) {
     let frame = Frame(contentSize: Size(width: px(400), height: px(frameHeight)),
                       scaleFactor: 1, layoutAuthority: authority,
                       recordsElementBounds: true)
@@ -380,8 +387,7 @@ private func renderWindowed<E: Element>(_ element: E, context: ScrollContext,
     var paintPass = PaintPass(frame: frame)
     host.paint(hostID, bounds: rootBounds, layout: &state, prepaint: &prepaintState,
                pass: &paintPass)
-    return (frame, frame.elementBounds[subject] ?? Bounds(origin: Point(x: px(0), y: px(0)),
-                                                          size: Size(width: px(0), height: px(0))))
+    return (frame, frame.elementBounds[subject])
 }
 
 /// The window is exact, not merely "at least the viewport": rows both inside
@@ -422,7 +428,7 @@ func aWindowedListStillReportsItsFullContentHeight(_ authority: LayoutAuthority)
                                              frameHeight: 1200)
 
     #expect(frame.scrollRegions.count < data.count, "the window must be a strict subset")
-    #expect(listBounds.size.height == px(1120), "40 x 28, unaffected by windowing")
+    #expect(try #require(listBounds).size.height == px(1120), "40 x 28, unaffected by windowing")
 }
 
 /// A row scrolled past keeps its position, so the window is placed rather
