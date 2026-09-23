@@ -29,7 +29,7 @@ private func sprites(_ frame: Frame) -> [[Float]] {
 
 @MainActor
 private func render<E: Element>(_ make: () -> E, system: any TextSystem, scale: Float,
-                                authority: LayoutAuthority = .proposal) -> Frame {
+                                authority: LayoutAuthority = .legacy) -> Frame {
     let frame = Frame(contentSize: Size(width: Pixels(420), height: Pixels(600)), scaleFactor: scale,
                       textSystem: system, layoutAuthority: authority)
     var root = make()

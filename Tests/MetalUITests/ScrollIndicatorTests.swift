@@ -62,7 +62,7 @@ private let rootID = GlobalElementID.child(of: nil, at: 0, name: listID)
 private func fullyRendered<E: Element>(_ element: inout E, width: Float, height: Float,
                                        stateTable: StateTable = StateTable(),
                                        timestamp: Double = 0,
-                                       authority: LayoutAuthority = .proposal) -> (Frame, E.LayoutState) {
+                                       authority: LayoutAuthority = .legacy) -> (Frame, E.LayoutState) {
     // Plan task 7, stage 3, lane 3 (`LR-BI`): `reportsUnlowerableFields` is left
     // OFF on purpose, so this helper fails the way a production frame does — a
     // site with no lowering traps rather than reporting. Every fixture below was
