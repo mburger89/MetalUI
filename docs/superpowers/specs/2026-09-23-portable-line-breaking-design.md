@@ -1,7 +1,7 @@
 # Portable line breaking — design
 
 **Status:** implemented on `feat/portable-linebreak`, 2026-09-23 (record
-§29); roadmap item 1 of `plans/2026-09-23-cross-platform-roadmap.md`. Decided with the user: vendor libunibreak
+§30); roadmap item 1 of `plans/2026-09-23-cross-platform-roadmap.md`. Decided with the user: vendor libunibreak
 for UAX #14 rather than write it or vendor ICU.
 **Ruling prefix:** `LB-` (lettered; next `LB-H`; `LB-F` is reserved for
 roadmap item 2).
@@ -39,7 +39,7 @@ hyphenation, justification, `Text`/`Shaper` changes.
   non-positive width traps.
 - **LB-D — greedy, and the fitting rule is measured, not assumed.** Each line
   ends at the last break opportunity whose line fits the width. The rules,
-  each set from a measured disagreement with CoreText (LB-E, record §29):
+  each set from a measured disagreement with CoreText (LB-E, record §30):
   1. **Whitespace hangs** — a space, tab or hard break never makes a line
      overflow, so a line ends after its trailing whitespace.
   2. **A line's advance is its share of the paragraph's shaping** — the

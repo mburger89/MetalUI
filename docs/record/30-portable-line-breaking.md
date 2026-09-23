@@ -1,10 +1,11 @@
-# 29 — Portable line breaking (libunibreak), 2026-09-23
+# 30 — Portable line breaking (libunibreak), 2026-09-23
 
 Branch `feat/portable-linebreak`, from `feat/portable-text-mask-order` (PR
 #11, `PT-J`). Spec: `docs/superpowers/specs/2026-09-23-portable-line-breaking-design.md`,
 rulings `LB-A`…`LB-G` (`LB-F` reserved for roadmap item 2; next `LB-H`).
 Roadmap item 1 of `docs/superpowers/plans/2026-09-23-cross-platform-roadmap.md`,
-which this branch also adds.
+which this branch also adds. Written as §29 and renumbered §30 when plan
+task 7 stage 5 reached `master` first with its own §29.
 
 ## Why
 

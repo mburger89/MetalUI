@@ -38,7 +38,7 @@ Apple-bound:
 1. [x] **Line breaking** (UAX #14, libunibreak) — `PortableText.lines(_:font:
    wrappingAt:)` with `Shaper.shape(wrappingAt:)`'s contract, equal to
    CoreText over 13,464 cases. `feat/portable-linebreak`, spec
-   `specs/2026-09-23-portable-line-breaking-design.md` (`LB-`), record §29.
+   `specs/2026-09-23-portable-line-breaking-design.md` (`LB-`), record §30.
 2. [ ] **Font metrics and multi-line emission** — ascent, descent, leading and
    `lineHeight` from the font's own tables (FreeType), measured against
    `FontMetrics`; `emitLines` (`LB-F`).
