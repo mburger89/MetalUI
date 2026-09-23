@@ -687,8 +687,9 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
     demoModel.showModal = true
     defer { demoModel.showModal = false }
     let modal = LayoutDifferential.compare(width: 920, height: 560) { demoContent() }
-    #expect(modal.unlowerable == [entry(.stack, "position"), entry(.stack, "inset")],
-            "\(modal.unlowerable)")
+    // Stage 5, lane 1 (`LR-CH`, `LR-CI`): the modal is a presentation root and
+    // lowers, so the report that read `[stack.position, stack.inset]` is empty.
+    #expect(modal.unlowerable.isEmpty, "\(modal.unlowerable)")
     try #require(modal.elements == 2041, "\(modal.elements)")
     #expect(Set(modal.agreeing) == agreeingExpected)
     try #require(modal.disagreeing.count == 2035, "\(modal.disagreeing.count)")
