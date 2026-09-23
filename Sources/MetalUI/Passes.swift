@@ -42,7 +42,8 @@ public struct LayoutPass {
     /// Stage 6a deprecates it and moves every caller (ruling LR-R).
     public func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
         if lowersToProposal {
-            return frame.unlowerable(UnlowerableField(site: .customElement, field: "requestNode"))
+            print("SIXA-CUSTOM: requestNode")
+            return lowerLegacyNode(style, declared: style, children: children, site: .customElement)
         }
         return frame.requestNode(style: style, children: children)
     }
@@ -66,7 +67,14 @@ public struct LayoutPass {
     public func requestLeaf(style: Style,
                             measure: @escaping MeasureFunction) -> LayoutNodeID {
         if lowersToProposal {
-            return frame.unlowerable(UnlowerableField(site: .customElement, field: "requestLeaf"))
+            print("SIXA-CUSTOM: requestLeaf")
+            return lowerLegacyLeaf(style, declared: style, site: .customElement) {
+                frame.requestNativeLeaf { p in
+                    LayoutMeasurement(size: measure(OptionalSizeD(width: nil, height: nil),
+                        AvailableSpaceSize(width: p.width.map { .definite($0) } ?? .maxContent,
+                                           height: p.height.map { .definite($0) } ?? .maxContent)))
+                }
+            }
         }
         return frame.requestLeaf(style: style, measure: measure)
     }
