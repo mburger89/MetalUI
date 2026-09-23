@@ -40,7 +40,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   rulings in its spec, no separate decisions doc), `LB-` (next `LB-P`;
   rulings in its three specs: line breaking, lines emission, content sizes),
   `FN-` (next `FN-E`; rulings in its spec), `PC-` (next `PC-D`; rulings in
-  its spec). A numbered citation
+  its spec), `TS-` (next `TS-E`; rulings in its spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -69,7 +69,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Ten record files are not tasks of
+  and G2 is unblocked rather than waiting. Eleven record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
@@ -85,7 +85,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   and max-content (`LB-L`…, spec `specs/2026-09-23-portable-content-sizes-design.md`),
   §33 portable font resolution (`FN-`, spec
   `specs/2026-09-23-portable-font-resolver-design.md`) and §34 Core and
-  Layout off macOS (`PC-`, spec `specs/2026-09-23-portable-core-layout-design.md`). **Cross-platform work
+  Layout off macOS (`PC-`, spec `specs/2026-09-23-portable-core-layout-design.md`)
+  and §35 the text seam (`TS-`, spec `specs/2026-09-23-text-seam-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -115,23 +116,23 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 
 - **Counts (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
   with `master` at `42b9ab4`, the portable text line; then `PT-J`, +5; then line breaking, +6; then
-  lines emission, +14; then content sizes, +10; then font resolution, +6): 1681 tests, 97
+  lines emission, +14; then content sizes, +10; then font resolution, +6; then the text seam, +5): 1686 tests, 97
   goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:`, taken after
   `swift package clean` with `swift build --build-system native
   --build-tests` then unfiltered `swift test --build-system native
-  --no-parallel` (**one summary line**, `Test run with 1681 tests in 3 suites
+  --no-parallel` (**one summary line**, `Test run with 1686 tests in 3 suites
   passed`; nine skipped: the two gated tests and the FreeType, HarfBuzz,
   portable text, line breaking, lines emission (two) and content sizes
   oracles' gated measurement tests; the guards ran — the log
   carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
   `e5caefb` (`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` is
-  empty). **1681 = 1640 + 5 + 6 + 14 + 10 + 6**: the `PT-J` follow-up's
+  empty). **1686 = 1640 + 5 + 6 + 14 + 10 + 6 + 5**: the `PT-J` follow-up's
   `EmitParameterTests` (record §28), line breaking's 6 (the `LB-E` oracle,
   its gated measurement, contract tests; record §30) and lines emission's 14
   (ten metric/placement oracle tests, two of them gated, and four
   `EmitLinesTests`; record §31), content sizes' 10 (record §32) and font
-  resolution's 6 (record §33; `Tests/PortableTests` separately runs
-  16 + 6 + 5); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
+  resolution's 6 (record §33) and the text seam's 5 (record §35;
+  `Tests/PortableTests` separately runs 16 + 6 + 5); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
   15 (lane 1, the presentation root, +7; lane 2, the exit suites, +2; lane 3,
   the must-not-move set through real windows, +6; record §29) plus the
   portable text line's 8 (`MetalUIPortableTextTests`; record §28;
@@ -230,9 +231,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   that needs WebKit or Darwin is compiled out by `#if canImport(…)` per
   declaration (`PC-B`); typecheck guards read only this platform's `.build`
   (`PC-C`) and skip off macOS.
-- **Targets:** sixteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
+- **Targets:** seventeen one-way-dependent (`MetalUICore`, `MetalUILayout`,
   `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`, `CUnibreak`,
-  `MetalUIHarfBuzz`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
+  `MetalUIHarfBuzz`, `MetalUITextSystem`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
   `MetalUIPlatform`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
   `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so
   tests can import it (`LR-S`). `MetalUIScene` holds
@@ -309,8 +310,9 @@ Eight constraints that fail silently:
   `MetalUIHarfBuzz` and `MetalUIFreeType` products) pins HarfBuzz's glyph
   ids, clusters and design-unit positions byte-for-byte against macOS on
   Linux and Windows CI (`SH-I`).
-- `MetalUIPortableText` imports only `MetalUIScene`, `MetalUIShaderTypes`,
-  `MetalUIHarfBuzz`, `MetalUIFreeType` and `CUnibreak` — no Foundation, CoreText,
+- `MetalUITextSystem` imports only `MetalUIScene` (`TS-A`), and
+  `MetalUIPortableText` only `MetalUIScene`, `MetalUIShaderTypes`,
+  `MetalUIHarfBuzz`, `MetalUIFreeType`, `CUnibreak` and `MetalUITextSystem` — no Foundation, CoreText,
   CoreGraphics or Metal (`PT-A`). macOS cannot see a violation; the
   `scene-linux` job builds this target too, and `Tests/PortableTests`' third
   target, `PortableTextDeterminismTests`, pins its emitted rects, advance,
@@ -507,7 +509,13 @@ go to the `Keymap` first, then bubble raw `onKey` up the parent chain.
 `focusBorder(_:width:)` is the (opt-in) ring; background and border resolve
 `focus ?? hover ?? plain`.
 
-**Text.** Never key a cache on a family or PostScript name — `FontKey` reads
+**Text.** `Text` and `ProposalText` measure and draw **only through
+`Frame.textSystem`** (`TS-A`): a `TextSystem` chosen once per app
+(`App(device:textSystem:)`), CoreText over the frame's `ShapingCache` by
+default (`TS-B`), `PortableTextSystem` otherwise (`TS-C`). A new text-drawing
+element goes through the seam too — reaching `ShapingCache` or
+`placedGlyphs` directly puts it on CoreText whatever the app chose, which
+`TextSystemSeamTests` catches only for the elements it renders. Never key a cache on a family or PostScript name — `FontKey` reads
 four components off the resolved `CTFont` (and still conflates shaping
 behaviour, pinned wrong on purpose). `FontKey` stores its hash; `==` uses it
 as early reject only; to force collisions under mutation make the **stored**

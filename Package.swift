@@ -16,6 +16,8 @@ var products: [Product] = [
         .library(name: "MetalUIHarfBuzz", targets: ["MetalUIHarfBuzz"]),
         // The portable text pipeline (ruling PT-A).
         .library(name: "MetalUIPortableText", targets: ["MetalUIPortableText"]),
+        // The text seam (ruling TS-A).
+        .library(name: "MetalUITextSystem", targets: ["MetalUITextSystem"]),
 
 ]
 
@@ -106,7 +108,7 @@ var targets: [Target] = [
         // (rulings PT-A, PT-D): HarfBuzz shapes, FreeType rasterizes.
         .target(name: "MetalUIPortableText",
                 dependencies: ["MetalUIScene", "MetalUIHarfBuzz", "MetalUIFreeType",
-                               "CUnibreak"]),
+                               "CUnibreak", "MetalUITextSystem"]),
 
         // Shaping with no Apple framework (rulings SH-B, SH-K): imports only
         // CHarfBuzz. One run: no line breaking, bidi, itemization or fallback.
@@ -118,6 +120,11 @@ var targets: [Target] = [
 
         // The C structs shared with the shaders; MetalUIScene imports them.
         .target(name: "MetalUIShaderTypes"),
+
+        // The seam `Text` measures and draws through (ruling TS-A): one
+        // protocol, a CoreText implementation in MetalUIText and a portable
+        // one in MetalUIPortableText. Imports only MetalUIScene.
+        .target(name: "MetalUITextSystem", dependencies: ["MetalUIScene"]),
 
 ]
 
@@ -137,7 +144,7 @@ targets += [
         // Fonts load from Tests/Fonts by #filePath, not as resources (FT-G).
         .testTarget(name: "MetalUIFreeTypeTests", dependencies: ["MetalUIFreeType", "MetalUIText"]),
 
-        .target(name: "MetalUIText", dependencies: ["MetalUICore", "MetalUIScene"]),
+        .target(name: "MetalUIText", dependencies: ["MetalUICore", "MetalUIScene", "MetalUITextSystem"]),
         .testTarget(name: "MetalUITextTests", dependencies: ["MetalUIText"]),
 
         // The `MetalUIText` edge is one-way and points this way on purpose (M2
@@ -165,7 +172,8 @@ targets += [
         .target(
             name: "MetalUI",
             dependencies: [
-                "MetalUICore", "MetalUILayout", "MetalUIText", "MetalUIRender", "MetalUIPlatform",
+                "MetalUICore", "MetalUILayout", "MetalUIText", "MetalUITextSystem", "MetalUIRender",
+                "MetalUIPlatform",
             ]
         ),
         // `MetalUIText` is a dependency of `MetalUI` already; it is named again
@@ -177,7 +185,8 @@ targets += [
         // of it (plan task 7, stage 1, lane 5; ruling LR-S).
         .testTarget(
             name: "MetalUITests",
-            dependencies: ["MetalUI", "MetalUIText", "MetalUITestSupport", "MetalUIDemoContent"]
+            dependencies: ["MetalUI", "MetalUIText", "MetalUITestSupport", "MetalUIDemoContent",
+                           "MetalUIPortableText"]
         ),
         // The demo's content, a library so `MetalUITests` can import it (ruling
         // LR-S). In no product: it is demo content, not framework API. It makes
