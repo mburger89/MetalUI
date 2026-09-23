@@ -17,7 +17,8 @@ commits (`9ccc0d8`…`59b63ad`, listed in §2) that `a1b6edf` reverts to
 stay in the history so a later reader can re-run an arm by checking it out.
 Critic round 1 is §7; the lanes append from §8. **Lane 1 (L, Dep, G) ran:
 §8, `LR-DB`** — it corrected §1's census from 66 sites (8 in fixture strings)
-to **67 (9)**.
+to **67 (9)**. **Lane 2 (R, the P-only files) ran: §9, `LR-DC`** — no
+re-spelled test was red; the one Dual element was not dual.
 
 ## 1. Baseline at `b3c29b9`
 
@@ -664,3 +665,130 @@ applied (`LR-DB`).
 - M1b's reddened set shows the G fixtures now depend on `requestNativeLeaf`
   being public, as seven other guards already did — the dependency stage 9
   leaves standing.
+
+
+## 9. Lane 2 — authority-independent tests (R) and the P-only files — `LR-DC`
+
+On `feat/engine-stage-6a`, 2026-09-23. The change is `e683975` (tests only; no
+`Sources/` line), on top of lane 1's `0f79da6`. Every mutation below was taken
+on top of it: the files copied to the scratchpad, edited,
+`swift build --build-system native --build-tests`, **full unfiltered**
+`swift test --build-system native --no-parallel`, the copies restored (and I0
+reverted with `git apply -R`), `git status --short` read empty. Every run
+printed `FR-J no-argument frame: succeeded=`.
+
+### 9.1 What moved
+
+| disp. | element (file) | spelling | tests that lay it out, and their authority |
+|---|---|---|---|
+| R | `leafNode` for `CounterElement`, `ConditionalReadElement`, `ReflectOnceElement`, `TwoOrdinalElement` (`StateTests`) | `requestNativeLeaf` 10×10 | 6: `stateSurvivesAcrossFramesForTheSameElement`, `reflectionRunsOncePerTypeNotOncePerElement` (`.proposal`, a `Box` root); `aRootElementsStateIsSeededAndSurvives`, `aStateThatIsNeverReadInAFrameIsStillNotSwept`, `stateOrdinalsAreTheMirrorIndexNotThePositionAmongStateChildren`, `aStateWriteDuringTheFramesOwnRenderIsNotSwallowedByClearingAfterward` (all native: the element is the root) |
+| R | `CountingElement` (`StateTableTests`, shared with `IdentityTests`) | 10×10 | `aSharedTableCarriesStateAcrossFramesWhileAPerFrameTableWouldNot`, `anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`, `anAnonymousElementHoldsStateAcrossFrames` (native roots); **and eleven `IdentityTests` over `Row { CountingElement… }`, each now `.proposal`** (§9.3) |
+| R | `StampedStateProbe`, `ClickableStateProbe` (`IdentityTests`) | 0×0 (`Style()`) | `oneElementValuePlacedTwiceDoesNotShareItsState`, `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt` (`.proposal`) |
+| R | `EnvRecorder` 10×10, `PropertyRecorder` 1×1 (`EnvironmentTests`) | the file's `frame` helper gains `authority:` (default `.legacy`), as does `counts` | 13, each `.proposal`: the twelve that render them (two through `makeFakeWindow(layoutAuthority: .proposal)`) and `environmentWorkScalesWithWritersAndReadersNotWithTheirDescendants`' reader case only (its writer-only cases stay legacy) |
+| R | `RootWriter`, `ScopedReader` (`EnvironmentTrapTests`) | 0×0 | the two exit tests' helpers `.proposal` |
+| R | `EnabledRecorder` (`DisabledTests`) | 10×10 | `disabledComposesAsAnAndAndARawWriteOverridesIt` `.proposal` |
+| R | `FocusReader`, `SelfFocuser` (`FocusTests`) | 20×20 | the three windows `.proposal` |
+| R | `RequestingBox`, `TimestampRecorder` (`FrameClockTests`); `FrameCounter` (`FrameLoopTests`) | 0×0 (their `style` is never set) | `everyElementInOneFrameSeesTheSameTimestamp` `.proposal` (a `Row`); the other two native roots |
+| R | `Probe` (`GlyphEmitterTests`) | 0×0 | native root |
+| R | `ContentSwapper` (`ElementGroupTrapTests`) | `pass.frame.requestNativeOverlay(children:)` | the six `renderSwapper` exit tests: the helper `.proposal` |
+| R | `StateProbe` (`ElementGroupTrapTests`) | a leaf of the size its `style` declares (`declaredSize`, 10×10 from `.width`/`.height`) | the two duplicate-id tests `.proposal` |
+| R | `ProbeRow` (`PipelineTests`) | **one `ProposalLayout` (`ProbeRowLayout`) over two sized leaves** — §9.4 | 4, all native |
+| R | `StampedProbe`, `MutatingProbe`, `IdentifiedProbe` 30×10; the hand-built root | leaves; the root `pass.frame.requestNativeLinearStack(…, axis: .horizontal, spacing: 0)` | `twoCopiesOfOneElementDoNotShareLayoutState`, `theBoxCarriesEveryPhasesMutationForwardToTheNextPhase`, `paintWritesItsStatesBackSoASecondPaintSeesTheFirst`, all native |
+| **P-6b** | `ClickCounter` (`EnvironmentTests`) | `pass.frame.requestNode` | `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter`, both windows `.legacy` — **not a Dual** (§9.3) |
+| P-CSS | `LegacyMark` (`ContainerIntegrationTests`) | `pass.frame.requestNode`; the file's `render` gains `authority:` | the legacy arm of the three CN-P pins `.legacy` |
+| P-6b | `HitboxProbe` (`HitboxTests`) | `pass.frame.requestNode` | the five tests `.legacy` |
+| P-9 | `OrphanLegacyNode`, `StatefulLegacyLeaf` (`ProposalNodeIDTests`); `LegacyNodeUnderAProposalMarker` (`NativeBoundaryIntegrationTests`) | `pass.frame.requestNode` | the two tests `.legacy` (three frames and one) |
+
+**59 tests lay out a lane-2 R element** — 42 under an explicit `.proposal`,
+17 over an all-native tree that names no authority — and **11 are pinned**
+(3 P-CSS, 6 P-6b, 2 P-9: the spec's count). Each pinned test's doc comment
+carries `Pinned to the legacy authority by stage 6a (<class>, record §30 §4).`
+and each re-spelled element's a line saying so. No `#expect`/`#require` line
+changed (`git diff 0f79da6 e683975 -- Tests | grep -E '^[-+].*#(expect|require)'`
+is empty). After the change §8.3's census grep returns **15** lines: the 5 Dep
+lines and lane 3's 10.
+
+**Red-first does not apply**: the lane adds no test. The spec's rule for a
+re-spelled test found red (record it, pin it P with its cause) had nothing to
+act on — **no R test was red** on the first full run.
+
+### 9.2 Suite, build, pixels
+
+- `e683975`: **`Test run with 1640 tests in 3 suites passed after 81.133 seconds`**,
+  one summary line; 0 `error:`; the only `warning:` SwiftPM's notice under
+  `--build-system native`; `swift build --build-tests` (default build system):
+  `Build complete!`, 0 `error:`, 0 `warning:`.
+- Goldens: `git diff --name-only b3c29b9 e683975 -- 'Tests/**/*.json'` empty.
+- **Twelve-image offscreen comparison** (`docs/probes/demo-pixels/compare.sh
+  <scratch> b3c29b9 e683975`): controls at their recorded values (1048576,
+  1030498, 210027, 0, 1048576, chrome pair 0, distinct 544 / 216, indicator
+  rects 0), and **`differing=0` / `scene identical` in all twelve**.
+- Lock probe: `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` — no
+  window capture.
+
+### 9.3 Findings against the spec's §5 lane-2 rows
+
+1. **`ClickCounter` is not a Dual.** The spec gave it an R test,
+   `anEnvironmentScopeContributesNoLayoutNodeAndConsumesNoIndex`; that test
+   renders `EnvRecorder` (it is in the `EnvRecorder` row too), and
+   `ClickCounter` is laid out by exactly one test, the P-6b one. So it is
+   P-6b alone, `pass.frame.requestNode`, with no `lowersToProposal` branch —
+   and lane 2 has **no** Dual element. `LR-DA` item 3's rule (a Dual's R test
+   passes `.proposal`) has nothing to apply to here.
+2. **`CountingElement` has eleven consumers the spec did not list.** It is
+   defined in `StateTableTests` and shared with `IdentityTests` (its doc says
+   so), where ten tests put it under a legacy `Row` and one
+   (`twoErasedSiblingsDoNotShareOneStateEntry`, listed under the probes' row)
+   under `Row { AnyElement(…) }`. A native leaf under a legacy `Row` traps
+   under the legacy authority (`SA-G`, §6), so each of those tests' `Frame`
+   passes `.proposal` — none was red in A2 (§4 lists no `IdentityTests` row),
+   and none was red here. `anAnonymousElementHoldsStateAcrossFrames` renders it
+   as the root and names no authority.
+3. **Four listed tests lay out no lane-2 element**:
+   `aStateWriteWakesAPausedDisplayLinkThroughTheOnWriteHook` (renders `Box()`),
+   `childrenOfDistinctUnnamedParentsDoNotCollide` (no render),
+   `theErasureForwardsTheElementsIdentity` (constructs two `AnyElement`s, lays
+   out neither), and the Dual's R row above. They are untouched.
+4. **`ProbeRow` cannot be a native frame over a stack.**
+   `eachFrameOwnsItsOwnStateSoNothingLeaksBetweenFrames` asserts
+   `first.tree.nodeCount == 3` ("two children plus the root"); frame + stack +
+   two leaves is 4. §9.4.
+5. **The spec's CE prediction for `paintReceivesTheRootBoundsAndEmitsIntoTheFramesScene`
+   reads the container, not the leaves.** In A2 the whole custom row — its
+   root included — was reported as one 0×0 leaf, so the root's 400×100 was
+   lost; the re-spelling's container answers 400×100 by itself. The test reads
+   the root's size and `rects.count == 2` (a 0×0 `fill` still emits a rect),
+   so it depends on the container's answer, not the leaves' sizes (M2a / M2a′
+   below).
+
+### 9.4 `ProbeRow`'s native spelling
+
+`ProbeRowLayout: ProposalLayout` answers a fixed 400×100 and places each
+subview at its own `.unspecified` answer, left to right from `bounds.x`, at
+`bounds.y` — the legacy fixed-size flex row's answer (children at (0, 0)
+100×40 and (100, 0) 60×20, both at the top — the test's own literals), in one
+container node. The root is 400×100 in a 400×100 frame, so `CN-J`'s centring
+places it at (0, 0) and the absolute literals hold. The tree is all native.
+
+### 9.5 Mutations
+
+| id | mutation (file, spelling as applied) | full-suite line | reddened — every test |
+|---|---|---|---|
+| **M2a** | the 13 lane-2 native-leaf sites with a non-zero size (`DisabledTests` 1, `EnvironmentTests` 2 — the two recorders only, not the pre-existing `NativeEnvRecorder` — `FocusTests` 2, `PipelineTests` 5, `StateTableTests` 1, `StateTests` 1, and `ElementGroupTrapTests.declaredSize` returning 0×0) answer 0×0; the sites already 0×0 unchanged | `1640 … failed after 81.133 seconds with 5 issues` | **`prepaintSeesBoundsTheEngineResolvedBetweenTheFirstTwoPhases` alone** (`PipelineTests.swift:134`, `:135` first child's size; `:139` second's x; `:141`, `:142` its size). The spec predicted it **and** `paintReceivesTheRootBoundsAndEmitsIntoTheFramesScene`; the second reads the container's answer (§9.3 item 5). No non-CE test reads a lane-2 element's size |
+| **M2a′** | `ProbeRowLayout.sizeThatFits` answers 0×0 (the half of A2's loss M2a cannot reach) | `1640 … failed after 80.248 seconds with 6 issues` | `prepaintSeesBoundsTheEngineResolvedBetweenTheFirstTwoPhases` (`:132`, `:133`, `:139`, `:140` — the 0×0 root is centred at (200, 50), so the children's origins move), `paintReceivesTheRootBoundsAndEmitsIntoTheFramesScene` (`:154`, `:155`, the root's size) — **the two CE rows, together** |
+| **M2b** | `ProbeRowLayout` places each child centred on the cross axis (`y: bounds.y + (bounds.height - size.height) / 2`), the spec's "alignment `.center`" in this spelling | `1640 … failed after 91.202 seconds with 2 issues` | `prepaintSeesBoundsTheEngineResolvedBetweenTheFirstTwoPhases` alone (`:133` first.origin.y, `:140` second.origin.y). The spec predicted both CE rows; `paintReceives…` reads no child position, in either spelling |
+| **I0 control** | `git apply docs/probes/stage-6a-instrument-I0.patch` on `e683975`, nothing else | `1640 … failed after 81.086 seconds with 32 issues` | exactly the 13 X tests of §7.3, no difference |
+| **M2c** | over I0, every `.legacy` lane 2 wrote flipped to `.proposal`: **15** sites (`EnvironmentTests` 2 windows, `ContainerIntegrationTests` 4 `render` calls, `HitboxTests` 1 `Frame` + 4 windows, `ProposalNodeIDTests` 3 frames, `NativeBoundaryIntegrationTests` 1) | `1640 … failed after 77.714 seconds with 45 issues` | against the control, **exactly the predicted 10**: `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter` (`EnvironmentTests.swift:368`, the first arm's `try #require(log.readings.last == 2)` — its two clicks at legacy coordinates miss the centred root), `hoverResolvedThroughARealRenderHasNoLag` (`HitboxTests.swift:331`), `activeIsSetOnMouseDownAndHeldUntilMouseUp` (`:443`), `aPressThatLeavesTheHitboxAndReturnsStaysActive` (`:464`, 3 issues), `activeSurvivesAFrameBoundary` (`:536`, 2), `aMouseMovedEventMakesTheBoxUnderItHoveredOnTheNextFrame` (`:597`), `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` (`ProposalNodeIDTests.swift:197`, arm b's `nodeCount == 6`: the backstop's 0×0 native leaf replaced the orphan subtree), `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer` (`NativeBoundaryIntegrationTests.swift:166`, the abort is no longer "contains a legacy node"), `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal` (`ContainerIntegrationTests.swift:1498`), `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents` (`:1523`); **`aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight` green**, as A2 read it; the 13 control reds all still red. 21 `SIXA-WOULD-TRAP:` lines in the log. The P-9 "may stay green" caveat did not bite: both P-9 tests reddened |
+
+**No mutation of an R test's authority** (spec §7, record §6): each way back
+traps, loudly, at a pinned site.
+
+### 9.6 Handed on
+
+- Lane 3 owns the census grep's 10 remaining lines, the deprecation, 3.1/3.2.
+- `IdentityTests` now runs under the proposal authority with no legacy twin.
+  What it gives up is the legacy kernel under `CountingElement`; identity is
+  assigned by the element groups, which read no authority (§7.5's grep), and
+  the legacy `Row` still lowers through stage 2's container lowering. Stage 6b
+  flips the default; nothing here changes when it does.
+

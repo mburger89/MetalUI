@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DC`** (stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA` and its lane 1 `LR-DB`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DD`** (stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB` and its lane 2 `LR-DC`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -6274,3 +6274,54 @@ the new grep also misses, stage 9's deletion reddens its guard for the wrong
 reason — loud, at that guard. Item 3: a mutation re-spelled to build pins a
 slightly different declaration from the one the spec named; each spelling is
 recorded as applied, so a later re-run reproduces it.
+
+## LR-DC — stage 6a lane 2: no re-spelled test red, the Dual that was not, `CountingElement`'s eleven consumers, and `ProbeRow` as one `ProposalLayout`
+
+**Evidence.** Record §30 §9, every item run on `e683975` (the lane's change;
+tests only) with full unfiltered suites.
+
+**The ruling.**
+
+1. **Lane 2 landed as designed** (`LR-CU` R and P; `LR-DA` item 2): every
+   lane-2 custom element re-spelled onto `requestNativeLeaf` (a container onto
+   `pass.frame.requestNativeOverlay`, `PipelineTests`' hand-built root onto a
+   native stack), or pinned through `pass.frame.requestNode` with `.legacy`
+   explicit and the §5 doc line. `Test run with 1640 tests in 3 suites passed`,
+   no `#expect`/`#require` line changed, 0 `warning:` on both build systems,
+   the twelve `CN-R` images 0 differing, goldens unmoved. **No R test was red**,
+   so the pin-on-red rule had nothing to act on. 59 tests lay out a lane-2 R
+   element (42 under an explicit `.proposal`, 17 over an all-native tree); 11
+   are pinned.
+2. **`EnvironmentTests.ClickCounter` is P-6b, not a Dual.** Its spec R test
+   renders `EnvRecorder`; `ClickCounter` is laid out only by
+   `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter`. Lane 2
+   has no Dual element; spec §5's totals ("Dual 6 elements") become **5**, all
+   lane 3's.
+3. **A shared fixture's consumers move with it.** `CountingElement` (defined in
+   `StateTableTests`) is laid out by eleven `IdentityTests`, ten of them under a
+   legacy `Row`; re-spelling it native makes each of those `Frame`s pass
+   `.proposal` (`SA-G` otherwise). None was red in A2 or here. The general
+   rule for lane 3 and stage 6b: **before re-spelling a fixture, grep its type
+   name across `Tests/`**, not only its file.
+4. **`ProbeRow` is one `ProposalLayout` over two leaves, not a native frame
+   over a stack**, because `eachFrameOwnsItsOwnStateSoNothingLeaksBetweenFrames`
+   asserts `nodeCount == 3` and a frame plus a stack plus two leaves is 4.
+   `ProbeRowLayout` answers 400×100 and places the leaves left to right at the
+   top — the test's literals. Spec §5's `PipelineTests` row amended.
+5. **M2a and M2b each redden one CE row, not two**, and M2a′ is added. M2a
+   (every lane-2 leaf 0×0) and M2b (children centred on the cross axis) redden
+   only `prepaintSeesBoundsTheEngineResolvedBetweenTheFirstTwoPhases`:
+   `paintReceivesTheRootBoundsAndEmitsIntoTheFramesScene` reads the root's size
+   and a rect count, which depend on the container's answer, not the leaves'
+   sizes or positions. **M2a′** (the container answers 0×0) reddens both —
+   the half of A2's loss that M2a, as spelled, could not reach.
+6. **M2c reddened exactly the predicted 10** against an I0 control of exactly
+   the 13 X tests, with `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`
+   green. Both P-9 tests reddened, so the spec's "may stay green under I0"
+   caveat did not apply.
+
+**What it costs if wrong.** Item 3: a shared fixture re-spelled without its
+consumers traps at `SA-G` under the legacy authority and truncates the run —
+loud, at the first consumer. Item 4: if `ProbeRowLayout` drifted from the
+legacy row's answer, M2a′ and M2b show the two CE rows read it.
+
