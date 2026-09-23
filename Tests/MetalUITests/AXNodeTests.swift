@@ -26,7 +26,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// an element tree at all, so a second authority would be an argument their
 /// bodies never read (`LR-BN`'s rule).
 @MainActor private func bareFrame(_ side: Float = 300,
-                                  authority: LayoutAuthority = .proposal) -> Frame {
+                                  authority: LayoutAuthority = .legacy) -> Frame {
     Frame(contentSize: Size(width: px(side), height: px(side)),
           scaleFactor: 1, stateTable: StateTable(),
           shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
@@ -670,7 +670,7 @@ private struct LegacySpelledAXListLeaf: Element {
 @MainActor
 private func renderListWindowed<Data: RandomAccessCollection, Row: Element>(
     _ list: inout List<Data, Row>, context: ScrollContext,
-    authority: LayoutAuthority = .proposal
+    authority: LayoutAuthority = .legacy
 ) -> Frame where Data.Element: Identifiable {
     let frame = bareFrame(600, authority: authority)
     frame.pushScrollContext(context)

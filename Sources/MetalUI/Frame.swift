@@ -1458,8 +1458,8 @@ public final class Frame {
          focusedElement: GlobalElementID? = nil,
          transaction: Animation? = nil,
          collectsAccessibility: Bool = false,
-         layoutAuthority: LayoutAuthority = .proposal,
-         reportsUnlowerableFields: Bool = true,
+         layoutAuthority: LayoutAuthority = .legacy,
+         reportsUnlowerableFields: Bool = false,
          recordsElementBounds: Bool = false) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
@@ -1533,8 +1533,7 @@ public final class Frame {
     /// argument (ruling LR-C). For a site that registers nothing in place of the
     /// field — `StyledComponent`'s amend — this is the whole check.
     func noteUnlowerable(_ field: UnlowerableField) {
-        if !reportsUnlowerableFields { print("SIXA-WOULD-TRAP: \(field)") }
-        print("SIXA-UNLOWERABLE: \(field)")
+        guard reportsUnlowerableFields else { preconditionFailure(field.trapMessage) }
         unlowerableFields.append(field)
     }
 
@@ -1583,12 +1582,10 @@ public final class Frame {
 
     /// `requestNode`/`requestLeaf`'s backstop under the proposal authority.
     private func unguardedLegacyRegistration(_ registrar: String) -> LayoutNodeID {
-        if !reportsUnlowerableFields { print("SIXA-WOULD-TRAP: backstop \(registrar)") }
-        precondition(true, """
+        precondition(reportsUnlowerableFields, """
             MetalUI: Frame.\(registrar) reached under the proposal layout authority by a \
             site that did not check the authority itself (plan task 7, ruling LR-C).
             """)
-        print("SIXA-BACKSTOP: \(registrar)")
         return requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
     }
 
@@ -1708,10 +1705,14 @@ public final class Frame {
             }
         }
         if tree.isNativeLayoutNode(root) {
-            _ = tree.computeNativeLayoutSIXA(
+            _ = tree.computeNativeLayout(
                 root: root,
                 proposal: ProposedSize(width: Double(contentSize.width.value),
-                                       height: Double(contentSize.height.value)))
+                                       height: Double(contentSize.height.value)),
+                centredIn: LayoutRect(x: 0, y: 0,
+                               width: Double(contentSize.width.value),
+                               height: Double(contentSize.height.value))
+            )
             return
         }
         computeLayout(

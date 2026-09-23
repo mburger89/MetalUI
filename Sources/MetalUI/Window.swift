@@ -137,7 +137,7 @@ public final class Window {
     /// 7, ruling LR-B): `.legacy` until stage 6b switches the default. A write
     /// marks the window dirty, as `environment`'s does, a no-op included.
     /// **Internal**, pinned by `aPlainImportCannotChooseTheLayoutAuthority`.
-    var layoutAuthority: LayoutAuthority = .proposal {
+    var layoutAuthority: LayoutAuthority = .legacy {
         didSet { setNeedsRedraw() }
     }
 
@@ -890,7 +890,6 @@ public final class Window {
                           transaction: transaction,
                           collectsAccessibility: accessibility.isActive,
                           layoutAuthority: layoutAuthority,
-                          reportsUnlowerableFields: true,
                           recordsElementBounds: recordsElementBounds)
         frame.rootEnvironment = environment
         withObservationTracking {

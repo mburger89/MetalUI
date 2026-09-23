@@ -558,13 +558,6 @@ public final class LayoutTree {
         }
     }
 
-    @discardableResult
-    public func computeNativeLayoutSIXA(root: LayoutNodeID, proposal: ProposedSize) -> LayoutMeasurement {
-        runNativeLayout(root: root, proposal: proposal) { answer in
-            LayoutRect(x: 0, y: 0, width: answer.size.width, height: answer.size.height)
-        }
-    }
-
     /// The one implementation of both `computeNativeLayout` entries: the
     /// `isLayingOut` bracket (SA-I), one `NativeLayoutRun` marked inactive on
     /// return (SA-H), measurement of `root` at `proposal`, placement at the

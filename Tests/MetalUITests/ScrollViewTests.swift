@@ -28,7 +28,7 @@ private func fixedHeight(_ h: Float) -> Style {
 /// generalised to hand back the returned `LayoutState` instead of discarding it.
 @MainActor
 private func laidOut<E: Element>(_ element: inout E, width: Double, height: Double,
-                                 authority: LayoutAuthority = .proposal)
+                                 authority: LayoutAuthority = .legacy)
     -> (Frame, LayoutNodeID, E.LayoutState) {
     // Plan task 7, stage 3, lane 3 (`LR-BI`): `reportsUnlowerableFields` stays
     // off, so this helper fails the way a production frame does.
