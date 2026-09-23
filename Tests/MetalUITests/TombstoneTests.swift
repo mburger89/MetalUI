@@ -90,6 +90,19 @@ import MetalUILayout
 /// `StateTests.CounterElement`'s idiom. `elementID` is COMPUTED, not stored,
 /// so `Mirror` sees only `count`: its ordinal is 0, matching every other
 /// single-`@State` fixture in this suite (`$state0`).
+///
+/// **Spelled through the legacy lowering on both authorities** (stage 4, lane 4;
+/// `ListTests.Row`'s own re-spelling, `LR-BW`). It registered `pass.requestNode`
+/// outright until then, which under `.proposal` hits `Frame.requestNode`'s
+/// backstop and **aborts the run** —
+/// `aLegacySpelledExcursionRowAbortsAProductionProposalFrame` below is that abort
+/// kept as an observable. `lowerLegacyNode` over no children forwards to
+/// `lowerLegacyLeaf` over a 0×0 native leaf by itself, which is the lowering of a
+/// childless `Box`, so the two branches describe the same box.
+///
+/// **The `@State` write stays outside the branch**, deliberately: it is what this
+/// fixture exists for, and a production count that depended on the authority
+/// would make the two excursion arms incomparable rather than comparable.
 private struct ExcursionRow: Element {
     @State var count = 0
     var elementID: ElementID? { nil }
@@ -97,6 +110,10 @@ private struct ExcursionRow: Element {
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Void) {
         count += 1
+        if pass.lowersToProposal {
+            return (pass.lowerLegacyNode(Style(), declared: Style(), children: [],
+                                         site: .customElement), ())
+        }
         return (pass.requestNode(style: Style(), children: []), ())
     }
 
@@ -238,8 +255,23 @@ private struct LegacySpelledExcursionRow: Element {
 /// **This alone is not enough to prove the reap is gated ON the threshold at
 /// all** — see `aStaleEntryIsRetainedForeverWhileStorageStaysAtOrBelowSweepThreshold`
 /// below for why, and for the mutation this test cannot catch.
+///
+/// **Runs under BOTH layout authorities since plan task 7's stage 4, lane 4**
+/// (spec §4.1 row 2, `LR-BU`). Stage 4 replaced `List`'s spacer-plus-rows flex
+/// column with a single `WindowedRowsLayout` on the proposal path, so which rows
+/// are *built* — and therefore which `StateTable` entries a generation marks — is
+/// decided by `visibleRange` on one path and could have been decided by the
+/// layout on the other. It is not: `visibleRange` is untouched (spec §3.3), and
+/// this test is what says so about retention rather than about geometry. Every
+/// literal below — the offsets, the windows they select, the counts 1/3/4 — is
+/// unchanged on both paths; the only difference is `layoutAuthority`.
+///
+/// Mutation **M4a** (`staleAfterGenerations` 2 → 3) must redden this test's long
+/// half on **both** authorities, and `FocusTests`' twin likewise.
 @MainActor
-@Test func aListRowsStateSurvivesABoundedExcursionButNotALongerOne() throws {
+@Test(arguments: AuthorityCoverage.authorities)
+func aListRowsStateSurvivesABoundedExcursionButNotALongerOne(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     func px(_ v: Float) -> Pixels { Pixels(v) }
     let rowHeight = px(20)
     let data = (0..<12).map { ExcursionItem(id: "row\($0)") }
@@ -275,7 +307,8 @@ private struct LegacySpelledExcursionRow: Element {
                                                 lastScrollTime: current.lastScrollTime,
                                                 viewportExtent: current.viewportExtent))
         }
-        let frame = Frame(contentSize: contentSize, scaleFactor: 1, stateTable: table)
+        let frame = Frame(contentSize: contentSize, scaleFactor: 1, stateTable: table,
+                          layoutAuthority: authority)
         frame.render(&tree)
     }
 

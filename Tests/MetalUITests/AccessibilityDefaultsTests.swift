@@ -38,13 +38,22 @@ private struct Item: Identifiable { let id: Int }
 
 /// Renders `element` into a collecting `Frame` and builds the tree the way
 /// `Window.drawFrameIfNeeded` does.
+///
+/// **`authority` since stage 4's lane 4** (`LR-BU`): the four `List` tests that
+/// go through this helper run under both. Every other caller takes the default
+/// `.legacy`, which is what production uses until stage 6b — this file's
+/// subject is the accessibility tree, not the engine, and an authority argument
+/// on a fixture with no `List` in it would be an argument two arms could not
+/// disagree about (`LR-BN`'s rule).
 @MainActor private func collect<E: Element>(_ element: E, stateTable: StateTable = StateTable(),
                                            width: Float = 300, height: Float = 300,
-                                           collects: Bool = true) -> (Frame, AccessibilityTree) {
+                                           collects: Bool = true,
+                                           authority: LayoutAuthority = .legacy)
+    -> (Frame, AccessibilityTree) {
     var element = element
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
                       stateTable: stateTable, theme: Theme.forAppearance(.light),
-                      collectsAccessibility: collects)
+                      collectsAccessibility: collects, layoutAuthority: authority)
     frame.render(&element)
     let tree = AccessibilityTreeBuilder.build(emissions: frame.axEmissions,
                                               focused: frame.focusedElement,
@@ -210,6 +219,22 @@ private extension AccessibilityTree {
 /// footing. `rowHeight` is the list's declared row height (each row's content
 /// stays 28pt); `clickableRows` puts an `onClick` on each row's content Box,
 /// `clickableList` one on the list itself.
+///
+/// **It carried a `.minHeight(px(0))` on that outer `Box` until stage 4's lane 4,
+/// and that one modifier is what kept four of this file's `List` tests off the
+/// proposal authority** (`LR-CF`). Four of them make this the ROOT of a frame or
+/// of a window; a root's `LoweredItem` is unconsumed by definition, and
+/// `reportUnconsumedLoweredItems` reports a root's non-`.auto` `minSize`, so a
+/// production `.proposal` frame aborted on it before the first assertion.
+/// `aRootMinHeightOnTheScrollerFixtureAbortsAProductionProposalFrame` above is
+/// that abort and its control, kept as observables.
+///
+/// **Dropping it moves nothing under the legacy engine, measured rather than
+/// argued**: the box declares `height`, so no automatic minimum is in play, and
+/// in the one place it is a flex item (`aClientDoesNotChangeStateRetention`'s
+/// `Row`) the axis it names is the cross one. The whole suite unfiltered with it
+/// dropped and nothing else changed read 1593 tests / 3 issues — the three lane 2
+/// left red for lane 5 (record §26 §9.2).
 @MainActor private func scrolledList(_ count: Int, height: Float,
                                      label: String? = nil, rowHeight: Float = 28,
                                      clickableRows: Bool = false,
@@ -221,7 +246,7 @@ private extension AccessibilityTree {
     if let label { list = list.accessibilityLabel(label) }
     if clickableList { list = list.onClick {} }
     return Box { ScrollView(.vertical) { list } }
-        .width(px(200)).height(px(height)).minHeight(px(0))
+        .width(px(200)).height(px(height))
 }
 
 // MARK: - Bridge harness (the cost tests)
@@ -503,14 +528,26 @@ private extension AccessibilityTree {
 /// **Added against the verifier's surviving mutants** L3V01 (step C does not
 /// recurse below a kept non-button), L3V02 (step C gates on `isClickable`) and
 /// L3V05 (`windowIsBounded` ignores `rowHeight`).
-@Test @MainActor func combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows() throws {
+///
+/// **Both authorities since stage 4's lane 4** (`LR-BU`, `LR-CF`). Its
+/// zero-`rowHeight` arm is `AB-X` rule 1 — an unbounded window publishes the
+/// table and no rows — on a tree that lowers on both paths, which is why
+/// mutation **M4b** (`indexesRows` forced true) is counted against this test and
+/// `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` rather
+/// than against `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`,
+/// which the design named and which cannot run under `.proposal` at all.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     func secondFrame<E: Element>(_ make: () -> E) throws -> AccessibilityTree {
         let stateTable = StateTable()
-        let (first, _) = collect(make(), stateTable: stateTable, width: 200, height: 200)
+        let (first, _) = collect(make(), stateTable: stateTable, width: 200, height: 200,
+                                 authority: authority)
         let scroller = try #require(first.scrollRegions.first).id
         try #require(stateTable.peek(scroller, as: ScrollState.self)?.viewportExtent == 200,
                      "control: the first frame measured a 200pt viewport")
-        return collect(make(), stateTable: stateTable, width: 200, height: 200).1
+        return collect(make(), stateTable: stateTable, width: 200, height: 200,
+                       authority: authority).1
     }
 
     let clickableRows = try secondFrame { scrolledList(50, height: 200, clickableRows: true) }
@@ -583,18 +620,22 @@ private extension AccessibilityTree {
 /// The window, by `List.visibleRange`'s arithmetic: a 200pt viewport at offset
 /// 1120 (28 × 40) over 28pt rows covers rows 40 through 47 (1320 / 28 = 47.1,
 /// rounded up to 48), widened by the 2-row overscan to **38..<50**.
-@Test @MainActor func aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices() throws {
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     for label in [nil, "Contacts"] as [String?] {
         let stateTable = StateTable()
         let (first, _) = collect(scrolledList(500, height: 200, label: label),
-                                 stateTable: stateTable, width: 200, height: 200)
+                                 stateTable: stateTable, width: 200, height: 200,
+                                 authority: authority)
         let scroller = try #require(first.scrollRegions.first).id
         try #require(stateTable.peek(scroller, as: ScrollState.self)?.viewportExtent == 200,
                      "control: the first frame measured a 200pt viewport")
         stateTable.withState(scroller, initial: ScrollState()) { $0.offset = 28 * 40 }
 
         let (_, tree) = collect(scrolledList(500, height: 200, label: label),
-                                stateTable: stateTable, width: 200, height: 200)
+                                stateTable: stateTable, width: 200, height: 200,
+                                authority: authority)
         let (tableID, table) = try #require(tree.all(.table).first)
         #expect(tree.roots == [tableID])
         #expect(table.rowCount == 500)
@@ -624,11 +665,25 @@ private extension AccessibilityTree {
 ///
 /// **The table on frame 0 is the suppression scope's exception**, so this is
 /// the first reader of it (lane 1's surviving mutant M33).
-@Test @MainActor func activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded() throws {
+///
+/// **Both authorities since stage 4's lane 4** (`LR-BU`; spec §4.1 row 4). It
+/// holds `AB-X` rules 1 and 3 — no rows while the window is unbounded, and
+/// exactly one retry frame — and stage 4 changed what a bounded window's rows
+/// lower to. `makeFakeWindow` builds PRODUCTION frames, so the `.proposal` arm
+/// traps on anything unlowered rather than reporting it; every fixture it
+/// reaches was measured in a child process first (`LR-CF`).
+///
+/// Mutations **M4b** (`indexesRows` forced true) and **M4c**
+/// (`requestAccessibilityRetry()` removed) are both counted against this test on
+/// both authorities.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded(_ authority: LayoutAuthority) throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
+    AuthorityCoverage.record(#function, authority)
     let feed = BridgeFeed()
     defer { feed.nsWindow.close() }
-    let (window, platform) = try makeFakeWindow(device: device, size: 200) {
+    let (window, platform) = try makeFakeWindow(device: device, size: 200,
+                                                layoutAuthority: authority) {
         scrolledList(5000, height: 200)
     }
     #expect(platform.simulateAccessibilityRequest(.activate))
@@ -655,7 +710,8 @@ private extension AccessibilityTree {
     #expect(feed.poster.count(.uiElementDestroyed) == 0)
 
     // Cap: a scroller that never measures a viewport retries once, not forever.
-    let (capped, cappedPlatform) = try makeFakeWindow(device: device, size: 200) {
+    let (capped, cappedPlatform) = try makeFakeWindow(device: device, size: 200,
+                                                      layoutAuthority: authority) {
         scrolledList(500, height: 0)
     }
     cappedPlatform.simulateAccessibilityRequest(.activate)
@@ -666,7 +722,8 @@ private extension AccessibilityTree {
     #expect(!capped.needsRedraw, "cap arm: a second unbounded frame in a row does not ask again")
 
     // Inactive: nothing collects, so nothing retries.
-    let (idle, _) = try makeFakeWindow(device: device, size: 200) {
+    let (idle, _) = try makeFakeWindow(device: device, size: 200,
+                                       layoutAuthority: authority) {
         scrolledList(500, height: 200)
     }
     idle.drawFrameIfNeeded()
@@ -675,7 +732,8 @@ private extension AccessibilityTree {
 
     // No scroll context: nothing the next frame learns could bound the window,
     // so the list never asks (surviving mutant N52 asked once).
-    let (unscrolled, unscrolledPlatform) = try makeFakeWindow(device: device, size: 200) {
+    let (unscrolled, unscrolledPlatform) = try makeFakeWindow(device: device, size: 200,
+                                                              layoutAuthority: authority) {
         Box { List((0..<50).map(Item.init), rowHeight: px(28)) { _ in Box().width(px(20)).height(px(28)) } }
             .width(px(200)).height(px(200))
     }
@@ -692,11 +750,19 @@ private extension AccessibilityTree {
 ///
 /// 60 frames of 20pt carry the view 1,200pt, from rows 0..<10 to 40..<52, so
 /// every row vended at the start leaves.
-@Test @MainActor func scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame() throws {
+///
+/// **Both authorities since stage 4's lane 4** (`LR-BU`; spec §4.1 row 4). A
+/// scrolling list is where the window slides, so it is where the realized set —
+/// and therefore which rows are vended, destroyed and re-published — depends on
+/// what stage 4 replaced. `makeFakeWindow` builds PRODUCTION frames.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame(_ authority: LayoutAuthority) throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
+    AuthorityCoverage.record(#function, authority)
     let feed = BridgeFeed()
     defer { feed.nsWindow.close() }
-    let (window, platform) = try makeFakeWindow(device: device, size: 200) {
+    let (window, platform) = try makeFakeWindow(device: device, size: 200,
+                                                layoutAuthority: authority) {
         scrolledList(500, height: 200)
     }
     platform.simulateAccessibilityRequest(.activate)
@@ -784,8 +850,17 @@ private extension AccessibilityTree {
 /// claim that this test guards the `logicalIndex` strip: only a bounded list's
 /// rows carry the hint, and a hint that were a declaration would write a `$ax`
 /// slot per realized row only in the active window.
-@Test @MainActor func aClientDoesNotChangeStateRetention() throws {
+///
+/// **Both authorities since stage 4's lane 4** (`LR-BU`). Stage 4 took the
+/// spacer `Box` out of the proposal path, and this is the file's only equality
+/// between two whole `StateTable`s — the place a per-row entry appearing or
+/// disappearing with the client would show. `makeFakeWindow` builds PRODUCTION
+/// frames, and here `scrolledList` is a flex ITEM rather than the root, so its
+/// record is consumed either way.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aClientDoesNotChangeStateRetention(_ authority: LayoutAuthority) throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
+    AuthorityCoverage.record(#function, authority)
     func content() -> some Element {
         Row {
             Column { for i in 0..<130 { Text("t\(i)") } }
@@ -793,8 +868,10 @@ private extension AccessibilityTree {
             scrolledList(200, height: 200)
         }
     }
-    let (active, activePlatform) = try makeFakeWindow(device: device, size: 300) { content() }
-    let (idle, _) = try makeFakeWindow(device: device, size: 300) { content() }
+    let (active, activePlatform) = try makeFakeWindow(device: device, size: 300,
+                                                      layoutAuthority: authority) { content() }
+    let (idle, _) = try makeFakeWindow(device: device, size: 300,
+                                       layoutAuthority: authority) { content() }
     activePlatform.simulateAccessibilityRequest(.activate)
     for _ in 0..<3 {
         active.setNeedsRedraw(); active.drawFrameIfNeeded()
@@ -862,6 +939,16 @@ private extension AccessibilityTree {
 /// **Not in the spec's table; added by lane 3's implementer**, because no other
 /// test nests the list's scope inside another, so answering from the innermost
 /// scope would be unguarded.
+///
+/// **Legacy-only, and that is a finding rather than an omission** (`LR-CF`).
+/// Spec §6 lane 4 lists this test as a both-authorities arm and makes it half of
+/// mutation M4b's required failure count. It cannot be either: its subject is
+/// `hidden()`, and `display: none` has no proposal lowering at all
+/// (`LegacyLowering.swift:161` returns `display.none` before any other field is
+/// read), so a `.proposal` frame over this fixture aborts rather than failing.
+/// `aHiddenListAbortsAProductionProposalFrame` above is that abort and its shown
+/// control, kept as observables; when a later stage lowers `display`, this test
+/// gains its `.proposal` arm and `AuthorityCoverage.expected` gains its name.
 @Test @MainActor func aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame() throws {
     func content(hidden: Bool) -> some Element {
         let box = Box {

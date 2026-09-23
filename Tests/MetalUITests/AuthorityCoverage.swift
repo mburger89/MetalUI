@@ -9,7 +9,9 @@ import Testing
 // same goes for `everyScrollScenarioRanUnderBothLayoutAuthorities`, now
 // `everyParameterisedScenarioRanUnderBothLayoutAuthorities`.
 //
-// `ScrollRoutingTests`, `ScrollIndicatorTests`, `ScrollViewTests` and `ListTests`
+// `ScrollRoutingTests`, `ScrollIndicatorTests`, `ScrollViewTests`, `ListTests`
+// and — since stage 4's lane 4 — `AXNodeTests`, `AccessibilityDefaultsTests`,
+// `AccessibilityTreeTests`, `FocusTests` and `TombstoneTests`
 // run their scenarios under **both** layout authorities, as `@Test(arguments:)`
 // cases. A parameterised test counts as ONE test in the summary line, so the
 // suite total cannot say whether the second authority ran — hence this registry
@@ -36,19 +38,25 @@ import Testing
 ///
 /// **The second half does depend on order, and the dependency is measured rather
 /// than assumed**: Swift Testing runs a file's tests in source order and the files
-/// in path order, so `ListTests` → `ScrollIndicatorTests` → `ScrollRoutingTests` →
-/// `ScrollViewTests`, and 3.4 is declared at the END of the last of the four.
+/// in path order. Stage 3 read that off three `Scroll*` files and stage 4's lane 3
+/// added `ListTests.swift`, which sorts before all three, so the roll call could
+/// stay at the end of `ScrollViewTests.swift` (`LR-CB`).
+///
+/// **Stage 4's lane 4 broke that arrangement and moved the roll call rather than
+/// working around it** (`LR-CF`). Its subjects include
+/// `Tests/MetalUITests/TombstoneTests.swift`, which sorts AFTER
+/// `Tests/MetalUITests/ScrollViewTests.swift` — exactly the case the previous
+/// version of this paragraph warned a later file would hit. So
+/// `everyParameterisedScenarioRanUnderBothLayoutAuthorities` now lives in its own
+/// `Tests/MetalUITests/ZZAuthorityRollCall.swift`, whose `ZZ…` prefix is
+/// `ZZDemoPixels.swift`'s, chosen so that no future test file can sort after it
+/// without being named for the purpose. The nine contributing files sort
+/// `AXNodeTests` → `AccessibilityDefaultsTests` → `AccessibilityTreeTests` →
+/// `FocusTests` → `ListTests` → `ScrollIndicatorTests` → `ScrollRoutingTests` →
+/// `ScrollViewTests` → `TombstoneTests`, all before `ZZAuthorityRollCall`.
 /// Measured twice at this HEAD, identical both times.
 ///
-/// **Stage 4's lane 3 added `ListTests.swift` and re-measured rather than
-/// inheriting the argument** (`LR-CB`). The stage-3 version of this paragraph
-/// named three files and did not say that the claim rests on where the new files
-/// sort. It does: `Tests/MetalUITests/ListTests.swift` sorts before every
-/// `Tests/MetalUITests/Scroll*.swift`, so the roll call still runs last. A file
-/// added later whose path sorts AFTER `ScrollViewTests.swift` would break this
-/// half — which is the case `ZZDemoPixels.swift`'s `ZZ…` prefix was chosen to
-/// avoid, and the reason `docs/probes/demo-pixels/` keeps it out of the suite.
-/// `ListLoweringTests.swift` also arrived in this stage and is **not** in the
+/// `ListLoweringTests.swift` arrived in stage 4's lane 1 and is **not** in the
 /// argument, because it contributes no name: its nine tests each run both
 /// authorities inside one body through `LayoutDifferential.compare`, so none of
 /// them is a `@Test(arguments:)` case and none calls `record`.
@@ -66,10 +74,20 @@ enum AuthorityCoverage {
     /// actor, so a main-actor-isolated one does not compile.
     nonisolated static let authorities: [LayoutAuthority] = LayoutAuthority.allCases
 
-    /// The 54 scenario names, written out by hand before the first run (practices
+    /// The 65 scenario names, written out by hand before the first run (practices
     /// shape 13: a count a later loop indexes on is a literal, not a derivation).
     ///
-    /// **34 + 20 since stage 4's lane 3.** `ListTests` has 22 `@Test`s; two are
+    /// **54 + 11 since stage 4's lane 4**, which parameterised the suites holding
+    /// what spec §4.1 rows 2, 3 and 4 protect: the two excursion pins,
+    /// `AXNodeTests`' three `List` tests, five of
+    /// `AccessibilityDefaultsTests`' six and `AccessibilityTreeTests`' one
+    /// table assertion. The sixth accessibility test,
+    /// `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`, is
+    /// **not** here and its own declaration says why: its subject is `hidden()`,
+    /// and `display: none` has no proposal lowering, so a `.proposal` frame over
+    /// it aborts rather than failing (`LR-CF`).
+    ///
+    /// **34 + 20 at stage 4's lane 3.** `ListTests` has 22 `@Test`s; two are
     /// not here and each says so at its own declaration:
     /// `aListInsideADeferredIgnoresTheEscapedScrollersOffset`, because `Deferred`
     /// as a presentation root is stage 5's, and
@@ -144,6 +162,22 @@ enum AuthorityCoverage {
         "theListsSpacerIsANodeNotAnElement",
         "aListInTheDifferentialHarnessReachesABoundedWindow",
         "aListsSceneAndHitboxesAreUnchangedByTheGroup",
+        // AXNodeTests (3) — stage 4, lane 4 (`LR-BU`)
+        "aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount",
+        "aVirtualizedListsLogicalCountIsTheFullDataCountEvenWhenEveryRowFits",
+        "aCallerDeclaredAXNodeOnAListSurvivesLogicalCountBeingAdded",
+        // AccessibilityDefaultsTests (5) — stage 4, lane 4 (`LR-BU`, `LR-CF`)
+        "combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows",
+        "aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices",
+        "activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded",
+        "scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame",
+        "aClientDoesNotChangeStateRetention",
+        // AccessibilityTreeTests (1) — completeness only, stage 4, lane 4
+        "aLabelledListIsStillATable",
+        // FocusTests (1) — stage 4, lane 4 (`LR-BU`)
+        "aFocusedListRowSurvivesABoundedExcursionButNotALongerOne",
+        // TombstoneTests (1) — stage 4, lane 4 (`LR-BU`)
+        "aListRowsStateSurvivesABoundedExcursionButNotALongerOne",
     ]
 
     private(set) static var seen: [String: Set<LayoutAuthority>] = [:]
@@ -171,7 +205,7 @@ enum AuthorityCoverage {
                        sourceLocation: SourceLocation = #_sourceLocation) {
         let name = String(function.prefix { $0 != "(" })
         #expect(expected.contains(name),
-                "\(name) records coverage but is not in AuthorityCoverage.expected — add it there (and re-derive the 54)",
+                "\(name) records coverage but is not in AuthorityCoverage.expected — add it there (and re-derive the 65)",
                 sourceLocation: sourceLocation)
         seen[name, default: []].insert(authority)
         guard !verifiedWholeSet, Set(seen.keys) == expected else { return }
