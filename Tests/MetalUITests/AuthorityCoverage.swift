@@ -12,8 +12,9 @@ import Testing
 // `ScrollRoutingTests`, `ScrollIndicatorTests`, `ScrollViewTests`, `ListTests`,
 // — since stage 4's lane 4 — `AXNodeTests`, `AccessibilityDefaultsTests`,
 // `AccessibilityTreeTests`, `FocusTests` and `TombstoneTests`, — since its
-// lane 5 — `MeasurePerformanceTests`, and — since stage 5's lane 2 —
-// `DeferredTests` and `AbsoluteOverlayTests`
+// lane 5 — `MeasurePerformanceTests`, — since stage 5's lane 2 —
+// `DeferredTests` and `AbsoluteOverlayTests`, and — since its lane 3 —
+// `PresentationWindowTests`, `DecorationPaintTests` and `EnvironmentTests`
 // run their scenarios under **both** layout authorities, as `@Test(arguments:)`
 // cases. A parameterised test counts as ONE test in the summary line, so the
 // suite total cannot say whether the second authority ran — hence this registry
@@ -54,10 +55,13 @@ import Testing
 /// `ZZDemoPixels.swift`'s, chosen so that no future test file can sort after it
 /// without being named for the purpose. The contributing files sort
 /// `AXNodeTests` → `AbsoluteOverlayTests` → `AccessibilityDefaultsTests` →
-/// `AccessibilityTreeTests` → `DeferredTests` → `FocusTests` → `ListTests` →
-/// `MeasurePerformanceTests` → `ScrollIndicatorTests` → `ScrollRoutingTests` →
-/// `ScrollViewTests` → `TombstoneTests`, all before `ZZAuthorityRollCall`
-/// (twelve since stage 5's lane 2 added the two exit suites).
+/// `AccessibilityTreeTests` → `DecorationPaintTests` → `DeferredTests` →
+/// `EnvironmentTests` → `FocusTests` → `ListTests` →
+/// `MeasurePerformanceTests` → `PresentationWindowTests` → `ScrollIndicatorTests` →
+/// `ScrollRoutingTests` → `ScrollViewTests` → `TombstoneTests`, all before
+/// `ZZAuthorityRollCall` (twelve since stage 5's lane 2 added the two exit suites,
+/// fifteen since its lane 3 added `PresentationWindowTests` and parameterised one
+/// pin each in `DecorationPaintTests` and `EnvironmentTests`).
 /// Measured twice at stage 4 lane 5's HEAD as it was at lane 4's, identical
 /// both times.
 ///
@@ -79,8 +83,14 @@ enum AuthorityCoverage {
     /// actor, so a main-actor-isolated one does not compile.
     nonisolated static let authorities: [LayoutAuthority] = LayoutAuthority.allCases
 
-    /// The 74 scenario names, written out by hand before the first run (practices
+    /// The 82 scenario names, written out by hand before the first run (practices
     /// shape 13: a count a later loop indexes on is a literal, not a derivation).
+    ///
+    /// **74 + 8 since stage 5's lane 3** (`LR-CO`): `PresentationWindowTests`' six
+    /// scenarios (spec 3.1–3.6, the must-not-move set through real windows) and the
+    /// two existing in-flow pins spec 3.7–3.8 parameterise,
+    /// `DecorationPaintTests`' `aDeferredPortalInsideAFadedSubtreeIsStillFaded` and
+    /// `EnvironmentTests`' `aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope`.
     ///
     /// **67 + 7 since stage 5's lane 2** (`LR-CN`, `LR-CO`): `DeferredTests`' four
     /// element-level scenarios, hosted, plus its new demo-shaped scrim (2.5);
@@ -218,6 +228,18 @@ enum AuthorityCoverage {
         // ListTests (1) — stage 5, lane 2 (`LR-CN`): the scenario stage 4 kept
         // legacy-only on a claim record §28 §2.3 refutes
         "aListInsideADeferredIgnoresTheEscapedScrollersOffset",
+        // PresentationWindowTests (6) — stage 5, lane 3 (`LR-CO`): the
+        // must-not-move set through real windows
+        "theDemoModalDismissesOnAScrimClickAndSwallowsTheWheelUnderBothAuthorities",
+        "aPresentationInsideAFadedSubtreeIsStillFadedUnderBothAuthorities",
+        "aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities",
+        "aPresentationsAccessibilityRecordAndFocusMatchUnderBothAuthorities",
+        "anAnimatedInsetInterpolatesItsValueUnderBothAuthorities",
+        "nestedPresentationsLandOnOneLayerUnderBothAuthorities",
+        // DecorationPaintTests (1), EnvironmentTests (1) — stage 5, lane 3: the
+        // two existing in-flow pins, parameterised
+        "aDeferredPortalInsideAFadedSubtreeIsStillFaded",
+        "aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope",
     ]
 
     private(set) static var seen: [String: Set<LayoutAuthority>] = [:]
@@ -245,7 +267,7 @@ enum AuthorityCoverage {
                        sourceLocation: SourceLocation = #_sourceLocation) {
         let name = String(function.prefix { $0 != "(" })
         #expect(expected.contains(name),
-                "\(name) records coverage but is not in AuthorityCoverage.expected — add it there (and re-derive the 74)",
+                "\(name) records coverage but is not in AuthorityCoverage.expected — add it there (and re-derive the 82)",
                 sourceLocation: sourceLocation)
         seen[name, default: []].insert(authority)
         guard !verifiedWholeSet, Set(seen.keys) == expected else { return }
