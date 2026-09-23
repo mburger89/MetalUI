@@ -118,7 +118,10 @@ public final class LayoutTree {
     /// `lastNativeLayoutWork` is, so it is per call too: a frame that lays out
     /// presentations first leaves the ROOT run's figure. A test observable, read by
     /// the depth boundary tests and by the per-production-root readings.
-    private(set) var lastNativeLayoutDeepestLevel = 0
+    /// **`package`**, not internal, since stage 6b lane 3: `Window` copies it into
+    /// `Window.lastNativeLayoutDeepestLevel` after each frame (test 3.3), and
+    /// `Window` is in another module of this package; no external module sees it.
+    package private(set) var lastNativeLayoutDeepestLevel = 0
 
     /// The stamp carried by every id this tree issues. Changed only by
     /// `reset(generation:)`, which is what makes the ids from before a reset

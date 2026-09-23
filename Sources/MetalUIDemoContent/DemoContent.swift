@@ -847,15 +847,25 @@ public func demoContent() -> some Element {
                         // height and not by `demoRowCount`. That is why the
                         // count below can be 500 without the frame growing.
                         //
-                        // **`rowHeight` is the authority for a row's height
-                        // and this builder deliberately declares none.** The
-                        // wrapper `Box` `List` puts around each row pins that
-                        // height (and removes the automatic minimum that would
-                        // otherwise let a tall string grow past it), and the
-                        // row below reaches it by ordinary cross-axis stretch.
-                        // Writing `.height(Pixels(28))` here as well would be
+                        // **`rowHeight` is the authority for a row's height**:
+                        // the wrapper `Box` `List` puts around each row pins
+                        // that height (and removes the automatic minimum that
+                        // would otherwise let a tall string grow past it).
+                        //
+                        // **The row below ALSO declares `.height(Pixels(28))`,
                         // a second literal that must agree with `rowHeight`
-                        // and that nothing checks.
+                        // and that nothing checks — since stage 6b's root
+                        // switch, on purpose** (ruling `LR-DJ`). Before it, the
+                        // row reached 28 by CSS cross-axis stretch. Under the
+                        // proposal authority a stretch is a cross-axis frame
+                        // AROUND the row (`LR-AC`, stage-2 probe X9: an outer
+                        // greedy-height frame places its fixed child at the
+                        // child's own height, centred), so the row itself
+                        // stayed as tall as its label and `.alignItems(.center)`
+                        // had nothing to centre in — every label sat 6pt
+                        // high. Declared, the row is 28 under either authority
+                        // (measured: 0 differing pixels in all twelve images at
+                        // the legacy default, record §39 §4 arm H0).
                         List(demoRows, rowHeight: Pixels(28)) { row in
                             // Alternating row backgrounds, deliberately painted
                             // edge-to-edge with the viewport: `ScrollView`'s
@@ -877,6 +887,8 @@ public func demoContent() -> some Element {
                             // for a list item's label.
                             .alignItems(.center)
                             .flexGrow(1)
+                            // See the `rowHeight` note above (`LR-DJ`).
+                            .height(Pixels(28))
                             .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
                                           bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
                             .width(Pixels(420))

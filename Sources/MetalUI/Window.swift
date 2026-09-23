@@ -916,6 +916,7 @@ public final class Window {
         lastScene = scene
         lastHitboxes = frame.hitboxes
         lastElementBounds = frame.elementBounds
+        lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
         // Read BACK, not merely handed in: `Frame.resolveFocus()` cleared it if
         // this frame did not produce the focused element (design spec §4.2).

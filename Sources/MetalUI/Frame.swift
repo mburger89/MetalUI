@@ -1791,6 +1791,8 @@ public final class Frame {
             )
             return
         }
+        // The legacy branch — counted for stage 6b's exit test (`LR-DL`).
+        Frame.legacyRootLayoutCounter?.bump()
         computeLayout(
             tree,
             root: root,

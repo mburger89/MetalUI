@@ -33,9 +33,9 @@ private func listRoot() -> some Element {
             Box {
                 Text("Row \(row.id + 1)")
             }
-            .height(Pixels(28))
             .alignItems(.center)
             .flexGrow(1)
+            .height(Pixels(28))
             .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
                            bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
             .width(Pixels(420))
@@ -194,10 +194,17 @@ private func draw(_ root: ProductionRoot, frames: Int,
 /// values move).
 @MainActor
 @Test func everyProductionRootsDeepestNativeLevelIsMeasured() throws {
+    // Measured at stage 6b lane 3. The demo read 29 before `LR-DJ`'s re-spelling
+    // (record §39 §5) and reads 30 after it: the row's declared height is one
+    // more lowered level on the demo's deepest path (the `List` row). The same
+    // row spelling is why this `List` root reads 16 where the design's fixture,
+    // without the declared height, read 15 (and this one, with the line
+    // removed, reads 15 — measured). The window size and the demo's state move
+    // nothing.
     let expected: [String: Int] = [
-        "demo 1024": 29, "demo-modal 1024": 29, "demo-animation 1024": 29,
-        "demo 920x560": 29, "demo-modal 920x560": 29, "demo-animation 920x560": 29,
-        "preview 1024": 10, "list 920x560": 15,
+        "demo 1024": 30, "demo-modal 1024": 30, "demo-animation 1024": 30,
+        "demo 920x560": 30, "demo-modal 920x560": 30, "demo-animation 920x560": 30,
+        "preview 1024": 10, "list 920x560": 16,
     ]
     for root in productionRoots {
         let window = try draw(root, frames: 2)
