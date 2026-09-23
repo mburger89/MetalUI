@@ -1389,3 +1389,54 @@ the `feat/engine-stage-5` Docs phase and recorded here in full.
   `LayoutAuthority.proposal` — so **no demo look is owed by this stage**
   either; the first one that is still owed is stage 6b's root
   switch.
+
+## 2026-09-23: the demo-layout rows re-opened at engine replacement stage 6b
+
+Record §39 §13, §16, §18. Written into the root `CLAUDE.md`'s
+human-verification bullet at the `feat/engine-stage-6b` Docs phase and
+recorded here in full. **This is the row every prior stage's own section
+pointed at as "the first one still owed."**
+
+- **Release-window capture of the default demo and the preview against
+  `aef88ce`** (plan task 7 stage 6b, `feat/engine-stage-6b`). **Open, and now
+  actually owed**: `Frame.defaultLayoutAuthority` is `.proposal` as of this
+  stage (`LR-DF`), so production runs the proposal engine by default and every
+  pixel the demo paints is this stage's look to own. The screen was locked at
+  the design measurement, both critic-round checks and the end of all three
+  lanes (`docs/probes/appkit-screen-lock-state.swift`: `CGSSessionScreenIsLocked
+  = 1`, `displayAsleep main: 1`, `displayActive main: 0` every time), so
+  `capture.sh` was never run (`LR-DM`).
+  **Offscreen stand-in** (`docs/probes/demo-pixels/compare.sh`, now capturing
+  the demo and preview at the window's *default* authority, `LR-DJ` item 3):
+  fourteen images against `aef88ce` (`ZZDemoPixels.swift` gains
+  `prod-default-light`/`prod-modal-light` at the demo's own 920×560,
+  `LR-DO` item 3) — **eight of the twelve square images differ** (the six
+  default/modal/animation, light and dark; `default-light-f0`'s bounding box
+  (92,113)–(987,1007)), and both new 920×560 images differ; **preview
+  light/dark and the two-authority chrome pair read 0**, scenes identical.
+  Every control at its recorded value (light vs dark 1 048 576; default vs
+  modal 1 030 498; default vs animation 210 027; f0 vs f3 0; preview 1 048 576;
+  chrome pair 0; distinct 544/216; indicator rects 0; new: prod default vs
+  modal 491 923, distinct `prod-default-light` 529). **Every differing pixel is
+  one of four named causes, none outside them** (record §39 §4, §12.6): **55**
+  (the sidebar/animation-panel width SwiftUI answers — 196 pt at 1024², 320 pt
+  animated — where the CSS engine had shrunk it to 96/139; the main pane and
+  everything in it shifts with it), **55's re-wrap** (the paragraph breaks
+  differently in the narrower column, moving the list and viewport 16 px down
+  in the animation and production images), **C** (the modal card, measured at
+  the lowered column's own width, y − 8 / h + 16), and **a one-point centring
+  round** ("Count 0"'s and the "−" button's glyphs, `roundLayout`'s half-away
+  rule at odd offsets). One re-spelling (`.height(Pixels(28))` on the demo
+  list row's inner `Box`, `LR-DJ`) closes the fifth group a straight flip
+  would have added: the row labels' vertical centring, verified separately at
+  arm H0 (the re-spelling alone, legacy default: 0 differing, scene identical
+  in all twelve) and arm H (re-spelling plus flip: the labels' group gone,
+  every other group unchanged). **Four looks a human still owes, none of them
+  seen on a real display by anyone in this stage**: the real-window capture
+  itself; the sidebar/panel now reading 196 pt (was 88 pt at 1024² under the
+  legacy engine) and 320 pt animated; the modal card's new height; and the
+  list rows' labels now vertically centred in their declared 28 pt row where
+  they previously sat at the row's top. The demo's deepest native level also
+  moves from 29 (post-switch, pre-re-spelling) to **30** after the
+  re-spelling, which a human verification look would not show (it is a
+  work-counter reading, not a pixel).

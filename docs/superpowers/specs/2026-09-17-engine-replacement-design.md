@@ -39,11 +39,25 @@ It matches §4.1 row 6a's wording — `LayoutPass.requestNode`/`requestLeaf`
 deprecated with every in-repo caller moved in the same change, and the
 flipped-default classification table recorded as its entry measurement
 (153 reds, handed to stage 6b's root-placement ruling and stage 7b's CSS
-retirements). §4.1's
+retirements). **Stage 6b (the root switch) has landed, complete on its
+branch, not yet merged** (Record phase, 2026-09-23): `feat/engine-stage-6b`,
+record §39, spec
+[`2026-09-23-engine-stage-6b-design.md`](2026-09-23-engine-stage-6b-design.md).
+It matches §4.1 row 6b's wording — `Window`'s default authority is
+`.proposal`, the demo is re-spelled for stage 2's semantics with every pixel
+change probe-backed and named, root placement is ruled (`CN-J`, divergence 4
+becomes legacy-authority only), the native depth limit is re-bisected in
+release and re-measured on every production root (88 → 72), and
+`noProductionFrameReachesTheLegacyEngine` is green — with the real-window
+capture and the demo-layout human-verification rows owed to the human (the
+screen was locked at every check). §4.1's
 table below is still the plan of record for the remaining stages; the **live** per-stage status is the
 stage list under task 7 in
 `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, and task 7's box there
-is still open. Production still runs the legacy authority until stage 6b.
+is still open. **Production now runs the proposal engine by default as of
+stage 6b** — every earlier "production still runs the legacy authority"
+sentence in this document describes history up to that stage, not the
+present.
 
 Plan task 7 (`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`): *"Port
 advanced layout, then remove the legacy engine. … Migrate the remaining

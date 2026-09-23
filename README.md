@@ -108,13 +108,15 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-6a` (2026-09-23 — plan task 7 stage 6a, from
-`b3c29b9`, not yet merged with `master`) the suite reports **1642
+On `feat/engine-stage-6b` (2026-09-23 — plan task 7 stage 6b, the root switch,
+from `aef88ce`, not yet merged with `master`) the suite reports **1701
 tests**, in one summary line over three suites. That total includes **97**
 layout goldens generated from WebKit and **78** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
-[`CLAUDE.md`](CLAUDE.md) for how to count them.
+[`CLAUDE.md`](CLAUDE.md) for how to count them. **Production now runs the
+proposal (SwiftUI-alignment) layout engine by default as of this stage** —
+`Frame.defaultLayoutAuthority` is `.proposal`.
 
 ## What it looks like
 
@@ -322,7 +324,10 @@ transforms, and text colour animation.
   already published `28`) — and
   [`38-engine-replacement-stage-6a.md`](docs/record/38-engine-replacement-stage-6a.md)
   for its 6a stage — the public custom-element registrars deprecated and
-  every test caller moved off them. Five files are
+  every test caller moved off them — and
+  [`39-engine-replacement-stage-6b.md`](docs/record/39-engine-replacement-stage-6b.md)
+  for its 6b stage — the root switch: production's default layout authority
+  becomes `.proposal`. Five files are
   not task tracks:
   [`19-claude-md-full-2026-09-21.md`](docs/record/19-claude-md-full-2026-09-21.md)
   is the root `CLAUDE.md` as it read before it was cut to rules only,
@@ -358,13 +363,15 @@ transforms, and text colour animation.
     [stage 3](docs/superpowers/specs/2026-09-22-engine-stage-3-design.md)
     [stage 4](docs/superpowers/specs/2026-09-23-engine-stage-4-design.md)
     [stage 5](docs/superpowers/specs/2026-09-23-engine-stage-5-design.md)
-    and [stage 6a](docs/superpowers/specs/2026-09-23-engine-stage-6a-design.md)
-    specs (plan task 7, stages 1, 2, G, 3, 4, 5 and 6a of 14 landed — legacy
-    elements lower onto the kernel under an internal proposal authority, with SwiftUI's flex-item
+    [stage 6a](docs/superpowers/specs/2026-09-23-engine-stage-6a-design.md)
+    and [stage 6b](docs/superpowers/specs/2026-09-23-engine-stage-6b-design.md)
+    specs (plan task 7, stages 1, 2, G, 3, 4, 5, 6a and 6b of 14 landed —
+    legacy elements lower onto the kernel, with SwiftUI's flex-item
     semantics, scrolling, `Component` distribution, a windowed `List` and
     `Deferred`'s absolute content as a presentation root; the public
     custom-element registrars are deprecated with every test caller moved
-    off them; production still uses the CSS engine)
+    off them; **production now runs the proposal engine by default** —
+    stage 6b's root switch, `Frame.defaultLayoutAuthority = .proposal`)
   - [grids spec](docs/superpowers/specs/2026-09-17-grids-design.md)
     (plan task 7 stage G, delivered: SwiftUI's `Grid` and `GridRow` on the
     proposal path as a kernel node; lazy grids are proposed as stage G2)
