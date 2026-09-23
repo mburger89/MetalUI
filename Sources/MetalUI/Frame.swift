@@ -1,7 +1,14 @@
 import MetalUICore
 import MetalUILayout
-import MetalUIRender
+import MetalUIPrimitives
+#if canImport(MetalUIText)
 import MetalUIText
+#else
+/// Off Apple platforms there is no CoreText shaping cache. This empty type
+/// keeps `Frame`'s and `Window`'s initialisers to one spelling on every
+/// platform; nothing reads it there (ruling XP-B).
+struct ShapingCache { init() {} }
+#endif
 import MetalUITextSystem
 import MetalUIPlatform
 
@@ -1477,7 +1484,14 @@ public final class Frame {
         self.rootFontSize = rootFontSize
         self.stateTable = stateTable
         self.shapingCache = shapingCache
+        #if canImport(MetalUIText)
         self.textSystem = textSystem ?? CoreTextTextSystem(cache: shapingCache)
+        #else
+        guard let textSystem else {
+            preconditionFailure("a Frame needs a TextSystem off Apple platforms: there is no CoreText (ruling XP-B)")
+        }
+        self.textSystem = textSystem
+        #endif
         self.glyphAtlas = glyphAtlas
         self.rootTheme = theme
         var root = EnvironmentValues()
@@ -1887,6 +1901,7 @@ public final class Frame {
     /// added, not after. Adding it unscaled would shift glyphs by the scale
     /// factor's worth of points on a Retina display and by nothing at 1x,
     /// which is exactly the kind of bug a 1x-only test cannot see.
+    #if canImport(MetalUIText)
     func draw(_ placed: PlacedGlyph, color: Hsla) {
         drawSprite(key: placed.key, pixelX: placed.pixelX, baselineY: placed.baselineY, color: color) {
             GlyphRaster.rasterize(glyph: placed.key.glyph, font: placed.font,
@@ -1894,6 +1909,7 @@ public final class Frame {
                                   scaleFactor: placed.key.scaleFactor)
         }
     }
+    #endif
 
     /// Emits one glyph the frame's ``textSystem`` placed, rasterized by that
     /// system on an atlas miss (ruling TS-A).

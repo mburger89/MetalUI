@@ -2,6 +2,7 @@ import Foundation
 import Metal
 import simd
 import MetalUI
+import MetalUIDemoContent
 import MetalUIText
 import MetalUIShaderTypes
 import MetalUIPortableText
@@ -184,6 +185,16 @@ func portableFixture(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene
     return scene
 }
 
+/// Frame 5 (ruling DC-B): the demo's tree, one frame at `width`×`height`,
+/// scale 1, through `PortableTextSystem` over Noto Sans.
+@MainActor
+func demoFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
+    let system = PortableTextSystem(resolver: try PortableFontResolver(
+        defaultFont: repositoryFont("NotoSans-Regular.ttf")))
+    return renderFrame(demoContent, size: Size(width: Pixels(Float(width)), height: Pixels(Float(height))),
+                       scaleFactor: 1, textSystem: system, atlas: atlas)
+}
+
 @MainActor
 func metalPixels(_ scene: Scene, atlas: GlyphAtlas, renderer: Renderer,
                  width: Int, height: Int, projection: simd_float4x4) throws -> [UInt8] {
@@ -247,11 +258,18 @@ func run() throws {
     var lastScene = Scene()
     // Frame 4's text is PortableText's, into its own atlas (ruling PT-G).
     let portableAtlas = GlyphAtlas(width: 1024, height: 1024)
-    for (index, dimensions) in [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380)].enumerated() {
+    // Frame 5 is the demo's own tree (`demoContent()`), rendered by MetalUI with
+    // the portable text system over Noto Sans — the frame Backends/SDL's
+    // DemoCapture rebuilds natively on Linux and Windows (ruling DC-B).
+    let demoAtlas = GlyphAtlas(width: 1024, height: 1024)
+    for (index, dimensions) in [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560)].enumerated() {
         let (width, height) = dimensions
         let portable = index == 4
-        let frameAtlas = portable ? portableAtlas : atlas
-        let scene = portable
+        let demo = index == 5
+        let frameAtlas = demo ? demoAtlas : portable ? portableAtlas : atlas
+        let scene = demo
+            ? try demoFrame(width: width, height: height, atlas: demoAtlas)
+            : portable
             ? try portableFixture(width: width, height: height, atlas: portableAtlas)
             : try fixture(width: width, height: height, atlas: atlas, addedText: index > 0)
         var projection = matrix_identity_float4x4
@@ -259,7 +277,7 @@ func run() throws {
         let metal = try metalPixels(scene, atlas: frameAtlas, renderer: renderer, width: width, height: height, projection: projection)
         let sdl = try replayer.render(scene, atlas: frameAtlas, width: width, height: height, projection: floats(projection))
         let delta = pixelDifference(metal, sdl)
-        let line = "frame \(index)\(portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta)"
+        let line = "frame \(index)\(demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))

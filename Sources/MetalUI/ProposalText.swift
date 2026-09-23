@@ -1,6 +1,8 @@
 import MetalUICore
 import MetalUILayout
+#if canImport(MetalUIText)
 import MetalUIText
+#endif
 import MetalUITextSystem
 
 /// The proposal-layout bridge for ``Text`` during the layout migration.
@@ -74,6 +76,7 @@ public struct ProposalText: ProposalElement {
 /// the run, while an unspecified width asks for its intrinsic one-line width.
 /// The height proposal does not truncate or scale text, matching the measured
 /// SwiftUI custom-Layout behavior.
+#if canImport(MetalUIText)
 @MainActor
 func proposalTextMeasurement(_ string: String, font: ResolvedFont,
                              cache: ShapingCache, proposal: ProposedSize) -> LayoutMeasurement {
@@ -81,6 +84,7 @@ func proposalTextMeasurement(_ string: String, font: ResolvedFont,
     return proposalTextMeasurement(string, font: font.key, system: CoreTextTextSystem(cache: cache),
                                    proposal: proposal)
 }
+#endif
 
 @MainActor
 func proposalTextMeasurement(_ string: String, font: FontKey,

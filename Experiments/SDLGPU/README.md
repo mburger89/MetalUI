@@ -31,7 +31,7 @@ library product (2026-09-22).
 swift run --build-system native Replay --portable --record "$PWD/fixtures"
 cd ../../Backends/SDL
 swift test                                             # fixture format, parity, window renderer
-swift run PortableReplay ../../Experiments/SDLGPU/fixtures --expect 5        # SDL Metal
+swift run PortableReplay ../../Experiments/SDLGPU/fixtures --expect 6        # SDL Metal
 SDL_VULKAN_LIBRARY=/opt/homebrew/lib/libvulkan.1.dylib \
   swift run PortableReplay ../../Experiments/SDLGPU/fixtures --driver vulkan  # SDL Vulkan (MoltenVK)
 ```

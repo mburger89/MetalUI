@@ -1,6 +1,8 @@
 import MetalUICore
 import MetalUILayout
+#if canImport(MetalUIText)
 import MetalUIText
+#endif
 import MetalUITextSystem
 
 /// The smallest width this module will ever ask the shaper to wrap at.
@@ -102,6 +104,7 @@ func textMeasure(_ string: String, font: FontKey, system: any TextSystem,
                  height: known.height ?? shaped.totalHeight)
 }
 
+#if canImport(MetalUIText)
 /// ``textMeasure(_:font:system:known:available:)`` over a CoreText shaping
 /// cache — the spelling the measurement tests use to ask the Apple path
 /// directly.
@@ -112,6 +115,7 @@ func textMeasure(_ string: String, font: ResolvedFont, cache: ShapingCache,
     return textMeasure(string, font: font.key, system: CoreTextTextSystem(cache: cache),
                        known: known, available: available)
 }
+#endif
 
 /// The overload the engine's `MeasureFunction` shape calls, which takes the
 /// whole `AvailableSpaceSize` and reads only its width. Separate so that the

@@ -81,15 +81,19 @@ Apple-bound:
    Linux; the Fonts directory or DirectWrite on Windows) and register them
    with `PortableFontResolver`, choosing the platform's default face for
    `family: nil`.
-9. [ ] **`MetalUI` builds without AppKit/Metal** — `App` chooses its platform
-   by `#if canImport(AppKit)`; Apple-only dependencies become
-   `.when(platforms:)`; CI builds `MetalUI` on Linux and Windows.
+9. [x] **`MetalUI` builds without AppKit/Metal** — declared everywhere,
+   Apple dependencies appended on macOS; `App(platform:textSystem:)`; the
+   demo's whole frame pinned across platforms and equal on Linux.
+   `feat/metalui-portable`, spec `specs/2026-09-23-metalui-portable-design.md`
+   (`XP-`), record §39.
 
 ### End to end
 
-10. [ ] **The demo on Linux and Windows** — `MetalUIDemo` through SDL3, text
-    through `PortableText`; CI captures a frame on llvmpipe and WARP and
-    compares it with the macOS Metal frame of the same tree.
+10. [x] **The demo on Linux and Windows** — `MetalUISDLDemo`; `DemoCapture`
+    rebuilds the demo natively and matches macOS's Metal frame (scene
+    byte-for-byte, pixels within parity) on llvmpipe and WARP.
+    `feat/demo-cross-platform`, spec
+    `specs/2026-09-23-demo-cross-platform-design.md` (`DC-`), record §40.
 
 ### After the demo runs
 
