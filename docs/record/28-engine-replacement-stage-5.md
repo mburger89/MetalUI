@@ -458,9 +458,10 @@ identical**. Lock probe at 04:41 PDT: `CGSSessionScreenIsLocked = 1`,
 - **Two deliberate proposal-only answers** (`LR-CJ`), pinned by name: content
   measured at window − inset on an axis with one inset, and a box stretched below
   its padding keeping its inset box.
-- **The exit test** (spec §8): 5 of `DeferredTests`' 10 element-level scenarios
-  and 1 of 1 in `AbsoluteOverlayTests` under both authorities, plus the exit test
-  2.7 — lane 2 (§7). **The must-not-move set** through real windows under both
+- **The exit test** (spec §8): all 5 of `DeferredTests`' element-level
+  scenarios (the other 5 of its 10 tests are pass-level, with no layout to
+  lower) and 1 of 1 in `AbsoluteOverlayTests` under both authorities, plus the
+  exit test 2.7 — lane 2 (§7). **The must-not-move set** through real windows under both
   authorities — lane 3 (§8).
 - **The demo with the modal on lowers with an empty report** (1.8), which removes
   the last `Deferred`/absolute entry stage 6b would have trapped on.
@@ -618,3 +619,38 @@ spec bullet).
 named future stage. **Verdict: mergeable** (subject to the pending
 `e5caefb`→`master` portable-text rebase noted in §16, which is integration's
 job, not this pass's).
+
+## 18. Branch checker (2026-09-23, PDT) — adversarial pass over `e5caefb..362b54d`
+
+**Suite.** `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`; the only `warning:` SwiftPM's deprecation notice),
+unfiltered `swift test --build-system native --no-parallel`: **`Test run with
+1632 tests in 3 suites passed after 66.809 seconds.`** — four skipped (the two
+gated tests, the FreeType and HarfBuzz oracles), `FR-J no-argument frame:
+succeeded=true` in the log. Goldens 97, none moved against `e5caefb`; guards 77
+(78 `canTypecheck` hits over the fifteen files, one a comment). `cmp CLAUDE.md
+AGENTS.md` clean. Every backticked test name (47) and every ruling id cited in
+the branch's added doc lines resolves (the unresolved ones are "next unused"
+ids and CLAUDE.md's `LR-3` typo example).
+
+**Two mutations of the checker's own**, each on the committed tree
+(`362b54d`), `LegacyLowering.swift` copied with `cp`, one edit, build 0 errors,
+unfiltered suite, restored from the copy, `git status --short` empty after each:
+
+| id | edit (file, branch) | issues | reddened |
+|---|---|---|---|
+| XC1 | `loweredComponentFrame`: the `isPresentation(node)` guard (the `deferred.amended` report and early return) deleted | 1 | 1.5 `aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName` (`Component amend over a presentation member: []`) only — the amend then frames the placeholder silently |
+| XC2 | `lowerPresentation`: W's `alignment: item.contentAlignment` → `.topLeading` | 10 | 2.5 `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities` `.proposal` (4: card centred and its hitbox, unscrolled and scrolled 40), 1.8 `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (4 modal rows), 3.1 `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheelUnderBothAuthorities` `.proposal` (1), 3.4 `aPresentationsAccessibilityRecordAndFocusMatchUnderBothAuthorities` `.proposal` (1) — every legacy arm green, and **no `PresentationLoweringTests` 1.1 arm**: its stretched arms are childless, so W's alignment is seen only through a presentation with content (the demo's card) |
+
+**Pixels.** `compare.sh` against `e5caefb`: all twelve `differing=0`, scenes
+identical, every control at its recorded value. Lock probe at 05:25 PDT:
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` — `capture.sh` not owed,
+the look stays open.
+
+**Doc defects fixed**: CLAUDE.md's stage-3 and stage-4 bullets still said a new
+parameterised scenario owes "a bump of the 67" (now 82; both reworded, the
+stage-4 bullet's historical 67 kept with "82 across fifteen since stage 5");
+§9's "5 of `DeferredTests`' 10 element-level scenarios" read as ten
+element-level scenarios (it is all 5, the other 5 of 10 pass-level).
+
+**Verdict: mergeable.** No code defect found.

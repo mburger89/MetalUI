@@ -526,17 +526,20 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   per-member frames at spacing 0. Site `component` has **no reachable report**
   left. **Both scroll suites run under both authorities** — 34 scenarios, a
   roll call that names any scenario that stops participating, and a new one
-  owes an `AuthorityCoverage.record` call and a bump of the 67 (stage 4
-  renamed the registry and absorbed these 34 into its own count).
+  owes an `AuthorityCoverage.record` call and a bump of the registry's
+  literal (stage 4 renamed the registry and absorbed these 34 into its own
+  count; 82 since stage 5).
 - **Stage 4 lowers `List`** (`LR-BQ`…`LR-CG`). The behaviour is in the `List`
   paragraph above. Two things a reader needs here: the exit criterion is now
-  **67 scenarios across ten files under both authorities**, and
+  **67 scenarios across ten files under both authorities** (82 across
+  fifteen since stage 5), and
   `ScrollAuthorityCoverage` is **renamed `AuthorityCoverage`**, with
   `everyScrollScenarioRanUnderBothLayoutAuthorities` renamed
   `everyParameterisedScenarioRanUnderBothLayoutAuthorities` and moved to
   `Tests/MetalUITests/ZZAuthorityRollCall.swift` so that it sorts after every
   contributing file. A new parameterised scenario owes an
-  `AuthorityCoverage.record` call and a bump of the 67.
+  `AuthorityCoverage.record` call and a bump of the literal (82 since
+  stage 5, below).
 - **Stage 5 makes `Deferred`'s absolute content a presentation root**
   (`LR-CH`…`LR-CS`). The behaviour is in the `Deferred` paragraph above. The
   exit criterion is now **82 scenarios across fifteen files under both
