@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import MetalUICore
-import MetalUILayout
+@testable import MetalUILayout
 import MetalUIText
 @testable import MetalUI
 
@@ -542,25 +542,25 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 ///
 /// **Native depth, by hand** (`NativeLayoutRun.enter` on every `measureNative` and
 /// `placeNative`, one counter): the root's fixed frame is 1 and its stack 2; each of
-/// the 16 inner rows adds its parent's four wrappers and its own stack, **5** levels,
-/// so the 17th row's stack is at 2 + 16·5 = 82; its first child's four wrappers reach
-/// 86, and the child's own nodes **88** (2 levels: its fixed frame over its leaf) or
-/// **89** (3, with `Style.padding` 1 between them). 9 + 5·N cannot be 88 for any whole
-/// N, which is why the innermost child here is two levels where 2.14's was three.
+/// the 13 inner rows adds its parent's four wrappers and its own stack, **5** levels,
+/// so the 14th row's stack is at 2 + 13·5 = 67; its first child's four wrappers reach
+/// 71, and the child's own nodes **72** (1 level: a bare `Box()` lowers to its 0×0
+/// leaf alone) or **73** (2: `.height(10)` adds its fixed frame). 6 + 5·N + own = 72
+/// has no whole N for the old two-level innermost, which is why it is one level here
+/// (stage 6b's lane 1, `LR-DK`; until then 16 inner rows reached 88 / 89 with a two- or
+/// three-level innermost child).
 ///
-/// **Nodes, by hand**: 17 rows × (a stack + the fixed sibling's frame and leaf) = 51;
-/// the root's frame 1; 16 inner rows' wrappers 64; the innermost child's wrappers 4 and
-/// its own nodes 2 (or 3): **122** (or **123**).
+/// **Nodes, by hand**: 14 rows × (a stack + the fixed sibling's frame and leaf) = 42;
+/// the root's frame 1; 13 inner rows' wrappers 52; the innermost child's wrappers 4 and
+/// its own nodes 1 (or 2): **100** (or **101**). (122 / 123 at 16 inner rows.)
 @MainActor
 private func marginItemChain(deeperInnermost: Bool) -> some Element {
-    var padded = Style()
-    padded.padding = Edges(all: .pixels(px(1)))
     var element = deeperInnermost
-        ? AnyElement(Box(style: padded).height(px(10))
+        ? AnyElement(Box().height(px(10))
             .flexShrink(0).flexGrow(1).alignSelf(.flexEnd).margin(px(1)))
-        : AnyElement(Box().height(px(10))
+        : AnyElement(Box()
             .flexShrink(0).flexGrow(1).alignSelf(.flexEnd).margin(px(1)))
-    for _ in 0..<16 {
+    for _ in 0..<13 {
         let inner = element
         element = AnyElement(MetalUI.Row { inner; Box().width(px(10)).height(px(10)) }
             .flexShrink(0).flexGrow(1).alignSelf(.flexEnd).margin(px(1)))
@@ -569,11 +569,12 @@ private func marginItemChain(deeperInnermost: Bool) -> some Element {
     return MetalUI.Row { inner; Box().width(px(10)).height(px(10)) }.width(px(100)).height(px(100))
 }
 
-/// **4.8, limit** (`SA-L`). `marginItemChain(deeperInnermost: false)` — 88 native
-/// levels, `NativeLayoutRun.maxDepth` itself, every level of the 16 inner rows carrying
+/// **4.8, limit** (`SA-L`). `marginItemChain(deeperInnermost: false)` — 72 native
+/// levels, `NativeLayoutRun.maxDepth` itself, every level of the 13 inner rows carrying
 /// **four** item wrappers — lays out as a production frame's root under the proposal
 /// authority, in a child process that must exit successfully and print the node count
-/// derived by hand (122). With the trap arm this pins the boundary at exactly 88 / 89.
+/// derived by hand (100) and the run's deepest level with the limit (72, 72). With the
+/// trap arm this pins the boundary at exactly 72 / 73.
 ///
 /// **Red before**: the chain's `margin` is reported, and a production frame traps on
 /// the first report, so the child exits on `SIGTRAP` instead of succeeding.
@@ -585,15 +586,16 @@ private func marginItemChain(deeperInnermost: Bool) -> some Element {
             let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
                               layoutAuthority: .proposal)
             frame.render(&root)
-            FileHandle.standardOutput.write(Data("LANE4-4.8 nodes=\(frame.tree.nodeCount)\n".utf8))
+            FileHandle.standardOutput.write(Data(("LANE4-4.8 nodes=\(frame.tree.nodeCount)"
+                + " deepest=\(frame.tree.lastNativeLayoutDeepestLevel) limit=\(NativeLayoutRun.maxDepth)\n").utf8))
         }
     }
     let out = String(decoding: result?.standardOutputContent ?? [], as: UTF8.self)
     let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(out.contains("LANE4-4.8 nodes=122\n"), "stdout:\n\(out)\nstderr:\n\(err)")
+    #expect(out.contains("LANE4-4.8 nodes=100 deepest=72 limit=72\n"), "stdout:\n\(out)\nstderr:\n\(err)")
 }
 
-/// **4.8, one past** (`SA-L`). `marginItemChain(deeperInnermost: true)` — 89 native
+/// **4.8, one past** (`SA-L`). `marginItemChain(deeperInnermost: true)` — 73 native
 /// levels — traps with `SA-L`'s message, as an exit test.
 ///
 /// Mutation that must redden it: **M4i**, `NativeLayoutRun.maxDepth` raised by 8 (the
@@ -607,7 +609,7 @@ private func marginItemChain(deeperInnermost: Bool) -> some Element {
         }
     }
     let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(err.contains("native layout recursion exceeded 88 levels"), "stderr:\n\(err)")
+    #expect(err.contains("native layout recursion exceeded 72 levels"), "stderr:\n\(err)")
 }
 
 // MARK: - 4.9 — the animated margin

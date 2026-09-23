@@ -1519,6 +1519,10 @@ public final class Frame {
     /// 2; rulings LR-AB, LR-AT). Empty under the legacy authority.
     var lowering = LoweringState()
 
+    /// The element nodes a lowered `hidden()` produced this frame (plan task 7,
+    /// stage 6b, ruling `LR-DH`). **Empty under the legacy authority**, always.
+    var hiddenNodes: Set<LayoutNodeID> = []
+
     /// Whether `elementBounds` is filled. Set only by tests (the differential
     /// harness, ruling LR-D).
     let recordsElementBounds: Bool

@@ -162,9 +162,9 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
          [field(.stack, "alignItems.baseline")]),
         ("Stack margin", report { Stack { fixed(20, 10); fixed(10, 30) }.margin(px(2)) },
          [field(.stack, "margin.unconsumed")]),
-        ("hidden stretching Stack",
+        ("hidden stretching Stack (lowered as if shown since stage 6b, LR-DH)",
          report { Stack { fixed(20, 10); fixed(10, 30) }.alignItems(.stretch).hidden() },
-         [field(.stack, "display.none")]),
+         []),
     ]
     try #require(reported.count == 3)
     for (name, entries, expected) in reported {
@@ -553,36 +553,43 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
             == [bounds(0, 0, 40, 10), bounds(15, 0, 10, 10)])
 }
 
-/// **4.9.** `hidden()` after a frame sets `display: none` on the frame layer, which
-/// `ModifierLayer.lowered` keeps; it is reported `display.none` **before** the style
-/// comparison, alone (ruling LR-J): over one node, over two (a two-member component),
-/// with a sizing modifier also written after it, and on an inner layer.
+/// **4.9, rewritten by stage 6b's lane 1** (`LR-DH`; it was
+/// `aHiddenFrameLayerIsReportedAsDisplayNone`). `hidden()` after a frame sets
+/// `display: none` on the frame layer, which `ModifierLayer.lowered` keeps; under the
+/// proposal authority the layer now **lowers as if shown**: its display is read as
+/// the one an unhidden frame layer registers (`display: .stack` over one node, a flex
+/// row over two) before the style comparison, so a hidden frame layer reports
+/// nothing — over one node, over two (a two-member component), and on an inner layer
+/// — and is laid out exactly where the shown one is. The comparison still runs:
+/// **a sizing modifier written after it is still reported `modifierLayer.style`**,
+/// which is what tells "the display is normalized, then compared" from "a hidden
+/// layer skips its checks". Until the lane each hidden arm reported `display.none`
+/// alone (ruling LR-J).
 ///
-/// **The last arm is the control, and it changed in stage 3's lane 5.** A frame over
-/// two nodes that is not hidden used to report `frame.multipleNodes` (ruling LR-Z);
-/// `LR-BH` deletes that row and lowers the layer to a row of per-member frames, so
-/// the arm now reports **nothing**. It stays here as the discriminator for
-/// "`display.none` is checked first and **alone**": the hidden arms on their own
-/// cannot tell a first-and-alone check from one that never reaches a second entry.
-/// The lowered geometry is `LoweringComponentTests.swift`'s 5.1.
-///
-/// Mutation that must redden it: **M4i**, the `display.none` check moved after the
-/// style comparison (the entries read `modifierLayer.style`) — which, with the
-/// `frame.multipleNodes` row deleted, is also stage 3's **M5d** (`LR-BP` item 2).
+/// Mutation that must redden it: the display left un-normalized in
+/// `legacyFrameLayerDiagnostics` (every hidden one-node arm reads
+/// `modifierLayer.style`: `display: .none` ≠ the `.stack` a shown one-node frame
+/// registers).
 @MainActor
-@Test func aHiddenFrameLayerIsReportedAsDisplayNone() throws {
-    let hidden = field(.modifierLayer, "display.none")
+@Test func aHiddenFrameLayerLowersAsIfShown() throws {
+    let style = field(.modifierLayer, "style")
     let arms: [(String, [UnlowerableField], [UnlowerableField])] = [
-        ("one node", report { fixed(10, 10).frame(width: px(40)).hidden() }, [hidden]),
-        ("two nodes", report { TwoBoxes().frame(width: px(40)).hidden() }, [hidden]),
-        ("with a width after it", report { fixed(10, 10).frame(width: px(40)).hidden().width(px(60)) }, [hidden]),
-        ("inner layer", report { fixed(10, 10).frame(width: px(40)).hidden().padding(px(4)) }, [hidden]),
+        ("one node", report { fixed(10, 10).frame(width: px(40)).hidden() }, []),
+        ("two nodes", report { TwoBoxes().frame(width: px(40)).hidden() }, []),
+        ("with a width after it", report { fixed(10, 10).frame(width: px(40)).hidden().width(px(60)) }, [style]),
+        ("inner layer", report { fixed(10, 10).frame(width: px(40)).hidden().padding(px(4)) }, []),
         ("two nodes, not hidden", report { TwoBoxes().frame(width: px(40)) }, []),
     ]
     try #require(arms.count == 5)
     for (name, entries, expected) in arms {
         #expect(entries == expected, "\(name): \(entries)")
     }
+    let shown = LayoutDifferential.compare(width: 200, height: 200) { fixed(10, 10).frame(width: px(40)) }
+    let hidden = LayoutDifferential.compare(width: 200, height: 200) { fixed(10, 10).frame(width: px(40)).hidden() }
+    try #require(hidden.unlowerable.isEmpty, "\(hidden.unlowerable)")
+    let ids = [containerID, child(containerID, 0)]
+    try #require(lowered(shown, ids) == [bounds(0, 0, 40, 10), bounds(15, 0, 10, 10)])
+    #expect(lowered(hidden, ids) == lowered(shown, ids), "a hidden frame layer is laid out where the shown one is")
 }
 
 // MARK: - 4.10–4.12 — verifier round (animated Stack and frame bounds, frame over no node)

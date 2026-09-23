@@ -712,7 +712,11 @@ private struct AtOrigin: ProposalLayout {
 /// - the control `Row { same }` consumes the record: no `…unconsumed` entry, and
 ///   since lane 2 no entry at all (lane 1 reported `box.flexGrow` there);
 /// - **the frame's root** (a `Frame` rendering the element itself, no harness):
-///   `.maxWidth(600)` and `.minWidth(50)` always report (CSS applies them to a root);
+///   `.maxWidth(600)` and `.minWidth(50)` on the root's **declared** width fold into
+///   it and report nothing since stage 6b's lane 1 (`LR-DO` item 1; the element's own
+///   frame already folded them, `LR-AG`, and CSS gives the same used size), where they
+///   reported `…unconsumed` until then; the same two on an **auto** width still report
+///   (CSS applies them to a root against the window, which the kernel does not have);
 ///   `.flexGrow(1)`, `.flexShrink(0)`, `.flexBasis(0)` and `.alignSelf(.flexEnd)` each
 ///   first compare the legacy root with the field and without it — the legacy root
 ///   ignores it exactly when the two rects are equal — and assert **no report and an
@@ -770,8 +774,13 @@ private struct AtOrigin: ProposalLayout {
         return frame
     }
     let plain = fixed(20, 10)
-    for (name, element, expected) in [("root maxWidth", plain.maxWidth(px(600)), "maxSize.unconsumed"),
-                                      ("root minWidth", plain.minWidth(px(50)), "minSize.unconsumed")] {
+    for (name, element) in [("root maxWidth on its declared width", plain.maxWidth(px(600))),
+                            ("root minWidth on its declared width", plain.minWidth(px(50)))] {
+        arms.append((name, rootFrame(.proposal, element).unlowerableFields, []))
+    }
+    let autoWidth = Box().height(px(10))
+    for (name, element, expected) in [("root maxWidth on an auto width", autoWidth.maxWidth(px(600)), "maxSize.unconsumed"),
+                                      ("root minWidth on an auto width", autoWidth.minWidth(px(50)), "minSize.unconsumed")] {
         arms.append((name, rootFrame(.proposal, element).unlowerableFields, [field(.box, expected)]))
     }
     var ignoredByTheLegacyRoot: [String: Bool] = [:]
@@ -794,7 +803,7 @@ private struct AtOrigin: ProposalLayout {
     #expect(ignoredByTheLegacyRoot == ["flexGrow": true, "flexShrink": true, "flexBasis": true, "alignSelf": true],
             "\(ignoredByTheLegacyRoot)")
 
-    try #require(arms.count == 24)
+    try #require(arms.count == 26)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }

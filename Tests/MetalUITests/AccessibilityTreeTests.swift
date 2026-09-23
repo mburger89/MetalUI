@@ -611,7 +611,14 @@ private struct PressToRename: Component {
 /// The hidden box is itself a click target, so the suppression scope's `nil`
 /// exception is observable: excepting the hidden element would publish it as a
 /// root (hunting mutant H14).
-@Test @MainActor func hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce() throws {
+///
+/// **Both authorities since stage 6b's lane 1** (`LR-DH`): under the proposal authority
+/// `hidden()` lowers as if shown and joins `Frame.hiddenNodes`, which the suppression
+/// reads; before the lane a `.proposal` frame over this fixture trapped on
+/// `box.display.none`.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     let column = GlobalElementID.child(of: nil, at: 0, name: nil)
     let hiddenBox = GlobalElementID.child(of: column, at: 0, name: nil)
     let hiddenFocusable = GlobalElementID.child(of: hiddenBox, at: 0, name: nil)
@@ -621,7 +628,7 @@ private struct PressToRename: Component {
         declared(Box().width(px(10)).height(px(10)).id("x"), AXNode(label: "x-first"))
         declared(Box().width(px(20)).height(px(0)), AXNode(label: "divider"))
         declared(Box().width(px(10)).height(px(10)).id("x"), AXNode(label: "x-last"))
-    }, focusedElement: hiddenFocusable)
+    }, focusedElement: hiddenFocusable, authority: authority)
     #expect(frame.axNodes.values.contains { $0.label == "in" },
             "control: the hidden node is still emitted as today; only the record is suppressed")
     #expect(!tree.nodes.values.contains { $0.label == "in" }, "display: none content is not published")
@@ -646,17 +653,23 @@ private struct PressToRename: Component {
 /// The root is itself a click target and holds a declared, sized, clickable
 /// box, so both the root's own record and its content's are observable. The
 /// control is the same root without `hidden()`.
-@Test @MainActor func aHiddenRootPublishesNothing() throws {
+///
+/// **Both authorities since stage 6b's lane 1** (`LR-DH` item 3): under the proposal
+/// authority the root's node is native, so `render`'s check reads `Frame.isHidden`
+/// (`display == .none ∨ hiddenNodes`), not the style alone.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aHiddenRootPublishesNothing(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     func root(hidden: Bool) -> Box<Box<EmptyGroup>> {
         let box = Box { declared(Box().width(px(10)).height(px(10)).onClick {}, AXNode(label: "in")) }
             .width(px(20)).height(px(20)).onClick {}
         return hidden ? box.hidden() : box
     }
-    let (shownFrame, shown) = collect(root(hidden: false))
+    let (shownFrame, shown) = collect(root(hidden: false), authority: authority)
     try #require(shownFrame.axEmissions.count == 2, "control: the shown root and its box both record")
     #expect(shown.id(labelled: "in") != nil)
 
-    let (hiddenFrame, hidden) = collect(root(hidden: true))
+    let (hiddenFrame, hidden) = collect(root(hidden: true), authority: authority)
     #expect(hiddenFrame.axNodes.values.contains { $0.label == "in" },
             "control: the hidden root still prepaints, so its content still emits as today")
     #expect(hiddenFrame.axEmissions.isEmpty, "a hidden root records nothing")
@@ -676,15 +689,21 @@ private struct PressToRename: Component {
 /// `Frame.suppressingAccessibilityIfHidden` (MC-B's per-layer mirroring);
 /// deleting that wrap reddens exactly these two lines. The control,
 /// `.padding(4).padding(4)`, records the box.
-@Test @MainActor func aHiddenInnerModifierLayerSuppressesEverythingInsideIt() throws {
+///
+/// **Both authorities since stage 6b's lane 1** (`LR-DH` item 4): the lowered
+/// `.hidden()` layer joins `Frame.hiddenNodes`, which the per-layer wrap reads.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aHiddenInnerModifierLayerSuppressesEverythingInsideIt(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     func target() -> Box<EmptyGroup> {
         declared(Box().width(px(10)).height(px(10)).onClick {}, AXNode(label: "in"))
     }
-    let (shownFrame, shown) = collect(Row { target().padding(px(4)).padding(px(4)) })
+    let (shownFrame, shown) = collect(Row { target().padding(px(4)).padding(px(4)) }, authority: authority)
     try #require(shownFrame.axEmissions.count == 1, "control: the unhidden box records")
     #expect(shown.id(labelled: "in") != nil)
 
-    let (hiddenFrame, hidden) = collect(Row { target().padding(px(4)).hidden().padding(px(4)) })
+    let (hiddenFrame, hidden) = collect(Row { target().padding(px(4)).hidden().padding(px(4)) },
+                                        authority: authority)
     #expect(hiddenFrame.axNodes.values.contains { $0.label == "in" },
             "control: the box inside the hidden layer still prepaints and emits as today")
     #expect(hiddenFrame.axEmissions.isEmpty, "nothing inside a hidden inner layer records")
@@ -705,22 +724,28 @@ private struct PressToRename: Component {
 /// archive` build, record §17 "Closeout"). The control, the framed box
 /// unhidden, records it; each arm's box still prepaints and emits its declared
 /// node, so the suppression — not a missing element — is what is measured.
-@Test @MainActor func aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient() throws {
+///
+/// **Both authorities since stage 6b's lane 1** (`LR-DH`): the lowered frame layer is
+/// laid out as if shown and its node joins `Frame.hiddenNodes`.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     func target() -> Box<EmptyGroup> {
         declared(Box().width(px(10)).height(px(10)).onClick {}, AXNode(label: "in"))
     }
-    let (shownFrame, shown) = collect(Row { target().frame(width: px(40), height: px(40)) })
+    let (shownFrame, shown) = collect(Row { target().frame(width: px(40), height: px(40)) },
+                                      authority: authority)
     try #require(shownFrame.axEmissions.count == 1, "control: the framed, unhidden box records")
     #expect(shown.id(labelled: "in") != nil)
 
     let arms: [(chain: String, frame: Frame, tree: AccessibilityTree)] = [
-        { let (f, t) = collect(Row { target().frame(width: px(40), height: px(40)).hidden() })
+        { let (f, t) = collect(Row { target().frame(width: px(40), height: px(40)).hidden() }, authority: authority)
           return ("frame(width:height:).hidden()", f, t) }(),
-        { let (f, t) = collect(Row { target().frame(minWidth: px(40), maxWidth: px(80)).hidden() })
+        { let (f, t) = collect(Row { target().frame(minWidth: px(40), maxWidth: px(80)).hidden() }, authority: authority)
           return ("frame(minWidth:maxWidth:).hidden()", f, t) }(),
-        { let (f, t) = collect(Row { target().frame(width: px(40), height: px(40)).hidden().padding(px(4)) })
+        { let (f, t) = collect(Row { target().frame(width: px(40), height: px(40)).hidden().padding(px(4)) }, authority: authority)
           return ("frame(width:height:).hidden().padding(4)", f, t) }(),
-        { let (f, t) = collect(Row { target().frame(minWidth: px(40), maxWidth: px(80)).hidden().padding(px(4)) })
+        { let (f, t) = collect(Row { target().frame(minWidth: px(40), maxWidth: px(80)).hidden().padding(px(4)) }, authority: authority)
           return ("frame(minWidth:maxWidth:).hidden().padding(4)", f, t) }(),
     ]
     for arm in arms {

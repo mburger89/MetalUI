@@ -130,8 +130,18 @@ private extension AccessibilityTree {
 /// one. Measured, not argued: dropping it and running the whole suite unfiltered
 /// left 1593 tests / 3 issues, the three lane 2 left red for lane 5 (record §27
 /// §9.2). That is why it goes, rather than the fixture being wrapped in a host.
-@Test func aRootMinHeightOnTheScrollerFixtureAbortsAProductionProposalFrame() async {
-    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+///
+/// **Inverted by stage 6b's lane 1** (`LR-DO` item 1; it was
+/// `aRootMinHeightOnTheScrollerFixtureAbortsAProductionProposalFrame`, expecting
+/// `.failure` on `box.minSize.unconsumed`). The fixture's root declares its height,
+/// so its `.minHeight(0)` now folds into it and a production `.proposal` frame over
+/// the fixture **completes**. The abort survives only for a root minimum on an
+/// **auto** axis, pinned through a production `Window` by `RootFieldLoweringTests`'
+/// 1.8. The control below is unchanged: the same tree without the modifier.
+///
+/// Mutation that must redden it: **M1h**, the root fold removed.
+@Test func aRootMinHeightOnTheScrollerFixtureNoLongerAbortsAProductionProposalFrame() async {
+    await #expect(processExitsWith: .success) {
         await MainActor.run {
             var element = legacySpelledScrolledListRoot(50, height: 200)
             Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
@@ -139,9 +149,6 @@ private extension AccessibilityTree {
                   collectsAccessibility: true, layoutAuthority: .proposal).render(&element)
         }
     }
-    let err = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(err.contains("box.minSize.unconsumed has no proposal lowering"),
-            "aborted, but not at the root's minSize:\n\(err)")
 
     // The control: the same tree without that one modifier completes. Without
     // this half the probe above would pass just as well if the `List`, the
@@ -178,8 +185,17 @@ private extension AccessibilityTree {
 /// `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`' zero-
 /// `rowHeight` arm, which is the same `AB-X` rule 1 on the same gate (record §27
 /// §9.5).
-@Test func aHiddenListAbortsAProductionProposalFrame() async {
-    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+///
+/// **Inverted by stage 6b's lane 1** (`LR-DH`; it was
+/// `aHiddenListAbortsAProductionProposalFrame`, expecting `.failure` on
+/// `box.display.none`). `hidden()` now lowers as if shown under the proposal
+/// authority, so a production frame over the hidden list **completes**, as its
+/// shown control always did; the both-authorities arm the paragraph above asked for
+/// is `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`.
+///
+/// Mutation that must redden it: the six `display == .none` report sites restored.
+@Test func aHiddenListNoLongerAbortsAProductionProposalFrame() async {
+    await #expect(processExitsWith: .success) {
         await MainActor.run {
             let box = Box {
                 List((0..<50).map(Item.init), rowHeight: px(28)) { _ in
@@ -193,9 +209,6 @@ private extension AccessibilityTree {
                   collectsAccessibility: true, layoutAuthority: .proposal).render(&element)
         }
     }
-    let err = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(err.contains("box.display.none has no proposal lowering"),
-            "aborted, but not at the hidden box:\n\(err)")
 
     // The control: the same tree SHOWN completes, so what aborts is `hidden()`
     // and not the list inside it.
@@ -227,8 +240,9 @@ private extension AccessibilityTree {
 /// of a window; a root's `LoweredItem` is unconsumed by definition, and
 /// `reportUnconsumedLoweredItems` reports a root's non-`.auto` `minSize`, so a
 /// production `.proposal` frame aborted on it before the first assertion.
-/// `aRootMinHeightOnTheScrollerFixtureAbortsAProductionProposalFrame` above is
-/// that abort and its control, kept as observables.
+/// `aRootMinHeightOnTheScrollerFixtureNoLongerAbortsAProductionProposalFrame`
+/// above was that abort and its control; since stage 6b's lane 1 the declared-axis
+/// minimum folds (`LR-DO` item 1) and the abort is gone.
 ///
 /// **Dropping it moves nothing under the legacy engine, measured rather than
 /// argued**: the box declares `height`, so no automatic minimum is in play, and
@@ -947,10 +961,18 @@ func aClientDoesNotChangeStateRetention(_ authority: LayoutAuthority) throws {
 /// `hidden()`, and `display: none` has no proposal lowering at all
 /// (`LegacyLowering.swift:161` returns `display.none` before any other field is
 /// read), so a `.proposal` frame over this fixture aborts rather than failing.
-/// `aHiddenListAbortsAProductionProposalFrame` above is that abort and its shown
-/// control, kept as observables; when a later stage lowers `display`, this test
+/// `aHiddenListNoLongerAbortsAProductionProposalFrame` above was that abort and
+/// its shown control (inverted by stage 6b's lane 1); when a later stage lowers `display`, this test
 /// gains its `.proposal` arm and `AuthorityCoverage.expected` gains its name.
-@Test @MainActor func aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame() throws {
+///
+/// **Both authorities since stage 6b's lane 1** (`LR-DH`): the finding above is
+/// closed — `hidden()` lowers as if shown under the proposal authority and joins
+/// `Frame.hiddenNodes`, which the outermost suppression scope reads — so this test
+/// gained its `.proposal` arm and `AuthorityCoverage.expected` its name, as the
+/// paragraph above said it would.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     func content(hidden: Bool) -> some Element {
         let box = Box {
             List((0..<50).map(Item.init), rowHeight: px(28)) { _ in Box().width(px(20)).height(px(28)) }
@@ -961,10 +983,10 @@ func aClientDoesNotChangeStateRetention(_ authority: LayoutAuthority) throws {
             Text("shown")
         }
     }
-    let (_, shown) = collect(content(hidden: false))
+    let (_, shown) = collect(content(hidden: false), authority: authority)
     try #require(shown.all(.table).count == 1, "control: an unbounded list publishes its table")
 
-    let (_, hidden) = collect(content(hidden: true))
+    let (_, hidden) = collect(content(hidden: true), authority: authority)
     #expect(hidden.all(.table).isEmpty, "a hidden ancestor silences the list's own exception")
     #expect(hidden.rootNodes.map(\.value) == ["shown"])
 }

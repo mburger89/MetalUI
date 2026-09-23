@@ -83,8 +83,14 @@ enum AuthorityCoverage {
     /// actor, so a main-actor-isolated one does not compile.
     nonisolated static let authorities: [LayoutAuthority] = LayoutAuthority.allCases
 
-    /// The 82 scenario names, written out by hand before the first run (practices
+    /// The 87 scenario names, written out by hand before the first run (practices
     /// shape 13: a count a later loop indexes on is a literal, not a derivation).
+    ///
+    /// **82 + 5 since stage 6b's lane 1** (`LR-DH`): the five AV tests —
+    /// `AccessibilityDefaultsTests`' `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`
+    /// (kept out below by stage 4 because `display: none` had no proposal lowering)
+    /// and `AccessibilityTreeTests`' four `hidden()` tests — now that `hidden()`
+    /// lowers as if shown and joins `Frame.hiddenNodes`.
     ///
     /// **74 + 8 since stage 5's lane 3** (`LR-CO`): `PresentationWindowTests`' six
     /// scenarios (spec 3.1–3.6, the must-not-move set through real windows) and the
@@ -240,6 +246,13 @@ enum AuthorityCoverage {
         // two existing in-flow pins, parameterised
         "aDeferredPortalInsideAFadedSubtreeIsStillFaded",
         "aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope",
+        // AccessibilityDefaultsTests (1), AccessibilityTreeTests (4) — stage 6b,
+        // lane 1 (`LR-DH`): the five AV tests, `hidden()` now lowered
+        "aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame",
+        "hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce",
+        "aHiddenRootPublishesNothing",
+        "aHiddenInnerModifierLayerSuppressesEverythingInsideIt",
+        "aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient",
     ]
 
     private(set) static var seen: [String: Set<LayoutAuthority>] = [:]
@@ -267,7 +280,7 @@ enum AuthorityCoverage {
                        sourceLocation: SourceLocation = #_sourceLocation) {
         let name = String(function.prefix { $0 != "(" })
         #expect(expected.contains(name),
-                "\(name) records coverage but is not in AuthorityCoverage.expected — add it there (and re-derive the 82)",
+                "\(name) records coverage but is not in AuthorityCoverage.expected — add it there (and re-derive the 87)",
                 sourceLocation: sourceLocation)
         seen[name, default: []].insert(authority)
         guard !verifiedWholeSet, Set(seen.keys) == expected else { return }

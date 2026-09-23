@@ -21,11 +21,13 @@ struct MeasurePerformanceTests {
     /// pass it** (plan task 7, stage 4, lane 5; `LR-BX`, `LR-CG`). This builds a
     /// PRODUCTION frame by default — the shape `Window` builds — and
     /// `demoLikeRows`' root `Box` declares `.minHeight(Pixels(0))`, which
-    /// `reportUnconsumedLoweredItems` still reports for a root, so a `.proposal`
-    /// arm without the flag does not fail, it aborts the whole run with no
-    /// summary line. `aProductionFrameOverDemoLikeRowsAbortsUnderTheProposal`
-    /// `Authority` at the foot of this file is that abort kept as an observable,
-    /// and the diagnostics frame beside it is the positive control.
+    /// `reportUnconsumedLoweredItems` reported for a root until stage 6b's lane 1,
+    /// so a `.proposal` arm without the flag aborted the whole run with no summary
+    /// line. The root declares its height, so since that lane the minimum folds
+    /// (`LR-DO` item 1) and a production frame completes —
+    /// `aProductionFrameOverDemoLikeRowsCompletesUnderTheProposalAuthority` at the
+    /// foot of this file, inverted from the abort it used to keep. The flag stays:
+    /// any future report must read red here, not abort.
     ///
     /// **`demoLikeRows` is NOT changed to drop the modifier**, deliberately: its
     /// own header says removing a pin from it "would silently inflate every later
@@ -53,16 +55,19 @@ struct MeasurePerformanceTests {
 
     /// `demoLikeRows(_:)`'s whole diagnostics report, at either authority.
     ///
-    /// **One entry, and it is the root's own and nothing to do with `List`.**
-    /// `reportUnconsumedLoweredItems` exempts a root from `flexGrow`,
-    /// `flexShrink`, `flexBasis` and `alignSelf` and from nothing else
-    /// (`LoweringState.swift`), so the fixture's root `.minHeight(Pixels(0))`
-    /// reports — the shape
-    /// `anItemFieldNoLoweredContainerConsumesIsReportedByName`'s root arms already
-    /// document. **Any other entry is a finding**, and the work numbers taken
-    /// alongside it are not this stage's (spec §6 lane 5).
+    /// **Empty at both since stage 6b's lane 1** (`LR-DO` item 1). Until then it
+    /// was one entry at `.proposal`, the root's own `box.minSize.unconsumed`:
+    /// `reportUnconsumedLoweredItems` exempted a root from `flexGrow`,
+    /// `flexShrink`, `flexBasis` and `alignSelf` and from nothing else, so the
+    /// fixture's root `.minHeight(Pixels(0))` reported. The root **declares** its
+    /// height (370), and a px/rem minimum or maximum on a declared root axis now
+    /// folds into it (the element's own frame already folded it, `LR-AG`) and
+    /// stops reporting, so the report is empty. The tree was never degenerate for
+    /// it — the root's report was noted after registration, not replaced by a leaf
+    /// — so no work literal in this file moves. **Any entry is a finding**, and the
+    /// work numbers taken alongside it are not this stage's (spec §6 lane 5).
     static func demoLikeRowsReport(_ authority: LayoutAuthority) -> [UnlowerableField] {
-        authority == .proposal ? [UnlowerableField(site: .box, field: "minSize.unconsumed")] : []
+        []
     }
 
     /// The native layout work one warm `demoLikeRows(_:)` frame does, at either
@@ -820,8 +825,18 @@ private struct MeasureRow: Identifiable { let id: Int }
 /// removing a pin from it "would silently inflate every later before/after ratio
 /// measured against this harness", and every committed literal in this file is
 /// measured against it.
-@Test func aProductionFrameOverDemoLikeRowsAbortsUnderTheProposalAuthority() async {
-    let run = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+///
+/// **Inverted by stage 6b's lane 1** (`LR-DO` item 1; it was
+/// `aProductionFrameOverDemoLikeRowsAbortsUnderTheProposalAuthority`, expecting
+/// `.failure`). The root declares its height, so its `.minHeight(0)` folds into it
+/// and no longer reports: a production frame over `demoLikeRows` now **completes**.
+/// The abort it used to pin is kept, for a root minimum that cannot fold (an
+/// **auto** axis), by `RootFieldLoweringTests`' 1.8 through a production `Window`.
+///
+/// Mutation that must redden it: **M1h**, the root fold removed (the child aborts on
+/// `box.minSize.unconsumed`).
+@Test func aProductionFrameOverDemoLikeRowsCompletesUnderTheProposalAuthority() async {
+    await #expect(processExitsWith: .success) {
         await MainActor.run {
             var root = demoLikeRows(40)
             Frame(contentSize: Size(width: Pixels(920), height: Pixels(560)),
@@ -829,9 +844,6 @@ private struct MeasureRow: Identifiable { let id: Int }
                   theme: .dark, layoutAuthority: .proposal).render(&root)
         }
     }
-    let err = String(decoding: run?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(err.contains("box.minSize.unconsumed has no proposal lowering"),
-            "aborted, but not at the root's own minSize:\n\(err)")
 }
 
 /// **The positive control for the probe above, and it is the lane's fix.** The

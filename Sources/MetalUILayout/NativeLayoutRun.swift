@@ -42,6 +42,11 @@ final class NativeLayoutRun {
     /// real stack.
     private(set) var depth = 0
 
+    /// The largest `depth` `enter` reached in this call, copied to
+    /// `LayoutTree.lastNativeLayoutDeepestLevel` when the entry point returns
+    /// (plan task 7, stage 6b, ruling `LR-DK`).
+    private(set) var deepestLevel = 0
+
     /// This call's work, copied to `LayoutTree.lastNativeLayoutWork` when the
     /// entry point returns (ruling SA-M).
     var work = NativeLayoutWork()
@@ -131,6 +136,7 @@ final class NativeLayoutRun {
     /// Enters one native recursion level for `node`; `leave()` on return.
     func enter(_ node: LayoutNodeID) {
         depth += 1
+        if depth > deepestLevel { deepestLevel = depth }
         precondition(depth <= NativeLayoutRun.maxDepth,
                      "native layout recursion exceeded \(NativeLayoutRun.maxDepth) levels at node \(node) (SA-L)")
     }
