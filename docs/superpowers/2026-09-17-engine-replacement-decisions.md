@@ -6559,8 +6559,11 @@ passes it to the view under it. `AB-O`/R9: hidden content is not published.
    7b; 1.1 pins both.
 
 **What it costs if wrong.** A hidden subtree that still paints or takes a click
-in production — 1.2–1.5 each redden on the gate they name; one that paints on
-the legacy path differently — 1.6.
+in production — 1.2–1.5 each redden on the gate they name for a `Box` or a
+modifier layer, and 1.9 (`aHiddenTextIsHiddenUnderTheProposalAuthority`) on all
+four gates for a hidden `Text`, the leaf site (`LR-DP` item 7; until 1.9 landed
+the leaf site was pinned by nothing); one that paints on the legacy path
+differently — 1.6.
 
 ---
 
@@ -6881,9 +6884,25 @@ the mutation table.
    24 → 26 arms). **Spec §5.5 changes with it**: lane 2's font-resolver test
    asserts an empty `demoLikeRowsReport(.proposal)`, which is what `LR-DO`
    item 1 already said.
+7. **The leaf site's gates were unpinned; 1.9 pins them.** 1.2–1.5 hide `Box`es
+   and modifier layers, which reach `lowerLegacyNode`'s or the frame layer's
+   hidden branch; the leaf table checks layout only. Mutation **VH** — the
+   `frame.hiddenNodes.insert(node)` in `lowerLegacyLeaf`'s hidden branch
+   dropped — left the full suite green at 1696 while `Text("Hi").onClick{}.hidden()`
+   painted two glyphs, registered a hitbox and recorded for accessibility. Test
+   1.9, `aHiddenTextIsHiddenUnderTheProposalAuthority`, hides a `Text` directly
+   with a shown control and asserts no glyph, no pointer hitbox, no
+   `axEmissions` record and one `hiddenNodes` entry; under VH it alone reddens
+   (4 issues, suite 1697).
+8. **1.1's hidden-`b` origin is MetalUI's choice, not H1's answer.** H1's leaf
+   record for the hidden view reads `(0, 0) 20x20`; what the probe backs is the
+   20×60 column and `c` at y = 40. The lowered `b` at (0, 20) is asserted as
+   "as if shown" places it, and 1.1 says so.
 
 **What it costs if wrong.** Item 1: a hidden custom-display `Box` laid out as a
 row — a rect disagreement the harness would show. Item 2: a hidden root that
 painted or took clicks under the proposal authority — pinned by root arms added
 to 1.2 and 1.3 (`f72ebfd`); mutations M1i (the root paint skip removed) and M1j
 (the root pointer-disable scope removed) redden exactly 1.2 and exactly 1.3.
+Item 7: a hidden `Text` that painted, took clicks or published in production —
+VH reddens exactly 1.9.

@@ -57,6 +57,8 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
 /// (stage-1 probe H1, re-run 2026-09-23: `VStack(spacing:0){a20; b20.hidden(); c20}`
 /// is 20×60) — and the legacy engine places `c` at y = 20 (CSS `display: none` takes
 /// no box). Both arms asserted: the authorities now disagree on space by design.
+/// Hidden `b`'s own origin, (0, 20), is **not** probe-backed — H1's leaf for the
+/// hidden view reads (0, 0) — and is asserted as MetalUI's "as if shown" choice.
 ///
 /// Red before: the proposal side reports `box.display.none`.
 /// Mutation **M1b**: `hidden()` lowered as a 0×0 leaf — `c` at 20 under both.
@@ -78,8 +80,11 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     let loweredColumn = try #require(report.loweredBounds[column])
     #expect(loweredColumn.size.height == px(60), "lowered column 20×60 (H1), got \(loweredColumn)")
     let loweredB = try #require(report.loweredBounds[child(column, 1)])
+    // b's origin is a MetalUI choice, not a SwiftUI answer: "as if shown" places the
+    // node where it would be shown. H1's leaf record for the hidden view reads
+    // `(0, 0) 20x20`, so the probe backs the 20×60 and c at y = 40, not b at (0, 20).
     #expect(loweredB == Bounds(origin: point(0, 20), size: Size(width: px(20), height: px(20))),
-            "lowered b is laid out where it would be shown, got \(loweredB)")
+            "lowered b is laid out where it would be shown (MetalUI's choice), got \(loweredB)")
 
     // "As if shown" needs the display `hidden()` overwrote: a `Stack` is laid out as
     // a stack (its site says so), not as the flex row `display: .none` would fall to.

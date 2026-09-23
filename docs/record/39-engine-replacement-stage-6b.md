@@ -386,10 +386,19 @@ docs/probes/stage-6b-flip-instrument.patch` clean at `ef48a0a` — not regenerat
 | M1h | the root fold removed | 1.7, 1.8, `aListsWorkIsTheSameFor160RowsAsFor40` (both arms), `anItemFieldNoLoweredContainerConsumesIsReportedByName`, `aProductionFrameOverDemoLikeRowsCompletesUnderTheProposalAuthority`, `aRootMinHeightOnTheScrollerFixtureNoLongerAbortsAProductionProposalFrame` (10 issues). The font-resolver test is still `.legacy` at lane 1, so it does not appear; lane 2 owns it |
 | M1i | `render`'s root paint skip removed | 1.2 (1) |
 | M1j | `render`'s root pointer-disable scope removed | 1.3 (1) |
+| VH | `lowerLegacyLeaf`'s hidden-branch `frame.hiddenNodes.insert(node)` removed (branch: the leaf's, line 243; the other two inserts kept) | before 1.9: **nothing** (1696 green) — the leaf site's gates were unpinned. After 1.9: **only** `aHiddenTextIsHiddenUnderTheProposalAuthority` (4 issues, 1697) — `LR-DP` item 7 |
 | M3e | `maxDepth` back to 88 | the eight: `aChainOf72GridsTraps`, `aChainOf71GridsDoesNotTrap`, `aLoweredChainAtTheNativeDepthLimitLaysOut`, `aLoweredChainOneLevelPastTheNativeDepthLimitTraps`, both 2.14 and both 4.8 arms (12 issues) |
 | M3f | `maxDepth` 71 | the same eight (11 issues): the at-limit arms trap, and the trap arms trap with `exceeded 71` where they expect `72` |
 
 M3f reddening the trap arms too is the message literal, not a depth claim.
+
+**Fix round (lane-1 review).** Test 1.9 (`aHiddenTextIsHiddenUnderTheProposalAuthority`)
+added for the leaf site VH exposed; suite **1697**. 1.1's assertion on the hidden
+`b`'s origin (0, 20) is re-worded as MetalUI's "as if shown" choice: the re-run H1
+records the hidden leaf at `(0, 0) 20x20`, so the probe backs the 20×60 and `c` at
+y = 40 only (`LR-DP` item 8). `Box.hidden()`'s doc gains a proposal-authority
+paragraph citing `LR-DH`; `aHiddenListNoLongerAbortsAProductionProposalFrame`'s
+control comment no longer describes an abort.
 
 ### 10.4 Depth re-checked at `ef48a0a`
 

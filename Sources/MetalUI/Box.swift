@@ -1147,6 +1147,13 @@ extension StyledElement {
     /// rather than from the item list; `Sources/MetalUIDemoContent/DemoContent.swift`'s modal
     /// does exactly that, and carries the vanishing-`if` identity caveat at its
     /// call site. CLAUDE.md's declared-but-inert table has the row.
+    ///
+    /// **Everything above is the legacy authority.** Under the proposal
+    /// authority (stage 6b, ruling `LR-DH`) a hidden node lowers **as if
+    /// shown** — it keeps its space, as SwiftUI's `hidden()` does — and joins
+    /// `Frame.hiddenNodes`: it and its subtree paint nothing (a hidden `Text`
+    /// emits no glyph), register their pointer hitboxes under the
+    /// `hitTestingDisabled` scope and publish nothing to accessibility.
     public func hidden() -> Self {
         modifying { $0.display = .none }
     }

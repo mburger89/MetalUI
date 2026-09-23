@@ -210,8 +210,8 @@ private extension AccessibilityTree {
         }
     }
 
-    // The control: the same tree SHOWN completes, so what aborts is `hidden()`
-    // and not the list inside it.
+    // The control: the same tree SHOWN completes too. Until stage 6b only the
+    // hidden arm aborted (on `box.display.none`); both arms now complete (`LR-DH`).
     await #expect(processExitsWith: .success) {
         await MainActor.run {
             let box = Box {
