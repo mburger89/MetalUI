@@ -496,9 +496,10 @@ M2c (below) re-reads it on six of them.
 - **R-fill (43 tests, green on both authorities):** the rest of the 54 RP and 19
   P-6b, minus item 3's two — including the `inFilledRow` helpers
   (`DecorationPaintTests`, `FrameDecorationInteractionTests`) beside the unchanged
-  `inRow`, and six P-6b tests that loop over both authorities
+  `inRow`, and three P-6b tests that loop over both authorities
   (`chainedLegacyFrames…`, `aLegacyFrameProposesItsWidth…`,
-  `modifierOrderChanges…`; `LR-DQ` item 5). The P-6b custom leaves
+  `modifierOrderChanges…`; `LR-DQ` item 5). (`b2abe17`'s subject line says "17
+  CSS/N9 pins"; the count is 20, as below.) The P-6b custom leaves
   `HitboxTests.HitboxProbe` and `EnvironmentTests.ClickCounter` became Dual
   (`declaredSizeNativeLeaf` under the proposal authority).
 - **Greedy frame (2):** the `FrameLoopTests` resize pair (`LR-DQ` item 3).
