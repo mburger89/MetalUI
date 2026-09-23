@@ -7,7 +7,7 @@ changed in a commit. Every measurement below was taken on
 (`ZZScratchStage5.swift`) and one temporary edit to `ListTests.swift`, both
 restored before commit with `git status --short` showing only this design's
 docs and probe; the measurements are in `docs/record/28-engine-replacement-stage-5.md`
-§2. Rulings `LR-CH`…`LR-CO` in
+§2. Rulings `LR-CH`…`LR-CO`, and critic round 1's `LR-CP`, in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Probe: `docs/probes/swiftui-overlay-presentation.swift`, **revision 2** (group Q
 added; P and H unchanged and re-run).
@@ -143,6 +143,9 @@ columns are what the lowering must reproduce or rule:
 | root `width` 100 (window 200), right/bottom 5, 10×10 | (85, 85) |
 | the absolute box **as** the root, top/left 5 | (0, 0) — a root's insets are ignored |
 | `Deferred` as the root, same content | (0, 0) |
+| root `.frame(maxWidth: 100)` over `Box { Deferred { … } }`, right/bottom 5, 10×10 | (85, 85) — the clamped root is the containing block (critic round 1) |
+| root `.frame(minWidth: 300)`, same | (285, 85) |
+| root `.frame(maxWidth: 300)`, and no frame, same | (185, 85) |
 | `.relative` bordered ancestor at (0, 30), top/left 5 | (58, 38) |
 | gapped column [10×10, `Deferred` absolute, 11×10], gap 12 | second box at y **22** — out of flow, no gap |
 
@@ -178,13 +181,13 @@ and is not hoisted over a later sibling.
 | concept | decision | spelling / owner | ruling |
 |---|---|---|---|
 | **the portal's paint and prepaint half** (layer 1, whole-surface clip, zero translation, scroll context cleared in layout) | unchanged, authority-independent | — | `LR-CH` |
-| **an in-flow `Deferred`** (content not absolute) | stays layout-transparent under both authorities — it already agrees (§2.2). No SwiftUI spelling is needed: SwiftUI has no in-flow portal (P3's `.zIndex` hoists within one `ZStack` only) | — | `LR-CH` |
+| **an in-flow `Deferred`** (content not absolute) | stays layout-transparent under both authorities — it already agrees (§2.2). No SwiftUI spelling is needed: no **probed** SwiftUI spelling is an in-flow portal (P1/P2: `.overlay` is clipped and not hoisted; P3's `.zIndex` hoists within one `ZStack` only) — a narrower claim than "SwiftUI has none", which no probe arm tests (`LR-CP` item 5) | — | `LR-CH` |
 | **a `Deferred` whose content is `.position(.absolute)`** | **a presentation root**: laid out in its own native run against the window, contributing nothing to its parent's layout | SwiftUI's window-root overlay: Q4, Q6; P4/P5 for "outside the presenter's layout" | `LR-CH`, `LR-CM` |
 | **all-inset absolute** (`inset(0)`, the demo's scrim) | lowered: a greedy item frame W on both axes, aliased as the element's rect, inside the (zero) padding, inside a window-sized frame | Q2 | `LR-CI` |
 | **partial insets** | lowered per axis: the given edge as padding, the window frame aligned to it; both edges with a declared size → the leading one wins (legacy's rule) | Q1, Q1c | `LR-CI` |
 | **no insets** | lowered to `.topLeading` at the window's origin — the legacy answer | Q5c; **divergence 9 survives, on both authorities** | `LR-CI`, `LR-CN` |
 | **percentage insets** | lowered: `left`/`right` against the window's width, `top`/`bottom` against its height (`AP-D`) | resolved at registration from `Frame.contentSize` | `LR-CI` |
-| **the containing block** | the window, by construction; every tree where the legacy engine's containing block is **not** the window reports by name: a positioned ancestor already reports `position` at its own site; a bordered or non-window-sized root reports `deferred.containingBlock`; a presentation inside a non-covering presentation `deferred.nested`; a `Deferred` root `deferred.root` | owner **stage 9** (the reports exist only to keep the differential honest) | `LR-CL` |
+| **the containing block** | the window, by construction; every tree where the legacy engine's containing block is **not** the window reports by name: a positioned ancestor already reports `position` at its own site; a bordered or non-window-sized root reports `deferred.containingBlock`; a presentation inside a non-covering presentation `deferred.nested`; a `Deferred` root `deferred.root`; a root `.frame(minWidth:)`/`.frame(maxWidth:)` that clamps it off the window also `deferred.containingBlock` (`LR-CP` item 2) | owner **stage 9** (the reports exist only to keep the differential honest) | `LR-CL` |
 | **content measured on an axis with one inset** | lowered with SwiftUI's proposal (window − inset, Q3), a **deliberate proposal-only change** from the legacy engine's (window), pinned by name | — | `LR-CJ` |
 | **stretched below padding + border** | lowered with the inset box kept and the padding overflowing (`LR-AH`/`LR-AW`'s answer), a deliberate proposal-only change from legacy's `BM-4` floor, pinned by name | — | `LR-CJ` |
 | **`minSize`/`maxSize` on an auto axis of an absolute box** | reports `<site>.minSize.absolute` / `<site>.maxSize.absolute` — legacy **ignores** them (measured), SwiftUI and CSS would not | owner **stage 8** | `LR-CJ` |
@@ -266,9 +269,17 @@ H_window, alignment:)`. The last is the presentation root.
 
 1. **The checks** (`LR-CL`): `deferred.root` if `root` is a placeholder;
    otherwise, if the root's record exists, `deferred.containingBlock` when its
-   **declared** style has a non-zero border on any edge or a non-`auto` size on
-   an axis that does not resolve to the window's extent there. A root with no
-   record (the harness's native root) is the window by construction.
+   **declared** style has a non-zero border on any edge, a non-`auto` size on
+   an axis that does not resolve to the window's extent there, **or a
+   `minSize` resolving above / `maxSize` resolving below the window's extent on
+   an axis (any percentage `minSize`/`maxSize` counts)** — critic round 1,
+   `LR-CP` item 2: a `.frame(maxWidth:)`/`.frame(minWidth:)` root is a
+   `.frameLayer` record, which `reportUnconsumedLoweredItems` never reads, and
+   the legacy engine's containing block follows the clamped root (measured:
+   `Box { Deferred { 10×10 right/bottom 5 } }` in 200×100 is (85, 85) under
+   `.frame(maxWidth: 100)`, (285, 85) under `.frame(minWidth: 300)`, (185, 85)
+   under `.frame(maxWidth: 300)` and with no frame). A root with no record (the
+   harness's native root) is the window by construction.
 2. **Each presentation root, in registration order**, through
    `tree.computeNativeLayout(root:proposal:in:)` with the window as proposal and
    bounds — **before the root**, so `LayoutTree.lastNativeLayoutWork` still
@@ -281,9 +292,21 @@ same behaviour.
 
 ### 4.4 Consumers drop the placeholder, and the absolute content's fields move to them (`LR-CK`)
 
+- **The frame arm's style check keeps the UNDROPPED count** (critic round 1,
+  `LR-CP` item 1). `legacyFrameLayerDiagnostics(_:declared:childCount:)`
+  compares `declared` with `layer.lowered(spec.style(), childCount:)`, and
+  `ModifiedElement.requestLayout` built `declared` from
+  `lowered(_:childCount: children.count)` over the undropped children — the
+  placeholder counted. Handing it the dropped count turns a one-node frame over
+  a presentation (count 1 → 0) into `display: .stack` declared against a flex
+  row expected, and a two-member frame (2 → 1) into the reverse: both report a
+  spurious `modifierLayer.style` and 1.4's two `.frame` arms read it. So the
+  frame arm passes `children.count` to the diagnostics and the dropped list to
+  `consume`, `planLegacyItems` and `registerLegacyItems`; `lowerLegacyNode`'s
+  `legacyContainerDiagnostics` reads no count today and may take either.
 - **The placeholder is removed from `children` at entry** — before `consume`,
-  `legacyContainerDiagnostics(childCount:)`, `planLegacyItems` and the
-  single-child stretch elision count — by `lowerLegacyNode` (flex, stack, a
+  `planLegacyItems` and the single-child stretch elision count (but **not**
+  before the frame arm's style check, above) — by `lowerLegacyNode` (flex, stack, a
   `.padding` layer, a `ScrollView`'s content), `lowerLegacyLayer`'s frame arm and
   `loweredComponentFrame`, through one helper
   `LoweringState.droppingPresentations(_:)`. **`ListRows` cannot receive one**
@@ -375,8 +398,8 @@ one arm of `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`.
 | 1.1 | `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` | `LayoutDifferential.compare` at **200×100** (non-square, `AP-D`), one arm per §2.4 row that lowers: top/left px; right/bottom px declared; all four, auto size (stretched both axes); left/right auto + declared height; all four + declared size (leading wins); none, after an in-flow sibling (divergence 9, (0, 0)); percent; rem; declared 40 with `minSize` 50 (→ 50); `margin`/`flexGrow`/`alignSelf` present (dropped). Each: report `[]`, `disagreeing`/`legacyOnly`/`loweredOnly` empty, scenes and hitboxes equal, and the box's and the `Deferred`'s rect equal to §2.4's literal | every arm reports `[box.position, box.inset]` (`[box.position]` for "none") | **M1a** the trailing alignment written as leading (the right/bottom arm); **M1b** `top`'s percentage resolved against the width (the percent arm: y 100 against 50); **M1c** W registered but not aliased (the stretched arms: the element's rect and its background); **M1d** the placeholder's alias removed (every arm's `Deferred` id reads 0×0) |
 | 1.2 | `anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBoxWhereTheLegacyEngineFloorsIt` | pinned by name, both literals: legacy (100, 10) 20×20; lowered (100, 10) 10×10, the padding overflowing (`LR-CJ`) | reports | **M1e** W's minimum set to the padding + border sum (lowered reads 20×20) |
 | 1.3 | `anAbsoluteTextWrapsAtTheWindowMinusItsInsetWhereTheLegacyEngineWrapsAtTheWindow` | pinned by name: at left 150 in 200×200 the legacy text is 196×32 at (150, 0); the lowered one is at (150, 0), at most 50 wide and taller than 32 (Q3) | reports | **M1f** the padding's leading edge forced to 0 (lowered x 0, width 196) |
-| 1.4 | `aPresentationPlaceholderIsDroppedByEveryLoweredContainer` | differential, report `[]`, no disagreement, in six parents: a gapped column [10×10, `Deferred` absolute, 11×10] (second box y **22**); a `Stack` [10×10, it]; a `ScrollView`'s content [it, a tall `Box`]; and — since `Deferred` has no modifier surface, a `Component` whose body is the `Deferred` is how a layer receives the placeholder directly — that component with `.padding(4)` (the wrap op, `OM-D`), with `.frame(width: 50, height: 50)` (a one-node frame layer), and a two-member one [10×10, it] with the same `.frame` (the per-member row, `LR-BH`) | reports | **M1g** the filter removed from `lowerLegacyNode` (the column, stack, scroll and `.padding` arms); **M1h** removed from `lowerLegacyLayer`'s frame arm only (the two `.frame` arms) |
-| 1.5 | `aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName` | plain `Frame`, proposal, diagnostics; each arm's report exactly: bordered root → `[deferred.containingBlock]`; root width 100 in 200 → same; root width 200 → `[]`; auto root → `[]`; `Deferred` root → `[deferred.root]`; presentation inside a top/left-5 presentation → `[deferred.nested]`; inside an `inset(0)` one → `[]`; inside a `.relative` ancestor → `[box.position]` (the ancestor's) ; absolute in a column, no `Deferred` → `[box.position, box.inset]`; absolute root → `[box.position.unconsumed, box.inset.unconsumed]`; `minSize` on an auto axis → `[box.minSize.absolute]`; `Component().width(70)` over a `Deferred`-absolute member → `[deferred.amended]` | every `Deferred` arm reads `[box.position, box.inset]`; the absolute-root arm reads `[box.position, box.inset]` | **M1i** the containing-block check deleted (border, width-100 arms); **M1j** the nested check deleted; **M1k** `coversWindow` always false (the `inset(0)` arm reads `[deferred.nested]`); **M1l** `planLegacyItems`' `position` entry deleted (the column arm reads `[box.inset]`) |
+| 1.4 | `aPresentationPlaceholderIsDroppedByEveryLoweredContainer` | differential, report `[]`, no disagreement, in six parents: a gapped column [10×10, `Deferred` absolute, 11×10] (second box y **22**); a `Stack` [10×10, it]; a `ScrollView`'s content [it, a tall `Box`]; and — since `Deferred` has no modifier surface, a `Component` whose body is the `Deferred` is how a layer receives the placeholder directly — that component with `.padding(4)` (the wrap op, `OM-D`), with `.frame(width: 50, height: 50)` (a one-node frame layer), and a two-member one [10×10, it] with the same `.frame` (the per-member row, `LR-BH`) | reports | **M1g** the filter removed from `lowerLegacyNode` (the column, stack, scroll and `.padding` arms); **M1h** removed from `lowerLegacyLayer`'s frame arm only (the two `.frame` arms); **M1o** (critic round 1, `LR-CP` item 1) the frame arm's `legacyFrameLayerDiagnostics` handed the **dropped** count (both `.frame` arms report `[modifierLayer.style]`) |
+| 1.5 | `aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName` | plain `Frame`, proposal, diagnostics; each arm's report exactly: bordered root → `[deferred.containingBlock]`; root width 100 in 200 → same; root width 200 → `[]`; auto root → `[]`; `Deferred` root → `[deferred.root]`; presentation inside a top/left-5 presentation → `[deferred.nested]`; inside an `inset(0)` one → `[]`; inside a `.relative` ancestor → `[box.position]` (the ancestor's) ; absolute in a column, no `Deferred` → `[box.position, box.inset]`; absolute root → `[box.position.unconsumed, box.inset.unconsumed]`; `minSize` on an auto axis → `[box.minSize.absolute]`; `Component().width(70)` over a `Deferred`-absolute member → `[deferred.amended]`; **critic round 1 (`LR-CP` item 2)**: root `.frame(maxWidth: 100)` in 200 → `[deferred.containingBlock]`; root `.frame(minWidth: 300)` → same; root `.frame(maxWidth: 300)` → `[]` (the separating arm) | every `Deferred` arm reads `[box.position, box.inset]`; the absolute-root arm reads `[box.position, box.inset]` | **M1i** the containing-block check deleted (border, width-100 arms); **M1j** the nested check deleted; **M1k** `coversWindow` always false (the `inset(0)` arm reads `[deferred.nested]`); **M1l** `planLegacyItems`' `position` entry deleted (the column arm reads `[box.inset]`); **M1p** the check's `minSize`/`maxSize` clause deleted (the two clamped-frame arms read `[]`) |
 | 1.6 | `aPresentationTrapsAProductionProposalFrameNamingItsField` | exit test, diagnostics off, bordered root: exits with failure; stderr contains `MetalUI: deferred.containingBlock has no proposal lowering (plan task 7, stage 9)` | the child traps on `box.position … stage 2` | **M1m** `owningStage` for `.deferred` → "5" |
 | 1.7 | `presentationsAreLaidOutBeforeTheRootSoTheRootsWorkRecordIsUnchanged` | `lastNativeLayoutWork` after a frame with a presentation equals the same tree's with the `Deferred` removed | the tree with the `Deferred` reports and its reported 0×0 leaf sits **in** the root's flow, so the two roots' work differs | **M1n** presentations laid out after the root |
 | 1.8 | `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (modal half re-derived) | modal on: report `[]`; the six modal ids each either agreeing or attributed by literal to a named cause; counts re-derived (`#require`) | red after lane 1's source (the old expectation reads two entries) | **M1c**, **M1d** |
@@ -407,7 +430,7 @@ Tests only: `DeferredTests.swift`, `AbsoluteOverlayTests.swift`,
 | 2.1–2.4 | the four element-level `DeferredTests`, parameterised `(_ authority:)` with `AuthorityCoverage.record` | parameterised **before** hosting, measured per test (S5 predicts the nested-scroll test fails under `.proposal`: region x 155); recorded | **M2a** `Deferred.prepaint` without `pass.deferred` (the nested-scroll test, both authorities); **M2b** `Deferred.paint` without it (hoist and scrolled tests, both) |
 | 2.5 | **new** `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities(_:)` — the demo's shape (`ScrollView { Deferred { Stack { card }.position(.absolute).inset(0).background(.scrim).onClick {} }; tall content }`), two frames, offset 40: the scrim's rect and mask are the window on both frames, layer 1; its hitbox opaque at the window rect, layer 1; the card centred; the in-flow content moved by 40 | lane 1's `Deferred` branch disabled in a scratch copy: the proposal pre-flight reads `[stack.position, stack.inset]` | **M1c** (the scrim's rect and hitbox shrink to the card-sized stack), **M2b** (the scrim's mask becomes the viewport) |
 | 2.6 | `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt(_:)` — legacy arm as today; proposal arm: the plain half reports exactly `[box.position, box.inset]` (divergence 11 unspellable), the `Deferred` half's geometry and mask as legacy | parameterised before hosting: the proposal geometry moves (S5: (100, 85)) | **M1l** (the proposal plain half reads `[box.inset]`) |
-| 2.7 | **new** `anAbsoluteBoxOutsideADeferredTrapsAProductionProposalFrame` — exit test: stderr contains `MetalUI: box.position has no proposal lowering (plan task 7, stage 10)` | none possible after lane 1 except by mutation | **M2d** `owningStage` for `position` back to "2" |
+| 2.7 | **new** `anAbsoluteBoxOutsideADeferredTrapsAProductionProposalFrame` — exit test: stderr contains `MetalUI: box.position has no proposal lowering (plan task 7, stage 10)` at `e5caefb` the child traps naming **stage 2**, so the `stage 10` assertion is red (critic round 1, `LR-CP` item 4: this row said none was possible) | **M2d** `owningStage` for `position` back to "2" |
 | 2.8 | `aListInsideADeferredIgnoresTheEscapedScrollersOffset(_:)`, parameterised | **none** — it passes under `.proposal` at `e5caefb` (§2.3); the lane says so at its declaration | **M2e** `withoutScrollContext` removed from `Deferred.requestLayout` (both arms) |
 
 `AuthorityCoverage.expected` **67 → 74** (+4, +1, +1, +1); the roll call's
@@ -428,7 +451,7 @@ opened only after the same content's `LayoutDifferential.compare` report is
 | 3.2 | `aPresentationInsideAFadedSubtreeIsStillFadedUnderBothAuthorities` (`OM-AA`) | as 3.1 | **M3a** `pass.deferred` resets the opacity stack (both) |
 | 3.3 | `aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities` (theme and `.disabled`) | as 3.1 | **M3b** `Deferred.requestLayout` wraps content in the root environment (both) |
 | 3.4 | `aPresentationsAccessibilityRecordAndFocusMatchUnderBothAuthorities` — the scrim's "Close modal" button record with window geometry; focus inside the presentation dispatches a key | as 3.1 | **M1c** (the record's geometry) |
-| 3.5 | `anAnimatedInsetInterpolatesItsValueUnderBothAuthorities` — `withAnimation` top 10 → 50 on a presentation, `simulateTick` at half: y 30 on both | as 3.1 | **M3c** `lowerPresentation` reads the declared insets (proposal reads 50 mid-flight) |
+| 3.5 | `anAnimatedInsetInterpolatesItsValueUnderBothAuthorities` — `withAnimation(.linear(duration: 1))` top 10 → 50 on a presentation, `simulateTick` at half: y 30 on both, and `try #require` that 30 differs from both endpoints. **Linear, named** (critic round 1, `LR-CP` item 3): `withAnimation`'s default is `Animation.spring(duration: 0.5, bounce: 0)` (`Animation.swift:230`), whose half-way value is not 30 | as 3.1 | **M3c** `lowerPresentation` reads the declared insets (proposal reads 50 mid-flight) |
 | 3.6 | `nestedPresentationsLandOnOneLayerUnderBothAuthorities` (`AP-H`) — a tooltip presentation inside the demo-shaped `inset(0)` scrim: both on layer 1, no report | as 3.1 | **M3d** `pushLayer` → `activeLayer + rootLayer` (both) |
 | 3.7–3.8 | the two parameterised existing pins | parameterised before anything else: measured, expected green (in-flow `Deferred`s lower today) | **M3a**, **M3b** |
 

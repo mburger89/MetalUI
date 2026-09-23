@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CP`** (stage 5's design took `LR-CH`…`LR-CO`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CQ`** (stage 5's design took `LR-CH`…`LR-CO` and its critic round 1 `LR-CP`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -5565,6 +5565,12 @@ in flow — a gap or a spacing slot the legacy engine does not have. Test 1.4 ha
 arm per consumer and M1g/M1h remove the filter per site; a new consumer is the
 `LR-AQ` rule's "consumes or marks them" obligation with one more case.
 
+**Amended, stage-5 critic round 1 (`LR-CP` item 1).** The frame arm's
+`legacyFrameLayerDiagnostics` keeps the **undropped** `children.count`, because
+it compares against `ModifierLayer.lowered(_:childCount:)`, which
+`ModifiedElement` computed over the undropped children; only `consume`,
+planning and registration take the dropped list. Mutation M1o pins it.
+
 ## LR-CL — the containing block is the window by construction, and every tree whose legacy containing block is not reports by name
 
 **Evidence.** Measured (record §28 §2.4): a bordered root puts a top/left-5 box at
@@ -5596,6 +5602,13 @@ the legacy engine's is not are each reported:
 Owner **stage 9**: once the legacy authority is deleted, a presentation's
 containing block is the window by definition and the four reports (with
 `deferred.amended`) are deleted with the answers they protect.
+
+**Amended, stage-5 critic round 1 (`LR-CP` item 2).** `deferred.containingBlock`
+also fires when the root's declared `minSize` resolves above, or `maxSize` below,
+the window's extent on an axis (a percentage counts): a `.frame(minWidth:)`/
+`.frame(maxWidth:)` root is a `.frameLayer` record that
+`reportUnconsumedLoweredItems` skips, and the legacy containing block follows
+the clamped root (measured (85, 85) / (285, 85) against (185, 85)).
 
 **What it costs if wrong.** Between 6b and 9 a production tree with a bordered or
 non-window-sized root and a modal traps. The demo's root is auto on both axes
@@ -5666,3 +5679,73 @@ only; none exists, and 1.7 pins the order.
 
 **What it costs if wrong.** A hosting choice that moves a legacy literal is caught
 by the literal itself; a lane split that proves wrong costs one merged lane.
+
+## LR-CP — stage 5 critic round 1: the frame arm's undropped count, a clamped root's containing block, a named animation curve, a red-before that exists, and a narrower SwiftUI claim
+
+**Stage 5 critic round 1** (spec `specs/2026-09-23-engine-stage-5-design.md`,
+record §28 §5). The committed design (`7654e63`) was attacked for unprobed
+SwiftUI claims, silent answer changes, the scrim's behaviour, environment and
+opacity, identity/hit-testing/accessibility/animation, `SA-G`, unreddenable
+tests and lane size. The probe was recompiled and run twice: **every** P, Q and H
+line re-ran byte-identical to its header (`diff` empty), so no SwiftUI claim
+moved. Five defects, each fixed in the spec in this commit:
+
+1. **The frame arm's style check must keep the undropped child count**
+   (amends `LR-CK`'s placeholder bullet). `lowerLegacyLayer` passes
+   `children.count` to `legacyFrameLayerDiagnostics`, which compares `declared`
+   with `layer.lowered(spec.style(), childCount:)`; `ModifiedElement` built
+   `declared` from the undropped count (the placeholder is one of its
+   children). `LR-CK` said the placeholder is removed "before … the container
+   rows' `childCount`", which read literally hands the diagnostics 0 for a
+   one-node frame over a presentation (declared `display: .stack`, expected
+   flex) and 1 for a two-member one (the reverse) — a spurious
+   `modifierLayer.style` in both of test 1.4's `.frame` arms. Read from the
+   source (`LegacyLowering.swift` `lowerLegacyLayer`/`legacyFrameLayerDiagnostics`,
+   `ModifiedElement.swift` `lowered(_:childCount:)`), not measured, because
+   nothing is implemented yet; mutation **M1o** (pass the dropped count) is
+   added to 1.4 so lane 1 measures it.
+2. **`deferred.containingBlock` also fires on a root `minSize`/`maxSize` that
+   clamps the root off the window** (amends `LR-CL`). The design checked border
+   and size only, reasoning that a root's min/max report `…unconsumed`; but a
+   `.frame(minWidth:)`/`.frame(maxWidth:)` root is a `.frameLayer` record, which
+   `reportUnconsumedLoweredItems` skips, so the tree would lower silently to a
+   different answer. **Measured at `e5caefb`** (scratch `ZZScratchCritic.swift`,
+   legacy, `Box { Deferred { 10×10, right/bottom 5 } }` under a root frame, 200×100
+   window, deleted after, `git status --short` clean): `.frame(maxWidth: 100)`
+   (85, 85); `.frame(minWidth: 300)` (285, 85); `.frame(maxWidth: 300)` and no
+   frame (185, 85). Three arms and mutation **M1p** join test 1.5. Percentage
+   min/max count as clamping (they report elsewhere anyway).
+3. **Test 3.5 names `.linear`.** `withAnimation`'s default is
+   `Animation.spring(duration: 0.5, bounce: 0)` (`Animation.swift:230`); "y 30 at
+   half" holds only for a linear (or symmetric) curve. The test now spells
+   `withAnimation(.linear(duration: 1))` and requires 30 to differ from both
+   endpoints.
+4. **Test 2.7 has a red-before.** The design said none was possible; at
+   `e5caefb` the child traps naming stage 2, so a `stage 10` assertion is red.
+5. **"SwiftUI has no in-flow portal at all" is narrowed** to "no probed SwiftUI
+   spelling is an in-flow portal" (P1/P2/P3 test `.overlay` and `.zIndex` only).
+   `LR-CH`'s decision does not rest on the broader sentence — an in-flow
+   `Deferred` keeps the legacy answer because it already agrees — so only the
+   wording moves.
+
+**Attacked and rejected, with the reason** (no change):
+
+- *Separate native runs violate `SA-G`.* No: every node in a presentation run is
+  native, the placeholder is a native leaf no lowered container attaches, and
+  `runNativeLayout` rounds only its own subtree (`roundNativeStoredRects(root)`),
+  so the root's run cannot re-round a presentation. Orphaned native nodes are
+  already tolerated (`Frame.unlowerable`'s doc comment).
+- *The declared-size-below-padding absolute box lowers silently differently.*
+  It does (legacy `BM-4` 20×20, lowered 8×8), but that is `LR-AH`'s standing
+  deliberate change for every box, pinned by stage 2's 4.3; `LR-CJ` item 2
+  applies it to the stretched case and names it.
+- *Root `margin`/`minSize`/`maxSize` on a non-frame root are missed.* They are
+  already reported as `…unconsumed` at the root (`reportUnconsumedLoweredItems`
+  reads the root's min, max and margin).
+- *M1d cannot redden.* It can: `Deferred`'s id is recorded by
+  `Element.prepaintGroup`'s `recordElementBounds(layout.id, bounds(of: node))`,
+  and `node` is the placeholder.
+- *Lane 1 is too large.* It holds every `Sources/` edit; splitting it would put
+  two lanes on `LegacyLowering.swift` and `LoweringState.swift`, which
+  CLAUDE.md's budget rule forbids. Three lanes stand.
+

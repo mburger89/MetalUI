@@ -165,8 +165,10 @@ summarises them.
 - **Lane 1 first commits the source**, then 1.1–1.9 red-first where the spec's
   red-before column says so (the red is the pre-lane source: take it with the
   `Deferred` branch disabled in a scratch copy, not by aborting).
-- The consumer filter must run **before** `consume` and the child counts; the
-  single-child elision reads the count.
+- The consumer filter must run **before** `consume`, planning and the
+  single-child elision count — **but the frame arm's `legacyFrameLayerDiagnostics`
+  keeps the undropped `children.count`** (`LR-CP` item 1; `declared` was built
+  from it).
 - The placeholder's alias is `lowering.alias(content)` **resolved** — a stretched
   content's element rect is its W, not its own node.
 - `inset` values come from the **animated** style; which edges are given, from the
@@ -174,3 +176,34 @@ summarises them.
 - The census (1.8) is re-derived once, in lane 1, from measured pairs; do not
   predict the six modal ids' rects — measure and attribute them.
 - `swift package clean` is not owed by any planned change (internal types only).
+
+## 5. Critic round 1 (design only; `LR-CP`)
+
+The committed design (`7654e63`) attacked in the same worktree; no `Sources/` or
+`Tests/` file changed in a commit.
+
+- **Probe re-run, every arm.** `xcrun swiftc docs/probes/swiftui-overlay-presentation.swift`,
+  run twice (exit 0 both), stdout byte-identical between runs and against the
+  header's P/Q/H lines (`diff` empty). Lock probe at the time: no
+  `CGSSessionScreenIsLocked` line, `displayAsleep main: 0`.
+- **Scratch `ZZScratchCritic.swift`** (legacy authority, plain `Frame` 200×100,
+  root `Box { Deferred { Box(10×10, absolute, right 5, bottom 5) } }` under a
+  root frame; deleted after, `git status --short` clean):
+
+  | root | the absolute box |
+  |---|---|
+  | `.frame(maxWidth: 100)` | (85, 85) |
+  | `.frame(maxWidth: 300)` | (185, 85) |
+  | `.frame(maxWidth: ∞)` (no clamp) | (185, 85) |
+  | `.frame(minWidth: 300)` | (285, 85) |
+
+  The design's containing-block check (border, size) would have lowered the
+  first and last rows against the window, silently; `LR-CP` item 2 adds the
+  min/max clause, three arms to 1.5 and mutation M1p.
+- **Read from source, not measured:** the frame arm's undropped count
+  (`LR-CP` item 1, mutation M1o added to 1.4); `withAnimation`'s default curve is
+  a spring (`Animation.swift:230`), so 3.5 names `.linear` (item 3); 2.7's
+  red-before exists (item 4).
+- **Rejected attacks** are listed in `LR-CP` with reasons (`SA-G`, the
+  declared-below-padding case, root margin/min/max, M1d, lane size).
+
