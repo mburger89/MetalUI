@@ -11,6 +11,8 @@ let package = Package(
         .library(name: "MetalUIScene", targets: ["MetalUIScene"]),
         // FreeType glyph rasterizer (ruling FT-B), for non-Apple backends.
         .library(name: "MetalUIFreeType", targets: ["MetalUIFreeType"]),
+        // HarfBuzz shaper (ruling SH-B), for non-Apple text.
+        .library(name: "MetalUIHarfBuzz", targets: ["MetalUIHarfBuzz"]),
         .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
     ],
     targets: [
@@ -57,6 +59,16 @@ let package = Package(
         // (ruling PS-A). Re-exported by MetalUIText and MetalUIRender (PS-B).
         .target(name: "MetalUIScene", dependencies: ["MetalUIShaderTypes"]),
 
+        // HarfBuzz 14.5.0, vendored (ruling SH-A; Sources/CHarfBuzz/VENDORED.md).
+        // Only the amalgamation compiles; it #includes the rest of src/. No
+        // optional backend (no FreeType, ICU, GLib, CoreText): HarfBuzz reads
+        // the font's own tables.
+        .target(
+            name: "CHarfBuzz",
+            exclude: ["COPYING", "VENDORED.md"],
+            sources: ["src/harfbuzz.cc"]
+        ),
+
         // FreeType 2.14.3, vendored (ruling FT-A; Sources/CFreeType/VENDORED.md).
         // Only the per-module amalgamation files compile; each #includes the
         // rest of its module.
@@ -76,9 +88,15 @@ let package = Package(
             cSettings: [.define("FT2_BUILD_LIBRARY")]
         ),
 
+        // Shaping with no Apple framework (rulings SH-B, SH-K): imports only
+        // CHarfBuzz. One run: no line breaking, bidi, itemization or fallback.
+        .target(name: "MetalUIHarfBuzz", dependencies: ["CHarfBuzz"]),
+
         // Glyph rasterization with no Apple framework (rulings FT-B, FT-K):
         // imports only MetalUIScene and CFreeType.
         .target(name: "MetalUIFreeType", dependencies: ["MetalUIScene", "CFreeType"]),
+        .testTarget(name: "MetalUIHarfBuzzTests", dependencies: ["MetalUIHarfBuzz", "MetalUIFreeType"]),
+
         // Fonts load from Tests/Fonts by #filePath, not as resources (FT-G).
         .testTarget(name: "MetalUIFreeTypeTests", dependencies: ["MetalUIFreeType", "MetalUIText"]),
 
@@ -132,5 +150,6 @@ let package = Package(
         .target(name: "MetalUIDemoContent", dependencies: ["MetalUI"]),
         .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI", "MetalUIDemoContent"]),
     ],
-    swiftLanguageModes: [.v6]
+    swiftLanguageModes: [.v6],
+    cxxLanguageStandard: .cxx17
 )
