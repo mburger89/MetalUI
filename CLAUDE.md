@@ -36,9 +36,13 @@ milestones append their record to `docs/record/` and put only the rule here.
   `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-DF`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
-  `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-J`;
-  rulings in its spec, no separate decisions doc). A numbered citation
-  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`) is a typo; sweep
+  `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
+  rulings in its spec, no separate decisions doc), `LB-` (next `LB-P`;
+  rulings in its three specs: line breaking, lines emission, content sizes),
+  `FN-` (next `FN-E`; rulings in its spec), `PC-` (next `PC-D`; rulings in
+  its spec), `TS-` (next `TS-E`; rulings in its spec), `RS-` (next `RS-E`;
+  rulings in its spec), `SP-` (next `SP-D`; rulings in its spec). A numbered citation
+  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
@@ -60,7 +64,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   7 stage 5 `LR-CH`…`LR-CS` (§29, spec
   `specs/2026-09-23-engine-stage-5-design.md`, same decisions doc, probe
   `swiftui-overlay-presentation.swift` revision 2 — group Q added, P and H
-  re-run byte-identical), 7 stage 6a `LR-CT`…`LR-DE` (§30, spec
+  re-run byte-identical), 7 stage 6a `LR-CT`…`LR-DE` (§38, spec
   `specs/2026-09-23-engine-stage-6a-design.md`, same decisions doc; **no new
   SwiftUI probe** — the stage's only probe,
   `swift-deprecated-witness-silence.sh`, is a compiler determinism check),
@@ -70,15 +74,28 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Five record files are not tasks of
+  and G2 is unblocked rather than waiting. Thirteen record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
   `specs/2026-09-22-freetype-rasterizer-design.md`, rulings in that spec),
   §26 the HarfBuzz shaper (`SH-`, spec
-  `specs/2026-09-22-harfbuzz-shaper-design.md`, rulings in that spec) and
+  `specs/2026-09-22-harfbuzz-shaper-design.md`, rulings in that spec),
   §28 the portable text pipeline (`PT-`, spec
-  `specs/2026-09-23-portable-text-design.md`, rulings in that spec).
+  `specs/2026-09-23-portable-text-design.md`, rulings in that spec), §30
+  portable line breaking (`LB-`, spec
+  `specs/2026-09-23-portable-line-breaking-design.md`) and §31 portable
+  metrics and multi-line emission (`LB-F`, `LB-H`…, spec
+  `specs/2026-09-23-portable-lines-emit-design.md`) and §32 portable min-
+  and max-content (`LB-L`…, spec `specs/2026-09-23-portable-content-sizes-design.md`),
+  §33 portable font resolution (`FN-`, spec
+  `specs/2026-09-23-portable-font-resolver-design.md`), §34 Core and
+  Layout off macOS (`PC-`, spec `specs/2026-09-23-portable-core-layout-design.md`),
+  §35 the text seam (`TS-`, spec `specs/2026-09-23-text-seam-design.md`),
+  §36 the render seam (`RS-`, spec `specs/2026-09-23-render-seam-design.md`)
+  and §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`). **Cross-platform work
+  follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
+  ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
   — each stage record was renumbered (24→25, 26→27) at its merge because the
   other line was pushed first (record §25's and §27's headers, and the
@@ -86,7 +103,11 @@ milestones append their record to `docs/record/` and put only the rule here.
   stage 4 reached `master` first. **§29 (stage 5) was written as §28** on
   `feat/engine-stage-5` from `e5caefb` and renumbered 28→29 at its merge,
   because `master`'s portable-text line had already published §28 — the same
-  shape as 24→25 and 26→27 (record §29's header).
+  shape as 24→25 and 26→27 (record §29's header). **§30 (line breaking) was
+  written as §29** and renumbered when stage 5 reached `master` first.
+  **§38 (stage 6a) was written as §30** on `feat/engine-stage-6a` from
+  `b3c29b9` and renumbered 30→38 at its merge, because `master` had already
+  published §30–§37 (PRs #11–#20, `64c5271`; record §38's header).
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -103,17 +124,64 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
-  with `master` at `42b9ab4`, the portable text line): 1640 tests, 97
+- **Counts (2026-09-23, `feat/engine-stage-6a` — plan task 7 stage 6a —
+  merged with `master` at `64c5271`, PRs #11–#20): 1688 tests, 97 goldens,
+  78 typecheck guards**, 0 `error:`, 0 `warning:` on both build systems
+  (`swift build --build-tests` under the default one too), taken after
+  `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1688 tests in 3 suites
+  passed`; the same nine gated tests skipped as below; the guards ran — the
+  log carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
+  `b3c29b9` (`git diff --name-only b3c29b9 HEAD -- 'Tests/**/*.json'` empty). **1688 = 1686 + 2**: `master`'s `64c5271`
+  (1686, measured the same way in a detached worktree — the render seam and
+  SDL platform lines add nothing to the root package's suite, so it equals
+  the text-seam figure below) plus stage 6a's 2. Stage 6a alone read
+  1642 / 97 / 78 on `feat/engine-stage-6a` from `b3c29b9` (**1642 = 1640 + 2**: the
+  stage's own exit test
+  (`aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`)
+  and its plain-import guard
+  (`aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes`));
+  record §38. **The public `LayoutPass.requestNode`/`requestLeaf` are now
+  deprecated, and every in-repo test caller (67 sites, 35 files) moved off
+  them** — onto `requestNativeLeaf`/a `ProposalLayout` where the test is
+  authority-independent, or onto the internal, undeprecated
+  `Frame.requestNode`/`requestLeaf` (through `pass.frame.`) where the test
+  is about a CSS answer or a root-placement question stage 6b has not ruled
+  yet. **No `Sources/` line of production behaviour moves** beyond those two
+  `@available` attributes and one `owningStage` literal
+  (`.customElement` → `"9"`, so a custom element under `.proposal` now
+  traps naming stage 9, not stage 6a) — the legacy authority stays the
+  default until stage 6b, and the twelve `CN-R` demo images read 0
+  differing at every lane. **No golden moved; guards move by exactly +1**
+  (`LayoutAuthorityCompileGuards` 1 → 2; the per-file list below is the
+  stage-5 paragraph's and still reads 1 there, every other file's count
+  stands), and
+  `typecheckFile`'s helper count moves with it (37 → 38, "Guards" below).
+  The entry measurement (the
+  default authority flipped, with the eight test-helper `.legacy` defaults
+  also flipped, diagnostics on) classified all 153 reds of that flip; the
+  table is recorded as stage 6b's (root placement, ~78 reds) and stage 7b's
+  (43 CSS reds) own baseline — record §38 §2–§4, §12.
+- **Master's counts before stage 6a (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
+  with `master` at `42b9ab4`, the portable text line; then `PT-J`, +5; then line breaking, +6; then
+  lines emission, +14; then content sizes, +10; then font resolution, +6; then the text seam, +5): 1686 tests, 97
   goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:`, taken after
   `swift package clean` with `swift build --build-system native
   --build-tests` then unfiltered `swift test --build-system native
-  --no-parallel` (**one summary line**, `Test run with 1640 tests in 3 suites
-  passed`; five skipped: the two gated tests and the FreeType, HarfBuzz and
-  portable text oracles' gated measurement tests; the guards ran — the log
+  --no-parallel` (**one summary line**, `Test run with 1686 tests in 3 suites
+  passed`; nine skipped: the two gated tests and the FreeType, HarfBuzz,
+  portable text, line breaking, lines emission (two) and content sizes
+  oracles' gated measurement tests; the guards ran — the log
   carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
   `e5caefb` (`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` is
-  empty). **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
+  empty). **1686 = 1640 + 5 + 6 + 14 + 10 + 6 + 5**: the `PT-J` follow-up's
+  `EmitParameterTests` (record §28), line breaking's 6 (the `LB-E` oracle,
+  its gated measurement, contract tests; record §30) and lines emission's 14
+  (ten metric/placement oracle tests, two of them gated, and four
+  `EmitLinesTests`; record §31), content sizes' 10 (record §32) and font
+  resolution's 6 (record §33) and the text seam's 5 (record §35;
+  `Tests/PortableTests` separately runs 16 + 6 + 5); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
   15 (lane 1, the presentation root, +7; lane 2, the exit suites, +2; lane 3,
   the must-not-move set through real windows, +6; record §29) plus the
   portable text line's 8 (`MetalUIPortableTextTests`; record §28;
@@ -150,49 +218,20 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   descend from 1409 / 97 / 71, so that merged total is 1409 + 139 + 2. History:
   record §06, §19 "Build and test". A count is stale the moment a test lands;
   re-measure.
-- **Counts (2026-09-23, `feat/engine-stage-6a` — plan task 7 stage 6a — from
-  `b3c29b9`, `master`'s current tip; not yet merged): 1642 tests, 97
-  goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both build
-  systems, taken after `swift package clean` with `swift build
-  --build-system native --build-tests` then unfiltered `swift test
-  --build-system native --no-parallel` (**one summary line**, `Test run with
-  1642 tests in 3 suites passed`; the same five gated tests skipped as
-  above; the guards ran — the log carries `FR-J no-argument frame:
-  succeeded=`). Goldens unmoved against `b3c29b9` (`git diff --name-only
-  b3c29b9 HEAD -- 'Tests/**/*.json'` empty). **1642 = 1640 + 2**: the
-  stage's own exit test
-  (`aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`)
-  and its plain-import guard
-  (`aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes`);
-  record §30. **The public `LayoutPass.requestNode`/`requestLeaf` are now
-  deprecated, and every in-repo test caller (67 sites, 35 files) moved off
-  them** — onto `requestNativeLeaf`/a `ProposalLayout` where the test is
-  authority-independent, or onto the internal, undeprecated
-  `Frame.requestNode`/`requestLeaf` (through `pass.frame.`) where the test
-  is about a CSS answer or a root-placement question stage 6b has not ruled
-  yet. **No `Sources/` line of production behaviour moves** beyond those two
-  `@available` attributes and one `owningStage` literal
-  (`.customElement` → `"9"`, so a custom element under `.proposal` now
-  traps naming stage 9, not stage 6a) — the legacy authority stays the
-  default until stage 6b, and the twelve `CN-R` demo images read 0
-  differing at every lane. **No golden moved; guards move by exactly +1**
-  (`LayoutAuthorityCompileGuards` 1 → 2; the per-file list above is the
-  stage-5 paragraph's and still reads 1 there, every other file's count
-  stands), and
-  `typecheckFile`'s helper count moves with it (37 → 38, "Guards" below).
-  The entry measurement (the
-  default authority flipped, with the eight test-helper `.legacy` defaults
-  also flipped, diagnostics on) classified all 153 reds of that flip; the
-  table is recorded as stage 6b's (root placement, ~78 reds) and stage 7b's
-  (43 CSS reds) own baseline — record §30 §2–§4, §12.
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Five** gated tests count toward the total while skipped —
+  **Nine** gated tests count toward the total while skipped —
   `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`, the
   FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
   (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
-  `theMeasuredDifferences` (`METALUI_PORTABLE_ORACLE_MEASURE=1`). The lone `warning:`
+  `theMeasuredDifferences` (`METALUI_PORTABLE_ORACLE_MEASURE=1`) and the line
+  breaking oracle's `measureWrapDifferences` (`METALUI_LINEBREAK_MEASURE=1`)
+  and the lines emission oracle's `measureLineEmissionDifferences` and
+  `measurePatchedFaceMetrics` (both `METALUI_LINES_EMIT_MEASURE=1`) and the
+  content sizes oracle's `measureContentSizeDifferences`
+  (`METALUI_CONTENT_MEASURE=1`).
+  The lone `warning:`
   under native is SwiftPM's deprecation notice.
 - **Goldens must not move** on a change outside `Sources/MetalUILayout/`
   (`find Tests/MetalUILayoutTests -name "*.json" | wc -l` — not all of
@@ -232,16 +271,37 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   stage added six stored mark tables to `LayoutTree`, and the `MetalUIScene`
   move relocated `Scene`, `FontKey`, `GlyphImage` and the atlas types across
   three modules.
-- **Targets:** fifteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
-  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`,
-  `MetalUIHarfBuzz`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
-  `MetalUIPlatform`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
+- **The manifest is two lists** (`PC-A`): targets that import no Apple
+  framework are declared on every platform; everything else — and the
+  portable oracles, which compare against CoreText — under `#if os(macOS)`.
+  **A new target goes in the list its imports allow**; Linux and Windows CI
+  (`scene-linux`, `root-windows`) build every portable target and run
+  `MetalUICoreTests` and `MetalUILayoutTests` (486 + 22 on Linux). A test there
+  that needs WebKit or Darwin is compiled out by `#if canImport(…)` per
+  declaration (`PC-B`); typecheck guards read only this platform's `.build`
+  (`PC-C`) and skip off macOS.
+- **Targets:** eighteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
+  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`, `CUnibreak`,
+  `MetalUIHarfBuzz`, `MetalUITextSystem`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`,
+  `MetalUIPlatform`, `MetalUIRender`, `MetalUIAppKit`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
   `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so
   tests can import it (`LR-S`). `MetalUIScene` holds
   `Scene`/`DrawRun`/`PrimitiveKind`, the glyph atlas types and the `FontKey`
   struct; `MetalUIText` and `MetalUIRender` re-export it (`PS-B`), so its
   types need no new import. It is also a library product, consumed by
-  `Experiments/SDLGPU/Portable`. `CFreeType` is FreeType 2.14.3, vendored
+  `Backends/SDL` — a **separate package** (`MetalUISDL`, so the root never
+  needs SDL3) holding `SDLWindowRenderer` and the replay parity harness
+  (`RS-D`), and `SDLPlatform`/`SDLWindow`, the SDL3 `Platform` (`SP-A`;
+  keys translated to AppKit's characters so `Keymap` works, `SP-C`; **no
+  accessibility**, explicitly — a divergence until roadmap item 13, `SP-B`).
+  **Windows draw through `PlatformWindow.renderer`, a
+  `WindowRenderer`** (`RS-A`: `beginFrame() -> Float?`, then
+  `finishFrame(scene:atlas:)`), declared in `MetalUIPlatform`, which is now
+  portable (imports only `MetalUICore`, `MetalUIScene`). `MetalWindowRenderer`
+  (`MetalUIRender`, which depends on `MetalUIPlatform` — the old edge
+  reversed) is the Metal one over a `RenderSurface` (`RS-B`); the AppKit
+  platform lives in `MetalUIAppKit` (`RS-C`) and shares one `Renderer`
+  across windows. `Window` holds no `Renderer`. `CFreeType` is FreeType 2.14.3, vendored
   (`FT-A`; `Sources/CFreeType/VENDORED.md`), a C target with no Swift API.
   `MetalUIFreeType` is the FreeType-backed glyph rasterizer (`FreeTypeFont`,
   `FreeTypeRaster`, `FT-B`…`FT-E`) that matches `GlyphRaster`'s contract
@@ -256,15 +316,44 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   (`PT-A`…`PT-E`): `PortableFont` opens one file in both engines and **checks
   they agree** at construction (`PT-B`), and `PortableText.emit` turns one run
   on one line into `MUIGlyph`s plus atlas coverage with `Frame.draw`'s
-  arithmetic (`PT-D`) — no line breaking, bidi, itemization or fallback. Also
-  a library product; nothing in production calls it (`PT-I`). The subpixel
+  arithmetic (`PT-D`), taking the mask's corner radii, `order` and `layer`
+  that `Frame.draw` reads from frame state (`PT-J`; defaults square/0/0) — no
+  bidi, itemization or fallback. It also wraps:
+  `PortableText.lines(_:font:wrappingAt:)` gives `Shaper.shape(wrappingAt:)`'s
+  display lines (UAX #14 via `CUnibreak`, libunibreak 8.0 vendored, `LB-A`),
+  equal to CoreText's over 13,464 cases; its four fitting rules are measured
+  (`LB-D`: whitespace hangs, advance is the paragraph's share, cluster-then-
+  grapheme emergency breaks, 28 pt tab stops) — do not simplify one without
+  re-running the oracle. `PortableText.emitLines` draws the wrapped lines
+  from a box's top-left with `PortableFont.metrics` (`LB-F`, `LB-H`), equal
+  in placement to `ShapedText.placedGlyphs` over 26,928 cases (`LB-I`).
+  **Four measured CoreText rules live there — do not simplify one without
+  re-running the oracle**: metrics are `hhea`'s (not `FT_Face.ascender`,
+  which follows OS/2 under `USE_TYPO_METRICS`; only patched faces see it),
+  a TrueType metric is rounded to a 16.16 fraction of the em; design units
+  scale `units × (size / unitsPerEm)` (`HarfBuzzFont.points`); and
+  `drawnGlyph` drops default ignorables and draws the space glyph for a
+  control or hard-break character (`emit` too). `unbreakableRuns`,
+  `minContentWidth` and `maxContentWidth` give TX-F's and TX-K's answers
+  (`LB-N`); **opportunities are libunibreak's under `"en-strict"`** — its
+  English quote tailoring and strict small kana, equal to `CFStringTokenizer`
+  over 4,418 class pairs (`LB-L`); Thai (no dictionary) and a German-quote
+  typesetter heuristic differ, pinned (`LB-M`). `PortableFontResolver`
+  answers `family:size:` from registered font files with
+  `CTFontCreateWithName`'s rules — PostScript, family or full name, case
+  folded and nothing else; `nil` and every unmatched name give the default
+  face (`FN-A`…`FN-C`); its oracle runs once per default face, because a
+  single default hides a wrong match on that face's own name. Also a
+  library product; nothing in production calls it (`PT-I`). The subpixel
   placement rule lives once, in `GlyphImage.subpixelPlacement(forDeviceX:)`
   (`PT-C`); `GlyphRaster` forwards — do not re-inline it on either side.
-  `Experiments/SDLGPU`'s frame 4 is drawn from it (`PT-G`).
+  `Experiments/SDLGPU`'s frame 4 is drawn from it (`PT-G`) and replayed by
+  `Backends/SDL`.
 
 Eight constraints that fail silently:
 
-- `MetalUILayout` imports only `MetalUICore` (anchored grep).
+- `MetalUILayout` imports only `MetalUICore` (anchored grep; since `PC-A`
+  an Apple import also fails the Linux and Windows builds).
 - `MetalUIScene` imports only `MetalUIShaderTypes` — no Foundation, CoreText,
   CoreGraphics or Metal (`PS-A`). macOS cannot see a violation; the Swift
   workflow's `scene-linux` job can (`PS-G`). An initialiser that must stay
@@ -283,8 +372,9 @@ Eight constraints that fail silently:
   `MetalUIHarfBuzz` and `MetalUIFreeType` products) pins HarfBuzz's glyph
   ids, clusters and design-unit positions byte-for-byte against macOS on
   Linux and Windows CI (`SH-I`).
-- `MetalUIPortableText` imports only `MetalUIScene`, `MetalUIShaderTypes`,
-  `MetalUIHarfBuzz` and `MetalUIFreeType` — no Foundation, CoreText,
+- `MetalUITextSystem` imports only `MetalUIScene` (`TS-A`), and
+  `MetalUIPortableText` only `MetalUIScene`, `MetalUIShaderTypes`,
+  `MetalUIHarfBuzz`, `MetalUIFreeType`, `CUnibreak` and `MetalUITextSystem` — no Foundation, CoreText,
   CoreGraphics or Metal (`PT-A`). macOS cannot see a violation; the
   `scene-linux` job builds this target too, and `Tests/PortableTests`' third
   target, `PortableTextDeterminismTests`, pins its emitted rects, advance,
@@ -481,7 +571,13 @@ go to the `Keymap` first, then bubble raw `onKey` up the parent chain.
 `focusBorder(_:width:)` is the (opt-in) ring; background and border resolve
 `focus ?? hover ?? plain`.
 
-**Text.** Never key a cache on a family or PostScript name — `FontKey` reads
+**Text.** `Text` and `ProposalText` measure and draw **only through
+`Frame.textSystem`** (`TS-A`): a `TextSystem` chosen once per app
+(`App(device:textSystem:)`), CoreText over the frame's `ShapingCache` by
+default (`TS-B`), `PortableTextSystem` otherwise (`TS-C`). A new text-drawing
+element goes through the seam too — reaching `ShapingCache` or
+`placedGlyphs` directly puts it on CoreText whatever the app chose, which
+`TextSystemSeamTests` catches only for the elements it renders. Never key a cache on a family or PostScript name — `FontKey` reads
 four components off the resolved `CTFont` (and still conflates shaping
 behaviour, pinned wrong on purpose). `FontKey` stores its hash; `==` uses it
 as early reject only; to force collisions under mutation make the **stored**
@@ -494,7 +590,11 @@ glyph atlas is grow-only; `evictUnusedSince` has no caller and would strand
 pixels.
 
 **Renderer.** No semaphore; the atlas texture is written only while
-`atlasTextureWasEncoded` is false, else replaced. `Text.requestLayout` and
+`atlasTextureWasEncoded` is false, else replaced, and it is uploaded
+**before** encode (`MetalWindowRenderer.finishFrame`; mutation R1 reddens the
+blank-first-frame test). The SDL renderer keeps its atlas texture between
+frames and re-uploads it whole when dirty; both clear the atlas' dirty rect
+after a frame. `Text.requestLayout` and
 `ProposalText`'s measure closures use unguarded `MainActor.assumeIsolated` —
 layout must stay synchronous on the main actor.
 
@@ -521,7 +621,7 @@ sleep: drive `simulateTick(timestamp:)`.
 ## SwiftUI alignment — the proposal layout path
 
 A propose/measure/place engine sits beside the CSS engine. Detail: §19
-"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §30.
+"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38.
 
 - **Two engines, chosen by the window root alone**
   (`tree.isNativeLayoutNode(root)`). A native root is placed centred at its own
@@ -625,7 +725,7 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   authority and eight test-helper `.legacy` defaults flipped together,
   diagnostics on — classified all 153 reds it produced and is recorded as
   stage 6b's (root placement, ~78 reds) and stage 7b's (43 CSS reds)
-  baseline table (record §30 §2–§4). No SwiftUI probe: the stage's only
+  baseline table (record §38 §2–§4). No SwiftUI probe: the stage's only
   probe, `docs/probes/swift-deprecated-witness-silence.sh`, is a compiler
   determinism check (a deprecated protocol witness warns nothing), not a
   SwiftUI claim.

@@ -64,7 +64,7 @@ private final class EnvLog {
 
 /// A leaf that reads `pass.environment` in all three phases.
 ///
-/// **A native 10×10 leaf since stage 6a** (record §30, disposition R), as is
+/// **A native 10×10 leaf since stage 6a** (record §38, disposition R), as is
 /// `PropertyRecorder` below: the tests reading them are about the environment,
 /// which reads no authority, so each test whose tree holds a legacy container
 /// runs under the proposal authority (`frame(authority: .proposal)`, or a
@@ -298,7 +298,7 @@ private final class CounterLog {
 /// in paint.
 ///
 /// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §30, disposition P-6b): its one test reads a click at legacy
+/// (record §38, disposition P-6b): its one test reads a click at legacy
 /// coordinates, which the proposal root's centring moves (`CN-J`), so it is
 /// pinned to the legacy authority until stage 6b rules root placement.
 private struct ClickCounter: Element {
@@ -349,7 +349,7 @@ private func click(_ platform: FakePlatformWindow, at point: Point<Pixels>) {
 /// lands). Every draw after a model change is forced, so a reading is never a
 /// stale frame's.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")

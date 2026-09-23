@@ -1,6 +1,7 @@
 import MetalUICore
 import MetalUILayout
 import MetalUIText
+import MetalUITextSystem
 
 /// The proposal-layout bridge for ``Text`` during the layout migration.
 ///
@@ -40,17 +41,12 @@ public struct ProposalText: ProposalElement {
 
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
-        let cache = pass.shapingCache
-        let font = cache.resolveFont(family: fontFamily, size: fontSize)
-        cache.registerFont(font)
-        let key = font.key
+        let system = pass.textSystem
+        let key = system.resolveFont(family: fontFamily, size: fontSize)
         let string = string
         let node = pass.requestNativeLeaf { proposal in
             MainActor.assumeIsolated {
-                guard let font = cache.font(for: key) else {
-                    preconditionFailure("ProposalText registered no font for its proposal measurement")
-                }
-                return proposalTextMeasurement(string, font: font, cache: cache, proposal: proposal)
+                proposalTextMeasurement(string, font: key, system: system, proposal: proposal)
             }
         }
         return (node, Layout(node: node.layoutNodeID))
@@ -61,15 +57,14 @@ public struct ProposalText: ProposalElement {
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Void, pass: inout PaintPass) {
-        let font = pass.shapingCache.resolveFont(family: fontFamily, size: fontSize)
+        let system = pass.textSystem
+        let font = system.resolveFont(family: fontFamily, size: fontSize)
         let width = max(pass.measuredWidth(of: layout.node), smallestWrapWidth)
-        let shaped = pass.shapingCache.shaped(string, font: font, wrappingAt: width)
         let color = pass.theme[foregroundColor ?? .textPrimary]
-        for glyph in shaped.placedGlyphs(
-            at: (x: Double(bounds.origin.x.value), y: Double(bounds.origin.y.value)),
-            font: font,
-            scaleFactor: pass.scaleFactor
-        ) {
+        for glyph in system.placeGlyphs(string, font: font, wrappingAt: width,
+                                        origin: (x: Double(bounds.origin.x.value),
+                                                 y: Double(bounds.origin.y.value)),
+                                        scaleFactor: pass.scaleFactor) {
             pass.draw(glyph, color: color)
         }
     }
@@ -82,8 +77,16 @@ public struct ProposalText: ProposalElement {
 @MainActor
 func proposalTextMeasurement(_ string: String, font: ResolvedFont,
                              cache: ShapingCache, proposal: ProposedSize) -> LayoutMeasurement {
+    cache.registerFont(font)
+    return proposalTextMeasurement(string, font: font.key, system: CoreTextTextSystem(cache: cache),
+                                   proposal: proposal)
+}
+
+@MainActor
+func proposalTextMeasurement(_ string: String, font: FontKey,
+                             system: any TextSystem, proposal: ProposedSize) -> LayoutMeasurement {
     let wrappingAt = proposal.width.map { max($0, smallestWrapWidth) }
-    let shaped = cache.shaped(string, font: font, wrappingAt: wrappingAt)
+    let shaped = system.measure(string, font: font, wrappingAt: wrappingAt)
     // The answer never exceeds a finite proposal (`LR-AU`; stage-2 probe group
     // Y, and stage 1's T3/T4). The typesetter breaks inside a word it cannot
     // fit, but the line it produces can still be wider than the proposal — one

@@ -65,7 +65,7 @@ import MetalUIRender
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
 
-/// The fixtures' 10×10 leaf. Registered natively since stage 6a (record §30,
+/// The fixtures' 10×10 leaf. Registered natively since stage 6a (record §38,
 /// disposition R): these tests are about `@State`, not the leaf's layout, so a
 /// test whose tree holds a legacy container runs under the proposal authority.
 @MainActor

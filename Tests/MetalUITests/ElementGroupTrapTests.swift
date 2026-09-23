@@ -172,7 +172,7 @@ struct ContentSwapper<Content: ElementGroup>: Element {
                                 pass: inout LayoutPass) -> (LayoutNodeID, Content.GroupLayout) {
         var cursor = 0
         let (children, layout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
-        // A native overlay over the children since stage 6a (record §30,
+        // A native overlay over the children since stage 6a (record §38,
         // disposition R): the traps below are the element groups', which read
         // no authority, so the helper's frame runs under the proposal one.
         return (pass.frame.requestNativeOverlay(children: children), layout)
@@ -375,7 +375,7 @@ struct StateProbe: Element, StyledElement {
 
     func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
-        // A native leaf of the size `style` declares since stage 6a (record §30,
+        // A native leaf of the size `style` declares since stage 6a (record §38,
         // disposition R); the two tests below run under the proposal authority.
         let node = pass.requestNativeLeaf { _ in declaredSize(style) }.layoutNodeID
         return (node, node)

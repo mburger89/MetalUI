@@ -752,7 +752,7 @@ private final class FocusProbe {
 /// it saw — the answer has to leave the frame, and only a bespoke element can
 /// carry a reference out.
 ///
-/// **A native 20×20 leaf since stage 6a** (record §30, disposition R), as is
+/// **A native 20×20 leaf since stage 6a** (record §38, disposition R), as is
 /// `SelfFocuser` below: focus reads no authority, so the three windows over
 /// them run under the proposal authority. No assertion moved.
 private struct FocusReader: Element {

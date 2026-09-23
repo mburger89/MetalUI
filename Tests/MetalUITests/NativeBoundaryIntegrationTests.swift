@@ -146,7 +146,7 @@ private struct RegisteredAfterTheContainer: ProposalElement {
 /// is registered only if registration got past the `HStack`, and then it traps
 /// with its own message, which lacks the fragment.
 ///
-/// Pinned to the legacy authority by stage 6a (N9, record §30 §4): its subject
+/// Pinned to the legacy authority by stage 6a (N9, record §38 §4): its subject
 /// is a legacy node, which `LegacyNodeUnderAProposalMarker` registers through
 /// `Frame`'s internal registrar; stage 9 deletes it with the legacy authority.
 @Test func aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer() async {

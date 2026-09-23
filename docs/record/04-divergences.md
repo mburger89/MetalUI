@@ -1007,7 +1007,7 @@ pass.
 
 ## 2026-09-23: no row changed (plan task 7 stage 6a)
 
-Record §30; rulings `LR-CT`…`LR-DE` in
+Record §38; rulings `LR-CT`…`LR-DE` in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **The table
 stays at fifty-eight; no number is retired, added or amended.** Stage 6a
 deprecates the public `LayoutPass.requestNode`/`requestLeaf` and moves every
@@ -1015,7 +1015,7 @@ in-repo test caller off them, but touches `Sources/` only with two
 `@available` attributes and one `owningStage` literal
 (`.customElement` → `"9"`) — none of it changes what production does or
 what a legacy-vs-SwiftUI comparison reads. The entry measurement's own
-classification (root placement, `hidden()`, CSS answers — record §30 §4) is
+classification (root placement, `hidden()`, CSS answers — record §38 §4) is
 new *evidence for stage 6b and 7b's future rulings*, not a divergence in its
 own right: nothing in it is reachable outside a test today, since
 `LayoutAuthority.proposal` stays inert in production until stage 6b (record

@@ -2,6 +2,7 @@ import Testing
 import Foundation
 @testable import MetalUILayout
 
+#if canImport(WebKit)
 @MainActor
 @Test func oracleMeasuresFlexboxFromAFixtureFile() async throws {
     let html = try String(contentsOf: fixtureURL(name: "flex_row_fixed_and_grow"), encoding: .utf8)
@@ -20,7 +21,9 @@ import Foundation
     #expect(try #require(byID["b"]).x == 200)
     #expect(try #require(byID["c"]).x == 600)
 }
+#endif
 
+#if canImport(WebKit)
 @MainActor
 @Test func oracleReportsSubPixelQuantization() async throws {
     // Documents WebKit's 1/64 quantisation, which is why comparisons are rounded.
@@ -38,6 +41,7 @@ import Foundation
     // The row does NOT close on its parent — this is the compounding error.
     #expect(boxes[6].x + boxes[6].width == 99.96875)
 }
+#endif
 
 @Test func goldenFileRoundTripsThroughJSON() throws {
     let g = GoldenFile(

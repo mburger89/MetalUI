@@ -1,13 +1,14 @@
 // swift-tools-version: 6.4
 import PackageDescription
 
-let package = Package(
-    name: "MetalUI",
-    platforms: [.macOS(.v14)],
-    products: [
-        .library(name: "MetalUI", targets: ["MetalUI"]),
+// Targets that import no Apple framework come first and are declared on every
+// platform, so `swift build` and `swift test` work on Linux and Windows
+// (roadmap item 5, ruling PC-A). Everything that needs AppKit, CoreText or
+// Metal — including the portable text oracles, which compare against
+// CoreText — is declared only on macOS, below.
+var products: [Product] = [
         // Platform-free per-frame data (ruling PS-A), for backends outside this
-        // package; first consumer: Experiments/SDLGPU/Portable.
+        // package; first consumer: Backends/SDL.
         .library(name: "MetalUIScene", targets: ["MetalUIScene"]),
         // FreeType glyph rasterizer (ruling FT-B), for non-Apple backends.
         .library(name: "MetalUIFreeType", targets: ["MetalUIFreeType"]),
@@ -15,9 +16,16 @@ let package = Package(
         .library(name: "MetalUIHarfBuzz", targets: ["MetalUIHarfBuzz"]),
         // The portable text pipeline (ruling PT-A).
         .library(name: "MetalUIPortableText", targets: ["MetalUIPortableText"]),
-        .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
-    ],
-    targets: [
+        // The text seam (ruling TS-A).
+        .library(name: "MetalUITextSystem", targets: ["MetalUITextSystem"]),
+        // The platform protocols, for platforms outside this package
+        // (Backends/SDL; ruling RS-A).
+        .library(name: "MetalUIPlatform", targets: ["MetalUIPlatform"]),
+        .library(name: "MetalUICore", targets: ["MetalUICore"]),
+
+]
+
+var targets: [Target] = [
         // Test-support only: the single copy of the `swiftc -typecheck` machinery
         // that the negative type-system guards shell out to (ruling EP-1). It is
         // in **no product** and is **not** one of spec §3.1's seven layering
@@ -71,6 +79,16 @@ let package = Package(
             sources: ["src/harfbuzz.cc"]
         ),
 
+        // libunibreak 8.0, vendored (ruling LB-A; Sources/CUnibreak/VENDORED.md):
+        // UAX #14 line breaking only. The two *data.c files are #included by
+        // the sources, not compiled on their own.
+        .target(
+            name: "CUnibreak",
+            exclude: ["LICENCE", "VENDORED.md", "src/linebreakauxdata.c",
+                      "src/eastasianwidthdata.c"],
+            sources: ["src"]
+        ),
+
         // FreeType 2.14.3, vendored (ruling FT-A; Sources/CFreeType/VENDORED.md).
         // Only the per-module amalgamation files compile; each #includes the
         // rest of its module.
@@ -93,7 +111,8 @@ let package = Package(
         // String -> MUIGlyphs + atlas coverage with no Apple framework
         // (rulings PT-A, PT-D): HarfBuzz shapes, FreeType rasterizes.
         .target(name: "MetalUIPortableText",
-                dependencies: ["MetalUIScene", "MetalUIHarfBuzz", "MetalUIFreeType"]),
+                dependencies: ["MetalUIScene", "MetalUIHarfBuzz", "MetalUIFreeType",
+                               "CUnibreak", "MetalUITextSystem"]),
 
         // Shaping with no Apple framework (rulings SH-B, SH-K): imports only
         // CHarfBuzz. One run: no line breaking, bidi, itemization or fallback.
@@ -102,6 +121,30 @@ let package = Package(
         // Glyph rasterization with no Apple framework (rulings FT-B, FT-K):
         // imports only MetalUIScene and CFreeType.
         .target(name: "MetalUIFreeType", dependencies: ["MetalUIScene", "CFreeType"]),
+
+        // The C structs shared with the shaders; MetalUIScene imports them.
+        .target(name: "MetalUIShaderTypes"),
+
+        // The seam `Text` measures and draws through (ruling TS-A): one
+        // protocol, a CoreText implementation in MetalUIText and a portable
+        // one in MetalUIPortableText. Imports only MetalUIScene.
+        .target(name: "MetalUITextSystem", dependencies: ["MetalUIScene"]),
+
+        // The platform protocols — windows, input, accessibility, and the
+        // `WindowRenderer` a window draws with (ruling RS-A). Portable: the
+        // AppKit implementation is `MetalUIAppKit`, the SDL one `Backends/SDL`.
+        .target(name: "MetalUIPlatform", dependencies: ["MetalUICore", "MetalUIScene"]),
+
+]
+
+#if os(macOS)
+products += [
+        .library(name: "MetalUI", targets: ["MetalUI"]),
+        .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
+
+]
+
+targets += [
         .testTarget(name: "MetalUIPortableTextTests",
                     dependencies: ["MetalUIPortableText", "MetalUIText"]),
 
@@ -110,10 +153,8 @@ let package = Package(
         // Fonts load from Tests/Fonts by #filePath, not as resources (FT-G).
         .testTarget(name: "MetalUIFreeTypeTests", dependencies: ["MetalUIFreeType", "MetalUIText"]),
 
-        .target(name: "MetalUIText", dependencies: ["MetalUICore", "MetalUIScene"]),
+        .target(name: "MetalUIText", dependencies: ["MetalUICore", "MetalUIScene", "MetalUITextSystem"]),
         .testTarget(name: "MetalUITextTests", dependencies: ["MetalUIText"]),
-
-        .target(name: "MetalUIShaderTypes"),
 
         // The `MetalUIText` edge is one-way and points this way on purpose (M2
         // text design §3.1): the renderer uploads the CPU-side `GlyphAtlas` to
@@ -122,7 +163,8 @@ let package = Package(
         // with no CI.
         .target(
             name: "MetalUIRender",
-            dependencies: ["MetalUICore", "MetalUIShaderTypes", "MetalUIScene", "MetalUIText"],
+            dependencies: ["MetalUICore", "MetalUIShaderTypes", "MetalUIScene", "MetalUIText",
+                           "MetalUIPlatform"],
             resources: [.copy("Shaders")]
         ),
         // `MetalUIText` is a dependency of `MetalUIRender` already; it is named
@@ -131,16 +173,20 @@ let package = Package(
         .testTarget(name: "MetalUIRenderTests",
                     dependencies: ["MetalUIRender", "MetalUIScene", "MetalUIText"]),
 
+        // AppKit: the macOS `Platform` and `PlatformWindow`, drawing through
+        // `MetalWindowRenderer` (ruling RS-C).
         .target(
-            name: "MetalUIPlatform",
-            dependencies: ["MetalUICore", "MetalUIRender"]
+            name: "MetalUIAppKit",
+            dependencies: ["MetalUICore", "MetalUIPlatform", "MetalUIRender"]
         ),
-        .testTarget(name: "MetalUIPlatformTests", dependencies: ["MetalUIPlatform"]),
+        .testTarget(name: "MetalUIPlatformTests",
+                    dependencies: ["MetalUIPlatform", "MetalUIAppKit", "MetalUIRender"]),
 
         .target(
             name: "MetalUI",
             dependencies: [
-                "MetalUICore", "MetalUILayout", "MetalUIText", "MetalUIRender", "MetalUIPlatform",
+                "MetalUICore", "MetalUILayout", "MetalUIText", "MetalUITextSystem", "MetalUIRender",
+                "MetalUIPlatform", "MetalUIAppKit",
             ]
         ),
         // `MetalUIText` is a dependency of `MetalUI` already; it is named again
@@ -152,14 +198,23 @@ let package = Package(
         // of it (plan task 7, stage 1, lane 5; ruling LR-S).
         .testTarget(
             name: "MetalUITests",
-            dependencies: ["MetalUI", "MetalUIText", "MetalUITestSupport", "MetalUIDemoContent"]
+            dependencies: ["MetalUI", "MetalUIText", "MetalUITestSupport", "MetalUIDemoContent",
+                           "MetalUIPortableText", "MetalUIAppKit"]
         ),
         // The demo's content, a library so `MetalUITests` can import it (ruling
         // LR-S). In no product: it is demo content, not framework API. It makes
         // the non-test targets nine; CLAUDE.md's "eight" is the Docs phase's.
         .target(name: "MetalUIDemoContent", dependencies: ["MetalUI"]),
         .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI", "MetalUIDemoContent"]),
-    ],
+
+]
+#endif
+
+let package = Package(
+    name: "MetalUI",
+    platforms: [.macOS(.v14)],
+    products: products,
+    targets: targets,
     swiftLanguageModes: [.v6],
     cxxLanguageStandard: .cxx17
 )

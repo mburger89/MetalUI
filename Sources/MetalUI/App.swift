@@ -1,5 +1,6 @@
 import Metal
 import MetalUIPlatform
+import MetalUIAppKit
 
 // MetalUI is the umbrella module: a client writes `import MetalUI` and gets the
 // geometry, unit and colour types its elements must name, the `Style` values
@@ -9,6 +10,7 @@ import MetalUIPlatform
 @_exported import MetalUILayout
 @_exported import MetalUIRender
 @_exported import MetalUIPlatform
+@_exported import MetalUITextSystem
 
 #if canImport(AppKit)
 import AppKit
@@ -25,16 +27,24 @@ public final class App {
     private let renderer: Renderer
     private let platform: any Platform
     private var windows: [Window] = []
+    /// Makes each window's text engine (ruling TS-A); `nil` is CoreText.
+    private let makeTextSystem: (@MainActor () -> any TextSystem)?
 
     public convenience init() throws {
         guard let device = MTLCreateSystemDefaultDevice() else { throw AppError.noMetalDevice }
         try self.init(device: device)
     }
 
-    public init(device: any MTLDevice) throws {
+    /// - Parameter textSystem: makes the text engine every window of this app
+    ///   measures and draws through — once per window, since each keeps its
+    ///   own caches. `nil` (the default) is CoreText; a `PortableTextSystem`
+    ///   draws with HarfBuzz, FreeType and libunibreak instead, the path a
+    ///   non-Apple platform takes.
+    public init(device: any MTLDevice, textSystem: (@MainActor () -> any TextSystem)? = nil) throws {
         self.device = device
+        self.makeTextSystem = textSystem
         self.renderer = try Renderer(device: device)
-        self.platform = AppKitPlatform(device: device)
+        self.platform = AppKitPlatform(renderer: renderer)
     }
 
     /// Opens a window whose content is one root element, rebuilt every frame.
@@ -54,8 +64,8 @@ public final class App {
     ) throws -> Window {
         let platformWindow = try platform.openWindow(title: title, size: size)
         let window = Window(platformWindow: platformWindow,
-                            renderer: renderer,
                             startsDisplayLink: startsDisplayLink,
+                            textSystem: makeTextSystem?(),
                             content: content)
         // Closing the last window must end the process: there is no app delegate
         // and no menu bar anywhere in the framework, so this close button is the

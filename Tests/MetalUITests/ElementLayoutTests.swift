@@ -50,7 +50,7 @@ final class ElementLog {
 }
 
 /// The native leaf a stage 6a **Dual** fixture registers under the proposal
-/// authority (record §30, spec §5's R spelling): one node answering the pixel
+/// authority (record §38, spec §5's R spelling): one node answering the pixel
 /// size its `Style` declares, 0 on an axis it leaves `auto` — what its legacy
 /// node resolved to as a flex item nobody stretches or grows. Shared by lane 3's
 /// five Dual elements (`Probe` here, `ComponentTests.Leaf`, `FrameSizingTests.Mark`,
@@ -74,7 +74,7 @@ func declaredSizeNativeLeaf(_ style: Style, _ pass: LayoutPass) -> LayoutNodeID 
 /// Conforms to `StyledElement`, so the production modifiers apply to it and a
 /// modifier that writes the wrong `Style` field shows up as a wrong rect here.
 ///
-/// **A Dual fixture since stage 6a** (record §30, spec §5 lane 3): under the
+/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
 /// proposal authority it is `declaredSizeNativeLeaf`, and its three R tests pass
 /// `.proposal`; under the legacy one it registers through `Frame`'s internal
 /// legacy registrar, and its eleven P tests pass `.legacy` explicitly so stage
@@ -199,7 +199,7 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 /// Without this, "the builder never boxes" would be indistinguishable from
 /// "boxing is impossible", and a future reader could delete the erasure as dead.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func anExplicitAnyElementIsStillAcceptedAsAChild() {
     let log = ElementLog()
@@ -366,7 +366,7 @@ private enum Fixture {
 /// Every one of those is an integer, so `roundLayout` is a no-op here and these
 /// numbers pin centring alone.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func aNestedLayoutMatchesTheEngineRunDirectly() {
     let log = ElementLog()
@@ -399,7 +399,7 @@ private enum Fixture {
 /// the rect assertions above are what make a sixth node visible as more than a
 /// count.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func theBuilderContributesNoNodesOfItsOwn() {
     let log = ElementLog()
@@ -418,7 +418,7 @@ private enum Fixture {
 /// equal children a reversed or rotated order is invisible, which is the point
 /// of 30/50/70 rather than 50/50/50.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func childrenAreRegisteredAndLaidOutInSourceOrder() {
     let log = ElementLog()
@@ -454,7 +454,7 @@ private enum Fixture {
 /// that had quietly kept `Style`'s default `.row` would still pass every rect
 /// assertion written against a row.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func columnStacksOnTheAxisRowDoesNot() {
     let rowLog = ElementLog()
@@ -532,7 +532,7 @@ private enum Fixture {
 ///   argument for the split stated as a number: the engine's `stretch` default
 ///   is load-bearing for WebKit agreement, and EP-8 must not touch it.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func aStackCentresOnTheCrossAxisWhereABoxStretches() {
     let stackLog = ElementLog()
@@ -716,7 +716,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
 ///   width  = 400 - 16 - 8  = **376**
 ///   height = 120 -  4 - 12 = **104**  (stretch fills the content box)
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-box, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-box, record §38 §4).
 @MainActor
 @Test func paddingEdgesAreNotTransposed() {
     let log = ElementLog()
@@ -760,7 +760,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
 ///   height = 120 -  4 - 12 = **104**     (stretch subtracts the cross margins —
 ///                                         the clause that was once missing)
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-box, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-box, record §38 §4).
 @MainActor
 @Test func marginEdgesAreNotTransposed() {
     let log = ElementLog()
@@ -784,7 +784,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
 /// Asymmetric on purpose: `gap(12)` sets both axes equal and cannot detect an
 /// engine — or a modifier — reading the wrong one.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func gapIsPerAxisAndTheRowReadsTheHorizontalOne() {
     let log = ElementLog()
@@ -808,7 +808,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
 
 /// A `hidden()` child contributes no box, and its siblings close over it.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func aHiddenChildTakesNoSpace() {
     let log = ElementLog()
@@ -859,7 +859,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
 /// is now an `alignSelf` that *agrees with the old default* — so a build that
 /// dropped `alignSelf` in favour of the container's value moves all three.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func alignItemsAndAlignSelfBothReachTheEngine() {
     let log = ElementLog()

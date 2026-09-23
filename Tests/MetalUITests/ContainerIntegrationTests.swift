@@ -1405,7 +1405,7 @@ private final class AnswerRecord: @unchecked Sendable {
 /// that axis content-sized (0).
 ///
 /// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §30, disposition P-CSS): it is the legacy arm of three CSS-answer
+/// (record §38, disposition P-CSS): it is the legacy arm of three CSS-answer
 /// pins, which pass `.legacy` explicitly so stage 6b's flip cannot reach them.
 private struct LegacyMark: StyledElement {
     let name: String
@@ -1453,7 +1453,7 @@ private func gap(_ log: Lane4Log, horizontal: Bool) throws -> Float {
 /// Owner: task 7. Green on arrival (a pin). Mutation: `Row`/`Column` default
 /// gap 8 (measured at design time, 22 tests redden; this one among them).
 ///
-/// Pinned to the legacy authority by stage 6a (CSS, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS, record §38 §4).
 @MainActor
 @Test func aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight() throws {
     let row = Lane4Log(), column = Lane4Log(), hStack = Lane4Log(), vStack = Lane4Log()
@@ -1483,7 +1483,7 @@ private func gap(_ log: Lane4Log, horizontal: Bool) throws -> Float {
 /// (measured at design time: 7 tests redden and the child reads (0, 0) 100×80;
 /// this pin must be the 8th).
 ///
-/// Pinned to the legacy authority by stage 6a (CSS, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS, record §38 §4).
 @MainActor
 @Test func aLegacyStackOffersFitContentWhereAZStackOffersItsProposal() throws {
     let legacy = Lane4Log(), proposal = Lane4Log()
@@ -1508,7 +1508,7 @@ private func gap(_ log: Lane4Log, horizontal: Bool) throws -> Float {
 /// Owner: task 7. Green on arrival (a pin, after lane 4). Mutation: revert lane
 /// 4's cross-axis line (the proposal viewport answers its proposal).
 ///
-/// Pinned to the legacy authority by stage 6a (CSS, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS, record §38 §4).
 @MainActor
 @Test func aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents() throws {
     let legacy = Lane4Log(), proposal = Lane4Log()

@@ -320,7 +320,7 @@ transforms, and text colour animation.
   for its fifth stage — `Deferred` as a presentation root (written as `28`
   and renumbered `29` at its merge, because `master`'s portable-text line had
   already published `28`) — and
-  [`30-engine-replacement-stage-6a.md`](docs/record/30-engine-replacement-stage-6a.md)
+  [`38-engine-replacement-stage-6a.md`](docs/record/38-engine-replacement-stage-6a.md)
   for its 6a stage — the public custom-element registrars deprecated and
   every test caller moved off them. Five files are
   not task tracks:

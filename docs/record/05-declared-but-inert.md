@@ -278,7 +278,7 @@ inert**, unchanged, until stage 6b.
 
 ## 2026-09-23: no row changed at engine replacement stage 6a
 
-Record §30; rulings `LR-CT`…`LR-DE`. **Checked and none added, edited or
+Record §38; rulings `LR-CT`…`LR-DE`. **Checked and none added, edited or
 deleted.** `UnlowerableField.owningStage` for `.customElement` moves from
 `"6a"` to `"9"` (`LR-CW`) — a stage-number literal in an existing exit-test
 message, not a new inert row: the case itself, and the fact that it compiles

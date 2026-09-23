@@ -64,7 +64,7 @@ private final class Generation {
 /// (declared FIRST, so its slot is `$state0`) and a default click handler that
 /// increments it. Lane 1's `CountingLeaf`, without the phase counters.
 ///
-/// **A Dual fixture since stage 6a** (record §30, spec §5 lane 3): under the
+/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
 /// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
 /// its two R tests pass `.proposal`; under the legacy one it registers through
 /// `Frame`'s internal legacy registrar, and its three P tests pass `.legacy`.
@@ -117,7 +117,7 @@ private struct LayerLeaf: StyledElement {
 /// what `String(describing:)` prints.
 ///
 /// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §30, disposition P-CSS): the one test that lays it out counts the
+/// (record §38, disposition P-CSS): the one test that lays it out counts the
 /// legacy tree's nodes, and passes `.legacy` explicitly.
 private struct ChainLeaf: StyledElement {
     var style = Style()
@@ -294,7 +294,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 /// here, test 2's flat chain, and tests 3 and 5's run-time layer, avoid a
 /// `Pixels` padding on a chain.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @Test @MainActor func legacyModifierChainsInferOneConcreteType() throws {
     let leafChain = ChainLeaf().padding(4).frame(width: 60).padding(Edges(all: .pixels(px(8)))).width(70)
     let componentChain = ChainComp().frame(width: 60).padding(4)
@@ -342,7 +342,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 /// innermost-first (N8) and an inner fill given the outermost layer's radius
 /// (N3). Before that round both left the whole suite green.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @Test @MainActor func aGenericWrapOverAChainIsIdenticalToTheFlatChain() throws {
     func flatChain(_ log: LayerLog) -> ModifiedElement<LayerLeaf> {
         LayerLeaf("leaf", log: log)
@@ -586,7 +586,7 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
 /// Green on the skeleton. Mutation (record §10): an unnamed inner layer named by
 /// its style, `ElementID("\(inner[k].style.padding)")`, reads 0 here.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func changingALayersValueKeepsTheWrappedElementsState() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = LayerLog()
@@ -635,7 +635,7 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
 /// `#require` fails; so does moving `setNeedsRedraw()` out of the
 /// `withAnimation` body (the instrument's check).
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = LayerLog()

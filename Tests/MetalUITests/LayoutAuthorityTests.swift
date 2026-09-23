@@ -31,7 +31,7 @@ private func child(_ parent: GlobalElementID, _ index: Int) -> GlobalElementID {
 /// public legacy `requestNode`, which reports `customElement` (ruling LR-C).
 ///
 /// **Spelled with the deprecated registrar on purpose since stage 6a** (record
-/// §30, disposition Dep, `LR-CV`): the public registrar is its subject, and a
+/// §38, disposition Dep, `LR-CV`): the public registrar is its subject, and a
 /// deprecated witness is not diagnosed at the call site.
 private struct CustomNodeElement: Element {
     @available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: it is the subject of aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority and everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn, which read the customElement report (stage 6a, LR-CV)")
@@ -271,7 +271,7 @@ private struct InternalRegistrarRow: Element {
 /// legacy path is the `@available` attribute, which only the plain-import guard
 /// `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` can see.
 ///
-/// Mutations that must redden it (record §30 §10): **M3c**, the legacy
+/// Mutations that must redden it (record §38 §10): **M3c**, the legacy
 /// `requestNode` forwarder registers `Style()` in place of `style` (legacy
 /// half); **M3d**, the legacy `requestLeaf` forwarder passes a 0×0 measure
 /// (legacy half); **M3e**, the proposal forwarder skips its report and calls

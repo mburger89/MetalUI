@@ -97,7 +97,7 @@ private final class CompositionLog {
 /// `taps` is declared FIRST so its slot is `$state0` (the slot's ordinal is the
 /// property's `Mirror` index, `State.swift`).
 ///
-/// **A Dual fixture since stage 6a** (record §30, spec §5 lane 3): under the
+/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
 /// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
 /// its three R tests pass `.proposal`; under the legacy one it registers through
 /// `Frame`'s internal legacy registrar, and its two P tests pass `.legacy`.
@@ -469,7 +469,7 @@ private func paddingStyle(_ points: Float) -> Style {
 /// ONE inner layer that skipped the helper, lane 2's likeliest bug.
 ///
 /// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §30, disposition P-CSS): its one test compares a chain with
+/// (record §38, disposition P-CSS): its one test compares a chain with
 /// hand-built legacy boxes, and passes `.legacy` explicitly.
 private struct BoxWithoutAnimated<Content: ElementGroup>: StyledElement {
     var style: Style
@@ -585,7 +585,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
 /// 1 leaves every id here unchanged and this test green; the unnamed chain in
 /// `stateSurvivesFramesUnderALegacyModifierChain` reddens (ruling MC-O item 6).
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @Test @MainActor func aModifierChainIsIdenticalToHandBuiltNestedBoxes() throws {
     let chain = try observe(authority: .legacy) { log in
         Row {
@@ -1108,7 +1108,7 @@ private struct Placement: Equatable, CustomStringConvertible {
 /// dropping `justifyContent = .center`. Lane 2 (record §10): `ModifiedElement`
 /// minting its layer styles outermost-first swaps O1 and O2.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func modifierOrderChangesSizeAndPlacementAsSwiftUIDoes() throws {
     func place<Chain: Element>(_ chain: (CompositionLog) -> Chain) throws -> Placement {
         let size = Size(width: px(200), height: px(200))

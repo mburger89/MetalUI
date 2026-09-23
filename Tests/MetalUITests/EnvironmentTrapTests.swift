@@ -17,7 +17,7 @@ import MetalUILayout
 // `#expect(processExitsWith:)` call is written out at each site because its
 // body is re-entered in a subprocess and must not capture context.
 //
-// **Stage 6a (record §30, disposition R):** `RootWriter` and `ScopedReader`
+// **Stage 6a (record §38, disposition R):** `RootWriter` and `ScopedReader`
 // register native leaves, so both renders run under the proposal authority. The
 // trap is `EV-Z`'s, which reads no authority; the stderr check above is what
 // keeps a trap for any other reason under `.proposal` from passing T1.

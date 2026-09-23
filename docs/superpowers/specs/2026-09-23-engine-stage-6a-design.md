@@ -1,11 +1,11 @@
 # Engine replacement, stage 6a — custom elements, and tests that are about CSS answers (plan task 7)
 
-**Status, 2026-09-23 (PDT): DELIVERED.** Critic round 1 applied (`LR-DA`); lane 1 landed (`c95dc0d`, record §30 §8, `LR-DB`); lane 2 landed (`e683975`, record §30 §9, `LR-DC`); lane 3 landed and closed the gate (`5822f60`, `ab7d76f`, `e531260`; record §30 §10–§11, `LR-DD`; one R test reclassified P-CSS by its verification, `b504e9f`, record §30 §10.7, `LR-DE`) — 1642 tests, 0 `warning:` on both build systems, the exit test green. **The Record phase (record §30 §12–§20) has updated CLAUDE.md, AGENTS.md, records §04/§05/README and the plan; the suite was re-taken independently after `swift package clean` and reads the same 1642 / 97 / 78.** Every measurement
+**Status, 2026-09-23 (PDT): DELIVERED.** Critic round 1 applied (`LR-DA`); lane 1 landed (`c95dc0d`, record §38 §8, `LR-DB`); lane 2 landed (`e683975`, record §38 §9, `LR-DC`); lane 3 landed and closed the gate (`5822f60`, `ab7d76f`, `e531260`; record §38 §10–§11, `LR-DD`; one R test reclassified P-CSS by its verification, `b504e9f`, record §38 §10.7, `LR-DE`) — 1642 tests, 0 `warning:` on both build systems, the exit test green. **The Record phase (record §38 §12–§20) has updated CLAUDE.md, AGENTS.md, records §04/§05/README and the plan; the suite was re-taken independently after `swift package clean` and reads the same 1642 / 97 / 78.** Every measurement
 below was taken on `feat/engine-stage-6a` from `b3c29b9` in
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-6a`, on scratch commits
 `9ccc0d8`…`59b63ad` that `a1b6edf` reverts to `b3c29b9`'s tree exactly; the
 measurements, the arms and the full classification table are in
-`docs/record/30-engine-replacement-stage-6a.md` §1–§7. Rulings `LR-CT`…`LR-CZ`, critic round 1 `LR-DA`,
+`docs/record/38-engine-replacement-stage-6a.md` §1–§7. Rulings `LR-CT`…`LR-CZ`, critic round 1 `LR-DA`,
 in [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Probe: `docs/probes/swift-deprecated-witness-silence.sh` (compiler, not SwiftUI;
 no SwiftUI claim is made anywhere in this stage).
@@ -29,7 +29,7 @@ measurement."*
 **The sentence this design turns on.** The deprecation is a **test-suite**
 change: at `b3c29b9` no line of `Sources/` calls the public pair (every site checks
 the authority and calls `Frame`'s internal registrars; `LR-R`'s "Sources' own sites call
-the public forwarders today" is stale — record §30 §1), so the attribute warns
+the public forwarders today" is stale — record §38 §1), so the attribute warns
 only where 58 compiled test call sites use it. Each of those moves one of six
 ways (§5), chosen by what the test asserts under the flipped default, which the
 entry measurement (§2) read per test through five arms. Production does not
@@ -59,14 +59,14 @@ At `b3c29b9`, measured 2026-09-23:
 | suite | **1640 tests in 3 suites**, passed; 0 `error:`; the only `warning:` is SwiftPM's deprecation notice; `FR-J no-argument frame: succeeded=` present | `swift build --build-system native --build-tests`, then `swift test --build-system native --no-parallel`, unfiltered |
 | goldens | **97** | `find Tests/MetalUILayoutTests -name "*.json" \| wc -l` |
 | guards | **77** (`LayoutAuthorityCompileGuards` 1) | CLAUDE.md's per-file `grep -c canTypecheck` |
-| callers of the public pair | **67 test call sites in 35 files** (58 compiled, **9** in typecheck fixture strings — 66 and 8 until lane 1 found guard 4's, `LR-DB`); **0 in `Sources/`** | record §30 §1, §8.3 |
+| callers of the public pair | **67 test call sites in 35 files** (58 compiled, **9** in typecheck fixture strings — 66 and 8 until lane 1 found guard 4's, `LR-DB`); **0 in `Sources/`** | record §38 §1, §8.3 |
 
 **No golden moves and none may**: nothing here touches `Sources/MetalUILayout/`.
 Check: `git diff --name-only b3c29b9 HEAD -- 'Tests/**/*.json'` empty.
 
 ## 2. The entry measurement
 
-Record §30 §2 and §4 in full; the summary that decides §5:
+Record §38 §2 and §4 in full; the summary that decides §5:
 
 - **The instrument.** `Frame.init`'s and `Window`'s default authority flipped to
   `.proposal` with diagnostics on — **and the eight test helpers that pass
@@ -83,7 +83,7 @@ Record §30 §2 and §4 in full; the summary that decides §5:
   (`hidden()`, no owner), RT 1, **CSS 43** (structure 14, style 7, text 3, legacy
   frame 10, divergence 48 ×5, legacy-vs-proposal pins 2, stretched box model 2),
   and **RP+CSS-frame 1** — the row the design left unattributed, measured by the
-  critic round (`LR-DA` item 4, record §30 §7): root placement for three of its
+  critic round (`LR-DA` item 4, record §38 §7): root placement for three of its
   arms and `FR-E`'s legacy flexible-frame answer for the fourth.
 
 ## 3. Decisions
@@ -153,7 +153,7 @@ The spellings:
   `layoutAuthority: .legacy` explicitly (a no-op today: `.legacy` is the default
   until 6b; the point is that 6b's flip cannot reach it). Every assertion
   unchanged. Each such test's doc comment gains one line: `Pinned to the legacy
-  authority by stage 6a (<class>, record §30 §4).`
+  authority by stage 6a (<class>, record §38 §4).`
 - **Dual** — an element whose tests split: `if pass.lowersToProposal { R's
   registration } else { P's }`.
 - **L** — an existing dual-branch fixture (stages 3–5): its legacy branch's
@@ -168,7 +168,7 @@ The spellings:
   (or `pass.requestNativeSpacer().layoutNodeID` where the fixture needs any node);
   the guard's own assertions unchanged except where the table says.
 
-Arms per test are record §30 §4's (A2 / B2 / C2 / C3 / B3). "green" means
+Arms per test are record §38 §4's (A2 / B2 / C2 / C3 / B3). "green" means
 green in A2.
 
 ### Lane 1 — fixtures whose disposition is mechanical (L, Dep, G)
@@ -228,7 +228,7 @@ pin it writes.
 
 | file | element (line) | disp. | tests |
 |---|---|---|---|
-| `ElementLayoutTests` | `Probe` (75) | **Dual** | R: `aContainerGivesItsChildrenPathsBuiltFromItsOwn`, `anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition`, **CE** `aNodeIDDoesNotSilentlyResolveAgainstAnotherFramesTree`. **P-6b** (CE+RP): `anExplicitAnyElementIsStillAcceptedAsAChild`, `childrenAreRegisteredAndLaidOutInSourceOrder`, `columnStacksOnTheAxisRowDoesNot`, `aStackCentresOnTheCrossAxisWhereABoxStretches`, `gapIsPerAxisAndTheRowReadsTheHorizontalOne`, `aHiddenChildTakesNoSpace`, `alignItemsAndAlignSelfBothReachTheEngine`, `aNestedLayoutMatchesTheEngineRunDirectly`. **P-CSS**: `theBuilderContributesNoNodesOfItsOwn` (structure), `marginEdgesAreNotTransposed`, `paddingEdgesAreNotTransposed` (box: the probe is stretched, record §30 §5) |
+| `ElementLayoutTests` | `Probe` (75) | **Dual** | R: `aContainerGivesItsChildrenPathsBuiltFromItsOwn`, `anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition`, **CE** `aNodeIDDoesNotSilentlyResolveAgainstAnotherFramesTree`. **P-6b** (CE+RP): `anExplicitAnyElementIsStillAcceptedAsAChild`, `childrenAreRegisteredAndLaidOutInSourceOrder`, `columnStacksOnTheAxisRowDoesNot`, `aStackCentresOnTheCrossAxisWhereABoxStretches`, `gapIsPerAxisAndTheRowReadsTheHorizontalOne`, `aHiddenChildTakesNoSpace`, `alignItemsAndAlignSelfBothReachTheEngine`, `aNestedLayoutMatchesTheEngineRunDirectly`. **P-CSS**: `theBuilderContributesNoNodesOfItsOwn` (structure), `marginEdgesAreNotTransposed`, `paddingEdgesAreNotTransposed` (box: the probe is stretched, record §38 §5) |
 | `ComponentTests` | `Leaf` (73) | **Dual** | R: `aComponentContributesNoLayoutNodeOfItsOwn`, `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`, `contentIsMaterializedExactlyOncePerFrame`. **P-6b**: `aComponentsContentFlattensIntoItsParent`, `aComponentInsideAComponentFlattensThroughBothLevels`. **P-CSS**: structure — `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`, `aModifierOnAComponentDistributesToEachTopLevelChild`, `chainedFramesRemainConcreteAndNestTheirLayoutNodes`, `paddingWrapsAnElementAndExpandsItsOuterFootprint`, `chainedPaddingCreatesNestedWrappers`, `chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`, `aTwoMemberComponentsPaddingIsAppliedToEachMember`, `aComponentsPaddingWrapsEachTopLevelNode`; divergence 48 — `aComponentsWidthStillOverwritesItsMembersDeclaredWidth`, `widthAloneDistributesToEachTopLevelChild`, `heightAloneDistributesToEachTopLevelChild`, `widthAndHeightComposeOnAChainedModifier`, `aModifierOnAComponentAppliesInTheOrderItIsWritten` |
 | `ComponentTests` | `CounterLeaf` (280) | R | `anEmptyComponentContributesNoNodes`, `stateInsideAComponentsContentIsAlsoSeeded`, `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt` |
 | `FrameSizingTests` | `Mark` (58) | **Dual** | R: ~~`aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare`~~ — *P-CSS as landed after verification: its mutation (`FR-P`'s `minSize` → `flexShrink = 0`) is invisible under `.proposal`, `LR-DE`*. **P-6b**: `aLegacyFramePlacesItsChildAtEachOfTheNineAlignments`, `aLegacyFrameProposesItsWidthToAMeasuredLeaf`, `chainedLegacyFramesAgreeWithSwiftUIsOrderingRules`, `hiddenAfterASingleChildLegacyFrameStillHidesTheElement`. **P-CSS** (legacy frame): `aLegacyFixedFrameDoesNotShrinkAsAFlexItem`, `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`, `aLegacyFrameAroundAListStillBuildsEveryRow`, `aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes`, `aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf`, `anInfiniteMaximumFillsOnlyWhenBothAxesAreInfinite`, `aFractionSizeResolvesAgainstItsContainingBlock`, `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt`, `anAbsolutelyPositionedChildInsideASingleChildLegacyFrameKeepsItsPlacement`, `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel`, *and `aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare` (`LR-DE`)* |
@@ -270,7 +270,7 @@ lane 3: 29; *33 and 30 as landed, `LR-DE`*), 23 P-6b (lane 2: 6, lane 3: 17), 2 
 Three, sequential in one worktree, disjoint files. Each lane commits its change
 first (green, 0 `warning:`), then runs its mutations (commit, restore from a
 `cp` copy, full unfiltered suite, `git status --short` after each, every
-reddened test named), appends its section to record §30 and its corrections
+reddened test named), appends its section to record §38 and its corrections
 ruling (the next unused `LR-` letter — `LR-DB` after critic round 1), and re-takes the twelve
 `CN-R` images. **A lane that finds a re-spelled (R) test red records it — arm,
 failing assertion — and pins it P with the measured cause rather than editing
@@ -286,7 +286,7 @@ context carries arm A's `SIXA-UNLOWERABLE` print and does not apply at
 has reds of its own**, and every mutation over it is read as the difference
 against an **I0 control run on the same commit**: measured at `b3c29b9`, I0
 alone reads `Test run with 1640 tests in 3 suites failed … with 32 issues`, the
-reddened set **exactly the 13 X tests** of record §30 §4 (the production-trap
+reddened set **exactly the 13 X tests** of record §38 §4 (the production-trap
 exit tests, which no longer trap); from lane 3's red-first commit on, 3.1's trap
 half joins it. A lane re-takes the control before its first I0 mutation and
 names any difference from that set.
@@ -303,7 +303,7 @@ nothing and nothing else can.
 | 1.3 | `registeringALayoutNodeDuringLayoutCompiles` re-spelled | **M1b** `LayoutPass.requestNativeLeaf` made `internal` (the positive fails) — *as run: `package`; `internal` breaks `MetalUIDemoContent` (`LR-DB`)* |
 | 1.4 | `aStructCanConformToElementObject` re-spelled | **M1c** its named mutation: `ElementObject: AnyObject` — *as run: with `AnyElementBox` a `final class`, which the mutation needs to build (`LR-DB`)* |
 | 1.5 | the four `ProposalNodeIDCompileGuards` re-spelled | **M1d**/**M1e**/**M1f**/**M1i** each guard's own named mutation (guard 1: a trapping default `requestProposalGroupLayout` on every `ProposalElementGroup` — *as run: `where Self: Element`, record §10's V-G1b (`LR-DB`)*; guard 2: `ProposalNodeID.init(_:)` `public`; guard 6: its doc comment's; guard 4: a `requestNativeFrame(child: LayoutNodeID, …)` overload) |
-| 1.6 | `FrameSizingCompileGuards`' two and `ModifiedElementCompileGuards`' leaf-splicing guards re-spelled; **the solver-budget guard's in-test negative still fails and its positive passes at 1000** | **M1g**/**M1h** each guard's own named mutation, re-run (the practice: a mutation a doc comment names is re-run when the code under it changes) — *as run: M1g-A/M1g-B (record §14's A and B) and M1h/M1h′ (the flat first-design overloads and the nesting `padding`), record §30 §8.4* |
+| 1.6 | `FrameSizingCompileGuards`' two and `ModifiedElementCompileGuards`' leaf-splicing guards re-spelled; **the solver-budget guard's in-test negative still fails and its positive passes at 1000** | **M1g**/**M1h** each guard's own named mutation, re-run (the practice: a mutation a doc comment names is re-run when the code under it changes) — *as run: M1g-A/M1g-B (record §14's A and B) and M1h/M1h′ (the flat first-design overloads and the nesting `padding`), record §38 §8.4* |
 
 ### Lane 2 — authority-independent tests (R) and the P-only files (`LR-CU`, `LR-DA`)
 
@@ -318,7 +318,7 @@ Each pinned test's doc comment gains the §5 line.
 | 2.2 | `ProbeRow`'s native spelling places (0, 0) 100×40 and (100, 0) 60×20 | **M2b** the stack's alignment `.center` (second child y 10: the two CE rows redden) — *as run: `ProbeRowLayout` centring on the cross axis; reddens `prepaintSees…` alone, and **M2a′** (the container answers 0×0) reddens both CE rows (`LR-DC` item 5)* |
 | 2.3 | the lane's pins: `ClickCounter`'s P-6b test green under `.legacy` (its R test under `.proposal`), and the four P-only files | **M2c** over I0, every `.legacy` pin lane 2 wrote flipped to `.proposal`; against the I0 control the reddened set must be the lane-2 P tests red in A2 — **10**: `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter`, the five `HitboxTests`, `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected`, `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`, `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal`, `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents` — with `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight` green (A2-green, pinned by name). Under I0 the backstop returns a 0×0 native leaf, not a trap, so a P-9 test whose assertion is "not rejected" may stay green: the lane names the set and records any difference as a finding about the classification. If the flip truncates the run (an `SA-G` precondition I0 does not soften), bisect by file and record which |
 
-**No mutation of an R test's authority is taken** (record §30 §6): putting a
+**No mutation of an R test's authority is taken** (record §38 §6): putting a
 re-spelled element back on `pass.frame.requestNode` under `.proposal` traps at the
 backstop, and putting its test back on `.legacy` traps at `SA-G` — both loud,
 both already pinned by exit tests (`aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop`,
@@ -391,7 +391,7 @@ each capture's reading. **No demo look is owed.**
 | the eight test helpers' `.legacy` parameter defaults, flipped with `Window`'s | 6b |
 | `hidden()` / `display: none` under the proposal authority (5 AV rows; `LR-AV` names no stage and `owningStage` says 2) | **6b** — a prerequisite of its flip, not an assignment it may defer: it lowers `hidden()` under `LR-AV`'s constraints or pins the five to `.legacy` with 7b named, before `Window`'s default moves (`LR-DA` item 5) |
 | the two default-asserting tests (D) and the three non-caller N9 exit tests at the default authority | 6b pins or rewrites |
-| `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBox` — **RP+CSS-frame** (measured, record §30 §7): its control, `after` and `before` arms are off by exactly the centred root's (70, 80) offset; its `flexible` arm is 90 wide where `FR-E`'s legacy frame answers 80 | 6b (root), then 7b (the `FR-E` arm) |
+| `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBox` — **RP+CSS-frame** (measured, record §38 §7): its control, `after` and `before` arms are off by exactly the centred root's (70, 80) offset; its `flexible` arm is 90 wide where `FR-E`'s legacy frame answers 80 | 6b (root), then 7b (the `FR-E` arm) |
 | the 32 P-CSS element tests, plus the 12 non-caller CSS rows (`StackElementTests` ×3, `TextMeasureTests` ×4, `EnvironmentTests` ×2, `AnimationTests` ×1, `FrameDecorationInteractionTests` ×1, `OuterModifierMatrixTests` ×1) | 7b |
 | the two P-9 tests, the Dep fixtures, the L fixtures' legacy branches, the Dual elements' legacy branches, `LoweringSite.customElement`, the public pair | 9 |
 | CLAUDE.md, AGENTS.md, records §03/§04/§05/README, the plan's 6a row, the parent spec's status | the Record phase |

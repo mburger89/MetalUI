@@ -2,6 +2,7 @@ import MetalUICore
 import MetalUILayout
 import MetalUIRender
 import MetalUIText
+import MetalUITextSystem
 import MetalUIPlatform
 
 /// The single owner of one frame's mutable state (spec §4.1).
@@ -1427,6 +1428,13 @@ public final class Frame {
     /// `Text` that moves keeps its shape.
     let shapingCache: ShapingCache
 
+    /// The text engine every `Text` and `ProposalText` measures and draws
+    /// through (ruling TS-A) — the window's, chosen once per app. By default
+    /// the CoreText system over ``shapingCache``, so a test that builds a
+    /// frame with its own cache and inspects it sees exactly the entries it
+    /// did before the seam.
+    let textSystem: any TextSystem
+
     /// The glyph atlas (spec §3.5), owned **by the window** for exactly the
     /// reasons `stateTable` and `shapingCache` are, and with a sharper
     /// consequence than either.
@@ -1449,6 +1457,7 @@ public final class Frame {
     init(contentSize: Size<Pixels>, scaleFactor: Float, rootFontSize: Double = 16,
          stateTable: StateTable = StateTable(),
          shapingCache: ShapingCache = ShapingCache(),
+         textSystem: (any TextSystem)? = nil,
          glyphAtlas: GlyphAtlas = GlyphAtlas(width: Window.atlasExtent,
                                              height: Window.atlasExtent),
          theme: Theme = .light,
@@ -1468,6 +1477,7 @@ public final class Frame {
         self.rootFontSize = rootFontSize
         self.stateTable = stateTable
         self.shapingCache = shapingCache
+        self.textSystem = textSystem ?? CoreTextTextSystem(cache: shapingCache)
         self.glyphAtlas = glyphAtlas
         self.rootTheme = theme
         var root = EnvironmentValues()
@@ -1878,16 +1888,32 @@ public final class Frame {
     /// factor's worth of points on a Retina display and by nothing at 1x,
     /// which is exactly the kind of bug a 1x-only test cannot see.
     func draw(_ placed: PlacedGlyph, color: Hsla) {
-        guard let packed = glyphAtlas.packed(for: placed.key, rasterize: {
+        drawSprite(key: placed.key, pixelX: placed.pixelX, baselineY: placed.baselineY, color: color) {
             GlyphRaster.rasterize(glyph: placed.key.glyph, font: placed.font,
                                   subpixelVariant: placed.key.subpixelVariant,
                                   scaleFactor: placed.key.scaleFactor)
-        }) else { return }
+        }
+    }
+
+    /// Emits one glyph the frame's ``textSystem`` placed, rasterized by that
+    /// system on an atlas miss (ruling TS-A).
+    func draw(_ glyph: TextGlyph, color: Hsla) {
+        drawSprite(key: glyph.key, pixelX: glyph.pixelX, baselineY: glyph.baselineY, color: color) {
+            textSystem.rasterize(glyph.key)
+        }
+    }
+
+    /// The sprite arithmetic both `draw`s share: atlas lookup, then the
+    /// bitmap's bearings, the active offset (scaled), clip, radii, opacity and
+    /// layer. One copy, so the two engines' glyphs cannot drift apart here.
+    private func drawSprite(key: GlyphKey, pixelX: Int, baselineY: Int, color: Hsla,
+                            rasterize: () -> GlyphImage) {
+        guard let packed = glyphAtlas.packed(for: key, rasterize: rasterize) else { return }
         guard packed.slot.width > 0, packed.slot.height > 0 else { return }
 
         let bounds = Bounds(
-            origin: Point(x: ScaledPixels(Float(placed.pixelX + packed.left)),
-                          y: ScaledPixels(Float(placed.baselineY - packed.top))),
+            origin: Point(x: ScaledPixels(Float(pixelX + packed.left)),
+                          y: ScaledPixels(Float(baselineY - packed.top))),
             size: Size(width: ScaledPixels(Float(packed.slot.width)),
                        height: ScaledPixels(Float(packed.slot.height))))
         let dx = activeOffset.x.value * scaleFactor
@@ -1950,7 +1976,7 @@ public final class Frame {
         // `ShapingCache.endFrame()`'s sweep must see both touches as this
         // frame's before it can tell them from stale ones. See
         // `ShapingCache.beginFrame()`'s own doc comment.
-        shapingCache.beginFrame()
+        textSystem.beginFrame()
 
         var layoutPass = LayoutPass(frame: self)
         let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
@@ -2004,7 +2030,7 @@ public final class Frame {
         element.paint(rootID, bounds: rootBounds,
                       layout: &state, prepaint: &prepaintState, pass: &paintPass)
         glyphAtlas.endFrame()
-        shapingCache.endFrame()
+        textSystem.endFrame()
 
         // After the frame, not before — but **not for the reason it is tempting
         // to write down.** Sweeping first does *not* discard everything the

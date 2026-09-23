@@ -36,7 +36,7 @@ final class PhaseLog {
 /// and an absolute origin from a relative one. A symmetric probe would pass
 /// against an engine that swapped either.
 ///
-/// **All native since stage 6a** (record §30, disposition R; ruling `LR-DC`):
+/// **All native since stage 6a** (record §38, disposition R; ruling `LR-DC`):
 /// two sized native leaves under `ProbeRowLayout`, which answers the legacy
 /// row's fixed 400×100 and places them as it did — left to right from its
 /// origin, top-aligned. One container node, not a native frame over a stack,
@@ -240,7 +240,7 @@ struct StampedProbe: Element {
     let stampsSeenInPaint: Recorder
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
-        // A native 30×10 leaf since stage 6a (record §30, disposition R).
+        // A native 30×10 leaf since stage 6a (record §38, disposition R).
         let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 30, height: 10)) }.layoutNodeID
         return (node, Layout(node: node, stamp: counter.next()))
     }
@@ -302,7 +302,7 @@ final class Recorder {
     for index in children.indices {
         nodes.append(children[index].requestLayout(standaloneID, pass: &layoutPass))
     }
-    // A native horizontal stack at spacing 0 since stage 6a (record §30,
+    // A native horizontal stack at spacing 0 since stage 6a (record §38,
     // disposition R): the children are native leaves, and the test asserts
     // stamps, not positions.
     let root = layoutPass.frame.requestNativeLinearStack(children: nodes, axis: .horizontal, spacing: 0)
@@ -350,7 +350,7 @@ struct MutatingProbe: Element {
     mutating func requestLayout(_ id: GlobalElementID,
                                 pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         generation += 7
-        // A native 30×10 leaf since stage 6a (record §30, disposition R).
+        // A native 30×10 leaf since stage 6a (record §38, disposition R).
         let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 30, height: 10)) }.layoutNodeID
         return (node, Layout(node: node, value: 1))
     }
@@ -444,7 +444,7 @@ struct IdentifiedProbe: Element {
     let elementID: ElementID?
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
-        // A native 30×10 leaf since stage 6a (record §30, disposition R).
+        // A native 30×10 leaf since stage 6a (record §38, disposition R).
         let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 30, height: 10)) }.layoutNodeID
         return (node, Layout(node: node, paints: 0))
     }

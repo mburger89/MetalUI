@@ -98,7 +98,11 @@ final class FakePlatformWindow: PlatformWindow {
 
     var contentSize: Size<Pixels>
     var scaleFactor: Float = 1
-    var surface: any RenderSurface { fakeSurface }
+    /// Draws through the Metal renderer into ``fakeSurface``, as an AppKit
+    /// window draws into its layer (ruling RS-B), so the surface's counters
+    /// and readback see exactly what they did before the seam.
+    let windowRenderer: MetalWindowRenderer
+    var renderer: any WindowRenderer { windowRenderer }
     var title: String = "Fake"
 
     /// Settable, unlike AppKit's, which is a live read of `effectiveAppearance`.
@@ -179,6 +183,7 @@ final class FakePlatformWindow: PlatformWindow {
 
     init(device: any MTLDevice, size: Int = 64) throws {
         self.fakeSurface = try FakeRenderSurface(device: device, size: size)
+        self.windowRenderer = MetalWindowRenderer(renderer: try Renderer(device: device), surface: fakeSurface)
         self.contentSize = Size(width: Pixels(Float(size)), height: Pixels(Float(size)))
     }
 
@@ -248,9 +253,7 @@ func makeFakeWindow<Root: Element>(
 ) throws -> (Window, FakePlatformWindow) {
     let platformWindow = try FakePlatformWindow(device: device, size: size)
     platformWindow.appearance = appearance
-    let renderer = try Renderer(device: device)
     let window = Window(platformWindow: platformWindow,
-                        renderer: renderer,
                         startsDisplayLink: startsDisplayLink,
                         content: content)
     // Written only when it differs, so the 1561 call sites that take the default

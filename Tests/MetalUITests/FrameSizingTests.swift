@@ -38,7 +38,7 @@ private final class SizeLog {
 /// receives. Optionally declares its own size, which is what makes it either a
 /// content-sized child (no declared axis) or an oversized one.
 ///
-/// **A Dual fixture since stage 6a** (record §30, spec §5 lane 3): under the
+/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
 /// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
 /// its one R test passes `.proposal`; under the legacy one it registers through
 /// `Frame`'s internal legacy registrar, and its fourteen P tests pass `.legacy`.
@@ -150,7 +150,7 @@ private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Fl
 /// six arms whose x is not 20; dropping `alignItems` reddens the six whose y is
 /// not 10; swapping the two axes reddens the four corners.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func aLegacyFramePlacesItsChildAtEachOfTheNineAlignments() throws {
     func origin(_ alignment: ProposalAlignment) throws -> Origin {
         let log = try render(authority: .legacy) { log in
@@ -189,7 +189,7 @@ private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Fl
 ///
 /// Mutation: drop `minSize` from the fixed-axis rows of `FrameSpec.style()`.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aLegacyFixedFrameDoesNotShrinkAsAFlexItem() throws {
     let log = try render(authority: .legacy) { log in
         Row {
@@ -231,7 +231,7 @@ private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Fl
 /// Mutations: drop `minSize` from the minimum row (arm 1); drop `maxSize` from
 /// the maximum row (arm 2).
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal() throws {
     let minimum = try widthInRow(authority: .legacy) { log in
         Mark("child", log: log, width: 20, height: 20).frame(minWidth: px(40))
@@ -339,7 +339,7 @@ private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Fl
 /// Mutation: mint the layer nodes outermost-first (arms 1 and 2 swap); drop
 /// `justifyContent` (arm 3).
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func chainedLegacyFramesAgreeWithSwiftUIsOrderingRules() throws {
     let innerWide = try render(authority: .legacy) { log in
         Row {
@@ -389,7 +389,7 @@ private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Fl
 ///
 /// Mutation: drop `size.width` from `FrameSpec.style()`.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func aLegacyFrameProposesItsWidthToAMeasuredLeaf() throws {
     let framed = try render(authority: .legacy) { log in
         Column {
@@ -452,7 +452,7 @@ private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Fl
 /// claimed as this test's own, and the honest summary is that the test is a
 /// characterization the lowering cannot move.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aLegacyFrameAroundAListStillBuildsEveryRow() throws {
     struct Datum: Identifiable { let id: String }
     let data = (0..<40).map { Datum(id: "row-\($0)") }
@@ -554,7 +554,7 @@ private struct TwoMarks: Component {
 /// component-frame tests redden); lower only the outermost layer (the two
 /// inner-layer arms redden).
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes() throws {
     let plain = try render(authority: .legacy) { log in
         Row {
@@ -682,7 +682,7 @@ private struct StretchingPair: Component {
 /// row fills a `width(fraction: 1)` child too). `isFrame: false` is spelled
 /// `frameSpec: nil` since plan task 7's lane 4 (`isFrame` is computed from it).
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf() throws {
     let grow = try render(authority: .legacy) { log in
         Row { Mark("grow", log: log, height: 20).flexGrow(1).frame(width: px(100), height: px(40)) }
@@ -766,7 +766,7 @@ private struct StretchingPair: Component {
 /// `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient` (record §17,
 /// "Closeout").
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func hiddenAfterASingleChildLegacyFrameStillHidesTheElement() throws {
     let rows: [(chain: String, expected: Float, measure: () throws -> Float)] = [
         ("hidden()", 0, {
@@ -840,7 +840,7 @@ private struct StretchingPair: Component {
 /// `#require`); extend the fill lowering to a single infinite maximum (the
 /// inert arm reddens, at the same `#require`).
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func anInfiniteMaximumFillsOnlyWhenBothAxesAreInfinite() throws {
     func mark(_ parentIsRow: Bool, _ alignment: ProposalAlignment) throws -> Origin {
         let log = parentIsRow
@@ -923,10 +923,10 @@ private func nodeCount<Root: Element>(authority: LayoutAuthority, _ make: (SizeL
 /// Mutation: replace the axis-named pin with `flexShrink = 0` on any fixed
 /// axis. This test reddens where 2.2 does not, which is the whole finding.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 /// `FR-P` is a choice inside the legacy `FrameSpec.style()`, which the
 /// proposal authority never reads: run under `.proposal` (as lane 3 first
-/// spelled it) the mutation above left the whole suite green (record §30
+/// spelled it) the mutation above left the whole suite green (record §38
 /// §10.7, VA). It is green under the flipped default, so it is the one lane-3
 /// P test that M3g cannot see; the mutation is its pin.
 @Test @MainActor func aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare() throws {
@@ -1012,7 +1012,7 @@ extension Mark: DeprecatedPercentSpellings {
 /// Before the lane the API is missing. Mutation: make `fraction:` write
 /// `.percent(fraction * 100)` (A, B, C, D, E move to 15000-scale widths).
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aFractionSizeResolvesAgainstItsContainingBlock() throws {
     let half = try widthInRow(authority: .legacy) { log in
         Mark("a", log: log, height: 20).width(fraction: 0.5)
@@ -1105,7 +1105,7 @@ extension Mark: DeprecatedPercentSpellings {
 /// mutation: make `minHeight(_:)` write nothing, and the opening `#require`
 /// reddens.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt() throws {
     let bare = try nodeCount(authority: .legacy) { log in Row { Mark("a", log: log, width: 20, height: 20) } }
     let framed = try nodeCount(authority: .legacy) { log in
@@ -1221,7 +1221,7 @@ private func insets(top: Float?, right: Float?, bottom: Float?, left: Float?) ->
 /// containing block (make the frame layer `.static` when it lowers) — the
 /// `#require` fails, A reading B's (15, 10).
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func anAbsolutelyPositionedChildInsideASingleChildLegacyFrameKeepsItsPlacement() throws {
     func arm(relative: Bool, _ edges: Edges<MetalUICore.Dimension>, alignment: ProposalAlignment = .center,
              flexible: Bool = false) throws -> (abs: Rect, after: Rect) {
@@ -1290,7 +1290,7 @@ private func insets(top: Float?, right: Float?, bottom: Float?, left: Float?) ->
 /// `justifyItems` (a stack's default is stretch) — A, F and G move (A's region
 /// (30, 0) 120×200).
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-frame, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     func arm<Content: Element>(at x: Float, _ y: Float, horizontal: Bool = false,

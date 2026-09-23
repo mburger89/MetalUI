@@ -164,7 +164,7 @@ private func id(_ names: String...) -> GlobalElementID {
 /// element is named, and two copies of this probe would be two things to keep
 /// in step.
 ///
-/// **A native 10×10 leaf since stage 6a** (record §30, disposition R): its
+/// **A native 10×10 leaf since stage 6a** (record §38, disposition R): its
 /// tests are about the state table and identity, not the leaf's layout, so a
 /// test that puts it under a legacy container (`IdentityTests`' `Row`s) runs
 /// under the proposal authority.

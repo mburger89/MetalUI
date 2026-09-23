@@ -14,7 +14,7 @@ import MetalUICore
 // how many frames found the same key, and `table.count` says how many distinct
 // keys were produced.
 //
-// **Stage 6a (record §30, disposition R):** `CountingElement` and this file's
+// **Stage 6a (record §38, disposition R):** `CountingElement` and this file's
 // two probes register native leaves, so every test here whose tree holds a
 // legacy container (`Row`) runs under the proposal authority. Identity is
 // assigned by the element groups, which read no authority; no assertion moved.

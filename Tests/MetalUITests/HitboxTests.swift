@@ -313,7 +313,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// the element's own `prepaint`, from inside it — so if `resolveHover` moved
 /// to run before `prepaint`, this is what would catch it.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func hoverResolvedThroughARealRenderHasNoLag() throws {
     let idBox = HitboxIDBox()
     var probe = HitboxProbe(elementID: ElementID("btn"),
@@ -347,7 +347,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// `DeferredTests.swift` builds its own fixtures for the same reason.
 ///
 /// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §30, disposition P-6b): its five tests read hitboxes at legacy
+/// (record §38, disposition P-6b): its five tests read hitboxes at legacy
 /// coordinates, which the proposal root's centring moves (`CN-J`), so each
 /// passes `.legacy` until stage 6b rules root placement.
 private struct HitboxProbe: Element {
@@ -428,7 +428,7 @@ private func mouseMoved(to position: Point<Pixels>) -> InputEvent {
 /// nothing before the first event, the pressed element's id after `mouseDown`,
 /// `nil` again after `mouseUp`.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func activeIsSetOnMouseDownAndHeldUntilMouseUp() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .legacy) {
@@ -451,7 +451,7 @@ private func mouseMoved(to position: Point<Pixels>) -> InputEvent {
 /// is held must not clear `active`, and moving back onto it must not need to
 /// re-set it (it was never cleared).
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func aPressThatLeavesTheHitboxAndReturnsStaysActive() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .legacy) {
@@ -505,7 +505,7 @@ private final class ToggleBox {
 /// point at `extra` or fall off the end; one keyed on `GlobalElementID` is
 /// unaffected either way.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func activeSurvivesAFrameBoundary() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let toggle = ToggleBox()
@@ -571,7 +571,7 @@ private final class ToggleBox {
 /// `Window.drawFrameIfNeeded()` — see the report for that mutation's redden
 /// after this test was added.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func aMouseMovedEventMakesTheBoxUnderItHoveredOnTheNextFrame() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let hoverBox = HoverBox()

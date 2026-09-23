@@ -76,6 +76,73 @@ public final class FreeTypeFont {
     /// HarfBuzz's (`PT-B`).
     public var unitsPerEm: Int { Int(face.pointee.units_per_EM) }
 
+    /// The face's `hhea` ascender, descender (negative below the baseline)
+    /// and line gap, in design units — the three numbers CoreText's
+    /// `CTFontGetAscent`/`Descent`/`Leading` scale (measured, `LB-F`).
+    ///
+    /// **Not `FT_Face.ascender`/`descender`/`height`**: FreeType fills those
+    /// from OS/2's typographic metrics when the face sets `USE_TYPO_METRICS`,
+    /// and CoreText does not — both Noto faces set it, with typo numbers equal
+    /// to `hhea`'s, so only a patched face tells the two apart (record §31).
+    /// A face with no `hhea` table falls back to FreeType's numbers.
+    public var horizontalHeader: (ascender: Int, descender: Int, lineGap: Int) {
+        if let table = FT_Get_Sfnt_Table(face, FT_SFNT_HHEA) {
+            let hhea = table.assumingMemoryBound(to: TT_HoriHeader.self).pointee
+            return (Int(hhea.Ascender), Int(hhea.Descender), Int(hhea.Line_Gap))
+        }
+        let face = face.pointee
+        return (Int(face.ascender), Int(face.descender),
+                Int(face.height) - Int(face.ascender) + Int(face.descender))
+    }
+
+    /// The face's family name (`FT_Face.family_name`, from the name table's
+    /// family entry), e.g. `"Noto Sans"`.
+    public var familyName: String {
+        face.pointee.family_name.map { String(cString: $0) } ?? ""
+    }
+
+    /// The face's PostScript name, e.g. `"NotoSans-Regular"` — `FontKey`'s
+    /// first component (FT-F).
+    public var postScriptName: String { key.postScriptName }
+
+    /// The face's full name — the name table's entry 4, e.g. `"Noto Sans
+    /// Regular"` — or `""` if it has none. Read from a Windows-platform
+    /// (UTF-16BE) record for US English first, then any Windows Unicode
+    /// record, then a Macintosh Roman one.
+    public var fullName: String { name(id: 4) }
+
+    /// Name table entry `id`, decoded as ``fullName`` describes.
+    func name(id: UInt16) -> String {
+        var best: (rank: Int, value: String)?
+        for index in 0..<FT_Get_Sfnt_Name_Count(face) {
+            var record = FT_SfntName()
+            guard FT_Get_Sfnt_Name(face, index, &record) == 0, record.name_id == id,
+                  let bytes = record.string else { continue }
+            let raw = Array(UnsafeBufferPointer(start: bytes, count: Int(record.string_len)))
+            let rank: Int
+            let value: String
+            switch (record.platform_id, record.encoding_id) {
+            case (3, 1), (3, 10):
+                rank = record.language_id == 0x409 ? 0 : 1
+                let units = stride(from: 0, to: raw.count - 1, by: 2).map { UInt16(raw[$0]) << 8 | UInt16(raw[$0 + 1]) }
+                value = String(decoding: units, as: UTF16.self)
+            case (1, 0):
+                rank = 2
+                value = String(decoding: raw, as: UTF8.self)   // ASCII in practice
+            default:
+                continue
+            }
+            if best == nil || rank < best!.rank { best = (rank, value) }
+        }
+        return best?.value ?? ""
+    }
+
+    /// FreeType's name for the face's outline format: `"TrueType"` for a
+    /// `glyf` face, `"CFF"` for an OpenType/CFF one (`FT_Get_Font_Format`).
+    public var format: String {
+        FT_Get_Font_Format(face).map { String(cString: $0) } ?? ""
+    }
+
     /// The face's glyph for a Unicode scalar, or 0 (`.notdef`) — for tests
     /// and for `PT-B`'s cross-engine check; a shaper supplies the ids that
     /// are actually drawn.

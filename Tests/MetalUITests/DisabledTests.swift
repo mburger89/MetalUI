@@ -109,7 +109,7 @@ private struct TargetProbe<Inner: Element>: Element {
 
 /// A fixed 10×10 leaf that records `pass.environment.isEnabled` in paint.
 ///
-/// **A native leaf since stage 6a** (record §30, disposition R): its one test
+/// **A native leaf since stage 6a** (record §38, disposition R): its one test
 /// reads the environment, which reads no authority, and runs under the proposal
 /// authority.
 private struct EnabledRecorder: Element {

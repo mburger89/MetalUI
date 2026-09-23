@@ -55,7 +55,7 @@ final class ComponentLog {
 
 /// A styled leaf that reports its own name and rect.
 ///
-/// **A Dual fixture since stage 6a** (record §30, spec §5 lane 3): under the
+/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
 /// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
 /// its R tests pass `.proposal`; under the legacy one it registers through
 /// `Frame`'s internal legacy registrar, and its fifteen P tests pass `.legacy`
@@ -140,7 +140,7 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 /// by its tallest child) pulls `a`'s `y` away from what the `Row` would give it
 /// directly.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func aComponentsContentFlattensIntoItsParent() {
     let componentLog = ComponentLog()
@@ -193,7 +193,7 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 
 /// Spec §6 assertion 8. Two identity levels, zero layout nodes.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func aComponentInsideAComponentFlattensThroughBothLevels() {
     struct Outer: Component {
@@ -282,7 +282,7 @@ private struct Counter: Component {
 /// copied from `StateTests.swift:77`'s `CounterElement` rather than widening
 /// that type's access level.
 ///
-/// **A native 10×10 leaf since stage 6a** (record §30, disposition R): its two
+/// **A native 10×10 leaf since stage 6a** (record §38, disposition R): its two
 /// tests are about `@State`, not the leaf's layout, so each passes `.proposal`.
 private struct CounterLeaf: Element {
     @State var count = 0
@@ -608,7 +608,7 @@ private struct TwoAutoLeaves: Component {
 /// numbers; this test keeps the two-member shape that separates per-member
 /// from around-the-pair.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func aModifierOnAComponentDistributesToEachTopLevelChild() {
     let bareLog = ComponentLog()
@@ -648,7 +648,7 @@ private struct TwoAutoLeaves: Component {
 /// one outer layout node. The body therefore keeps the sizes its author chose,
 /// while the caller controls the outer footprint and alignment.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren() {
     let bareLog = ComponentLog()
@@ -684,7 +684,7 @@ private struct TwoAutoLeaves: Component {
 /// `.frame` adds a layer to the same `ModifiedElement<TwoLeaves>` rather than a
 /// type level, and each layer still registers its own node.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func chainedFramesRemainConcreteAndNestTheirLayoutNodes() {
     let log = ComponentLog()
@@ -706,7 +706,7 @@ private struct TwoAutoLeaves: Component {
 /// it at x = 0. A wrapper must add one node and offset the fixed-size leaf by
 /// the requested padding without shrinking its 30 × 10 footprint.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func paddingWrapsAnElementAndExpandsItsOuterFootprint() {
     let bareLog = ComponentLog()
@@ -727,7 +727,7 @@ private struct TwoAutoLeaves: Component {
 /// Each padding call creates a separate outer box, so distinct values add
 /// instead of the later call replacing the earlier one.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func chainedPaddingCreatesNestedWrappers() {
     let log = ComponentLog()
@@ -800,7 +800,7 @@ private struct TwoAutoLeaves: Component {
 /// test: both fields must land on EACH top-level child, not just the later
 /// call's field.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-d48, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-d48, record §38 §4).
 @MainActor
 @Test func widthAndHeightComposeOnAChainedModifier() {
     let log = ComponentLog()
@@ -821,7 +821,7 @@ private struct TwoAutoLeaves: Component {
 /// `aModifierOnAComponentDistributesToEachTopLevelChild` and the type-name
 /// check. A bare (unchained) `.width(_:)` distributing at all.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-d48, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-d48, record §38 §4).
 @MainActor
 @Test func widthAloneDistributesToEachTopLevelChild() {
     let log = ComponentLog()
@@ -835,7 +835,7 @@ private struct TwoAutoLeaves: Component {
 
 /// The other half of the same gap: a bare (unchained) `.height(_:)`.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-d48, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-d48, record §38 §4).
 @MainActor
 @Test func heightAloneDistributesToEachTopLevelChild() {
     let log = ComponentLog()
@@ -868,7 +868,7 @@ private struct TwoAutoLeaves: Component {
 /// to disagree first, so a broken fixture fails as one rather than passing as
 /// "the chain equals one of them".
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement() throws {
     @MainActor func leafA<G: ElementGroup>(_ subject: G, _ log: ComponentLog) -> (x: Float, nodes: Int) {
@@ -984,7 +984,7 @@ private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = C
 /// otherwise, the mechanism claim is the RELATIVE one (`+40` on each axis)
 /// and the literals are the machine's.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func aComponentsPaddingWrapsEachTopLevelNode() throws {
     // The content-sized body (G10/G11).
@@ -1024,7 +1024,7 @@ private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = C
 /// because SwiftUI's `HStack` spacing is implicit and MetalUI's is explicit;
 /// the marker therefore sits at 128 and the outer width is `128 - 8`.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func aTwoMemberComponentsPaddingIsAppliedToEachMember() throws {
     @MainActor func arms<G: ElementGroup>(_ subject: G, _ log: ComponentLog)
@@ -1078,7 +1078,7 @@ private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = C
 /// amend-set-plus-wrap-set collapses — `#require`d before either reading is
 /// compared.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-d48, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-d48, record §38 §4).
 @MainActor
 @Test func aModifierOnAComponentAppliesInTheOrderItIsWritten() throws {
     @MainActor func reading<G: ElementGroup>(_ subject: G, _ log: ComponentLog)
@@ -1131,7 +1131,7 @@ private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = C
 /// as its legacy half. This test stays legacy-only and wrong on purpose until
 /// stage 6b switches the root; it is not the place where divergence 48 closes.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-d48, record §30 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-d48, record §38 §4).
 @MainActor
 @Test func aComponentsWidthStillOverwritesItsMembersDeclaredWidth() {
     let bareLog = ComponentLog()

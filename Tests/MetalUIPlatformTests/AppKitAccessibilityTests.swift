@@ -4,6 +4,7 @@ import Metal
 import AppKit
 import MetalUICore
 @testable import MetalUIPlatform
+@testable import MetalUIAppKit
 
 // Lane 2 of the accessibility bridge: the AppKit side (spec
 // `docs/superpowers/specs/2026-09-15-accessibility-bridge-design.md`, "Lane 2").

@@ -597,7 +597,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   same doc as stages 1–5); **no new probe** — the stage's only probe,
   `docs/probes/swift-deprecated-witness-silence.sh`, is a compiler
   determinism check (a deprecated protocol witness stays silent), not a
-  SwiftUI claim; record §30. **Stage 6a delivered** (a critic round plus
+  SwiftUI claim; record §38. **Stage 6a delivered** (a critic round plus
   three lanes, each with its own mutation table, all verified `ok`): the
   public `LayoutPass.requestNode`/`requestLeaf` are deprecated and every
   in-repo test caller — 67 sites in 35 files — moves in the same change,

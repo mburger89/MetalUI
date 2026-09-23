@@ -127,7 +127,7 @@ private struct OrphanLegacySubtree: ProposalElement {
 /// the test becomes an exit test first. Nothing in this design closes arm b
 /// short of detecting state bound by an unregistered subtree.
 ///
-/// Pinned to the legacy authority by stage 6a (N9, record §30 §4): its subject
+/// Pinned to the legacy authority by stage 6a (N9, record §38 §4): its subject
 /// is a legacy registration, which `OrphanLegacyNode` and `StatefulLegacyLeaf`
 /// make through `Frame`'s internal registrar; stage 9 deletes it with the
 /// legacy authority.

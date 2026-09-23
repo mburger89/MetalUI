@@ -59,6 +59,11 @@ public func modulesDirectory(containing module: String) -> URL? {
     } + [buildDirectory.appendingPathComponent("debug/Modules", isDirectory: true)]
 
     return candidates.first { candidate in
+        // **Only this platform's build.** A checkout shared with another OS —
+        // a Linux container over a macOS working tree — carries that OS's
+        // `.build/<triple>`, whose modules this compiler cannot import; the
+        // guard must skip rather than fail on them (roadmap item 5).
+        guard candidate.resolvingSymlinksInPath().path.contains(hostTripleFragment) else { return false }
         var isDirectory: ObjCBool = false
         let exists = fileManager.fileExists(atPath: candidate.path, isDirectory: &isDirectory)
         guard exists, isDirectory.boolValue else { return false }
@@ -67,6 +72,17 @@ public func modulesDirectory(containing module: String) -> URL? {
         return contents.contains { $0.hasPrefix("\(module).") }
     }
 }
+
+/// The part of a SwiftPM build triple that names this platform.
+#if os(macOS)
+private let hostTripleFragment = "apple-macosx"
+#elseif os(Linux)
+private let hostTripleFragment = "linux"
+#elseif os(Windows)
+private let hostTripleFragment = "windows"
+#else
+private let hostTripleFragment = "\u{0}"   // no known layout: never matches, so guards skip
+#endif
 
 /// True when the guard can run at all. Used as a runtime skip condition so a
 /// differing build layout never produces a false red.

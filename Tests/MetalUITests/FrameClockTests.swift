@@ -16,7 +16,7 @@ private struct RequestingBox: Element, StyledElement {
 
     func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
-        // A native leaf since stage 6a (record §30, disposition R); `style` is
+        // A native leaf since stage 6a (record §38, disposition R); `style` is
         // never set by any caller, so the leaf answers `Style()`'s 0×0.
         let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }.layoutNodeID
         return (node, node)
@@ -47,7 +47,7 @@ private struct TimestampRecorder: Element, StyledElement {
 
     func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
-        // A native leaf since stage 6a (record §30, disposition R); `style` is
+        // A native leaf since stage 6a (record §38, disposition R); `style` is
         // never set by any caller, so the leaf answers `Style()`'s 0×0.
         let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }.layoutNodeID
         return (node, node)

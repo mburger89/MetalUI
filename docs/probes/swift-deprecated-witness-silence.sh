@@ -2,7 +2,7 @@
 # Does calling a `@available(*, deprecated)` method from inside a deprecated
 # PROTOCOL WITNESS, or through a generic constraint, print a deprecation warning?
 # Plan task 7, stage 6a, ruling LR-CV in
-# docs/superpowers/2026-09-17-engine-replacement-decisions.md (record §30 §3).
+# docs/superpowers/2026-09-17-engine-replacement-decisions.md (record §38 §3).
 #
 # This is a probe of the Swift COMPILER, not of SwiftUI: no SwiftUI claim is
 # made. Stage 6a deprecates `LayoutPass.requestNode`/`requestLeaf` under a
