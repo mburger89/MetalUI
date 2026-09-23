@@ -13,12 +13,17 @@ import Testing
 // `AuthorityCoverage.swift` and the literals are still hand-derived here.
 
 /// **The roll call.** Every parameterised scenario in `AXNodeTests`,
-/// `AccessibilityDefaultsTests`, `AccessibilityTreeTests`, `FocusTests`,
-/// `ListTests`, `ScrollIndicatorTests`, `ScrollRoutingTests`, `ScrollViewTests`
-/// and `TombstoneTests` ran under **both** layout authorities.
+/// `AbsoluteOverlayTests`, `AccessibilityDefaultsTests`, `AccessibilityTreeTests`,
+/// `DeferredTests`, `FocusTests`, `ListTests`, `MeasurePerformanceTests`,
+/// `ScrollIndicatorTests`, `ScrollRoutingTests`, `ScrollViewTests` and
+/// `TombstoneTests` ran under **both** layout authorities — 74 since stage 5's
+/// lane 2, which added seven: `DeferredTests`' four element-level scenarios and
+/// its demo-shaped scrim, `AbsoluteOverlayTests`' divergence-11 pin, and
+/// `ListTests`' `aListInsideADeferredIgnoresTheEscapedScrollersOffset` (`LR-CN`,
+/// `LR-CO`). Those seven are plan task 7 stage 5's exit criterion.
 ///
 /// **Why a test at all.** A `@Test(arguments:)` test counts as ONE test in the
-/// summary line — measured on this suite, `LR-BI` — so parameterising 67
+/// summary line — measured on this suite, `LR-BI` — so parameterising 74
 /// scenarios over two authorities moves the total by nothing and the exit
 /// criterion cannot be read off it. Reducing the `arguments:` list to `[.legacy]`
 /// (stage 3's mutation **M3c**, stage 4's **M3a** and **M4d**) would pass every
@@ -28,17 +33,19 @@ import Testing
 /// `AuthorityCoverage`'s doc for why the design's "counter" shape could not
 /// be made falsifiable). `AuthorityCoverage.record` verifies the whole set
 /// the moment the last expected name arrives, wherever that arm lands in the run.
-/// This test holds the hand-derived literals: the 65 names, and the `arguments:`
+/// This test holds the hand-derived literals: the 74 names, and the `arguments:`
 /// list itself.
 ///
 /// **Declared in the last file of the suite**, because its third `#require`
 /// reads what has been recorded so far. Swift Testing runs a file's tests in
 /// source order and the files in path order — `AXNodeTests` →
-/// `AccessibilityDefaultsTests` → `AccessibilityTreeTests` → `FocusTests` →
+/// `AbsoluteOverlayTests` → `AccessibilityDefaultsTests` →
+/// `AccessibilityTreeTests` → `DeferredTests` → `FocusTests` →
 /// `ListTests` → `MeasurePerformanceTests` → `ScrollIndicatorTests` →
 /// `ScrollRoutingTests` → `ScrollViewTests` → `TombstoneTests` → here —
 /// measured twice at stage 4 lane 5's HEAD as it was measured twice at stage 3's
-/// and at lanes 3's and 4's, so by here all 67 have run. If that ever changes this fails **naming the scenarios it had not
+/// and at lanes 3's and 4's, and re-read in stage 5 lane 2's unfiltered runs, so
+/// by here all 74 have run. If that ever changes this fails **naming the scenarios it had not
 /// yet seen**, rather than passing quietly.
 @Test @MainActor func everyParameterisedScenarioRanUnderBothLayoutAuthorities() throws {
     try #require(LayoutAuthority.allCases.count == 2,

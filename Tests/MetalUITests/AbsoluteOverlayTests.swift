@@ -82,11 +82,23 @@ func anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt(_ authority: La
         }
     }
 
-    func render(_ tree: inout some Element, in table: StateTable) -> Frame {
+    // Hosted (`LR-CO`, stage 5 lane 2's `LR-CR`): inside a window-sized,
+    // cross-stretching row `Box`, so a native root's centring (`CN-J`) never
+    // moves the tree. The host is unpositioned and unpadded, so the legacy
+    // containing block is still the window's origin and every legacy literal
+    // below is the one it was when `rootStyle`'s box was the frame's root —
+    // measured unchanged. Diagnostics are on under the proposal authority, so
+    // the plain half's unlowerable spelling is a report, not a trap (`LR-BX`).
+    func render(_ tree: some Element, in table: StateTable) -> Frame {
+        var host = Style()
+        host.flexDirection = .row
+        host.alignItems = .stretch
+        host.size = Size(width: dim(200), height: dim(200))
         let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
                           stateTable: table, theme: Theme.forAppearance(.light),
                           layoutAuthority: authority, reportsUnlowerableFields: authority == .proposal)
-        frame.render(&tree)
+        var root = Box(style: host, content: tree)
+        frame.render(&root)
         return frame
     }
     // The 22x20 declared size appears nowhere else in this tree, so it
@@ -97,8 +109,17 @@ func anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt(_ authority: La
     }
 
     let plainTable = StateTable()
-    var plain = makeTree(deferring: false)
-    let firstFrame = render(&plain, in: plainTable)
+    let firstFrame = render(makeTree(deferring: false), in: plainTable)
+
+    // **Divergence 11 is legacy-only from stage 5** (`LR-CN`): an absolute box
+    // outside a `Deferred` is removed from the proposal authority (`LR-CK`), so
+    // under it this spelling cannot be laid out at all — the report is the whole
+    // assertion, and the divergence retires with the legacy authority (stage 9).
+    if authority == .proposal {
+        #expect(firstFrame.unlowerableFields.map(\.description) == ["box.position", "box.inset"],
+                "divergence 11's spelling is unspellable under the proposal authority, reported at the box's own consumer")
+    } else {
+    try #require(firstFrame.unlowerableFields.isEmpty)
     let unscrolled = try overlayRect(firstFrame.finalizedScene())
 
     #expect(unscrolled.bounds.origin.x == 5 && unscrolled.bounds.origin.y == 5,
@@ -119,19 +140,22 @@ func anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt(_ authority: La
     // measuring the clamp rather than the translation.
     let listID = try #require(firstFrame.scrollRegions.first).id
     plainTable.withState(listID, initial: ScrollState()) { $0.offset = 12 }
-    var scrolled = makeTree(deferring: false)
-    let scrolledScene = render(&scrolled, in: plainTable).finalizedScene()
+    let scrolledScene = render(makeTree(deferring: false), in: plainTable).finalizedScene()
     let firstRow = try #require(scrolledScene.rects.first { $0.bounds.size.width == 40 })
     #expect(firstRow.bounds.origin.y == 18,
             "30 - 12: an in-flow sibling moved, which is what says the offset reached paint at all")
     let afterScroll = try overlayRect(scrolledScene)
     #expect(afterScroll.bounds.origin.y == -7,
             "5 - 12: the box positioned against the WINDOW scrolled with the list anyway, off the top of it")
+    }
 
     // The escape, on the identical tree.
+    // Under the proposal authority this `Deferred` is a presentation root laid out
+    // against the window (`LR-CH`), and lands exactly where the legacy portal does.
     let portalTable = StateTable()
-    var portal = makeTree(deferring: true)
-    let portalRect = try overlayRect(render(&portal, in: portalTable).finalizedScene())
+    let portalFrame = render(makeTree(deferring: true), in: portalTable)
+    try #require(portalFrame.unlowerableFields.isEmpty, "\(portalFrame.unlowerableFields)")
+    let portalRect = try overlayRect(portalFrame.finalizedScene())
     #expect(portalRect.bounds.origin.x == 5 && portalRect.bounds.origin.y == 5)
     #expect(portalRect.contentMask.origin.x == 0 && portalRect.contentMask.origin.y == 0
                 && portalRect.contentMask.size.width == 200 && portalRect.contentMask.size.height == 200,

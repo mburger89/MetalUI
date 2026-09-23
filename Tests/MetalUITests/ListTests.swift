@@ -46,7 +46,9 @@ private func items(_ n: Int) -> [Item] {
 /// frames, and the `Style.padding` arm added to each of the two padding tests,
 /// 3 + 6); 289 − 241 = 48 is exactly
 /// `aListInsideADeferredIgnoresTheEscapedScrollersOffset`, the one scenario that
-/// stays legacy-only (40 escaped rows plus its 8-row windowed control).
+/// stayed legacy-only (40 escaped rows plus its 8-row windowed control). **Stage
+/// 5's lane 2 parameterised it** (`LR-CN`), so it now registers under the proposal
+/// authority too; these counts were taken before that and were not re-taken.
 private struct Row: Element {
     let item: Item
     /// When set, this row's own node asks for a fixed height — the "content
@@ -675,6 +677,14 @@ func aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows(_ authority: 
 /// **The differential is what makes this about `Deferred` rather than about
 /// windowing**: the identical `List` under the identical context, unwrapped,
 /// still windows.
+///
+/// **Under both authorities since stage 5's lane 2** (`LR-CN`), with **no
+/// red-before**: record §27 §8.2 said this scenario "aborts" the run under
+/// `.proposal`; measured at `e5caefb` it passes there (record §28 §2.3 — the
+/// `Deferred` is in-flow, so it lowers as it always has, and
+/// `withoutScrollContext` runs on both authorities). The claim was never
+/// measured. Its pin under the proposal arm is mutation M2e
+/// (`withoutScrollContext` removed from `Deferred.requestLayout`).
 @Test(arguments: AuthorityCoverage.authorities) @MainActor
 func aListInsideADeferredIgnoresTheEscapedScrollersOffset(_ authority: LayoutAuthority) throws {
     AuthorityCoverage.record(#function, authority)
