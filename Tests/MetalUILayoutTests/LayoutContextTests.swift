@@ -202,7 +202,7 @@ nonisolated(unsafe) private var reentrantRoot: LayoutNodeID?
         // The guard aborts the whole process, so this spin never completes on
         // the passing path; it exists so the body does not return first and
         // report a clean exit.
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
     #expect(stderr.contains("layout recursion exceeded"),

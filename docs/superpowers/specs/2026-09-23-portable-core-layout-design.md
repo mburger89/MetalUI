@@ -42,7 +42,9 @@ not per file:
   `freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine`; its sibling
   `freezeLoopMatchesItsAllocatingReferenceBitForBit` runs everywhere.
 
-One portable test needed a Foundation difference fixed:
+Windows has no `usleep`: thirteen exit tests' thread polls go through a
+synchronous `waitUntilFinished(_:)`. One portable test needed a Foundation
+difference fixed:
 `everyFixtureFileIsListedInTheCorpus` lists `Fixtures/` with `FileManager`,
 because Foundation on Linux types `Bundle.urls(forResourcesWithExtension:)`
 as `[NSURL]?`.

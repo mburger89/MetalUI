@@ -25,6 +25,13 @@ rulings `PC-A`…`PC-C` (next `PC-D`). Roadmap item 5.
 | `FileManager` listing; host-triple filter | **486 + 22 tests pass**, no warnings |
 | mutation: `import CoreText` in `MetalUILayout` | Linux build fails: `no such module 'CoreText'` |
 
+**Windows CI's first run** failed to compile 13 call sites of `usleep(1000)`
+— a poll while a large-stack `Thread` finishes, in `LayoutContextTests` and
+`NativeDepthGuardTests` — because Windows has no `usleep`. They now call
+`waitUntilFinished(_:)`, a synchronous `Thread.sleep` loop (synchronous
+because `Thread.sleep` is unavailable in the async exit-test bodies that
+call it, and a direct call there warns).
+
 The macOS suite is unchanged (1681; the guards compiled out are
 `canImport`-true on macOS). Windows is measured by CI only.
 
