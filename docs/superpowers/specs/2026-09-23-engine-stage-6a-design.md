@@ -1,6 +1,6 @@
 # Engine replacement, stage 6a — custom elements, and tests that are about CSS answers (plan task 7)
 
-**Status, 2026-09-23 (PDT): DESIGNED, critic round 1 applied (`LR-DA`); lane 1 landed (`c95dc0d`, record §30 §8, `LR-DB`); lane 2 landed (`e683975`, record §30 §9, `LR-DC`); lane 3 landed and closed the gate (`5822f60`, `ab7d76f`, `e531260`; record §30 §10–§11, `LR-DD`; one R test reclassified P-CSS by its verification, `b504e9f`, record §30 §10.7, `LR-DE`) — 1642 tests, 0 `warning:` on both build systems, the exit test green.** Every measurement
+**Status, 2026-09-23 (PDT): DELIVERED.** Critic round 1 applied (`LR-DA`); lane 1 landed (`c95dc0d`, record §30 §8, `LR-DB`); lane 2 landed (`e683975`, record §30 §9, `LR-DC`); lane 3 landed and closed the gate (`5822f60`, `ab7d76f`, `e531260`; record §30 §10–§11, `LR-DD`; one R test reclassified P-CSS by its verification, `b504e9f`, record §30 §10.7, `LR-DE`) — 1642 tests, 0 `warning:` on both build systems, the exit test green. **The Record phase (record §30 §12–§20) has updated CLAUDE.md, AGENTS.md, records §04/§05/README and the plan; the suite was re-taken independently after `swift package clean` and reads the same 1642 / 97 / 78.** Every measurement
 below was taken on `feat/engine-stage-6a` from `b3c29b9` in
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-6a`, on scratch commits
 `9ccc0d8`…`59b63ad` that `a1b6edf` reverts to `b3c29b9`'s tree exactly; the

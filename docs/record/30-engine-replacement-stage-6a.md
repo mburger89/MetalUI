@@ -10,7 +10,7 @@ rulings `LR-R`, `FR-I`, §8). Design:
 SwiftUI claim). Branch `feat/engine-stage-6a` from `b3c29b9`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-6a`.
 
-**Status, 2026-09-23 (PDT): lanes 1–3 landed; stage closed at `e531260` (§11), Record phase pending.** §1–§6 are the design's measurements —
+**Status, 2026-09-23 (PDT): lanes 1–3 landed; stage closed at `e531260` (§11); Record phase complete (§20).** §1–§6 are the design's measurements —
 the stage's **entry measurement** is §4. Every one was taken on scratch
 commits (`9ccc0d8`…`59b63ad`, listed in §2) that `a1b6edf` reverts to
 `b3c29b9`'s tree exactly (`git diff --quiet b3c29b9 a1b6edf` succeeds); they
@@ -1047,3 +1047,266 @@ lowering.
 | production behaviour unmoved | twelve `CN-R` images 0 differing at every lane; `Sources/` diff is two attributes, one `owningStage` literal, doc comments |
 | suite count | 1640 → **1642**, the two added tests; goldens 97 unmoved; guards 77 → 78 |
 | lane 3's classification after verification | 11 R, 47 P (17 CE+RP, 30 CSS): FR-P's test 2.10 moved R → P-CSS-frame at `b504e9f`, its mutation VA red again (§10.7) |
+
+## 12. What landed — the stage
+
+- **Two attributes and one literal, in `Sources/`, nothing else.**
+  `Passes.swift`'s public `LayoutPass.requestNode(style:children:)` and
+  `requestLeaf(style:measure:)` are each marked
+  `@available(*, deprecated, message: …)`, bodies byte-identical; a custom
+  element that still calls them under the proposal authority now traps
+  naming **stage 9**, not stage 6a (`LayoutAuthority.swift`'s
+  `owningStage` for `.customElement`, `"6a"` → `"9"`, `LR-CW`). `Frame`'s
+  internal `requestNode`/`requestLeaf` stay undeprecated — every
+  production site already called them, not the public pair (`LR-R`'s
+  premise was stale at `b3c29b9`, §1).
+- **Every in-repo test caller of the public pair moved**: 67 sites in 35
+  files (58 that would each print one build warning, 9 inside typecheck
+  fixture strings a child `swiftc` compiles). Six dispositions (`LR-CU`):
+  **R** re-spelled onto `requestNativeLeaf`/a `ProposalLayout`, its test run
+  under `.proposal` (lane 2: 59 tests over R elements; lane 3: 11 after
+  `LR-DE`); **P-CSS** (32, one moved from R at `b504e9f`) / **P-6b** (23) /
+  **P-9** (2) pinned to `.legacy` through the internal, undeprecated
+  `Frame.requestNode`/`requestLeaf`, each test's doc comment gaining the §5
+  line; **Dual** elements (6, one — `ClickCounter` — found not actually
+  dual, `LR-DC`) branching on `pass.lowersToProposal`; **L** (10 sites in 9
+  pre-existing dual-branch fixtures) whose legacy branch is now spelled
+  through `pass.frame.` — identical by construction under `.legacy`
+  (`LR-X`); **Dep** (6, plus the new exit fixture) kept on the deprecated
+  pair on purpose, `requestLayout` itself marked deprecated, measured
+  silent under both Swift 5 and 6 mode (`docs/probes/swift-deprecated-witness-silence.sh`,
+  `LR-CV`); **G** (9 typecheck-guard fixture strings) re-spelled onto
+  `requestNativeLeaf`/`requestNativeSpacer`.
+- **The exit test and its guard, new**:
+  `aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`
+  (`LayoutAuthorityTests`) renders a fixture through both the deprecated
+  public pair and the internal oracle under `.legacy` (equal, non-zero,
+  distinct rects) and through the public pair alone under production
+  `.proposal` (traps, naming `customElement.requestLeaf`/`requestNode`,
+  "stage 9"); `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes`
+  (`LayoutAuthorityCompileGuards`, `typecheckFile`) confirms a plain-import
+  caller of the deprecated pair still compiles and is warned, where a
+  control calling only `requestNativeLeaf` is not.
+- **The entry measurement** (`LR-CT`): the default authority and the eight
+  test-helper `.legacy` parameter defaults flipped together, diagnostics on,
+  read through five arms (§2). All **153** reds of that flip are classified
+  (§4) and handed on as this stage's own record of what stage 6b and stage
+  7b inherit — not a demo detail, since more than half the flip (RP 54 +
+  CE+RP 23 + RP+CSS-frame's root arm) is root placement alone.
+- **The gate**: 0 `warning:` on both build systems with the deprecation in
+  place, the deprecation landing last, in the commit that moves the last
+  caller (`e531260`); one caller left behind prints exactly one
+  `warning: '…' is deprecated` (measured, §10.3).
+- **Verification found one more move**: `FR-P`'s test 2.10
+  (`aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare`) was re-spelled R
+  by lane 3 but cannot see its own named mutation (a legacy `FrameSpec.style()`
+  choice) once run under `.proposal`; reclassified **P-CSS-frame**, owned by
+  7b (`LR-DE`, `b504e9f`). Lane 3's final split is **11 R, 47 P** (17
+  CE+RP, 30 CSS).
+
+## 13. Tests per file
+
+1640 at `b3c29b9` → **1642** (+2). Guards 77 → **78**, goldens 97, both
+otherwise unchanged.
+
+| file | change | count |
+|---|---|---|
+| `LayoutAuthorityTests.swift` | `CustomNodeElement`/`CustomLeafElement` → Dep; new `DeprecatedRegistrarRow`/`InternalRegistrarRow` fixtures and exit test 3.1 | +1 |
+| `LayoutAuthorityCompileGuards.swift` | new guard 3.2, `typecheckFile` | +1 |
+| `Passes.swift`, `LayoutAuthority.swift` | two `@available` attributes, one `owningStage` literal, doc comments (`Sources/`) | 0 |
+| the other **33** files of spec §5 | a caller's disposition changes (L/Dep/G/R/P/Dual); no `@Test` added or removed, no `#expect`/`#require` line touched except `PhaseSeparationTests`' one negative-message literal (`LR-CU` item 6) and the new authority arguments | 0 |
+
+`typecheckFile`'s helper count moves with guard 3.2: 37 → **38**
+(`LayoutAuthority`'s share 1 → 2; CLAUDE.md's "40 and 37" becomes "40 and
+38").
+
+## 14. Red runs, in one place
+
+- **The entry measurement is not a red-first**: it is the stage's baseline
+  table, arm A2, 153 reds classified (§2, §4), attributed by the
+  separating arms B2/C2/C3/B3 and by the critic round's measurement of the
+  unattributed row (§7.2).
+- **Lane 1**: red-first does not apply (no test added, §8.1); each
+  re-spelled guard's own mutation is its red (§8.4).
+- **Lane 2**: red-first does not apply (no test added); **no re-spelled (R)
+  test was found red** on the first full run (§9.1) — the practice's
+  "record it, pin it P" rule had nothing to act on.
+- **Lane 3**: 3.1 and 3.2 written red-first (`ab7d76f`): **3 issues** — the
+  guard's `#require` that the two fixtures disagree on `is deprecated`
+  (both silent pre-deprecation), and 3.1's two trap arms (the child aborted
+  naming "stage 6a", where the test reads "stage 9") — while 3.1's legacy
+  half passed on arrival, confirming the hand-derived literals before they
+  were relied on (§10.2).
+- **Instrument I0's own control** (a re-derivation of the design's
+  `0d02538`, which did not apply at `b3c29b9`, §7.3) reads **exactly the 13
+  X tests** at every lane it was taken (plus 3.1's trap half from lane 3's
+  red-first commit on) — every I0-based mutation below is read as the
+  difference against this control, not against a green suite.
+
+## 15. Mutations, in one place
+
+Lane 1: M1a–M1i (§8.4, including the re-spelled M1g-A/B and M1h/M1h′ from
+records §14 and lane 2's original design); one check, 1.1, has **no possible
+mutation** — an L fixture's legacy branch put back on `pass.requestNode(` is,
+under `.legacy`, exactly the call the forwarder makes, and unreachable under
+`.proposal` (`LR-X`, recorded as such rather than chased).
+
+Lane 2: M2a (13 sites), M2a′ (the container half M2a could not reach), M2b
+(§9.5); I0 control; M2c (15 `.legacy` sites flipped, exactly the predicted
+10 reddened, `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`
+green as A2 read it).
+
+Lane 3: M3a/M3b (the two attributes, each alone), M3c/M3d (the legacy
+forwarders' arguments), M3e (the proposal forwarder's report skipped —
+reddened one test the spec did not name, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`,
+and only 3.1's node-first arm), M3f (`owningStage` reverted), M3h (the five
+Dual leaves' shared helper and `CounterLeaf` answer 0×0 — exactly the four
+CE rows); I0 control; M3g (117 `.legacy` sites flipped, **exactly the
+predicted 46**, with `declaredSizeNativeLeaf`'s precondition softened in the
+scratch to avoid truncating at the first fraction-sized `Mark`, §10.4 item
+3 — a harness decision that is itself a mutation site, per practice).
+
+**Verification's own mutations** (§10.7): **VA** (both fixed axes'
+`minSize` writes in `FrameLayer.swift` replaced by `flexShrink = 0`) over
+the landed tree read **green** — the tell that nothing in the suite still
+pinned `FR-P` after lane 3's re-spelling; **VA2** (the same, with 2.10's
+three calls set back to `.legacy` in the same scratch) read red **alone**,
+proving 2.10 the missing pin; the fix restores it, and **VA re-run on the
+fixed tree** reddens 2.10 alone again. **VC** (`declaredSizeNativeLeaf` + 7
+on the width, run together with M3a/M3d and separately) reddens no R test
+either time — the practice's "a wrong nonzero answer is invisible" finding,
+narrowing §10.1's "cannot silently get a wrong size" to sizes from a
+non-pixel dimension (§10.5).
+
+**Green mutations, each explained**: lane 1's 1.1 (`LR-X`, above). Lane 3's
+2.10 was found **green** under M3g's full flip (§10.4 item 1 → §10.7): the
+correct reading was not "this R test's mutation must redden it" but "this
+test was never an R test" — the classification error, not the mutation,
+was the finding.
+
+## 16. Demo comparisons
+
+Every lane's twelve-image offscreen comparison
+(`docs/probes/demo-pixels/compare.sh <scratch> b3c29b9 <lane commit>`) reads
+every control at its recorded value (1048576, 1030498, 210027, 0, 1048576,
+chrome pair 0, distinct 544 / 216, indicator rects 0) and **`differing=0` /
+scene identical in all twelve**, at the design/critic round, lane 1
+(`c95dc0d`), lane 2 (`e683975`) and lane 3 (`e531260`). The lock probe read
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` at every one of
+those measurements, so `docs/probes/window-capture/capture.sh` was never
+run and no real-window capture exists for this stage — not owed for
+acceptance, since no legacy path changed and the offscreen twelve already
+read 0 (spec §9).
+
+## 17. Hazards
+
+- **`declaredSizeNativeLeaf`'s answer is pinned only at 0×0** (§10.5, `VC`):
+  lane 3's R tests assert identity, phase counts, state and hit targets,
+  never a Dual leaf's geometry, so a wrong but nonzero pixel answer is
+  invisible to them. Its precondition against a non-pixel (fraction/
+  percentage) dimension is a live, load-bearing trap (§10.4 item 3), not
+  redundant with that gap.
+- **Five files' shared test helpers take the layout authority as a
+  required argument, not a defaulted one** (`FrameSizingTests`' `render`,
+  `widthInRow`, `nodeCount`; both `ModifiedElementTests`/
+  `ModifierCompositionProofTests` `observe` helpers): stage 6b's "flip the
+  eight helper defaults with `Window`'s" cannot reach these — a required
+  argument names its authority at every call site, so 6b edits calls, not
+  defaults, wherever these five files are touched.
+- **A naive caller census can miss a real call site sharing a line with a
+  `requestNative` one**: `ProposalNodeIDCompileGuards.swift:155`'s fixture
+  string was dropped by `grep -v requestNative`; the corrected grep is
+  `grep -rnE '[A-Za-z_]+\.request(Node|Leaf)\(' Tests | grep -vE 'frame\.request(Node|Leaf)\(' | grep -v '///'`
+  (§8.3). The gate's own grep (spec §7 3.5) has no such `-v` and already
+  keeps such a line, so only a *count* of callers was at risk, not the
+  gate.
+- **A regression in the proposal forwarder's report can widen past its own
+  exit test**: M3e (skip `requestNode`'s report, call `frame.requestNode`
+  directly) reddened `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
+  in addition to every test the spec named, because that guard reads the
+  same per-site report under diagnostics (§10.4 item 2).
+- **The design's instrument commit did not apply outside its own arm**:
+  `git cherry-pick 0d02538`/`git apply` of it fails at `b3c29b9`, because
+  `0d02538` was authored over arm A's non-fatal-trap variant of
+  `noteUnlowerable`, which `b3c29b9` does not have. The re-derived patch is
+  committed at `docs/probes/stage-6a-instrument-I0.patch` (§7.3) —
+  re-applying `0d02538` itself against a clean tree will fail the same way.
+- **The existing CI hazards are untouched**: `AuthorityCoverage.expected`
+  stays 82 across fifteen files (3.1/3.2 are not parameterised scenarios
+  and record no coverage); the roll call's cross-file-order dependency, the
+  `AccessibilityDefaultsTests` recording-order hazard and the
+  `…unconsumed`-traps-a-`Window`-test hazard are all unchanged by this
+  stage.
+
+## 18. Deferred, each with an owner
+
+| item | owner |
+|---|---|
+| root placement (divergence 4 vs `CN-J`): 78 of the flip's reds (RP 54, CE+RP 23, RP+CSS-frame's root arm 1), including the 23 P-6b tests this stage pins (17 lane 3 + 6 lane 2) | 6b |
+| the eight test-helper `.legacy` parameter defaults, flipped with `Window`'s | 6b |
+| `hidden()` / `display: none` under `.proposal` (5 AV rows, no stage named by `LR-AV`) | 6b, as a prerequisite of its own flip |
+| the two D tests and three N9 exit tests read at the default authority | 6b pins or rewrites |
+| `FR-E`'s legacy flexible-frame arm of the RP+CSS-frame row (`aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBox`) | 7b, after 6b rules the root |
+| 33 CSS pins (32 element tests plus `FR-P`'s 2.10) and 12 non-caller CSS rows named in §4 | 7b |
+| the two P-9 tests, the seven Dep fixtures (plus 3.1's), the L fixtures' legacy branches, the six Dual elements' legacy branches, `LoweringSite.customElement`, and the internal `Frame.requestNode`/`requestLeaf` pair itself | 9 (deletes the legacy authority) |
+| the real-window capture | owed whenever the screen is next unlocked against this branch; not owed for acceptance (no legacy path changed, offscreen twelve read 0) |
+| CLAUDE.md, AGENTS.md, records §03/§04/§05/README, the plan's 6a row, the parent spec's status | the Record phase (§20, below) |
+
+## 19. For the integrator
+
+- **Decisions doc**: next unused `LR-DF` (`LR-CT`…`LR-DE` used: design
+  `LR-CT`…`LR-CZ`, critic round 1 `LR-DA`, lane 1 `LR-DB`, lane 2 `LR-DC`,
+  lane 3 `LR-DD`, verification `LR-DE`).
+- **Counts**: 1642 tests (1640 + 2), 97 goldens, 78 guards
+  (`LayoutAuthorityCompileGuards` 1 → 2), `typecheckFile` 37 → 38, all
+  measured fresh at §11/`21f2369` and re-measured in the Record phase (§20).
+- **No golden moved and none may** (`Sources/MetalUILayout/` untouched);
+  **no divergence or declared-but-inert row changed** — `LayoutAuthority.proposal`
+  in production stays the one inert row this stage's territory touches, and
+  it is unchanged (still inert until stage 6b).
+- **CLAUDE.md**: the counts block gains this stage's layer on top of
+  `b3c29b9`'s; the `LR-` next-unused note (`LR-CT` → `LR-DF`); the plan
+  task 7 stage list gains stage 6a's citation; the "SwiftUI alignment"
+  section gains a stage 6a bullet (the public pair deprecated, no
+  production move, the entry measurement handed to 6b/7b); the guards
+  per-file list and the CI-hazards "all 77 guards" sentence move to 78;
+  the `typecheckFile` helper split moves to 40/38. `AGENTS.md` copied
+  after, `cmp` checked.
+
+## 20. Record phase (2026-09-23, PDT) — docs pass over `b3c29b9..21f2369`
+
+No file under `Sources/` changed in this pass (the record file and,
+separately, CLAUDE.md/AGENTS.md/records/plan/README).
+
+**Suite, re-taken.** `swift package clean`, then `swift build --build-system
+native --build-tests`: 0 `error:`, the only `warning:` SwiftPM's
+`--build-system native` deprecation notice. Unfiltered `swift test
+--build-system native --no-parallel`: **`Test run with 1642 tests in 3
+suites passed after 85.307 seconds`**, one summary line, `FR-J no-argument
+frame: succeeded=true deprecations=2` in the log (guards ran). Default
+build system, `swift build --build-tests`: **`Build complete!`**, 0
+`error:`, 0 `warning:` — the gate holds on both build systems after a clean
+build, not only at the lane's own measurement. Goldens: `find
+Tests/MetalUILayoutTests -name "*.json" | wc -l` reads **97**;
+`git diff --name-only b3c29b9 HEAD -- 'Tests/**/*.json'` empty. Guards:
+`grep -c canTypecheck` per file, re-counted fresh, matches CLAUDE.md's
+per-file list exactly with `LayoutAuthorityCompileGuards` now **2** — total
+**78** (79 `canTypecheck` hits less `UnitSafetyTests`' one comment).
+
+**Verdict: the stage's exit criteria (§11) all hold**, re-measured
+independently of the lanes' own runs. Docs updated in this pass: `CLAUDE.md`
+(counts, `LR-` next-unused, the plan-task-7 stage list, a new "SwiftUI
+alignment" bullet, the guard-count and `typecheckFile`-split updates —
+verified against source, not copied from the lane verdicts), `AGENTS.md`
+(copied, `cmp` clean), `docs/record/04-divergences.md` and
+`docs/record/05-declared-but-inert.md` (each gains a 2026-09-23 dated
+section recording that this stage changes no row — no divergence and no
+inert API moves, since production is untouched beyond the two attributes
+and one literal), `docs/record/README.md` (the §30 row),
+`docs/superpowers/plans/2026-09-12-swiftui-alignment.md` (task 7's stage-6a
+progress paragraph, appended after stage 5's; the task's own checkbox stays
+unticked — 14 stages remain), `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`
+("Where the task actually stands" gains a stage-6a sentence), this stage's
+own spec's Status line (marked delivered, Record phase noted), and
+`README.md` (the branch/count line, the record-file list, the engine-replacement
+spec bullet).
