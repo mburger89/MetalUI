@@ -34,6 +34,14 @@ The user chose AccessKit over hand-written AT-SPI/UIA bridges.
   `accessibilityTitle`, not `accessibilityLabel`** — found by the first run
   of the end-to-end test, which walked labels and found none; the test reads
   the title.
+- **Windows needed a shim fix, found in CI.** The first Windows run failed to
+  build `CAccessKit`: "missing '#include <windef.h>'; 'HWND' must be declared
+  before it is used" at `accesskit.h`'s first `HWND`.
+  - Naming `<windef.h>` after `<windows.h>` in `shim.h` did not help.
+    `windows.h` is imported as a module and brings its include guards with it,
+    so the later textual include is skipped.
+  - Naming it **first** declares `HWND` inside the module, and the run went
+    green (`7c343c0`).
 - The first Linux image build failed: cargo found no `cc` in the Swift
   image; gcc is installed on the aarch64 path.
 
