@@ -33,7 +33,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-CT`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-DF`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-J`;
@@ -60,7 +60,11 @@ milestones append their record to `docs/record/` and put only the rule here.
   7 stage 5 `LR-CH`…`LR-CS` (§29, spec
   `specs/2026-09-23-engine-stage-5-design.md`, same decisions doc, probe
   `swiftui-overlay-presentation.swift` revision 2 — group Q added, P and H
-  re-run byte-identical), 7 stage G grids
+  re-run byte-identical), 7 stage 6a `LR-CT`…`LR-DE` (§30, spec
+  `specs/2026-09-23-engine-stage-6a-design.md`, same decisions doc; **no new
+  SwiftUI probe** — the stage's only probe,
+  `swift-deprecated-witness-silence.sh`, is a compiler determinism check),
+  7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
@@ -146,6 +150,39 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   descend from 1409 / 97 / 71, so that merged total is 1409 + 139 + 2. History:
   record §06, §19 "Build and test". A count is stale the moment a test lands;
   re-measure.
+- **Counts (2026-09-23, `feat/engine-stage-6a` — plan task 7 stage 6a — from
+  `b3c29b9`, `master`'s current tip; not yet merged): 1642 tests, 97
+  goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both build
+  systems, taken after `swift package clean` with `swift build
+  --build-system native --build-tests` then unfiltered `swift test
+  --build-system native --no-parallel` (**one summary line**, `Test run with
+  1642 tests in 3 suites passed`; the same five gated tests skipped as
+  above; the guards ran — the log carries `FR-J no-argument frame:
+  succeeded=`). Goldens unmoved against `b3c29b9` (`git diff --name-only
+  b3c29b9 HEAD -- 'Tests/**/*.json'` empty). **1642 = 1640 + 2**: the
+  stage's own exit test
+  (`aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`)
+  and its plain-import guard
+  (`aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes`);
+  record §30. **The public `LayoutPass.requestNode`/`requestLeaf` are now
+  deprecated, and every in-repo test caller (67 sites, 35 files) moved off
+  them** — onto `requestNativeLeaf`/a `ProposalLayout` where the test is
+  authority-independent, or onto the internal, undeprecated
+  `Frame.requestNode`/`requestLeaf` (through `pass.frame.`) where the test
+  is about a CSS answer or a root-placement question stage 6b has not ruled
+  yet. **No `Sources/` line of production behaviour moves** beyond those two
+  `@available` attributes and one `owningStage` literal
+  (`.customElement` → `"9"`, so a custom element under `.proposal` now
+  traps naming stage 9, not stage 6a) — the legacy authority stays the
+  default until stage 6b, and the twelve `CN-R` demo images read 0
+  differing at every lane. **No golden moved; guards move by exactly +1**
+  (`LayoutAuthorityCompileGuards` 1 → 2, in the per-file list above), and
+  `typecheckFile`'s helper count moves with it (37 → 38, "Guards" below).
+  The entry measurement (the
+  default authority flipped, with the eight test-helper `.legacy` defaults
+  also flipped, diagnostics on) classified all 153 reds of that flip; the
+  table is recorded as stage 6b's (root placement, ~78 reds) and stage 7b's
+  (43 CSS reds) own baseline — record §30 §2–§4, §12.
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
@@ -170,12 +207,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `LayoutAuthorityCompileGuards`, `GridCompileGuards`,
   `UnitSafetyTests` (one hit is a comment),
   `AXNodeTests`, `SceneBoundaryCompileGuards`; `Typecheck.swift` holds only
-  the declaration. Two helpers, 40 and 37:
+  the declaration. Two helpers, 40 and 38 (37 before stage 6a's guard 3.2):
   `typecheck(_:importing:)` wraps the fixture in a function (Swift 5, nothing
   `public`/file-scope compiles); `typecheckFile(_:importing:)` is whole-file
   Swift 6 — the six/two/six of `ProposalLayout`/`ModifiedElement`/
   `ProposalNodeID`, two `FrameSizing`, three `Decoration`, four `Container`,
-  four `Grid`, one `LayoutAuthority`, two `SceneBoundary` and seven of
+  four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary` and seven of
   `EnvironmentCompileGuards`'. A guard about what an external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
@@ -482,7 +519,7 @@ sleep: drive `simulateTick(timestamp:)`.
 ## SwiftUI alignment — the proposal layout path
 
 A propose/measure/place engine sits beside the CSS engine. Detail: §19
-"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29.
+"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §30.
 
 - **Two engines, chosen by the window root alone**
   (`tree.isNativeLayoutNode(root)`). A native root is placed centred at its own
@@ -571,6 +608,25 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   from its own root and the root's `SA-M` work literal is untouched. A new
   parameterised scenario owes an `AuthorityCoverage.record` call and a bump of
   the 82.
+- **Stage 6a deprecates the public custom-element registrars**
+  (`LayoutPass.requestNode`/`requestLeaf`, `LR-CT`…`LR-DE`) and moves every
+  in-repo test caller off them in the same change — onto
+  `requestNativeLeaf`/a `ProposalLayout` where the test is
+  authority-independent, or onto the internal, undeprecated
+  `Frame.requestNode`/`requestLeaf` where the test is about a CSS answer or
+  a root-placement question not yet ruled. The internal registrars stay
+  undeprecated (every production site already called them, not the public
+  pair); a custom element that still calls the public pair under
+  `.proposal` traps naming **stage 9**, not stage 6a
+  (`UnlowerableField.owningStage` for `.customElement`). No production
+  behaviour moves. **The stage's entry measurement** — the default
+  authority and eight test-helper `.legacy` defaults flipped together,
+  diagnostics on — classified all 153 reds it produced and is recorded as
+  stage 6b's (root placement, ~78 reds) and stage 7b's (43 CSS reds)
+  baseline table (record §30 §2–§4). No SwiftUI probe: the stage's only
+  probe, `docs/probes/swift-deprecated-witness-silence.sh`, is a compiler
+  determinism check (a deprecated protocol witness warns nothing), not a
+  SwiftUI claim.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -834,7 +890,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **77** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **78** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a

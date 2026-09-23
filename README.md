@@ -108,10 +108,10 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-5` (2026-09-23 — plan task 7 stage 5, merged with the
-portable text line on `master` at `42b9ab4`) the suite reports **1640
+On `feat/engine-stage-6a` (2026-09-23 — plan task 7 stage 6a, from
+`b3c29b9`, not yet merged with `master`) the suite reports **1642
 tests**, in one summary line over three suites. That total includes **97**
-layout goldens generated from WebKit and **77** `swiftc -typecheck` guards.
+layout goldens generated from WebKit and **78** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them.
@@ -319,7 +319,10 @@ transforms, and text colour animation.
   [`29-engine-replacement-stage-5.md`](docs/record/29-engine-replacement-stage-5.md)
   for its fifth stage — `Deferred` as a presentation root (written as `28`
   and renumbered `29` at its merge, because `master`'s portable-text line had
-  already published `28`). Five files are
+  already published `28`) — and
+  [`30-engine-replacement-stage-6a.md`](docs/record/30-engine-replacement-stage-6a.md)
+  for its 6a stage — the public custom-element registrars deprecated and
+  every test caller moved off them. Five files are
   not task tracks:
   [`19-claude-md-full-2026-09-21.md`](docs/record/19-claude-md-full-2026-09-21.md)
   is the root `CLAUDE.md` as it read before it was cut to rules only,
@@ -354,12 +357,14 @@ transforms, and text colour animation.
     and its [stage 2](docs/superpowers/specs/2026-09-17-engine-stage-2-design.md)
     [stage 3](docs/superpowers/specs/2026-09-22-engine-stage-3-design.md)
     [stage 4](docs/superpowers/specs/2026-09-23-engine-stage-4-design.md)
-    and [stage 5](docs/superpowers/specs/2026-09-23-engine-stage-5-design.md)
-    specs (plan task 7, stages 1, 2, G, 3, 4 and 5 of 14 landed — legacy
+    [stage 5](docs/superpowers/specs/2026-09-23-engine-stage-5-design.md)
+    and [stage 6a](docs/superpowers/specs/2026-09-23-engine-stage-6a-design.md)
+    specs (plan task 7, stages 1, 2, G, 3, 4, 5 and 6a of 14 landed — legacy
     elements lower onto the kernel under an internal proposal authority, with SwiftUI's flex-item
     semantics, scrolling, `Component` distribution, a windowed `List` and
-    `Deferred`'s absolute content as a presentation root; production still
-    uses the CSS engine)
+    `Deferred`'s absolute content as a presentation root; the public
+    custom-element registrars are deprecated with every test caller moved
+    off them; production still uses the CSS engine)
   - [grids spec](docs/superpowers/specs/2026-09-17-grids-design.md)
     (plan task 7 stage G, delivered: SwiftUI's `Grid` and `GridRow` on the
     proposal path as a kernel node; lazy grids are proposed as stage G2)

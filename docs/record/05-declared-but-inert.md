@@ -275,3 +275,18 @@ shape. `LoweredItem.Kind.presentation`'s placeholder record is consumed by
 `Deferred` at lowering (`LR-CK`) — not a new `.list`/`.component`-shaped "no
 reader left" case. `LayoutAuthority.proposal` in production is **still
 inert**, unchanged, until stage 6b.
+
+## 2026-09-23: no row changed at engine replacement stage 6a
+
+Record §30; rulings `LR-CT`…`LR-DE`. **Checked and none added, edited or
+deleted.** `UnlowerableField.owningStage` for `.customElement` moves from
+`"6a"` to `"9"` (`LR-CW`) — a stage-number literal in an existing exit-test
+message, not a new inert row: the case itself, and the fact that it compiles
+and is reachable only under diagnostics, are unchanged. The public
+`LayoutPass.requestNode`/`requestLeaf` becoming deprecated adds no row
+either: they are not declared-but-inert (the internal, undeprecated
+`Frame.requestNode`/`requestLeaf` they forward to are exactly what production
+already called), and every in-repo caller was moved in the same change
+(`LR-CU`), so nothing is left half-implemented in the sense this table
+tracks. `LayoutAuthority.proposal` in production is **still inert**,
+unchanged, until stage 6b.
