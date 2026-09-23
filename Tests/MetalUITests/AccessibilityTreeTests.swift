@@ -35,14 +35,20 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 
 /// Renders `element` into a collecting `Frame` and builds the tree the way
 /// `Window.drawFrameIfNeeded` does.
+/// **`authority` since stage 4's lane 4**: `aLabelledListIsStillATable` is this
+/// file's one `List` test that can pin anything about a table (its other `List`
+/// usage asserts absence), and it runs under both. Every other caller takes the
+/// default `.legacy`.
 @MainActor private func collect<E: Element>(_ element: E, stateTable: StateTable = StateTable(),
                                            width: Float = 300, height: Float = 300,
-                                           focusedElement: GlobalElementID? = nil)
+                                           focusedElement: GlobalElementID? = nil,
+                                           authority: LayoutAuthority = .legacy)
     -> (Frame, AccessibilityTree) {
     var element = element
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
                       stateTable: stateTable, theme: Theme.forAppearance(.light),
-                      focusedElement: focusedElement, collectsAccessibility: true)
+                      focusedElement: focusedElement, collectsAccessibility: true,
+                      layoutAuthority: authority)
     frame.render(&element)
     let tree = AccessibilityTreeBuilder.build(emissions: frame.axEmissions,
                                               focused: frame.focusedElement,
@@ -728,11 +734,20 @@ private struct PressToRename: Component {
 
 /// A `List` publishes a table whose row count is its logical count, even when a
 /// caller declared a label and so left its role `generic` (AB-L, arm R16).
-@Test @MainActor func aLabelledListIsStillATable() throws {
+///
+/// **Both authorities since stage 4's lane 4**, for completeness only (spec §6
+/// lane 4): this file is not that lane's subject — `AccessibilityDefaultsTests`
+/// holds the table's rows, their indices and the two window rules — but this is
+/// the one `List` assertion here that a table could fail, so it costs one
+/// argument to keep it honest on both paths.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aLabelledListIsStillATable(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     let items = (0..<500).map(Item.init)
     let (_, tree) = collect(
         List(items, rowHeight: px(28)) { _ in Box().width(px(20)).height(px(28)) }
-            .handling { $0.axNode.label = "Contacts" })
+            .handling { $0.axNode.label = "Contacts" },
+        authority: authority)
     let list = try #require(tree.id(labelled: "Contacts"))
     #expect(tree.nodes[list]?.role == .table)
     #expect(tree.nodes[list]?.rowCount == 500)

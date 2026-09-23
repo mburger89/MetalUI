@@ -90,6 +90,19 @@ import MetalUILayout
 /// `StateTests.CounterElement`'s idiom. `elementID` is COMPUTED, not stored,
 /// so `Mirror` sees only `count`: its ordinal is 0, matching every other
 /// single-`@State` fixture in this suite (`$state0`).
+///
+/// **Spelled through the legacy lowering on both authorities** (stage 4, lane 4;
+/// `ListTests.Row`'s own re-spelling, `LR-BW`). It registered `pass.requestNode`
+/// outright until then, which under `.proposal` hits `Frame.requestNode`'s
+/// backstop and **aborts the run** —
+/// `aLegacySpelledExcursionRowAbortsAProductionProposalFrame` below is that abort
+/// kept as an observable. `lowerLegacyNode` over no children forwards to
+/// `lowerLegacyLeaf` over a 0×0 native leaf by itself, which is the lowering of a
+/// childless `Box`, so the two branches describe the same box.
+///
+/// **The `@State` write stays outside the branch**, deliberately: it is what this
+/// fixture exists for, and a production count that depended on the authority
+/// would make the two excursion arms incomparable rather than comparable.
 private struct ExcursionRow: Element {
     @State var count = 0
     var elementID: ElementID? { nil }
@@ -97,6 +110,10 @@ private struct ExcursionRow: Element {
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Void) {
         count += 1
+        if pass.lowersToProposal {
+            return (pass.lowerLegacyNode(Style(), declared: Style(), children: [],
+                                         site: .customElement), ())
+        }
         return (pass.requestNode(style: Style(), children: []), ())
     }
 
@@ -109,6 +126,87 @@ private struct ExcursionRow: Element {
 
 private struct ExcursionItem: Identifiable {
     let id: String
+}
+
+// MARK: - The red-before for the excursion test's `.proposal` arm (`LR-BX`)
+
+/// **`ExcursionRow`'s registration exactly as it stood at `16d6696`**, kept as a
+/// live fixture so the probe below keeps a subject after `ExcursionRow` itself is
+/// re-spelled through `lowerLegacyNode` (stage 4, lane 4).
+///
+/// It carries no `@State`: the probe never reads a slot, it reads a trap.
+private struct LegacySpelledExcursionRow: Element {
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        (pass.requestNode(style: Style(), children: []), ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {}
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **The red this lane could not take in-process** (`LR-BX`, spec §6 lane 4).
+/// `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` is about to run
+/// under both layout authorities. Running it under `.proposal` with its row
+/// spelled as `pass.requestNode(style:children:)` does not fail — it hits
+/// `Frame.requestNode`'s backstop (the one
+/// `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` pins) and **aborts the
+/// whole run**, with no summary line and no list of what failed. So the red is
+/// taken here, in a child process, in `ListTests`'
+/// `aLegacySpelledListRowAbortsAProductionProposalFrame`'s shape.
+///
+/// A **production** frame: no `reportsUnlowerableFields`, which is what the
+/// excursion test builds and what `Window` builds.
+///
+/// Recorded, with the assertion temporarily pointed at a string that cannot
+/// match (reverted; `git status --short` clean afterwards):
+///
+///     MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestNode
+///     has no proposal lowering (plan task 7, stage 6a); a tree containing it
+///     cannot run under the proposal layout authority.
+@Test func aLegacySpelledExcursionRowAbortsAProductionProposalFrame() async {
+    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            let data = (0..<12).map { ExcursionItem(id: "row\($0)") }
+            var tree = ScrollView(.vertical, elementID: ElementID("scroller")) {
+                List(data, rowHeight: Pixels(20)) { _ in LegacySpelledExcursionRow() }
+            }
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(20)),
+                  scaleFactor: 1, stateTable: StateTable(),
+                  layoutAuthority: .proposal).render(&tree)
+        }
+    }
+    let err = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(err.contains("customElement.requestNode has no proposal lowering"),
+            "aborted, but not at the row's requestNode:\n\(err)")
+}
+
+/// **The design's premise about `FocusTests`' row, measured and found wrong.**
+/// Spec §6 lane 4 says `TombstoneTests.ExcursionRow` and `FocusTests`' row "both
+/// abort under `.proposal` today". Only the first does.
+/// `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne` builds its rows as
+/// `Box().focusable()` — a `Box`, which stage 1 lowered, and `focusable()` is a
+/// `Self`-returning modifier that writes `handlers`, not a registration — so the
+/// identical tree under `.proposal` **runs to completion**. This arm is the
+/// positive control for the one above: the abort is the row's spelling, not the
+/// `List`, not the `ScrollView` and not `@State`. `LR-CF` records the correction.
+@Test func aBoxSpelledListRowDoesNotAbortAProductionProposalFrame() async {
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            let data = (0..<12).map { ExcursionItem(id: "row\($0)") }
+            var tree = ScrollView(.vertical, elementID: ElementID("scroller")) {
+                List(data, rowHeight: Pixels(20)) { _ in Box().focusable() }
+            }
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(20)),
+                  scaleFactor: 1, stateTable: StateTable(),
+                  layoutAuthority: .proposal).render(&tree)
+        }
+    }
 }
 
 /// **Divergence 12, closed as BOUNDED, not absolute.** A `List` row scrolled
@@ -157,8 +255,23 @@ private struct ExcursionItem: Identifiable {
 /// **This alone is not enough to prove the reap is gated ON the threshold at
 /// all** — see `aStaleEntryIsRetainedForeverWhileStorageStaysAtOrBelowSweepThreshold`
 /// below for why, and for the mutation this test cannot catch.
+///
+/// **Runs under BOTH layout authorities since plan task 7's stage 4, lane 4**
+/// (spec §4.1 row 2, `LR-BU`). Stage 4 replaced `List`'s spacer-plus-rows flex
+/// column with a single `WindowedRowsLayout` on the proposal path, so which rows
+/// are *built* — and therefore which `StateTable` entries a generation marks — is
+/// decided by `visibleRange` on one path and could have been decided by the
+/// layout on the other. It is not: `visibleRange` is untouched (spec §3.3), and
+/// this test is what says so about retention rather than about geometry. Every
+/// literal below — the offsets, the windows they select, the counts 1/3/4 — is
+/// unchanged on both paths; the only difference is `layoutAuthority`.
+///
+/// Mutation **M4a** (`staleAfterGenerations` 2 → 3) must redden this test's long
+/// half on **both** authorities, and `FocusTests`' twin likewise.
 @MainActor
-@Test func aListRowsStateSurvivesABoundedExcursionButNotALongerOne() throws {
+@Test(arguments: AuthorityCoverage.authorities)
+func aListRowsStateSurvivesABoundedExcursionButNotALongerOne(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     func px(_ v: Float) -> Pixels { Pixels(v) }
     let rowHeight = px(20)
     let data = (0..<12).map { ExcursionItem(id: "row\($0)") }
@@ -194,7 +307,8 @@ private struct ExcursionItem: Identifiable {
                                                 lastScrollTime: current.lastScrollTime,
                                                 viewportExtent: current.viewportExtent))
         }
-        let frame = Frame(contentSize: contentSize, scaleFactor: 1, stateTable: table)
+        let frame = Frame(contentSize: contentSize, scaleFactor: 1, stateTable: table,
+                          layoutAuthority: authority)
         frame.render(&tree)
     }
 

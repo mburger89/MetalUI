@@ -169,27 +169,66 @@ enum LayoutDifferential {
     }
 
     /// The frame one side renders, kept for a test that needs more than the report.
+    ///
+    /// **`frames` and `stateTable` exist because one frame cannot window a
+    /// `List`** (ruling `LR-BY`, plan task 7 stage 4 lane 1, critic round 1
+    /// defect D4). `ScrollContext.viewportExtent` is one frame stale by
+    /// construction — only `ScrollChrome.resolvedOffset`'s `PrepaintPass`
+    /// overload ever writes it, into the scroller's `ScrollState` — so on the
+    /// first frame it is 0, `List.visibleRange` takes its
+    /// `context.viewportExtent > 0` guard and returns `0..<count`, and
+    /// `windowIsBounded` is false, which sends `List.prepaint` down the branch
+    /// that publishes the table and **no rows**. Every `List` arm of every
+    /// differential test was therefore comparing an unwindowed list, and its
+    /// `accessibilityEqual` was comparing one record with one record and
+    /// passing vacuously.
+    ///
+    /// `frames > 1` renders that many frames of ONE side over one
+    /// `StateTable` — the same object a real `Window` threads across its
+    /// frames — and returns the last. **An arm that relies on this owes a
+    /// `try #require` that the window really is bounded and the row-record set
+    /// really is non-empty**, on both sides, before it asserts anything; the
+    /// anti-vacuity check is part of the arm, not a review note. Pinned by
+    /// `aListInTheDifferentialHarnessReachesABoundedWindow` (`ListTests.swift`),
+    /// whose mutation M1f forces `frames` back to 1.
     static func render<Content: ElementGroup>(authority: LayoutAuthority,
                                               width: Float, height: Float, scaleFactor: Float = 1,
+                                              stateTable: StateTable? = nil,
+                                              frames: Int = 1,
                                               @ElementBuilder _ make: @MainActor () -> Content) -> Frame {
-        var root = DifferentialRoot(width: width, height: height, content: make)
-        let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)),
-                          scaleFactor: scaleFactor,
-                          stateTable: StateTable(),
-                          collectsAccessibility: true,
-                          layoutAuthority: authority,
-                          reportsUnlowerableFields: authority == .proposal,
-                          recordsElementBounds: true)
-        frame.render(&root)
-        return frame
+        precondition(frames >= 1, "a side renders at least one frame")
+        let table = stateTable ?? StateTable()
+        var last: Frame?
+        for _ in 0..<frames {
+            var root = DifferentialRoot(width: width, height: height, content: make)
+            let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)),
+                              scaleFactor: scaleFactor,
+                              stateTable: table,
+                              collectsAccessibility: true,
+                              layoutAuthority: authority,
+                              reportsUnlowerableFields: authority == .proposal,
+                              recordsElementBounds: true)
+            frame.render(&root)
+            last = frame
+        }
+        return last!
     }
 
+    /// **`compare` grows `frames:` and deliberately does NOT grow
+    /// `stateTable:`.** `LR-BY` says it "grows the same two"; it cannot. The
+    /// report's `stateSlotsEqual` is `legacy.stateTable.ids ==
+    /// lowered.stateTable.ids`, so handing both sides one table would make that
+    /// field compare a set with itself and pass for every tree — the exact
+    /// vacuity the `frames:` parameter exists to remove. Each side therefore
+    /// gets its own fresh `StateTable`, threaded through its own `frames`
+    /// frames (`LR-CC`).
     static func compare<Content: ElementGroup>(width: Float, height: Float, scaleFactor: Float = 1,
+                                               frames: Int = 1,
                                                @ElementBuilder _ make: @MainActor () -> Content) -> Report {
         let legacy = render(authority: .legacy, width: width, height: height,
-                            scaleFactor: scaleFactor, make)
+                            scaleFactor: scaleFactor, frames: frames, make)
         let lowered = render(authority: .proposal, width: width, height: height,
-                             scaleFactor: scaleFactor, make)
+                             scaleFactor: scaleFactor, frames: frames, make)
         return report(legacy: legacy, lowered: lowered)
     }
 

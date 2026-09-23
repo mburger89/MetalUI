@@ -86,6 +86,14 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
         // fresh `switch` arm nobody remembers to add.
         case .scrollView, .component:
             return "3"
+        // Stage 4 lowered `List`, so the SITE-LEVEL entry is gone: `.list` now
+        // survives exactly as `scrollView` does — for a ROW's unlowerable item
+        // field, which `ListRows` reports at this site through
+        // `planLegacyItems`' `parentSite:` (`flexGrow.weights`, the only field
+        // raised there, `LR-BM`), and for a field a later stage puts on the
+        // windowed node's unconsumed record (`<field>.unconsumed`). No row can
+        // raise the weights entry today (`LR-BV`), which is `component`'s
+        // post-`LR-BO` position.
         case .list:
             return "4"
         case .customElement:

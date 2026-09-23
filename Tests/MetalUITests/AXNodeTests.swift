@@ -20,11 +20,17 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// `AXNode` is emitted in prepaint and read back off the frame, and the
 /// dictionary contract (`Frame.axNodes`) is testable without an element at
 /// all.
-@MainActor private func bareFrame(_ side: Float = 300) -> Frame {
+///
+/// **`authority` since stage 4's lane 4**: the three `List` tests below run under
+/// both, and every other caller takes the default `.legacy` — none of them builds
+/// an element tree at all, so a second authority would be an argument their
+/// bodies never read (`LR-BN`'s rule).
+@MainActor private func bareFrame(_ side: Float = 300,
+                                  authority: LayoutAuthority = .legacy) -> Frame {
     Frame(contentSize: Size(width: px(side), height: px(side)),
           scaleFactor: 1, stateTable: StateTable(),
           shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
-          theme: Theme.forAppearance(.light))
+          theme: Theme.forAppearance(.light), layoutAuthority: authority)
 }
 
 /// Distinct element ids, named rather than positional so they can never
@@ -574,13 +580,27 @@ private struct AXListRow: Identifiable {
 /// production `List` does not do this for its rows on its own (only for its
 /// own container node — see `List.requestLayout`), and this fixture is not
 /// claiming otherwise.
+///
+/// **Spelled through the legacy lowering on both authorities** (stage 4, lane 4;
+/// `ListTests.Row`'s own re-spelling, `LR-BW`). It registered `pass.requestNode`
+/// outright until then, which under `.proposal` aborts the run at
+/// `Frame.requestNode`'s backstop —
+/// `aLegacySpelledAXListRowAbortsAProductionProposalFrame` below is that abort
+/// kept as an observable. `lowerLegacyNode` over no children forwards to
+/// `lowerLegacyLeaf` over a 0×0 native leaf by itself, so both branches describe
+/// the same childless box, and the `emitAXNode` below is untouched: what the
+/// three tests read is the emission, not the node.
 private struct AXListLeaf: Element {
     let datum: AXListRow
     var elementID: ElementID? { nil }
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Void) {
-        (pass.requestNode(style: Style(), children: []), ())
+        if pass.lowersToProposal {
+            return (pass.lowerLegacyNode(Style(), declared: Style(), children: [],
+                                         site: .customElement), ())
+        }
+        return (pass.requestNode(style: Style(), children: []), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -593,15 +613,66 @@ private struct AXListLeaf: Element {
                         layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
 }
 
+// MARK: - The red-before for the three `List` tests' `.proposal` arms (`LR-BX`)
+
+/// **`AXListLeaf`'s registration exactly as it stood at `16d6696`**, kept as a
+/// live fixture so the probe below keeps a subject after `AXListLeaf` is
+/// re-spelled through `lowerLegacyNode` (stage 4, lane 4). It emits no `AXNode`:
+/// the probe reads a trap from `requestLayout`, which runs first.
+private struct LegacySpelledAXListLeaf: Element {
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        (pass.requestNode(style: Style(), children: []), ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {}
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **The red this lane could not take in-process** (`LR-BX`, spec §6 lane 4), the
+/// twin of `TombstoneTests.aLegacySpelledExcursionRowAbortsAProductionProposalFrame`.
+/// The three `List` tests below are about to run under both layout authorities;
+/// under `.proposal` a row spelled `pass.requestNode(style:children:)` hits
+/// `Frame.requestNode`'s backstop and aborts the run rather than failing it.
+///
+/// Recorded, with the assertion temporarily pointed at a string that cannot
+/// match (reverted; `git status --short` clean afterwards):
+///
+///     MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestNode
+///     has no proposal lowering (plan task 7, stage 6a); a tree containing it
+///     cannot run under the proposal layout authority.
+@Test func aLegacySpelledAXListRowAbortsAProductionProposalFrame() async {
+    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var list = List((0..<20).map(AXListRow.init), rowHeight: Pixels(28)) { _ in
+                LegacySpelledAXListLeaf()
+            }
+            list.elementID = ElementID("list")
+            Frame(contentSize: Size(width: Pixels(600), height: Pixels(600)),
+                  scaleFactor: 1, stateTable: StateTable(),
+                  layoutAuthority: .proposal).render(&list)
+        }
+    }
+    let err = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(err.contains("customElement.requestNode has no proposal lowering"),
+            "aborted, but not at the row's requestNode:\n\(err)")
+}
+
 /// Runs the full three-phase pipeline over `list` with `context` pushed onto
 /// `frame`'s scroll-context stack before `requestLayout` runs —
 /// `ListTests.swift`'s own `renderWindowed`, reproduced here because that one
 /// is `private` to its own file.
 @MainActor
 private func renderListWindowed<Data: RandomAccessCollection, Row: Element>(
-    _ list: inout List<Data, Row>, context: ScrollContext
+    _ list: inout List<Data, Row>, context: ScrollContext,
+    authority: LayoutAuthority = .legacy
 ) -> Frame where Data.Element: Identifiable {
-    let frame = bareFrame(600)
+    let frame = bareFrame(600, authority: authority)
     frame.pushScrollContext(context)
     let rootID = GlobalElementID.child(of: nil, at: 0, name: list.elementID)
     var layoutPass = LayoutPass(frame: frame)
@@ -637,13 +708,19 @@ private func renderListWindowed<Data: RandomAccessCollection, Row: Element>(
 /// own requirement: a test that only checks 500 would pass against a `List`
 /// that realized every row, which is exactly the regression windowing exists
 /// to prevent.
-@Test @MainActor func aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount() throws {
+///
+/// **Both authorities since stage 4's lane 4** (spec §4.1 row 4, `LR-BU`): the
+/// realized set is `visibleRange`'s, which stage 4 did not touch, and this is
+/// the pin that says so about `Frame.axNodes` rather than about geometry.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     let data = (0..<500).map { AXListRow(id: $0) }
     var list = List(data, rowHeight: px(28)) { AXListLeaf(datum: $0) }
     list.elementID = ElementID("list")
 
     let context = ScrollContext(offset: 140, viewportExtent: 364, axis: .vertical)
-    let frame = renderListWindowed(&list, context: context)
+    let frame = renderListWindowed(&list, context: context, authority: authority)
 
     let listID = GlobalElementID.child(of: nil, at: 0, name: list.elementID)
     let listNode = try #require(frame.axNodes[listID], "the List's own container node")
@@ -672,7 +749,9 @@ private func renderListWindowed<Data: RandomAccessCollection, Row: Element>(
 /// against the raw `data.count` literal (500) rather than against
 /// `realizedRowCount`'s own value, which is what actually catches that
 /// mutant (see this task's report for the mutation run).
-@Test @MainActor func aVirtualizedListsLogicalCountIsTheFullDataCountEvenWhenEveryRowFits() throws {
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aVirtualizedListsLogicalCountIsTheFullDataCountEvenWhenEveryRowFits(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     let data = (0..<5).map { AXListRow(id: $0) }
     var list = List(data, rowHeight: px(28)) { AXListLeaf(datum: $0) }
     list.elementID = ElementID("list")
@@ -681,7 +760,7 @@ private func renderListWindowed<Data: RandomAccessCollection, Row: Element>(
     // the "realizes every row" shape — logicalCount must still read 5, not
     // merely "whatever was built", which this small fixture cannot tell
     // apart on its own without the differential test above.
-    let frame = bareFrame(600)
+    let frame = bareFrame(600, authority: authority)
     frame.render(&list)
 
     let listID = GlobalElementID.child(of: nil, at: 0, name: list.elementID)
@@ -701,13 +780,15 @@ private func renderListWindowed<Data: RandomAccessCollection, Row: Element>(
 /// caller CAN reach in and declare a role/label today; this pins that a
 /// caller's own declaration survives `List` adding `logicalCount`, rather
 /// than being silently clobbered to `.container`.
-@Test @MainActor func aCallerDeclaredAXNodeOnAListSurvivesLogicalCountBeingAdded() throws {
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aCallerDeclaredAXNodeOnAListSurvivesLogicalCountBeingAdded(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     let data = (0..<3).map { AXListRow(id: $0) }
     var list = List(data, rowHeight: px(28)) { AXListLeaf(datum: $0) }
     list.elementID = ElementID("list")
     list.handlers.axNode = AXNode(role: .button, label: "Custom")
 
-    let frame = bareFrame(600)
+    let frame = bareFrame(600, authority: authority)
     frame.render(&list)
 
     let listID = GlobalElementID.child(of: nil, at: 0, name: list.elementID)

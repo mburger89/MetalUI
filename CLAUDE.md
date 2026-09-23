@@ -33,7 +33,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-BQ`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-CH`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-J`;
@@ -54,23 +54,29 @@ milestones append their record to `docs/record/` and put only the rule here.
   probe `swiftui-engine-replacement-stage2.swift` revision 4), 7 stage 3
   `LR-BB`…`LR-BP` (§25, spec `specs/2026-09-22-engine-stage-3-design.md`, same
   decisions doc, probe `swiftui-engine-replacement-stage3.swift` revision 2),
+  7 stage 4 `LR-BQ`…`LR-CG` (§27, spec
+  `specs/2026-09-23-engine-stage-4-design.md`, same decisions doc; **no new
+  probe** — its SwiftUI claims are `swiftui-stack-algorithms.swift`'s K6),
   7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
-  of scope**, proposed as stage G2 after stage 4, which owns the windowing they
-  need (`GR-L`). Five record files are not tasks of this plan: §19 is the
+  of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
+  landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
+  and G2 is unblocked rather than waiting. Five record files are not tasks of
+  this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
   `specs/2026-09-22-freetype-rasterizer-design.md`, rulings in that spec),
   §26 the HarfBuzz shaper (`SH-`, spec
-  `specs/2026-09-22-harfbuzz-shaper-design.md`) and §27 the portable text
-  pipeline (`PT-`, spec `specs/2026-09-23-portable-text-design.md`). **§27
-  may be renumbered at merge** if task 7 stage 4's record (written as §26 on
-  `feat/engine-stage-4`, which must move anyway) lands first.
-  **§24 is FreeType and §25 is stage 3** — stage 3's record was renumbered
-  24→25 at the merge because the FreeType line was pushed first (record §25's
-  header, and the precedent in record §23 §8).
+  `specs/2026-09-22-harfbuzz-shaper-design.md`, rulings in that spec) and
+  §28 the portable text pipeline (`PT-`, spec
+  `specs/2026-09-23-portable-text-design.md`, rulings in that spec).
+  **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
+  — each stage record was renumbered (24→25, 26→27) at its merge because the
+  other line was pushed first (record §25's and §27's headers, and the
+  precedent in record §23 §8). §28 was written as §27 and renumbered when
+  stage 4 reached `master` first.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -87,33 +93,40 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-23, `feat/portable-text`): 1603 tests, 97 goldens, 77
-  typecheck guards**, 0 `error:`, 0 `warning:` on both build systems, taken
-  after `swift package clean` with `swift build --build-system native
-  --build-tests` then unfiltered `swift test --build-system native
-  --no-parallel` (**one summary line**, `Test run with 1603 tests in 3 suites
-  passed`; the guards ran — the log carries `FR-J no-argument frame:
-  succeeded=`). Goldens unmoved against `f5e5651`. The portable text line
-  (record §27) adds 8 tests (`MetalUIPortableTextTests`, the Apple-path
-  oracle; five skipped now, its gated measurement joining the four below) and
-  no guard on top of master's 1595; `Tests/PortableTests` separately runs
-  4 + 6 + 5. Before it: 1595 / 97 / 77 at `f5e5651`
-  (`feat/harfbuzz-shaper` merged with `master`; four skipped: the two gated
-  tests and the FreeType and HarfBuzz oracles' gated measurement tests). The
-  HarfBuzz line (record §26) added 15 tests and no guard on top of
-  master's 1580. **1580 = 1558 + 22 = 1550 + 8 + 22**: master `b10594c`
-  (1558) is 1550 plus
-  the FreeType line's 8, and stage 3 adds 22 (lane 1 +3, lane 2 +8, lane 3 +2,
-  lane 4 +6, lane 5 +3). Neither line added a golden or a guard, so 97 / 77
-  are unchanged and the per-file list is unchanged; records §24 (FreeType) and
-  §25 (stage 3). Guards per file: `PhaseSeparationTests` 19,
+- **Counts (2026-09-23, `feat/portable-text` merged with `master` at
+  `e5caefb`, stage 4): 1625 tests, 97 goldens, 77 typecheck guards**, 0
+  `error:`, 0 `warning:` on both build systems, taken after `swift package
+  clean` with `swift build --build-system native --build-tests` then
+  unfiltered `swift test --build-system native --no-parallel` (**one summary
+  line**, `Test run with 1625 tests in 3 suites passed`; five skipped:
+  the two gated tests and the FreeType, HarfBuzz and portable text oracles'
+  gated measurement tests; the guards ran — the log carries `FR-J
+  no-argument frame: succeeded=`). Goldens unmoved against `e5caefb`. The
+  portable text line (record §28) adds 8 tests (`MetalUIPortableTextTests`)
+  and no golden or guard to master's 1617; `Tests/PortableTests` separately
+  runs 4 + 6 + 5. Master's 1617 was taken the same way (**1617 = 1580 + 15 +
+  22**: master `f5e5651`
+  (1595) is `integrate/stage-3`'s 1580 plus the HarfBuzz line's 15 (record
+  §26), and stage 4 adds 22 (lane 1 +3, lane 2 +9, lane 3 +1, lane 4 +5,
+  lane 5 +4; record §27)). **None of these lines added a golden or a guard**, so
+  97 / 77 are unchanged, the per-file list below is unchanged and so is the
+  "all 77 guards skip under the default build system" sentence. **`List` is
+  public and its stored `box`'s generic argument changed at stage 4, so
+  `swift package clean` before re-taking.** Before these two lines: 1602 /
+  97 / 77 on `feat/engine-stage-4` alone, 1595 / 97 / 77 at master
+  `f5e5651`, both from 1580 / 97 / 77 on `integrate/stage-3` (2026-09-22,
+  task 7 stage 3 merged with the FreeType rasterizer line), itself **1558 +
+  22 = 1550 + 8 + 22** — master `b10594c` (1558) is 1550 plus the FreeType
+  line's 8, and stage 3 added 22 (lane 1 +3, lane 2 +8, lane 3 +2, lane 4 +6,
+  lane 5 +3); records §24 (FreeType) and §25 (stage 3). Guards per file:
+  `PhaseSeparationTests` 19,
   `ErasureCompileGuards` 10, `EnvironmentCompileGuards` 8,
   `ProposalNodeIDCompileGuards` 6, `ProposalLayoutCompileGuards` 6,
   `ElementGroupTrapTests` 5, `ContainerCompileGuards` 4, `GridCompileGuards` 4,
   `AXNodeTests` 3, `DecorationCompileGuards` 3, `UnitSafetyTests` 2 (3 hits,
   one a comment), `ModifiedElementCompileGuards` 2, `FrameSizingCompileGuards`
   2, `SceneBoundaryCompileGuards` 2, `LayoutAuthorityCompileGuards` 1.
-  Before this merge: 1558 / 97 / 77 at `b10594c` (the FreeType line, record
+  Earlier: 1558 / 97 / 77 at `b10594c` (the FreeType line, record
   §24, +8 tests and no guard) and 1572 / 97 / 77 on `feat/engine-stage-3`
   (record §25), both from 1550 / 97 / 77 at `57893d0` — itself the merge of
   two lines, 1548 / 97 / 75 on `integrate/stage-2-grids`
@@ -123,12 +136,13 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   record §06, §19 "Build and test". A count is stale the moment a test lands;
   re-measure.
 - **Read the printed counts, never the exit status.** `--build-system native`
-  prints ONE summary line even with two suites in the run (it says "in 2
+  prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
   **Five** gated tests count toward the total while skipped —
   `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`, the
-  FreeType oracle's `measure(file:)`, the HarfBuzz oracle's measurement and the
-  portable text oracle's `theMeasuredDifferences`. The lone `warning:`
+  FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
+  (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
+  `theMeasuredDifferences` (`METALUI_PORTABLE_ORACLE_MEASURE=1`). The lone `warning:`
   under native is SwiftPM's deprecation notice.
 - **Goldens must not move** on a change outside `Sources/MetalUILayout/`
   (`find Tests/MetalUILayoutTests -name "*.json" | wc -l` — not all of
@@ -156,7 +170,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
   (default swiftbuild system, `--scratch-path`, `-c release`) — the total
   does not move and the run passes. A worktree with its own `.build` at its
-  root runs them (measured under `~/Developer/worktrees/`, record §27); grep
+  root runs them (measured under `~/Developer/worktrees/`, record §28); grep
   the log for `FR-J no-argument frame: succeeded=` rather than assume.
 - **Adding an AppKit or WebKit test? Run the whole suite unfiltered** (shared
   process and run loop; `--filter` is a different program).
@@ -299,6 +313,23 @@ row. Rows out of window >2 generations lose `@State` once the table exceeds
 256 entries (TB-AH) — keep durable values in data. Publishes an `AXTable` of
 realized rows only.
 
+**Under the proposal authority a `List` lowers** (stage 4, `LR-BQ`…`LR-CG`):
+its rows are a `ListRows` group whose realized rows are consumed, planned and
+wrapped by stage 2's item machinery and placed by a `WindowedRowsLayout` at
+`(firstIndex + i) × rowHeight`; the layout answers `rowHeight × logicalCount`
+on the height — **not** SwiftUI's greedy answer (probe K6): a `List` is
+virtualized and its content height is the point — and the proposal, or its
+widest realized row at a nil axis, on the width. There is **no site check and
+no `.list` site report left**. On the **legacy** path the leading spacer is now
+a bare node, not a `Box` element: it mints no `$anim` entry, records no
+`elementBounds` row and no longer animates, which is one fewer `StateTable` id
+per `List`. Everything else is unchanged and measured so under **both**
+authorities — row identity, `@State` and focus retention and their loss past
+the bound, the `AXTable` and its `AXIndex`es, the unbounded-window and
+one-more-frame rules, `MP-I`'s cold frame, wheel routing, hit testing and the
+disabled gate — and **divergences 13 and 14 survive**, their pins now running
+on both authorities.
+
 **`Deferred`** is a portal: one child, no layout node, hoists to the root
 layer, resets clip and scroll offset (AP-I) but **not opacity** (`OM-AA`).
 One element contributes one opacity scope (divergence 46). Absolute
@@ -420,7 +451,7 @@ sleep: drive `simulateTick(timestamp:)`.
 ## SwiftUI alignment — the proposal layout path
 
 A propose/measure/place engine sits beside the CSS engine. Detail: §19
-"SwiftUI alignment", record §09, §17, §18, §21, §22.
+"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27.
 
 - **Two engines, chosen by the window root alone**
   (`tree.isNativeLayoutNode(root)`). A native root is placed centred at its own
@@ -486,7 +517,17 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   per-member frames at spacing 0. Site `component` has **no reachable report**
   left. **Both scroll suites run under both authorities** — 34 scenarios, a
   roll call that names any scenario that stops participating, and a new one
-  owes a `ScrollAuthorityCoverage.record` call and a bump of the 34.
+  owes an `AuthorityCoverage.record` call and a bump of the 67 (stage 4
+  renamed the registry and absorbed these 34 into its own count).
+- **Stage 4 lowers `List`** (`LR-BQ`…`LR-CG`). The behaviour is in the `List`
+  paragraph above. Two things a reader needs here: the exit criterion is now
+  **67 scenarios across ten files under both authorities**, and
+  `ScrollAuthorityCoverage` is **renamed `AuthorityCoverage`**, with
+  `everyScrollScenarioRanUnderBothLayoutAuthorities` renamed
+  `everyParameterisedScenarioRanUnderBothLayoutAuthorities` and moved to
+  `Tests/MetalUITests/ZZAuthorityRollCall.swift` so that it sorts after every
+  contributing file. A new parameterised scenario owes an
+  `AuthorityCoverage.record` call and a bump of the 67.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -645,7 +686,16 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 - **A copy of a pinned implementation is unpinned** — mutate each copy.
   **Record which branch a mutation was applied to**: a whole-file substitution
   over two byte-identical call sites is a different mutation, with a different
-  reddened set, from a scoped one (stage 3's M2g).
+  reddened set, from a scoped one (stage 3's M2g). **And record which SPELLING
+  it was applied to, not only which branch**: "the records not consumed" and
+  "the records neither read nor consumed" redden the same seven tests with 12
+  and 46 issues, so a later reader re-running the wording gets a different
+  number with no way to tell which reading is the instrument (stage 4's M2f,
+  and M2a's 30 vs 47).
+- **A harness decision is a mutation site.** Stage 4 lane 3's host box — the
+  largest decision in the lane — was pinned by none of the lane's three
+  mutations, and the one the verifier took (drop its declared height) both
+  reddened eleven scenarios and refuted the published reason for it.
 - **A fixture of fixed-size leaves cannot see a container lowering.**
   `planLegacyItems`, `arrangeLegacyMainAxis` and `paddedAndSized` are all
   no-ops over children that declare no item field, so "this lowers as the
@@ -665,9 +715,11 @@ expected, measured facts:
 
 - **Known divergences** (**58 live**, stable labels; retired labels never
   reused: 3, 5–8, 12, 15, 17, 36, 37, 40, 59) — record §04 is current (its
-  2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows, and
+  2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
   its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
-  adding a number);
+  adding a number, and its 2026-09-23 one likewise amends **13, 14 and 18** for
+  stage 4 — 13 and 14 survive unchanged with 14's pin now running under both
+  authorities, and 18's numbers move to `2n + 6`, crossing at **126** rows);
   §19 "Known divergences" is the frozen 48-row copy. Many are *pinned wrong on
   purpose*; a test named for one reddening may be a fix, not a bug.
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
@@ -678,8 +730,12 @@ expected, measured facts:
   `locale`/`layoutDirection`/`dynamicTypeSize`, one axis each of
   `markNativeGridRow`/`markNativeGridCell`'s alignment, a grid mark outside a
   grid, …) — §19 "Declared but inert", record §05, whose 2026-09-21 section
-  carries the stage 2 and grids changes and whose 2026-09-22 one carries stage
-  3's. **Three of those rows are
+  carries the stage 2 and grids changes, whose 2026-09-22 one carries stage
+  3's and whose 2026-09-23 one carries stage 4's: `UnlowerableField` site
+  `.list` now has **no site-level reporter left** (the same shape as site
+  `component`), `LayoutAuthority.proposal` in production stays inert until
+  stage 6b, and the internal `ListRows.GroupLayout.spacer` is stored on every
+  frame of every legacy `List` and read by nothing. **Three of those rows are
   legacy-authority only**: under `.proposal`, stage 2 lowers `margin: .auto`
   to nothing explicitly, `Style.border` on a container to insets, and a
   `Text`'s `Style.padding` around its leaf. `Style.overflow` is **not** one of
@@ -704,11 +760,22 @@ expected, measured facts:
   with an independently written harness, and the two-authority chrome pair 0,
   but **none of the twelve scenes is ever scrolled**, so no indicator is
   painted in any of them and the fold's indicator half is pinned by tests, not
-  pixels). Nothing in production runs under the proposal authority, so **no
+  pixels). **Stage 4's capture is taken, and read 0 differing** — three times
+  (lane 3 at `352f838`, and two verifiers at `9ad98db` and `a53daeb`), each
+  with four a-vs-b stability zeros and a ~921 000-pixel default-vs-preview
+  control, plus the twelve offscreen images at 0 at every lane and twice more
+  in verification. **The demo's `List` is never windowed in any of them** (one
+  cold frame, `firstIndex == 0`), so the windowing is pinned by tests, not by
+  pixels. Nothing in production runs under the proposal authority, so **no
   demo look is owed until stage 6b**.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;
-  re-measure before reasoning from them.
+  re-measure before reasoning from them. **`MP-I`'s 100 000-row cold frame
+  re-measured 2026-09-23 on this machine: 12.24 s release legacy / 7.55 s
+  release proposal, 37.16 s / 24.98 s debug** — the ~17 s figure carried
+  elsewhere is stale, and that staleness is not a change stage 4 made. The
+  proposal path's cold frame is about a third faster than the legacy one at
+  that size: measured, not a goal, and asserted by nothing.
 - **CI hazards** — §19 "CI", record §08. Key ones: all **77** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
@@ -719,14 +786,21 @@ expected, measured facts:
   freeze-loop allocation pin checks only half itself on Apple toolchains
   (`FREEZE-ALLOC: strict per-pass bound NOT CHECKED`); `malloc_logger` tests
   need `--no-parallel`; E24 hard-fails under the root locale; seven
-  `AnimationTests` hard-fail without a display device. Two more, added by
-  stage 3:
-  - `everyScrollScenarioRanUnderBothLayoutAuthorities` reads coverage
-    accumulated by two other files and so depends on Swift Testing's
-    **unspecified** cross-file order (measured on Swift 6.4 only). On a runner
-    with a different order it is a spurious red, and `swift test --filter
-    everyScrollScenario` hard-fails. It always names what it had not seen —
-    read the names before debugging.
+  `AnimationTests` hard-fail without a display device. Two more were added by
+  stage 3 (the first renamed and widened by stage 4) and one by stage 4:
+  - `everyParameterisedScenarioRanUnderBothLayoutAuthorities` (stage 3's
+    `everyScrollScenario…`, renamed and moved to `ZZAuthorityRollCall.swift` by
+    stage 4) reads coverage accumulated by **ten** other files and so depends
+    on Swift Testing's **unspecified** cross-file order (measured on Swift 6.4
+    only). On a runner with a different order it is a spurious red, and
+    `swift test --filter everyParameterisedScenario` hard-fails. It always
+    names what it had not seen — read the names before debugging.
+  - **Three `AccessibilityDefaultsTests` scenarios call
+    `AuthorityCoverage.record` after `try #require(MTLCreateSystemDefaultDevice())`**,
+    where the other eight parameterised scenarios record first. On a
+    display-less runner they fail at the require *and* the roll call fails a
+    second time naming them as having recorded no coverage — the second
+    message points at the registry, not at the absent device.
   - A proposal-authority regression that reports an `…unconsumed` field now
     **traps in a `Window` test and truncates the run with no summary line**
     (the first such test is #1251). Read the last lines of the log, not the

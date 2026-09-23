@@ -1,13 +1,12 @@
-# 27 — Portable text pipeline (`MetalUIPortableText`), 2026-09-23
+# 28 — Portable text pipeline (`MetalUIPortableText`), 2026-09-23
 
 Branch `feat/portable-text`, from `master` at `f5e5651` (the HarfBuzz merge,
 record §26). Spec: `docs/superpowers/specs/2026-09-23-portable-text-design.md`,
 rulings `PT-A`…`PT-I` in that spec (no separate decisions doc; next `PT-J`).
 
-**This number may be renumbered at merge.** Task 7 stage 4
-(`feat/engine-stage-4`) wrote its record as §26 before the HarfBuzz line took
-that number, so it moves whichever lands first; if it lands before this
-branch, this file becomes §28 (precedent: record §23 §7, §25's header).
+**Renumbered 27→28 at the merge with `master` (`e5caefb`).** Task 7 stage 4
+reached `master` first and took §27, as record §23 §7 and §25's header
+record for the earlier cases. §28 §Counts is re-taken on the merged tree.
 
 ## Why
 
@@ -117,6 +116,11 @@ carries `FR-J no-argument frame: succeeded=`, so `CLAUDE.md`'s "guards skip in
 a worktree" did not hold for this worktree's layout). 0 `error:`; the one
 `warning:` is SwiftPM's `--build-system native` deprecation notice. The default
 build system: 0 `error:`, 0 `warning:` (`swift build --build-tests`).
+
+**After the merge with `master` at `e5caefb` (stage 4), re-taken the same
+way from a clean tree: `Test run with 1625 tests in 3 suites passed`** —
+master's 1617 plus this line's 8 — 97 goldens unmoved against `e5caefb`, the
+guards ran, 0 `error:`, 0 `warning:` on the default build system.
 
 The portable package: 4 + 6 + 5 tests in three suites (`PortableTextDeterminism`
 4 with the recorder skipped, `HarfBuzzDeterminism` 6, `FreeTypeDeterminism` 5),

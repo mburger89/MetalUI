@@ -1,6 +1,6 @@
 # Portable text pipeline — design
 
-**Status:** implemented on `feat/portable-text`, 2026-09-23 (record §27);
+**Status:** implemented on `feat/portable-text`, 2026-09-23 (record §28);
 Linux and Windows pixels owed to the branch's first CI run. Drafted the same day. Decided with the user: wire the
 shaper and rasterizer together, and render the result through SDL.
 **Ruling prefix:** `PT-` (lettered; next `PT-J`).

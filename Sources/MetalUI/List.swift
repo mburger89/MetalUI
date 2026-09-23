@@ -51,8 +51,18 @@ import MetalUILayout
 /// being in flight), so a `List` row that is a plain `Box` costs a `StateTable`
 /// entry whether or not it declares state. Measured on the committed
 /// `demoLikeRows(_:)` fixture, whose rows carry **no `@State` whatsoever**:
-/// `storage.count` is exactly `2n + 7`, so 40 rows read 87, **125 rows read 257
-/// and cross**, and 500 rows read 1007. The demo's own list is 500 rows
+/// `storage.count` is exactly `2n + 6`, so 40 rows read 86, **126 rows read 258
+/// and cross**, and 500 rows read 1006.
+///
+/// **`2n + 6` and 126, not `2n + 7` and 125, since plan task 7's stage 4 lane 1**
+/// (`LR-BS`): the windowing spacer stopped being a `Box` element, taking its
+/// unconditional `$anim` entry with it, so the fixed overhead fell by one and
+/// the crossing moved by one row. The reap gate is `storage.count >
+/// sweepThreshold` with `sweepThreshold == 256`, so crossing needs **257**;
+/// `2n + 6 ≥ 257` first holds at *n* = 126, and *n* = 125 now reads 256, which
+/// does not cross. Re-measured by rendering 124, 125, 126, 127 and 500 rows and
+/// watching whether a three-generation excursion was actually reaped — 125
+/// retains, 126 reaps — rather than by adjusting the old arithmetic. The demo's own list is 500 rows
 /// (`demoRowCount`, `Sources/MetalUIDemoContent/DemoContent.swift`), so the demo crosses the gate on its cold frame. Read the
 /// old claim — "a 500-row list crosses it and a 40-row one never does" — as
 /// accidentally still true at those two endpoints and wrong about the reason
@@ -175,6 +185,9 @@ import MetalUILayout
 /// **A leading spacer places the window, rather than an absolute inset per
 /// row — chosen by reasoning about the two, not by measuring both; no
 /// absolute-positioned version of this type was built to benchmark against.**
+/// (Since stage 4's lane 1 the spacer is a bare legacy **node** registered by
+/// `ListRows`, not a `Box` element — see that type's doc for why. Everything
+/// this paragraph says about what the spacer DOES is unchanged.)
 /// The alternative — `.position(.absolute).inset(top:)` on each row — is
 /// available since the absolute-positioning milestone, and CLAUDE.md's
 /// divergence 11 even names this exact composition (an absolute box inside a
@@ -244,14 +257,16 @@ where Data.Element: Identifiable {
     /// declared-but-inert table exists to keep out of this framework's API.
     private static var overscan: Int { 2 }
 
-    /// The rows this frame actually built, threaded from `requestLayout`
+    /// The rows this frame actually built — the outer `Box` over `ListRows`,
+    /// which holds the window spacer's node and each realized row — threaded
+    /// from `requestLayout`
     /// through `prepaint` and `paint` the same way `Column`/`Row` thread their
     /// own `box` — seeded with an empty placeholder here rather than left
     /// `Optional`, so a phase called out of order (a bug elsewhere) degrades
     /// to a stale empty frame instead of a force-unwrap trap. `requestLayout`
     /// always overwrites it before `prepaint`/`paint` read it on every
     /// correctly-ordered frame.
-    private var box: Box<Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>>
+    private var box: Box<ListRows<Row>>
 
     /// Whether this frame's window came from the viewport rather than from one
     /// of `visibleRange`'s escape hatches, which build every row. Threaded from
@@ -262,6 +277,27 @@ where Data.Element: Identifiable {
     /// scroller has not measured a viewport yet — every `ScrollView`'s first
     /// frame (MP-I). The one unbounded case the next frame can fix (AB-X rule 3).
     private var windowAwaitsViewport = false
+
+    /// `List`'s layout state, as a **public wrapper around an internal one**.
+    ///
+    /// `Element.LayoutState` is inferred from `requestLayout`'s return, and
+    /// what `requestLayout` really carries is `Box<ListRows<Row>>.Layout` —
+    /// generic over `ListRows`, which is `internal` (ruling `LR-BS`: the row
+    /// arrangement is a framework detail, and stage 4's whole API surface is
+    /// internal). An internal type in a public method's signature does not
+    /// compile, so the witness is wrapped rather than the arrangement made
+    /// public. `PrepaintState` below is the same shape for the same reason;
+    /// **both** are needed, and the design named only the first (`LR-BZ`).
+    public struct Layout {
+        var inner: Box<ListRows<Row>>.Layout
+    }
+
+    /// `List`'s prepaint state, wrapped for the reason `Layout` is: `prepaint`
+    /// returns it and `paint` takes it `inout`, so an internal
+    /// `ListRows<Row>.GroupPrepaint` would sit in two public signatures.
+    public struct PrepaintState {
+        var inner: ListRows<Row>.GroupPrepaint
+    }
 
     public init(_ data: Data, rowHeight: Pixels,
                 @ElementBuilder row: @escaping (Data.Element) -> Row) {
@@ -277,7 +313,10 @@ where Data.Element: Identifiable {
         self.style = style
 
         self.box = Box(style: style, decoration: decoration,
-                       content: Pair(Box(style: Style()), ArrayGroup([])))
+                       content: ListRows(rows: [], spacerStyle: Style(),
+                                         rowHeight: Double(rowHeight.value),
+                                         logicalCount: data.count, firstIndex: 0,
+                                         listStyle: style))
     }
 
     /// The half-open range of `data`'s indices to build this frame: the rows
@@ -339,18 +378,15 @@ where Data.Element: Identifiable {
     }
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
-        -> (LayoutNodeID, Box<Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>>.Layout) {
-        // The site's own authority check, FIRST — before any row is built (plan
-        // task 7, ruling LR-C, critic round 1 finding 2). A `List` registers no
-        // node of its own, so without this its only report would be the `Box`
-        // below, and once `Box` lowers an unwindowed `List` would lay out through
-        // it silently. The windowed proposal `List` is stage 4's. Under
-        // diagnostics it then lays out a ZERO-row `Box` (the spacer and the
-        // container), whose own reports are additional, never instead.
-        let lowersToProposal = pass.lowersToProposal
-        if lowersToProposal {
-            pass.frame.noteUnlowerable(UnlowerableField(site: .list, field: "noLowering"))
-        }
+        -> (LayoutNodeID, Layout) {
+        // **There is no site check here since plan task 7's stage 4** (`LR-BQ`).
+        // It read `noteUnlowerable(.list, "noLowering")` before any row was
+        // built, because a `List` registers no node of its own and would
+        // otherwise have lowered silently through the `Box` below. `ListRows`
+        // now registers a `WindowedRowsLayout` under the proposal authority —
+        // see that type's doc — and this type's own code is authority-blind
+        // again: the same window, the same row ids, the same handlers and the
+        // same accessibility records on both paths.
 
         // Every row is wrapped in its own `Box` so its height can be pinned
         // independently of `Row`'s own type — `Row` need not be `StyledElement`
@@ -363,7 +399,7 @@ where Data.Element: Identifiable {
         rowStyle.flexShrink = 0
 
         let count = data.count
-        let window = lowersToProposal ? 0..<0 : visibleRange(count: count, pass: pass)
+        let window = visibleRange(count: count, pass: pass)
         // The same test `visibleRange`'s guard makes, kept rather than inferred
         // from `window`: a short list's real window can equal `0..<count`.
         let context = pass.scrollContext
@@ -373,6 +409,22 @@ where Data.Element: Identifiable {
         // A row's logical index, for an accessibility client, only while one is
         // active and only for a bounded window (AB-L, AB-X): an unbounded window
         // publishes no rows at all, so indices there would be written for nothing.
+        //
+        // **The `windowIsBounded` conjunct is belt-and-braces and NOTHING can
+        // pin it** — measured, plan task 7 stage 4 lane 4's mutation M4b
+        // (`LR-CF`). Dropping it and running the whole suite unfiltered reddens
+        // not one test, because the two things a hint could reach are both shut
+        // on an unbounded window anyway: `prepaint` below wraps the rows in
+        // `withAccessibilitySuppressed(except: id)`, which is what
+        // `Frame.registerHandlers`' record branch checks, and that method strips
+        // `logicalIndex` before its `declaration.isEmpty` test, so a hint alone
+        // emits no `AXNode` and writes no `$ax` slot either (AB-L, AB-U). The
+        // line stays because it says what this value means; the measurement is
+        // recorded here so a later reader does not mistake it for a tested
+        // guard. `AB-X` rule 1 is pinned through the suppression instead, by
+        // `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`
+        // and `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`'
+        // zero-`rowHeight` arm, both on both layout authorities (mutation M4b').
         let indexesRows = windowIsBounded && pass.collectsAccessibility
 
         let windowStart = data.index(data.startIndex, offsetBy: window.lowerBound)
@@ -388,7 +440,7 @@ where Data.Element: Identifiable {
             return rowBox
         }
 
-        // Places the window: a plain `Box` sized to exactly the rows skipped,
+        // Places the window: a bare legacy node sized to exactly the rows skipped,
         // so the first built row lands at `window.lowerBound * rowHeight` —
         // its true absolute offset — rather than at the top of whatever the
         // window happens to be. `flexShrink = 0` is load-bearing here for the
@@ -396,18 +448,29 @@ where Data.Element: Identifiable {
         // content box below the built children's combined height, and
         // without this the SPACER — not a row, since rows carry their own
         // pin — would absorb that deficit and pull every windowed row up by
-        // however much it lost. (No `minSize.height` override: this `Box` is
+        // however much it lost. (No `minSize.height` override: this node is
         // childless, so its automatic minimum is already 0 — nothing to
         // remove, unlike a row, whose content can be taller than
         // `rowHeight`.)
+        //
+        // **The style is built here and the NODE is registered by `ListRows`**
+        // (`LR-BS`, stage 4 lane 1). It was a `Box` element until then, which
+        // cost one `StateTable` entry per `List` per frame — `animated` mints a
+        // `$anim` slot on first sight of every registering element. **Under the
+        // proposal authority there is no spacer at all** (`LR-BQ`, lane 2):
+        // `WindowedRowsLayout` places row *i* at `(firstIndex + i) × rowHeight`
+        // directly, so the style below is built and then ignored on that path.
         var spacerStyle = Style()
         let spacerHeight = Pixels(rowHeight.value * Float(window.lowerBound))
         spacerStyle.size.height = .length(.pixels(spacerHeight))
         spacerStyle.flexShrink = 0
-        let spacer = Box(style: spacerStyle)
 
         var built = Box(style: style, decoration: decoration,
-                        content: Pair(spacer, ArrayGroup(rows)))
+                        content: ListRows(rows: rows, spacerStyle: spacerStyle,
+                                          rowHeight: Double(rowHeight.value),
+                                          logicalCount: count,
+                                          firstIndex: window.lowerBound,
+                                          listStyle: style))
         // Carried onto the freshly-built box so `Box.prepaint` registers the
         // click target — this type has no `prepaint` of its own to do it in.
         // `.axNode` rides the same trip: design spec §9's virtualization
@@ -431,15 +494,14 @@ where Data.Element: Identifiable {
         }
         listHandlers.axNode.logicalCount = count
         built.handlers = listHandlers
-        let result = built.requestLayout(id, pass: &pass)
+        let (node, inner) = built.requestLayout(id, pass: &pass)
         box = built
-        return result
+        return (node, Layout(inner: inner))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Box<Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>>.Layout,
-                                  pass: inout PrepaintPass)
-        -> Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>.GroupPrepaint {
+                                  layout: inout Layout,
+                                  pass: inout PrepaintPass) -> PrepaintState {
         // **An unbounded window publishes the table and no rows** (ruling AB-X
         // rule 1): it built every row, and a client active at frame 0 would
         // otherwise be handed a row and a text per datum, then see them all
@@ -447,22 +509,22 @@ where Data.Element: Identifiable {
         // exception, so the row count still publishes. Records only — the rows
         // still register hitboxes, focus and declared nodes as always.
         guard pass.collectsAccessibility, !windowIsBounded else {
-            return box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+            return PrepaintState(inner: box.prepaint(id, bounds: bounds,
+                                                     layout: &layout.inner, pass: &pass))
         }
         // Nothing else would draw the frame that bounds the window: `ScrollView`
         // stores its measured viewport through `withState`, which fires no
         // `onWrite` (AB-X rule 3). A list with no scroll context never asks.
         if windowAwaitsViewport { pass.frame.requestAccessibilityRetry() }
         let frame = pass.frame
-        return frame.withAccessibilitySuppressed(except: id) {
-            box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
-        }
+        return PrepaintState(inner: frame.withAccessibilitySuppressed(except: id) {
+            box.prepaint(id, bounds: bounds, layout: &layout.inner, pass: &pass)
+        })
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Box<Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>>.Layout,
-                               prepaint: inout Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>.GroupPrepaint,
+                               layout: inout Layout, prepaint: inout PrepaintState,
                                pass: inout PaintPass) {
-        box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+        box.paint(id, bounds: bounds, layout: &layout.inner, prepaint: &prepaint.inner, pass: &pass)
     }
 }

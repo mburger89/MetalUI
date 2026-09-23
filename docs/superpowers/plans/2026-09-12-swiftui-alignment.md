@@ -404,8 +404,10 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   record §18. **Stages:** 1 lowering foundation; 2 flex-item semantics onto
   SwiftUI's; 3 `ScrollView` and `Component` distribution (delivered
   2026-09-22); 4 windowed proposal
-  `List`; 5 `Deferred` presentation and absolute positioning; G grids (delivered
-  2026-09-21), G2 lazy grids after stage 4; 6a custom
+  `List` (delivered 2026-09-23); 5 `Deferred` presentation and absolute
+  positioning; G grids (delivered
+  2026-09-21), G2 lazy grids after stage 4 — **unblocked**, since stage 4
+  landed the windowing they need; 6a custom
   elements and the public legacy registrars deprecated; 6b the root switch
   (`noProductionFrameReachesTheLegacyEngine`); 7a goldens replaced; 7b
   non-golden CSS tests retired; 8 sizing vocabulary onto `.frame`; 9 engine
@@ -506,6 +508,44 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   here; an `…unconsumed` regression now truncates the suite instead of failing
   by name; `ProposalScrollView` still publishes no `ScrollContext` and never
   animates (stage 11 / task 10).
+  *Progress 2026-09-23 on `feat/engine-stage-4` (`6a943e1` through the
+  Docs-phase commit, from `f2e981f`), stage 4 of 14, task still open.* Spec
+  `specs/2026-09-23-engine-stage-4-design.md`; rulings `LR-BQ`…`LR-CG` in
+  `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages 1–3);
+  **no new probe** — the SwiftUI answer is `swiftui-stack-algorithms.swift`'s
+  K6, re-run and diffed byte-identical five times; record §27. **Stage 4
+  delivered** (five lanes, each with its own mutation table, all verified `ok`,
+  fifteen minors all dispositioned): `List`'s explicit site check is **deleted**
+  and its realized rows are placed by a `WindowedRowsLayout` at
+  `(firstIndex + i) × rowHeight`, each row consumed, planned and wrapped by
+  stage 2's item machinery at `parentSite: .list`; the layout answers
+  `rowHeight × logicalCount` on the height rather than SwiftUI's greedy answer,
+  with the reason ruled (`LR-BR`); on the legacy path the windowing spacer is
+  demoted from a `Box` element to a bare node, which moves the resident-entry
+  formula to `2n + 5` and divergence 18's to `2n + 6` (crossing at 126 rows,
+  measured). **Everything that had to survive did, and is now measured under
+  both authorities**: row identity, `@State` and focus retention across a
+  bounded excursion and their loss past it, the `AXTable` records and their
+  `AXIndex`es, the unbounded-window and one-more-frame rules, `MP-I`'s cold
+  frame, wheel routing, hit testing and the disabled gate — **not one literal
+  moved** in the eleven retention and accessibility scenarios. Divergences 13
+  and 14 **survive** and their pins now run on both authorities. **Exit
+  criterion met**: 67 scenarios across ten files under both authorities with a
+  roll call that names any scenario that stops participating, `ListTests`'
+  custom rows re-spelled through the legacy lowering (a bare native leaf drops
+  the item plan — measured, M3b), and `aListsWorkIsTheSameFor100kRowsAsFor500`
+  running at both authorities counting native work: 17 / 103 / 120 at 500 rows
+  and at 100 000, derived by hand from the window before the run. Suite 1580 →
+  **1602**, 97 goldens unmoved, 77 guards (none added); twelve offscreen demo
+  images 0 differing at every lane and twice more in verification, on a harness
+  that is **committed this stage** (`docs/probes/demo-pixels/`), and **three
+  real-window captures at 0**. **Not done:** production still runs the legacy
+  authority (stage 6b); `Deferred` as a presentation root (stage 5) and
+  `display: none` keep one `List` scenario each on the legacy arm; the
+  nil-width measurement path is `O(logicalCount)`; five small test-file
+  obligations are listed in record §27 §11.3. *Merged with `master` at
+  `f5e5651` (the HarfBuzz shaper line, record §26) on 2026-09-23: 1617 / 97 /
+  77 on the merged tree; this stage's record renumbered §26 → §27.*
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

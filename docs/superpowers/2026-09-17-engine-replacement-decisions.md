@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-BQ`** (stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CH`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -3847,3 +3847,1551 @@ MetalUI choice rather than a measured one. Recorded as a green mutation in
 record §25 §11.5 and deferred in §11.10: **stage 11**, with the siblings
 question `TB-M` owns, or one uneven-height, height-free arm on 5.1 from whoever
 next edits `LoweringComponentTests`.
+
+---
+
+## LR-BQ — `List` lowers to a windowed `ProposalLayout`, although its CSS structure already lowers for free
+
+**The question.** §4.1 row 4 asks for "a windowed `ProposalLayout` placing
+realized rows at `index × rowHeight`". Before designing one, stage 4 measured
+what it would replace. Prototype **P1b** (record §27 §2.2) deleted `List`'s
+four-line site check and changed nothing else, so the existing structure — a
+leading spacer `Box` sized `window.lowerBound × rowHeight`, `flexShrink: 0` and
+`minSize.height: 0` on every row, a declared `size.height` of
+`count × rowHeight` on the container — went through stage 2's container
+lowering as an ordinary flex column.
+
+**What the measurement said.** It lowers, cleanly. In a container with a
+declared width and `Box` row content (arm **P1a6**): **0 unlowerable fields, 11
+ids, 0 disagreeing, `stateSlotsEqual` true** — the container, the spacer, every
+row `Box` and every row's content byte-identical to the legacy engine. Padded
+and scrolled (arm **P1a3**), rows land at y = 60, 88, 116 … 312 on both sides.
+Windowed, unwindowed, padded, and with a row taller than `rowHeight`: every
+row's **y** and every row's **height** agree in every arm. The width
+disagreements in the arms without a declared container width are
+`DifferentialRoot`'s divergence 53 and `ProbeLeaf` recording no `LoweredItem`,
+not `List`'s.
+
+So the honest statement is: **stage 4 could have been four deleted lines plus
+test work.** The decision is to build the layout anyway.
+
+**The decision, and the four reasons, in the order of their weight.**
+
+1. **Stage 9 forces it.** Stage 9 deletes `FlexEngine`, the legacy registrars
+   and the legacy authority; stage 10 deletes `Style`'s CSS fields and narrows
+   `StyledElement.style` to what paint and animation read. At that point
+   `List` has no `flexShrink`, no `minSize`, no `flexDirection` and no
+   `size.height` to write, and the free lowering has nothing to lower. The
+   windowed layout is not optional work; it is work stage 4 or stage 9 must
+   do, and stage 4 is where the differential oracle still exists to check it
+   against. §8's stage-4 row already assigns it here.
+2. **It states the invariant once.** `index × rowHeight` currently emerges
+   from four independent CSS devices, and `List.swift` spends roughly sixty
+   lines of doc comment explaining that two of them no longer do what they were
+   written for (`minSize.height = 0`'s mechanism "NO LONGER FIRES"; the
+   `flexShrink` half "was NOT re-measured"). A layout that computes
+   `bounds.y + index × rowHeight` cannot drift from its own documentation.
+3. **The free lowering is a better oracle than a shipped mechanism.** P1b's
+   agreement is exactly what lane 2's test 2.1 asserts the windowed layout must
+   reproduce: the literals in that test are P2's and P3's measured tables, and
+   they were taken from the free lowering before the windowed one existed.
+   Keeping the free lowering as the thing we *check against* rather than the
+   thing we *ship* is what makes lane 2 red-first with real numbers.
+4. **Work.** Marginal, and named last because it is the weakest. A linear
+   stack over the window measures every realized row to answer its own size;
+   the windowed layout answers a concrete proposal with **zero** subview
+   measurements. Both are O(window) and independent of `logicalCount`, which is
+   what the exit test asserts, so **the exit test cannot tell them apart** —
+   said here so that nobody later reads the work count as this ruling's
+   evidence.
+
+**What it costs if wrong.** If the windowed layout is the wrong shape, the cost
+is one lane: lane 2 is a single commit over lane 1's, and lane 1 (the group,
+legacy only) stands on its own. The fallback is P1b — delete the site check,
+keep the CSS structure, and hand the layout to stage 9 — and the fallback's
+correctness is already measured rather than hoped for. The larger risk is the
+opposite one: shipping the free lowering and discovering at stage 9, with no
+legacy engine left to diff against, that `index × rowHeight` was resting on a
+flex behaviour nobody had pinned.
+
+**Amended, stage-4 critic round 1 (defect D10).** Reason 4's "zero subview
+measurements" is **wrong**, and its conclusion survives.
+`LayoutTree.placeCustom` (`Sources/MetalUILayout/LayoutTree.swift:1040-1070`)
+measures every child again after `placeSubviews` returns, to turn each
+placement record into a rect — so the windowed layout costs **one
+`measureNative` lookup per realized row** on a concrete proposal, not zero, the
+same order the linear stack costs. Reason 4 was already the weakest of the four
+and already said the exit test cannot tell the two arrangements apart; after the
+correction it says so more strongly, since the two are not merely the same order
+but the same count. The corrected arithmetic — including the nil-width path,
+where it is `O(logicalCount)` rather than `O(window)` — is `LR-CA` and spec
+§3.2.1. **Reasons 1–3 do not move, and they are what this ruling rests on.**
+
+---
+
+## LR-BR — the windowed layout answers its content extent on the stacking axis and its proposal on the other; probe K6 is consulted and deliberately not followed
+
+**The question.** §4.1 row 4 names "probe K6's layout answer" as an input.
+What should `List` answer?
+
+**What K6 says, re-run today.** `docs/probes/swiftui-stack-algorithms.swift`
+under `/usr/bin/swift` (Apple Swift 6.4, swiftlang-6.4.0.33.1), macOS 27.0,
+exit 0, **the whole 787-line stdout byte-identical to the reading in the
+probe's own header** (`diff` empty):
+
+```
+K6 control fixed 30x30 at 100x100 @100x100: size 30x30
+K6a List{Text} at 100x100 @100x100: size 100x100
+K6b List{Text} at nil @nilxnil: size 0x0
+K6c List{Text} at 100 x nil @100xnil: size 100x0
+K6d List{Text} at nil x 100 @nilx100: size 0x100
+K6e List{Text} at inf x inf @infxinf (measured only): size infxinf
+K6f List{leaf l 30x30} at 100x100 (is a row laid out?) @100x100: size 100x100
+```
+
+SwiftUI's `List` is greedy and content-blind: the proposal on a concrete axis,
+0 on a nil one, ∞ at ∞, and K6f shows a row's own 30×30 never reaching the
+answer — against the K6 control, which does answer 30×30.
+
+**The decision.** `WindowedRowsLayout` answers:
+
+- **height** (the stacking axis) = `rowHeight × Double(logicalCount)`, at every
+  proposal — **not** K6's;
+- **width** = `proposal.width` when there is one — K6's — and otherwise the
+  maximum of the realized subviews' answers at `(nil, rowHeight)` — **not**
+  K6's 0.
+
+**Why K6 does not transfer, on either axis.** SwiftUI's `List` *is* a scroller:
+it owns its scrolling, so the size it reports is its viewport's and answering
+the proposal is right. MetalUI's `List` is a scroller's **content** — one of
+the four load-bearing requirements in its own type doc is "an enclosing
+`ScrollView`", and the framework's scroller is `ScrollView`. A content node
+that answered the viewport's proposal would report 400pt for a 14 000pt list,
+and the offset clamp, the indicator thumb and `List`'s own windowing arithmetic
+all read that extent. The greedy answer is not lost: it belongs to the kernel's
+`scrollViewport`, which stage 3 lowered `ScrollView` onto and which already
+answers its proposal on the scrolling axis (`CN-M`, `LR-BC`, probe SC1/SC2/SC4).
+**So the K6 answer and the MetalUI answer are the same answer, assigned to the
+two different nodes SwiftUI fuses into one.**
+
+The width axis follows the same split for the concrete half and departs for the
+nil half. A vertical `List` measured at a nil width happens in exactly one
+composition — inside a horizontal `ScrollView`, which `visibleRange` already
+refuses to window against and which CLAUDE.md documents — and K6's answer there
+is 0, i.e. a blank list. The framework already has one silent blank-list mode
+(divergence 14) and does not need a second, so the nil axis answers the content
+as the legacy engine does. The cost is one subview measurement per realized row
+**on the nil axis only**; the concrete path measures nothing.
+
+**Pinned by** `aWindowedListAnswersItsFullContentHeightAndItsProposedWidth`
+(the height half), `aWindowedListAtANilWidthAnswersItsWidestRow` (the nil-width
+half, the one place this ruling departs from K6), and mutations **M2b** (the
+height made greedy) and **M2c** (the nil width made 0) — M2c must redden 2.4
+and *only* 2.4, which is what makes 2.4 rather than 2.1 the pin for the
+departure.
+
+**What it costs if wrong.** If the height answer is wrong the scrollbar, the
+offset clamp and every windowing test are wrong together and loudly — this is
+the most heavily pinned number in the stage. If the nil-width answer is wrong
+the cost is confined to the horizontal-scroller composition, which no test and
+no production caller builds; the failure mode is a blank list, identical to
+what K6's answer would give, so the downside of being wrong here is exactly the
+alternative.
+
+**Amended, stage-4 critic round 1 (defect D10).** "The cost is one subview
+measurement per realized row **on the nil axis only**; the concrete path
+measures nothing" is wrong in both halves, and the **decision is unchanged** —
+the answers this ruling picks are the answers, and only their price was
+mis-stated. Corrected in `LR-CA` and spec §3.2.1: placement measures every
+realized row on **both** paths, the nil path measures each row **twice** at two
+different proposals (so the second lookup is a miss, not a hit), and on that
+path **every logical row is realized**, because `visibleRange` declines to
+window a non-`.vertical` context. The nil-width answer is therefore
+`O(logicalCount)`, not `O(window)`. That is a real cost, it is not a regression
+against the legacy engine (which lays out every row in the same composition),
+and it is on no path production or the demo builds — but it is named rather than
+hidden, measured by lane 2's test **2.4b** at two row counts, and its mitigation
+is deferred in §9 because mitigating it would mean changing `visibleRange`,
+which `LR-BT` pins shut.
+
+---
+
+## LR-BS — the arranging thing is a GROUP, and the spacer stops being an element
+
+**The question.** Something must place the realized rows at `index × rowHeight`
+under the proposal authority. Where does it live, given that **row identity
+must not move**?
+
+**The constraint, stated exactly.** `TombstoneTests.rowID` and
+`FocusTests.rowID` hand-compute
+`scrollerID → listID → child(of: listID, at: 0, name: datum.id) → child(at: 0, name: nil)`,
+with a `$state0`/`$focus` slot below. `List.requestLayout` passes its **own**
+`id` into the `Box` it builds, so the rows are direct named children of the
+`List`'s id. An **element** introduced between the `List` and its rows adds an
+id level and resets every row's `@State`, focus, `$anim` and accessibility node
+once, and silently re-points both hand-computed chains. A **group** does not:
+groups consume cursor indices and introduce no id level.
+
+**The decision.** `ListRows<Row>: ElementGroup` replaces
+`Pair(Box<EmptyGroup>, ArrayGroup<Box<Row>>)` as the outer `Box`'s content. It
+registers each row `Box` under the `List`'s id as before, and then:
+
+- under the **legacy** authority registers the leading spacer as a **bare
+  node** (`pass.frame.requestNode(style: spacerStyle, children: [])`, the
+  identical `Style`) and returns `[spacer] + rowNodes`, flat — byte-identical
+  to what `Pair` returned;
+- under the **proposal** authority consumes each row's `LoweredItem`, plans and
+  registers the item wrappers with `planLegacyItems`/`registerLegacyItems`
+  (`parent:` the `List`'s declared style, `parentKind: .flex(isRow: false)`,
+  `parentSite: .list`), registers one `WindowedRowsLayout` over the wrapped
+  nodes, records **that** node as the group's own `LoweredItem`, and returns
+  `[windowedNode]`.
+
+**Three things prototype P2 established, none of which was assumed** (record
+§27 §2.4): a group may return one node that wraps its members, and the
+enclosing `Box`'s `lowerLegacyNode` consumes its record exactly as it consumes
+a child element's, with `reportUnconsumedLoweredItems` naming nothing; the rows
+get their cross-axis stretch from the group's own `planLegacyItems` call, which
+is also what keeps `LoweringSite.list` reachable after the site check goes; and
+the two authorities' `StateTable` id sets are **equal**.
+
+**The spacer's demotion is what buys that last one, and it is the stage's one
+moving legacy number.** If the spacer stayed a `Box` element it would mint a
+`$anim` entry on the legacy path and none on the proposal path, so every
+`List` would have unequal `StateTable` id sets between the two authorities —
+which stage 1's §5.1 item 4 forbids and which the differential harness reports.
+Keeping a dead element on the proposal path purely to hold a number equal was
+rejected as the shape the practices doc exists to keep out. So the spacer
+becomes a node on both paths, and
+`theResidentEntrySetStaysBoundedWhileScrolling10kRows`'s cold-frame literal
+goes from `2 * n + 6` to `2 * n + 5`, **re-measured rather than adjusted**, its
+doc comment's enumeration of the six fixed entries losing the spacer's line,
+and its three checkpoints (256 / 256 / 150 today) re-run.
+
+**The row style is written once and kept identical on both paths.** The two
+remaining CSS-defeating lines — `flexShrink: 0` against the freeze loop and
+`minSize.height: 0` against the automatic minimum — have no counterpart in the
+kernel, and `ScrollView`'s own lowering set the precedent of simply not
+carrying such a line (`LR-BB`). They are nevertheless **kept** on both paths
+rather than stripped on one, because `planLegacyItems` renders them inert
+(`flexShrink: 0` becomes a `fixedSize` over a node whose frame already declares
+`rowHeight`; a `minSize` of 0 folds into that declared size) and prototype P3
+measured both sides identical with them present. One style that is inert on one
+path beats two styles that can drift.
+
+**What it costs if wrong.** If a group cannot in fact return a wrapping node in
+some shape P2 did not reach, lane 2 fails loudly at
+`reportUnconsumedLoweredItems` or at `SA-G`, and the fallback is `LR-BQ`'s.
+If the spacer's demotion moves a pixel or a hitbox — it should not; an empty
+`Decoration` emits nothing and an empty `Handlers` registers nothing — lane 1's
+`aListsSceneAndHitboxesAreUnchangedByTheGroup` and the twelve `CN-R` images
+catch it before lane 2 exists.
+
+**Amended, stage-4 critic round 1 (defects D6, D7, D8).** Three corrections,
+none of which changes the decision; all three are `LR-BZ`.
+
+1. **The `flexShrink: 0` mechanism is mis-stated above.** "`flexShrink: 0`
+   becomes a `fixedSize` over a node whose frame already declares `rowHeight`"
+   is false for a `List` row: `plan.fixedSizeHorizontal` is assigned only under
+   `d.flexShrink == 0 && mainAuto` (`LegacyLowering.swift:858-861`), and it is
+   assigned `isRow`. A row in a column parent fails `mainAuto` (which is
+   `d.size.height == .auto`, and a row declares `rowHeight`) and would be
+   assigned `false` even if it did not. **`flexShrink: 0` lowers to nothing at
+   all — no wrapper, no report.** The `minSize` half is right as written
+   (`paddedAndSized`'s `folded(...)`, `LegacyLowering.swift:490-491`). The
+   conclusion — one style, inert on the proposal path, rather than two that can
+   drift — is **strengthened**, not weakened: the line is dropped on the floor
+   rather than compensated for. Lane 2's mutation **M2g** is what keeps this
+   honest, with its "reddens nothing" prediction written down first.
+2. **The spacer's demotion moves divergence 18's crossing point, by one row.**
+   `2n + 7` becomes `2n + 6` on `demoLikeRows`, and the reap gate is
+   `storage.count > Self.sweepThreshold` with `sweepThreshold == 256`
+   (`StateTable.swift:228`, `:543`), so crossing needs **257**: today at
+   *n* = 125, after this ruling at *n* = **126**, since *n* = 125 then reads
+   256 and does not cross. Spec §4.2(a) said the crossing does not move, and
+   was wrong. CLAUDE.md's divergence-18 row and `List.swift`'s type doc
+   (`:50-62`) both quote the old pair and are Docs-phase obligations; lane 1
+   re-measures the formula **and** the crossing by rendering 125 and 126 rows.
+3. **`List` needs two public wrappers, not one.** `List.prepaint` returns
+   `Pair<…>.GroupPrepaint` (`List.swift:439-442`) and `paint` takes it `inout`
+   (`:462-465`); with `ListRows` internal, that witness is an internal type in a
+   public signature just as `Layout` is. `PrepaintState` gets the same
+   `public struct` with internal storage, and `swift package clean` covers both.
+
+---
+
+## LR-BT — divergences 13 and 14 survive stage 4 unchanged, and 14's fix becomes mechanically available for the first time
+
+**The question.** §4.1's brief says divergences 13 and 14 "must either stay
+exactly as they are or be retired by a ruling that says so and re-point their
+pins". Which?
+
+**The decision: stay, unchanged, and be pinned on BOTH authorities.**
+
+**Why nothing about them moves.** Both follow from one line:
+`List.visibleRange(count:pass:)` reads `pass.scrollContext` during
+`requestLayout`, a phase with no geometry. Divergence 13 is that the context's
+`viewportExtent` is last frame's; divergence 14 is that its `offset` describes
+the **scroller**, so a `List` that is not at its scroller's content origin
+windows against rows that are not on screen and renders blank. Stage 3 measured
+the published context identical under both authorities (record §25 §3.3), and
+stage 4 changes not one line of `visibleRange`, of `ScrollContext`, or of its
+publication: the window is the same range on both paths, and the windowed
+layout receives it as `firstIndex` exactly as the spacer received it as a
+height. `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows` keeps
+asserting the wrong answer on purpose, and **gains a proposal arm**, so the
+wrong-on-purpose behaviour is pinned on the path production takes at stage 6b
+rather than only on the one it is leaving.
+
+**What did change, and it is a finding rather than a fix.** A `ProposalLayout`'s
+`placeSubviews` receives **root-absolute `bounds`** (`SA-E`). For the first time
+the windowed arrangement knows where the `List` actually sits inside its
+scroller's content — one phase too late to choose the window, but early enough
+to store for the next frame. So divergence 14 is now fixable by the same
+one-frame-feedback shape `ScrollView` already uses for its viewport extent,
+which is to say by trading divergence 14 for one more instance of divergence
+13. Under the legacy engine that option did not exist at all: the CSS engine
+hands an element no position in any phase, which is exactly what the divergence
+14 entry and ruling `MP-L` say ("`requestLayout` has no position — that is the
+phase's contract, not an oversight").
+
+**Why stage 4 does not take it.** It retires a wrong-on-purpose pin, which
+needs its own before/after measurement of the first-frame behaviour it trades
+for (a list that windows against a stale own-offset on the frame after a resize
+or a re-parent); it is a `List` feature rather than an engine replacement; and
+it would land in the same stage as the layout it depends on, so a regression in
+either would be indistinguishable. Deferred to **stage 6b**, where production
+changes engines and the human-verification rows that read demo layout re-open.
+
+**What it costs if wrong.** If divergence 14 is in fact *worse* under the
+proposal authority than under the legacy one — a possibility no measurement
+here rules out for shapes the prototypes did not build — the new proposal arm of
+its pin is what says so, and it says so with the rows it actually built. If the
+deferral is wrong, the cost is that stage 6b's human look sees a blank list in
+a composition the demo does not build; the demo's list is its scroller's only
+layout-contributing child, which is why the divergence has survived this long.
+
+**Amended, stage-4 critic round 1 (defect D11): the "finding" above is ONE TERM
+of a mechanism, and was written as a whole one.** The decision — stay unchanged,
+pin on both authorities, defer to 6b — is untouched; the deferral's description
+was overstated and is corrected here.
+
+Root-absolute `bounds` in `placeSubviews` is real, and critic round 1 re-ran
+`docs/probes/swiftui-layout-protocol-contract.swift` to confirm SwiftUI agrees
+(arm **I2**, `I parent bounds (120.0, 70.0, 100.0, 100.0)`, byte-identical to
+the recorded header). But divergence 14 needs the `List`'s offset **within the
+scroller's content**, which is
+
+```
+absolute-List-y  −  absolute-scroller-content-y
+```
+
+and `ScrollContext` carries only `offset`, `viewportExtent` and `axis`
+(`ScrollView.swift:82-100`). **The second term does not exist anywhere a `List`
+can read it.** So "now fixable by the same one-frame-feedback shape `ScrollView`
+already uses for its viewport extent" is wrong: that shape needs both terms, and
+supplying the second means adding a field to a public type and publishing it
+from the native viewport stage 3 built. Nothing in stage 4 measures or
+prototypes that, and prototyping it was rejected rather than deferred by
+oversight — it would mean designing a `ScrollContext` change inside the one
+stage that has ruled itself out of touching `ScrollContext` at all.
+
+Read the finding as: **one of the two terms became available for the first
+time** — under the legacy engine neither did, since the CSS engine hands an
+element no position in any phase (`MP-L`) — **and the other still has to be
+published.** Stage 6b inherits a fix that is mechanically *possible*, not
+mechanically *available*, and its first task there is the `ScrollContext`
+change, not the feedback loop. The reasons stage 4 declines are unchanged, and
+one is added: it is a two-part change whose first part is a public type's
+storage, so a regression in either part would be indistinguishable from the
+other.
+
+---
+
+## LR-BU — accessibility is untouched by construction, and what stage 4 must still prove
+
+**The question.** `AB-L` and `AB-X` are named in §4.1's "what must not move".
+What in stage 4 could reach them?
+
+**The decision: nothing in the mechanism, and three things in the geometry, so
+the records are pinned under both authorities rather than reasoned about.**
+
+**Untouched by construction.** Every mechanism `AB-L`/`AB-X` names lives
+outside `ListRows`: the `List`'s own `AXNode` (`role: .container` unless the
+caller declared one, carrying `logicalCount = data.count`) is written onto
+`built.handlers` in `requestLayout` and emitted by the outer `Box`'s
+`registerAndScope`; each realized row's `handlers.axNode.logicalIndex` is
+written onto the row `Box` in `requestLayout`, gated on `windowIsBounded &&
+pass.collectsAccessibility`; `windowIsBounded` and `windowAwaitsViewport` are
+computed from the same `pass.scrollContext` read; and `prepaint`'s
+`requestAccessibilityRetry()` and `withAccessibilitySuppressed(except: id)` are
+unchanged. `List.prepaint` and `List.paint` are not edited at all.
+
+**What must be proved rather than assumed.** A published record carries its
+**geometry**, and under the proposal authority a row's rect arrives through the
+item-frame **alias** stage 2 introduced (`LoweringState.aliases`) rather than
+from the row node directly. Prototype P2 measured the rects equal (rows 100×10
+on both sides, windowed and unwindowed); that is the rect, not the record. So
+lane 4 pins the **records**: `LayoutDifferential`'s `accessibilityEqual` — id,
+declared node, text and geometry of every record, in order — in lane 2's test
+2.1, and `AXNodeTests`' three `List` tests and `AccessibilityTreeTests`' two
+run under both authorities, including
+`aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount`, whose whole
+subject is that `logicalCount` and the realized row count are different
+numbers.
+
+**Three mutations must redden it**, and each must redden it on **both**
+authorities — four failures where two would mean an arm is vacuous: **M4b**
+(`indexesRows` forced true regardless of `windowIsBounded`, which `AB-X` rule 1
+forbids), **M4c** (`windowAwaitsViewport`'s `requestAccessibilityRetry()`
+removed, `AB-X` rule 3), and **M4a** (`staleAfterGenerations` 2 → 3, which is
+the retention pin rather than the accessibility one but shares the parameterised
+harness).
+
+**What it costs if wrong.** An accessibility regression here is invisible to
+every rect test and to every pixel comparison, and reaches a user only through
+VoiceOver, which nobody has run against this build (record §12's script is
+still open). That asymmetry is the whole reason the records rather than the
+rects are what lane 4 pins.
+
+**Amended, stage-4 critic round 1 (defect D3): this ruling named the wrong
+file, which would have made its own three-mutation rule unsatisfiable.** The
+`AXTable`, its `rowCount`, its realized rows' `rowIndex`es, the unbounded-window
+rule and the one-more-frame rule are pinned in
+**`Tests/MetalUITests/AccessibilityDefaultsTests.swift`**, not in
+`AccessibilityTreeTests`, which holds exactly two `List` usages (`:144`, `:734`)
+— and `:144` sits inside `anInactiveWindowBuildsAndPublishesNothing`, which
+asserts absence and can pin nothing about a table. Parameterising the file this
+ruling named would have left **M4b** and **M4c** reddening legacy arms only,
+i.e. two failures, which this ruling's own text says means an arm is vacuous.
+
+The six tests lane 4 owes, by name:
+`aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`
+(`:461`, with `table.rowCount == 500` at `:475` and
+`rows.map(\.rowIndex) == (38..<50)…` at `:480`),
+`activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` (`:502`,
+`AB-X` rules 1 and 3 at `:515-524`),
+`scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` (`:570`),
+`combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (`:381`),
+`aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` (`:740`) and
+`aClientDoesNotChangeStateRetention` (`:662`). **M4b** must redden the second
+and fifth of those on both authorities (at least four failures); **M4c** the
+second's rule-3 half on both (at least two). Lane 4 **names every test each
+mutation reddens**, not only the count.
+
+One claim of this ruling was checked independently by the round and holds, now
+by measurement rather than by reasoning: the spacer's demotion emits **no**
+accessibility record either way, because `registerHandlers` appends only when
+`hasSomethingToSay` (`Frame.swift:962-972`) and an empty-`Handlers` `Box` says
+nothing.
+
+---
+
+## LR-BV — `LoweringSite.list` survives the site check's deletion
+
+**The question.** `list.noLowering` disappears with the site check. Does the
+`.list` case go with it?
+
+**The decision: the case stays, and stays reachable.** Two entries can still be
+raised at it: `flexGrow.weights`, which `planLegacyItems` raises once at its
+`parentSite:` — the group passes `.list` — if two rows ever declared unequal
+grow factors; and `<field>.unconsumed`, if a later stage put a field on the
+windowed node's record and nothing consumed it. No row declares a grow factor
+today (`rowStyle` sets none and `List` exposes no way to), so the first is the
+same "kept so a later stage gets the right stage number rather than a fresh
+`switch` arm nobody remembers to add" shape `component` has had since `LR-BO`.
+`UnlowerableField.owningStage` keeps `case .list: return "4"`, with its comment
+amended to say the site-level entry is gone.
+
+Two pins change with it, and lane 2 owns both.
+`aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority` loses its
+`List` arm — it asserts a process exit on `list.noLowering has no proposal
+lowering`, which can no longer happen — and is renamed to name its surviving
+arm, exactly as stage 3's lane 2 retired that test's `ScrollView` arm and left
+the name naming what survives. `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s
+`List` arm becomes either a `flexGrow.weights` arm (two rows with unequal
+declared grow factors) or an **agreement** arm, and **lane 2 decides by
+measurement, not by this ruling**: whether that shape can be spelled at all
+from outside `List` is a question about the row closure's reach, and the lane
+records which it found, as stage 3's lane 2 did for
+`anItemFieldNoLoweredContainerConsumesIsReportedByName`.
+
+**What it costs if wrong.** If `.list` is in fact unreachable after this stage,
+the cost is a dead `switch` arm and a slightly dishonest §3.5 — recoverable by
+a note. If the case had been *deleted* and a later stage needed it, the cost
+would be a diagnostic reported at the wrong site with the wrong stage number,
+which is the failure `LR-C` exists to prevent.
+
+**Amended, stage-4 critic round 1 (defect D9): the question this ruling handed
+to lane 2 "by measurement" is already answered by the source, and deferring it
+was the mistake.** `planLegacyItems`' weights check filters
+`$0.declared.flexGrow > 0` and fires only at **two or more distinct** factors
+(`LegacyLowering.swift:810-823`). Every record the group hands it is a row
+`Box` carrying `rowStyle`, built inside `List.requestLayout`
+(`List.swift:360-363`), which sets no `flexGrow`; the caller's closure produces
+the row's **content**, one level below the row `Box`, whose records are planned
+at the row `Box`'s own site rather than at `.list`. So `flexGrow.weights` at
+`.list` is **unreachable from outside `List`** — provably, and `.list` sits in
+exactly `component`'s post-`LR-BO` position.
+
+`everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s `List` arm therefore
+becomes an **absence** arm, in the shape the two `Component` arms already have,
+and `try #require(arms.count == 10)` **stays at 10**. Lane 2 still runs it:
+what the source proves is that the weights entry cannot be raised, not that the
+arm reports nothing at all — test 2.7's first half (a plain `List`'s
+`unlowerableFields.isEmpty`) is the measurement that says the absence is total,
+and a non-empty report there is a finding. This ruling's remaining claim is
+unchanged: the `.list` case stays, for `<field>.unconsumed` and for
+`UnlowerableField.owningStage`'s trap message.
+
+---
+
+## LR-BW — `ListTests`' rows re-spell as LOWERED nodes, not as native probe leaves
+
+**The question.** §4.1 row 4 says `ListTests`' "224 custom nodes and 3 leaves
+re-spelled as native probe leaves". Stage 3's lane 3 re-spelled its nine custom
+nodes as `ProbeLeaf` (`LayoutDifferential.swift`), which registers
+`pass.frame.requestNativeLeaf` directly under the proposal authority. Does that
+transfer?
+
+**The decision: no — `ListTests`' `Row` re-spells through the LOWERING, not
+through a bare native leaf,** and §4.1's wording is followed in intent rather
+than literally.
+
+**The measurement that settles it.** `ProbeLeaf`'s proposal branch registers a
+native node directly, so it records **no `LoweredItem`**, so `planLegacyItems`
+has nothing to plan and the leaf is never stretched — `LR-T`'s "a proposal
+element inside a lowered container is defined, not silent", seen from the
+inside. Prototype arms **P1a2** and **P1a4** measured it: a `ProbeLeaf(7×3)`
+inside a 10pt row reads 7×10 under the legacy authority (stretched to the row)
+and 7×3 under the proposal one; a `ProbeLeaf(7×60)` inside a 28pt row reads
+7×28 and 7×60. `ListTests` reads a row's own **height** in two tests —
+`aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent` asserts exactly 28 for
+a 60pt content — so `ProbeLeaf` would turn a real assertion into a false
+failure and hide whatever the lowering actually does.
+
+**The spelling that works**, measured as prototype **P3**: `Row.requestLayout`
+branches on `pass.lowersToProposal` and calls
+`pass.lowerLegacyNode(Style(), declared: Style(), children: [], site: .customElement)`
+— and, for the `contentHeight` arms, `pass.lowerLegacyLeaf(…) { pass.frame.requestNativeLeaf { … } }`
+— where it called `pass.requestNode`/`pass.requestLeaf`. Inside
+`Box(width 100, column) { List(3 rows, 28) { … } }` with P1b applied: **0
+unlowerable and 0 disagreeing in both arms**, the tall arm included, the row
+box reading 100×28 and the row's own node 0×28 on both sides.
+
+**Mutation M3b** is what keeps this ruling honest: the re-spelled `Row`'s
+proposal branch reduced to a bare `requestNativeLeaf` must redden
+`aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent` under `.proposal`. If it
+does not, the tall arm is not seeing its subject and the lane says so.
+
+**A second reason, weaker but real.** `site: .customElement` is what stage 6a
+will deprecate and move; a test fixture already spelled through
+`lowerLegacyNode` is a fixture stage 6a does not have to re-reach.
+
+**What it costs if wrong.** If some `ListTests` shape needs a genuinely
+un-lowered native leaf — a row whose content must NOT be stretched — that arm
+uses `ProbeLeaf` and says why in its own doc comment. The failure mode of
+getting this backwards is the expensive one: a test that passes under both
+authorities while measuring two different things, which is practices shape 15
+(require the arms to disagree before believing they agree).
+
+**Amended, stage-4 critic round 1 (defect D2): the re-spelling rule reaches
+three MORE fixtures than `ListTests`' `Row`, and each is a process abort until
+it does.** `TombstoneTests.ExcursionRow` (`:93-101`),
+`MeasurePerformanceTests.StatefulListRow` (`:533-541`) and `FocusTests`' row
+fixture all call `pass.requestNode(style:children:)` directly, which under the
+proposal authority hits the `Frame.requestNode` backstop that
+`aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` pins as an **exit test** —
+so in a production frame the first `.proposal` build of any of them ends the
+whole run with no summary line. This ruling's spelling
+(`lowerLegacyNode` / `lowerLegacyLeaf`) is what each of them takes, and
+`LR-BX` is the rule that it lands **in the same commit as the `.proposal`
+arm**, never after it. Nothing about the choice between the lowered spelling
+and `ProbeLeaf` changes.
+
+---
+
+## LR-BX — no lane takes a red-before by aborting the process, and three row fixtures re-spell before they can have a proposal arm
+
+**The question.** Stage 4's design prescribed, in three separate lanes, a
+red-before consisting of "run these tests under `.proposal` and record what
+fails". Critic round 1 (defects **D1**, **D2**, **D12**) showed that in each
+case the run does not fail — it **aborts**.
+
+**The mechanism, already written down and already ignored once.**
+`Frame.noteUnlowerable` traps unless the frame sets `reportsUnlowerableFields`
+(`Frame.swift:1535-1538`), and a `Frame` built for production does not.
+`LayoutAuthorityTests.swift:180-199` records stage 3 discovering exactly this,
+in the sentence that says lane 3 could not take its red-before that way: the
+process ends with **no summary line and no list of what failed**. A red-before
+whose output is a truncated run is not a red-before; it cannot be read, it
+cannot be compared against the green-after, and a mutation cannot be aimed at
+it.
+
+**The decision — two legal shapes, and no third.** A lane that needs a red
+under `.proposal` from something that would trap takes it either:
+
+- **(a)** by re-spelling the fixture through `lowerLegacyNode` /
+  `lowerLegacyLeaf` (`LR-BW`'s rule) **in the same commit** that adds the
+  `.proposal` arm, so the red is an assertion failure; or
+- **(b)** in a **child process**, with `#expect(processExitsWith:)`, recording
+  the trap message from the child's captured output — the shape
+  `LayoutAuthorityTests` already uses for its own two arms.
+
+**The three fixtures this reaches**, each of which registers through
+`pass.requestNode` directly: `TombstoneTests.ExcursionRow` (`:93-101`),
+`MeasurePerformanceTests.StatefulListRow` (`:533-541`), and `FocusTests`' row
+fixture. `ListTests`' `Row` was already named by `LR-BW`; these three were not,
+and spec §5's "Tests touched" listed them as edits rather than as re-spellings.
+
+**A fourth site, which no re-spelling fixes** (defect D1).
+`MeasurePerformanceTests.render` (`:19-27`) builds a production `Frame`, and
+`demoLikeRows` declares `.minHeight(Pixels(0))` on its root `Box` (`:505-519`)
+— a `Self`-returning modifier (`Box.swift:905`), so it lands on the root's own
+`Style`. `reportUnconsumedLoweredItems` skips only `flexGrow`, `flexShrink`,
+`flexBasis` and `alignSelf` for the root and **still reports a non-`.auto`
+`minSize`** (`LoweringState.swift:109-133`), which traps. The fix is a
+`reportsUnlowerableFields:` parameter on `render`, defaulting `false`, set
+`true` for the `.proposal` arms.
+
+**Why not simply drop `.minHeight(0)` from `demoLikeRows`.** That fixture's own
+header says removing a pin from it "would silently inflate every later
+before/after ratio measured against this harness", and every committed literal
+in the file is measured against it. Changing the fixture so that one new arm can
+run would move numbers this stage exists to hold still — the opposite trade from
+the one being made.
+
+**What the diagnostics frame costs, stated before the lane starts.** Under
+`reportsUnlowerableFields`, a site with no lowering gets a 0×0 native leaf in
+place of its node (`Frame.unlowerable`), so a non-empty report means the work
+counts were taken over a partly degenerate tree. Lane 5 therefore asserts the
+report **exactly**: the only entry permitted is the root's own
+`minSize.unconsumed`, an artifact of the root being unconsumed and nothing to do
+with `List`. Any other entry is a finding, and work numbers taken alongside one
+are not recorded as this stage's.
+
+**And the corollary for lane 2** (defect D12). Four of that lane's eight
+"red-befores" — 2.2, 2.3, 2.4 and 2.6 — read `WindowedRowsLayout`'s own answer,
+a type the lane introduces, so at lane 1's HEAD they do not **compile**. A test
+that does not compile is not a red-before either. They are re-classified as
+"arrives with its subject", their evidence is their mutations, and the lane's
+commit message says which four so that the absence of a red is not read as an
+oversight. **Splitting lane 2 in two was considered and rejected**: the layout
+and the site-check deletion cannot be green independently, since until the check
+goes nothing in `List` reaches the layout.
+
+**What it costs if wrong.** If a lane takes shape (b) where (a) would have done,
+the cost is a child process and a slower test. If a lane ignores this ruling,
+the cost is the one stage 3 already paid and wrote down: a run with no summary
+line, indistinguishable from a build failure, and a lane that believes it has
+measured a red it never saw.
+
+---
+
+## LR-BY — two test harnesses cannot observe what stage 4 asks them to, and both are fixed in lane 1 or lane 3 rather than worked around
+
+**The question.** Stage 4's design assigned its central agreement test to
+`LayoutDifferential.compare` and its `ListTests` fix to `elementBounds`. Critic
+round 1 (defects **D4**, **D5**) showed neither observable exists on the path
+the design names.
+
+**Harness one: `LayoutDifferential` never windows a `List`.**
+`LayoutDifferential.render` (`Tests/MetalUITests/LayoutDifferential.swift:171-184`)
+constructs its own `stateTable: StateTable()` and renders **one** frame.
+`ScrollContext.viewportExtent` is one frame stale by construction, written only
+by `ScrollChrome.resolvedOffset`'s `PrepaintPass` overload
+(`ScrollView.swift:79-84`), so on frame 1 it is 0. `List.visibleRange` then
+takes its `context.viewportExtent > 0` guard (`List.swift:323-327`) and returns
+`0..<count`, and `windowIsBounded` is false (`:370`), which sends
+`List.prepaint` down the `withAccessibilitySuppressed(except: id)` branch
+publishing **the table and no rows**. Prototype **P1a3** shows the first half
+directly: ten rows at y = 60…312, all ten, no window.
+
+So today, through this harness: the "windowed at `firstIndex 3`" arm the design
+specifies is **unreachable**, and `accessibilityEqual` over a `List` compares
+one record with one record and passes **vacuously** — the "a harness that
+compares nothing agrees" shape record §27 §2.4 warns about in its own note, hit
+by the design that wrote the note.
+
+**And the literals the design offered for that arm are not the real thing
+either.** Prototypes **P2** and **P2b** got `firstIndex: 3` by handing it to a
+scratch group, not by windowing a real `List`, so the design's own oracle never
+exercised the path its central test claims.
+
+**The decision.** `render` gains `stateTable:` and `frames:` (default 1) in
+**lane 1**, threading one `StateTable` through the frames of one side and
+returning the last; `compare` grows the same two. Every `List` arm that uses it
+**must `try #require` a bounded window and a non-empty row-record set on both
+sides before asserting anything** — the anti-vacuity check is part of the arm,
+not a review note — and lane 1 re-takes the windowed legacy-side literals
+through the real `List`, which is what makes lane 2's test 2.1 a red-first
+oracle rather than a transcription. Lane 1's **M1f** (`frames:` forced back to
+1) must redden the new
+`aListInTheDifferentialHarnessReachesABoundedWindow`; if it does not, the
+anti-vacuity check is itself vacuous.
+
+**Harness two: `ListTests`' helpers produce no element bounds at all.** The
+design said both helpers "read the `List`'s bounds from `elementBounds`".
+`Frame.elementBounds` is written only when `recordsElementBounds` is set
+(`Frame.swift:1524-1527`), which defaults to `false` (`:1463`), and it is
+written by `Element.prepaintGroup` (`ElementGroup.swift:158`) and by
+`Frame.render` for the root — both **prepaint-time**. `laidOut`
+(`ListTests.swift:68-78`) runs `requestLayout` + `computeRootLayout` and never
+prepaints; `renderWindowed` (`:204-224`) prepaints but builds
+`Frame(contentSize:scaleFactor:)`. Neither records anything.
+
+**The decision.** Both helpers pass `recordsElementBounds: true`, and `laidOut`
+gains a prepaint pass, in **lane 3**. Both are `private` to `ListTests.swift`,
+so this is a local copy rather than an edit to the `ScrollViewTests` /
+`TextMeasureTests` idiom they were modelled on, and neither of those files
+changes. **Adding a prepaint pass to `laidOut` is a behaviour change for every
+test that uses it** — hitboxes, scroll regions, focus entries and accessibility
+records all register in prepaint — so lane 3 runs the full unfiltered suite
+afterwards and names anything that moves, and the three tests' literals are
+**re-measured by running them**, not predicted. Mutation **M3c**
+(`recordsElementBounds` dropped back to its default) must redden those three.
+
+**What it costs if wrong.** If the harness change is wrong the whole of lane 2
+is measuring nothing, which is the failure this ruling exists to prevent and
+which the `try #require` makes loud rather than silent. If the `laidOut` prepaint
+pass disturbs a test this ruling did not anticipate, the full-suite run names it
+in lane 3 rather than at the merge — which is the cheaper place to find it, and
+the reason the run is required rather than suggested.
+
+---
+
+## LR-BZ — four mechanism and arithmetic claims the design asserted without reading the code that implements them
+
+**The question.** Critic round 1 (defects **D6**, **D7**, **D8**, **D9**) found
+four statements in the stage-4 design that are wrong about MetalUI's own source.
+None of them changes a decision. They are gathered here because they share a
+cause worth naming, and because three of them would have survived into the
+implementation as things a later reader believed.
+
+**The cause.** Each was derived from what the surrounding prose says the code
+does rather than from the code — `List.swift`'s type doc for the `flexShrink`
+mechanism, divergence 18's entry for the crossing point, `LR-BV`'s own framing
+for the reachability question. The practices document's rule is "walk every
+measurement back to the mutated line in the same pass"; the same rule applies to
+a mechanism claim, and these four did not.
+
+**(1) `flexShrink: 0` on a `List` row lowers to NOTHING** (spec §3.1, `LR-BS`
+amended). Not to a `fixedSize`. `plan.fixedSizeHorizontal` is assigned only
+under `d.flexShrink == 0 && mainAuto` (`LegacyLowering.swift:858-861`), and it
+is assigned `isRow`; a row in a column parent fails `mainAuto` (which is
+`d.size.height == .auto`, and a row declares `rowHeight`) and would be assigned
+`false` even if it did not. The `minSize` half of the claim is right
+(`paddedAndSized`'s `folded(...)`, `:490-491`). **The conclusion strengthens**:
+the line is dropped on the floor, not compensated for by a wrapper. Lane 2's
+mutation **M2g** (`rowStyle.flexShrink` dropped from the record handed to
+`planLegacyItems`, proposal path only) is predicted to **redden nothing**, said
+in advance in the shape `LR-BQ` reason 4 uses, and the lane shows the two
+`LegacyItemPlan`s differing — or not — before banking the prediction.
+
+**(2) Divergence 18's crossing point moves from 125 rows to 126** (spec
+§4.2(a), `LR-BS` amended). The reap gate is
+`storage.count > Self.sweepThreshold` with `sweepThreshold == 256`
+(`StateTable.swift:228`, `:543`), so crossing needs **257**. `2n + 7 ≥ 257`
+first holds at *n* = 125; `2n + 6 ≥ 257` first holds at *n* = **126**, and
+*n* = 125 reads 256, which does not cross. Spec §4.2(a) said the crossing does
+not move. Lane 1 re-measures the formula **and** the crossing by rendering 125
+and 126 rows; CLAUDE.md's divergence-18 row and `List.swift`'s type doc
+(`:50-62`) both quote the old pair and are **Docs-phase obligations**.
+
+**(3) `List` needs two public wrappers, not one** (spec §5, `LR-BS` amended).
+`List.prepaint` returns `Pair<…>.GroupPrepaint` (`List.swift:439-442`) and
+`paint` takes it `inout` (`:462-465`), so with `ListRows` internal that witness
+is an internal type in a public signature exactly as `Layout` is.
+`PrepaintState` gets the same `public struct` with internal storage, and
+`swift package clean` covers both.
+
+**(4) `LoweringSite.list`'s weights entry is provably unreachable** (spec
+§4.2(d), `LR-BV` amended), so the choice `LR-BV` deferred to lane 2 "by
+measurement" is settled by reading `LegacyLowering.swift:810-823` and
+`List.swift:360-363`. The arm becomes an **absence** arm and
+`try #require(arms.count == 10)` stays at 10.
+
+**What it costs if wrong.** Individually: (1) a reader who believes a wrapper
+protects `List` that is never registered, and looks for it at stage 9; (2) two
+documents quoting a crossing point off by one row, in the entry whose whole
+subject is where the crossing is; (3) a compile error at lane 1, which is the
+cheap failure; (4) a lane spending a measurement on a question already answered.
+Collectively the cost is the expensive one — a design whose prose is checkable
+and was not checked, which is the failure mode this project's record files exist
+to make visible.
+
+---
+
+## LR-CA — the windowed layout's measurement cost, corrected: one lookup per realized row on the concrete path, two per LOGICAL row on the nil-width one
+
+**The question.** Spec §3.2 priced the windowed layout at "zero measure calls
+on the common path" and "one subview measurement per realized row … only on the
+axis that is nil". Critic round 1 (defect **D10**) showed both halves understate,
+and the second badly.
+
+**The corrected arithmetic**, read off `LayoutTree.placeCustom`
+(`Sources/MetalUILayout/LayoutTree.swift:1040-1070`) and `List.visibleRange`
+(`Sources/MetalUI/List.swift:323-339`):
+
+- **`placeCustom` measures every child again after `placeSubviews` returns**, at
+  the recorded proposal, to turn each record into a rect. So placement alone
+  costs **one `measureNative` lookup per realized row on both paths**. "Zero
+  measure calls on the common path" was true of `sizeThatFits` and false of the
+  layout.
+- **Concrete-width path**: that is the whole cost — 1 lookup per realized row,
+  `O(window)`, independent of `logicalCount`, which is the exit test's claim and
+  is unaffected.
+- **Nil-width path**: 2 lookups per row at two different proposals —
+  `sizeThatFits` at `(nil, rowHeight)`, the placement record at
+  `(bounds.width, rowHeight)` — so the second is a cache **miss**, not a hit.
+- **And on that path every row is realized.** The only composition reaching a
+  nil width is a vertical `List` inside a horizontal `ScrollView`, and
+  `visibleRange` declines to window a non-`.vertical` context, returning
+  `0..<count`. So the nil-width answer is **2 lookups per LOGICAL row** —
+  `O(logicalCount)`, unbounded, at any row count.
+
+**The decision: name it, measure it, and do not mitigate it here.** `LR-BR`'s
+answers do not change — the nil-axis answer is still the content rather than
+K6's 0, for the reason `LR-BR` gives, and a blank list is still worse than a
+measured one. What changes is that the price is stated honestly and pinned:
+**lane 2's test 2.4b** takes `lastNativeLayoutWork` on the nil-width path at
+**two row counts** and records the slope, with the predicted 2-per-logical-row
+written down before the run; a different slope is a finding, not a number to
+write down.
+
+**Why not mitigate.** Every mitigation — windowing a nil-width `List` against
+something other than a scroll context, caching a widest row across frames,
+answering from a stored measurement — changes `visibleRange` or the run-scoped
+cache, and `LR-BT` pins `visibleRange` shut for this whole stage while `SA-H`
+pins the cache's lifetime. §9 carries it to stage 6b alongside divergences 13
+and 14, which is where `visibleRange` re-opens.
+
+**Context that keeps this in proportion.** It is not a regression: the legacy
+engine lays out every row in the same composition, for the same reason. It is on
+no path production or the demo builds — no test and no caller puts a vertical
+`List` inside a horizontal `ScrollView` — and `CLAUDE.md` already documents the
+composition as one the framework declines to window.
+
+**What it costs if wrong.** If the slope is not 2 per logical row, the lane has
+found a cache behaviour neither this ruling nor `SA-H` predicts, and that is
+worth more than the cost estimate it came from. If the cost had stayed
+unmeasured, a later stage would have inherited an `O(logicalCount)` path
+believed to be `O(window)` — which is precisely the claim the stage's exit test
+exists to make, so it would have been inherited with a green test over it.
+
+---
+
+## LR-CB — the pixel harness is committed here, and the authority roll call is renamed in the change that makes its name wrong
+
+**The question.** Two pieces of stage-4 scaffolding are inherited rather than
+owned, and critic round 1 (defects **D13**, **D14**) showed both are about to
+become false.
+
+**The `CN-R` harness: committed in lane 1, retiring `LR-BJ`'s carry.** Spec §8
+makes "0 differing pixels in all twelve `CN-R` images" the acceptance criterion
+of **every** lane, while §9 deferred "committing the `CN-R` harness" to stage
+6b. Five lanes' acceptance criterion was therefore not reproducible from
+anything in the repository. The harness has now been lost and rebuilt **three
+times in stage 3 alone** (record §25 §7.6, §8.8, §9.8), at about an hour each,
+certified only against a handful of control numbers.
+
+The decision is the stronger of the two the finding offered: **lane 1 rebuilds
+it from record §25 §7.6's recipe, re-takes the control figures by running them
+rather than quoting them, and commits it** under `docs/probes/demo-pixels/`
+with the recipe in its own header. Lanes 2–5 run the committed script. A
+rebuild that disagrees with a quoted control is a finding, and the quoted number
+is what gets corrected. This is within stage 4's reach — it is a shell script
+and three Swift scripts under `docs/probes/`, which is this stage's own file
+scope — and it pays for itself inside the stage.
+
+**The roll call: renamed in the same change that extends it.**
+`ScrollAuthorityCoverage` / `everyScrollScenarioRanUnderBothLayoutAuthorities`
+(`ScrollViewTests.swift:251-282`, `ScrollAuthorityCoverage.swift`) verify a
+**scroll** set. Lane 3 adds `ListTests`' scenarios to it, at which point the
+name says "scroll" over a set that is not one. They become **`AuthorityCoverage`**
+/ **`everyParameterisedScenarioRanUnderBothLayoutAuthorities`**, in the same
+commit, with the 34 literal bumped — not in a later tidy-up, because a registry
+whose name lies is one a later stage adds a second registry beside.
+
+**And its order argument is extended and re-measured, not inherited.** The
+registry's second half depends on Swift Testing running files in path order, and
+the header argues today that `ScrollIndicatorTests` → `ScrollRoutingTests` →
+`ScrollViewTests` with the roll call declared at the END of the last of the three
+(`ScrollAuthorityCoverage.swift:31-38`). Adding `ListTests.swift` and
+`ListLoweringTests.swift` is safe **only because both sort before `Scroll*`** —
+an accident the header does not state and which the next file added may not
+share. Lane 3 names the new files in the argument and **re-measures the ordering
+twice at its own HEAD**, as the header's own claim was measured twice.
+
+**What it costs if wrong.** If the rebuilt harness is subtly different from
+stage 3's, the re-taken controls are what say so, and they are re-taken rather
+than quoted for exactly that reason; the failure mode of *not* committing it is
+the one already observed three times, which is an hour and a set of numbers
+nobody can reproduce. If the ordering claim is wrong, the roll call fails
+**naming the scenarios it had not yet seen**, which is the behaviour its own
+header describes and the reason the completeness check does not live in the test.
+
+---
+
+## LR-CC — stage 4 lane 1's corrections: a mutation that found two blind pins, a harness parameter that cannot exist, and the numbers that moved
+
+Lane 1 built `ListRows`, demoted the spacer, extended `LayoutDifferential` and
+committed the `CN-R` harness. Four things the design did not have right, each
+measured rather than argued.
+
+**1. `compare` cannot grow `stateTable:`, and `LR-BY` says it does.** `LR-BY`'s
+decision reads "`render` gains `stateTable:` and `frames:` … `compare` grows the
+same two." `render` does. `compare` cannot: `Report.stateSlotsEqual` is
+`legacy.stateTable.ids == lowered.stateTable.ids`, so a single table handed to
+both sides would make that field compare a set with itself and read `true` for
+every tree — the exact vacuity the `frames:` parameter exists to remove, arriving
+through the parameter added to remove it. `compare` therefore grows **`frames:`
+only**, and each side keeps its own fresh `StateTable`, threaded through its own
+`frames` frames. Said in `LayoutDifferential.compare`'s own doc comment, so the
+next reader who checks it against `LR-BY` finds the answer beside the code.
+
+**2. Mutation M1b reddens nothing, and it is a broken instrument rather than the
+finding — but the instrument was already broken at `f2e981f`.** The design
+predicted M1b (`spacerStyle.flexShrink = 0` deleted) would redden
+`aScrolledListsSpacerDoesNotShrinkUnderPadding`. It reddens nothing on the whole
+unfiltered suite. Measured on an **unmodified `f2e981f` tree**, before this lane
+changed anything: deleting the spacer's `flexShrink` leaves that test green, and
+deleting `rowStyle.flexShrink = 0` leaves the **whole 1580-test suite** green.
+
+The cause is `f1944f8`, the commit that made `.padding(_:)` a wrapper. The
+padding lands on an outer `ModifiedElement` layer, so the `List`'s own content
+box keeps its full `count × rowHeight` and there is no negative free space left
+for a spacer or a row to absorb. Both tests' doc comments describe a mechanism
+their fixtures stopped reaching, in a file the modifier-composition track never
+opened — the same shape as `List.swift`'s own `minSize.height` paragraph, which
+records exactly this kind of decay two milestones earlier.
+
+`Style.padding` written directly still shrinks the `List`'s own content box
+(CLAUDE.md's declared-but-inert table draws that distinction), so each test gains
+a second arm that writes it. Both new arms were then verified red under the
+mutation they exist for: `aScrolledListsSpacerDoesNotShrinkUnderPadding` on the
+spacer's line, `paddingOnAListDoesNotShrinkItsRowsBelowRowHeight` on the row's
+(four issues). Each test's first arm is kept — it still pins the wrapper
+spelling's answer, which is the one a caller writes.
+
+**This sharpens `LR-BS`'s "the row style is kept identical on both paths".** That
+ruling's reason was that `planLegacyItems` renders both lines inert on the
+proposal path. It is now measured that on the **legacy** path they are unpinned
+too, for a different reason. They are still kept — `LR-BS`'s "one style that is
+inert on one path beats two that can drift" stands, and the two new arms mean a
+future change to either line is no longer silent.
+
+**3. Mutation M1c reddens nothing, and that is a proof rather than a gap.**
+Advancing the group's cursor past the spacer, as `Pair` did, changes no test. The
+practice's rule is to show the mutant behaves differently before banking that,
+and here the stronger statement is available by reading: the cursor's only
+consumer is each row's `GlobalElementID.enteringGroupMember`, every row supplies
+a `name` (`.id(String(describing: datum.id))`), and `child(of:at:name:)` never
+consults `at:` once a `name:` is supplied — and the enclosing `Box` discards the
+cursor afterwards. So the mutation changes a value nothing can observe. That is
+the measured reason row identity survives the spacer leaving cursor 0, which is
+what `LR-BS` claimed and critic round 1 checked by reading.
+
+**4. Two numbers moved exactly as `LR-BZ` predicted, and both were re-measured by
+running rather than by arithmetic.** Divergence 18's formula on `demoLikeRows(_:)`
+goes `2n + 7` → `2n + 6` and its crossing point 125 → **126**. Measured by
+rendering *n* rows, then three frames of an empty list — past
+`staleAfterGenerations` — and reading whether the rows were actually reaped:
+
+| *n* | before, `table.count` | reaped? | after, `table.count` | reaped? |
+|---|---|---|---|---|
+| 40 | 87 | no | 86 | no |
+| 124 | 255 | no | 254 | no |
+| 125 | 257 | **yes** | 256 | **no** |
+| 126 | 259 | yes | 258 | **yes** |
+| 500 | 1007 | yes | 1006 | yes |
+
+`theResidentEntrySetStaysBoundedWhileScrolling10kRows`'s three checkpoints move
+256 / 256 / 150 → **255 / 255 / 149**. `List.swift`'s and `ElementGroup.swift`'s
+doc comments take the new numbers in the same commit; CLAUDE.md's divergence-18
+row stays a Docs-phase obligation.
+
+**And one the design assigned to lane 5 that lane 1 has to pay.** The demo census
+`theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` loses the spacer's
+`Frame.elementBounds` row the moment the spacer stops being an element: 2036 →
+**2035** ids and 30 → **29** disagreements, 2042 → **2041** and 36 → **35** with
+the modal on, with `agreeing` 6 and `legacyOnly` 2000 unmoved. Lane 1 makes that
+single-row edit and says so in the test's own doc comment; lane 5 still owns the
+census's real re-derivation, which is what happens when the site check goes.
+
+**What it costs if wrong.** Item 1 is the expensive one: a `compare(stateTable:)`
+would have made `stateSlotsEqual` — one of the six fields every lane of every
+stage reads — trivially true, in the same change that advertised the harness as
+fixed. Item 2 costs a reader who believes two `List` lines are pinned; it is
+recorded rather than only fixed because the decay mechanism (`.padding` became a
+wrapper) will have hit other fixtures nobody has re-checked.
+
+---
+
+## LR-CD — stage 4 lane 2's corrections: the elision that must not fire, a masked height answer, and a record nothing can observe
+
+Lane 2 built `WindowedRowsLayout`, gave `ListRows` its proposal branch and
+deleted `List`'s site check. Four things the design (`LR-BQ`, `LR-BR`, `LR-CA`,
+spec §3.1, §3.2 and §6 lane 2) got wrong, each found by running rather than by
+reading, each corrected here. Measurements are record §27 §7.
+
+### 1. `planLegacyItems`' single-child stretch elision must NOT fire under this layout
+
+**The question.** The group plans its rows with
+`planLegacyItems(received, parent: <the List's declared style>, parentKind:
+.flex(isRow: false), parentSite: .list)`, which is what prototype P2 measured and
+what spec §3.1 prescribes. `planLegacyItems` elides a child's stretch when the
+parent has **exactly one** child and no declared size on that axis (`LR-AC`,
+stage 1's `LR-E` principle 3), because a fit-content parent stretching its only
+child is the identity.
+
+**What is wrong with it here.** `WindowedRowsLayout` is **not** fit-content on
+the cross axis: `sizeThatFits` answers `proposal.width` whenever one is offered.
+So the elision's premise fails, and a `List` with exactly **one** row and no
+declared width of its own leaves that row unstretched — 0 wide, against the
+legacy engine's stretch to the list's width. Six rows hide it completely, which
+is why none of the five arms spec §6 lane 2 prescribed for test 2.1 could see
+it, and why the prototypes did not either (P1a6 and P2 both used three or more
+rows).
+
+**The ruling.** `ListRows.loweredNode` gives the planning parent a declared
+cross size when the `List` has none. Nothing else in `planLegacyItems` reads
+`parent.size.width` for a column parent — it is the elision's only consumer
+there — so the correction is exactly as narrow as the defect. Test 2.1 gains a
+**sixth** arm, **B6**, one row under a `List` declaring no width; mutation
+**M2h** (the correction removed) reddens B6 **and nothing else**, measured.
+
+**What it costs if wrong.** A one-row `List` is not an edge case in an app — it
+is every list whose filter matched once — and the failure is a row that renders
+at zero width with no diagnostic. The correction's own risk is the opposite: if
+a later stage makes the windowed layout hug its content on the cross axis, the
+forced cross size becomes a lie and the row is stretched where it should not be.
+B6 is the arm that would then read the legacy answer and disagree.
+
+### 2. The layout's height answer is masked in every composed tree
+
+`LR-BR` makes `sizeThatFits` answer `rowHeight × logicalCount` on the stacking
+axis at every proposal, against SwiftUI's greedy `List` (probe K6). Spec §6 lane
+2 predicted that **M2b** — the height answer made greedy, i.e. K6's — would
+redden test 2.1 as well as 2.2.
+
+**It does not redden 2.1 at all.** `List.init` declares
+`style.size.height = rowHeight × data.count` on the `List`'s own `Box`, and
+`paddedAndSized` turns that into a fixed native frame **around** the
+arrangement, so the arrangement's own height answer never reaches a rect. The
+layout's height is observable only through the kernel — tests 2.2, 2.3 and 2.4b,
+which register the layout with no `List` and no `Box` above it.
+
+**Recorded rather than silently fixed** because it is the reason 2.2 is not
+redundant with 2.1, and because it says where the invariant actually lives
+today: in two places that must agree, `List.init`'s declared height and
+`WindowedRowsLayout.sizeThatFits`, with no test that they do. (They cannot
+disagree while both read `rowHeight × data.count`; a stage that makes either
+conditional owes that test.)
+
+### 3. The windowed node's `LoweredItem` record is unobservable, and is kept anyway
+
+Spec §6 lane 2's **M2e** — the windowed node's `recordLoweredItem` dropped —
+"must redden 2.7 with an `…unconsumed` entry". **M2e reddens nothing**, and both
+halves of the prediction are wrong for reasons provable by reading, in the shape
+lane 1's M1c took:
+
+- a **dropped** record never joins `LoweringState.order`, which
+  `reportUnconsumedLoweredItems` iterates, so it cannot produce an
+  `…unconsumed` entry at all. An **unconsumed** record can, which is mutation
+  M2f, and M2f does redden 2.7 (three `box.flexShrink.unconsumed` and three
+  `box.minSize.unconsumed`);
+- the record's only other effect is the stretch item frame the enclosing `Box`
+  would wrap the arrangement in. That frame is greedy on the width axis — and
+  `WindowedRowsLayout` already answers `proposal.width`, so the wrapper changes
+  no number. Its minimum is 0 and its maximum ∞ (the arrangement's `declared` is
+  a bare `Style()`), and the alias it installs points at a node no element owns,
+  so nothing reads it either.
+
+**The record stays.** `LR-AB` item 1 is a uniform convention — every lowered
+site records a `LoweredItem` for the node it returns — and
+`UnlowerableField.owningStage`'s `.list` comment claims `<field>.unconsumed`
+reachability that only a record can provide. Deleting it would make `List`'s
+arrangement the one lowered node that does not record, and a later stage that
+gives the arrangement a non-default declared style, or a container that is not
+proposal-greedy above it, would lose the wiring silently. It is documented as
+inert-today in `loweredNode`'s own comment and in test 2.7's.
+
+**What it costs if wrong.** Keeping it costs three lines and a reader who
+believes more is pinned than is. Deleting it costs a silent gap the next stage
+would have to rediscover.
+
+### 4. M2g changed no program; M2g′ is what measures the same claim
+
+Spec §3.1 predicted that **M2g** — `rowStyle.flexShrink` dropped from the record
+the group hands `planLegacyItems`, proposal path only — reddens nothing, and
+required the lane to "show the mutant's `LegacyItemPlan` differing from the
+original's before banking the prediction — or, if the plans are byte-identical,
+say that the 'mutation' changed no program and find another."
+
+**The plans are byte-identical**, printed for all six rows of a plain list:
+`fixedSizeH=nil W=(min: 0.0, max: inf) H=nil align=topLeading alignFrame=nil
+margin=nil fields=[]`, with and without. `plan.fixedSizeHorizontal` is assigned
+only under `d.flexShrink == 0 && mainAuto`, and a `List` row declares
+`size.height = rowHeight` in a column parent, so `mainAuto` is false. So M2g is
+not a mutation at all at that boundary.
+
+**The replacement, M2g′**, deletes `rowStyle.flexShrink = 0` from
+`List.requestLayout` outright. It reddens
+`paddingOnAListDoesNotShrinkItsRowsBelowRowHeight` and
+`aScrolledListsSpacerDoesNotShrinkUnderPadding` — lane 1's two new
+`Style.padding` arms — and **nothing on the proposal path**. That pair of facts
+is the measurement `LR-BS`'s "inert rather than removed" needed: the line is
+load-bearing under the legacy engine and reaches nothing under the kernel, so
+keeping one row style rather than two costs nothing.
+
+### 5. M2c is broader than predicted, which is not a defect
+
+Spec §6 lane 2 said M2c (the width answer made 0 on a nil axis, K6's) "reddens
+2.4 only — which is what makes 2.4 the pin for the half of `LR-BR` that
+diverges". Measured, it reddens **2.4, 2.2's two nil-width arms and 2.4b**.
+Three pins for the diverging half rather than one; 2.4 is the one that names it.
+Recorded because the spec's sentence would otherwise read as a claim about
+coverage that the suite contradicts.
+
+---
+
+## LR-CE — stage 4 lane 3's corrections: a host that needs a height, a pin that could not see its subject, and two rows the design put in the wrong lane
+
+Lane 3 re-spelled `ListTests`' `Row` through the legacy lowering, parameterised
+its scenarios over both authorities, and renamed the roll call. Four things the
+design (`LR-BW`, `LR-BY`, `LR-CB`, spec §6 lane 3 and §6 lane 4) got wrong or
+left unstated, each found by running rather than by reading. Measurements are
+record §27 §8.
+
+### 1. The host box needs a declared HEIGHT, not only a width
+
+**The design says** both helpers gain "a fixed-size `Box` wrapper (P1a6's shape,
+a declared width and a column direction)". P1a6 declared a width and left the
+height `auto`, which is correct for P1a6's three-row list and wrong for this
+file.
+
+**Why.** A root with an `auto` main axis takes the definite space offered
+(divergence 4, `CS-I`), so an auto-height host in a 600pt frame is 600pt. Six of
+this file's fixtures are 40-row or 100-row lists — 1120pt and 2800pt — which as
+flex items of that host have hundreds of points of negative free space. The
+legacy engine shrinks the `List`'s own box; the kernel does not, because
+`paddedAndSized` turns the `List`'s declared height into a fixed native frame
+and a native stack shrinks nothing. That is a disagreement between the two
+authorities that the **harness** would have introduced, in the one file whose
+whole point this lane is to read both authorities against each other.
+
+**The ruling.** `hostStyle(width:height:)` declares both axes, at the frame's
+own size. Where a subject is taller than the frame and its own height is the
+assertion — `aWindowedListStillReportsItsFullContentHeight`, 40 × 28 = 1120 —
+the test raises the frame instead (`frameHeight: 1200`), which is one literal,
+named at its call site with the arithmetic. Every other literal in the file is
+unchanged on both authorities, measured.
+
+**Amended, verification round (2026-09-23).** *The ruling stands and the code is
+right; the mechanism above was an inference presented as a measurement, and the
+lane never ran the mutation that would have checked it.* The verifier did, and
+the reading is record §27 §8.4.2: dropping the declared height back to `.auto`
+— P1a6's shape exactly — reddens **eleven** scenarios, not six, **`.proposal`
+arms only**, 14 issues, every `.legacy` arm green. **Four of the eleven are
+three-row, 84pt fixtures with no negative free space at all**; for those the
+mechanism is **centring** — with an `auto` main axis the kernel centres the
+host's content, so `aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent` reads
+ys `[258, 286, 314]`, i.e. `(600 − 84)/2`, instead of `[0, 28, 56]`. And the
+sentence "the host is exactly the window and the subject is never squeezed" was
+**false for the very fixtures this item names**: a 1120pt list is still a flex
+item inside the 600pt declared-height host, and a 2800pt one inside the 2000pt
+host — which is why `aWindowedListStillReportsItsFullContentHeight` needs
+`frameHeight: 1200` at all. That sentence is deleted above. **The criterion a
+later reader should apply is not "is there negative free space?" but "does the
+host's main axis resolve to something other than the frame — by squeezing **or**
+by centring?"** Spec §6 lane 3 and record §27 §8.3 carry the correction; two doc
+comments in `ListTests.swift` still repeat the old reason and are named as an
+obligation in record §27 §11.3.
+
+**What it costs if wrong.** Nothing production-visible: this is a test harness.
+The cost of *not* doing it is worse than a wrong number — it is a file of
+two-authority comparisons whose disagreements are its own.
+
+### 2. `M3c` reddened two of three, and the third could not see its subject
+
+Spec §6 lane 3 requires **M3c** (`recordsElementBounds` dropped back to its
+default in `laidOut`) to "redden the three tests that read the `List`'s bounds;
+if it reddens nothing, they are not reading what the lane thinks they read". It
+reddened **two**: `aListSizesItselfToCountTimesRowHeight` and
+`aWidthModifierOnAListReachesItsLayoutNode`, one issue per arm.
+
+**`anEmptyListHasZeroHeightAndTrapsNothing` stayed green**, and the reason is
+the helper, not the test: it returned `frame.elementBounds[subject] ?? <0×0>`,
+so an unrecorded bounds and a zero one were the same value — and that test
+asserts a height of **0**, which is the mutation's own answer. Practices shape
+14's "a test that cannot fail", arrived at through a convenience.
+
+**The ruling.** Both helpers return `Bounds<Pixels>?` and every reader
+`try #require`s it. M3c re-run against the corrected commit reddens **all
+three**, six issues. The `??` spelling is not to be reintroduced: any fixture
+whose expected answer is zero on some axis is blind behind it, and this file has
+one such fixture today and will gain more.
+
+### 3. Divergence 14's pin is parameterised in lane 3, not lane 4
+
+Spec §6 lane 4's table lists `ListTests`'
+`aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows` among the
+suites lane 4 parameterises. Lane 3 parameterises **every** scenario in
+`ListTests` in one commit — it has to, because the re-spelling and the
+`.proposal` arms must land together (`LR-BX`) and a half-parameterised file
+would leave the roll call's literal wrong between the two lanes.
+
+So that row is delivered here. Lane 4 owns the rest of its table; for this one
+it need only confirm the test still asserts the **wrong** answer on purpose and
+now says so on both paths. The divergence is `visibleRange`'s, which is
+authority-blind, and the second arm's content is exactly that claim: the
+lowering neither fixes it nor makes it worse.
+
+### 4. `ListLoweringTests.swift` is not in the roll call's order argument, and the argument now says why
+
+`LR-CB` has the lane extend the header's path-order argument "to the new files",
+naming `ListTests.swift` and `ListLoweringTests.swift`. Only the first belongs
+there. `ListLoweringTests`' nine tests each run **both** authorities inside one
+body, through `LayoutDifferential.compare`; none is a `@Test(arguments:)` case
+and none calls `AuthorityCoverage.record`, so the file contributes no name and
+the roll call cannot be affected by where it sorts.
+
+The argument's real content — which the stage-3 version left unstated, and which
+`LR-CB` was right that a reader needs — is the **sort**:
+`Tests/MetalUITests/ListTests.swift` sorts before every
+`Tests/MetalUITests/Scroll*.swift`, so the roll call, declared at the end of
+`ScrollViewTests.swift`, still runs last. That is now written down, together
+with the case it warns about: a file added later whose path sorts *after*
+`ScrollViewTests.swift` breaks the second half of the check — which is precisely
+why `ZZDemoPixels.swift` carries a `ZZ…` prefix. Re-measured twice at this HEAD,
+identical both times: `ListTests` → `ScrollIndicatorTests` → `ScrollRoutingTests`
+→ `ScrollViewTests`, roll call last.
+
+---
+
+## LR-CF — stage 4 lane 4's corrections: one fixture that does not abort, one modifier that does, a test that cannot cross, a roll call that had to move, and a mutation that is not one
+
+Five corrections, each found by running the lane rather than by reading its
+brief. The first four are the design's; the fifth is the source's.
+
+### 1. `FocusTests`' row does not abort under `.proposal`, and only `TombstoneTests`' does
+
+Spec §6 lane 4 says the lane's red-befores are "child-process probes plus
+same-commit re-spellings of `ExcursionRow` and `FocusTests`' row, **both of
+which abort under `.proposal` today**". Measured in a child process before
+either was touched: only `ExcursionRow` does.
+`aFocusedListRowSurvivesABoundedExcursionButNotALongerOne` builds its rows as
+`Box().focusable()` — a `Box`, which stage 1 lowered, and `focusable()` is a
+`Self`-returning modifier that writes `handlers` rather than registering
+anything — so the identical tree under the proposal authority runs to
+completion and exits 0.
+
+**The ruling.** That fixture is **not** re-spelled: a `lowersToProposal` branch
+over a `Box` would be a branch with nothing on either side of it. The
+measurement is kept as a committed positive control,
+`TombstoneTests.aBoxSpelledListRowDoesNotAbortAProductionProposalFrame`, beside
+the abort it controls for — without it the abort probe would pass just as well
+if the `List`, the `ScrollView` or `@State` were what aborted.
+
+**What it costs if wrong.** Nothing: the arm runs, and it runs on the same tree
+production would build. What the correction buys is that a later reader does
+not add a branch to a fixture that never needed one.
+
+### 2. `scrolledList`'s `.minHeight(px(0))` is what kept four accessibility tests off the proposal authority — and it goes
+
+The design's lane-4 table names the two row spellings and nothing else. It
+missed the fixture: `AccessibilityDefaultsTests.scrolledList` returned
+`Box { ScrollView { list } }.width(200).height(h).minHeight(px(0))`, and four of
+the six `List` tests make that value the **root** of their frame or of their
+window. A root's `LoweredItem` is unconsumed by definition, and
+`reportUnconsumedLoweredItems` reports a root's non-`.auto` `minSize`
+(`LoweringState.swift:120-127`), which in a production frame is
+`preconditionFailure`. So those four aborted before their first assertion, at
+`box.minSize.unconsumed`, with nothing to do with the `List`.
+
+Three shapes were available: wrap the fixture in a host `Box` (`LR-BY`'s answer
+for `ListTests`), give the four tests a reporting frame, or drop the modifier.
+
+**The ruling.** Drop the modifier, because it was measured **inert** first. The
+box declares `height`, so no automatic minimum is in play where it is a root,
+and in the one place it is a flex item (`aClientDoesNotChangeStateRetention`'s
+`Row`) the axis it names is the cross one. The measurement is a mutation in
+reverse: with it dropped and nothing else changed, the whole suite unfiltered
+read 1593 tests / 3 issues — the three lane 2 left red for lane 5 — so no test
+in the repository can see it. Wrapping would have changed the tree every one of
+the file's forty-odd assertions is written against, to fix four; a reporting
+frame would have measured a partly degenerate tree (`Frame.unlowerable`
+substitutes a 0×0 leaf), which is exactly what lane 5's brief refuses.
+
+**This is not `demoLikeRows`.** Spec §6 lane 5 forbids removing the same
+spelling from that fixture, and the reason is stated there: every committed
+performance literal is measured against it. `AccessibilityDefaultsTests` holds
+no such literal — its numbers are row counts and emission counts, which the
+modifier does not touch, as the 1593/3 run shows.
+
+**What it costs if wrong.** A fixture that no longer exercises a root's
+unconsumed `minSize`. Nothing is lost:
+`anItemFieldNoLoweredContainerConsumesIsReportedByName`'s root arms are that
+test, and the abort itself is now pinned here too, by
+`aRootMinHeightOnTheScrollerFixtureAbortsAProductionProposalFrame` and its
+control.
+
+### 3. `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` cannot be a both-authorities arm
+
+Spec §6 lane 4 lists it in the table and makes it half of mutation M4b's
+required failure count. It can be neither. Its subject **is** `hidden()`, and
+`display: none` has no proposal lowering at all: `LegacyLowering.swift:161`
+returns `display.none` before any other field is read, and the parent design's
+§4.1 assigns `hidden()` to a stage that has not run. A `.proposal` frame over
+that fixture aborts at `box.display.none`, measured in a child process
+(`aHiddenListAbortsAProductionProposalFrame`, with the shown tree as its
+control).
+
+**The ruling.** It stays legacy-only, its declaration says why, and it is **not**
+in `AuthorityCoverage.expected` — the same shape lane 3 gave
+`aListInsideADeferredIgnoresTheEscapedScrollersOffset`. When a later stage
+lowers `display`, it gains its arm and the registry gains its name. M4b's
+required count is restated in item 5.
+
+**What it costs if wrong.** `AB-X` rule 1 under the proposal authority would be
+unpinned. It is not: the same rule is pinned on both paths by
+`activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` and by
+`combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`'
+zero-`rowHeight` arm, and M4b′ reddens both on both.
+
+### 4. The roll call moves to `ZZAuthorityRollCall.swift`
+
+`everyParameterisedScenarioRanUnderBothLayoutAuthorities` reads what
+`AuthorityCoverage` has recorded by the time it runs, so it must run last, and
+it ran last because `Tests/MetalUITests/ScrollViewTests.swift` happened to sort
+after every other contributing file (`LR-BI`, `LR-CB`). Lane 4's subjects
+include `Tests/MetalUITests/TombstoneTests.swift`, which sorts **after** it —
+precisely the case `AuthorityCoverage`'s own doc warned a later file would hit.
+
+**The ruling.** The test moves into a file of its own whose name is chosen for
+the purpose, `ZZAuthorityRollCall.swift`, the `ZZ…` prefix being
+`ZZDemoPixels.swift`'s. Nothing else moves: the registry stays in
+`AuthorityCoverage.swift` and the literals stay hand-derived in the test. The
+alternative — leaving `TombstoneTests`' scenario out of `expected` — would have
+bought the arrangement's convenience at the price of the stage's exit criterion
+over the one suite that holds `TB-AH`.
+
+Re-measured twice at this lane's HEAD, identical both times, off the unfiltered
+run's own `started` lines: `AXNodeTests` → `AccessibilityDefaultsTests` →
+`AccessibilityTreeTests` → `FocusTests` → `ListTests` → `ScrollIndicatorTests` →
+`ScrollRoutingTests` → `ScrollViewTests` → `TombstoneTests` →
+`ZZAuthorityRollCall`. Mutation **M4d** (the `arguments:` list reduced to
+`[.legacy]`) reddens the roll call *and* 64 issues raised by `record`'s
+order-independent half inside `TombstoneTests`' arm, so the move is measured by
+a mutation as well as by a healthy run.
+
+**What it costs if wrong.** If Swift Testing ever stops running files in path
+order the check fails **naming the scenarios it had not yet seen**, which is the
+same failure mode it has always had — not a silent pass.
+
+### 5. M4b is not a mutation; M4b′ is, and the finding is a redundancy nothing can pin
+
+Spec §6 lane 4's **M4b** is "`indexesRows` forced true regardless of
+`windowIsBounded`", required to redden at least four arms. Run on the full
+unfiltered suite it reddens **nothing** — the same shape `LR-CD` item 4 found
+for M2g.
+
+The mechanism, read off the source after the run: `indexesRows` sets
+`rowBox.handlers.axNode.logicalIndex` and nothing else, and on an unbounded
+window both things a hint could reach are already shut. `List.prepaint` wraps
+the rows in `withAccessibilitySuppressed(except: id)`, which is the exact
+condition `Frame.registerHandlers`' record branch tests
+(`isAccessibilitySuppressed(for:)`); and that method assigns
+`declaration.logicalIndex = nil` **before** its `declaration.isEmpty` test, so a
+row carrying only a hint emits no `AXNode` and writes no `$ax` slot either
+(`AB-L`, `AB-U`). The `windowIsBounded &&` conjunct is therefore belt-and-braces
+with a guard one method away.
+
+**The ruling.** The conjunct stays — it states what the value means, and
+removing it would make the line depend on a distant invariant to be correct —
+but the measurement is written into the source beside it, so a later reader does
+not take it for a tested guard. The claim the design wanted M4b to defend is
+`AB-X` rule 1, and it is pinned through the suppression: **M4b′**,
+`windowIsBounded` forced true, reddens six arms and twenty-two issues across
+`activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`,
+`combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` and
+`scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, symmetrically on
+both authorities.
+
+**What it costs if wrong.** Nothing behavioural: two gates where one would do,
+on a path that is already correct. What it would have cost to leave unrecorded
+is a reader believing a mutation round had exercised that conjunct.
+
+---
+
+## LR-CG — stage 4 lane 5's corrections: a diagnostics parameter rather than a fixture edit, work literals derived from the cold sweep, a vacuous half named, a gated scenario kept out of the roll call, and the census's 2 000 rows attributed by formula
+
+Five decisions the lane had to take, three of them because running it answered a
+question the brief had left open.
+
+### 1. The `.proposal` arms run on a diagnostics frame, and `demoLikeRows` is not touched
+
+Spec §6 lane 5 already ruled this (`LR-BX`, critic finding D1): `render` gains
+`reportsUnlowerableFields:`, the fixture keeps `.minHeight(Pixels(0))`. The lane
+adds the two measurements the ruling was written without.
+
+**What the diagnostics frame actually reports**, read off the run and now
+asserted exactly at all four `.proposal` call sites:
+`[box.minSize.unconsumed]` — one entry, the root's own, at 40, 160, 500 and
+100 000 rows alike. Nothing else. So the tree the work counters were taken over
+is **not** partly degenerate: `Frame.unlowerable` substitutes a 0×0 native leaf
+only for a *site* with no lowering, and there is none here.
+
+**And the abort it replaces is real**: a production `.proposal` frame over
+`demoLikeRows(40)` dies at
+`box.minSize.unconsumed has no proposal lowering (plan task 7, stage 2)`, with
+the identical tree under `reportsUnlowerableFields: true` exiting 0 beside it as
+the control (`aProductionFrameOverDemoLikeRowsAbortsUnderTheProposalAuthority`,
+`aDiagnosticsFrameOverDemoLikeRowsRunsUnderTheProposalAuthority`).
+
+**Contrast `LR-CF` item 2**, which dropped the same modifier from
+`AccessibilityDefaultsTests.scrolledList`. The two fixtures differ in exactly the
+way that ruling says: that one holds no literal measured against the modifier,
+this one holds every performance literal in the repository.
+
+**What it costs if wrong.** A performance harness whose frame is one flag away
+from production's. The flag changes nothing but the trap-versus-record branch,
+and the report being empty of everything but the root's own entry is the
+measurement that says so.
+
+### 2. The work literals are derived from the cold sweep and the window, not read off the warm run
+
+Spec §7 asks for `measureCalls`, `cacheHits` and `cacheMisses` "each equal to a
+literal hand-derived before the run … on a branching count, not by reading them
+off the first run" (`SA-M`). The shape §2.6's prototype P1d offered — a bare
+kernel stack of rows — is not the shape the exit test measures, which is a whole
+`demoLikeRows` frame with the row `Box`es, the `.padding`-free row wrapper, the
+`Text` leaves and the scroll viewport around them.
+
+**What was done instead, and it is a prediction rather than a fit.** A cold
+frame realizes every row (`MP-I`), so the cold column is the same function of
+the realized row count `r` sampled at r = 40, 160, 500 and 2000. It is exactly
+linear — `r + 1`, `6r + 7`, `7r + 8`, reproducing all twelve measured numbers
+with no residue. The *warm* window is derived independently, from
+`visibleRange`'s own arithmetic: at `offset == 0` over a 370pt viewport of 28pt
+rows, `first = max(0, 0 − 2) = 0` and `last = ceil(370/28) + 2 = 16`, so
+**r = 16**. The model evaluated there predicts **17 / 103 / 120**, and the warm
+frames read exactly that at all four row counts. The prediction was made on the
+cold column and confirmed on the warm one, two orders of magnitude from where
+the coefficients were taken.
+
+**Stated plainly, because the practices doc asks for it**: the coefficients 6 and
+7 were obtained by measuring, not by counting nodes in `LegacyLowering.swift`.
+What makes them more than a transcription is that they predict a point the fit
+never saw, and that **M5a** moves the literals exactly as `r + 1 / 6r + 7 /
+7r + 8` says it must at r = 17 (18 / 109 / 127).
+
+**What it costs if wrong.** The three literals would be a per-frame constant
+somebody had written down rather than a function of the window. M5a is the
+measurement that refutes that reading: it moves them and leaves the 500-vs-100k
+equality alone.
+
+### 3. The tokenizer half of the exit test is vacuous under `.proposal`, and the test says so
+
+`aListsWorkIsTheSameFor100kRowsAsFor500` and its ungated twin have counted
+`Shaper.runCallCounter` since the measure-performance milestone. Under the
+proposal authority that counter reads **0** at every row count: a lowered `Text`
+measures through `proposalTextMeasurement`, which hugs its widest line at the
+proposed width and never takes a min-content probe, so `Shaper.unbreakableRuns`
+is never reached. `#expect(calls100k == calls500)` is `0 == 0` on that arm —
+precisely the failure CLAUDE.md warns about for this instrument.
+
+**The ruling.** Do not delete the half and do not paper over it. The `.legacy`
+arm gains `try #require(calls500 > 0)` as a reachability control, the
+`.proposal` arm asserts the zero **by name**, with the mechanism, and the native
+work counters are what carry the proposal arm. `ShapingCache.storageCount` is
+not vacuous on either arm (72 legacy, 32 proposal, equal across row counts).
+
+**What it costs if wrong.** Nothing measured moves; what changes is that a
+reader of a green proposal arm no longer believes the tokenizer count is
+watching anything there.
+
+### 4. The gated 100 000-row scenario is parameterised but is NOT in `AuthorityCoverage.expected`
+
+`everyParameterisedScenarioRanUnderBothLayoutAuthorities` requires every name in
+`expected` to have been `record`ed by the time it runs. A scenario gated on
+`METALUI_RUN_100K_LIST_TEST` never records on an ordinary run, so listing it
+would redden the roll call on every healthy suite, and `record`ing without
+listing it reddens in its own arm. Either way the roll call would stop meaning
+what it says.
+
+**The ruling.** `aListsWorkIsTheSameFor100kRowsAsFor500` takes both authorities
+and calls nothing; its ungated twin `aListsWorkIsTheSameFor160RowsAsFor40`
+carries the name and runs the identical instrument at 40 against 160, and
+`theResidentEntrySetStaysBoundedWhileScrolling10kRows` carries the second.
+`expected` goes 65 → **67**, and a tenth file joins the path-order list.
+
+**What it costs if wrong.** A lane could reduce the gated test to `[.legacy]`
+and no roll call would say so. The exit test is run by hand, once, and its
+result is recorded (record §27 §10.4); the two ungated twins are what a later
+regression would trip over.
+
+**Amended, verification round (2026-09-23).** *Only one of the two twins can
+trip over anything.* `aListsWorkIsTheSameFor160RowsAsFor40` is discriminating —
+its `.proposal` arm expects `NativeLayoutWork(17, 103, 120)` where `.legacy`
+expects `NativeLayoutWork()`. `theResidentEntrySetStaysBoundedWhileScrolling10kRows`
+is **not**: hard-coding its `renderFrame` to `layoutAuthority: .legacy` leaves
+the whole 1602-test suite green (mutation MV5e, record §27 §10.6). The mutant is
+**not equivalent** — it deletes a production `.proposal` frame over a 10 000-row
+`List`, which is what says the re-spelled `StatefulListRow` does not abort at
+scale and that reaping is unchanged — so this is a banked gap, not an
+equivalence. The roll call cannot close it: `AuthorityCoverage.record` sees the
+argument, not the frame. The fix is one authority-discriminating read per arm
+(`frame.tree.lastNativeLayoutWork != NativeLayoutWork()` under `.proposal`,
+`==` under `.legacy`), the same control the work test already uses; owner in
+record §27 §11.3. Four prose and message literals in `AuthorityCoverage.swift`
+and `ZZAuthorityRollCall.swift` also still say `65` and "nine files" after this
+item moved `expected` to 67 and added a tenth.
+
+### 5. The census's 2 000 row ids are attributed by formula under three existing causes, and the sub-pixel tail is one of them
+
+Spec §4.2(c) requires every disagreement to be attributable to a named cause (R,
+55, X9, 3) and calls anything else a finding. The 2 000 ids that moved from
+*legacy-only* to *disagreeing* are the demo `List`'s 500 rows, four apiece, and
+they attribute as follows, with no new cause:
+
+- **55** twice — x + 108 (the served 196 sidebar against the shrunk 88) and
+  y + 16 (the narrower main column wraps the paragraph one line taller);
+- **X9** — the inner `Box` 28 → 16 tall, a stretched single-child container not
+  stretching its child (`LR-AC`), which also moves the `Text` from the row's
+  vertical centre to its top;
+- **55's sub-pixel tail** — 42 of the 500 texts are one point narrower on the
+  legacy side.
+
+**That last one was nearly written down as an anomaly, and it is not.** The
+lowered sidebar is served its declared 196 exactly, so every lowered row text
+starts at the integer x = 252 and cumulative-edge rounding gives
+`round(natural)`. The legacy sidebar is flex-shrunk (`SZ-L`) to a width a hair
+under 88, so the legacy text starts at `144 − d` and the same rounding gives
+`floor(natural)` for exactly the rows whose natural width has a fraction in
+`[0.5, 0.5 + d)`. **210 of the 500 have a fraction at or above 0.5 and only 42
+floor**, so "the legacy engine floors" is the wrong reading and was the first
+one tried.
+
+**The ruling.** `d` is not available to the test — no rect records an unrounded
+origin, and `LayoutTree.measuredWidth` records a width and not an x — so the
+test **solves for it from the 500 rows** and asserts the bracket
+`d ∈ (0.0615234375, 0.076171875]`, measured, together with the fact that the
+bracket is non-empty. A single fractional origin explaining all 500 is the
+falsifiable claim; a row wrong for any other reason empties the bracket, and a
+change to the sidebar's shrunk width moves its endpoints and names itself.
+
+**What it costs if wrong.** Two committed literals that describe the legacy
+sidebar's sub-point rather than deriving it. Deriving it would mean either a
+§9.7 shrink computation in a test or a new harness field recording unrounded
+origins; both were judged out of a lane whose subject is `List`.
+
+**And the census cannot see the windowing.** Measured by **M5d** (placement at
+the realized index rather than the logical one): 57 issues across nine tests,
+and `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` is not one of
+them. `LayoutDifferential.render` builds one frame, so the demo's `List` is
+always cold, always `firstIndex == 0`, and the census pins the placement formula
+only at its origin. The windowing itself is pinned by `ListLoweringTests` and
+`ListTests` (`LR-BY`, `LR-BW`), which is where it belongs; recorded so a later
+reader does not treat the census's 2 000 rows as a windowing test.

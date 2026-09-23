@@ -935,8 +935,26 @@ private struct FocusListItem: Identifiable { let id: String }
 /// a dozen rows' `$focus`-shaped slots plus the scroller's `ScrollState` —
 /// never come close on their own, which would make the long-excursion half
 /// pass vacuously (nothing ever gets reaped).
+///
+/// **Runs under BOTH layout authorities since plan task 7's stage 4, lane 4**
+/// (spec §4.1 row 3, `LR-BU`), for the reason its `@State` twin does: stage 4
+/// replaced `List`'s spacer-plus-rows flex column with one `WindowedRowsLayout`
+/// on the proposal path, and which rows a generation marks is what both halves
+/// of the bound are read off.
+///
+/// **This fixture needed NO re-spelling, unlike the `@State` twin's**
+/// (`LR-CF`; spec §6 lane 4 predicted it would). Its row is `Box().focusable()` —
+/// a `Box`, which stage 1 lowered, and `focusable()` is a `Self`-returning
+/// modifier writing `handlers`, not a registration — so the identical tree runs
+/// to completion under `.proposal`. Measured before this arm was written, in a
+/// child process: `TombstoneTests.aBoxSpelledListRowDoesNotAbortAProductionProposalFrame`.
+///
+/// Mutation **M4a** (`staleAfterGenerations` 2 → 3) must redden this test on
+/// **both** authorities, and `TombstoneTests`' twin likewise.
 @MainActor
-@Test func aFocusedListRowSurvivesABoundedExcursionButNotALongerOne() throws {
+@Test(arguments: AuthorityCoverage.authorities)
+func aFocusedListRowSurvivesABoundedExcursionButNotALongerOne(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     let rowHeight = px(20)
     let data = (0..<12).map { FocusListItem(id: "row\($0)") }
 
@@ -969,7 +987,7 @@ private struct FocusListItem: Identifiable { let id: String }
                                                     viewportExtent: current.viewportExtent))
             }
             let frame = Frame(contentSize: contentSize, scaleFactor: 1, stateTable: table,
-                              focusedElement: currentFocus)
+                              focusedElement: currentFocus, layoutAuthority: authority)
             frame.render(&tree)
             currentFocus = frame.focusedElement
         }
