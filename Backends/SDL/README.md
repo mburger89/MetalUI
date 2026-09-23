@@ -8,6 +8,10 @@ prebuilt VC package on Windows — see `.github/workflows/sdl-gpu-linux.yml`).
 - **`MetalUISDL`** — `SDLWindowRenderer`, the `WindowRenderer` (ruling RS-D)
   that draws MetalUI frames with SDL3's GPU API: Metal on macOS, Vulkan on
   Linux, Direct3D 12 on Windows. Into a claimed `SDL_Window`, or offscreen.
+- **`MetalUISDL`** also holds `SDLPlatform`/`SDLWindow` (ruling SP-A), the
+  SDL3 `Platform`: windows, input with keys in AppKit's vocabulary (SP-C),
+  resize, pixel density, system theme, a run loop paced by the swapchain.
+  No accessibility (SP-B).
 - `SDLBridge` — the C side: device, the two pipelines, packing the scalar
   primitive ABI into 16-byte lanes, `mui_renderer_*` for windows and
   `replay_*` for the diagnostic replay.
@@ -17,5 +21,5 @@ prebuilt VC package on Windows — see `.github/workflows/sdl-gpu-linux.yml`).
   replays scenes the Metal renderer drew (`Experiments/SDLGPU` records them).
 
 ```sh
-swift test   # the window renderer against the replay path; the fixture format
+swift test   # the window renderer against the replay path; the platform; the fixture format
 ```

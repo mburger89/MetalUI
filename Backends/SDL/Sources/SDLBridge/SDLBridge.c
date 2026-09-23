@@ -530,3 +530,120 @@ done:
 float mui_window_pixel_density(void *window) {
     return SDL_GetWindowPixelDensity((SDL_Window *)window);
 }
+
+/* ---- The SDL platform (ruling SP-A) ------------------------------------- */
+
+bool mui_platform_init(void) { return SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS); }
+
+static uint32_t mods(SDL_Keymod m) {
+    uint32_t r = 0;
+    if (m & SDL_KMOD_SHIFT) r |= MUI_MOD_SHIFT;
+    if (m & SDL_KMOD_CTRL) r |= MUI_MOD_CONTROL;
+    if (m & SDL_KMOD_ALT) r |= MUI_MOD_OPTION;
+    if (m & SDL_KMOD_GUI) r |= MUI_MOD_COMMAND;
+    return r;
+}
+
+static bool translate(const SDL_Event *e, MUIEvent *out) {
+    memset(out, 0, sizeof(*out));
+    out->timestamp = (double)e->common.timestamp / 1e9;
+    switch (e->type) {
+    case SDL_EVENT_QUIT: out->kind = MUI_EVENT_QUIT; return true;
+    case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+        out->kind = MUI_EVENT_CLOSE; out->window_id = e->window.windowID; return true;
+    case SDL_EVENT_WINDOW_RESIZED: case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+    case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+        out->kind = MUI_EVENT_RESIZE; out->window_id = e->window.windowID; return true;
+    case SDL_EVENT_WINDOW_EXPOSED:
+        out->kind = MUI_EVENT_EXPOSED; out->window_id = e->window.windowID; return true;
+    case SDL_EVENT_SYSTEM_THEME_CHANGED: out->kind = MUI_EVENT_THEME; return true;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP:
+        if (e->button.button != SDL_BUTTON_LEFT) return false;
+        out->kind = e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? MUI_EVENT_MOUSE_DOWN : MUI_EVENT_MOUSE_UP;
+        out->window_id = e->button.windowID; out->x = e->button.x; out->y = e->button.y;
+        out->clicks = e->button.clicks; out->modifiers = mods(SDL_GetModState());
+        return true;
+    case SDL_EVENT_MOUSE_MOTION:
+        out->kind = MUI_EVENT_MOUSE_MOVE; out->window_id = e->motion.windowID;
+        out->x = e->motion.x; out->y = e->motion.y; out->modifiers = mods(SDL_GetModState());
+        return true;
+    case SDL_EVENT_MOUSE_WHEEL: {
+        out->kind = MUI_EVENT_WHEEL; out->window_id = e->wheel.windowID;
+        out->x = e->wheel.mouse_x; out->y = e->wheel.mouse_y;
+        /* SDL reports FLIPPED for "natural" scrolling with the values
+           already reversed; undo nothing, so the sign follows what the user
+           asked the system for, as AppKit's scrollingDelta does. */
+        out->dx = e->wheel.x; out->dy = e->wheel.y;
+        out->modifiers = mods(SDL_GetModState());
+        return true;
+    }
+    case SDL_EVENT_KEY_DOWN: case SDL_EVENT_KEY_UP:
+        out->kind = e->type == SDL_EVENT_KEY_DOWN ? MUI_EVENT_KEY_DOWN : MUI_EVENT_KEY_UP;
+        out->window_id = e->key.windowID; out->keycode = e->key.key;
+        out->modifiers = mods(e->key.mod); out->repeat = e->key.repeat;
+        return true;
+    default: return false;
+    }
+}
+
+bool mui_poll_event(MUIEvent *out) {
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) if (translate(&e, out)) return true;
+    return false;
+}
+
+bool mui_wait_event(MUIEvent *out, int32_t timeout_ms) {
+    SDL_Event e;
+    if (!SDL_WaitEventTimeout(&e, timeout_ms)) return false;
+    if (translate(&e, out)) return true;
+    return mui_poll_event(out);
+}
+
+bool mui_push_event(const MUIEvent *in) {
+    SDL_Event e;
+    SDL_zero(e);
+    switch (in->kind) {
+    case MUI_EVENT_MOUSE_DOWN: case MUI_EVENT_MOUSE_UP:
+        e.type = in->kind == MUI_EVENT_MOUSE_DOWN ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+        e.button.windowID = in->window_id; e.button.button = SDL_BUTTON_LEFT;
+        e.button.down = in->kind == MUI_EVENT_MOUSE_DOWN; e.button.clicks = (Uint8)in->clicks;
+        e.button.x = in->x; e.button.y = in->y; break;
+    case MUI_EVENT_MOUSE_MOVE:
+        e.type = SDL_EVENT_MOUSE_MOTION; e.motion.windowID = in->window_id;
+        e.motion.x = in->x; e.motion.y = in->y; break;
+    case MUI_EVENT_WHEEL:
+        e.type = SDL_EVENT_MOUSE_WHEEL; e.wheel.windowID = in->window_id;
+        e.wheel.x = in->dx; e.wheel.y = in->dy; e.wheel.mouse_x = in->x; e.wheel.mouse_y = in->y; break;
+    case MUI_EVENT_KEY_DOWN: case MUI_EVENT_KEY_UP:
+        e.type = in->kind == MUI_EVENT_KEY_DOWN ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
+        e.key.windowID = in->window_id; e.key.key = in->keycode; e.key.repeat = in->repeat;
+        e.key.down = in->kind == MUI_EVENT_KEY_DOWN;
+        e.key.mod = (in->modifiers & MUI_MOD_SHIFT ? SDL_KMOD_LSHIFT : 0)
+                  | (in->modifiers & MUI_MOD_CONTROL ? SDL_KMOD_LCTRL : 0)
+                  | (in->modifiers & MUI_MOD_OPTION ? SDL_KMOD_LALT : 0)
+                  | (in->modifiers & MUI_MOD_COMMAND ? SDL_KMOD_LGUI : 0);
+        break;
+    case MUI_EVENT_CLOSE:
+        e.type = SDL_EVENT_WINDOW_CLOSE_REQUESTED; e.window.windowID = in->window_id; break;
+    case MUI_EVENT_RESIZE:
+        e.type = SDL_EVENT_WINDOW_RESIZED; e.window.windowID = in->window_id; break;
+    case MUI_EVENT_THEME: e.type = SDL_EVENT_SYSTEM_THEME_CHANGED; break;
+    default: return SDL_SetError("unsupported synthetic event");
+    }
+    e.common.timestamp = SDL_GetTicksNS();
+    return SDL_PushEvent(&e);
+}
+
+void *mui_window_create(const char *title, int32_t w, int32_t h, bool hidden) {
+    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    if (hidden) flags |= SDL_WINDOW_HIDDEN;
+    return SDL_CreateWindow(title, w, h, flags);
+}
+void mui_window_destroy(void *w) { SDL_DestroyWindow((SDL_Window *)w); }
+uint32_t mui_window_id(void *w) { return SDL_GetWindowID((SDL_Window *)w); }
+void mui_window_size(void *w, int32_t *width, int32_t *height) { SDL_GetWindowSize((SDL_Window *)w, width, height); }
+bool mui_window_set_title(void *w, const char *t) { return SDL_SetWindowTitle((SDL_Window *)w, t); }
+const char *mui_window_title(void *w) { return SDL_GetWindowTitle((SDL_Window *)w); }
+bool mui_window_show(void *w) { return SDL_ShowWindow((SDL_Window *)w); }
+int32_t mui_system_theme(void) { return SDL_GetSystemTheme() == SDL_SYSTEM_THEME_DARK ? 1 : 0; }
+double mui_now(void) { return (double)SDL_GetTicksNS() / 1e9; }

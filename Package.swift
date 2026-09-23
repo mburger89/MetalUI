@@ -21,6 +21,7 @@ var products: [Product] = [
         // The platform protocols, for platforms outside this package
         // (Backends/SDL; ruling RS-A).
         .library(name: "MetalUIPlatform", targets: ["MetalUIPlatform"]),
+        .library(name: "MetalUICore", targets: ["MetalUICore"]),
 
 ]
 

@@ -28,6 +28,7 @@ let package = Package(
                                                   .product(name: "MetalUIScene", package: "MetalUI")]),
         .target(name: "MetalUISDL", dependencies: ["SDLBridge",
                                                    .product(name: "MetalUIPlatform", package: "MetalUI"),
+                                                   .product(name: "MetalUICore", package: "MetalUI"),
                                                    .product(name: "MetalUIScene", package: "MetalUI")]),
         .testTarget(name: "MetalUISDLTests", dependencies: ["MetalUISDL", "SDLReplay",
                                                            .product(name: "MetalUIScene", package: "MetalUI"),
