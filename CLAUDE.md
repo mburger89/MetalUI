@@ -36,7 +36,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-CT`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
-  `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-J`;
+  `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
   rulings in its spec, no separate decisions doc). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`) is a typo; sweep
   case-insensitively.
@@ -100,16 +100,17 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 ```
 
 - **Counts (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
-  with `master` at `42b9ab4`, the portable text line): 1640 tests, 97
+  with `master` at `42b9ab4`, the portable text line; then `PT-J`, +5): 1645 tests, 97
   goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:`, taken after
   `swift package clean` with `swift build --build-system native
   --build-tests` then unfiltered `swift test --build-system native
-  --no-parallel` (**one summary line**, `Test run with 1640 tests in 3 suites
+  --no-parallel` (**one summary line**, `Test run with 1645 tests in 3 suites
   passed`; five skipped: the two gated tests and the FreeType, HarfBuzz and
   portable text oracles' gated measurement tests; the guards ran — the log
   carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
   `e5caefb` (`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` is
-  empty). **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
+  empty). **1645 = 1640 + 5**, the `PT-J` follow-up's `EmitParameterTests`
+  (record §28); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
   15 (lane 1, the presentation root, +7; lane 2, the exit suites, +2; lane 3,
   the must-not-move set through real windows, +6; record §29) plus the
   portable text line's 8 (`MetalUIPortableTextTests`; record §28;
@@ -217,7 +218,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   (`PT-A`…`PT-E`): `PortableFont` opens one file in both engines and **checks
   they agree** at construction (`PT-B`), and `PortableText.emit` turns one run
   on one line into `MUIGlyph`s plus atlas coverage with `Frame.draw`'s
-  arithmetic (`PT-D`) — no line breaking, bidi, itemization or fallback. Also
+  arithmetic (`PT-D`), taking the mask's corner radii, `order` and `layer`
+  that `Frame.draw` reads from frame state (`PT-J`; defaults square/0/0) — no
+  line breaking, bidi, itemization or fallback. Also
   a library product; nothing in production calls it (`PT-I`). The subpixel
   placement rule lives once, in `GlyphImage.subpixelPlacement(forDeviceX:)`
   (`PT-C`); `GlyphRaster` forwards — do not re-inline it on either side.

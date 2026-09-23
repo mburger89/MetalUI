@@ -67,10 +67,21 @@ public struct PortableTextError: Error, CustomStringConvertible {
 public enum PortableText {
     /// Emits `text` with its baseline starting at `origin` (points), and
     /// returns the run's advance in points.
+    ///
+    /// `contentMask` and `maskCornerRadii` are in device pixels, as
+    /// `Frame.draw` stamps `activeClip`/`activeClipRadii` scaled. `order` and
+    /// `layer` go to every glyph of the run, as `Frame.draw` passes `order: 0`
+    /// and `activeLayer`: within a layer, equal orders paint in emission
+    /// sequence; a higher layer paints after every lower one. The defaults — a
+    /// square mask, `order: 0`, layer 0 — are `Frame.draw`'s outside any
+    /// rounded clip or lifted layer.
     @discardableResult
     public static func emit(_ text: String, font: PortableFont,
                             origin: (x: Double, y: Double), scaleFactor: Float,
                             color: MUIHsla, contentMask: MUIBounds,
+                            maskCornerRadii: MUICorners = MUICorners(topLeft: 0, topRight: 0,
+                                                                     bottomRight: 0, bottomLeft: 0),
+                            order: UInt32 = 0, layer: Int = 0,
                             into scene: inout Scene, atlas: GlyphAtlas) throws -> Double {
         precondition(scaleFactor > 0, "a scale factor must be positive")
         let scale = Double(scaleFactor)
@@ -102,9 +113,8 @@ public enum PortableText {
                 origin: MUIPoint(x: Float(packed.slot.x), y: Float(packed.slot.y)),
                 size: MUISize(width: Float(packed.slot.width), height: Float(packed.slot.height)))
             scene.insert(MUIGlyph(bounds: bounds, atlasBounds: slot, contentMask: contentMask,
-                                  maskCornerRadii: MUICorners(topLeft: 0, topRight: 0,
-                                                              bottomRight: 0, bottomLeft: 0),
-                                  color: color, order: 0, _reserved: 0))
+                                  maskCornerRadii: maskCornerRadii,
+                                  color: color, order: order, _reserved: 0), layer: layer)
         }
         return run.advance
     }

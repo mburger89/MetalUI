@@ -88,9 +88,10 @@ performance measurement: the probe compiles shaders and waits for GPU readback.
   Metal reference and the same parity rule; on Linux and Windows CI it is the
   first text this project has drawn with no Apple framework anywhere in the
   path. Its primitives are all `order: 0`, as production emits them, so
-  emission sequence alone is paint order. Its glyph content masks carry no
-  corner radius (`PortableText.emit` takes none), so the clipped line is
-  clipped square where frames 0–3 round it.
+  emission sequence alone is paint order. Its clipped lines are masked with
+  the same 12 px rounded corners as frames 0–3 (`emit`'s `maskCornerRadii`),
+  and one of them (`WWW corner`) runs through the clip's bottom-left corner,
+  where rounded and square masks differ by 17 pixels.
 - Every BGRA channel is compared. The pass threshold permits at most one UNORM
   step of rounding. The log reports differing pixels and maximum channel delta;
   PNGs retain both outputs.
