@@ -1,41 +1,54 @@
 import MetalUIHarfBuzz
 
-/// One shaped glyph and the face it was shaped in (ruling FB-A): the
-/// requested face, or the first fallback that covers its grapheme.
+/// One shaped glyph, the face it was shaped in (ruling FB-A) and the run it
+/// came from (ruling BD-B).
 struct RunGlyph {
     let glyph: ShapedGlyph
     let font: PortableFont
     /// The glyph's cluster in UTF-16 units of the whole string shaped.
     let cluster: Int
+    /// Which shaping run, in logical order — what visual ordering reverses.
+    let run: Int
+    /// The run's bidi level; odd is right to left.
+    let level: UInt8
 }
 
 extension PortableText {
-    /// `text` shaped with `font`'s cascade (ruling FB-A): each grapheme goes to
-    /// the first face — `font`, then `font.fallbacks` in order — that has a
-    /// glyph for every scalar of it that draws (default ignorables, controls
-    /// and whitespace need none), or to `font` when none does; consecutive
-    /// graphemes in one face are shaped as one HarfBuzz run.
-    static func shapeCascading(_ text: some StringProtocol, font: PortableFont) throws -> [RunGlyph] {
+    /// `text` itemized and shaped (rulings FB-A, BD-B): runs split wherever the
+    /// face (the cascade's first covering face per grapheme), the bidi level
+    /// or the script changes, each shaped in its level's direction, in logical
+    /// order. `levels` and `scripts` are the text's own, per UTF-16 unit — a
+    /// slice of the paragraph's when this is part of one; `nil` runs the bidi
+    /// algorithm on `text` alone.
+    static func shapeCascading(_ text: some StringProtocol, font: PortableFont,
+                               levels: ArraySlice<UInt8>? = nil,
+                               scripts: ArraySlice<UInt8>? = nil) throws -> [RunGlyph] {
         let string = String(text)
-        if font.fallbacks.isEmpty {
-            return try HarfBuzzShaper.shape(string, font: font.shaping).glyphs
-                .map { RunGlyph(glyph: $0, font: font, cluster: $0.cluster) }
-        }
+        let units = Array(string.utf16)
+        let (levels, scripts): ([UInt8], [UInt8]) = {
+            if let levels, let scripts { return (Array(levels), Array(scripts)) }
+            let bidi = BidiParagraph(units)
+            return (bidi.levels, bidi.scripts)
+        }()
         var result: [RunGlyph] = []
-        var runStart = 0, offset = 0
-        var runFont: PortableFont?
+        var runStart = 0, offset = 0, runIndex = 0
+        var runKey: (font: PortableFont, level: UInt8, script: UInt8)?
         var runText = ""
         func flush() throws {
-            guard let face = runFont, !runText.isEmpty else { return }
-            let start = runStart
-            result += try HarfBuzzShaper.shape(runText, font: face.shaping).glyphs
-                .map { RunGlyph(glyph: $0, font: face, cluster: start + $0.cluster) }
+            guard let key = runKey, !runText.isEmpty else { return }
+            let start = runStart, index = runIndex
+            let direction: ShapingDirection = key.level % 2 == 1 ? .rightToLeft : .leftToRight
+            result += try HarfBuzzShaper.shape(runText, font: key.font.shaping, direction: direction).glyphs
+                .map { RunGlyph(glyph: $0, font: key.font, cluster: start + $0.cluster, run: index, level: key.level) }
+            runIndex += 1
         }
         for character in string {
-            let face = coveringFace(character, font: font)
-            if face !== runFont {
+            let face = font.fallbacks.isEmpty ? font : coveringFace(character, font: font)
+            let level = offset < levels.count ? levels[offset] : 0
+            let script = offset < scripts.count ? scripts[offset] : 0
+            if runKey == nil || face !== runKey!.font || level != runKey!.level || script != runKey!.script {
                 try flush()
-                runFont = face
+                runKey = (face, level, script)
                 runStart = offset
                 runText = ""
             }
@@ -44,6 +57,26 @@ extension PortableText {
         }
         try flush()
         return result
+    }
+
+    /// `glyphs` — one line's, in logical order — in visual order, left to
+    /// right (ruling BD-C): the line's bidi runs as UAX #9 orders them, a
+    /// right-to-left run's shaping runs reversed, and each shaping run's glyphs
+    /// in HarfBuzz's order, which is already visual.
+    static func visualOrder<Payload>(_ glyphs: [(run: RunGlyph, payload: Payload)], line: Range<Int>,
+                                     bidi: BidiParagraph?, unitOf: (Payload) -> Int)
+        -> [(run: RunGlyph, payload: Payload)] {
+        guard let bidi, bidi.isMixed else { return glyphs }
+        var ordered: [(run: RunGlyph, payload: Payload)] = []
+        ordered.reserveCapacity(glyphs.count)
+        for visual in bidi.visualRuns(line) {
+            let inside = glyphs.filter { visual.range.contains(unitOf($0.payload)) }
+            var runs: [Int] = []
+            for glyph in inside where runs.last != glyph.run.run { runs.append(glyph.run.run) }
+            if visual.level % 2 == 1 { runs.reverse() }
+            for run in runs { ordered += inside.filter { $0.run.run == run } }
+        }
+        return ordered
     }
 
     /// The face that draws `character`: the first in the cascade covering every

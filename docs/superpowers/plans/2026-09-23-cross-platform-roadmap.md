@@ -101,8 +101,10 @@ Apple-bound:
     grapheme; equal to CoreText's with the same cascade list. RTL fallback
     waits for item 12. `feat/font-fallback`, spec
     `specs/2026-09-23-font-fallback-design.md` (`FB-`), record §42.
-12. [ ] **Bidi and script itemization** — UAX #9 across runs and runs split
-    by script; today one call is one direction.
+12. [x] **Bidi and script itemization** — SheenBidi; runs by face, level
+    and script; visual lines equal to CoreText's (and item 11's RTL fallback
+    with them). `feat/bidi`, spec `specs/2026-09-23-bidi-design.md` (`BD-`),
+    record §43.
 13. [ ] **Accessibility off Apple** — AT-SPI (Linux) and UI Automation
     (Windows) behind `publishAccessibilityTree`.
 14. [ ] **Text input** — IME composition and clipboard through SDL3.

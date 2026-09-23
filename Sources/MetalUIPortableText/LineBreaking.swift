@@ -104,6 +104,9 @@ extension PortableText {
         guard !units.isEmpty else { return [LaidOutLine(line: PortableLine(range: 0..<0, advance: 0), glyphs: [])] }
 
         let breaks = lineBreaks(in: text)
+        // UAX #9 over the whole paragraph (ruling BD-A): the levels and scripts
+        // shaping itemizes by, and each line's visual order.
+        let bidi = BidiParagraph(units)
         // Each glyph's advance is charged to the first unit of its cluster; a
         // cluster's later units (a ligature's second letter, a mark) carry 0.
         // Shaped from `from` to the end: the whole paragraph first, and again
@@ -118,7 +121,8 @@ extension PortableText {
         func shape(from: Int) throws {
             let rest = String(decoding: units[from...], as: UTF16.self)
             for unit in from..<units.count { unitAdvance[unit] = 0; clusterStart[unit] = false }
-            shaped = try shapeCascading(rest, font: font)
+            shaped = try shapeCascading(rest, font: font, levels: bidi.levels[from...],
+                                        scripts: bidi.scripts[from...])
             shapedFrom = from
             for run in shaped {
                 unitAdvance[from + run.cluster] += run.glyph.xAdvance
@@ -144,7 +148,15 @@ extension PortableText {
         var result: [LaidOutLine] = []
         var start = 0
         while start < units.count {
-            if !clusterStart[start] { try shape(from: start) }
+            // Re-shape from a line start inside a cluster (LB-D), or one that
+            // splits lam-alef, Arabic's mandatory ligature (ruling BD-C). Noto
+            // Sans Arabic draws lam-alef as two glyphs in two clusters, so the
+            // cluster test cannot see it; CoreText still treats the split as a
+            // split ligature and re-shapes the new line, leaving its alef
+            // unjoined — while at any other break between joined letters it
+            // keeps the paragraph's joined forms (measured both ways: an alef
+            // and a mim, each the first letter of a line).
+            if !clusterStart[start] || splitsLamAlef(units, at: start) { try shape(from: start) }
             var end = units.count
             var lastAllowed: Int?
             var running = 0.0
@@ -187,14 +199,28 @@ extension PortableText {
             } else {
                 advance = try shapedAdvance(units, start..<end, font: font)
                 let alone = String(decoding: units[start..<end], as: UTF16.self)
-                lineGlyphs = try shapeCascading(alone, font: font).map { ($0, start + $0.cluster) }
+                lineGlyphs = try shapeCascading(alone, font: font, levels: bidi.levels[start..<end],
+                                                scripts: bidi.scripts[start..<end])
+                    .map { ($0, start + $0.cluster) }
             }
             // Each glyph's pen from the line's start, walked as the advance was,
             // drawn as CoreText draws it (`drawnGlyph`).
             var pen = 0.0
+            // Trailing whitespace hangs outside the line (LB-D). In a
+            // right-to-left paragraph UAX #9's L1 puts it at the visual LEFT,
+            // and CoreText hangs it off that edge: the line's text starts at
+            // the origin and the whitespace sits at negative x (ruling BD-C,
+            // measured: every placement difference of the first oracle run).
+            if bidi.isRightToLeftParagraph(at: start) {
+                var trailing = end
+                while trailing > start, isBreakingWhitespace(units[trailing - 1]) { trailing -= 1 }
+                pen = -(trailing..<end).reduce(0) { advancing($0, over: units[$1], by: unitAdvance[$1]) }
+            }
             var placed: [LinePlacedGlyph] = []
             placed.reserveCapacity(lineGlyphs.count)
-            for (run, unit) in lineGlyphs {
+            let visual = visualOrder(lineGlyphs.map { (run: $0.run, payload: $0.unit) },
+                                     line: start..<end, bidi: bidi, unitOf: { $0 })
+            for (run, unit) in visual {
                 if let id = drawnGlyph(run.glyph.id, at: units[unit], ignorable: ignorable[unit],
                                        space: run.font.spaceGlyph) {
                     placed.append(LinePlacedGlyph(id: id, glyph: run.glyph, font: run.font, penX: pen))
@@ -281,6 +307,14 @@ extension PortableText {
             offset += scalar.utf16.count
         }
         return ignorable
+    }
+
+    /// Whether a line starting at `start` splits lam from a following alef
+    /// (U+0644 then U+0622, U+0623, U+0625 or U+0627) — the pair Arabic's
+    /// mandatory `rlig` ligature joins.
+    static func splitsLamAlef(_ units: [UInt16], at start: Int) -> Bool {
+        start > 0 && start < units.count && units[start - 1] == 0x0644
+            && [0x0622, 0x0623, 0x0625, 0x0627].contains(units[start])
     }
 
     /// A C0 or C1 control character — general category Cc.

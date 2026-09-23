@@ -413,6 +413,59 @@ let expectedResolutions: [(query: String?, face: String)] = [
     }
 }
 
+// MARK: - Bidi (roadmap item 12)
+
+/// Mixed-direction paragraphs through `emitLines` with Noto Sans and a Noto
+/// Sans Arabic fallback, pinned like a paragraph (rects, height, atlas).
+let bidiCorpus = ["مرحبا Hello بالعالم (peace)", "left, then عربي, then 123 and ١٢٣.\nسطر ثاني with English"]
+
+func pinBidi(_ text: String) throws -> PinnedEmit {
+    let resolver = try PortableFontResolver(defaultFont: fontBytes(notoSans))
+    try resolver.register(fontBytes("NotoSansArabic-Regular.ttf"))
+    let font = try resolver.resolve(family: nil, size: 15)
+    let atlas = GlyphAtlas(width: atlasSide, height: atlasSide)
+    var scene = Scene()
+    let mask = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 4096, height: 4096))
+    atlas.beginFrame()
+    let paragraph = try PortableText.emitLines(text, font: font, origin: (3.3, 7.6), wrappingAt: 90, scaleFactor: 2,
+                                               color: MUIHsla(h: 0, s: 0, l: 1, a: 1), contentMask: mask,
+                                               into: &scene, atlas: atlas)
+    atlas.endFrame()
+    var bytes: [UInt8] = []
+    for glyph in scene.glyphs {
+        for value in [glyph.bounds.origin.x, glyph.bounds.origin.y, glyph.bounds.size.width, glyph.bounds.size.height,
+                      glyph.atlasBounds.origin.x, glyph.atlasBounds.origin.y,
+                      glyph.atlasBounds.size.width, glyph.atlasBounds.size.height] {
+            appendLittleEndian(Int32(value), to: &bytes)
+        }
+    }
+    let dirty = atlas.dirtyRect.map { [$0.x, $0.y, $0.width, $0.height] } ?? []
+    return PinnedEmit(glyphs: scene.glyphs.count, rects: fnv1a64(bytes), advance: paragraph.height.bitPattern,
+                      dirty: dirty, coverage: fnv1a64(atlas.pixels))
+}
+
+@Suite struct BidiDeterminismTests {
+    @Test func bidiParagraphsMatchTheValuesRecordedOnMacOS() throws {
+        try #require(expectedBidi.count == bidiCorpus.count)
+        for (text, expected) in zip(bidiCorpus, expectedBidi) {
+            let got = try pinBidi(text)
+            #expect(got == expected, "\(text): measured \(got), recorded on macOS \(expected)")
+        }
+    }
+
+    @Test(.enabled(if: recording, "set METALUI_PORTABLE_RECORD=1 to print the expected values"))
+    func record() throws {
+        var lines = ["let expectedBidi: [PinnedEmit] = ["]
+        for text in bidiCorpus {
+            let pinned = try pinBidi(text)
+            try #require(pinned.glyphs > 20)
+            lines.append("    PinnedEmit(glyphs: \(pinned.glyphs), rects: \(hex(pinned.rects)), advance: \(hex(pinned.advance)), dirty: \(pinned.dirty), coverage: \(hex(pinned.coverage))),")
+        }
+        lines.append("]")
+        print(lines.joined(separator: "\n"))
+    }
+}
+
 let recording = ProcessInfo.processInfo.environment["METALUI_PORTABLE_RECORD"] == "1"
 
 // MARK: - Tests

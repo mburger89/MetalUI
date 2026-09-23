@@ -103,6 +103,17 @@ var targets: [Target] = [
         // FreeType 2.14.3, vendored (ruling FT-A; Sources/CFreeType/VENDORED.md).
         // Only the per-module amalgamation files compile; each #includes the
         // rest of its module.
+        // SheenBidi 3.0.0, vendored (ruling BD-A; Sources/CSheenBidi/VENDORED.md):
+        // UAX #9 and script runs. Upstream's unity build: one file, which
+        // #includes the rest.
+        .target(
+            name: "CSheenBidi",
+            exclude: ["LICENSE", "VENDORED.md"],
+            sources: ["Source/SheenBidi.c"],
+            publicHeadersPath: "Headers",
+            cSettings: [.define("SB_CONFIG_UNITY"), .headerSearchPath("Source")]
+        ),
+
         .target(
             name: "CFreeType",
             exclude: ["LICENSE.TXT", "FTL.TXT", "VENDORED.md"],
@@ -123,7 +134,7 @@ var targets: [Target] = [
         // (rulings PT-A, PT-D): HarfBuzz shapes, FreeType rasterizes.
         .target(name: "MetalUIPortableText",
                 dependencies: ["MetalUIScene", "MetalUIHarfBuzz", "MetalUIFreeType",
-                               "CUnibreak", "MetalUITextSystem"]),
+                               "CUnibreak", "MetalUITextSystem", "CSheenBidi"]),
 
         // Shaping with no Apple framework (rulings SH-B, SH-K): imports only
         // CHarfBuzz. One run: no line breaking, bidi, itemization or fallback.
