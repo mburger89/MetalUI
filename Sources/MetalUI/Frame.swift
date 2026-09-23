@@ -1468,7 +1468,7 @@ public final class Frame {
          transaction: Animation? = nil,
          collectsAccessibility: Bool = false,
          layoutAuthority: LayoutAuthority = .proposal,
-         reportsUnlowerableFields: Bool = true,
+         reportsUnlowerableFields: Bool = false,
          recordsElementBounds: Bool = false) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1

@@ -129,8 +129,10 @@ final class NativeLayoutRun {
     init(tree: LayoutTree) { self.tree = tree }
 
     /// Enters one native recursion level for `node`; `leave()` on return.
+    nonisolated(unsafe) static var deepestReached = 0
     func enter(_ node: LayoutNodeID) {
         depth += 1
+        if depth > NativeLayoutRun.deepestReached { NativeLayoutRun.deepestReached = depth }
         precondition(depth <= NativeLayoutRun.maxDepth,
                      "native layout recursion exceeded \(NativeLayoutRun.maxDepth) levels at node \(node) (SA-L)")
     }

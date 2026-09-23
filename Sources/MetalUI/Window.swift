@@ -890,7 +890,6 @@ public final class Window {
                           transaction: transaction,
                           collectsAccessibility: accessibility.isActive,
                           layoutAuthority: layoutAuthority,
-                          reportsUnlowerableFields: true,
                           recordsElementBounds: recordsElementBounds)
         frame.rootEnvironment = environment
         withObservationTracking {
