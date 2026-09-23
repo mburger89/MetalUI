@@ -1,6 +1,6 @@
 # HarfBuzz shaper — design
 
-**Status:** implemented, 2026-09-22 (record `docs/record/25-harfbuzz-shaper.md`,
+**Status:** implemented, 2026-09-22 (record `docs/record/26-harfbuzz-shaper.md`,
 commit `ce1088e` on `feat/harfbuzz-shaper`). Decided with the user: vendor the
 HarfBuzz source; this step shapes one run, checked on Latin and on Arabic.
 **Ruling prefix:** `SH-` (lettered; next `SH-L`). (`HB-` was free but matches

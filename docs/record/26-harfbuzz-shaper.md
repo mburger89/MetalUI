@@ -1,10 +1,10 @@
-# 25 — HarfBuzz shaper (`MetalUIHarfBuzz`), 2026-09-22
+# 26 — HarfBuzz shaper (`MetalUIHarfBuzz`), 2026-09-22
 
 Spec and rulings: `docs/superpowers/specs/2026-09-22-harfbuzz-shaper-design.md`
 (`SH-A`…`SH-K`). Branch `feat/harfbuzz-shaper` from `b10594c` (`master` at the
 FreeType merge, record §24). Commit at record time: `ce1088e`.
 
-**This number may be renumbered at merge.** `master` took its own §25 for an
+**This number may be renumbered at merge.** `master` took its own §26 for an
 unrelated line while this branch was in flight (as §19/§20/§21 were
 renumbered at the stage-2/grids integration, record §23 §7); if so, resolve
 the collision the same way that record documents, by moving this file's
@@ -327,3 +327,6 @@ Measured in this worktree at `ce1088e`, clean tree, this session:
   shaper any renderer uses (`SH-J`). Wiring a non-Apple shaping backend into
   the render pipeline is future work, the same open item `FT-I` left for the
   rasterizer.
+
+Renumbered from §25 to §26 at merge (2026-09-22): `master` had meanwhile
+taken §25 for engine stage 3.
