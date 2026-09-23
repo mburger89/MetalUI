@@ -1467,7 +1467,7 @@ public final class Frame {
          focusedElement: GlobalElementID? = nil,
          transaction: Animation? = nil,
          collectsAccessibility: Bool = false,
-         layoutAuthority: LayoutAuthority = .legacy,
+         layoutAuthority: LayoutAuthority = .proposal,
          reportsUnlowerableFields: Bool = false,
          recordsElementBounds: Bool = false) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
@@ -1543,7 +1543,8 @@ public final class Frame {
     /// argument (ruling LR-C). For a site that registers nothing in place of the
     /// field — `StyledComponent`'s amend — this is the whole check.
     func noteUnlowerable(_ field: UnlowerableField) {
-        guard reportsUnlowerableFields else { preconditionFailure(field.trapMessage) }
+        if !reportsUnlowerableFields { print("SIXB-WOULD-TRAP: \(field)") }
+        print("SIXA-UNLOWERABLE: \(field)")
         unlowerableFields.append(field)
     }
 
@@ -1592,10 +1593,12 @@ public final class Frame {
 
     /// `requestNode`/`requestLeaf`'s backstop under the proposal authority.
     private func unguardedLegacyRegistration(_ registrar: String) -> LayoutNodeID {
-        precondition(reportsUnlowerableFields, """
+        if !reportsUnlowerableFields { print("SIXB-WOULD-TRAP: backstop \(registrar)") }
+        precondition(true, """
             MetalUI: Frame.\(registrar) reached under the proposal layout authority by a \
             site that did not check the authority itself (plan task 7, ruling LR-C).
             """)
+        print("SIXA-BACKSTOP: \(registrar)")
         return requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
     }
 

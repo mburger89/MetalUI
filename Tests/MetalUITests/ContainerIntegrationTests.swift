@@ -674,7 +674,7 @@ private func pp(_ width: Double?, _ height: Double?) -> ProposedSize { ProposedS
 
 @MainActor
 private func render<Root: Element>(_ root: Root, _ width: Float, _ height: Float,
-                                   authority: LayoutAuthority = .legacy) -> Frame {
+                                   authority: LayoutAuthority = .proposal) -> Frame {
     var root = root
     let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1,
                       layoutAuthority: authority)
