@@ -37,8 +37,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
-  rulings in its spec, no separate decisions doc), `LB-` (next `LB-L`;
-  rulings in its two specs, line breaking and lines emission). A numbered citation
+  rulings in its spec, no separate decisions doc), `LB-` (next `LB-P`;
+  rulings in its three specs: line breaking, lines emission, content sizes). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -67,7 +67,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Seven record files are not tasks of
+  and G2 is unblocked rather than waiting. Eight record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
@@ -79,7 +79,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   portable line breaking (`LB-`, spec
   `specs/2026-09-23-portable-line-breaking-design.md`) and §31 portable
   metrics and multi-line emission (`LB-F`, `LB-H`…, spec
-  `specs/2026-09-23-portable-lines-emit-design.md`). **Cross-platform work
+  `specs/2026-09-23-portable-lines-emit-design.md`) and §32 portable min-
+  and max-content (`LB-L`…, spec `specs/2026-09-23-portable-content-sizes-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -109,22 +110,22 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 
 - **Counts (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
   with `master` at `42b9ab4`, the portable text line; then `PT-J`, +5; then line breaking, +6; then
-  lines emission, +14): 1665 tests, 97
+  lines emission, +14; then content sizes, +10): 1675 tests, 97
   goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:`, taken after
   `swift package clean` with `swift build --build-system native
   --build-tests` then unfiltered `swift test --build-system native
-  --no-parallel` (**one summary line**, `Test run with 1665 tests in 3 suites
-  passed`; eight skipped: the two gated tests and the FreeType, HarfBuzz,
-  portable text, line breaking and lines emission oracles' gated measurement
-  tests; the guards ran — the log
+  --no-parallel` (**one summary line**, `Test run with 1675 tests in 3 suites
+  passed`; nine skipped: the two gated tests and the FreeType, HarfBuzz,
+  portable text, line breaking, lines emission (two) and content sizes
+  oracles' gated measurement tests; the guards ran — the log
   carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
   `e5caefb` (`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` is
-  empty). **1665 = 1640 + 5 + 6 + 14**: the `PT-J` follow-up's
+  empty). **1675 = 1640 + 5 + 6 + 14 + 10**: the `PT-J` follow-up's
   `EmitParameterTests` (record §28), line breaking's 6 (the `LB-E` oracle,
   its gated measurement, contract tests; record §30) and lines emission's 14
   (ten metric/placement oracle tests, two of them gated, and four
-  `EmitLinesTests`; record §31; `Tests/PortableTests` separately runs
-  12 + 6 + 5); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
+  `EmitLinesTests`; record §31) and content sizes' 10 (record §32;
+  `Tests/PortableTests` separately runs 14 + 6 + 5); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
   15 (lane 1, the presentation root, +7; lane 2, the exit suites, +2; lane 3,
   the must-not-move set through real windows, +6; record §29) plus the
   portable text line's 8 (`MetalUIPortableTextTests`; record §28;
@@ -164,14 +165,16 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Eight** gated tests count toward the total while skipped —
+  **Nine** gated tests count toward the total while skipped —
   `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`, the
   FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
   (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
   `theMeasuredDifferences` (`METALUI_PORTABLE_ORACLE_MEASURE=1`) and the line
   breaking oracle's `measureWrapDifferences` (`METALUI_LINEBREAK_MEASURE=1`)
   and the lines emission oracle's `measureLineEmissionDifferences` and
-  `measurePatchedFaceMetrics` (both `METALUI_LINES_EMIT_MEASURE=1`).
+  `measurePatchedFaceMetrics` (both `METALUI_LINES_EMIT_MEASURE=1`) and the
+  content sizes oracle's `measureContentSizeDifferences`
+  (`METALUI_CONTENT_MEASURE=1`).
   The lone `warning:`
   under native is SwiftPM's deprecation notice.
 - **Goldens must not move** on a change outside `Sources/MetalUILayout/`
@@ -253,7 +256,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   a TrueType metric is rounded to a 16.16 fraction of the em; design units
   scale `units × (size / unitsPerEm)` (`HarfBuzzFont.points`); and
   `drawnGlyph` drops default ignorables and draws the space glyph for a
-  control or hard-break character (`emit` too). Also a
+  control or hard-break character (`emit` too). `unbreakableRuns`,
+  `minContentWidth` and `maxContentWidth` give TX-F's and TX-K's answers
+  (`LB-N`); **opportunities are libunibreak's under `"en-strict"`** — its
+  English quote tailoring and strict small kana, equal to `CFStringTokenizer`
+  over 4,418 class pairs (`LB-L`); Thai (no dictionary) and a German-quote
+  typesetter heuristic differ, pinned (`LB-M`). Also a
   library product; nothing in production calls it (`PT-I`). The subpixel
   placement rule lives once, in `GlyphImage.subpixelPlacement(forDeviceX:)`
   (`PT-C`); `GlyphRaster` forwards — do not re-inline it on either side.

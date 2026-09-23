@@ -339,6 +339,47 @@ func pinParagraph(_ paragraphCase: ParagraphCase) throws -> (pinned: PinnedEmit,
     }
 }
 
+// MARK: - Min- and max-content (roadmap item 3)
+
+/// Strings whose runs and content widths are pinned: the break corpus (so
+/// the `"en-strict"` tailoring and every script in it), curly quotes, small
+/// kana.
+let contentCorpus = [breakCorpus, "“Quoted,” she said, ‘and nested.’ „German“", "ぁぃぅ small kana 々 ok",
+                     "a bb supercalifragilistic dd\nwell-known thing"]
+
+/// FNV-1a 64 over each string's runs (UTF-8, NUL-terminated) and its min-
+/// and max-content bit patterns in Noto Sans at 13 pt.
+func contentBytes() throws -> [UInt8] {
+    let font = try PortableFont(data: fontBytes(notoSans), size: 13)
+    var bytes: [UInt8] = []
+    for text in contentCorpus {
+        for run in PortableText.unbreakableRuns(of: text) { bytes += Array(run.utf8) + [0] }
+        for value in [try PortableText.minContentWidth(text, font: font), try PortableText.maxContentWidth(text, font: font)] {
+            let bits = value.bitPattern
+            for shift in stride(from: 0, through: 56, by: 8) { bytes.append(UInt8(truncatingIfNeeded: bits >> UInt64(shift))) }
+        }
+    }
+    return bytes
+}
+
+@Suite struct ContentSizeDeterminismTests {
+    @Test func runsAndContentWidthsMatchTheValuesRecordedOnMacOS() throws {
+        let checksum = fnv1a64(try contentBytes())
+        #expect(checksum == expectedContentChecksum,
+                "measured \(hex(checksum)), recorded on macOS \(hex(expectedContentChecksum))")
+    }
+
+    @Test(.enabled(if: recording, "set METALUI_PORTABLE_RECORD=1 to print the expected value"))
+    func record() throws {
+        let font = try PortableFont(data: fontBytes(notoSans), size: 13)
+        for text in contentCorpus {
+            try #require(PortableText.unbreakableRuns(of: text).count > 2, "\(text) measured nothing")
+            try #require(try PortableText.minContentWidth(text, font: font) > 0)
+        }
+        print("let expectedContentChecksum: UInt64 = \(hex(fnv1a64(try contentBytes())))")
+    }
+}
+
 let recording = ProcessInfo.processInfo.environment["METALUI_PORTABLE_RECORD"] == "1"
 
 // MARK: - Tests

@@ -32,7 +32,9 @@ hyphenation, justification, `Text`/`Shaper` changes.
   `set_linebreaks_utf16`, the unit HarfBuzz clusters (`SH-`) and CoreText's
   string indices already use, so no index is ever converted.
   `MetalUIPortableText` depends on `CUnibreak` and still imports no Apple
-  framework (`PT-A` extends to it).
+  framework (`PT-A` extends to it). **Amended by `LB-L`** (roadmap item 3):
+  the call now passes language `"en-strict"`, not `nil`, which matches
+  CoreText on curly quotes and small kana.
 - **LB-C — `PortableText.lines(_:font:wrappingAt:)`** returns the display
   lines (UTF-16 range, advance in points) with `Shaper.shape`'s contract:
   `nil` is an infinite width, so one line per hard break; a trailing hard
