@@ -10,7 +10,7 @@ rulings `LR-R`, `FR-I`, §8). Design:
 SwiftUI claim). Branch `feat/engine-stage-6a` from `b3c29b9`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-6a`.
 
-**Status, 2026-09-23 (PDT): lanes 1–3 landed; stage closed at `e531260` (§11); Record phase complete (§20).** §1–§6 are the design's measurements —
+**Status, 2026-09-23 (PDT): lanes 1–3 landed; stage closed at `e531260` (§11); Record phase complete (§20); branch checker `ok` (§21).** §1–§6 are the design's measurements —
 the stage's **entry measurement** is §4. Every one was taken on scratch
 commits (`9ccc0d8`…`59b63ad`, listed in §2) that `a1b6edf` reverts to
 `b3c29b9`'s tree exactly (`git diff --quiet b3c29b9 a1b6edf` succeeds); they
@@ -150,7 +150,7 @@ A2 is the flipped default; the other arms attribute its reds. Classes:
 | **RP** | **root placement**: green in C2 or C3 — red only because a native root is centred at its answer (`CN-J`) where the legacy root fills an `auto` axis and sits at (0, 0) | **6b** (divergence 4 vs `CN-J`) | 54 |
 | **CE** | custom element only: green in B2 | **6a** (re-spelled here) | 6 |
 | **CE+RP** | custom element **and** root placement: red in B2, green in B3 or C2 | 6a pins; **6b** re-spells after ruling the root | 23 |
-| **AV** | `hidden()` / `display: none` reported (`box`/`modifierLayer.display.none`) — `LR-AV` defers it to "task 7 before stage 9" with **no stage number**, and `owningStage` names stage 2, which is closed | **unassigned — 6b must assign it** (the five tests are at the default and go red at 6b's flip) | 5 |
+| **AV** | `hidden()` / `display: none` reported (`box`/`modifierLayer.display.none`) — `LR-AV` defers it to "task 7 before stage 9" with **no stage number**, and `owningStage` names stage 2, which is closed | **6b**, a prerequisite of its flip (`LR-DA` item 5; the design read "unassigned — 6b must assign it", which critic round 1 ruled a deferral with no owner) | 5 |
 | **RT** | a root's item field no parent consumes (`box.minSize.unconsumed` on the root; `WOULD-TRAP` in A2) | 6b (the root) | 1 |
 | **CSS-structure** | asserts the legacy tree's shape — `tree.nodeCount`, a node delta, "identical to hand-built nested boxes" | **7b** | 14 |
 | **CSS-style** | reads a `Style` or a CSS measure function off a registered node (`tree.style`, `tree.measure`, `pass.style(node)`) | 7b | 7 |
@@ -164,7 +164,7 @@ A2 is the flipped default; the other arms attribute its reds. Classes:
 
 **What this says to 6b.** Of the 140 non-X reds, **54 + 23 + 1 are root
 placement** (78 — more than half the flip), two assert the default, five are
-`hidden()` with no owner, one is unattributed. 6b's "root placement ruled
+`hidden()` (no owner at design time; **6b's** since `LR-DA` item 5), one is unattributed (RP + CSS-frame since §7.2). 6b's "root placement ruled
 (divergence 4 vs `CN-J`)" is therefore not a demo detail: whichever way it
 rules, 78 tests move. **And 6b must flip the eight helper defaults with
 `Window`'s** or its own measurement repeats arm A's.
@@ -1291,7 +1291,10 @@ Tests/MetalUILayoutTests -name "*.json" | wc -l` reads **97**;
 `git diff --name-only b3c29b9 HEAD -- 'Tests/**/*.json'` empty. Guards:
 `grep -c canTypecheck` per file, re-counted fresh, matches CLAUDE.md's
 per-file list exactly with `LayoutAuthorityCompileGuards` now **2** — total
-**78** (79 `canTypecheck` hits less `UnitSafetyTests`' one comment).
+**78** (80 `canTypecheck` hits less `Typecheck.swift`'s declaration and
+`UnitSafetyTests`' one comment). *Erratum (branch checker, §21): CLAUDE.md's
+per-file list is the stage-5 paragraph's and still read 1; the stage-6a
+bullet now says so.*
 
 **Verdict: the stage's exit criteria (§11) all hold**, re-measured
 independently of the lanes' own runs. Docs updated in this pass: `CLAUDE.md`
@@ -1305,8 +1308,128 @@ inert API moves, since production is untouched beyond the two attributes
 and one literal), `docs/record/README.md` (the §30 row),
 `docs/superpowers/plans/2026-09-12-swiftui-alignment.md` (task 7's stage-6a
 progress paragraph, appended after stage 5's; the task's own checkbox stays
-unticked — 14 stages remain), `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`
+unticked — this is stage 6a of 14, and 6b onward remain; the original "14 stages remain" was a slip), `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`
 ("Where the task actually stands" gains a stage-6a sentence), this stage's
 own spec's Status line (marked delivered, Record phase noted), and
 `README.md` (the branch/count line, the record-file list, the engine-replacement
 spec bullet).
+
+## 21. Branch checker (2026-09-23, PDT) — adversarial pass over `b3c29b9..af1af6f`
+
+Every check below was run on this worktree; each scratch edit was restored
+from a copy and `git status --short` read clean after it.
+
+**Suite.** `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`; one `warning:`, SwiftPM's `--build-system native`
+notice), then unfiltered `swift test --build-system native --no-parallel`:
+**`Test run with 1642 tests in 3 suites passed after 80.513 seconds`**, `FR-J
+no-argument frame: succeeded=true deprecations=2` in the log. The test log's
+only `warning:` is the same notice. Default build system, `swift build
+--build-tests`: `Build complete!`, 0 `error:`, 0 `warning:`. Goldens 97,
+`git diff --name-only b3c29b9 HEAD -- 'Tests/**/*.json'` empty. Guards 78 (80
+hits less the declaration and the comment). `cmp CLAUDE.md AGENTS.md` clean.
+
+**Callers.** `grep -rn 'requestNode(\|requestLeaf(' Sources Tests | grep -v
+requestNative` leaves no call on the public pair outside a declaration marked
+`@available(*, deprecated)`: the six `Dep` fixtures (`CustomNodeElement`,
+`CustomLeafElement`, the four `LegacySpelled…` rows), `DeprecatedRegistrarRow`
+and the fixture string of guard 3.2. Every other hit is `pass.frame.` or a
+doc comment. The one existing assertion whose text changed is
+`registeringALayoutNodeDuringPaintDoesNotCompile`'s reason string
+(`"requestNode"` → `"requestNativeLeaf"`), which follows its fixture's
+re-spelling; no other `#expect`/`#require` line was removed or edited.
+
+**The classification table (§4).** 153 rows, 153 distinct `file test` pairs,
+every one resolving to a `func` in the named file; per-class counts sum to 153.
+Every row has an owner once `LR-DA` item 5 is applied — the AV cell still read
+"unassigned" and is amended in place (below). Every backticked test name (238)
+and `File.test` citation in the branch's changed docs resolves; every ruling
+id resolves except the "next unused" markers and the quoted typo `LR-3`.
+
+**Pixels.** Lock probe: `CGSSessionScreenIsLocked = 1`, `displayAsleep main:
+1` — no real-window capture. `docs/probes/demo-pixels/compare.sh <scratch>
+b3c29b9 af1af6f`: every control at its recorded value (1048576, 1030498,
+210027, 0, 1048576, chrome pair 0, distinct 544 / 216, indicator rects 0) and
+all twelve `differing=0`, scene identical.
+
+**MX1 — the gate can fail.** `@available(*, deprecated)` removed from
+`TombstoneTests.LegacySpelledExcursionRow.requestLayout` alone. The native
+build prints exactly **one** new `warning:`, `TombstoneTests.swift:143:15:
+'requestNode(style:children:)' is deprecated: …`; the suite stays green (1642
+passed) — nothing but the build log's count sees the gate, which is what
+`LR-CX` says. Restored.
+
+**MX2 — identity under the production authority after the R move.** `LR-DA`
+item 7 accepted that the R tests stop pinning the legacy authority, "on the
+grep". The mutation puts a branch there that the grep cannot find: `Box`'s
+child cursor starts at `pass.lowersToProposal ? 0 : 1` (legacy-only identity
+shift). At HEAD: **86 tests red, 216 issues** — none in `IdentityTests`. The
+same mutation over `b3c29b9` (a `git archive` in scratch): **96 red, 230
+issues**. The difference is exactly ten tests, red at `b3c29b9` and green at
+HEAD, and exactly the R-moved identity pins: `IdentityTests`
+`aBranchReservesBothIndicesSoASiblingCannotLandOnTheUntakenOne`,
+`anElementAfterAVanishingIfAdoptsTheVanishedElementsState`,
+`flippingAnEitherBranchResetsTheBranchesState`,
+`namingTheLaterSiblingIsWhatSurvivesAVanishingIf`,
+`reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem`,
+`theIndexSpaceIsFlatRatherThanNested`,
+`twoErasedSiblingsDoNotShareOneStateEntry`;
+`ElementLayoutTests.anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition`;
+`ModifiedElementTests.anIDAfterAChainsLastWrapperNamesTheOutermostLayer`;
+`ModifierCompositionProofTests.stateSurvivesFramesUnderALegacyModifierChain`.
+No test is red at HEAD that was green at `b3c29b9`. The 86 at HEAD are the
+differential and lowering files (`LoweringItemTests` 26,
+`LoweringDistributionTests` 9, `LoweringComponentTests` 9,
+`LoweringContainerTests` 7, `LoweringBoxModelTests` 7, `LoweringScrollTests` 5,
+`PresentationLoweringTests` 4, `LoweringPipelineParityTests` 3,
+`LoweringCorpusTests` 3, `ListLoweringTests` 3, `ModifiedElementTests` 2,
+`LoweringStackAndLayerTests` 2, `AccessibilityTreeTests` 2,
+`ProposalNodeIDTests` 1, `ModifierCompositionProofTests` 1,
+`FrameDecorationInteractionTests` 1, `DisabledTests` 1; the full name list is
+in the checker's scratch log, and includes
+`aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths`,
+`aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`,
+`aLoweredWindowPublishesTheSameAccessibilityTree`,
+`aLoweredListsRowIdentitiesAreTheLegacyOnes` and
+`reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder`).
+**Reading:** item 7's cost, measured — the ten identity pins moved to the
+proposal authority, and a legacy-only identity regression is still caught, by
+86 tests, mostly the differential harness comparing the two authorities.
+**MX2′** (the control, `pass.lowersToProposal ? 1 : 0`) reddens 99 tests with
+285 issues, among them seven `IdentityTests` (the seven above),
+`anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition`,
+`anIDAfterAChainsLastWrapperNamesTheOutermostLayer` and
+`stateSurvivesFramesUnderALegacyModifierChain`: the moved tests still see
+identity, now under `.proposal`. Restored after each.
+
+**Identity, hit testing, accessibility, animation.** Not moved by any
+`Sources/` change (the two attributes, one `owningStage` literal, doc
+comments). The pins a legacy-only regression in each still reaches at HEAD are
+in MX2's list: identity and state (`aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths`,
+`aLoweredListsRowIdentitiesAreTheLegacyOnes`), hit testing and focus
+(`aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`,
+`aDisabledScopeAroundAFramedFocusRingSuppressesRingHoverAndClick`),
+accessibility (`aLoweredWindowPublishesTheSameAccessibilityTree`,
+`hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`,
+`eachLiveHandlerAloneMakesAnUndeclaredElementRecord`), animation
+(`aLoweredMarginRegistersItsAnimatedValue`,
+`anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues`); the P-6b
+hit-testing pins (`HitboxTests`' five) stay on `.legacy` explicitly.
+
+**Doc defects fixed (this commit).** (1) Record §4's AV owner cell read
+"unassigned — 6b must assign it" and its summary "with no owner", after
+`LR-DA` item 5 made 6b the owner; amended in place with the design's wording
+quoted. (2) The plan's stage-6a paragraph repeated "has no owning stage … 6b
+must assign it" — the wording `LR-DA` item 5 rejected; now "owned by 6b as a
+prerequisite of its flip". (3) CLAUDE.md's stage-6a count bullet said
+`LayoutAuthorityCompileGuards` 1 → 2 was "in the per-file list above", which
+still reads 1 (it is stage 5's paragraph); the bullet now says so. (4) §20's
+guard arithmetic ("79 hits less the comment") and "14 stages remain"
+corrected, each keeping the old wording as an erratum. (5) The parent spec's
+status sentence said stage 6a "has landed" and attributed itself to the
+branch checker before one ran; now "complete on its branch, not yet merged".
+
+**No code defect found. Merge verdict: `ok`.** Task 7 stays unticked; the
+plan's note and the parent spec's §4.1 rows 6a/6b/7b/9 agree (custom
+elements are removed at 9 per `LR-CW`, 6b owns root placement and `hidden()`,
+7b the 43 CSS rows).

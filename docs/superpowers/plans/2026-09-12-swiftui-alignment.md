@@ -627,8 +627,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   30 CSS) in the lane-3 files alone. **Not done:** production still runs the
   legacy authority (stage 6b); root placement (divergence 4 vs `CN-J`) is
   still unruled and is more than half of what this stage measured;
-  `hidden()`/`display: none` under `.proposal` has no owning stage (`LR-AV`
-  names none; 6b must assign it); the 43 CSS rows (33 of them pinned here)
+  `hidden()`/`display: none` under `.proposal` is owned by **6b** as a
+  prerequisite of its flip (`LR-DA` item 5; `LR-AV` named no stage); the 43 CSS rows (33 of them pinned here)
   wait for stage 7b; the two P-9 tests, the Dep fixtures, the L fixtures'
   legacy branches, the Dual elements' legacy branches, `LoweringSite.customElement`
   and the internal pair itself all wait for stage 9's deletion.

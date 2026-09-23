@@ -32,8 +32,8 @@ merged with `master` at `42b9ab4`** (record §29, spec
 [`2026-09-23-engine-stage-5-design.md`](2026-09-23-engine-stage-5-design.md)):
 it matches §4.1 row 5's wording, and its own two proposal-only answers
 (`LR-CJ`) are noted there rather than as a departure from this table. **Stage
-6a (the public custom-element registrars deprecated) has landed too**
-(branch checker, 2026-09-23): `feat/engine-stage-6a`, record §30, spec
+6a (the public custom-element registrars deprecated) is complete on its
+branch, not yet merged** (Record phase and branch checker, 2026-09-23): `feat/engine-stage-6a`, record §30, spec
 [`2026-09-23-engine-stage-6a-design.md`](2026-09-23-engine-stage-6a-design.md).
 It matches §4.1 row 6a's wording — `LayoutPass.requestNode`/`requestLeaf`
 deprecated with every in-repo caller moved in the same change, and the

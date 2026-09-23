@@ -176,7 +176,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   traps naming stage 9, not stage 6a) — the legacy authority stays the
   default until stage 6b, and the twelve `CN-R` demo images read 0
   differing at every lane. **No golden moved; guards move by exactly +1**
-  (`LayoutAuthorityCompileGuards` 1 → 2, in the per-file list above), and
+  (`LayoutAuthorityCompileGuards` 1 → 2; the per-file list above is the
+  stage-5 paragraph's and still reads 1 there, every other file's count
+  stands), and
   `typecheckFile`'s helper count moves with it (37 → 38, "Guards" below).
   The entry measurement (the
   default authority flipped, with the eight test-helper `.legacy` defaults
