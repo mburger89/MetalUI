@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DQ`** (stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO` and its lane 1 `LR-DP`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DR`** (stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP` and its lane 2 `LR-DQ`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -6906,3 +6906,106 @@ to 1.2 and 1.3 (`f72ebfd`); mutations M1i (the root paint skip removed) and M1j
 (the root pointer-disable scope removed) redden exactly 1.2 and exactly 1.3.
 Item 7: a hidden `Text` that painted, took clicks or published in production —
 VH reddens exactly 1.9.
+
+## LR-DQ — stage 6b lane 2: 12 X not 14, two fixtures neither recipe greens, a third root recipe, and what the animation map found
+
+**Evidence.** Lane 2 on `feat/engine-stage-6b`: commit `b2abe17` (tests only; no
+`Sources/` line). Record §39 §11 has the entry reds, both readings, the recipe
+disagreements and the mutation table (M2a–M2h2).
+
+**The ruling.**
+
+1. **The instrument reading is 12 X + 2 D, not 14 + 2.** Lane 1 turned three X
+   rows into passing tests of the new behaviour (`aHiddenListAborts…` →
+   `…NoLongerAborts…`, `aRootMinHeightOnTheScrollerFixtureAborts…` →
+   `…NoLongerAborts…`, `aProductionFrameOverDemoLikeRowsAborts…` →
+   `…Completes…`) and added one (1.8, `aRootFieldWithNoLoweringTrapsInAProductionWindow`):
+   14 − 3 + 1 = **12**. With `docs/probes/stage-6b-flip-instrument.patch` applied at
+   `b2abe17` exactly those 12 and the two D tests are red, and no
+   `SIXB-WOULD-TRAP` line is printed at all (none outside the exit tests' child
+   processes). Spec §5/§7's "exactly the 14 X tests" and `LR-DN`'s lane-3 reading
+   are read with 12; lane 3's first-commit reading (exactly the two D) is unchanged.
+2. **Two fixtures that neither `LR-DG` recipe greens stay on `.legacy`, owner 7b**
+   (spec §5.2 allows it: "a test that neither recipe greens is a finding"):
+   - `ElementLayoutTests.alignItemsAndAlignSelfBothReachTheEngine` — R-filled, the
+     proposal authority put `start` at y 80 and `centred` at y 60 (the container's
+     `flexEnd` for both): `Probe`'s proposal branch is `declaredSizeNativeLeaf`,
+     which records no `LoweredItem`, so an item's `alignSelf` never reaches the
+     lowering (record §23 X2). Its proposal-side twin exists:
+     `LoweringItemTests.alignSelfPlacesOneChildOnTheCrossAxisOfADefiniteContainer`.
+   - `FrameSizingTests.hiddenAfterASingleChildLegacyFrameStillHidesTheElement` —
+     every expected width is "a hidden element takes no space", CSS's answer; under
+     the proposal authority `hidden()` keeps its space (`LR-DH`, probe H1). Measured
+     at `.proposal` (unfilled): the first rows read 158 / 168 / 168 / 172 / 188,
+     never 0 or 40. The proposal half is `aHiddenFrameLayerLowersAsIfShown`.
+   So of the 23 P-6b rows **19** are re-spelled and **4** stay pinned (these two
+   and §5.3's two). The pinned set M2d removes is **20** `.legacy` pins over **20**
+   tests: §5.4's 16, these two, and §5.5's two tokenizer tests.
+3. **A third root recipe, for a test whose subject is the window's size.**
+   `FrameLoopTests.resizingTheWindowDirtiesItAndTheNextFrameLaysOutAtTheNewSize` and
+   `aRealAppKitResizeDirtiesTheWindowAndTheNextFrameReflows` read "the next frame
+   lays out at the new size" off the root's rect. R-fill would declare the size and
+   the rect would follow the declaration, not the window — the test would pass
+   against a window that never re-laid out. Their root is instead a greedy flexible
+   frame, `Box().frame(maxWidth: .infinity, maxHeight: .infinity).background(…)`:
+   greedy under the proposal authority (`FR-A`, `FR-M`), filling under the legacy
+   one (`FR-O`), the background on the frame's box (`OM-C`). Green on both.
+4. **The predicted recipe was wrong for 14 rows** (spec §5.2's table read through
+   the arm column), each recorded in record §39 §11.3: eight `fill` rows whose root
+   declares both axes are R-centred (`aNestedHandlerWinsOverItsContainer…`,
+   `onClickIsLive…`, `everyHandlerRegisteringSiteHonoursAllowsHitTesting`,
+   `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain`,
+   `hoverAndFocusFade…`, and three `HitboxTests` whose root is a `HitboxProbe` —
+   not a `StyledElement`); `aNodeInsideAScrolledScrollView…` (a `ScrollView` root)
+   is R-centred, and only its x moves; `aDisabledScrollViewStillScrollsOnTheWheel`
+   (predicted centre for a `ScrollView` root) has a `Row` root and is R-filled;
+   item 2's two take neither; item 3's two take the greedy frame. 8 + 1 + 1 + 2 + 2
+   = 14; the other 61 re-spelled or pinned rows took the predicted recipe.
+5. **The helpers whose authority is a required argument** (`FrameSizingTests.render`,
+   record §38 §17) and a hand-built `Frame` pair (`modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`)
+   cannot "follow the default": `Frame.defaultLayoutAuthority` is lane 3's. Their
+   R-filled tests **loop over both authorities** in the body — stronger than a
+   default, and independent of it.
+6. **M2b cannot redden an R-centred test whose only reading is at the root's
+   centre.** Eight of the 28 R-centred tests stay green under M2b (the window-rect
+   placement): a click or hover at the centre of a 40×40 root lands inside the
+   forced 100×100 rect too. Spec §5.2's "must redden every R-centred test with a
+   declared axis smaller than the window" is refuted for them; M2a (top-leading)
+   reddens all 28, and every one of the eight has a sibling reading off-centre that
+   M2b does redden.
+7. **The animation map (§0 item 2), measured.** Of the legacy guard's site arms,
+   `Box`, `Stack` and a `Component` member's own declaration were pinned under the
+   proposal authority already (V7, V1, V4n, V4 — the member is a `Box`). The
+   **outermost** `ModifiedElement` layer was pinned too: M2g (it lowered from its
+   declared style) reddens 4.7, 4.11 and `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths`
+   beside 2.1. Genuinely unpinned, and closed by 2.1: the **inner** layer (M2f
+   reddens 2.1 alone) and the lowered `ScrollView` content's **value** (M2h2 — the
+   `animated(` call kept, its result dropped — reddens 2.1 alone; M2h, the call
+   dropped, also reddens the five tests that count its `$anim-content` slot). The
+   **viewport's** animated values are unobservable under the proposal authority by
+   construction: its `LoweredItem` declares `Style()`, and `LR-AS` builds every
+   item wrapper from the declared style — so its arm is the slot, pinned by
+   `aLoweredScrollViewKeepsItsTwoAnimationSlots`. A caller's modifier on a
+   `Component` snaps on the proposal path as on the legacy one (B-7; it is a native
+   frame around each member, `loweredComponentFrame`), now pinned wrong on purpose
+   there by 2.1's arm (c); it has no `animated(` call to drop.
+8. **M2e re-spelled.** Its first spelling (drop the font-resolver test's
+   `reportsUnlowerableFields`, it aborts) cannot abort after lane 1's fold: the
+   report is empty. M2e is the fold removed (lane 1's M1h) over the instrument: the
+   font-resolver test reddens on its exact-report assertion (2 issues) instead of
+   aborting, beside `aListsWorkIsTheSameFor160RowsAsFor40`,
+   `anItemFieldNoLoweredContainerConsumesIsReportedByName` and
+   `aRootsMinimumAndMaximumFoldIntoItsDeclaredSize`.
+9. **`aWarmFrameTokenizesEachDistinctStringAtMostOnce`'s pin is for its own reason
+   only, and M2d shows the reason.** Unpinned it stays green at `.proposal` — a
+   lowered `Text` takes no min-content probe, so `counter.count <= 40` reads
+   `0 <= 40`, a vacuous pass. `aColdFrameCreatesAtMostOneLineBreakTokenizer` reddens
+   on its `calls == 40` reachability control.
+
+**What it costs if wrong.** Item 1: a lane-3 or verifier reading that expects 14
+X reds and treats 12 as a lost exit test. Item 2: two CSS answers read as
+proposal behaviour; both retire with 7b and name their proposal twins. Item 3: a
+resize test green against a window that never reflowed (M2c's greedy-frame arm
+reddens `resizing…` when the frame is removed). Item 7: an animated inner padding
+layer or scroller content that snapped in production — M2f and M2h2 each redden
+2.1 alone.

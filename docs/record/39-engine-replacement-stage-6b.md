@@ -426,3 +426,133 @@ is still `.legacy`, the demo uses no `hidden()`, and the preview's native depth
   as flex) — no owner needed until such a tree exists; a `MetalUILayout` field
   would close it.
 - The §5 production-root depths (29 / 10 / 15) are lane 3's to re-measure (3.3).
+
+## 11. Lane 2 — every red test made independent of the default (`LR-DG`, `LR-DI`, `LR-DO` items 1–2, `LR-DQ`)
+
+Commit `b2abe17` (tests only: `git diff --quiet eb8ddff b2abe17 -- Sources`
+succeeds), then this record, the spec note and `LR-DQ`. Default authority
+unchanged (`.legacy`). Every mutation below was taken on a clean tree at
+`b2abe17`, restored with `git checkout -- Sources Tests`, `git status --short`
+empty after each.
+
+### 11.1 Red before (entry, at `eb8ddff` with the instrument applied)
+
+`git apply docs/probes/stage-6b-flip-instrument.patch` (clean) at lane 1's HEAD,
+full unfiltered run: **`Test run with 1697 tests in 3 suites failed after 91.372
+seconds with 300 issues`**, **85 tests red**, **0** `SIXB-WOULD-TRAP` lines (lane
+1's fold took the two aborting `MeasurePerformanceTests` rows and the RT row's
+trap away; the RT row stayed red on its `calls == 40` control). The 85 = 12 X +
+2 D + 3 N9 + 54 RP + 2 CSS-structure + 7 CSS-style + 3 CSS-text + 1 RP+CSS-frame
++ 1 RT (`LR-DQ` item 1 for 12 X). Issues per red test (the failure lines are in
+the lane's log; each is the literal the re-spelling moved or the pin kept): RP —
+`AXEmitSiteTests` 8 + 1; `AXNodeTests` 1; `AccessibilityTreeTests` 3;
+`AnimationTests.hoverAndFocusFade…` 3; `BackgroundChainTests` 15 + 5;
+`DecorationPaintTests` 3/1/1/1/1/3/1/5/4; `DisabledTests` 1/2/1/4/11/1;
+`EnvironmentTests.theSpaceKey…` 1; `FrameDecorationInteractionTests` 4/1/7/1/4;
+`FrameLoopTests` 4 + 4; `GlyphEmitterTests` 1 + 40; `HitRegionTests` 7/1/1/1/4/1;
+`InputDispatchTests` 1/1/4/2/2/2/1/1/8/1; `LayoutAuthorityTests.theElementBoundsLog…`
+1; `OuterModifierMatrixTests` 1/2/3; `PointerStatePaintTests` 1 + 1. CSS/N9 —
+`everyRegisteringSiteAnimatesItsStyle` 10, `everyOuterModifier…` 8,
+`aComponentsFrameCarries…` 4, `aContentShapeOnAFrameLayerInsets…` 7, the two
+`EnvironmentTests` measure rows 1 each, the three N9 exit tests 2 each. The 21
+P-6b rows were green (pinned); their red is §38 A2's with the pin removed, and
+M2c (below) re-reads it on six of them.
+
+### 11.2 After
+
+- **At the inherited default (`.legacy`)**: `swift build --build-system native
+  --build-tests` 0 `error:`, the only `warning:` SwiftPM's deprecation notice;
+  unfiltered `swift test --build-system native --no-parallel`: **`Test run with
+  1698 tests in 3 suites passed after 88.372 seconds`** (1697 + 2.1),
+  `FR-J no-argument frame: succeeded=true` in the log.
+- **With the instrument applied**: **`Test run with 1698 tests in 3 suites failed
+  after 87.626 seconds with 39 issues`** — red exactly the 12 X
+  (`aContainersReportLists…`, `aCustomElementsLegacyRegistrationTraps…`,
+  `aDeprecatedRegistrarStillLaysOut…`, `aLeafWithTwoUnlowerableFields…`, the four
+  `aLegacySpelled…AbortsAProductionProposalFrame`, `anAbsoluteBoxOutsideADeferred…`,
+  `aPresentationTraps…`, `aRootFieldWithNoLoweringTrapsInAProductionWindow`,
+  `aSiteThatSkipsItsOwnCheck…`) and the 2 D (`aFrameAndAWindowDefaultToTheLegacyAuthority`,
+  `aWindowBuildsEveryFrameUnderItsLayoutAuthority`); **0** `SIXB-WOULD-TRAP`
+  lines. Patch reverted; `git apply --check` still clean at `b2abe17` (the lane
+  edited files the patch touches, never its hunks).
+- `grep -rn "LayoutAuthority = \.legacy" Tests` still reads the thirteen helper
+  defaults (lane 3's), no new one. Goldens: `git diff --name-only aef88ce HEAD --
+  'Tests/**/*.json'` empty.
+
+### 11.3 The dispositions, by recipe
+
+- **R-centre (28 tests, `.proposal` passed, literals by `(W − w) / 2` with
+  `roundLayout`'s half-away rounding where odd):** `InputDispatchTests` 9
+  (`aClickInside…`, `aClickOutside…`, `aHandlerRegisteredOnFrameN…`,
+  `aNestedHandlerWinsOverItsContainer…`, `…ContainingStackToo`,
+  `aPressThatLeavesTheElement…`, `onlyABoxWithAHandler…`, `onClickIsLive…`,
+  `aDispatchedClick…`); `HitRegionTests` 6; `DecorationPaintTests` 2
+  (`aFocusRingOutranks…`, `everyDecorationPaintingSiteHonours…`);
+  `BackgroundChainTests` 2; `AXEmitSiteTests` 2 (300² frame: 41×23 at (130, 139),
+  … the inner layer at (130, 139)); `AXNodeTests` 1 ((130, 140)); 
+  `AccessibilityTreeTests.aNodeInsideAScrolledScrollView…` (x 90 only);
+  `AnimationTests.hoverAndFocusFade…`; `HitboxTests` 3 (the root is the probe);
+  `FrameSizingTests.aLegacyFramePlacesItsChildAtEachOfTheNineAlignments` (+ (120, 80)).
+- **R-fill (43 tests, green on both authorities):** the rest of the 54 RP and 19
+  P-6b, minus item 3's two — including the `inFilledRow` helpers
+  (`DecorationPaintTests`, `FrameDecorationInteractionTests`) beside the unchanged
+  `inRow`, and six P-6b tests that loop over both authorities
+  (`chainedLegacyFrames…`, `aLegacyFrameProposesItsWidth…`,
+  `modifierOrderChanges…`; `LR-DQ` item 5). The P-6b custom leaves
+  `HitboxTests.HitboxProbe` and `EnvironmentTests.ClickCounter` became Dual
+  (`declaredSizeNativeLeaf` under the proposal authority).
+- **Greedy frame (2):** the `FrameLoopTests` resize pair (`LR-DQ` item 3).
+- **Recipe disagreements** (`LR-DQ` item 4), predicted → used: fill → centre for
+  `aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire` (60×60 root),
+  `onClickIsLiveOnEveryConformerThatCanRegisterOne`,
+  `everyHandlerRegisteringSiteHonoursAllowsHitTesting`,
+  `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain`,
+  `hoverAndFocusFadeThroughTheSameEffectiveColourPath` (all 40×40 or 56×56 roots),
+  `hoverResolvedThroughARealRenderHasNoLag`, `activeIsSetOnMouseDownAndHeldUntilMouseUp`,
+  `aPressThatLeavesTheHitboxAndReturnsStaysActive` (a `HitboxProbe` root),
+  `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame` (a `ScrollView` root);
+  centre → fill for `aDisabledScrollViewStillScrollsOnTheWheel` (a `Row` root);
+  fill → neither for `alignItemsAndAlignSelfBothReachTheEngine` and
+  `hiddenAfterASingleChildLegacyFrameStillHidesTheElement` (`LR-DQ` item 2);
+  fill → greedy frame for the two `FrameLoopTests`.
+- **Pinned `.legacy` (20 tests, each with an owner in its doc):** §5.4's 16 (7b;
+  the three N9 rows 9), the two of `LR-DQ` item 2 (7b), and §5.5's two tokenizer
+  tests (9, their own reason). The font-resolver test runs at the helper default
+  with `reportsUnlowerableFields: true` and each render's report asserted equal to
+  `demoLikeRowsReport(frame.layoutAuthority)` (empty).
+- **Test 2.1** `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`
+  (`AnimationTests`), its doc carrying the map (`LR-DQ` item 7). Green on arrival
+  with its hand-derived numbers; its red-before is its mutations.
+
+### 11.4 Mutations
+
+M2a–M2e over the instrument; M2f–M2h2 at the default (2.1 passes `.proposal`
+itself). Each a full unfiltered run.
+
+| id | mutation | reddened |
+|---|---|---|
+| M2a | `computeRootLayout` places the native root top-leading at its answer (C3: measured, then centred in a container of its own answer's size) | 88 tests, 269 issues: the 14 X/D, **all 28 R-centred tests**, **no R-filled one**, and 46 existing proposal tests that read `CN-J` (`aNativeRootIsCentredAtItsAnswer`, `aGridRootIsCentredAtItsAnswer`, `theTopmostOfTwoOverlappingHandlersRuns`, `aPressOnOneElementReleasedOnAnotherIsNotAClick`, `aPressReleasedOverSomethingCoveringItIsNotAClick`, `hoveringOneClickTargetDoesNotHoverItsSibling`, the `hStack…`/`vStack…`/`nativeOverlay…`/`nativeBackground…`/`onTap…`/`aProposalScrollView…` rows and the rest of the list in the lane log) |
+| M2b | the native root placed at the window rect (C2, `computeNativeLayout(… in:)`) | 81 tests, 240 issues: the 14 X/D, **20 of the 28** R-centred tests — not `aClickInsideTheBoundsRunsTheHandler`, `aHandlerRegisteredOnFrameNRunsForAnEventBeforeFrameNPlusOne`, `aNestedHandlerWinsOverItsContainingStackToo`, `aPressThatLeavesTheElementAndReturnsStillClicks`, `activeIsSetOnMouseDownAndHeldUntilMouseUp`, `aPressThatLeavesTheHitboxAndReturnsStaysActive`, `hoverAndFocusFadeThroughTheSameEffectiveColourPath`, `hoverResolvedThroughARealRenderHasNoLag` (centre readings, `LR-DQ` item 6) — no R-filled one, and 47 existing proposal tests |
+| M2c | one R-filled fixture per file with its added sizing (or greedy frame, or `inFilledRow`) removed — 16 files at once | exactly those 16 beyond the X/D: `aVanishingIfBetweenPressAndRelease…`, `aBorderIsPaintedInside…`, `theGateReadsTheEnvironmentValue…`, `aBackgroundBeforeOrAfterALegacyFrame…`, `legacyPaddingAccumulates…`, `aHoveredBoxPaintsItsHoverBackground`, `paintWrapsAtTheWidthLayoutMeasuredAt…`, `theSpaceKeyBindingSwapsTheTheme…`, `theElementBoundsLogRecordsTheRoot…`, `resizingTheWindowDirties…`, `aComponentInsideAComponentFlattens…`, `childrenAreRegisteredAndLaidOutInSourceOrder`, `chainedLegacyFramesAgree…`, `activeSurvivesAFrameBoundary`, `changingALayersValueKeeps…`, `modifierOrderChangesSize…` (76 issues) |
+| M2d | every `.legacy` pin the lane owns removed together (the helper-level pins in `observe`, `styleOfRoot`, `textMeasure`; the per-call and per-`Frame` ones) | 19 beyond the X/D, 120 issues: §5.4's 16, `alignItemsAndAlignSelfBothReachTheEngine`, `hiddenAfterASingleChildLegacyFrameStillHidesTheElement`, `aColdFrameCreatesAtMostOneLineBreakTokenizer`. **Not** `aWarmFrameTokenizesEachDistinctStringAtMostOnce` — vacuous at `.proposal` (`0 <= 40`, `LR-DQ` item 9) |
+| M2e | the root fold removed (`reportUnconsumedLoweredItems`' `node == root` arm made unreachable) | 4 beyond the X/D, 48 issues: `aWarmFrameReachesTheUncachedFontResolverZeroTimes` (its exact-report assertion, 2 issues — red, not an abort), `aListsWorkIsTheSameFor160RowsAsFor40`, `anItemFieldNoLoweredContainerConsumesIsReportedByName`, `aRootsMinimumAndMaximumFoldIntoItsDeclaredSize` |
+| M2f | the inner `ModifiedElement` layer lowered from its declared style (`lowerLegacyLayer` handed the pre-`animated` style) | **only** 2.1 (arm (a), both lines: the outer layer's size depends on the inner's padding) |
+| M2g | the same for the outermost layer | 2.1, `aFrameLayerLowersFromItsAnimatedStyleForWhatStyleCarries`, `aFrameLayerLowersItsMinimaAndFiniteMaximaFromItsAnimatedStyle`, `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths` (9 issues) — the outermost call was pinned already |
+| M2h | the lowered `ScrollView`'s content `animated(` call dropped | 2.1 (arm (b)), `aLoweredScrollViewKeepsItsTwoAnimationSlots`, `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`, `aPresentationPlaceholderIsDroppedByEveryLoweredContainer`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows` (13 issues; the others count the `$anim-content` slot) |
+| M2h2 | the call kept, `lowerLegacyNode` handed `declaredContent` | **only** 2.1 (1 issue) — the value read was unpinned before 2.1 |
+
+### 11.5 Pixels
+
+`docs/probes/demo-pixels/compare.sh <scratch> aef88ce b2abe17`: every control at
+its recorded value (1048576, 1030498, 210027, 0, 1048576, 0, 544, 216, 0), and
+**all twelve images `differing=0`, scene identical** — the lane changed no
+`Sources/` line and the default is still `.legacy`.
+
+### 11.6 Handed on
+
+- Lane 3: the flip's first-commit reading is still exactly the two D tests (the
+  12 X are green again once traps are fatal). `Frame.defaultLayoutAuthority` may
+  replace the explicit `.proposal` arguments of the 28 R-centred tests, or leave
+  them. The two `LR-DQ` item-2 pins and the 18 other pins carry their owners.
+- The Record phase: `LR-DQ` item 1's 12 (not 14) wherever the spec or plan carries
+  "14 X".

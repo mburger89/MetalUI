@@ -135,6 +135,24 @@ whole N reaches 72 with a two-level innermost). (e) M1b re-spelled as M1b2
 rewritten tests are listed by name in `LR-DP` item 6; §5.5's font-resolver
 report is empty. Measured in record §39 §10.
 
+**Lane 2 (`LR-DQ`) — overrides the rows it names.** (a) The instrument reading
+is **12 X** + 2 D (lane 1 retired three X rows and added 1.8), with no
+`SIXB-WOULD-TRAP` line. (b) Two P-6b rows green under neither recipe and stay
+`.legacy`, owner 7b: `alignItemsAndAlignSelfBothReachTheEngine` (the Dual leaf
+records no `LoweredItem`, X2) and `hiddenAfterASingleChildLegacyFrameStillHidesTheElement`
+(CSS's "takes no space", `LR-DH`); so 19 P-6b rows are re-spelled and M2d removes
+20 pins. (c) A third recipe for the two `FrameLoopTests` resize tests: a greedy
+flexible-frame root, since R-fill would make the rect follow the declaration.
+(d) 14 rows took a recipe other than the predicted one (listed in `LR-DQ` item 4).
+(e) Required-authority helpers' R-filled tests loop over both authorities.
+(f) M2b leaves eight centre-reading R-centred tests green; M2a reddens all 28.
+(g) §0 item 2's map, measured: the inner `ModifiedElement` layer and the lowered
+`ScrollView` content's value were the unpinned arms (2.1 arms (a), (b)); the
+viewport's values are unobservable under `LR-AS`; B-7 is pinned on the proposal
+path by arm (c). (h) M2e is the fold removed, not the diagnostics flag dropped.
+Suite after lane 2: **1698** (lane 1 closed at 1697 with 1.9). Measured in
+record §39 §11.
+
 **Suite count:** 1688 + 6 (lane 1, `hidden()`) + 2 (lane 1, 1.7–1.8) + 1 (lane
 2, 2.1) + 3 (lane 3) = **1700**, re-measured by each lane.
 
