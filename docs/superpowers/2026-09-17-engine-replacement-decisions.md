@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DS`** (stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DY`** (stage 7a's design took `LR-DS`…`LR-DX`, appended at the end; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -7080,3 +7080,209 @@ every module of this package, so a production reader could appear; none exists.
 Item 5: a vertical compression at a height between 560 and 1024 would not be
 seen; the two sizes bracket the demo's real window.
 
+
+---
+
+## LR-DS — stage 7a: a golden retires as R (its own tree reproduced natively) or D (its concept deleted); an R replacement is a new arm on the golden's own numbers
+
+**The question.** Spec §4.1 row 7a: each of the 97 goldens is retired "with a
+ruling naming the deterministic native test or probe arm that replaces it, or
+naming the CSS-only concept deleted with it". What counts as a native test that
+"replaces" a golden?
+
+**Evidence** (record §42 §2). Each fixture's CSS transcribed into `Box(style:)`
+trees, rendered under both authorities through `LayoutDifferential.render`
+(instrument `docs/probes/stage-7a-transcription-instrument.patch`). 74 trees
+transcribed; the legacy authority reproduces all 74 goldens exactly. The
+proposal authority reproduces **44** exactly with an empty report (43 whole
+trees and `stack_stretch_max` minus its percentage child), reports a field by
+name on 23, and lays out 7 silently with a different answer. The 23
+untranscribed trees each hold a `flex-wrap` box, reported by name wherever it
+sits (`LegacyLowering.swift:209`, pinned by
+`everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`).
+
+**The ruling.**
+
+1. **R** — the golden's tree under the proposal authority reproduces its
+   `rounded` boxes exactly with no report. Its replacement is a **new arm**,
+   labelled with the golden's name, that builds the golden's own tree and
+   asserts those boxes literally (spec §6 tests 1.1–1.8, 2.1–2.4; record §42
+   §5.1). A lowering test asserting the same rule on other geometry is cited as
+   corroboration, never as the replacement: the lowering suites assert
+   `space-around` on 20-wide children, not the golden's 40/70/50, and a rule
+   restated on other numbers is not "the same geometric fact". 44 goldens.
+2. **D** — the concept the golden pins is CSS-only and is deleted with it
+   (`LR-DU` names the seven). The row names the concept, its reason, and the
+   native test that pins what the proposal authority does with that shape
+   instead: a report-by-name test, or, for a shape that lays out silently, a
+   new pin of the golden's own tree at the native answer (`LR-DV`). 53 goldens.
+3. `stack_stretch_max` is **both**: its `h` and `w` children are R (the tree
+   minus `p`), its `p` (`max-width: 20%`, `max-height: 10%`) is D
+   (percentages).
+4. Absolute fixtures are transcribed with the absolute box in a `Deferred` and
+   the window sized to the fixture's `position: relative` root — stage 5's
+   only lowered containing block. The row says so; the five reproduce exactly.
+
+**What it costs if wrong.** If "same fact" were read as "same rule", 44 new
+arms duplicate rules the lowering suites already pin, at the cost of one lane;
+the reverse error — citing a rule test for a golden whose numbers the native
+engine does not actually reproduce — would retire a golden with no native
+witness, which is the failure the stage exists to prevent.
+
+---
+
+## LR-DT — the consumers go with their goldens (96 whole, one trimmed), the machinery with them; the 7b boundary; the count
+
+**The question.** Every golden has exactly one consumer `@Test` (record §42 §1).
+Deleting a golden breaks its consumer. Do the consumers go in 7a, and how is 7b
+(the non-golden CSS-engine tests, `LR-U`) not pre-empted?
+
+**Evidence.** 91 consumers assert nothing but `assertMatchesGolden`; five also
+restate the golden's own numbers as literals (each checked equal to the JSON);
+**one**, `theClampedAutomaticMinimumIsStillFlooredByPaddingAndBorderMatchesWebKit`,
+also asserts a second tree (`cMinZero: true`) that no golden describes.
+
+**The ruling.**
+
+1. A consumer whose every assertion is the golden comparison or a literal
+   restatement of the golden's numbers is **removed whole** with its golden:
+   96 tests. Spec §2.6 already counts them as 7a's ("295 − (golden-consuming)"
+   is 7b's share).
+2. A consumer that asserts anything else is **trimmed**: only `loadGolden` and
+   `assertMatchesGolden` are deleted and every `#expect` stays byte-identical.
+   One test; it stays for 7b, which retires it with the automatic-minimum
+   concept.
+3. The machinery goes: `GeneratorTests` (5, including the gated
+   `regenerateAllGoldens`), `OracleTests` (3), `Fixtures/`, `Oracle/`,
+   `Golden/`, `assertMatchesGolden`, and the target's `resources:` line.
+4. Nothing else in the five surviving consumer files moves; their private
+   helpers stay where a surviving test uses them.
+5. Count: **1704 − 96 − 5 − 3 + 8 + 7 = 1615**; gated tests five → four.
+
+**What it costs if wrong.** Removing the trimmed test whole would delete one
+legacy-engine fact (`min-width: 0` cancelling the automatic minimum) a stage
+early, with no row; keeping every consumer and inlining its golden as literals
+would leave 97 CSS answers in the suite under a new name, which is the golden
+corpus with the JSON removed and nothing retired.
+
+---
+
+## LR-DU — the seven deleted concepts, their reasons, and the SwiftUI evidence
+
+**The question.** For each D golden, what is deleted, why is it CSS-only, and
+what does the proposal authority do instead?
+
+**Evidence.** Record §42 §2 (the native answers) and §3 (probe
+`swiftui-engine-stage-7a.swift`, run 2026-09-23, exit 0, twice byte-identical,
+every group with a differing positive control).
+
+**The ruling.** The seven, with their golden counts:
+
+1. **Wrap** (30: 18 `flex_wrap_*`, 12 whose wrapping box is content —
+   TX-H's fit-content, min- vs max-content). `flexWrap`/`alignContent` are
+   reported by name (`everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`).
+   SwiftUI's stacks lay out one line: probe **W1/W2** put four 50-wide children
+   on one overflowing line where the VStack control **W0** stacks them.
+2. **Unequal grow weights** (2). `box.flexGrow.weights` reported
+   (`unequalGrowWeightsAreReportedOnTheParent`). SwiftUI shares a surplus
+   equally among equally flexible children (**G0**: 300/300) and its per-child
+   knob is a priority (**G1**: 0/600), neither 1:2.
+3. **Sub-one grow sum** (2, flex §9.7.4.b). Lowers silently as an equal greedy
+   share (133/134/133; capped, 50/350), which is **G0**'s rule; pinned by new
+   test 2.5.
+4. **Length `flex-basis` and weighted shrink** (6, §9.7.4.c). A length basis
+   reports `box.flexBasis` (`aZeroBasisGrowerTakesItsShareDownToItsContent`);
+   positive shrink lowers as compression whatever its weight
+   (`aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight`, divergence
+   55); a declared width is rigid (`theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`;
+   the padded-weighting tree pinned by new test 2.7). SwiftUI: fixed frames are
+   not shrunk (**S1** against **S0**).
+5. **Automatic minimum** (3, §4.5's content and specified size suggestions). A
+   non-greedy maximum reports `box.maxSize`
+   (`theCentringDefaultOfRowAndColumnStretchesNothing`'s last arm,
+   `aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere`); a declared size
+   is kept whatever its content (new test 2.7). SwiftUI: **A1** against **A0**.
+6. **Border-box floor** (3, `BM-4`). A declared size below padding + border
+   keeps its frame (`aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`,
+   new test 2.7); a stretched stack child is not floored (new test 2.6).
+   SwiftUI: **B1** against **B0** — the frame answers its own size; where the
+   overflowing child sits is not claimed.
+7. **Percentages** (7, and `stack_stretch_max`'s `p`). Reported by name
+   (`percentagesStillReportByNameWithTheirOwner`), owned by stage 8's recipe
+   (`LR-AI`). **No SwiftUI claim is made here.**
+
+Margins, reversal, `justifyContent`, stretch, `display: .stack` and absolute
+insets against the window are **not** deleted concepts: their goldens are R.
+
+**What it costs if wrong.** A concept wrongly called CSS-only retires a golden
+whose fact production still needs; each is checked against the dump, where the
+proposal authority either reports it by name or answers differently. A SwiftUI
+claim without a probe arm is the tell `LR-X` warns about, which is why
+percentages carry none.
+
+---
+
+## LR-DV — the seven silent D shapes get native pins of the golden's own tree
+
+**The question.** Seven D trees lay out under the proposal authority with no
+report and an answer that differs from WebKit (record §42 §2's table). Deleting
+their goldens leaves those shapes unpinned natively: a later change could move
+them with nothing red.
+
+**The ruling.** Three new tests pin each tree at its measured native answer,
+the doc comment of each arm naming the golden, WebKit's answer and the concept:
+2.5 `aGrowFactorSumBelowOneStillFillsTheLine` (two trees), 2.6
+`aStretchedStackChildIsNotFlooredByItsPaddingAndBorder` (one), 2.7
+`aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding` (four). The 46
+reported D trees cite the existing report-by-name tests instead: a reported
+field lays out a 0×0 leaf and traps in production (`LR-DF`), so the report is
+what production sees.
+
+**What it costs if wrong.** A pinned native answer is a divergence written down
+as correct; that is the intent (each is a SwiftUI answer by `LR-DU`), and a later
+stage that lowers the concept moves the pin deliberately.
+
+---
+
+## LR-DW — the new tests are characterization; their red-before is a named mutation
+
+**The question.** Stage rules ask new tests to be red first. Every new test here
+pins behaviour the proposal authority already has.
+
+**The ruling.** Each new test is green on arrival (stage 2 lane 5's 5.8 is the
+precedent). Its red-before is the mutation spec §6 names for it, applied after
+the test is committed, the source restored from a copy, the **full unfiltered
+suite** run, and `git status --short` clean afterwards; the lane records every
+test and arm reddened, by name. The literals are written from the golden JSON
+(R) or record §42 §5.2 (D) **before** the test first runs. The shared helper is
+itself a mutation site (**MH**): with its missing-id `try #require` turned into
+`continue` and one arm's id misspelled, that arm must go green, and red again
+when the require is restored.
+
+**What it costs if wrong.** A test that no mutation reddens is a broken
+instrument or a finding (practices); the table makes each lane show one.
+
+---
+
+## LR-DX — three lanes, the removal last; `Sources/` untouched but one comment; 0 px
+
+**The ruling.**
+
+- **Lane 1** (Opus): `GoldenReplacementSupport.swift` (the shared `goldenArm`
+  helper) and `GoldenReplacementFlexTests.swift`, tests 1.1–1.8, 29 R arms,
+  mutations M1a–M1h and MH.
+- **Lane 2** (Opus): `GoldenReplacementStackTests.swift`, tests 2.1–2.7, 15 R
+  arms and 7 D-pin arms, mutations M2a–M2g; reuses lane 1's helper.
+- **Lane 3** (Opus): verifies all 97 rows of record §42 §4 against the
+  committed tests before deleting anything, then removes the consumers, the
+  machinery and the `resources:` line, trims the one test, rewrites `roundLayout`'s doc comment
+  (`Rounding.swift`), whose caller list and corpus paragraphs describe the
+  deleted goldens, re-runs M1b,
+  M1f, M2d and M2g with the goldens gone, and takes the exit measurements.
+
+The lanes touch disjoint files and run in order. No `Sources/` code changes, so
+the demo's twelve-image comparison against `2cc763d` must read **0 px** in every
+image and `DemoFrameDeterminismTests` stays green and unedited.
+
+**What it costs if wrong.** Lane 3 deleting before a replacement exists would
+retire a golden with no witness; step 1's verification is the gate.

@@ -1,0 +1,280 @@
+diff --git a/Tests/MetalUITests/ZZScratch7a.swift b/Tests/MetalUITests/ZZScratch7a.swift
+new file mode 100644
+index 0000000..4abd2fa
+--- /dev/null
++++ b/Tests/MetalUITests/ZZScratch7a.swift
+@@ -0,0 +1,274 @@
++// SCRATCH — stage 7a design measurement. Never committed.
++import Foundation
++import Testing
++import MetalUICore
++@testable import MetalUILayout
++@testable import MetalUI
++
++private func px(_ v: Float) -> MetalUICore.Dimension { .length(.pixels(Pixels(v))) }
++private func pl(_ v: Float) -> Length { .pixels(Pixels(v)) }
++private func pc(_ f: Float) -> MetalUICore.Dimension { .length(.percent(f)) }
++private func S(_ f: (inout Style) -> Void) -> Style { var s = Style(); f(&s); return s }
++private func sz(_ s: inout Style, _ w: Float?, _ h: Float?) {
++    s.size = Size(width: w != nil ? px(w!) : .auto, height: h != nil ? px(h!) : .auto)
++}
++private func edgesD(_ t: Float, _ r: Float, _ b: Float, _ l: Float) -> Edges<MetalUICore.Dimension> {
++    Edges(top: px(t), right: px(r), bottom: px(b), left: px(l))
++}
++private func edgesL(_ t: Float, _ r: Float, _ b: Float, _ l: Float) -> Edges<Length> {
++    Edges(top: pl(t), right: pl(r), bottom: pl(b), left: pl(l))
++}
++@MainActor private func L(_ id: String, _ f: (inout Style) -> Void) -> Box<EmptyGroup> { Box(style: S(f)).id(id) }
++@MainActor private func L(_ f: (inout Style) -> Void) -> Box<EmptyGroup> { Box(style: S(f)) }
++@MainActor private func C<G: ElementGroup>(_ id: String, _ f: (inout Style) -> Void,
++                                        @ElementBuilder _ c: () -> G) -> Box<G> {
++    Box(style: S(f), content: c()).id(id)
++}
++private func grow(_ s: inout Style, _ g: Float, _ sh: Float, _ b: MetalUICore.Dimension) { s.flexGrow = g; s.flexShrink = sh; s.flexBasis = b }
++
++private func name(_ id: GlobalElementID) -> String? {
++    if case .named(let n) = id.component { return n.name }
++    return nil
++}
++
++@MainActor
++private func dump<G: ElementGroup>(_ fixture: String, w: Float = 800, h: Float = 600,
++                                   @ElementBuilder _ make: @MainActor () -> G) {
++    for auth in [LayoutAuthority.legacy, .proposal] {
++        let f = LayoutDifferential.render(authority: auth, width: w, height: h, make)
++        var parts: [String] = []
++        for (id, b) in f.elementBounds {
++            guard let n = name(id) else { continue }
++            func g(_ p: Pixels) -> String { String(format: "%g", p.value) }
++            parts.append("\(n):\(g(b.origin.x)),\(g(b.origin.y)),\(g(b.size.width))x\(g(b.size.height))")
++        }
++        let unl = Set(f.unlowerableFields.map(\.description)).sorted().joined(separator: ",")
++        print("DUMP \(fixture) \(auth == .legacy ? "L" : "P") [\(unl)] | " + parts.sorted().joined(separator: " "))
++    }
++}
++
++@MainActor
++@Test func scratch7aDump() {
++    // ---- fixed packing
++    dump("flex_row_three_fixed") { C("root", { sz(&$0, 300, 50) }) {
++        L("x") { sz(&$0, 60, 20) }; L("y") { sz(&$0, 90, 30) }; L("z") { sz(&$0, 40, 50) } } }
++    dump("flex_column_three_fixed") { C("root", { sz(&$0, 120, 400); $0.flexDirection = .column }) {
++        L("x") { sz(&$0, 60, 20) }; L("y") { sz(&$0, 90, 30) }; L("z") { sz(&$0, 40, 50) } } }
++    dump("flex_row_gap") { C("root", { sz(&$0, 300, 50); $0.gap = Axes(both: pl(12)) }) {
++        L("x") { sz(&$0, 60, 20) }; L("y") { sz(&$0, 90, 30) }; L("z") { sz(&$0, 40, 50) } } }
++    // ---- justify
++    for (n, j) in [("flex_row_justify_between", JustifyContent.spaceBetween), ("flex_row_justify_around", .spaceAround), ("flex_row_justify_evenly", .spaceEvenly)] {
++        dump(n) { C("root", { sz(&$0, 400, 40); $0.justifyContent = j }) {
++            L("a") { sz(&$0, 40, 40) }; L("b") { sz(&$0, 70, 40) }; L("c") { sz(&$0, 50, 40) } } }
++    }
++    dump("flex_row_justify_between_gap") { C("root", { sz(&$0, 400, 40); $0.justifyContent = .spaceBetween; $0.gap = Axes(both: pl(12)) }) {
++        L("a") { sz(&$0, 40, 40) }; L("b") { sz(&$0, 70, 40) }; L("c") { sz(&$0, 50, 40) } } }
++    dump("flex_column_justify_center") { C("root", { sz(&$0, 60, 400); $0.flexDirection = .column; $0.justifyContent = .center }) {
++        L("a") { sz(&$0, 60, 40) }; L("b") { sz(&$0, 60, 70) }; L("c") { sz(&$0, 60, 50) } } }
++    // ---- align
++    dump("flex_row_align_center") { C("root", { sz(&$0, 400, 100); $0.alignItems = .center }) {
++        L("a") { sz(&$0, 40, 20) }; L("b") { sz(&$0, 70, 60) }; L("c") { sz(&$0, 50, 40) } } }
++    dump("flex_row_align_end_with_self") { C("root", { sz(&$0, 400, 100); $0.alignItems = .flexEnd }) {
++        L("a") { sz(&$0, 40, 20) }; L("b") { sz(&$0, 70, 60); $0.alignSelf = .center }; L("c") { sz(&$0, 50, 40) } } }
++    dump("flex_row_stretch_mixed") { C("root", { sz(&$0, 400, 100) }) {
++        L("a") { sz(&$0, 60, nil) }; L("b") { sz(&$0, 70, 30) }; L("c") { sz(&$0, 50, nil); $0.alignSelf = .flexStart }
++        L("d") { sz(&$0, 80, nil); $0.maxSize = Size(width: .auto, height: px(60)) } } }
++    // ---- reverse
++    dump("flex_row_reverse") { C("root", { sz(&$0, 400, 40); $0.flexDirection = .rowReverse }) {
++        L("a") { sz(&$0, 40, 40) }; L("b") { sz(&$0, 70, 40) }; L("c") { sz(&$0, 50, 40) } } }
++    dump("flex_column_reverse_justify_end") { C("root", { sz(&$0, 100, 400); $0.flexDirection = .columnReverse; $0.justifyContent = .flexEnd }) {
++        L("a") { sz(&$0, nil, 40) }; L("b") { sz(&$0, 60, 70) }; L("c") { sz(&$0, 80, 50) } } }
++    // ---- padding / border
++    dump("flex_row_padding_border") { C("root", { sz(&$0, 400, 100); $0.padding = edgesL(20, 8, 4, 16); $0.border = edgesL(5, 3, 2, 7) }) {
++        L("a") { sz(&$0, 50, 30) }; L("b") { sz(&$0, 60, 30) }; L("c") { sz(&$0, nil, 30); grow(&$0, 1, 1, px(0)) } } }
++    dump("flex_column_padding_asymmetric") { C("root", { sz(&$0, 120, 400); $0.flexDirection = .column; $0.padding = edgesL(12, 30, 6, 18); $0.border = edgesL(4, 2, 8, 6) }) {
++        L("a") { sz(&$0, nil, 40) }; L("b") { sz(&$0, nil, 90) }; L("c") { sz(&$0, nil, 60) } } }
++    dump("flex_nested_padding") { C("root", { sz(&$0, 400, 200); $0.padding = Edges(all: pl(10)); $0.border = Edges(all: pl(5)) }) {
++        C("mid", { sz(&$0, 200, 80); $0.padding = Edges(all: pl(20)); $0.border = Edges(all: pl(3)) }) {
++            L("g1") { sz(&$0, 20, 10) }; L("g2") { sz(&$0, nil, 10); grow(&$0, 1, 1, px(0)) } }
++        L("sib") { sz(&$0, 40, 60) } } }
++    // ---- margins
++    dump("flex_row_margins") { C("root", { sz(&$0, 400, 100); $0.justifyContent = .spaceBetween }) {
++        L("a") { sz(&$0, 40, 30); $0.margin = edgesD(5, 10, 15, 20) }
++        L("b") { sz(&$0, 50, 40); $0.margin = edgesD(2, 25, 8, 3) }
++        L("c") { sz(&$0, 60, 20); $0.margin = edgesD(12, 4, 1, 18) } } }
++    dump("flex_row_margin_with_grow") { C("root", { sz(&$0, 400, 60) }) {
++        L("a") { sz(&$0, nil, 40); grow(&$0, 1, 1, px(0)); $0.margin = edgesD(4, 15, 6, 9) }
++        L("b") { sz(&$0, 80, 40); $0.margin = edgesD(10, 2, 3, 20) } } }
++    dump("flex_row_reverse_margins") { C("root", { sz(&$0, 400, 100); $0.flexDirection = .rowReverse }) {
++        L("a") { sz(&$0, 50, 30); $0.margin = edgesD(5, 30, 15, 10) }
++        L("b") { sz(&$0, 60, 40); $0.margin = edgesD(2, 4, 8, 20) }
++        L("c") { sz(&$0, 40, 20); $0.margin = edgesD(12, 18, 1, 6) } } }
++    dump("flex_column_reverse_margins") { C("root", { sz(&$0, 100, 400); $0.flexDirection = .columnReverse }) {
++        L("a") { sz(&$0, 30, 50); $0.margin = edgesD(10, 15, 30, 5) }
++        L("b") { sz(&$0, 40, 60); $0.margin = edgesD(20, 8, 4, 2) }
++        L("c") { sz(&$0, 20, 40); $0.margin = edgesD(6, 1, 18, 12) } } }
++    dump("flex_row_stretch_with_margins") { C("root", { sz(&$0, 400, 100) }) {
++        L("a") { sz(&$0, 50, nil); $0.margin = edgesD(10, 0, 25, 0) }
++        L("b") { sz(&$0, 70, nil); $0.margin = edgesD(15, 0, 5, 0); $0.maxSize = Size(width: .auto, height: px(50)) } } }
++    dump("flex_row_grow_space_between_margins") { C("root", { sz(&$0, 400, 100); $0.justifyContent = .spaceBetween }) {
++        L("a") { sz(&$0, nil, 40); grow(&$0, 1, 1, px(0)); $0.maxSize = Size(width: px(150), height: .auto); $0.margin = edgesD(4, 15, 6, 9) }
++        L("b") { sz(&$0, 60, 40); $0.margin = edgesD(2, 25, 8, 3) }
++        L("c") { sz(&$0, 50, 40); $0.margin = edgesD(12, 4, 1, 18) } } }
++    dump("flex_row_stretch_min_height_margins") { C("root", { sz(&$0, 400, 100) }) {
++        L("a") { sz(&$0, 50, nil); $0.margin = edgesD(20, 0, 30, 0); $0.minSize = Size(width: .auto, height: px(70)) }
++        L("b") { sz(&$0, 60, nil); $0.margin = edgesD(10, 0, 15, 0); $0.minSize = Size(width: .auto, height: px(40)) } } }
++    dump("flex_row_reverse_stretch") { C("root", { sz(&$0, 400, 100); $0.flexDirection = .rowReverse }) {
++        L("a") { sz(&$0, 50, nil) }
++        L("b") { sz(&$0, 60, 30); $0.alignSelf = .flexEnd }
++        L("c") { sz(&$0, 70, nil); $0.maxSize = Size(width: .auto, height: px(40)) } } }
++    // ---- grow
++    dump("flex_row_seven_equal", w: 400, h: 200) { C("root", { sz(&$0, 100, 20) }) {
++        L("c0") { grow(&$0, 1, 1, px(0)) }; L("c1") { grow(&$0, 1, 1, px(0)) }; L("c2") { grow(&$0, 1, 1, px(0)) }
++        L("c3") { grow(&$0, 1, 1, px(0)) }; L("c4") { grow(&$0, 1, 1, px(0)) }; L("c5") { grow(&$0, 1, 1, px(0)) }
++        L("c6") { grow(&$0, 1, 1, px(0)) } } }
++    dump("flex_row_grow_with_max") { C("root", { sz(&$0, 400, 40) }) {
++        L("a") { grow(&$0, 1, 1, px(0)); $0.maxSize = Size(width: px(50), height: .auto) }
++        L("b") { grow(&$0, 1, 1, px(0)) }; L("c") { grow(&$0, 1, 1, px(0)) } } }
++    dump("flex_column_grow_with_max") { C("root", { sz(&$0, 100, 400); $0.flexDirection = .column }) {
++        L("a") { grow(&$0, 1, 1, px(0)); $0.maxSize = Size(width: .auto, height: px(50)) }
++        L("b") { grow(&$0, 1, 1, px(0)) }; L("c") { grow(&$0, 1, 1, px(0)) } } }
++    dump("flex_row_fixed_and_grow") { C("root", { sz(&$0, 700, 100) }) {
++        L("a") { grow(&$0, 1, 1, px(0)) }; L("b") { grow(&$0, 2, 1, px(0)) }; L("c") { sz(&$0, 100, nil) } } }
++    dump("flex_row_grow_uneven") { C("root", { sz(&$0, 640, 40) }) {
++        L("a") { grow(&$0, 1, 1, px(0)) }; L("b") { grow(&$0, 3, 1, px(0)) }; L("c") { grow(&$0, 0, 0, px(140)) } } }
++    dump("flex_row_fractional_grow") { C("root", { sz(&$0, 400, 40) }) {
++        L("a") { grow(&$0, 0.25, 1, px(0)) }; L("b") { grow(&$0, 0.25, 1, px(0)) }; L("c") { grow(&$0, 0.25, 1, px(0)) } } }
++    dump("flex_row_fractional_grow_clamped") { C("root", { sz(&$0, 400, 40) }) {
++        L("a") { grow(&$0, 0.25, 1, px(0)); $0.maxSize = Size(width: px(50), height: .auto) }; L("b") { grow(&$0, 0.25, 1, px(0)) } } }
++    dump("flex_row_grow_nonzero_basis") { C("root", { sz(&$0, 400, 40) }) {
++        L("a") { grow(&$0, 1, 1, px(100)) }; L("b") { grow(&$0, 1, 1, px(0)) } } }
++    // ---- shrink
++    dump("flex_row_shrink") { C("root", { sz(&$0, 300, 40) }) {
++        L("a") { grow(&$0, 0, 1, px(200)) }; L("b") { grow(&$0, 0, 2, px(200)) }; L("c") { grow(&$0, 0, 0, px(100)) } } }
++    dump("flex_row_fractional_shrink") { C("root", { sz(&$0, 300, 40) }) {
++        L("a") { grow(&$0, 0, 0.25, px(200)) }; L("b") { grow(&$0, 0, 0.25, px(200)) } } }
++    dump("flex_row_shrink_to_zero") { C("root", { sz(&$0, 50, 40) }) {
++        L("a") { grow(&$0, 0, 10, px(100)) }; L("b") { grow(&$0, 0, 1, px(100)) } } }
++    dump("flex_row_explicit_min") { C("root", { sz(&$0, 300, 40) }) {
++        L("a") { grow(&$0, 0, 1, px(200)); $0.minSize = Size(width: px(150), height: .auto) }; L("b") { grow(&$0, 0, 1, px(400)) } } }
++    dump("flex_row_shrink_padded_weighting") { C("root", { sz(&$0, 200, 40) }) {
++        L("a") { sz(&$0, 200, nil); $0.padding = edgesL(0, 40, 0, 40) }; L("b") { sz(&$0, 200, nil) } } }
++    // ---- content sizing
++    dump("flex_auto_height_two_levels") { C("root", { sz(&$0, 300, 220); $0.flexDirection = .column }) {
++        C("outer", { sz(&$0, 240, nil); $0.flexDirection = .column; $0.minSize = Size(width: .auto, height: px(0)) }) {
++            C("inner", { sz(&$0, 180, nil); $0.flexDirection = .column; $0.minSize = Size(width: .auto, height: px(0)) }) {
++                L("g1") { sz(&$0, 60, 24) }; L("g2") { sz(&$0, 60, 24) } } }
++        L("after") { sz(&$0, 100, 30) } } }
++    dump("flex_item_floored_by_content") { C("root", { sz(&$0, 100, 60) }) {
++        C("squeezed", { grow(&$0, 1, 1, px(0)) }) { L("g1") { sz(&$0, 80, 20) } }
++        L("other") { grow(&$0, 1, 1, px(0)) } } }
++    dump("sizing_specified_suggestion") { C("root", { sz(&$0, 150, 60) }) {
++        C("a", { sz(&$0, 130, nil) }) { L("g1") { sz(&$0, 200, 20) } }; L("b") { sz(&$0, 100, 20) } } }
++    dump("sizing_specified_suggestion_is_used_value") { C("root", { sz(&$0, 150, 60) }) {
++        C("a", { sz(&$0, 100, nil); $0.padding = edgesL(0, 50, 0, 50); $0.border = Edges(all: pl(10)) }) { L("g1") { sz(&$0, 200, 20) } }
++        L("b") { sz(&$0, 100, 20) } } }
++    dump("sizing_over_constrained_grows") { C("root", { sz(&$0, 400, 300) }) {
++        C("box", { sz(&$0, 100, 80); $0.padding = edgesL(60, 50, 60, 50); $0.border = Edges(all: pl(10)) }) { L("kid") { sz(&$0, 10, 10) } } } }
++    dump("sizing_max_clamps_content_suggestion") { C("root", { sz(&$0, 400, 60) }) {
++        C("a", { $0.maxSize = Size(width: px(50), height: .auto) }) { L("g") { sz(&$0, 200, 20); grow(&$0, 0, 0, .auto) } }
++        C("w", { $0.maxSize = Size(width: px(300), height: .auto) }) { L("wg") { sz(&$0, 100, 20); grow(&$0, 0, 0, .auto) } }
++        L("b") { sz(&$0, 50, 20) } } }
++    dump("sizing_max_below_floor_keeps_automatic_minimum") { C("root", { sz(&$0, 500, 60) }) {
++        C("p", { $0.maxSize = Size(width: px(50), height: .auto); $0.padding = edgesL(0, 40, 0, 40) }) { L("pg") { sz(&$0, 200, 20); grow(&$0, 0, 0, .auto) } }
++        L("c") { sz(&$0, 100, 20); $0.maxSize = Size(width: px(40), height: .auto); $0.padding = edgesL(0, 50, 0, 50); $0.border = edgesL(0, 10, 0, 10) }
++        L("b") { sz(&$0, 50, 20) } } }
++    // ---- percent
++    dump("flex_row_percent_basis") { C("root", { sz(&$0, 700, 100) }) {
++        L("a") { grow(&$0, 0, 0, pc(0.5)) }; L("b") { grow(&$0, 0, 0, pc(0.25)) }; L("c") { grow(&$0, 0, 0, px(120)) } } }
++    // ---- wrap sample
++    dump("flex_wrap_uneven") { C("root", { sz(&$0, 218, 200); $0.flexWrap = .wrap; $0.alignContent = .flexStart; $0.gap = Axes(horizontal: pl(14), vertical: pl(8)) }) {
++        L("a") { sz(&$0, 60, 20) }; L("b") { sz(&$0, 90, 35) }; L("c") { sz(&$0, 40, 25) }
++        L("d") { sz(&$0, 25, 15) }; L("e") { sz(&$0, 50, 45) }; L("f") { sz(&$0, 120, 30) } } }
++    // ---- stack
++    for (n, ji, ai) in [("stack_alignment_center", JustifyItems.center, AlignItems.center),
++                        ("stack_alignment_topleading", .start, .flexStart),
++                        ("stack_alignment_bottomtrailing", .end, .flexEnd)] {
++        dump(n) { C("root", { sz(&$0, 300, 200); $0.display = .stack; $0.justifyItems = ji; $0.alignItems = ai }) {
++            L("child") { sz(&$0, 20, 10) } } }
++    }
++    dump("stack_stretch") { C("root", { sz(&$0, 300, 200); $0.display = .stack; $0.justifyItems = .stretch; $0.alignItems = .stretch }) {
++        L("child") { _ in } } }
++    dump("stack_stretch_declared_size") { C("root", { sz(&$0, 300, 200); $0.display = .stack; $0.justifyItems = .stretch; $0.alignItems = .stretch }) {
++        L("child") { sz(&$0, 20, 10) } } }
++    dump("stack_stretch_min") { C("root", { sz(&$0, 300, 200); $0.display = .stack; $0.justifyItems = .stretch; $0.alignItems = .stretch }) {
++        L("m") { $0.minSize = Size(width: px(340), height: px(260)) } } }
++    dump("stack_stretch_max") { C("root", { sz(&$0, 300, 200); $0.display = .stack; $0.justifyItems = .stretch; $0.alignItems = .stretch }) {
++        L("h") { $0.maxSize = Size(width: .auto, height: px(50)) }
++        L("w") { $0.maxSize = Size(width: px(40), height: .auto) }
++        L("p") { $0.maxSize = Size(width: pc(0.2), height: pc(0.1)) } } }
++    dump("stack_stretch_border_box_floor") { C("root", { sz(&$0, 100, 100); $0.display = .stack; $0.justifyItems = .stretch; $0.alignItems = .stretch }) {
++        L("f") { $0.padding = edgesL(60, 50, 60, 50); $0.border = Edges(all: pl(10)) }
++        L("c") { $0.padding = edgesL(60, 50, 60, 50); $0.border = Edges(all: pl(10)); $0.maxSize = Size(width: px(40), height: px(50)) } } }
++    dump("stack_sizes_to_largest") { C("root", { sz(&$0, 400, 300); $0.alignItems = .flexStart }) {
++        C("stack", { $0.display = .stack; $0.justifyItems = .center; $0.alignItems = .center }) {
++            L("mid") { sz(&$0, 50, 40) }; L("wide") { sz(&$0, 90, 10) }; L("tall") { sz(&$0, 20, 70) } } } }
++    dump("stack_in_flex") { C("root", { sz(&$0, 400, 150); $0.alignItems = .flexStart }) {
++        L("before") { sz(&$0, 40, 30) }
++        C("stack", { $0.display = .stack; $0.justifyItems = .center; $0.alignItems = .center }) {
++            L("mid") { sz(&$0, 50, 40) }; L("wide") { sz(&$0, 90, 10) }; L("tall") { sz(&$0, 20, 70) } }
++        L("after") { sz(&$0, 60, 20) } } }
++    dump("flex_in_stack") { C("root", { sz(&$0, 300, 200); $0.display = .stack; $0.justifyItems = .center; $0.alignItems = .center }) {
++        L("backdrop") { sz(&$0, 200, 120) }
++        C("row", { _ in }) { L("item0") { sz(&$0, 30, 25) }; L("item1") { sz(&$0, 30, 25) }; L("item2") { sz(&$0, 30, 25) } } } }
++    // ---- absolute (outside a Deferred)
++    dump("abs_over_constrained") { C("root", { sz(&$0, 200, 100); $0.position = .relative }) {
++        L("abs") { $0.position = .absolute; $0.inset = edgesD(10, 30, 20, 40); sz(&$0, 50, nil) } } }
++}
++
++@MainActor private func W<G: ElementGroup>(_ id: String, _ f: (inout Style) -> Void, @ElementBuilder _ c: () -> G) -> Box<G> {
++    Box(style: S { $0.flexWrap = .wrap; f(&$0) }, content: c()).id(id)
++}
++@MainActor private func K(_ id: String) -> Box<EmptyGroup> { L(id) { sz(&$0, 50, 20) } }
++
++@MainActor
++@Test func scratch7aDump2() {
++    dump("stack_stretch_max_minus_p") { C("root", { sz(&$0, 300, 200); $0.display = .stack; $0.justifyItems = .stretch; $0.alignItems = .stretch }) {
++        L("h") { $0.maxSize = Size(width: .auto, height: px(50)) }
++        L("w") { $0.maxSize = Size(width: px(40), height: .auto) } } }
++    // ---- absolute through a Deferred, the window as the containing block
++    dump("abs_over_constrained", w: 200, h: 100) { C("root", { sz(&$0, 200, 100) }) {
++        Deferred { L("abs") { $0.position = .absolute; $0.inset = edgesD(10, 30, 20, 40); sz(&$0, 50, nil) } } } }
++    dump("abs_percent_insets_nonsquare", w: 200, h: 100) { C("root", { sz(&$0, 200, 100) }) {
++        Deferred { L("abs") { $0.position = .absolute; $0.inset = Edges(top: pc(0.1), right: .auto, bottom: .auto, left: pc(0.1)); sz(&$0, 20, 10) } } } }
++    dump("abs_single_inset_auto_size", w: 200, h: 100) { C("root", { sz(&$0, 200, 100) }) {
++        Deferred { C("abs", { $0.position = .absolute; $0.inset = Edges(top: px(10), right: .auto, bottom: .auto, left: px(20)) }) {
++            L("content") { sz(&$0, 35, 15) } } } } }
++    dump("abs_containing_block_skips_static", w: 200, h: 100) { C("root", { sz(&$0, 200, 100); $0.padding = Edges(all: pl(5)) }) {
++        C("wrapper", { _ in }) { L("spacer") { sz(&$0, 60, 10) }
++            Deferred { L("abs") { $0.position = .absolute; $0.inset = Edges(top: px(0), right: .auto, bottom: .auto, left: px(0)); sz(&$0, 20, 10) } } } } }
++    dump("abs_removed_from_flow") { C("root", { sz(&$0, 400, 300); $0.flexDirection = .column; $0.alignItems = .flexStart }) {
++        C("container", { _ in }) { L("inflow") { sz(&$0, 40, 20) }
++            Deferred { L("abs") { $0.position = .absolute; sz(&$0, 500, 300) } } } } }
++    // ---- percent family
++    dump("flex_percent_padding_nonsquare") { C("root", { sz(&$0, 400, 100); $0.padding = Edges(top: .percent(0.05), right: .percent(0.02), bottom: .percent(0.03), left: .percent(0.04)) }) {
++        L("a") { sz(&$0, 50, 20) }; L("b") { sz(&$0, 60, nil) } } }
++    dump("flex_nested_percent_padding") { C("root", { sz(&$0, 400, 200); $0.padding = edgesL(15, 40, 25, 60); $0.border = edgesL(5, 10, 8, 20) }) {
++        C("mid", { sz(&$0, 200, 100); $0.padding = Edges(all: .percent(0.1)) }) { L("g1") { sz(&$0, 20, 10) }; L("g2") { sz(&$0, nil, 10); grow(&$0, 1, 1, px(0)) } } } }
++    dump("flex_percent_child_in_padded") { C("root", { sz(&$0, 400, 200); $0.padding = edgesL(20, 50, 30, 30); $0.border = edgesL(5, 10, 5, 10) }) {
++        L("a") { $0.size = Size(width: pc(0.5), height: pc(0.5)) }; L("b") { $0.size = Size(width: px(60), height: pc(0.25)) } } }
++    dump("sizing_root_percent") { C("root", { $0.size = Size(width: pc(0.5), height: pc(0.25)) }) { L("kid") { sz(&$0, 100, 40) } } }
++    dump("sizing_percent_main_against_indefinite") { C("root", { sz(&$0, 400, 200); $0.alignItems = .flexStart }) {
++        C("mid", { _ in }) { C("p", { $0.size = Size(width: pc(0.5), height: .auto); $0.flexBasis = px(0); $0.flexGrow = 0 }) { L("g1") { sz(&$0, 60, 10) } }
++            L("q") { sz(&$0, 100, 10) } } } }
++    dump("stack_percent_child_with_content") { C("root", { sz(&$0, 400, 300); $0.alignItems = .flexStart }) {
++        C("stack", { $0.display = .stack; $0.justifyItems = .center; $0.alignItems = .center }) {
++            L("fixed") { sz(&$0, 40, 20) }
++            C("pct", { $0.size = Size(width: pc(0.5), height: .auto) }) { L("inner") { sz(&$0, 80, 30) } } } } }
++    // ---- wrap-as-content family
++    dump("flex_column_fit_content_margins") { C("root", { sz(&$0, 120, 200); $0.flexDirection = .column; $0.alignItems = .center }) {
++        W("a", { $0.margin = edgesD(0, 6, 0, 10) }) { K("k1"); K("k2"); K("k3"); K("k4") }
++        L("tail") { sz(&$0, 40, 24) } } }
++    dump("stack_fit_content_floor") { C("root", { sz(&$0, 30, 100); $0.display = .stack; $0.justifyItems = .start; $0.alignItems = .flexStart }) {
++        W("f", { _ in }) { K("f1"); K("f2") } } }
++    dump("sizing_cross_after_flex") { C("root", { sz(&$0, 120, 600); $0.alignItems = .flexStart }) {
++        W("a", { _ in }) { K("i1"); K("i2"); K("i3"); K("i4") } } }
++    dump("flex_nested_auto_cross") { W("root", { sz(&$0, 200, 200); $0.alignContent = .flexStart }) {
++        C("mid", { sz(&$0, 120, nil) }) { L("a") { sz(&$0, 40, 50) }; L("b") { sz(&$0, 30, 24) } }
++        L("after") { sz(&$0, 120, 30) }; L("tail") { sz(&$0, 120, 20) } } }
++    dump("flex_row_block_axis_max_content") { C("root", { sz(&$0, 300, 30); $0.alignItems = .flexStart }) {
++        W("a", { sz(&$0, 120, nil) }) { K("k1"); K("k2"); K("k3"); K("k4") }
++        L("after") { sz(&$0, 40, 16) } } }
++    dump("flex_wrap_min_vs_max_content") { C("root", { sz(&$0, 260, 160) }) {
++        W("mid", { $0.maxSize = Size(width: px(100), height: .auto) }) { L("g1") { sz(&$0, 40, 20) }; L("g2") { sz(&$0, 40, 20) }; L("g3") { sz(&$0, 40, 20) } } } }
++}
