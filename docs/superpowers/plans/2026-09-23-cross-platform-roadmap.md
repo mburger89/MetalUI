@@ -89,9 +89,11 @@ Apple-bound:
 
 ### End to end
 
-10. [ ] **The demo on Linux and Windows** — `MetalUIDemo` through SDL3, text
-    through `PortableText`; CI captures a frame on llvmpipe and WARP and
-    compares it with the macOS Metal frame of the same tree.
+10. [x] **The demo on Linux and Windows** — `MetalUISDLDemo`; `DemoCapture`
+    rebuilds the demo natively and matches macOS's Metal frame (scene
+    byte-for-byte, pixels within parity) on llvmpipe and WARP.
+    `feat/demo-cross-platform`, spec
+    `specs/2026-09-23-demo-cross-platform-design.md` (`DC-`), record §39.
 
 ### After the demo runs
 

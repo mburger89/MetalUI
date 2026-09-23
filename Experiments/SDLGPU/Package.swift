@@ -16,7 +16,8 @@ let package = Package(
             .product(name: "ReplayFixture", package: "MetalUISDL"),
             .product(name: "MetalUI", package: "MetalUI"),
             // Frame 4's text (ruling PT-G): HarfBuzz + FreeType, no CoreText.
-            .product(name: "MetalUIPortableText", package: "MetalUI")
+            .product(name: "MetalUIPortableText", package: "MetalUI"),
+            .product(name: "MetalUIDemoContent", package: "MetalUI")
         ])
     ]
 )

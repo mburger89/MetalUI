@@ -67,7 +67,10 @@ func run() throws {
         }
     }
     // Positive control: the same comparison must see a backend that breaks painter order.
-    let last = fixtures[fixtures.count - 1]
+    // The draw-order control runs on frame 3, as the Apple side's does: it is
+    // the frame built to overlap text with later rects. The last fixture is the
+    // demo's tree since roadmap item 10, where every-rect-first moves nothing.
+    let last = names.firstIndex(of: "frame-3.muireplay").map { fixtures[$0] } ?? fixtures[fixtures.count - 1]
     let mutant = try replayer.render(last, runs: last.orderMutatedRuns)
     // Count only pixels no rounding explains: a backend may differ by one
     // step on every edge (llvmpipe does, on ~11k pixels a frame).

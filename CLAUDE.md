@@ -44,7 +44,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   `FN-` (next `FN-E`; rulings in its spec), `PC-` (next `PC-D`; rulings in
   its spec), `TS-` (next `TS-E`; rulings in its spec), `RS-` (next `RS-E`;
   rulings in its spec), `SP-` (next `SP-D`; rulings in its spec), `XP-`
-  (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one). A numbered citation
+  (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
+  `DC-` (next `DC-D`; rulings in its spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -73,7 +74,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Fourteen record files are not tasks of
+  and G2 is unblocked rather than waiting. Fifteen record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
@@ -92,8 +93,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   Layout off macOS (`PC-`, spec `specs/2026-09-23-portable-core-layout-design.md`),
   §35 the text seam (`TS-`, spec `specs/2026-09-23-text-seam-design.md`),
   §36 the render seam (`RS-`, spec `specs/2026-09-23-render-seam-design.md`),
-  §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`)
-  and §38 MetalUI off Apple (`XP-`, spec `specs/2026-09-23-metalui-portable-design.md`). **Cross-platform work
+  §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`),
+  §38 MetalUI off Apple (`XP-`, spec `specs/2026-09-23-metalui-portable-design.md`)
+  and §39 the demo on Linux and Windows (`DC-`, spec
+  `specs/2026-09-23-demo-cross-platform-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -313,7 +316,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   placement rule lives once, in `GlyphImage.subpixelPlacement(forDeviceX:)`
   (`PT-C`); `GlyphRaster` forwards — do not re-inline it on either side.
   `Experiments/SDLGPU`'s frame 4 is drawn from it (`PT-G`) and replayed by
-  `Backends/SDL`.
+  `Backends/SDL`; frame 5 is the demo's whole tree, which `Backends/SDL`'s
+  `DemoCapture` rebuilds natively on Linux and Windows and checks against
+  macOS (scene byte-for-byte, pixels within parity; `DC-B`).
+  `renderFrame(_:size:scaleFactor:textSystem:atlas:)` renders a tree
+  headless (`DC-A`).
 
 Eight constraints that fail silently:
 
