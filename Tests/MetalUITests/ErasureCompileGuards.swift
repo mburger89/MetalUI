@@ -157,7 +157,7 @@ func aStructCanConformToElementObject() throws {
             var elementID: ElementID? { nil }
             mutating func requestLayout(_ id: GlobalElementID,
                                         pass: inout LayoutPass) -> LayoutNodeID {
-                pass.requestNode(style: Style(), children: [])
+                pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID
             }
             mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                    pass: inout PrepaintPass) {}

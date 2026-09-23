@@ -761,7 +761,7 @@ private struct StatefulListRow: Element {
             return (pass.lowerLegacyNode(Style(), declared: Style(), children: [],
                                          site: .customElement), ())
         }
-        return (pass.requestNode(style: Style(), children: []), ())
+        return (pass.frame.requestNode(style: Style(), children: []), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -782,6 +782,7 @@ private struct StatefulListRow: Element {
 private struct LegacySpelledStatefulListRow: Element {
     var elementID: ElementID? { nil }
 
+    @available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: it is the subject of aLegacySpelledStatefulListRowAbortsAProductionProposalFrame, which reads the customElement trap (stage 6a, LR-CV)")
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Void) {
         (pass.requestNode(style: Style(), children: []), ())

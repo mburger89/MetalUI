@@ -117,7 +117,7 @@ struct ProbeLeaf: Element {
             return (pass.frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: w, height: h)) }, ())
         }
         let w = Double(width)
-        return (pass.requestLeaf(style: Style()) { _, _ in SizeD(width: w, height: h) }, ())
+        return (pass.frame.requestLeaf(style: Style()) { _, _ in SizeD(width: w, height: h) }, ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

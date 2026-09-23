@@ -46,7 +46,11 @@ private let voidPhases = """
 /// that declares the marker and registers a legacy node) compiled, and the lie
 /// surfaced only as a trap inside a proposal container (ruling SA-R). An
 /// `Element` that is not a `ProposalElement` gets no typed entry from any default,
-/// so it no longer conforms.
+/// so it no longer conforms. Since stage 6a the fixture registers a node through
+/// the untyped entry with `requestNativeLeaf(...).layoutNodeID` rather than the
+/// deprecated legacy registrar (`LR-CU` item 6): the rejection is the typed
+/// requirement's either way, because what the marker demands is the typed entry,
+/// not a particular registrar.
 ///
 /// Mutation that must redden it: give every `ProposalElementGroup` a default
 /// `requestProposalGroupLayout` that traps.
@@ -56,7 +60,7 @@ func aMarkerConformerThatRegistersALegacyNodeDoesNotCompile() throws {
         public struct Liar: Element, ProposalElementGroup {
             public init() {}
             public func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-                (pass.requestNode(style: Style(), children: []), ())
+                (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID, ())
             }
         \(voidPhases)
         }
@@ -68,7 +72,8 @@ func aMarkerConformerThatRegistersALegacyNodeDoesNotCompile() throws {
             "rejected, but not by the typed requirement:\n\(result.output)")
 }
 
-/// **Guard 2 — a typed id cannot be minted from a legacy node.** The positive
+/// **Guard 2 — a typed id cannot be minted from an untyped node** (a legacy
+/// node before stage 6a, a native spacer's `layoutNodeID` since). The positive
 /// control reads a registrar's id through the public `layoutNodeID`, so the
 /// negative's failure is about the initializer and not about a type that is
 /// missing or private.
@@ -78,7 +83,7 @@ func aMarkerConformerThatRegistersALegacyNodeDoesNotCompile() throws {
 func aProposalNodeIDCannotBeMintedOutsideMetalUI() throws {
     let minted = try typecheckFile("""
         @MainActor public func mint(_ pass: inout LayoutPass) -> ProposalNodeID {
-            ProposalNodeID(pass.requestNode(style: Style(), children: []))
+            ProposalNodeID(pass.requestNativeSpacer().layoutNodeID)
         }
         """, importing: "MetalUI")
     let read = try typecheckFile("""
@@ -140,7 +145,10 @@ func aComponentOnlyTakesTheProposalMarkerWithProposalContent() throws {
 }
 
 /// **Guard 4 — a native registrar rejects a legacy child.** The positive control
-/// hands the same registrar a native spacer.
+/// hands the same registrar a native spacer. Since stage 6a the negative's untyped child is a
+/// native spacer's `layoutNodeID` rather than the deprecated legacy registrar's
+/// node (`LR-DB`): what is rejected is an untyped `LayoutNodeID`, whichever
+/// registrar produced it.
 ///
 /// Mutation that must redden it: add a `requestNativeFrame(child: LayoutNodeID, …)`
 /// overload to `LayoutPass`.
@@ -148,7 +156,7 @@ func aComponentOnlyTakesTheProposalMarkerWithProposalContent() throws {
 func aNativeRegistrarRejectsALegacyChild() throws {
     let legacy = try typecheckFile("""
         @MainActor public func probe(_ pass: inout LayoutPass) {
-            _ = pass.requestNativeFrame(child: pass.requestNode(style: Style(), children: []))
+            _ = pass.requestNativeFrame(child: pass.requestNativeSpacer().layoutNodeID)
         }
         """, importing: "MetalUI")
     let native = try typecheckFile("""
@@ -242,7 +250,7 @@ private func disagreeingGroupSource(withTypedEntry: Bool) -> String {
         public init() {}
         public mutating func requestGroupLayout(under parent: GlobalElementID?, at cursor: inout Int,
                                                 pass: inout LayoutPass) -> ([LayoutNodeID], Void) {
-            ([pass.requestNode(style: Style(), children: [])], ())
+            ([pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID], ())
         }
     \(typedEntry)
         public mutating func prepaintGroup(layout: inout Void, pass: inout PrepaintPass) {}
@@ -255,7 +263,8 @@ private func disagreeingGroupSource(withTypedEntry: Bool) -> String {
 
 /// **Guard 6 — PINNED WRONG ON PURPOSE (`MC-G` hole 1): a group whose two entry
 /// points disagree still compiles.** The positive fixture writes both entries —
-/// a legacy node from the untyped one, zero typed nodes from the typed one — and
+/// one node from the untyped one (a native leaf's untyped id since stage 6a; a
+/// legacy node before it), zero typed nodes from the typed one — and
 /// typechecks. No type-system spelling in this design stops it: the untyped entry
 /// must exist because `Frame` renders every root through it, and the two
 /// requirements are independent. Where it can hurt is `MC-G` hole 1.

@@ -1083,7 +1083,7 @@ private struct ContextProbe: Element {
         if pass.lowersToProposal {
             return (pass.frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: w, height: h)) }, ())
         }
-        return (pass.requestLeaf(style: Style()) { _, _ in SizeD(width: w, height: h) }, ())
+        return (pass.frame.requestLeaf(style: Style()) { _, _ in SizeD(width: w, height: h) }, ())
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
