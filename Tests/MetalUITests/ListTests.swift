@@ -156,6 +156,32 @@ private func idOfRow(named name: String, in data: [Item], rowHeight: Pixels,
     for region in regions {
         #expect(region.bounds.size.height == px(28))
     }
+
+    // **The arm above cannot see `rowStyle.flexShrink = 0` any more, and this
+    // one can** — the same instrument defect
+    // `aScrolledListsSpacerDoesNotShrinkUnderPadding` carries, found by the
+    // same mutation round (stage 4 lane 1, `LR-CC`). `.padding(_:)` became a
+    // WRAPPER at `f1944f8`, so the 10pt lands on an outer `ModifiedElement`
+    // layer and the `List`'s own content box keeps its full `3 x 28`: there is
+    // no negative free space for a row to absorb. Measured at `f2e981f`, before
+    // this lane touched anything — deleting `rowStyle.flexShrink = 0` left the
+    // whole 1580-test suite green.
+    //
+    // `Style.padding` written directly still shrinks the `List`'s own content
+    // box (CLAUDE.md's declared-but-inert table draws exactly this
+    // distinction), which is what the doc comment above describes: 3 x 28 - 2 x
+    // 10 = 64 against three rows of 28, so without the pin the rows read
+    // 21/22/21 and slide up.
+    var padded = List(data, rowHeight: px(28)) { Row($0) }
+    padded.style.padding = Edges(all: .pixels(px(10)))
+    let paddedFrame = Frame(contentSize: Size(width: px(400), height: px(600)), scaleFactor: 1)
+    paddedFrame.render(&padded)
+    let paddedRegions = paddedFrame.scrollRegions
+    try #require(paddedRegions.count == 3)
+    #expect(paddedRegions.map(\.bounds.origin.y.value).sorted() == [10, 38, 66])
+    for region in paddedRegions {
+        #expect(region.bounds.size.height == px(28))
+    }
 }
 
 /// Distinctness, not only stability — `aRowKeepsItsIdentityWhenItsPositionChanges`
@@ -346,6 +372,29 @@ private func renderWindowed<E: Element>(_ element: inout E, context: ScrollConte
     let expected = Set((3...8).map { 60 + Float($0) * 28 })
     #expect(ys == expected,
             "padding must not let the spacer shrink and pull windowed rows up; got \(ys.sorted())")
+
+    // **The arm above cannot see its own subject any more, and this one can.**
+    // `.padding(_:)` stopped shrinking the receiver's content box at `f1944f8`
+    // (CLAUDE.md's identity bullet: the modifier adds an outer `ModifiedElement`
+    // LAYER, and the padding lands on the layer rather than on the `List`), so
+    // the fixture above has no negative free space left to distribute and the
+    // spacer has nothing to absorb. Measured at `f2e981f`, before this lane
+    // touched anything: deleting `spacerStyle.flexShrink = 0` leaves the arm
+    // above green, and deleting `rowStyle.flexShrink = 0` leaves the **whole
+    // 1580-test suite** green. Both lines were unpinned.
+    //
+    // `Style.padding` written directly is the spelling that still shrinks the
+    // `List`'s own content box (CLAUDE.md's declared-but-inert table draws
+    // exactly this distinction), so this arm restores the negative free space
+    // the first arm used to create: content box 10 x 28 - 2 x 60 = 160 against
+    // a spacer of 84 plus six rows of 28 = 252, a deficit of 92. With the
+    // spacer's pin removed it shrinks to 0 and every row rises by 84.
+    var padded = List(data, rowHeight: px(28)) { Row($0) }
+    padded.style.padding = Edges(all: .pixels(px(60)))
+    let (paddedFrame, _) = renderWindowed(&padded, context: context)
+    let paddedYs = Set(paddedFrame.scrollRegions.map(\.bounds.origin.y.value))
+    #expect(paddedYs == expected,
+            "the spacer must not absorb a padded List's deficit; got \(paddedYs.sorted())")
 }
 
 /// Every other windowing test uses an offset and a viewport extent that are
