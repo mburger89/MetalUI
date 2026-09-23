@@ -56,7 +56,8 @@ float mui_window_pixel_density(void *window);
 enum {
     MUI_EVENT_NONE = 0, MUI_EVENT_QUIT, MUI_EVENT_CLOSE, MUI_EVENT_RESIZE,
     MUI_EVENT_MOUSE_DOWN, MUI_EVENT_MOUSE_UP, MUI_EVENT_MOUSE_MOVE, MUI_EVENT_WHEEL,
-    MUI_EVENT_KEY_DOWN, MUI_EVENT_KEY_UP, MUI_EVENT_THEME, MUI_EVENT_EXPOSED
+    MUI_EVENT_KEY_DOWN, MUI_EVENT_KEY_UP, MUI_EVENT_THEME, MUI_EVENT_EXPOSED,
+    MUI_EVENT_ACCESSIBILITY
 };
 enum { MUI_MOD_SHIFT = 1, MUI_MOD_CONTROL = 2, MUI_MOD_OPTION = 4, MUI_MOD_COMMAND = 8 };
 typedef struct {
@@ -85,3 +86,11 @@ bool mui_window_show(void *window);
 // 0 light, 1 dark (SDL_GetSystemTheme; unknown reads as light).
 int32_t mui_system_theme(void);
 double mui_now(void);
+// Wakes the event loop with MUI_EVENT_ACCESSIBILITY for `window_id` — safe
+// from any thread; AccessKit's Linux adapter calls back on its own (AX-C).
+bool mui_wake_for_accessibility(uint32_t window_id);
+// The platform window under an SDL window: NSWindow on macOS, HWND on
+// Windows, NULL elsewhere (AccessKit's subclassing adapters take it).
+void *mui_window_native_handle(void *window);
+// The window's position on screen in points (SDL_GetWindowPosition).
+void mui_window_position(void *window, int32_t *x, int32_t *y);

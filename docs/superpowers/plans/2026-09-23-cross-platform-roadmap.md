@@ -105,8 +105,10 @@ Apple-bound:
     and script; visual lines equal to CoreText's (and item 11's RTL fallback
     with them). `feat/bidi`, spec `specs/2026-09-23-bidi-design.md` (`BD-`),
     record §43.
-13. [ ] **Accessibility off Apple** — AT-SPI (Linux) and UI Automation
-    (Windows) behind `publishAccessibilityTree`.
+13. [x] **Accessibility off Apple** — AccessKit (AT-SPI, UI Automation,
+    and NSAccessibility for SDL on macOS) behind `publishAccessibilityTree`.
+    `feat/accessibility`, spec `specs/2026-09-23-accesskit-accessibility-design.md`
+    (`AX-`), record §44.
 14. [ ] **Text input** — IME composition and clipboard through SDL3.
 
 Not on this list: iOS (a UIKit `PlatformWindow`, and the `.touch` input the

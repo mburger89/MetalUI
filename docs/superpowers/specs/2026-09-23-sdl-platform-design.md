@@ -32,6 +32,9 @@ each window drawing through its own `SDLWindowRenderer` (`RS-D`).
 
 ### SP-B — No accessibility, explicitly
 
+**Superseded by `AX-C`** (roadmap item 13, record §44): `SDLWindow` now
+publishes through AccessKit. The paragraph below is the ruling as it stood.
+
 `publishAccessibilityTree` publishes nothing and `onAccessibilityRequest` is
 never called: AT-SPI (Linux) and UI Automation (Windows) are roadmap item
 13, and `AB-R` forbids a default implementation, so the stub is written out
