@@ -232,3 +232,33 @@ production sets `LayoutAuthority.proposal` until stage 6b.
   (`LR-BI`, corrected by `LR-BN`); it has no production reader. Its own doc
   comment says so. Deleting it would mean hand-writing the authority list into
   34 test declarations and losing mutation M3c's subject.
+  *(2026-09-23: `ScrollAuthorityCoverage` is now `AuthorityCoverage` and the 34
+  declarations are 67 across ten files; the row is otherwise unchanged.)*
+
+## 2026-09-23: rows changed at engine replacement stage 4
+
+Record §26; mechanisms in `LR-BQ`…`LR-CG`. **One row edited, one added, none
+deleted.** `LayoutAuthority.proposal` in production is **still inert** —
+nothing sets it until stage 6b — so no row is deleted here either.
+
+- **Edited — the test-observables row** (`Frame.scrollRegions` /
+  `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount`,
+  `LayoutTree.lastNativeLayoutWork`, `NativeGridSolution`'s counter,
+  `LayoutAuthority.allCases`) **gains `ListRows.GroupLayout.spacer`.** It is
+  stored on every frame of every **legacy** `List` — `nil` under the proposal
+  authority, which registers no spacer — and read by nothing. Its own doc
+  comment says so: "carried rather than dropped so that a later phase could
+  read its rect; nothing does today, and that is why it is a node rather than
+  an element." It is **internal**, so this is a note inside the
+  test-observables row rather than a public-API row of its own; lane 1's minor
+  2 records the same thing.
+- **Added — `UnlowerableField` site `.list`.** Stage 4 deleted `List`'s
+  explicit site check, and **no site-level reporter is left** for `.list`. The
+  case survives for a ROW's unlowerable item field, which `ListRows` reports at
+  this site through `planLegacyItems`' `parentSite:` — `flexGrow.weights`, the
+  only field raised there (`LR-BM`) — and for a field a later stage puts on the
+  windowed node's unconsumed record; **no row can raise the weights entry
+  today** (`LR-BV`). `owningStage`'s `.list` comment says all of this in
+  source. It is the same shape as stage 3's "site `component` has no reachable
+  report": an enum case that compiles, is kept so a later stage gets the right
+  stage number, and that no production path can now raise.

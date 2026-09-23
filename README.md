@@ -108,8 +108,8 @@ swift build
 swift test --no-parallel
 ```
 
-On `integrate/stage-3` (2026-09-22 — plan task 7 stage 3 merged with the
-FreeType rasterizer line) the suite reports **1580 tests**, in one summary
+On `feat/engine-stage-4` (2026-09-23 — plan task 7 stage 4) the suite reports
+**1602 tests**, in one summary
 line over two suites. That total includes **97** layout goldens
 generated from WebKit and **77** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently
@@ -313,7 +313,9 @@ transforms, and text colour animation.
   [`23-integration-stage-2-grids.md`](docs/record/23-integration-stage-2-grids.md)
   for their integration, and
   [`25-engine-replacement-stage-3.md`](docs/record/25-engine-replacement-stage-3.md)
-  for its third stage — scrolling and `Component` distribution. Three files are
+  for its third stage — scrolling and `Component` distribution — and
+  [`26-engine-replacement-stage-4.md`](docs/record/26-engine-replacement-stage-4.md)
+  for its fourth stage — the windowed proposal `List`. Three files are
   not task tracks:
   [`19-claude-md-full-2026-09-21.md`](docs/record/19-claude-md-full-2026-09-21.md)
   is the root `CLAUDE.md` as it read before it was cut to rules only,
@@ -342,11 +344,12 @@ transforms, and text colour animation.
     (plan task 6, done: the legacy containers are audited; replacing them is task 7)
   - [engine replacement spec](docs/superpowers/specs/2026-09-17-engine-replacement-design.md)
     and its [stage 2](docs/superpowers/specs/2026-09-17-engine-stage-2-design.md)
-    and [stage 3](docs/superpowers/specs/2026-09-22-engine-stage-3-design.md)
-    specs (plan task 7, stages 1, 2, G and 3 of 14 landed: legacy elements
+    [stage 3](docs/superpowers/specs/2026-09-22-engine-stage-3-design.md)
+    and [stage 4](docs/superpowers/specs/2026-09-23-engine-stage-4-design.md)
+    specs (plan task 7, stages 1, 2, G, 3 and 4 of 14 landed: legacy elements
     lower onto the kernel under an internal proposal authority, with SwiftUI's
-    flex-item semantics, scrolling and `Component` distribution; production
-    still uses the CSS engine)
+    flex-item semantics, scrolling, `Component` distribution and a windowed
+    `List`; production still uses the CSS engine)
   - [grids spec](docs/superpowers/specs/2026-09-17-grids-design.md)
     (plan task 7 stage G, delivered: SwiftUI's `Grid` and `GridRow` on the
     proposal path as a kernel node; lazy grids are proposed as stage G2)

@@ -909,3 +909,52 @@ legacy authority until stage 6b, so nothing here is production-visible yet.
   stack's own 8pt spacing, and framed members staying one flex item is `TB-M`'s,
   stage 11. Still wrong on purpose under the legacy authority. New pin:
   `aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem`.
+
+## 2026-09-23: 13, 14 and 18 amended (plan task 7 stage 4)
+
+Record §26; rulings `LR-BQ`…`LR-CG` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`.
+**No number is retired and none is added** — the table stays at **fifty-eight**.
+13 and 14 gain text, not numbers; 18's *numbers* move, and its divergence does
+not.
+
+- **13** (a `List`'s window is computed against a one-frame-stale viewport
+  extent). **Survives stage 4 unchanged.** The windowed `ProposalLayout` reads
+  the same `ScrollContext` at the same phase — the window is still decided in
+  `requestLayout` against last frame's extent — so the one-frame resize error
+  and its two rows of overscan are identical on both authorities. The contract
+  pin (`scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout`)
+  is untouched, and the *effect* is still reached by no test.
+- **14** (a `List` windows against its SCROLLER's origin, so a `List` with a
+  flow sibling above it renders blank). **Survives stage 4 unchanged, and its
+  pin now runs under both authorities.**
+  `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows` is one of the
+  20 `ListTests` scenarios lane 3 parameterised, so the wrong answer is
+  asserted **twice**, once per engine — whoever fixes this must delete or
+  invert **both arms**. `MP-L`'s blocker is unchanged: `requestLayout` still
+  has no position, and the windowed layout does not give it one.
+- **18** (a `@State` behind a removed `if` is retained, not reset). **The
+  divergence is unchanged; its numbers move by one**, because stage 4 demoted
+  the legacy windowing spacer from a `Box` element to a bare node, so it no
+  longer mints a `$anim` entry. On the committed `demoLikeRows(_:)` fixture the
+  formula goes **`2n + 7` → `2n + 6`**, the crossing of `sweepThreshold`
+  **125 → 126** rows, and the count at 500 rows **1007 → 1006**. Measured on a
+  fresh `StateTable` per row — `demoLikeRows(n)` cold, then three frames of
+  `demoLikeRows(0)`, past `staleAfterGenerations` (2), so only the size gate can
+  keep the rows (record §26 §6.3):
+
+  | *n* | before, cold | reaped? | after, cold | reaped? |
+  |---|---|---|---|---|
+  | 40 | 87 | no | 86 | no |
+  | 124 | 255 | no | 254 | no |
+  | 125 | 257 | **yes** | 256 | **no** |
+  | 126 | 259 | yes | 258 | **yes** |
+  | 127 | 261 | yes | 260 | yes |
+  | 500 | 1007 | yes | 1006 | yes |
+
+  The gate is `storage.count > sweepThreshold` with `sweepThreshold == 256`, so
+  crossing needs 257. **The before column reproduces this entry's own `2n + 7`,
+  125 and 1007 exactly**, which is what says the instrument is the right one
+  rather than a differently-shaped fixture. The **element-level consequence is
+  still unpinned**, exactly as the entry says: no test asserts that a `@State`
+  in a vanished `if` comes back holding its old value.
