@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CD`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB` and its lane 1 `LR-CC`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CE`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC` and its lane 2 `LR-CD`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -4825,3 +4825,131 @@ stage reads — trivially true, in the same change that advertised the harness a
 fixed. Item 2 costs a reader who believes two `List` lines are pinned; it is
 recorded rather than only fixed because the decay mechanism (`.padding` became a
 wrapper) will have hit other fixtures nobody has re-checked.
+
+---
+
+## LR-CD — stage 4 lane 2's corrections: the elision that must not fire, a masked height answer, and a record nothing can observe
+
+Lane 2 built `WindowedRowsLayout`, gave `ListRows` its proposal branch and
+deleted `List`'s site check. Four things the design (`LR-BQ`, `LR-BR`, `LR-CA`,
+spec §3.1, §3.2 and §6 lane 2) got wrong, each found by running rather than by
+reading, each corrected here. Measurements are record §26 §7.
+
+### 1. `planLegacyItems`' single-child stretch elision must NOT fire under this layout
+
+**The question.** The group plans its rows with
+`planLegacyItems(received, parent: <the List's declared style>, parentKind:
+.flex(isRow: false), parentSite: .list)`, which is what prototype P2 measured and
+what spec §3.1 prescribes. `planLegacyItems` elides a child's stretch when the
+parent has **exactly one** child and no declared size on that axis (`LR-AC`,
+stage 1's `LR-E` principle 3), because a fit-content parent stretching its only
+child is the identity.
+
+**What is wrong with it here.** `WindowedRowsLayout` is **not** fit-content on
+the cross axis: `sizeThatFits` answers `proposal.width` whenever one is offered.
+So the elision's premise fails, and a `List` with exactly **one** row and no
+declared width of its own leaves that row unstretched — 0 wide, against the
+legacy engine's stretch to the list's width. Six rows hide it completely, which
+is why none of the five arms spec §6 lane 2 prescribed for test 2.1 could see
+it, and why the prototypes did not either (P1a6 and P2 both used three or more
+rows).
+
+**The ruling.** `ListRows.loweredNode` gives the planning parent a declared
+cross size when the `List` has none. Nothing else in `planLegacyItems` reads
+`parent.size.width` for a column parent — it is the elision's only consumer
+there — so the correction is exactly as narrow as the defect. Test 2.1 gains a
+**sixth** arm, **B6**, one row under a `List` declaring no width; mutation
+**M2h** (the correction removed) reddens B6 **and nothing else**, measured.
+
+**What it costs if wrong.** A one-row `List` is not an edge case in an app — it
+is every list whose filter matched once — and the failure is a row that renders
+at zero width with no diagnostic. The correction's own risk is the opposite: if
+a later stage makes the windowed layout hug its content on the cross axis, the
+forced cross size becomes a lie and the row is stretched where it should not be.
+B6 is the arm that would then read the legacy answer and disagree.
+
+### 2. The layout's height answer is masked in every composed tree
+
+`LR-BR` makes `sizeThatFits` answer `rowHeight × logicalCount` on the stacking
+axis at every proposal, against SwiftUI's greedy `List` (probe K6). Spec §6 lane
+2 predicted that **M2b** — the height answer made greedy, i.e. K6's — would
+redden test 2.1 as well as 2.2.
+
+**It does not redden 2.1 at all.** `List.init` declares
+`style.size.height = rowHeight × data.count` on the `List`'s own `Box`, and
+`paddedAndSized` turns that into a fixed native frame **around** the
+arrangement, so the arrangement's own height answer never reaches a rect. The
+layout's height is observable only through the kernel — tests 2.2, 2.3 and 2.4b,
+which register the layout with no `List` and no `Box` above it.
+
+**Recorded rather than silently fixed** because it is the reason 2.2 is not
+redundant with 2.1, and because it says where the invariant actually lives
+today: in two places that must agree, `List.init`'s declared height and
+`WindowedRowsLayout.sizeThatFits`, with no test that they do. (They cannot
+disagree while both read `rowHeight × data.count`; a stage that makes either
+conditional owes that test.)
+
+### 3. The windowed node's `LoweredItem` record is unobservable, and is kept anyway
+
+Spec §6 lane 2's **M2e** — the windowed node's `recordLoweredItem` dropped —
+"must redden 2.7 with an `…unconsumed` entry". **M2e reddens nothing**, and both
+halves of the prediction are wrong for reasons provable by reading, in the shape
+lane 1's M1c took:
+
+- a **dropped** record never joins `LoweringState.order`, which
+  `reportUnconsumedLoweredItems` iterates, so it cannot produce an
+  `…unconsumed` entry at all. An **unconsumed** record can, which is mutation
+  M2f, and M2f does redden 2.7 (three `box.flexShrink.unconsumed` and three
+  `box.minSize.unconsumed`);
+- the record's only other effect is the stretch item frame the enclosing `Box`
+  would wrap the arrangement in. That frame is greedy on the width axis — and
+  `WindowedRowsLayout` already answers `proposal.width`, so the wrapper changes
+  no number. Its minimum is 0 and its maximum ∞ (the arrangement's `declared` is
+  a bare `Style()`), and the alias it installs points at a node no element owns,
+  so nothing reads it either.
+
+**The record stays.** `LR-AB` item 1 is a uniform convention — every lowered
+site records a `LoweredItem` for the node it returns — and
+`UnlowerableField.owningStage`'s `.list` comment claims `<field>.unconsumed`
+reachability that only a record can provide. Deleting it would make `List`'s
+arrangement the one lowered node that does not record, and a later stage that
+gives the arrangement a non-default declared style, or a container that is not
+proposal-greedy above it, would lose the wiring silently. It is documented as
+inert-today in `loweredNode`'s own comment and in test 2.7's.
+
+**What it costs if wrong.** Keeping it costs three lines and a reader who
+believes more is pinned than is. Deleting it costs a silent gap the next stage
+would have to rediscover.
+
+### 4. M2g changed no program; M2g′ is what measures the same claim
+
+Spec §3.1 predicted that **M2g** — `rowStyle.flexShrink` dropped from the record
+the group hands `planLegacyItems`, proposal path only — reddens nothing, and
+required the lane to "show the mutant's `LegacyItemPlan` differing from the
+original's before banking the prediction — or, if the plans are byte-identical,
+say that the 'mutation' changed no program and find another."
+
+**The plans are byte-identical**, printed for all six rows of a plain list:
+`fixedSizeH=nil W=(min: 0.0, max: inf) H=nil align=topLeading alignFrame=nil
+margin=nil fields=[]`, with and without. `plan.fixedSizeHorizontal` is assigned
+only under `d.flexShrink == 0 && mainAuto`, and a `List` row declares
+`size.height = rowHeight` in a column parent, so `mainAuto` is false. So M2g is
+not a mutation at all at that boundary.
+
+**The replacement, M2g′**, deletes `rowStyle.flexShrink = 0` from
+`List.requestLayout` outright. It reddens
+`paddingOnAListDoesNotShrinkItsRowsBelowRowHeight` and
+`aScrolledListsSpacerDoesNotShrinkUnderPadding` — lane 1's two new
+`Style.padding` arms — and **nothing on the proposal path**. That pair of facts
+is the measurement `LR-BS`'s "inert rather than removed" needed: the line is
+load-bearing under the legacy engine and reaches nothing under the kernel, so
+keeping one row style rather than two costs nothing.
+
+### 5. M2c is broader than predicted, which is not a defect
+
+Spec §6 lane 2 said M2c (the width answer made 0 on a nil axis, K6's) "reddens
+2.4 only — which is what makes 2.4 the pin for the half of `LR-BR` that
+diverges". Measured, it reddens **2.4, 2.2's two nil-width arms and 2.4b**.
+Three pins for the diverging half rather than one; 2.4 is the one that names it.
+Recorded because the spec's sentence would otherwise read as a claim about
+coverage that the suite contradicts.

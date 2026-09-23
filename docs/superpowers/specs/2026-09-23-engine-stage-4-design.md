@@ -1,8 +1,10 @@
 # Engine replacement, stage 4 — the windowed proposal `List` (plan task 7)
 
-**Status, 2026-09-23 (PDT): lane 1 landed; lanes 2–5 design only.** Lane 1's
-four commits are on `feat/engine-stage-4` (`511ae3d`, `136f171`, `eb42883`,
-`ca5a546`); its corrections are `LR-CC` and record §26 §6. Nothing of lanes 2–5
+**Status, 2026-09-23 (PDT): lanes 1 and 2 landed; lanes 3–5 design only.**
+Lane 1's four commits are on `feat/engine-stage-4` (`511ae3d`, `136f171`,
+`eb42883`, `ca5a546`); its corrections are `LR-CC` and record §26 §6. Lane 2's
+are `a494777`, `13c12f0` and `c124f40`; its corrections are `LR-CD` and record
+§26 §7. Nothing of lanes 3–5
 under `Sources/` or `Tests/` has changed in a commit. Every source patch cited
 below as a *prototype* was applied in `/Users/maxburger/Developer/MetalUI-stage-4`,
 built, run and restored from a `cp` copy, with `git status --short` clean
@@ -321,14 +323,19 @@ never registered:
   assignment would write the default even if it were reached.
 
 The conclusion survives, and more strongly than before — the line is not merely
-rendered inert by a compensating wrapper, it is dropped on the floor. **Lane 2
-owes mutation M2g** (`rowStyle.flexShrink` dropped from the record the group
-hands `planLegacyItems`, proposal path only) with the prediction written down
-first: **it reddens nothing**, in the shape `LR-BQ` reason 4 already uses. A
-mutation that reddens nothing is a broken instrument or the finding, so the lane
-must also show the mutant's `LegacyItemPlan` differing from the original's
-before banking the prediction — or, if the plans are byte-identical, say that
-the "mutation" changed no program and find another.
+rendered inert by a compensating wrapper, it is dropped on the floor.
+
+**Lane 2 took M2g and found it is not a mutation** (`LR-CD` item 4). The
+`[LegacyItemPlan]` the group hands `registerLegacyItems` is **byte-identical**
+with and without `rowStyle.flexShrink` on the record — printed for all six rows:
+`fixedSizeH=nil W=(min: 0.0, max: inf) H=nil align=topLeading alignFrame=nil
+margin=nil fields=[]` — so the "mutation" changes no program at that boundary,
+which is the branch this section predicted. Its replacement **M2g′** deletes
+`rowStyle.flexShrink = 0` from `List.requestLayout` outright and reddens
+`paddingOnAListDoesNotShrinkItsRowsBelowRowHeight` and
+`aScrolledListsSpacerDoesNotShrinkUnderPadding` — lane 1's two new
+`Style.padding` arms — and **nothing on the proposal path**. That is the
+measurement "inert rather than removed" needed.
 
 ### 3.2 `WindowedRowsLayout` (`LR-BR`)
 
@@ -405,6 +412,27 @@ would change `visibleRange`, which §3.3 and `LR-BT` pin shut. §9 carries it.
 `.topLeading`, proposal `(bounds.width, rowHeight)`. Every subview is placed
 exactly once, so `SA-E`'s "an unplaced subview is centred" never fires and the
 "last record wins" rule is never exercised.
+
+**The rows are planned against a corrected parent** (`LR-CD` item 1, found by
+lane 2 and not by this design). The group plans its rows with
+`planLegacyItems(parent: <the List's declared style>, parentKind:
+.flex(isRow: false), parentSite: .list)`, and `planLegacyItems` **elides** a
+single child's stretch when the parent declares no size on that axis (`LR-AC`) —
+because a fit-content parent stretching its only child is the identity. This
+layout is not fit-content on the cross axis: it answers `proposal.width`. So a
+`List` with exactly **one** row and no declared width left that row 0 wide
+against the legacy engine's stretch. `ListRows.loweredNode` therefore declares a
+cross size on the planning parent when the `List` has none; nothing else in
+`planLegacyItems` reads `parent.size.width` for a column parent. Test 2.1's
+sixth arm **B6** is the pin and mutation **M2h** the measurement.
+
+**The height answer is masked in every composed tree** (`LR-CD` item 2).
+`List.init` declares `size.height = rowHeight × data.count` on the `List`'s own
+`Box`, and `paddedAndSized` turns that into a fixed native frame **around** the
+arrangement, so `sizeThatFits`'s height never reaches a rect through a real
+`List`. Mutation M2b (the answer made greedy) therefore reddens 2.2, 2.3 and
+2.4b — the kernel-level tests — and **not** 2.1, which this design predicted it
+would. That is the measured reason 2.2 is not redundant.
 
 **Purity** (`SA-H`): the answer depends only on the layout's value, the
 proposal and the subviews' answers. ✓
@@ -561,7 +589,11 @@ lowering` on a process exit, which after this stage cannot happen. Stage 3
 already retired this test's `ScrollView` arm the same way and left the name
 naming its surviving arms; lane 2 retires the `List` arm, renames the test to
 name what survives (the component amend), and its replacement is lane 2's own
-agreement test.
+agreement test. **Done in `13c12f0`**: the test is
+`aComponentAmendDoesNotTrapUnderTheProposalAuthority`, and its doc names both
+retirements and where each arm's claim now lives — the general one (a site that
+skips its own check is caught rather than lowering silently) is
+`aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop`'s.
 
 **`everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s `List` arm becomes an
 ABSENCE arm, and the source already settles which** — the first statement of
@@ -583,6 +615,10 @@ Lane 2 still runs it: what the source proves is that the *weights* entry cannot
 be raised, not that the arm reports nothing at all. Test 2.7's first half — a
 plain `List`'s `unlowerableFields.isEmpty` — is the measurement that says the
 absence is total, and a non-empty report there is a finding.
+
+**Measured, in `13c12f0`**: the arm reports `[]`, `arms.count` is still 10, and
+the arm is **not vacuous** — mutation M2f (the rows' records not consumed)
+reddens it by name alongside 2.7.
 
 ### 4.3 Divergences 13 and 14 — kept, and why (`LR-BT`)
 
@@ -874,24 +910,34 @@ the layout — so the honest fix is to classify, not to split. In a new
 | 2.4b | `aNilWidthListMeasuresEveryLogicalRowTwice` (new) | arrives with its subject | §3.2.1's cost, at **two row counts**, recording the slope — the predicted 2 lookups per **logical** row is written down first, and a different slope is a finding |
 | 2.6 | `aZeroRowHeightLowersWithoutTrappingOrProducingNaN` | arrives with its subject | `SA-J`'s checkpoints on the degenerate input `List` has always accepted |
 
+**Landed, with one arm the table did not name.** Test 2.1 has **six** arms, not
+five: **B6** is one row under a `List` declaring no width, which is the only
+shape that can see `LR-CD` item 1's elision correction. The four red-by-failure
+tests read 21 issues at lane 1's HEAD (`a494777`'s message lists every line).
+`aNilWidthListMeasuresEveryLogicalRowTwice` measures its exact half on the
+kernel (`1 + 2n` misses, 0 hits at *n* = 6 and 15) and its composition half
+through a real vertical `List` inside a **horizontal** `ScrollView` at three row
+counts, asserting equal first differences rather than a transcribed slope.
+
 The four "arrives with its subject" tests carry no red-before, so **their
 evidence is their mutations** — M2b, M2c and the two work counts below — exactly
 as stage 3's lane 1 characterization tests did. The lane's commit message says
 which four, so a reader does not mistake the absence of a red for an oversight.
 
-**Mutations.** M2a: `firstIndex` ignored (reddens 2.1, 2.5). M2b: the height
-answer made greedy, i.e. K6's (reddens 2.1, 2.2). M2c: the width answer made 0
-on a nil axis, i.e. K6's (reddens 2.4 only — which is what makes 2.4 the pin
-for the half of `LR-BR` that diverges). M2d: `planLegacyItems` skipped, rows
-registered raw (reddens 2.1's width columns; if it reddens nothing the stretch
-claim is unpinned and the lane says so). M2e: the windowed node's
-`recordLoweredItem` dropped (must redden 2.7 with an `…unconsumed` entry).
-M2f: the rows' records not consumed (same). **M2g**: `rowStyle.flexShrink`
-dropped from the record the group hands `planLegacyItems`, proposal path only —
-**predicted to redden nothing**, for the reason §3.1 now measures
-(`fixedSizeHorizontal` is never assigned for a column parent's row with a
-declared main size), and the lane shows the two `LegacyItemPlan`s before banking
-the prediction.
+**Mutations, predicted and then measured** (record §26 §7.4; the three
+corrections are `LR-CD`). The prediction is kept beside the reading so a later
+reader can see which way each went.
+
+| # | what | predicted | **measured** |
+|---|---|---|---|
+| M2a | `firstIndex` ignored | 2.1, 2.5 | **2.1** (B3, B4) and **2.5**, 30 issues |
+| M2b | the height answer made greedy, i.e. K6's | 2.1, 2.2 | **2.2, 2.3, 2.4b** — **not 2.1**: the `List`'s own declared `size.height` masks it (`LR-CD` item 2) |
+| M2c | the width answer 0 on a nil axis, i.e. K6's | 2.4 **only** | **2.4, 2.2, 2.4b** — broader, not narrower (`LR-CD` item 5) |
+| M2d | `planLegacyItems` skipped, rows registered raw | 2.1's width columns | **2.1 (every arm), 2.5, 2.6** |
+| M2e | the windowed node's `recordLoweredItem` dropped | 2.7, with an `…unconsumed` entry | **nothing**, and it cannot: a dropped record never joins `LoweringState.order` (`LR-CD` item 3) |
+| M2f | the rows' records not consumed | 2.7, same | **2.7** (`box.flexShrink.unconsumed` × 3, `box.minSize.unconsumed` × 3), plus 2.1, 2.5, 2.6, 2.8, 2.4b **and** `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s new absence arm |
+| M2g | `rowStyle.flexShrink` dropped from the record | nothing | **not a mutation**: the plans are byte-identical (§3.1). **M2g′** deletes the line and reddens two LEGACY arms only |
+| **M2h** | the planning parent's cross size left at the `List`'s own, so the elision fires | *(not in this design)* | **2.1's B6 alone** — `LR-CD` item 1 |
 
 ### Lane 3 — `ListTests` under both authorities (`LR-BW`)
 
@@ -1134,6 +1180,13 @@ number is what gets corrected.
 Production runs the legacy authority until stage 6b, and §4.2(a) is the whole
 of stage 4's legacy change: an element that emits nothing becomes a node. A
 non-zero reading is a **finding**, not a number to record.
+
+**Lane 1 read 0 in all twelve at `eb42883`; lane 2 read 0 in all twelve at
+`c124f40`**, every scene dump byte-identical, with all eight controls
+reproducing their recorded values exactly (record §26 §7.5). Lane 2's only
+change on the legacy path is `List.requestLayout` losing a branch that fired
+only under the proposal authority, so a zero was expected by construction and
+taken anyway.
 
 **Real-window capture** only if
 `xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&

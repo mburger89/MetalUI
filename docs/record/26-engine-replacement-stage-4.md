@@ -3,12 +3,13 @@
 Plan task 7, stage 4 (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 4).
 Design: `docs/superpowers/specs/2026-09-23-engine-stage-4-design.md`. Rulings
-`LR-BQ`…`LR-CB` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`
-(`LR-BX`…`LR-CB` are critic round 1's; §5 below).
+`LR-BQ`…`LR-CD` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`
+(`LR-BX`…`LR-CB` are critic round 1's, §5 below; `LR-CC` is lane 1's and
+`LR-CD` lane 2's).
 Branch `feat/engine-stage-4` from `f2e981f`.
 
-**Status, 2026-09-23 (PDT): lane 1 landed; lanes 2–5 design only.** §6 is lane
-1's record. Every prototype in §2 was applied in
+**Status, 2026-09-23 (PDT): lanes 1 and 2 landed; lanes 3–5 design only.** §6
+is lane 1's record and §7 is lane 2's. Every prototype in §2 was applied in
 `/Users/maxburger/Developer/MetalUI-stage-4`, built, run and restored from a
 `cp` copy, with `git status --short` empty afterwards, before any lane started;
 §6.4's mutations were taken the same way, after lane 1's implementation commit.
@@ -547,3 +548,213 @@ The twelve offscreen images stand in.
 | a real-window capture | the screen was locked | whoever runs a lane with an unlocked screen |
 | the census's real re-derivation | lane 1 pays only the one-id edit the spacer forces | lane 5 (§4.2(c)) |
 | **other fixtures blinded by `.padding` becoming a wrapper at `f1944f8`** | §6.5 found two in `ListTests` by mutation; nobody has swept for more, and the decay is silent by construction | unowned — worth a sweep by whoever next mutates a padded fixture |
+
+---
+
+## 7. Lane 2 — `WindowedRowsLayout`, the lowering, and the site check's deletion (`LR-BQ`, `LR-BR`; corrections in `LR-CD`)
+
+Three commits on `feat/engine-stage-4`:
+
+| commit | what |
+|---|---|
+| `a494777` | the red-before: four assertion failures, 21 issues, on the unfiltered suite |
+| `13c12f0` | `WindowedRowsLayout`, `ListRows`' proposal branch, `List`'s site check deleted, two pins retired, five more tests arriving with their subject |
+| `c124f40` | the mutations' three corrections, written into the pins they falsified |
+
+### 7.1 The red-before
+
+Unfiltered, `swift test --build-system native --no-parallel` at `a494777`
+(lane 1's sources, only tests changed): **1587 tests in 2 suites failed with 21
+issues**.
+
+```
+aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape   16 issues
+  :247 r.unlowerable.isEmpty                 (the report is [list.noLowering])
+  :247 r.legacyOnly.isEmpty && r.loweredOnly.isEmpty
+  :247 r.stateSlotsEqual
+  :252 b1.loweredBounds[row] == …            x6, one per row
+  :254 b1.loweredBounds[row content] == …    x6
+  :262 !rows.isEmpty                         (B2's bounded-window require)
+aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight         1 issue
+  :335 frame.unlowerableFields.isEmpty
+theListSiteReportsNothingAndItsRowsItemFieldsAreLowered      3 issues
+  :378 frame.unlowerableFields.isEmpty
+  :379 no entry may name the list site
+  :382 the lowered side must build its rows
+aLoweredListsRowIdentitiesAreTheLegacyOnes                   1 issue
+  :411 lowered.unlowerableFields.isEmpty
+```
+
+**Only four of the nine tests are here, and that is the classification spec §6
+lane 2 prescribes** (`LR-BX`, critic round 1's D12): the other five read
+`WindowedRowsLayout`'s own answer, so they cannot compile at lane 1's HEAD, and
+a test that does not compile is not a red-before and cannot be mutated. They
+arrive in `13c12f0` and their evidence is §7.4's mutations.
+
+B2's `try #require` fires before B3, B4, B5 and B6 run. That is what a
+red-before looks like when the first windowed arm cannot window at all.
+
+### 7.2 What landed
+
+`Sources/MetalUI/ListRows.swift` gains `WindowedRowsLayout` and
+`ListRows.loweredNode`, its proposal arm: consume each realized row's
+`LoweredItem`, plan and register its item wrappers with
+`planLegacyItems`/`registerLegacyItems` at `parentSite: .list`, register one
+`WindowedRowsLayout` over the wrapped rows, record **that** node as the group's
+own item, and return it alone. `GroupLayout.spacer` becomes optional — there is
+no spacer on that path.
+
+`Sources/MetalUI/List.swift`: the `noteUnlowerable(.list, "noLowering")` check
+and the `lowersToProposal ? 0..<0 : …` window are gone, and `requestLayout` is
+authority-blind again. `ListRows` is constructed with `rowHeight`,
+`logicalCount`, `firstIndex` and the `List`'s declared `listStyle`.
+
+`Sources/MetalUI/LayoutAuthority.swift`: `owningStage`'s `.list` comment says
+the site-level entry is gone and what the case survives for.
+
+Two pins retired (§4.2(d)): `aListAndAComponentAmendTrap…` becomes
+`aComponentAmendDoesNotTrapUnderTheProposalAuthority`, and
+`everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s `List` arm becomes an
+**absence** arm with `arms.count` still 10.
+
+Built after `swift package clean` — `List` is public, crosses a module boundary,
+and its stored `box`'s generic argument gained four fields.
+
+### 7.3 Every number
+
+| measure | before (lane 1's HEAD, `d811944`) | after (`c124f40`) |
+|---|---|---|
+| suite | 1583 | **1592** (+9, all lane 2's) |
+| issues | 0 | **3**, all `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`'s — §7.6 |
+| goldens | 97 | 97; `git diff --name-only f2e981f HEAD -- 'Tests/**/*.json'` empty |
+| typecheck guards | 77 | 77 (no guard added; stage 4 introduces no hazard a plain import can reach) |
+| twelve `CN-R` images | 0 differing | **0 differing, every scene dump identical** — §7.5 |
+
+### 7.4 The eight mutations
+
+Taken on `13c12f0`, each restored from a `cp` copy with `git status --short`
+clean afterwards, each on the **full unfiltered** suite. The prediction is kept
+beside the reading.
+
+| # | what | predicted | measured |
+|---|---|---|---|
+| **M2a** | `firstIndex` ignored in `placeSubviews` | 2.1, 2.5 | **2.1** (B3's rows, B4's window) and **2.5** — 30 issues |
+| **M2b** | the height answer made greedy, i.e. K6's | 2.1, 2.2 | **2.2, 2.3, 2.4b** — and **not 2.1** |
+| **M2c** | the width answer 0 on a nil axis, i.e. K6's | 2.4 **only** | **2.4, 2.2, 2.4b** |
+| **M2d** | `planLegacyItems` skipped, rows registered raw | 2.1's width columns | **2.1 (all six arms), 2.5, 2.6** — 48 issues |
+| **M2e** | the windowed node's `recordLoweredItem` dropped | 2.7, with an `…unconsumed` entry | **nothing** |
+| **M2f** | the rows' records not consumed | 2.7 | **2.7, 2.1, 2.5, 2.6, 2.8, 2.4b** and `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` — 46 issues |
+| **M2g** | `rowStyle.flexShrink` dropped from the record handed `planLegacyItems` | nothing | **not a mutation at all** |
+| **M2h** | the planning parent's cross size left at the `List`'s own | *(not in the design)* | **2.1's B6 alone** |
+
+**M2b's finding.** `List.init` declares
+`style.size.height = rowHeight × data.count`, which `paddedAndSized` turns into
+a fixed native frame **around** the arrangement, so `sizeThatFits`'s height
+answer never reaches a rect through a real `List`. The layout's height is
+observable only through the kernel. Recorded because it is the measured reason
+2.2 is not redundant with 2.1, and because it says the invariant lives in two
+places that must agree with no test that they do (`LR-CD` item 2).
+
+**M2e's finding, and it is a proof rather than a gap.** A **dropped** record
+never joins `LoweringState.order`, which `reportUnconsumedLoweredItems`
+iterates, so it cannot raise an `…unconsumed` entry at all — an **unconsumed**
+one can, which is M2f. And the record's only other effect is the stretch item
+frame the enclosing `Box` would wrap the arrangement in, which is redundant
+against a layout that already answers `proposal.width`. The record is kept for
+`LR-AB`'s uniform convention and for the reachability
+`UnlowerableField.owningStage`'s `.list` comment claims, and is documented as
+inert-today in two places (`LR-CD` item 3).
+
+**M2g is not a mutation.** The `[LegacyItemPlan]` the group hands
+`registerLegacyItems` is byte-identical with and without `rowStyle.flexShrink`
+on the record, printed for all six rows of a plain list through a scratch
+instrument:
+
+```
+M2G-PLAN 0 fixedSizeH=nil W=Optional((min: Optional(0.0), max: Optional(inf))) H=nil
+           align=topLeading alignFrame=nil margin=nil fields=[]
+… identical for rows 1–5, and identical again under the mutation
+```
+
+`plan.fixedSizeHorizontal` is assigned only under
+`d.flexShrink == 0 && mainAuto`, and a row declares `size.height = rowHeight` in
+a column parent. **M2g′** — the line deleted from `List.requestLayout` outright
+— reddens `paddingOnAListDoesNotShrinkItsRowsBelowRowHeight` (its `Style.padding`
+arm, 4 issues) and `aScrolledListsSpacerDoesNotShrinkUnderPadding` (1 issue),
+**both legacy arms, nothing on the proposal path**. That pair is the measurement
+`LR-BS`'s "inert rather than removed" needed.
+
+**M2h and the sixth arm.** The design's test 2.1 had five arms and none of them
+could see `planLegacyItems`' single-child stretch elision, because every one had
+three or more rows — and so did prototypes P1a6 and P2. A one-row `List`
+declaring no width leaves its row **0 wide** against the legacy engine's stretch,
+because the elision's premise (a fit-content parent) is false for a layout that
+answers its proposal. Arm **B6** is the pin, the correction is in
+`ListRows.loweredNode`, and M2h reddens B6 and nothing else (`LR-CD` item 1).
+
+### 7.5 The twelve `CN-R` images
+
+`docs/probes/demo-pixels/compare.sh <scratch> f2e981f c124f40`. All eight
+controls reproduce their recorded values exactly before any commit-to-commit
+row:
+
+| control | recorded | this run |
+|---|---|---|
+| light vs dark, f0 | 1 048 576 | **1 048 576** |
+| default vs modal (light) | 1 030 498 | **1 030 498** |
+| default vs animation (light) | 210 027 | **210 027** |
+| f0 vs f3 (light) | 0 | **0** |
+| preview light vs dark | 1 048 576 | **1 048 576** |
+| `chrome-legacy` vs `chrome-proposal` | 0 | **0** |
+| distinct values, `default-light-f0` | 544 | **544** |
+| distinct values, `chrome-legacy` | 216 | **216** |
+| indicator rects in all twelve | 0 | **0** |
+
+**`f2e981f` → `c124f40`: 0 differing pixels in all twelve, every scene dump
+byte-identical.** Expected by construction — lane 2's only change on the legacy
+path is `List.requestLayout` losing a branch that fired only under the proposal
+authority — and taken anyway.
+
+One later commit in this lane touches `docs/` and one test-file doc comment
+(`LoweringScrollTests`' stale "a `List` under the proposal authority … traps"),
+neither of which can move a rendered pixel.
+
+**Screen lock**: `xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o
+/tmp/lockstate && /tmp/lockstate` reads `session CGSSessionScreenIsLocked = 1`,
+`CGSSessionScreenLockedTime = 1790087900`, `displayAsleep main: 1`,
+`displayActive main: 0` — the same lock as at every lane of stage 3 and at lane
+1 — so **no real-window capture was taken**. `IOConsoleLocked` was not read
+(`FR-V`).
+
+### 7.6 The one test left red, deliberately, and what it reads
+
+`theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (2.15) goes red the
+moment the site check goes, and spec §6 lane 5 leaves it red across lanes 3 and
+4 rather than patching it early, so the census is re-derived **once**, from a
+finished stage. What it reads at `c124f40`, for whoever picks lane 5 up:
+
+| | before (lane 1) | now |
+|---|---|---|
+| `report.unlowerable`, modal off | `[list.noLowering]` | **`[]`** — §4.2(c)'s prediction, confirmed |
+| ids | 2035 | **2035**, unmoved (the `try #require` still passes) |
+| agreeing | 6 | **6** |
+| legacyOnly | 2000 | **0** — the demo's 500 rows and their contents are built on both sides now |
+| loweredOnly | 0 | **0** |
+| disagreeing | 29 | **2029** |
+
+So the 2 000 rows moved from *legacy-only* to *disagreeing* rather than to
+*agreeing*, which is what §4.2(c) said to expect from causes **55** and **R**
+reaching a subtree that had no lowered counterpart before. Lane 5 owns
+attributing every one of them; a disagreement not attributable to an existing
+named cause is a finding.
+
+### 7.7 Deferred out of lane 2
+
+| item | why | owner |
+|---|---|---|
+| the demo census's re-derivation | §7.6; re-derived once from a finished stage | lane 5 (spec §4.2(c)) |
+| `ListTests`' 224 nodes and 3 leaves re-spelled, and its scenarios parameterised | the lane touches no `ListTests` fixture | lane 3 (`LR-BW`) |
+| retention, focus and the `AXTable` records under **both** authorities | lane 2 pins the records' *equality* through `accessibilityEqual`; the suites that pin the rules are lane 4's | lane 4 (`LR-BU`) |
+| the nil-width path's `O(logicalCount)` cost | measured here (2.4b); mitigating it would change `visibleRange`, which `LR-BT` pins shut | stage 6b (spec §9) |
+| a real-window capture | the screen was locked | whoever runs a lane with an unlocked screen |
+| CLAUDE.md's divergence-18 row, and any CLAUDE.md rule about `List` and the proposal authority | the lane may not edit CLAUDE.md | the Docs phase |

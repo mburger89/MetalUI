@@ -1152,13 +1152,16 @@ private func lane3Root() -> Style {
 /// and both come out 120: measured on this fixture before the literals below
 /// were written.
 ///
-/// **A non-`List` recorder, and that is a correction** (`LR-BI` amended, critic
-/// round 1 finding 4). The design's first writing windowed a `List` against the
-/// two contexts; a `List` under the proposal authority calls
-/// `noteUnlowerable(.list, "noLowering")` before any row (`List.swift`), so
-/// through a `Window` it **traps** and under diagnostics it builds zero rows —
-/// vacuous either way. `List` windowing under the proposal authority is stage
-/// 4's.
+/// **A non-`List` recorder, and that is a correction** (`LR-BI` amended, stage
+/// 3's critic round 1 finding 4). The design's first writing windowed a `List`
+/// against the two contexts. At the time that was vacuous either way: a `List`
+/// under the proposal authority called `noteUnlowerable(.list, "noLowering")`
+/// before any row, so through a `Window` it **trapped** and under diagnostics
+/// it built zero rows. **Stage 4's lane 2 lowered `List`** (`LR-BQ`), so that
+/// reason has expired; the fixture stays as it is because a `ContextProbe`
+/// records the context directly, where a `List` would only let it be inferred
+/// from which rows were built. `List` windowing under the proposal authority is
+/// pinned in `ListLoweringTests.swift`.
 ///
 /// **Both authorities in one body**, rather than as two `@Test` arguments, so
 /// the two windows' recordings are compared against each other as well as
