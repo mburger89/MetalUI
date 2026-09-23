@@ -3,11 +3,12 @@
 Plan task 7, stage 4 (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 4).
 Design: `docs/superpowers/specs/2026-09-23-engine-stage-4-design.md`. Rulings
-`LR-BQ`…`LR-BW` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`.
+`LR-BQ`…`LR-CB` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`
+(`LR-BX`…`LR-CB` are critic round 1's; §5 below).
 Branch `feat/engine-stage-4` from `f2e981f`.
 
-**Status, 2026-09-23 (PDT): design only.** Nothing under `Sources/` or `Tests/`
-has changed in a commit. Every prototype below was applied in
+**Status, 2026-09-23 (PDT): design only, revised after critic round 1.** Nothing
+under `Sources/` or `Tests/` has changed in a commit. Every prototype below was applied in
 `/Users/maxburger/Developer/MetalUI-stage-4`, built, run and restored from a
 `cp` copy, with `git status --short` empty afterwards.
 
@@ -222,6 +223,10 @@ before running it.
 | accessibility? | untouched by construction; the **records** pinned under both authorities, not reasoned about | `LR-BU` |
 | `LoweringSite.list`? | stays, reachable through `parentSite:` and `…unconsumed` | `LR-BV` |
 | how do `ListTests`' 224 nodes and 3 leaves re-spell? | through the lowering, not as bare native probe leaves | `LR-BW` |
+| how does a lane take a red under `.proposal` when the fixture would trap? | re-spell in the same commit, or take the red in a child process — never by running an aborting suite | `LR-BX` |
+| can the differential harness window a `List`? | **no, not today**; lane 1 gives `render` `stateTable:`/`frames:` and every `List` arm requires a bounded window first | `LR-BY` |
+| what does the windowed layout really cost? | 1 lookup per realized row concrete; **2 per LOGICAL row** at a nil width, where every row is realized | `LR-CA` |
+| the `CN-R` harness and the authority roll call? | committed in lane 1, and renamed in the change that makes its name wrong | `LR-CB` |
 
 ## 4. For the implementer
 
@@ -240,3 +245,81 @@ assumed:
   (§2.4's note). Any new harness code that walks rows owes a
   `recordElementBounds` call, and any arm reporting suspiciously few ids is
   measuring nothing.
+
+## 5. Critic round 1 (2026-09-23), and what it cost
+
+A critic reviewed `6a943e1` against the source and raised **fifteen** defects.
+**All fifteen were re-checked here against the source, all fifteen hold, and all
+fifteen are applied** — nothing was rejected, so no ruling records a rejection.
+The disposition table is spec §10; the rulings are `LR-BX`…`LR-CB`, plus
+**Amended, stage-4 critic round 1** paragraphs on `LR-BQ`, `LR-BR`, `LR-BS`,
+`LR-BT`, `LR-BU`, `LR-BV` and `LR-BW`.
+
+### 5.1 Probes — re-run by the critic, not re-run again here
+
+The critic re-ran two probes independently and both came back byte-identical to
+their headers: `swiftui-stack-algorithms.swift` (exit 0, 787 lines, empty
+`diff`, K6a–K6f as `LR-BR` quotes them) and
+`swiftui-layout-protocol-contract.swift` (89 lines, byte-identical to the first
+89 recorded; arm **I2** `I parent bounds (120.0, 70.0, 100.0, 100.0)`
+independently supports `LR-BT`'s premise, and arms J/K support `SA-E`'s
+record-then-place rule). **None of the fifteen findings is about SwiftUI** —
+every one is about MetalUI's own source — so none changed a probed claim and
+none needed a new probe. This round's one SwiftUI-adjacent correction (`LR-CA`)
+is a cost, not a behaviour.
+
+### 5.2 The six source reads that settled the high-severity findings
+
+Each was read at the line, not inferred from the prose around it:
+
+| claim | line | reading |
+|---|---|---|
+| `MeasurePerformanceTests.render` is a production frame | `:19-27` | no `reportsUnlowerableFields`; `demoLikeRows`' root `.minHeight(Pixels(0))` at `:505-519` is a `Self`-returning modifier (`Box.swift:905`), so it lands on the root's own `Style` |
+| a root's non-`.auto` `minSize` still reports | `LoweringState.swift:109-133` | the root skip covers only `flexGrow`/`flexShrink`/`flexBasis`/`alignSelf`; `minSize` falls through to `noteUnlowerable`'s `preconditionFailure` (`Frame.swift:1535-1538`) |
+| `LayoutDifferential` cannot window a `List` | `LayoutDifferential.swift:171-184` | own `StateTable()`, one frame; `viewportExtent` written only in prepaint (`ScrollView.swift:79-84`), so `visibleRange`'s guard (`List.swift:323-327`) returns `0..<count` and `windowIsBounded` is false (`:370`) |
+| `elementBounds` is unreachable from `ListTests`' helpers | `Frame.swift:1463`, `:1524-1527`; `ListTests.swift:68-78`, `:204-224` | `recordsElementBounds` defaults false in both helpers; `laidOut` never prepaints |
+| the `AB-L`/`AB-X` pins are in the wrong file | `AccessibilityDefaultsTests.swift:381, :461, :502, :570, :662, :740` | six tests; `AccessibilityTreeTests` has two `List` usages and `:144` asserts absence |
+| `flexShrink: 0` lowers to nothing for a row | `LegacyLowering.swift:852-861` | `mainAuto` is `d.size.height == .auto` in a column parent and a row declares `rowHeight`; the assignment is `plan.fixedSizeHorizontal = isRow`, which is `false` there anyway |
+
+### 5.3 Two arithmetic corrections, both against a literal in the source
+
+- **Divergence 18's crossing moves 125 → 126.** The reap gate is
+  `storage.count > Self.sweepThreshold` with `sweepThreshold == 256`
+  (`StateTable.swift:228`, `:543`), so crossing needs **257**: `2n + 7 ≥ 257`
+  first holds at 125, `2n + 6 ≥ 257` first holds at **126**, and *n* = 125 then
+  reads 256. Spec §4.2(a) had asserted the crossing does not move. Lane 1
+  re-measures both by running 125 and 126 rows; CLAUDE.md's row and
+  `List.swift:50-62` are Docs-phase obligations.
+- **The layout's measurement cost is not zero on either path.**
+  `LayoutTree.placeCustom` (`:1040-1070`) measures every child again after
+  `placeSubviews` returns, so placement costs 1 lookup per realized row on both
+  paths; at a nil width it is 2 per row at two different proposals, and
+  `visibleRange` declines a non-`.vertical` context, so **every logical row is
+  realized** and the path is `O(logicalCount)`. `LR-CA`, spec §3.2.1, lane 2's
+  new test 2.4b.
+
+### 5.4 What the round changed about the lanes, in one place
+
+| lane | what moved |
+|---|---|
+| 1 | now also lands the `LayoutDifferential` two-frame fix (`LR-BY`) and **commits the `CN-R` harness** (`LR-CB`, retiring `LR-BJ`'s carry); re-takes the windowed legacy literals through the real `List`; re-measures divergence 18's crossing by running it; new `M1f`; test renamed `theListsSpacerIsANodeNotAnElement` |
+| 2 | its eight tests split into four red-by-failure and five that arrive with their subject (2.4b added); new `M2g` with a written-down "reddens nothing" prediction; the `.list` arm settled as an absence arm, `arms.count` stays 10 |
+| 3 | the registry is **renamed** and its order argument extended and re-measured; the helpers get `recordsElementBounds: true` and `laidOut` a prepaint pass, with a full-suite run after; red-before moves to a child process; new `M3c` |
+| 4 | `AccessibilityDefaultsTests` added with its six tests named; M4b/M4c's failure floors restated against them; red-before moves to a child process plus same-commit re-spellings of `ExcursionRow` and `FocusTests`' row |
+| 5 | `MeasurePerformanceTests.render` gains `reportsUnlowerableFields:`; `StatefulListRow` re-spells; the diagnostics frame's cost and the one permitted report entry are stated **before** the lane starts |
+
+### 5.5 The one thing the round checked and found sound
+
+Row identity survives the spacer leaving cursor 0: a name replaces a position
+and the `at:` argument is never consulted once a `name:` is supplied
+(`TombstoneTests.swift:221-223`, repeated at `FocusTests.swift:982-985`). And
+the spacer's demotion emits **no** accessibility record either way, because
+`registerHandlers` appends only when `hasSomethingToSay`
+(`Frame.swift:962-972`) and an empty-`Handlers` `Box` says nothing — which is
+`LR-BU`'s claim, now by measurement rather than by its own reasoning.
+
+**A note for the next round.** Three of the fifteen (`LR-BZ`'s four claims,
+`LR-BV`'s deferral, `LR-BT`'s finding) were derived from what a doc comment or a
+ruling *says* the code does rather than from the code. The practices rule "walk
+every measurement back to the mutated line in the same pass" applies to a
+mechanism claim as much as to a number, and this design did not apply it.
