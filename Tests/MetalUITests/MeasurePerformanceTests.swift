@@ -554,3 +554,136 @@ private struct StatefulListRow: Element {
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                         layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
 }
+
+// MARK: - The red-before for lane 5's `.proposal` arms (`LR-BX`)
+
+/// **`StatefulListRow`'s registration exactly as it stood at `9ad98db`**, kept as
+/// a live fixture so the probe below keeps a subject after `StatefulListRow`
+/// itself is re-spelled through `lowerLegacyNode` (plan task 7, stage 4, lane 5;
+/// `TombstoneTests.LegacySpelledExcursionRow`'s shape, `LR-BW`).
+///
+/// It carries no `@State`: the probe never reads a slot, it reads a trap.
+private struct LegacySpelledStatefulListRow: Element {
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        (pass.requestNode(style: Style(), children: []), ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {}
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+private struct MeasureRow: Identifiable { let id: Int }
+
+/// **The first of lane 5's two reds, and neither could be taken in-process**
+/// (`LR-BX`, spec §6 lane 5's own first paragraph).
+/// `MeasurePerformanceTests.render` builds a **production** frame — no
+/// `reportsUnlowerableFields` — and `demoLikeRows`' root `Box` declares
+/// `.minHeight(Pixels(0))`, a `Self`-returning modifier that lands on the root's
+/// own `Style`. `reportUnconsumedLoweredItems` exempts a root from `flexGrow`,
+/// `flexShrink`, `flexBasis` and `alignSelf` and from nothing else, so a
+/// non-`.auto` `minSize` on the root still reports, and in a production frame
+/// `noteUnlowerable` traps. So a `.proposal` arm of any test in this file does
+/// not fail — it **aborts the whole run**, with no summary line.
+///
+/// Recorded, with the assertion temporarily pointed at a string that cannot
+/// match (reverted; `git status --short` clean afterwards):
+///
+///     MetalUI/Frame.swift:1536: Fatal error: MetalUI: box.minSize.unconsumed
+///     has no proposal lowering (plan task 7, stage 2); a tree containing it
+///     cannot run under the proposal layout authority.
+///
+/// **The fix is `render`'s `reportsUnlowerableFields:` parameter, not removing
+/// `.minHeight(0)` from `demoLikeRows`** — that fixture's own header says
+/// removing a pin from it "would silently inflate every later before/after ratio
+/// measured against this harness", and every committed literal in this file is
+/// measured against it.
+@Test func aProductionFrameOverDemoLikeRowsAbortsUnderTheProposalAuthority() async {
+    let run = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var root = demoLikeRows(40)
+            Frame(contentSize: Size(width: Pixels(920), height: Pixels(560)),
+                  scaleFactor: 2, stateTable: StateTable(), shapingCache: ShapingCache(),
+                  theme: .dark, layoutAuthority: .proposal).render(&root)
+        }
+    }
+    let err = String(decoding: run?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(err.contains("box.minSize.unconsumed has no proposal lowering"),
+            "aborted, but not at the root's own minSize:\n\(err)")
+}
+
+/// **The positive control for the probe above, and it is the lane's fix.** The
+/// identical tree under the identical authority, with `reportsUnlowerableFields`
+/// on, runs to completion: so the abort is the diagnostics flag and not the
+/// `List`, the `ScrollView`, the `Text` or the proposal authority itself.
+///
+/// What the diagnostics frame then reports is asserted exactly by
+/// `aListsWorkIsTheSameFor160RowsAsFor40`'s `.proposal` arm — one entry, the
+/// root's own `minSize.unconsumed` — because under `reportsUnlowerableFields` a
+/// site with no lowering is replaced by a 0×0 native leaf, so any OTHER entry
+/// would mean the work counts beside it were taken over a partly degenerate tree.
+@Test func aDiagnosticsFrameOverDemoLikeRowsRunsUnderTheProposalAuthority() async {
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            var root = demoLikeRows(40)
+            Frame(contentSize: Size(width: Pixels(920), height: Pixels(560)),
+                  scaleFactor: 2, stateTable: StateTable(), shapingCache: ShapingCache(),
+                  theme: .dark, layoutAuthority: .proposal,
+                  reportsUnlowerableFields: true).render(&root)
+        }
+    }
+}
+
+/// **The second red.** `theResidentEntrySetStaysBoundedWhileScrolling10kRows`
+/// builds a **production** frame of its own — `Frame(contentSize:scaleFactor:
+/// stateTable:)`, which is what `Window` builds — so no diagnostics flag can help
+/// it: its row must lower. Spelled `pass.requestNode(style:children:)` it hits
+/// `Frame.requestNode`'s backstop (the one
+/// `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` pins) and aborts.
+///
+/// Recorded, the assertion temporarily pointed at a string that cannot match
+/// (reverted; `git status --short` clean afterwards):
+///
+///     MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestNode
+///     has no proposal lowering (plan task 7, stage 6a); a tree containing it
+///     cannot run under the proposal layout authority.
+@Test func aLegacySpelledStatefulListRowAbortsAProductionProposalFrame() async {
+    let run = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            let data = (0..<50).map(MeasureRow.init)
+            var tree = ScrollView(.vertical, elementID: ElementID("scroller")) {
+                List(data, rowHeight: Pixels(20)) { _ in LegacySpelledStatefulListRow() }
+            }
+            Frame(contentSize: Size(width: Pixels(200), height: Pixels(400)),
+                  scaleFactor: 1, stateTable: StateTable(),
+                  layoutAuthority: .proposal).render(&tree)
+        }
+    }
+    let err = String(decoding: run?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(err.contains("customElement.requestNode has no proposal lowering"),
+            "aborted, but not at the row's requestNode:\n\(err)")
+}
+
+/// **The positive control for the probe above** — `TombstoneTests`'
+/// `aBoxSpelledListRowDoesNotAbortAProductionProposalFrame` in this file's own
+/// fixture, kept here rather than cited, because without it the abort beside it
+/// would read the same whether the row, the `List`, the `ScrollView` or the
+/// production frame were the cause.
+@Test func aBoxSpelledRowInTheResidentSetFixtureDoesNotAbort() async {
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            let data = (0..<50).map(MeasureRow.init)
+            var tree = ScrollView(.vertical, elementID: ElementID("scroller")) {
+                List(data, rowHeight: Pixels(20)) { _ in Box() }
+            }
+            Frame(contentSize: Size(width: Pixels(200), height: Pixels(400)),
+                  scaleFactor: 1, stateTable: StateTable(),
+                  layoutAuthority: .proposal).render(&tree)
+        }
+    }
+}
