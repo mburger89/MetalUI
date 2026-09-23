@@ -967,7 +967,8 @@ row:
 **`f2e981f` → `352f838`: 0 differing pixels in all twelve, every scene dump
 identical.** Expected by construction — lane 3 changes nothing under `Sources/`
 at all — and taken anyway, because "expected by construction" is what the
-harness exists to stop a lane from asserting.
+harness exists to stop a lane from asserting. One later commit in this lane
+(`4ae0e27`) touches only `docs/`, which cannot move a rendered pixel.
 
 ### 8.7 The first real-window capture of the stage
 
