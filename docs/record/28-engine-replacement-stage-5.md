@@ -7,7 +7,7 @@ Design: `docs/superpowers/specs/2026-09-23-engine-stage-5-design.md`. Rulings
 Branch `feat/engine-stage-5` from `e5caefb`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-5`.
 
-**Status, 2026-09-23 (PDT): design committed; no lane has run.** Every
+**Status, 2026-09-23 (PDT): design committed; lane 1 landed (§6, `LR-CQ`); lanes 2 and 3 have not run.** Every
 measurement in §2 was taken from a scratch test file
 (`Tests/MetalUITests/ZZScratchStage5.swift`, kept in the session scratchpad,
 never committed) and one temporary edit to `ListTests.swift` restored from a `cp`
@@ -207,3 +207,74 @@ The committed design (`7654e63`) attacked in the same worktree; no `Sources/` or
 - **Rejected attacks** are listed in `LR-CP` with reasons (`SA-G`, the
   declared-below-padding case, root margin/min/max, M1d, lane size).
 
+
+## 6. Lane 1 — the presentation root (`LR-CH`…`LR-CM`, `LR-CP` items 1–2; corrections `LR-CQ`)
+
+Commits: `b447c9a` (red first), `1f83f45` (source), `97306d4` (corrections: three
+1.5 arms and a stage-8 assertion, M1h's set narrowed) and the commit carrying
+this section (M1g's set narrowed, this record, `LR-CQ`).
+
+### 6.1 Suite
+
+`swift build --build-system native --build-tests`, then `swift test
+--build-system native --no-parallel`, unfiltered, at `97306d4`: **`Test run with
+1624 tests in 3 suites passed after 64.682 seconds`** (1617 + 7: the seven
+`PresentationLoweringTests`; the census and the site roll changed in place);
+0 `error:`; the only `warning:` SwiftPM's deprecation notice; the log carries
+`FR-J no-argument frame: succeeded=` (guards ran). No golden moved
+(`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` empty); no guard added
+(77).
+
+### 6.2 Red first
+
+`b447c9a`'s tests over `83c6bd1`'s source (filtered to the nine touched tests):
+**9 tests failed, 128 issues** — every presentation arm reported `[box.position,
+box.inset]`, 1.6's child trapped naming `box.position`, stage 2, and 1.7's two
+roots' work differed. Every legacy literal of 1.1–1.3 passed (spec §2.4
+reproduced). The three arms and the owning-stage assertion `97306d4` added were
+green on arrival (the source already held the behaviour); their red is M1q–M1t
+below, each run.
+
+### 6.3 Mutations
+
+Each: committed tree, source copied with `cp`, one edit, `swift build
+--build-system native --build-tests` (0 errors), unfiltered `swift test
+--build-system native --no-parallel`, source restored from the copy, `git status
+--short` empty after every one. Every run printed its summary line (none
+truncated); every row is 1624 tests. Arms are named as the test's messages print
+them.
+
+| id | edit (file, branch) | issues | reddened |
+|---|---|---|---|
+| M1a | `lowerPresentation`, trailing-only axis: `plan.factor = 1` → `0` | 6 | 1.1 (`right/bottom px, declared size`) |
+| M1b | `lowerPresentation`, vertical axis `extent: window.height` → `window.width` | 6 | 1.1 (`percent`) |
+| M1c | `lowerPresentation`: `frame.lowering.alias(node, to: root)` (W) deleted | 15 | 1.1 (`all four, auto size`; `left/right, auto width, declared height`), 1.2, 1.8 `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (agreeing set; disagreeing 2035 vs 2033) |
+| M1d | `Deferred.presentationPlaceholder`: the placeholder's alias deleted | 28 | 1.1 (all ten arms, the `Deferred` id), 1.4 (all six arms), 1.8 (2034) |
+| M1e | `lowerPresentation`: W's `minWidth`/`minHeight` = padding + border sum | 1 | 1.2 (lowered 20×20) |
+| M1f | `lowerPresentation`: padding's `left` → 0 | 78 | 1.1 (eight arms: every arm with a leading horizontal inset), 1.2, 1.3, 1.4 (all six), 1.7 (the presentation's box) |
+| M1g | `lowerLegacyNode`: `droppingPresentations` deleted | 9 | 1.1 (`no insets, after an in-flow sibling`), 1.4 (`gapped column`, its third child at y 34; `ScrollView content`), 1.7, 1.8 (2034) — **not** 1.4's `Stack` or `.padding` arms (`LR-CQ` item 2) |
+| M1h | `lowerLegacyLayer` frame arm: `droppingPresentations` deleted | 1 | 1.4 (`two-member .frame layer` only; `LR-CQ` item 1) |
+| M1i | `reportPresentationContainingBlock`: the border/size/min-max condition made `false` | 7 | 1.5 (`bordered root`, `root width 100 in 200`, `root .frame(maxWidth: 100)`, `root .frame(minWidth: 300)`), 1.6 (exits with success; stderr lacks the line), 1.9 `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` (`Deferred (a bordered root over a presentation)`) |
+| M1j | `Deferred.presentationPlaceholder`: the nested check made `false` | 2 | 1.5 (`inside a top/left-5 presentation`, `inside a bordered inset(0) presentation`) |
+| M1k | `presentationCoversWindow` always `false` | 1 | 1.5 (`inside an inset(0) presentation`) |
+| M1l | `planLegacyItems`: `reports.append("position")` deleted | 1 | 1.5 (`absolute in a column, no Deferred`) |
+| M1m | `owningStage` `.deferred` → "5" | 1 | 1.6 |
+| M1n | `computeRootLayout`: presentations laid out in a `defer` (after the root) | 1 | 1.7 (`a == b`) |
+| M1o | frame arm: `legacyFrameLayerDiagnostics` handed `children.count` (dropped) | 5 | 1.4 (`one-node .frame layer`, `two-member .frame layer`) |
+| M1p | `clampsOff`: the three `minSize`/`maxSize` lines deleted | 2 | 1.5 (`root .frame(maxWidth: 100)`, `root .frame(minWidth: 300)`) |
+| M1q | `owningStage`: `.absolute` → "2" | 2 | 1.5 (the stage-8 assertion, both fields) |
+| M1r | `lowerPresentation`: the `maxSize.absolute` report deleted | 2 | 1.5 (`maxHeight on an auto axis`; the owning-stage `#require`) |
+| M1s | `lowerPresentation`: the `minSize.percent` report deleted | 1 | 1.5 (`percentage minWidth on a declared axis`) |
+| M1t | `presentationCoversWindow`: the border clause over an empty array | 1 | 1.5 (`inside a bordered inset(0) presentation`) |
+| X1 | `lowerPresentation`: `length(animatedLeading/Trailing)` → `length(leading/trailing)` (both occurrences each) | 0 | **green** — owned by lane 3's 3.5 (it is spec §7's **M3c**); lane 3's verifier re-runs this exact edit |
+
+M1a–M1p are the spec's; M1q–M1t were the lane-1 verifier's X2–X5 (each green at
+`1f83f45`, 1624 passed), re-run here after `97306d4`'s arms; X1 is its X1.
+
+### 6.4 Pixels and screen
+
+`docs/probes/demo-pixels/compare.sh <scratch> e5caefb 97306d4`: every control at
+its recorded value (1048576, 1030498, 210027, 0, 1048576, 0; distinct 544 and
+216; indicator rects 0), and **all twelve images `differing=0`, scene
+identical**. Lock probe at 03:11 PDT: `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1` — locked, so `capture.sh` was not run (not owed).

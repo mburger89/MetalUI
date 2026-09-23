@@ -259,7 +259,12 @@ private struct PresentingPair: Component {
 /// Red-before: every arm reports `[box.position, box.inset]`.
 ///
 /// Mutations that must redden it: **M1g** the filter removed from
-/// `lowerLegacyNode` (the column, stack, scroll and `.padding` arms); **M1h**
+/// `lowerLegacyNode` — measured (`LR-CQ`): **the column and `ScrollView` arms
+/// only** here (plus 1.1's divergence-9 arm, 1.7 and the demo census); the
+/// `Stack` and `.padding` arms agree under M1g, because a 0×0 child changes
+/// neither a stack's union nor a one-child padding's answer, so those two sites'
+/// filter is observable by nothing and these arms guard only that the drop does
+/// not break them; **M1h**
 /// removed from `lowerLegacyLayer`'s frame arm only — **the two-member `.frame`
 /// arm only**, measured (lane 1's corrections, `LR-CQ`): over one node the
 /// undropped 0×0 placeholder sits inside a fixed 50×50 frame whose answer does

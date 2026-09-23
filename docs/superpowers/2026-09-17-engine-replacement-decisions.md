@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CQ`** (stage 5's design took `LR-CH`…`LR-CO` and its critic round 1 `LR-CP`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CR`** (stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP` and its lane 1 `LR-CQ`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -5749,3 +5749,38 @@ moved. Five defects, each fixed in the spec in this commit:
   two lanes on `LegacyLowering.swift` and `LoweringState.swift`, which
   CLAUDE.md's budget rule forbids. Three lanes stand.
 
+## LR-CQ — stage 5 lane 1's corrections: two reddened sets narrower than predicted, four source claims pinned, and one mutation handed to lane 3
+
+**Stage 5 lane 1** (record §28 §6). The lane's source (`1f83f45`) was green at
+1624; its verifier found the lane unfinished (no mutation table, no record
+section, M1b left applied — reverted) and four unpinned claims. Measured with
+every one of M1a–M1t run through the full unfiltered suite (record §28 §6.3):
+
+1. **M1h reddens only 1.4's two-member `.frame` arm**, not both `.frame` arms as
+   spec §7, `LR-CP` and the test's doc comment said. Over one node the undropped
+   0×0 placeholder sits inside a fixed 50×50 frame whose answer does not depend
+   on it, and the `Deferred`'s rect is aliased to its content, so the one-node
+   arm agrees under M1h. No arm is added: a one-node frame over nothing but a
+   placeholder has no observable answer the filter changes. The spec row (which
+   keeps the old wording as a quoted erratum) and the doc comment now say so.
+2. **M1g does not redden 1.4's `Stack` or `.padding` arms** (the spec predicted
+   the column, stack, scroll and `.padding` arms). It reddens the column, the
+   scroll arm, 1.1's divergence-9 arm, 1.7 and 1.8. A 0×0 child changes neither
+   a stack's union nor a one-child padding's answer, so the filter at those two
+   sites is observable by nothing; the arms stay as guards that the drop does not
+   break them. Spec row and doc comment corrected likewise.
+3. **Four claims in lane 1's source now have pins** (verifier's X2–X5, each
+   green at `1f83f45`): 1.5 gains `maxHeight` on an auto axis →
+   `[box.maxSize.absolute]` (**M1r**), a percentage `minWidth` on a declared
+   axis → `[box.minSize.percent]` (**M1s**), a presentation inside a bordered
+   `inset(0)` presentation → `[deferred.nested]` (**M1t**; also reddened by M1j),
+   and an assertion that each `<field>.absolute` the frame really reports is
+   owned by stage 8 (**M1q**). Each mutation was run and reddens 1.5 only.
+4. **Nothing in lane 1 pins that the inset lengths come from the animated style**
+   (`LR-AS`): the verifier's X1 (`length(animatedLeading/Trailing)` →
+   `length(leading/trailing)`) leaves 1624 green. This is spec §7's **M3c**, owned
+   by lane 3's 3.5 `anAnimatedInsetInterpolatesItsValueUnderBothAuthorities`,
+   which must redden under that exact edit; lane 3's verifier re-runs it.
+
+Pixels: the twelve `CN-R` images read 0 against `e5caefb`. The screen was locked
+(no capture owed).
