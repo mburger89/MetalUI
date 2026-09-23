@@ -54,6 +54,7 @@ let package = Package(
         // The demo in an SDL window (ruling DC-C).
         .executableTarget(name: "MetalUISDLDemo", dependencies: [
             "MetalUISDL",
+            .product(name: "MetalUISystemFonts", package: "MetalUI"),
             .product(name: "MetalUI", package: "MetalUI"),
             .product(name: "MetalUIDemoContent", package: "MetalUI"),
             .product(name: "MetalUIPortableText", package: "MetalUI")]),

@@ -8,6 +8,7 @@ import MetalUI
 import MetalUIDemoContent
 import MetalUIPortableText
 import MetalUISDL
+import MetalUISystemFonts
 
 let fonts = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -19,9 +20,16 @@ func runDemo() throws {
     func bytes(_ name: String) throws -> [UInt8] {
         [UInt8](try Data(contentsOf: fonts.appendingPathComponent(name)))
     }
-    let resolver = try PortableFontResolver(defaultFont: bytes("NotoSans-Regular.ttf"))
-    try resolver.register(bytes("SourceSans3-Regular.otf"))
-    try resolver.register(bytes("NotoSansArabic-Regular.ttf"))
+    // `METALUI_SYSTEM_FONTS=1`: the platform's installed fonts (roadmap item
+    // 8b, SF-A…SF-D) instead of the repository's three.
+    let resolver: PortableFontResolver
+    if ProcessInfo.processInfo.environment["METALUI_SYSTEM_FONTS"] == "1" {
+        resolver = try SystemFonts.resolver()
+    } else {
+        resolver = try PortableFontResolver(defaultFont: bytes("NotoSans-Regular.ttf"))
+        try resolver.register(bytes("SourceSans3-Regular.otf"))
+        try resolver.register(bytes("NotoSansArabic-Regular.ttf"))
+    }
 
     let platform = try SDLPlatform()
     let app = App(platform: platform, textSystem: { PortableTextSystem(resolver: resolver) })
