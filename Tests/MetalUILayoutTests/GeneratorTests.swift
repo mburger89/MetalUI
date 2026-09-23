@@ -2,6 +2,7 @@ import Testing
 import Foundation
 @testable import MetalUILayout
 
+#if canImport(WebKit)
 @MainActor
 @Test func generatorProducesRawAndRoundedForAFixture() async throws {
     let g = try await generateGolden(fixture: "flex_row_fixed_and_grow",
@@ -15,7 +16,9 @@ import Foundation
     // This fixture is exact, so rounding is the identity.
     #expect(g.raw == g.rounded)
 }
+#endif
 
+#if canImport(WebKit)
 @MainActor
 @Test func generatorRoundsWhenTheBrowserQuantizes() async throws {
     let g = try await generateGolden(fixture: "flex_row_seven_equal",
@@ -25,7 +28,9 @@ import Foundation
     let children = g.rounded.filter { $0.id != "root" }
     #expect(children.map(\.width).reduce(0, +) == 100)
 }
+#endif
 
+#if canImport(WebKit)
 /// Regenerates every golden from its fixture. Disabled by default: it writes
 /// into the source tree, and a golden that regenerates itself on every run
 /// cannot catch a regression. Enable deliberately:
@@ -43,6 +48,7 @@ func regenerateAllGoldens() async throws {
         try writeGolden(g, toSourceTree: root)
     }
 }
+#endif
 
 /// Every fixture in the corpus, with the viewport it is measured at.
 @MainActor
@@ -250,6 +256,7 @@ let allFixtures: [(String, CGSize)] = [
     ("stack_stretch_border_box_floor",              CGSize(width: 800, height: 600)),
 ]
 
+#if canImport(WebKit)
 /// The committed goldens must still be what the browser says.
 ///
 /// This is the ONLY test that drives WebKit to check the corpus, and it is the
@@ -286,6 +293,7 @@ let allFixtures: [(String, CGSize)] = [
             """)
     }
 }
+#endif
 
 /// A fixture missing from `allFixtures` never generates a golden and is never
 /// compared against anything — it just sits in the directory looking checked.
@@ -293,8 +301,11 @@ let allFixtures: [(String, CGSize)] = [
 /// omission a failure.
 @MainActor
 @Test func everyFixtureFileIsListedInTheCorpus() throws {
-    let onDisk = Bundle.module.urls(forResourcesWithExtension: "html",
-                                    subdirectory: "Fixtures") ?? []
+    // Listed through `FileManager`, not `Bundle.urls(forResourcesWithExtension:)`,
+    // which Foundation on Linux types `[NSURL]?` (roadmap item 5).
+    let fixtures = try #require(Bundle.module.resourceURL).appendingPathComponent("Fixtures")
+    let onDisk = try FileManager.default.contentsOfDirectory(at: fixtures, includingPropertiesForKeys: nil)
+        .filter { $0.pathExtension == "html" }
     let names = Set(onDisk.map { $0.deletingPathExtension().lastPathComponent })
     let listed = Set(allFixtures.map(\.0))
 

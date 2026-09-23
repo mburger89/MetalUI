@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(WebKit)
 import WebKit
+#endif
 
 /// One element's border box, as the browser reports it.
 public struct NodeBox: Sendable, Equatable, Codable {
@@ -10,6 +12,7 @@ public struct NodeBox: Sendable, Equatable, Codable {
     public let height: Double
 }
 
+#if canImport(WebKit)
 /// Lays out fixture HTML in WebKit and reads back every `[data-id]` box.
 ///
 /// Runs headless inside `swift test` — no app bundle, no window, no run-loop
@@ -54,3 +57,4 @@ public final class LayoutOracle: NSObject, WKNavigationDelegate {
         }
     }
 }
+#endif

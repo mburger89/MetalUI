@@ -1,11 +1,12 @@
 // swift-tools-version: 6.4
 import PackageDescription
 
-let package = Package(
-    name: "MetalUI",
-    platforms: [.macOS(.v14)],
-    products: [
-        .library(name: "MetalUI", targets: ["MetalUI"]),
+// Targets that import no Apple framework come first and are declared on every
+// platform, so `swift build` and `swift test` work on Linux and Windows
+// (roadmap item 5, ruling PC-A). Everything that needs AppKit, CoreText or
+// Metal — including the portable text oracles, which compare against
+// CoreText — is declared only on macOS, below.
+var products: [Product] = [
         // Platform-free per-frame data (ruling PS-A), for backends outside this
         // package; first consumer: Experiments/SDLGPU/Portable.
         .library(name: "MetalUIScene", targets: ["MetalUIScene"]),
@@ -15,9 +16,10 @@ let package = Package(
         .library(name: "MetalUIHarfBuzz", targets: ["MetalUIHarfBuzz"]),
         // The portable text pipeline (ruling PT-A).
         .library(name: "MetalUIPortableText", targets: ["MetalUIPortableText"]),
-        .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
-    ],
-    targets: [
+
+]
+
+var targets: [Target] = [
         // Test-support only: the single copy of the `swiftc -typecheck` machinery
         // that the negative type-system guards shell out to (ruling EP-1). It is
         // in **no product** and is **not** one of spec §3.1's seven layering
@@ -113,6 +115,20 @@ let package = Package(
         // Glyph rasterization with no Apple framework (rulings FT-B, FT-K):
         // imports only MetalUIScene and CFreeType.
         .target(name: "MetalUIFreeType", dependencies: ["MetalUIScene", "CFreeType"]),
+
+        // The C structs shared with the shaders; MetalUIScene imports them.
+        .target(name: "MetalUIShaderTypes"),
+
+]
+
+#if os(macOS)
+products += [
+        .library(name: "MetalUI", targets: ["MetalUI"]),
+        .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
+
+]
+
+targets += [
         .testTarget(name: "MetalUIPortableTextTests",
                     dependencies: ["MetalUIPortableText", "MetalUIText"]),
 
@@ -123,8 +139,6 @@ let package = Package(
 
         .target(name: "MetalUIText", dependencies: ["MetalUICore", "MetalUIScene"]),
         .testTarget(name: "MetalUITextTests", dependencies: ["MetalUIText"]),
-
-        .target(name: "MetalUIShaderTypes"),
 
         // The `MetalUIText` edge is one-way and points this way on purpose (M2
         // text design §3.1): the renderer uploads the CPU-side `GlyphAtlas` to
@@ -170,7 +184,15 @@ let package = Package(
         // the non-test targets nine; CLAUDE.md's "eight" is the Docs phase's.
         .target(name: "MetalUIDemoContent", dependencies: ["MetalUI"]),
         .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI", "MetalUIDemoContent"]),
-    ],
+
+]
+#endif
+
+let package = Package(
+    name: "MetalUI",
+    platforms: [.macOS(.v14)],
+    products: products,
+    targets: targets,
     swiftLanguageModes: [.v6],
     cxxLanguageStandard: .cxx17
 )

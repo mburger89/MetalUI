@@ -62,7 +62,7 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
         t.start()
         // The guard aborts the process, so on the passing path this spin never
         // completes; it keeps the body from returning and reporting a clean exit.
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
     #expect(stderrText(result).contains("native layout recursion exceeded"),
             "aborted, but not at the native depth guard:\n\(stderrText(result))")
@@ -82,7 +82,7 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
         }
         t.stackSize = 4 * 1024 * 1024
         t.start()
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
     #expect(stderrText(result).contains("native layout recursion exceeded"),
             "aborted, but not at the native depth guard:\n\(stderrText(result))")
@@ -104,7 +104,7 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
         }
         t.stackSize = 4 * 1024 * 1024
         t.start()
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
     #expect(stderrText(result).contains("native layout recursion exceeded"),
             "aborted, but not at the native depth guard:\n\(stderrText(result))")
@@ -127,7 +127,7 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
         }
         t.stackSize = 4 * 1024 * 1024
         t.start()
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
 }
 
@@ -156,7 +156,7 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
         }
         t.stackSize = 4 * 1024 * 1024
         t.start()
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
     #expect(stderrText(result).contains("native layout recursion exceeded"),
             "aborted, but not at the native depth guard:\n\(stderrText(result))")
@@ -177,7 +177,7 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
         }
         t.stackSize = 4 * 1024 * 1024
         t.start()
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
 }
 
@@ -235,7 +235,7 @@ private struct PassesThroughItsChild: ProposalLayout {
         }
         t.stackSize = 1024 * 1024
         t.start()
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
     await #expect(processExitsWith: .success) {
         let t = Thread {
@@ -249,7 +249,7 @@ private struct PassesThroughItsChild: ProposalLayout {
         }
         t.stackSize = 1024 * 1024
         t.start()
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
     await #expect(processExitsWith: .success) {
         let t = Thread {
@@ -263,7 +263,7 @@ private struct PassesThroughItsChild: ProposalLayout {
         }
         t.stackSize = 1024 * 1024
         t.start()
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
     await #expect(processExitsWith: .success) {
         let t = Thread {
@@ -277,7 +277,7 @@ private struct PassesThroughItsChild: ProposalLayout {
         }
         t.stackSize = 1024 * 1024
         t.start()
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
     // The grid, on the PLACEMENT path lane 3 bisected: a two-cell row whose
     // inner cell's slot differs from its answer at every level, so
@@ -297,7 +297,7 @@ private struct PassesThroughItsChild: ProposalLayout {
         }
         t.stackSize = 1024 * 1024
         t.start()
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
     // The control: eight levels past the guard must abort at the guard.
     let over = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
@@ -312,7 +312,7 @@ private struct PassesThroughItsChild: ProposalLayout {
         }
         t.stackSize = 4 * 1024 * 1024
         t.start()
-        while !t.isFinished { usleep(1000) }
+        waitUntilFinished(t)
     }
     #expect(stderrText(over).contains("native layout recursion exceeded"),
             "the control aborted, but not at the native depth guard:\n\(stderrText(over))")

@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(WebKit)
 import WebKit
+#endif
 @testable import MetalUILayout
 
 /// A fixture whose CSS does not put the root box at the viewport origin.
@@ -39,6 +41,7 @@ public struct EmptyMeasurementError: Error, CustomStringConvertible {
     }
 }
 
+#if canImport(WebKit)
 @MainActor
 public func generateGolden(fixture: String, viewport: CGSize) async throws -> GoldenFile {
     let html = try String(contentsOf: fixtureURL(name: fixture), encoding: .utf8)
@@ -62,6 +65,7 @@ public func generateGolden(fixture: String, viewport: CGSize) async throws -> Go
                       raw: raw,
                       rounded: roundBoxes(raw))
 }
+#endif
 
 /// Write a golden into the *source tree*, not the build bundle, so it can be
 /// committed. `root` is the package root.
