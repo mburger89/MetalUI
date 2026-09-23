@@ -1,6 +1,8 @@
 # Engine replacement, stage 4 — the windowed proposal `List` (plan task 7)
 
-**Status, 2026-09-23 (PDT): design only, revised after critic round 1.** No file
+**Status, 2026-09-23 (PDT): lane 1 landed; lanes 2–5 design only.** Lane 1's
+four commits are on `feat/engine-stage-4` (`511ae3d`, `136f171`, `eb42883`,
+`ca5a546`); its corrections are `LR-CC` and record §26 §6. Nothing of lanes 2–5
 under `Sources/` or `Tests/` has changed in a commit. Every source patch cited
 below as a *prototype* was applied in `/Users/maxburger/Developer/MetalUI-stage-4`,
 built, run and restored from a `cp` copy, with `git status --short` clean
@@ -497,7 +499,8 @@ than derived:
 - `theResidentEntrySetStaysBoundedWhileScrolling10kRows`'s cold-frame literal
   `2 * n + 6` becomes `2 * n + 5`, and its doc comment's enumeration of the six
   fixed entries loses "the windowing spacer `Box`'s `$anim` slot". The
-  **checkpoint** counts (256 / 256 / 150 today) are re-measured, not adjusted.
+  **checkpoint** counts (256 / 256 / 150 today) are re-measured, not adjusted —
+  **lane 1 read 255 / 255 / 149**.
 - **Divergence 18's crossing point moves from 125 rows to 126** (`LR-BZ`; the
   first statement of this bullet said it does not move, and was wrong). The
   count moves by one in the fixed overhead, not per row — `2n + 7` becomes
@@ -519,9 +522,19 @@ than derived:
   **125 rows read 257 and cross**, and 500 rows read 1007"). Both take the
   measured numbers, not derived ones.
 - The scene and the hitbox list must be **unchanged**: an empty `Decoration`
-  emits nothing and an empty `Handlers` registers nothing. Lane 1 asserts
-  `scenesEqual` and `hitboxesEqual` against `f2e981f`'s frames, and the twelve
-  `CN-R` images must read 0.
+  emits nothing and an empty `Handlers` registers nothing. Lane 1 asserts them
+  against literals taken at `f2e981f` — one string per emitted rect and one per
+  hitbox, from a SCROLLED list with painted, clickable rows, so an emission for
+  the 84pt spacer would land where nothing else is — and the twelve
+  `CN-R` images must read 0. (`scenesEqual`/`hitboxesEqual` are
+  `LayoutDifferential`'s cross-AUTHORITY fields and cannot see a before/after
+  change on one authority, which is why the pin is literals.)
+- **The demo census `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`
+  loses one id here, and lane 1 pays it** rather than leaving the suite red for
+  lane 5: the spacer's `Frame.elementBounds` row disappears from **both** sides,
+  so 2036 → **2035** ids and 30 → **29** disagreements, 2042 → **2041** and
+  36 → **35** with the modal on, with `agreeing` 6 and `legacyOnly` 2000
+  unmoved. Measured. Lane 5 still owns the census's real re-derivation, §4.2(c).
 
 **(b) A `List` under the proposal authority stops hugging its content and
 fills its proposal on the width axis.** That is stage 2's stretch semantics
@@ -624,8 +637,11 @@ All new API is `internal`. No public type gains a case or a requirement.
 ```swift
 /// The windowed row arrangement `List` builds, as an `ElementGroup` so that it
 /// introduces no identity level between the `List` and its rows.
+// Lane 1 lands `rows` and `spacerStyle` only — the legacy arrangement. The
+// four fields below it and `WindowedRowsLayout` are lane 2's.
 struct ListRows<Row: Element>: ElementGroup {
     var rows: [Box<Row>]
+    var spacerStyle: Style
     var rowHeight: Pixels
     var logicalCount: Int
     var firstIndex: Int
@@ -703,7 +719,9 @@ accessibility file and understated three edits as edits when they are
 | **`AccessibilityDefaultsTests.swift`** | **the file that actually holds the `AB-L` / `AB-X` pins** — six tests, named in lane 4 |
 | `AccessibilityTreeTests.swift` | its two `List` usages (`:144`, `:734`); `:144` sits inside `anInactiveWindowBuildsAndPublishesNothing` and asserts **absence**, so it pins nothing about a table and is not lane 4's subject |
 | `ScrollAuthorityCoverage.swift` | renamed, its order argument extended (`LR-CB`) |
-| `LayoutAuthorityTests.swift`, `LoweringCorpusTests.swift` | §4.2(d)'s two pins |
+| `LayoutAuthorityTests.swift`, `LoweringCorpusTests.swift` | §4.2(d)'s two pins — and, in **lane 1**, the census's one-id edit (§4.2(a)) |
+| `ListTests.swift` (again) | **lane 1** strengthens `aScrolledListsSpacerDoesNotShrinkUnderPadding` and `paddingOnAListDoesNotShrinkItsRowsBelowRowHeight` with a `Style.padding` arm apiece, because neither could see its subject (`LR-CC` item 2) |
+| `Sources/MetalUI/ElementGroup.swift` | doc only: `OptionalGroup`'s divergence-18 paragraph quotes `2n + 7` and 125 (`LR-BZ` item 2) |
 
 **The rule the three re-spellings come from** (`LR-BX`): any row fixture that
 registers through `pass.requestNode` / `pass.requestLeaf` **aborts the whole
@@ -760,7 +778,11 @@ window. So today `accessibilityEqual` over a `List` compares one record with one
 record and passes **vacuously** — record §26 §2.4's own "a harness that compares
 nothing agrees". Lane 1 gives `render` a `stateTable:` parameter and a `frames:`
 parameter (default 1), threads one `StateTable` through the frames of one side,
-and returns the last; `compare` grows the same two. A `List` arm that uses it
+and returns the last; `compare` grows **`frames:` only**. It cannot grow
+`stateTable:`, and `LR-BY`'s "the same two" was wrong: `Report.stateSlotsEqual`
+compares the two sides' tables, so one shared table would make that field read
+`true` for every tree — the exact vacuity `frames:` exists to remove, arriving
+through the parameter added to remove it (`LR-CC` item 1). A `List` arm that uses it
 **must** `try #require` a bounded window and a **non-empty** row-record set on
 both sides before asserting anything — the anti-vacuity check is part of the
 arm, not a review note.
@@ -800,6 +822,20 @@ the measured reason row identity is safe, not as a gap). **M1f**: `render`'s
 `frames:` forced back to 1 (must redden
 `aListInTheDifferentialHarnessReachesABoundedWindow`; if it does not, the
 anti-vacuity check is itself vacuous and the lane says so).
+
+**What lane 1 actually read** (record §26 §6.4, `LR-CC`). M1a reddened 13 issues
+across 12 tests, the two named among them. **M1b reddened nothing** — and the
+instrument was already blind at `f2e981f`: deleting `spacerStyle.flexShrink`
+leaves that test green there, and deleting `rowStyle.flexShrink` leaves the whole
+1580-test suite green, because `.padding(_:)` became a WRAPPER at `f1944f8` and
+no longer shrinks the `List`'s own content box. Both tests gained a second arm
+writing `Style.padding` directly, which still does, and both new arms were then
+read red under the mutation they exist for. M1c reddened nothing, for a reason
+provable by reading rather than merely unmeasured (the cursor's only consumer is
+`enteringGroupMember`, every row supplies a name, and the enclosing `Box`
+discards the cursor). M1f reddened
+`aListInTheDifferentialHarnessReachesABoundedWindow` at its `!rows.isEmpty`,
+reproducing the red-before exactly.
 
 **Measurements owed**: `theResidentEntrySetStaysBoundedWhileScrolling10kRows`'s
 three checkpoints, re-run; **divergence 18's formula AND its crossing point on

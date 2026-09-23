@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CC`** (stage 4's design took `LR-BQ`…`LR-BW` and its critic round 1 `LR-BX`…`LR-CB`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CD`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB` and its lane 1 `LR-CC`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -4730,3 +4730,98 @@ the one already observed three times, which is an hour and a set of numbers
 nobody can reproduce. If the ordering claim is wrong, the roll call fails
 **naming the scenarios it had not yet seen**, which is the behaviour its own
 header describes and the reason the completeness check does not live in the test.
+
+---
+
+## LR-CC — stage 4 lane 1's corrections: a mutation that found two blind pins, a harness parameter that cannot exist, and the numbers that moved
+
+Lane 1 built `ListRows`, demoted the spacer, extended `LayoutDifferential` and
+committed the `CN-R` harness. Four things the design did not have right, each
+measured rather than argued.
+
+**1. `compare` cannot grow `stateTable:`, and `LR-BY` says it does.** `LR-BY`'s
+decision reads "`render` gains `stateTable:` and `frames:` … `compare` grows the
+same two." `render` does. `compare` cannot: `Report.stateSlotsEqual` is
+`legacy.stateTable.ids == lowered.stateTable.ids`, so a single table handed to
+both sides would make that field compare a set with itself and read `true` for
+every tree — the exact vacuity the `frames:` parameter exists to remove, arriving
+through the parameter added to remove it. `compare` therefore grows **`frames:`
+only**, and each side keeps its own fresh `StateTable`, threaded through its own
+`frames` frames. Said in `LayoutDifferential.compare`'s own doc comment, so the
+next reader who checks it against `LR-BY` finds the answer beside the code.
+
+**2. Mutation M1b reddens nothing, and it is a broken instrument rather than the
+finding — but the instrument was already broken at `f2e981f`.** The design
+predicted M1b (`spacerStyle.flexShrink = 0` deleted) would redden
+`aScrolledListsSpacerDoesNotShrinkUnderPadding`. It reddens nothing on the whole
+unfiltered suite. Measured on an **unmodified `f2e981f` tree**, before this lane
+changed anything: deleting the spacer's `flexShrink` leaves that test green, and
+deleting `rowStyle.flexShrink = 0` leaves the **whole 1580-test suite** green.
+
+The cause is `f1944f8`, the commit that made `.padding(_:)` a wrapper. The
+padding lands on an outer `ModifiedElement` layer, so the `List`'s own content
+box keeps its full `count × rowHeight` and there is no negative free space left
+for a spacer or a row to absorb. Both tests' doc comments describe a mechanism
+their fixtures stopped reaching, in a file the modifier-composition track never
+opened — the same shape as `List.swift`'s own `minSize.height` paragraph, which
+records exactly this kind of decay two milestones earlier.
+
+`Style.padding` written directly still shrinks the `List`'s own content box
+(CLAUDE.md's declared-but-inert table draws that distinction), so each test gains
+a second arm that writes it. Both new arms were then verified red under the
+mutation they exist for: `aScrolledListsSpacerDoesNotShrinkUnderPadding` on the
+spacer's line, `paddingOnAListDoesNotShrinkItsRowsBelowRowHeight` on the row's
+(four issues). Each test's first arm is kept — it still pins the wrapper
+spelling's answer, which is the one a caller writes.
+
+**This sharpens `LR-BS`'s "the row style is kept identical on both paths".** That
+ruling's reason was that `planLegacyItems` renders both lines inert on the
+proposal path. It is now measured that on the **legacy** path they are unpinned
+too, for a different reason. They are still kept — `LR-BS`'s "one style that is
+inert on one path beats two that can drift" stands, and the two new arms mean a
+future change to either line is no longer silent.
+
+**3. Mutation M1c reddens nothing, and that is a proof rather than a gap.**
+Advancing the group's cursor past the spacer, as `Pair` did, changes no test. The
+practice's rule is to show the mutant behaves differently before banking that,
+and here the stronger statement is available by reading: the cursor's only
+consumer is each row's `GlobalElementID.enteringGroupMember`, every row supplies
+a `name` (`.id(String(describing: datum.id))`), and `child(of:at:name:)` never
+consults `at:` once a `name:` is supplied — and the enclosing `Box` discards the
+cursor afterwards. So the mutation changes a value nothing can observe. That is
+the measured reason row identity survives the spacer leaving cursor 0, which is
+what `LR-BS` claimed and critic round 1 checked by reading.
+
+**4. Two numbers moved exactly as `LR-BZ` predicted, and both were re-measured by
+running rather than by arithmetic.** Divergence 18's formula on `demoLikeRows(_:)`
+goes `2n + 7` → `2n + 6` and its crossing point 125 → **126**. Measured by
+rendering *n* rows, then three frames of an empty list — past
+`staleAfterGenerations` — and reading whether the rows were actually reaped:
+
+| *n* | before, `table.count` | reaped? | after, `table.count` | reaped? |
+|---|---|---|---|---|
+| 40 | 87 | no | 86 | no |
+| 124 | 255 | no | 254 | no |
+| 125 | 257 | **yes** | 256 | **no** |
+| 126 | 259 | yes | 258 | **yes** |
+| 500 | 1007 | yes | 1006 | yes |
+
+`theResidentEntrySetStaysBoundedWhileScrolling10kRows`'s three checkpoints move
+256 / 256 / 150 → **255 / 255 / 149**. `List.swift`'s and `ElementGroup.swift`'s
+doc comments take the new numbers in the same commit; CLAUDE.md's divergence-18
+row stays a Docs-phase obligation.
+
+**And one the design assigned to lane 5 that lane 1 has to pay.** The demo census
+`theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` loses the spacer's
+`Frame.elementBounds` row the moment the spacer stops being an element: 2036 →
+**2035** ids and 30 → **29** disagreements, 2042 → **2041** and 36 → **35** with
+the modal on, with `agreeing` 6 and `legacyOnly` 2000 unmoved. Lane 1 makes that
+single-row edit and says so in the test's own doc comment; lane 5 still owns the
+census's real re-derivation, which is what happens when the site check goes.
+
+**What it costs if wrong.** Item 1 is the expensive one: a `compare(stateTable:)`
+would have made `stateSlotsEqual` — one of the six fields every lane of every
+stage reads — trivially true, in the same change that advertised the harness as
+fixed. Item 2 costs a reader who believes two `List` lines are pinned; it is
+recorded rather than only fixed because the decay mechanism (`.padding` became a
+wrapper) will have hit other fixtures nobody has re-checked.

@@ -7,10 +7,11 @@ Design: `docs/superpowers/specs/2026-09-23-engine-stage-4-design.md`. Rulings
 (`LR-BX`…`LR-CB` are critic round 1's; §5 below).
 Branch `feat/engine-stage-4` from `f2e981f`.
 
-**Status, 2026-09-23 (PDT): design only, revised after critic round 1.** Nothing
-under `Sources/` or `Tests/` has changed in a commit. Every prototype below was applied in
+**Status, 2026-09-23 (PDT): lane 1 landed; lanes 2–5 design only.** §6 is lane
+1's record. Every prototype in §2 was applied in
 `/Users/maxburger/Developer/MetalUI-stage-4`, built, run and restored from a
-`cp` copy, with `git status --short` empty afterwards.
+`cp` copy, with `git status --short` empty afterwards, before any lane started;
+§6.4's mutations were taken the same way, after lane 1's implementation commit.
 
 ## 1. Baseline at `f2e981f`
 
@@ -323,3 +324,226 @@ the spacer's demotion emits **no** accessibility record either way, because
 ruling *says* the code does rather than from the code. The practices rule "walk
 every measurement back to the mutated line in the same pass" applies to a
 mechanism claim as much as to a number, and this design did not apply it.
+
+---
+
+## 6. Lane 1 — `ListRows`, the harness, and the pixel rig (`LR-BS`, `LR-BY`, `LR-CB`; corrections in `LR-CC`)
+
+Four commits on `feat/engine-stage-4`:
+
+| commit | what |
+|---|---|
+| `511ae3d` | the red-before: three assertion failures on the unfiltered suite |
+| `136f171` | `ListRows`, the spacer's demotion, `List`'s two public wrappers, `LayoutDifferential.render`'s `stateTable:`/`frames:` |
+| `eb42883` | M1b's finding: two `List` pins that could not see their subject, each given an arm that can |
+| `ca5a546` | `docs/probes/demo-pixels/` — the `CN-R` harness, committed and certified |
+
+### 6.1 The red-before
+
+Unfiltered, `swift test --build-system native --no-parallel` at `511ae3d`
+(`f2e981f`'s sources, only tests changed): **1583 tests in 2 suites failed with
+3 issues**.
+
+```
+theListsSpacerIsANodeNotAnElement
+  ListTests.swift:517: Expectation failed: spacerEntries.isEmpty
+aListInTheDifferentialHarnessReachesABoundedWindow
+  ListTests.swift:573: Expectation failed: !rows.isEmpty
+theResidentEntrySetStaysBoundedWhileScrolling10kRows
+  MeasurePerformanceTests.swift:440: Expectation failed: table.count == 2 * n + 5
+```
+
+The third is the practice's "require the arms to disagree first": the literal is
+written at `2 * n + 5` and read failing at `2 * n + 6`.
+
+**`aListInTheDifferentialHarnessReachesABoundedWindow`'s red is taken on the
+ONE-frame harness**, which is what makes it a red by failure rather than a
+compile error (`LR-BX`: a test that does not compile is not a red-before, and
+cannot be mutated). `136f171` adds the two parameters and changes that call and
+nothing else in the test; M1f forces `frames` back to 1 and reproduces the
+identical line.
+
+`aListsSceneAndHitboxesAreUnchangedByTheGroup` landed green in the same commit,
+as a characterization test whose evidence is M1a and M1b. Its two literal arrays
+were taken by running it at `f2e981f`.
+
+### 6.2 What landed
+
+`Sources/MetalUI/ListRows.swift` (new, 142 lines with its doc comment).
+`Pair(Box(spacerStyle), ArrayGroup(rows))` becomes `ListRows<Row>: ElementGroup`
+— **legacy branch only**; `List`'s site check stays, so lane 2 still owns the
+arrangement. The spacer is a bare node registered through the identical
+registrar (`lowerLegacyNode` under the proposal authority, exactly as the `Box`
+it replaced did, so a diagnostics frame is unchanged apart from §6.3's one id).
+
+`List` gained `public struct Layout` and `public struct PrepaintState` over its
+internal witnesses — **two**, as `LR-BZ` item 3 said and the first statement of
+spec §5 did not. Built after `swift package clean`.
+
+`LayoutDifferential.render` gained `stateTable:` and `frames:`; **`compare`
+gained `frames:` only** (`LR-CC` item 1).
+
+### 6.3 Every number that moved, measured
+
+| measure | before | after | how |
+|---|---|---|---|
+| `theResidentEntrySetStaysBoundedWhileScrolling10kRows` cold frame | `2n + 6` | **`2n + 5`** | the test's own literal, red first |
+| its three checkpoints (frames 10 / 100 / 299) | 256 / 256 / 150 | **255 / 255 / 149** | printed by the test |
+| divergence 18's formula on `demoLikeRows(_:)` | `2n + 7` | **`2n + 6`** | scratch render at *n* = 40/124/125/126/127/500 |
+| divergence 18's crossing | 125 | **126** | the same scratch, by whether a three-generation excursion was REAPED |
+| demo census ids / disagreements | 2036 / 30 | **2035 / 29** | the test |
+| the same, modal on | 2042 / 36 | **2041 / 35** | the test |
+| scene rects and hitboxes of a windowed, painted, clickable `List` | — | **unchanged** | `aListsSceneAndHitboxesAreUnchangedByTheGroup` |
+| twelve `CN-R` images | — | **0 differing, every scene dump identical** | §6.5 |
+| goldens | 97 | 97 | `find Tests/MetalUILayoutTests -name "*.json" \| wc -l`; `git diff --name-only f2e981f HEAD -- 'Tests/**/*.json'` empty |
+| typecheck guards | 77 | 77 | per-file `grep -c canTypecheck` |
+| suite | 1580 | **1583** | +3 tests, all lane 1's |
+
+**Divergence 18 in full**, and it is the measurement `LR-BZ` item 2 asked for.
+Each row renders `demoLikeRows(n)` on a fresh `StateTable`, then three frames of
+`demoLikeRows(0)` on the same table — past `staleAfterGenerations` (2), so the
+only thing that can keep the rows is the size gate:
+
+| *n* | before, cold | reaped? | after, cold | reaped? |
+|---|---|---|---|---|
+| 40 | 87 | no | 86 | no |
+| 124 | 255 | no | 254 | no |
+| 125 | 257 | **yes** | 256 | **no** |
+| 126 | 259 | yes | 258 | **yes** |
+| 127 | 261 | yes | 260 | yes |
+| 500 | 1007 | yes | 1006 | yes |
+
+The gate is `storage.count > sweepThreshold` with `sweepThreshold == 256`, so
+crossing needs 257; the before column reproduces CLAUDE.md's `2n + 7`, 125 and
+1007 exactly, which is what says the instrument is the right one.
+`List.swift`'s and `ElementGroup.swift`'s doc comments take the new numbers in
+`136f171`; **CLAUDE.md's divergence-18 row is still a Docs-phase obligation.**
+
+### 6.4 The four mutations
+
+Taken after the implementation commit, each restored from a `cp` copy with
+`git status --short` clean afterwards, each on the **full unfiltered** suite.
+
+| mutation | what | reddened |
+|---|---|---|
+| **M1a** | the spacer's height from `window.count` rather than `window.lowerBound` | **13 issues in 12 tests**: `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`, `aRowKeepsItsIdentityWhenItsPositionChanges`, `aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent`, `paddingOnAListDoesNotShrinkItsRowsBelowRowHeight`, `distinctRowsGetDistinctIdentities`, `aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan`, **`aWindowedRowSitsAtItsAbsoluteOffsetNotTheWindowsTop`**, `anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing`, **`aScrolledListsSpacerDoesNotShrinkUnderPadding`**, `aFractionalOffsetRoundsFirstDownAndLastUp`, `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`, `aListsSceneAndHitboxesAreUnchangedByTheGroup` (both arrays) |
+| **M1b** | `spacerStyle.flexShrink = 0` deleted | **nothing**, before §6.6's fix; **`aScrolledListsSpacerDoesNotShrinkUnderPadding`**'s new `paddedYs == expected` after it |
+| **M1c** | the group's cursor advanced past the spacer, as `Pair` did | **nothing**, and provably so — see below |
+| **M1f** | `render`'s `frames:` forced to 1 | **`aListInTheDifferentialHarnessReachesABoundedWindow`**, at `!rows.isEmpty` — the red-before's own line |
+
+**M1c is a proof, not a gap.** The practice is to show the mutant behaves
+differently before banking "reddens nothing". Here the stronger statement is
+available by reading: the cursor's only consumer is each row's
+`GlobalElementID.enteringGroupMember`, every row supplies a `name`
+(`.id(String(describing: datum.id))`), `child(of:at:name:)` never consults `at:`
+once a `name:` is supplied, and the enclosing `Box` discards the cursor when the
+group returns. The mutation changes a value nothing observes. That is the
+measured reason row identity survives the spacer leaving cursor 0.
+
+### 6.5 M1b's finding: two `List` pins that could not see their subject
+
+M1b was predicted to redden `aScrolledListsSpacerDoesNotShrinkUnderPadding`. It
+reddened nothing — and the instrument was **already** blind at `f2e981f`,
+before this lane touched anything. Measured on an unmodified `f2e981f` tree:
+
+- deleting `spacerStyle.flexShrink = 0` leaves `aScrolledListsSpacerDoesNotShrinkUnderPadding`
+  and `paddingOnAListDoesNotShrinkItsRowsBelowRowHeight` green;
+- deleting `rowStyle.flexShrink = 0` leaves the **whole 1580-test suite** green.
+
+The cause is `f1944f8`: `.padding(_:)` became a wrapper, so the padding lands on
+an outer `ModifiedElement` layer and the `List`'s own content box keeps its full
+`count × rowHeight`. There is no negative free space left for a spacer or a row
+to absorb, and both tests' doc comments describe a mechanism their fixtures
+stopped reaching.
+
+`Style.padding` written directly still shrinks the `List`'s own content box
+(CLAUDE.md's declared-but-inert table draws that distinction), so each test
+gained a second arm that writes it, restoring the deficit the first arm used to
+create — 160 against 252 for the spacer, 64 against 84 for the rows. Both new
+arms were then read red under their own mutation (`paddedYs == expected`; the ys
+plus each of three heights). Both first arms are kept: they pin the wrapper
+spelling's answer, which is the one a caller writes. `LR-CC` item 2.
+
+### 6.6 The `CN-R` harness, committed and certified (`LR-CB`)
+
+`docs/probes/demo-pixels/` — `compare.sh` (the driver), `ZZDemoPixels.swift`
+(copied into a `git archive` of each commit at `Tests/MetalUITests/`) and
+`rawdiff.swift`. Retires §9's deferral and `LR-BJ`'s carry, after the same
+generator had been lost and rebuilt four times (record §18, §25 §7.6, §8.8,
+§9.8, §14.4).
+
+**Certified by running the controls, not by quoting them.** On a `git archive`
+of `f2e981f` the rebuild reproduces all eight recorded figures exactly:
+
+| control | recorded | this rebuild |
+|---|---|---|
+| light vs dark, f0 | 1 048 576 | **1 048 576** |
+| default vs modal (light) | 1 030 498 | **1 030 498** |
+| default vs animation (light) | 210 027 | **210 027** |
+| f0 vs f3 (light) | 0 | **0** |
+| preview light vs dark | 1 048 576 | **1 048 576** |
+| `chrome-legacy` vs `chrome-proposal` | 0 | **0** |
+| distinct values, `default-light-f0` | 544 | **544** |
+| distinct values, `chrome-legacy` | 216 | **216** |
+
+and record §25 §7.6's caveat re-measures as it stands: scanning all twelve scene
+dumps for a 3pt cross-axis rect finds **zero**, so no scroll indicator is painted
+anywhere in the set.
+
+**`f2e981f` → `eb42883`: 0 differing pixels in all twelve, every scene dump
+byte-identical.** Expected by construction — the lane's only legacy change is an
+element that emits nothing becoming a node — and taken anyway.
+
+The script prints the controls, with each one's expected value in brackets and
+which two are expected to be 0, **before** any commit-to-commit row, so a
+harness that had gone blank cannot read 0 everywhere and look like a pass.
+
+### 6.7 Lane 2's oracle: the windowed `List`'s legacy-side literals
+
+Through the two-frame harness, so these are literals lane 2's test 2.1 can be
+written against rather than a transcription of its own first green run
+(`LR-BY`). `Box(100 × 100, column) { Box{ ScrollView(.vertical, "scroller")
+{ List(20 rows, rowHeight 10) { Box() }.width(100) } }.flexGrow(1).flexBasis(0).minHeight(0) }`
+inside `DifferentialRoot(100 × 100)`, legacy authority, `frames: 2`:
+
+| id path | unwindowed | windowed, stored `offset: 50` |
+|---|---|---|
+| `0` (outer `Box`) | (0,0) 100×100 | (0,0) 100×100 |
+| `0/0` (grow `Box`) | (0,0) 100×100 | (0,0) 100×100 |
+| `0/0/0` (`ScrollView` viewport) | (0,0) 100×100 | (0,0) 100×100 |
+| `…/'scroller'` (the `List`) | (0,0) 100×200 | (0,0) 100×200 |
+| `…/'scroller'/'item-i'` | (0, 10·i) 100×10 | (0, 10·i) 100×10 |
+| `…/'item-i'/0` (the row's content) | (0, 10·i) 0×10 | (0, 10·i) 0×10 |
+| realized rows | **0…11** (12) | **3…16** (14) |
+| `StateTable` ids | 47 | 47 |
+
+**The spacer appears in neither column**, which is the demotion seen from the
+harness: it records no `Frame.elementBounds` row at all.
+
+**The harness root's shape is load-bearing and had to be found by measurement.**
+`DifferentialRoot`'s legacy arm is a `display: .stack` that offers its children
+fit-content, so a bare `ScrollView { List }` takes its content's full 1120pt as
+its viewport and windows nothing — measured, all 40 rows. So does a fixed-height
+`Box` around the scroller, and so does a fixed-height `Box` with
+`minSize.height: 0` inside it. Only the demo's own spelling
+(`.flexGrow(1).flexBasis(0).minHeight(0)` inside a container with a declared
+height) bounds the viewport. `aListInTheDifferentialHarnessReachesABoundedWindow`
+carries that shape and the reasoning.
+
+### 6.8 Screen lock
+
+`xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&
+/tmp/lockstate` at the end of the lane: **`session CGSSessionScreenIsLocked =
+1`**, `CGSSessionScreenLockedTime = 1790087900`, `displayAsleep main: 1`,
+`displayActive main: 0`. Locked, the same lock as at every lane of stage 3, so
+**no real-window capture was taken**. `IOConsoleLocked` was not read (`FR-V`).
+The twelve offscreen images stand in.
+
+### 6.9 Deferred out of lane 1
+
+| item | why | owner |
+|---|---|---|
+| CLAUDE.md's divergence-18 row (`2n + 7`, "crossing at **125 rows**", "1007 at 500") | the lane may not edit CLAUDE.md; the measured replacement is §6.3 | the Docs phase, then `cp CLAUDE.md AGENTS.md` and `cmp` |
+| a real-window capture | the screen was locked | whoever runs a lane with an unlocked screen |
+| the census's real re-derivation | lane 1 pays only the one-id edit the spacer forces | lane 5 (§4.2(c)) |
+| **other fixtures blinded by `.padding` becoming a wrapper at `f1944f8`** | §6.5 found two in `ListTests` by mutation; nobody has swept for more, and the decay is silent by construction | unowned — worth a sweep by whoever next mutates a padded fixture |
