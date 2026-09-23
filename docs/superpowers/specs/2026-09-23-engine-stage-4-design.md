@@ -1,13 +1,19 @@
 # Engine replacement, stage 4 — the windowed proposal `List` (plan task 7)
 
-**Status, 2026-09-23 (PDT): lanes 1–4 landed; lane 5 design only.**
+**Status, 2026-09-23 (PDT): DELIVERED — all five lanes implemented, all five
+verified `ok`, fifteen minors dispositioned in the verification round.**
 Lane 1's four commits are on `feat/engine-stage-4` (`511ae3d`, `136f171`,
 `eb42883`, `ca5a546`); its corrections are `LR-CC` and record §26 §6. Lane 2's
 are `a494777`, `13c12f0` and `c124f40`; its corrections are `LR-CD` and record
 §26 §7. Lane 3's are `c4ce2f0`, `7c031b1` and `352f838`; its corrections are
 `LR-CE` and record §26 §8. Lane 4's are `a0cdc0a`, `779a6a4` and `684ef95`; its
-corrections are `LR-CF` and record §26 §9. Nothing of lane 5
-under `Sources/` or `Tests/` has changed in a commit. Every source patch cited
+corrections are `LR-CF` and record §26 §9. Lane 5's are `a36a2cf`, `de2b6a5`,
+`6c719e0` and `a53daeb`; its corrections are `LR-CG` and record §26 §10. The verification round is record
+§26 §11, and the closing sections after it — including **For the integrator** —
+are what the Docs phase works from. Final figures: **1602 tests, 97 goldens, 77
+guards** (none added), goldens unmoved against `f2e981f`; twelve offscreen demo
+images at 0 differing at every lane and twice more in verification, and **three
+real-window captures at 0**. Every source patch cited
 below as a *prototype* was applied in `/Users/maxburger/Developer/MetalUI-stage-4`,
 built, run and restored from a `cp` copy, with `git status --short` clean
 afterwards; the measurements are in `docs/record/26-engine-replacement-stage-4.md`.
@@ -974,9 +980,14 @@ the `List` the frame's **root**, and a native root is stored at the full window
 helpers gain a fixed-size `Box` wrapper (P1a6's shape, a declared width and a
 column direction) under **both** authorities — **and a declared HEIGHT too,
 which this sentence did not say and which lane 3 measured it needs** (`LR-CE`
-item 1: an `auto` main axis takes the definite space offered, so six of this
-file's 40- and 100-row fixtures would be flex items with hundreds of points of
-negative free space, which the legacy engine absorbs and the kernel does not) —
+item 1, as amended in the verification round: with an `auto` main axis the host
+resolves to something other than the frame **either by squeezing or by
+centring**, and the mutation that drops the height back to `.auto` reddens
+**eleven** scenarios on the `.proposal` arm alone, four of them 84pt fixtures
+with no negative free space at all, whose rows read ys `[258, 286, 314]` —
+record §26 §8.4.2. The first writing of this parenthesis said "six … with
+hundreds of points of negative free space", which is neither the count nor the
+whole mechanism) —
 and to read the `List`'s own bounds out of that wrapper, three further things
 must change that the design had not named:
 

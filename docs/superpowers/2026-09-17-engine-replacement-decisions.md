@@ -4982,12 +4982,32 @@ authorities that the **harness** would have introduced, in the one file whose
 whole point this lane is to read both authorities against each other.
 
 **The ruling.** `hostStyle(width:height:)` declares both axes, at the frame's
-own size, so the host is exactly the window and the subject is never squeezed.
-Where a subject is taller than the frame and its own height is the assertion —
-`aWindowedListStillReportsItsFullContentHeight`, 40 × 28 = 1120 — the test
-raises the frame instead (`frameHeight: 1200`), which is one literal, named at
-its call site with the arithmetic. Every other literal in the file is unchanged
-on both authorities, measured.
+own size. Where a subject is taller than the frame and its own height is the
+assertion — `aWindowedListStillReportsItsFullContentHeight`, 40 × 28 = 1120 —
+the test raises the frame instead (`frameHeight: 1200`), which is one literal,
+named at its call site with the arithmetic. Every other literal in the file is
+unchanged on both authorities, measured.
+
+**Amended, verification round (2026-09-23).** *The ruling stands and the code is
+right; the mechanism above was an inference presented as a measurement, and the
+lane never ran the mutation that would have checked it.* The verifier did, and
+the reading is record §26 §8.4.2: dropping the declared height back to `.auto`
+— P1a6's shape exactly — reddens **eleven** scenarios, not six, **`.proposal`
+arms only**, 14 issues, every `.legacy` arm green. **Four of the eleven are
+three-row, 84pt fixtures with no negative free space at all**; for those the
+mechanism is **centring** — with an `auto` main axis the kernel centres the
+host's content, so `aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent` reads
+ys `[258, 286, 314]`, i.e. `(600 − 84)/2`, instead of `[0, 28, 56]`. And the
+sentence "the host is exactly the window and the subject is never squeezed" was
+**false for the very fixtures this item names**: a 1120pt list is still a flex
+item inside the 600pt declared-height host, and a 2800pt one inside the 2000pt
+host — which is why `aWindowedListStillReportsItsFullContentHeight` needs
+`frameHeight: 1200` at all. That sentence is deleted above. **The criterion a
+later reader should apply is not "is there negative free space?" but "does the
+host's main axis resolve to something other than the frame — by squeezing **or**
+by centring?"** Spec §6 lane 3 and record §26 §8.3 carry the correction; two doc
+comments in `ListTests.swift` still repeat the old reason and are named as an
+obligation in record §26 §11.3.
 
 **What it costs if wrong.** Nothing production-visible: this is a test harness.
 The cost of *not* doing it is worse than a wrong number — it is a file of
@@ -5311,6 +5331,23 @@ carries the name and runs the identical instrument at 40 against 160, and
 and no roll call would say so. The exit test is run by hand, once, and its
 result is recorded (record §26 §10.4); the two ungated twins are what a later
 regression would trip over.
+
+**Amended, verification round (2026-09-23).** *Only one of the two twins can
+trip over anything.* `aListsWorkIsTheSameFor160RowsAsFor40` is discriminating —
+its `.proposal` arm expects `NativeLayoutWork(17, 103, 120)` where `.legacy`
+expects `NativeLayoutWork()`. `theResidentEntrySetStaysBoundedWhileScrolling10kRows`
+is **not**: hard-coding its `renderFrame` to `layoutAuthority: .legacy` leaves
+the whole 1602-test suite green (mutation MV5e, record §26 §10.6). The mutant is
+**not equivalent** — it deletes a production `.proposal` frame over a 10 000-row
+`List`, which is what says the re-spelled `StatefulListRow` does not abort at
+scale and that reaping is unchanged — so this is a banked gap, not an
+equivalence. The roll call cannot close it: `AuthorityCoverage.record` sees the
+argument, not the frame. The fix is one authority-discriminating read per arm
+(`frame.tree.lastNativeLayoutWork != NativeLayoutWork()` under `.proposal`,
+`==` under `.legacy`), the same control the work test already uses; owner in
+record §26 §11.3. Four prose and message literals in `AuthorityCoverage.swift`
+and `ZZAuthorityRollCall.swift` also still say `65` and "nine files" after this
+item moved `expected` to 67 and added a tenth.
 
 ### 5. The census's 2 000 row ids are attributed by formula under three existing causes, and the sub-pixel tail is one of them
 
