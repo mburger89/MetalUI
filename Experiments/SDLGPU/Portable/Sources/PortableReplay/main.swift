@@ -3,7 +3,7 @@
 // and no MetalUI module: the fixtures are its only link to the renderer.
 //
 //   PortableReplay <fixture-dir> [--driver metal|vulkan|direct3d12]
-//                  [--shaders <dir>] [--dump <dir>] [--nearest] [--show]
+//                  [--shaders <dir>] [--dump <dir>] [--expect <n>] [--nearest] [--show]
 import Foundation  // swift-corelibs-foundation off Apple platforms
 import ReplayFixture
 import SDLReplay
@@ -16,7 +16,7 @@ func option(_ name: String) -> String? {
 
 func run() throws {
     let positional = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("--") }
-    let optionValues = Set(["--driver", "--shaders", "--dump"].compactMap(option))
+    let optionValues = Set(["--driver", "--shaders", "--dump", "--expect"].compactMap(option))
     guard let directory = positional.first(where: { !optionValues.contains($0) }) else {
         throw ReplayError("usage: PortableReplay <fixture-dir> [--driver metal|vulkan|direct3d12] [--shaders dir] [--dump dir] [--show]")
     }
@@ -26,6 +26,14 @@ func run() throws {
     let names = try FileManager.default.contentsOfDirectory(atPath: directory)
         .filter { $0.hasSuffix(".muireplay") }.sorted()
     guard !names.isEmpty else { throw ReplayError("no .muireplay fixtures in \(directory)") }
+    // --expect <n>: CI states how many frames the recorder writes, so a frame
+    // that stops being recorded — frame 4, the portable-text one (PT-G) — fails
+    // the replay instead of silently shrinking it.
+    if let expected = option("--expect") {
+        guard Int(expected) == names.count else {
+            throw ReplayError("expected \(expected) fixtures, found \(names.count): \(names)")
+        }
+    }
     let fixtures = try names.map { name -> ReplayFixture in
         let path = directory + "/" + name
         guard let data = FileManager.default.contents(atPath: path) else { throw ReplayError("cannot read \(path)") }

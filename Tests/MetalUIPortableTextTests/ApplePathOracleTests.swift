@@ -520,11 +520,44 @@ struct CoverageDiff {
     #expect(throws: PortableTextError.self) {
         _ = try PortableFont(shapingData: noto, rasterData: arabic, faceIndex: 0, size: 13)
     }
+    // The same outlines under a different `unitsPerEm`: every glyph id agrees,
+    // so the probe cannot see it, and only the `unitsPerEm` comparison can.
+    // All three bundled fonts are 1000 units per em, so without this case that
+    // comparison is unreachable — deleting it reddened nothing (measured).
+    let rescaled = try withUnitsPerEm(2048, noto)
+    #expect(throws: PortableTextError.self) {
+        _ = try PortableFont(shapingData: noto, rasterData: rescaled, faceIndex: 0, size: 13)
+    }
+    // ...and the patched face really is 2048 in both engines, and opens: the
+    // throw above is the comparison, not a face that failed to load.
+    #expect(throws: Never.self) {
+        _ = try PortableFont(shapingData: rescaled, rasterData: rescaled, faceIndex: 0, size: 13)
+    }
+    #expect(try HarfBuzzFont(data: rescaled, size: 13).unitsPerEm == 2048)
+    #expect(try FreeTypeFont(data: rescaled, size: 13).unitsPerEm == 2048)
     // The control: the same bytes in both halves is exactly what the public
     // initializer does, and must not throw.
     #expect(throws: Never.self) {
         _ = try PortableFont(shapingData: noto, rasterData: noto, faceIndex: 0, size: 13)
     }
+}
+
+/// `font` with its `head` table's `unitsPerEm` (offset 18, big-endian UInt16)
+/// overwritten. The table checksum is left stale; neither engine verifies it.
+func withUnitsPerEm(_ unitsPerEm: UInt16, _ font: [UInt8]) throws -> [UInt8] {
+    func u16(_ at: Int) -> Int { Int(font[at]) << 8 | Int(font[at + 1]) }
+    func u32(_ at: Int) -> Int { u16(at) << 16 | u16(at + 2) }
+    let tables = u16(4)
+    for index in 0..<tables {
+        let record = 12 + 16 * index
+        guard font[record..<record + 4].elementsEqual("head".utf8) else { continue }
+        var patched = font
+        let offset = u32(record + 8) + 18
+        patched[offset] = UInt8(unitsPerEm >> 8)
+        patched[offset + 1] = UInt8(unitsPerEm & 0xff)
+        return patched
+    }
+    throw PortableTextError("no head table")
 }
 
 // MARK: - Measurement (gated)

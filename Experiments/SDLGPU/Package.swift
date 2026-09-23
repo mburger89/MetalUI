@@ -14,7 +14,9 @@ let package = Package(
         .executableTarget(name: "Replay", dependencies: [
             .product(name: "SDLReplay", package: "SDLGPUPortable"),
             .product(name: "ReplayFixture", package: "SDLGPUPortable"),
-            .product(name: "MetalUI", package: "MetalUI")
+            .product(name: "MetalUI", package: "MetalUI"),
+            // Frame 4's text (ruling PT-G): HarfBuzz + FreeType, no CoreText.
+            .product(name: "MetalUIPortableText", package: "MetalUI")
         ])
     ]
 )

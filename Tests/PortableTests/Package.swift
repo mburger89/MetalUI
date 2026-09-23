@@ -1,10 +1,11 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
-// Cross-platform determinism for the two non-Apple text targets: FreeType's
-// rasterizer (ruling FT-J) and the HarfBuzz shaper (ruling SH-I). Depends only
-// on the root package's MetalUIFreeType, MetalUIHarfBuzz and MetalUIScene
-// products — no CoreText, no Metal — so it runs on Linux and Windows, where the
+// Cross-platform determinism for the non-Apple text targets: FreeType's
+// rasterizer (ruling FT-J), the HarfBuzz shaper (ruling SH-I) and the portable
+// text pipeline that joins them (ruling PT-H). Depends only
+// on the root package's MetalUIFreeType, MetalUIHarfBuzz, MetalUIPortableText
+// and MetalUIScene products — no CoreText, no Metal — so it runs on Linux and Windows, where the
 // root package's own test bundle (which includes the Metal tests) cannot. Its
 // expected values were recorded on macOS; CI asserts them on Linux
 // x86_64/aarch64 and Windows.
@@ -22,6 +23,11 @@ let package = Package(
         .testTarget(name: "HarfBuzzDeterminismTests", dependencies: [
             .product(name: "MetalUIHarfBuzz", package: "MetalUI"),
             .product(name: "MetalUIFreeType", package: "MetalUI"),
+            .product(name: "MetalUIScene", package: "MetalUI"),
+        ]),
+        // PT-H. The whole portable text pipeline: string -> MUIGlyphs + atlas.
+        .testTarget(name: "PortableTextDeterminismTests", dependencies: [
+            .product(name: "MetalUIPortableText", package: "MetalUI"),
             .product(name: "MetalUIScene", package: "MetalUI"),
         ]),
     ]

@@ -1,6 +1,7 @@
 # Portable text pipeline — design
 
-**Status:** draft for approval, 2026-09-23. Decided with the user: wire the
+**Status:** implemented on `feat/portable-text`, 2026-09-23 (record §27);
+Linux and Windows pixels owed to the branch's first CI run. Drafted the same day. Decided with the user: wire the
 shaper and rasterizer together, and render the result through SDL.
 **Ruling prefix:** `PT-` (lettered; next `PT-J`).
 **Builds on:** `MetalUIHarfBuzz` (`SH-`), `MetalUIFreeType` (`FT-`),
