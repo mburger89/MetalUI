@@ -233,11 +233,24 @@ private let lHostList = lChild(lHostScroller, 0)
 /// and 3…16 at a stored offset of 50 — so they are an oracle rather than a
 /// transcription of this lane's first green run.
 ///
-/// Mutations that must redden it: **M2a** (`firstIndex` ignored), **M2b** (the
-/// height answer made greedy, i.e. SwiftUI's K6), **M2d** (`planLegacyItems`
-/// skipped and the rows registered raw), **M2f** (the rows' records not
-/// consumed), **M2h** (the planning parent's cross size left at the `List`'s
-/// own, so the elision fires — B6 only).
+/// **Measured, not predicted** (record §26 §7.4). This test is reddened by
+/// **M2a** (`firstIndex` ignored: 30 issues across B3 and B4), **M2d**
+/// (`planLegacyItems` skipped and the rows registered raw: every arm), **M2f**
+/// (the rows' records not consumed: every arm) and **M2h** (the planning
+/// parent's cross size left at the `List`'s own, so the elision fires — **B6
+/// only**, which is the whole reason B6 exists).
+///
+/// **It is NOT reddened by M2b** (the height answer made greedy), and the
+/// design predicted it would be. `List`'s own `Box` declares
+/// `size.height = count × rowHeight`, which `paddedAndSized` turns into a fixed
+/// native frame around the arrangement, so the layout's own height answer is
+/// **masked in every composed tree** and only the kernel-level tests 2.2, 2.3
+/// and 2.4b can see it. That is the measured reason 2.2 is not redundant with
+/// this test.
+///
+/// It is not reddened by **M2e** either (the windowed node's
+/// `recordLoweredItem` dropped) — see 2.7, where the same finding is written up
+/// with the proof that nothing can observe it.
 @MainActor
 @Test func aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape() throws {
     // B1 — unwindowed, no scroller.
@@ -386,8 +399,28 @@ private let lHostList = lChild(lHostScroller, 0)
 ///   registration returns (`LR-AQ`). An empty report is therefore a statement
 ///   about the consumption as well as about the site.
 ///
-/// Mutations that must redden it: **M2e** (the windowed node's
-/// `recordLoweredItem` dropped), **M2f** (the rows' records not consumed).
+/// Mutation that reddens it: **M2f** (the rows' records not consumed) — three
+/// `box.flexShrink.unconsumed` and three `box.minSize.unconsumed` entries here,
+/// and it reddens `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s new
+/// absence arm as well, which is what says that arm is not vacuous.
+///
+/// **M2e — the windowed node's own `recordLoweredItem` dropped — reddens
+/// NOTHING**, where the design predicted an `…unconsumed` entry here. Both
+/// halves of that prediction are wrong, and the reason is provable by reading
+/// rather than merely unmeasured (`LR-CD`, the shape lane 1's M1c took):
+///
+/// - a **dropped** record never joins `LoweringState.order`, which
+///   `reportUnconsumedLoweredItems` iterates, so it cannot produce an
+///   `…unconsumed` entry by construction — an unconsumed record can, which is
+///   M2f;
+/// - and the record's only other effect is the stretch item frame the enclosing
+///   `Box` would wrap the arrangement in, which is **redundant against a
+///   proposal-greedy layout**: `WindowedRowsLayout` already answers
+///   `proposal.width`, so W's greedy width changes no number. The record is
+///   kept for `LR-AB`'s uniform convention (every lowered site records the node
+///   it returns) and for the `<field>.unconsumed` reachability
+///   `UnlowerableField.owningStage`'s `.list` comment claims, not because
+///   anything can see it today.
 @MainActor
 @Test func theListSiteReportsNothingAndItsRowsItemFieldsAreLowered() throws {
     let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) {
@@ -563,11 +596,11 @@ private func lKernelWindow(widths: [Float], rowHeight: Double, logicalCount: Int
 /// **`O(window)`, not `O(logicalCount)`** — 40 logical rows, 13 lookups — which
 /// is the property the stage's exit test counts.
 ///
-/// **Arrives with its subject.** Mutation that must redden it: **M2d** (the rows
-/// registered raw, without `planLegacyItems`' wrappers) does not reach this
-/// fixture, which has no wrappers by construction; **M2b** does (a greedy height
-/// changes no count), so the pin here is the literals themselves, re-derived by
-/// hand rather than read off the run.
+/// **Arrives with its subject.** Measured: **M2b** (the height answer made
+/// greedy) reddens it — the placement proposals change with the answer — where
+/// **M2d** cannot reach this fixture, which has no item wrappers by
+/// construction. The pin is the three literals themselves, derived by hand
+/// before the run.
 @MainActor
 @Test func aWindowedListPlacesEachRealizedRowWithExactlyOneMeasurement() throws {
     let fixture = lKernelWindow(widths: Array(repeating: Float(37), count: 12),
@@ -607,9 +640,11 @@ private func lKernelWindow(widths: [Float], rowHeight: Double, logicalCount: Int
 /// **Widest, not first and not last**: the rows here are 20, 61 and 33 wide in
 /// that order, so a mutation answering either end reads a different number.
 ///
-/// **Arrives with its subject.** Mutation that must redden it: **M2c** (the
-/// width answer made 0 on a nil axis, i.e. K6's) — and it must redden **this
-/// test only**, which is what makes 2.4 the pin for the diverging half.
+/// **Arrives with its subject.** Mutation that reddens it: **M2c** (the width
+/// answer made 0 on a nil axis, i.e. K6's). Measured: M2c reddens 2.4, 2.2's
+/// two nil-width arms and 2.4b — three tests, not "this one only" as the design
+/// predicted. Three pins for the diverging half is more than one, not fewer;
+/// 2.4 is the one that names it.
 @MainActor
 @Test func aWindowedListAtANilWidthAnswersItsWidestRow() throws {
     let fixture = lKernelWindow(widths: [20, 61, 33], rowHeight: 10, logicalCount: 9,
