@@ -98,6 +98,15 @@ on AppKit and on SDL3.
   (`Replay --portable`, `PortableReplay`, `DemoCapture`). Since the move the
   frame is `master`'s again.
 
+## Counts
+
+1746 tests, 97 goldens, 78 guards; 0 `error:` and 0 `warning:` on both build
+systems after `swift package clean` (`Test run with 1746 tests in 3 suites
+passed`, the guards ran). 1746 = 1712 + 4 (the caret lane) + 30 (10 + 13 + 7).
+`Backends/SDL`: 21 + 19 on macOS, 21 + 18 on Linux aarch64 in the CI image.
+Linux aarch64 (`swift:6.4-noble`): the root's portable suites 486 + 3 + 22,
+the demo-frame pin included.
+
 ## Mutations
 
 Root package (filter: `TextFieldTests|TextEditingTests|TextInputPlatformTests|everyLegacySiteIsReportedByName`):

@@ -154,6 +154,15 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-23, `feat/text-input` — roadmap item 14): 1746 tests,
+  97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both build
+  systems, taken after `swift package clean` the same way (one summary line,
+  `Test run with 1746 tests in 3 suites passed`; the guards ran). **1746 = 1712
+  + 4 + 30**: the caret-offset lane's 4 (`CaretOffsetOracleTests`) and text
+  input's 30 (`TextEditingTests` 10, `TextFieldTests` 13,
+  `TextInputPlatformTests` 7); record §45. Goldens and the demo-frame pin
+  unmoved. `Backends/SDL`: 21 + 19 on macOS (5 new `SDLTextInputTests`), 21 +
+  18 on Linux aarch64.
 - **Counts (2026-09-23, `feat/accessibility` — roadmap item 13): the root
   package is untouched — 1712 / 97 / 78 as below**. The work is in the
   separate `Backends/SDL` package: `MetalUISDLTests` 14 (5 new
