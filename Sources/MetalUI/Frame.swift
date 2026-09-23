@@ -1458,8 +1458,8 @@ public final class Frame {
          focusedElement: GlobalElementID? = nil,
          transaction: Animation? = nil,
          collectsAccessibility: Bool = false,
-         layoutAuthority: LayoutAuthority = .legacy,
-         reportsUnlowerableFields: Bool = false,
+         layoutAuthority: LayoutAuthority = .proposal,
+         reportsUnlowerableFields: Bool = true,
          recordsElementBounds: Bool = false) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
@@ -1534,6 +1534,7 @@ public final class Frame {
     /// field — `StyledComponent`'s amend — this is the whole check.
     func noteUnlowerable(_ field: UnlowerableField) {
         guard reportsUnlowerableFields else { preconditionFailure(field.trapMessage) }
+        print("SIXA-UNLOWERABLE: \(field)")
         unlowerableFields.append(field)
     }
 
@@ -1586,6 +1587,7 @@ public final class Frame {
             MetalUI: Frame.\(registrar) reached under the proposal layout authority by a \
             site that did not check the authority itself (plan task 7, ruling LR-C).
             """)
+        print("SIXA-BACKSTOP: \(registrar)")
         return requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
     }
 
