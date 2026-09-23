@@ -115,7 +115,7 @@ jobs:
             swift build --scratch-path /tmp/build
             swift test --scratch-path /tmp/build
             $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../../Experiments/SDLGPU/fixtures --driver vulkan --dump ../../Experiments/SDLGPU/linux-dump --expect 6
-            # The demo built HERE, checked against macOS's frame 5 (ruling DC-B).
+            # The demo built HERE, checked against the macOS frame 5 (ruling DC-B; no apostrophes in this single-quoted script).
             $(swift build --scratch-path /tmp/build --show-bin-path)/DemoCapture ../../Experiments/SDLGPU/fixtures --driver vulkan
           '
       - uses: actions/upload-artifact@v7
