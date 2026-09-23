@@ -10,7 +10,7 @@ rulings `LR-R`, `FR-I`, §8). Design:
 SwiftUI claim). Branch `feat/engine-stage-6a` from `b3c29b9`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-6a`.
 
-**Status, 2026-09-23 (PDT): designed.** §1–§6 are the design's measurements —
+**Status, 2026-09-23 (PDT): lanes 1–3 landed; stage closed at `e531260` (§11), Record phase pending.** §1–§6 are the design's measurements —
 the stage's **entry measurement** is §4. Every one was taken on scratch
 commits (`9ccc0d8`…`59b63ad`, listed in §2) that `a1b6edf` reverts to
 `b3c29b9`'s tree exactly (`git diff --quiet b3c29b9 a1b6edf` succeeds); they
@@ -18,7 +18,10 @@ stay in the history so a later reader can re-run an arm by checking it out.
 Critic round 1 is §7; the lanes append from §8. **Lane 1 (L, Dep, G) ran:
 §8, `LR-DB`** — it corrected §1's census from 66 sites (8 in fixture strings)
 to **67 (9)**. **Lane 2 (R, the P-only files) ran: §9, `LR-DC`** — no
-re-spelled test was red; the one Dual element was not dual.
+re-spelled test was red; the one Dual element was not dual. **Lane 3 (the
+Dual files, the deprecation, the exit test) ran: §10, `LR-DD`** — the gate
+closed at `e531260` with 1642 tests and 0 `warning:`; M3g reddened exactly the
+46 predicted pins. **The stage's exit criteria are read in §11.**
 
 ## 1. Baseline at `b3c29b9`
 
@@ -792,3 +795,185 @@ traps, loudly, at a pinned site.
   the legacy `Row` still lowers through stage 2's container lowering. Stage 6b
   flips the default; nothing here changes when it does.
 
+
+## 10. Lane 3 — layout-answer tests (Dual, P, R), the deprecation, the exit test — `LR-DD`
+
+On `feat/engine-stage-6a`, 2026-09-23, on top of lane 2's `d306d97`. Three
+commits, in the order spec §7 fixes: **`5822f60`** the callers moved (tests
+only, green, 0 `warning:`); **`ab7d76f`** tests 3.1 and 3.2 red-first;
+**`e531260`** the two attributes and `owningStage` — the commit that closes the
+gate. Every mutation below was taken on top of `e531260`: the file copied to the
+scratchpad, edited, `swift build --build-system native --build-tests`, **full
+unfiltered** `swift test --build-system native --no-parallel`, the copy
+restored (I0 reverted with `git apply -R`), `git status --short` read empty.
+Every run printed `FR-J no-argument frame: succeeded=`.
+
+### 10.1 What moved
+
+| disp. | element (file) | spelling | tests, and their authority |
+|---|---|---|---|
+| **Dual** | `Probe` (`ElementLayoutTests`) | `pass.lowersToProposal ? declaredSizeNativeLeaf(style, pass) : pass.frame.requestNode(style:children:)` | R `.proposal`: 3 (4 frames). P `.legacy`: 8 CE+RP, 1 CSS-structure, 2 CSS-box (14 frames) |
+| **Dual** | `Leaf` (`ComponentTests`) | as `Probe` | R `.proposal`: `aComponentContributesNoLayoutNodeOfItsOwn`, `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`. P `.legacy`: 2 CE+RP, 8 CSS-structure, 5 CSS-d48 (21 frames) |
+| R | `CounterLeaf` (`ComponentTests`) | `requestNativeLeaf` 10×10 | `stateInsideAComponentsContentIsAlsoSeeded`, `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`, `.proposal` |
+| **Dual** | `Mark` (`FrameSizingTests`) | as `Probe` | R `.proposal`: `aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare` (3 `widthInRow` calls). P `.legacy`: 4 CE+RP, 10 CSS-frame (57 helper calls, 4 frames/windows) |
+| **Dual** | `LayerLeaf` (`ModifiedElementTests`) | as `Probe` | R `.proposal`: `anIDAfterAChainsLastWrapperNamesTheOutermostLayer` (3 `observe`), `addingALayerAtRunTimeResetsTheWrappedElementsState` (window). P `.legacy`: 2 CE+RP (windows), `aGenericWrapOverAChainIsIdenticalToTheFlatChain` (8 `observe`) |
+| P-CSS | `ChainLeaf` (`ModifiedElementTests`) | `pass.frame.requestNode` | `legacyModifierChainsInferOneConcreteType` `.legacy` |
+| **Dual** | `CountingLeaf` (`ModifierCompositionProofTests`) | as `Probe` | R `.proposal`: `everyModifierWrapperDelegatesEachPhaseExactlyOnce` (its `counts` frame, every arm), `stateSurvivesFramesUnderALegacyModifierChain`, `aModifierChainRegistersAndPaintsOuterLayersFirst` (windows). P `.legacy`: `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes` (2 frames), `aModifierChainIsIdenticalToHandBuiltNestedBoxes` (8 `observe`) |
+| P-CSS | `BoxWithoutAnimated` (`ModifierCompositionProofTests`) | `pass.frame.requestNode` | `aModifierChainIsIdenticalToHandBuiltNestedBoxes` `.legacy` |
+| **Dep** | `CustomNodeElement`, `CustomLeafElement` (`LayoutAuthorityTests`) | body byte-identical; `requestLayout` `@available(*, deprecated, message: "…(stage 6a, LR-CV)")` | `aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` |
+| **Dep** (new) | `DeprecatedRegistrarRow`, and its oracle `InternalRegistrarRow` (`LayoutAuthorityTests`) | spec §8 | 3.1 |
+
+`declaredSizeNativeLeaf(_:_:)` is one internal helper in `ElementLayoutTests`,
+shared by the five Dual elements: a native leaf answering the pixel size its
+`Style` declares, 0 on an `auto` axis, and a **precondition** on any other
+dimension (a fraction or percentage), so an R test cannot silently get a wrong
+size (§10.5, M3g). **The five files' shared helpers take the authority as a
+required argument** — `FrameSizingTests`' `render`, `widthInRow` and
+`nodeCount`, and both `observe` helpers — not as a defaulted one as lane 2's
+`render`/`frame` helpers do: stage 6b flips "the eight test helpers' `.legacy`
+parameter defaults" (spec §10), and a required argument is one no sweep of
+defaults can reach.
+
+**46 P tests** (17 CE+RP owned by 6b, 29 CSS owned by 7b — exactly spec §5's
+lane-3 count), each with the doc line `Pinned to the legacy authority by stage
+6a (<class>, record §30 §4).`, the class read off §4 (`CE+RP`, `CSS-structure`,
+`CSS-box`, `CSS-frame`, `CSS-d48`). **12 R tests** run under an explicit
+`.proposal`. No `#expect`/`#require` line changed (`git diff d306d97 e531260 --
+Tests | grep -E '^[-+].*#(expect|require)'` returns only 3.1's and 3.2's new
+lines).
+
+**After the change** the gate grep (spec §7 3.5, `grep -rn
+'pass\.requestNode(\|pass\.requestLeaf(\|layoutPass\.requestNode(' Tests`,
+doc lines dropped) returns 14 lines: the seven Dep fixtures' (`AXNodeTests`,
+`TombstoneTests`, `ListTests` ×2, `MeasurePerformanceTests`,
+`LayoutAuthorityTests` ×2 for `CustomNodeElement`/`CustomLeafElement`, ×5 for
+`DeprecatedRegistrarRow`) and **two lines of guard 3.2's fixture string**, which
+the spec's "returns only Dep fixtures' lines" did not foresee: the guard's
+subject is a caller of the pair, spelled in a string the suite never compiles.
+
+Outside lane 3's files, doc comments only: the three recorded trap quotes in
+`AXNodeTests`, `TombstoneTests` and `MeasurePerformanceTests` (each quotes a
+2026-09 stderr ending `(plan task 7, stage 6a)`) gain a sentence that the
+message names stage 9 since `LR-CW` — their assertions read the part before the
+stage, so they did not redden — and `LoweringCorpusTests`' "`CountingLeaf` …
+reports `customElement.requestLeaf` until stage 6a" is corrected to
+`requestNode` (it never called `requestLeaf`).
+
+### 10.2 Red-first (`ab7d76f`)
+
+`Test run with 1642 tests in 3 suites failed after 79.564 seconds with 3
+issues`, exactly:
+
+- `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes`
+  (`LayoutAuthorityCompileGuards.swift:93`, the `#require` that the legacy
+  caller and the control disagree on `is deprecated`: both fixtures compiled,
+  `succeeded=true`, with empty messages);
+- `aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`
+  at `LayoutAuthorityTests.swift:317` and `:328` — the child aborted with
+  `MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestLeaf
+  has no proposal lowering (plan task 7, stage 6a); …` (and `requestNode`),
+  where the test reads `(plan task 7, stage 9)`.
+
+**The legacy half passed**, as its doc comment says it must, and the run
+confirmed the hand-derived literals before they were relied on: the leaf at
+(0, 0) 30×20 and the node at (30, 0) 40×10, equal to the internal-registrar
+oracle's.
+
+### 10.3 Suite, build, pixels
+
+- `e531260`, after `swift package clean`: `swift build --build-system native
+  --build-tests` 0 `error:`, the only `warning:` SwiftPM's deprecation notice;
+  **`Test run with 1642 tests in 3 suites passed after 80.846 seconds`**, one
+  summary line, the only `warning:` in the log SwiftPM's notice. `swift build
+  --build-tests` (default build system): `Build complete!`, 0 `error:`, **0
+  `warning:`**. **The gate holds with the deprecation in** — spec §6.1's last
+  row.
+- **The gate's red** (spec §7 3.5), a scratch over `e531260`: `ChainLeaf`'s
+  `pass.frame.requestNode(` put back to `pass.requestNode(` → exactly one
+  diagnostic, `ModifiedElementTests.swift:129:15: warning:
+  'requestNode(style:children:)' is deprecated: a custom element registers
+  through requestNativeLeaf(measure:) or a ProposalLayout; …`. Restored.
+- Guard 3.2's print on the green run: `legacy: succeeded=true` with both
+  `'requestLeaf(style:measure:)' is deprecated: …` and
+  `'requestNode(style:children:)' is deprecated: …`; `control: succeeded=true`,
+  no message. It ran in 0.45 s, a real `swiftc` (CLAUDE.md's tell).
+- Counts: **1642 tests** (1640 + 3.1 + 3.2), **97 goldens** (`git diff
+  --name-only b3c29b9 e531260 -- 'Tests/**/*.json'` empty), **78 guards**
+  (`LayoutAuthorityCompileGuards` 1 → 2; the per-file sum of CLAUDE.md's list is
+  76 in `Tests/MetalUITests` plus `UnitSafetyTests`' 2 in `Tests/MetalUICoreTests`).
+- **Twelve-image offscreen comparison** (`docs/probes/demo-pixels/compare.sh
+  <scratch> b3c29b9 e531260`): the controls at their recorded values (1048576,
+  1030498, 210027, 0, 1048576, chrome pair 0, distinct 544 / 216, indicator
+  rects 0), and **`differing=0` / `scene identical` in all twelve**.
+- Lock probe: `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` — **no
+  window capture** (spec §9 owes it only unlocked).
+
+### 10.4 Findings against the spec's §5 lane-3 rows
+
+1. **Two listed R tests lay out no lane-3 element**, as lane 2's §9.3 item 3
+   found for its rows: `anEmptyComponentContributesNoNodes` (listed under
+   `CounterLeaf`; renders `Row { Nothing() }` and `Row { EmptyGroup() }`) and
+   `contentIsMaterializedExactlyOncePerFrame` (listed under `Leaf`; renders a
+   `Box` over an empty component). Both untouched. Lane 3's R count is **12**,
+   not the spec's 14.
+2. **M3e reddens one test the spec did not name**:
+   `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`, whose custom-element
+   arms read the `customElement.requestNode` report under diagnostics. And it
+   reddens only 3.1's **node-first** arm: M3e (as the spec spells it) skips
+   `requestNode`'s report alone, so the leaf-first child still aborts at
+   `requestLeaf`'s.
+3. **M3g truncated as first taken, at a harness decision of this lane**:
+   `declaredSizeNativeLeaf`'s precondition fired at
+   `aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf`, a
+   `Mark(…).width(fraction: 1)` flipped to `.proposal` (`Precondition failed: a
+   stage 6a Dual fixture's proposal branch answers only pixel sizes; got
+   length(MetalUICore.Length.percent(1.0))`, 988 tests reported). Retaken with
+   the precondition softened to answer 0 in the scratch (§10.5); the truncation
+   is itself the measurement that the precondition is live. Practice: *a harness
+   decision is a mutation site*.
+4. **The file helpers' authority is required, not defaulted** (§10.1) — a
+   spelling the spec left open.
+
+### 10.5 Mutations
+
+| id | mutation (file, spelling as applied) | full-suite line | reddened — every test |
+|---|---|---|---|
+| **M3a** | `Passes.swift`, the `@available(*, deprecated, …)` line above `requestNode(style:children:)` deleted | `1642 … failed after 93.874 seconds with 1 issue`; build: 0 deprecation warnings | `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` (`LayoutAuthorityCompileGuards.swift:97`, `'requestNode(style:children:)' is deprecated`) |
+| **M3b** | the same above `requestLeaf(style:measure:)` | `1642 … failed after 79.821 seconds with 1 issue` | `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` (`:99`, `'requestLeaf(style:measure:)' is deprecated`) |
+| **M3c** | `Passes.swift`, the legacy `requestNode` forwarder `frame.requestNode(style: Style(), children: children)` | `1642 … failed after 78.456 seconds with 2 issues` | 3.1's legacy half alone (`LayoutAuthorityTests.swift:302`: leaf 30×**100**, stretched by a root that lost `alignItems`; `:304`: node (30, 0) **0×100**) |
+| **M3d** | the legacy `requestLeaf` forwarder `frame.requestLeaf(style: style) { _, _ in SizeD(width: 0, height: 0) }` | `1642 … failed after 84.010 seconds with 2 issues` | 3.1's legacy half alone (`:302`: leaf 0×0; `:304`: node at x **0**) |
+| **M3e** | the proposal branch of `requestNode` returns `frame.requestNode(style: style, children: children)` in place of `frame.unlowerable(…)` (the backstop then aborts with its site-less message) | `1642 … failed after 90.210 seconds with 7 issues` | 3.1's node-first arm (`:328`), `aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority` (`:160`), the four `aLegacySpelled…AbortsAProductionProposalFrame` (`AXNodeTests.swift:666`, `TombstoneTests.swift:189`, `ListTests.swift:954`, `MeasurePerformanceTests.swift:888`), and `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` (`:517`) — §10.4 item 2 |
+| **M3f** | `LayoutAuthority.swift`, `.customElement` → `"6a"` | `1642 … failed after 80.246 seconds with 2 issues` | 3.1's trap half alone (`:317`, `:328`) |
+| **M3h** | `declaredSizeNativeLeaf` answers 0×0, and `ComponentTests.CounterLeaf` 0×0 | `1642 … failed after 78.561 seconds with 5 issues` | **exactly the four CE rows**: `aNodeIDDoesNotSilentlyResolveAgainstAnotherFramesTree` (`ElementLayoutTests.swift:919`, the `!=` of the two frames' rects: both 0×0), `addingALayerAtRunTimeResetsTheWrappedElementsState` (`ModifiedElementTests.swift:567`, the three clicks miss a 0×0 leaf), `stateSurvivesFramesUnderALegacyModifierChain` (`ModifierCompositionProofTests.swift:749`, `taps` read 0), `aModifierChainRegistersAndPaintsOuterLayersFirst` (`:980` the padding-ring click ran nothing, `:983` the leaf click ran `outer`) |
+| **I0 control** | `git apply docs/probes/stage-6a-instrument-I0.patch` on `e531260`, nothing else | `1642 … failed after 79.216 seconds with 36 issues` | the 13 X tests of §7.3 **and 3.1** (its two trap arms, `:309`/`:317`, `:320`/`:328`) — spec §7's predicted control from lane 3's red-first commit on |
+| **M3g** | over I0, every `.legacy` lane 3 wrote in `5822f60` flipped to `.proposal` — **117** sites (`ElementLayoutTests` 14, `ComponentTests` 21, `FrameSizingTests` 61, `ModifiedElementTests` 11, `ModifierCompositionProofTests` 10), **plus** `declaredSizeNativeLeaf`'s precondition softened to answer 0 (§10.4 item 3; without it the run truncates) | `1642 … failed after 78.797 seconds with 168 issues` | against the control, **exactly the predicted 46** — the 17 CE+RP and 29 CSS P tests of §10.1, no more and no fewer; the 14 control reds all still red. 14 `SIXA-WOULD-TRAP:` lines (7 `modifierLayer.style`, 5 `modifierLayer.display.none`, 2 the backstop) |
+
+**No mutation of an R test's authority** (spec §7, §6): each way back traps,
+loudly, at a pinned site.
+
+### 10.6 Handed on
+
+- **To the Record phase**: CLAUDE.md's counts (1642 / 97 / 78;
+  `LayoutAuthorityCompileGuards` 2; `typecheckFile` helpers 37 → 38, one
+  `LayoutAuthority`→ two), and the sentence that the public
+  `requestNode`/`requestLeaf` are deprecated and trap naming stage 9; records
+  §03/§04/§05/README; the plan's 6a row; the parent spec's status.
+- **To 6b**: the 17 CE+RP pins of this lane (23 with lane 2's six), and the
+  twelve R tests now under `.proposal` — nothing moves for them when the
+  default flips.
+- **To 7b**: the 29 CSS pins of this lane (32 with lane 2's three).
+- **To 9**: the five Dual elements' legacy branches, `ChainLeaf`,
+  `BoxWithoutAnimated`, the seven Dep fixtures and 3.1's legacy half, with the
+  pair.
+
+## 11. Stage close
+
+| exit criterion (parent spec §4.1 row 6a) | reading |
+|---|---|
+| the public `LayoutPass.requestNode`/`requestLeaf` deprecated | `e531260`; guard 3.2 sees both attributes from a plain import |
+| every in-repo caller moved in the same change | 0 in `Sources/` at `b3c29b9`; the 67 test sites moved by lanes 1–3 (L 10, G 9, R, P, Dual), the rest Dep; §10.1's gate grep |
+| **0 `warning:`** with the deprecation in place | both build systems, after `swift package clean` (§10.3); one caller left behind → exactly one warning |
+| `aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne` | green; red-before (trap half) §10.2; M3c–M3f each redden it |
+| the flipped-default classification table recorded as the entry measurement | §4 (153 reds), attributed in §7.2 |
+| production behaviour unmoved | twelve `CN-R` images 0 differing at every lane; `Sources/` diff is two attributes, one `owningStage` literal, doc comments |
+| suite count | 1640 → **1642**, the two added tests; goldens 97 unmoved; guards 77 → 78 |

@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DD`** (stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB` and its lane 2 `LR-DC`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DE`** (stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC` and its lane 3 `LR-DD`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -6324,4 +6324,51 @@ tests only) with full unfiltered suites.
 consumers traps at `SA-G` under the legacy authority and truncates the run —
 loud, at the first consumer. Item 4: if `ProbeRowLayout` drifted from the
 legacy row's answer, M2a′ and M2b show the two CE rows read it.
+
+## LR-DD — stage 6a lane 3: the gate closed, five Dual leaves on one helper, required authorities, and four corrections to the lane-3 rows
+
+**Evidence.** Record §30 §10–§11, every item run on `e531260` (the gate
+commit) with full unfiltered suites; the callers moved at `5822f60`, 3.1 and 3.2
+red-first at `ab7d76f`.
+
+**The ruling.**
+
+1. **Lane 3 landed as designed** (`LR-CU` Dual, P, R; `LR-CV` Dep; `LR-CW`;
+   `LR-CX`). The five Dual elements (`Probe`, `ComponentTests.Leaf`, `Mark`,
+   `LayerLeaf`, `CountingLeaf`) branch on `pass.lowersToProposal` onto one
+   internal helper, `declaredSizeNativeLeaf` (`ElementLayoutTests`), or
+   `pass.frame.requestNode`; the 46 P tests pass `.legacy` with the §5 doc
+   line; 12 R tests pass `.proposal`; `CounterLeaf` is a native leaf,
+   `ChainLeaf` and `BoxWithoutAnimated` P-CSS, `CustomNodeElement` and
+   `CustomLeafElement` Dep. The attributes landed last. **1642 tests passed**,
+   0 `error:`, 0 `warning:` on both build systems after `swift package clean`,
+   goldens unmoved, 78 guards, the twelve `CN-R` images 0 differing; screen
+   locked, no capture. **Two listed R tests lay out no lane-3 element**
+   (`anEmptyComponentContributesNoNodes`, `contentIsMaterializedExactlyOncePerFrame`)
+   and are untouched, so lane 3's R count is 12, not 14 (lane 2's `LR-DC`
+   item 3 shape).
+2. **M3e's reddened set is wider on one side and narrower on another than the
+   spec said.** It also reddens `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
+   (which reads the `customElement.requestNode` report under diagnostics), and
+   of 3.1's trap half only the node-first arm: the mutation, as spelled, skips
+   `requestNode`'s report alone.
+3. **`declaredSizeNativeLeaf` traps on a non-pixel size, and that is a harness
+   decision with a measurement**: M3g as first taken truncated there (a
+   `width(fraction: 1)` `Mark` flipped to `.proposal`). The precondition stays —
+   an R test must not silently get a 0 where a fraction was declared — and M3g
+   is taken with it softened in the scratch; so taken, it reddens **exactly the
+   46** predicted pins against an I0 control of the 13 X tests plus 3.1.
+4. **The file helpers take the authority as a required argument** (`render`,
+   `widthInRow`, `nodeCount` in `FrameSizingTests`; `observe` in
+   `ModifiedElementTests` and `ModifierCompositionProofTests`), not a defaulted
+   one: stage 6b flips the eight named helper defaults (spec §10), and a
+   required argument cannot be swept. And the gate grep (spec §7 3.5) returns,
+   besides the seven Dep fixtures' lines, **guard 3.2's two fixture-string
+   lines** — the guard's subject is a caller of the pair.
+
+**What it costs if wrong.** Item 3: if the precondition were dropped, an R test
+declaring a fraction would lay out a 0-wide leaf and could pass on the wrong
+geometry; kept, a future flip of a P test to `.proposal` traps loudly at the
+first fraction. Item 4: a required argument makes every call site name its
+authority — 6b's re-spelling of a P-6b test edits the call, not a default.
 
