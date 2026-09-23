@@ -380,6 +380,39 @@ func contentBytes() throws -> [UInt8] {
     }
 }
 
+// MARK: - Font resolution (roadmap item 4)
+
+/// Each query and the face it resolves to on macOS, where the root package's
+/// `FontResolverOracleTests` checks the same answers against CoreText. Pinned
+/// here as literals: name decoding and case folding must not move off macOS.
+let expectedResolutions: [(query: String?, face: String)] = [
+    (nil, "NotoSans-Regular"), ("Noto Sans", "NotoSans-Regular"), ("NOTO SANS", "NotoSans-Regular"),
+    ("notosans-regular", "NotoSans-Regular"), ("Noto Sans Regular", "NotoSans-Regular"),
+    ("noto sans arabic regular", "NotoSansArabic-Regular"), ("NotoSansArabic-Regular", "NotoSansArabic-Regular"),
+    ("source sans 3", "SourceSans3-Regular"), ("SOURCESANS3-REGULAR", "SourceSans3-Regular"),
+    ("Source Sans 3 Regular", "NotoSans-Regular"), (" Noto Sans", "NotoSans-Regular"), ("Nöto Sans", "NotoSans-Regular"),
+    ("Source Sans", "NotoSans-Regular"), ("", "NotoSans-Regular"),
+]
+
+@Suite struct FontResolverDeterminismTests {
+    @Test func queriesResolveToTheFacesRecordedOnMacOS() throws {
+        let resolver = try PortableFontResolver(defaultFont: fontBytes(notoSans))
+        try resolver.register(fontBytes(sourceSans))
+        try resolver.register(fontBytes("NotoSansArabic-Regular.ttf"))
+        for (query, face) in expectedResolutions {
+            #expect(try resolver.resolve(family: query, size: 13).key.postScriptName == face, "\(String(describing: query))")
+        }
+    }
+
+    /// Distinguishes a query that matched Source Sans 3 from one that fell back.
+    @Test func aSubstitutionIsTheDefaultFace() throws {
+        let resolver = try PortableFontResolver(defaultFont: fontBytes(sourceSans))
+        try resolver.register(fontBytes(notoSans))
+        #expect(try resolver.resolve(family: "Noto  Sans", size: 13).key.postScriptName == "SourceSans3-Regular")
+        #expect(try resolver.resolve(family: "noto sans regular", size: 13).key.postScriptName == "NotoSans-Regular")
+    }
+}
+
 let recording = ProcessInfo.processInfo.environment["METALUI_PORTABLE_RECORD"] == "1"
 
 // MARK: - Tests
