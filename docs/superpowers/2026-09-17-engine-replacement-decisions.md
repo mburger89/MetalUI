@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CH`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CP`** (stage 5's design took `LR-CH`…`LR-CO`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -5395,3 +5395,274 @@ always cold, always `firstIndex == 0`, and the census pins the placement formula
 only at its origin. The windowing itself is pinned by `ListLoweringTests` and
 `ListTests` (`LR-BY`, `LR-BW`), which is where it belongs; recorded so a later
 reader does not treat the census's 2 000 rows as a windowing test.
+
+## LR-CH — `Deferred` becomes a presentation root only when its content is `.position(.absolute)`; an in-flow `Deferred` stays layout-transparent
+
+**Stage 5 design** (spec `specs/2026-09-23-engine-stage-5-design.md`, record §28).
+
+**The question.** §4.1 row 5 asks for "`Deferred` as a presentation root laid out
+against the window". Read literally, every `Deferred` would leave its parent's
+flow and be laid out against the window. Under the legacy authority `Deferred` has
+**no layout meaning**: `requestLayout` returns its content's node, so the content
+is an ordinary flow member, and only prepaint and paint change (layer 1, whole
+surface, zero translation; `AP-H`, `AP-I`) plus the layout-phase scroll-context
+reset. What takes a box out of flow and places it against the window is
+`.position(.absolute)` with no positioned ancestor (`AP-C`).
+
+**Evidence.** (1) The four element-level `DeferredTests` trees, all in-flow,
+already lower with **no diagnostic** and agree on every axis the tests assert
+(scratch S6, record §28 §2.2); the only disagreements are stage 3's viewport
+heights (`LR-BC`). (2) Overlay-presentation P4/P5: a presented `.sheet`/`.popover`
+is laid out 0 times and drawn nowhere in the presenter's tree — it is outside the
+presenter's layout. (3) Revision 2's Q4/Q4c: an overlay is proposed its host's
+size (100×100 at the root, 20×20 on a 20×20 view), and Q6/Q6c: it adds nothing to
+its host's size. So SwiftUI's "laid out against the window, outside the
+declaring view's layout" is a **window-root overlay**, not an overlay at the
+declaration site. (4) P1/P2/P3: an overlay is clipped by an ancestor and not
+hoisted over a later sibling; `.zIndex` hoists within one `ZStack` only — SwiftUI
+has no in-flow portal at all.
+
+**The ruling.**
+
+- **A `Deferred` whose one content node records a `LoweredItem` with
+  `declared.position == .absolute` is a presentation root** under the proposal
+  authority: the content is laid out in its own native run against the window
+  (`LR-CI`, `LR-CM`) and the `Deferred` hands its parent a placeholder every
+  lowered container drops (`LR-CK`).
+- **Every other `Deferred` lowers exactly as it does today** — layout-transparent,
+  its content a flow member — on both authorities. It needs no SwiftUI spelling,
+  because the answer is the legacy engine's and there is none to diverge from.
+- **The paint and prepaint halves and the scroll-context reset are unchanged and
+  authority-independent.**
+
+**Alternatives rejected.** (a) *Every `Deferred` a presentation* — changes the
+answer of every in-flow portal (a tooltip declared in a row would stop taking
+its row slot) with nothing in SwiftUI to say which answer is right, and the four
+exit trees would all move; it would be a semantics change dressed as a lowering.
+(b) *An overlay at the declaration site* — Q4c: proposed the declaring view's
+size, not the window's, so a scrim declared in a 420pt list could never cover a
+920pt window. (c) *Lower `.absolute` everywhere against the window* — possible
+with the same mechanism, but it would carry divergence 11 (laid out against the
+window, still clipped and scrolled by an ancestor) into the post-6b framework as
+a feature; `LR-CK` removes that spelling instead.
+
+**What it costs if wrong.** If a later design wants every `Deferred` out of flow,
+the cost is a one-line predicate in `Deferred.requestLayout` plus the in-flow
+tests' literals, and the mechanism below is unchanged. If the pair is the wrong
+trigger (a presentation spelled some other way), the reports keep the tree loud
+rather than wrong.
+
+## LR-CI — a presentation's placement is padding inside a window-sized frame, with a greedy item frame on each stretched axis
+
+**Evidence.** Revision 2's group Q, each arm with a control reading just inside
+and just outside its predicted box: Q1 (`.padding(top 5, leading 5)` inside
+`.frame(maxWidth: ∞, maxHeight: ∞, alignment: .topLeading)` → (5, 5)), Q1c (the
+bottom-trailing mirror → (63, 71)), Q2 (a greedy frame inside four-edge padding
+fills the gap), Q5c (`.topLeading` puts content at the origin). The legacy
+answers to reproduce, measured (record §28 §2.4): (5, 5); (163, 71); stretched
+between insets; all-auto at (0, 0) ignoring an in-flow sibling; 25 %/50 % at
+(50, 50) on a 200×100 window; a declared 40 with `minSize` 50 → 50.
+
+**The ruling.** Per axis, **structure from the declared style, lengths from the
+animated one** (`LR-AS`; `inset` animates): an `auto` size with both insets →
+item frame W greedy on that axis (min 0, max ∞), aliased as the element's rect
+(`LR-AB` item 3), padding on both edges; one inset → padding on that edge and the
+window frame aligned to it; neither → aligned leading at the window's origin
+(divergence 9, the legacy answer); a declared size → the element's own lowering
+answers it (min/max folded, `AP-E`), the leading inset wins when both are given
+(`AP-D`'s over-constrained rule). Registered innermost first: the element → W →
+`requestNativePadding` → `requestNativeFrame(width: window, height: window,
+alignment:)`. Percentages resolve per axis against `Frame.contentSize` (`AP-D`);
+rem × `rootFontSize`.
+
+**Why padding and not a custom `ProposalLayout` reproducing `placeAbsolute`.**
+Padding plus a filling frame is SwiftUI's idiomatic spelling (Q1–Q2) and is
+already pinned kernel behaviour; a custom layout would reproduce the legacy
+engine's measurement quirk (`LR-CJ`) exactly, but it would be a private
+re-implementation of CSS's absolute algorithm living on after stage 9.
+
+**What it costs if wrong.** A misplaced presentation is loud in every
+differential arm of test 1.1 (non-square on purpose: a width/height basis swap
+reads y 100 against 50 when `top` takes the width) and in the demo census.
+
+## LR-CJ — two proposal-only answers differ from the legacy engine on purpose, and min/max on an absolute box's auto axis reports
+
+**Evidence.** Measured (record §28 §2.4): an auto-width `Text` with `left` 0, 50
+or 150 in a 200×200 window is **196×32 in all three** — the legacy engine
+measures an absolute box against the containing block's full width
+(`placeAbsolute` passes `available: cb.size`), so at left 150 it overflows the
+window by 146. Q3: SwiftUI's leading padding proposes 50 of 100. A box stretched
+between insets leaving 10×10 with padding 10 is **20×20** in the legacy engine
+(`BM-4`). `minSize`/`maxSize` on an `auto` axis are **ignored** by the legacy
+engine, stretched or measured (four arms); only a declared axis is clamped.
+
+**The ruling.**
+
+1. **Measured content on an axis with one inset is proposed the window minus the
+   inset** (Q3) — a text wraps there, a greedy lowered container fills there.
+   Deliberate, proposal-authority only, pinned by name
+   (`anAbsoluteTextWrapsAtTheWindowMinusItsInsetWhereTheLegacyEngineWrapsAtTheWindow`).
+2. **A stretched axis keeps the inset box and lets the padding overflow**, W's
+   minimum staying 0 — `LR-AH`'s answer for a declared size below its padding and
+   `LR-AW`'s for a stretched item, applied to the third place the same question
+   arises. Pinned by name
+   (`anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBoxWhereTheLegacyEngineFloorsIt`).
+3. **`minSize`/`maxSize` on an absolute box's `auto` axis reports**
+   `<site>.minSize.absolute` / `<site>.maxSize.absolute`, owner **stage 8**. The
+   legacy answer (ignore) is an `AP-E` gap that SwiftUI (a frame honours its
+   minimum) and CSS both disagree with; lowering it to "ignore" would carry the
+   gap past stage 9, and lowering it to "clamp" would be a third deliberate change
+   nobody needs yet — the demo declares neither.
+
+Both deliberate answers are **unnumbered**, per record §04's 2026-09-21
+precedent for proposal-only stage-2 answers; the Docs phase decides.
+
+**What it costs if wrong.** (1) and (2) each flip by one line (propose the window
+instead of padding; W's minimum = the padding sum) with their pins' literals.
+(3) traps a production tree that uses the combination after 6b until stage 8 —
+loud, and fixable by declaring the size.
+
+## LR-CK — `.absolute`'s `position` and `inset` are reported by the consumer, the placeholder is dropped by every lowered container, and an absolute box outside a `Deferred` is removed
+
+**The ruling.**
+
+- **Moved to the consumer, names unchanged.** `legacyLeafDiagnostics` reports
+  `position` only for `.relative` and `inset` only when the position is not
+  `.absolute`. For an `.absolute` element, `planLegacyItems` appends `position`
+  and (any inset given) `inset` at the **child's** site after its other item
+  fields; `reportUnconsumedLoweredItems` appends `position.unconsumed` and
+  `inset.unconsumed` (the root included: the legacy root ignores its insets,
+  measured (0, 0), so a root's absolute is not the legacy answer either). A
+  `Deferred` consumes the record and lowers it (`LR-CI`). Every existing pin that
+  names `position`/`inset` uses `.relative` or a static inset
+  (`LoweringLeafTests`, `LayoutAuthorityTests`, `LoweringContainerTests`) and is
+  unchanged.
+- **An absolute box outside a `Deferred` is removed from the proposal
+  authority**: it reports as above and its trap names **stage 10** — the stage
+  that deletes `Style.position`/`inset` — where it named stage 2.
+  `owningStage`: `position…`/`inset…` → "10"; `….absolute` → "8"; site
+  `deferred` → "9".
+- **Dropped with the record**: `flexGrow`, `flexShrink`, `flexBasis`,
+  `alignSelf`, `margin` on the absolute content — the legacy engine ignores every
+  one (measured: (5, 5) 30×20 with all five set), so dropping them is its answer.
+- **The placeholder** (`LoweredItem.Kind.presentation`, declared `Style()`, site
+  `deferred`) is removed from `children` **at entry** — before `consume`, the
+  container rows' `childCount`, `planLegacyItems` and the single-child elision —
+  by `lowerLegacyNode`, `lowerLegacyLayer`'s frame arm and `loweredComponentFrame`
+  through one helper. The legacy engine filters an absolute child out of flow at
+  its two collection sites (`AP-B`); these three are the lowering's collection
+  sites. `ListRows` cannot receive one (its children are the `List`'s own row
+  `Box`es) and says so. **`loweredComponentFrame` over a placeholder member
+  reports `deferred.amended`**: the legacy amend overwrites the absolute box's own
+  size (divergence 48's mechanism), an answer not reproduced here.
+- **The placeholder is aliased to the content's element rect**
+  (`lowering.alias(content)`, resolved at alias time, so a stretched content
+  resolves to its W): the `Deferred`'s own `elementBounds` row is its content's,
+  as under the legacy authority, where the two share a node.
+
+**What it costs if wrong.** A consumer that misses the filter lays a 0×0 leaf out
+in flow — a gap or a spacing slot the legacy engine does not have. Test 1.4 has an
+arm per consumer and M1g/M1h remove the filter per site; a new consumer is the
+`LR-AQ` rule's "consumes or marks them" obligation with one more case.
+
+## LR-CL — the containing block is the window by construction, and every tree whose legacy containing block is not reports by name
+
+**Evidence.** Measured (record §28 §2.4): a bordered root puts a top/left-5 box at
+(9, 9) — the containing block is the root's **padding** box (`AP-C`); a root
+declaring width 100 in a 200 window puts a right/bottom-5 box at (85, 85); a
+`.relative` bordered ancestor at (0, 30) gives (58, 38); a `Deferred` root and an
+absolute root both ignore their insets, (0, 0).
+
+**The ruling.** A presentation's containing block is the window. The trees where
+the legacy engine's is not are each reported:
+
+- a **positioned ancestor** already reports at its own site (`.relative`:
+  `position`; `.absolute` outside a `Deferred`: `LR-CK`) — no new check;
+- **`deferred.containingBlock`**, raised in `computeRootLayout`, when the root's
+  **declared** style (its `LoweredItem`) has a non-zero border edge or a
+  non-`auto` size not resolving to the window's extent on that axis. The declared
+  style is the one the legacy engine would register; the root's native rect would
+  not do, because a hugging native root is not the window while the legacy auto
+  root is (`CS-I`). A root with no record — the harness's native root, sized to
+  the window — is the window;
+- **`deferred.nested`**, raised by a `Deferred` whose absolute content registered
+  another presentation, **unless** that content covers the window (four zero
+  insets, both sizes `auto`, no border — its padding box is then the window, and
+  the demo's card may hold a tooltip). Counting presentations before and after
+  the content's registration catches every depth: any presentation registered
+  inside has this one as a positioned ancestor;
+- **`deferred.root`** when the root node is a placeholder.
+
+Owner **stage 9**: once the legacy authority is deleted, a presentation's
+containing block is the window by definition and the four reports (with
+`deferred.amended`) are deleted with the answers they protect.
+
+**What it costs if wrong.** Between 6b and 9 a production tree with a bordered or
+non-window-sized root and a modal traps. The demo's root is auto on both axes
+and unbordered.
+
+## LR-CM — presentations are laid out in their own runs, before the root, in `computeRootLayout`
+
+**The ruling.** Under the proposal authority, `Frame.computeRootLayout(root:)`
+runs `LR-CL`'s root checks, then each presentation root in registration order
+through `tree.computeNativeLayout(root:proposal:in:)` with the window as proposal
+and bounds, then the root exactly as today. **Before the root** so
+`LayoutTree.lastNativeLayoutWork` still reads the root's own run (`SA-M`'s pins
+unchanged; test 1.7). Separate runs, so a presentation's depth counts from its
+own root (`SA-L`) and the root's placement (`CN-J`) is untouched. In
+`computeRootLayout` rather than `render` because `ListTests`' `renderWindowed`
+and the lowering tests call it directly.
+
+**Rejected:** one run over a synthetic overlay of root and presentations — it
+would need the root wrapped in a centring frame to keep `CN-J`, adding two native
+levels to every root (the depth guard) and moving every root's work literal.
+
+**What it costs if wrong.** A work-count test over a presentation reads the root
+only; none exists, and 1.7 pins the order.
+
+## LR-CN — divergences 9, 10 and 11, and a stage-4 claim refuted
+
+**The ruling.**
+
+- **9** (all-auto insets at the containing block's origin, not CSS's static
+  position) **survives, on both authorities**: inside a `Deferred` it lowers to
+  the legacy answer (`LR-CI`); a new arm of test 1.1 pins it under both.
+- **10** (`Deferred` escapes every clip regardless of containing block) is
+  **unchanged**, its pins now run under both authorities (lane 2), and its row
+  gains the SwiftUI evidence it lacked: it agrees with SwiftUI's presentation
+  (P4/P5) and disagrees with SwiftUI's overlay (P1/P2).
+- **11** (an absolute box inside a `ScrollView` is still clipped and scrolled)
+  becomes **legacy-only**: the spelling reports under the proposal authority
+  (`LR-CK`), so the proposal arm of its pin asserts the report; it retires with
+  the legacy authority at stage 9.
+- **Record §27 §8.2's claim that `aListInsideADeferredIgnoresTheEscapedScrollersOffset`
+  "aborts" under `.proposal` is refuted**: switched to `.proposal` it passes
+  (record §28 §2.3). It was never measured. Lane 2 parameterises it; the erratum
+  belongs in record §27 at the Record phase, with the old sentence quoted.
+
+**What it costs if wrong.** Row text only; each divergence's pin is named.
+
+## LR-CO — the exit arms are hosted, the pass-level tests are not parameterised, and the stage runs in three lanes
+
+**The ruling.**
+
+- **Hosted**, because a native root is centred at its answer (`CN-J`, divergence
+  4, stage 6b's): rendered as the frame's root the in-flow trees move to x 65/95
+  and 125 (scratch S5). Three `DeferredTests` render through
+  `LayoutDifferential.render` (`DifferentialRoot`); the two scroll tests host in a
+  sized column `Box` over one `StateTable`, because `DifferentialRoot`'s legacy
+  stack offers fit-content and the viewport would hug its 340pt content and never
+  scroll (S6). A legacy literal that moves under hosting is a finding, recorded
+  before it is changed.
+- **The five pass-level `DeferredTests` are not parameterised** — no element, no
+  layout and no authority in their call path — on `LR-BN`'s footing, and each
+  says so at its declaration.
+- **Three lanes, sequential** (CLAUDE.md's budget rule): the mechanism and its
+  differential tests; the two exit suites plus `ListTests`' scenario and the roll
+  call; the must-not-move set through real windows, pixels and the record.
+  `AuthorityCoverage.expected` 67 → 74 → 82.
+- **No red-before by aborting the process** (`LR-BX`): new proposal windows are
+  pre-flighted under diagnostics, traps are exit tests.
+
+**What it costs if wrong.** A hosting choice that moves a legacy literal is caught
+by the literal itself; a lane split that proves wrong costs one merged lane.
