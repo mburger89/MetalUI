@@ -29,6 +29,20 @@ public protocol TextSystem: AnyObject, Sendable {
     func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
                      origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph]
 
+    /// The x offset, in points from the line's start, of every grapheme
+    /// boundary of `string` laid out as ONE unwrapped line: `string.count + 1`
+    /// values, the first 0, in logical order (ruling TI-E). A caret before
+    /// grapheme `i` sits at `offsets[i]`; the last value is the line's width,
+    /// `measure(string, font:, wrappingAt: nil).widestLine` for a string with
+    /// no hard break. CoreText's answers are the contract: a caret between a
+    /// kerned pair sits halfway through the kern, and one inside a ligature
+    /// at the face's ligature caret, or at an even split without one. An
+    /// empty string is `[0]`. Bidirectional carets are out of scope: for
+    /// right-to-left text the values are only specified to be `count + 1`
+    /// from 0 (the portable system sums logical advances; CoreText answers
+    /// its line's own offsets).
+    func caretOffsets(_ string: String, font: FontKey) -> [Double]
+
     /// The coverage for `key` — a key this system placed.
     func rasterize(_ key: GlyphKey) -> GlyphImage
 
