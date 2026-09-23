@@ -313,7 +313,10 @@ where Data.Element: Identifiable {
         self.style = style
 
         self.box = Box(style: style, decoration: decoration,
-                       content: ListRows(rows: [], spacerStyle: Style()))
+                       content: ListRows(rows: [], spacerStyle: Style(),
+                                         rowHeight: Double(rowHeight.value),
+                                         logicalCount: data.count, firstIndex: 0,
+                                         listStyle: style))
     }
 
     /// The half-open range of `data`'s indices to build this frame: the rows
@@ -376,17 +379,14 @@ where Data.Element: Identifiable {
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Layout) {
-        // The site's own authority check, FIRST — before any row is built (plan
-        // task 7, ruling LR-C, critic round 1 finding 2). A `List` registers no
-        // node of its own, so without this its only report would be the `Box`
-        // below, and once `Box` lowers an unwindowed `List` would lay out through
-        // it silently. The windowed proposal `List` is stage 4's. Under
-        // diagnostics it then lays out a ZERO-row `Box` (the spacer and the
-        // container), whose own reports are additional, never instead.
-        let lowersToProposal = pass.lowersToProposal
-        if lowersToProposal {
-            pass.frame.noteUnlowerable(UnlowerableField(site: .list, field: "noLowering"))
-        }
+        // **There is no site check here since plan task 7's stage 4** (`LR-BQ`).
+        // It read `noteUnlowerable(.list, "noLowering")` before any row was
+        // built, because a `List` registers no node of its own and would
+        // otherwise have lowered silently through the `Box` below. `ListRows`
+        // now registers a `WindowedRowsLayout` under the proposal authority —
+        // see that type's doc — and this type's own code is authority-blind
+        // again: the same window, the same row ids, the same handlers and the
+        // same accessibility records on both paths.
 
         // Every row is wrapped in its own `Box` so its height can be pinned
         // independently of `Row`'s own type — `Row` need not be `StyledElement`
@@ -399,7 +399,7 @@ where Data.Element: Identifiable {
         rowStyle.flexShrink = 0
 
         let count = data.count
-        let window = lowersToProposal ? 0..<0 : visibleRange(count: count, pass: pass)
+        let window = visibleRange(count: count, pass: pass)
         // The same test `visibleRange`'s guard makes, kept rather than inferred
         // from `window`: a short list's real window can equal `0..<count`.
         let context = pass.scrollContext
@@ -440,16 +440,21 @@ where Data.Element: Identifiable {
         // **The style is built here and the NODE is registered by `ListRows`**
         // (`LR-BS`, stage 4 lane 1). It was a `Box` element until then, which
         // cost one `StateTable` entry per `List` per frame — `animated` mints a
-        // `$anim` slot on first sight of every registering element — and which
-        // the proposal authority will not have at all, since the windowed
-        // layout places row *i* at its absolute index directly.
+        // `$anim` slot on first sight of every registering element. **Under the
+        // proposal authority there is no spacer at all** (`LR-BQ`, lane 2):
+        // `WindowedRowsLayout` places row *i* at `(firstIndex + i) × rowHeight`
+        // directly, so the style below is built and then ignored on that path.
         var spacerStyle = Style()
         let spacerHeight = Pixels(rowHeight.value * Float(window.lowerBound))
         spacerStyle.size.height = .length(.pixels(spacerHeight))
         spacerStyle.flexShrink = 0
 
         var built = Box(style: style, decoration: decoration,
-                        content: ListRows(rows: rows, spacerStyle: spacerStyle))
+                        content: ListRows(rows: rows, spacerStyle: spacerStyle,
+                                          rowHeight: Double(rowHeight.value),
+                                          logicalCount: count,
+                                          firstIndex: window.lowerBound,
+                                          listStyle: style))
         // Carried onto the freshly-built box so `Box.prepaint` registers the
         // click target — this type has no `prepaint` of its own to do it in.
         // `.axNode` rides the same trip: design spec §9's virtualization

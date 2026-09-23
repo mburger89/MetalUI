@@ -166,52 +166,42 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
             "aborted, but not at the custom element's requestLeaf check:\n\(leafErr)")
 }
 
-/// **1.4** (exit test). `List` traps by its OWN site, not by what it would
-/// reach next (ruling LR-C, critic round 1 findings 1 and 2): it names `list`,
-/// not the `Box` it builds. **The component-amend half was the second trap and
-/// is now its inverse** (stage 3, lane 4): the amend lowers, so the arm
-/// requires a **production** proposal frame over a modified component to
-/// complete — `EXIT_SUCCESS` and an empty stderr — where before lane 4 it
-/// aborted on `component.amend`. The test keeps its name because the name names
-/// both halves.
+/// **1.4** (exit test). A modified `Component` in a **production** proposal
+/// frame completes — `EXIT_SUCCESS` and an empty stderr — where before stage
+/// 3's lane 4 it aborted on `component.amend` (`LR-BO`). Both ops, in both
+/// orders, in one frame.
 ///
-/// **Why the agreement half is still a child process.** `Frame(…,
-/// layoutAuthority: .proposal)` without `reportsUnlowerableFields` traps rather
-/// than reports, so a regression here ends the whole run with no summary line
-/// (spec §6). In a child it reddens this test by name instead.
+/// **Why it is a child process.** `Frame(…, layoutAuthority: .proposal)`
+/// without `reportsUnlowerableFields` traps rather than reports, so a
+/// regression here ends the whole run with no summary line (spec §6). In a
+/// child it reddens this test by name instead.
 ///
-/// Mutations that must redden it: **M1d**, `List`'s check removed (the message
-/// names `box`); **M4a′**, either op's lowered branch put back to
-/// `noteUnlowerable` (the child aborts again).
+/// Mutation that must redden it: **M4a′**, either op's lowered branch put back
+/// to `noteUnlowerable` (the child aborts again).
 ///
-/// **Stage 3, lane 1 added a third arm, and lane 2 retired it** (spec §6 lanes
-/// 1 and 2, `LR-BI`). That arm ran a proposal-authority **`Window`** over a
-/// plain `ScrollView` and required it to abort, because `Window` never sets
-/// `reportsUnlowerableFields` — `Window.swift`'s `Frame(...)` call passes
-/// `layoutAuthority` and `recordsElementBounds` and nothing else — so
-/// `noteUnlowerable` takes its `preconditionFailure` branch and the process ends
-/// with no summary line and no list of what failed. That is why lane 3 cannot
-/// take a red-before by running the scroll suites under the proposal authority,
-/// and it was lane 3's red-before instead. Lane 2's lowering (`LR-BB`) makes a
-/// `ScrollView` build cleanly under this authority, so the arm is gone and its
-/// replacement is `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`
-/// in `LoweringScrollTests.swift`. **The test's name names the two arms that
-/// survive.**
-@Test func aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority() async {
-    let list = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var root = ScrollView {
-                List(probeItems(3), rowHeight: Pixels(10)) { _ in ProbeLeaf(width: 10, height: 10) }
-            }
-            Frame(contentSize: Size(width: Pixels(50), height: Pixels(50)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
-        }
-    }
-    let listErr = String(decoding: list?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(listErr.contains("list.noLowering has no proposal lowering"),
-            "aborted, but not at List's own check:\n\(listErr)")
-    #expect(!listErr.contains("box."), "a List must trap before it builds its Box:\n\(listErr)")
-
+/// **This test has lost two arms to two stages, and its name now names the one
+/// that survives.**
+///
+/// - **Stage 3, lane 1 added a `ScrollView` arm and lane 2 retired it** (spec
+///   §6 lanes 1 and 2, `LR-BI`). That arm ran a proposal-authority **`Window`**
+///   over a plain `ScrollView` and required it to abort, because `Window` never
+///   sets `reportsUnlowerableFields` — `Window.swift`'s `Frame(...)` call
+///   passes `layoutAuthority` and `recordsElementBounds` and nothing else — so
+///   `noteUnlowerable` takes its `preconditionFailure` branch and the process
+///   ends with no summary line and no list of what failed. That is why lane 3
+///   could not take a red-before by running the scroll suites under the
+///   proposal authority.
+/// - **Stage 4, lane 2 retired the `List` arm the same way** (§4.2(d),
+///   `LR-BQ`). It required `ScrollView { List }` to abort with
+///   `list.noLowering has no proposal lowering` and **not** to mention `box.`,
+///   which pinned that the site's own check ran before the `Box` it builds.
+///   `List` lowers now, so that abort cannot happen; its replacement is
+///   `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape` and
+///   `theListSiteReportsNothingAndItsRowsItemFieldsAreLowered` in
+///   `ListLoweringTests.swift`. The general claim the arm carried — that a site
+///   that skips its own check is caught rather than lowering silently — is
+///   `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop`'s, below.
+@Test func aComponentAmendDoesNotTrapUnderTheProposalAuthority() async {
     let amend = await #expect(processExitsWith: .success,
                               observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
@@ -322,13 +312,24 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
             Box().width(px(10)).height(px(10)).flexGrow(2)
         }
     }, [field(.scrollView, "flexGrow.weights")]))
-    // `list` first, and nothing else: the zero-row `Box` it lays out under
-    // diagnostics lowers (the container since stage 1's lane 3; its spacer's
-    // `flexShrink: 0` since stage 2's lane 2 — a declared 0 height, already rigid,
-    // so no `fixedSize`), and no row `Box` is built.
+    // **An ABSENCE arm since stage 4's lane 2** (§4.2(d), `LR-BV` as amended),
+    // the third of the three this test has — the two `Component` arms are the
+    // others. A `List` lowers now, and `LoweringSite.list`'s one remaining
+    // entry, `flexGrow.weights` at `parentSite:`, is **unreachable from outside
+    // `List`**: `planLegacyItems`' weights check fires only at two or more
+    // distinct non-zero `flexGrow` factors among the records it is handed, every
+    // record `ListRows` hands it is a row `Box` carrying `rowStyle` (built in
+    // `List.requestLayout`, which sets no `flexGrow`), and a caller's closure
+    // builds the row's CONTENT one level below, whose records are planned at the
+    // row `Box`'s own site. So the site survives for
+    // `UnlowerableField.owningStage`'s trap message and for whatever field a
+    // later stage puts on a row, and this arm is what would notice a regression
+    // that made `List` report again. The rows here are real: `ProbeLeaf`
+    // registers a native leaf directly, which records no `LoweredItem` and so
+    // reports nothing of its own either.
     arms.append(("List", diagnostics {
         List(probeItems(3), rowHeight: px(10)) { _ in ProbeLeaf(width: 10, height: 10) }
-    }, [field(.list, "noLowering")]))
+    }, []))
     let amendChild = await #expect(processExitsWith: .success,
                                    observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
