@@ -50,7 +50,7 @@ func fallbackDifferences() throws -> (cases: Int, fallbackGlyphs: Int, differenc
     var differences: [String] = []
     for size in [11.0, 13, 17, 26] {
         let apple = try appleCascade(size: size), portable = try portableCascade(size: size)
-        for width in [nil] + stride(from: 20.0, through: 300, by: 7).map { Optional($0) } {
+        for width in [nil] + stride(from: 20.0, through: 300, by: 7).map({ Optional($0) }) {
             for text in fallbackStrings {
                 cases += 1
                 let a = Shaper.shape(text, font: apple, wrappingAt: width)
