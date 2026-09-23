@@ -24,6 +24,16 @@ Spec: `docs/superpowers/specs/2026-09-23-render-seam-design.md`, rulings
 - `Backends/SDL`: 21 + 3 locally (SDL Metal); `PortableReplay` over freshly
   recorded fixtures PASS, frame 4 0 px.
 
+## Found in CI
+
+The first Linux run of `MetalUISDLTests` (llvmpipe) **crashed** — a worker
+thread jumping to an unmapped address, two devices into the run. The
+replay bridge paired each device with `SDL_Init`/`SDL_Quit`, and SDL3's
+`SDL_Quit` tears down every subsystem whoever else holds it: destroying one
+device unloaded the Vulkan loader under the next device's Mesa threads.
+macOS (Metal) and Windows (D3D12) tolerated it. Each device now holds one
+reference on the video subsystem (`SDL_InitSubSystem`/`SDL_QuitSubSystem`).
+
 ## Mutations
 
 | # | Mutant | Reddens |
