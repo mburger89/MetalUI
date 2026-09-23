@@ -33,6 +33,16 @@
 // `alpha` is 0, and no scroll indicator is painted in any of them — scan for a
 // 3pt cross-axis rect and the count is zero everywhere.
 //
+// **Stage 6b (record §39, `LR-DJ`): the ten demo and preview images are taken
+// at the window's DEFAULT authority** — `capture` passes no `layoutAuthority`
+// unless an arm names one, so `makeFakeWindow` leaves `Window`'s own default in
+// place. Before stage 6b that default is `.legacy` and the images are exactly
+// what they were (measured at `aef88ce`: this harness against its predecessor,
+// 0 differing and the scene dump identical in all twelve); from stage 6b on it is `.proposal`, so a comparison across
+// the switch compares production with production. Only the chrome pair names
+// its authority, as before. A harness that pinned the demo to `.legacy` would
+// have read 0 across the root switch and proved nothing.
+//
 // **It writes files and asserts nothing.** The comparison is `compare.sh`'s.
 // Set `METALUI_PIXEL_OUT` to a directory; without it the test skips, so a tree
 // that accidentally keeps this file still runs its suite unchanged.
@@ -71,13 +81,13 @@ private func dumpScene(_ scene: Scene, to path: String) throws {
 @MainActor
 private func capture(_ name: String, out: String, side: Int, frames: Int,
                      appearance: Appearance,
-                     authority: LayoutAuthority = .legacy,
+                     authority: LayoutAuthority? = nil,
                      content: @escaping @MainActor () -> some Element) throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device")
-    let (window, platform) = try makeFakeWindow(device: device, size: side,
-                                                appearance: appearance,
-                                                layoutAuthority: authority,
-                                                content: content)
+    let (window, platform) = try authority.map {
+        try makeFakeWindow(device: device, size: side, appearance: appearance,
+                           layoutAuthority: $0, content: content)
+    } ?? makeFakeWindow(device: device, size: side, appearance: appearance, content: content)
     for _ in 0..<frames {
         window.setNeedsRedraw()
         window.drawFrameIfNeeded()
