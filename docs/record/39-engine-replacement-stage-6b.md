@@ -557,3 +557,180 @@ its recorded value (1048576, 1030498, 210027, 0, 1048576, 0, 544, 216, 0), and
   them. The two `LR-DQ` item-2 pins and the 18 other pins carry their owners.
 - The Record phase: `LR-DQ` item 1's 12 (not 14) wherever the spec or plan carries
   "14 X".
+
+## 12. Lane 3 — the switch, the exit test, the demo, pixels (`LR-DF`, `LR-DJ`, `LR-DK` item 2, `LR-DL`, `LR-DR`)
+
+Commits: the flip `58e4111`; red-first tests `27c9f52`; implementation `3d4f5d8`;
+pixel harness `5f0b4eb`; then this record, the spec note and `LR-DR`. Every
+mutation below was applied to a clean tree at `5f0b4eb`, restored with `git
+checkout -- Sources Tests`, `git status --short` empty after each; each a full
+unfiltered `swift test --build-system native --no-parallel`.
+
+### 12.1 The flip (`58e4111`)
+
+`Frame.defaultLayoutAuthority: LayoutAuthority = .proposal` (internal), read by
+`Frame.init`'s default and `Window.layoutAuthority`'s initial value;
+`makeFakeWindow`'s `layoutAuthority` is `LayoutAuthority? = nil` (nil leaves the
+window's default); the twelve file-local helper defaults read
+`Frame.defaultLayoutAuthority`. `grep -rn "LayoutAuthority = \.legacy" Tests Sources`
+reads empty afterwards. Full run: **`Test run with 1698 tests in 3 suites failed
+after 87.925 seconds with 3 issues`** — exactly the two D tests:
+
+- `aFrameAndAWindowDefaultToTheLegacyAuthority` — `LayoutAuthorityTests.swift:114`
+  `frame.layoutAuthority == .legacy`, `:119` `window.layoutAuthority == .legacy`;
+- `aWindowBuildsEveryFrameUnderItsLayoutAuthority` — `:141` `log.values == [false, true, false]`.
+
+Rewritten in `27c9f52`: the first renamed `aFrameAndAWindowDefaultToTheProposalAuthority`
+(`Frame.defaultLayoutAuthority == .proposal`, a bare `Frame` and a default
+`makeFakeWindow` window read it, diagnostics and bounds off); the second writes
+`.legacy` then `.proposal` and reads `[true, false, true]`.
+
+### 12.2 Red first (`27c9f52`)
+
+`RootSwitchTests.swift` (3.1–3.3), with `Frame.LegacyRootLayoutCounter` /
+`Frame.$legacyRootLayoutCounter` and `Window.lastNativeLayoutDeepestLevel`
+declared but never bumped or captured. Filtered `RootSwitchTests|LayoutAuthorityTests`,
+15 tests, 22 issues:
+
+- `noProductionFrameReachesTheLegacyEngine` — `RootSwitchTests.swift:143`
+  `control.count == frames`, six times (each `.legacy` demo arm read 0);
+- `everyProductionRootsDeepestNativeLevelIsMeasured` — `:205` `deepest == expected[root.name]`
+  and `:206` `deepest > 0 && deepest < NativeLayoutRun.maxDepth`, on all eight roots;
+- `aHuggingLegacyRootIsCentredInAProductionWindow` green on arrival (spec §8:
+  its red is M2a, §12.5); the two rewritten D tests green.
+
+### 12.3 Implementation (`3d4f5d8`)
+
+- `computeRootLayout`'s legacy branch bumps `Frame.legacyRootLayoutCounter` (a
+  `@TaskLocal`, `nil` in production). No lock: main-actor only (`LR-DR` item 4).
+- `Window.lastNativeLayoutDeepestLevel` copies the frame tree's value after each
+  frame; `LayoutTree.lastNativeLayoutDeepestLevel` became `package private(set)`
+  for it (`LR-DR` item 3). A new stored property on the public `Window`, so the
+  gate was taken after `swift package clean` (§12.7).
+- **The demo re-spelling (`LR-DJ`)**: the list row's inner `Box` gains
+  `.height(Pixels(28))` after `.flexGrow(1)` and before `.padding` (arm H's
+  position); the `rowHeight` comment above it, which said declaring the height
+  would be a redundant literal, is rewritten to say why it is now declared.
+- **3.3 measured**: before the re-spelling the demo read 29 in all six
+  roots (1024² and 920×560, modal off/on, animation on); after it, **30** in all
+  six. Preview 10. The `List` root (`ScrollView { List(200 rows) }`, the demo's
+  row spelling) **16**; with its `.height(Pixels(28))` line removed, 15 (the
+  design's 15, whose fixture had no declared height).
+- `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` re-derived. Red
+  before (the re-spelling alone, full run 1701 tests, 2000 issues, this test only):
+  `LoweringCorpusTests.swift:799` `innerGot?.1 == bounds(252, py, 396, 16)` and
+  `:811` `textGot.1 == bounds(252, py, …, 16)`, 1 000 issues each (500 rows × two
+  modal states). Now the inner `Box` is 396×28 and its `Text` at `py + 6` on the
+  lowered side; part 2b's doc says X9 no longer reaches the rows. No other
+  `demoContent()` reader reddened: `LoweringItemTests`' paragraph copy and
+  `PresentationWindowTests` stayed green.
+- Full run: **`Test run with 1701 tests in 3 suites passed after 90.692 seconds`**.
+
+### 12.4 Mutations M3a–M3d
+
+| id | mutation | reddened |
+|---|---|---|
+| M3a | `Frame.defaultLayoutAuthority` back to `.legacy` | 5 tests, 34 issues: `aFrameAndAWindowDefaultToTheProposalAuthority` (3), `aWindowBuildsEveryFrameUnderItsLayoutAuthority` (1), `noProductionFrameReachesTheLegacyEngine` (15 — the eight production arms' counts and authority), `aHuggingLegacyRootIsCentredInAProductionWindow` (1, the default arm), `everyProductionRootsDeepestNativeLevelIsMeasured` (14 — seven roots read 0; the preview reads 10 under either authority). Nothing else: lane 2 made every other test independent of the default |
+| M3b | the counter bump removed | **only** `noProductionFrameReachesTheLegacyEngine` (6 — the six `.legacy` control arms) |
+| M3c | `Window.lastNativeLayoutDeepestLevel` not captured | **only** `everyProductionRootsDeepestNativeLevelIsMeasured` (16) |
+| M3d | `paddedAndSized` wraps every lowered node in one more zero native padding | 10 tests, 29 issues: `everyProductionRootsDeepestNativeLevelIsMeasured` (7 — the six demo roots and the `List`; the native preview is untouched), `aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork` (3), `aLoweredChainAtTheNativeDepthLimitLaysOut` (2), `aLoweredItemChainWithFourWrappersPerLevelAtTheNativeDepthLimitLaysOut` (2), `aLoweredItemChainWithThreeWrappersPerLevelAtTheNativeDepthLimitLaysOut` (2), `aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork` (3), `anEnvironmentScopeContributesNoLayoutNodeAndConsumesNoIndex` (1), `aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork` (3), `paintWrapsAtTheWidthLayoutMeasuredAtNotTheRoundedBox` (2), `theCentringDefaultOfRowAndColumnStretchesNothing` (2) |
+
+### 12.5 M2a at the new default (3.2's red)
+
+`computeRootLayout` runs the native root once centred in the window, then again
+centred in a container of its own answer's size at the origin (top-leading, C3).
+**75 tests, 231 issues**, including `aHuggingLegacyRootIsCentredInAProductionWindow`
+(1 — the production arm; its `.legacy` arm never reaches the native branch):
+`aBackgroundsContentKeepsItsStateWhenThePrimaryChangesShape` (1), `aBoxWithADeclaredAXNodeEmitsItAtItsOwnResolvedBounds` (1), `aClickInsideTheBoundsRunsTheHandler` (1), `aClickOutsideTheBoundsDoesNotRunTheHandler` (1), `aClickOverABackgroundAndItsPrimaryReachesThePrimary` (1), `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints` (1), `aContentShapeInsetShrinksTheHitRegionAndChangesNoLayout` (5), `aContentShapeMovesNeitherTheAccessibilityFrameNorTheFocusRegistration` (1), `aContentShapeWithoutAClickHandlerRegistersNothing` (1), `activeIsSetOnMouseDownAndHeldUntilMouseUp` (1), `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` (8), `aDefaultSpacerAndAGreedyFrameThroughTheElementAPI` (6), `aDispatchedClickDoesNotAlsoReachTheWindowsRawHandler` (4), `aFocusRingOutranksAHoverBorderAndABorder` (1), `aGridRootIsCentredAtItsAnswer` (2), `aHandlerRegisteredOnFrameNRunsForAnEventBeforeFrameNPlusOne` (2), `aHoverBackgroundNeverPaintsUnderAllowsHitTestingFalse` (1), `aHuggingLegacyRootIsCentredInAProductionWindow` (1), `aLabelWithHardBreaksMeasuresItsWidestLineAtMaxContent` (1), `aLegacyFramePlacesItsChildAtEachOfTheNineAlignments` (9), `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents` (1), `aNativeRootIsCentredAtItsAnswer` (7), `aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout` (3), `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor` (4), `aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire` (2), `aNestedHandlerWinsOverItsContainingStackToo` (2), `aNestedTextEmitsItsDeclaredAXNodeAtItsAbsoluteBounds` (1), `anIdealFrameHeightBecomesItsOuterHeightWhenTheAxisIsUnspecified` (1), `anIdealFrameLowersUnderTheProposalAuthorityAndStillTrapsUnderTheLegacyOne` (1), `anIdealFrameWidthBecomesItsOuterWidthWhenTheAxisIsUnspecified` (1), `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame` (3), `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed` (1), `aPressOnOneElementReleasedOnAnotherIsNotAClick` (1), `aPressReleasedOverSomethingCoveringItIsNotAClick` (1), `aPressThatLeavesTheElementAndReturnsStillClicks` (1), `aPressThatLeavesTheHitboxAndReturnsStaysActive` (3), `aProposalLayoutContainerRendersThroughTheFramePipeline` (9), `aProposalScrollViewAnswersItsContentOnItsNonScrollingAxis` (4), `aProposalScrollViewsDirectChildrenAreACentredDefaultSpacedVStackOnEitherAxis` (4), `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent` (3), `aProposalTextInAStackIsShapedOncePerDistinctWidth` (2), `aPublicHStackFormsAnAllProposalLayoutSubtreeAndPlacesItsSpacer` (1), `aspectRatioFillCircumscribesTheParentProposalBeforeMeasuringItsChild` (1), `aspectRatioFitInscribesTheParentProposalBeforeMeasuringItsChild` (1), `aStackWithoutSpacingPutsEightBetweenViewsAndNothingBesideASpacer` (6), `aTapOnAnOverlaysPrimaryWritesOnlyThePrimarysState` (1), `aZStackRootPlacesItsChildrenAtItsOwnSizeWithinTheirUnion` (4), `chainedNativeFramesPreserveTheirDeclarationOrder` (2), `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour` (15), `everyBackgroundPaintingSiteHonoursHoverAndFocus` (5), `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain` (5), `everyHandlerRegisteringSiteHonoursAllowsHitTesting` (1), `everyZStackAndOverlayAlignmentPlacesAndSizesAsTheProbeReads` (29), `explicitStackSpacingIsUsedForEveryGapIncludingBesideASpacer` (4), `fixedSizeModifierWithholdsOnlyItsSelectedAxisFromTheChildProposal` (1), `hoverAndFocusFadeThroughTheSameEffectiveColourPath` (3), `hoveringAnOverlaysPrimaryDoesNotHoverTheOverlay` (2), `hoveringOneClickTargetDoesNotHoverItsSibling` (1), `hoverResolvedThroughARealRenderHasNoLag` (1), `hStackAndVStackDistributeAsTheProbeReadsThroughTheElementAPI` (8), `hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt` (2), `layoutPriorityPreservesASpacersFlexibleExpansion` (1), `nativeBackgroundWrapsTheResolvedOuterBoundsAndPaintsBeforeItsContent` (4), `nativeClipMasksOverflowingContentToItsOuterFrame` (4), `nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder` (1), `nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt` (4), `onClickIsLiveOnEveryConformerThatCanRegisterOne` (8), `onlyABoxWithAHandlerRegistersAHitbox` (1), `onTapPaintsItsHoverOverlayOnlyWhenThePointerIsOverItsResolvedBounds` (3), `onTapRegistersTheResolvedNativeBoundsAsAHittableTarget` (1), `proposalLayoutFrameUsesTheTypedProposalWrapper` (1), `spacerMinimumLengthSurvivesAConstrainedStackProposal` (1), `theProposalModifiersAcceptWhatTheKernelAccepts` (1), `theTopmostOfTwoOverlappingHandlersRuns` (2), `vStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt` (2).
+
+### 12.6 Pixels — `compare.sh <scratch> aef88ce 5f0b4eb`, fourteen images
+
+The harness (`5f0b4eb`) adds `prod-default-light` and `prod-modal-light`, the
+demo at 920×560 (`LR-DO` item 3; `LR-DR` item 6 for how). Controls at `aef88ce`,
+every one at its recorded value: light vs dark 1048576; default vs modal
+1030498; default vs animation 210027; f0 vs f3 0; preview light vs dark
+1048576; chrome legacy vs proposal 0; distinct 544 / 216; indicator rects 0; new:
+prod default vs modal 491923, distinct `prod-default-light` 529.
+
+| image | differing | bbox | scene |
+|---|---|---|---|
+| default-light-f0 / -f3, default-dark-f0 / -f3 | 168380 each | (92,113)–(987,1007) | differs |
+| modal-light / modal-dark | 172126 / 172105 | (92,113)–(987,1007) | differs |
+| animation-light / animation-dark | 341608 / 341606 | (135,113)–(977,1007) | differs |
+| preview-light / -dark, chrome-legacy / -proposal | **0** | — | identical |
+| prod-default-light | 95649 | (84,113)–(880,543) | differs |
+| prod-modal-light | 100745 | (84,113)–(880,543) | differs |
+
+The twelve square images read **exactly** §4's arm H column (arm G plus the
+re-spelling), so the X9 row (15 392 row-label glyphs y − 6) is gone. **Every
+delta, from the `.scene` dumps** (rects and glyphs paired by index; counts equal
+on both sides in every image):
+
+- `default-light-f0` (1024²): rects `(+100, 0, 0, 0)` × 507 (500 rows — their
+  clip mask moves with them — and 7 main-pane rects), `(0, 0, +100, 0)` × 5,
+  `(+100, 0, −100, 0)` × 1, identical × 5 (root (0, 0) 1024×1024 on both sides).
+  Glyphs `(+100, 0)` × 15 509; the paragraph's re-wrap groups `(+194, 0)`,
+  `(+294, 0)`, `(+295, 0)`, `(−548, +16)`, `(−652, +16)` and their ±1-width
+  sub-pixel variants; "Count 0" `(+101, 0)` × 6; 7 identical. **55, its re-wrap,
+  the rounding.**
+- `modal-light`: the above plus the card `(0, −8, 0, +16)` and 86 glyphs
+  `(0, −8)`. **C.**
+- `animation-light`: rects `(+181, +16, 0, 0)` × 500, `(+181, 0, 0, 0)` × 6,
+  `(0, 0, +181, 0)` × 5, `(+181, 0, −181, 0)` × 1, `(+181, +16, 0, −16)` × 1 (the
+  viewport). Glyphs `(+181, +16)` × 15 392 (row labels), `(+181, 0)` × 102, the
+  re-wrap groups (`+338`, `−269`, `−99`, `+517`, `−437`, …) and **`(+180, 0)` × 2**
+  — the "−" button's glyph at the animated width, a one-point centring round
+  like "Count 0"'s (55's rounding), not listed by name in spec §9.
+- `prod-default-light` (920×560): rects `(+108, +16, 0, 0)` × 500 (rows),
+  `(+108, 0, 0, 0)` × 6, `(0, 0, +108, 0)` × 5 (sidebar 88 → 196),
+  `(+108, 0, −108, 0)` × 1 (main pane), `(+108, +16, 0, −16)` × 1 (viewport
+  89 → 73), identical × 5 (root (0, 0) 920×560 on both). Glyphs `(+108, +16)` ×
+  15 392, `(+108, 0)` × 104 (including "Count 0" — no rounding group at this
+  size), re-wrap groups `(+242, 0)`, `(+351, 0)`, `(−291, +16)`, `(−391, +16)`,
+  `(−510, +16)` and ±1-width variants. **55 and its re-wrap; the body is 431
+  tall on both sides — no vertical compression.**
+- `prod-modal-light`: the above plus the card `(0, −8, 0, +16)` (360×90 →
+  360×106 at y 235 → 227) and 86 glyphs `(0, −8)`. **C.**
+
+No region outside 55, its re-wrap, C and the one-point rounds. Looked at: the
+920×560 PNGs before and after render the whole demo, the row labels centred in
+their rows after the switch.
+
+### 12.7 The gate
+
+`swift package clean`, then `swift build --build-tests` (default build system):
+exit 0, 0 `error:`, 0 `warning:`. `swift package clean`, then `swift build
+--build-system native --build-tests`: 0 `error:`, the only `warning:` SwiftPM's
+deprecation notice; unfiltered `swift test --build-system native --no-parallel`:
+**`Test run with 1701 tests in 3 suites passed after 92.128 seconds`**, `FR-J
+no-argument frame: succeeded=true` in the log. Goldens: `git diff --name-only
+aef88ce HEAD -- 'Tests/**/*.json'` empty; 97 in `Tests/MetalUILayoutTests`.
+Guards 78, unchanged (no guard added: `LR-DR` item 3).
+
+### 12.8 The 100 000-row test, once, under the new default
+
+`METALUI_RUN_100K_LIST_TEST=1 swift test --build-system native --no-parallel
+--filter aListsWorkIsTheSameFor100kRowsAsFor500` (debug; the test is
+parameterised over both authorities, so the default does not choose its arms):
+passed, 2 cases, 67.411 s; cold frame **39.28 s legacy, 27.36 s proposal**
+(CLAUDE.md's 2026-09-23 debug reading: 37.16 / 24.98).
+
+### 12.9 The screen
+
+`xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&
+/tmp/lockstate` at lane close: `CGSSessionScreenIsLocked = 1`, `displayAsleep
+main: 1`, `displayActive main: 0`. **The real-window capture
+(`docs/probes/window-capture/capture.sh <scratch> aef88ce <HEAD>`) was not run
+and is owed to the human** (`LR-DM`).
+
+### 12.10 Handed on
+
+- The human: the real-window capture, and the looks §03's re-opened rows name
+  (`LR-DM`) — the sidebar at 196, the animation at 320, the modal card, the list
+  rows' labels now centred.
+- The Record phase: CLAUDE.md's counts (1701 / 97 / 78), the demo's deepest
+  level (30, where CLAUDE.md says "measured at 18"), `Frame.defaultLayoutAuthority`
+  and the `grep -rn "LayoutAuthority = \.legacy" Tests` check (`LR-DF` item 4),
+  the "`LayoutAuthority.proposal` in production" inert row deleted, and the
+  fourteen-image harness.
+

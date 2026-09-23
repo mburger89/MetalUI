@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DR`** (stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP` and its lane 2 `LR-DQ`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DS`** (stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -7009,3 +7009,74 @@ resize test green against a window that never reflowed (M2c's greedy-frame arm
 reddens `resizing…` when the frame is removed). Item 7: an animated inner padding
 layer or scroller content that snapped in production — M2f and M2h2 each redden
 2.1 alone.
+
+---
+
+## LR-DR — stage 6b lane 3: the switch reads exactly the two D tests; the demo's deepest level is 30 after the re-spelling; the depth reaches `Window` by `package` access; the production-size images need no new cause
+
+**Evidence.** Lane 3 on `feat/engine-stage-6b`: the flip `58e4111`, red-first
+tests `27c9f52`, implementation `3d4f5d8`, pixel harness `5f0b4eb`. Record §39
+§12 has the red lines, the suite, mutations M3a–M3d and M2a at the new default,
+the fourteen-image accounting, the 100k-row reading and the screen.
+
+**The ruling.**
+
+1. **The flip reads red exactly the two D tests** (`LR-DN`'s prediction held):
+   `Frame.defaultLayoutAuthority = .proposal` read by `Frame.init` and
+   `Window.layoutAuthority`, `makeFakeWindow`'s parameter `LayoutAuthority? =
+   nil`, the twelve file-local helpers at `Frame.defaultLayoutAuthority` — 1698
+   tests, 3 issues, in `aFrameAndAWindowDefaultToTheLegacyAuthority` (renamed
+   `…ToTheProposalAuthority`) and `aWindowBuildsEveryFrameUnderItsLayoutAuthority`.
+   `grep -rn "LayoutAuthority = \.legacy" Tests Sources` reads empty. M3a (the
+   constant back to `.legacy`) reddens **five** tests: the two D, 3.1, 3.2's
+   proposal arm and 3.3 on the seven non-native roots (the preview is native
+   under either authority) — nothing else, because lane 2 made every other test
+   independent of the default.
+2. **3.3's literals are measured, and two differ from the design's.** The demo
+   read 29 before `LR-DJ`'s re-spelling and reads **30** after it, in all three
+   states and at both 1024² and 920×560: the row's declared height is one more
+   lowered frame on the demo's deepest path, the `List` row. 30 / 72 = 0.42, so
+   `LR-DK` item 2's margin stands. The `List` root reads **16** where the design's
+   fixture read 15: this lane's fixture spells its row as the demo now does, with
+   the declared height, and with that line removed it reads 15 (measured). The
+   preview reads 10, as designed.
+3. **The depth reaches `Window` by `package` access.** `Window` (module
+   `MetalUI`) cannot read the internal `LayoutTree.lastNativeLayoutDeepestLevel`
+   (module `MetalUILayout`); it is now `package private(set)` and copied into an
+   internal `Window.lastNativeLayoutDeepestLevel` after each frame, alongside
+   `lastScene`, the test observability shape of `lastElementBounds`. No
+   external module sees either (`package` is invisible outside the package;
+   `Window`'s copy is internal). Not a new public API, so no plain-import guard
+   is owed.
+4. **The legacy-branch counter has no lock.** `LegacyRootLayoutCounter` is bumped
+   and read only on the main actor (layout is synchronous there), so it is a
+   plain `Int` behind `@unchecked Sendable` — the `@TaskLocal` needs `Sendable`,
+   not cross-thread use — and `Frame.swift` needs no `Foundation` import for an
+   `NSLock`.
+5. **The two 920×560 images need no cause beyond spec §9's** (`LR-DO` item 3's
+   question). `prod-default-light` 95 649 differing, `prod-modal-light` 100 745,
+   bbox (84,113)–(880,543); every rect and glyph delta is 55 at +108 (the sidebar
+   served 196 where CSS shrank it to 88), 55's re-wrap (the paragraph one line
+   taller in the 648 column, so the scroller and its 500 rows y + 16 and the
+   viewport h 89 → 73), and C on the modal card (y − 8, h + 16, 86 glyphs
+   y − 8). The body is 431 tall on both sides: **no vertical compression**. The
+   root is (0, 0) 920×560 on both sides, so `CN-J` does not move the demo. The
+   twelve square images read exactly the design's arm H numbers (168 380 /
+   172 126 / 172 105 / 341 608 / 341 606; preview and chrome 0, scenes
+   identical); the one group spec §9 does not list by name is two "−" glyphs
+   x + 180 in the animation image, the same one-point centring round as "Count
+   0"'s x + 101 at the animated 320 (55's rounding).
+6. **The harness captures a non-square window without touching `Fakes.swift`**:
+   a `side`-square fake resized to `side × height` by
+   `FakePlatformWindow.simulateResize` (as `AppKitWindow` reports a resize), the
+   top `height` rows of the readback written; `rawdiff` takes the row width as a
+   third argument. So the same `ZZDemoPixels.swift` captures at `aef88ce`.
+7. **The real-window capture is owed to the human** (`LR-DM`): the lock probe at
+   lane close read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`.
+
+**What it costs if wrong.** Item 2: a later lowering that adds a level moves
+3.3's literals — that is its purpose. Item 3: a `package` member is reachable by
+every module of this package, so a production reader could appear; none exists.
+Item 5: a vertical compression at a height between 560 and 1024 would not be
+seen; the two sizes bracket the demo's real window.
+

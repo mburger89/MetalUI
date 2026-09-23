@@ -153,8 +153,22 @@ path by arm (c). (h) M2e is the fold removed, not the diagnostics flag dropped.
 Suite after lane 2: **1698** (lane 1 closed at 1697 with 1.9). Measured in
 record §39 §11.
 
+**Lane 3 (`LR-DR`) — overrides the rows it names.** (a) The flip commit read
+red exactly the two D tests (1698 tests, 3 issues); M3a reddens five tests (the
+two D, 3.1, 3.2, 3.3). (b) 3.3's demo literal is **30**, not 29: re-measured
+after `LR-DJ`'s re-spelling, whose declared row height is one more lowered level
+(29 before it); the `List` root is **16**, its row spelled as the demo's (15
+without the declared height, measured). (c) `LayoutTree.lastNativeLayoutDeepestLevel`
+is `package` so `Window` can copy it into an internal
+`Window.lastNativeLayoutDeepestLevel` (§4 did not list it). (d) The two 920×560
+images read 95 649 / 100 745 differing, every region 55, its re-wrap or C — no
+vertical compression; the twelve square images read §9's arm H numbers exactly.
+(e) Captures owed to the human: the screen was locked at lane close. Measured in
+record §39 §12.
+
 **Suite count:** 1688 + 6 (lane 1, `hidden()`) + 2 (lane 1, 1.7–1.8) + 1 (lane
-2, 2.1) + 3 (lane 3) = **1700**, re-measured by each lane.
+2, 2.1) + 3 (lane 3) = **1700**, re-measured by each lane — **1701** measured at
+lane 3's close: lane 1 also added 1.9 (record §39 §10).
 
 ## Contents
 
