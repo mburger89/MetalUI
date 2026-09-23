@@ -30,6 +30,14 @@ struct LoweredItem {
         /// a parent only stretches it on an axis the frame leaves `nil` (`MC-Q`
         /// finding 7).
         case frameLayer
+        /// A `Deferred` presentation's **placeholder** (plan task 7, stage 5,
+        /// rulings `LR-CH`, `LR-CK`): the 0×0 native leaf a presentation root hands
+        /// its parent in place of its content, which is laid out in its own run
+        /// against the window (`LoweringState.presentations`). Its `declared` is a
+        /// bare `Style()` and its site `deferred`. **Every lowered container drops
+        /// it at entry** (`LoweringState.droppingPresentations(_:)`), as the legacy
+        /// engine filters an absolute child out of flow (`AP-B`).
+        case presentation
     }
 
     /// The pre-animation style: **structure** — which wrappers exist, on which axis
@@ -64,6 +72,28 @@ struct LoweringState {
     /// overflow its trailing padding (critic round 1's finding 5). Empty when no
     /// lowered `Text` carries a padding — and under the legacy authority.
     var textLeaves: [LayoutNodeID: LayoutNodeID] = [:]
+    /// Every presentation registered this frame, in registration order (plan task
+    /// 7, stage 5, rulings `LR-CH`, `LR-CM`): the placeholder its `Deferred`
+    /// returned and the root of its own native run, which `Frame.computeRootLayout`
+    /// lays out against the window **before** the frame's root. Empty under the
+    /// legacy authority.
+    var presentations: [(placeholder: LayoutNodeID, root: LayoutNodeID)] = []
+
+    /// `children` without the presentation placeholders (ruling `LR-CK`): the
+    /// lowering's collection sites — `lowerLegacyNode`, `lowerLegacyLayer`'s frame
+    /// arm — call this **at entry**, before `consume`, `planLegacyItems` and the
+    /// single-child stretch elision count, as the legacy engine removes an
+    /// absolute child from flow at its two collection sites (`AP-B`). A container
+    /// whose only child was a placeholder lowers as an empty one.
+    func droppingPresentations(_ children: [LayoutNodeID]) -> [LayoutNodeID] {
+        guard !presentations.isEmpty else { return children }
+        return children.filter { items[$0]?.kind != .presentation }
+    }
+
+    /// Whether `node` is a presentation placeholder.
+    func isPresentation(_ node: LayoutNodeID) -> Bool {
+        items[node]?.kind == .presentation
+    }
 
     mutating func record(_ item: LoweredItem, for node: LayoutNodeID) {
         if items[node] == nil { order.append(node) }
@@ -98,7 +128,9 @@ extension Frame {
     /// container consumed reports each non-default item field as
     /// `<site>.<field>.unconsumed` — `flexGrow`, `flexShrink`, `flexBasis`,
     /// `alignSelf`, `minSize`, `maxSize`, `margin`, in that order, records in
-    /// registration order. Production traps on the first, as every report does.
+    /// registration order — then, since stage 5, `position` and `inset` for an
+    /// `.absolute` record (ruling `LR-CK`). Production traps on the first, as every
+    /// report does. A presentation placeholder is never reported.
     ///
     /// **The root's** `flexGrow`, `flexShrink`, `flexBasis` and `alignSelf` lower as
     /// absent: the legacy root ignores each — measured, not assumed, by
@@ -109,7 +141,8 @@ extension Frame {
     func reportUnconsumedLoweredItems(root: LayoutNodeID) {
         guard layoutAuthority == .proposal else { return }
         for node in lowering.order {
-            guard let item = lowering.items[node], !item.consumed, item.kind != .frameLayer else { continue }
+            guard let item = lowering.items[node], !item.consumed,
+                  item.kind != .frameLayer, item.kind != .presentation else { continue }
             let d = item.declared
             var names: [String] = []
             if node != root {
@@ -122,6 +155,14 @@ extension Frame {
             if d.minSize != auto { names.append("minSize") }
             if d.maxSize != auto { names.append("maxSize") }
             if LoweredItem.hasMargin(d) { names.append("margin") }
+            // Stage 5 (`LR-CK`): an `.absolute` box no `Deferred` consumed — the
+            // root included, whose insets the legacy root ignores (measured (0, 0))
+            // — is removed from the proposal authority, under the names a reader
+            // already knows.
+            if d.position == .absolute {
+                names.append("position")
+                if d.inset != Edges(all: .auto) { names.append("inset") }
+            }
             for name in names {
                 noteUnlowerable(UnlowerableField(site: item.site, field: "\(name).unconsumed"))
             }

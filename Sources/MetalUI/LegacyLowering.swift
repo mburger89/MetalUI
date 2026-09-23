@@ -71,6 +71,15 @@ extension LayoutPass {
     /// where the legacy stack offers fit-content (divergence 53, spec 4.2).
     func lowerLegacyNode(_ style: Style, declared: Style, children: [LayoutNodeID],
                          site: LoweringSite) -> LayoutNodeID {
+        // Stage 5 (ruling `LR-CK`): a presentation's placeholder leaves the flow
+        // here, before anything counts the children — `consume`, the container
+        // rows, `planLegacyItems` and its single-child elision — as the legacy
+        // engine takes an absolute child out of flow at its collection sites
+        // (`AP-B`). Every caller of this function is a collection site: a flex or
+        // stack `Box`, a `Stack`, a `.padding` layer, a `Component` wrap and a
+        // `ScrollView`'s content node. A container left with no child lowers as an
+        // empty one, below.
+        let children = frame.lowering.droppingPresentations(children)
         guard !children.isEmpty else {
             return lowerLegacyLeaf(style, declared: declared, site: site) {
                 frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
@@ -232,8 +241,17 @@ extension LayoutPass {
             return lowerLegacyNode(layer.style, declared: declared, children: children,
                                    site: .modifierLayer)
         }
+        // Stage 5 (ruling `LR-CK`, as amended by `LR-CP` item 1): the placeholder
+        // leaves here too — but the style check below keeps the **undropped**
+        // count, because `declared` came from `ModifierLayer.lowered(_:childCount:)`
+        // over the undropped children in `ModifiedElement.requestLayout`, and
+        // comparing it against a dropped count would turn a one-node frame over a
+        // presentation (1 → 0) into a flex row expected against a `.stack`
+        // declared, and a two-member one (2 → 1) into the reverse.
+        let undroppedCount = children.count
+        let children = frame.lowering.droppingPresentations(children)
         let received = children.map { frame.lowering.consume($0) }
-        var fields = legacyFrameLayerDiagnostics(layer, declared: declared, childCount: children.count)
+        var fields = legacyFrameLayerDiagnostics(layer, declared: declared, childCount: undroppedCount)
         if declared.display == .none { return report(fields) }
         // A frame is a stack (`CN-N`): it stretches nothing (its `FrameSpec.style()`
         // alignment is never `stretch`) and ignores its children's flex fields. A
@@ -373,6 +391,14 @@ extension LayoutPass {
     /// for it in the same change, or a stage-6b production trap arrives with no
     /// test seeing it go.
     func loweredComponentFrame(_ node: LayoutNodeID, _ size: Size<Dimension>) -> LayoutNodeID {
+        // Stage 5 (ruling `LR-CK`): an amend over a presentation member. The legacy
+        // amend overwrites the absolute box's OWN size (divergence 48's mechanism),
+        // an answer not reproduced here, so it reports and frames nothing — the
+        // placeholder is handed on, for the parent to drop.
+        if frame.lowering.isPresentation(node) {
+            frame.noteUnlowerable(UnlowerableField(site: .deferred, field: "amended"))
+            return node
+        }
         let alignment = componentFrameAlignment(size)
         let declared = componentFrameStyle(size)
         var fields: [UnlowerableField] = []
@@ -665,8 +691,15 @@ extension LayoutPass {
         }
         if hasPercentEdge(declared.padding) { fields.append(entry("padding.percent")) }
         if hasPercentEdge(declared.border) { fields.append(entry("border.percent")) }
-        if declared.position != .static { fields.append(entry("position")) }
-        if declared.inset != Edges(all: .auto) { fields.append(entry("inset")) }
+        // Stage 5 (ruling `LR-CK`): `.absolute` is reported by the CONSUMER, not
+        // here — `planLegacyItems` for a child, `reportUnconsumedLoweredItems` for a
+        // record nobody consumed — because a `Deferred` consumes it and lowers it
+        // as a presentation (`lowerPresentation`). `.relative` and an inset on a
+        // non-absolute box still report here, unchanged.
+        if declared.position == .relative { fields.append(entry("position")) }
+        if declared.position != .absolute && declared.inset != Edges(all: .auto) {
+            fields.append(entry("inset"))
+        }
         return fields
     }
 
@@ -879,7 +912,7 @@ extension LayoutPass {
                         plan.alignmentFrame = (horizontal: !isRow, factor: childFactor)
                     }
                 }
-            case .stack, .leaf, .frameLayer:
+            case .stack, .leaf, .frameLayer, .presentation:
                 stretchedH = alignsByStretching(parent.justifyItems) && d.size.width == .auto
                     && !(single && parent.size.width == .auto)
                 stretchedV = stretches(parent.alignItems) && d.size.height == .auto
@@ -948,7 +981,7 @@ extension LayoutPass {
                                                       left: marginEdge(a.margin.left))
                         }
                     }
-                case .stack, .leaf, .frameLayer:
+                case .stack, .leaf, .frameLayer, .presentation:
                     break
                 }
             }
@@ -961,6 +994,15 @@ extension LayoutPass {
                 case .spaceEvenly?: reports.append("justifyContent.spaceEvenly")
                 case nil, .flexStart?, .center?, .flexEnd?: break
                 }
+            }
+            // Stage 5 (ruling `LR-CK`): an absolute child outside a `Deferred` is
+            // removed from the proposal authority, reported at its own site after
+            // its other item fields, under the names `legacyLeafDiagnostics` used to
+            // raise. A frame layer's record is skipped: a `.position` written after
+            // `.frame` is its own `style` report.
+            if item.kind != .frameLayer && d.position == .absolute {
+                reports.append("position")
+                if d.inset != Edges(all: .auto) { reports.append("inset") }
             }
             fields += reports.map { UnlowerableField(site: item.site, field: $0) }
             plan.itemFrameAlignment = item.contentAlignment
@@ -1034,5 +1076,145 @@ extension LayoutPass {
         case .auto: 0
         case .length(let length): resolvedLength(length)
         }
+    }
+}
+
+// MARK: - Stage 5: a presentation's placement (rulings LR-CI, LR-CJ, LR-CK)
+
+extension LayoutPass {
+    /// Lowers a `Deferred`'s **absolute** content — `node`, whose record `item`
+    /// the `Deferred` has just consumed — into a presentation root laid out against
+    /// the window (plan task 7, stage 5, ruling `LR-CI`; overlay-presentation probe
+    /// revision 2, group Q). Returns the root of the presentation's own native run,
+    /// which `Frame.computeRootLayout` lays out before the frame's root (`LR-CM`).
+    ///
+    /// Per axis — horizontal reads `left`/`right` and `size.width`, vertical
+    /// `top`/`bottom` and `size.height` — **which insets are given and whether the
+    /// size is `auto` come from the declared style; the inset lengths from the
+    /// animated one** (`LR-AS`; `inset` animates):
+    ///
+    /// | declared size | insets given | W on this axis | padding edges | frame alignment |
+    /// |---|---|---|---|---|
+    /// | `auto` | both | greedy, min 0, max ∞ (aliased) | leading and trailing | leading |
+    /// | `auto` | leading only | none | leading | leading |
+    /// | `auto` | trailing only | none | trailing | trailing |
+    /// | any | neither | none | none | leading (divergence 9) |
+    /// | px/rem | leading, or both | none | leading | leading |
+    /// | px/rem | trailing only | none | trailing | trailing |
+    ///
+    /// Registered innermost first: `node` (the element's own lowering, with its
+    /// padding, border and declared size folded with its min/max, `AP-E`) → **W**
+    /// (one frame carrying both stretched axes' bounds, aligned by the element's
+    /// `contentAlignment`, registered only when an axis is stretched and **aliased**
+    /// as the element's rect, `LR-AB` item 3) → native padding (only when an edge
+    /// is non-zero) → a fixed window-sized frame aligned per axis. Padding inside a
+    /// filling frame is SwiftUI's own spelling (Q1, Q1c, Q2).
+    ///
+    /// **Two deliberate proposal-only answers** (`LR-CJ`): measured content on an
+    /// axis with one inset is proposed the window minus the inset (Q3), where the
+    /// legacy engine measures against the whole window; and W's minimum stays 0, so
+    /// a stretched axis narrower than the element's padding keeps the inset box and
+    /// lets the padding overflow, where the legacy engine floors it (`BM-4`).
+    ///
+    /// **Reported, and the presentation still registers** (`LR-CJ` item 3):
+    /// `minSize`/`maxSize` on an `auto` axis → `<site>.minSize.absolute` /
+    /// `<site>.maxSize.absolute` (the legacy engine ignores them; SwiftUI and CSS
+    /// would not). A percentage `minSize`/`maxSize` on a declared axis reports
+    /// `minSize.percent`/`maxSize.percent`, which the element's own fold ignores.
+    /// **Dropped** (`LR-CK`): `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`
+    /// and `margin` — the legacy engine ignores every one on an absolute box
+    /// (measured), so the consumed record is their end.
+    func lowerPresentation(_ node: LayoutNodeID, _ item: LoweredItem) -> LayoutNodeID {
+        let d = item.declared, a = item.animated
+        struct AxisPlan {
+            var greedy = false
+            var leading = 0.0
+            var trailing = 0.0
+            var factor = 0.0
+            var minimumAbsolute = false, maximumAbsolute = false
+            var minimumPercent = false, maximumPercent = false
+        }
+        func axis(size: Dimension, leading: Dimension, trailing: Dimension,
+                  animatedLeading: Dimension, animatedTrailing: Dimension,
+                  minimum: Dimension, maximum: Dimension, extent: Pixels) -> AxisPlan {
+            var plan = AxisPlan()
+            if size == .auto {
+                plan.minimumAbsolute = minimum != .auto
+                plan.maximumAbsolute = maximum != .auto
+            } else {
+                plan.minimumPercent = isPercent(minimum)
+                plan.maximumPercent = isPercent(maximum)
+            }
+            func length(_ dimension: Dimension) -> Double {
+                switch dimension {
+                case .auto: 0
+                case .length(.percent(let f)): Double(f) * Double(extent.value)
+                case .length(let length): resolvedLength(length)
+                }
+            }
+            let hasLeading = leading != .auto, hasTrailing = trailing != .auto
+            if size == .auto && hasLeading && hasTrailing {
+                plan.greedy = true
+                plan.leading = length(animatedLeading)
+                plan.trailing = length(animatedTrailing)
+            } else if hasLeading {
+                plan.leading = length(animatedLeading)
+            } else if hasTrailing {
+                plan.trailing = length(animatedTrailing)
+                plan.factor = 1
+            }
+            return plan
+        }
+        let window = frame.contentSize
+        let h = axis(size: d.size.width, leading: d.inset.left, trailing: d.inset.right,
+                     animatedLeading: a.inset.left, animatedTrailing: a.inset.right,
+                     minimum: d.minSize.width, maximum: d.maxSize.width, extent: window.width)
+        let v = axis(size: d.size.height, leading: d.inset.top, trailing: d.inset.bottom,
+                     animatedLeading: a.inset.top, animatedTrailing: a.inset.bottom,
+                     minimum: d.minSize.height, maximum: d.maxSize.height, extent: window.height)
+        var names: [String] = []
+        if h.minimumAbsolute || v.minimumAbsolute { names.append("minSize.absolute") }
+        if h.maximumAbsolute || v.maximumAbsolute { names.append("maxSize.absolute") }
+        if h.minimumPercent || v.minimumPercent { names.append("minSize.percent") }
+        if h.maximumPercent || v.maximumPercent { names.append("maxSize.percent") }
+        for name in names { frame.noteUnlowerable(UnlowerableField(site: item.site, field: name)) }
+
+        var root = node
+        if h.greedy || v.greedy {
+            root = frame.requestNativeFrame(child: node,
+                                            minWidth: h.greedy ? 0 : nil,
+                                            maxWidth: h.greedy ? .infinity : nil,
+                                            minHeight: v.greedy ? 0 : nil,
+                                            maxHeight: v.greedy ? .infinity : nil,
+                                            alignment: item.contentAlignment)
+            frame.lowering.alias(node, to: root)
+        }
+        let padding = Edges(top: v.leading, right: h.trailing, bottom: v.trailing, left: h.leading)
+        if padding.top != 0 || padding.right != 0 || padding.bottom != 0 || padding.left != 0 {
+            root = frame.requestNativePadding(child: root, insets: padding)
+        }
+        return frame.requestNativeFrame(child: root,
+                                        width: Double(window.width.value),
+                                        height: Double(window.height.value),
+                                        alignment: proposalAlignment(horizontal: h.factor, vertical: v.factor))
+    }
+
+    /// Whether a presentation's content box **is** the window (ruling `LR-CL`): four
+    /// zero insets, both sizes `auto` and no border, so its padding box — the
+    /// containing block of any presentation registered inside it — is the window.
+    /// The one nested case the legacy engine answers as the lowering does (the
+    /// demo's card could hold a tooltip); every other nesting reports
+    /// `deferred.nested`.
+    func presentationCoversWindow(_ style: Style) -> Bool {
+        let i = style.inset, b = style.border
+        return [i.top, i.right, i.bottom, i.left].allSatisfy(isZero)
+            && style.size.width == .auto && style.size.height == .auto
+            && [b.top, b.right, b.bottom, b.left].allSatisfy { edge in
+                switch edge {
+                case .pixels(let p): p.value == 0
+                case .rems(let r): r.value == 0
+                case .percent(let f): f == 0
+                }
+            }
     }
 }

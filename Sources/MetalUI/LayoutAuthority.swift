@@ -45,6 +45,13 @@ enum LoweringSite: String, Sendable {
     case list
     case component
     case customElement
+    /// A `Deferred` presentation root (plan task 7, stage 5, rulings `LR-CH`,
+    /// `LR-CL`): `containingBlock`, `nested` and `root`, raised against the
+    /// presentation's containing block, and `amended`, raised by a `Component`
+    /// amend over a presentation member (`LR-CK`). Every one exists to keep the
+    /// differential honest about a legacy containing block that is not the
+    /// window, and is deleted with the legacy authority (stage 9).
+    case deferred
 }
 
 /// One field (or one whole site) with no proposal lowering, as recorded by a
@@ -72,6 +79,15 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
     /// field-level entry of one of those sites is stage 2's unless a lane says
     /// otherwise.
     var owningStage: String {
+        // Stage 5 (`LR-CK`): the field decides before the site. `position` and
+        // `inset` — an absolute box outside a `Deferred`, a `.relative` box, an
+        // inset on a static box, and their `.unconsumed` forms — are **removed**
+        // from the proposal authority rather than lowered, and belong to the stage
+        // that deletes `Style.position`/`inset`; `minSize`/`maxSize` on an
+        // absolute box's `auto` axis (`<field>.absolute`, `LR-CJ` item 3) to
+        // stage 8's min/max recipe.
+        if field.hasPrefix("position") || field.hasPrefix("inset") { return "10" }
+        if field.hasSuffix(".absolute") { return "8" }
         switch site {
         case .box, .stack, .text, .modifierLayer:
             return field == "noLowering" ? "1" : "2"
@@ -98,6 +114,10 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
             return "4"
         case .customElement:
             return "6a"
+        // Stage 5 (`LR-CL`): every `deferred` entry protects a legacy containing
+        // block that is not the window, and goes with the legacy authority.
+        case .deferred:
+            return "9"
         }
     }
 
