@@ -1729,6 +1729,29 @@ public final class Frame {
         tree.setStyle(id, style)
     }
 
+    /// Counts the frames that reached the **legacy** branch of
+    /// `computeRootLayout` — the CSS engine's only caller in `MetalUI` — while a
+    /// caller has bound one (plan task 7, stage 6b, ruling `LR-DL`). The
+    /// `Shaper.runCallCounter` shape: a `@TaskLocal`, `nil` in production and in
+    /// every test that never binds it, so production pays one task-local read
+    /// per legacy frame and nothing on the proposal branch. Read by
+    /// `noProductionFrameReachesTheLegacyEngine` (`RootSwitchTests`), whose
+    /// `.legacy` window is the positive control that it counts at all.
+    ///
+    /// **No lock**, unlike `RunCallCounter`: `computeRootLayout` runs only on
+    /// the main actor (layout is synchronous there, CLAUDE.md "Renderer"), so
+    /// every bump and read is on one thread; `@unchecked Sendable` is what a
+    /// `@TaskLocal` value needs, not a claim of cross-thread use.
+    final class LegacyRootLayoutCounter: @unchecked Sendable {
+        private(set) var count = 0
+        func bump() { count += 1 }
+        init() {}
+    }
+
+    /// The counter bound by the calling task, if any; see
+    /// `LegacyRootLayoutCounter`.
+    @TaskLocal static var legacyRootLayoutCounter: LegacyRootLayoutCounter?
+
     /// Lays the finished tree out, between `requestLayout` and `prepaint`. Not
     /// reachable from any pass: elements contribute nodes, the frame runs the
     /// engine on the finished root.

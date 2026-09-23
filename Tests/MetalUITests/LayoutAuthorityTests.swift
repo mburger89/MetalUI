@@ -102,25 +102,35 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 
 // MARK: - 1.1, 1.2 — the authority
 
-/// **1.1.** Both defaults are `.legacy` (ruling LR-B).
+/// **1.1.** Both defaults are `.proposal` (plan task 7, stage 6b, ruling
+/// `LR-DF`; stage 1's `.legacy` default, ruling LR-B, is what this test pinned
+/// until the switch, under the name `aFrameAndAWindowDefaultToTheLegacyAuthority`).
+/// One constant, `Frame.defaultLayoutAuthority`, is read by a bare `Frame` and by
+/// a `makeFakeWindow` window left at its default, and a frame built without
+/// diagnostics still traps rather than reports (`LR-DF` item 3; `Window` never
+/// passes `reportsUnlowerableFields`).
 ///
-/// **No mutation is claimed** (critic round 1 finding 13): changing either
-/// default traps the suite's first legacy frame and truncates the run, which no
-/// single test can report. The default is pinned by the whole suite's printed
-/// count, read per CLAUDE.md.
+/// Red before: stage 6b lane 3's flip commit, with the stage-1 assertions
+/// (`frame.layoutAuthority == .legacy`, `window.layoutAuthority == .legacy`).
+/// Mutation that must redden it: **M3a**, `Frame.defaultLayoutAuthority` back to
+/// `.legacy` (record §39 §12 names what else it reddens).
 @MainActor
-@Test func aFrameAndAWindowDefaultToTheLegacyAuthority() throws {
+@Test func aFrameAndAWindowDefaultToTheProposalAuthority() throws {
+    #expect(Frame.defaultLayoutAuthority == .proposal)
     let frame = Frame(contentSize: Size(width: px(10), height: px(10)), scaleFactor: 1)
-    #expect(frame.layoutAuthority == .legacy)
+    #expect(frame.layoutAuthority == .proposal)
     #expect(frame.reportsUnlowerableFields == false)
     #expect(frame.recordsElementBounds == false)
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, _) = try makeFakeWindow(device: device) { ProbeLeaf(width: 10, height: 10) }
-    #expect(window.layoutAuthority == .legacy)
+    #expect(window.layoutAuthority == .proposal)
 }
 
 /// **1.2.** A `Window` builds each frame under its `layoutAuthority`, and a write
 /// marks the window dirty. A `ProbeLeaf` root logs `pass.lowersToProposal`.
+/// Since stage 6b the window starts at `.proposal`, so the writes run `.legacy`
+/// then `.proposal` (`LR-DF`); red before: the flip commit, with the stage-1
+/// order's `[false, true, false]`.
 ///
 /// Mutation that must redden it: **M1b**, `Window` builds its `Frame` without
 /// passing the authority.
@@ -133,12 +143,12 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     }
     window.drawFrameIfNeeded()
     #expect(window.needsRedraw == false)
-    window.layoutAuthority = .proposal
+    window.layoutAuthority = .legacy
     #expect(window.needsRedraw == true, "a write to layoutAuthority must mark the window dirty")
     window.drawFrameIfNeeded()
-    window.layoutAuthority = .legacy
+    window.layoutAuthority = .proposal
     window.drawFrameIfNeeded()
-    #expect(log.values == [false, true, false])
+    #expect(log.values == [true, false, true])
 }
 
 // MARK: - 1.3–1.5 — every site's own check

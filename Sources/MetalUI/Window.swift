@@ -228,6 +228,15 @@ public final class Window {
     /// change that lands a real profiling story.
     public private(set) var observationDirtyings: Int = 0
 
+    /// The most recent frame's deepest native level
+    /// (`LayoutTree.lastNativeLayoutDeepestLevel` — the root's own run, `SA-L`'s
+    /// depth), captured alongside `lastScene` because the frame and its tree die
+    /// at the end of `drawFrameIfNeeded`. **Test observability** for plan task
+    /// 7, stage 6b (`LR-DK` item 2, test 3.3): every production root's depth is
+    /// read through a real window. 0 for a frame whose root is laid out by the
+    /// CSS engine (no native run).
+    private(set) var lastNativeLayoutDeepestLevel = 0
+
     /// The primitives the most recent frame handed to the renderer.
     ///
     /// Test observability, and internal rather than public: what the GPU
