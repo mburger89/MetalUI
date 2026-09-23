@@ -193,6 +193,18 @@ enum AuthorityCoverage {
         // MeasurePerformanceTests (2) — stage 4, lane 5 (`LR-CG`)
         "aListsWorkIsTheSameFor160RowsAsFor40",
         "theResidentEntrySetStaysBoundedWhileScrolling10kRows",
+        // DeferredTests (5) — stage 5, lane 2 (`LR-CN`, `LR-CO`): the four
+        // element-level scenarios, hosted, and the demo-shaped scrim (2.5)
+        "aNamedChildUnderDeferredResolvesTheSameAsUnderABox",
+        "aDeferredElementHoistsItsChildAboveASiblingDeclaredAfterIt",
+        "aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting",
+        "aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll",
+        "aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities",
+        // AbsoluteOverlayTests (1) — stage 5, lane 2 (divergence 11, `LR-CN`)
+        "anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt",
+        // ListTests (1) — stage 5, lane 2 (`LR-CN`): the scenario stage 4 kept
+        // legacy-only on a claim record §28 §2.3 refutes
+        "aListInsideADeferredIgnoresTheEscapedScrollersOffset",
     ]
 
     private(set) static var seen: [String: Set<LayoutAuthority>] = [:]

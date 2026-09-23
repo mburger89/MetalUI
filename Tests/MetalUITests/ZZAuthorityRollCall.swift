@@ -45,12 +45,12 @@ import Testing
                  "the exit criterion is 'both authorities'; a third would need every literal in the nine suites re-derived")
     try #require(AuthorityCoverage.authorities == LayoutAuthority.allCases,
                  "every scenario is declared over this one list — M3c/M4d reduce it and nothing else would say so")
-    try #require(AuthorityCoverage.expected.count == 67,
+    try #require(AuthorityCoverage.expected.count == 74,
                  """
                  the hand-derived scenario count: 16 routing + 14 indicator + 4 ScrollViewTests \
-                 + 20 ListTests + 3 AXNodeTests + 5 AccessibilityDefaultsTests \
+                 + 21 ListTests + 3 AXNodeTests + 5 AccessibilityDefaultsTests \
                  + 1 AccessibilityTreeTests + 1 FocusTests + 1 TombstoneTests \
-                 + 2 MeasurePerformanceTests
+                 + 2 MeasurePerformanceTests + 5 DeferredTests + 1 AbsoluteOverlayTests
                  """)
 
     let missing = AuthorityCoverage.expected.subtracting(AuthorityCoverage.seen.keys).sorted()

@@ -675,17 +675,19 @@ func aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows(_ authority: 
 /// **The differential is what makes this about `Deferred` rather than about
 /// windowing**: the identical `List` under the identical context, unwrapped,
 /// still windows.
-@Test @MainActor func aListInsideADeferredIgnoresTheEscapedScrollersOffset() throws {
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aListInsideADeferredIgnoresTheEscapedScrollersOffset(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     let data = items(40)
     let context = ScrollContext(offset: 280, viewportExtent: 112, axis: .vertical)
 
     let portal = Deferred { List(data, rowHeight: px(28)) { Row($0) } }
-    let (escaped, _) = renderWindowed(portal, context: context, authority: .legacy)
+    let (escaped, _) = renderWindowed(portal, context: context, authority: authority)
     #expect(escaped.scrollRegions.count == data.count,
             "a subtree that escapes a scroller's clip and translation has escaped its windowing too")
 
     let plain = List(data, rowHeight: px(28)) { Row($0) }
-    let (windowed, _) = renderWindowed(plain, context: context, authority: .legacy)
+    let (windowed, _) = renderWindowed(plain, context: context, authority: authority)
     #expect(windowed.scrollRegions.count < data.count,
             "the same list and the same context, not wrapped, still windows")
 }

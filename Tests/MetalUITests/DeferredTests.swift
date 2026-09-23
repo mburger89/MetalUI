@@ -12,6 +12,17 @@ private func sized(_ w: Float, _ h: Float) -> Style {
     return s
 }
 
+/// A frame under `authority`, with diagnostics on under the proposal one so a
+/// field with no lowering is a report the test reads rather than a trap that
+/// ends the run (`LR-BX`).
+@MainActor
+private func authorityFrame(_ w: Float, _ h: Float, _ authority: LayoutAuthority,
+                            table: StateTable = StateTable()) -> Frame {
+    Frame(contentSize: Size(width: px(w), height: px(h)), scaleFactor: 1,
+          stateTable: table, theme: Theme.forAppearance(.light),
+          layoutAuthority: authority, reportsUnlowerableFields: authority == .proposal)
+}
+
 /// A `deferred` block's fills carry a higher layer than an ordinary sibling's,
 /// and that layer sorts AHEAD of emission order.
 ///
@@ -199,7 +210,9 @@ private func sized(_ w: Float, _ h: Float) -> Style {
 /// one, missing the `.named("list")` component entirely — so only comparing
 /// against `Box`'s known-correct path catches it; asserting `idA` alone
 /// against a hand-predicted value would not.
-@Test @MainActor func aNamedChildUnderDeferredResolvesTheSameAsUnderABox() throws {
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aNamedChildUnderDeferredResolvesTheSameAsUnderABox(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     var deferredWrapped = Row {
         Deferred {
             ScrollView(.vertical, elementID: ElementID("list")) {
@@ -215,12 +228,14 @@ private func sized(_ w: Float, _ h: Float) -> Style {
         }
     }
 
-    let frameA = Frame(contentSize: Size(width: px(100), height: px(50)), scaleFactor: 1)
+    let frameA = authorityFrame(100, 50, authority)
     frameA.render(&deferredWrapped)
+    try #require(frameA.unlowerableFields.isEmpty, "\(frameA.unlowerableFields)")
     let idA = try #require(frameA.scrollRegions.first).id
 
-    let frameB = Frame(contentSize: Size(width: px(100), height: px(50)), scaleFactor: 1)
+    let frameB = authorityFrame(100, 50, authority)
     frameB.render(&boxWrapped)
+    try #require(frameB.unlowerableFields.isEmpty, "\(frameB.unlowerableFields)")
     let idB = try #require(frameB.scrollRegions.first).id
 
     #expect(idA == idB,
@@ -263,15 +278,18 @@ private func sized(_ w: Float, _ h: Float) -> Style {
 /// Mirrors the first test's shape: the `Deferred`-wrapped box is declared
 /// (and therefore emitted) FIRST, the plain sibling second, and only a
 /// correct hoist reverses that into paint order.
-@Test @MainActor func aDeferredElementHoistsItsChildAboveASiblingDeclaredAfterIt() throws {
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aDeferredElementHoistsItsChildAboveASiblingDeclaredAfterIt(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     var row = Row {
         Deferred {
             Box(style: sized(30, 30)).background(.accent)
         }
         Box(style: sized(40, 40)).background(.surface)
     }
-    let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1)
+    let frame = authorityFrame(200, 200, authority)
     frame.render(&row)
+    try #require(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
 
     let scene = frame.finalizedScene()
     try #require(scene.rects.count == 2)
@@ -311,7 +329,9 @@ private func sized(_ w: Float, _ h: Float) -> Style {
 /// intersecting it with the outer's 50pt clip (x 0...50) would crop it to
 /// 20pt — intersecting it with the frame's whole 300pt surface leaves it at
 /// its full 150).
-@Test @MainActor func aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting() throws {
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     var tree = Column {
         ScrollView(.horizontal, elementID: ElementID("outer")) {
             Box(style: sized(30, 20))
@@ -329,8 +349,9 @@ private func sized(_ w: Float, _ h: Float) -> Style {
     .width(px(50))
     .alignItems(.stretch)
 
-    let frame = Frame(contentSize: Size(width: px(300), height: px(300)), scaleFactor: 1)
+    let frame = authorityFrame(300, 300, authority)
     frame.render(&tree)
+    try #require(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
 
     let outer = try #require(frame.scrollRegions.first { $0.axis == .horizontal })
     let inner = try #require(frame.scrollRegions.first { $0.axis == .vertical })
@@ -362,7 +383,9 @@ private func sized(_ w: Float, _ h: Float) -> Style {
 /// mean anything: it is the escape from the SAME scroll that just moved its
 /// sibling, not merely the absence of movement in a test that scrolled
 /// nothing.
-@Test @MainActor func aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll() throws {
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     func makeTree() -> some Element {
         ScrollView(.vertical, elementID: ElementID("outer")) {
             Box(style: sized(20, 300))                        // filler: forces real overflow
@@ -376,9 +399,9 @@ private func sized(_ w: Float, _ h: Float) -> Style {
     let stateTable = StateTable()
 
     var unscrolled = makeTree()
-    let frame1 = Frame(contentSize: Size(width: px(100), height: px(60)), scaleFactor: 1,
-                       stateTable: stateTable, theme: Theme.forAppearance(.light))
+    let frame1 = authorityFrame(100, 60, authority, table: stateTable)
     frame1.render(&unscrolled)
+    try #require(frame1.unlowerableFields.isEmpty, "\(frame1.unlowerableFields)")
     let scene1 = frame1.finalizedScene()
     let ordinaryRaw = try #require(scene1.rects.first { $0.bounds.size.width == 21 })
     let deferredRaw = try #require(scene1.rects.first { $0.bounds.size.width == 22 })
@@ -387,9 +410,9 @@ private func sized(_ w: Float, _ h: Float) -> Style {
     stateTable.withState(outerID, initial: ScrollState()) { $0.offset = 40 }
 
     var scrolled = makeTree()
-    let frame2 = Frame(contentSize: Size(width: px(100), height: px(60)), scaleFactor: 1,
-                       stateTable: stateTable, theme: Theme.forAppearance(.light))
+    let frame2 = authorityFrame(100, 60, authority, table: stateTable)
     frame2.render(&scrolled)
+    try #require(frame2.unlowerableFields.isEmpty, "\(frame2.unlowerableFields)")
     let scene2 = frame2.finalizedScene()
     let ordinaryScrolled = try #require(scene2.rects.first { $0.bounds.size.width == 21 })
     let deferredScrolled = try #require(scene2.rects.first { $0.bounds.size.width == 22 })
@@ -398,4 +421,111 @@ private func sized(_ w: Float, _ h: Float) -> Style {
             "an ordinary sibling tracks the scroll -- confirms the seeded offset really reached paint")
     #expect(deferredScrolled.bounds.origin.y == deferredRaw.bounds.origin.y,
             "the deferred box stays at its RAW position -- it escapes the scroll translation, not merely the clip")
+}
+
+// MARK: - Stage 5, lane 2 (`LR-CN`, `LR-CO`): the demo's scrim under both authorities
+
+/// Lays `element` out inside a window-sized column `Box` over `table` — the
+/// host a scroller that must really scroll needs (`LR-CO`): `DifferentialRoot`'s
+/// legacy stack offers its child fit-content, so a viewport under it hugs its
+/// content and never scrolls. `paddingTop` moves the scroller's viewport off the
+/// window's top edge, so "masked to the viewport" and "masked to the window" are
+/// different rects.
+@MainActor
+private func renderInRowHost<E: Element>(_ element: E, _ w: Float, _ h: Float,
+                                            _ authority: LayoutAuthority, table: StateTable,
+                                            paddingTop: Float = 0) -> Frame {
+    var host = Style()
+    host.flexDirection = .row
+    host.alignItems = .stretch
+    host.size = sized(w, h).size
+    host.padding = Edges(top: .pixels(px(paddingTop)), right: .pixels(px(0)),
+                         bottom: .pixels(px(0)), left: .pixels(px(0)))
+    let frame = authorityFrame(w, h, authority, table: table)
+    var root = Box(style: host, content: element)
+    frame.render(&root)
+    return frame
+}
+
+/// **2.5** (plan task 7 stage 5, `LR-CH`/`LR-CI`, `AP-I`). The demo modal's
+/// shape — `ScrollView { Deferred { Stack { card }.position(.absolute).inset(0)
+/// .background(.scrim).onClick {} }; tall content }` — under **both** authorities,
+/// over two frames sharing one `StateTable`, the second scrolled 40.
+///
+/// Under the legacy authority the scrim's `inset(0)` makes it the root's padding
+/// box, which is the window; under the proposal one the pair is a presentation
+/// root laid out against the window. Either way, on **both** frames:
+///
+/// - the scrim's rect and its mask are the window (200×100) — not the viewport,
+///   which starts 30 down (the host's top padding), so a portal that stopped
+///   resetting the clip reads a different mask, and one that stopped resetting
+///   the translation reads y −40 on the second frame;
+/// - it draws after the in-flow marker although it is declared, and emitted,
+///   first — layer 1;
+/// - its hitbox is the topmost opaque one outside the card, at the window rect,
+///   on layer 1, and it is not a scroll region;
+/// - the card is centred, (80, 35) 40×30, and is the topmost opaque hitbox at the
+///   window's centre;
+/// - the in-flow marker moved by exactly the offset, which is what says the
+///   offset reached paint at all.
+///
+/// Pre-flighted under diagnostics: the proposal frame's report must be empty
+/// before anything is read (`LR-BX`).
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities(
+    _ authority: LayoutAuthority
+) throws {
+    AuthorityCoverage.record(#function, authority)
+    func makeTree() -> some Element {
+        ScrollView(.vertical, elementID: ElementID("list")) {
+            Deferred {
+                Stack(alignment: .center) {
+                    Box(style: sized(40, 30)).background(.surface).onClick {}
+                }
+                .position(.absolute)
+                .inset(px(0))
+                .background(.scrim)
+                .onClick {}
+            }
+            Box(style: sized(21, 300)).background(.accent)   // in-flow marker
+        }
+    }
+    let window = Bounds(origin: Point(x: px(0), y: px(0)), size: Size(width: px(200), height: px(100)))
+    let card = Bounds(origin: Point(x: px(80), y: px(35)), size: Size(width: px(40), height: px(30)))
+    let table = StateTable()
+
+    func check(_ frame: Frame, markerY: Float, _ label: String) throws {
+        try #require(frame.unlowerableFields.isEmpty, "\(label): \(frame.unlowerableFields)")
+        let scene = frame.finalizedScene()
+        let scrimIndex = try #require(scene.rects.firstIndex { $0.bounds.size.width == 200 && $0.bounds.size.height == 100 },
+                                      "\(label): no window-sized scrim rect")
+        let markerIndex = try #require(scene.rects.firstIndex { $0.bounds.size.width == 21 })
+        let scrim = scene.rects[scrimIndex]
+        #expect(Bounds(origin: Point(x: px(scrim.bounds.origin.x), y: px(scrim.bounds.origin.y)),
+                       size: Size(width: px(scrim.bounds.size.width), height: px(scrim.bounds.size.height))) == window,
+                "\(label): the scrim is the window")
+        #expect(scrim.contentMask.origin.x == 0 && scrim.contentMask.origin.y == 0
+                    && scrim.contentMask.size.width == 200 && scrim.contentMask.size.height == 100,
+                "\(label): masked to the window, not the viewport at y 30")
+        #expect(scrimIndex > markerIndex,
+                "\(label): the scrim, declared and emitted first, draws after the marker — layer 1")
+        let cardRect = try #require(scene.rects.first { $0.bounds.size.width == 40 && $0.bounds.size.height == 30 })
+        #expect(cardRect.bounds.origin.x == 80 && cardRect.bounds.origin.y == 35, "\(label): the card is centred")
+        #expect(scene.rects[markerIndex].bounds.origin.y == markerY, "\(label): the in-flow marker")
+
+        let outside = try #require(topmostOpaqueHitbox(in: frame.hitboxes, at: Point(x: px(10), y: px(50))))
+        let scrimHit = frame.hitboxes[outside]
+        #expect(scrimHit.bounds == window && scrimHit.layer == 1 && scrimHit.scroll == nil,
+                "\(label): outside the card the topmost opaque hitbox is the scrim's, at the window, on layer 1")
+        let centre = try #require(topmostOpaqueHitbox(in: frame.hitboxes, at: Point(x: px(100), y: px(50))))
+        #expect(frame.hitboxes[centre].bounds == card && frame.hitboxes[centre].layer == 1,
+                "\(label): the card's hitbox wins at the centre")
+    }
+
+    let first = renderInRowHost(makeTree(), 200, 100, authority, table: table, paddingTop: 30)
+    try check(first, markerY: 30, "unscrolled")
+    let listID = try #require(first.scrollRegions.first).id
+    table.withState(listID, initial: ScrollState()) { $0.offset = 40 }
+    let second = renderInRowHost(makeTree(), 200, 100, authority, table: table, paddingTop: 30)
+    try check(second, markerY: -10, "scrolled 40")
 }

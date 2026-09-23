@@ -44,7 +44,9 @@ private func sized(_ w: Float, _ h: Float) -> Style {
 /// If someone implements CSS's coupling, this test fails — which is the point.
 /// It is a decision, not an accident, and the record (`Box.position(_:)`'s doc
 /// comment and divergence 11) has to move with the behaviour.
-@Test @MainActor func anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt() throws {
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     var rootStyle = Style()
     rootStyle.flexDirection = .column
     rootStyle.padding = Edges(top: .pixels(px(30)), right: .pixels(px(0)),
@@ -82,7 +84,8 @@ private func sized(_ w: Float, _ h: Float) -> Style {
 
     func render(_ tree: inout some Element, in table: StateTable) -> Frame {
         let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
-                          stateTable: table, theme: Theme.forAppearance(.light))
+                          stateTable: table, theme: Theme.forAppearance(.light),
+                          layoutAuthority: authority, reportsUnlowerableFields: authority == .proposal)
         frame.render(&tree)
         return frame
     }
@@ -133,4 +136,31 @@ private func sized(_ w: Float, _ h: Float) -> Style {
     #expect(portalRect.contentMask.origin.x == 0 && portalRect.contentMask.origin.y == 0
                 && portalRect.contentMask.size.width == 200 && portalRect.contentMask.size.height == 200,
             "Deferred resets the mask to the whole surface, so the same box is visible")
+}
+
+/// **2.7** (plan task 7 stage 5, `LR-CK`, `LR-CP` item 4). An absolute box
+/// **outside** a `Deferred` is removed from the proposal authority rather than
+/// lowered, so a production proposal frame (diagnostics off) over one traps —
+/// and the trap names the stage that owns it, **stage 10** (the stage that
+/// deletes `Style.position`/`inset`). At `e5caefb` the child trapped naming
+/// stage 2, so the `stage 10` assertion is red there.
+@Test func anAbsoluteBoxOutsideADeferredTrapsAProductionProposalFrame() async {
+    let child = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var column = Style()
+            column.flexDirection = .column
+            var overlay = sized(22, 20)
+            overlay.position = .absolute
+            overlay.inset = Edges(top: dim(5), right: .auto, bottom: .auto, left: dim(5))
+            var root = Box(style: column) {
+                Box(style: sized(10, 10))
+                Box(style: overlay)
+            }
+            Frame(contentSize: Size(width: px(200), height: px(100)), scaleFactor: 1,
+                  layoutAuthority: .proposal).render(&root)
+        }
+    }
+    let stderr = String(decoding: child?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("MetalUI: box.position has no proposal lowering (plan task 7, stage 10)"),
+            "aborted, but not naming box.position and stage 10:\n\(stderr)")
 }
