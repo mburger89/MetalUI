@@ -877,7 +877,6 @@ public func demoContent() -> some Element {
                             // for a list item's label.
                             .alignItems(.center)
                             .flexGrow(1)
-                            .height(Pixels(28))
                             .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
                                           bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
                             .width(Pixels(420))
