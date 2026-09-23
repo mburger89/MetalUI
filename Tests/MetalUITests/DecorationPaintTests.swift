@@ -66,7 +66,7 @@ private func pixel(_ platform: FakePlatformWindow, _ x: Int, _ y: Int, side: Int
 
 /// Renders `make` in a fresh `side`x`side` fake window and returns it.
 @MainActor
-private func render<E: Element>(side: Int = 64, authority: LayoutAuthority = .proposal,
+private func render<E: Element>(side: Int = 64, authority: LayoutAuthority = .legacy,
                                 _ make: @escaping @MainActor () -> E) throws
     -> (Window, FakePlatformWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
