@@ -65,6 +65,10 @@ public final class PortableTextSystem: TextSystem {
         return value
     }
 
+    public func caretOffsets(_ string: String, font: FontKey) -> [Double] {
+        trapping { try PortableText.caretOffsets(string, font: registered(font)) }
+    }
+
     public func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
                             origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
         let portable = registered(font)
