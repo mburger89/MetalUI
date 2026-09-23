@@ -465,3 +465,163 @@ private func renderWindowed<E: Element>(_ element: inout E, context: ScrollConte
     #expect(windowed.scrollRegions.count < data.count,
             "the same list and the same context, not wrapped, still windows")
 }
+
+// MARK: - Stage 4, lane 1 (`LR-BS`, `LR-BY`): the spacer, and the harness that
+// could not window
+
+/// **The windowing spacer is a bare legacy NODE, not a `Box` element**
+/// (`LR-BS`, plan task 7 stage 4).
+///
+/// An element costs a `StateTable` entry it never reads: `Box.requestLayout`
+/// calls `animated(_:_:for:pass:)`, which mints a `$anim` slot on first sight
+/// of every registering element, unconditionally
+/// (`AnimatedStyle.swift`) — so a spacer `Box` put one entry under
+/// `child(of: listID, at: 0, name: nil)` on **every** `List`, on **every**
+/// frame that built one. Under the proposal authority nothing will mint it
+/// (the arrangement is a `ProposalLayout` over the rows, with no spacer at
+/// all), so keeping the element would make the two authorities' `StateTable`
+/// id sets differ for every `List` in the framework — which stage 1's §5.1
+/// item 4 forbids and which `LayoutDifferential`'s `stateSlotsEqual` reports.
+///
+/// **Positional 0 is the exact slot to look at, and nothing else can land
+/// there.** Every row carries `.id(String(describing: datum.id))`, so a row's
+/// component is `.named`, never `.positional` — a name replaces a position
+/// rather than joining it. So `child(of: listID, at: 0, name: nil)` addresses
+/// the spacer and only the spacer, before and after this change.
+///
+/// The assertion walks the whole table rather than probing one id, because the
+/// entry the spacer costs is not its own id but a `$anim` CHILD of it.
+@Test @MainActor func theListsSpacerIsANodeNotAnElement() throws {
+    let data = items(10)
+    var list = List(data, rowHeight: px(28)) { Row($0) }
+    // A scrolled window, so the spacer has real height (84pt) and is a real
+    // participant rather than a zero-sized no-op.
+    let context = ScrollContext(offset: 140, viewportExtent: 56, axis: .vertical)
+    let (frame, _) = renderWindowed(&list, context: context)
+
+    let listID = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let spacerID = GlobalElementID.child(of: listID, at: 0, name: nil)
+    func descends(_ id: GlobalElementID, from ancestor: GlobalElementID) -> Bool {
+        var cursor: GlobalElementID? = id
+        while let current = cursor {
+            if current == ancestor { return true }
+            cursor = current.parent
+        }
+        return false
+    }
+    let spacerEntries = frame.stateTable.ids.filter { descends($0, from: spacerID) }
+
+    // The window is real: rows 3..<9 of ten, so the spacer is 3 x 28 = 84 tall.
+    try #require(frame.scrollRegions.count == 6,
+                 "the fixture must actually window, or the spacer is 0-height and proves nothing")
+    #expect(spacerEntries.isEmpty,
+            "the spacer must cost no StateTable entry; got \(spacerEntries.map { "\($0)" }.sorted())")
+    // And the rows around it still do cost one apiece, so the filter above is
+    // looking at a table that holds entries at all.
+    #expect(frame.stateTable.ids.count > 6)
+}
+
+/// **The differential harness can window a `List`, and before this lane it
+/// could not** (`LR-BY`, critic round 1 defect D4).
+///
+/// `LayoutDifferential.render` used to build ONE frame with a fresh
+/// `StateTable` of its own. `ScrollContext.viewportExtent` is one frame stale
+/// by construction — only `ScrollChrome.resolvedOffset`'s `PrepaintPass`
+/// overload ever writes it — so on frame 1 it is 0, `List.visibleRange` takes
+/// its `context.viewportExtent > 0` guard and returns `0..<count`, and
+/// `windowIsBounded` is false. Every `List` arm of every differential test was
+/// therefore comparing an UNWINDOWED list, and its `accessibilityEqual` was
+/// comparing one table record with one table record and passing vacuously —
+/// "a harness that compares nothing agrees" (record §26 §2.4).
+///
+/// This is the anti-vacuity check itself, on the legacy authority alone: the
+/// harness must reach a bounded window and a non-empty row-record set, or no
+/// later lane's `List` arm means anything. Mutation **M1f** (`frames:` forced
+/// back to 1) must redden it.
+@Test @MainActor func aListInTheDifferentialHarnessReachesABoundedWindow() throws {
+    let data = items(40)
+    // The demo's own scroller shape, and it is load-bearing here: the harness
+    // root is a `display: .stack` that offers its children fit-content, so a
+    // bare `ScrollView` takes its content's full 1120pt as its viewport and
+    // windows nothing. `flexGrow(1).flexBasis(0).minHeight(0)` inside a
+    // container with a declared height is what bounds the viewport at 200 —
+    // exactly what `DemoContent.swift`'s scroller `Box` writes, measured
+    // against the two alternatives (a plain fixed-height `Box` around the
+    // scroller, and a fixed-height `Box` with `minSize.height: 0` inside it),
+    // which both read all 40 rows.
+    var column = Style()
+    column.flexDirection = .column
+    column.size = Size(width: .length(.pixels(px(200))), height: .length(.pixels(px(200))))
+    let frame = LayoutDifferential.render(authority: .legacy, width: 200, height: 200) {
+        Box(style: column) {
+            Box {
+                ScrollView(.vertical) {
+                    List(data, rowHeight: px(28)) { Row($0) }
+                }
+            }
+            .flexGrow(1).flexBasis(px(0)).minHeight(px(0))
+        }
+    }
+
+    let rows = frame.axEmissions.filter { $0.declared.logicalIndex != nil }
+    let tables = frame.axEmissions.filter { $0.declared.logicalCount != nil }
+    try #require(tables.count == 1, "exactly one AXTable record, the List's own")
+    #expect(tables[0].declared.logicalCount == 40)
+    // Bounded: fewer rows than the logical count, and not zero. An unbounded
+    // window publishes the table and NO rows at all (`AB-X` rule 1), so both
+    // halves are load-bearing.
+    try #require(!rows.isEmpty, "an unbounded window publishes no rows — the harness never windowed")
+    #expect(rows.count < data.count,
+            "a bounded window realizes a slice; got all \(rows.count) of \(data.count)")
+    // And the realized set is the window `visibleRange` computes for a 200pt
+    // viewport over 28pt rows at offset 0: rows 0..<10, widened by overscan 2
+    // on each side and clamped, so 0 through 9.
+    #expect(rows.compactMap { $0.declared.logicalIndex }.sorted() == Array(0...9))
+}
+
+/// **The scene and the hitbox list are byte-for-byte what they were before the
+/// spacer stopped being an element** (`LR-BS`).
+///
+/// A characterization test, green on both sides of the change, whose evidence
+/// is its mutations rather than a red-before. Its literals were taken at
+/// `f2e981f` — the commit this branch forked from — and the whole point of the
+/// spacer's demotion is that they do not move: an empty `Decoration` emits
+/// nothing and an empty `Handlers` registers nothing, so the element the
+/// spacer was contributed a `StateTable` entry and a `Frame.elementBounds`
+/// record and NOTHING else. If either literal moves, the demotion changed what
+/// a `List` draws or what it can be clicked on, which is a finding and not a
+/// number to update.
+///
+/// The fixture is deliberately a SCROLLED list with painted, clickable rows:
+/// the spacer has real height (84pt), so a rect or a hitbox accidentally
+/// emitted for it would land at a position nothing else occupies.
+@Test @MainActor func aListsSceneAndHitboxesAreUnchangedByTheGroup() throws {
+    let data = items(10)
+    var list = List(data, rowHeight: px(28)) { _ in
+        Box().background(.accent).onClick {}.width(px(100))
+    }.width(px(120))
+    let context = ScrollContext(offset: 140, viewportExtent: 56, axis: .vertical)
+    let (frame, _) = renderWindowed(&list, context: context)
+
+    func key(_ b: Bounds<Pixels>) -> String {
+        "\(b.origin.x.value),\(b.origin.y.value) \(b.size.width.value)x\(b.size.height.value)"
+    }
+    let rects = frame.scene.rects.map {
+        "\($0.bounds.origin.x),\($0.bounds.origin.y) \($0.bounds.size.width)x\($0.bounds.size.height)"
+            + " a=\($0.background.a)"
+    }
+    let hitboxes = frame.hitboxes.map { "\(key($0.bounds))|\($0.layer)|\($0.opaque)" }
+
+    // Taken at `f2e981f` by running this test with the two arrays printed. The
+    // six windowed rows (3 through 8 of ten, a 140 offset over 28pt rows with
+    // overscan 2) and nothing else: the spacer occupies y 0 through 84 and
+    // emits no rect and registers no hitbox, before the change and after it.
+    let expectedRects = ["0.0,84.0 100.0x28.0 a=1.0", "0.0,112.0 100.0x28.0 a=1.0",
+                         "0.0,140.0 100.0x28.0 a=1.0", "0.0,168.0 100.0x28.0 a=1.0",
+                         "0.0,196.0 100.0x28.0 a=1.0", "0.0,224.0 100.0x28.0 a=1.0"]
+    let expectedHitboxes = ["0.0,84.0 100.0x28.0|0|true", "0.0,112.0 100.0x28.0|0|true",
+                            "0.0,140.0 100.0x28.0|0|true", "0.0,168.0 100.0x28.0|0|true",
+                            "0.0,196.0 100.0x28.0|0|true", "0.0,224.0 100.0x28.0|0|true"]
+    #expect(rects == expectedRects, "\(rects)")
+    #expect(hitboxes == expectedHitboxes, "\(hitboxes)")
+}

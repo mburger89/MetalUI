@@ -415,9 +415,12 @@ struct MeasurePerformanceTests {
         // builds every row (ruling MP-I) rather than windowing — the peak
         // this test exists to see reaped.
         renderFrame(offset: nil)
-        // `2n + 6`, not `n + 2` — moved by the animation milestone's Task 4,
-        // measured rather than derived (20006 at n = 10_000, re-run after
-        // wiring `animated(_:_:for:pass:)` into `Box.requestLayout`). Every
+        // `2n + 5`, not `n + 2` — moved by the animation milestone's Task 4
+        // (20006 at n = 10_000, re-run after wiring `animated(_:_:for:pass:)`
+        // into `Box.requestLayout`) and moved again by plan task 7's stage 4
+        // lane 1 (`LR-BS`), which demoted the windowing spacer from a `Box`
+        // ELEMENT to a bare legacy node and took its `$anim` entry with it.
+        // Measured rather than derived, at both steps. Every
         // row is wrapped in its OWN `Box` (`List.requestLayout`, `rows`), and
         // `Box` now unconditionally substitutes through `animated` — first
         // sighting always writes a settled baseline (ruling Q,
@@ -425,13 +428,16 @@ struct MeasurePerformanceTests {
         // `Box` gains a persistent `$anim` slot alongside its
         // `StatefulListRow`'s own `@State` one: `n` (row state) + `n` (row
         // `Box` `$anim`) = `2n`. The fixed overhead grew from 2 to 6 the same
-        // way: the scroller's `ScrollState`, the `List`'s own `$ax` retention
-        // slot (Task 7, unchanged), the `List`'s own wrapping `Box`'s
-        // `$anim` slot, the windowing spacer `Box`'s `$anim` slot
-        // (`List.requestLayout`'s `spacer`), and `ScrollView`'s two
-        // registering nodes' `$anim` slots (content and viewport) — six
-        // fixed entries regardless of row count, none of them per-row.
-        #expect(table.count == 2 * n + 6, """
+        // way and is now **5**: the scroller's `ScrollState`, the `List`'s own
+        // `$ax` retention slot (Task 7, unchanged), the `List`'s own wrapping
+        // `Box`'s `$anim` slot, and `ScrollView`'s two
+        // registering nodes' `$anim` slots (content and viewport) — five
+        // fixed entries regardless of row count, none of them per-row. The
+        // sixth used to be the windowing spacer `Box`'s `$anim` slot;
+        // `theListsSpacerIsANodeNotAnElement` (`ListTests.swift`) pins its
+        // absence directly, and this literal is the arithmetic half of the
+        // same claim.
+        #expect(table.count == 2 * n + 5, """
                 the cold frame must build every row plus the scroller's own \
                 ScrollState entry plus the List's own $ax retention slot — Task 7 made \
                 a List unconditionally emit ITS OWN AXNode (role .container, carrying \
@@ -440,9 +446,11 @@ struct MeasurePerformanceTests {
                 every emission under a distinct \"$ax\" child slot (Task 6) — one more \
                 entry than before Task 7, for exactly one List, not per row. The animation \
                 milestone's Task 4 then wired every Box (including one per row, the List's \
-                own wrapper, ScrollView's two nodes and the windowing spacer) through \
+                own wrapper and ScrollView's two nodes) through \
                 animated(_:_:for:pass:), which unconditionally persists a $anim baseline on \
-                first sighting — doubling the per-row cost and adding four more fixed entries.
+                first sighting — doubling the per-row cost and adding three more fixed entries. \
+                Stage 4 lane 1 (LR-BS) then took the windowing spacer's own entry away by \
+                demoting it from a Box element to a bare legacy node.
                 """)
 
         // Scroll in large jumps across the FULL 10k-row range — each
@@ -468,7 +476,7 @@ struct MeasurePerformanceTests {
             print("MeasurePerformanceTests: table.count after scroll frame \(frame) = \(count)")
             #expect(count < n / 10, """
                     after frame \(frame) of scrolling, \(count) entries survive — a \
-                    policy that never reaps would sit at \(2 * n + 6) here, since every \
+                    policy that never reaps would sit at \(2 * n + 5) here, since every \
                     jump only re-marks entries the cold frame already created.
                     """)
         }
