@@ -316,7 +316,7 @@ extension MetalHostView: @preconcurrency NSTextInputClient {
     func characterIndex(for point: NSPoint) -> Int { NSNotFound }
 
     /// An `NSRange` of UTF-16 units in `text` as Character offsets, clamped.
-    static func characterRange(_ range: NSRange, in text: String) -> Range<Int> {
+    nonisolated static func characterRange(_ range: NSRange, in text: String) -> Range<Int> {
         // The Characters that end at or before `unit` — rounding down inside
         // a grapheme.
         func characters(upTo unit: Int) -> Int {

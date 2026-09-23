@@ -87,8 +87,10 @@ deprecated alias of `KeyBinding`), and a controlled field needs none.
 
 - **One line.** Its height is the font's line height; its width is greedy
   under the proposal authority (SwiftUI's `TextField` takes the offered
-  width) and, under the legacy one, the offered definite width or the wider
-  of its text and placeholder.
+  width). Under the legacy authority it sizes as a `Text` does — the wider of
+  its text and placeholder plus the caret, stretched across by `Box`
+  (EP-8) — so `.flexGrow(1)` or a width widens it there. The line is centred
+  in whatever height it gets.
 - Text longer than the field **scrolls horizontally** to keep the caret
   visible; glyphs are clipped to the field.
 - **Paint:** selection behind the glyphs (`accent` at 30 % opacity), the

@@ -31,10 +31,11 @@ private func up(_ x: Float, _ y: Float) -> InputEvent {
 /// (greedy) and is centred vertically at its line height.
 @MainActor
 private func fieldWindow(_ model: Model, disabled: Bool = false, submits: Bool = true,
+                         authority: LayoutAuthority? = nil,
                          extra: @escaping @MainActor (TextField) -> TextField = { $0 })
     throws -> (Window, FakePlatformWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    return try makeFakeWindow(device: device, size: 200) {
+    return try makeFakeWindow(device: device, size: 200, layoutAuthority: authority) {
         var field = TextField("Name", text: model.text) { model.text = $0 }
         if submits { field = field.onSubmit { model.submits += 1 } }
         return Box { extra(field).disabled(disabled) }
@@ -123,7 +124,10 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
         .onKey { event in model.keyLog.append(event.charactersIgnoringModifiers); return true }
         .onAction(Clear.self) { _ in model.text = "" }
     }
-    window.keymap = Keymap { KeyBinding("cmd-k", Clear()) }
+    // Bound to the field's own select-all key, so the order is visible: the
+    // keymap first clears the text; the field first would only select it.
+    let shortcut = TextEditing.platform == .mac ? "cmd-a" : "ctrl-a"
+    window.keymap = Keymap { KeyBinding(shortcut, Clear()) }
     window.drawFrameIfNeeded()
     let bounds = try fieldBounds(window)
     platform.simulateInput(down(bounds.origin.x.value + 150, bounds.origin.y.value + 2))
@@ -132,8 +136,8 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
     #expect(model.text == "ab" && model.keyLog.isEmpty, "the field claims its editing keys")
     platform.simulateInput(key("\t"))
     #expect(model.keyLog == ["\t"], "tab is not the field's: it bubbles to the ancestor's onKey")
-    platform.simulateInput(key("k", .command))
-    #expect(model.text == "", "the keymap binding ran, ahead of the field")
+    platform.simulateInput(key("a", TextEditing.platform == .mac ? .command : .control))
+    #expect(model.text == "", "the keymap binding ran, ahead of the field's select-all")
 }
 
 @Test @MainActor func copyCutAndPasteGoThroughThePlatformClipboard() throws {
@@ -226,4 +230,87 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
     let right = bounds.origin.x.value + bounds.size.width.value
     #expect(caret.origin.x.value <= right && caret.origin.x.value >= right - 2,
             "the caret at the end sits at the field's right edge: \(caret.origin.x.value) vs \(right)")
+    // Moving left inside the scrolled view keeps the scroll: the caret walks
+    // left across the field rather than staying pinned to the edge.
+    for _ in 0..<10 { platform.simulateInput(key(TextEditing.leftArrow)) }
+    window.drawFrameIfNeeded()
+    let moved = try #require(platform.textInputAreas.last ?? nil)
+    let tenBack = try caretX(window, at: model.text.count - 10)
+    #expect(moved.origin.x.value == tenBack && moved.origin.x.value < right - 30,
+            "the scroll stayed where the end put it: \(moved.origin.x.value)")
+}
+
+/// Both authorities. The proposal engine offers the field the width and it
+/// takes it, one line tall (SwiftUI's greedy `TextField`); the legacy CSS
+/// engine sizes it as it sizes a `Text` — its natural width, stretched across
+/// by `Box` (EP-8) — and the line is centred in whatever height it gets.
+/// Typing edits the same way under both. `.legacy` is pinned here on purpose,
+/// as the second arm of the pair (owner: stage 9, which deletes the legacy
+/// authority).
+@Test(arguments: [LayoutAuthority.proposal, .legacy])
+@MainActor func aFieldLaysOutAndEditsUnderBothAuthorities(_ authority: LayoutAuthority) throws {
+    let model = Model("ab")
+    let (window, platform) = try fieldWindow(model, authority: authority)
+    window.drawFrameIfNeeded()
+    let bounds = try fieldBounds(window)
+    let target = try #require(window.lastHitboxes.first { $0.handlers.textInput != nil }?.handlers.textInput)
+    let line = target.caretRect.size.height.value
+    if authority == .proposal {
+        #expect(bounds.size.width.value == 200 && bounds.size.height.value == line)
+    } else {
+        // "Name" is wider than "ab": the placeholder's width plus the caret.
+        #expect(bounds.size.width.value < 60 && bounds.size.height.value == 200)
+    }
+    let centred = bounds.origin.y.value + (bounds.size.height.value - line) / 2
+    #expect(target.caretRect.origin.y.value == centred, "\(authority): the line is centred")
+    platform.simulateInput(down(try caretX(window, at: 2), bounds.origin.y.value + 2))
+    platform.simulateInput(.textInput("c"))
+    #expect(model.text == "abc", "\(authority)")
+}
+
+/// TI-C's paint, read off the frame's scene (fake window at scale 1, so scene
+/// units are points): the placeholder at 45 % of the text colour's alpha, a
+/// 1-point caret only while focused and collapsed, the selection behind the
+/// text in the accent at 30 %, and the composition's 1-point underline.
+@Test @MainActor func aFieldPaintsItsPlaceholderCaretSelectionAndComposition() throws {
+    let model = Model("")
+    let (window, platform) = try fieldWindow(model)
+    window.drawFrameIfNeeded()
+    let bounds = try fieldBounds(window)
+    let theme = window.theme
+    var scene = try #require(window.lastScene)
+    let text = theme[.textPrimary]
+    #expect(!scene.glyphs.isEmpty && scene.glyphs.allSatisfy { abs($0.color.a - text.a * 0.45) < 1e-6 },
+            "an empty field paints its placeholder, dimmed")
+    func caretRects(_ scene: Scene) -> [MUIRect] {
+        scene.rects.filter { $0.bounds.size.width == 1 && $0.background.a == text.a }
+    }
+    #expect(caretRects(scene).isEmpty, "no caret while unfocused")
+
+    platform.simulateInput(down(bounds.origin.x.value + 20, bounds.origin.y.value + 2))
+    platform.simulateInput(.textInput("hello"))
+    window.drawFrameIfNeeded()
+    scene = try #require(window.lastScene)
+    #expect(scene.glyphs.count == 5 && scene.glyphs.allSatisfy { $0.color.a == text.a }, "the text, full strength")
+    let caret = try #require(caretRects(scene).first)
+    #expect(caret.bounds.origin.x == Float(try caretX(window, at: 5)), "the caret after the typed text")
+
+    platform.simulateInput(down(try caretX(window, at: 1), bounds.origin.y.value + 2))
+    platform.simulateInput(.mouseDragged(MouseEvent(position: Point(x: Pixels(try caretX(window, at: 4)),
+                                                                    y: bounds.origin.y))))
+    window.drawFrameIfNeeded()
+    scene = try #require(window.lastScene)
+    let accent = theme[.accent]
+    let selection = try #require(scene.rects.first { abs($0.background.a - accent.a * 0.3) < 1e-6 })
+    #expect(selection.bounds.origin.x == Float(try caretX(window, at: 1)))
+    #expect(abs(selection.bounds.size.width - Float(try caretX(window, at: 4) - caretX(window, at: 1))) < 1e-3)
+    #expect(caretRects(scene).isEmpty, "no caret over a selection")
+
+    platform.simulateInput(down(try caretX(window, at: 5), bounds.origin.y.value + 2))
+    platform.simulateInput(.textComposition(TextComposition(text: "ka", selection: 2..<2)))
+    window.drawFrameIfNeeded()
+    scene = try #require(window.lastScene)
+    #expect(scene.glyphs.count == 7, "the composition is drawn inline")
+    #expect(scene.rects.contains { $0.bounds.size.height == 1 && $0.bounds.size.width > 1 },
+            "the composition is underlined")
 }

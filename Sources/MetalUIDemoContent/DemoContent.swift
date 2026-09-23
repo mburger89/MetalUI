@@ -94,6 +94,11 @@ public final class DemoModel {
     /// milestone built. See CLAUDE.md's human-verification table for what a
     /// human should watch.
     public var animationDemoActive = false
+
+    /// The demo's text field (roadmap item 14): a controlled field stores
+    /// what it is given back here. Typing into it is the human look for
+    /// input methods, dead keys, selection and the clipboard (TI-F).
+    public var fieldText = ""
 }
 
 @MainActor public let demoModel = DemoModel()
@@ -626,6 +631,15 @@ public func demoContent() -> some Element {
                      the width it was offered, and paint re-shapes at the \
                      width layout settled on.
                      """)
+
+                // **Text input** (roadmap item 14): click to focus, type —
+                // through the keyboard layout and any input method — select
+                // with a drag, a double click or shift, and copy and paste.
+                // Plain-letter keymap bindings (Space, A, M…) do not fire while
+                // it is focused; Esc unfocuses it.
+                TextField("Type here: an input method, a selection, copy and paste",
+                          text: demoModel.fieldText) { demoModel.fieldText = $0 }
+                    .background(.surfaceSecondary)
 
                 // **The clipping-and-scroll milestone's exit criterion.**
                 // Replaces the three-weights filler row (M1's flexGrow demo,
