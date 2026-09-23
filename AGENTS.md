@@ -46,7 +46,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   rulings in its spec), `SP-` (next `SP-D`; rulings in its spec), `XP-`
   (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
-  its spec), `BD-` (next `BD-E`; rulings in its spec). A numbered citation
+  its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
+  its spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -111,8 +112,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   §39 MetalUI off Apple (`XP-`, spec `specs/2026-09-23-metalui-portable-design.md`),
   §40 the demo on Linux and Windows (`DC-`, spec
   `specs/2026-09-23-demo-cross-platform-design.md`), §42 portable font
-  fallback (`FB-`, spec `specs/2026-09-23-font-fallback-design.md`) and §43
-  portable bidi (`BD-`, spec `specs/2026-09-23-bidi-design.md`). **Cross-platform work
+  fallback (`FB-`, spec `specs/2026-09-23-font-fallback-design.md`), §43
+  portable bidi (`BD-`, spec `specs/2026-09-23-bidi-design.md`) and §44
+  accessibility off Apple through AccessKit (`AX-`, spec
+  `specs/2026-09-23-accesskit-accessibility-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -149,6 +152,11 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
+- **Counts (2026-09-23, `feat/accessibility` — roadmap item 13): the root
+  package is untouched — 1712 / 97 / 78 as below**. The work is in the
+  separate `Backends/SDL` package: `MetalUISDLTests` 14 (5 new
+  `AccessKitTests`) + `ReplayFixtureTests` 21 on macOS; 13 + 21 on Linux
+  aarch64, where the NSAccessibility test does not exist (record §44).
 - **Counts (2026-09-23, `feat/bidi` — roadmap items 11–12 — merged with
   `master` at `2cc763d`, stage 6b): 1712 tests, 97 goldens, 78 typecheck
   guards**, taken the same way: **1712 = 1708 + 4**, font fallback's
@@ -411,8 +419,17 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `Backends/SDL` — a **separate package** (`MetalUISDL`, so the root never
   needs SDL3) holding `SDLWindowRenderer` and the replay parity harness
   (`RS-D`), and `SDLPlatform`/`SDLWindow`, the SDL3 `Platform` (`SP-A`;
-  keys translated to AppKit's characters so `Keymap` works, `SP-C`; **no
-  accessibility**, explicitly — a divergence until roadmap item 13, `SP-B`).
+  keys translated to AppKit's characters so `Keymap` works, `SP-C`; accessibility
+  through AccessKit** — AT-SPI, UI Automation, and NSAccessibility for the SDL
+  window on macOS, `AX-B`/`AX-C`, superseding `SP-B`). **`Backends/SDL`
+  links AccessKit's C bindings, fetched, not vendored (`AX-A`)**: run
+  `python3 Backends/SDL/scripts/fetch-accesskit.py` once, then build and test
+  that package with `PKG_CONFIG_PATH=$PWD/.accesskit` (Windows: the `-Xcc`/
+  `-Xswiftc` flags it prints); without it SwiftPM warns about pkg-config and
+  the link fails on `accesskit_*`. The root package never needs it. AccessKit
+  calls back on its own thread on Linux: callbacks only queue under a lock and
+  wake SDL (`mui_wake_for_accessibility`); requests reach
+  `onAccessibilityRequest` on the main thread, parked until it is set.
   **Windows draw through `PlatformWindow.renderer`, a
   `WindowRenderer`** (`RS-A`: `beginFrame() -> Float?`, then
   `finishFrame(scene:atlas:)`), declared in `MetalUIPlatform`, which is now
