@@ -136,19 +136,23 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
 // A grid is ONE native level (spec §4.5): its solver runs in functions called
 // from `measureNative` and `placeNative`, and each cell is entered once. The
 // depth literals are literals on purpose (ruling GR-M, critic finding 2), not
-// `NativeLayoutRun.maxDepth` arithmetic: a leaf under 88 nested one-cell grids
-// is 89 levels and traps; under 87 it is 88 levels and lays out. Both lay out
+// `NativeLayoutRun.maxDepth` arithmetic: a leaf under 72 nested one-cell grids
+// is 73 levels and traps; under 71 it is 72 levels and lays out. Both lay out
 // at a nil proposal (lane 1's branch; the finite solve's ceiling is also in the
 // table below and clears the same gate), on a 4 MB thread as above. The one-cell-grid debug ceiling is in
 // `NativeLayoutRun.maxDepth`'s table.
+//
+// **88 / 87 until stage 6b's lane 1** (`LR-DK`): `maxDepth` fell to 72 by `SA-L`'s
+// own rule on the re-bisected debug ceilings, and these two were re-derived by hand
+// (renamed from `aChainOf88GridsTraps` / `aChainOf87GridsDoesNotTrap`).
 
-/// Mutation: `NativeLayoutRun.maxDepth` 89 (the child exits `.success`).
-@Test func aChainOf88GridsTraps() async {
+/// Mutation: `NativeLayoutRun.maxDepth` 73 (the child exits `.success`).
+@Test func aChainOf72GridsTraps() async {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         let t = Thread {
             let tree = LayoutTree(generation: 0)
             var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
-            for _ in 0..<88 {
+            for _ in 0..<72 {
                 node = tree.newNativeGrid(children: [node])
             }
             tree.computeNativeLayout(root: node, proposal: ProposedSize(width: nil, height: nil),
@@ -158,22 +162,28 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
         t.start()
         waitUntilFinished(t)
     }
-    #expect(stderrText(result).contains("native layout recursion exceeded"),
+    #expect(stderrText(result).contains("native layout recursion exceeded 72 levels"),
             "aborted, but not at the native depth guard:\n\(stderrText(result))")
 }
 
-/// Mutation: `NativeLayoutRun.maxDepth` 87 (the child traps).
-@Test func aChainOf87GridsDoesNotTrap() async {
+/// Mutation: `NativeLayoutRun.maxDepth` 71 (the child traps). The child also
+/// requires the run's deepest level to be the limit itself
+/// (`LayoutTree.lastNativeLayoutDeepestLevel`, `LR-DK`), so a limit raised above 72
+/// reddens this arm too.
+@Test func aChainOf71GridsDoesNotTrap() async {
     await #expect(processExitsWith: .success) {
         let t = Thread {
             let tree = LayoutTree(generation: 0)
             var node = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
-            for _ in 0..<87 {
+            for _ in 0..<71 {
                 node = tree.newNativeGrid(children: [node])
             }
             let size = tree.computeNativeLayout(root: node, proposal: ProposedSize(width: nil, height: nil),
                                                 in: LayoutRect(x: 0, y: 0, width: 10, height: 10)).size
             precondition(size == SizeD(width: 10, height: 10), "answered \(size)")
+            precondition(tree.lastNativeLayoutDeepestLevel == 72,
+                         "deepest level \(tree.lastNativeLayoutDeepestLevel), not 72")
+            precondition(NativeLayoutRun.maxDepth == 72, "the chain is at the limit only while it is 72")
         }
         t.stackSize = 4 * 1024 * 1024
         t.start()
@@ -184,9 +194,11 @@ private struct PlacesWithoutMeasuring: ProposalLayout {
 // MARK: - Every node kind at `maxDepth − 1` on a 1 MB thread (lane 4, GR-AC item 3)
 //
 // `SA-L` sets `maxDepth` at 0.60 of the SMALLEST debug ceiling over every native
-// node kind, and `GR-AC` records that the fraction is already breached at
+// node kind, and `GR-AC` recorded that the fraction was already breached at
 // `cb2e708` by the one-child vertical stack (128 → 76 < 88), a dated obligation
-// owned by `LR-Q`'s stage 6b re-bisection. The half that CAN be tested is the
+// owned by `LR-Q`'s stage 6b re-bisection — **discharged by stage 6b's lane 1**
+// (`LR-DK`): the re-bisected debug stack ceiling is 127, so `maxDepth` is 72 and the
+// fraction holds again (72 / 127 = 0.57). The half that CAN be tested is the
 // hard one: that every kind still *completes* a chain the guard admits, on the
 // 1 MB stack the fraction is stated about — not the 4 MB thread every other test
 // in this file uses, which is chosen to isolate the guard from the stack.

@@ -133,7 +133,13 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
 
     func check<E: Element>(_ site: String,
                            _ make: @escaping @MainActor () -> E) throws {
+        // Stage 6b (`LR-DG`, R-centre — predicted "centre"): every subject's
+        // root declares both axes, so it is centred in the 100x100 window — the
+        // 40x40 subjects at 30..70, `modifiedInner`'s 56x56 chain at 22..78 with
+        // its 40x40 inner layer at 30..70 — and (50, 50) is inside each where
+        // the legacy top-left root read (20, 20); (80, 80) is off every one.
         let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
+                                                          layoutAuthority: .proposal,
                                                           content: make)
         let theme = window.theme
         func expectFill(_ token: ColorToken, _ state: String) throws {
@@ -156,7 +162,7 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
         window.drawFrameIfNeeded()
         try expectFill(.separator, "focused, pointer elsewhere")
 
-        platformWindow.simulateInput(mouseMoved(to: pt(20, 20)))
+        platformWindow.simulateInput(mouseMoved(to: pt(50, 50)))
         window.setNeedsRedraw()
         window.drawFrameIfNeeded()
         try expectFill(.separator, "focused AND hovered — focus outranks hover")
@@ -202,8 +208,11 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
     func check<E: Element>(_ site: String, _ state: String, to target: ColorToken,
                            _ make: @escaping @MainActor () -> E,
                            change: (Window, FakePlatformWindow, GlobalElementID) -> Void) throws {
+        // Stage 6b (`LR-DG`, R-centre): as in the test above, every root is
+        // centred and (50, 50) is inside each subject.
         let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                           startsDisplayLink: true,
+                                                          layoutAuthority: .proposal,
                                                           content: make)
         let theme = window.theme
 
@@ -245,7 +254,7 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
             window.focus(id)
         }
         try check(site, "hover", to: .accent, make) { window, platformWindow, _ in
-            platformWindow.simulateInput(mouseMoved(to: pt(20, 20)))
+            platformWindow.simulateInput(mouseMoved(to: pt(50, 50)))
             window.setNeedsRedraw()
         }
     }

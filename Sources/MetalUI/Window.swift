@@ -141,10 +141,11 @@ public final class Window {
     }
 
     /// The layout authority every frame this window builds runs under (plan task
-    /// 7, ruling LR-B): `.legacy` until stage 6b switches the default. A write
-    /// marks the window dirty, as `environment`'s does, a no-op included.
-    /// **Internal**, pinned by `aPlainImportCannotChooseTheLayoutAuthority`.
-    var layoutAuthority: LayoutAuthority = .legacy {
+    /// 7, ruling LR-B): `Frame.defaultLayoutAuthority`, `.proposal` since stage
+    /// 6b's switch (`LR-DF`). A write marks the window dirty, as `environment`'s
+    /// does, a no-op included. **Internal**, pinned by
+    /// `aPlainImportCannotChooseTheLayoutAuthority`.
+    var layoutAuthority: LayoutAuthority = Frame.defaultLayoutAuthority {
         didSet { setNeedsRedraw() }
     }
 
@@ -228,6 +229,15 @@ public final class Window {
     /// Test and debug observability, not API. Delete both counters in the same
     /// change that lands a real profiling story.
     public private(set) var observationDirtyings: Int = 0
+
+    /// The most recent frame's deepest native level
+    /// (`LayoutTree.lastNativeLayoutDeepestLevel` — the root's own run, `SA-L`'s
+    /// depth), captured alongside `lastScene` because the frame and its tree die
+    /// at the end of `drawFrameIfNeeded`. **Test observability** for plan task
+    /// 7, stage 6b (`LR-DK` item 2, test 3.3): every production root's depth is
+    /// read through a real window. 0 for a frame whose root is laid out by the
+    /// CSS engine (no native run).
+    private(set) var lastNativeLayoutDeepestLevel = 0
 
     /// The primitives the most recent frame handed to the renderer.
     ///
@@ -915,6 +925,7 @@ public final class Window {
         lastScene = scene
         lastHitboxes = frame.hitboxes
         lastElementBounds = frame.elementBounds
+        lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
         // Read BACK, not merely handed in: `Frame.resolveFocus()` cleared it if
         // this frame did not produce the focused element (design spec §4.2).

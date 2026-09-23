@@ -189,7 +189,7 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
 @MainActor
 private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
                    theme: Theme = .light, table: StateTable = StateTable(),
-                   authority: LayoutAuthority = .legacy) -> Frame {
+                   authority: LayoutAuthority = Frame.defaultLayoutAuthority) -> Frame {
     Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: scale,
           stateTable: table, theme: theme, layoutAuthority: authority)
 }
@@ -305,8 +305,14 @@ private struct ClickCounter: Element {
     @State var n = 0
     let log: CounterLog
 
+    // A stage 6a Dual leaf since stage 6b (`LR-DI`, spec §5.2's P-6b rule):
+    // `declaredSizeNativeLeaf` under the proposal authority, `Frame`'s internal
+    // legacy registrar under the legacy one — so the one test using it runs at
+    // whatever authority its window has.
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.frame.requestNode(style: fixedStyle(20, 20), children: []), ())
+        (pass.lowersToProposal
+            ? declaredSizeNativeLeaf(fixedStyle(20, 20), pass)
+            : pass.frame.requestNode(style: fixedStyle(20, 20), children: []), ())
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -349,14 +355,18 @@ private func click(_ platform: FakePlatformWindow, at point: Point<Pixels>) {
 /// lands). Every draw after a model change is forced, so a reading is never a
 /// stale frame's.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): both `Row` roots declare the 64x64 window's
+/// extent on their two auto axes, so the counter sits at x 0…20, y 22…42 on
+/// both authorities and (10, 32) lands on it; the counter is a Dual leaf.
 @MainActor
 @Test func changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let model = EnvModel()
     let log = CounterLog()
-    let (window, platform) = try makeFakeWindow(device: device, layoutAuthority: .legacy) {
+    let (window, platform) = try makeFakeWindow(device: device) {
         Row { ClickCounter(log: log).environment(\.probe, model.value) }
+            .width(px(64)).height(px(64))
     }
     let centre = Point(x: px(10), y: px(32))
 
@@ -374,8 +384,9 @@ private func click(_ platform: FakePlatformWindow, at point: Point<Pixels>) {
 
     // D10: the `.disabled` arm.
     let disabledLog = CounterLog()
-    let (disabledWindow, disabledPlatform) = try makeFakeWindow(device: device, layoutAuthority: .legacy) {
+    let (disabledWindow, disabledPlatform) = try makeFakeWindow(device: device) {
         Row { ClickCounter(log: disabledLog).disabled(model.flag) }
+            .width(px(64)).height(px(64))
     }
     disabledWindow.drawFrameIfNeeded()
     click(disabledPlatform, at: centre)
@@ -786,7 +797,10 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
 @MainActor
 @Test func theSpaceKeyBindingSwapsTheThemeThroughTheFakePlatform() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
-    func tree() -> Box<EmptyGroup> { Box().background(.background) }
+    // Stage 6b (`LR-DG`, R-fill): the 64x64 window's extent declared on the
+    // childless root's two auto axes — a proposal `Box()` with none answers
+    // 0x0 and paints nothing at the centre; the legacy root filled them itself.
+    func tree() -> Box<EmptyGroup> { Box().background(.background).width(px(64)).height(px(64)) }
 
     let (lightWindow, lightPlatform) = try makeFakeWindow(device: device) { tree() }
     lightWindow.theme = .light
@@ -962,7 +976,7 @@ private func branching(_ a: Int, _ b: Int, _ c: Int) -> ArrayGroup<Level2> {
 }
 
 @MainActor
-private func counts<C: ElementGroup>(_ content: C, authority: LayoutAuthority = .legacy)
+private func counts<C: ElementGroup>(_ content: C, authority: LayoutAuthority = Frame.defaultLayoutAuthority)
     throws -> (push: Int, snapshot: Int, transform: Int) {
     let f = frame(400, 400, authority: authority)
     var root = Box(content: content)
@@ -1050,7 +1064,11 @@ private final class TransformCounter {
 private func textMeasure<C: ElementGroup>(_ content: (NodeProbe<Text>) -> C, _ text: Text)
     throws -> (min: SizeD, max: SizeD) {
     let nodes = NodeLog()
-    let f = frame(400, 100)
+    // P-CSS, owner 7b (stage 6b, `LR-DI`): the two tests reading this helper
+    // read `tree.measure`, the CSS engine's measure function (CSS-style), which
+    // a lowered `Text` does not carry; pinned by argument, not by the helper's
+    // default, which stage 6b's flip moves.
+    let f = frame(400, 100, authority: .legacy)
     var root = Row { content(NodeProbe(inner: text, label: "text", log: nodes)) }
     f.render(&root)
     let node = try #require(nodes.nodes["text"])

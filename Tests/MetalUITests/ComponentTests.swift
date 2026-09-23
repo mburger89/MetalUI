@@ -140,20 +140,23 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 /// by its tallest child) pulls `a`'s `y` away from what the `Row` would give it
 /// directly.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): every `Row` root declares the 300x40 frame's
+/// extent on its two auto axes — what `CS-I` gave the legacy root, now spelled —
+/// so the literals hold on both authorities.
 @MainActor
 @Test func aComponentsContentFlattensIntoItsParent() {
     let componentLog = ComponentLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
-    var withComponent = Row { TwoLeaves(log: componentLog) }
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var withComponent = Row { TwoLeaves(log: componentLog) }.width(px(300)).height(px(40))
     frame.render(&withComponent)
 
     let inlineLog = ComponentLog()
-    let inlineFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
+    let inlineFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
     var inline = Row {
         Leaf("a", log: inlineLog).width(px(30)).height(px(10))
         Leaf("b", log: inlineLog).width(px(50)).height(px(30))
-    }
+    }.width(px(300)).height(px(40))
     inlineFrame.render(&inline)
 
     #expect(componentLog.registered == ["a", "b"])
@@ -193,7 +196,10 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 
 /// Spec §6 assertion 8. Two identity levels, zero layout nodes.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): every `Row` root declares the 300x40 frame's
+/// extent on its two auto axes — what `CS-I` gave the legacy root, now spelled —
+/// so the literals hold on both authorities.
 @MainActor
 @Test func aComponentInsideAComponentFlattensThroughBothLevels() {
     struct Outer: Component {
@@ -203,8 +209,8 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
     }
 
     let log = ComponentLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
-    var root = Row { Outer(log: log) }
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var root = Row { Outer(log: log) }.width(px(300)).height(px(40))
     frame.render(&root)
 
     #expect(log.registered == ["a", "b"])

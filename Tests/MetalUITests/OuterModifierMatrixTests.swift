@@ -194,7 +194,11 @@ private func observe<Subject: ElementGroup>(
 ) throws -> Observation {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let counter = ClickCounter()
-    let (window, platform) = try makeFakeWindow(device: device, size: windowSize) {
+    // P-CSS, owner 7b (stage 6b, `LR-DI`): the matrix's only caller reads the
+    // legacy tree's node shape (CSS-structure), so both renders here — the
+    // window and the node-count `Frame` — stay on `.legacy`.
+    let (window, platform) = try makeFakeWindow(device: device, size: windowSize,
+                                                layoutAuthority: .legacy) {
         Row {
             subject(counter)
             Box().width(px(1)).height(px(1)).background(.separator)
@@ -220,7 +224,7 @@ private func observe<Subject: ElementGroup>(
         Box().width(px(1)).height(px(1)).background(.separator)
     }.alignItems(.flexStart)
     let frame = Frame(contentSize: Size(width: px(Float(windowSize)), height: px(Float(windowSize))),
-                      scaleFactor: 1)
+                      scaleFactor: 1, layoutAuthority: .legacy)
     frame.render(&tree)
 
     let subjectRects = scene.rects.filter { !isMarker($0) }
@@ -768,7 +772,9 @@ private struct TwoMembers: Component {
 
     @MainActor func accentRect<E: Element>(_ make: @escaping @MainActor () -> E) throws -> MUIRect {
         let (window, _) = try makeFakeWindow(device: device, size: 200) {
-            Row { make() }.alignItems(.flexStart)
+            // Stage 6b (`LR-DG`, R-fill): the window's extent declared on the
+            // row's two auto axes, so it sits at (0, 0) on both authorities.
+            Row { make() }.alignItems(.flexStart).width(px(200)).height(px(200))
         }
         window.drawFrameIfNeeded()
         let theme = window.theme
@@ -853,10 +859,12 @@ private struct TwoMembers: Component {
     @MainActor func leafAndOuter<E: Element>(_ make: @escaping @MainActor () -> E)
         throws -> (leaf: MUIRect, outer: Float) {
         let (window, _) = try makeFakeWindow(device: device, size: 200) {
+            // Stage 6b (`LR-DG`, R-fill): the window's extent declared on the
+            // row's two auto axes, so it sits at (0, 0) on both authorities.
             Row {
                 make()
                 Box().width(px(1)).height(px(1)).background(.separator)
-            }.alignItems(.flexStart)
+            }.alignItems(.flexStart).width(px(200)).height(px(200))
         }
         window.drawFrameIfNeeded()
         let rects = window.lastScene.rects
@@ -924,7 +932,9 @@ private struct TwoMembers: Component {
                                      _ make: @escaping @MainActor (ClickCounter) -> E) throws -> Int {
         let counter = ClickCounter()
         let (window, platform) = try makeFakeWindow(device: device, size: 200) {
-            Row { make(counter) }.alignItems(.flexStart)
+            // Stage 6b (`LR-DG`, R-fill): the window's extent declared on the
+            // row's two auto axes, so it sits at (0, 0) on both authorities.
+            Row { make(counter) }.alignItems(.flexStart).width(px(200)).height(px(200))
         }
         window.drawFrameIfNeeded()
         platform.simulateInput(.mouseDown(MouseEvent(position: point)))

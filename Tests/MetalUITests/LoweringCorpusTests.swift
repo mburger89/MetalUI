@@ -501,20 +501,23 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
 ///
 /// **2b. The 500 rows, four ids apiece, by formula** (stage 4, lane 5). Each row
 /// contributes the `List`'s own row `Box`, the demo row's `.padding` layer, the
-/// inner `Box` and its `Text`. Three causes and one sub-pixel tail, and **no new
-/// cause**:
+/// inner `Box` and its `Text`. One cause and its sub-pixel tail, and **no new
+/// cause** (two causes until stage 6b — see the X9 item):
 ///
 /// - **55** puts every row 108pt right (240 against 132) and **55** again, through
 ///   the taller wrapped paragraph above it, puts it 16pt lower
 ///   (`loweredScrollerY` 455 against `legacyScrollerY` 439). Row *i* sits at
 ///   `scrollerY + 28i` on both sides: `index × rowHeight`, which is what the
 ///   windowed layout places against.
-/// - **X9** collapses the inner `Box` from 28 to **16** tall — a stretched
-///   single-child container does not stretch its child (`LR-AC`), so where CSS
-///   stretches it to the row height the lowering lets it hug its `Text`. The
-///   `Text` therefore sits at the row's top on the lowered side and 6pt down
-///   (`(28 − 16) / 2`) on the legacy one, which is the `.alignItems(.center)`
-///   the demo's row declares.
+/// - **X9 no longer reaches the rows** (stage 6b, lane 3, ruling `LR-DJ`). Until
+///   then it collapsed the inner `Box` from 28 to 16 tall on the lowered side — a
+///   stretched single-child container does not stretch its child (`LR-AC`) — so
+///   the `Text` sat at the row's top where the legacy one sat 6pt down
+///   (`(28 − 16) / 2`, the `.alignItems(.center)` the row declares). The demo row
+///   now declares `.height(Pixels(28))`, so the inner `Box` is 396×28 and its
+///   `Text` 6pt down on **both** sides; the inner `Box` and the `Text` still
+///   disagree, by 55 alone. Red before: the re-spelling alone, at
+///   `rowCensus`' inner-`Box` and lowered-`Text` assertions, 1 000 issues each.
 /// - **the sub-pixel tail of 55**, and it is why 42 of the 500 texts differ in
 ///   WIDTH by one point. The lowered sidebar is served its declared 196 exactly,
 ///   so every lowered row text starts at the integer x = 252 and cumulative-edge
@@ -680,9 +683,9 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
                 "\(row.id): expected \(row.legacy) → \(row.lowered), got \(String(describing: got))")
     }
 
-    // 2b. The 500 rows, four ids apiece. See part 2b of the doc comment: causes
-    // 55 (x + 108, y + 16), X9 (the inner Box 28 → 16 tall) and 55's sub-pixel
-    // tail (42 of the 500 texts one point narrower on the legacy side).
+    // 2b. The 500 rows, four ids apiece. See part 2b of the doc comment: cause
+    // 55 (x + 108, y + 16) and 55's sub-pixel tail (42 of the 500 texts one
+    // point narrower on the legacy side); X9 left the rows at stage 6b (`LR-DJ`).
     let rowIDs = try rowCensus(list: child(scroll, 0), pairs: disagreeing, cache: cache, f13: f13,
                                legacyTop: legacyScrollerY, loweredTop: 455)
     try #require(rowIDs.count == 2000, "\(rowIDs.count)")
@@ -794,9 +797,10 @@ private func rowCensus(list: GlobalElementID,
             #expect(got?.0 == bounds(132, ly, 420, 28) && got?.1 == bounds(240, py, 420, 28),
                     "row \(i) wrapper \(id): \(String(describing: got))")
         }
-        // The inner `Box`: X9 collapses it from the stretched 28 to its content's 16.
+        // The inner `Box`: 28 tall on both sides since its height is declared
+        // (`LR-DJ`); until stage 6b X9 collapsed the lowered one to its content's 16.
         let innerGot = pairs[inner]
-        #expect(innerGot?.0 == bounds(144, ly, 396, 28) && innerGot?.1 == bounds(252, py, 396, 16),
+        #expect(innerGot?.0 == bounds(144, ly, 396, 28) && innerGot?.1 == bounds(252, py, 396, 28),
                 "row \(i) inner: \(String(describing: innerGot))")
 
         // The `Text`. Its x, y and height are exact on both sides; its WIDTH is
@@ -808,7 +812,7 @@ private func rowCensus(list: GlobalElementID,
         let textGot = try #require(pairs[text], "row \(i) text")
         #expect(textGot.0.origin == Point(x: px(144), y: px(ly + 6)) && textGot.0.size.height == px(16),
                 "row \(i) legacy text: \(textGot.0)")
-        #expect(textGot.1 == bounds(252, py, Float(natural.rounded()), 16),
+        #expect(textGot.1 == bounds(252, py + 6, Float(natural.rounded()), 16),
                 "row \(i) lowered text: \(textGot.1)")
         if textGot.0.size.width == px(Float(natural.rounded(.down))), fraction >= 0.5 {
             flooredFractions.append(fraction)

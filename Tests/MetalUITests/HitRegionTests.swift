@@ -86,12 +86,20 @@ private func keyDown(_ characters: String) -> InputEvent {
 /// `Frame.axNodes` either way, but an accessibility *client's* record — the only
 /// place `accessibleText` lands — is written only while one is collecting.
 @MainActor private func collect<E: Element>(_ element: E,
-                                            size: Float = 200) -> (Frame, AccessibilityTree) {
+                                            size: Float = 200,
+                                            authority: LayoutAuthority? = nil)
+    -> (Frame, AccessibilityTree) {
     var element = element
-    let frame = Frame(contentSize: Size(width: px(size), height: px(size)), scaleFactor: 1,
-                      stateTable: StateTable(), shapingCache: ShapingCache(),
-                      glyphAtlas: GlyphAtlas(width: 256, height: 256),
-                      theme: Theme.forAppearance(.light), collectsAccessibility: true)
+    let frame = authority.map {
+        Frame(contentSize: Size(width: px(size), height: px(size)), scaleFactor: 1,
+              stateTable: StateTable(), shapingCache: ShapingCache(),
+              glyphAtlas: GlyphAtlas(width: 256, height: 256),
+              theme: Theme.forAppearance(.light), collectsAccessibility: true,
+              layoutAuthority: $0)
+    } ?? Frame(contentSize: Size(width: px(size), height: px(size)), scaleFactor: 1,
+               stateTable: StateTable(), shapingCache: ShapingCache(),
+               glyphAtlas: GlyphAtlas(width: 256, height: 256),
+               theme: Theme.forAppearance(.light), collectsAccessibility: true)
     frame.render(&element)
     let tree = AccessibilityTreeBuilder.build(emissions: frame.axEmissions,
                                               focused: frame.focusedElement,
@@ -121,9 +129,14 @@ private func measure<E: Element>(clickAt: Point<Pixels>,
                                  focusing: GlobalElementID,
                                  counter: ClickCounter,
                                  log: KeyLog,
+                                 authority: LayoutAuthority? = nil,
                                  _ make: @escaping @MainActor () -> E) throws -> HitReading {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
-    let (window, platform) = try makeFakeWindow(device: device, size: 200, content: make)
+    // `nil` leaves the window's default authority; a caller whose literals were
+    // re-derived for `CN-J`'s centring (stage 6b, `LR-DG`) passes `.proposal`.
+    let (window, platform) = try authority.map {
+        try makeFakeWindow(device: device, size: 200, layoutAuthority: $0, content: make)
+    } ?? makeFakeWindow(device: device, size: 200, content: make)
     window.drawFrameIfNeeded()
     let regions = window.lastHitboxes.map(describe)
     click(platform, at: clickAt)
@@ -241,16 +254,21 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
 @Test @MainActor func everyHandlerRegisteringSiteHonoursAllowsHitTesting() throws {
     @MainActor func check<E: Element>(_ site: String,
                                       _ make: @escaping @MainActor (Bool, ClickCounter) -> E) throws {
+        // Stage 6b (`LR-DG`, R-centre — predicted "fill", but every arm's root
+        // declares 40x40): the root is centred in the 200x200 window at
+        // (200 - 40) / 2 = 80, so (100, 100) is where (20, 20) was.
         let onCounter = ClickCounter(), onLog = KeyLog()
-        let on = try measure(clickAt: pt(20, 20), focusing: subjectID(),
-                             counter: onCounter, log: onLog) { make(false, onCounter) }
+        let on = try measure(clickAt: pt(100, 100), focusing: subjectID(),
+                             counter: onCounter, log: onLog,
+                             authority: .proposal) { make(false, onCounter) }
         try #require(on.clicks == 1 && on.regions.count == 1,
                      why("\(site): the control must be hittable and register one region, or the "
                          + "disabled arm proves nothing: \(on)"))
 
         let offCounter = ClickCounter(), offLog = KeyLog()
-        let off = try measure(clickAt: pt(20, 20), focusing: subjectID(),
-                              counter: offCounter, log: offLog) { make(true, offCounter) }
+        let off = try measure(clickAt: pt(100, 100), focusing: subjectID(),
+                              counter: offCounter, log: offLog,
+                              authority: .proposal) { make(true, offCounter) }
         #expect(off.clicks == 0 && off.regions.isEmpty,
                 why("\(site): under .allowsHitTesting(false) this site must register nothing and "
                     + "run nothing: \(off)"))
@@ -367,7 +385,11 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     @MainActor func arm(counter: ClickCounter,
                         _ shape: @escaping @MainActor (Box<EmptyGroup>) -> Box<EmptyGroup>)
         throws -> (regions: [String], rects: [String], window: Window, platform: FakePlatformWindow) {
-        let (window, platform) = try makeFakeWindow(device: device, size: 200) {
+        // Stage 6b (`LR-DG`, R-centre): the 100x100 root is centred in the
+        // 200x200 window at (200 - 100) / 2 = 50; every literal below is the
+        // legacy top-left one moved by 50 on both axes.
+        let (window, platform) = try makeFakeWindow(device: device, size: 200,
+                                                    layoutAuthority: .proposal) {
             shape(Box().width(px(100)).height(px(100)).background(.surface).id("subject")
                     .onClick { counter.bump() })
         }
@@ -386,9 +408,9 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     try #require(plain.regions != shaped.regions,
                  why("the two arms must register different regions, or nothing here is measuring "
                      + "the modifier: \(plain.regions) vs \(shaped.regions)"))
-    #expect(plain.regions == ["[0.0 0.0 100.0x100.0] opaque=true scroll=nil"],
+    #expect(plain.regions == ["[50.0 50.0 100.0x100.0] opaque=true scroll=nil"],
             why("the control registers the element's whole box: \(plain.regions)"))
-    #expect(shaped.regions == ["[20.0 20.0 60.0x60.0] opaque=true scroll=nil"],
+    #expect(shaped.regions == ["[70.0 70.0 60.0x60.0] opaque=true scroll=nil"],
             why("and a 20pt inset registers the inset box: \(shaped.regions)"))
 
     #expect(plain.rects == shaped.rects,
@@ -396,43 +418,43 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
                 + "engine produced, as SwiftUI's leaves a 20x20 leaf 20x20 (L7). "
                 + "\(plain.rects) vs \(shaped.rects)"))
 
-    click(plain.platform, at: pt(5, 50))
-    click(shaped.platform, at: pt(5, 50))
+    click(plain.platform, at: pt(55, 100))
+    click(shaped.platform, at: pt(55, 100))
     #expect(plainCounter.count == 1,
             "the edge point hits the control (SwiftUI H2, edge 1)")
     #expect(shapedCounter.count == 0,
             "and misses the inset one (SwiftUI H3, edge 0)")
 
-    click(shaped.platform, at: pt(50, 50))
+    click(shaped.platform, at: pt(100, 100))
     #expect(shapedCounter.count == 1,
             "while the centre still hits (SwiftUI H3, centre 1)")
 
     // The per-edge overload, with FOUR DISTINCT insets (taxonomy shape 1: a
     // uniform 20 above cannot see `hitRegion` reading `left` for `right` or
-    // `top` for `bottom`). 5 / 10 / 15 / 20 on a 100x100 box leaves the region
-    // x in [20, 90), y in [5, 85), and each click below is placed so that
-    // exactly one edge decides it: (15, 50) is inside a 10pt left inset and
-    // outside a 20pt one; (92, 50) is inside a 5pt right inset and outside a
-    // 10pt one; (25, 7) is inside a 5pt top inset and outside a 10pt one;
-    // (50, 87) is inside a 10pt bottom inset and outside a 15pt one.
+    // `top` for `bottom`). 5 / 10 / 15 / 20 on a 100x100 box at (50, 50) leaves
+    // the region x in [70, 140), y in [55, 135), and each click below is placed
+    // so that exactly one edge decides it: (65, 100) is inside a 10pt left inset
+    // and outside a 20pt one; (142, 100) is inside a 5pt right inset and outside
+    // a 10pt one; (75, 57) is inside a 5pt top inset and outside a 10pt one;
+    // (100, 137) is inside a 10pt bottom inset and outside a 15pt one.
     let edgedCounter = ClickCounter()
     let edged = try arm(counter: edgedCounter) {
         $0.contentShape(inset: Edges(top: px(5), right: px(10), bottom: px(15), left: px(20)))
     }
-    #expect(edged.regions == ["[20.0 5.0 70.0x80.0] opaque=true scroll=nil"],
+    #expect(edged.regions == ["[70.0 55.0 70.0x80.0] opaque=true scroll=nil"],
             why("a per-edge inset of top 5 / right 10 / bottom 15 / left 20 registers "
-                + "(20, 5) 70x80: \(edged.regions)"))
+                + "(70, 55) 70x80: \(edged.regions)"))
     #expect(edged.rects == plain.rects,
             why("and, like the uniform one, emits nothing and moves nothing: "
                 + "\(edged.rects) vs \(plain.rects)"))
-    click(edged.platform, at: pt(15, 50))
-    #expect(edgedCounter.count == 0, "left inset 20: x = 15 misses")
-    click(edged.platform, at: pt(92, 50))
-    #expect(edgedCounter.count == 0, "right inset 10: x = 92 misses")
-    click(edged.platform, at: pt(25, 7))
-    #expect(edgedCounter.count == 1, "top inset 5: (25, 7) hits")
-    click(edged.platform, at: pt(50, 87))
-    #expect(edgedCounter.count == 1, "bottom inset 15: y = 87 misses")
+    click(edged.platform, at: pt(65, 100))
+    #expect(edgedCounter.count == 0, "left inset 20: x = 65 (15 into the box) misses")
+    click(edged.platform, at: pt(142, 100))
+    #expect(edgedCounter.count == 0, "right inset 10: x = 142 (92 into the box) misses")
+    click(edged.platform, at: pt(75, 57))
+    #expect(edgedCounter.count == 1, "top inset 5: (75, 57) — (25, 7) into the box — hits")
+    click(edged.platform, at: pt(100, 137))
+    #expect(edgedCounter.count == 1, "bottom inset 15: y = 137 (87 into the box) misses")
 }
 
 /// **A negative inset GROWS the hit region past the element's box, and the
@@ -451,7 +473,9 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
 ///
 /// The fixture is a 40x40 clickable child, inset by **-100**, inside an 80x80
 /// `.clipped()` parent: (60, 60) is outside the child and inside the parent;
-/// (100, 100) is outside both.
+/// (100, 100) is outside both. Stage 6b (`LR-DG`, R-centre): the 80x80 root is
+/// centred in the 200x200 window at (200 - 80) / 2 = 60, so every literal is
+/// moved by 60 — the child at (60, 60), the points (120, 120) and (160, 160).
 @Test @MainActor func aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
 
@@ -459,7 +483,8 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     // reason: dropping it drops the input path and every arm reads zero.
     @MainActor func arm(_ inset: Pixels?, counter: ClickCounter)
         throws -> (regions: [String], window: Window, platform: FakePlatformWindow) {
-        let (window, platform) = try makeFakeWindow(device: device, size: 200) {
+        let (window, platform) = try makeFakeWindow(device: device, size: 200,
+                                                    layoutAuthority: .proposal) {
             Box {
                 let base = Box().width(px(40)).height(px(40)).background(.accent).id("child")
                     .onClick { counter.bump() }
@@ -479,21 +504,21 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     try #require(plain.regions != grown.regions,
                  why("the two arms must register different regions: \(plain.regions) vs "
                      + "\(grown.regions)"))
-    #expect(plain.regions == ["[0.0 0.0 40.0x40.0] opaque=true scroll=nil"],
+    #expect(plain.regions == ["[60.0 60.0 40.0x40.0] opaque=true scroll=nil"],
             why("the control registers the child's own 40x40 box: \(plain.regions)"))
-    #expect(grown.regions == ["[0.0 0.0 80.0x80.0] opaque=true scroll=nil"],
+    #expect(grown.regions == ["[60.0 60.0 80.0x80.0] opaque=true scroll=nil"],
             why("a -100 inset grows the region to (-100, -100) 240x240 and the parent's clip "
                 + "bounds it to the parent's own 80x80 — SwiftUI's clip would not (H6): "
                 + "\(grown.regions)"))
 
-    click(plain.platform, at: pt(60, 60))
+    click(plain.platform, at: pt(120, 120))
     #expect(plainCounter.count == 0,
             "a point outside the 40x40 child misses it (SwiftUI H4, edge 0)")
-    click(grown.platform, at: pt(60, 60))
+    click(grown.platform, at: pt(120, 120))
     #expect(grownCounter.count == 1,
             "and hits the grown region (SwiftUI H5, edge 1)")
 
-    click(grown.platform, at: pt(100, 100))
+    click(grown.platform, at: pt(160, 160))
     #expect(grownCounter.count == 1,
             why("while a point outside the ancestor's clip does not — MetalUI clips the grown "
                 + "region where SwiftUI's H6 hits through it"))
@@ -514,7 +539,9 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     var element = Box().width(px(100)).height(px(100)).id("subject")
         .onClick { }.focusable().contentShape(inset: px(20))
     element.handlers.axNode = AXNode(role: .button, label: "shaped")
-    let (frame, tree) = collect(element)
+    // Stage 6b (`LR-DG`, R-centre): the 100x100 root is centred in the 200x200
+    // frame at (200 - 100) / 2 = 50.
+    let (frame, tree) = collect(element, authority: .proposal)
 
     let hit = try #require(frame.hitboxes.first, "the element declares an onClick and must register")
     try #require(hit.bounds.size.width.value == 60 && hit.bounds.size.height.value == 60,
@@ -522,7 +549,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
                      + "vacuous — got \(describe(hit))"))
 
     let node = try #require(frame.axNodes[subjectID()], "a declared AXNode must be emitted")
-    #expect(node.frame.origin.x.value == 0 && node.frame.origin.y.value == 0
+    #expect(node.frame.origin.x.value == 50 && node.frame.origin.y.value == 50
                 && node.frame.size.width.value == 100 && node.frame.size.height.value == 100,
             why("the emitted AXNode keeps the element's own box, not the inset one: \(node.frame)"))
 
@@ -552,7 +579,9 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
 /// reached prepaint.
 @Test @MainActor func aContentShapeWithoutAClickHandlerRegistersNothing() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
-    let (bare, _) = try makeFakeWindow(device: device, size: 100) {
+    // Stage 6b (`LR-DG`, R-centre): the 40x40 root is centred in the 100x100
+    // window at (100 - 40) / 2 = 30, so the 10pt-inset region is (40, 40) 20x20.
+    let (bare, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
         Box().width(px(40)).height(px(40)).background(.surface).id("subject")
             .contentShape(inset: px(10))
     }
@@ -561,12 +590,12 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
             why("a content shape does not create a hit region: "
                 + bare.lastHitboxes.map(describe).joined(separator: " | ")))
 
-    let (clickable, _) = try makeFakeWindow(device: device, size: 100) {
+    let (clickable, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
         Box().width(px(40)).height(px(40)).background(.surface).id("subject")
             .contentShape(inset: px(10)).onClick { }
     }
     clickable.drawFrameIfNeeded()
-    #expect(clickable.lastHitboxes.map(describe) == ["[10.0 10.0 20.0x20.0] opaque=true scroll=nil"],
+    #expect(clickable.lastHitboxes.map(describe) == ["[40.0 40.0 20.0x20.0] opaque=true scroll=nil"],
             why("while the same element WITH an onClick registers the configured region: "
                 + clickable.lastHitboxes.map(describe).joined(separator: " | ")))
 }
@@ -793,13 +822,15 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
 
     @MainActor func fill(_ disabled: Bool) throws -> String {
-        let (window, platform) = try makeFakeWindow(device: device, size: 100) {
+        // Stage 6b (`LR-DG`, R-centre): the 40x40 root is centred at 30..70.
+        let (window, platform) = try makeFakeWindow(device: device, size: 100,
+                                                    layoutAuthority: .proposal) {
             let base = Box().width(px(40)).height(px(40))
                 .background(.surface).hoverBackground(.accent).id("subject").onClick { }
             return disabled ? base.allowsHitTesting(false) : base
         }
         window.drawFrameIfNeeded()
-        platform.simulateInput(.mouseMoved(MouseEvent(position: pt(20, 20))))
+        platform.simulateInput(.mouseMoved(MouseEvent(position: pt(50, 50))))
         window.setNeedsRedraw()
         window.drawFrameIfNeeded()
         let rect = try #require(window.lastScene.rects.first {

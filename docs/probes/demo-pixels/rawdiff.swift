@@ -2,8 +2,9 @@
 //
 // Two modes over the raw BGRA dumps `ZZDemoPixels.swift` writes:
 //
-//   rawdiff a.bgra b.bgra      count differing PIXELS (4 bytes each) and the
-//                              bounding box of the difference
+//   rawdiff a.bgra b.bgra [w]  count differing PIXELS (4 bytes each) and the
+//                              bounding box of the difference (rows w wide;
+//                              square when omitted)
 //   rawdiff --distinct a.bgra  count distinct 32-bit pixel values in one image
 //
 // The distinct count is the control that says an image is not blank: record
@@ -34,8 +35,9 @@ if args.first == "--distinct" {
 
 let a = load(args[0]), b = load(args[1])
 guard a.count == b.count else { print("SIZE \(a.count) vs \(b.count)"); exit(1) }
-// Square, as every image this harness writes is.
-let side = Int(Double(a.count / 4).squareRoot().rounded())
+// Square unless a third argument names the row width: stage 6b's two 920x560
+// production-size images (`LR-DO` item 3) pass `920`.
+let side = args.count > 2 ? Int(args[2])! : Int(Double(a.count / 4).squareRoot().rounded())
 var n = 0, minx = Int.max, miny = Int.max, maxx = -1, maxy = -1
 for i in stride(from: 0, to: a.count, by: 4) where
     a[i] != b[i] || a[i+1] != b[i+1] || a[i+2] != b[i+2] || a[i+3] != b[i+3] {

@@ -112,6 +112,17 @@ public final class LayoutTree {
     /// `nativeLayoutWorkIsPerCall`.
     private(set) var lastNativeLayoutWork = NativeLayoutWork()
 
+    /// The deepest native recursion level the last native layout call reached —
+    /// `NativeLayoutRun`'s own `depth` at its maximum, the quantity its `maxDepth`
+    /// guard bounds (plan task 7, stage 6b, ruling `LR-DK`). Copied where
+    /// `lastNativeLayoutWork` is, so it is per call too: a frame that lays out
+    /// presentations first leaves the ROOT run's figure. A test observable, read by
+    /// the depth boundary tests and by the per-production-root readings.
+    /// **`package`**, not internal, since stage 6b lane 3: `Window` copies it into
+    /// `Window.lastNativeLayoutDeepestLevel` after each frame (test 3.3), and
+    /// `Window` is in another module of this package; no external module sees it.
+    package private(set) var lastNativeLayoutDeepestLevel = 0
+
     /// The stamp carried by every id this tree issues. Changed only by
     /// `reset(generation:)`, which is what makes the ids from before a reset
     /// detectably stale.
@@ -574,6 +585,7 @@ public final class LayoutTree {
             run.isActive = false
             activeNativeRun = nil
             lastNativeLayoutWork = run.work
+            lastNativeLayoutDeepestLevel = run.deepestLevel
         }
         let result = measureNative(root, proposal: proposal, run: run)
         placeNative(root, in: placement(result), proposal: proposal, run: run)
@@ -598,6 +610,7 @@ public final class LayoutTree {
             run.isActive = false
             activeNativeRun = nil
             lastNativeLayoutWork = run.work
+            lastNativeLayoutDeepestLevel = run.deepestLevel
         }
         return measureNative(root, proposal: proposal, run: run)
     }
