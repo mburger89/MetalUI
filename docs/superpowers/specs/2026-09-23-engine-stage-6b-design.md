@@ -49,6 +49,82 @@ divergence 4 by writing literals for a top-left root. This design keeps `CN-J`
 axis gets the window's extent declared on it (the answer `CS-I` gave, now
 spelled), a declared root axis gets its literals re-derived under centring.**
 
+## 0. Critic round 1 (`LR-DO`) — overrides the sections it names
+
+A critic round on `138746c` re-ran two probes byte for byte
+(`swiftui-engine-replacement-stage1.swift`: 79 lines, 0 missing from its
+header, H0 20×60 / H1 20×60 / H2 20×40; `swiftui-stack-algorithms.swift`: 787
+lines, 0 missing, R control (0, 0) 100×100, R1/R2 (21, 40) 58×20), checked
+that the instrument patch still applies (`git apply --check` clean) and that
+`grep -rn "LayoutAuthority = \.legacy" Tests` reads the thirteen defaults
+`LR-DF` names. Six defects, each fixed below and ruled in `LR-DO`:
+
+1. **The root's `minSize`/`maxSize` were deferred past the stage that owns
+   them.** `LR-AQ` (stage 2) wrote "a root frame is stage 6b's placement
+   ruling"; `LR-DI` item 4 handed it to stage 8 and left a **production trap
+   with no exit test** — any app whose root `Box` says `.height(370).minHeight(0)`
+   (the shape `demoLikeRows` copies from real use) aborts on its first frame
+   after the flip. **Fixed (lane 1):** at the root, a px/rem `minSize`/`maxSize`
+   on an axis the root **declares** folds into that size exactly as stage 2's
+   item fold does (`max(min, min(size, max))`, already ruled and pinned for
+   items; CSS gives the same number, because a declared root axis is not
+   touched by `CS-I`), and the root's record is consumed for that field. A
+   min/max on an **auto** root axis, a root margin, a percentage, and a root
+   `.absolute` keep reporting (owner 8 / 9 as `LR-DI` said) — and **each is
+   pinned by an exit test through a production `Window`** (1.8), because a
+   trap production ships is a trap the suite must show. §5.5 changes with it:
+   `demoLikeRows`' root no longer reports, so the font-resolver test runs at
+   the default with an **empty** report asserted (not `demoLikeRowsReport`), and
+   the two tokenizer tests keep `.legacy` only for their own reason (the
+   min-content probe pair), recorded per test.
+2. **The animation hazard was stated, not measured, and pinned wrong.** §5.4
+   says "the proposal path has no site-by-site animates-its-style guard" and
+   hands one to 7b. Per-site proposal arms **exist**
+   (`aLoweredBoxRegistersItsAnimatedWidth`, `aLoweredStackLaysOutItsAnimatedWidthAndPadding`,
+   `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap`,
+   `aFrameLayerLowersFromItsAnimatedStyleForWhatStyleCarries`,
+   `aFrameLayerLowersItsMinimaAndFiniteMaximaFromItsAnimatedStyle`,
+   `aLoweredMarginRegistersItsAnimatedValue`,
+   `aLoweredScrollViewKeepsItsTwoAnimationSlots`), and `ScrollView`'s lowered
+   path calls `animated(` at **its own two sites** (`ScrollView.swift:393`,
+   `:403` at `aef88ce`) that the legacy-pinned guard never reaches. Animation is
+   on this stage's must-not-move list, so **lane 2 closes it here**: before
+   pinning `everyRegisteringSiteAnimatesItsStyle` to `.legacy`, map each of its
+   site arms (Box; Stack; ScrollView content; ScrollView viewport; Component's
+   member declaration and a caller's modifier; ModifiedElement's inner layer and
+   outermost) to the proposal-side test that pins it, write the missing arms as
+   one new test `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`
+   (2.1, §8), and mutate each new arm once (drop that site's `animated(` on its
+   proposal path; name what reddens). The 7b hazard row in §11 is deleted.
+3. **The pixels were accounted at a size production never opens.** The demo
+   opens at **920×560** (`Sources/MetalUIDemo/main.swift`); the twelve images
+   are 1024² and 560². A 560-tall window is where a vertical compression the
+   square never sees would show. **Fixed (lane 3):** the harness gains two
+   images, `prod-default-light` and `prod-modal-light` at 920×560 (a
+   `width`/`height` pair in `capture`, the square arms untouched), taken at
+   both commits by the same `compare.sh`, each differing region named against
+   §9's causes; any region §9 does not name is a finding. The exit test (3.1)
+   and the depth readings (3.3) drive the demo at 920×560 as well as 1024².
+4. **Lane 3 was the largest lane and depth does not depend on the flip.**
+   `maxDepth` 88 → 72, its doc table, the eight literal boundary tests,
+   `LayoutTree.lastNativeLayoutDeepestLevel` and M3e/M3f **move to lane 1**
+   (none reads the default authority). 3.3 stays in lane 3.
+5. **1.6 could not be red.** If the legacy path emits nothing for a hidden
+   subtree, M1g (the paint skip reading `display == .none`) changes nothing and
+   1.6 stays green — a broken instrument. 1.6's fixture must give the legacy
+   path something to emit for the hidden element (a `Text` child's glyphs, or
+   its decoration), established by a `try #require` on a non-empty legacy
+   emission before the comparison.
+6. **Two predicted mutation sets were incomplete.** M3a (default back to
+   `.legacy`) also reddens 3.2's proposal arm and 3.3 (a legacy frame runs no
+   native layout, so its deepest level reads 0) — the prediction now says so.
+   Lane 1's edits to `Frame.swift` may stop the instrument patch applying; if
+   `git apply --check` fails, lane 1 regenerates it against its own HEAD and
+   commits the regenerated patch, so lane 2 measures with the same instrument.
+
+**Suite count:** 1688 + 6 (lane 1, `hidden()`) + 2 (lane 1, 1.7–1.8) + 1 (lane
+2, 2.1) + 3 (lane 3) = **1700**, re-measured by each lane.
+
 ## Contents
 
 1. [Baseline](#1-baseline)
@@ -145,6 +221,7 @@ chrome pair names its authority. Every differing region is named in §9.
 | `LR-DK` | **Depth: `NativeLayoutRun.maxDepth` 88 → 72** by `SA-L`'s own rule (0.60 × the smallest **debug** ceiling on a 1 MB thread, rounded down to a multiple of 8: 0.60 × 127 = 76.2). Release re-bisected for the first time: smallest ceiling 653 (stacks), 1 256 for the single-child kinds — 9× the guard. Production roots through a `Window`: demo **29** (modal and animation states alike), preview **10**, a `List` root **15**, all well under 72 (the demo at 0.40). Eight boundary tests re-derived. |
 | `LR-DL` | **The exit test counts the legacy branch itself**: a `@TaskLocal` counter bumped only in `computeRootLayout`'s legacy branch (the only `computeLayout(` caller in `MetalUI`), read around a `Window` drawing the demo (modal off/on, animation on), the preview and a `List` root; a `.legacy` window in the same test is the positive control that the counter is reachable. |
 | `LR-DM` | **Captures owed to the human; §03 rows re-opened by the Record phase.** The lock probe read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` at design; if it still reads so at stage close the real-window capture is recorded as owed. The rows re-opened: every §03 reading that names demo geometry — the sidebar width readings (`SZ-L`, 69/97/73/70 against 196), the animation look (73 → 114 → 113 pt), the modal card and list-row look, the release-window captures of 2026-09-17. |
+| `LR-DO` | **Critic round 1** (§0): the root's px/rem `minSize`/`maxSize` on a declared axis fold into it (lane 1, `LR-AQ`'s hand-off honoured) and every root field that still traps is pinned through a production `Window`; the animation guard's proposal twin written in 6b, not owed to 7b; two 920×560 production-size images; depth moved to lane 1; 1.6 given something to emit; M3a's set completed. **Amends `LR-DI` item 4, §5.4's `AnimationTests` row, §5.5, `LR-DJ`'s image list, `LR-DK`'s lane and `LR-DN`.** |
 | `LR-DN` | **Three lanes, run in this order, each ending green at the default it inherits**: lane 1 `hidden()` (Sources + its tests, no default change); lane 2 every red test made independent of the default (tests only); lane 3 the switch, the exit test, the demo, depth, pixels. Lane 3's first commit is the flip — the two `Sources/` defaults **and** the thirteen test-helper defaults, the real-flip half of the instrument patch — and must read red **exactly** the two D tests (the fourteen X tests are green again: their traps are fatal). |
 
 ## 4. API and files
@@ -425,6 +502,17 @@ red-before (the first run after the lowering). `LR-AV`'s inert-table row
 ("layout filters it, paint does not") stays for the legacy path.
 Mutations: M1a (§5.1), and 1.1–1.6's own.
 
+**Also lane 1 since critic round 1 (`LR-DO`):** (a) the root fold — in
+`reportUnconsumedLoweredItems`' root arm (`LoweringState.swift`) and the root's
+lowering, a px/rem `minSize`/`maxSize` on a declared root axis folds into the
+declared size and stops reporting; tests 1.7 and 1.8 (§8); mutation **M1h**
+(the fold removed: 1.7 red, and `MeasurePerformanceTests`' font-resolver test
+aborts — taken as an exit-test arm, recorded which). (b) Depth, all of §10
+except 3.3: `maxDepth = 72`, the doc table, the eight boundary tests,
+`LayoutTree.lastNativeLayoutDeepestLevel`, M3e/M3f. (c) If lane 1's
+`Frame.swift` edits stop `docs/probes/stage-6b-flip-instrument.patch` applying,
+regenerate and commit it.
+
 ### Lane 2 — every red test made independent of the default (`LR-DG`, `LR-DI`)
 
 Tests only; no `Sources/` line. §5.2–§5.5. The lane's two readings: the suite
@@ -432,6 +520,8 @@ at `.legacy` (the inherited default) green, and the suite **with
 `docs/probes/stage-6b-flip-instrument.patch` applied** reading red **exactly**
 the 14 X tests and the 2 D tests and printing no `SIXB-WOULD-TRAP` outside the X
 tests (then the patch reverted, `git status --short` clean). Mutations M2a–M2e.
+**Since critic round 1:** the animation map and test 2.1 (§0 item 2) come
+**before** the `AnimationTests` pin; §5.5 follows §0 item 1.
 
 ### Lane 3 — the switch (`LR-DF`, `LR-DJ`, `LR-DK`, `LR-DL`)
 
@@ -446,8 +536,10 @@ re-derived (its part 2b loses cause X9 for the rows: the inner `Box` is 28 tall
 on both sides, the `Text` 6 pt down on both; red-before: the demo change alone,
 assertions named), plus any other `demoContent()` reader it reddens
 (`LoweringItemTests`' paragraph copy, `PresentationWindowTests`) named;
-(6) depth (§10); (7) the twelve-image comparison and the region accounting
-(§9); (8) the gate: 0 `warning:` on both build systems after `swift package
+(6) depth — **moved to lane 1 by `LR-DO`**; lane 3 only takes 3.3 and
+re-measures the demo's deepest level after the re-spelling; (7) the
+twelve-image comparison **plus the two 920×560 production-size images**
+(`LR-DO`) and the region accounting (§9); (8) the gate: 0 `warning:` on both build systems after `swift package
 clean`; (9) `METALUI_RUN_100K_LIST_TEST=1 swift test --filter
 aListsWorkIsTheSameFor100kRowsAsFor500` once, under the new default, both
 authorities' times recorded; (10) the lock probe, and the real-window capture
@@ -463,13 +555,16 @@ if and only if it reads unlocked (`LR-DM`).
 | 1.4 | `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer` — the chain shape of `aHiddenInnerModifierLayerSuppressesEverythingInsideIt` (an inner `ModifiedElement` layer hidden, an outer layer decorated and clickable, `MC-C`'s layer order): the outer layer paints and takes its click, the hidden layer and everything inside it paint nothing and take none | ″ | trap | **M1e** `ModifiedElement`'s per-layer mirror removed |
 | 1.5 | `aHiddenElementInsideAnyElementIsHiddenUnderTheProposalAuthority` — paint, hit and AX, through `AnyElement` | ″ | trap | **M1f** `AnyElement`'s entry gates removed |
 | 1.6 | `theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore` — under `.legacy`, the scene and hitbox list of a tree with a hidden, clickable, decorated child are **identical to `aef88ce`'s** (the lane records what the legacy path emits for it first — measured, not assumed) and `hiddenNodes` is empty | ″ | green on arrival (a pin) | **M1g** the paint skip reading `display == .none` |
+| 1.7 | `aRootsMinimumAndMaximumFoldIntoItsDeclaredSize` (`LR-DO`) — roots `Box{…}.height(370).minHeight(0)`, `.height(370).minHeight(500)`, `.height(370).maxHeight(300)`, each in a production-shaped frame at both authorities: the root's height is 370 / 500 / 300 on both, and the proposal report is empty; the second and third arms disagree with the declared height alone (the separating arms) | `RootFieldLoweringTests` (new, lane 1) | reports `box.minSize.unconsumed` / `maxSize.unconsumed` | **M1h** the fold removed |
+| 1.8 | `aRootFieldWithNoLoweringTrapsInAProductionWindow` (`LR-DO`) — exit tests through a `.proposal` `makeFakeWindow` (explicit, since lane 1 runs before the flip): a root `minHeight` on an **auto** axis, a root margin, a root percent `maxWidth`; each process exits naming `box.<field>.unconsumed` | ″ | green on arrival (the trap exists today) → its red is the arm where the field is removed, which must not exit | the trap made non-fatal (instrument) — all three arms red |
+| 2.1 | `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` (`LR-DO`, lane 2) — only the site arms lane 2's map finds unpinned under `.proposal`; each drives `withAnimation(.linear(duration: 1))` and reads the lowered rect at t = 0 and 0.5 | `AnimationTests` | the arm's site with `animated(` dropped on its proposal path | one per new arm |
 | 3.1 | **`noProductionFrameReachesTheLegacyEngine`** — `demoContent()` (modal off, modal on, animation on) and `nativeLayoutPreviewContent()` imported from `MetalUIDemoContent`, and a `ScrollView { List(…) }` root, each through `makeFakeWindow` at the default authority, several frames each, inside `Frame.$legacyRootLayoutCounter.withValue(c)`: `c.count == 0`; positive control in the same test: the same demo through a `.legacy` window bumps it (`> 0`, and exactly one per frame drawn) | `RootSwitchTests` | red-first: before the counter is bumped, the positive control reads 0 | **M3a** `Frame.defaultLayoutAuthority` back to `.legacy`; **M3b** the counter bump removed (the control reddens) |
 | 3.2 | `aHuggingLegacyRootIsCentredInAProductionWindow` — `Row { Box().width(58).height(20) }` in a 100×100 window: the box at (21, 40) 58×20 (R1, re-run today); the same through a `.legacy` window at (0, 40) (`CS-I`: the row fills the window and centres its cross axis) | `RootSwitchTests` | green on arrival after the flip → its red is taken as M2a/M2b, and its `.legacy` arm checked green at `aef88ce` first | **M2a** (top-leading), **M2b** (window rect) |
 | 3.3 | `everyProductionRootsDeepestNativeLevelIsMeasured` — `LayoutTree.lastNativeLayoutDeepestLevel` through a `Window`: demo (all three states) **the lane's measured value** (29 at design, before the re-spelling; re-measured after it), preview 10, `List` root 15; each `< NativeLayoutRun.maxDepth` asserted too | `RootSwitchTests` | the property does not exist | **M3c** the property not recorded (reads 0); **M3d** a lowering that adds one level to every lowered `Box` (the demo value moves) |
 
 Rewritten, not new: 1.1/1.2 of `LayoutAuthorityTests` (§5.6), the eight depth
 tests (§10), `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`.
-Suite count: 1688 + 6 (lane 1) + 3 (lane 3) = **1697**; guards 78, goldens 97.
+Suite count: 1688 + 6 (lane 1) + 3 (lane 3) = **1697** at design; **1700** after critic round 1 (§0: +1.7, +1.8, +2.1); guards 78, goldens 97.
 
 ## 9. Demo, pixels and captures
 
@@ -486,6 +581,7 @@ at arm H, which is arm G plus the re-spelling):
 | `default-*` (4) | ≈168 380 differing, bbox (92,113)–(987,1007) | **55**: sidebar and its four bars +100 wide (5 rects), main pane x +100 w −100 (1), 507 main-pane rects x +100 (the cluster, counter, scroller and 500 rows); glyphs x +100 (15 509); **55's re-wrap**: the paragraph's line breaks move (glyphs x +194/+294/+295, and −548/−652 with y +16); **55's rounding**: "Count 0" x +101 (six glyphs) |
 | `modal-*` (2) | ≈172 126 | the above plus **C**: the card y −8 h +16 and its 86 glyphs y −8 |
 | `animation-*` (2) | ≈341 608 | **55** at the animated 320 (CSS shrank it to 139): +181 on the same rects; the paragraph one line taller, so the scroller and its 500 rows y +16 and the scroller h −16 |
+| `prod-default-light`, `prod-modal-light` (2, `LR-DO`) | **not predicted** — first taken by lane 3 at both commits | each region attributed to 55, its re-wrap, C or the rounding at 920 wide and 560 tall; a region none of them explains (a vertical compression the 1024² square cannot show) is a finding, probed before it is kept |
 
 Any delta outside these rows is a finding. **Before the re-spelling** (arm G)
 the same comparison also carried the 15 392 row-label glyphs at y −6 — X9 —
@@ -512,7 +608,7 @@ recorded as **owed to the human**.
 
 ## 10. Depth
 
-Re-bisected with `docs/probes/native-depth-ceiling/bisect.sh` at `aef88ce`
+**Lane 1 since `LR-DO`** (3.3 stays in lane 3). Re-bisected with `docs/probes/native-depth-ceiling/bisect.sh` at `aef88ce`
 (1 MB thread; positive control `padding 10` completes and `padding 2000000`
 dies in both configurations):
 
@@ -546,8 +642,8 @@ eight red again; **M3f**: 71 — the at-limit arms red.
 | item | owner |
 |---|---|
 | divergence 4 (`CS-I`) as a legacy-authority row, and the §5.3/§5.4 pins | 7b |
-| `AnimationTests.everyRegisteringSiteAnimatesItsStyle` pinned `.legacy`: the proposal path has no site-by-site "animates its style" guard — 7b owes one before retiring this | 7b |
-| a root's `minSize`/`maxSize`/`margin` still trap in production | 8 (the recipe), 9 |
+| ~~`AnimationTests.everyRegisteringSiteAnimatesItsStyle`'s proposal twin~~ — closed in 6b by `LR-DO` (lane 2's map and 2.1); the legacy pin itself retires with 7b | 7b (the pin only) |
+| a root's `minSize`/`maxSize` on an **auto** axis, a root percentage, a root `margin` and a root `.absolute` still trap in production — each pinned by 1.8 (`LR-DO`); the declared-axis fold is done here | 8 (the recipe), 9 |
 | the N9 pins, the tokenizer pins, the legacy authority | 9 |
 | the real-window capture, if locked at close | the human |
 | CLAUDE.md, AGENTS.md, records §03/§04/§05/README, the plan's 6b row, the parent spec's status; §03's re-opened rows (`LR-DM`) | the Record phase |

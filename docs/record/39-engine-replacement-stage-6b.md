@@ -295,3 +295,36 @@ main: 1`, `displayActive main: 0`. No real-window capture was attempted.
 - **`FrameSizingTests`' `render`/`widthInRow`/`nodeCount` and the two `observe`
   helpers take the authority as a required argument** (record §38 §17); the
   thirteen-default flip cannot reach their calls.
+
+## 9. Critic round 1 (`LR-DO`)
+
+On `138746c`. **Re-run byte for byte:** `swiftui-engine-replacement-stage1.swift`
+(`/usr/bin/swift`, exit 0, 79 lines, 0 missing from its header; H0 20×60, H1
+20×60, H2 20×40 — H2 is the arm that separates) and `swiftui-stack-algorithms.swift`
+(exit 0, 787 lines, 0 missing; R control (0, 0) 100×100 against R1/R2 (21, 40)
+58×20). `git apply --check docs/probes/stage-6b-flip-instrument.patch`: clean.
+`grep -rn "LayoutAuthority = \.legacy" Tests`: the thirteen defaults, no other
+spelling (`grep -rnE "LayoutAuthority\??\s*=\s*(LayoutAuthority)?\.legacy"`
+reads 13 too).
+
+**Defects found and fixed in the spec (§0) and `LR-DO`:**
+
+1. `LR-DI` item 4 deferred the root's `minSize`/`maxSize` to stage 8 although
+   `LR-AQ` names stage 6b as their owner, and left the resulting production
+   trap without an exit test. Now: a declared root axis folds its px/rem
+   min/max (lane 1, test 1.7); the rest traps, pinned by 1.8.
+2. §5.4's "the proposal path has no site-by-site animates-its-style guard" is
+   false for five of the guard's sites (seven proposal tests named in spec §0),
+   and `ScrollView`'s lowered path has its own two `animated(` calls
+   (`ScrollView.swift:393`, `:403`) the legacy-pinned guard never reaches.
+   Lane 2 maps and closes it (2.1) instead of handing it to 7b.
+3. The pixel accounting was at 1024² and 560² only; `MetalUIDemo` opens
+   920×560. Two production-size images added.
+4. Depth moved from lane 3 to lane 1 (reads no default; lane 3 was largest).
+5. Test 1.6 could stay green under M1g if the legacy path emits nothing for
+   the hidden element; its fixture now `#require`s a non-empty legacy emission.
+6. M3a's predicted reddened set lacked 3.2's proposal arm and 3.3.
+
+**Rejected, with reason in `LR-DO`:** lowering an auto-axis root min/max as a
+flexible frame (no probe records a lone `frame(minHeight:)`/`frame(maxHeight:)`
+at a root), and splitting lane 2 (tests only, mechanical, three-lane cap).

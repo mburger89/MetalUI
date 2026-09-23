@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DO`** (stage 6b's design took `LR-DF`…`LR-DN`, appended at the end; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DP`** (stage 6b's design took `LR-DF`…`LR-DN` and its critic round 1 `LR-DO`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -6601,6 +6601,8 @@ behaviour leaves that behaviour unpinned under the production authority until
 7b — `LR-DE`'s shape. Every pin in spec §5.4 names what its failing assertion
 reads, which is the check that it is a CSS answer and not a production one.
 
+**Amended, stage-6b critic round 1 (`LR-DI` item 4).** Superseded in part by `LR-DO` item 1: a root's px/rem `minSize`/`maxSize` on a **declared** axis folds into that size (so `demoLikeRows`' root reports nothing and the font-resolver test asserts an empty report at the default); only an auto-axis min/max, a percentage, a margin and `.absolute` at the root keep trapping, each pinned by an exit test through a production `Window`. Item 5's `AnimationTests` hazard is closed in 6b by `LR-DO` item 2.
+
 ---
 
 ## LR-DJ — stage 6b: the demo's pixels change by four named causes; one re-spelling restores the list rows' centring
@@ -6635,6 +6637,8 @@ is no longer stretched to 28, so `.alignItems(.center)` centres nothing).
 **What it costs if wrong.** Item 1 is a demo declaration a human can see (the
 row labels' vertical position); item 2 changes what a human verifies — §03's
 sidebar and animation readings are re-opened (`LR-DM`).
+
+**Amended, stage-6b critic round 1.** `LR-DO` item 3 adds two 920×560 images (`prod-default-light`, `prod-modal-light`) — the size `MetalUIDemo` opens — to the comparison; their regions are accounted by the same causes or are findings.
 
 ---
 
@@ -6672,6 +6676,8 @@ demo **29** with the modal off, on, and the animation on; preview **10**; a
 native levels traps with a named message; none exists in the repository.
 Too high: a debug build on a 1 MB thread overflows the stack with no message —
 the failure `SA-L` exists to prevent, which is why the lower figure wins.
+
+**Amended, stage-6b critic round 1.** `LR-DO` item 4: this ruling's work (constant, table, eight boundary tests, `lastNativeLayoutDeepestLevel`, M3e/M3f) is **lane 1's**; lane 3 keeps only 3.3's per-root readings, which include the demo at 920×560.
 
 ---
 
@@ -6733,3 +6739,71 @@ carries mutations), one Sonnet agent for the Record phase.
 **What it costs if wrong.** A lane-2 test that still depends on the default is
 caught by lane 3's first commit reading more than the two D tests — the
 ordering turns a silent dependency into a counted red.
+
+**Amended, stage-6b critic round 1.** `LR-DO` item 4 re-cuts the lanes: lane 1
+is `hidden()` **plus the root fold and all of depth**; lane 2 gains the
+animation map and test 2.1 before its `AnimationTests` pin; lane 3 loses depth
+(except 3.3) and gains the two 920×560 images.
+
+---
+
+## LR-DO — stage 6b critic round 1: the root fold is this stage's, the animation twin is written here, and four smaller corrections
+
+**Evidence.** A critic round on `138746c`. Re-run byte for byte:
+`swiftui-engine-replacement-stage1.swift` (79 lines, 0 missing from the header;
+H0 20×60, H1 20×60, H2 20×40) and `swiftui-stack-algorithms.swift` (787 lines, 0
+missing; R control (0, 0) 100×100, R1 and R2 (21, 40) 58×20) — the design's
+probe claims for `LR-DG` and `LR-DH` stand. `git apply --check` of the flip
+instrument is clean at `138746c`. Read, not measured: `LR-AQ`'s last bullet
+("a root frame is stage 6b's placement ruling"); `Sources/MetalUIDemo/main.swift`
+(the demo opens at 920×560); `ScrollView.swift:393`/`:403` (the lowered path's
+own two `animated(` calls); the seven proposal-side animation tests by name
+(spec §0 item 2); `demoLikeRows` (`.width(420).height(370).minHeight(0)` on its
+root).
+
+**The ruling.**
+
+1. **The root fold is 6b's** (amends `LR-DI` item 4). `LR-AQ` handed the root's
+   `minSize`/`maxSize` to this stage; deferring them to 8 ships a production trap
+   no test shows. At the root, a px/rem `minSize`/`maxSize` on a **declared**
+   axis folds into it by stage 2's item rule `max(min, min(size, max))` and the
+   field stops reporting — CSS gives the same number, since `CS-I` does not
+   touch a declared root axis (test 1.7 asserts both authorities agree, with two
+   separating arms). No new SwiftUI claim: the fold is the one stage 2 ruled and
+   pinned for items. Everything else a root can carry that has no lowering — a
+   min/max on an **auto** axis, a percentage, a margin, `.absolute` — keeps
+   trapping, and **each is pinned by an exit test through a production
+   `Window`** (1.8). Owners unchanged (8 for the recipe, 9 for margin).
+2. **The animation twin is written in 6b** (amends `LR-DI` item 5). Animation is
+   on the stage's must-not-move list; "the proposal path has no site-by-site
+   guard" was stated, not measured, and is false for five of the guard's sites.
+   Lane 2 maps each site arm of `everyRegisteringSiteAnimatesItsStyle` to the
+   proposal test that pins it and writes the unpinned ones as test 2.1, each
+   mutated once, before pinning the legacy guard. The 7b hazard row is deleted.
+3. **Two production-size images** (amends `LR-DJ`). The twelve images are 1024²
+   and 560²; production opens 920×560. `prod-default-light` and
+   `prod-modal-light` at 920×560 join the comparison at both commits; 3.1 and 3.3
+   drive the demo at 920×560 too.
+4. **Depth moves to lane 1** (amends `LR-DK`, `LR-DN`): it reads no default, and
+   lane 3 was the largest lane. 3.3 stays in lane 3.
+5. **Test 1.6 must be able to redden**: its fixture gives the legacy path a
+   non-empty emission for the hidden element, established by `try #require`
+   before the comparison; otherwise M1g is a broken instrument.
+6. **Predicted sets completed**: M3a also reddens 3.2's proposal arm and 3.3.
+   If lane 1 stops the instrument patch applying, lane 1 regenerates and commits
+   it.
+
+**Rejected.** (a) *Lowering a root min/max on an auto axis as a native flexible
+frame* — it needs a SwiftUI answer for a root `frame(minHeight:)` and
+`frame(maxHeight:)` alone at the window proposal that no probe in
+`docs/probes/` records (`swiftui-frame-semantics.swift`'s D16 has both bounds),
+and stage 8's recipe spells it anyway; kept as a pinned trap. (b) *Splitting lane
+2* — it touches tests only, sequentially, and three lanes is the cap; its size is
+mechanical (one rule per fixture), not design.
+
+**What it costs if wrong.** Item 1: a root whose min/max CSS resolved against the
+window differently from the fold — impossible on a declared axis, which is the
+only one folded; 1.7's separating arms show it. Item 2: a site the map calls
+pinned that is not — each mapped test is named, so a reader can mutate it.
+Item 3: two more images to account; a region nobody can attribute is the point.
+
