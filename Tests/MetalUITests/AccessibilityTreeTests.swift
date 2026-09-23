@@ -42,7 +42,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 @MainActor private func collect<E: Element>(_ element: E, stateTable: StateTable = StateTable(),
                                            width: Float = 300, height: Float = 300,
                                            focusedElement: GlobalElementID? = nil,
-                                           authority: LayoutAuthority = .legacy)
+                                           authority: LayoutAuthority = .proposal)
     -> (Frame, AccessibilityTree) {
     var element = element
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,

@@ -248,7 +248,7 @@ func makeFakeWindow<Root: Element>(
     // A caller reaching for `.proposal` owes a `LayoutDifferential.compare`
     // pre-flight, or fixtures already measured to report nothing (`WindowPair`
     // does the former; the scroll suites' fixtures are the latter).
-    layoutAuthority: LayoutAuthority = .legacy,
+    layoutAuthority: LayoutAuthority = .proposal,
     content: @escaping @MainActor () -> Root
 ) throws -> (Window, FakePlatformWindow) {
     let platformWindow = try FakePlatformWindow(device: device, size: size)
