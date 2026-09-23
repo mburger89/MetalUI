@@ -941,3 +941,58 @@ unticked — stages 7a, 7b and 8 remain), this stage's own spec's Status line
 (marked delivered, Record phase noted), and `README.md` (the branch/count
 line, the record-file list, the engine-replacement spec bullet).
 
+
+## 19. Branch checker (2026-09-23, PDT) — adversarial pass over `aef88ce..a17e779`
+
+**Suite, re-taken.** `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`, the one `warning:` SwiftPM's deprecation notice),
+unfiltered `swift test --build-system native --no-parallel`: **`Test run with
+1701 tests in 3 suites passed after 92.271 seconds`**, `FR-J no-argument frame:
+succeeded=true` in the log. `swift build --build-tests` (default build system):
+0 `error:`, 0 `warning:`. Goldens 97, `git diff --name-only aef88ce HEAD --
+'Tests/**/*.json'` empty. Guards 78 (79 `canTypecheck` hits across the fifteen
+files, one a comment). `grep -rn "LayoutAuthority = \.legacy" Tests Sources`
+empty. `cmp CLAUDE.md AGENTS.md` clean. Every backticked identifier of 21+
+characters added to a changed doc resolves in `Sources`/`Tests`/`docs/probes`
+(219 checked); every `LR-` id cited resolves to a heading except the
+next-unused `LR-DS`.
+
+**Pixels, re-taken.** `compare.sh <scratch> aef88ce a17e779`: every control at
+its recorded value (1048576, 1030498, 210027, 0, 1048576, 0, 544, 216, prod
+491923, distinct 529, indicator rects 0), and the fourteen images read §12.6's
+numbers exactly (168380 ×4, 172126, 172105, 341608, 341606, preview and chrome
+0 with scenes identical, 95649, 100745). The scene dumps, paired by index and
+tallied independently, give §12.6's groups to the glyph: e.g.
+`default-light-f0` rects `(+100,0,0,0)` ×507, `(0,0,+100,0)` ×5,
+`(+100,0,−100,0)` ×1, identical ×5; glyphs `(+100,0)` ×15509, the re-wrap groups,
+`(+101,0)` ×6, identical ×7; `prod-default-light` `(+108,+16)` ×15392 and the
+viewport `(+108,+16,0,−16)`; the modal images add `(0,−8,0,+16)` ×1 and 86
+glyphs `(0,−8)`. No region outside 55, its re-wrap, C and the one-point rounds.
+
+**The screen.** Lock probe at 14:49 PDT: `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`, `displayActive main: 0`. `capture.sh` not run; still
+owed to the human (`LR-DM`).
+
+**Mutations** (each committed first, restored from a copy, full unfiltered
+native suite, `git status --short` clean after):
+
+| id | mutation | reddened (all others green) |
+|---|---|---|
+| MA | `Window.layoutAuthority`'s initial value `.legacy`, `Frame.defaultLayoutAuthority` left `.proposal` (the one constant split) | 5 tests, 32 issues: `noProductionFrameReachesTheLegacyEngine` (15), `everyProductionRootsDeepestNativeLevelIsMeasured` (14), `aFrameAndAWindowDefaultToTheProposalAuthority` (1), `aHuggingLegacyRootIsCentredInAProductionWindow` (1), `aWindowBuildsEveryFrameUnderItsLayoutAuthority` (1, its first frame reads the window's initial value). The exit test reddens on a window-only flip-back; no other window test depends on the default |
+| MB | `Frame.isHidden` reads `hiddenNodes` only (the legacy `display == .none` clause dropped) | 5 tests, 17 issues, **every one on the `.legacy` arm**: `aHiddenRootPublishesNothing` (2), `aHiddenInnerModifierLayerSuppressesEverythingInsideIt` (2), `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient` (8), `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` (2), `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce` (3) — the legacy accessibility suppression `LR-DH` item 3 folded into `isHidden` is pinned |
+| MC | the demo row's `.height(Pixels(28))` moved after its horizontal-only `.padding` (onto the padding layer) | **only** `everyProductionRootsDeepestNativeLevelIsMeasured` (6, the six demo roots). `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` stays green: the row's lowered geometry is the same on either side of a padding with no vertical edge, so the position is read by the depth literal alone — not a defect |
+
+**Doc defects fixed** (commit `4b2ebbd`): the pin count read 33 (stage 6a's
+`LR-DD` figure) or "16 CSS/7b, 3 N9/9, 1 tokenizer/9" in CLAUDE.md, §13, §14,
+§17, §04, the record README row and the plan — it is **20** (`LR-DQ` item 2:
+15 for 7b, 5 for 9); "14 X" without lane 2's 12 in the same places; §15 said
+M2a at the new default reddened 20 of the 28 R-centred tests (it reddens all
+28; the 8 are M2b's) and a "13-test gap"; CLAUDE.md's depth bullet put the
+item chain's boundary "at 72/73 nodes" (it is 100/101, test 4.8) and called 30
+"one more than 'measured at 18'"; the sidebar "was 88 at 1024²" in CLAUDE.md,
+§03 and §17 (96 at 1024², 88 at 920×560 — the scene dumps' `(0,0,+100,0)` and
+`(0,0,+108,0)`); CLAUDE.md's "Four looks" listed five; §04 retired divergence 4
+at stage 9 where `LR-DG` item 2 says 7b; §18 named §03's file
+`03-human-verification.md`.
+
+**Verdict: mergeable.** No code defect found.
