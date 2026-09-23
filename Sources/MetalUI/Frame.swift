@@ -1708,14 +1708,10 @@ public final class Frame {
             }
         }
         if tree.isNativeLayoutNode(root) {
-            _ = tree.computeNativeLayout(
+            _ = tree.computeNativeLayoutSIXA(
                 root: root,
                 proposal: ProposedSize(width: Double(contentSize.width.value),
-                                       height: Double(contentSize.height.value)),
-                centredIn: LayoutRect(x: 0, y: 0,
-                               width: Double(contentSize.width.value),
-                               height: Double(contentSize.height.value))
-            )
+                                       height: Double(contentSize.height.value)))
             return
         }
         computeLayout(
