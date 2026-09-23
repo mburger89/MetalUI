@@ -128,6 +128,15 @@ final class FakePlatformWindow: PlatformWindow {
         publishedAccessibilityTrees.append(tree)
     }
 
+    /// Every `setTextInputArea` argument, in call order (ruling TI-A).
+    private(set) var textInputAreas: [Bounds<Pixels>?] = []
+    func setTextInputArea(_ caret: Bounds<Pixels>?) { textInputAreas.append(caret) }
+
+    /// A clipboard private to this window.
+    var clipboard: String?
+    func readClipboard() -> String? { clipboard }
+    func writeClipboard(_ text: String) { clipboard = text }
+
     /// Send a request the way an accessibility client's query or action would
     /// reach `onAccessibilityRequest`, and return the window's answer.
     @discardableResult

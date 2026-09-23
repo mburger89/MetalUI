@@ -47,7 +47,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
-  its spec). A numbered citation
+  its spec), `TI-` (next `TI-G`; rulings in its spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -113,9 +113,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   §40 the demo on Linux and Windows (`DC-`, spec
   `specs/2026-09-23-demo-cross-platform-design.md`), §42 portable font
   fallback (`FB-`, spec `specs/2026-09-23-font-fallback-design.md`), §43
-  portable bidi (`BD-`, spec `specs/2026-09-23-bidi-design.md`) and §44
+  portable bidi (`BD-`, spec `specs/2026-09-23-bidi-design.md`), §44
   accessibility off Apple through AccessKit (`AX-`, spec
-  `specs/2026-09-23-accesskit-accessibility-design.md`). **Cross-platform work
+  `specs/2026-09-23-accesskit-accessibility-design.md`) and §45 text input
+  and `TextField` (`TI-`, spec `specs/2026-09-23-text-input-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -150,8 +151,18 @@ swift test --no-parallel 2>&1 | grep -oE "Test run with [0-9]+ tests" | grep -oE
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
+METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-23, `feat/text-input` — roadmap item 14): 1746 tests,
+  97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both build
+  systems, taken after `swift package clean` the same way (one summary line,
+  `Test run with 1746 tests in 3 suites passed`; the guards ran). **1746 = 1712
+  + 4 + 30**: the caret-offset lane's 4 (`CaretOffsetOracleTests`) and text
+  input's 30 (`TextEditingTests` 10, `TextFieldTests` 13,
+  `TextInputPlatformTests` 7); record §45. Goldens and the demo-frame pin
+  unmoved. `Backends/SDL`: 21 + 19 on macOS (5 new `SDLTextInputTests`), 21 +
+  18 on Linux aarch64.
 - **Counts (2026-09-23, `feat/accessibility` — roadmap item 13): the root
   package is untouched — 1712 / 97 / 78 as below**. The work is in the
   separate `Backends/SDL` package: `MetalUISDLTests` 14 (5 new
@@ -691,7 +702,8 @@ fails the other. `registerHandlers` holds the hitbox, focus, AX record and the
 disabled gate; skipping it makes an element ungated and invisible to
 VoiceOver. **Any hook added to `Element`'s group defaults must be mirrored per
 layer in `ModifiedElement` and in `AnyElement`'s group entry** (`MC-B`,
-`LR-AA`). `Handlers` has eight members; `HandlerShape` (`ModifierTests`) and
+`LR-AA`). `Handlers` has nine members (the ninth, `textInput`, internal
+and set only by `TextField`, `TI-B`); `HandlerShape` (`ModifierTests`) and
 `HandlerFingerprint` (`OuterModifierMatrixTests`) each gain a field when it
 gains one.
 
@@ -718,8 +730,26 @@ everything inside via `Frame.suppressingAccessibilityIfHidden` (`AB-O`). A
 text-painting conformer passes `accessibleText:`. Qualify
 `MetalUIPlatform.AccessibilityRequest` in files importing AppKit.
 
-**Focus:** `Window.focus(_:)` is the only mover; clicking does not focus. Keys
-go to the `Keymap` first, then bubble raw `onKey` up the parent chain.
+**Focus:** `Window.focus(_:)` is the only mover; clicking does not focus —
+**except a `TextField`**, which a press focuses (`TI-B`). Keys go to the
+`Keymap` first, then to a focused field's editing keys, then bubble raw
+`onKey` up the parent chain.
+
+**Text input (`TI-`).** `TextField(_:text:onChange:)` is **controlled** (there
+is no value `Binding`; `Binding` is still `KeyBinding`'s alias) and one line.
+Its selection, composition and scroll live in `StateTable` under its own id.
+While a field is focused, `Window` calls `PlatformWindow.setTextInputArea`
+with its caret (nil otherwise), and a printable key arrives as
+`.textInput`, not `.keyDown` — AppKit routes it through the input context,
+SDL drops the key-down it also sends — so **plain-letter `Keymap` bindings are
+silent while a field is focused**; command shortcuts are not. `Window.editedText`
+carries an edit until the next frame: two edits between frames must compose
+(a cut then a paste read `"pastedhello"` without it). Caret positions come
+only from `TextSystem.caretOffsets` (`TI-E`), which follows the font's GDEF
+ligature carets and puts a caret halfway through a kern, as CoreText does —
+do not re-derive them from advances. `TextEditing` is pure and holds TI-D's
+key table for both platforms' conventions (`TextEditing.platform`: control is
+the shortcut and word key off Apple).
 `focusBorder(_:width:)` is the (opt-in) ring; background and border resolve
 `focus ?? hover ?? plain`.
 

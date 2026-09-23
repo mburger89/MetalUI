@@ -201,6 +201,7 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .image: ACCESSKIT_ROLE_IMAGE.rawValue
         case .table: ACCESSKIT_ROLE_TABLE.rawValue
         case .row: ACCESSKIT_ROLE_ROW.rawValue
+        case .textInput: ACCESSKIT_ROLE_TEXT_INPUT.rawValue
         }
         return UInt8(value)
     }

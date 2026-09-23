@@ -101,6 +101,9 @@ private struct HandlerShape: Equatable {
     /// per-edge overload's four distinct components catch a transposition.
     var allowsHitTesting = true
     var contentShapeInset: Edges<Pixels>?
+    /// Roadmap item 14 (TI-B): internal, set only by `TextField`, so no
+    /// modifier case writes it — a modifier that did is a mismatch here.
+    var textInput = false
 }
 
 @MainActor
@@ -407,7 +410,8 @@ private struct ModifierCase {
                              context: got.handlers.keyContext,
                              axNode: got.handlers.axNode,
                              allowsHitTesting: got.handlers.allowsHitTesting,
-                             contentShapeInset: got.handlers.contentShapeInset) == expectedHandlers,
+                             contentShapeInset: got.handlers.contentShapeInset,
+                             textInput: got.handlers.textInput != nil) == expectedHandlers,
                 "\(c.name) wrote the wrong `Handlers` member, or wrote nothing")
     }
 }

@@ -40,6 +40,8 @@ enum LoweringSite: String, Sendable {
     case box
     case stack
     case text
+    /// `TextField` (roadmap item 14): a leaf, lowered as `text` is.
+    case textField
     case modifierLayer
     case scrollView
     case list
@@ -90,7 +92,9 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
         if field.hasPrefix("position") || field.hasPrefix("inset") { return "10" }
         if field.hasSuffix(".absolute") { return "8" }
         switch site {
-        case .box, .stack, .text, .modifierLayer:
+        // `textField` (roadmap item 14) is a leaf lowered as `text` is, so its
+        // field-level entries are the same stage's.
+        case .box, .stack, .text, .textField, .modifierLayer:
             return field == "noLowering" ? "1" : "2"
         // Stage 3 lowered both. `scrollView` survives for a scroller **child**'s
         // unlowerable item field, which `lowerLegacyNode` reports at this site

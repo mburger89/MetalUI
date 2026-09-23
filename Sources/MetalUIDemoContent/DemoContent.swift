@@ -94,6 +94,11 @@ public final class DemoModel {
     /// milestone built. See CLAUDE.md's human-verification table for what a
     /// human should watch.
     public var animationDemoActive = false
+
+    /// The text-input demo's two fields (roadmap item 14): controlled fields
+    /// store what they are given back here.
+    public var fieldText = ""
+    public var secondFieldText = ""
 }
 
 @MainActor public let demoModel = DemoModel()
@@ -627,6 +632,7 @@ public func demoContent() -> some Element {
                      width layout settled on.
                      """)
 
+
                 // **The clipping-and-scroll milestone's exit criterion.**
                 // Replaces the three-weights filler row (M1's flexGrow demo,
                 // now covered by the sidebar rows and the header bar above) with
@@ -1090,4 +1096,28 @@ public func nativeLayoutPreviewContent() -> some Element {
         .clip(cornerRadius: Pixels(16))
         .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity))
     }
+}
+
+/// The text-input demo (roadmap item 14, `METALUI_TEXT_INPUT_DEMO=1`): two
+/// fields and a line echoing the first. A separate root, not a panel of
+/// `demoContent()`, whose every rect the lowering corpus and the cross-platform
+/// frame pin. Typing here is the human look TI-F owes: an input method's
+/// marked text and candidate window, dead keys, a drag, a double click, ⌘C/⌘V
+/// to and from another app, and plain-letter keymap bindings staying quiet
+/// while a field is focused.
+@MainActor
+public func textInputDemoContent() -> some Element {
+    Column(gap: Pixels(12)) {
+        Text("Text input").font(size: 22)
+        TextField("Type here: an input method, a selection, copy and paste",
+                  text: demoModel.fieldText) { demoModel.fieldText = $0 }
+            .background(.surfaceSecondary)
+        TextField("A second field — Tab does not move here; click it",
+                  text: demoModel.secondFieldText) { demoModel.secondFieldText = $0 }
+            .background(.surfaceSecondary)
+        Text(demoModel.fieldText.isEmpty ? "(the first field echoes here)" : demoModel.fieldText)
+    }
+    .alignItems(.stretch)
+    .padding(Pixels(24))
+    .background(.surface)
 }

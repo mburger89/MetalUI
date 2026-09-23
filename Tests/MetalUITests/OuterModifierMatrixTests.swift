@@ -114,6 +114,8 @@ private struct HandlerFingerprint: Equatable {
     /// Plan task 5's lane 3 — the two hit-testing members.
     var allowsHitTesting = true
     var contentShapeInset: Edges<Pixels>?
+    /// Roadmap item 14 (TI-B).
+    var textInput = false
 
     @MainActor init(_ h: Handlers) {
         click = h.onClick != nil
@@ -124,6 +126,7 @@ private struct HandlerFingerprint: Equatable {
         axNode = h.axNode
         allowsHitTesting = h.allowsHitTesting
         contentShapeInset = h.contentShapeInset
+        textInput = h.textInput != nil
     }
 }
 
