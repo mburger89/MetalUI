@@ -46,6 +46,14 @@ extension PortableText {
     /// For each UTF-16 unit of `text`, whether a line may break after it
     /// (ruling LB-B). The last unit is always ``LineBreakOpportunity/mandatory``
     /// — UAX #14 LB3, the end of the text.
+    ///
+    /// Asked of libunibreak as `"en-strict"` (ruling LB-L), CoreText's
+    /// behaviour: its English tailoring makes U+2018/U+201C opening and U+201D
+    /// closing punctuation, and `-strict` keeps small kana (CJ) as
+    /// non-starters. Measured over every ordered pair of 47 class samples:
+    /// 347 of 4,418 differ from `CFStringTokenizer` with no language, 123
+    /// with `"en"`, 0 with `"en-strict"`. Thai still differs (no dictionary,
+    /// LB-M).
     public static func lineBreaks(in text: String) -> [LineBreakOpportunity] {
         _ = lineBreakerReady
         let units = Array(text.utf16)
@@ -53,7 +61,7 @@ extension PortableText {
         var raw = [CChar](repeating: 0, count: units.count)
         units.withUnsafeBufferPointer { source in
             raw.withUnsafeMutableBufferPointer { breaks in
-                set_linebreaks_utf16(source.baseAddress, units.count, nil, breaks.baseAddress)
+                set_linebreaks_utf16(source.baseAddress, units.count, "en-strict", breaks.baseAddress)
             }
         }
         return raw.map { value in

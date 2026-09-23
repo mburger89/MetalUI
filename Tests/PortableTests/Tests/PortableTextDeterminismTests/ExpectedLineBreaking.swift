@@ -19,3 +19,6 @@ let expectedParagraphs: [PinnedEmit] = [
     PinnedEmit(glyphs: 56, rects: 0x6ffa6ba88c7a9518, advance: 0x4052000000000000, dirty: [0, 0, 501, 53], coverage: 0xed33b8e5a821e956),  // NotoSans 13pt ×2 w=120, pangram + LF + soft hyphens
     PinnedEmit(glyphs: 35, rects: 0x123f6196ee28d743, advance: 0x4061400000000000, dirty: [0, 0, 272, 16], coverage: 0x0fc44934a26083b4),  // SourceSans 17pt ×1 w=90, tabs + U+2028
 ]
+
+// Roadmap item 3: runs and content widths; see ContentSizeDeterminismTests.
+let expectedContentChecksum: UInt64 = 0xd7c257bb6f02bed0

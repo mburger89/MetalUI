@@ -45,10 +45,12 @@ Apple-bound:
    in placement to `placedGlyphs` over 26,928 cases. `feat/portable-lines-emit`,
    spec `specs/2026-09-23-portable-lines-emit-design.md` (`LB-F`, `LB-H`…`LB-K`),
    record §31.
-3. [ ] **Min- and max-content** — the portable counterpart of
-   `unbreakableRuns(of:)` (TX-F: `CFStringTokenizer`'s longest word) and of
-   max-content (TX-K: one line per hard break), so a portable `Text` can be
-   measured by the layout engines.
+3. [x] **Min- and max-content** — `PortableText.unbreakableRuns`,
+   `minContentWidth`, `maxContentWidth`, equal to the Apple path; break
+   opportunities now `"en-strict"`, equal to `CFStringTokenizer` over 4,418
+   class pairs. `feat/portable-content-sizes`, spec
+   `specs/2026-09-23-portable-content-sizes-design.md` (`LB-L`…`LB-O`),
+   record §32.
 4. [ ] **Font resolution** — a portable `FontResolver`: family/weight →
    font file. Bundled fonts first; system discovery (fontconfig on Linux,
    DirectWrite on Windows) after.
