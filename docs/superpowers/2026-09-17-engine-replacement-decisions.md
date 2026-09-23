@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CT`** (stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DF`** (stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -5898,3 +5898,519 @@ end state), `[box.position, box.inset, stack.position, stack.inset]` (3.6);
 Pixels: the twelve `CN-R` images read 0 against `e5caefb`. The screen was locked
 at 04:41 PDT (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`): no
 capture owed.
+
+---
+
+## LR-CT — stage 6a's entry measurement is the flipped default including the test helpers' defaults, read through five arms
+
+**The question.** `LR-R` makes "which tests are about a CSS answer" a
+measurement: "the suite with the default flipped and diagnostics on", each red
+test classified. What is "the default", and how is a red attributed?
+
+**Measured** (record §38 §2). Flipping `Frame.init`'s and `Window`'s defaults
+(arm A, `9ccc0d8`) reddened **88** tests. It did not flip the suite: **`makeFakeWindow`
+takes `layoutAuthority: LayoutAuthority = .legacy`** and writes it over the
+window's default, and seven file-local render helpers do the same, so every
+window test and every test through those helpers stayed legacy. With the eight
+helper defaults flipped too, and traps made non-fatal so production windows do
+not truncate the run (five would have), the flipped default reads **153 red of
+1640** (arm A2, `95f0630`). Four more arms, each on its own commit, separate
+causes: B2 (custom elements lowered as a `Box` instead of reported), C2 (the
+native root at the window rect, as the legacy `auto` root fills), C3 and B3 (the
+root top-leading at its answer, as a sized legacy root sits).
+
+**The ruling.** The entry measurement is **A2**; the classification reads each
+red test's five arms: green in C2 or C3 (or B3 for a custom-element test) is
+**root placement**; green in B2 is **custom element only**; red in every arm with
+a CSS reading is **CSS**, sub-classed by what the failing assertion reads
+(tree shape, a node's `Style` or measure function, a WebKit text answer, the
+legacy frame's CSS lowering, divergence 48, a legacy-vs-proposal pin, a
+stretched box model); the rest by name (exit tests of production traps, the
+default itself, legacy-authority boundaries, `hidden()`, a root's unconsumed
+item field, one unattributed). The table is record §38 §4, one row per test.
+
+**Why the helpers count.** 6b's exit is the default flipped. A measurement that
+leaves every window test on `.legacy` is a measurement of a different stage —
+the helpers alone moved the count from 88 to 153 — and 6b would meet those reds
+unclassified.
+
+**Why arms and not reading.** "About a CSS answer" read from a test's name is
+the unmeasured confident claim the practices warn about: `aLegacyFramePlacesItsChildAtEachOfTheNineAlignments`
+reads like a CSS test and is green once the root is placed as the legacy root
+is (B3), while `paddingEdgesAreNotTransposed` reads authority-neutral and needs
+the `Box` lowering's stretch.
+
+**What it costs if wrong.** The arms are separating arms, not proposals: B2's
+measure adapter (a CSS measure called with `known` nil and `available` from the
+proposal) and C2/C3's placements are scratch. A test green in an arm for an
+accidental reason would be misattributed; the lanes' mutations over the pins
+(spec §7, M3g) re-read the lane-3 attribution, and a re-spelled test that goes
+red is recorded, not re-asserted.
+
+---
+
+## LR-CU — six dispositions, chosen per test, and a dual branch where an element's tests split
+
+**The question.** `LR-R` names two moves — re-spell onto `requestNativeLeaf`/`ProposalLayout`,
+or pin to `.legacy` through `Frame.requestNode`. The 66 call sites (record §38
+§1) include fixtures that already branch on the authority, fixtures that exist to
+be the deprecated spelling, and typecheck fixture strings.
+
+**The ruling.**
+
+1. **R** — a test green in A2 (or in B2, where it needs the element's size and
+   the element is not stretched by a legacy parent) is authority-independent:
+   its element registers `requestNativeLeaf` of its declared size (a container,
+   `requestNativeOverlay` or a native stack/frame where geometry is read), and
+   the test passes `layoutAuthority: .proposal` explicitly **unless its whole
+   tree is native**. A native leaf inside a legacy container traps under the
+   legacy authority (`SA-G`; `LR-T` lifts it only under `.proposal`), so the
+   authority argument is not optional. 66 tests.
+2. **P-CSS / P-6b / P-9** — a test red in A2 is pinned: its element registers
+   `pass.frame.requestNode`/`requestLeaf` with the same arguments, and the test
+   passes `layoutAuthority: .legacy` explicitly — a no-op until 6b, whose flip
+   it keeps out. The suffix is the owner: 7b retires a CSS answer; 6b re-spells a
+   test red only for root placement once it rules divergence 4 vs `CN-J`; stage 9
+   deletes a test whose subject is a legacy registration (`MC-G`'s holes). One
+   test green in A2 is pinned by its name:
+   `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`'s
+   legacy arm is a CSS answer by definition (divergence 52's legacy half).
+3. **Dual** — an element whose tests split between R and P branches on
+   `pass.lowersToProposal`: R's registration under the proposal authority, P's
+   under the legacy one. Six elements (`ElementLayoutTests.Probe`,
+   `ComponentTests.Leaf`, `FrameSizingTests.Mark`, `ModifiedElementTests.LayerLeaf`,
+   `ModifierCompositionProofTests.CountingLeaf`, `EnvironmentTests.ClickCounter`).
+4. **L** — the ten fixtures stages 3–5 already wrote with a dual branch keep
+   it; their legacy branch moves from `pass.requestNode(` to
+   `pass.frame.requestNode(`. Identical by construction: the forwarder's legacy
+   path is that call (`Passes.swift:43–48`, `66–72`). No mutation can tell them
+   apart, and none is claimed (`LR-X`: a green mutant may be the correct
+   spelling).
+5. **Dep** — `LR-CV`.
+6. **G** — the eight calls inside typecheck fixture strings move onto
+   `requestNativeLeaf{…}.layoutNodeID` (or `requestNativeSpacer().layoutNodeID`).
+   They never reach the gate (a child `swiftc`, output piped), but stage 9's
+   deletion would turn each guard red for the wrong reason, and `LR-R` says
+   "every in-repo caller". **One assertion literal moves**:
+   `registeringALayoutNodeDuringPaintDoesNotCompile` checks the rejection
+   message names the registrar; it reads `"requestNativeLeaf"` for
+   `"requestNode"`. The claim — `PaintPass` cannot register a node — is
+   unchanged, and the guard now survives stage 9. Every re-spelled guard's named
+   mutation is re-run (spec §7, lane 1).
+
+   **Amended, stage-6a lane 1 (`LR-DB`):** the fixture-string calls are **nine**,
+   not eight — `ProposalNodeIDCompileGuards`' guard 4 negative
+   (`pass.requestNativeFrame(child: pass.requestNode(…))`) shares its line with a
+   `requestNative` call, which the census grep dropped. It moved G with the
+   others, onto `requestNativeSpacer().layoutNodeID`.
+
+**Evidence.** Record §38 §4 (the arms per test) and §5 (why A2-green means a
+native leaf keeps the assertion: the reported leaf A2 substitutes is itself a
+one-node 0×0 native leaf; why `paddingEdgesAreNotTransposed` is CSS-box: its
+probe is stretched to 376×104, which a record-less native leaf never is —
+record §23 X2).
+
+**Why not everything pinned.** 7b retires every `.legacy`-pinned element test
+"with the same rigour as 7a"; pinning the 66 authority-independent tests would
+hand 7b 66 retirements that are not CSS answers — state, identity, focus,
+environment, the frame clock — each needing a replacement it already has.
+
+**Why not everything re-spelled.** 43 of the flip's reds are CSS answers in
+every arm (tree shape, `Style` reads, WebKit text, the legacy frame's lowering);
+re-spelling them would mean changing what they assert.
+
+**What it costs if wrong.** A test classified R that goes red under `.proposal`
+is caught by the suite in the lane (recorded, pinned with its measured cause). A
+P test that should have been R costs 7b one retirement that 6b's classification
+row flags. A dual element's legacy branch is deleted with the legacy authority
+(stage 9), mechanically.
+
+---
+
+## LR-CV — a fixture whose subject is the public registrar keeps it, behind a deprecated witness
+
+**The question.** Six fixtures exist to call `LayoutPass.requestNode`/`requestLeaf`
+— stage 4's four `LegacySpelled…` rows (each the subject of an exit test that
+records the trap a legacy-spelled row hits under a production proposal frame),
+`LayoutAuthorityTests`' `CustomNodeElement`/`CustomLeafElement` (subjects of
+1.3 and of the every-site roll call) — and the exit test needs a seventh. They
+cannot move to `pass.frame`: under the proposal authority that reaches the
+backstop, whose message is site-less, so each exit test's assertion would move.
+They must not warn.
+
+**Measured** (`docs/probes/swift-deprecated-witness-silence.sh`, Apple Swift
+6.4, record §38 §3): a plain call warns (the positive control); a call inside a
+declaration marked `@available(*, deprecated)` does not; a deprecated method used
+as a protocol witness warns neither at the conformance nor at a generic call
+site; a fixture whose `requestLayout` witness is marked deprecated and is reached
+through a generic `render` warns nothing under Swift 5 or 6 mode.
+
+**The ruling.** Each such fixture's `requestLayout` is marked
+`@available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: <why> (stage 6a, LR-CV)")`;
+its body is byte-identical. `Frame.render` reaches it through `Element`'s
+requirement, silently.
+
+**Why not a shim protocol** (`extension LayoutPass: LegacyRegistering {}`, also
+measured silent). It would be a second, test-only spelling of the public pair,
+callable from any test file, so a future test could reach the deprecated
+registrars without anything at its call site saying so. The attribute on the
+fixture says so where the call is.
+
+**What it costs if wrong.** A later toolchain that warns on a deprecated witness
+breaks the 0-`warning:` gate on the first build — loud, at the six fixtures.
+
+---
+
+## LR-CW — a custom element's trap names stage 9
+
+**The question.** `UnlowerableField.owningStage` returns `"6a"` for
+`customElement`. After 6a a custom element still has no lowering and never will:
+the registrar is deprecated and pointed at `requestNativeLeaf`.
+
+**The ruling.** `"9"`, the stage that deletes the public pair. The trap an
+external legacy custom element hits under the proposal authority (6b onward)
+reads `MetalUI: customElement.requestNode has no proposal lowering (plan task 7,
+stage 9)`. `LR-CK`'s precedent: an entry removed from the proposal authority
+rather than lowered belongs to the stage that deletes it (`position`/`inset` →
+10).
+
+**Evidence.** No test asserts the literal `stage 6a` (three doc comments quote
+it as recorded output at a named SHA; they stay). The exit test's trap half
+asserts `stage 9` and is red before the change — the stage's one real red-before.
+
+**What it costs if wrong.** A message; the substring every existing test reads
+(`customElement.requestNode has no proposal lowering`) is unchanged.
+
+---
+
+## LR-CX — the exit test, one guard, and the deprecation lands last
+
+**The ruling.**
+
+- **3.1** `aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`
+  (spec §8): a deprecated-witness fixture registering a leaf, a node and a
+  root row through the public pair lays out, under `.legacy`, to the same rects
+  as an oracle registering through `pass.frame` (not 0×0, not equal to each
+  other); under a production `.proposal` frame it traps naming
+  `customElement.requestLeaf` or `.requestNode` and **stage 9**.
+- **3.2** `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes`
+  (`LayoutAuthorityCompileGuards`, `typecheckFile`): a plain-import caller still
+  compiles and is told `'requestNode(style:children:)' is deprecated` /
+  `'requestLeaf(style:measure:)' is deprecated`, naming `requestNativeLeaf`; a
+  control calling only `requestNativeLeaf` is told nothing. The exit test cannot
+  see the attribute (a `@testable` run-time test never can, shape 16); this
+  guard is the only thing that does, and it is the change's new guard (78).
+- **Order.** The attributes land in lane 3, in the commit after the last caller
+  moves, so every lane commits at 0 `warning:`. That is `FR-I`'s "one move": the
+  gate is what makes a caller left behind impossible to commit.
+
+**What it costs if wrong.** None known: both tests are red before the change
+(3.1's `stage 9`, 3.2's empty messages) and each has named mutations.
+
+---
+
+## LR-CY — three lanes by file; lane 3 closes the gate
+
+**The ruling.** Lane 1: the mechanical fixtures (L, Dep except
+`LayoutAuthorityTests`', G) — 13 files, most of its cost in re-running the eight
+re-spelled guards' named mutations. Lane 2: the authority-independent files (R,
+one dual) — 12 files, tests only. Lane 3: the layout-answer files (P, R, dual),
+`LayoutAuthorityTests`, `LayoutAuthorityCompileGuards`, `Passes.swift`,
+`LayoutAuthority.swift` — the deprecation, `owningStage`, the exit test, the
+guard, the pixels, the captures and the closing record. Files are disjoint;
+lanes run in order in one worktree.
+
+**Why lane 3 closes.** The deprecation cannot land before the last caller moves
+without a commit that warns; it lands with the lane whose files are the last.
+
+**What it costs if wrong.** Lane 1 is the smallest; merging it into lane 3 would
+put 27 files and two kinds of verification in one agent.
+
+**Amended, stage-6a critic round 1** (`LR-DA` item 2). `ContainerIntegrationTests`,
+`HitboxTests`, `ProposalNodeIDTests` and `NativeBoundaryIntegrationTests` — every
+caller in them pinned, no dual element — move from lane 3 to lane 2, whose one
+I0 run (M2c) now covers every pin it writes. Lane 3 keeps the five dual-element
+files, `LayoutAuthorityTests`, the guard file and the two sources.
+
+---
+
+## LR-CZ — what 6b and 7b inherit from the entry measurement
+
+**The ruling.** The table in record §38 §4 is the input both stages read, and
+this ruling names what each row class asks of them.
+
+- **6b** — root placement is **78** of the flip's reds (RP 54, CE+RP 23, RT 1),
+  23 of them tests 6a pins P-6b; whichever way 6b rules divergence 4 vs `CN-J`,
+  78 tests move, so the ruling carries a table of its own. The eight helper
+  defaults flip with `Window`'s, or 6b's measurement repeats arm A's. `hidden()`
+  (5 AV rows) has **no owning stage** — `LR-AV` says "task 7 before stage 9" and
+  `owningStage` says 2, which is closed — and those five tests go red at 6b's
+  flip, so 6b assigns it. The two default-asserting tests, the three non-caller
+  `N9` exit tests at the default authority, and the one unattributed row are 6b's.
+- **7b** — 43 CSS rows: 31 in the files 6a pins (32 pinned with the green
+  divergence-52 pin), and 12 that call no deprecated registrar and stay at the
+  default until 6b pins or 7b retires them.
+- **9** — the two P-9 tests, the Dep fixtures, every L and dual legacy branch,
+  `LoweringSite.customElement`, the public pair.
+
+**What it costs if wrong.** A row misattributed sends one test to the wrong
+stage; each stage re-measures its rows before acting (the arms are on named
+commits, re-runnable by checkout).
+
+**Amended, stage-6a critic round 1** (`LR-DA` items 4 and 5). The unattributed
+row is attributed: **RP + CSS-frame** (record §38 §7.2), 6b for the root and 7b
+for its `FR-E` arm. `hidden()` is **6b's**, as a prerequisite of the flip rather
+than an assignment: 6b lowers it under `LR-AV`'s constraints or pins the five AV
+tests to `.legacy` naming 7b, before `Window`'s default moves.
+
+---
+
+## LR-DA — stage 6a critic round 1: I0 as a patch with a measured control, lane 2 takes the P-only files, and six more
+
+**Evidence.** Record §38 §7, every item run at `0d2a5a3`.
+
+**The ruling.**
+
+1. **Instrument I0 is `docs/probes/stage-6a-instrument-I0.patch`, and every
+   mutation over it is read against an I0 control run.** The design's
+   `git cherry-pick 0d02538` does not apply at `b3c29b9` (`git apply --check`:
+   `patch failed: Sources/MetalUI/Frame.swift:1533`; the commit's context is arm
+   A's). I0 alone reddens exactly the 13 X tests (`Test run with 1640 tests …
+   with 32 issues`), which the design's M3g and 2.3 predictions omitted; from
+   lane 3's red-first commit 3.1's trap half joins them. A truncated I0 run (an
+   `SA-G` precondition I0 does not soften) is bisected by file.
+2. **Lane 2 takes the four P-only files** (`LR-CY` amended): lane 3 was the
+   duals, 56 pins, the deprecation, the exit test, the guard, eight mutations,
+   pixels, captures and the close. M2c (lane 2) predicts 10 reds; M3g (lane 3)
+   predicts 46 (17 P-6b, 29 P-CSS).
+3. **A Dual element's R test always passes `.proposal`.** The "whole tree
+   native" exception assumes the element is native at any authority; a Dual
+   element is native only under `.proposal`, so at the default its R test would
+   keep the legacy branch and nothing would have moved, silently.
+4. **The unattributed row is RP + CSS-frame**, measured (record §38 §7.2): three
+   arms off by the centred root's (70, 80), the flexible arm 100 wide where
+   `FR-E`'s legacy frame is 80. `LR-CZ` amended.
+5. **`hidden()`'s owner is 6b**, a prerequisite of its flip (`LR-CZ` amended).
+   `LR-R`'s classification asks for a named owner per lowering gap; "6b assigns"
+   was a deferral with no owner.
+6. **The deprecated-witness probe gains its separating arm** (`use3.swift`, the
+   fixture without the attribute, warns in both modes). `LR-CV` stands, now on a
+   probe whose silent arm is separated.
+7. **Rejected: re-spelled (R) tests must also run under `.legacy`.** Considered
+   because 66 tests stop pinning the production authority. Rejected on the grep
+   in record §38 §7.5: no state, environment, focus, clock or identity code
+   reads the authority; only registration sites, the backstop and root layout
+   do, and the legacy kernel keeps its 97 goldens and every pinned test. Running
+   R tests under both authorities would need every R element dual, which is the
+   legacy branch stage 9 deletes, for no branch the grep can find.
+
+**Also checked and standing** (record §38 §7.1, §7.5): with both attributes in,
+the build prints exactly 58 deprecation warnings in 30 files, none in
+`Sources/` — the design's caller list is complete; `typecheckFile`'s `messages`
+keep warnings; no test asserts the literal `stage 6a`; the R exit tests read
+stderr; `PipelineTests`' 400×100 frames make the native root's centring (0, 0).
+
+**What it costs if wrong.** Item 2 moves no test; a wrong prediction in M2c or
+M3g is recorded as a finding, as before. Item 7: a legacy-only regression in a
+code path the grep missed would go unpinned by these 66 tests — the grep is the
+claim, and a lane that finds an authority read in such code reverses item 7 for
+the tests it reaches.
+
+---
+
+## LR-DB — stage 6a lane 1: the mechanical fixtures moved, a ninth fixture caller, and three mutations re-spelled so they build
+
+**Evidence.** Record §38 §8, every item run on `c95dc0d` (the lane's change;
+tests only) with full unfiltered suites.
+
+**The ruling.**
+
+1. **Lane 1 landed as designed** (`LR-CU` L, Dep and G; `LR-CV`): 10 L call
+   sites in 9 fixtures onto `pass.frame.requestNode`/`requestLeaf`; the four
+   `LegacySpelled…` rows' `requestLayout` behind a deprecated witness; the G
+   fixture strings onto `requestNativeLeaf(…).layoutNodeID` /
+   `requestNativeSpacer().layoutNodeID`. `Test run with 1640 tests in 3 suites
+   passed`, 0 `error:`, no `warning:` but SwiftPM's notice on the native build
+   and none on the default one; the twelve `CN-R` images 0 differing, scene
+   identical; goldens unmoved.
+2. **The census had a ninth fixture-string caller**:
+   `ProposalNodeIDCompileGuards.swift:155`, guard 4
+   (`aNativeRegistrarRejectsALegacyChild`)'s negative. `grep -v requestNative`
+   dropped it because its line also calls `requestNativeFrame`. Moved G onto
+   `requestNativeSpacer().layoutNodeID` (still an untyped `LayoutNodeID`, still
+   rejected by the typed child parameter); its named mutation (a
+   `requestNativeFrame(child: LayoutNodeID, …)` overload, **M1i**) reddens
+   exactly that guard. Spec §1, §5 and §7 and `LR-CU` item 6 amended to 67
+   sites, 9 in fixture strings. **A census grep must keep such lines** (spec §7
+   3.5's gate grep already does; §1's `grep -v requestNative` did not), e.g. `grep -rnE '[A-Za-z_]+\.request(Node|Leaf)\(' Tests | grep -vE 'frame\.request(Node|Leaf)\(' | grep -v '///'`.
+3. **Three mutations the spec named do not build as written, and were taken in
+   the nearest spelling that does** (the practice: record which spelling a
+   mutation was applied to):
+   - **M1b**: `LayoutPass.requestNativeLeaf` `internal` breaks
+     `MetalUIDemoContent` (another module); taken as **`package`**, which a
+     fixture compiled without `-package-name` cannot see. Reddens nine guards,
+     named in record §38 §8.4.
+   - **M1c**: `ElementObject: AnyObject` alone breaks the struct
+     `AnyElementBox`; taken with the box a `final class` and `mutating` dropped
+     from the requirements and the box. Reddens `aStructCanConformToElementObject`
+     and `twoCopiesOfOneElementDoNotShareLayoutState`.
+   - **M1d**: an unconstrained trapping default on `ProposalElementGroup` breaks
+     `DemoContent`'s proposal types; taken on `where Self: Element`, record §10's
+     V-G1b spelling. Reddens guard 1 alone.
+4. **M1h is two mutations**, because `ModifiedElementCompileGuards`' two
+   leaf-splicing guards name two: the first `MC-A` design's three flat
+   overloads (M1h: the solver-budget guard alone) and one nesting
+   `padding(_: Pixels) -> ModifiedElement<Self>` (M1h′: both guards, plus
+   `legacyModifierChainsInferOneConcreteType` and
+   `decorationSubstitutionReachesTheElementOnBoxAndStack`). The solver-budget
+   guard's positive passes at 1000 and its negative fails with the re-spelled
+   `Leaf`.
+5. **1.1 has no mutant** (`LR-X`): an L fixture's legacy branch put back on the
+   public forwarder is, under the legacy authority, the same call, and
+   unreachable under the proposal one.
+
+**What it costs if wrong.** Item 2: if another fixture caller hides on a line
+the new grep also misses, stage 9's deletion reddens its guard for the wrong
+reason — loud, at that guard. Item 3: a mutation re-spelled to build pins a
+slightly different declaration from the one the spec named; each spelling is
+recorded as applied, so a later re-run reproduces it.
+
+## LR-DC — stage 6a lane 2: no re-spelled test red, the Dual that was not, `CountingElement`'s eleven consumers, and `ProbeRow` as one `ProposalLayout`
+
+**Evidence.** Record §38 §9, every item run on `e683975` (the lane's change;
+tests only) with full unfiltered suites.
+
+**The ruling.**
+
+1. **Lane 2 landed as designed** (`LR-CU` R and P; `LR-DA` item 2): every
+   lane-2 custom element re-spelled onto `requestNativeLeaf` (a container onto
+   `pass.frame.requestNativeOverlay`, `PipelineTests`' hand-built root onto a
+   native stack), or pinned through `pass.frame.requestNode` with `.legacy`
+   explicit and the §5 doc line. `Test run with 1640 tests in 3 suites passed`,
+   no `#expect`/`#require` line changed, 0 `warning:` on both build systems,
+   the twelve `CN-R` images 0 differing, goldens unmoved. **No R test was red**,
+   so the pin-on-red rule had nothing to act on. 59 tests lay out a lane-2 R
+   element (42 under an explicit `.proposal`, 17 over an all-native tree); 11
+   are pinned.
+2. **`EnvironmentTests.ClickCounter` is P-6b, not a Dual.** Its spec R test
+   renders `EnvRecorder`; `ClickCounter` is laid out only by
+   `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter`. Lane 2
+   has no Dual element; spec §5's totals ("Dual 6 elements") become **5**, all
+   lane 3's.
+3. **A shared fixture's consumers move with it.** `CountingElement` (defined in
+   `StateTableTests`) is laid out by eleven `IdentityTests`, ten of them under a
+   legacy `Row`; re-spelling it native makes each of those `Frame`s pass
+   `.proposal` (`SA-G` otherwise). None was red in A2 or here. The general
+   rule for lane 3 and stage 6b: **before re-spelling a fixture, grep its type
+   name across `Tests/`**, not only its file.
+4. **`ProbeRow` is one `ProposalLayout` over two leaves, not a native frame
+   over a stack**, because `eachFrameOwnsItsOwnStateSoNothingLeaksBetweenFrames`
+   asserts `nodeCount == 3` and a frame plus a stack plus two leaves is 4.
+   `ProbeRowLayout` answers 400×100 and places the leaves left to right at the
+   top — the test's literals. Spec §5's `PipelineTests` row amended.
+5. **M2a and M2b each redden one CE row, not two**, and M2a′ is added. M2a
+   (every lane-2 leaf 0×0) and M2b (children centred on the cross axis) redden
+   only `prepaintSeesBoundsTheEngineResolvedBetweenTheFirstTwoPhases`:
+   `paintReceivesTheRootBoundsAndEmitsIntoTheFramesScene` reads the root's size
+   and a rect count, which depend on the container's answer, not the leaves'
+   sizes or positions. **M2a′** (the container answers 0×0) reddens both —
+   the half of A2's loss that M2a, as spelled, could not reach.
+6. **M2c reddened exactly the predicted 10** against an I0 control of exactly
+   the 13 X tests, with `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`
+   green. Both P-9 tests reddened, so the spec's "may stay green under I0"
+   caveat did not apply.
+
+**What it costs if wrong.** Item 3: a shared fixture re-spelled without its
+consumers traps at `SA-G` under the legacy authority and truncates the run —
+loud, at the first consumer. Item 4: if `ProbeRowLayout` drifted from the
+legacy row's answer, M2a′ and M2b show the two CE rows read it.
+
+## LR-DD — stage 6a lane 3: the gate closed, five Dual leaves on one helper, required authorities, and four corrections to the lane-3 rows
+
+**Evidence.** Record §38 §10–§11, every item run on `e531260` (the gate
+commit) with full unfiltered suites; the callers moved at `5822f60`, 3.1 and 3.2
+red-first at `ab7d76f`.
+
+**The ruling.**
+
+1. **Lane 3 landed as designed** (`LR-CU` Dual, P, R; `LR-CV` Dep; `LR-CW`;
+   `LR-CX`). The five Dual elements (`Probe`, `ComponentTests.Leaf`, `Mark`,
+   `LayerLeaf`, `CountingLeaf`) branch on `pass.lowersToProposal` onto one
+   internal helper, `declaredSizeNativeLeaf` (`ElementLayoutTests`), or
+   `pass.frame.requestNode`; the 46 P tests pass `.legacy` with the §5 doc
+   line; 12 R tests pass `.proposal`; `CounterLeaf` is a native leaf,
+   `ChainLeaf` and `BoxWithoutAnimated` P-CSS, `CustomNodeElement` and
+   `CustomLeafElement` Dep. The attributes landed last. **1642 tests passed**,
+   0 `error:`, 0 `warning:` on both build systems after `swift package clean`,
+   goldens unmoved, 78 guards, the twelve `CN-R` images 0 differing; screen
+   locked, no capture. **Two listed R tests lay out no lane-3 element**
+   (`anEmptyComponentContributesNoNodes`, `contentIsMaterializedExactlyOncePerFrame`)
+   and are untouched, so lane 3's R count is 12, not 14 (lane 2's `LR-DC`
+   item 3 shape).
+2. **M3e's reddened set is wider on one side and narrower on another than the
+   spec said.** It also reddens `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
+   (which reads the `customElement.requestNode` report under diagnostics), and
+   of 3.1's trap half only the node-first arm: the mutation, as spelled, skips
+   `requestNode`'s report alone.
+3. **`declaredSizeNativeLeaf` traps on a non-pixel size, and that is a harness
+   decision with a measurement**: M3g as first taken truncated there (a
+   `width(fraction: 1)` `Mark` flipped to `.proposal`). The precondition stays —
+   an R test must not silently get a 0 where a fraction was declared — and M3g
+   is taken with it softened in the scratch; so taken, it reddens **exactly the
+   46** predicted pins against an I0 control of the 13 X tests plus 3.1.
+4. **The file helpers take the authority as a required argument** (`render`,
+   `widthInRow`, `nodeCount` in `FrameSizingTests`; `observe` in
+   `ModifiedElementTests` and `ModifierCompositionProofTests`), not a defaulted
+   one: stage 6b flips the eight named helper defaults (spec §10), and a
+   required argument cannot be swept. And the gate grep (spec §7 3.5) returns,
+   besides the seven Dep fixtures' lines, **guard 3.2's two fixture-string
+   lines** — the guard's subject is a caller of the pair.
+
+**What it costs if wrong.** Item 3: if the precondition were dropped, an R test
+declaring a fraction would lay out a 0-wide leaf and could pass on the wrong
+geometry; kept, a future flip of a P test to `.proposal` traps loudly at the
+first fraction. Item 4: a required argument makes every call site name its
+authority — 6b's re-spelling of a P-6b test edits the call, not a default.
+
+**Amended, stage-6a lane 3 verification (`LR-DE`).** Item 1's counts are
+**47 P tests (17 CE+RP, 30 CSS)** and **11 R tests**:
+`aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare` moved from R to
+P-CSS-frame. Item 3's "must not silently get a 0 where a fraction was declared"
+is the whole of what the precondition buys: a wrong **nonzero** pixel answer
+from `declaredSizeNativeLeaf` reddens no R test (the verifier's VC), so its
+answer is pinned only at 0×0 (M3h).
+
+## LR-DE — stage 6a lane 3 verification: `FR-P`'s test 2.10 is a CSS pin, and the Dual leaf's answer is seen only at 0×0
+
+**Evidence.** Record §38 §10.5 (last paragraph) and §10.7. The verifier's VA
+(`FrameSpec.style()`'s two fixed-axis `minSize` writes replaced by
+`flexShrink = 0`) over `92914cb`: 1642 passed, nothing red; its VA2 (the same,
+test 2.10's three `widthInRow` calls set back to `.legacy`): 2.10 red alone.
+Fix at `b504e9f`; VA re-run there: `1642 … failed … with 1 issue`,
+`aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare` at
+`FrameSizingTests.swift:942` alone. VC (`declaredSizeNativeLeaf` + 7 on the
+width) reddened no R test.
+
+**The ruling.**
+
+1. **A test is R only if its named mutation is read under the proposal
+   authority.** `aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare` lays
+   out no lane-3 element of its own but is about `FR-P`, a choice inside the
+   legacy `FrameSpec.style()` — a CSS answer. It passes `.legacy` with the §5
+   doc line, class **P-CSS-frame**, owned by 7b. It is green under the flipped
+   default, so it was never in §4's red set and is outside M3g's 46; its
+   mutation, VA, is its pin. Lane 3 is **11 R, 47 P (17 CE+RP, 30 CSS)**;
+   lanes 2 and 3 hand 7b **33** CSS pins. Lanes 1 and 2 were read for the same
+   shape (an R test whose named mutation is a legacy lowering) and have none
+   (record §38 §10.7).
+2. **`declaredSizeNativeLeaf`'s answer is pinned only at 0×0.** Lane 3's R
+   tests assert identity, phase counts, state and hit targets, not the Dual
+   leaf's geometry, so a wrong nonzero answer is invisible (VC); M3h's 0×0 is
+   seen through the CE rows. Nothing is added: an R test is not about the
+   leaf's size, and 9 deletes the leaf's legacy branch, not this one.
+
+**What it costs if wrong.** Item 1: were 2.10 left on `.proposal`, `FR-P` would
+be unpinned until 7b — a `flexShrink = 0` regression in the production
+authority's frame lowering would ship green. Item 2: a test that later starts
+reading a Dual leaf's size under `.proposal` must pin that answer itself.
+

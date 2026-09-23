@@ -13,6 +13,11 @@ import MetalUICore
 // its cross-frame state every `requestLayout`, so a state entry's *value* says
 // how many frames found the same key, and `table.count` says how many distinct
 // keys were produced.
+//
+// **Stage 6a (record §38, disposition R):** `CountingElement` and this file's
+// two probes register native leaves, so every test here whose tree holds a
+// legacy container (`Row`) runs under the proposal authority. Identity is
+// assigned by the element groups, which read no authority; no assertion moved.
 
 /// The rule this milestone exists for: an element with no `.id()` holds state
 /// across frames. Before this, an unnamed element got scratch state that was
@@ -60,7 +65,7 @@ import MetalUICore
 @Test func twoUnnamedSiblingsDoNotShareOneStateEntry() {
     let table = StateTable()
     let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
-    let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+    let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
     var row = Row { CountingElement(nil); CountingElement(nil) }
     frame.render(&row)
     // 2 (one per sibling) + 1 — the `Row`'s own `$anim` baseline. The
@@ -82,7 +87,7 @@ import MetalUICore
 @Test func theIndexSpaceIsFlatRatherThanNested() {
     let table = StateTable()
     let size = Size<Pixels>(width: Pixels(200), height: Pixels(100))
-    let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+    let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
     var row = Row { CountingElement(nil); CountingElement(nil); CountingElement(nil) }
     frame.render(&row)
     // Three children of one row: 0, 1, 2 — not [0], [1,0], [1,1].
@@ -119,12 +124,12 @@ import MetalUICore
     let table = StateTable()
     let size = Size<Pixels>(width: Pixels(300), height: Pixels(100))
 
-    let first = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+    let first = Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
     var forward = Row { for n in ["a", "b"] { CountingElement(n) } }
     first.render(&forward)
 
     // Same two elements, opposite order. Each keeps its own entry and count.
-    let second = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+    let second = Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
     var reversed = Row { for n in ["b", "a"] { CountingElement(n) } }
     second.render(&reversed)
 
@@ -151,7 +156,7 @@ import MetalUICore
     let table = StateTable()
     let size = Size<Pixels>(width: Pixels(300), height: Pixels(100))
     for _ in 0..<2 {
-        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
         var row = Row { CountingElement(nil); CountingElement(nil) }
         frame.render(&row)
     }
@@ -209,7 +214,7 @@ import MetalUICore
     let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
 
     for flag in [true, false] {
-        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
         var row = Row {
             if flag { CountingElement(nil) } else { CountingElement(nil) }
         }
@@ -262,7 +267,7 @@ import MetalUICore
     let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
 
     for flag in [true, false] {
-        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
         var row = Row {
             if flag {
                 CountingElement(nil)
@@ -308,7 +313,7 @@ import MetalUICore
     let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
 
     for flag in [true, false] {
-        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
         var row = Row {
             if flag { CountingElement(nil) }
             CountingElement(nil)
@@ -378,7 +383,7 @@ import MetalUICore
     // Remedy: the trailing element carries a name.
     let named = StateTable()
     for flag in [true, false] {
-        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: named)
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: named, layoutAuthority: .proposal)
         var row = Row {
             if flag { CountingElement(nil) }
             CountingElement("tail")
@@ -396,7 +401,7 @@ import MetalUICore
     // Not the remedy: the *conditional content* carries the name instead.
     let misplaced = StateTable()
     for flag in [true, false] {
-        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: misplaced)
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: misplaced, layoutAuthority: .proposal)
         var row = Row {
             if flag { CountingElement("conditional") }
             CountingElement(nil)
@@ -454,7 +459,7 @@ import MetalUICore
     let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
 
     for flag in [true, false] {
-        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
         var row = Row {
             if flag { CountingElement(nil) } else { CountingElement(nil) }
             Row { CountingElement(nil) }
@@ -501,7 +506,7 @@ import MetalUICore
 @Test func twoErasedSiblingsDoNotShareOneStateEntry() {
     let table = StateTable()
     let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
-    let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+    let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
 
     var row = Row {
         AnyElement(CountingElement(nil))
@@ -544,7 +549,7 @@ private struct StampedStateProbe: Element {
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Void) {
         stamp = counter.next()                       // occurrence 0 -> 1, occurrence 1 -> 2
-        return (pass.requestNode(style: Style(), children: []), ())
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }.layoutNodeID, ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -577,7 +582,7 @@ private struct StampedStateProbe: Element {
 
     let probe = StampedStateProbe(counter: counter, recorder: recorder)
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)),
-                      scaleFactor: 1, stateTable: table)
+                      scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
     var root = Row { probe; probe }
     frame.render(&root)
 
@@ -603,7 +608,7 @@ private struct ClickableStateProbe: Element {
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Void) {
         stamp = counter.next()
-        return (pass.requestNode(style: Style(), children: []), ())
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }.layoutNodeID, ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -647,7 +652,7 @@ private struct ClickableStateProbe: Element {
     let table = StateTable()
     let probe = ClickableStateProbe(counter: counter)
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)),
-                      scaleFactor: 1, stateTable: table)
+                      scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
     var root = Row { probe; probe }
     frame.render(&root)
 

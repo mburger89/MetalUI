@@ -1,7 +1,7 @@
-# 40 — Portable font fallback, 2026-09-23
+# 41 — Portable font fallback, 2026-09-23
 
 Branch `feat/font-fallback`, from `feat/demo-cross-platform` (PR #22, record
-§39). Spec: `docs/superpowers/specs/2026-09-23-font-fallback-design.md`,
+§40). Written as §40 and renumbered 40→41 when stage 6a took §38. Spec: `docs/superpowers/specs/2026-09-23-font-fallback-design.md`,
 rulings `FB-A`…`FB-C` (next `FB-D`). Roadmap item 11.
 
 ## What changed
@@ -29,4 +29,5 @@ unchanged — no pinned value moved, since none of them registers a second face.
 
 ## Counts
 
-Root 1689 + 4 (one gated measurement) = **1693**.
+Root 1689 + 4 (one gated measurement) = **1693** before the stage-6a merge;
+**1695** (1691 + 4) after it.

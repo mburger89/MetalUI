@@ -85,7 +85,7 @@ Apple-bound:
    Apple dependencies appended on macOS; `App(platform:textSystem:)`; the
    demo's whole frame pinned across platforms and equal on Linux.
    `feat/metalui-portable`, spec `specs/2026-09-23-metalui-portable-design.md`
-   (`XP-`), record §38.
+   (`XP-`), record §39.
 
 ### End to end
 
@@ -93,18 +93,18 @@ Apple-bound:
     rebuilds the demo natively and matches macOS's Metal frame (scene
     byte-for-byte, pixels within parity) on llvmpipe and WARP.
     `feat/demo-cross-platform`, spec
-    `specs/2026-09-23-demo-cross-platform-design.md` (`DC-`), record §39.
+    `specs/2026-09-23-demo-cross-platform-design.md` (`DC-`), record §40.
 
 ### After the demo runs
 
 11. [x] **Font fallback** — an ordered cascade of registered faces, per
     grapheme; equal to CoreText's with the same cascade list. RTL fallback
     waits for item 12. `feat/font-fallback`, spec
-    `specs/2026-09-23-font-fallback-design.md` (`FB-`), record §40.
+    `specs/2026-09-23-font-fallback-design.md` (`FB-`), record §41.
 12. [x] **Bidi and script itemization** — SheenBidi; runs by face, level
     and script; visual lines equal to CoreText's (and item 11's RTL fallback
     with them). `feat/bidi`, spec `specs/2026-09-23-bidi-design.md` (`BD-`),
-    record §41.
+    record §42.
 13. [ ] **Accessibility off Apple** — AT-SPI (Linux) and UI Automation
     (Windows) behind `publishAccessibilityTree`.
 14. [ ] **Text input** — IME composition and clipboard through SDL3.

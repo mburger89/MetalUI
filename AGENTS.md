@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-CT`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-DF`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -69,7 +69,11 @@ milestones append their record to `docs/record/` and put only the rule here.
   7 stage 5 `LR-CH`…`LR-CS` (§29, spec
   `specs/2026-09-23-engine-stage-5-design.md`, same decisions doc, probe
   `swiftui-overlay-presentation.swift` revision 2 — group Q added, P and H
-  re-run byte-identical), 7 stage G grids
+  re-run byte-identical), 7 stage 6a `LR-CT`…`LR-DE` (§38, spec
+  `specs/2026-09-23-engine-stage-6a-design.md`, same decisions doc; **no new
+  SwiftUI probe** — the stage's only probe,
+  `swift-deprecated-witness-silence.sh`, is a compiler determinism check),
+  7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
@@ -95,10 +99,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   §35 the text seam (`TS-`, spec `specs/2026-09-23-text-seam-design.md`),
   §36 the render seam (`RS-`, spec `specs/2026-09-23-render-seam-design.md`),
   §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`),
-  §38 MetalUI off Apple (`XP-`, spec `specs/2026-09-23-metalui-portable-design.md`),
-  §39 the demo on Linux and Windows (`DC-`, spec
-  `specs/2026-09-23-demo-cross-platform-design.md`), §40 portable font
-  fallback (`FB-`, spec `specs/2026-09-23-font-fallback-design.md`) and §41
+  §39 MetalUI off Apple (`XP-`, spec `specs/2026-09-23-metalui-portable-design.md`),
+  §40 the demo on Linux and Windows (`DC-`, spec
+  `specs/2026-09-23-demo-cross-platform-design.md`), §41 portable font
+  fallback (`FB-`, spec `specs/2026-09-23-font-fallback-design.md`) and §42
   portable bidi (`BD-`, spec `specs/2026-09-23-bidi-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
@@ -111,6 +115,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   because `master`'s portable-text line had already published §28 — the same
   shape as 24→25 and 26→27 (record §29's header). **§30 (line breaking) was
   written as §29** and renumbered when stage 5 reached `master` first.
+  **§38 (stage 6a) was written as §30** on `feat/engine-stage-6a` from
+  `b3c29b9` and renumbered 30→38 at its merge, because `master` had already
+  published §30–§37 (PRs #11–#20, `64c5271`; record §38's header).
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -127,7 +134,54 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
+- **Counts (2026-09-23, `feat/bidi` — roadmap items 9–12 — merged with
+  `master` at `aef88ce`, stage 6a): 1699 tests, 97 goldens, 78 typecheck
+  guards**, taken the same way: **1699 = 1688 + 3 + 4 + 4**, master's
+  stage-6a figure below plus `MetalUICrossPlatformTests`' 3 (record §39),
+  font fallback's 4 (record §41) and bidi's 4 (record §42), three of them
+  gated, so twelve gated tests skip — the nine below, `recordDemoFrames`,
+  `measureFallbackDifferences` and `measureBidiDifferences`. The paragraph
+  after next is this line's figure before the merge (1697).
+- **Counts (2026-09-23, `feat/engine-stage-6a` — plan task 7 stage 6a —
+  merged with `master` at `64c5271`, PRs #11–#20): 1688 tests, 97 goldens,
+  78 typecheck guards**, 0 `error:`, 0 `warning:` on both build systems
+  (`swift build --build-tests` under the default one too), taken after
+  `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1688 tests in 3 suites
+  passed`; the same nine gated tests skipped as below; the guards ran — the
+  log carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
+  `b3c29b9` (`git diff --name-only b3c29b9 HEAD -- 'Tests/**/*.json'` empty). **1688 = 1686 + 2**: `master`'s `64c5271`
+  (1686, measured the same way in a detached worktree — the render seam and
+  SDL platform lines add nothing to the root package's suite, so it equals
+  the text-seam figure below) plus stage 6a's 2. Stage 6a alone read
+  1642 / 97 / 78 on `feat/engine-stage-6a` from `b3c29b9` (**1642 = 1640 + 2**: the
+  stage's own exit test
+  (`aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`)
+  and its plain-import guard
+  (`aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes`));
+  record §38. **The public `LayoutPass.requestNode`/`requestLeaf` are now
+  deprecated, and every in-repo test caller (67 sites, 35 files) moved off
+  them** — onto `requestNativeLeaf`/a `ProposalLayout` where the test is
+  authority-independent, or onto the internal, undeprecated
+  `Frame.requestNode`/`requestLeaf` (through `pass.frame.`) where the test
+  is about a CSS answer or a root-placement question stage 6b has not ruled
+  yet. **No `Sources/` line of production behaviour moves** beyond those two
+  `@available` attributes and one `owningStage` literal
+  (`.customElement` → `"9"`, so a custom element under `.proposal` now
+  traps naming stage 9, not stage 6a) — the legacy authority stays the
+  default until stage 6b, and the twelve `CN-R` demo images read 0
+  differing at every lane. **No golden moved; guards move by exactly +1**
+  (`LayoutAuthorityCompileGuards` 1 → 2; the per-file list below is the
+  stage-5 paragraph's and still reads 1 there, every other file's count
+  stands), and
+  `typecheckFile`'s helper count moves with it (37 → 38, "Guards" below).
+  The entry measurement (the
+  default authority flipped, with the eight test-helper `.legacy` defaults
+  also flipped, diagnostics on) classified all 153 reds of that flip; the
+  table is recorded as stage 6b's (root placement, ~78 reds) and stage 7b's
+  (43 CSS reds) own baseline — record §38 §2–§4, §12.
+- **Master's counts before stage 6a (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
   with `master` at `42b9ab4`, the portable text line; then `PT-J`, +5; then line breaking, +6; then
   lines emission, +14; then content sizes, +10; then font resolution, +6; then the text seam, +5; then MetalUI off Apple, +3; then font fallback, +4; then bidi, +4): 1697 tests, 97
   goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:`, taken after
@@ -146,8 +200,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   (ten metric/placement oracle tests, two of them gated, and four
   `EmitLinesTests`; record §31), content sizes' 10 (record §32) and font
   resolution's 6 (record §33), the text seam's 5 (record §35) and
-  `MetalUICrossPlatformTests`' 3 (record §38, one a gated recorder) and
-  font fallback's 4 (record §40, one gated) and bidi's 4 (record §41, one
+  `MetalUICrossPlatformTests`' 3 (record §39, one a gated recorder) and
+  font fallback's 4 (record §41, one gated) and bidi's 4 (record §42, one
   gated; `Tests/PortableTests` separately runs 18 + 6 + 5 since bidi;
   `Tests/PortableTests` separately runs 16 + 6 + 5); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
   15 (lane 1, the presentation root, +7; lane 2, the exit suites, +2; lane 3,
@@ -221,12 +275,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `LayoutAuthorityCompileGuards`, `GridCompileGuards`,
   `UnitSafetyTests` (one hit is a comment),
   `AXNodeTests`, `SceneBoundaryCompileGuards`; `Typecheck.swift` holds only
-  the declaration. Two helpers, 40 and 37:
+  the declaration. Two helpers, 40 and 38 (37 before stage 6a's guard 3.2):
   `typecheck(_:importing:)` wraps the fixture in a function (Swift 5, nothing
   `public`/file-scope compiles); `typecheckFile(_:importing:)` is whole-file
   Swift 6 — the six/two/six of `ProposalLayout`/`ModifiedElement`/
   `ProposalNodeID`, two `FrameSizing`, three `Decoration`, four `Container`,
-  four `Grid`, one `LayoutAuthority`, two `SceneBoundary` and seven of
+  four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary` and seven of
   `EnvironmentCompileGuards`'. A guard about what an external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
@@ -614,7 +668,7 @@ sleep: drive `simulateTick(timestamp:)`.
 ## SwiftUI alignment — the proposal layout path
 
 A propose/measure/place engine sits beside the CSS engine. Detail: §19
-"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29.
+"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38.
 
 - **Two engines, chosen by the window root alone**
   (`tree.isNativeLayoutNode(root)`). A native root is placed centred at its own
@@ -703,6 +757,25 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   from its own root and the root's `SA-M` work literal is untouched. A new
   parameterised scenario owes an `AuthorityCoverage.record` call and a bump of
   the 82.
+- **Stage 6a deprecates the public custom-element registrars**
+  (`LayoutPass.requestNode`/`requestLeaf`, `LR-CT`…`LR-DE`) and moves every
+  in-repo test caller off them in the same change — onto
+  `requestNativeLeaf`/a `ProposalLayout` where the test is
+  authority-independent, or onto the internal, undeprecated
+  `Frame.requestNode`/`requestLeaf` where the test is about a CSS answer or
+  a root-placement question not yet ruled. The internal registrars stay
+  undeprecated (every production site already called them, not the public
+  pair); a custom element that still calls the public pair under
+  `.proposal` traps naming **stage 9**, not stage 6a
+  (`UnlowerableField.owningStage` for `.customElement`). No production
+  behaviour moves. **The stage's entry measurement** — the default
+  authority and eight test-helper `.legacy` defaults flipped together,
+  diagnostics on — classified all 153 reds it produced and is recorded as
+  stage 6b's (root placement, ~78 reds) and stage 7b's (43 CSS reds)
+  baseline table (record §38 §2–§4). No SwiftUI probe: the stage's only
+  probe, `docs/probes/swift-deprecated-witness-silence.sh`, is a compiler
+  determinism check (a deprecated protocol witness warns nothing), not a
+  SwiftUI claim.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -966,7 +1039,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **77** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **78** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a

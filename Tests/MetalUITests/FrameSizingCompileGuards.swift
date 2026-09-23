@@ -20,6 +20,10 @@ private let skipReason: Comment =
 /// A public proposal leaf and a public legacy leaf, side by side, as an outside
 /// module writes them. The legacy one spells all four `StyledElement`
 /// requirements and never mentions `LayerBase` or `_wrap`.
+/// Since stage 6a the "legacy" leaf registers its untyped node through
+/// `requestNativeLeaf(...).layoutNodeID` rather than the deprecated legacy
+/// registrar (`LR-CU` item 6): which `frame` overload it reaches is decided by
+/// its conformance (`StyledElement`, not `ProposalElement`), not by its registrar.
 private let bothLeavesSource = """
     public struct ProposalLeaf: ProposalElement {
         public init() {}
@@ -43,7 +47,7 @@ private let bothLeavesSource = """
         public init() {}
 
         public func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-            (pass.requestNode(style: style, children: []), ())
+            (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID, ())
         }
 
         public func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,

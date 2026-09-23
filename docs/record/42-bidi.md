@@ -1,6 +1,7 @@
-# 41 — Portable bidi and script itemization, 2026-09-23
+# 42 — Portable bidi and script itemization, 2026-09-23
 
-Branch `feat/bidi`, from `feat/font-fallback` (PR #23, record §40). Spec:
+Branch `feat/bidi`, from `feat/font-fallback` (PR #23, record §41). Written
+as §41 and renumbered 41→42 when stage 6a took §38. Spec:
 `docs/superpowers/specs/2026-09-23-bidi-design.md`, rulings `BD-A`…`BD-D`
 (next `BD-E`). Roadmap item 12.
 
@@ -36,4 +37,5 @@ the bidi pins equal to macOS.
 
 ## Counts
 
-Root 1693 + 4 (one gated) = **1697**; `Tests/PortableTests` 18 + 6 + 5.
+Root 1693 + 4 (one gated) = **1697** before the stage-6a merge, **1699**
+(1695 + 4) after it; `Tests/PortableTests` 18 + 6 + 5.

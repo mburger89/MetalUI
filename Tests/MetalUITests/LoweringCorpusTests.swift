@@ -169,7 +169,8 @@ enum StageOneCorpus {
 
     /// `ModifierCompositionProofTests.aModifierChainIsIdenticalToHandBuiltNestedBoxes`'
     /// chain, over a 20×10 `Box` instead of its `CountingLeaf` (a custom element,
-    /// which reports `customElement.requestLeaf` until stage 6a). Hand-derived: the
+    /// which reported `customElement.requestNode` until stage 6a made it a Dual
+    /// native leaf under the proposal authority). Hand-derived: the
     /// box padded by 4 is 28×18; the frame layer 60×40 centres it at (16, 11); the
     /// outer padding makes 76×56. The row and outermost layer at (0, 0) 76×56, the
     /// frame layer (8, 8) 60×40, the `mid` layer (24, 19) 28×18, the box (28, 23).

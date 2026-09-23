@@ -75,7 +75,7 @@ private struct Row: Element {
                 return (pass.lowerLegacyNode(Style(), declared: Style(), children: [],
                                              site: .customElement), ())
             }
-            return (pass.requestNode(style: Style(), children: []), ())
+            return (pass.frame.requestNode(style: Style(), children: []), ())
         }
         // A LEAF whose measured content size is `contentHeight`, not a node
         // whose declared STYLE is — a declared `size.height` would set this
@@ -91,7 +91,7 @@ private struct Row: Element {
             }
             return (node, ())
         }
-        let node = pass.requestLeaf(style: Style()) { _, _ in SizeD(width: 0, height: h) }
+        let node = pass.frame.requestLeaf(style: Style()) { _, _ in SizeD(width: 0, height: h) }
         return (node, ())
     }
 
@@ -890,6 +890,7 @@ private struct LegacySpelledRow: Element {
 
     var elementID: ElementID? { nil }
 
+    @available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: it is the subject of aLegacySpelledListRowAbortsAProductionProposalFrame, which reads the customElement trap (stage 6a, LR-CV)")
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Void) {
         guard let contentHeight else {

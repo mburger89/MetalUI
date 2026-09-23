@@ -1,6 +1,6 @@
 # The demo on Linux and Windows — design
 
-**Status: implemented** on `feat/demo-cross-platform` (record §39); roadmap
+**Status: implemented** on `feat/demo-cross-platform` (record §40; written as §39); roadmap
 item 10 of `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:**
 `DC-` (`DC-A`…`DC-C`, next `DC-D`; rulings here).
 

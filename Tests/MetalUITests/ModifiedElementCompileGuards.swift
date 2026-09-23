@@ -24,7 +24,9 @@ private let skipReason: Comment =
 
 /// A legacy leaf an outside module can write: the four `StyledElement`
 /// requirements and three phases, registering one engine node. It never
-/// mentions `LayerBase` or `_wrap`.
+/// mentions `LayerBase` or `_wrap`. Since stage 6a that node is a native leaf's untyped
+/// id rather than the deprecated legacy registrar's (`LR-CU` item 6); the
+/// modifier overloads it reaches are chosen by its `StyledElement` conformance.
 private let leafSource = """
     public struct Leaf: StyledElement {
         public var style = Style()
@@ -34,7 +36,7 @@ private let leafSource = """
         public init() {}
 
         public func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-            (pass.requestNode(style: style, children: []), ())
+            (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID, ())
         }
 
         public func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
