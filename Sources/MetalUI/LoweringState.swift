@@ -136,8 +136,18 @@ extension Frame {
     /// absent: the legacy root ignores each — measured, not assumed, by
     /// `anItemFieldNoLoweredContainerConsumesIsReportedByName`'s root arms, which
     /// compare the legacy root with and without the field. Its `minSize`, `maxSize`
-    /// and `margin` report (CSS applies them to a root). A `.frame` layer's record is
-    /// never reported: its fields are its own frame's (`LoweredItem.Kind.frameLayer`).
+    /// and `margin` report (CSS applies them to a root) — **except, since stage 6b, a
+    /// px/rem `minSize`/`maxSize` on an axis the root declares in px/rem** (ruling
+    /// `LR-DO` item 1, honouring `LR-AQ`'s "a root frame is stage 6b's placement
+    /// ruling"): the element's own fixed frame already folds it into the declared size
+    /// at registration (`paddedAndSized`, `max(min, min(size, max))`, `LR-AG`), and CSS
+    /// gives the same used size because `CS-I` does not touch a declared root axis, so
+    /// nothing is left unlowered and it stops reporting
+    /// (`aRootsMinimumAndMaximumFoldIntoItsDeclaredSize`). A bound on an **auto** root
+    /// axis, a percentage on either side, a margin and `.absolute` still report — and
+    /// in production trap (`aRootFieldWithNoLoweringTrapsInAProductionWindow`). A
+    /// `.frame` layer's record is never reported: its fields are its own frame's
+    /// (`LoweredItem.Kind.frameLayer`).
     func reportUnconsumedLoweredItems(root: LayoutNodeID) {
         guard layoutAuthority == .proposal else { return }
         for node in lowering.order {
@@ -152,8 +162,13 @@ extension Frame {
                 if d.alignSelf != nil { names.append("alignSelf") }
             }
             let auto = Size<Dimension>(width: .auto, height: .auto)
-            if d.minSize != auto { names.append("minSize") }
-            if d.maxSize != auto { names.append("maxSize") }
+            if node == root {
+                if !Self.rootBoundFolds(d.minSize, into: d.size) { names.append("minSize") }
+                if !Self.rootBoundFolds(d.maxSize, into: d.size) { names.append("maxSize") }
+            } else {
+                if d.minSize != auto { names.append("minSize") }
+                if d.maxSize != auto { names.append("maxSize") }
+            }
             if LoweredItem.hasMargin(d) { names.append("margin") }
             // Stage 5 (`LR-CK`): an `.absolute` box no `Deferred` consumed — the
             // root included, whose insets the legacy root ignores (measured (0, 0))
@@ -167,6 +182,26 @@ extension Frame {
                 noteUnlowerable(UnlowerableField(site: item.site, field: "\(name).unconsumed"))
             }
         }
+    }
+}
+
+extension Frame {
+    /// Whether a root's `bound` (its `minSize` or its `maxSize`) folds into its
+    /// declared `size` on every axis it names (ruling `LR-DO` item 1): each axis is
+    /// either `auto` in `bound`, or a px/rem length in both `bound` and `size` — the
+    /// case `paddedAndSized` folds. An `auto` size or a percentage on either side does
+    /// not fold.
+    fileprivate static func rootBoundFolds(_ bound: Size<Dimension>, into size: Size<Dimension>) -> Bool {
+        func isLength(_ d: Dimension) -> Bool {
+            switch d {
+            case .length(.pixels), .length(.rems): true
+            case .auto, .length(.percent): false
+            }
+        }
+        func folds(_ b: Dimension, _ s: Dimension) -> Bool {
+            b == .auto || (isLength(b) && isLength(s))
+        }
+        return folds(bound.width, size.width) && folds(bound.height, size.height)
     }
 }
 

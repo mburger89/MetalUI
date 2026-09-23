@@ -683,10 +683,22 @@ public final class Frame {
     /// key handler.
     private var hitTestingDisabledDepth = 0
 
-    func withHitTestingDisabled(_ body: () -> Void) {
+    func withHitTestingDisabled<R>(_ body: () -> R) -> R {
         hitTestingDisabledDepth += 1
         defer { hitTestingDisabledDepth -= 1 }
-        body()
+        return body()
+    }
+
+    /// Runs `body` — a prepaint — under the pointer-disable scope when `node` is in
+    /// `hiddenNodes`, and plainly otherwise (plan task 7, stage 6b, ruling `LR-DH`
+    /// item 2): a lowered `hidden()` registers no pointer hitbox, and neither does
+    /// anything inside it (stage-2 probe V3: a hidden view passes the tap to the view
+    /// under it). **`hiddenNodes` only**, so the legacy path — where `hiddenNodes` is
+    /// always empty — hit-tests exactly as before. Focus, keys and scroll regions are
+    /// outside this gate, as they are outside `allowsHitTesting(false)`'s (`OM-AK`).
+    func disablingHitTestingIfHidden<R>(_ node: LayoutNodeID, _ body: () -> R) -> R {
+        guard hiddenNodes.contains(node) else { return body() }
+        return withHitTestingDisabled(body)
     }
 
     /// Records a hitbox at the rect it actually **paints** at: translated by
@@ -1089,8 +1101,11 @@ public final class Frame {
     /// no group default of its own — ruling MC-B's "any hook in those defaults
     /// is mirrored per layer"). The style is read only while collecting.
     /// Pinned per layer by `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`.
+    ///
+    /// **Reads `isHidden` since stage 6b** (`LR-DH` item 3): `display == .none` or
+    /// `hiddenNodes`, so a lowered `hidden()` suppresses too.
     func suppressingAccessibilityIfHidden<R>(_ node: LayoutNodeID, _ body: () -> R) -> R {
-        guard collectsAccessibility, style(node).display == .none else { return body() }
+        guard collectsAccessibility, isHidden(node) else { return body() }
         return withAccessibilitySuppressed(except: nil, body)
     }
 
@@ -1520,8 +1535,23 @@ public final class Frame {
     var lowering = LoweringState()
 
     /// The element nodes a lowered `hidden()` produced this frame (plan task 7,
-    /// stage 6b, ruling `LR-DH`). **Empty under the legacy authority**, always.
+    /// stage 6b, ruling `LR-DH`): under the proposal authority a `display: .none`
+    /// node is laid out as if shown and its element node is inserted here by
+    /// `LegacyLowering.swift`, and the three gates read it — paint skipped
+    /// (`Element.paintGroup`), hitboxes under the pointer-disable scope
+    /// (`disablingHitTestingIfHidden`), accessibility suppressed (`isHidden`) — per
+    /// inner `ModifiedElement` layer, in `AnyElement`'s group entry and at the root.
+    /// **Empty under the legacy authority**, always, which is what keeps that path
+    /// byte-identical (`theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore`).
     var hiddenNodes: Set<LayoutNodeID> = []
+
+    /// Whether `node` is hidden for accessibility: its registered style says
+    /// `display: .none` (the legacy path, ruling AB-O) or a lowered `hidden()` put it
+    /// in `hiddenNodes` (the proposal path, where the node is native and carries no
+    /// style — `LR-DH` item 3).
+    func isHidden(_ node: LayoutNodeID) -> Bool {
+        hiddenNodes.contains(node) || style(node).display == .none
+    }
 
     /// Whether `elementBounds` is filled. Set only by tests (the differential
     /// harness, ruling LR-D).
@@ -1997,11 +2027,19 @@ public final class Frame {
         // hidden root still prepaints (`hidden()` filters layout only), and
         // without this every record inside it would publish (ruling AB-AD,
         // `aHiddenRootPublishesNothing`). Accessibility only, as there.
-        var prepaintState = collectsAccessibility && style(root).display == .none
-            ? withAccessibilitySuppressed(except: nil) {
-                element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
-            }
-            : element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
+        //
+        // Since stage 6b (`LR-DH`) the check reads `isHidden` — a lowered hidden
+        // root is native and carries no style — and a root in `hiddenNodes` also
+        // prepaints under the pointer-disable scope and skips its paint below, the
+        // two gates `Element`'s group defaults apply to every other element (legacy
+        // unchanged: `hiddenNodes` is empty there).
+        var prepaintState = disablingHitTestingIfHidden(root) {
+            collectsAccessibility && isHidden(root)
+                ? withAccessibilitySuppressed(except: nil) {
+                    element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
+                }
+                : element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
+        }
 
         // Hover resolves HERE — after `prepaint` has returned, so every
         // hitbox the frame will ever have is already registered, and before
@@ -2031,8 +2069,10 @@ public final class Frame {
         // construction.
         glyphAtlas.beginFrame()
         var paintPass = PaintPass(frame: self)
-        element.paint(rootID, bounds: rootBounds,
-                      layout: &state, prepaint: &prepaintState, pass: &paintPass)
+        if !hiddenNodes.contains(root) {
+            element.paint(rootID, bounds: rootBounds,
+                          layout: &state, prepaint: &prepaintState, pass: &paintPass)
+        }
         glyphAtlas.endFrame()
         textSystem.endFrame()
 
