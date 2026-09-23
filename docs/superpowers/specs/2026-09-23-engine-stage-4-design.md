@@ -1,10 +1,12 @@
 # Engine replacement, stage 4 — the windowed proposal `List` (plan task 7)
 
-**Status, 2026-09-23 (PDT): lanes 1 and 2 landed; lanes 3–5 design only.**
+**Status, 2026-09-23 (PDT): lanes 1–4 landed; lane 5 design only.**
 Lane 1's four commits are on `feat/engine-stage-4` (`511ae3d`, `136f171`,
 `eb42883`, `ca5a546`); its corrections are `LR-CC` and record §26 §6. Lane 2's
 are `a494777`, `13c12f0` and `c124f40`; its corrections are `LR-CD` and record
-§26 §7. Nothing of lanes 3–5
+§26 §7. Lane 3's are `c4ce2f0`, `7c031b1` and `352f838`; its corrections are
+`LR-CE` and record §26 §8. Lane 4's are `a0cdc0a`, `779a6a4` and `684ef95`; its
+corrections are `LR-CF` and record §26 §9. Nothing of lane 5
 under `Sources/` or `Tests/` has changed in a commit. Every source patch cited
 below as a *prototype* was applied in `/Users/maxburger/Developer/MetalUI-stage-4`,
 built, run and restored from a `cp` copy, with `git status --short` clean
@@ -1046,14 +1048,36 @@ says means an arm is vacuous. The `AXTable`, its `rowCount`, its realized rows'
 | **`AccessibilityDefaultsTests`** | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` (`:502`) — `AB-X` rules 1 and 3, at `:515-524` | both authorities |
 | **`AccessibilityDefaultsTests`** | `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` (`:570`) | both authorities |
 | **`AccessibilityDefaultsTests`** | `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (`:381`) | both authorities |
-| **`AccessibilityDefaultsTests`** | `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` (`:740`) | both authorities |
+| ~~`AccessibilityDefaultsTests`~~ | ~~`aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` (`:740`)~~ | **legacy only** (`LR-CF` item 3): its subject IS `hidden()`, and `display: none` has no proposal lowering — `LegacyLowering.swift:161` returns `display.none` before any other field is read, so a `.proposal` frame over that fixture aborts rather than failing (`aHiddenListAbortsAProductionProposalFrame`). It gains its arm when a later stage lowers `display` |
 | **`AccessibilityDefaultsTests`** | `aClientDoesNotChangeStateRetention` (`:662`) | both authorities |
 | ~~`ListTests`~~ | ~~`aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows` (divergence 14)~~ | **delivered by lane 3** (`LR-CE` item 3): lane 3 parameterises every scenario in `ListTests` in one commit, because the re-spelling and the `.proposal` arms must land together. It asserts the **wrong** answer on purpose on both paths and its message says so. Lane 4 confirms, and owns the rest of this table |
 
 `AccessibilityTreeTests` has exactly **two** `List` usages (`:144`, `:734`), and
 `:144` is inside `anInactiveWindowBuildsAndPublishesNothing`, which asserts
 absence and can pin nothing about a table. It is not this lane's subject; its
-`:734` arm is parameterised for completeness only.
+`:734` arm (`aLabelledListIsStillATable`) is parameterised for completeness only.
+
+**One more correction the lane found, not in this table at all** (`LR-CF`
+item 2). `AccessibilityDefaultsTests.scrolledList` carried
+`.minHeight(px(0))` on its outer `Box`, and four of the six tests above make
+that value the **root** of their frame or of their window. A root's
+`LoweredItem` is unconsumed by definition and a root's non-`.auto` `minSize`
+reports (`LoweringState.swift:120-127`), so those four aborted at
+`box.minSize.unconsumed` before their first assertion, with nothing to do with
+the `List`. The modifier was measured inert under the legacy engine — the whole
+suite unfiltered with it dropped and nothing else changed read 1593 / 3 issues —
+and it goes, rather than the fixture being wrapped in a host. This is **not**
+lane 5's `demoLikeRows` case, which the same spelling appears in and where §6
+lane 5 forbids the removal: that fixture carries the file's performance
+literals, and this one carries none.
+
+**And one about this table's own roll call** (`LR-CF` item 4).
+`everyParameterisedScenarioRanUnderBothLayoutAuthorities` reads what has been
+recorded by the time it runs, and `Tests/MetalUITests/TombstoneTests.swift`
+sorts **after** `Tests/MetalUITests/ScrollViewTests.swift`, where lane 3 left
+it — the case `AuthorityCoverage`'s own doc warned a later file would hit. The
+roll call therefore moves into `Tests/MetalUITests/ZZAuthorityRollCall.swift`,
+and `AuthorityCoverage.expected` goes 54 → **65**.
 
 **Red before, in a child process or on a re-spelled fixture** (`LR-BX`; the
 first statement said "run them under `.proposal` and record which fail", which
@@ -1065,6 +1089,17 @@ test**. So: the lane's first act is one child-process probe per abort-capable
 fixture, recording the trap message; then each fixture re-spells through
 `lowerLegacyNode` **in the same commit** as its `.proposal` arm, and the reds
 from there are assertion failures.
+
+**Three abort-capable fixtures, not two, and `FocusTests`' row is not one of
+them** (`LR-CF` item 1). This paragraph said `ExcursionRow` and "`FocusTests`'
+row" both abort. `FocusTests` builds `Box().focusable()` — a `Box`, which stage 1
+lowered, and `focusable()` is a `Self`-returning modifier writing `handlers` —
+so the identical tree runs to completion, measured in a child process before
+anything was touched and kept as
+`aBoxSpelledListRowDoesNotAbortAProductionProposalFrame`. That fixture is **not**
+re-spelled. The three that do abort are `ExcursionRow`, `AXNodeTests.AXListLeaf`
+and `scrolledList`'s root `minSize`; `hidden()` is a fourth abort that no
+re-spelling can fix, hence the struck row above.
 
 **Mutations, with their required failure counts restated against the right
 file.** M4a: `staleAfterGenerations` 2 → 3 (must redden both excursion tests, on
@@ -1078,6 +1113,21 @@ only legacy arms means the proposal arm is vacuous). M4c:
 `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`'s rule-3
 half on **both** authorities — at least **two** failures). For each, the lane
 **names every test the mutation reddens**, not only the count.
+
+**M4a and M4c held exactly; M4b is not a mutation and M4b′ replaces it**
+(`LR-CF` item 5). Run on the full unfiltered suite, M4b reddens **nothing** —
+`LR-CD` item 4's shape again. `indexesRows` sets
+`rowBox.handlers.axNode.logicalIndex` and nothing else, and on an unbounded
+window both things a hint could reach are already shut: `List.prepaint` wraps
+the rows in `withAccessibilitySuppressed(except: id)`, which is the exact
+condition `Frame.registerHandlers`' record branch tests, and that method assigns
+`declaration.logicalIndex = nil` **before** its `declaration.isEmpty` test. The
+conjunct is belt-and-braces with a guard one method away; it stays, with the
+measurement written into the source beside it. **M4b′** — `windowIsBounded`
+forced true — is the mutation that reaches `AB-X` rule 1 through the gate that
+implements it: six arms, twenty-two issues, symmetric across authorities. Lane 4
+also ran **M4d** (`AuthorityCoverage.authorities` reduced to `[.legacy]`, M3a's
+twin) against the moved roll call: two tests, 65 issues.
 
 ### Lane 5 — work, the 100 000-row test, and the demo census (the exit test)
 

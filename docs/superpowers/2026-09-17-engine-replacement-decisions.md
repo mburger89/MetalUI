@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CF`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD` and its lane 3 `LR-CE`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CG`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE` and its lane 4 `LR-CF`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -5047,3 +5047,158 @@ with the case it warns about: a file added later whose path sorts *after*
 why `ZZDemoPixels.swift` carries a `ZZ…` prefix. Re-measured twice at this HEAD,
 identical both times: `ListTests` → `ScrollIndicatorTests` → `ScrollRoutingTests`
 → `ScrollViewTests`, roll call last.
+
+---
+
+## LR-CF — stage 4 lane 4's corrections: one fixture that does not abort, one modifier that does, a test that cannot cross, a roll call that had to move, and a mutation that is not one
+
+Five corrections, each found by running the lane rather than by reading its
+brief. The first four are the design's; the fifth is the source's.
+
+### 1. `FocusTests`' row does not abort under `.proposal`, and only `TombstoneTests`' does
+
+Spec §6 lane 4 says the lane's red-befores are "child-process probes plus
+same-commit re-spellings of `ExcursionRow` and `FocusTests`' row, **both of
+which abort under `.proposal` today**". Measured in a child process before
+either was touched: only `ExcursionRow` does.
+`aFocusedListRowSurvivesABoundedExcursionButNotALongerOne` builds its rows as
+`Box().focusable()` — a `Box`, which stage 1 lowered, and `focusable()` is a
+`Self`-returning modifier that writes `handlers` rather than registering
+anything — so the identical tree under the proposal authority runs to
+completion and exits 0.
+
+**The ruling.** That fixture is **not** re-spelled: a `lowersToProposal` branch
+over a `Box` would be a branch with nothing on either side of it. The
+measurement is kept as a committed positive control,
+`TombstoneTests.aBoxSpelledListRowDoesNotAbortAProductionProposalFrame`, beside
+the abort it controls for — without it the abort probe would pass just as well
+if the `List`, the `ScrollView` or `@State` were what aborted.
+
+**What it costs if wrong.** Nothing: the arm runs, and it runs on the same tree
+production would build. What the correction buys is that a later reader does
+not add a branch to a fixture that never needed one.
+
+### 2. `scrolledList`'s `.minHeight(px(0))` is what kept four accessibility tests off the proposal authority — and it goes
+
+The design's lane-4 table names the two row spellings and nothing else. It
+missed the fixture: `AccessibilityDefaultsTests.scrolledList` returned
+`Box { ScrollView { list } }.width(200).height(h).minHeight(px(0))`, and four of
+the six `List` tests make that value the **root** of their frame or of their
+window. A root's `LoweredItem` is unconsumed by definition, and
+`reportUnconsumedLoweredItems` reports a root's non-`.auto` `minSize`
+(`LoweringState.swift:120-127`), which in a production frame is
+`preconditionFailure`. So those four aborted before their first assertion, at
+`box.minSize.unconsumed`, with nothing to do with the `List`.
+
+Three shapes were available: wrap the fixture in a host `Box` (`LR-BY`'s answer
+for `ListTests`), give the four tests a reporting frame, or drop the modifier.
+
+**The ruling.** Drop the modifier, because it was measured **inert** first. The
+box declares `height`, so no automatic minimum is in play where it is a root,
+and in the one place it is a flex item (`aClientDoesNotChangeStateRetention`'s
+`Row`) the axis it names is the cross one. The measurement is a mutation in
+reverse: with it dropped and nothing else changed, the whole suite unfiltered
+read 1593 tests / 3 issues — the three lane 2 left red for lane 5 — so no test
+in the repository can see it. Wrapping would have changed the tree every one of
+the file's forty-odd assertions is written against, to fix four; a reporting
+frame would have measured a partly degenerate tree (`Frame.unlowerable`
+substitutes a 0×0 leaf), which is exactly what lane 5's brief refuses.
+
+**This is not `demoLikeRows`.** Spec §6 lane 5 forbids removing the same
+spelling from that fixture, and the reason is stated there: every committed
+performance literal is measured against it. `AccessibilityDefaultsTests` holds
+no such literal — its numbers are row counts and emission counts, which the
+modifier does not touch, as the 1593/3 run shows.
+
+**What it costs if wrong.** A fixture that no longer exercises a root's
+unconsumed `minSize`. Nothing is lost:
+`anItemFieldNoLoweredContainerConsumesIsReportedByName`'s root arms are that
+test, and the abort itself is now pinned here too, by
+`aRootMinHeightOnTheScrollerFixtureAbortsAProductionProposalFrame` and its
+control.
+
+### 3. `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` cannot be a both-authorities arm
+
+Spec §6 lane 4 lists it in the table and makes it half of mutation M4b's
+required failure count. It can be neither. Its subject **is** `hidden()`, and
+`display: none` has no proposal lowering at all: `LegacyLowering.swift:161`
+returns `display.none` before any other field is read, and the parent design's
+§4.1 assigns `hidden()` to a stage that has not run. A `.proposal` frame over
+that fixture aborts at `box.display.none`, measured in a child process
+(`aHiddenListAbortsAProductionProposalFrame`, with the shown tree as its
+control).
+
+**The ruling.** It stays legacy-only, its declaration says why, and it is **not**
+in `AuthorityCoverage.expected` — the same shape lane 3 gave
+`aListInsideADeferredIgnoresTheEscapedScrollersOffset`. When a later stage
+lowers `display`, it gains its arm and the registry gains its name. M4b's
+required count is restated in item 5.
+
+**What it costs if wrong.** `AB-X` rule 1 under the proposal authority would be
+unpinned. It is not: the same rule is pinned on both paths by
+`activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` and by
+`combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`'
+zero-`rowHeight` arm, and M4b′ reddens both on both.
+
+### 4. The roll call moves to `ZZAuthorityRollCall.swift`
+
+`everyParameterisedScenarioRanUnderBothLayoutAuthorities` reads what
+`AuthorityCoverage` has recorded by the time it runs, so it must run last, and
+it ran last because `Tests/MetalUITests/ScrollViewTests.swift` happened to sort
+after every other contributing file (`LR-BI`, `LR-CB`). Lane 4's subjects
+include `Tests/MetalUITests/TombstoneTests.swift`, which sorts **after** it —
+precisely the case `AuthorityCoverage`'s own doc warned a later file would hit.
+
+**The ruling.** The test moves into a file of its own whose name is chosen for
+the purpose, `ZZAuthorityRollCall.swift`, the `ZZ…` prefix being
+`ZZDemoPixels.swift`'s. Nothing else moves: the registry stays in
+`AuthorityCoverage.swift` and the literals stay hand-derived in the test. The
+alternative — leaving `TombstoneTests`' scenario out of `expected` — would have
+bought the arrangement's convenience at the price of the stage's exit criterion
+over the one suite that holds `TB-AH`.
+
+Re-measured twice at this lane's HEAD, identical both times, off the unfiltered
+run's own `started` lines: `AXNodeTests` → `AccessibilityDefaultsTests` →
+`AccessibilityTreeTests` → `FocusTests` → `ListTests` → `ScrollIndicatorTests` →
+`ScrollRoutingTests` → `ScrollViewTests` → `TombstoneTests` →
+`ZZAuthorityRollCall`. Mutation **M4d** (the `arguments:` list reduced to
+`[.legacy]`) reddens the roll call *and* 64 issues raised by `record`'s
+order-independent half inside `TombstoneTests`' arm, so the move is measured by
+a mutation as well as by a healthy run.
+
+**What it costs if wrong.** If Swift Testing ever stops running files in path
+order the check fails **naming the scenarios it had not yet seen**, which is the
+same failure mode it has always had — not a silent pass.
+
+### 5. M4b is not a mutation; M4b′ is, and the finding is a redundancy nothing can pin
+
+Spec §6 lane 4's **M4b** is "`indexesRows` forced true regardless of
+`windowIsBounded`", required to redden at least four arms. Run on the full
+unfiltered suite it reddens **nothing** — the same shape `LR-CD` item 4 found
+for M2g.
+
+The mechanism, read off the source after the run: `indexesRows` sets
+`rowBox.handlers.axNode.logicalIndex` and nothing else, and on an unbounded
+window both things a hint could reach are already shut. `List.prepaint` wraps
+the rows in `withAccessibilitySuppressed(except: id)`, which is the exact
+condition `Frame.registerHandlers`' record branch tests
+(`isAccessibilitySuppressed(for:)`); and that method assigns
+`declaration.logicalIndex = nil` **before** its `declaration.isEmpty` test, so a
+row carrying only a hint emits no `AXNode` and writes no `$ax` slot either
+(`AB-L`, `AB-U`). The `windowIsBounded &&` conjunct is therefore belt-and-braces
+with a guard one method away.
+
+**The ruling.** The conjunct stays — it states what the value means, and
+removing it would make the line depend on a distant invariant to be correct —
+but the measurement is written into the source beside it, so a later reader does
+not take it for a tested guard. The claim the design wanted M4b to defend is
+`AB-X` rule 1, and it is pinned through the suppression: **M4b′**,
+`windowIsBounded` forced true, reddens six arms and twenty-two issues across
+`activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`,
+`combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` and
+`scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, symmetrically on
+both authorities.
+
+**What it costs if wrong.** Nothing behavioural: two gates where one would do,
+on a path that is already correct. What it would have cost to leave unrecorded
+is a reader believing a mutation round had exercised that conjunct.

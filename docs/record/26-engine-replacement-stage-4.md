@@ -3,13 +3,13 @@
 Plan task 7, stage 4 (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 4).
 Design: `docs/superpowers/specs/2026-09-23-engine-stage-4-design.md`. Rulings
-`LR-BQ`…`LR-CD` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`
-(`LR-BX`…`LR-CB` are critic round 1's, §5 below; `LR-CC` is lane 1's and
-`LR-CD` lane 2's).
+`LR-BQ`…`LR-CF` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`
+(`LR-BX`…`LR-CB` are critic round 1's, §5 below; `LR-CC` is lane 1's,
+`LR-CD` lane 2's, `LR-CE` lane 3's and `LR-CF` lane 4's).
 Branch `feat/engine-stage-4` from `f2e981f`.
 
-**Status, 2026-09-23 (PDT): lanes 1 and 2 landed; lanes 3–5 design only.** §6
-is lane 1's record and §7 is lane 2's. Every prototype in §2 was applied in
+**Status, 2026-09-23 (PDT): lanes 1–4 landed; lane 5 design only.** §6
+is lane 1's record, §7 lane 2's, §8 lane 3's and §9 lane 4's. Every prototype in §2 was applied in
 `/Users/maxburger/Developer/MetalUI-stage-4`, built, run and restored from a
 `cp` copy, with `git status --short` empty afterwards, before any lane started;
 §6.4's mutations were taken the same way, after lane 1's implementation commit.
@@ -1008,3 +1008,273 @@ which change different files.
 | the demo census's re-derivation, and the three issues still standing | §7.6 | lane 5 |
 | **other fixtures blinded by `.padding` becoming a wrapper at `f1944f8`** | carried from §6.9; lane 3 swept nothing new for it | unowned |
 | CLAUDE.md's `List`/`ScrollAuthorityCoverage` mentions, and the 1580 → 1593 count | the lane may not edit CLAUDE.md | the Docs phase |
+
+---
+
+## 9. Lane 4 — retention, focus and accessibility under both authorities (`LR-BU`; corrections in `LR-CF`)
+
+Three commits on `feat/engine-stage-4`:
+
+| commit | what |
+|---|---|
+| `a0cdc0a` | the red-before: four child-process probes and one positive control, each keeping the pre-lane spelling as a live fixture |
+| `779a6a4` | the re-spellings, the eleven parameterised scenarios, the fixture's one dropped modifier, and the roll call's move — one commit, because a re-spelling and its `.proposal` arm cannot be separated (`LR-BX`) |
+| `684ef95` | M4b's finding: a conjunct nothing can pin, written into the source |
+
+### 9.1 The red-before
+
+Lane 4's red cannot be four assertion failures. Three of its fixtures do not
+fail under `.proposal` — they **abort**, ending the run with no summary line —
+so the red is taken in child processes, in
+`ListTests.aLegacySpelledListRowAbortsAProductionProposalFrame`'s shape. Each
+was measured **before** anything was touched, with a throwaway probe file that
+reported every arm's exit status and stderr, then committed as a permanent probe
+with the pre-lane spelling kept beside it. The four messages, each confirmed by
+pointing its assertion at a string that cannot match and then reverting (`git
+status --short` clean afterwards; all four read red, then green):
+
+```
+MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestNode has no
+proposal lowering (plan task 7, stage 6a); …        [TombstoneTests.ExcursionRow]
+
+MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestNode has no
+proposal lowering (plan task 7, stage 6a); …            [AXNodeTests.AXListLeaf]
+
+MetalUI/Frame.swift:1536: Fatal error: MetalUI: box.minSize.unconsumed has no
+proposal lowering (plan task 7, stage 2); …   [scrolledList's root .minHeight(0)]
+
+MetalUI/Frame.swift:1536: Fatal error: MetalUI: box.display.none has no proposal
+lowering (plan task 7, stage 2); …    [aListInsideHiddenContent…'s hidden() box]
+```
+
+Two of the five probe arms are **positive controls**, and both were load-bearing:
+
+- `aBoxSpelledListRowDoesNotAbortAProductionProposalFrame` — the same
+  `ScrollView { List { … } }` with `Box().focusable()` rows exits **0**. This is
+  the measurement that refuted the design's premise about `FocusTests`
+  (`LR-CF` item 1), and without it the `ExcursionRow` abort beside it would pass
+  just as well if the `List`, the `ScrollView` or `@State` were what aborted.
+- the minSize probe's second half and the hidden probe's second half — the same
+  trees with the one modifier dropped, and shown, both exit **0**.
+
+### 9.2 The scratch measurement the whole lane turned on
+
+Before writing anything, nine fixture shapes were run under `.proposal` in child
+processes from a throwaway `Tests/MetalUITests/ZZScratchLane4.swift` (deleted; it
+never reached a commit). The table is the lane's plan:
+
+| shape | result |
+|---|---|
+| `ScrollView { List { ExcursionRow } }` | SIGTRAP, `customElement.requestNode` |
+| `ScrollView { List { Box().focusable() } }` | **exit 0** — the design's premise refuted |
+| `List { AXListLeaf }` as root | SIGTRAP, `customElement.requestNode` |
+| `scrolledList(50, 200)` as a frame root | SIGTRAP, `box.minSize.unconsumed` |
+| `scrolledList(5000, 200)` in a fake `Window` | SIGTRAP, `box.minSize.unconsumed` |
+| the same without `.minHeight(px(0))` | **exit 0** — so the modifier is the whole blocker |
+| `Row { Column, Column, scrolledList }` (`aClientDoesNotChangeStateRetention`) | **exit 0** — a consumed record, not a root |
+| `Column { box.hidden(), Text }` | SIGTRAP, `box.display.none` |
+| `Box { List }.width(200).height(200)` (the no-context arm) | **exit 0** |
+
+`.minHeight(px(0))` was then measured **inert under the legacy engine** rather
+than argued: dropped from `scrolledList` with nothing else changed, the whole
+suite unfiltered read **1593 tests in 2 suites, 3 issues** — the three lane 2
+left red for lane 5 (§7.6). That is the number quoted in `LR-CF` item 2 and in
+the fixture's own doc comment.
+
+### 9.3 What landed
+
+**Two fixtures re-spelled, not three.** `TombstoneTests.ExcursionRow` and
+`AXNodeTests.AXListLeaf` branch on `pass.lowersToProposal` into
+`lowerLegacyNode(…, children: [], site: .customElement)` — `ListTests.Row`'s
+childless arm (§8.2), which forwards to `lowerLegacyLeaf` over a 0×0 native leaf
+by itself. `ExcursionRow`'s `count += 1` stays **outside** the branch: a
+production count that depended on the authority would make the two excursion
+arms incomparable rather than comparable. `FocusTests`' row is untouched
+(`LR-CF` item 1).
+
+**Eleven scenarios parameterised over `AuthorityCoverage.authorities`:**
+
+| file | scenarios |
+|---|---|
+| `TombstoneTests` | `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` (`TB-AH`, both halves) |
+| `FocusTests` | `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne` (the same bound, one generation later) |
+| `AXNodeTests` | `aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount`, `aVirtualizedListsLogicalCountIsTheFullDataCountEvenWhenEveryRowFits`, `aCallerDeclaredAXNodeOnAListSurvivesLogicalCountBeingAdded` |
+| `AccessibilityDefaultsTests` | `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, `aClientDoesNotChangeStateRetention` |
+| `AccessibilityTreeTests` | `aLabelledListIsStillATable` (completeness only) |
+
+**Not one literal moved.** Every offset, window, count, index, emission bound
+and notification count in all eleven reads the same on both authorities; the
+only edit inside a body is the authority threaded into the frame or window it
+builds. That is the lane's finding about stage 4 stated positively: the windowed
+`ProposalLayout` changed what a row's rect comes through and changed nothing
+about which rows are built, which ids they take, what they publish or when they
+are reaped.
+
+**Three helpers take an authority**: `AXNodeTests.bareFrame` and
+`renderListWindowed`, `AccessibilityDefaultsTests.collect` and
+`AccessibilityTreeTests.collect`, each defaulting `.legacy`. Every other caller
+of all four builds no element tree, so a second authority there would be an
+argument the body never reads (`LR-BN`'s rule).
+
+**Three window-level arms build PRODUCTION frames.** `makeFakeWindow` never sets
+`reportsUnlowerableFields`, so `activatingBefore…`, `scrollingAList…` and
+`aClientDoesNotChangeStateRetention` trap on anything unlowered rather than
+reporting it — which is why §9.2's table was taken first rather than after.
+
+**`scrolledList` loses `.minHeight(px(0))`** (§9.2, `LR-CF` item 2), and
+**`aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` stays
+legacy-only** with its declaration saying why (`LR-CF` item 3).
+
+**The roll call moved to `Tests/MetalUITests/ZZAuthorityRollCall.swift`**
+(`LR-CF` item 4). `AuthorityCoverage.expected` 54 → **65**; the literal inside
+the test moved with it, and its `#require` message now names all nine
+contributing suites.
+
+### 9.4 Every number
+
+| measure | before (lane 3's HEAD, `16d6696`) | after (`684ef95`) |
+|---|---|---|
+| suite | 1593 | **1598** (+5: four abort probes and one positive control; the eleven parameterisations move the total by nothing, which is why the roll call exists) |
+| issues | 3 | **3**, the same three — `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`'s, left red by lane 2 for lane 5 (§7.6) |
+| goldens | 97 | 97; `git diff --name-only f2e981f HEAD -- 'Tests/**/*.json'` empty |
+| typecheck guards | 77 | 77 — lane 4 adds no hazard a plain import can reach |
+| `error:` / `warning:` | 0 / only SwiftPM's deprecation notice | unchanged |
+| `AuthorityCoverage.expected` | 54 | **65** |
+| parameterised suites | 4 | **9** |
+
+`find Tests -name "*.json" | wc -l` reads 115 with `Tests/PortableTests/.build`
+present; the golden count is taken under `Tests/MetalUILayoutTests` only, as §1
+says.
+
+### 9.5 The five mutations
+
+Each was run on the **full unfiltered suite** from a `cp` copy of the file, with
+`git status --short` empty after the restore. The three standing issues of
+§7.6 are excluded from every count below.
+
+| id | mutation | arms reddened | issues | tests named |
+|---|---|---|---|---|
+| **M4a** | `StateTable.staleAfterGenerations` 2 → 3 | 4 | 4 | `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` (.legacy, .proposal) at `TombstoneTests.swift:387`, `peek(longSlot) == 1`; `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne` (.legacy, .proposal) at `FocusTests.swift:1067`, `longResult == nil` |
+| **M4b** | `indexesRows` forced to `pass.collectsAccessibility` | **0** | **0** | none — §9.6 |
+| **M4b′** | `windowIsBounded` forced `true` | 6 | 22 | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` (8 per authority), `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (2 per authority), `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` (1 per authority) |
+| **M4c** | `windowAwaitsViewport`'s `requestAccessibilityRetry()` deleted | 4 | 12 | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` (5 per authority), `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` (1 per authority) |
+| **M4d** | `AuthorityCoverage.authorities` → `[.legacy]` (M3a's twin, re-run against the moved roll call) | 2 tests | 65 | `everyParameterisedScenarioRanUnderBothLayoutAuthorities` at `ZZAuthorityRollCall.swift:46`; 64 raised by `record`'s own whole-set check inside `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` |
+
+The individual assertions, for the two that the design set a floor for:
+
+- **M4b′**, per authority: `lastEmissionCount <= 3`, `table0.children.isEmpty`,
+  `window.needsRedraw`, `framesDrawn == 2`, `table1.children.count == 10`,
+  `capped.needsRedraw`, `capped.framesDrawn == 2`,
+  `unscrolledTable.node.children.isEmpty` (`activatingBefore…`);
+  `zero.children.isEmpty`, `zeroHeight.all(.staticText).isEmpty`
+  (`combinationReaches…`); `vended.count == 10` (`scrollingAList…`).
+- **M4c**, per authority: `window.needsRedraw`, `framesDrawn == 2`,
+  `table1.children.count == 10`, `capped.needsRedraw`, `capped.framesDrawn == 2`
+  (`activatingBefore…`, the `AB-X` rule-3 half); `vended.count == 10`
+  (`scrollingAList…`).
+
+**Every count is symmetric across authorities**, which is the check `LR-BU`
+asks for: a mutation that reddened only legacy arms would mean the proposal arm
+is vacuous. None did.
+
+M4d is also the measurement that the roll call's move works: the 64 issues come
+from `record`'s order-independent half firing inside `TombstoneTests`' arm,
+which is now the last expected name to arrive.
+
+### 9.6 M4b's finding: a conjunct nothing can pin
+
+M4b reddens nothing, and it is the finding rather than a broken instrument —
+`LR-CD` item 4's shape again. The mechanism, read off the source after the run
+and then re-measured:
+
+`indexesRows` gates exactly one write, `rowBox.handlers.axNode.logicalIndex`, and
+on an unbounded window both things that hint could reach are already shut:
+
+1. **the record.** `List.prepaint` wraps the rows in
+   `withAccessibilitySuppressed(except: id)` whenever the window is unbounded and
+   a client is collecting, and `Frame.registerHandlers`' record branch is guarded
+   by exactly that (`collectsAccessibility, !isAccessibilitySuppressed(for: id)`);
+2. **the emission.** `Frame.registerHandlers` assigns
+   `declaration.logicalIndex = nil` **before** its `declaration.isEmpty` test
+   (`AB-L`: "a row hint is not a declaration"), so a row carrying only a hint
+   emits no `AXNode` and writes no `$ax` slot (`AB-U`).
+
+So the `windowIsBounded &&` conjunct is belt-and-braces with a guard one method
+away. It stays — it states what the value means — and the measurement is now a
+comment beside it in `List.requestLayout`, so a later reader does not take it for
+a tested guard. `AB-X` rule 1 is pinned through the suppression instead, and
+M4b′ is the mutation that measures that.
+
+### 9.7 The order argument, re-measured twice
+
+Lane 3 established that Swift Testing runs a file's tests in source order and
+the files in path order, off `ScrollViewTests.swift` being last (§8.5). Lane 4
+breaks that: `Tests/MetalUITests/TombstoneTests.swift` sorts **after**
+`Tests/MetalUITests/ScrollViewTests.swift`. Rather than leave `TB-AH`'s suite out
+of the exit criterion, the roll call moved to `ZZAuthorityRollCall.swift`.
+
+Re-measured twice at this HEAD off the unfiltered runs' own `started` lines,
+identical both times (line numbers from the second run):
+
+| file | first scenario's `started` line |
+|---|---|
+| `AXNodeTests` | 1276 |
+| `AccessibilityDefaultsTests` | 1310 |
+| `AccessibilityTreeTests` | 1384 |
+| `FocusTests` | 1941 |
+| `ListTests` | 2428 |
+| `ScrollIndicatorTests` / `ScrollRoutingTests` | between |
+| `ScrollViewTests` | 3269 |
+| `TombstoneTests` | 3395 |
+| **`ZZAuthorityRollCall`** | **3407** |
+
+Both arms of a parameterised test run back to back (`… → .legacy` then
+`… → .proposal`), as `AuthorityCoverage`'s doc says.
+
+### 9.8 The twelve `CN-R` images
+
+`docs/probes/demo-pixels/compare.sh /tmp/…/pix f2e981f 684ef95`. All nine
+controls reproduce their recorded values exactly before any commit-to-commit row:
+
+| control | recorded | this run |
+|---|---|---|
+| light vs dark, f0 | 1 048 576 | **1 048 576** |
+| default vs modal (light) | 1 030 498 | **1 030 498** |
+| default vs animation (light) | 210 027 | **210 027** (bbox (16,113)–(981,1007)) |
+| f0 vs f3 (light) | 0 | **0** |
+| preview light vs dark | 1 048 576 | **1 048 576** |
+| `chrome-legacy` vs `chrome-proposal` | 0 | **0** |
+| distinct values, `default-light-f0` | 544 | **544** |
+| distinct values, `chrome-legacy` | 216 | **216** |
+| indicator rects in all twelve | 0 | **0** |
+
+**`f2e981f` → `684ef95`: 0 differing pixels in all twelve, every scene dump
+identical.** Expected by construction — the lane's only `Sources/` edit is a
+comment — and taken anyway, because "expected by construction" is what the
+harness exists to stop a lane from asserting. The demo is never scrolled in
+these images, so no scroll indicator is painted in any of them (§7.6's caveat).
+
+### 9.9 Screen lock
+
+`docs/probes/appkit-screen-lock-state.swift` at this lane prints
+`session CGSSessionScreenIsLocked = 1`,
+`session CGSSessionScreenLockedTime = 1790140509`, `kCGSSessionOnConsoleKey = 1`,
+`displayAsleep main: 1`, `displayActive main: 0`,
+`preflightScreenCaptureAccess: true`, one screen `(0,0,2056,1329) scale=2.0`.
+**Locked**, so no real-window capture was taken — the gate is the printed lock
+state, not a judgement. `IOConsoleLocked` was not read (`FR-V`). Lane 3's
+unlocked window (§8.7) retired the deferral for the branch as it stood at
+`352f838` only; it does not cover this lane, and the offscreen twelve are what
+this lane has.
+
+### 9.10 Deferred out of lane 4
+
+| item | why | owner |
+|---|---|---|
+| a real-window capture at this HEAD | the screen was locked (§9.9); the offscreen twelve read 0 | lane 5, or whichever lane next finds it unlocked |
+| `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` under `.proposal` | `display: none` has no lowering (`LR-CF` item 3) | the stage that lowers `display` |
+| `aListInsideADeferredIgnoresTheEscapedScrollersOffset` under `.proposal` | carried from §8.8 | stage 5 |
+| the demo census's re-derivation, and the three issues still standing | §7.6 | lane 5 |
+| `MeasurePerformanceTests.StatefulListRow`'s re-spelling and `render`'s `reportsUnlowerableFields:` parameter | spec §6 lane 5's own first obligation; lane 4 touches no performance fixture | lane 5 |
+| **other fixtures blinded by `.padding` becoming a wrapper at `f1944f8`** | carried from §6.9 and §8.8; lane 4 swept nothing new for it | unowned |
+| CLAUDE.md's `List` and roll-call mentions, and the 1580 → 1598 count | the lane may not edit CLAUDE.md | the Docs phase |
