@@ -109,7 +109,10 @@ Apple-bound:
     and NSAccessibility for SDL on macOS) behind `publishAccessibilityTree`.
     `feat/accessibility`, spec `specs/2026-09-23-accesskit-accessibility-design.md`
     (`AX-`), record §44.
-14. [ ] **Text input** — IME composition and clipboard through SDL3.
+14. [x] **Text input** — `TextField` with caret, selection, editing keys,
+    input-method composition and the clipboard, on AppKit and SDL3; caret
+    offsets from both text systems, equal to CoreText's. `feat/text-input`,
+    spec `specs/2026-09-23-text-input-design.md` (`TI-`), record §45.
 
 Not on this list: iOS (a UIKit `PlatformWindow`, and the `.touch` input the
 spec asks for) is Apple-platform work with its own spec; the CLAUDE.md header

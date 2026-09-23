@@ -3,6 +3,7 @@ import Metal
 import MetalUICore
 import MetalUIPlatform
 @testable import MetalUI
+import MetalUIDemoContent
 
 // TI-B / TI-C: a `TextField` in a real `Window` over the fake platform window.
 // Input goes in through `simulateInput`, exactly as a platform delivers it.
@@ -278,7 +279,7 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
     window.drawFrameIfNeeded()
     let bounds = try fieldBounds(window)
     let theme = window.theme
-    var scene = try #require(window.lastScene)
+    var scene = window.lastScene
     let text = theme[.textPrimary]
     #expect(!scene.glyphs.isEmpty && scene.glyphs.allSatisfy { abs($0.color.a - text.a * 0.45) < 1e-6 },
             "an empty field paints its placeholder, dimmed")
@@ -290,7 +291,7 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
     platform.simulateInput(down(bounds.origin.x.value + 20, bounds.origin.y.value + 2))
     platform.simulateInput(.textInput("hello"))
     window.drawFrameIfNeeded()
-    scene = try #require(window.lastScene)
+    scene = window.lastScene
     #expect(scene.glyphs.count == 5 && scene.glyphs.allSatisfy { $0.color.a == text.a }, "the text, full strength")
     let caret = try #require(caretRects(scene).first)
     #expect(caret.bounds.origin.x == Float(try caretX(window, at: 5)), "the caret after the typed text")
@@ -299,7 +300,7 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
     platform.simulateInput(.mouseDragged(MouseEvent(position: Point(x: Pixels(try caretX(window, at: 4)),
                                                                     y: bounds.origin.y))))
     window.drawFrameIfNeeded()
-    scene = try #require(window.lastScene)
+    scene = window.lastScene
     let accent = theme[.accent]
     let selection = try #require(scene.rects.first { abs($0.background.a - accent.a * 0.3) < 1e-6 })
     #expect(selection.bounds.origin.x == Float(try caretX(window, at: 1)))
@@ -309,8 +310,26 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
     platform.simulateInput(down(try caretX(window, at: 5), bounds.origin.y.value + 2))
     platform.simulateInput(.textComposition(TextComposition(text: "ka", selection: 2..<2)))
     window.drawFrameIfNeeded()
-    scene = try #require(window.lastScene)
+    scene = window.lastScene
     #expect(scene.glyphs.count == 7, "the composition is drawn inline")
     #expect(scene.rects.contains { $0.bounds.size.height == 1 && $0.bounds.size.width > 1 },
             "the composition is underlined")
+}
+
+/// The text-input demo root (`METALUI_TEXT_INPUT_DEMO=1`) under the
+/// production authority: it builds, both fields register, and the first
+/// takes typing and echoes it.
+@Test @MainActor func theTextInputDemoRendersAndTypes() throws {
+    demoModel.fieldText = ""
+    defer { demoModel.fieldText = ""; demoModel.secondFieldText = "" }
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platform) = try makeFakeWindow(device: device, size: 400) { textInputDemoContent() }
+    window.drawFrameIfNeeded()
+    let fields = window.lastHitboxes.filter { $0.handlers.textInput != nil }
+    try #require(fields.count == 2)
+    let first = fields[0].bounds
+    platform.simulateInput(down(first.origin.x.value + 5, first.origin.y.value + 2))
+    platform.simulateInput(.textInput("echo"))
+    window.drawFrameIfNeeded()
+    #expect(demoModel.fieldText == "echo" && demoModel.secondFieldText == "")
 }

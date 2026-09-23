@@ -1,6 +1,6 @@
 # Text input and `TextField` — design
 
-**Status: in progress** on `feat/text-input` (record §45); roadmap item 14 of
+**Status: implemented** on `feat/text-input` (record §45); roadmap item 14 of
 `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:** `TI-`
 (`TI-A`…`TI-F`, next `TI-G`; rulings here). The user chose a full
 `TextField`: caret, selection, editing keys, IME composition and the

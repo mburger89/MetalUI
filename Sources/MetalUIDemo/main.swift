@@ -16,11 +16,17 @@ func runDemo() throws {
     let app = try App()
 
     let nativeLayoutPreview = ProcessInfo.processInfo.environment["METALUI_NATIVE_LAYOUT_PREVIEW"] == "1"
+    // Roadmap item 14's human look (TI-F): two text fields.
+    let textInputDemo = ProcessInfo.processInfo.environment["METALUI_TEXT_INPUT_DEMO"] == "1"
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if nativeLayoutPreview {
+    if textInputDemo {
+        window = try app.openWindow(title: "MetalUI — Text Input",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: textInputDemoContent)
+    } else if nativeLayoutPreview {
         window = try app.openWindow(title: "MetalUI — Native Layout Preview",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: nativeLayoutPreviewContent)
