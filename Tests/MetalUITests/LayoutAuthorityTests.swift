@@ -113,7 +113,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// Red before: stage 6b lane 3's flip commit, with the stage-1 assertions
 /// (`frame.layoutAuthority == .legacy`, `window.layoutAuthority == .legacy`).
 /// Mutation that must redden it: **M3a**, `Frame.defaultLayoutAuthority` back to
-/// `.legacy` (record §39 §12 names what else it reddens).
+/// `.legacy` (record §41 §12 names what else it reddens).
 @MainActor
 @Test func aFrameAndAWindowDefaultToTheProposalAuthority() throws {
     #expect(Frame.defaultLayoutAuthority == .proposal)

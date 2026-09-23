@@ -2,9 +2,11 @@
 
 A GPU-accelerated UI framework for Swift, modeled on
 [gpui](https://github.com/zed-industries/zed/tree/main/crates/gpui), written as
-idiomatic Swift. **macOS only today** (`platforms: [.macOS(.v14)]`, no UIKit,
-`App.swift` builds `AppKitPlatform` unguarded, no `.touch` input). The spec's
-iOS target is unmet. `PlatformWindow`'s `onAccessibilityRequest` and
+idiomatic Swift. **macOS with AppKit and Metal by default; the framework also
+builds on Linux and Windows** (`XP-A`), drawing through `Backends/SDL`
+(`App(platform:textSystem:)`, `XP-B`) with the portable text system — see
+`plans/2026-09-23-cross-platform-roadmap.md` for what is left. No UIKit, no
+`.touch` input: the spec's iOS target is unmet. `PlatformWindow`'s `onAccessibilityRequest` and
 `publishAccessibilityTree(_:)` have no default implementations (`AB-R`).
 
 **This file is rules only.** The full pre-2026-09-21 version (120 KB: every
@@ -41,7 +43,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   rulings in its three specs: line breaking, lines emission, content sizes),
   `FN-` (next `FN-E`; rulings in its spec), `PC-` (next `PC-D`; rulings in
   its spec), `TS-` (next `TS-E`; rulings in its spec), `RS-` (next `RS-E`;
-  rulings in its spec), `SP-` (next `SP-D`; rulings in its spec). A numbered citation
+  rulings in its spec), `SP-` (next `SP-D`; rulings in its spec), `XP-`
+  (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
+  `DC-` (next `DC-D`; rulings in its spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -68,7 +72,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `specs/2026-09-23-engine-stage-6a-design.md`, same decisions doc; **no new
   SwiftUI probe** — the stage's only probe,
   `swift-deprecated-witness-silence.sh`, is a compiler determinism check),
-  7 stage 6b `LR-DF`…`LR-DR` (§39, spec
+  7 stage 6b `LR-DF`…`LR-DR` (§41, spec
   `specs/2026-09-23-engine-stage-6b-design.md`, same decisions doc — the root
   switch: `Window`'s and `Frame`'s default authority is now `.proposal`,
   production runs the proposal engine; three probes re-run byte-identical
@@ -83,7 +87,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Thirteen record files are not tasks of
+  and G2 is unblocked rather than waiting. Fifteen record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
@@ -101,8 +105,11 @@ milestones append their record to `docs/record/` and put only the rule here.
   `specs/2026-09-23-portable-font-resolver-design.md`), §34 Core and
   Layout off macOS (`PC-`, spec `specs/2026-09-23-portable-core-layout-design.md`),
   §35 the text seam (`TS-`, spec `specs/2026-09-23-text-seam-design.md`),
-  §36 the render seam (`RS-`, spec `specs/2026-09-23-render-seam-design.md`)
-  and §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`). **Cross-platform work
+  §36 the render seam (`RS-`, spec `specs/2026-09-23-render-seam-design.md`),
+  §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`),
+  §39 MetalUI off Apple (`XP-`, spec `specs/2026-09-23-metalui-portable-design.md`)
+  and §40 the demo on Linux and Windows (`DC-`, spec
+  `specs/2026-09-23-demo-cross-platform-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -117,6 +124,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   **§38 (stage 6a) was written as §30** on `feat/engine-stage-6a` from
   `b3c29b9` and renumbered 30→38 at its merge, because `master` had already
   published §30–§37 (PRs #11–#20, `64c5271`; record §38's header).
+  **§41 (stage 6b) was written as §39** on `feat/engine-stage-6b` from
+  `aef88ce` and renumbered 39→41 at its merge, because `master` had already
+  published §39–§40 (PR #22, `654a503`; record §41's header).
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -133,8 +143,28 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-23, `feat/engine-stage-6b` — plan task 7 stage 6b — from
-  `aef88ce`, `master`'s current tip; not yet merged): 1701 tests, 97 goldens,
+- **Counts (2026-09-23, `feat/engine-stage-6b` — plan task 7 stage 6b —
+  merged with `master` at `654a503`, PR #22, roadmap items 9 and 10): 1704
+  tests, 97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both
+  build systems (`swift build --build-tests` under the default one too),
+  taken after `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1704 tests in 3 suites
+  passed`; the ten gated tests of master's paragraph below skipped; the
+  guards ran — the log carries `FR-J no-argument frame: succeeded=`). Goldens
+  unmoved against `aef88ce`. **1704 = 1691 + 13**: `master`'s `654a503`
+  (1691, its own figure below, taken the same way) plus stage 6b's 13 (the
+  branch paragraph next). **One pin moved with the switch, by design**:
+  `Tests/MetalUICrossPlatformTests/Expected.swift`, the demo frame
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` pins (`XP-C`), was re-recorded
+  on macOS — the same frame under `layoutAuthority: .legacy` still reads the
+  old values, and every paired rect and glyph delta is one of stage 6b's
+  named causes (record §41 §20); a `swift:6.4-noble` aarch64 container read
+  the new values, and Linux x86_64 and Windows CI re-confirm them on push.
+  `Backends/SDL`'s `PortableReplay` (6 fixtures, frame 5 the demo) and
+  `DemoCapture` passed on macOS at 0 px after re-recording the fixtures.
+- **Stage 6b's counts before the merge (2026-09-23, `feat/engine-stage-6b`
+  from `aef88ce`): 1701 tests, 97 goldens,
   78 typecheck guards**, 0 `error:`, 0 `warning:` on both build systems
   (`swift build --build-tests` under the default one too), taken after
   `swift package clean` with `swift build --build-system native
@@ -151,7 +181,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   the flipped default made independent of it, `LR-DG`'s fixture rule) +1
   (`everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`), lane
   3 (the switch itself and the exit test) +3 (`RootSwitchTests`' 3.1–3.3);
-  record §39. **`Frame.defaultLayoutAuthority` is now `.proposal`** (internal;
+  record §41. **`Frame.defaultLayoutAuthority` is now `.proposal`** (internal;
   `Frame.init`'s default and `Window.layoutAuthority`'s initial value both
   read it) — **production now runs the proposal engine**, and every
   `.legacy`-in-production sentence elsewhere in this file describes history,
@@ -174,8 +204,15 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   record §03 re-opens (`LR-DM`; sidebar 196, animation panel 320, modal card
   height, list-row labels now vertically centred). **No golden moved; guards
   unmoved** (78; `LR-DR` item 3: no new guard this stage). History: record
-  §39.
-- **Master's counts before stage 6b (2026-09-23, `feat/engine-stage-6a` —
+  §41.
+- **Master's counts before stage 6b met it (2026-09-23, `feat/demo-cross-platform` — roadmap items 9 and 10
+  — merged with `master` at `aef88ce`, stage 6a): 1691 tests, 97 goldens, 78
+  typecheck guards**, taken the same way: **1691 = 1688 + 3**, master's
+  stage-6a figure below plus `MetalUICrossPlatformTests`' 3 (record §39; one
+  a gated recorder, so ten gated tests skip — the nine below and
+  `recordDemoFrames`). The paragraph after next is this line's figure before
+  the merge (1689 = 1686 + 3).
+- **Master's counts before items 9 and 10 (2026-09-23, `feat/engine-stage-6a` —
   plan task 7 stage 6a — merged with `master` at `64c5271`, PRs #11–#20): 1688
   tests, 97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both
   build systems (`swift build --build-tests` under the default one too),
@@ -216,22 +253,23 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   (43 CSS reds) own baseline — record §38 §2–§4, §12.
 - **Master's counts before stage 6a (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
   with `master` at `42b9ab4`, the portable text line; then `PT-J`, +5; then line breaking, +6; then
-  lines emission, +14; then content sizes, +10; then font resolution, +6; then the text seam, +5): 1686 tests, 97
+  lines emission, +14; then content sizes, +10; then font resolution, +6; then the text seam, +5; then MetalUI off Apple, +3): 1689 tests, 97
   goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:`, taken after
   `swift package clean` with `swift build --build-system native
   --build-tests` then unfiltered `swift test --build-system native
-  --no-parallel` (**one summary line**, `Test run with 1686 tests in 3 suites
-  passed`; nine skipped: the two gated tests and the FreeType, HarfBuzz,
+  --no-parallel` (**one summary line**, `Test run with 1689 tests in 3 suites
+  passed`; ten skipped: the two gated tests, the FreeType, HarfBuzz,
   portable text, line breaking, lines emission (two) and content sizes
-  oracles' gated measurement tests; the guards ran — the log
+  oracles' gated measurement tests, and the demo-frame recorder; the guards ran — the log
   carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
   `e5caefb` (`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` is
-  empty). **1686 = 1640 + 5 + 6 + 14 + 10 + 6 + 5**: the `PT-J` follow-up's
+  empty). **1689 = 1640 + 5 + 6 + 14 + 10 + 6 + 5 + 3**: the `PT-J` follow-up's
   `EmitParameterTests` (record §28), line breaking's 6 (the `LB-E` oracle,
   its gated measurement, contract tests; record §30) and lines emission's 14
   (ten metric/placement oracle tests, two of them gated, and four
   `EmitLinesTests`; record §31), content sizes' 10 (record §32) and font
-  resolution's 6 (record §33) and the text seam's 5 (record §35;
+  resolution's 6 (record §33), the text seam's 5 (record §35) and
+  `MetalUICrossPlatformTests`' 3 (record §39, one a gated recorder;
   `Tests/PortableTests` separately runs 16 + 6 + 5); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
   15 (lane 1, the presentation root, +7; lane 2, the exit suites, +2; lane 3,
   the must-not-move set through real windows, +6; record §29) plus the
@@ -272,7 +310,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Nine** gated tests count toward the total while skipped —
+  **Ten** gated tests count toward the total while skipped —
   `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`, the
   FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
   (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
@@ -281,7 +319,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   and the lines emission oracle's `measureLineEmissionDifferences` and
   `measurePatchedFaceMetrics` (both `METALUI_LINES_EMIT_MEASURE=1`) and the
   content sizes oracle's `measureContentSizeDifferences`
-  (`METALUI_CONTENT_MEASURE=1`).
+  (`METALUI_CONTENT_MEASURE=1`) and `recordDemoFrames`
+  (`METALUI_CROSSPLATFORM_RECORD=1`).
   The lone `warning:`
   under native is SwiftPM's deprecation notice.
 - **Goldens must not move** on a change outside `Sources/MetalUILayout/`
@@ -326,8 +365,13 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   framework are declared on every platform; everything else — and the
   portable oracles, which compare against CoreText — under `#if os(macOS)`.
   **A new target goes in the list its imports allow**; Linux and Windows CI
-  (`scene-linux`, `root-windows`) build every portable target and run
-  `MetalUICoreTests` and `MetalUILayoutTests` (486 + 22 on Linux). A test there
+  (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
+  and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
+  appended on macOS in the manifest — and run `MetalUICoreTests`,
+  `MetalUILayoutTests` and `MetalUICrossPlatformTests` (486 + 22 + 3), the
+  last pinning the demo's whole frame byte-for-byte against macOS (`XP-C`).
+  Inside `MetalUI`, CoreText stays behind `#if canImport(MetalUIText)`; off
+  Apple a `Frame`/`Window` without a text system traps (`XP-B`). A test there
   that needs WebKit or Darwin is compiled out by `#if canImport(…)` per
   declaration (`PC-B`); typecheck guards read only this platform's `.build`
   (`PC-C`) and skip off macOS.
@@ -399,7 +443,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   placement rule lives once, in `GlyphImage.subpixelPlacement(forDeviceX:)`
   (`PT-C`); `GlyphRaster` forwards — do not re-inline it on either side.
   `Experiments/SDLGPU`'s frame 4 is drawn from it (`PT-G`) and replayed by
-  `Backends/SDL`.
+  `Backends/SDL`; frame 5 is the demo's whole tree, which `Backends/SDL`'s
+  `DemoCapture` rebuilds natively on Linux and Windows and checks against
+  macOS (scene byte-for-byte, pixels within parity; `DC-B`).
+  `renderFrame(_:size:scaleFactor:textSystem:atlas:)` renders a tree
+  headless (`DC-A`).
 
 Eight constraints that fail silently:
 
@@ -674,7 +722,7 @@ sleep: drive `simulateTick(timestamp:)`.
 ## SwiftUI alignment — the proposal layout path
 
 A propose/measure/place engine sits beside the CSS engine. Detail: §19
-"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38, §39.
+"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38, §41.
 
 - **Two engines, chosen by the window root alone**
   (`tree.isNativeLayoutNode(root)`). A native root is placed centred at its own
@@ -817,7 +865,7 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   Exit test `noProductionFrameReachesTheLegacyEngine`: `demoContent()`,
   `nativeLayoutPreviewContent()` (`MetalUIDemoContent`, `LR-S`) and a `List`,
   each through a real `Window`, bump `Frame.legacyRootLayoutCounter` (a
-  `@TaskLocal`, main-actor only) zero times. Record §39.
+  `@TaskLocal`, main-actor only) zero times. Record §41.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -855,8 +903,8 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   A padded, sized legacy container lowers to 3 native levels, and since
   stage 2 an item with a margin, a padding, a size and a stretch is **five**,
   so a chain of those now reaches the 72/73 boundary at 100/101 nodes (test
-  4.8, `LANE4-4.8 nodes=100 deepest=72`; 122/123 at 88; record §39 §10.1). **Production roots,
-  measured through a real `Window` at the new default** (record §39 §5,
+  4.8, `LANE4-4.8 nodes=100 deepest=72`; 122/123 at 88; record §41 §10.1). **Production roots,
+  measured through a real `Window` at the new default** (record §41 §5,
   §12.3): the demo's deepest native level is **30** (modal off, on, and
   animating — one more than the pre-re-spelling 29, `LR-DJ`'s list-row
   height; the earlier "measured at 18" predated stages 3 and 4, whose scroll
@@ -1099,7 +1147,7 @@ expected, measured facts:
   too, and now IS owed**: `LayoutAuthority.proposal` is production's default
   as of this stage, and the demo's pixels changed (a sidebar/panel width, its
   paragraph's re-wrap, the modal card's height, list-row labels now vertically
-  centred — every one probe-backed and named, record §39 §4, §12.6). The
+  centred — every one probe-backed and named, record §41 §4, §12.6). The
   screen was locked at every check across all three lanes and the critic
   round, so `capture.sh` was never run; the fourteen-image offscreen
   comparison stands in and reads exactly those four named causes and nothing

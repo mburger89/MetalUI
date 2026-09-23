@@ -1,6 +1,9 @@
-import Metal
 import MetalUIPlatform
+#if canImport(MetalUIAppKit)
+import AppKit
+import Metal
 import MetalUIAppKit
+#endif
 
 // MetalUI is the umbrella module: a client writes `import MetalUI` and gets the
 // geometry, unit and colour types its elements must name, the `Style` values
@@ -8,12 +11,11 @@ import MetalUIAppKit
 // an `onInput` hook — the `InputEvent` that hook is handed.
 @_exported import MetalUICore
 @_exported import MetalUILayout
-@_exported import MetalUIRender
 @_exported import MetalUIPlatform
+@_exported import MetalUIPrimitives
 @_exported import MetalUITextSystem
-
-#if canImport(AppKit)
-import AppKit
+#if canImport(MetalUIRender)
+@_exported import MetalUIRender
 #endif
 
 public enum AppError: Error, CustomStringConvertible {
@@ -21,14 +23,24 @@ public enum AppError: Error, CustomStringConvertible {
     public var description: String { "no Metal device is available on this system" }
 }
 
+/// An application: one platform, its windows, and the text engine every
+/// window draws with (ruling XP-B). On macOS the default is AppKit with Metal
+/// and CoreText; anywhere, ``init(platform:textSystem:)`` takes any
+/// `Platform` — `Backends/SDL`'s `SDLPlatform` on Linux and Windows — and a
+/// `TextSystem`, which a non-Apple build must supply (it has no CoreText).
 @MainActor
 public final class App {
-    public let device: any MTLDevice
-    private let renderer: Renderer
     private let platform: any Platform
     private var windows: [Window] = []
     /// Makes each window's text engine (ruling TS-A); `nil` is CoreText.
     private let makeTextSystem: (@MainActor () -> any TextSystem)?
+    /// Whether closing the last window ends the process through AppKit.
+    private let terminatesThroughAppKit: Bool
+
+    #if canImport(MetalUIAppKit)
+    /// The Metal device the AppKit platform draws with; `nil` for an app on
+    /// another platform.
+    public let device: (any MTLDevice)?
 
     public convenience init() throws {
         guard let device = MTLCreateSystemDefaultDevice() else { throw AppError.noMetalDevice }
@@ -43,9 +55,28 @@ public final class App {
     public init(device: any MTLDevice, textSystem: (@MainActor () -> any TextSystem)? = nil) throws {
         self.device = device
         self.makeTextSystem = textSystem
-        self.renderer = try Renderer(device: device)
-        self.platform = AppKitPlatform(renderer: renderer)
+        self.platform = AppKitPlatform(renderer: try Renderer(device: device))
+        self.terminatesThroughAppKit = true
     }
+
+    /// An app on `platform` — the SDL platform on macOS too — drawing text
+    /// with `textSystem` (`nil`: CoreText).
+    public init(platform: any Platform, textSystem: (@MainActor () -> any TextSystem)? = nil) {
+        self.device = nil
+        self.makeTextSystem = textSystem
+        self.platform = platform
+        self.terminatesThroughAppKit = platform is AppKitPlatform
+    }
+    #else
+    /// An app on `platform` — `Backends/SDL`'s `SDLPlatform` — drawing text
+    /// with `textSystem`, which is required here: there is no CoreText to fall
+    /// back on (ruling XP-B).
+    public init(platform: any Platform, textSystem: @escaping @MainActor () -> any TextSystem) {
+        self.makeTextSystem = textSystem
+        self.platform = platform
+        self.terminatesThroughAppKit = false
+    }
+    #endif
 
     /// Opens a window whose content is one root element, rebuilt every frame.
     ///
@@ -69,10 +100,12 @@ public final class App {
                             content: content)
         // Closing the last window must end the process: there is no app delegate
         // and no menu bar anywhere in the framework, so this close button is the
-        // only way out.
+        // only way out. AppKit's run loop is ended here; SDL's `run()` returns
+        // on its own once its last window has closed.
+        let terminates = terminatesThroughAppKit
         platformWindow.onClose = {
             #if canImport(AppKit)
-            NSApplication.shared.terminate(nil)
+            if terminates { NSApplication.shared.terminate(nil) }
             #endif
         }
         windows.append(window)

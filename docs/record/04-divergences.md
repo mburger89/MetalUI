@@ -1023,7 +1023,7 @@ own right: nothing in it is reachable outside a test today, since
 
 ## 2026-09-23: 4 amended (plan task 7 stage 6b, the root switch)
 
-Record §39; rulings `LR-DF`…`LR-DR` in
+Record §41; rulings `LR-DF`…`LR-DR` in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **No number is
 retired and none is added** — the table stays at **fifty-eight**. Stage 6b
 throws the switch: `Frame.defaultLayoutAuthority` is now `.proposal`, so
@@ -1051,5 +1051,5 @@ proposal-authority-only evidence row.
   that regressed to `CS-I`'s top-left, window-filling answer would move every
   such root from the window's centre back to its top-left corner — loud on
   the first frame, and pinned by `aHuggingLegacyRootIsCentredInAProductionWindow`
-  (record §39 §12.2–§12.5; mutations M2a, top-leading, and M2b, the window
+  (record §41 §12.2–§12.5; mutations M2a, top-leading, and M2b, the window
   rect, each redden it and every other root-placement-reading test).

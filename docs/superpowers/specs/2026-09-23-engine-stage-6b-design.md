@@ -1,13 +1,13 @@
 # Engine replacement, stage 6b — the root switch (plan task 7)
 
 **Status, 2026-09-23 (PDT): DELIVERED.** Critic round 1 applied (`LR-DO`); lane 1
-landed (hidden(), the root fold, depth; record §39 §10, `LR-DH`/`LR-DI`/`LR-DK`,
+landed (hidden(), the root fold, depth; record §41 §10, `LR-DH`/`LR-DI`/`LR-DK`,
 suite 1697); lane 2 landed (every red test made independent of the default;
-record §39 §11, `LR-DG`/`LR-DQ`, suite 1698 at the inherited default); lane 3
-landed and threw the switch (record §39 §12, `LR-DF`/`LR-DJ`/`LR-DL`/`LR-DR`) —
+record §41 §11, `LR-DG`/`LR-DQ`, suite 1698 at the inherited default); lane 3
+landed and threw the switch (record §41 §12, `LR-DF`/`LR-DJ`/`LR-DL`/`LR-DR`) —
 **1701 tests, 0 `warning:` on both build systems, `noProductionFrameReachesTheLegacyEngine`
 green, production now runs `.proposal` by default.** **The Record phase (record
-§39 §13–§18) has updated CLAUDE.md, AGENTS.md, records §03/§04/§05/README and
+§41 §13–§18) has updated CLAUDE.md, AGENTS.md, records §03/§04/§05/README and
 the plan; the suite was re-taken independently after `swift package clean` and
 reads the same 1701 / 97 / 78.** The real-window capture was not taken at any
 point in the stage — the screen was locked every time it was checked — and is
@@ -18,7 +18,7 @@ owed to the human (`LR-DM`). Every measurement below was taken on
 (arm H0), reverted by `b77118e`, and `6cdde03` (arm G2, reverted by `e77375e`)
 — after each revert `git diff --quiet aef88ce HEAD -- Sources Tests` succeeds. The
 measurements, their logs' readings and the per-test tables are in
-`docs/record/39-engine-replacement-stage-6b.md` §1–§8. Rulings `LR-DF`…`LR-DN`
+`docs/record/41-engine-replacement-stage-6b.md` §1–§8. Rulings `LR-DF`…`LR-DN`
 in [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Probes: three SwiftUI probes **re-run 2026-09-23** with every output line found
 verbatim in their recorded headers (`swiftui-stack-algorithms.swift` — the R
@@ -48,7 +48,7 @@ pixels **change**, each difference named."*
 
 **The sentence this design turns on.** After stages 2–6a the flip is small in
 `Sources/` (two defaults and a counter) and large in `Tests/`: **92 tests are
-red** under the flipped default at `aef88ce` (record §39 §2), and **55 of the
+red** under the flipped default at `aef88ce` (record §41 §2), and **55 of the
 92 (54 RP and the root arm of the RP+CSS-frame row), plus the 23 tests stage 6a
 pinned to `.legacy` for this stage — record §38's 78 — are one thing: root
 placement.** `CN-J` (probe R1/R2, re-run today) centres a native root at
@@ -144,7 +144,7 @@ and `maxDepth == 72`; 4.8's chain is 13 inner rows over a bare `Box()` (no
 whole N reaches 72 with a two-level innermost). (e) M1b re-spelled as M1b2
 (both hidden branches), the first spelling being unable to reach 1.1. (f) The
 rewritten tests are listed by name in `LR-DP` item 6; §5.5's font-resolver
-report is empty. Measured in record §39 §10.
+report is empty. Measured in record §41 §10.
 
 **Lane 2 (`LR-DQ`) — overrides the rows it names.** (a) The instrument reading
 is **12 X** + 2 D (lane 1 retired three X rows and added 1.8), with no
@@ -162,7 +162,7 @@ flexible-frame root, since R-fill would make the rect follow the declaration.
 viewport's values are unobservable under `LR-AS`; B-7 is pinned on the proposal
 path by arm (c). (h) M2e is the fold removed, not the diagnostics flag dropped.
 Suite after lane 2: **1698** (lane 1 closed at 1697 with 1.9). Measured in
-record §39 §11.
+record §41 §11.
 
 **Lane 3 (`LR-DR`) — overrides the rows it names.** (a) The flip commit read
 red exactly the two D tests (1698 tests, 3 issues); M3a reddens five tests (the
@@ -175,11 +175,11 @@ is `package` so `Window` can copy it into an internal
 images read 95 649 / 100 745 differing, every region 55, its re-wrap or C — no
 vertical compression; the twelve square images read §9's arm H numbers exactly.
 (e) Captures owed to the human: the screen was locked at lane close. Measured in
-record §39 §12.
+record §41 §12.
 
 **Suite count:** 1688 + 6 (lane 1, `hidden()`) + 2 (lane 1, 1.7–1.8) + 1 (lane
 2, 2.1) + 3 (lane 3) = **1700**, re-measured by each lane — **1701** measured at
-lane 3's close: lane 1 also added 1.9 (record §39 §10).
+lane 3's close: lane 1 also added 1.9 (record §41 §10).
 
 ## Contents
 
@@ -205,7 +205,7 @@ log. Goldens 97, guards 78 (CLAUDE.md "Build and test", record §38 header).
 
 ## 2. The entry measurement
 
-Three arms, each a full unfiltered run (record §39 §2):
+Three arms, each a full unfiltered run (record §41 §2):
 
 - **Arm F** (`431d8bd`) is record §38's A2 re-taken at `aef88ce`: `Frame.init`
   and `Window` default `.proposal` with diagnostics on, §38's "eight helper
@@ -254,14 +254,14 @@ Three arms, each a full unfiltered run (record §39 §2):
 | CE, CSS-frame, CSS-d48, CSS-pin, CSS-box | 25 | 0 | — (6a) |
 | **total** | **153** | **92** | |
 
-**Pixels, flipped against unflipped** (record §39 §4; the twelve-image
+**Pixels, flipped against unflipped** (record §41 §4; the twelve-image
 comparison `aef88ce` → `1c2fd9e`, arm G; the four extra helpers are
 test-only and cannot move an image): the eight demo images differ
 (172 789 pixels in `default-light-f0`), the two preview images and the chrome
 pair read **0, scene identical** — the preview was already native, and the
 chrome pair names its authority. Every differing region is named in §9.
 
-**Depth** (record §39 §5): release and debug ceilings for nine node kinds on a
+**Depth** (record §41 §5): release and debug ceilings for nine node kinds on a
 1 MB thread; the production roots' deepest native level through a `Window`.
 §10.
 
@@ -269,7 +269,7 @@ chrome pair names its authority. Every differing region is named in §9.
 
 | id | decision |
 |---|---|
-| `LR-DF` | **The switch.** One constant, `Frame.defaultLayoutAuthority = .proposal`, is `Frame.init`'s default and `Window.layoutAuthority`'s initial value. Diagnostics stay off in production (`reportsUnlowerableFields` false). **No public spelling** of the authority (`LR-B`'s open question closed): `layoutAuthority` stays internal, pinned by the existing `aPlainImportCannotChooseTheLayoutAuthority`. The test helpers follow production: `makeFakeWindow`'s `layoutAuthority` becomes `LayoutAuthority? = nil` (nil leaves `Window`'s default), and the **twelve** file-local helpers that default to `.legacy` at `aef88ce` (record §39 §2 lists them; four were missed by §38's instrument) default to `Frame.defaultLayoutAuthority`. A grep for `LayoutAuthority = .legacy` in `Tests/` reads empty afterwards. |
+| `LR-DF` | **The switch.** One constant, `Frame.defaultLayoutAuthority = .proposal`, is `Frame.init`'s default and `Window.layoutAuthority`'s initial value. Diagnostics stay off in production (`reportsUnlowerableFields` false). **No public spelling** of the authority (`LR-B`'s open question closed): `layoutAuthority` stays internal, pinned by the existing `aPlainImportCannotChooseTheLayoutAuthority`. The test helpers follow production: `makeFakeWindow`'s `layoutAuthority` becomes `LayoutAuthority? = nil` (nil leaves `Window`'s default), and the **twelve** file-local helpers that default to `.legacy` at `aef88ce` (record §41 §2 lists them; four were missed by §38's instrument) default to `Frame.defaultLayoutAuthority`. A grep for `LayoutAuthority = .legacy` in `Tests/` reads empty afterwards. |
 | `LR-DG` | **Root placement: `CN-J` stands for every production root**; divergence 4 (`CS-I`) stays a live row **of the legacy authority only** until 7b retires the CSS-engine tests that pin it. Evidence: the R control and R1–R4 re-run today (a 58×20 root in a 100×100 host at (21, 40); a greedy root at (0, 0) 100×100). The fixture rule for tests that encoded divergence 4 by accident: **R-fill** an `auto` root axis (declare the window's extent on it with the root's own `Self`-returning `.width`/`.height` — identity unchanged, the legacy answer unchanged because it is what `CS-I` computed), **R-centre** a declared root axis (re-derive its literals by `(W − w) / 2`). |
 | `LR-DH` | **`hidden()` lowers under the proposal authority**, as `LR-AK` ruled and `LR-AV` constrained: laid out as if shown (keeps its space — H1), joins `Frame.hiddenNodes`; paint skipped and hitboxes registered under `hitTestingDisabled` for nodes in `hiddenNodes` **only**; accessibility suppression reads `display == .none ∨ hiddenNodes`; `ModifiedElement` mirrors per inner layer (`MC-B`); `AnyElement`'s entry gains all three gates **reading `hiddenNodes` only**, so the legacy path is byte-identical. Focus and keys ungated (task 12). The legacy `hidden()` takes no space (CSS) — a divergence between the authorities pinned by `aHiddenChildTakesNoSpace` (stays `.legacy`, owner 7b). |
 | `LR-DI` | **The 92 reds, disposed** (§5): X untouched; D rewritten; N9 pinned `.legacy` (owner 9); RP and 21 of the 23 P-6b re-spelled by `LR-DG`'s rule; `aHiddenChildTakesNoSpace` and `aNestedLayoutMatchesTheEngineRunDirectly` stay pinned as CSS answers; the twelve CSS rows and the RP+CSS-frame row pinned `.legacy` with owner 7b; **item 4 — the root's `minSize`/`maxSize`/`margin` keep reporting** (a production trap, `LR-AQ`'s measured "CSS applies them to a root"), owner stage 8, whose recipe turns `min*`/`max*` into `.frame`, a layer whose record is never reported. The two tokenizer tests are pinned `.legacy` (their subject is the min-content probe pair, legacy-only by their own comments); the font-resolver test runs `.proposal` with diagnostics and asserts the report exactly (`MeasurePerformanceTests`' `LR-BX` pattern). |
@@ -323,7 +323,7 @@ Arms: each row's reading in record §38's arms (C2: native root placed at the
 window rect; C3: top-leading at its own answer; B3: custom elements lowered as
 a `Box`, top-leading). **Red-before** for every row below is arm G's red (or,
 for a P-6b row, arm F/§38 A2's red with its `.legacy` removed), recorded per
-test in record §39 §3.
+test in record §41 §3.
 
 ### 5.1 Lane 1 — AV (5)
 
@@ -628,7 +628,7 @@ Suite count: 1688 + 6 (lane 1) + 3 (lane 3) = **1697** at design; **1700** after
 <lane-3 HEAD>`** (the harness now captures at the default authority; at
 `aef88ce` it reads exactly what its predecessor read — 0 in all twelve, scenes
 identical, measured). Controls at their recorded values. **Expected, and each
-region to be accounted for from the `.scene` dumps** (record §39 §4, measured
+region to be accounted for from the `.scene` dumps** (record §41 §4, measured
 at arm H, which is arm G plus the re-spelling):
 
 | image | expected | every rect / glyph delta, and its cause |

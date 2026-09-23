@@ -184,7 +184,7 @@ private func draw(_ root: ProductionRoot, frames: Int,
 /// **3.3** (`LR-DK` item 2, `LR-Q`): every production root's deepest native
 /// level, read through a window (`Window.lastNativeLayoutDeepestLevel`), each
 /// well under `NativeLayoutRun.maxDepth`. The literals are **measured** (record
-/// §39 §12), not derived: they move when a lowering adds or drops a level, and
+/// §41 §12), not derived: they move when a lowering adds or drops a level, and
 /// that is the point — a production root creeping towards the limit reddens
 /// here first, naming itself.
 ///
@@ -195,7 +195,7 @@ private func draw(_ root: ProductionRoot, frames: Int,
 @MainActor
 @Test func everyProductionRootsDeepestNativeLevelIsMeasured() throws {
     // Measured at stage 6b lane 3. The demo read 29 before `LR-DJ`'s re-spelling
-    // (record §39 §5) and reads 30 after it: the row's declared height is one
+    // (record §41 §5) and reads 30 after it: the row's declared height is one
     // more lowered level on the demo's deepest path (the `List` row). The same
     // row spelling is why this `List` root reads 16 where the design's fixture,
     // without the declared height, read 15 (and this one, with the line

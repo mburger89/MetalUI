@@ -1150,7 +1150,7 @@ import MetalUIRender
 ///   then 258. **Wrong on purpose (B-7)**: if this reads 196 / 258, the snap is
 ///   fixed; flip the arm with the legacy one.
 ///
-/// Mutations, one per new arm (record §39 §11): the inner layer lowered from its
+/// Mutations, one per new arm (record §41 §11): the inner layer lowered from its
 /// declared style (`lowerLegacyLayer` handed the pre-`animated` style) reddens
 /// (a)'s inner half; the same for the outermost layer, its outer half; the lowered
 /// `ScrollView`'s content `animated(` call dropped reddens (b) (and

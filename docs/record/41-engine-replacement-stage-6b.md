@@ -1,4 +1,18 @@
-# §39 — Engine replacement, stage 6b: the root switch
+# §41 — Engine replacement, stage 6b: the root switch
+
+**Renumbered from §39 to §41 at merge with `master` (2026-09-23):** PR #22
+(`654a503` — roadmap items 9, MetalUI without AppKit or Metal, and 10, the
+demo on Linux and Windows) was pushed first and keeps §39–§40, so every `§39`
+this track wrote was repointed to `§41` and the file renamed
+(`docs/record/39-engine-replacement-stage-6b.md` →
+`41-engine-replacement-stage-6b.md`); the precedent is record §23 §8 and the
+§25, §27, §29 and §38 headers. Master's own `§39` citations (MetalUI off Apple)
+were left alone, and so were three historical mentions below — the numbering
+hazard paragraph (which describes this file as written, and the other line's
+"record §39", which is master's) and the Docs-pass list's "(the §39 row)".
+Counts re-taken on the merged tree: **1704 / 97 / 78, `Test run with 1704
+tests in 3 suites passed` (1691 + 13)** (`CLAUDE.md` "Build and test"; §20
+below).
 
 Plan task 7, stage 6b (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 6b,
@@ -996,3 +1010,100 @@ at stage 9 where `LR-DG` item 2 says 7b; §18 named §03's file
 `03-human-verification.md`.
 
 **Verdict: mergeable.** No code defect found.
+
+## 20. Merge with `master` `654a503` (2026-09-23, PDT)
+
+`origin/master` at `654a503` (PR #22: records §39 `metalui-portable`, `XP-`,
+and §40 `demo-cross-platform`, `DC-`) merged into `feat/engine-stage-6b` at
+`35ff1ac`.
+
+**Text conflicts** were `CLAUDE.md`, `AGENTS.md` and `docs/record/README.md`
+only, each resolved keeping both sides. **`Sources/` auto-merged**: of the six
+files PR #22 touched in `Sources/MetalUI/`, only `Window.swift` and
+`Frame.swift` were also edited here (`App.swift`, `Passes.swift`, `Text.swift`
+and `ProposalText.swift` carry no stage-6b change — `git diff aef88ce
+35ff1ac --stat` names none of them). The merged `Frame.swift` keeps both
+halves — `static let defaultLayoutAuthority: LayoutAuthority = .proposal`, the
+`hiddenNodes`/`isHidden`/`disablingHitTestingIfHidden` gates, the
+`legacyRootLayoutCounter` and the root-placement code, beside master's
+`#if canImport(MetalUIText)` import, the empty off-Apple `ShapingCache`, the
+`XP-B` text-system precondition and the gated `draw(_: PlacedGlyph, …)`;
+`Window.swift` keeps `layoutAuthority = Frame.defaultLayoutAuthority` beside
+master's `import Foundation`/`MetalUIPrimitives` (no `Metal`, no
+`MetalUIRender`) and its gated `CoreTextTextSystem` default. No stage-6b line
+uses a CoreText, Metal or AppKit symbol, so nothing new needed gating. PR #22
+adds no caller of the deprecated `requestNode`/`requestLeaf` and no
+`layoutAuthority` spelling (grep of its added lines).
+
+**The one semantic conflict: the demo-frame pin.** `XP-C`'s
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` (`Tests/MetalUICrossPlatformTests`)
+renders `demoContent()` in a bare `Frame` at 920×560 through the portable text
+system and hashes every primitive and the atlas; its values were recorded under
+the legacy default. On the merged tree it was the suite's **only** red (two
+issues, one per scale; `Test run with 1704 tests in 3 suites failed … with 2
+issues`). Attribution, measured, not read:
+
+- The same test with `layoutAuthority: .legacy` passed against the **old**
+  values at both scales — the switch is the only input that moved.
+- A scratch test (deleted) paired the `.legacy` and `.proposal` scenes by
+  index: counts equal (518 rects, 15 710 glyphs, 1 008 runs; no background,
+  order or corner radius differs). Scale 1 rects: `(+108, +18, 0, 0)` × 500
+  (the rows), `(+108, 0, 0, 0)` × 6, `(0, 0, +108, 0)` × 5 (sidebar 88 → 196
+  and its four buttons 60 → 168), `(+108, 0, −108, 0)` × 1 (main pane),
+  `(+108, +18, 0, −18)` × 1 (the list viewport), identical × 5. Glyphs
+  `(+108, +18)` × 15 392 (row labels), `(+108, 0)` × 97, the paragraph re-wrap
+  groups (`+244`, `+245`, `+352`, `+353`, `−293`/`−294`, `−392`/`−393`,
+  `−508`/`−509` with `+18` on the lines that moved down, and their ±1-width
+  sub-pixel variants), `(+109, 0)` × 7 (a one-point centring round) and 7
+  identical. Scale 2 is the same at twice the size (`+216`, `+36`, `(+218, 0)`
+  × 7). That is §12.6's `prod-default-light` exactly — **55 and its re-wrap**,
+  plus the **one-point rounding** — with Noto Sans's 18 pt line where CoreText's
+  was 16 (so the rows and viewport move by one Noto line, not 16) and a
+  `(+109, 0)` rounding group CoreText's metrics did not produce at this size.
+  No modal in this tree, so no C. The atlas hash moves too; that was **not
+  attributed glyph by glyph** (the likely reading — re-wrapped glyphs at other
+  sub-pixel offsets and first-use order — is unmeasured), but under `.legacy`
+  it reads its old value, so the switch is its only input as well.
+- Re-recorded on macOS with `METALUI_CROSSPLATFORM_RECORD=1 swift test
+  --build-system native --no-parallel --filter recordDemoFrames`: scale 1
+  `0x93022181f7ac03d7` / atlas `0x583ae5dca644fe93` (was `0xe35ec9f9db1a34c5` /
+  `0x556151fc7c4451f1`), scale 2 `0x7000ee7e5d7a4bb9` / `0xd5a9cf3e477fb669`
+  (was `0xd48286cbf9d0ff9b` / `0x2b84ea9c1486803f`); counts unchanged. The
+  file's header says why.
+- **Linux aarch64, measured locally**: the merged tree copied into
+  `swift:6.4-noble` — `swift build --build-tests` 0 `error:` / 0 `warning:`
+  (`XP-A`'s portable `MetalUI` still builds with the switch in it), and
+  `swift test --filter MetalUICrossPlatformTests` 3 passed, the new values
+  equal. **Linux x86_64 and Windows must re-confirm on push** (the `scene-linux`
+  / `root-windows` jobs and `sdl-gpu-linux.yml`).
+
+**`Backends/SDL` and `Experiments/SDLGPU` (record §40's commands, macOS).**
+`Backends/SDL`: `swift build` complete (only the environment's SDL3 dylib
+min-version linker notes), `swift test` 21 + 9 passed. Fixtures re-recorded
+with `swift run --build-system native Replay --portable --record` (gitignored;
+frame 5, the demo tree, now built under the proposal default: 518 rects,
+15 710 glyphs, 1 008 runs, SDL vs Metal 0 px; the draw-order mutation
+detected). `swift run PortableReplay ../../Experiments/SDLGPU/fixtures --expect
+6`: PASS, all six fixtures 0 px outside and inside glyphs, mutation detected.
+`swift run DemoCapture ../../Experiments/SDLGPU/fixtures`: `byte-for-byte
+macOS's: true`, 0 px, PASS.
+
+**The gate, re-taken on the merged tree** (`12db927` before this paragraph was
+amended in). `swift package clean`, `swift build --build-tests` (default build
+system): exit 0, 0 `error:`, 0 `warning:`. `swift package clean`, `swift build
+--build-system native --build-tests`: 0 `error:`, the only `warning:` SwiftPM's
+deprecation notice; unfiltered `swift test --build-system native
+--no-parallel`: **`Test run with 1704 tests in 3 suites passed after 94.218
+seconds`**, `FR-J no-argument frame: succeeded=true` in the log. **1704 = 1691
++ 13** (master's `654a503` figure, recorded by PR #22 and consistent with this
+run — the merged total less stage 6b's 13 — not re-measured separately).
+Goldens: 97, `git diff --name-only aef88ce HEAD -- 'Tests/**/*.json'` empty.
+Guards 78 (79 `canTypecheck` hits across the fifteen files, one a comment).
+
+**Pixels.** `compare.sh <scratch> aef88ce HEAD`: every control at its recorded
+value (1048576, 1030498, 210027, 0, 1048576, 0, 544, 216, prod 491923, distinct
+529, indicator rects 0), and the fourteen images read §12.6's numbers exactly
+(168380 × 4, 172126, 172105, 341608, 341606, preview and chrome 0 with scenes
+identical, 95649, 100745). `compare.sh <scratch> 35ff1ac HEAD`: **0 differing
+and scene identical in all fourteen** — PR #22 moves no pixel of the offscreen
+set.

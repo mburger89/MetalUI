@@ -63,7 +63,7 @@ final class NativeLayoutRun {
     /// 88 = 0.60 × 151 from 2026-09-14 until then).
     ///
     /// **Re-bisected in debug and — for the first time — release by stage 6b**
-    /// (`LR-Q` item 3; record §39 §5; `docs/probes/native-depth-ceiling/bisect.sh`
+    /// (`LR-Q` item 3; record §41 §5; `docs/probes/native-depth-ceiling/bisect.sh`
     /// at `aef88ce`, a chain of N one-child nodes of each kind over a leaf laid out
     /// at 400×400 through `computeNativeLayout` on a 1 MB `Thread`, the guard raised
     /// out of the way, one process per depth, each boundary re-confirmed; positive
@@ -97,7 +97,7 @@ final class NativeLayoutRun {
     /// re-bisection, which this is. The drop from 151 predates the grids track
     /// (it had moved at `cb2e708`, before any grid code).
     ///
-    /// **Production roots sit far below it** (record §39 §5, measured through a
+    /// **Production roots sit far below it** (record §41 §5, measured through a
     /// `Window` at `aef88ce` with the default flipped): the demo's deepest native
     /// level is 29 (modal off, on, and animating), the proposal preview 10, a
     /// `ScrollView { List }` root 15 — read through `LayoutTree

@@ -108,9 +108,9 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-6b` (2026-09-23 — plan task 7 stage 6b, the root switch,
-from `aef88ce`, not yet merged with `master`) the suite reports **1701
-tests**, in one summary line over three suites. That total includes **97**
+On `feat/engine-stage-6b` merged with `master` at `654a503` (2026-09-23 —
+plan task 7 stage 6b, the root switch, with roadmap items 9 and 10) the suite
+reports **1704 tests**, in one summary line over three suites. That total includes **97**
 layout goldens generated from WebKit and **78** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
@@ -325,7 +325,7 @@ transforms, and text colour animation.
   [`38-engine-replacement-stage-6a.md`](docs/record/38-engine-replacement-stage-6a.md)
   for its 6a stage — the public custom-element registrars deprecated and
   every test caller moved off them — and
-  [`39-engine-replacement-stage-6b.md`](docs/record/39-engine-replacement-stage-6b.md)
+  [`41-engine-replacement-stage-6b.md`](docs/record/41-engine-replacement-stage-6b.md)
   for its 6b stage — the root switch: production's default layout authority
   becomes `.proposal`. Five files are
   not task tracks:

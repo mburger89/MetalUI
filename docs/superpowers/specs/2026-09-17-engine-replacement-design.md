@@ -41,7 +41,7 @@ flipped-default classification table recorded as its entry measurement
 (153 reds, handed to stage 6b's root-placement ruling and stage 7b's CSS
 retirements). **Stage 6b (the root switch) has landed, complete on its
 branch, not yet merged** (Record phase, 2026-09-23): `feat/engine-stage-6b`,
-record §39, spec
+record §41, spec
 [`2026-09-23-engine-stage-6b-design.md`](2026-09-23-engine-stage-6b-design.md).
 It matches §4.1 row 6b's wording — `Window`'s default authority is
 `.proposal`, the demo is re-spelled for stage 2's semantics with every pixel

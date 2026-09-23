@@ -13,7 +13,9 @@ let package = Package(
         .library(name: "SDLBridge", targets: ["SDLBridge"]),
         .library(name: "ReplayFixture", targets: ["ReplayFixture"]),
         .library(name: "SDLReplay", targets: ["SDLReplay"]),
-        .executable(name: "PortableReplay", targets: ["PortableReplay"])
+        .executable(name: "PortableReplay", targets: ["PortableReplay"]),
+        .executable(name: "DemoCapture", targets: ["DemoCapture"]),
+        .executable(name: "MetalUISDLDemo", targets: ["MetalUISDLDemo"])
     ],
     dependencies: [.package(name: "MetalUI", path: "../..")],
     targets: [
@@ -34,6 +36,18 @@ let package = Package(
                                                            .product(name: "MetalUIScene", package: "MetalUI"),
                                                            .product(name: "MetalUIPortableText", package: "MetalUI")]),
         .executableTarget(name: "PortableReplay", dependencies: ["SDLReplay", "ReplayFixture"]),
+        // The demo on this platform, checked against macOS (ruling DC-B).
+        .executableTarget(name: "DemoCapture", dependencies: [
+            "MetalUISDL", "ReplayFixture",
+            .product(name: "MetalUI", package: "MetalUI"),
+            .product(name: "MetalUIDemoContent", package: "MetalUI"),
+            .product(name: "MetalUIPortableText", package: "MetalUI")]),
+        // The demo in an SDL window (ruling DC-C).
+        .executableTarget(name: "MetalUISDLDemo", dependencies: [
+            "MetalUISDL",
+            .product(name: "MetalUI", package: "MetalUI"),
+            .product(name: "MetalUIDemoContent", package: "MetalUI"),
+            .product(name: "MetalUIPortableText", package: "MetalUI")]),
         .testTarget(name: "ReplayFixtureTests", dependencies: ["ReplayFixture",
                                                                .product(name: "MetalUIScene", package: "MetalUI")])
     ]

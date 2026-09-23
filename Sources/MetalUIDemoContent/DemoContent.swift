@@ -865,7 +865,7 @@ public func demoContent() -> some Element {
                         // had nothing to centre in — every label sat 6pt
                         // high. Declared, the row is 28 under either authority
                         // (measured: 0 differing pixels in all twelve images at
-                        // the legacy default, record §39 §4 arm H0).
+                        // the legacy default, record §41 §4 arm H0).
                         List(demoRows, rowHeight: Pixels(28)) { row in
                             // Alternating row backgrounds, deliberately painted
                             // edge-to-edge with the viewport: `ScrollView`'s

@@ -6424,7 +6424,7 @@ Which defaults move (the `Window`'s, `Frame.init`'s, the test helpers'), does th
 authority gain a public spelling (`LR-B` left that to this stage), and do
 production frames report or trap?
 
-**Measured** (record §39 §2). Flipping `Frame.init` and `Window` with record
+**Measured** (record §41 §2). Flipping `Frame.init` and `Window` with record
 §38's helper set (arm G, `1c2fd9e`) reads 90 red; **four more file-local helpers
 default to `.legacy`** and were never flipped by §38's instrument
 (`TextSystemSeamTests.render`, `EnvironmentTests.frame` and `.counts`,
@@ -6514,7 +6514,7 @@ hugging root's hit region at the window's size.
 **What it costs if wrong.** Every production legacy root that hugs (no grower,
 no size) moves from the top-left corner to the window's centre — loud on the
 first frame, and pinned by 3.2. The demo root is greedy and does not move
-(record §39 §4: root rect (0, 0) 1024×1024 in both arms).
+(record §41 §4: root rect (0, 0) 1024×1024 in both arms).
 
 ---
 
@@ -6523,7 +6523,7 @@ first frame, and pinned by 3.2. The demo root is greedy and does not move
 **The question.** `LR-AV` deferred `hidden()` to "task 7, before stage 9" with no
 stage; `LR-DA` item 5 assigned it to 6b as a prerequisite of the flip. Five AV
 tests and one CSS-structure test abort a production frame on
-`display.none` (record §39 §2, arm G2's WOULD-TRAP lines).
+`display.none` (record §41 §2, arm G2's WOULD-TRAP lines).
 
 **Evidence.** `swiftui-engine-replacement-stage1.swift` re-run 2026-09-23 (exit
 0; all 79 lines in its header): **H0** control `VStack(spacing:0){a20; b20; c20}`
@@ -6569,7 +6569,7 @@ differently — 1.6.
 
 ## LR-DI — stage 6b: the 92 reds of the flipped default, disposed
 
-**Evidence.** Arm G2 (record §39 §2–§3), one row per test, and record §38 §4's
+**Evidence.** Arm G2 (record §41 §2–§3), one row per test, and record §38 §4's
 arms for the rows it shares.
 
 **The ruling** (spec §5, by name):
@@ -6610,7 +6610,7 @@ reads, which is the check that it is a CSS answer and not a production one.
 
 ## LR-DJ — stage 6b: the demo's pixels change by four named causes; one re-spelling restores the list rows' centring
 
-**Measured** (record §39 §4). The twelve-image comparison `aef88ce` → arm G:
+**Measured** (record §41 §4). The twelve-image comparison `aef88ce` → arm G:
 eight demo images differ (172 789 in `default-light-f0`), preview and chrome 0.
 From the scene dumps, every rect and glyph delta falls in five groups: **55**
 (the sidebar served its declared 196 — 320 animated — where CSS shrank it to 96
@@ -6651,7 +6651,7 @@ sidebar and animation readings are re-opened (`LR-DM`).
 re-measure every production root. `SA-L`'s own table was stale (the grids track
 read the vertical stack at 127 / 128, which by `SA-L`'s rule gives 72).
 
-**Measured** (record §39 §5; `docs/probes/native-depth-ceiling/bisect.sh` at
+**Measured** (record §41 §5; `docs/probes/native-depth-ceiling/bisect.sh` at
 `aef88ce`, a 1 MB thread, the guard raised out of the way, positive control
 `padding 10` completes and `padding 2000000` dies in both configurations).
 Last depth that completes, debug / release: padding, fixed frame, flexible
@@ -6815,7 +6815,7 @@ Item 3: two more images to account; a region nobody can attribute is the point.
 ## LR-DP — stage 6b lane 1: "as if shown" needs the overwritten display, the root takes the gates too, and five corrections to the lane-1 rows
 
 **Evidence.** Lane 1 on `feat/engine-stage-6b`: red-first commit `403d6d6`,
-implementation `ef48a0a`; record §39 §10 has every red line, the suite line and
+implementation `ef48a0a`; record §41 §10 has every red line, the suite line and
 the mutation table.
 
 **The ruling.**
@@ -6910,7 +6910,7 @@ VH reddens exactly 1.9.
 ## LR-DQ — stage 6b lane 2: 12 X not 14, two fixtures neither recipe greens, a third root recipe, and what the animation map found
 
 **Evidence.** Lane 2 on `feat/engine-stage-6b`: commit `b2abe17` (tests only; no
-`Sources/` line). Record §39 §11 has the entry reds, both readings, the recipe
+`Sources/` line). Record §41 §11 has the entry reds, both readings, the recipe
 disagreements and the mutation table (M2a–M2h2).
 
 **The ruling.**
@@ -6951,7 +6951,7 @@ disagreements and the mutation table (M2a–M2h2).
    greedy under the proposal authority (`FR-A`, `FR-M`), filling under the legacy
    one (`FR-O`), the background on the frame's box (`OM-C`). Green on both.
 4. **The predicted recipe was wrong for 14 rows** (spec §5.2's table read through
-   the arm column), each recorded in record §39 §11.3: eight `fill` rows whose root
+   the arm column), each recorded in record §41 §11.3: eight `fill` rows whose root
    declares both axes are R-centred (`aNestedHandlerWinsOverItsContainer…`,
    `onClickIsLive…`, `everyHandlerRegisteringSiteHonoursAllowsHitTesting`,
    `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain`,
@@ -7015,7 +7015,7 @@ layer or scroller content that snapped in production — M2f and M2h2 each redde
 ## LR-DR — stage 6b lane 3: the switch reads exactly the two D tests; the demo's deepest level is 30 after the re-spelling; the depth reaches `Window` by `package` access; the production-size images need no new cause
 
 **Evidence.** Lane 3 on `feat/engine-stage-6b`: the flip `58e4111`, red-first
-tests `27c9f52`, implementation `3d4f5d8`, pixel harness `5f0b4eb`. Record §39
+tests `27c9f52`, implementation `3d4f5d8`, pixel harness `5f0b4eb`. Record §41
 §12 has the red lines, the suite, mutations M3a–M3d and M2a at the new default,
 the fourteen-image accounting, the 100k-row reading and the screen.
 

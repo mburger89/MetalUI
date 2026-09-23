@@ -27,9 +27,11 @@ jobs:
   # The root package on Linux declares only the targets that import no Apple
   # framework (ruling PC-A): MetalUICore, MetalUILayout, MetalUIScene, the
   # vendored C libraries, MetalUIFreeType, MetalUIHarfBuzz,
-  # MetalUIPortableText, MetalUIShaderTypes and the Core and Layout tests —
-  # all of them built, and those tests run, here (roadmap item 5). An Apple
-  # import in any of them fails this job; macOS cannot see one.
+  # MetalUIPortableText, MetalUIShaderTypes, MetalUITextSystem,
+  # MetalUIPlatform, MetalUIPrimitives, MetalUI and MetalUIDemoContent (roadmap
+  # items 5–9) and the Core, Layout and cross-platform tests — the last pins
+  # the demo's whole frame against macOS (ruling XP-C). An Apple import in any
+  # of them fails this job; macOS cannot see one.
   scene-linux:
     name: Root package (Linux)
     runs-on: ubuntu-24.04

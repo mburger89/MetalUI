@@ -35,7 +35,7 @@
 // `alpha` is 0, and no scroll indicator is painted in any of them — scan for a
 // 3pt cross-axis rect and the count is zero everywhere.
 //
-// **Stage 6b (record §39, `LR-DJ`): the ten demo and preview images are taken
+// **Stage 6b (record §41, `LR-DJ`): the ten demo and preview images are taken
 // at the window's DEFAULT authority** — `capture` passes no `layoutAuthority`
 // unless an arm names one, so `makeFakeWindow` leaves `Window`'s own default in
 // place. Before stage 6b that default is `.legacy` and the images are exactly

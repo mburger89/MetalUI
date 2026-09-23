@@ -1,9 +1,11 @@
-import Metal
+import Foundation
 import Observation
 import MetalUICore
-import MetalUIRender
+import MetalUIPrimitives
 import MetalUIPlatform
+#if canImport(MetalUIText)
 import MetalUIText
+#endif
 import MetalUITextSystem
 
 @MainActor
@@ -470,7 +472,14 @@ public final class Window {
                         content: @escaping @MainActor () -> Root) {
         let shapingCache = ShapingCache()
         self.shapingCache = shapingCache
+        #if canImport(MetalUIText)
         self.textSystem = textSystem ?? CoreTextTextSystem(cache: shapingCache)
+        #else
+        guard let textSystem else {
+            preconditionFailure("a Window needs a TextSystem off Apple platforms: there is no CoreText (ruling XP-B)")
+        }
+        self.textSystem = textSystem
+        #endif
         self.platformWindow = platformWindow
         self.theme = Theme.forAppearance(platformWindow.appearance)
         self.renderRoot = { frame in

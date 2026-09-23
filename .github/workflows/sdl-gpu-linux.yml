@@ -22,6 +22,13 @@ on:
       - "Sources/CFreeType/**"
       - "Sources/CUnibreak/**"
       - "Sources/MetalUIScene/**"
+      # Frame 5 is the demo's whole tree (ruling DC-B).
+      - "Sources/MetalUI/**"
+      - "Sources/MetalUIDemoContent/**"
+      - "Sources/MetalUILayout/**"
+      - "Sources/MetalUICore/**"
+      - "Sources/MetalUITextSystem/**"
+      - "Sources/MetalUIPrimitives/**"
       - "Tests/Fonts/**"
   pull_request:
     paths:
@@ -37,6 +44,13 @@ on:
       - "Sources/CFreeType/**"
       - "Sources/CUnibreak/**"
       - "Sources/MetalUIScene/**"
+      # Frame 5 is the demo's whole tree (ruling DC-B).
+      - "Sources/MetalUI/**"
+      - "Sources/MetalUIDemoContent/**"
+      - "Sources/MetalUILayout/**"
+      - "Sources/MetalUICore/**"
+      - "Sources/MetalUITextSystem/**"
+      - "Sources/MetalUIPrimitives/**"
       - "Tests/Fonts/**"
   workflow_dispatch:
 
@@ -100,7 +114,9 @@ jobs:
             vulkaninfo --summary 2>/dev/null | grep -E "deviceName|driverName" || true
             swift build --scratch-path /tmp/build
             swift test --scratch-path /tmp/build
-            $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../../Experiments/SDLGPU/fixtures --driver vulkan --dump ../../Experiments/SDLGPU/linux-dump --expect 5
+            $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../../Experiments/SDLGPU/fixtures --driver vulkan --dump ../../Experiments/SDLGPU/linux-dump --expect 6
+            # The demo built HERE, checked against the macOS frame 5 (ruling DC-B; no apostrophes in this single-quoted script).
+            $(swift build --scratch-path /tmp/build --show-bin-path)/DemoCapture ../../Experiments/SDLGPU/fixtures --driver vulkan
           '
       - uses: actions/upload-artifact@v7
         if: failure()
@@ -151,7 +167,10 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force ..\..\Experiments\SDLGPU\windows-dump | Out-Null
           $bin = (swift build @flags --show-bin-path)
-          & "$bin\PortableReplay.exe" ..\..\Experiments\SDLGPU\fixtures --driver direct3d12 --dump ..\..\Experiments\SDLGPU\windows-dump --expect 5
+          & "$bin\PortableReplay.exe" ..\..\Experiments\SDLGPU\fixtures --driver direct3d12 --dump ..\..\Experiments\SDLGPU\windows-dump --expect 6
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          # The demo built HERE, checked against macOS's frame 5 (ruling DC-B).
+          & "$bin\DemoCapture.exe" ..\..\Experiments\SDLGPU\fixtures --driver direct3d12
           exit $LASTEXITCODE
       - uses: actions/upload-artifact@v7
         if: failure()

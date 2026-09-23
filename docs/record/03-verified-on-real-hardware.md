@@ -1392,7 +1392,7 @@ the `feat/engine-stage-5` Docs phase and recorded here in full.
 
 ## 2026-09-23: the demo-layout rows re-opened at engine replacement stage 6b
 
-Record §39 §13, §16, §18. Written into the root `CLAUDE.md`'s
+Record §41 §13, §16, §18. Written into the root `CLAUDE.md`'s
 human-verification bullet at the `feat/engine-stage-6b` Docs phase and
 recorded here in full. **This is the row every prior stage's own section
 pointed at as "the first one still owed."**
@@ -1418,7 +1418,7 @@ pointed at as "the first one still owed."**
   modal 1 030 498; default vs animation 210 027; f0 vs f3 0; preview 1 048 576;
   chrome pair 0; distinct 544/216; indicator rects 0; new: prod default vs
   modal 491 923, distinct `prod-default-light` 529). **Every differing pixel is
-  one of four named causes, none outside them** (record §39 §4, §12.6): **55**
+  one of four named causes, none outside them** (record §41 §4, §12.6): **55**
   (the sidebar/animation-panel width SwiftUI answers — 196 pt at 1024², 320 pt
   animated — where the CSS engine had shrunk it to 96/139; the main pane and
   everything in it shifts with it), **55's re-wrap** (the paragraph breaks

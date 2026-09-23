@@ -278,7 +278,7 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
 /// zero rect and its zero-size hitbox is registered — and `hiddenNodes` is empty.
 ///
 /// The literals were **measured at the lane's first commit, before any `Sources/`
-/// line changed** (record §39, lane 1), not derived. The non-empty legacy emission is
+/// line changed** (record §41, lane 1), not derived. The non-empty legacy emission is
 /// `try #require`d first: a fixture that emitted nothing for the hidden element would
 /// leave **M1g** (the paint skip reading `display == .none`) unable to redden this.
 @Test @MainActor func theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore() throws {

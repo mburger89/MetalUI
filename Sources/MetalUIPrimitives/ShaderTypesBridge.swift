@@ -1,35 +1,35 @@
 import MetalUICore
-import MetalUIText
+import MetalUIScene
 @_exported import MetalUIShaderTypes
 // Ruling PS-B: Scene, DrawRun and PrimitiveKind lived in this module until
 // 2026-09-22; re-exported so `import MetalUIRender` still sees them.
 @_exported import MetalUIScene
 
 extension MUIPoint {
-    init(_ p: Point<ScaledPixels>) { self.init(x: p.x.value, y: p.y.value) }
+    package init(_ p: Point<ScaledPixels>) { self.init(x: p.x.value, y: p.y.value) }
 }
 
 extension MUISize {
-    init(_ s: Size<ScaledPixels>) { self.init(width: s.width.value, height: s.height.value) }
+    package init(_ s: Size<ScaledPixels>) { self.init(width: s.width.value, height: s.height.value) }
 }
 
 extension MUIBounds {
-    init(_ b: Bounds<ScaledPixels>) { self.init(origin: MUIPoint(b.origin), size: MUISize(b.size)) }
+    package init(_ b: Bounds<ScaledPixels>) { self.init(origin: MUIPoint(b.origin), size: MUISize(b.size)) }
 }
 
 extension MUIHsla {
-    init(_ c: Hsla) { self.init(h: c.h, s: c.s, l: c.l, a: c.a) }
+    package init(_ c: Hsla) { self.init(h: c.h, s: c.s, l: c.l, a: c.a) }
 }
 
 extension MUICorners {
-    init(_ c: Corners<ScaledPixels>) {
+    package init(_ c: Corners<ScaledPixels>) {
         self.init(topLeft: c.topLeft.value, topRight: c.topRight.value,
                   bottomRight: c.bottomRight.value, bottomLeft: c.bottomLeft.value)
     }
 }
 
 extension MUIEdges {
-    init(_ e: Edges<ScaledPixels>) {
+    package init(_ e: Edges<ScaledPixels>) {
         self.init(top: e.top.value, right: e.right.value,
                   bottom: e.bottom.value, left: e.left.value)
     }

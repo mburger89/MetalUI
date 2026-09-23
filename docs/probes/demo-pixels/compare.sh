@@ -46,7 +46,7 @@
 # set (record §25 §7.6's caveat, measured by scanning every `.scene` dump for a
 # 3pt cross-axis rect: zero in all twelve).
 #
-# FROM STAGE 6b ON (record §39, `LR-DJ`) the paragraph above is history: the
+# FROM STAGE 6b ON (record §41, `LR-DJ`) the paragraph above is history: the
 # demo and preview images are taken at the window's default authority, which
 # stage 6b makes `.proposal`, so the eight demo images CAN move with a kernel or
 # lowering change, and a comparison across the switch itself differs by design.

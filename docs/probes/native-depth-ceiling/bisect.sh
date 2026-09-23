@@ -3,7 +3,7 @@
 # measurement `SA-L` sets `NativeLayoutRun.maxDepth` from, and that `LR-Q` asks
 # stage 6b to re-take in RELEASE before the root switch.
 #
-# Committed by plan task 7, stage 6b's design (record §39). Until now every
+# Committed by plan task 7, stage 6b's design (record §41). Until now every
 # re-bisection (SA-L 2026-09-14, the grids track's three) was rebuilt from prose.
 #
 # METHOD. The commit is exported with `git archive`; `ZZDepthCeilingProbe.swift`

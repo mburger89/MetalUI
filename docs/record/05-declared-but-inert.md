@@ -293,7 +293,7 @@ unchanged, until stage 6b.
 
 ## 2026-09-23: one row deleted at engine replacement stage 6b
 
-Record §39; rulings `LR-DF`…`LR-DR`. **One row deleted, none added or
+Record §41; rulings `LR-DF`…`LR-DR`. **One row deleted, none added or
 edited.** `Frame.defaultLayoutAuthority` is now `.proposal` (`LR-DF`):
 `Frame.init`'s default and `Window.layoutAuthority`'s initial value both read
 it, so every production frame or window built with no explicit authority now

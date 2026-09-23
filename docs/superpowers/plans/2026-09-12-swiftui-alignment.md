@@ -641,7 +641,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `swiftui-engine-replacement-stage1.swift`'s H0–H2,
   `swiftui-engine-replacement-stage2.swift`'s V0–V3) plus two new harnesses,
   `docs/probes/native-depth-ceiling/` and
-  `docs/probes/stage-6b-flip-instrument.patch`; record §39. **Stage 6b
+  `docs/probes/stage-6b-flip-instrument.patch`; record §41. **Stage 6b
   delivered** (a critic round plus three lanes, each with its own mutation
   table, all verified `ok`): `Frame.defaultLayoutAuthority` is now
   `.proposal` — `Frame.init`'s default and `Window.layoutAuthority`'s initial
