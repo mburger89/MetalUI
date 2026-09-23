@@ -1,11 +1,11 @@
 # Engine replacement, stage 6a — custom elements, and tests that are about CSS answers (plan task 7)
 
-**Status, 2026-09-23 (PDT): DESIGNED — no lane has run.** Every measurement
+**Status, 2026-09-23 (PDT): DESIGNED, critic round 1 applied (`LR-DA`) — no lane has run.** Every measurement
 below was taken on `feat/engine-stage-6a` from `b3c29b9` in
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-6a`, on scratch commits
 `9ccc0d8`…`59b63ad` that `a1b6edf` reverts to `b3c29b9`'s tree exactly; the
 measurements, the arms and the full classification table are in
-`docs/record/30-engine-replacement-stage-6a.md` §1–§6. Rulings `LR-CT`…`LR-CZ`
+`docs/record/30-engine-replacement-stage-6a.md` §1–§7. Rulings `LR-CT`…`LR-CZ`, critic round 1 `LR-DA`,
 in [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Probe: `docs/probes/swift-deprecated-witness-silence.sh` (compiler, not SwiftUI;
 no SwiftUI claim is made anywhere in this stage).
@@ -82,7 +82,9 @@ Record §30 §2 and §4 in full; the summary that decides §5:
   and CE+RP 23 (root placement, 6b)**, CE 6 (custom element only), AV 5
   (`hidden()`, no owner), RT 1, **CSS 43** (structure 14, style 7, text 3, legacy
   frame 10, divergence 48 ×5, legacy-vs-proposal pins 2, stretched box model 2),
-  unattributed 1.
+  and **RP+CSS-frame 1** — the row the design left unattributed, measured by the
+  critic round (`LR-DA` item 4, record §30 §7): root placement for three of its
+  arms and `FR-E`'s legacy flexible-frame answer for the fourth.
 
 ## 3. Decisions
 
@@ -95,6 +97,7 @@ Record §30 §2 and §4 in full; the summary that decides §5:
 | 5 | The exit test and one new plain-import guard; the deprecation lands **last**, in lane 3, in the commit that moves the last caller | `LR-CX` |
 | 6 | Three lanes by file; lane 3 closes the gate | `LR-CY` |
 | 7 | What 6b and 7b inherit | `LR-CZ` |
+| 8 | Critic round 1: instrument I0 re-spelled as a patch with a measured control set; the four P-only files outside lane 3's duals move to lane 2; a dual element's R test always passes `.proposal`; the unattributed row attributed; `hidden()`'s owner named (6b); the probe's separating arm; the R move off the production authority accepted with its evidence | `LR-DA` |
 
 ## 4. API and files
 
@@ -139,7 +142,11 @@ The spellings:
   (a native linear stack or frame where the test reads geometry — named per row).
   Its test's `Frame`/window/helper gets `layoutAuthority: .proposal` **unless the
   whole tree is native** (then the authority is irrelevant: `computeRootLayout`
-  chooses the kernel by the root). Every assertion unchanged.
+  chooses the kernel by the root). Every assertion unchanged. **The exception
+  never applies to a Dual element's R test** (`LR-DA` item 3): a Dual element is
+  native only when `pass.lowersToProposal`, so at the default authority its R
+  test would silently keep the legacy branch and nothing would have moved; each
+  such test passes `.proposal` explicitly.
 - **P-CSS** (7b retires), **P-6b** (6b re-spells after ruling root placement),
   **P-9** (deleted with the legacy authority) — the element registers
   `pass.frame.requestNode`/`requestLeaf` with the same arguments; its test passes
@@ -186,11 +193,15 @@ green in A2.
 | `FrameSizingCompileGuards` | `LegacyLeaf` in `bothLeavesSource` (46) | G | `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`, `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` |
 | `ModifiedElementCompileGuards` | `Leaf` in `leafSource` (37) | G | every guard in the file that splices `leafSource`, including the 24-modifier solver-budget guard |
 
-### Lane 2 — authority-independent tests (R, one Dual)
+### Lane 2 — authority-independent tests (R, one Dual) and the P-only files
 
-Every test here is green in A2 unless marked **CE** (green in B2: needs the
+Every R test here is green in A2 unless marked **CE** (green in B2: needs the
 element's size). The two `PipelineTests` CE rows need geometry equal to the
-legacy row's, spelled natively.
+legacy row's, spelled natively. The last four rows are the files whose every
+caller is pinned (P-CSS, P-6b, P-9) and which hold no Dual element; they moved
+here from lane 3 in critic round 1 (`LR-DA` item 2) so that lane 3 carries the
+duals, the gate and the exit test, and so that lane 2's one I0 run covers every
+pin it writes.
 
 | file | element (line) | disp. | tests |
 |---|---|---|---|
@@ -208,6 +219,10 @@ legacy row's, spelled natively.
 | `ElementGroupTrapTests` | `ContentSwapper` (175, a container: `requestNativeOverlay` over its children), `StateProbe` (363) | R | the six `renderSwapper` exit tests (`flippingAnEitherBranchBetweenPhasesTraps`, `anUnflippedEitherBranchDoesNotTrap`, `droppingAnOptionalChildBetweenPhasesTraps`, `anOptionalChildThatIsAbsentInBothPhasesDoesNotTrap`, `changingAnArrayGroupsCountBetweenPhasesTraps` and the array group's `.success` control — the helper's `Frame` gets `.proposal`), `twoSiblingsWithTheSameIDShareOneStateEntry`, `twoSiblingsWithDifferentIDsDoNotShareState` |
 | `PipelineTests` | `ProbeRow` (65: a 400×100 row over 100×40 and 60×20) | R | `theThreePhasesRunInOrder`, `eachFrameOwnsItsOwnStateSoNothingLeaksBetweenFrames`, **CE** `prepaintSeesBoundsTheEngineResolvedBetweenTheFirstTwoPhases`, **CE** `paintReceivesTheRootBoundsAndEmitsIntoTheFramesScene` — re-spelled as a native fixed 400×100 `.topLeading` frame over a native horizontal linear stack, `.top`, spacing 0, over two sized leaves (the legacy answer (0, 0) and (100, 0) at their sizes; all-native, so no authority argument) |
 | `PipelineTests` | `StampedProbe` (232), `MutatingProbe` (343), `IdentifiedProbe` (439) — 30×10; the hand-built root row in `twoCopiesOfOneElementDoNotShareLayoutState` (295) | R | `twoCopiesOfOneElementDoNotShareLayoutState` (root → a native horizontal linear stack, spacing 0), `theBoxCarriesEveryPhasesMutationForwardToTheNextPhase`, `theErasureForwardsTheElementsIdentity`, `paintWritesItsStatesBackSoASecondPaintSeesTheFirst` |
+| `ContainerIntegrationTests` | `LegacyMark` (1420) | P-CSS | the **legacy arm** of `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`, `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal`, `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents` (the proposal arms are native already) |
+| `HitboxTests` | `HitboxProbe` (370) | P-6b | `hoverResolvedThroughARealRenderHasNoLag`, `aMouseMovedEventMakesTheBoxUnderItHoveredOnTheNextFrame`, `aPressThatLeavesTheHitboxAndReturnsStaysActive`, `activeIsSetOnMouseDownAndHeldUntilMouseUp`, `activeSurvivesAFrameBoundary` (all CE+RP) |
+| `ProposalNodeIDTests` | `OrphanLegacyNode` (44), `StatefulLegacyLeaf` (66) | P-9 | `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` (`MC-G` holes 2 and 6: the subject is a legacy registration) |
+| `NativeBoundaryIntegrationTests` | `LegacyNodeUnderAProposalMarker` (35) | P-9 | `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer` (`MC-G` hole 3; the child's `Frame` gets `.legacy`) |
 
 ### Lane 3 — layout-answer tests (P, R, Dual) and the gate
 
@@ -221,14 +236,10 @@ legacy row's, spelled natively.
 | `ModifiedElementTests` | `ChainLeaf` (117) | P-CSS | `legacyModifierChainsInferOneConcreteType` (`nodeCount == 4`) |
 | `ModifierCompositionProofTests` | `CountingLeaf` (119) | **Dual** | R: `everyModifierWrapperDelegatesEachPhaseExactlyOnce`, **CE** `stateSurvivesFramesUnderALegacyModifierChain`, **CE** `aModifierChainRegistersAndPaintsOuterLayersFirst`. **P-6b**: `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`. **P-CSS**: `aModifierChainIsIdenticalToHandBuiltNestedBoxes` |
 | `ModifierCompositionProofTests` | `BoxWithoutAnimated` (482; a copy of `Box`'s phases, the disagreeing oracle) | P-CSS | `aModifierChainIsIdenticalToHandBuiltNestedBoxes` |
-| `ContainerIntegrationTests` | `LegacyMark` (1420) | P-CSS | the **legacy arm** of `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`, `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal`, `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents` (the proposal arms are native already) |
-| `HitboxTests` | `HitboxProbe` (370) | P-6b | `hoverResolvedThroughARealRenderHasNoLag`, `aMouseMovedEventMakesTheBoxUnderItHoveredOnTheNextFrame`, `aPressThatLeavesTheHitboxAndReturnsStaysActive`, `activeIsSetOnMouseDownAndHeldUntilMouseUp`, `activeSurvivesAFrameBoundary` (all CE+RP) |
-| `ProposalNodeIDTests` | `OrphanLegacyNode` (44), `StatefulLegacyLeaf` (66) | P-9 | `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` (`MC-G` holes 2 and 6: the subject is a legacy registration) |
-| `NativeBoundaryIntegrationTests` | `LegacyNodeUnderAProposalMarker` (35) | P-9 | `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer` (`MC-G` hole 3; the child's `Frame` gets `.legacy`) |
 | `LayoutAuthorityTests` | `CustomNodeElement` (34), `CustomLeafElement` (45) | Dep | `aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` |
 
-Totals: **R 66 tests** (lane 2: 52, lane 3: 14); **P 57** — 32 P-CSS, 23 P-6b (one
-of them lane 2's), 2 P-9; **Dual** 6 elements; **L** 10 fixtures; **Dep** 6
+Totals: **R 66 tests** (lane 2: 52, lane 3: 14); **P 57** — 32 P-CSS (lane 2: 3,
+lane 3: 29), 23 P-6b (lane 2: 6, lane 3: 17), 2 P-9 (lane 2); **Dual** 6 elements; **L** 10 fixtures; **Dep** 6
 (+ 3.1's); **G** 8 sites.
 
 ## 6. What must not move, and what does
@@ -260,15 +271,25 @@ Three, sequential in one worktree, disjoint files. Each lane commits its change
 first (green, 0 `warning:`), then runs its mutations (commit, restore from a
 `cp` copy, full unfiltered suite, `git status --short` after each, every
 reddened test named), appends its section to record §30 and its corrections
-ruling (the next unused `LR-` letter after `LR-CZ`), and re-takes the twelve
+ruling (the next unused `LR-` letter — `LR-DB` after critic round 1), and re-takes the twelve
 `CN-R` images. **A lane that finds a re-spelled (R) test red records it — arm,
 failing assertion — and pins it P with the measured cause rather than editing
 the assertion**; the design's per-test prediction is the entry measurement, not a
 promise.
 
-**Instrument I0** (for mutations that would otherwise truncate the run): in a
-scratch, `git cherry-pick 0d02538` (noteUnlowerable and the backstop non-fatal,
-printing `SIXA-WOULD-TRAP:`); reverted with the mutation.
+**Instrument I0** (for mutations that would otherwise truncate the run):
+`git apply docs/probes/stage-6a-instrument-I0.patch` (`noteUnlowerable` and the
+backstop non-fatal, printing `SIXA-WOULD-TRAP:`); reverted with the mutation.
+**Not `git cherry-pick 0d02538`**, as the design first said: that commit's
+context carries arm A's `SIXA-UNLOWERABLE` print and does not apply at
+`b3c29b9` (`git apply --check`: `patch does not apply`, critic round 1). **I0
+has reds of its own**, and every mutation over it is read as the difference
+against an **I0 control run on the same commit**: measured at `b3c29b9`, I0
+alone reads `Test run with 1640 tests in 3 suites failed … with 32 issues`, the
+reddened set **exactly the 13 X tests** of record §30 §4 (the production-trap
+exit tests, which no longer trap); from lane 3's red-first commit on, 3.1's trap
+half joins it. A lane re-takes the control before its first I0 mutation and
+names any difference from that set.
 
 ### Lane 1 — fixtures (L, Dep, G) (`LR-CU`, `LR-CV`)
 
@@ -284,15 +305,18 @@ nothing and nothing else can.
 | 1.5 | the three `ProposalNodeIDCompileGuards` re-spelled | **M1d**/**M1e**/**M1f** each guard's own named mutation (guard 1: a trapping default `requestProposalGroupLayout` on every `ProposalElementGroup`; guard 2: `ProposalNodeID.init(_:)` `public`; guard 6: its doc comment's) |
 | 1.6 | `FrameSizingCompileGuards`' two and `ModifiedElementCompileGuards`' leaf-splicing guards re-spelled; **the solver-budget guard's in-test negative still fails and its positive passes at 1000** | **M1g**/**M1h** each guard's own named mutation, re-run (the practice: a mutation a doc comment names is re-run when the code under it changes) |
 
-### Lane 2 — authority-independent tests (R) (`LR-CU`)
+### Lane 2 — authority-independent tests (R) and the P-only files (`LR-CU`, `LR-DA`)
 
-Files: lane 2's rows of §5. Tests only.
+Files: lane 2's rows of §5 — the R files, `EnvironmentTests`' dual, and
+`ContainerIntegrationTests`, `HitboxTests`, `ProposalNodeIDTests`,
+`NativeBoundaryIntegrationTests` (moved from lane 3, `LR-DA` item 2). Tests only.
+Each pinned test's doc comment gains the §5 line.
 
 | # | check | mutation |
 |---|---|---|
 | 2.1 | every lane-2 R test green under `.proposal`, assertions unchanged | **M2a** every lane-2 native leaf's measure answers 0×0 (in one scratch): reddens **exactly** the two CE rows (`prepaintSeesBoundsTheEngineResolvedBetweenTheFirstTwoPhases`, `paintReceivesTheRootBoundsAndEmitsIntoTheFramesScene`) plus whatever else reads a lane-2 element's size — the lane names the set; a non-CE test in it is a finding about §5's A2 reading |
 | 2.2 | `ProbeRow`'s native spelling places (0, 0) 100×40 and (100, 0) 60×20 | **M2b** the stack's alignment `.center` (second child y 10: the two CE rows redden) |
-| 2.3 | `ClickCounter`'s dual branch: its P-6b test still green under `.legacy`, its R test under `.proposal` | covered by lane 3's **M3g** shape, run here over this file's one `.legacy` pin (I0): `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter` alone reddens |
+| 2.3 | the lane's pins: `ClickCounter`'s P-6b test green under `.legacy` (its R test under `.proposal`), and the four P-only files | **M2c** over I0, every `.legacy` pin lane 2 wrote flipped to `.proposal`; against the I0 control the reddened set must be the lane-2 P tests red in A2 — **10**: `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter`, the five `HitboxTests`, `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected`, `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`, `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal`, `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents` — with `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight` green (A2-green, pinned by name). Under I0 the backstop returns a 0×0 native leaf, not a trap, so a P-9 test whose assertion is "not rejected" may stay green: the lane names the set and records any difference as a finding about the classification. If the flip truncates the run (an `SA-G` precondition I0 does not soften), bisect by file and record which |
 
 **No mutation of an R test's authority is taken** (record §30 §6): putting a
 re-spelled element back on `pass.frame.requestNode` under `.proposal` traps at the
@@ -303,7 +327,9 @@ in-process without truncating the suite.
 
 ### Lane 3 — layout-answer tests (P, R, Dual), the deprecation, the exit test (`LR-CU`, `LR-CW`, `LR-CX`)
 
-Files: lane 3's rows of §5, `Passes.swift`, `LayoutAuthority.swift`,
+Files: lane 3's rows of §5 (after critic round 1: `ElementLayoutTests`,
+`ComponentTests`, `FrameSizingTests`, `ModifiedElementTests`,
+`ModifierCompositionProofTests`, `LayoutAuthorityTests`), `Passes.swift`, `LayoutAuthority.swift`,
 `LayoutAuthorityCompileGuards.swift`. **Order inside the lane**: the callers
 first (green, 0 warnings); then **3.1 and 3.2 written red-first** in their own
 commit; then the attributes and `owningStage` — the commit that closes the gate.
@@ -313,7 +339,7 @@ Then pixels, captures, the record's closing sections.
 |---|---|---|---|---|
 | 3.1 | **new** `aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne` (`LayoutAuthorityTests`) | §8 | the trap half's `(plan task 7, stage 9)` substring: the message says **stage 6a** until `owningStage` moves; the legacy half passes (says so at its declaration) | **M3c** the legacy `requestNode` forwarder registers `Style()` in place of `style` (legacy half); **M3d** the legacy `requestLeaf` forwarder passes a 0×0 measure (legacy half); **M3e** the proposal forwarder skips its report and calls `frame.requestNode` (trap half — and 1.3's `aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority` and the four `aLegacySpelled…Aborts…` exit tests, which read the same message); **M3f** `owningStage` for `.customElement` back to `"6a"` (trap half only) |
 | 3.2 | **new** `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` (`LayoutAuthorityCompileGuards`, `typecheckFile`) | a plain-import fixture calling `pass.requestNode` and `pass.requestLeaf` **still compiles** (`succeeded`), and its `messages` contain `'requestNode(style:children:)' is deprecated`, `'requestLeaf(style:measure:)' is deprecated` and `requestNativeLeaf`; a control fixture calling only `requestNativeLeaf` contains no `is deprecated`; `try #require` that the two disagree on `contains("is deprecated")` | no deprecation: both fixtures' messages are empty | **M3a** the attribute removed from `requestNode`; **M3b** removed from `requestLeaf` |
-| 3.3 | the pins | every lane-3 `.legacy` pin is load-bearing | — | **M3g** over I0, every `.legacy` pin lane 3 wrote flipped to `.proposal`: the reddened set must equal the P tests of lane 3 that are red in A2 — all 55 of them (22 P-6b, 31 P-CSS, 2 P-9) except `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight` (green in A2, pinned by its name, `LR-CU`) — the lane names the set and records any difference as a finding about the classification |
+| 3.3 | the pins | every lane-3 `.legacy` pin is load-bearing | — | **M3g** over I0, every `.legacy` pin lane 3 wrote flipped to `.proposal`: against the I0 control (§7), the reddened set must equal the P tests of lane 3 — all **46** of them (17 P-6b, 29 P-CSS; every one red in A2) — the lane names the set and records any difference as a finding about the classification; a truncated run is bisected by file (`LR-DA` item 1) |
 | 3.4 | the R and CE rows of lane 3 | green under `.proposal`, assertions unchanged | — | **M3h** every lane-3 native leaf's measure answers 0×0: must redden the four CE rows (`aNodeIDDoesNotSilentlyResolveAgainstAnotherFramesTree`, `addingALayerAtRunTimeResetsTheWrappedElementsState`, `stateSurvivesFramesUnderALegacyModifierChain`, `aModifierChainRegistersAndPaintsOuterLayersFirst`; the lane names the whole reddened set) |
 | 3.5 | the gate | `swift build --build-system native --build-tests` and the default build system: 0 `error:`, the only `warning:` SwiftPM's notice; `grep -rn 'pass\.requestNode(\|pass\.requestLeaf(\|layoutPass\.requestNode(' Tests` returns only Dep fixtures' lines | the deprecation with one caller left behind (a scratch revert of one lane-3 re-spelling): exactly one `warning: 'requestNode(style:children:)' is deprecated` | — |
 
@@ -363,9 +389,9 @@ each capture's reading. **No demo look is owed.**
 |---|---|
 | root placement (divergence 4 vs `CN-J`): **78** of the flip's reds (RP 54, CE+RP 23, RT 1), including the 23 P-6b tests this stage pins | 6b |
 | the eight test helpers' `.legacy` parameter defaults, flipped with `Window`'s | 6b |
-| `hidden()` / `display: none` under the proposal authority (5 AV rows; `LR-AV` names no stage and `owningStage` says 2) | 6b assigns |
+| `hidden()` / `display: none` under the proposal authority (5 AV rows; `LR-AV` names no stage and `owningStage` says 2) | **6b** — a prerequisite of its flip, not an assignment it may defer: it lowers `hidden()` under `LR-AV`'s constraints or pins the five to `.legacy` with 7b named, before `Window`'s default moves (`LR-DA` item 5) |
 | the two default-asserting tests (D) and the three non-caller N9 exit tests at the default authority | 6b pins or rewrites |
-| `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBox` — red in every arm, unattributed | 6b measures |
+| `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBox` — **RP+CSS-frame** (measured, record §30 §7): its control, `after` and `before` arms are off by exactly the centred root's (70, 80) offset; its `flexible` arm is 90 wide where `FR-E`'s legacy frame answers 80 | 6b (root), then 7b (the `FR-E` arm) |
 | the 32 P-CSS element tests, plus the 12 non-caller CSS rows (`StackElementTests` ×3, `TextMeasureTests` ×4, `EnvironmentTests` ×2, `AnimationTests` ×1, `FrameDecorationInteractionTests` ×1, `OuterModifierMatrixTests` ×1) | 7b |
 | the two P-9 tests, the Dep fixtures, the L fixtures' legacy branches, the Dual elements' legacy branches, `LoweringSite.customElement`, the public pair | 9 |
 | CLAUDE.md, AGENTS.md, records §03/§04/§05/README, the plan's 6a row, the parent spec's status | the Record phase |

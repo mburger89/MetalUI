@@ -35,6 +35,16 @@
 #     == use2 swift 5
 #     == use2 swift 6
 #
+# RE-RUN 2026-09-23 by the stage-6a critic round (LR-DA), same toolchain: the three
+# lines above byte for byte, plus the separating arm it added (use3.swift =
+# use2.swift with the witness's attribute deleted), which warns in both modes —
+# so use2's silence is the attribute's doing, not the fixture shape's:
+#
+#     == use3 (use2 without the witness attribute) swift 5
+#     use3.swift:4:46: warning: 'requestNode(style:children:)' is deprecated: use native [#DeprecatedDeclaration]
+#     == use3 (use2 without the witness attribute) swift 6
+#     use3.swift:4:46: warning: 'requestNode(style:children:)' is deprecated: use native [#DeprecatedDeclaration]
+#
 # READING. The positive control warns, so the instrument can fail. A call
 # inside a deprecated declaration does not warn, and a deprecated method used
 # as a protocol witness does not warn at the conformance, nor at a generic call
@@ -84,4 +94,12 @@ xcrun swiftc -typecheck -swift-version 6 -diagnostic-style=llvm -I . use.swift 2
 for v in 5 6; do
     echo "== use2 swift $v"
     xcrun swiftc -typecheck -swift-version $v -diagnostic-style=llvm -I . use2.swift 2>&1 | grep -E "warning:|error:" || true
+done
+# Separating arm (added by the stage-6a critic round, LR-DA): use2.swift with the
+# attribute on the witness removed. It MUST warn once, or use2's silence says
+# nothing about the attribute.
+sed '/@available(\*, deprecated, message: "spelled with/d' use2.swift > use3.swift
+for v in 5 6; do
+    echo "== use3 (use2 without the witness attribute) swift $v"
+    xcrun swiftc -typecheck -swift-version $v -diagnostic-style=llvm -I . use3.swift 2>&1 | grep -E "warning:|error:" || true
 done

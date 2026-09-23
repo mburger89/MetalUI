@@ -15,7 +15,7 @@ the stage's **entry measurement** is §4. Every one was taken on scratch
 commits (`9ccc0d8`…`59b63ad`, listed in §2) that `a1b6edf` reverts to
 `b3c29b9`'s tree exactly (`git diff --quiet b3c29b9 a1b6edf` succeeds); they
 stay in the history so a later reader can re-run an arm by checking it out.
-The lanes append from §7.
+Critic round 1 is §7; the lanes append from §8.
 
 ## 1. Baseline at `b3c29b9`
 
@@ -145,7 +145,7 @@ A2 is the flipped default; the other arms attribute its reds. Classes:
 | **CSS-d48** | divergence 48: a `Component`'s `.width`/`.height` **overwrites** each member (stage 3 lowered it to one frame per member; the overwrite is the legacy answer) | 7b | 5 |
 | **CSS-pin** | a "legacy X where proposal Y" comparison whose legacy arm ran under the default | 7b (6a pins the legacy arm) | 2 |
 | **CSS-box** | margin / padding edges on a stretched custom leaf: needs the `Box` lowering's stretch, which a native leaf never gets (record §23 X2: a child with no record is never stretched) | 7b | 2 |
-| **UNATTRIBUTED** | red in all five arms, no custom element, no report: `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBox` | 6b measures | 1 |
+| **RP+CSS-frame** (the design's UNATTRIBUTED) | red in all five arms, no custom element, no report: `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBox` — attributed by the critic round's measurement (§7.2): three arms are root placement, the fourth is `FR-E`'s legacy flexible frame | 6b (root), 7b (`FR-E`) | 1 |
 | | | **total** | **153** |
 
 **What this says to 6b.** Of the 140 non-X reds, **54 + 23 + 1 are root
@@ -397,7 +397,7 @@ The full table, one row per red test, arms as each read (p passed, f failed):
 | ElementLayoutTests | `marginEdgesAreNotTransposed` | B2 f C2 f C3 f B3 f |
 | ElementLayoutTests | `paddingEdgesAreNotTransposed` | B2 p C2 p C3 f B3 p |
 
-**UNATTRIBUTED** (1)
+**RP+CSS-frame** (1; UNATTRIBUTED in the design, attributed in §7.2)
 
 | file | test | arms (A2 is red in every row) |
 |---|---|---|
@@ -447,3 +447,112 @@ measurement is the "fixtures already measured to report nothing" that
 - **`makeFakeWindow`'s `.legacy` default** stays `.legacy` in this stage
   (production is legacy until 6b); a pinned window test passes `.legacy`
   explicitly anyway, so 6b's flip of that default cannot reach it.
+
+## 7. Critic round 1 (design) — `LR-DA`
+
+On `feat/engine-stage-6a` at `0d2a5a3`, 2026-09-23. Each check below was run,
+not read; every scratch edit was restored and `git status --short` read clean
+of source changes after each.
+
+### 7.1 The caller count, with the deprecation in
+
+Both attributes added to `Passes.swift` in a scratch (message `SIXA`), then
+`swift build --build-system native --build-tests`: 0 `error:`, and exactly
+**58** distinct `warning: '…' is deprecated: SIXA` lines, in **30** compiled
+files (`PipelineTests` 7, `StateTests` and `ListTests` 4, `EnvironmentTests` 3,
+two in each of `AXNodeTests`, `ComponentTests`, `ElementGroupTrapTests`,
+`EnvironmentTrapTests`, `FocusTests`, `FrameClockTests`, `IdentityTests`,
+`LayoutAuthorityTests`, `MeasurePerformanceTests`, `ModifiedElementTests`,
+`ModifierCompositionProofTests`, `ProposalNodeIDTests`, `ScrollRoutingTests`,
+`TombstoneTests`, one in each of the other twelve), none in `Sources/`; the
+only other `warning:` was SwiftPM's notice. With the five typecheck-guard files
+that is §1's 35 files and 58 compiled sites. **No caller is missed by §1's
+grep.** (The task brief's "about 89" is the raw grep including `Sources/`'s 14
+lines on `frame.request…` and declarations; 89 − 14 − 5 doc comments − 4 on
+`pass.frame.` = 66.) Outside `Sources/`/`Tests/` the only hits are
+`docs/probes/modifier-composition-skeletons/*.swift`, standalone files no
+target compiles.
+
+### 7.2 The unattributed row, measured
+
+`FrameDecorationInteractionTests`' `render` helper given
+`layoutAuthority: .proposal` in a scratch, the test run filtered (a measurement
+of one test's values, not a suite claim), restored: the fixture's root is
+`Row { subject; 1×1 marker }` in a 200×200 window, which answers 61×40 and is
+centred (`CN-J`) at (70, 80) where the legacy root sits at (0, 0). Read:
+
+| arm | expected (legacy) | under `.proposal` | reading |
+|---|---|---|---|
+| control | `[0 0 60x40]` | `[70 80 60x40]` | offset by the root only |
+| after | `[10 10 40x20]` | `[80 90 40x20]` | offset by the root only |
+| before | `[25 15 10x10]` | `[95 95 10x10]` | offset by the root only |
+| flexible `.frame(minWidth: 80, maxWidth: 100)` | `[5 5 70x10]` | `[55 95 90x10]` | the layer is **100** wide, not `FR-E`'s 80 ("a finite maximum clamps but never grows into the proposal"), and offset |
+
+and the three click counts 0 (the clicks land at legacy coordinates). So the
+row is **RP + CSS-frame**: C2/C3 could not turn it green because its fourth arm
+is the legacy frame's CSS answer, which no placement arm touches. Owners: 6b for
+the root, 7b for the `FR-E` arm. It is not a caller of the deprecated pair and
+stage 6a does not pin it.
+
+### 7.3 Instrument I0 did not apply; re-spelled and its control measured
+
+The spec said `git cherry-pick 0d02538`. `git show 0d02538 | git apply --check`
+at `0d2a5a3` (tree = `b3c29b9`): **`error: patch failed:
+Sources/MetalUI/Frame.swift:1533`** — `0d02538` was written over arm A, whose
+`noteUnlowerable` carries a `SIXA-UNLOWERABLE` print that `b3c29b9` does not.
+The same two edits re-made against `b3c29b9` are
+`docs/probes/stage-6a-instrument-I0.patch` (applies cleanly).
+
+**I0 alone**, applied, built (0 `error:`), full unfiltered suite: **`Test run
+with 1640 tests in 3 suites failed after 77.232 seconds with 32 issues`**, the
+reddened set exactly the 13 X tests of §4 (`aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst`,
+`aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority`,
+`aHiddenListAbortsAProductionProposalFrame`,
+`aLeafWithTwoUnlowerableFieldsTrapsNamingTheFirstInProduction`, the four
+`aLegacySpelled…AbortsAProductionProposalFrame`,
+`anAbsoluteBoxOutsideADeferredTrapsAProductionProposalFrame`,
+`aPresentationTrapsAProductionProposalFrameNamingItsField`,
+`aProductionFrameOverDemoLikeRowsAbortsUnderTheProposalAuthority`,
+`aRootMinHeightOnTheScrollerFixtureAbortsAProductionProposalFrame`,
+`aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop`). The design's M3g and
+2.3 predicted reddened sets that omitted these; every I0 mutation is now read
+against this control.
+
+### 7.4 The probe's separating arm
+
+`docs/probes/swift-deprecated-witness-silence.sh` re-run: its three recorded
+lines byte for byte. Its silent arm (`use2.swift`) had no arm differing only in
+the attribute, so "silent because of the attribute" was unseparated from
+"silent because of the shape". Added `use3.swift` = `use2.swift` with the
+witness's attribute deleted: **warns once in each language mode**
+(`use3.swift:4:46: warning: 'requestNode(style:children:)' is deprecated`). The
+header carries both.
+
+### 7.5 What was attacked and stands
+
+- **Production does not move.** The design touches `Sources/` only in two
+  attributes, one `owningStage` literal and doc comments; the scratch builds
+  above confirm the attribute alone changes nothing but warnings.
+- **The R move off the production authority** (66 tests now run `.proposal`, so
+  they stop pinning the legacy path). `grep -rln 'lowersToProposal\|layoutAuthority' Sources`
+  names only the registration sites (`Box`, `Stack`, `Text`, `ModifiedElement`,
+  `ScrollView`, `ListRows`, `Component`, `Deferred`), `LoweringState`,
+  `LayoutAuthority`, `Passes`, `Window` (which passes it on) and `Frame` (the
+  backstop, the presentation check); the state table, environment, focus,
+  frame clock and identity code read no authority. What an R test gives up is
+  the legacy **kernel** under its custom element, which the 97 goldens and the
+  pinned tests keep. Accepted (`LR-DA` item 7).
+- **`typecheckFile` sees warnings**: `TypecheckResult.messages` keeps
+  ` warning: ` lines (`Typecheck.swift`), so guard 3.2 can read the
+  deprecation.
+- **The exit test's trap half** reads a message built from `owningStage`
+  (`LayoutAuthority.swift:127`), and no existing test asserts the literal
+  `stage 6a` (grep: three doc comments quoting recorded output, one comment in
+  `LoweringCorpusTests`), so `LR-CW` reddens only 3.1.
+- **`PipelineTests`' native row**: its frames are 400×100, the root's own
+  answer, so `CN-J`'s centring places it at (0, 0) and the legacy literals hold;
+  `twoCopiesOfOneElementDoNotShareLayoutState` asserts stamps, not positions.
+- **The exit tests re-spelled R** (`ElementGroupTrapTests`,
+  `EnvironmentTrapTests`) read their abort message off stderr, so a trap for a
+  different reason under `.proposal` would redden them rather than pass them.
+

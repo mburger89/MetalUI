@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DA`** (stage 6a's design took `LR-CT`…`LR-CZ`, appended at the end; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DB`** (stage 6a's design took `LR-CT`…`LR-CZ` and its critic round 1 `LR-DA`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -6120,6 +6120,12 @@ without a commit that warns; it lands with the lane whose files are the last.
 **What it costs if wrong.** Lane 1 is the smallest; merging it into lane 3 would
 put 27 files and two kinds of verification in one agent.
 
+**Amended, stage-6a critic round 1** (`LR-DA` item 2). `ContainerIntegrationTests`,
+`HitboxTests`, `ProposalNodeIDTests` and `NativeBoundaryIntegrationTests` — every
+caller in them pinned, no dual element — move from lane 3 to lane 2, whose one
+I0 run (M2c) now covers every pin it writes. Lane 3 keeps the five dual-element
+files, `LayoutAuthorityTests`, the guard file and the two sources.
+
 ---
 
 ## LR-CZ — what 6b and 7b inherit from the entry measurement
@@ -6144,3 +6150,63 @@ this ruling names what each row class asks of them.
 **What it costs if wrong.** A row misattributed sends one test to the wrong
 stage; each stage re-measures its rows before acting (the arms are on named
 commits, re-runnable by checkout).
+
+**Amended, stage-6a critic round 1** (`LR-DA` items 4 and 5). The unattributed
+row is attributed: **RP + CSS-frame** (record §30 §7.2), 6b for the root and 7b
+for its `FR-E` arm. `hidden()` is **6b's**, as a prerequisite of the flip rather
+than an assignment: 6b lowers it under `LR-AV`'s constraints or pins the five AV
+tests to `.legacy` naming 7b, before `Window`'s default moves.
+
+---
+
+## LR-DA — stage 6a critic round 1: I0 as a patch with a measured control, lane 2 takes the P-only files, and six more
+
+**Evidence.** Record §30 §7, every item run at `0d2a5a3`.
+
+**The ruling.**
+
+1. **Instrument I0 is `docs/probes/stage-6a-instrument-I0.patch`, and every
+   mutation over it is read against an I0 control run.** The design's
+   `git cherry-pick 0d02538` does not apply at `b3c29b9` (`git apply --check`:
+   `patch failed: Sources/MetalUI/Frame.swift:1533`; the commit's context is arm
+   A's). I0 alone reddens exactly the 13 X tests (`Test run with 1640 tests …
+   with 32 issues`), which the design's M3g and 2.3 predictions omitted; from
+   lane 3's red-first commit 3.1's trap half joins them. A truncated I0 run (an
+   `SA-G` precondition I0 does not soften) is bisected by file.
+2. **Lane 2 takes the four P-only files** (`LR-CY` amended): lane 3 was the
+   duals, 56 pins, the deprecation, the exit test, the guard, eight mutations,
+   pixels, captures and the close. M2c (lane 2) predicts 10 reds; M3g (lane 3)
+   predicts 46 (17 P-6b, 29 P-CSS).
+3. **A Dual element's R test always passes `.proposal`.** The "whole tree
+   native" exception assumes the element is native at any authority; a Dual
+   element is native only under `.proposal`, so at the default its R test would
+   keep the legacy branch and nothing would have moved, silently.
+4. **The unattributed row is RP + CSS-frame**, measured (record §30 §7.2): three
+   arms off by the centred root's (70, 80), the flexible arm 100 wide where
+   `FR-E`'s legacy frame is 80. `LR-CZ` amended.
+5. **`hidden()`'s owner is 6b**, a prerequisite of its flip (`LR-CZ` amended).
+   `LR-R`'s classification asks for a named owner per lowering gap; "6b assigns"
+   was a deferral with no owner.
+6. **The deprecated-witness probe gains its separating arm** (`use3.swift`, the
+   fixture without the attribute, warns in both modes). `LR-CV` stands, now on a
+   probe whose silent arm is separated.
+7. **Rejected: re-spelled (R) tests must also run under `.legacy`.** Considered
+   because 66 tests stop pinning the production authority. Rejected on the grep
+   in record §30 §7.5: no state, environment, focus, clock or identity code
+   reads the authority; only registration sites, the backstop and root layout
+   do, and the legacy kernel keeps its 97 goldens and every pinned test. Running
+   R tests under both authorities would need every R element dual, which is the
+   legacy branch stage 9 deletes, for no branch the grep can find.
+
+**Also checked and standing** (record §30 §7.1, §7.5): with both attributes in,
+the build prints exactly 58 deprecation warnings in 30 files, none in
+`Sources/` — the design's caller list is complete; `typecheckFile`'s `messages`
+keep warnings; no test asserts the literal `stage 6a`; the R exit tests read
+stderr; `PipelineTests`' 400×100 frames make the native root's centring (0, 0).
+
+**What it costs if wrong.** Item 2 moves no test; a wrong prediction in M2c or
+M3g is recorded as a finding, as before. Item 7: a legacy-only regression in a
+code path the grep missed would go unpinned by these 66 tests — the grep is the
+claim, and a lane that finds an authority read in such code reverses item 7 for
+the tests it reaches.
+
