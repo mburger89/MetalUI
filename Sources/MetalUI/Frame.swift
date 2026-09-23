@@ -1712,7 +1712,7 @@ public final class Frame {
                 root: root,
                 proposal: ProposedSize(width: Double(contentSize.width.value),
                                        height: Double(contentSize.height.value)),
-                in: LayoutRect(x: 0, y: 0,
+                centredIn: LayoutRect(x: 0, y: 0,
                                width: Double(contentSize.width.value),
                                height: Double(contentSize.height.value))
             )
