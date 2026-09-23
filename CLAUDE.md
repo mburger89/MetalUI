@@ -46,7 +46,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   rulings in its spec), `SP-` (next `SP-D`; rulings in its spec), `XP-`
   (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
-  its spec). A numbered citation
+  its spec), `BD-` (next `BD-E`; rulings in its spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -75,7 +75,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Sixteen record files are not tasks of
+  and G2 is unblocked rather than waiting. Seventeen record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
@@ -97,8 +97,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`),
   §38 MetalUI off Apple (`XP-`, spec `specs/2026-09-23-metalui-portable-design.md`),
   §39 the demo on Linux and Windows (`DC-`, spec
-  `specs/2026-09-23-demo-cross-platform-design.md`) and §40 portable font
-  fallback (`FB-`, spec `specs/2026-09-23-font-fallback-design.md`). **Cross-platform work
+  `specs/2026-09-23-demo-cross-platform-design.md`), §40 portable font
+  fallback (`FB-`, spec `specs/2026-09-23-font-fallback-design.md`) and §41
+  portable bidi (`BD-`, spec `specs/2026-09-23-bidi-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -128,24 +129,26 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 
 - **Counts (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
   with `master` at `42b9ab4`, the portable text line; then `PT-J`, +5; then line breaking, +6; then
-  lines emission, +14; then content sizes, +10; then font resolution, +6; then the text seam, +5; then MetalUI off Apple, +3; then font fallback, +4): 1693 tests, 97
+  lines emission, +14; then content sizes, +10; then font resolution, +6; then the text seam, +5; then MetalUI off Apple, +3; then font fallback, +4; then bidi, +4): 1697 tests, 97
   goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:`, taken after
   `swift package clean` with `swift build --build-system native
   --build-tests` then unfiltered `swift test --build-system native
-  --no-parallel` (**one summary line**, `Test run with 1693 tests in 3 suites
-  passed`; eleven skipped: the two gated tests, the FreeType, HarfBuzz,
-  portable text, line breaking, lines emission (two), content sizes and font
-  fallback oracles' gated measurement tests, and the demo-frame recorder; the guards ran — the log
+  --no-parallel` (**one summary line**, `Test run with 1697 tests in 3 suites
+  passed`; twelve skipped: the two gated tests, the FreeType, HarfBuzz,
+  portable text, line breaking, lines emission (two), content sizes, font
+  fallback and bidi oracles' gated measurement tests, and the demo-frame
+  recorder; the guards ran — the log
   carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
   `e5caefb` (`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` is
-  empty). **1693 = 1640 + 5 + 6 + 14 + 10 + 6 + 5 + 3 + 4**: the `PT-J` follow-up's
+  empty). **1697 = 1640 + 5 + 6 + 14 + 10 + 6 + 5 + 3 + 4 + 4**: the `PT-J` follow-up's
   `EmitParameterTests` (record §28), line breaking's 6 (the `LB-E` oracle,
   its gated measurement, contract tests; record §30) and lines emission's 14
   (ten metric/placement oracle tests, two of them gated, and four
   `EmitLinesTests`; record §31), content sizes' 10 (record §32) and font
   resolution's 6 (record §33), the text seam's 5 (record §35) and
   `MetalUICrossPlatformTests`' 3 (record §38, one a gated recorder) and
-  font fallback's 4 (record §40, one gated;
+  font fallback's 4 (record §40, one gated) and bidi's 4 (record §41, one
+  gated; `Tests/PortableTests` separately runs 18 + 6 + 5 since bidi;
   `Tests/PortableTests` separately runs 16 + 6 + 5); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
   15 (lane 1, the presentation root, +7; lane 2, the exit suites, +2; lane 3,
   the must-not-move set through real windows, +6; record §29) plus the
@@ -186,7 +189,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Eleven** gated tests count toward the total while skipped —
+  **Twelve** gated tests count toward the total while skipped —
   `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`, the
   FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
   (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
@@ -196,8 +199,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `measurePatchedFaceMetrics` (both `METALUI_LINES_EMIT_MEASURE=1`) and the
   content sizes oracle's `measureContentSizeDifferences`
   (`METALUI_CONTENT_MEASURE=1`), `recordDemoFrames`
-  (`METALUI_CROSSPLATFORM_RECORD=1`) and `measureFallbackDifferences`
-  (`METALUI_FALLBACK_MEASURE=1`).
+  (`METALUI_CROSSPLATFORM_RECORD=1`), `measureFallbackDifferences`
+  (`METALUI_FALLBACK_MEASURE=1`) and `measureBidiDifferences`
+  (`METALUI_BIDI_MEASURE=1`). **Tests that register fonts with CoreText
+  process-wide race under a parallel run** (measured with a filtered run:
+  the resolver oracle and the seam test fail together) — `--no-parallel`.
   The lone `warning:`
   under native is SwiftPM's deprecation notice.
 - **Goldens must not move** on a change outside `Sources/MetalUILayout/`
@@ -252,10 +258,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   that needs WebKit or Darwin is compiled out by `#if canImport(…)` per
   declaration (`PC-B`); typecheck guards read only this platform's `.build`
   (`PC-C`) and skip off macOS.
-- **Targets:** eighteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
-  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`, `CUnibreak`,
+- **Targets:** twenty one-way-dependent (`MetalUICore`, `MetalUILayout`,
+  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`, `CUnibreak`, `CSheenBidi`,
   `MetalUIHarfBuzz`, `MetalUITextSystem`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`,
-  `MetalUIPlatform`, `MetalUIRender`, `MetalUIAppKit`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
+  `MetalUIPlatform`, `MetalUIPrimitives`, `MetalUIRender`, `MetalUIAppKit`, `MetalUI`,
+  `MetalUIDemoContent`, `MetalUIDemo`) plus
   `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so
   tests can import it (`LR-S`). `MetalUIScene` holds
   `Scene`/`DrawRun`/`PrimitiveKind`, the glyph atlas types and the `FontKey`
@@ -320,7 +327,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   the first face of the font's cascade (`PortableFont.fallbacks`; from the
   resolver, every other registered face, `FB-B`) that covers it, and glyphs
   carry their face to placement and the atlas — a new shaping call site that
-  calls `HarfBuzzShaper` directly loses fallback. Also a
+  calls `HarfBuzzShaper` directly loses fallback. Runs also split by bidi
+  level and script and are shaped in their direction (`BD-B`, SheenBidi,
+  vendored as `CSheenBidi`); each line is laid out in UAX #9 visual order,
+  a right-to-left line's trailing whitespace hung off its left edge, and a
+  line starting inside a split lam-alef re-shaped (`BD-C`) — all measured
+  against CoreText, 0 differences over 320 cases. Also a
   library product; nothing in production calls it (`PT-I`). The subpixel
   placement rule lives once, in `GlyphImage.subpixelPlacement(forDeviceX:)`
   (`PT-C`); `GlyphRaster` forwards — do not re-inline it on either side.

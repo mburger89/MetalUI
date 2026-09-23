@@ -138,9 +138,13 @@ public enum PortableText {
                             into scene: inout Scene, atlas: GlyphAtlas) throws -> Double {
         precondition(scaleFactor > 0, "a scale factor must be positive")
         let scale = Double(scaleFactor)
-        let glyphs = try shapeCascading(text, font: font)
-
         let units = Array(text.utf16)
+        // One line, laid out left to right in visual order (ruling BD-C).
+        let bidi = BidiParagraph(units)
+        let logical = try shapeCascading(text, font: font, levels: bidi.levels[...], scripts: bidi.scripts[...])
+        let glyphs = visualOrder(logical.map { (run: $0, payload: $0.cluster) }, line: 0..<units.count,
+                                 bidi: bidi, unitOf: { $0 }).map(\.run)
+
         let ignorable = ignorableUnits(of: text, count: units.count)
         var pen = origin.x
         for run in glyphs {
