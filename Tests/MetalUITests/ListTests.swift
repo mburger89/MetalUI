@@ -676,3 +676,93 @@ private func renderWindowed<E: Element>(_ element: inout E, context: ScrollConte
     #expect(rects == expectedRects, "\(rects)")
     #expect(hitboxes == expectedHitboxes, "\(hitboxes)")
 }
+
+// MARK: - Stage 4, lane 3 (`LR-BW`, `LR-BX`): the red-before, in a child process
+
+/// `ListTests`' row **as it was spelled before this lane**, kept as a live
+/// fixture so the probe below keeps a subject after `Row` is re-spelled.
+///
+/// Byte-for-byte `Row`'s two registrations at `688b834`: a childless
+/// `pass.requestNode` (the 224 nodes of §4.2's census) and, in the
+/// `contentHeight` arms, a `pass.requestLeaf` (the 3 leaves). Nothing else about
+/// it is load-bearing — it registers no scroll region, because the probe reads
+/// the process's exit status and stderr, not a frame.
+private struct LegacySpelledRow: Element {
+    var contentHeight: Pixels?
+
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        guard let contentHeight else {
+            return (pass.requestNode(style: Style(), children: []), ())
+        }
+        let h = Double(contentHeight.value)
+        return (pass.requestLeaf(style: Style()) { _, _ in SizeD(width: 0, height: h) }, ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {}
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **This lane's red-before, and the measured reason it could not be an
+/// ordinary failing test** (`LR-BX`, spec §6 lane 3).
+///
+/// Every scenario in this file is about to be parameterised over
+/// `LayoutAuthority.allCases`. Running them under `.proposal` with the row
+/// spelled as it was does not FAIL — it **aborts the whole run**, at
+/// `Frame.requestNode`'s backstop, with no summary line and no list of what
+/// failed, which is the failure mode
+/// `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` pins and
+/// `LayoutAuthorityTests.swift`'s header records stage 3 hitting. So the red is
+/// taken here, in a child process, where the abort is an observable rather than
+/// the end of the suite; the re-spelling and the `.proposal` arms then land in
+/// one commit and every later red in this file is an ordinary assertion failure.
+///
+/// The host shape is P1a6's — `Box(width 100, column) { List(3 rows, 28) { … } }`
+/// — the shape both helpers in this file adopt in the same lane, so what the
+/// probe aborts on is the ROW's registration and not the `List`'s own root
+/// position. Both spellings are checked, because the census counts both (224
+/// `requestNode`, 3 `requestLeaf`).
+///
+/// It stays after the re-spelling, pointed at `LegacySpelledRow`: it is the
+/// standing evidence for why `Row` is spelled through the lowering, and the
+/// thing that would go quiet if a future edit put `pass.requestNode` back.
+@MainActor
+private func legacySpelledHostShape(contentHeight: Pixels?)
+    -> Box<List<[Item], LegacySpelledRow>> {
+    var column = Style()
+    column.flexDirection = .column
+    column.size.width = .length(.pixels(px(100)))
+    return Box(style: column,
+               content: List(items(3), rowHeight: px(28)) {
+                   _ in LegacySpelledRow(contentHeight: contentHeight)
+               })
+}
+
+@Test func aLegacySpelledListRowAbortsAProductionProposalFrame() async {
+    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var root = legacySpelledHostShape(contentHeight: nil)
+            Frame(contentSize: Size(width: px(400), height: px(600)), scaleFactor: 1,
+                  layoutAuthority: .proposal).render(&root)
+        }
+    }
+    let nodeErr = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(nodeErr.contains("customElement.requestNode has no proposal lowering"),
+            "aborted, but not at the row's requestNode:\n\(nodeErr)")
+
+    let leaf = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var root = legacySpelledHostShape(contentHeight: px(60))
+            Frame(contentSize: Size(width: px(400), height: px(600)), scaleFactor: 1,
+                  layoutAuthority: .proposal).render(&root)
+        }
+    }
+    let leafErr = String(decoding: leaf?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(leafErr.contains("customElement.requestLeaf has no proposal lowering"),
+            "aborted, but not at the row's requestLeaf:\n\(leafErr)")
+}
