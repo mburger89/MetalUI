@@ -37,6 +37,13 @@ private final class SizeLog {
 /// A childless legacy `StyledElement` recording the bounds its `prepaint`
 /// receives. Optionally declares its own size, which is what makes it either a
 /// content-sized child (no declared axis) or an oversized one.
+///
+/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
+/// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
+/// its one R test passes `.proposal`; under the legacy one it registers through
+/// `Frame`'s internal legacy registrar, and its fourteen P tests pass `.legacy`.
+/// The file's three helpers take the authority as a **required** argument, so
+/// every call names its own.
 private struct Mark: StyledElement {
     var name: String
     var log: SizeLog
@@ -55,7 +62,9 @@ private struct Mark: StyledElement {
     }
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.requestNode(style: style, children: []), ())
+        (pass.lowersToProposal
+            ? declaredSizeNativeLeaf(style, pass)
+            : pass.frame.requestNode(style: style, children: []), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -101,11 +110,12 @@ private struct Rect: Equatable, CustomStringConvertible {
 /// The bounds a `Mark` named `name` received, from one rendered frame whose
 /// root is `make`'s element.
 @MainActor
-private func render<Root: Element>(width: Float = 300, height: Float = 200,
+private func render<Root: Element>(authority: LayoutAuthority, width: Float = 300, height: Float = 200,
                                    _ make: (SizeLog) -> Root) throws -> SizeLog {
     let log = SizeLog()
     var root = make(log)
-    Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1).render(&root)
+    Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
+          layoutAuthority: authority).render(&root)
     return log
 }
 
@@ -113,14 +123,16 @@ private func render<Root: Element>(width: Float = 300, height: Float = 200,
 /// placed after it in a `Row` — the instrument scratch arm `L10` used, and the
 /// only one that can see a layer's own width without reaching into the tree.
 @MainActor
-private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Float = 5,
+private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Float = 300,
+                                        siblingWidth: Float = 5,
                                         _ make: (SizeLog) -> Chain) throws -> Float {
     let log = SizeLog()
     var row = Row {
         make(log)
         Mark("sibling", log: log, width: siblingWidth, height: 5)
     }.alignItems(.flexStart)
-    Frame(contentSize: Size(width: px(rowWidth), height: px(200)), scaleFactor: 1).render(&row)
+    Frame(contentSize: Size(width: px(rowWidth), height: px(200)), scaleFactor: 1,
+          layoutAuthority: authority).render(&row)
     return try #require(log.bounds["sibling"], "the sibling never prepainted").origin.x.value
 }
 
@@ -137,9 +149,11 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
 /// Mutations: dropping `justifyContent` from `FrameSpec.style()` reddens the
 /// six arms whose x is not 20; dropping `alignItems` reddens the six whose y is
 /// not 10; swapping the two axes reddens the four corners.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func aLegacyFramePlacesItsChildAtEachOfTheNineAlignments() throws {
     func origin(_ alignment: ProposalAlignment) throws -> Origin {
-        let log = try render { log in
+        let log = try render(authority: .legacy) { log in
             Mark("leaf", log: log, width: 20, height: 20)
                 .frame(width: px(60), height: px(40), alignment: alignment)
         }
@@ -174,8 +188,10 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
 /// `N10`).
 ///
 /// Mutation: drop `minSize` from the fixed-axis rows of `FrameSpec.style()`.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aLegacyFixedFrameDoesNotShrinkAsAFlexItem() throws {
-    let log = try render { log in
+    let log = try render(authority: .legacy) { log in
         Row {
             Mark("a", log: log, width: 20, height: 20).frame(width: px(200), height: px(20))
             Mark("b", log: log, width: 20, height: 20).frame(width: px(200), height: px(20))
@@ -184,7 +200,7 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
     // The positive control: the same two declared widths WITHOUT a frame do
     // shrink in this row, so the fixture is genuinely over-constrained and the
     // instrument can see shrinking when it happens.
-    let unpinned = try render { log in
+    let unpinned = try render(authority: .legacy) { log in
         Row {
             Mark("a", log: log, width: 200, height: 20)
             Mark("b", log: log, width: 200, height: 20)
@@ -214,14 +230,16 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
 ///
 /// Mutations: drop `minSize` from the minimum row (arm 1); drop `maxSize` from
 /// the maximum row (arm 2).
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal() throws {
-    let minimum = try widthInRow { log in
+    let minimum = try widthInRow(authority: .legacy) { log in
         Mark("child", log: log, width: 20, height: 20).frame(minWidth: px(40))
     }
-    let maximumOverALargeChild = try widthInRow { log in
+    let maximumOverALargeChild = try widthInRow(authority: .legacy) { log in
         Mark("child", log: log, width: 200, height: 20).frame(maxWidth: px(80))
     }
-    let maximumOverASmallChild = try widthInRow { log in
+    let maximumOverASmallChild = try widthInRow(authority: .legacy) { log in
         Mark("child", log: log, width: 20, height: 20).frame(maxWidth: px(80))
     }
     try #require(minimum != maximumOverASmallChild,
@@ -320,14 +338,16 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
 ///
 /// Mutation: mint the layer nodes outermost-first (arms 1 and 2 swap); drop
 /// `justifyContent` (arm 3).
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func chainedLegacyFramesAgreeWithSwiftUIsOrderingRules() throws {
-    let innerWide = try render { log in
+    let innerWide = try render(authority: .legacy) { log in
         Row {
             Mark("leaf", log: log, width: 20, height: 20).frame(width: px(100)).frame(width: px(50))
             Mark("sibling", log: log, width: 5, height: 5)
         }.alignItems(.flexStart)
     }
-    let outerWide = try render { log in
+    let outerWide = try render(authority: .legacy) { log in
         Row {
             Mark("leaf", log: log, width: 20, height: 20).frame(width: px(50)).frame(width: px(100))
             Mark("sibling", log: log, width: 5, height: 5)
@@ -343,7 +363,7 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
     #expect(Origin(try #require(outerWide.bounds["sibling"])).x == 100, "E2's outer width")
     #expect(outerLeafX == 40, "E2's leaf")
 
-    let aligned = try render { log in
+    let aligned = try render(authority: .legacy) { log in
         Row {
             Mark("leaf", log: log, width: 20, height: 20)
                 .frame(width: px(60), height: px(40))
@@ -368,14 +388,16 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
 /// (139×15).
 ///
 /// Mutation: drop `size.width` from `FrameSpec.style()`.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func aLegacyFrameProposesItsWidthToAMeasuredLeaf() throws {
-    let framed = try render { log in
+    let framed = try render(authority: .legacy) { log in
         Column {
             Text("alpha bravo charlie delta").font(size: 12).frame(width: px(60))
             Mark("marker", log: log, width: 5, height: 5)
         }
     }
-    let bare = try render { log in
+    let bare = try render(authority: .legacy) { log in
         Column {
             Text("alpha bravo charlie delta").font(size: 12)
             Mark("marker", log: log, width: 5, height: 5)
@@ -429,6 +451,8 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
 /// most of the suite. It is recorded in the lane's mutation table rather than
 /// claimed as this test's own, and the honest summary is that the test is a
 /// characterization the lowering cannot move.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aLegacyFrameAroundAListStillBuildsEveryRow() throws {
     struct Datum: Identifiable { let id: String }
     let data = (0..<40).map { Datum(id: "row-\($0)") }
@@ -448,9 +472,9 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
         }
         let size = Size(width: px(400), height: px(600))
         let table = StateTable()
-        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&root)
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .legacy).render(&root)
         log.bounds.removeAll()
-        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&root)
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .legacy).render(&root)
         let rows = log.bounds.keys
             .compactMap { $0.hasPrefix("row-") ? Int($0.dropFirst(4)) : nil }
             .sorted()
@@ -529,52 +553,54 @@ private struct TwoMarks: Component {
 /// frame layer as a stack (the control's `#require` fails, and three
 /// component-frame tests redden); lower only the outermost layer (the two
 /// inner-layer arms redden).
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes() throws {
-    let plain = try render { log in
+    let plain = try render(authority: .legacy) { log in
         Row {
             Mark("child", log: log, width: 200, height: 160).frame(width: px(60), height: px(40))
         }
     }
-    let pinned = try render { log in
+    let pinned = try render(authority: .legacy) { log in
         Row {
             Mark("child", log: log, width: 200, height: 160)
                 .frame(width: px(60), height: px(40))
                 .flexShrink(0)
         }
     }
-    let topLeading = try render { log in
+    let topLeading = try render(authority: .legacy) { log in
         Row {
             Mark("child", log: log, width: 200, height: 160)
                 .frame(width: px(60), height: px(40), alignment: .topLeading)
         }
     }
     // The frame as an INNER layer: under a padding, and under a second frame.
-    let padded = try render { log in
+    let padded = try render(authority: .legacy) { log in
         Row {
             Mark("child", log: log, width: 200, height: 160)
                 .frame(width: px(60), height: px(40))
                 .padding(4)
         }
     }
-    let framedTwice = try render { log in
+    let framedTwice = try render(authority: .legacy) { log in
         Row {
             Mark("child", log: log, width: 200, height: 160)
                 .frame(width: px(60), height: px(40))
                 .frame(width: px(80), height: px(60))
         }
     }
-    let twoNodes = try render { log in
+    let twoNodes = try render(authority: .legacy) { log in
         Row {
             TwoMarks(log: log).frame(width: px(60), height: px(40))
         }
     }
     // The FLEXIBLE overload, probe arms D13 and D14.
-    let minMax = try render { log in
+    let minMax = try render(authority: .legacy) { log in
         Row {
             Mark("child", log: log, width: 200, height: 160).frame(minWidth: px(40), maxWidth: px(80))
         }
     }
-    let maxOnly = try render { log in
+    let maxOnly = try render(authority: .legacy) { log in
         Row {
             Mark("child", log: log, width: 200, height: 160).frame(maxWidth: px(80))
         }
@@ -655,27 +681,29 @@ private struct StretchingPair: Component {
 /// reddens, with 5.1's `D13`/`D14` arms; the fill workaround does not, since the
 /// row fills a `width(fraction: 1)` child too). `isFrame: false` is spelled
 /// `frameSpec: nil` since plan task 7's lane 4 (`isFrame` is computed from it).
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf() throws {
-    let grow = try render { log in
+    let grow = try render(authority: .legacy) { log in
         Row { Mark("grow", log: log, height: 20).flexGrow(1).frame(width: px(100), height: px(40)) }
     }
-    let fill = try render { log in
+    let fill = try render(authority: .legacy) { log in
         Mark("grow", log: log, height: 20).flexGrow(1)
             .frame(maxWidth: px(.infinity), maxHeight: px(.infinity))
     }
-    let stretch = try render { log in
+    let stretch = try render(authority: .legacy) { log in
         Row { Mark("stretch", log: log, width: 20).alignSelf(.stretch).frame(width: px(100), height: px(40)) }
     }
-    let growPair = try render { log in
+    let growPair = try render(authority: .legacy) { log in
         Row { GrowingPair(log: log).frame(width: px(100), height: px(40)) }
     }
-    let stretchPair = try render { log in
+    let stretchPair = try render(authority: .legacy) { log in
         Row { StretchingPair(log: log).frame(width: px(100), height: px(40)) }
     }
-    let growWorkaround = try render { log in
+    let growWorkaround = try render(authority: .legacy) { log in
         Row { Mark("grow", log: log, height: 20).width(fraction: 1).frame(width: px(100), height: px(40)) }
     }
-    let fillWorkaround = try render { log in
+    let fillWorkaround = try render(authority: .legacy) { log in
         Mark("grow", log: log, height: 20).width(fraction: 1)
             .frame(maxWidth: px(.infinity), maxHeight: px(.infinity))
     }
@@ -737,38 +765,40 @@ private struct StretchingPair: Component {
 /// (`lowered` ignoring `.none` again): this test's same 4 issues and
 /// `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient` (record §17,
 /// "Closeout").
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func hiddenAfterASingleChildLegacyFrameStillHidesTheElement() throws {
     let rows: [(chain: String, expected: Float, measure: () throws -> Float)] = [
         ("hidden()", 0, {
-            try widthInRow { Mark("mark", log: $0, width: 20, height: 20).hidden() }
+            try widthInRow(authority: .legacy) { Mark("mark", log: $0, width: 20, height: 20).hidden() }
         }),
         ("frame(width: 40, height: 40)", 40, {
-            try widthInRow { Mark("mark", log: $0, width: 20, height: 20).frame(width: px(40), height: px(40)) }
+            try widthInRow(authority: .legacy) { Mark("mark", log: $0, width: 20, height: 20).frame(width: px(40), height: px(40)) }
         }),
         ("frame(width: 40, height: 40).hidden()", 0, {
-            try widthInRow {
+            try widthInRow(authority: .legacy) {
                 Mark("mark", log: $0, width: 20, height: 20).frame(width: px(40), height: px(40)).hidden()
             }
         }),
         ("frame(width: 40, height: 40).padding(4).hidden()", 0, {
-            try widthInRow {
+            try widthInRow(authority: .legacy) {
                 Mark("mark", log: $0, width: 20, height: 20).frame(width: px(40), height: px(40))
                     .padding(4).hidden()
             }
         }),
         ("frame(minWidth: 40, maxWidth: 80).hidden()", 0, {
-            try widthInRow {
+            try widthInRow(authority: .legacy) {
                 Mark("mark", log: $0, width: 20, height: 20).frame(minWidth: px(40), maxWidth: px(80)).hidden()
             }
         }),
         ("frame(width: 40, height: 40).hidden().padding(4)", 8, {
-            try widthInRow {
+            try widthInRow(authority: .legacy) {
                 Mark("mark", log: $0, width: 20, height: 20).frame(width: px(40), height: px(40))
                     .hidden().padding(4)
             }
         }),
         ("frame(minWidth: 40, maxWidth: 80).hidden().padding(4)", 8, {
-            try widthInRow {
+            try widthInRow(authority: .legacy) {
                 Mark("mark", log: $0, width: 20, height: 20).frame(minWidth: px(40), maxWidth: px(80))
                     .hidden().padding(4)
             }
@@ -809,17 +839,19 @@ private struct StretchingPair: Component {
 /// drop `flexGrow = 1` (the two centred arms redden, at the opening
 /// `#require`); extend the fill lowering to a single infinite maximum (the
 /// inert arm reddens, at the same `#require`).
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func anInfiniteMaximumFillsOnlyWhenBothAxesAreInfinite() throws {
     func mark(_ parentIsRow: Bool, _ alignment: ProposalAlignment) throws -> Origin {
         let log = parentIsRow
-            ? try render { log in
+            ? try render(authority: .legacy) { log in
                 Row {
                     Mark("mark", log: log, width: 20, height: 20)
                         .frame(maxWidth: px(.infinity), maxHeight: px(.infinity),
                                alignment: alignment)
                 }
               }
-            : try render { log in
+            : try render(authority: .legacy) { log in
                 Column {
                     Mark("mark", log: log, width: 20, height: 20)
                         .frame(maxWidth: px(.infinity), maxHeight: px(.infinity),
@@ -829,12 +861,12 @@ private struct StretchingPair: Component {
         return Origin(try #require(log.bounds["mark"]))
     }
 
-    let inert = try render { log in
+    let inert = try render(authority: .legacy) { log in
         Row {
             Mark("mark", log: log, width: 20, height: 20).frame(maxWidth: px(.infinity))
         }
     }
-    let bare = try render { log in
+    let bare = try render(authority: .legacy) { log in
         Row { Mark("mark", log: log, width: 20, height: 20) }
     }
 
@@ -852,10 +884,10 @@ private struct StretchingPair: Component {
     #expect(inertOrigin == Origin(try #require(bare.bounds["mark"])),
             "a single infinite maximum must place the mark where no frame does")
 
-    let inertNodes = try nodeCount { log in
+    let inertNodes = try nodeCount(authority: .legacy) { log in
         Row { Mark("mark", log: log, width: 20, height: 20).frame(maxWidth: px(.infinity)) }
     }
-    let bareNodes = try nodeCount { log in
+    let bareNodes = try nodeCount(authority: .legacy) { log in
         Row { Mark("mark", log: log, width: 20, height: 20) }
     }
     #expect(inertNodes == bareNodes + 1,
@@ -865,10 +897,11 @@ private struct StretchingPair: Component {
 /// The tree's node count after one rendered frame — how test 2.9 shows that an
 /// inert layer is present rather than absent.
 @MainActor
-private func nodeCount<Root: Element>(_ make: (SizeLog) -> Root) throws -> Int {
+private func nodeCount<Root: Element>(authority: LayoutAuthority, _ make: (SizeLog) -> Root) throws -> Int {
     let log = SizeLog()
     var root = make(log)
-    let frame = Frame(contentSize: Size(width: px(300), height: px(200)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(200)), scaleFactor: 1,
+                      layoutAuthority: authority)
     frame.render(&root)
     return frame.tree.nodeCount
 }
@@ -889,14 +922,21 @@ private func nodeCount<Root: Element>(_ make: (SizeLog) -> Root) throws -> Int {
 ///
 /// Mutation: replace the axis-named pin with `flexShrink = 0` on any fixed
 /// axis. This test reddens where 2.2 does not, which is the whole finding.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
+/// `FR-P` is a choice inside the legacy `FrameSpec.style()`, which the
+/// proposal authority never reads: run under `.proposal` (as lane 3 first
+/// spelled it) the mutation above left the whole suite green (record §38
+/// §10.7, VA). It is green under the flipped default, so it is the one lane-3
+/// P test that M3g cannot see; the mutation is its pin.
 @Test @MainActor func aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare() throws {
-    let framed = try widthInRow(siblingWidth: 200) { _ in
+    let framed = try widthInRow(authority: .legacy, siblingWidth: 200) { _ in
         Text("alpha bravo charlie delta").font(size: 12).frame(height: px(40))
     }
-    let bare = try widthInRow(siblingWidth: 200) { _ in
+    let bare = try widthInRow(authority: .legacy, siblingWidth: 200) { _ in
         Text("alpha bravo charlie delta").font(size: 12)
     }
-    let unconstrained = try widthInRow(rowWidth: 1000, siblingWidth: 200) { _ in
+    let unconstrained = try widthInRow(authority: .legacy, rowWidth: 1000, siblingWidth: 200) { _ in
         Text("alpha bravo charlie delta").font(size: 12)
     }
     try #require(framed < unconstrained,
@@ -971,25 +1011,27 @@ extension Mark: DeprecatedPercentSpellings {
 ///
 /// Before the lane the API is missing. Mutation: make `fraction:` write
 /// `.percent(fraction * 100)` (A, B, C, D, E move to 15000-scale widths).
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aFractionSizeResolvesAgainstItsContainingBlock() throws {
-    let half = try widthInRow { log in
+    let half = try widthInRow(authority: .legacy) { log in
         Mark("a", log: log, height: 20).width(fraction: 0.5)
     }
-    let quarter = try widthInRow { log in
+    let quarter = try widthInRow(authority: .legacy) { log in
         Mark("a", log: log, height: 20).width(fraction: 0.25)
     }
     try #require(half != quarter, "0.5 and 0.25 agreed, so nothing here can see the fraction: \(half)")
 
-    let atRoot = try render { log in
+    let atRoot = try render(authority: .legacy) { log in
         Mark("a", log: log, height: 20).width(fraction: 0.5)
     }
-    let halfInColumn = try render { log in
+    let halfInColumn = try render(authority: .legacy) { log in
         Column { Mark("a", log: log, height: 20).width(fraction: 0.5) }
     }
-    let halfHigh = try render { log in
+    let halfHigh = try render(authority: .legacy) { log in
         Column { Mark("a", log: log, width: 20).height(fraction: 0.5) }
     }
-    let basis = try widthInRow { log in
+    let basis = try widthInRow(authority: .legacy) { log in
         Mark("a", log: log, height: 20).flexBasis(fraction: 0.5)
     }
 
@@ -1005,11 +1047,11 @@ extension Mark: DeprecatedPercentSpellings {
 
     // F: the deprecated `percent:` spellings keep their meaning (CN-O): each
     // resolves exactly as its `fraction:` rename does at 0.5.
-    let percentWidth = try widthInRow { log in widthPercent(Mark("a", log: log, height: 20), 0.5) }
-    let percentHigh = try render { log in
+    let percentWidth = try widthInRow(authority: .legacy) { log in widthPercent(Mark("a", log: log, height: 20), 0.5) }
+    let percentHigh = try render(authority: .legacy) { log in
         Column { heightPercent(Mark("a", log: log, width: 20), 0.5) }
     }
-    let percentBasis = try widthInRow { log in flexBasisPercent(Mark("a", log: log, height: 20), 0.5) }
+    let percentBasis = try widthInRow(authority: .legacy) { log in flexBasisPercent(Mark("a", log: log, height: 20), 0.5) }
     #expect(percentWidth == half, "F: width(percent: 0.5) must equal width(fraction: 0.5): \(percentWidth)")
     #expect(Rect(try #require(percentHigh.bounds["a"])) == Rect(try #require(halfHigh.bounds["a"])),
             "F: height(percent: 0.5) must equal height(fraction: 0.5)")
@@ -1062,9 +1104,11 @@ extension Mark: DeprecatedPercentSpellings {
 /// to a one-line change here. The `.minHeight(px(0))` arm has an ordinary
 /// mutation: make `minHeight(_:)` write nothing, and the opening `#require`
 /// reddens.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt() throws {
-    let bare = try nodeCount { log in Row { Mark("a", log: log, width: 20, height: 20) } }
-    let framed = try nodeCount { log in
+    let bare = try nodeCount(authority: .legacy) { log in Row { Mark("a", log: log, width: 20, height: 20) } }
+    let framed = try nodeCount(authority: .legacy) { log in
         Row { Mark("a", log: log, width: 20, height: 20).frame(width: px(40)) }
     }
     try #require(bare != framed,
@@ -1072,17 +1116,17 @@ extension Mark: DeprecatedPercentSpellings {
     #expect(framed == bare + 1, "a frame is a layer: \(framed) against \(bare)")
 
     let counts: [(String, Int)] = [
-        ("width(_:)",     try nodeCount { log in
+        ("width(_:)",     try nodeCount(authority: .legacy) { log in
             Row { Mark("a", log: log, width: 20, height: 20).width(px(40)) } }),
-        ("height(_:)",    try nodeCount { log in
+        ("height(_:)",    try nodeCount(authority: .legacy) { log in
             Row { Mark("a", log: log, width: 20, height: 20).height(px(40)) } }),
-        ("minWidth(_:)",  try nodeCount { log in
+        ("minWidth(_:)",  try nodeCount(authority: .legacy) { log in
             Row { Mark("a", log: log, width: 20, height: 20).minWidth(px(40)) } }),
-        ("maxWidth(_:)",  try nodeCount { log in
+        ("maxWidth(_:)",  try nodeCount(authority: .legacy) { log in
             Row { Mark("a", log: log, width: 20, height: 20).maxWidth(px(40)) } }),
-        ("minHeight(_:)", try nodeCount { log in
+        ("minHeight(_:)", try nodeCount(authority: .legacy) { log in
             Row { Mark("a", log: log, width: 20, height: 20).minHeight(px(40)) } }),
-        ("maxHeight(_:)", try nodeCount { log in
+        ("maxHeight(_:)", try nodeCount(authority: .legacy) { log in
             Row { Mark("a", log: log, width: 20, height: 20).maxHeight(px(40)) } }),
     ]
     for (name, count) in counts {
@@ -1101,7 +1145,7 @@ extension Mark: DeprecatedPercentSpellings {
             Mark("header", log: log, width: 100, height: 80)
             box(log)
         }
-        Frame(contentSize: Size(width: px(300), height: px(200)), scaleFactor: 1).render(&root)
+        Frame(contentSize: Size(width: px(300), height: px(200)), scaleFactor: 1, layoutAuthority: .legacy).render(&root)
         return log.bounds["content"]?.size.height.value ?? -1
     }
 
@@ -1176,10 +1220,12 @@ private func insets(top: Float?, right: Float?, bottom: Float?, left: Float?) ->
 /// measured: lower through `display: .stack` without carrying `position`'s
 /// containing block (make the frame layer `.static` when it lowers) — the
 /// `#require` fails, A reading B's (15, 10).
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func anAbsolutelyPositionedChildInsideASingleChildLegacyFrameKeepsItsPlacement() throws {
     func arm(relative: Bool, _ edges: Edges<MetalUICore.Dimension>, alignment: ProposalAlignment = .center,
              flexible: Bool = false) throws -> (abs: Rect, after: Rect) {
-        let log = try render { log in
+        let log = try render(authority: .legacy) { log in
             Row {
                 Mark("pad", log: log, width: 30, height: 30)
                 if flexible {
@@ -1243,13 +1289,15 @@ private func insets(top: Float?, right: Float?, bottom: Float?, left: Float?) ->
 /// stretched to the frame's 100 and scrolling 37; `FrameSpec.style()` writes no
 /// `justifyItems` (a stack's default is stretch) — A, F and G move (A's region
 /// (30, 0) 120×200).
+///
+/// Pinned to the legacy authority by stage 6a (CSS-frame, record §38 §4).
 @Test @MainActor func aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     func arm<Content: Element>(at x: Float, _ y: Float, horizontal: Bool = false,
                                _ make: @escaping @MainActor (SizeLog) -> Content) throws
         -> (region: Rect, content: Rect, offset: Double) {
         let log = SizeLog()
-        let (window, platform) = try makeFakeWindow(device: device, size: 200) { make(log) }
+        let (window, platform) = try makeFakeWindow(device: device, size: 200, layoutAuthority: .legacy) { make(log) }
         window.drawFrameIfNeeded()
         let region = try #require(window.lastScrollRegions.first, "no scroll region registered")
         let delta = horizontal ? Point(x: px(-37), y: px(0)) : Point(x: px(0), y: px(-37))

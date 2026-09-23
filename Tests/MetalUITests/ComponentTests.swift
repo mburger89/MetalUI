@@ -54,6 +54,12 @@ final class ComponentLog {
 }
 
 /// A styled leaf that reports its own name and rect.
+///
+/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
+/// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
+/// its R tests pass `.proposal`; under the legacy one it registers through
+/// `Frame`'s internal legacy registrar, and its fifteen P tests pass `.legacy`
+/// explicitly so stage 6b's flip cannot reach them.
 private struct Leaf: Element, StyledElement {
     var style = Style()
     var decoration = Decoration()
@@ -70,7 +76,9 @@ private struct Leaf: Element, StyledElement {
     func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
         log.registered.append(name)
-        let node = pass.requestNode(style: style, children: [])
+        let node = pass.lowersToProposal
+            ? declaredSizeNativeLeaf(style, pass)
+            : pass.frame.requestNode(style: style, children: [])
         return (node, node)
     }
 
@@ -131,15 +139,17 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 /// `b` differ in height precisely so a wrapping node's own cross size (bounded
 /// by its tallest child) pulls `a`'s `y` away from what the `Row` would give it
 /// directly.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func aComponentsContentFlattensIntoItsParent() {
     let componentLog = ComponentLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
     var withComponent = Row { TwoLeaves(log: componentLog) }
     frame.render(&withComponent)
 
     let inlineLog = ComponentLog()
-    let inlineFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let inlineFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
     var inline = Row {
         Leaf("a", log: inlineLog).width(px(30)).height(px(10))
         Leaf("b", log: inlineLog).width(px(50)).height(px(30))
@@ -164,12 +174,12 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 /// layout node", and it is the assertion a wrapping node reddens first.
 @MainActor
 @Test func aComponentContributesNoLayoutNodeOfItsOwn() {
-    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .proposal)
     var withComponent = Row { TwoLeaves(log: ComponentLog()) }
     frame.render(&withComponent)
     let withCount = frame.tree.nodeCount
 
-    let inlineFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let inlineFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .proposal)
     let log = ComponentLog()
     var inline = Row {
         Leaf("a", log: log).width(px(30)).height(px(10))
@@ -182,6 +192,8 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 }
 
 /// Spec §6 assertion 8. Two identity levels, zero layout nodes.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @MainActor
 @Test func aComponentInsideAComponentFlattensThroughBothLevels() {
     struct Outer: Component {
@@ -191,7 +203,7 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
     }
 
     let log = ComponentLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
     var root = Row { Outer(log: log) }
     frame.render(&root)
 
@@ -269,15 +281,16 @@ private struct Counter: Component {
 /// A plain `Element` with one `@State` slot, incremented in `requestLayout` —
 /// copied from `StateTests.swift:77`'s `CounterElement` rather than widening
 /// that type's access level.
+///
+/// **A native 10×10 leaf since stage 6a** (record §38, disposition R): its two
+/// tests are about `@State`, not the leaf's layout, so each passes `.proposal`.
 private struct CounterLeaf: Element {
     @State var count = 0
     var elementID: ElementID?
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Int) {
         count += 1
-        var style = Style()
-        style.size = Size(width: .length(.pixels(px(10))), height: .length(.pixels(px(10))))
-        return (pass.requestNode(style: style, children: []), 0)
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID, 0)
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -425,7 +438,7 @@ private struct Wrapper: Component {
     var tree = Box(content: Wrapper(inner: CounterLeaf()))
 
     for _ in 0..<3 {
-        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&tree)
     }
 
     #expect(tree.content.inner.count == 3,
@@ -450,13 +463,13 @@ private struct Wrapper: Component {
     let log = ComponentLog()
 
     var solo = Box(content: Wrapper(inner: CounterLeaf(), elementID: ElementID("named")))
-    Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&solo)
+    Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&solo)
 
     var withSibling = Box {
         Leaf("sibling", log: log).width(px(10)).height(px(10))
         Wrapper(inner: CounterLeaf(), elementID: ElementID("named"))
     }
-    Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&withSibling)
+    Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&withSibling)
 
     #expect(withSibling.content.second.inner.count == 2,
             "a named component's content state must survive a sibling inserted before it; got \(withSibling.content.second.inner.count)")
@@ -594,15 +607,17 @@ private struct TwoAutoLeaves: Component {
 /// enlarged. `aComponentsPaddingWrapsEachTopLevelNode` below pins the probe's
 /// numbers; this test keeps the two-member shape that separates per-member
 /// from around-the-pair.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func aModifierOnAComponentDistributesToEachTopLevelChild() {
     let bareLog = ComponentLog()
-    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1, layoutAuthority: .legacy)
     var bare = Row { TwoAutoLeaves(log: bareLog) }
     bareFrame.render(&bare)
 
     let padLog = ComponentLog()
-    let padFrame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    let padFrame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1, layoutAuthority: .legacy)
     var padded = Row { TwoAutoLeaves(log: padLog).padding(px(4)) }
     padFrame.render(&padded)
 
@@ -632,15 +647,17 @@ private struct TwoAutoLeaves: Component {
 /// distributing `.width(_:)`: it wraps the component's transparent body in
 /// one outer layout node. The body therefore keeps the sizes its author chose,
 /// while the caller controls the outer footprint and alignment.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren() {
     let bareLog = ComponentLog()
-    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
     var bare = Row { TwoLeaves(log: bareLog) }
     bareFrame.render(&bare)
 
     let framedLog = ComponentLog()
-    let framedFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let framedFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
     var framed = Row { TwoLeaves(log: framedLog).frame(width: px(100), height: px(40)) }
     framedFrame.render(&framed)
 
@@ -666,6 +683,8 @@ private struct TwoAutoLeaves: Component {
 /// **The TYPE is flat and the NODES still nest** (ruling MC-A): the second
 /// `.frame` adds a layer to the same `ModifiedElement<TwoLeaves>` rather than a
 /// type level, and each layer still registers its own node.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func chainedFramesRemainConcreteAndNestTheirLayoutNodes() {
     let log = ComponentLog()
@@ -673,7 +692,7 @@ private struct TwoAutoLeaves: Component {
     var tree: Row<ModifiedElement<TwoLeaves>> = Row {
         stored.frame(width: px(120), height: px(40))
     }
-    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
 
     frame.render(&tree)
 
@@ -686,15 +705,17 @@ private struct TwoAutoLeaves: Component {
 /// A `Leaf` has no child layout to inset, so the old direct-style spelling left
 /// it at x = 0. A wrapper must add one node and offset the fixed-size leaf by
 /// the requested padding without shrinking its 30 × 10 footprint.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func paddingWrapsAnElementAndExpandsItsOuterFootprint() {
     let bareLog = ComponentLog()
-    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
     var bare = Row { Leaf("leaf", log: bareLog).width(px(30)).height(px(10)) }
     bareFrame.render(&bare)
 
     let paddedLog = ComponentLog()
-    let paddedFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let paddedFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
     var padded = Row { Leaf("leaf", log: paddedLog).width(px(30)).height(px(10)).padding(px(4)) }
     paddedFrame.render(&padded)
 
@@ -705,10 +726,12 @@ private struct TwoAutoLeaves: Component {
 
 /// Each padding call creates a separate outer box, so distinct values add
 /// instead of the later call replacing the earlier one.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func chainedPaddingCreatesNestedWrappers() {
     let log = ComponentLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
     var tree = Row {
         Leaf("leaf", log: log).width(px(30)).height(px(10)).padding(px(4)).padding(px(8))
     }
@@ -776,10 +799,12 @@ private struct TwoAutoLeaves: Component {
 /// file's own `TwoLeaves` fixture, above — so this is the discriminating
 /// test: both fields must land on EACH top-level child, not just the later
 /// call's field.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-d48, record §38 §4).
 @MainActor
 @Test func widthAndHeightComposeOnAChainedModifier() {
     let log = ComponentLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1, layoutAuthority: .legacy)
     var tree = Row { TwoAutoLeaves(log: log).width(px(20)).height(px(15)) }
     frame.render(&tree)
 
@@ -795,10 +820,12 @@ private struct TwoAutoLeaves: Component {
 /// test on its own, chained or not — only `padding` was exercised, by
 /// `aModifierOnAComponentDistributesToEachTopLevelChild` and the type-name
 /// check. A bare (unchained) `.width(_:)` distributing at all.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-d48, record §38 §4).
 @MainActor
 @Test func widthAloneDistributesToEachTopLevelChild() {
     let log = ComponentLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1, layoutAuthority: .legacy)
     var tree = Row { TwoAutoLeaves(log: log).width(px(20)) }
     frame.render(&tree)
 
@@ -807,10 +834,12 @@ private struct TwoAutoLeaves: Component {
 }
 
 /// The other half of the same gap: a bare (unchained) `.height(_:)`.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-d48, record §38 §4).
 @MainActor
 @Test func heightAloneDistributesToEachTopLevelChild() {
     let log = ComponentLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1, layoutAuthority: .legacy)
     var tree = Row { TwoAutoLeaves(log: log).height(px(15)) }
     frame.render(&tree)
 
@@ -838,10 +867,12 @@ private struct TwoAutoLeaves: Component {
 /// reads 8, and only accumulation reads 12. The two controls are `#require`d
 /// to disagree first, so a broken fixture fails as one rather than passing as
 /// "the chain equals one of them".
+///
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement() throws {
     @MainActor func leafA<G: ElementGroup>(_ subject: G, _ log: ComponentLog) -> (x: Float, nodes: Int) {
-        let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+        let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1, layoutAuthority: .legacy)
         var tree = Row { subject }
         frame.render(&tree)
         return (rect(log.bounds["a"]!).0, frame.tree.nodeCount)
@@ -915,7 +946,7 @@ private struct PairLeaves: Component {
 private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = ComponentLog())
     -> (width: Float, height: Float, nodes: Int) {
     let rowLog = ComponentLog()
-    let rowFrame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1)
+    let rowFrame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1, layoutAuthority: .legacy)
     var row = Row {
         subject
         Leaf("marker", log: rowLog).width(px(1)).height(px(1))
@@ -923,7 +954,7 @@ private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = C
     rowFrame.render(&row)
 
     let columnLog = ComponentLog()
-    let columnFrame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1)
+    let columnFrame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1, layoutAuthority: .legacy)
     var column = Column {
         subject
         Leaf("marker", log: columnLog).width(px(1)).height(px(1))
@@ -952,6 +983,8 @@ private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = C
 /// The literal 13x16 is the font's, not the modifier's: if it ever reads
 /// otherwise, the mechanism claim is the RELATIVE one (`+40` on each axis)
 /// and the literals are the machine's.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func aComponentsPaddingWrapsEachTopLevelNode() throws {
     // The content-sized body (G10/G11).
@@ -990,12 +1023,14 @@ private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = C
 /// (it predicts 96–104 and puts `b` at x 46). The `Row` carries `.gap(8)`
 /// because SwiftUI's `HStack` spacing is implicit and MetalUI's is explicit;
 /// the marker therefore sits at 128 and the outer width is `128 - 8`.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
 @MainActor
 @Test func aTwoMemberComponentsPaddingIsAppliedToEachMember() throws {
     @MainActor func arms<G: ElementGroup>(_ subject: G, _ log: ComponentLog)
         -> (a: (Float, Float, Float, Float), b: (Float, Float, Float, Float), marker: Float, nodes: Int) {
         let markerLog = ComponentLog()
-        let frame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1)
+        let frame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1, layoutAuthority: .legacy)
         var tree = Row {
             subject
             Leaf("marker", log: markerLog).width(px(1)).height(px(1))
@@ -1042,12 +1077,14 @@ private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = C
 /// DIFFER — the property an ordered op list exists to deliver, and which an
 /// amend-set-plus-wrap-set collapses — `#require`d before either reading is
 /// compared.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-d48, record §38 §4).
 @MainActor
 @Test func aModifierOnAComponentAppliesInTheOrderItIsWritten() throws {
     @MainActor func reading<G: ElementGroup>(_ subject: G, _ log: ComponentLog)
         -> (leaf: (Float, Float, Float, Float), outer: Float) {
         let markerLog = ComponentLog()
-        let frame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1)
+        let frame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1, layoutAuthority: .legacy)
         var tree = Row {
             subject
             Leaf("marker", log: markerLog).width(px(1)).height(px(1))
@@ -1093,15 +1130,17 @@ private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = C
 /// (`LoweringComponentTests.swift`) is that answer, with this test's assertions
 /// as its legacy half. This test stays legacy-only and wrong on purpose until
 /// stage 6b switches the root; it is not the place where divergence 48 closes.
+///
+/// Pinned to the legacy authority by stage 6a (CSS-d48, record §38 §4).
 @MainActor
 @Test func aComponentsWidthStillOverwritesItsMembersDeclaredWidth() {
     let bareLog = ComponentLog()
-    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
     var bare = Row { TwoLeaves(log: bareLog) }
     bareFrame.render(&bare)
 
     let log = ComponentLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .legacy)
     var tree = Row { TwoLeaves(log: log).width(px(70)) }
     frame.render(&tree)
 

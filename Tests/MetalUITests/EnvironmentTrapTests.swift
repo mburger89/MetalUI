@@ -16,6 +16,11 @@ import MetalUILayout
 // same render would otherwise satisfy `.failure`. The
 // `#expect(processExitsWith:)` call is written out at each site because its
 // body is re-entered in a subprocess and must not capture context.
+//
+// **Stage 6a (record §38, disposition R):** `RootWriter` and `ScopedReader`
+// register native leaves, so both renders run under the proposal authority. The
+// trap is `EV-Z`'s, which reads no authority; the stderr check above is what
+// keeps a trap for any other reason under `.proposal` from passing T1.
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
 
@@ -40,7 +45,7 @@ private struct RootWriter: Element {
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
         if phase == .layout { pass.frame.rootEnvironment = EnvironmentValues() }
-        return (pass.requestNode(style: Style(), children: []), ())
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }.layoutNodeID, ())
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -56,7 +61,8 @@ private struct RootWriter: Element {
 
 @MainActor
 private func renderRootWriter(_ phase: WritePhase) {
-    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
+                      layoutAuthority: .proposal)
     var root = Row { RootWriter(phase: phase) }
     frame.render(&root)
 }
@@ -101,7 +107,7 @@ private struct ScopedReader: Element {
     let count: PaintCount
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.requestNode(style: Style(), children: []), ())
+        (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }.layoutNodeID, ())
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -116,7 +122,8 @@ private struct ScopedReader: Element {
 
 @MainActor
 private func writeRenderWriteRender() {
-    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1)
+    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
+                      layoutAuthority: .proposal)
     let count = PaintCount()
 
     frame.rootEnvironment = EnvironmentValues()

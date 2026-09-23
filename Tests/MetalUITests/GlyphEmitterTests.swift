@@ -459,7 +459,9 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
         var elementID: ElementID? { nil }
         mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
             -> (LayoutNodeID, Void) {
-            (pass.requestNode(style: Style(), children: []), ())
+            // A native leaf since stage 6a (record §38, disposition R): the
+            // probe is the frame's root, so the tree is all native.
+            (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }.layoutNodeID, ())
         }
         mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Void, pass: inout PrepaintPass) {}

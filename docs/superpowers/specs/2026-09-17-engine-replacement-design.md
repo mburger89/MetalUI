@@ -31,7 +31,15 @@ legacy lowering rather than as native probe leaves (`LR-BW`). **Stage 5
 merged with `master` at `42b9ab4`** (record §29, spec
 [`2026-09-23-engine-stage-5-design.md`](2026-09-23-engine-stage-5-design.md)):
 it matches §4.1 row 5's wording, and its own two proposal-only answers
-(`LR-CJ`) are noted there rather than as a departure from this table. §4.1's
+(`LR-CJ`) are noted there rather than as a departure from this table. **Stage
+6a (the public custom-element registrars deprecated) is complete on its
+branch, not yet merged** (Record phase and branch checker, 2026-09-23): `feat/engine-stage-6a`, record §38, spec
+[`2026-09-23-engine-stage-6a-design.md`](2026-09-23-engine-stage-6a-design.md).
+It matches §4.1 row 6a's wording — `LayoutPass.requestNode`/`requestLeaf`
+deprecated with every in-repo caller moved in the same change, and the
+flipped-default classification table recorded as its entry measurement
+(153 reds, handed to stage 6b's root-placement ruling and stage 7b's CSS
+retirements). §4.1's
 table below is still the plan of record for the remaining stages; the **live** per-stage status is the
 stage list under task 7 in
 `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, and task 7's box there

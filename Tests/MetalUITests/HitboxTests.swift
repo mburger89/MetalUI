@@ -312,6 +312,8 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// either way. `render` is called here, once, and the hitbox is registered by
 /// the element's own `prepaint`, from inside it — so if `resolveHover` moved
 /// to run before `prepaint`, this is what would catch it.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func hoverResolvedThroughARealRenderHasNoLag() throws {
     let idBox = HitboxIDBox()
     var probe = HitboxProbe(elementID: ElementID("btn"),
@@ -319,7 +321,8 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
                       stateTable: StateTable(), shapingCache: ShapingCache(),
                       glyphAtlas: GlyphAtlas(width: 64, height: 64),
-                      theme: Theme.forAppearance(.light), mousePosition: pt(20, 20))
+                      theme: Theme.forAppearance(.light), mousePosition: pt(20, 20),
+                      layoutAuthority: .legacy)
 
     frame.render(&probe)
 
@@ -342,6 +345,11 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// nothing else, so a change to `onClick`'s dispatch cannot redden a test about
 /// press tracking. `aNamedChildUnderDeferredResolvesTheSameAsUnderABox` in
 /// `DeferredTests.swift` builds its own fixtures for the same reason.
+///
+/// **Registers through `Frame`'s internal legacy registrar since stage 6a**
+/// (record §38, disposition P-6b): its five tests read hitboxes at legacy
+/// coordinates, which the proposal root's centring moves (`CN-J`), so each
+/// passes `.legacy` until stage 6b rules root placement.
 private struct HitboxProbe: Element {
     var elementID: ElementID?
     var size: Size<Pixels>
@@ -367,7 +375,7 @@ private struct HitboxProbe: Element {
         var style = Style()
         style.size = Size(width: .length(.pixels(size.width)),
                           height: .length(.pixels(size.height)))
-        return (pass.requestNode(style: style, children: []), Empty())
+        return (pass.frame.requestNode(style: style, children: []), Empty())
     }
 
     /// Returns the registered `HitboxID` itself as `PrepaintState`, threaded
@@ -419,9 +427,11 @@ private func mouseMoved(to position: Point<Pixels>) -> InputEvent {
 /// `active` is set on `mouseDown` over a hitbox and cleared on `mouseUp` —
 /// nothing before the first event, the pressed element's id after `mouseDown`,
 /// `nil` again after `mouseUp`.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func activeIsSetOnMouseDownAndHeldUntilMouseUp() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .legacy) {
         HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)))
     }
     window.drawFrameIfNeeded()
@@ -440,9 +450,11 @@ private func mouseMoved(to position: Point<Pixels>) -> InputEvent {
 /// makes a button feel like a button". Moving off the hitbox while the button
 /// is held must not clear `active`, and moving back onto it must not need to
 /// re-set it (it was never cleared).
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func aPressThatLeavesTheHitboxAndReturnsStaysActive() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .legacy) {
         HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)))
     }
     window.drawFrameIfNeeded()
@@ -492,10 +504,12 @@ private final class ToggleBox {
 /// registers first. An implementation keyed on the raw index would either
 /// point at `extra` or fall off the end; one keyed on `GlobalElementID` is
 /// unaffected either way.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func activeSurvivesAFrameBoundary() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let toggle = ToggleBox()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .legacy) {
         Row {
             if toggle.extraSiblingFirst {
                 HitboxProbe(elementID: ElementID("extra"),
@@ -556,10 +570,12 @@ private final class ToggleBox {
 /// test does, through `FakePlatformWindow.simulateInput` and a real
 /// `Window.drawFrameIfNeeded()` — see the report for that mutation's redden
 /// after this test was added.
+///
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
 @Test @MainActor func aMouseMovedEventMakesTheBoxUnderItHoveredOnTheNextFrame() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let hoverBox = HoverBox()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .legacy) {
         Row {
             HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)),
                        hoverBox: hoverBox)

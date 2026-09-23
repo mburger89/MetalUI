@@ -85,7 +85,7 @@ private struct LoweredProbeLeaf: Element {
             }
             return (node, ())
         }
-        return (pass.requestLeaf(style: Style()) { _, _ in SizeD(width: w, height: h) }, ())
+        return (pass.frame.requestLeaf(style: Style()) { _, _ in SizeD(width: w, height: h) }, ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

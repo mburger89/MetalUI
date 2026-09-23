@@ -35,6 +35,14 @@ final class PhaseLog {
 /// 60x20 child distinguishes width from height, the first child from the second,
 /// and an absolute origin from a relative one. A symmetric probe would pass
 /// against an engine that swapped either.
+///
+/// **All native since stage 6a** (record §38, disposition R; ruling `LR-DC`):
+/// two sized native leaves under `ProbeRowLayout`, which answers the legacy
+/// row's fixed 400×100 and places them as it did — left to right from its
+/// origin, top-aligned. One container node, not a native frame over a stack,
+/// because `eachFrameOwnsItsOwnStateSoNothingLeaksBetweenFrames` counts **3**
+/// nodes. The tree is all native, so the kernel lays it out under either
+/// authority and no test here names one.
 @MainActor
 struct ProbeRow: Element {
     struct Layout {
@@ -50,22 +58,10 @@ struct ProbeRow: Element {
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         log.phases.append("requestLayout")
 
-        var rootStyle = Style()
-        rootStyle.size = Size(width: .length(.pixels(Pixels(400))),
-                              height: .length(.pixels(Pixels(100))))
-        rootStyle.flexDirection = .row
-
-        var first = Style()
-        first.size = Size(width: .length(.pixels(Pixels(100))),
-                          height: .length(.pixels(Pixels(40))))
-        var second = Style()
-        second.size = Size(width: .length(.pixels(Pixels(60))),
-                           height: .length(.pixels(Pixels(20))))
-
-        let children = [pass.requestNode(style: first, children: []),
-                        pass.requestNode(style: second, children: [])]
-        let root = pass.requestNode(style: rootStyle, children: children)
-        return (root, Layout(root: root, children: children))
+        let children = [pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 100, height: 40)) },
+                        pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 60, height: 20)) }]
+        let root = pass.requestNativeLayout(ProbeRowLayout(), children: children).layoutNodeID
+        return (root, Layout(root: root, children: children.map(\.layoutNodeID)))
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -82,6 +78,24 @@ struct ProbeRow: Element {
         log.boundsSeenInPaint = bounds
         for child in prepaint.childBounds {
             pass.fill(child, color: .white)
+        }
+    }
+}
+
+/// `ProbeRow`'s container: the legacy fixed-size flex row's answer in one node
+/// — 400×100, each child at its own size, left to right from the origin, top
+/// edges on the container's.
+private struct ProbeRowLayout: ProposalLayout {
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        LayoutMeasurement(size: SizeD(width: 400, height: 100))
+    }
+
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {
+        var x = bounds.x
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified).size
+            subview.place(at: Point(x: x, y: bounds.y), proposal: .unspecified)
+            x += size.width
         }
     }
 }
@@ -226,10 +240,8 @@ struct StampedProbe: Element {
     let stampsSeenInPaint: Recorder
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
-        var style = Style()
-        style.size = Size(width: .length(.pixels(Pixels(30))),
-                          height: .length(.pixels(Pixels(10))))
-        let node = pass.requestNode(style: style, children: [])
+        // A native 30×10 leaf since stage 6a (record §38, disposition R).
+        let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 30, height: 10)) }.layoutNodeID
         return (node, Layout(node: node, stamp: counter.next()))
     }
 
@@ -290,9 +302,10 @@ final class Recorder {
     for index in children.indices {
         nodes.append(children[index].requestLayout(standaloneID, pass: &layoutPass))
     }
-    var rootStyle = Style()
-    rootStyle.flexDirection = .row
-    let root = layoutPass.requestNode(style: rootStyle, children: nodes)
+    // A native horizontal stack at spacing 0 since stage 6a (record §38,
+    // disposition R): the children are native leaves, and the test asserts
+    // stamps, not positions.
+    let root = layoutPass.frame.requestNativeLinearStack(children: nodes, axis: .horizontal, spacing: 0)
     frame.computeRootLayout(root: root)
 
     var prepaintPass = PrepaintPass(frame: frame)
@@ -337,10 +350,8 @@ struct MutatingProbe: Element {
     mutating func requestLayout(_ id: GlobalElementID,
                                 pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         generation += 7
-        var style = Style()
-        style.size = Size(width: .length(.pixels(Pixels(30))),
-                          height: .length(.pixels(Pixels(10))))
-        let node = pass.requestNode(style: style, children: [])
+        // A native 30×10 leaf since stage 6a (record §38, disposition R).
+        let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 30, height: 10)) }.layoutNodeID
         return (node, Layout(node: node, value: 1))
     }
 
@@ -433,10 +444,8 @@ struct IdentifiedProbe: Element {
     let elementID: ElementID?
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
-        var style = Style()
-        style.size = Size(width: .length(.pixels(Pixels(30))),
-                          height: .length(.pixels(Pixels(10))))
-        let node = pass.requestNode(style: style, children: [])
+        // A native 30×10 leaf since stage 6a (record §38, disposition R).
+        let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 30, height: 10)) }.layoutNodeID
         return (node, Layout(node: node, paints: 0))
     }
 

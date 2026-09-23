@@ -553,7 +553,7 @@ private struct ScrollContextRecorder: Element, StyledElement {
         let w = width, h = height
         let node = pass.lowersToProposal
             ? pass.frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: w, height: h)) }
-            : pass.requestLeaf(style: style) { _, _ in SizeD(width: w, height: h) }
+            : pass.frame.requestLeaf(style: style) { _, _ in SizeD(width: w, height: h) }
         return (node, node)
     }
 
@@ -807,7 +807,7 @@ private struct HitboxProbe: Element, StyledElement {
         let w = width, h = height
         let node = pass.lowersToProposal
             ? pass.frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: w, height: h)) }
-            : pass.requestLeaf(style: style) { _, _ in SizeD(width: w, height: h) }
+            : pass.frame.requestLeaf(style: style) { _, _ in SizeD(width: w, height: h) }
         return (node, node)
     }
 
