@@ -1,6 +1,17 @@
 # Engine replacement, stage 6b — the root switch (plan task 7)
 
-**Status, 2026-09-23 (PDT): DESIGN.** Every measurement below was taken on
+**Status, 2026-09-23 (PDT): DELIVERED.** Critic round 1 applied (`LR-DO`); lane 1
+landed (hidden(), the root fold, depth; record §39 §10, `LR-DH`/`LR-DI`/`LR-DK`,
+suite 1697); lane 2 landed (every red test made independent of the default;
+record §39 §11, `LR-DG`/`LR-DQ`, suite 1698 at the inherited default); lane 3
+landed and threw the switch (record §39 §12, `LR-DF`/`LR-DJ`/`LR-DL`/`LR-DR`) —
+**1701 tests, 0 `warning:` on both build systems, `noProductionFrameReachesTheLegacyEngine`
+green, production now runs `.proposal` by default.** **The Record phase (record
+§39 §13–§18) has updated CLAUDE.md, AGENTS.md, records §03/§04/§05/README and
+the plan; the suite was re-taken independently after `swift package clean` and
+reads the same 1701 / 97 / 78.** The real-window capture was not taken at any
+point in the stage — the screen was locked every time it was checked — and is
+owed to the human (`LR-DM`). Every measurement below was taken on
 `feat/engine-stage-6b` from `aef88ce` in
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-6b`, on scratch commits
 `431d8bd` (arm F), `1c2fd9e` (arm G), `947cdd5` (arm H), `fd036b9`/`7218cd7`

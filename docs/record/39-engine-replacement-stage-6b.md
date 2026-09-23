@@ -734,3 +734,209 @@ and is owed to the human** (`LR-DM`).
   the "`LayoutAuthority.proposal` in production" inert row deleted, and the
   fourteen-image harness.
 
+## 13. Stage close
+
+| exit criterion (parent spec §4.1 row 6b) | reading |
+|---|---|
+| `Window`'s default authority becomes `.proposal` | `Frame.defaultLayoutAuthority` (`LR-DF`); `Frame.init`'s default and `Window.layoutAuthority`'s initial value both read it, one constant |
+| every red test of record §38 §4's classification table owned by 6b resolved | the 92-row table (§3) disposed by name in `LR-DI`: 14 X untouched (green once traps are fatal again), 2 D rewritten, 75 RP/P-6b re-spelled to `LR-DG`'s rule, 5 AV closed by lowering `hidden()` (`LR-DH`), the root's px/rem min/max folded (`LR-DI` item 4 amended by `LR-DO` item 1), 12 CSS + 1 RP+CSS-frame + 3 N9 + 1 RT pinned `.legacy` with a named owner (7b or 9) |
+| the demo re-spelled for the semantics stage 2 changed, each pixel change probe-backed and named | one re-spelling (`.height(Pixels(28))` on the list row's inner `Box`, `LR-DJ`); every one of the fourteen images' deltas falls in 55, its re-wrap, cause C or a one-point centring round (§4, §12.6) — none outside |
+| root placement ruled (divergence 4 vs `CN-J`) | `CN-J` kept, unchanged (`LR-DG`); divergence 4 stays a legacy-authority-only row, retired with the CSS engine by 7b |
+| the native depth limit re-bisected in release and re-measured on every production root | `NativeLayoutRun.maxDepth` 88 → 72 (`LR-DK`; debug governs, release headroom 9×); production roots re-measured at the new default: demo 29 → 30 after the re-spelling, preview 10, `ScrollView { List }` 15–16 (§5, §12.3) |
+| the human-verification rows that read demo layout re-opened | owed to this Record phase (§18, below); `LR-DM` |
+| real-window captures | not taken at any lane — `CGSSessionScreenIsLocked = 1` every time it was checked (§7, §12.9); owed to the human (`LR-DM`) |
+| exit test `noProductionFrameReachesTheLegacyEngine` | green at `3d4f5d8`; `demoContent()` and `nativeLayoutPreviewContent()` (`MetalUIDemoContent`, `LR-S`) plus a `List`, all six/eight production roots, `Frame.legacyRootLayoutCounter` reads 0 in every `.legacy`-authority-free run |
+| suite count | 1688 → **1701** (+13); goldens 97 unmoved; guards 78 unmoved |
+
+## 14. What landed — the stage
+
+- **The switch is one constant.** `Frame.defaultLayoutAuthority: LayoutAuthority
+  = .proposal` (internal, `LR-DF`), read by `Frame.init`'s default and
+  `Window.layoutAuthority`'s initial value; no public spelling gained
+  (`aPlainImportCannotChooseTheLayoutAuthority` stays green); production frames
+  keep trapping on an unlowerable field (`reportsUnlowerableFields` stays
+  `false` in `Window`). The thirteen file-local test-helper `.legacy` defaults
+  §38's instrument missed (§2) now read `Frame.defaultLayoutAuthority`;
+  `grep -rn "LayoutAuthority = \.legacy" Tests Sources` reads empty.
+- **`hidden()` lowers under the proposal authority** (`LR-DH`, lane 1): the
+  three `frame.hiddenNodes.insert(node)` call sites (leaf, node, modifier
+  layer) are read by `Element.paintGroup`/`prepaintGroup`, `ModifiedElement`'s
+  per-layer skip/scope and `AnyElement`'s entry gates, closing the five AV
+  rows record §38 §4 carried forward. "As if shown" is MetalUI's own choice,
+  not SwiftUI's: a hidden leaf's rect is `(0, 0)` at its own size, not the
+  position it would have had (`LR-DP` item 8).
+- **A declared root axis folds its px/rem `minSize`/`maxSize`** into the
+  declared size (`LR-DI` item 4, amended by `LR-DO` item 1); an auto-axis
+  min/max, a percentage, a margin or `.absolute` at the root still traps,
+  each named and pinned through a production `Window` (tests 1.7, 1.8).
+- **Root placement is unchanged**: `computeRootLayout`'s native branch still
+  centres the root at its own answer (`CN-J`, `LR-DG`); the M2a (top-leading)
+  and M2b (window-rect) mutations each redden dozens of existing proposal
+  tests and are rejected. Divergence 4 (the legacy engine's top-left,
+  window-filling root) survives as a legacy-authority-only row, retired with
+  the CSS engine by 7b.
+- **`NativeLayoutRun.maxDepth` moves 88 → 72** (`LR-DK`), the first release
+  re-bisection alongside a debug one: debug governs (72/127 = 0.57 of the
+  smallest debug ceiling, the one-child stack), release's smallest ceiling
+  (653) is 9× headroom. `LayoutTree.lastNativeLayoutDeepestLevel`
+  (`package private(set)`, `LR-DR` item 3) and `Window.lastNativeLayoutDeepestLevel`
+  copy the run's peak so a production root's depth is measured, not estimated
+  (`LR-DK`, `LR-DL`).
+- **The demo re-spelling** (`LR-DJ`): the list row's inner `Box` gains
+  `.height(Pixels(28))`, closing the one pixel group (X9, the row labels'
+  vertical centring) that the switch alone would have moved outside SwiftUI's
+  own answer. The demo's deepest native level moves 29 → 30 across all six
+  roots after it.
+- **The exit test and its counter** (`LR-DL`): `Frame.legacyRootLayoutCounter`,
+  a `@TaskLocal` bumped only in `computeRootLayout`'s legacy branch (main-actor
+  only, no lock), reads 0 across `demoContent()`, `nativeLayoutPreviewContent()`
+  and a `List`, each driven through a real `Window`.
+- **Every other red of record §38's 92-row table was made independent of the
+  default** (lane 2, `LR-DG`'s fixture rule, `LR-DQ`): 28 tests re-derive their
+  literals as `(W − w) / 2` and run `.proposal` (R-centre); 43 pass under
+  either authority once given the window's extent explicitly on an `auto` root
+  axis (R-fill); 2 keep a greedy frame; 20 are pinned `.legacy` with a named
+  owner (16 CSS/7b, 3 N9/9, 1 RT/9) plus 2 more `LR-DQ` item 2 found (fill →
+  neither once the root fold changed their reachable path); one new test,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, maps
+  every `animated(` call the lowering makes, closing `LR-DO` item 2's hazard
+  seven proposal tests exposed.
+- **No production `Sources/` line outside the switch, the counter, the depth
+  constant and the root fold moves.** The demo re-spelling is the one
+  `MetalUIDemoContent` line.
+
+## 15. Tests, red runs and mutations, in one place
+
+**Tests**, 1688 → **1701** (+13, all new files/tests, no existing `@Test`
+removed): lane 1 +9 (`HiddenLoweringTests` 6, `RootFieldLoweringTests` 2, and
+1.9 added in the fix round), lane 2 +1
+(`everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`), lane 3
++3 (`RootSwitchTests` 3.1–3.3). Guards 78 and goldens 97 unmoved by any lane
+(`LR-DR` item 3: no new guard).
+
+**Red runs** — none of the three lanes is a red-first suite run in the usual
+sense; each lane's own red-before is documented where it happened: the entry
+measurement (§2–§3, arm G2, 92 red under the flip+instrument, not a red-first —
+it is the stage's baseline); lane 1's red-before at `403d6d6` (§10.1, in-process
+and child-process aborts, at-limit prints hand-derived against 72); lane 2's
+entry red at `eb8ddff` with the instrument applied (§11.1, 85 tests, 300
+issues); lane 3's red-first `RootSwitchTests` at `27c9f52` (§12.2, 15 tests, 22
+issues) and the flip commit `58e4111` alone (§12.1, exactly the 2 D tests, 3
+issues).
+
+**Mutations**, each committed first, restored from a copy, full unfiltered
+suite, `git status --short` clean after — full tables in §10.3 (lane 1: M1a–M1j,
+VH, M3e, M3f), §11.4 (lane 2: M2a–M2e over the instrument, M2f–M2h2 at the
+default) and §12.4–§12.5 (lane 3: M3a–M3d, M2a re-taken at the new default).
+Every one reddens exactly its predicted set, with two findings recorded against
+the practice: **M1b** (§10.3) is a broken instrument for 1.1 — its intended
+target (the leaf's hidden branch) is masked by `lowerLegacyLeaf`'s own 0×0
+answer, so **M1b2** (both hidden branches) is the mutation that actually
+separates; **VH** (§10.3, `LR-DP` item 7) reddens nothing until test 1.9 is
+added, then reddens exactly it — a leaf-site gate the suite had never pinned.
+Lane 3's **M2a**, re-taken at the new default with no instrument (§12.5),
+reddens 75 tests including 20 of the 28 R-centred ones (the other 8 read a
+centre answer at both defaults and cannot separate, `LR-DQ` item 6) — the same
+mutation lane 2 read as 88-red under the instrument (§11.4), the 13-test gap
+being the X/D rows the instrument keeps green-but-non-fatal.
+
+## 16. Demo comparisons
+
+Every lane's twelve-image (design, lane 1, lane 2) or fourteen-image (lane 3)
+offscreen comparison (`docs/probes/demo-pixels/compare.sh <scratch> aef88ce
+<commit>`) reads every control at its recorded value. Design (`947cdd5`, arm
+H) and lane 3 (`5f0b4eb`) read the flip's real deltas — eight (then, with the
+two production-size images, ten) of the images differ, none outside four named
+causes (**55**: the sidebar/animation width SwiftUI answers where CSS shrank
+it; **55's re-wrap**: the paragraph breaking narrower; **C**: the modal card
+measured at the lowered column's width; **the one-point centring round**: a
+half-pixel case in `roundLayout`) — see §4 and §12.6 for the full delta
+breakdown, rect by rect and glyph group by glyph group. Lane 1 (`ef48a0a`) and
+lane 2 (`b2abe17`) each read **`differing=0`, scene identical in all twelve**:
+neither changed a `Sources/` line reachable at the still-`.legacy` default.
+The lock probe read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` at
+every measurement in the stage (design, both critic-round checks, and all
+three lanes' closes) — `docs/probes/window-capture/capture.sh` was never run;
+see §18 below for what that leaves open.
+
+## 17. Hazards and deferrals, each with an owner
+
+- **A `.legacy` test-helper default added later is silent** unless the grep is
+  re-run: `grep -rn "LayoutAuthority = \.legacy" Tests Sources` is the check
+  `LR-DF` item 4 leaves behind, and it is only as good as the next person who
+  runs it — §38's own instrument missed four such helpers for a whole stage
+  (§2).
+- **The proposal-authority `…unconsumed` trap is now a production hazard, not
+  only a test one**: every `Frame`/`Window` created without an explicit
+  argument now runs `.proposal`, so a lowering site that receives a
+  `LoweredItem` nobody consumes traps in production, not only in
+  `LayoutAuthorityTests`. Nothing in this stage's `Sources/` changes touches a
+  consumption site, but a later stage that adds one inherits a live trap where
+  before it was reachable only from a test that opted in.
+- **`FrameSizingTests`' `render`/`widthInRow`/`nodeCount` and the two
+  `ModifiedElementTests`/`ModifierCompositionProofTests` `observe` helpers
+  still take the authority as a required argument** (record §38 §17,
+  unchanged): a later default-authority change cannot reach their calls by
+  editing a default.
+- **The existing CI hazards are untouched by this stage**: `AuthorityCoverage`'s
+  cross-file-order dependency, the `AccessibilityDefaultsTests` recording-order
+  hazard and the `…unconsumed`-traps-a-`Window`-test hazard (record §38 §17)
+  all still apply, and the last one is the more consequential now that
+  production runs `.proposal` by default (above).
+- **CLAUDE.md's "measured at 18" for the demo's deepest native level predates
+  stages 3 and 4** (the scroll viewport and the windowed `List` add levels); the
+  Record phase corrects it to 30 (§18).
+- **Divergence 4 and the 12 CSS + 1 RP+CSS-frame + 3 N9 + 1 RT pinned rows**
+  (33 total, `LR-DI`) are 7b's and 9's to retire, each with the owner named in
+  its own doc comment — not this stage's to fix, since the CSS engine they
+  read is still production's answer under `.legacy` and no production frame
+  ever asks for `.legacy` again.
+- **Owed to the human**: the real-window capture, and the demo-layout
+  human-verification rows §03 re-opens (§18) — the sidebar now reading 196 (was
+  88 at 1024²), the animation panel at 320, the modal card's height, the list
+  rows' labels now vertically centred in their 28 pt row. The screen was
+  locked at every check this stage took; none of these was seen on a real
+  display.
+
+## 18. Record phase (2026-09-23, PDT) — docs pass over `aef88ce..8030eef`
+
+No file under `Sources/` or `Tests/` changed in this pass.
+
+**Suite, re-taken.** `swift package clean`, then `swift build --build-system
+native --build-tests`: 0 `error:`, the only `warning:` SwiftPM's
+`--build-system native` deprecation notice (40.58s). Unfiltered `swift test
+--build-system native --no-parallel`: **`Test run with 1701 tests in 3 suites
+passed after 90.779 seconds`**, one summary line, `FR-J no-argument frame:
+succeeded=true deprecations=2` in the log (guards ran). Default build system,
+`swift build --build-tests`: 0 `error:`, 0 `warning:` — the gate holds on both
+build systems after a clean build. Goldens: `find Tests/MetalUILayoutTests
+-name "*.json" | wc -l` reads **97**; `git diff --name-only aef88ce HEAD --
+'Tests/**/*.json'` empty. Guards: `grep -rn "canTypecheck" Tests` reads 80 raw
+hits (79 across the fifteen guard files plus `Typecheck.swift`'s declaration);
+`UnitSafetyTests`' one hit is a comment, so **78** guards, unchanged, matching
+CLAUDE.md's per-file list exactly (`LayoutAuthorityCompileGuards` stays 2, not
+touched by this stage).
+
+**Verdict: the stage's exit criteria (§13) all hold**, re-measured
+independently of the lanes' own runs. Docs updated in this pass: `CLAUDE.md`
+(counts; the `LR-` next-unused note, `LR-DF` → `LR-DS`; a new "SwiftUI
+alignment" stage-6b bullet; the "layout authority… `.legacy` in production,
+internal until stage 6b" sentence and every other "until stage 6b"/"not yet
+ruled" sentence this stage makes false, rewritten to say production now runs
+`.proposal`; the depth-guard bullet's 88 → 72 and its stale "measured at 18" →
+30; the "no demo look is owed until stage 6b" sentence in the human-verification
+reference row, replaced by a pointer at the rows §03 now carries; the
+`LayoutAuthority.proposal` in production" declared-but-inert row deleted from
+the inert-APIs reference line — verified against source with the greps above,
+not copied from the lane verdicts), `AGENTS.md` (copied, `cmp` clean),
+`docs/record/04-divergences.md` (divergence 4's row amended: still live, now
+legacy-authority-only, owned by 7b) and `docs/record/05-declared-but-inert.md`
+(the `LayoutAuthority.proposal` in production row deleted — it is inert no
+longer), `docs/record/03-human-verification.md` (the demo-layout rows
+re-opened, `LR-DM`), `docs/record/README.md` (the §39 row),
+`docs/superpowers/plans/2026-09-12-swiftui-alignment.md` (task 7's stage-6b
+progress paragraph, appended after stage 6a's; the task's own checkbox stays
+unticked — stages 7a, 7b and 8 remain), this stage's own spec's Status line
+(marked delivered, Record phase noted), and `README.md` (the branch/count
+line, the record-file list, the engine-replacement spec bullet).
+
