@@ -114,6 +114,48 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
 @MainActor
 private final class Log {
     var names: [String] = []
+    var layoutProbes: [Int] = []
+}
+
+private struct PresentationProbeKey: EnvironmentKey {
+    static let defaultValue = 0
+}
+
+extension EnvironmentValues {
+    /// 3.3's layout-phase reading.
+    fileprivate var presentationProbe: Int {
+        get { self[PresentationProbeKey.self] }
+        set { self[PresentationProbeKey.self] = newValue }
+    }
+}
+
+/// Forwards every phase to `content` under the id it is handed — so the
+/// `Deferred`'s content node is still `content`'s own, absolute and recorded, and
+/// the `Deferred` is still a presentation root — and reads `presentationProbe` in
+/// **`requestLayout`**, the one phase whose environment `EnvironmentScope` does not
+/// re-push around the `Deferred` (it re-pushes its stored values in prepaint and
+/// paint). Without this reading nothing in the suite sees the layout-phase half
+/// of "a presentation keeps its declaring scope's environment" (`LR-CS`).
+private struct LayoutEnvironmentProbe<Content: Element>: Element {
+    var content: Content
+    let log: Log
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Content.LayoutState) {
+        log.layoutProbes.append(pass.environment.presentationProbe)
+        return content.requestLayout(id, pass: &pass)
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Content.LayoutState, pass: inout PrepaintPass) -> Content.PrepaintState {
+        content.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+    }
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Content.LayoutState, prepaint: inout Content.PrepaintState,
+                        pass: inout PaintPass) {
+        content.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+    }
 }
 
 // MARK: - 3.1 The demo modal: click-to-dismiss and the wheel (IN-W)
@@ -244,30 +286,43 @@ func aPresentationInsideAFadedSubtreeIsStillFadedUnderBothAuthorities(_ authorit
 /// `.theme(.dark)` scope paints dark while a sibling outside it paints light, and
 /// one declared inside `.disabled(true)` registers no hitbox, takes no click and
 /// cannot be focused — each against its own control (`.disabled(false)`: one
-/// click, focus held).
+/// click, focus held). A third scope, `presentationProbe = 7`, is read by the
+/// presentation **during layout** (`LayoutEnvironmentProbe`), where the theme and
+/// the disabled gate are not read at all: they are paint- and prepaint-phase
+/// readings, and `EnvironmentScope` re-pushes its values around the `Deferred` in
+/// both of those phases whatever the `Deferred` does in layout.
 ///
-/// Mutation that must redden it: **M3b** (spec §7: `Deferred.requestLayout` wraps
-/// its content in the root environment; lane 3's corrections, `LR-CS`, say what
-/// that spelling does and does not reach).
+/// Mutations that must redden it: **M3b** (spec §7: `Deferred.requestLayout`
+/// wraps its content in the root environment) — the layout reading only, 0 for 7:
+/// lane 3's corrections (`LR-CS`) measured the spelling green against the theme
+/// and disabled assertions alone, which is why the layout reading is here; and
+/// **M3b′** (the root environment around all three of `Deferred`'s phases) — the
+/// theme, the gate and the reading.
 @Test(arguments: AuthorityCoverage.authorities) @MainActor
 func aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities(_ authority: LayoutAuthority) throws {
     AuthorityCoverage.record(#function, authority)
-    func run(disabled: Bool) throws -> (clicks: Int, focused: Bool, hit: Bool, colour: Hsla, outside: Hsla) {
+    func run(disabled: Bool) throws -> (clicks: Int, focused: Bool, hit: Bool, colour: Hsla, outside: Hsla,
+                                        layoutProbes: [Int]) {
         let log = Log()
         let (window, platform) = try presentationWindow(authority) {
             Row {
                 Box().width(px(11)).height(px(10)).background(.surface)
                 Deferred {
-                    Box().width(px(30)).height(px(30)).background(.surface)
-                        .focusable().onClick { log.names.append("x") }
-                        .position(.absolute).inset(edges(top: pxDim(50), left: pxDim(50)))
+                    LayoutEnvironmentProbe(
+                        content: Box().width(px(30)).height(px(30)).background(.surface)
+                            .focusable().onClick { log.names.append("x") }
+                            .position(.absolute).inset(edges(top: pxDim(50), left: pxDim(50))),
+                        log: log)
                 }
+                .environment(\.presentationProbe, 7)
                 .theme(.dark)
                 .disabled(disabled)
             }
             .alignItems(.flexStart)
         }
+        log.layoutProbes = []   // the pre-flight's two renders read it too
         window.drawFrameIfNeeded()
+        let layoutProbes = log.layoutProbes
         let scene = window.lastScene
         let subject = try rect(scene, 30, 30)
         try #require(subject.bounds.origin.x == 50 && subject.bounds.origin.y == 50,
@@ -282,7 +337,7 @@ func aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities(_ autho
         window.focus(id)
         redraw(window)
         return (log.names.count, window.focusedElement == id, hit,
-                hsla(subject.background), hsla(try rect(scene, 11, 10).background))
+                hsla(subject.background), hsla(try rect(scene, 11, 10).background), layoutProbes)
     }
     try #require(Theme.dark.surface != Theme.light.surface)
     let control = try run(disabled: false)
@@ -294,6 +349,8 @@ func aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities(_ autho
     #expect(!disabled.hit && disabled.clicks == 0 && !disabled.focused,
             "\(authority): a disabled scope reaches the presentation — hit \(disabled.hit), clicks \(disabled.clicks), focused \(disabled.focused)")
     #expect(disabled.colour == Theme.dark.surface, "\(authority): and the theme still does")
+    #expect(control.layoutProbes == [7] && disabled.layoutProbes == [7],
+            "\(authority): the presentation reads its declaring scope during layout too; got \(control.layoutProbes), \(disabled.layoutProbes)")
 }
 
 // MARK: - 3.4 The accessibility record and focus
