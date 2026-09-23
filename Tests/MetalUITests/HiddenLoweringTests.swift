@@ -310,3 +310,37 @@ private enum LegacyHiddenBaseline {
     static let glyphs: [String] = ["0.0,2.0", "-1.0,18.0"]
     static let hitboxes: [String] = ["hiddenBox 0.0,0.0 0.0x0.0 opaque=true"]
 }
+
+// MARK: - 1.9 — a hidden Text (the leaf site)
+
+/// **1.9** (`LR-DH` item 2, `LR-DP`). A `Text` hidden directly — `lowerLegacyLeaf`'s
+/// hidden branch, not `lowerLegacyNode` or the frame-layer branch that 1.2–1.5 reach —
+/// paints no glyph, registers no pointer hitbox, publishes no accessibility record and
+/// its node is in `hiddenNodes`, under the proposal authority in a production frame.
+/// The control, the same `Text` shown, paints, registers and records, and leaves
+/// `hiddenNodes` empty. A hidden `Text` is the case `Box.hidden()`'s doc calls wrong
+/// under the legacy authority.
+///
+/// Mutation **VH**: `frame.hiddenNodes.insert(node)` dropped from `lowerLegacyLeaf`'s
+/// hidden branch — the leaf lays out as shown but none of the gates see it.
+@Test @MainActor func aHiddenTextIsHiddenUnderTheProposalAuthority() throws {
+    func tree(hidden: Bool) -> some Element {
+        let text = Text("Hi").onClick {}
+        return Column {
+            hidden ? text.hidden() : text
+            Box().width(px(10)).height(px(10))
+        }
+    }
+    let textID = child(rootID, 0)
+    let shown = production(.proposal, tree(hidden: false))
+    try #require(!shown.scene.glyphs.isEmpty, "control: the shown text paints its glyphs")
+    try #require(shown.hitboxes.contains { $0.id == textID }, "control: the shown text registers a hitbox")
+    try #require(shown.axEmissions.contains { $0.id == textID }, "control: the shown text records")
+    try #require(shown.hiddenNodes.isEmpty, "control: nothing is hidden")
+
+    let hidden = production(.proposal, tree(hidden: true))
+    #expect(hidden.hiddenNodes.count == 1, "the hidden text's node joins hiddenNodes, got \(hidden.hiddenNodes.count)")
+    #expect(hidden.scene.glyphs.isEmpty, "a hidden text paints no glyph, got \(hidden.scene.glyphs.count)")
+    #expect(!hidden.hitboxes.contains { $0.id == textID }, "a hidden text registers no pointer hitbox")
+    #expect(!hidden.axEmissions.contains { $0.id == textID }, "a hidden text publishes no record")
+}
