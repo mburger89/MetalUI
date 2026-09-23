@@ -1,6 +1,6 @@
 # Portable font fallback — design
 
-**Status: implemented** on `feat/font-fallback` (record §41; written as §40); roadmap item 11
+**Status: implemented** on `feat/font-fallback` (record §42; written as §40); roadmap item 11
 of `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:** `FB-`
 (`FB-A`…`FB-C`, next `FB-D`; rulings here).
 

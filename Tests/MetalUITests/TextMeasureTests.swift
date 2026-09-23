@@ -60,9 +60,15 @@ private let label = "The quick brown fox jumps over the lazy dog"
 /// participates in; the paint test below uses `render` instead.
 @MainActor
 private func laidOut<E: Element>(_ element: inout E, width: Double, height: Double = 600,
-                                 cache: ShapingCache = ShapingCache()) -> (Frame, LayoutNodeID) {
-    let frame = Frame(contentSize: Size(width: Pixels(Float(width)), height: Pixels(Float(height))),
-                      scaleFactor: 1, stateTable: StateTable(), shapingCache: cache)
+                                 cache: ShapingCache = ShapingCache(),
+                                 authority: LayoutAuthority? = nil) -> (Frame, LayoutNodeID) {
+    // `nil` leaves `Frame`'s default; the four CSS answers stage 6b pins
+    // (`LR-DI`, owner 7b) pass `.legacy`.
+    let frame = authority.map {
+        Frame(contentSize: Size(width: Pixels(Float(width)), height: Pixels(Float(height))),
+              scaleFactor: 1, stateTable: StateTable(), shapingCache: cache, layoutAuthority: $0)
+    } ?? Frame(contentSize: Size(width: Pixels(Float(width)), height: Pixels(Float(height))),
+               scaleFactor: 1, stateTable: StateTable(), shapingCache: cache)
     var pass = LayoutPass(frame: frame)
     let (root, _) = element.requestLayout(GlobalElementID.child(of: nil, at: 0, name: nil),
                                           pass: &pass)
@@ -82,13 +88,14 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// every container answer from a closure instead of from its children.
 @MainActor
 @Test func aTextLeafCarriesAMeasureFunctionWhereABoxDoesNot() {
+    // P-CSS, owner 7b (stage 6b, `LR-DI`): reads `tree.measure`, the CSS engine's measure function (CSS-style).
     var text = Text(sample)
-    let (textFrame, textNode) = laidOut(&text, width: 400)
+    let (textFrame, textNode) = laidOut(&text, width: 400, authority: .legacy)
     #expect(textFrame.tree.measure(textNode) != nil)
     #expect(textFrame.tree.children(textNode).isEmpty)
 
     var box = Box()
-    let (boxFrame, boxNode) = laidOut(&box, width: 400)
+    let (boxFrame, boxNode) = laidOut(&box, width: 400, authority: .legacy)
     #expect(boxFrame.tree.measure(boxNode) == nil)
 }
 
@@ -278,8 +285,9 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// out for that to mean anything.
 @MainActor
 @Test func aLongLabelInAStretchedColumnWrapsRatherThanOverflowing() {
+    // P-CSS, owner 7b (stage 6b, `LR-DI`): a WebKit answer (CSS-text).
     var column = Column { Text(label) }.alignItems(.stretch)
-    let (frame, root) = laidOut(&column, width: 120)
+    let (frame, root) = laidOut(&column, width: 120, authority: .legacy)
     let rect = frame.tree.layout(frame.tree.children(root)[0])
 
     let lineHeight = ctLineHeight(font.ctFont)
@@ -290,7 +298,7 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
     // The same label in a column wide enough for one line is one line tall, so
     // the height above is the wrap and not a constant.
     var wide = Column { Text(label) }.alignItems(.stretch)
-    let (wideFrame, wideRoot) = laidOut(&wide, width: 400)
+    let (wideFrame, wideRoot) = laidOut(&wide, width: 400, authority: .legacy)
     #expect(wideFrame.tree.layout(wideFrame.tree.children(wideRoot)[0]).height
             == lineHeight.rounded())
 }
@@ -338,8 +346,9 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// it rather than deleting it).
 @MainActor
 @Test func aCentringColumnShrinkWrapsItsTextLikeWebKit() {
+    // P-CSS, owner 7b (stage 6b, `LR-DI`): a WebKit answer (CSS-text).
     var column = Column { Text(label) }
-    let (frame, root) = laidOut(&column, width: 120)
+    let (frame, root) = laidOut(&column, width: 120, authority: .legacy)
     let rect = frame.tree.layout(frame.tree.children(root)[0])
 
     #expect(rect.width == 120)
@@ -354,7 +363,7 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
     let widestWord = label.split(separator: " ")
         .map { ctAdvance(String($0), font.ctFont) }.max()!
     var narrow = Column { Text(label) }
-    let (narrowFrame, narrowRoot) = laidOut(&narrow, width: 20)
+    let (narrowFrame, narrowRoot) = laidOut(&narrow, width: 20, authority: .legacy)
     let narrowRect = narrowFrame.tree.layout(narrowFrame.tree.children(narrowRoot)[0])
 
     let x = (20 - widestWord) / 2
@@ -411,8 +420,9 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// glyph count below is here and not merely in the title.
 @MainActor
 @Test func aTextPaintsItsBackgroundAndItsGlyphs() {
+    // P-CSS, owner 7b (stage 6b, `LR-DI`): a WebKit answer (CSS-text).
     let frame = Frame(contentSize: Size(width: Pixels(120), height: Pixels(600)),
-                      scaleFactor: 1)
+                      scaleFactor: 1, layoutAuthority: .legacy)
     var column = Column { Text(label).background(.surface) }.alignItems(.stretch)
     frame.render(&column)
 

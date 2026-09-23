@@ -1,6 +1,6 @@
 # Portable bidi and script itemization — design
 
-**Status: implemented** on `feat/bidi` (record §42; written as §41); roadmap item 12 of
+**Status: implemented** on `feat/bidi` (record §43; written as §41); roadmap item 12 of
 `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:** `BD-`
 (`BD-A`…`BD-D`, next `BD-E`; rulings here).
 

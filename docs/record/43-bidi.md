@@ -1,7 +1,7 @@
-# 42 — Portable bidi and script itemization, 2026-09-23
+# 43 — Portable bidi and script itemization, 2026-09-23
 
-Branch `feat/bidi`, from `feat/font-fallback` (PR #23, record §41). Written
-as §41 and renumbered 41→42 when stage 6a took §38. Spec:
+Branch `feat/bidi`, from `feat/font-fallback` (PR #23, record §42). Written
+as §41, renumbered 41→42 when stage 6a took §38 and 42→43 when stage 6b took §41. Spec:
 `docs/superpowers/specs/2026-09-23-bidi-design.md`, rulings `BD-A`…`BD-D`
 (next `BD-E`). Roadmap item 12.
 

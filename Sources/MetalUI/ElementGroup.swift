@@ -153,15 +153,27 @@ extension Element {
         // The element bounds log (plan task 7, ruling LR-D), for a frame built to
         // record it; `ModifiedElement.prepaintLayer` mirrors this per inner layer
         // (ruling MC-B) and `Frame.render` records the root.
+        //
+        // Since stage 6b (ruling `LR-DH`) a node a lowered `hidden()` put in
+        // `Frame.hiddenNodes` also prepaints under the pointer-disable scope, so it
+        // and everything inside it register no pointer hitbox (probe V3) — and
+        // accessibility reads `isHidden`, which covers both paths. Mirrored per inner
+        // layer by `ModifiedElement.prepaintLayer` and in `AnyElement`'s entry below.
         pass.frame.recordElementBounds(layout.id, pass.bounds(of: layout.node))
         return pass.frame.suppressingAccessibilityIfHidden(layout.node) {
-            prepaint(layout.id, bounds: pass.bounds(of: layout.node), layout: &layout.state, pass: &pass)
+            pass.frame.disablingHitTestingIfHidden(layout.node) {
+                prepaint(layout.id, bounds: pass.bounds(of: layout.node), layout: &layout.state, pass: &pass)
+            }
         }
     }
 
     public mutating func paintGroup(layout: inout SingleElementLayout<Self>,
                                     prepaint: inout PrepaintState,
                                     pass: inout PaintPass) {
+        // A lowered `hidden()` paints nothing, and nothing inside it paints (stage 6b,
+        // ruling `LR-DH` item 2; probe V1). **`hiddenNodes` only**: the legacy path
+        // keeps painting a `display: none` subtree exactly as before (1.6).
+        guard !pass.frame.hiddenNodes.contains(layout.node) else { return }
         // Same reason as `prepaintGroup` above — paint is a third phase and the
         // box is still whatever the last `bind` left it.
         StateBinder.bind(self, in: pass.frame, id: layout.id)
@@ -672,11 +684,27 @@ extension AnyElement: ElementGroup {
         // not see an erased element until lane 5's corpus put one in (record §18,
         // lane 5; pinned by `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`).
         pass.frame.recordElementBounds(layout.id, pass.bounds(of: layout.node))
-        prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
+        // Stage 6b (ruling `LR-DH` item 4): `Element.prepaintGroup`'s hidden gates,
+        // mirrored — accessibility suppressed and hitboxes under the pointer-disable
+        // scope for a node in `Frame.hiddenNodes`. **`hiddenNodes` only, not
+        // `isHidden`**: this entry never had the legacy `display: none` suppression
+        // (record §18), and adding it would be a legacy production change with pins
+        // of its own; the legacy path is deleted at stage 9.
+        guard pass.frame.hiddenNodes.contains(layout.node) else {
+            prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
+            return
+        }
+        pass.frame.withAccessibilitySuppressed(except: nil) {
+            pass.frame.withHitTestingDisabled {
+                prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
+            }
+        }
     }
 
     public mutating func paintGroup(layout: inout GroupLayout,
                                     prepaint: inout Void, pass: inout PaintPass) {
+        // Stage 6b (`LR-DH` item 4): `Element.paintGroup`'s skip, mirrored.
+        guard !pass.frame.hiddenNodes.contains(layout.node) else { return }
         paint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
     }
 }

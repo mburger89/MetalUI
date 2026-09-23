@@ -434,9 +434,9 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
          report { Box(style: { var s = Style(); s.display = .stack; return s }()) {
              fixed(20, 10); fixed(30, 10)
          } }, []),
-        ("hidden reverse container",
+        ("hidden reverse container (lowered as if shown since stage 6b, LR-DH)",
          report { Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.rowReverse).hidden() },
-         [field(.box, "display.none")]),
+         []),
     ]
     try #require(arms.count == 16)
     for arm in arms {

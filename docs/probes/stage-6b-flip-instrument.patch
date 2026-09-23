@@ -1,0 +1,211 @@
+diff --git a/Sources/MetalUI/Frame.swift b/Sources/MetalUI/Frame.swift
+index 8959aad..8c9a491 100644
+--- a/Sources/MetalUI/Frame.swift
++++ b/Sources/MetalUI/Frame.swift
+@@ -1467,7 +1467,7 @@ public final class Frame {
+          focusedElement: GlobalElementID? = nil,
+          transaction: Animation? = nil,
+          collectsAccessibility: Bool = false,
+-         layoutAuthority: LayoutAuthority = .legacy,
++         layoutAuthority: LayoutAuthority = .proposal,
+          reportsUnlowerableFields: Bool = false,
+          recordsElementBounds: Bool = false) {
+         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
+@@ -1543,7 +1543,8 @@ public final class Frame {
+     /// argument (ruling LR-C). For a site that registers nothing in place of the
+     /// field — `StyledComponent`'s amend — this is the whole check.
+     func noteUnlowerable(_ field: UnlowerableField) {
+-        guard reportsUnlowerableFields else { preconditionFailure(field.trapMessage) }
++        if !reportsUnlowerableFields { print("SIXB-WOULD-TRAP: \(field)") }
++        print("SIXA-UNLOWERABLE: \(field)")
+         unlowerableFields.append(field)
+     }
+ 
+@@ -1592,10 +1593,12 @@ public final class Frame {
+ 
+     /// `requestNode`/`requestLeaf`'s backstop under the proposal authority.
+     private func unguardedLegacyRegistration(_ registrar: String) -> LayoutNodeID {
+-        precondition(reportsUnlowerableFields, """
++        if !reportsUnlowerableFields { print("SIXB-WOULD-TRAP: backstop \(registrar)") }
++        precondition(true, """
+             MetalUI: Frame.\(registrar) reached under the proposal layout authority by a \
+             site that did not check the authority itself (plan task 7, ruling LR-C).
+             """)
++        print("SIXA-BACKSTOP: \(registrar)")
+         return requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
+     }
+ 
+diff --git a/Sources/MetalUI/Window.swift b/Sources/MetalUI/Window.swift
+index 7788fc9..f5e9f06 100644
+--- a/Sources/MetalUI/Window.swift
++++ b/Sources/MetalUI/Window.swift
+@@ -142,7 +142,7 @@ public final class Window {
+     /// 7, ruling LR-B): `.legacy` until stage 6b switches the default. A write
+     /// marks the window dirty, as `environment`'s does, a no-op included.
+     /// **Internal**, pinned by `aPlainImportCannotChooseTheLayoutAuthority`.
+-    var layoutAuthority: LayoutAuthority = .legacy {
++    var layoutAuthority: LayoutAuthority = .proposal {
+         didSet { setNeedsRedraw() }
+     }
+ 
+diff --git a/Tests/MetalUITests/AXNodeTests.swift b/Tests/MetalUITests/AXNodeTests.swift
+index 6e08268..5d87ac0 100644
+--- a/Tests/MetalUITests/AXNodeTests.swift
++++ b/Tests/MetalUITests/AXNodeTests.swift
+@@ -26,7 +26,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
+ /// an element tree at all, so a second authority would be an argument their
+ /// bodies never read (`LR-BN`'s rule).
+ @MainActor private func bareFrame(_ side: Float = 300,
+-                                  authority: LayoutAuthority = .legacy) -> Frame {
++                                  authority: LayoutAuthority = .proposal) -> Frame {
+     Frame(contentSize: Size(width: px(side), height: px(side)),
+           scaleFactor: 1, stateTable: StateTable(),
+           shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
+@@ -674,7 +674,7 @@ private struct LegacySpelledAXListLeaf: Element {
+ @MainActor
+ private func renderListWindowed<Data: RandomAccessCollection, Row: Element>(
+     _ list: inout List<Data, Row>, context: ScrollContext,
+-    authority: LayoutAuthority = .legacy
++    authority: LayoutAuthority = .proposal
+ ) -> Frame where Data.Element: Identifiable {
+     let frame = bareFrame(600, authority: authority)
+     frame.pushScrollContext(context)
+diff --git a/Tests/MetalUITests/AccessibilityDefaultsTests.swift b/Tests/MetalUITests/AccessibilityDefaultsTests.swift
+index a17d135..d4d5000 100644
+--- a/Tests/MetalUITests/AccessibilityDefaultsTests.swift
++++ b/Tests/MetalUITests/AccessibilityDefaultsTests.swift
+@@ -49,7 +49,7 @@ private struct Item: Identifiable { let id: Int }
+ @MainActor private func collect<E: Element>(_ element: E, stateTable: StateTable = StateTable(),
+                                            width: Float = 300, height: Float = 300,
+                                            collects: Bool = true,
+-                                           authority: LayoutAuthority = .legacy)
++                                           authority: LayoutAuthority = .proposal)
+     -> (Frame, AccessibilityTree) {
+     var element = element
+     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
+diff --git a/Tests/MetalUITests/AccessibilityTreeTests.swift b/Tests/MetalUITests/AccessibilityTreeTests.swift
+index 2b881c3..302f1fa 100644
+--- a/Tests/MetalUITests/AccessibilityTreeTests.swift
++++ b/Tests/MetalUITests/AccessibilityTreeTests.swift
+@@ -42,7 +42,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
+ @MainActor private func collect<E: Element>(_ element: E, stateTable: StateTable = StateTable(),
+                                            width: Float = 300, height: Float = 300,
+                                            focusedElement: GlobalElementID? = nil,
+-                                           authority: LayoutAuthority = .legacy)
++                                           authority: LayoutAuthority = .proposal)
+     -> (Frame, AccessibilityTree) {
+     var element = element
+     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
+diff --git a/Tests/MetalUITests/ContainerIntegrationTests.swift b/Tests/MetalUITests/ContainerIntegrationTests.swift
+index d331200..2ebb5a6 100644
+--- a/Tests/MetalUITests/ContainerIntegrationTests.swift
++++ b/Tests/MetalUITests/ContainerIntegrationTests.swift
+@@ -674,7 +674,7 @@ private func pp(_ width: Double?, _ height: Double?) -> ProposedSize { ProposedS
+ 
+ @MainActor
+ private func render<Root: Element>(_ root: Root, _ width: Float, _ height: Float,
+-                                   authority: LayoutAuthority = .legacy) -> Frame {
++                                   authority: LayoutAuthority = .proposal) -> Frame {
+     var root = root
+     let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1,
+                       layoutAuthority: authority)
+diff --git a/Tests/MetalUITests/DecorationPaintTests.swift b/Tests/MetalUITests/DecorationPaintTests.swift
+index 13ae3b0..caeb883 100644
+--- a/Tests/MetalUITests/DecorationPaintTests.swift
++++ b/Tests/MetalUITests/DecorationPaintTests.swift
+@@ -66,7 +66,7 @@ private func pixel(_ platform: FakePlatformWindow, _ x: Int, _ y: Int, side: Int
+ 
+ /// Renders `make` in a fresh `side`x`side` fake window and returns it.
+ @MainActor
+-private func render<E: Element>(side: Int = 64, authority: LayoutAuthority = .legacy,
++private func render<E: Element>(side: Int = 64, authority: LayoutAuthority = .proposal,
+                                 _ make: @escaping @MainActor () -> E) throws
+     -> (Window, FakePlatformWindow) {
+     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+diff --git a/Tests/MetalUITests/EnvironmentTests.swift b/Tests/MetalUITests/EnvironmentTests.swift
+index fee31a7..d069a9c 100644
+--- a/Tests/MetalUITests/EnvironmentTests.swift
++++ b/Tests/MetalUITests/EnvironmentTests.swift
+@@ -189,7 +189,7 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
+ @MainActor
+ private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
+                    theme: Theme = .light, table: StateTable = StateTable(),
+-                   authority: LayoutAuthority = .legacy) -> Frame {
++                   authority: LayoutAuthority = .proposal) -> Frame {
+     Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: scale,
+           stateTable: table, theme: theme, layoutAuthority: authority)
+ }
+@@ -962,7 +962,7 @@ private func branching(_ a: Int, _ b: Int, _ c: Int) -> ArrayGroup<Level2> {
+ }
+ 
+ @MainActor
+-private func counts<C: ElementGroup>(_ content: C, authority: LayoutAuthority = .legacy)
++private func counts<C: ElementGroup>(_ content: C, authority: LayoutAuthority = .proposal)
+     throws -> (push: Int, snapshot: Int, transform: Int) {
+     let f = frame(400, 400, authority: authority)
+     var root = Box(content: content)
+diff --git a/Tests/MetalUITests/Fakes.swift b/Tests/MetalUITests/Fakes.swift
+index faebd67..175625a 100644
+--- a/Tests/MetalUITests/Fakes.swift
++++ b/Tests/MetalUITests/Fakes.swift
+@@ -248,7 +248,7 @@ func makeFakeWindow<Root: Element>(
+     // A caller reaching for `.proposal` owes a `LayoutDifferential.compare`
+     // pre-flight, or fixtures already measured to report nothing (`WindowPair`
+     // does the former; the scroll suites' fixtures are the latter).
+-    layoutAuthority: LayoutAuthority = .legacy,
++    layoutAuthority: LayoutAuthority = .proposal,
+     content: @escaping @MainActor () -> Root
+ ) throws -> (Window, FakePlatformWindow) {
+     let platformWindow = try FakePlatformWindow(device: device, size: size)
+diff --git a/Tests/MetalUITests/MeasurePerformanceTests.swift b/Tests/MetalUITests/MeasurePerformanceTests.swift
+index 3884305..fbce73f 100644
+--- a/Tests/MetalUITests/MeasurePerformanceTests.swift
++++ b/Tests/MetalUITests/MeasurePerformanceTests.swift
+@@ -40,7 +40,7 @@ struct MeasurePerformanceTests {
+     static func render(_ content: () -> some Element,
+                        size: Size<Pixels> = Size(width: Pixels(920), height: Pixels(560)),
+                        states: StateTable, shapingCache: ShapingCache = ShapingCache(),
+-                       authority: LayoutAuthority = .legacy,
++                       authority: LayoutAuthority = .proposal,
+                        reportsUnlowerableFields: Bool = false) -> Frame {
+         let frame = Frame(contentSize: size, scaleFactor: 2, stateTable: states,
+                           shapingCache: shapingCache, theme: .dark,
+diff --git a/Tests/MetalUITests/ScrollIndicatorTests.swift b/Tests/MetalUITests/ScrollIndicatorTests.swift
+index 396f61a..a1595e0 100644
+--- a/Tests/MetalUITests/ScrollIndicatorTests.swift
++++ b/Tests/MetalUITests/ScrollIndicatorTests.swift
+@@ -62,7 +62,7 @@ private let rootID = GlobalElementID.child(of: nil, at: 0, name: listID)
+ private func fullyRendered<E: Element>(_ element: inout E, width: Float, height: Float,
+                                        stateTable: StateTable = StateTable(),
+                                        timestamp: Double = 0,
+-                                       authority: LayoutAuthority = .legacy) -> (Frame, E.LayoutState) {
++                                       authority: LayoutAuthority = .proposal) -> (Frame, E.LayoutState) {
+     // Plan task 7, stage 3, lane 3 (`LR-BI`): `reportsUnlowerableFields` is left
+     // OFF on purpose, so this helper fails the way a production frame does — a
+     // site with no lowering traps rather than reporting. Every fixture below was
+diff --git a/Tests/MetalUITests/ScrollViewTests.swift b/Tests/MetalUITests/ScrollViewTests.swift
+index 7978c58..1c4bfe6 100644
+--- a/Tests/MetalUITests/ScrollViewTests.swift
++++ b/Tests/MetalUITests/ScrollViewTests.swift
+@@ -28,7 +28,7 @@ private func fixedHeight(_ h: Float) -> Style {
+ /// generalised to hand back the returned `LayoutState` instead of discarding it.
+ @MainActor
+ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Double,
+-                                 authority: LayoutAuthority = .legacy)
++                                 authority: LayoutAuthority = .proposal)
+     -> (Frame, LayoutNodeID, E.LayoutState) {
+     // Plan task 7, stage 3, lane 3 (`LR-BI`): `reportsUnlowerableFields` stays
+     // off, so this helper fails the way a production frame does.
+diff --git a/Tests/MetalUITests/TextSystemSeamTests.swift b/Tests/MetalUITests/TextSystemSeamTests.swift
+index 505eecf..d9c5f8d 100644
+--- a/Tests/MetalUITests/TextSystemSeamTests.swift
++++ b/Tests/MetalUITests/TextSystemSeamTests.swift
+@@ -29,7 +29,7 @@ private func sprites(_ frame: Frame) -> [[Float]] {
+ 
+ @MainActor
+ private func render<E: Element>(_ make: () -> E, system: any TextSystem, scale: Float,
+-                                authority: LayoutAuthority = .legacy) -> Frame {
++                                authority: LayoutAuthority = .proposal) -> Frame {
+     let frame = Frame(contentSize: Size(width: Pixels(420), height: Pixels(600)), scaleFactor: scale,
+                       textSystem: system, layoutAuthority: authority)
+     var root = make()

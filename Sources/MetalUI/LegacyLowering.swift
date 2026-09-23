@@ -71,6 +71,32 @@ extension LayoutPass {
     /// where the legacy stack offers fit-content (divergence 53, spec 4.2).
     func lowerLegacyNode(_ style: Style, declared: Style, children: [LayoutNodeID],
                          site: LoweringSite) -> LayoutNodeID {
+        // Stage 6b (ruling `LR-DH`): a hidden node lowers as if shown. `hidden()`
+        // overwrote `display`, so the shown one is recovered from the site — a
+        // `Stack` is a stack, everything else that reaches here a flex container.
+        guard declared.display == .none else {
+            return lowerShownLegacyNode(style, declared: declared, children: children, site: site)
+        }
+        let shown: Display = site == .stack ? .stack : .flex
+        let node = lowerShownLegacyNode(showing(style, as: shown), declared: showing(declared, as: shown),
+                                        children: children, site: site)
+        frame.hiddenNodes.insert(node)
+        return node
+    }
+
+    /// `style` with a `display: .none` replaced by `display` (ruling `LR-DH`): the
+    /// style a hidden node lowers from, since under the proposal authority it is laid
+    /// out as if shown. Any other display is left alone.
+    private func showing(_ style: Style, as display: Display) -> Style {
+        guard style.display == .none else { return style }
+        var shown = style
+        shown.display = display
+        return shown
+    }
+
+    /// `lowerLegacyNode`'s body, for a node whose declared display is not `.none`.
+    private func lowerShownLegacyNode(_ style: Style, declared: Style, children: [LayoutNodeID],
+                                      site: LoweringSite) -> LayoutNodeID {
         // Stage 5 (ruling `LR-CK`): a presentation's placeholder leaves the flow
         // here, before anything counts the children — `consume`, the container
         // rows, `planLegacyItems` and its single-child elision — as the legacy
@@ -90,8 +116,9 @@ extension LayoutPass {
         // itself reports.
         let received = children.map { frame.lowering.consume($0) }
         var fields = legacyContainerDiagnostics(declared, childCount: children.count, site: site)
-        // `display: none` is reported alone and records no item (ruling LR-J).
-        if declared.display == .none { return report(fields) }
+        // (`display: none` was reported alone here and recorded no item, ruling LR-J,
+        // until stage 6b: `lowerLegacyNode` now lowers a hidden node as if shown,
+        // `LR-DH`, so no declared style reaching this line is `.none`.)
         let isStack = declared.display == .stack
         let plans = planLegacyItems(received, parent: declared,
                                     parentKind: isStack ? .stack : .flex(isRow: declared.flexDirection.isRow),
@@ -138,8 +165,10 @@ extension LayoutPass {
 
     /// The container table's "otherwise" column (spec §5.4, **containers**), then
     /// the **every node** table's (`legacyLeafDiagnostics`), for a container's
-    /// **declared** style with `childCount` layout children. `display: none` is
-    /// checked first and alone (ruling LR-J). A `display: .stack` container (lane
+    /// **declared** style with `childCount` layout children. (`display: none` was
+    /// checked first and alone, ruling LR-J, until stage 6b: a hidden node now lowers
+    /// as if shown, `LR-DH`, so no style reaching this function is `.none`.) A
+    /// `display: .stack` container (lane
     /// 4) reads none of the flex rows below — the legacy engine branches to its
     /// stack layout before any of them — and reports `alignItems.baseline`, then the
     /// every-node rows (its stretch on either axis lowers per child since stage 2,
@@ -167,7 +196,6 @@ extension LayoutPass {
     func legacyContainerDiagnostics(_ declared: Style, childCount: Int,
                                     site: LoweringSite) -> [UnlowerableField] {
         func entry(_ name: String) -> UnlowerableField { UnlowerableField(site: site, field: name) }
-        if declared.display == .none { return [entry("display.none")] }
         var fields: [UnlowerableField] = []
         if declared.display == .stack {
             if declared.alignItems == .baseline { fields.append(entry("alignItems.baseline")) }
@@ -193,7 +221,7 @@ extension LayoutPass {
     /// element's bounds and whose measured width a `Text` wraps its glyphs at
     /// (ruling LR-X). When anything is reported, `content()` is **not** called and
     /// the node is a 0×0 native leaf. Either node is recorded as the leaf's item for
-    /// its parent (stage 2, ruling LR-AB), except under `display: none`.
+    /// its parent (stage 2, ruling LR-AB) — a hidden one too since stage 6b (`LR-DH`).
     ///
     /// **Every container field is ignored** (`flexDirection`, `gap`, `alignItems`,
     /// `justifyContent`, `justifyItems`, `flexWrap`, `alignContent`, `display:
@@ -203,8 +231,23 @@ extension LayoutPass {
     /// reported by name — see `legacyLeafDiagnostics`.
     func lowerLegacyLeaf(_ style: Style, declared: Style, site: LoweringSite,
                          content: () -> LayoutNodeID) -> LayoutNodeID {
+        // Stage 6b (ruling `LR-DH`): a hidden leaf lowers as if shown — a leaf reads
+        // no container field, so which display it is shown as does not matter — and
+        // its element node joins `Frame.hiddenNodes`. Until then it reported
+        // `display.none` alone and recorded no item (ruling LR-J).
+        guard declared.display == .none else {
+            return lowerShownLegacyLeaf(style, declared: declared, site: site, content: content)
+        }
+        let node = lowerShownLegacyLeaf(showing(style, as: .flex), declared: showing(declared, as: .flex),
+                                        site: site, content: content)
+        frame.hiddenNodes.insert(node)
+        return node
+    }
+
+    /// `lowerLegacyLeaf`'s body, for a leaf whose declared display is not `.none`.
+    private func lowerShownLegacyLeaf(_ style: Style, declared: Style, site: LoweringSite,
+                                      content: () -> LayoutNodeID) -> LayoutNodeID {
         let fields = legacyLeafDiagnostics(declared, site: site)
-        if declared.display == .none { return report(fields) }
         if !fields.isEmpty {
             return recordLoweredItem(report(fields), animated: style, declared: declared, site: site,
                                      contentAlignment: .topLeading, kind: .leaf)
@@ -241,6 +284,28 @@ extension LayoutPass {
             return lowerLegacyNode(layer.style, declared: declared, children: children,
                                    site: .modifierLayer)
         }
+        // Stage 6b (ruling `LR-DH`): a hidden frame layer lowers as if shown. Its
+        // shown display is the one an unhidden frame layer registers —
+        // `lowered(_:childCount:)` over `frameSpec.style()`, `display: .stack` over
+        // one node and a flex row otherwise (`CN-N`) — so the style comparison in
+        // `legacyFrameLayerDiagnostics` sees exactly what it would see shown, and a
+        // caller's modifier written after `.hidden()` is still reported `style`.
+        guard declared.display == .none else {
+            return lowerShownLegacyFrameLayer(layer, spec: spec, declared: declared, children: children)
+        }
+        let shown = layer.lowered(spec.style(), childCount: children.count).display
+        var shownLayer = layer
+        shownLayer.style = showing(layer.style, as: shown)
+        let node = lowerShownLegacyFrameLayer(shownLayer, spec: spec, declared: showing(declared, as: shown),
+                                              children: children)
+        frame.hiddenNodes.insert(node)
+        return node
+    }
+
+    /// `lowerLegacyLayer`'s frame arm, for a layer whose declared display is not
+    /// `.none`.
+    private func lowerShownLegacyFrameLayer(_ layer: ModifierLayer, spec: FrameSpec, declared: Style,
+                                            children: [LayoutNodeID]) -> LayoutNodeID {
         // Stage 5 (ruling `LR-CK`, as amended by `LR-CP` item 1): the placeholder
         // leaves here too — but the style check below keeps the **undropped**
         // count, because `declared` came from `ModifierLayer.lowered(_:childCount:)`
@@ -252,7 +317,6 @@ extension LayoutPass {
         let children = frame.lowering.droppingPresentations(children)
         let received = children.map { frame.lowering.consume($0) }
         var fields = legacyFrameLayerDiagnostics(layer, declared: declared, childCount: undroppedCount)
-        if declared.display == .none { return report(fields) }
         // A frame is a stack (`CN-N`): it stretches nothing (its `FrameSpec.style()`
         // alignment is never `stretch`) and ignores its children's flex fields. A
         // child's `maxSize` off a greedy axis still reports and a `minSize` on an
@@ -323,8 +387,10 @@ extension LayoutPass {
 
     /// A frame layer's checks (ruling LR-H), for its **declared** style:
     ///
-    /// 1. `display.none` alone — a `hidden()` written after the frame, which
-    ///    `ModifierLayer.lowered` keeps (ruling LR-J);
+    /// 1. (`display.none` alone — a `hidden()` written after the frame, which
+    ///    `ModifierLayer.lowered` keeps, ruling LR-J — until stage 6b: a hidden frame
+    ///    layer now lowers as if shown, its display normalized by `lowerLegacyLayer`
+    ///    before this check, `LR-DH`);
     /// 2. `style` — the declared style differs from
     ///    `layer.lowered(frameSpec.style(), childCount:)`, the style an unmodified
     ///    frame layer registers with (the same `display: .stack` a one-node frame
@@ -343,7 +409,6 @@ extension LayoutPass {
                                      childCount: Int) -> [UnlowerableField] {
         func entry(_ name: String) -> UnlowerableField { UnlowerableField(site: .modifierLayer, field: name) }
         guard let spec = layer.frameSpec else { return [] }
-        if declared.display == .none { return [entry("display.none")] }
         var fields: [UnlowerableField] = []
         if declared != layer.lowered(spec.style(), childCount: childCount) { fields.append(entry("style")) }
         return fields
@@ -663,8 +728,9 @@ extension LayoutPass {
     }
 
     /// The leaf table's "otherwise" column (spec §5.4, **every node**), in the
-    /// table's order, for a leaf's **declared** style. `display: none` is checked
-    /// first and alone: a hidden node reports nothing else (ruling LR-J).
+    /// table's order, for a leaf's **declared** style. (`display: none` was checked
+    /// first and alone, ruling LR-J, until stage 6b lowered a hidden node as if shown,
+    /// `LR-DH`; no style reaching this function is `.none` any more.)
     ///
     /// **Item fields are not rows here since stage 2** (`minSize`, `maxSize`,
     /// `margin`, `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`): the parent
@@ -679,7 +745,6 @@ extension LayoutPass {
     /// fixed frame (ruling LR-AH) — so `padding.floor` and `padding.text` are gone.
     func legacyLeafDiagnostics(_ declared: Style, site: LoweringSite) -> [UnlowerableField] {
         func entry(_ name: String) -> UnlowerableField { UnlowerableField(site: site, field: name) }
-        if declared.display == .none { return [entry("display.none")] }
         var fields: [UnlowerableField] = []
 
         let size = declared.size

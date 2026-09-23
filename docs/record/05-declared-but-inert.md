@@ -290,3 +290,24 @@ already called), and every in-repo caller was moved in the same change
 (`LR-CU`), so nothing is left half-implemented in the sense this table
 tracks. `LayoutAuthority.proposal` in production is **still inert**,
 unchanged, until stage 6b.
+
+## 2026-09-23: one row deleted at engine replacement stage 6b
+
+Record §41; rulings `LR-DF`…`LR-DR`. **One row deleted, none added or
+edited.** `Frame.defaultLayoutAuthority` is now `.proposal` (`LR-DF`):
+`Frame.init`'s default and `Window.layoutAuthority`'s initial value both read
+it, so every production frame or window built with no explicit authority now
+sets `LayoutAuthority.proposal` — the fact every prior dated section in this
+file (stage 3, stage 4, stage 6a) reaffirmed as "still inert … until stage 6b"
+is now false, and the row it names is **deleted**. This is not "implementing
+an inert property" in the usual sense of this table (no new code path is
+added; `computeRootLayout`'s two branches, `if tree.isNativeLayoutNode(root)`
+and the legacy fallback, are unchanged) — it is the *default argument* that
+chooses between two already-implemented branches moving from one to the
+other, which is exactly what makes `.proposal` reachable in production for
+the first time. `LayoutAuthority` itself stays internal (no public spelling,
+`LR-DF` item 2), so this is a deletion of the row, not a new public API
+surface. Nothing else in the table's shape changes: `LayoutAuthority.allCases`
+(the test-observables row, added at stage 3) still has no production reader,
+and `UnlowerableField` site `.list`/`component` still has no site-level
+reporter — both unaffected by which authority is the default.

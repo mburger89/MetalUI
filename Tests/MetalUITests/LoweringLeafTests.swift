@@ -165,8 +165,14 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// margin — and `alignSelf` as `.baseline`, which reports `alignSelf.baseline`: a
 /// `.center` `alignSelf` lowers since lane 1). 46 arms.
 ///
-/// Mutations that must redden it: **M2c**, the `margin` check deleted; **V4**,
-/// `display: none` no longer returned alone; **V5**, only the last of several fields
+/// **`display.none` is no longer a row** (stage 6b, lane 1, `LR-DH`): a hidden leaf
+/// lowers as if shown, so the table's `display.none` row went and the combined arms
+/// below carry a hidden leaf that reports nothing alone and, with a margin, reports
+/// only the margin.
+///
+/// Mutations that must redden it: **M2c**, the `margin` check deleted; stage 1's
+/// **V4** (`display: none` no longer returned alone) is **retired** with the row;
+/// **V5**, only the last of several fields
 /// recorded; **M4h**, `margin.percent` no longer reported (2 issues); **V4q**, the
 /// `border.percent` entry removed (4). Stage 1's **V3** (the height half of the floor
 /// check deleted) is **retired**: lane 4 deleted the `padding.floor` branch outright,
@@ -175,7 +181,6 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 @Test func everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf() throws {
     typealias Row = (name: String, edit: (inout Style) -> Void, onBox: Bool)
     let rows: [Row] = [
-        ("display.none", { $0.display = .none }, true),
         ("size.percent", { $0.size.width = .length(.percent(0.5)) }, true),
         ("padding.percent", { $0.padding.left = .percent(0.1) }, true),
         ("minSize.unconsumed", { $0.minSize.width = .length(.pixels(px(5))) }, true),
@@ -209,18 +214,21 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     }
     // Arms whose report is not a single entry named by the row (verifier round 1,
     // lane 2): each half of `padding.floor` on its own axis (the 10×10 row above
-    // always takes the width branch first); a hidden leaf that also declares an
-    // unlowerable field reports `display.none` ALONE (`LR-J`); a leaf with two
+    // always takes the width branch first); a hidden leaf reports nothing of its own
+    // and, declaring an unlowerable field too, only that field — it lowers as if
+    // shown since stage 6b (`LR-DH`), where it reported `display.none` ALONE
+    // (`LR-J`); a leaf with two
     // unlowerable fields reports both, in the table's order.
     let combined: [(name: String, edit: (inout Style) -> Void, expected: [String])] = [
         ("padding and border percent together", {
             $0.padding.left = .percent(0.1)
             $0.border.right = .percent(0.1)
         }, ["padding.percent", "border.percent"]),
+        ("display.none alone", { $0.display = .none }, []),
         ("display.none with margin", {
             $0.display = .none
             $0.margin.top = .length(.pixels(px(3)))
-        }, ["display.none"]),
+        }, ["margin.unconsumed"]),
         ("margin and flexGrow", {
             $0.flexGrow = 1
             $0.margin.top = .length(.pixels(px(3)))

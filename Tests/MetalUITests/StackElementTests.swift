@@ -18,8 +18,11 @@ import MetalUILayout
 /// point is the `Style` `Stack.init` built, not what the engine did with it.
 @MainActor
 private func styleOfRoot<E: Element>(_ element: inout E) throws -> (Style, LayoutNodeID) {
+    // P-CSS, owner 7b (stage 6b, `LR-DI`): this helper's three callers read the
+    // `Style` `Stack.init` wrote into the legacy tree (CSS-style); a lowered
+    // `Stack` is a native node, whose `tree.style` is not what they ask about.
     let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)),
-                      scaleFactor: 1)
+                      scaleFactor: 1, layoutAuthority: .legacy)
     var pass = LayoutPass(frame: frame)
     let (root, _) = element.requestLayout(GlobalElementID.child(of: nil, at: 0, name: nil),
                                           pass: &pass)

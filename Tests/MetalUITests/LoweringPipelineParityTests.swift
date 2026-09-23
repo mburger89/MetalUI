@@ -377,49 +377,54 @@ private func nestedPaddedBoxes(_ n: Int) -> Box<AnyElement> {
     return Box(style: style(2 * n)) { inner }
 }
 
-/// **5.8** (`LR-Q`). A chain of **29** such `Box`es — 87 native levels, the
-/// deepest multiple of this chain's three levels per `Box` under
-/// `NativeLayoutRun.maxDepth` (88, which itself is allowed; with 5.9 this
-/// brackets the limit between 87 and 90 rather than pinning 88) — laid out as a **production**
+/// **5.8** (`LR-Q`, re-derived by stage 6b's lane 1 for `LR-DK`'s 72). A chain of
+/// **24** such `Box`es — **72** native levels, exactly `NativeLayoutRun.maxDepth`
+/// (which itself is allowed; 29 boxes / 87 levels against the old 88, which
+/// bracketed rather than pinned the limit) — laid out as a **production**
 /// frame's root (no harness root, whose overlay and frame would add two levels)
 /// under the proposal authority. **An exit test whose child expects success**, so
 /// a mutation that makes it trap reddens this test by name instead of ending the
 /// run with no summary line.
 ///
+/// The child prints the node count (72, three per `Box`) and the run's deepest native
+/// level with the limit (`LayoutTree.lastNativeLayoutDeepestLevel`, `LR-DK`): both
+/// 72, so a limit moved either way reddens this arm.
+///
 /// Mutation that must redden it: **M5g**, the lowering emits a fourth native level
-/// per `Box` (an extra `padding(0)`: 116 levels, the child traps).
+/// per `Box` (an extra `padding(0)`: 96 levels, the child traps).
 @Test func aLoweredChainAtTheNativeDepthLimitLaysOut() async {
     let result = await #expect(processExitsWith: .success,
                                observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
-            var root = nestedPaddedBoxes(29)
+            var root = nestedPaddedBoxes(24)
             let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
                               layoutAuthority: .proposal)
             frame.render(&root)
-            let line = "LANE5-5.8 nodes=\(frame.tree.nodeCount)\n"
+            let line = "LANE5-5.8 nodes=\(frame.tree.nodeCount) deepest=\(frame.tree.lastNativeLayoutDeepestLevel)"
+                + " limit=\(NativeLayoutRun.maxDepth)\n"
             FileHandle.standardOutput.write(Data(line.utf8))
         }
     }
     let out = String(decoding: result?.standardOutputContent ?? [], as: UTF8.self)
     let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(out.contains("LANE5-5.8 nodes=87\n"), "stdout:\n\(out)\nstderr:\n\(err)")
+    #expect(out.contains("LANE5-5.8 nodes=72 deepest=72 limit=72\n"), "stdout:\n\(out)\nstderr:\n\(err)")
 }
 
-/// **5.9** (`LR-Q`). The same chain one `Box` longer — **30**, 90 native levels —
-/// traps with `SA-L`'s message, as an exit test.
+/// **5.9** (`LR-Q`, re-derived for `LR-DK`). The same chain one `Box` longer —
+/// **25**, 75 native levels — traps with `SA-L`'s message, as an exit test.
 ///
-/// Mutation that must redden it: **M5h**, `NativeLayoutRun.maxDepth` raised to 96
-/// (the child succeeds).
+/// Mutation that must redden it: **M5h**, `NativeLayoutRun.maxDepth` raised to 80
+/// (the child succeeds); **M3e** (stage 6b), back to 88.
 @Test func aLoweredChainOneLevelPastTheNativeDepthLimitTraps() async {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
-            var root = nestedPaddedBoxes(30)
+            var root = nestedPaddedBoxes(25)
             Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
                   layoutAuthority: .proposal).render(&root)
         }
     }
     let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(err.contains("native layout recursion exceeded 88 levels"), "stderr:\n\(err)")
+    #expect(err.contains("native layout recursion exceeded 72 levels"), "stderr:\n\(err)")
 }
 
 // MARK: - Stage 2, lane 2 — 2.14, the depth guard with three item wrappers per level
@@ -440,16 +445,17 @@ private func nestedPaddedBoxes(_ n: Int) -> Box<AnyElement> {
 ///
 /// **Native depth, by hand** (`NativeLayoutRun.enter` on every `measureNative` and
 /// `placeNative`, one counter): the root's fixed frame is 1 and its stack 2; each of
-/// the 20 inner rows adds its parent's three wrappers and its own stack, 4 levels, so
-/// the 21st row's stack is at 2 + 20·4 = 82; its first child's three wrappers reach
-/// 85, and the child's own nodes **88** (3 levels) or **89** (4). No axis is proposed
+/// the 16 inner rows adds its parent's three wrappers and its own stack, 4 levels, so
+/// the 17th row's stack is at 2 + 16·4 = 66; its first child's three wrappers reach
+/// 69, and the child's own nodes **72** (3 levels) or **73** (4). (20 inner rows,
+/// 88 / 89, until stage 6b's lane 1 moved the limit to 72, `LR-DK`.) No axis is proposed
 /// `nil` on a cross axis anywhere in the chain (the root proposes 100 tall, and W and
 /// the alignment frame pass concrete proposals through), so no stack re-measures
 /// itself during placement at one level deeper than its measurement.
 ///
-/// **Nodes, by hand**: 21 rows × (a stack + the fixed sibling's frame and leaf) = 63;
-/// the root's frame 1; 20 inner rows' wrappers 60; the innermost child's wrappers 3 and
-/// its own nodes 3 (or 4): **130** (or **131**).
+/// **Nodes, by hand**: 17 rows × (a stack + the fixed sibling's frame and leaf) = 51;
+/// the root's frame 1; 16 inner rows' wrappers 48; the innermost child's wrappers 3 and
+/// its own nodes 3 (or 4): **106** (or **107**). (130 / 131 at 20 inner rows.)
 @MainActor
 private func itemChain(containerInnermost: Bool) -> some Element {
     var padded = Style()
@@ -457,7 +463,7 @@ private func itemChain(containerInnermost: Bool) -> some Element {
     var element = containerInnermost
         ? AnyElement(Box(style: padded) { Box().height(px(10)) }.flexShrink(0).flexGrow(1).alignSelf(.flexEnd))
         : AnyElement(Box(style: padded).height(px(10)).flexShrink(0).flexGrow(1).alignSelf(.flexEnd))
-    for _ in 0..<20 {
+    for _ in 0..<16 {
         let inner = element
         element = AnyElement(Row { inner; Box().width(px(10)).height(px(10)) }
             .flexShrink(0).flexGrow(1).alignSelf(.flexEnd))
@@ -467,11 +473,11 @@ private func itemChain(containerInnermost: Bool) -> some Element {
 }
 
 /// **2.14, limit** (`LR-AB` as amended, `SA-L`). `itemChain(containerInnermost: false)`
-/// — 88 native levels, `NativeLayoutRun.maxDepth` itself, every level of the 20 inner
+/// — 72 native levels, `NativeLayoutRun.maxDepth` itself, every level of the 16 inner
 /// rows carrying three item wrappers — lays out as a production frame's root under the
 /// proposal authority, in a child process that must exit successfully and print the
-/// node count derived by hand (130). With 2.14's trap arm this pins the boundary at
-/// exactly 88 / 89.
+/// node count derived by hand (106) and the run's deepest level with the limit (72,
+/// 72). With 2.14's trap arm this pins the boundary at exactly 72 / 73.
 ///
 /// **Red before** (lane 1): the chain's `flexGrow` and `flexShrink` are reported, and a
 /// production frame traps on the first.
@@ -483,15 +489,16 @@ private func itemChain(containerInnermost: Bool) -> some Element {
             let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
                               layoutAuthority: .proposal)
             frame.render(&root)
-            FileHandle.standardOutput.write(Data("LANE2-2.14 nodes=\(frame.tree.nodeCount)\n".utf8))
+            FileHandle.standardOutput.write(Data(("LANE2-2.14 nodes=\(frame.tree.nodeCount)"
+                + " deepest=\(frame.tree.lastNativeLayoutDeepestLevel) limit=\(NativeLayoutRun.maxDepth)\n").utf8))
         }
     }
     let out = String(decoding: result?.standardOutputContent ?? [], as: UTF8.self)
     let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(out.contains("LANE2-2.14 nodes=130\n"), "stdout:\n\(out)\nstderr:\n\(err)")
+    #expect(out.contains("LANE2-2.14 nodes=106 deepest=72 limit=72\n"), "stdout:\n\(out)\nstderr:\n\(err)")
 }
 
-/// **2.14, one past** (`SA-L`). `itemChain(containerInnermost: true)` — 89 native
+/// **2.14, one past** (`SA-L`). `itemChain(containerInnermost: true)` — 73 native
 /// levels — traps with `SA-L`'s message, as an exit test.
 ///
 /// Mutation that must redden it: **M2q** `NativeLayoutRun.maxDepth` raised by 8 (the
@@ -505,5 +512,5 @@ private func itemChain(containerInnermost: Bool) -> some Element {
         }
     }
     let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(err.contains("native layout recursion exceeded 88 levels"), "stderr:\n\(err)")
+    #expect(err.contains("native layout recursion exceeded 72 levels"), "stderr:\n\(err)")
 }
