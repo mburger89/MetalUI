@@ -1,7 +1,7 @@
 # Engine replacement, stage 7a — the goldens retired (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 7a, §8. Rulings `LR-DS`…`LR-DX` in
+§4.1 row 7a, §8. Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Record: `docs/record/42-engine-replacement-stage-7a.md` (its §4 is the 97-row
 retirement table this design commits). Probe:
@@ -10,8 +10,11 @@ retirement table this design commits). Probe:
 Branch `feat/engine-stage-7a` from `2cc763d`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-7a`.
 
-**Status, 2026-09-23 (PDT): design.** Nothing under `Sources/`, `Tests/` or
-`Package.swift` changed in a commit.
+**Status, 2026-09-23 (PDT): design, after critic round 1 (`LR-DY`).** Nothing
+under `Sources/`, `Tests/` or `Package.swift` changed in a commit. Round 1 added
+test 2.8 (the three `wrap-reverse` rows had no test asserting their report) and
+mutation M2h, so the exit count is **1616**, not 1615; it also corrected row 86's
+citation and two miscounts in record §42 (`LR-DY`).
 
 **What this stage is.** Each of the 97 WebKit goldens
 (`Tests/MetalUILayoutTests/Golden/*.json`) is retired with a row naming either
@@ -70,6 +73,7 @@ goldens exactly — the transcription is right. The proposal authority:
 | `LR-DV` | the seven silent D shapes get native pins of the golden's own tree (2.5–2.7); the reported ones cite the existing report tests |
 | `LR-DW` | the new tests are characterization: green on arrival, their red-before is a named mutation run before they are committed |
 | `LR-DX` | three lanes, the removal last and only after every replacement is green; `Sources/` untouched but one doc comment |
+| `LR-DY` | critic round 1: test 2.8 for `wrap-reverse`'s report, row 86's citation, what "deleted" means for fields stages 8/10 still own (percentages, length `flexBasis`, non-greedy `maxSize`, grow weights), record miscounts |
 
 ## 4. API and files
 
@@ -85,7 +89,7 @@ show only `///` lines of that block).
 |---|---|---|
 | `Tests/MetalUITests/GoldenReplacementSupport.swift` | 1 | new: `goldenArm` and `bounds(named:in:)` (below) |
 | `Tests/MetalUITests/GoldenReplacementFlexTests.swift` | 1 | new: tests 1.1–1.8, 29 arms |
-| `Tests/MetalUITests/GoldenReplacementStackTests.swift` | 2 | new: tests 2.1–2.7, 15 R arms (incl. `stack_stretch_max` partial) + 7 D-pin arms |
+| `Tests/MetalUITests/GoldenReplacementStackTests.swift` | 2 | new: tests 2.1–2.8, 15 R arms (incl. `stack_stretch_max` partial) + 7 D-pin arms + 3 report arms (2.8) |
 | `Tests/MetalUILayoutTests/Golden/` (97 JSON + `.gitkeep`), `Fixtures/` (97 HTML), `Oracle/` (3 files), `GeneratorTests.swift`, `OracleTests.swift` | 3 | deleted |
 | `AbsoluteFixtureTests.swift`, `StackFixtureTests.swift`, `FitContentFixtureTests.swift`, `ContentSizingFixtureTests.swift` | 3 | deleted (every test a consumer) |
 | `FlexEngineTests.swift` (16 consumers + `assertMatchesGolden`), `WrappingTests.swift` (17), `FreezeLoopTests.swift` (13), `BoxModelTests.swift` (12), `SizingFixtureTests.swift` (8 removed, 1 trimmed) | 3 | consumers removed; every other test byte-identical |
@@ -139,7 +143,7 @@ the D pins' native answers are §5.2.
 | absolute | 5 → 2.4 | — |
 | sizing (§4.5 automatic minimum, `BM-4` floor) | — | 5 → report / 2.7 |
 | percentages | — | 7 → report |
-| wrap (and wrapping content, TX-H fit-content) | — | 30 → report |
+| wrap (and wrapping content, TX-H fit-content) | — | 30 → report (`wrap-reverse`'s 3 → new 2.8, `LR-DY`) |
 | **total** | **44** | **53** |
 
 ## 6. Lanes, and every test by name
@@ -171,7 +175,7 @@ Files: `GoldenReplacementSupport.swift`, `GoldenReplacementFlexTests.swift`.
 
 ### Lane 2 — stack, absolute and D-pin arms (Opus)
 
-File: `GoldenReplacementStackTests.swift` (uses lane 1's helper).
+File: `GoldenReplacementStackTests.swift` (uses lane 1's helper for 2.1–2.7; 2.8 reads `unlowerableFields` only).
 
 | # | test | arms | mutation → predicted arms |
 |---|---|---|---|
@@ -182,6 +186,7 @@ File: `GoldenReplacementStackTests.swift` (uses lane 1's helper).
 | 2.5 | `aGrowFactorSumBelowOneStillFillsTheLine` | D pins: `flex_row_fractional_grow` (133/134/133), `flex_row_fractional_grow_clamped` (50/350) | **M2e** `planLegacyItems`: `d.flexGrow > 0` → `d.flexGrow >= 1` for `grownH`/`grownV` → both arms |
 | 2.6 | `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder` | D pin: `stack_stretch_border_box_floor` (f 100×100, c 40×50) | **M2f** `planLegacyItems.axis`, stretched axis of a non-frame-layer item: `lo` = the item's padding + border on that axis (CSS's `BM-4` floor) → both boxes (120×140) |
 | 2.7 | `aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding` | D pins: `flex_row_shrink_padded_weighting`, `sizing_specified_suggestion`, `sizing_specified_suggestion_is_used_value`, `sizing_over_constrained_grows` | **M2g** `paddedAndSized`: each folded declared size raised to its padding + border sum (stage 2's M4c) → `sizing_over_constrained_grows` (120×140), `sizing_specified_suggestion_is_used_value` (a 120) |
+| 2.8 | `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs` (`LR-DY`) | D report arms, each rendered under the proposal authority and asserting `unlowerableFields` exactly: `flex_wrap_reverse` — a `Row` of two fixed children with `.flexWrap(.wrapReverse)` → `[box.flexWrap]`; `flex_wrap_reverse_align_content_end` — the same plus `.alignContent(.flexEnd)` → `[box.flexWrap, box.alignContent]` (that order: `legacyContainerDiagnostics` appends `flexWrap` first); `flex_wrap_reverse_row_reverse` — `Box(style:)` with `flexDirection: .rowReverse`, `flexWrap: .wrapReverse` over two fixed children → `[box.flexWrap]`. `try #require` on the arm count (shape 13) | **M2h** `legacyContainerDiagnostics` (`LegacyLowering.swift:209`): `declared.flexWrap != .noWrap` → `declared.flexWrap == .wrap` → all three arms; `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`'s `.wrap` arm must stay **green** (it cannot see this mutation — which is why 2.8 exists) |
 
 Each D-pin test's doc comment names the golden, WebKit's answer, the native
 answer and the concept (record §42 §2's table), so a later reader who sees the
@@ -208,7 +213,7 @@ Runs only when lanes 1 and 2 are committed and green in an unfiltered run.
    against this repo's own `LayoutOracle`" may stay: it describes a measurement
    that was taken, and stage 9 deletes the file).
 4. **Re-run one mutation per family with the goldens gone** — M1b, M1f, M2d,
-   M2g — to show the replacements still redden without them.
+   M2g, M2h — to show the replacements still redden without them.
 5. The exit checks of §8, and the pixel comparison of §7.
 
 ## 7. What must not move; the demo
@@ -232,7 +237,7 @@ Runs only when lanes 1 and 2 are committed and green in an unfiltered run.
   `OracleTests.swift` absent;
 - every one of record §42 §4's 97 rows verified by lane 3 step 1;
 - unfiltered `swift test --build-system native --no-parallel` → **`Test run
-  with 1615 tests in 3 suites passed`** = 1704 − 96 − 5 − 3 + 8 + 7, the log
+  with 1616 tests in 3 suites passed`** = 1704 − 96 − 5 − 3 + 8 + 8, the log
   carrying `FR-J no-argument frame: succeeded=`; four gated tests skipped where
   five were;
 - 0 `error:`; the only `warning:` SwiftPM's deprecation notice (native) and none

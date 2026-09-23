@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DY`** (stage 7a's design took `LR-DS`…`LR-DX`, appended at the end; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DZ`** (stage 7a's design took `LR-DS`…`LR-DX` and its critic round 1 `LR-DY`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -7157,7 +7157,10 @@ also asserts a second tree (`cMinZero: true`) that no golden describes.
    `Golden/`, `assertMatchesGolden`, and the target's `resources:` line.
 4. Nothing else in the five surviving consumer files moves; their private
    helpers stay where a surviving test uses them.
-5. Count: **1704 − 96 − 5 − 3 + 8 + 7 = 1615**; gated tests five → four.
+5. Count: **1704 − 96 − 5 − 3 + 8 + 8 = 1616**; gated tests five → four.
+
+**Amended, stage-7a critic round 1 (`LR-DY`).** Lane 2 adds test 2.8, so the
+last term is 8, not 7, and the exit count 1616, not 1615.
 
 **What it costs if wrong.** Removing the trimmed test whole would delete one
 legacy-engine fact (`min-width: 0` cancelling the automatic minimum) a stage
@@ -7271,14 +7274,15 @@ instrument or a finding (practices); the table makes each lane show one.
 - **Lane 1** (Opus): `GoldenReplacementSupport.swift` (the shared `goldenArm`
   helper) and `GoldenReplacementFlexTests.swift`, tests 1.1–1.8, 29 R arms,
   mutations M1a–M1h and MH.
-- **Lane 2** (Opus): `GoldenReplacementStackTests.swift`, tests 2.1–2.7, 15 R
-  arms and 7 D-pin arms, mutations M2a–M2g; reuses lane 1's helper.
+- **Lane 2** (Opus): `GoldenReplacementStackTests.swift`, tests 2.1–2.8, 15 R
+  arms, 7 D-pin arms and 3 `wrap-reverse` report arms (2.8, `LR-DY`), mutations
+  M2a–M2h; reuses lane 1's helper.
 - **Lane 3** (Opus): verifies all 97 rows of record §42 §4 against the
   committed tests before deleting anything, then removes the consumers, the
   machinery and the `resources:` line, trims the one test, rewrites `roundLayout`'s doc comment
   (`Rounding.swift`), whose caller list and corpus paragraphs describe the
   deleted goldens, re-runs M1b,
-  M1f, M2d and M2g with the goldens gone, and takes the exit measurements.
+  M1f, M2d, M2g and M2h with the goldens gone, and takes the exit measurements.
 
 The lanes touch disjoint files and run in order. No `Sources/` code changes, so
 the demo's twelve-image comparison against `2cc763d` must read **0 px** in every
@@ -7286,3 +7290,87 @@ image and `DemoFrameDeterminismTests` stays green and unedited.
 
 **What it costs if wrong.** Lane 3 deleting before a replacement exists would
 retire a golden with no witness; step 1's verification is the gate.
+
+---
+
+## LR-DY — stage 7a critic round 1: `wrap-reverse` gets its own report test; row 86 cited; what "deleted" means for fields a later stage still owns; two miscounts
+
+**Critic round 1 (2026-09-23, PDT).** The committed design (`3324ca7`) was
+attacked for unprobed SwiftUI claims, silent answer changes, replacements that do
+not exist or do not assert the golden's fact, concepts wrongly called CSS-only,
+7b pre-empted, the legacy engine deleted early, and mutations that cannot redden.
+
+**Checked and standing** (no change): the probe was re-run twice by
+`/usr/bin/swift docs/probes/swiftui-engine-stage-7a.swift` — exit 0, both runs
+byte-identical to each other and to the recorded OUTPUT block (all five groups,
+W0–B1); every mutation site the spec names exists in
+`Sources/MetalUI/LegacyLowering.swift` (`arrangeLegacyMainAxis`'s `var spacing =
+gap` and `nodes.reverse()`, `distributedLegacyItems`' `betweenCount`, the four
+`alignmentFactor` overloads, `paddedAndSized`, `planLegacyItems`' `if greedy`,
+`grownH`, `marginInsets`, `lowerPresentation`); all twelve existing tests the
+table cites exist by `func` name; `LR-DT`'s evidence re-read — the 24 `#expect`s
+in the six consumers that assert more than `assertMatchesGolden` are 5 × golden
+literals (each checked equal to the JSON's `rounded` boxes) plus the trimmed
+test's three `cMinZero` expectations; the four whole-file deletions hold only
+consumers (5/5, 15/15, 6/6, 4/4 `@Test`s to `loadGolden` calls); nothing outside
+`Tests/MetalUILayoutTests` references the machinery, and no CI workflow names it;
+no `Sources/` code changes, so identity, hit testing, accessibility and animation
+cannot move; the legacy engine and every `.legacy` test stay (7b, 9).
+
+**The defects, and what changed.**
+
+1. **The three `wrap-reverse` rows had no replacement asserting their fact.**
+   Rows 63–65 (`flex_wrap_reverse`, `flex_wrap_reverse_align_content_end`,
+   `flex_wrap_reverse_row_reverse`) cited
+   `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`'s "wrap" arm,
+   which declares `.flexWrap(.wrap)` only (`LoweringContainerTests.swift`); no
+   test in `Tests/MetalUITests` lowers `.wrapReverse` (grep: its one hit is
+   `ModifierTests`' style-writing arm), and none of the three trees was
+   transcribed. Mutating `legacyContainerDiagnostics`' `!= .noWrap` to `== .wrap`
+   would stop reporting `wrap-reverse` and redden nothing once the goldens are
+   gone. **New test 2.8** `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs`
+   (spec §6, lane 2) pins the report on the three shapes, with mutation **M2h**
+   and lane 3 re-running it. Count **1616**.
+2. **Row 86 cited "the row above"**, which is row 85 (wrap). It now names
+   `theCentringDefaultOfRowAndColumnStretchesNothing` (last arm) and
+   `aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere` for the non-greedy
+   `box.maxSize` report.
+3. **"Deleted" overstated for fields a later stage still owns.** `LR-AO` hands a
+   non-greedy `maxSize` to stage 8, a non-zero `flexBasis` to stage 8/10, unequal
+   grow weights to stage 10 and percentages to stage 8's recipe (`LR-AI`); and
+   `LR-AP` measured that SwiftUI **can** size a child as a fraction of its parent
+   through a greedy `GeometryReader` (stage-2 probe C2), and
+   `containerRelativeFrame` as a fraction of its container (C1). So what a D row
+   deletes is **the golden's CSS answer** — flex §9.7's weighted
+   grow/shrink/basis arithmetic, §4.5's automatic minimum, `BM-4`'s floor, CSS's
+   percentage resolution against the containing block (width on every edge,
+   indefinite → auto) — not the field and not "fractions". The field keeps
+   reporting by name until its owner respells or deletes it, and **a stage that
+   later lowers one of these fields owes its own native test for the answer it
+   chooses**; it cannot cite a retired golden. The percentage rows of record §42 §4
+   (17–19, 40, 77, 82, 89, 90) already carry "owned by stage 8's recipe"; rows
+   23, 24, 27, 29, 31, 45, 47, 86 and 87 now name their field's owner too. No SwiftUI claim is added.
+4. **Record miscounts.** Record §42 §2.2 listed "18 `flex_wrap_*`" among the 23
+   untranscribed trees; it is **16** (`flex_wrap_uneven` and
+   `flex_wrap_min_vs_max_content` were transcribed — they are two of the seven
+   wrap-bearing trees measured). The probe header and record §3 said the output
+   is 15 lines; it is **17** (five group headers and twelve arms).
+
+**Rejected.**
+
+- *Transcribe the 23 wrap trees.* Rejected: the report is a property of the
+  wrapping box's declared `flexWrap`, not of its surroundings, and seven
+  transcribed trees already measured it in every position the 23 use (root,
+  column child, stack child, row child, capped child); the one thing the seven
+  did not cover — the `wrapReverse` value — is what 2.8 adds.
+- *Rename the trimmed `theClampedAutomaticMinimumIsStillFlooredByPaddingAndBorderMatchesWebKit`.*
+  Rejected: 7b retires it by name (`LR-U`), and a rename is a test change 7a has
+  no reason to make; its golden line goes, its six `#expect`s stay.
+- *Lanes too large.* Rejected: lane 1 is two new files and nine mutations, lane 2
+  one file and eight, lane 3 deletions only; the files are disjoint and the
+  order is forced by lane 3's gate.
+
+**What it costs if wrong.** Without 2.8 three rows would retire a golden on a test
+that cannot see their value — the failure `LR-DS` exists to prevent. Without item
+3 a later stage lowering `flexBasis` or `maxSize` could read 7a's D verdict as
+"nothing to test".

@@ -31,7 +31,10 @@
 //
 // RECORDED 2026-09-23 by the stage-7a design session, macOS 27.0 (26A428),
 // `/usr/bin/swift` = Apple Swift 6.4 (swiftlang-6.4.0.33.1). Exit 0. Run twice;
-// the two outputs are byte-identical (`diff` empty), 15 lines.
+// the two outputs are byte-identical (`diff` empty), 17 lines (five group
+// headers, twelve arms; the design first wrote 15 — corrected by LR-DY).
+// RE-RUN 2026-09-23 by stage 7a's critic round 1, same machine and toolchain:
+// exit 0, twice, both byte-identical to the OUTPUT block below.
 //
 // READING.
 // - W: the VStack control stacks the four at y 10/30/50/70; the HStack puts all
