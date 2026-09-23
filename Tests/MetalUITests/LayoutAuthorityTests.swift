@@ -352,6 +352,26 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }
+    // **Stage 5, lane 1 (`LR-CL`): site `deferred`.** Its entries are raised in
+    // `Frame.computeRootLayout` against the ROOT's record, so this arm renders
+    // the tree as the frame's root rather than under the harness root (whose
+    // native node has no record and is the window by construction). Compared by
+    // description so the arm compiled before `LoweringSite.deferred` existed.
+    // Mutation that must redden it: **M1i**, the containing-block check deleted.
+    var bordered = Style()
+    bordered.border = Edges(all: .pixels(px(4)))
+    var presentationRoot = Box(style: bordered) {
+        Deferred {
+            Box().width(px(10)).height(px(10)).position(.absolute)
+                .inset(Edges(top: .length(.pixels(px(5))), right: .auto, bottom: .auto,
+                             left: .length(.pixels(px(5)))))
+        }
+    }
+    let presentationFrame = Frame(contentSize: Size(width: px(200), height: px(100)), scaleFactor: 1,
+                                  layoutAuthority: .proposal, reportsUnlowerableFields: true)
+    presentationFrame.render(&presentationRoot)
+    #expect(presentationFrame.unlowerableFields.map(\.description) == ["deferred.containingBlock"],
+            "Deferred (a bordered root over a presentation): \(presentationFrame.unlowerableFields)")
 }
 
 /// **1.5b** (exit test for the production half). `Frame`'s internal legacy

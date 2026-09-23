@@ -454,7 +454,8 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
 /// **2 000 legacy-only row ids become disagreeing** — 29 disagreements become
 /// **2 029**, and `legacyOnly` 2 000 becomes **0**. Nothing else moved.
 ///
-/// **1. The report, exactly.** Modal off: `[]`; modal on:
+/// **1. The report, exactly.** Modal off: `[]`; modal on: `[]` since stage 5's
+/// lane 1 (`LR-CH`: the modal is a presentation root and lowers), where it read
 /// `[stack.position, stack.inset]`. Since stage 3's lane 2
 /// (`LR-BB`) `scrollView.noLowering` is gone from both, and **nothing replaces
 /// it**: the demo's scroller declares no field the lowering cannot take, its
@@ -526,11 +527,16 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
 ///   empty it. 210 of the 500 have a fraction at or above 0.5 and only 42 floor,
 ///   so this is not "the legacy engine floors".
 ///
-/// **3. Modal on**: 2041 ids, 6 agreeing, **2035** disagreeing — the 29 chrome
+/// **3. Modal on**: 2041 ids, **8** agreeing, **2033** disagreeing — the 29 chrome
 /// rows and the 2 000 row ids above (the `List` one index later, after the
-/// `Deferred`) plus the modal's six
-/// ids (the `Deferred`, its `Stack`, the card's padding layer, its column and two
-/// texts), which are stage 5's (`position`, `inset`) and asserted by id only.
+/// `Deferred`) plus four of the modal's six ids. **Re-derived by stage 5's lane
+/// 1**, which lowers the modal as a presentation root (it read 6 / 2035 with the
+/// six ids unlowered and asserted by id only): the `Deferred` and the scrim
+/// `Stack` now AGREE (920×560 at the origin); the card, its column and its two
+/// texts disagree by one cause, **C** — the legacy column's height is its items'
+/// max-content contributions (the paragraph one line tall), part 2's mechanism
+/// for the legacy main column, where the lowering measures the paragraph at 320 —
+/// asserted by literal from the shaping cache.
 /// **The modal no longer moves any lowered rect in the scroll subtree.** It did
 /// until this stage: with one child the single-child stretch elision (`LR-AC`)
 /// left the `List` unstretched and 0 wide, and adding the `Deferred` as a second
@@ -544,7 +550,9 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
 /// recorded either way), **M5c′** (the `flexGrow.weights` check always reporting);
 /// and, from stage 3's lane 2, **M2a** (the viewport a plain native leaf: the 73
 /// collapses) and **M2d** (`flexShrink: 0` carried onto the lowered content style:
-/// `scrollView.flexShrink.unconsumed` joins the report).
+/// `scrollView.flexShrink.unconsumed` joins the report); and, from stage 5's lane 1,
+/// **M1c** (W not aliased: the scrim `Stack` stops agreeing) and **M1d** (the
+/// placeholder's alias removed: the `Deferred` reads 0×0).
 @MainActor
 @Test func theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn() throws {
     func entry(_ site: LoweringSite, _ field: String) -> UnlowerableField {
@@ -687,15 +695,48 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
     demoModel.showModal = true
     defer { demoModel.showModal = false }
     let modal = LayoutDifferential.compare(width: 920, height: 560) { demoContent() }
-    #expect(modal.unlowerable == [entry(.stack, "position"), entry(.stack, "inset")],
-            "\(modal.unlowerable)")
+    // Stage 5, lane 1 (`LR-CH`, `LR-CI`): the modal is a presentation root and
+    // lowers, so the report that read `[stack.position, stack.inset]` is empty.
+    #expect(modal.unlowerable.isEmpty, "\(modal.unlowerable)")
     try #require(modal.elements == 2041, "\(modal.elements)")
-    #expect(Set(modal.agreeing) == agreeingExpected)
-    try #require(modal.disagreeing.count == 2035, "\(modal.disagreeing.count)")
     let modalPairs = Dictionary(uniqueKeysWithValues: modal.disagreeing.map { ($0.id, ($0.legacy, $0.lowered)) })
     let deferred = child(scroll, 0), stack = child(deferred, 0), card = child(stack, 0), column = child(card, 0)
-    for id in [deferred, stack, card, column, child(column, 0), child(column, 1)] {
-        #expect(modalPairs[id] != nil, "modal id \(id)")
+    // Stage 5, lane 1 (`LR-CH`, `LR-CI`, `LR-CM`): the modal is a presentation
+    // root laid out against the window. **The `Deferred` and its scrim `Stack`
+    // agree** — 920×560 at the origin on both sides: `inset(0)` with an `auto`
+    // size stretches the legacy box across its containing block (the harness
+    // root, the window) and lowers to a greedy W on both axes aliased as the
+    // element's rect, the `Deferred`'s placeholder aliased to the same.
+    #expect(Set(modal.agreeing) == agreeingExpected.union([deferred, stack]),
+            "\(Set(modal.agreeing).subtracting(agreeingExpected))")
+    try #require(modal.disagreeing.count == 2033, "\(modal.disagreeing.count)")
+    // **The card, its column and its two texts disagree, by one cause, cause C**:
+    // the legacy column's HEIGHT is its items' max-content contributions — the
+    // paragraph one line tall, measured at no width — the mechanism that makes the
+    // legacy main column 278 tall above (part 2), while the lowering measures the
+    // paragraph at the column's 320 (it wraps to two lines on both sides, so the
+    // text's own height is the same). The card is 40 taller than its column
+    // (padding 20) and centred in the window by the scrim `Stack`, so the whole
+    // card sits (lowered − legacy) / 2 higher on the lowered side.
+    let modalParagraph = "Declared inside the list, painted over it, and clipped by the window "
+        + "rather than by the scroller."
+    let legacyColumn = legacyHeight("Modal", f22, nil) + 8 + legacyHeight(modalParagraph, f13, nil)
+    let loweredColumn = loweredHeight("Modal", f22, 320) + 8 + loweredHeight(modalParagraph, f13, 320)
+    let paragraphHeight = legacyHeight(modalParagraph, f13, 320)
+    try #require(loweredHeight(modalParagraph, f13, 320) == paragraphHeight)
+    #expect([legacyColumn, loweredColumn, paragraphHeight] == [50, 66, 32])
+    let legacyCardY = (560 - (legacyColumn + 40)) / 2, loweredCardY = (560 - (loweredColumn + 40)) / 2
+    let modalRows: [Row] = [
+        (card, bounds(280, legacyCardY, 360, legacyColumn + 40), bounds(280, loweredCardY, 360, loweredColumn + 40)),
+        (column, bounds(300, legacyCardY + 20, 320, legacyColumn), bounds(300, loweredCardY + 20, 320, loweredColumn)),
+        (child(column, 0), bounds(300, legacyCardY + 20, 320, 26), bounds(300, loweredCardY + 20, 320, 26)),
+        (child(column, 1), bounds(300, legacyCardY + 20 + 26 + 8, 320, paragraphHeight),
+         bounds(300, loweredCardY + 20 + 26 + 8, 320, paragraphHeight)),
+    ]
+    for row in modalRows {
+        let got = modalPairs[row.id]
+        #expect(got?.0 == row.legacy && got?.1 == row.lowered,
+                "modal \(row.id): expected \(row.legacy) → \(row.lowered), got \(String(describing: got))")
     }
     // **No lowered rect in the scroll subtree moves with the modal on any more,
     // and the override table that carried the difference is gone** (stage 4, lane
@@ -715,7 +756,7 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
                                     legacyTop: legacyScrollerY, loweredTop: 455)
     let modalNamed = Set(expected.map { $0.id == child(scroll, 0) ? child(scroll, 1) : $0.id })
         .union(modalRowIDs)
-        .union([deferred, stack, card, column, child(column, 0), child(column, 1)])
+        .union(modalRows.map(\.id))
     #expect(Set(modalPairs.keys) == modalNamed,
             "modal unattributed: \(Set(modalPairs.keys).subtracting(modalNamed).count)")
 }

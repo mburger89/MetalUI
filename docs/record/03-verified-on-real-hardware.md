@@ -1368,3 +1368,24 @@ Record §25. Written into the root `CLAUDE.md`'s human-verification bullet at th
   pixels. Nothing in production runs under the proposal authority, so **no demo
   look is owed by this stage** — the first one that is owed is stage 6b's root
   switch.
+
+## 2026-09-23: one row added at engine replacement stage 5
+
+Record §29. Written into the root `CLAUDE.md`'s human-verification bullet at
+the `feat/engine-stage-5` Docs phase and recorded here in full.
+
+- **Release-window capture of the default demo and the preview against
+  `e5caefb`** (plan task 7 stage 5, `feat/engine-stage-5`). **Open.** The
+  screen was locked at the end of each of the three lanes
+  (`docs/probes/appkit-screen-lock-state.swift`: `CGSSessionScreenIsLocked =
+  1`, `displayAsleep main: 1`, at 03:11, 04:02 and 04:41 PDT), so
+  `capture.sh` was never run.
+  **Offscreen stand-in** (`docs/probes/demo-pixels/compare.sh`, twelve images
+  through a real `Window` against `e5caefb`): **0 differing pixels in all
+  twelve at every lane**, scene dumps byte-identical, every control at its
+  recorded value (1 048 576, 1 030 498, 210 027, 0, 1 048 576, 0; distinct 544
+  and 216; indicator rects 0). Nothing in production runs under the proposal
+  authority — `Deferred` as a presentation root is reachable only under
+  `LayoutAuthority.proposal` — so **no demo look is owed by this stage**
+  either; the first one that is still owed is stage 6b's root
+  switch.

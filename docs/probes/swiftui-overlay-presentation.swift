@@ -1,7 +1,14 @@
 // SwiftUI probe: overlay and presentation patterns against MetalUI's `Deferred`
 // portal, and which of a view and its `.background` content receives a click.
 // Evidence for rulings CN-K (background content's hit order) and CN-Q (the
-// `Deferred` deferral) in docs/superpowers/2026-09-16-containers-decisions.md.
+// `Deferred` deferral) in docs/superpowers/2026-09-16-containers-decisions.md,
+// and — revision 2, group Q — for plan task 7 stage 5's rulings LR-CH…
+// (`Deferred`'s absolute content as a presentation root laid out against the
+// window) in docs/superpowers/2026-09-17-engine-replacement-decisions.md.
+//
+// REVISION 2 (2026-09-23, stage 5 design): appends group Q between the P and H
+// arms; the P and H lines are byte-identical to revision 1's (re-run today
+// before the arms were added, and again after — `diff` of the P/H lines empty).
 //
 // HOW TO RUN (ruling SA-O):
 //
@@ -38,6 +45,15 @@
 // window to its fixed-size content, so the first recording clicked the wrong
 // points: H0's centre click missed).
 //
+// REVISION 2 RECORDED 2026-09-23 (PDT) by the stage-5 design session, macOS
+// 27.0 (26A428), `xcrun swiftc` = Apple Swift 6.4 (swiftlang-6.4.0.33.1). Exit 0.
+// Run twice; byte-identical stdout (29 lines). Positive controls for group Q:
+// each Q arm reads a pixel just inside AND just outside the box it predicts
+// (Q1, Q1c, Q2 — a wrong placement reads white inside or red outside); Q3c,
+// Q4c, Q5c and Q6c are separating arms whose answers differ from their
+// partners' (100 against 50, 20x20 against 100x100, origin against centre, 100
+// against 40).
+//
 // READING:
 // - An overlay's content is clipped by an ancestor `.clipped()` (P1 white at
 //   (25, 50) against P1c's blue) and is NOT hoisted above a later sibling (P2:
@@ -56,6 +72,19 @@
 //   background's gesture beneath it (H3: centre 0, edge 1); MetalUI's
 //   non-clickable elements do not block (the kind of difference divergence 23
 //   records).
+// - Group Q (revision 2): placing a box against the root is spelled with
+//   padding and a filling frame. One inset per axis is `.padding` on that edge
+//   inside `.frame(maxWidth: .infinity, maxHeight: .infinity, alignment:)`
+//   aligned to that edge (Q1 top-leading at (5, 5); Q1c bottom-trailing at
+//   (100 - 7 - 30, 100 - 9 - 20) = (63, 71)); both insets on an axis with no
+//   size is a greedy frame INSIDE the padding, filling the gap (Q2: x 20..<60,
+//   y 10..<70). A leading inset of 50 proposes the content 50 of the root's 100
+//   (Q3), so content that answers its proposal — a wrapping text — meets the
+//   root's width MINUS the inset. An overlay is proposed the size of the view
+//   it is attached to — the root's 100x100 at the root, 20x20 on a 20x20 view
+//   (Q4/Q4c) — and adds nothing to that view's size (Q6: 40, where the same
+//   view as a stack member makes 100). An overlay aligns at the centre by
+//   default and at the origin with `.topLeading` (Q5/Q5c).
 //
 // OUTPUT:
 //
@@ -69,6 +98,15 @@
 //   P4 white .sheet(isPresented: true){Leaf s: red} (is presented content in the render or layout tree?): image 100x100; (50, 50) white(255,255,255,255); sheet content layout calls 0
 //   P5 white .popover(isPresented: true){Leaf p: red}: image 100x100; (50, 50) white(255,255,255,255); popover content layout calls 0
 //   P6 control white .overlay{Leaf o: red 20x20}: image 100x100; (50, 50) red(255,56,60,255); overlay content layout calls 3
+//   --- Q: placing a box against the root, the spelling stage 5 lowers insets to
+//   Q1 red 22x20 .padding(top 5, leading 5) .frame(max inf, .topLeading): image 100x100; (5, 5) red(255,56,60,255); (26, 24) red(255,56,60,255); (4, 4) white(255,255,255,255); (27, 25) white(255,255,255,255)
+//   Q1c red 30x20 .padding(bottom 9, trailing 7) .frame(max inf, .bottomTrailing): image 100x100; (63, 71) red(255,56,60,255); (92, 90) red(255,56,60,255); (62, 70) white(255,255,255,255); (93, 91) white(255,255,255,255)
+//   Q2 red .frame(max inf) .padding(top 10, leading 20, bottom 30, trailing 40): image 100x100; (20, 10) red(255,56,60,255); (59, 69) red(255,56,60,255); (19, 9) white(255,255,255,255); (60, 70) white(255,255,255,255)
+//   Q3 leading inset 50 proposes to its content: 50x100; Q3c no inset: 100x100
+//   Q4 overlay on the root is proposed: 100x100; Q4c overlay on a 20x20 view: 20x20
+//   Q5 root .overlay{red 20x20} (default alignment): image 100x100; (50, 50) red(255,56,60,255); (5, 5) white(255,255,255,255)
+//   Q5c root .overlay(alignment: .topLeading){red 20x20}: image 100x100; (50, 50) white(255,255,255,255); (5, 5) red(255,56,60,255)
+//   Q6 VStack{20; 20 .overlay{60}} size: 50x40; Q6c VStack{20; 20; 60}: 50x100
 //   --- H: which of a view and its secondary content takes a click
 //     H0 control: red 100x100 + tap alone click centre (100,100): primary 1, secondary 0
 //     H0 control: red 100x100 + tap alone click edge (35,100): primary 0, secondary 0
@@ -162,6 +200,106 @@ func colourName(_ r: UInt8, _ g: UInt8, _ b: UInt8, _ a: UInt8) -> String {
     fflush(stdout)
 }
 
+// MARK: - presentation-placement arms (revision 2, plan task 7 stage 5)
+
+/// Logs the proposal each call receives, by name, in points ("nil" for an
+/// unspecified axis), and answers its child's size.
+nonisolated(unsafe) var proposals: [String: [String]] = [:]
+
+struct ProposalLog: Layout {
+    let name: String
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        func f(_ v: CGFloat?) -> String { v.map { String(Int($0)) } ?? "nil" }
+        proposals[name, default: []].append("\(f(proposal.width))x\(f(proposal.height))")
+        return subviews.first?.sizeThatFits(proposal) ?? .zero
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(bounds.size))
+    }
+}
+
+func lastProposal(_ name: String) -> String { proposals[name]?.last ?? "none" }
+
+@MainActor func placementArms() {
+    print("--- Q: placing a box against the root, the spelling stage 5 lowers insets to")
+    // Q1/Q1c: one inset per axis. A 22x20 red box, padding on the leading and top
+    // edges, inside a frame that fills the root and aligns top-leading, spans
+    // x 5..<27, y 5..<25. Q1c is the trailing mirror: 30x20, padding trailing 7,
+    // bottom 9, aligned bottom-trailing, spans x 63..<93, y 71..<91.
+    print("Q1 red 22x20 .padding(top 5, leading 5) .frame(max inf, .topLeading): " + pixels(
+        ZStack { Color.white
+            Color.red.frame(width: 22, height: 20)
+                .padding(EdgeInsets(top: 5, leading: 5, bottom: 0, trailing: 0))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading) },
+        at: [(5, 5), (26, 24), (4, 4), (27, 25)]))
+    print("Q1c red 30x20 .padding(bottom 9, trailing 7) .frame(max inf, .bottomTrailing): " + pixels(
+        ZStack { Color.white
+            Color.red.frame(width: 30, height: 20)
+                .padding(EdgeInsets(top: 0, leading: 0, bottom: 9, trailing: 7))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing) },
+        at: [(63, 71), (92, 90), (62, 70), (93, 91)]))
+    // Q2: both insets on both axes, no size: a greedy frame inside the padding
+    // fills the gap, x 20..<60, y 10..<70.
+    print("Q2 red .frame(max inf) .padding(top 10, leading 20, bottom 30, trailing 40): " + pixels(
+        ZStack { Color.white
+            Color.red.frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(EdgeInsets(top: 10, leading: 20, bottom: 30, trailing: 40)) },
+        at: [(20, 10), (59, 69), (19, 9), (60, 70)]))
+    // Q3/Q3c: what a leading inset proposes to the content. Inside the 100x100
+    // root, `.padding(.leading, 50)` proposes 50 wide; the control, no padding,
+    // proposes 100. (A wrapping text answers at the width it is proposed.)
+    proposals = [:]
+    _ = pixels(ZStack { Color.white
+        ProposalLog(name: "q3") { Color.red.frame(width: 10, height: 10) }
+            .padding(.leading, 50)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading) }, at: [(0, 0)])
+    _ = pixels(ZStack { Color.white
+        ProposalLog(name: "q3c") { Color.red.frame(width: 10, height: 10) }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading) }, at: [(0, 0)])
+    print("Q3 leading inset 50 proposes to its content: \(lastProposal("q3")); Q3c no inset: \(lastProposal("q3c"))")
+    // Q4/Q4c: an overlay is proposed the size of the view it is attached to. On
+    // the 100x100 root it is proposed 100x100 (the window); on a 20x20 view
+    // declared inside it, 20x20. So an overlay at the DECLARATION site is not
+    // laid out against the window; one attached to the root is.
+    proposals = [:]
+    _ = pixels(Color.white.frame(width: 100, height: 100)
+        .overlay { ProposalLog(name: "q4") { Color.red } }, at: [(0, 0)])
+    _ = pixels(ZStack { Color.white
+        Color.blue.frame(width: 20, height: 20).overlay { ProposalLog(name: "q4c") { Color.red } } },
+        at: [(0, 0)])
+    print("Q4 overlay on the root is proposed: \(lastProposal("q4")); Q4c overlay on a 20x20 view: \(lastProposal("q4c"))")
+    // Q5/Q5c: an overlay's default alignment is the centre; `.topLeading` puts a
+    // 20x20 at the origin.
+    print("Q5 root .overlay{red 20x20} (default alignment): " + pixels(
+        Color.white.frame(width: 100, height: 100).overlay { Color.red.frame(width: 20, height: 20) },
+        at: [(50, 50), (5, 5)]))
+    print("Q5c root .overlay(alignment: .topLeading){red 20x20}: " + pixels(
+        Color.white.frame(width: 100, height: 100).overlay(alignment: .topLeading) { Color.red.frame(width: 20, height: 20) },
+        at: [(50, 50), (5, 5)]))
+    // Q6/Q6c: an overlay adds nothing to the size of the view it is attached to:
+    // a VStack of two 20pt bars reads 40 tall with a 60pt overlay on its second
+    // bar, and 100 when the same 60pt view is a third member instead.
+    proposals = [:]
+    var q6 = CGSize.zero, q6c = CGSize.zero
+    _ = pixels(ZStack { Color.white
+        VStack(spacing: 0) { Color.red.frame(width: 50, height: 20)
+            Color.blue.frame(width: 50, height: 20).overlay { Color.green.frame(width: 50, height: 60) } }
+            .background(GeometryReader { g in Color.clear.onAppear { q6 = g.size }.preference(key: SizeKey.self, value: g.size) })
+            .onPreferenceChange(SizeKey.self) { q6 = $0 } }, at: [(0, 0)])
+    _ = pixels(ZStack { Color.white
+        VStack(spacing: 0) { Color.red.frame(width: 50, height: 20)
+            Color.blue.frame(width: 50, height: 20); Color.green.frame(width: 50, height: 60) }
+            .background(GeometryReader { g in Color.clear.preference(key: SizeKey.self, value: g.size) })
+            .onPreferenceChange(SizeKey.self) { q6c = $0 } }, at: [(0, 0)])
+    print("Q6 VStack{20; 20 .overlay{60}} size: \(Int(q6.width))x\(Int(q6.height)); Q6c VStack{20; 20; 60}: \(Int(q6c.width))x\(Int(q6c.height))")
+    fflush(stdout)
+}
+
+struct SizeKey: PreferenceKey {
+    static let defaultValue = CGSize.zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
+}
+
 // MARK: - hit arms
 
 final class FirstMouseHost<V: View>: NSHostingView<V> {
@@ -246,6 +384,7 @@ let app = NSApplication.shared
 app.setActivationPolicy(.prohibited)
 MainActor.assumeIsolated {
     paintArms()
+    placementArms()
     hitArms()
 }
 print("DONE")

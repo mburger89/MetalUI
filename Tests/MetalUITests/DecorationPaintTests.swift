@@ -66,11 +66,12 @@ private func pixel(_ platform: FakePlatformWindow, _ x: Int, _ y: Int, side: Int
 
 /// Renders `make` in a fresh `side`x`side` fake window and returns it.
 @MainActor
-private func render<E: Element>(side: Int = 64,
+private func render<E: Element>(side: Int = 64, authority: LayoutAuthority = .legacy,
                                 _ make: @escaping @MainActor () -> E) throws
     -> (Window, FakePlatformWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
-    let (window, platform) = try makeFakeWindow(device: device, size: side, content: make)
+    let (window, platform) = try makeFakeWindow(device: device, size: side,
+                                                layoutAuthority: authority, content: make)
     window.drawFrameIfNeeded()
     return (window, platform)
 }
@@ -1010,9 +1011,21 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 /// The control is the same portal with no fade above it: without it, "the
 /// portal's alpha is half" would also hold for a portal whose own token happened
 /// to be semi-transparent.
-@Test @MainActor func aDeferredPortalInsideAFadedSubtreeIsStillFaded() throws {
+///
+/// **Under both authorities** (plan task 7 stage 5 lane 3, spec 3.7, `LR-CO`).
+/// The portal here is **in-flow** — it already lowers to the legacy answer, so no
+/// presentation root is involved; the presentation-shaped twin is
+/// `aPresentationInsideAFadedSubtreeIsStillFadedUnderBothAuthorities`
+/// (`PresentationWindowTests`). The window's root is the row itself, so under the
+/// proposal authority it is centred at its answer (`CN-J`); only the alpha is read.
+/// Pre-flighted: the same content's differential report is required empty before
+/// a proposal window opens (`LR-BX`). Mutation **M3a** (the opacity stack reset
+/// by `pass.deferred`) must redden both arms.
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aDeferredPortalInsideAFadedSubtreeIsStillFaded(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     @MainActor func portalAlpha(faded: Bool) throws -> Float {
-        let (window, _) = try render {
+        @MainActor func tree() -> some Element {
             inRow {
                 Box {
                     Deferred {
@@ -1023,6 +1036,9 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
                 .opacity(faded ? 0.5 : 1)
             }
         }
+        let preflight = LayoutDifferential.compare(width: 64, height: 64) { tree() }
+        try #require(preflight.unlowerable.isEmpty, "\(preflight.unlowerable)")
+        let (window, _) = try render(authority: authority) { tree() }
         return try rect(window.lastScene, 20, 20).background.a
     }
 

@@ -184,6 +184,12 @@ struct ListRows<Row: Element>: ElementGroup {
     /// `planLegacyItems` reads `parent.size.width` for a column parent.
     private func loweredNode(_ rowNodes: [LayoutNodeID],
                              pass: inout LayoutPass) -> LayoutNodeID {
+        // **No `droppingPresentations` here** (plan task 7, stage 5, ruling
+        // `LR-CK`): this is a lowering collection site, but it cannot receive a
+        // presentation placeholder — `rowNodes` are the `List`'s own row `Box`es,
+        // built in `List.requestLayout`, never a `Deferred`. A `Deferred` a
+        // caller's row closure builds registers one level down, inside the row
+        // `Box`, whose own `lowerLegacyNode` drops it.
         let received = rowNodes.map { pass.frame.lowering.consume($0) }
         var planningParent = listStyle
         if planningParent.size.width == .auto {
