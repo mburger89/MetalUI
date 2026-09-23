@@ -63,11 +63,14 @@ mkdir -p $W; cd $W
 
 IMAGES=(default-light-f0 default-light-f3 default-dark-f0 default-dark-f3
         modal-light modal-dark animation-light animation-dark
-        preview-light preview-dark chrome-legacy chrome-proposal)
+        preview-light preview-dark chrome-legacy chrome-proposal
+        prod-default-light prod-modal-light)
+# Stage 6b (`LR-DO` item 3): the two `prod-*` images are 920x560, not square;
+# rawdiff is told their row width.
 
 for c in "$@"; do
   sha=$(git -C $REPO rev-parse --short $c)
-  [ -f img-$sha/chrome-proposal.bgra ] && continue
+  [ -f img-$sha/prod-modal-light.bgra ] && continue
   rm -rf src-$sha && mkdir -p src-$sha
   git -C $REPO archive $c | tar -x -C src-$sha
   cp $HERE/ZZDemoPixels.swift src-$sha/Tests/MetalUITests/ZZDemoPixels.swift
@@ -98,6 +101,10 @@ printf '  %-34s %s\n' "distinct, default-light-f0 [544]" \
   "$(./rawdiff --distinct img-$first/default-light-f0.bgra)"
 printf '  %-34s %s\n' "distinct, chrome-legacy [216]" \
   "$(./rawdiff --distinct img-$first/chrome-legacy.bgra)"
+printf '  %-34s %s\n' "prod default vs modal [not 0]" \
+  "$(./rawdiff img-$first/prod-default-light.bgra img-$first/prod-modal-light.bgra 920)"
+printf '  %-34s %s\n' "distinct, prod-default-light" \
+  "$(./rawdiff --distinct img-$first/prod-default-light.bgra)"
 printf '  %-34s %s\n' "indicator rects in all twelve [0]" \
   "$(cat img-$first/*.scene | awk '$1=="R" {print $3}' | grep -c '^3\.0x' || true)"
 
@@ -108,7 +115,8 @@ for c in "$@"; do
     echo
     echo "$prevref ($prev) -> $c ($sha):"
     for m in $IMAGES; do
-      d=$(./rawdiff img-$prev/$m.bgra img-$sha/$m.bgra)
+      case $m in prod-*) wd=920 ;; *) wd= ;; esac
+      d=$(./rawdiff img-$prev/$m.bgra img-$sha/$m.bgra $wd)
       s=$(cmp -s img-$prev/$m.scene img-$sha/$m.scene && echo "scene identical" || echo "SCENE DIFFERS")
       printf '  %-18s %-46s %s\n' $m "$d" "$s"
     done

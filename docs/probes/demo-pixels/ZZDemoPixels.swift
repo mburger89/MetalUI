@@ -15,7 +15,9 @@
 // keeps it out of the way of `AuthorityCoverage`'s roll-call ordering
 // argument.
 //
-// **Twelve images, and what each is for.** Eight of the legacy demo at 1024²
+// **Twelve images, and what each is for** — fourteen since stage 6b, which adds
+// `prod-default-light` and `prod-modal-light`, the demo at the 920×560 window
+// `MetalUIDemo` opens (`LR-DO` item 3; 920 × 560 × 4 bytes). Eight of the legacy demo at 1024²
 // (light/dark x frame 0/frame 3, modal light/dark, animation light/dark), two
 // of the proposal preview at 1024², and the 560² two-authority chrome pair
 // (`DifferentialRoot(560) { Column { CounterPanel() }.width(560) }`, one window
@@ -78,8 +80,14 @@ private func dumpScene(_ scene: Scene, to path: String) throws {
     try (lines.joined(separator: "\n") + "\n").write(toFile: path, atomically: true, encoding: .utf8)
 }
 
+/// `height`, when given and below `side`, makes the window `side` wide and
+/// `height` tall (stage 6b, `LR-DO` item 3): the fake surface is square, so the
+/// window is resized the way `AppKitWindow` reports a resize
+/// (`FakePlatformWindow.simulateResize`) and only the top `height` rows of the
+/// `side`-square readback are written — `side * height * 4` bytes. Uses nothing
+/// `aef88ce`'s `Fakes.swift` lacks, so the same file captures at both commits.
 @MainActor
-private func capture(_ name: String, out: String, side: Int, frames: Int,
+private func capture(_ name: String, out: String, side: Int, height: Int? = nil, frames: Int,
                      appearance: Appearance,
                      authority: LayoutAuthority? = nil,
                      content: @escaping @MainActor () -> some Element) throws {
@@ -88,14 +96,18 @@ private func capture(_ name: String, out: String, side: Int, frames: Int,
         try makeFakeWindow(device: device, size: side, appearance: appearance,
                            layoutAuthority: $0, content: content)
     } ?? makeFakeWindow(device: device, size: side, appearance: appearance, content: content)
+    if let height {
+        platform.simulateResize(to: Size(width: Pixels(Float(side)), height: Pixels(Float(height))))
+    }
     for _ in 0..<frames {
         window.setNeedsRedraw()
         window.drawFrameIfNeeded()
     }
-    let pixels = platform.fakeSurface.readPixels()
+    var pixels = platform.fakeSurface.readPixels()
+    if let height { pixels = Array(pixels.prefix(side * height * 4)) }
     try Data(pixels).write(to: URL(fileURLWithPath: "\(out)/\(name).bgra"))
     try dumpScene(window.lastScene, to: "\(out)/\(name).scene")
-    print("PIXELS wrote \(name) \(side)x\(side) bytes=\(pixels.count)")
+    print("PIXELS wrote \(name) \(side)x\(height ?? side) bytes=\(pixels.count)")
 }
 
 @Test @MainActor func zzCaptureDemoPixels() throws {
@@ -136,6 +148,16 @@ private func capture(_ name: String, out: String, side: Int, frames: Int,
                     appearance: appearance) { demoContent() }
     }
     demoModel.animationDemoActive = false
+
+    // Stage 6b (`LR-DO` item 3): the demo at the 920×560 `MetalUIDemo` opens
+    // (`Sources/MetalUIDemo/main.swift`), default and modal, light only — the
+    // size where a vertical compression the 1024 square never shows would.
+    try capture("prod-default-light", out: out, side: 920, height: 560, frames: 1,
+                appearance: .light) { demoContent() }
+    demoModel.showModal = true
+    try capture("prod-modal-light", out: out, side: 920, height: 560, frames: 1,
+                appearance: .light) { demoContent() }
+    demoModel.showModal = false
 
     for (suffix, appearance) in [("light", Appearance.light), ("dark", Appearance.dark)] {
         try capture("preview-\(suffix)", out: out, side: 1024, frames: 1,
