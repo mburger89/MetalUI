@@ -1685,7 +1685,25 @@ public final class Frame {
     /// content size and placed CENTRED at its own answer
     /// (`computeNativeLayout(root:proposal:centredIn:)`, ruling CN-J, probe
     /// R1/R2); a root that takes the whole offer fills the window.
+    ///
+    /// **Presentations first** (plan task 7, stage 5, rulings `LR-CL`, `LR-CM`).
+    /// Under the proposal authority, with any presentation registered: the root's
+    /// containing-block checks (`reportPresentationContainingBlock(root:)`), then
+    /// each presentation root in registration order in its own native run, with
+    /// the window as proposal and bounds, then the root exactly as before.
+    /// **Before** the root, so `LayoutTree.lastNativeLayoutWork` still reads the
+    /// root's own run (`SA-M`); separate runs, so a presentation's depth counts
+    /// from its own root (`SA-L`) and the root's placement (`CN-J`) is untouched.
     func computeRootLayout(root: LayoutNodeID) {
+        if layoutAuthority == .proposal && !lowering.presentations.isEmpty {
+            reportPresentationContainingBlock(root: root)
+            let width = Double(contentSize.width.value), height = Double(contentSize.height.value)
+            for presentation in lowering.presentations {
+                tree.computeNativeLayout(root: presentation.root,
+                                         proposal: ProposedSize(width: width, height: height),
+                                         in: LayoutRect(x: 0, y: 0, width: width, height: height))
+            }
+        }
         if tree.isNativeLayoutNode(root) {
             _ = tree.computeNativeLayout(
                 root: root,
@@ -1704,6 +1722,54 @@ public final class Frame {
                 width: .definite(Double(contentSize.width.value)),
                 height: .definite(Double(contentSize.height.value))),
             rootFontSize: rootFontSize)
+    }
+
+    /// Ruling `LR-CL` (as amended by `LR-CP` item 2): a presentation's containing
+    /// block is the window by construction, so every tree whose **legacy**
+    /// containing block is not reports by name — `deferred.root` when the root
+    /// node is a placeholder, and `deferred.containingBlock` when the root's
+    /// **declared** style (its `LoweredItem`) has a non-zero border edge (the
+    /// containing block is the root's padding box, `AP-C`), a non-`auto` size not
+    /// resolving to the window's extent on that axis, or a `minSize` resolving
+    /// above / `maxSize` below that extent (any percentage counts) — the last for
+    /// a `.frame(minWidth:)`/`.frame(maxWidth:)` root, a `.frameLayer` record the
+    /// unconsumed report never reads. The declared style is the one the legacy
+    /// engine would register; the root's native rect would not do, because a
+    /// hugging native root is not the window while the legacy auto root is
+    /// (`CS-I`). A root with no record — the differential harness's native root,
+    /// sized to the window — is the window.
+    private func reportPresentationContainingBlock(root: LayoutNodeID) {
+        if lowering.isPresentation(root) {
+            noteUnlowerable(UnlowerableField(site: .deferred, field: "root"))
+            return
+        }
+        guard let item = lowering.items[root] else { return }
+        let d = item.declared
+        func points(_ length: Length, _ extent: Double) -> Double {
+            switch length {
+            case .pixels(let p): Double(p.value)
+            case .rems(let r): Double(r.value) * rootFontSize
+            case .percent(let f): Double(f) * extent
+            }
+        }
+        func isPercent(_ dimension: Dimension) -> Bool {
+            if case .length(.percent) = dimension { true } else { false }
+        }
+        func clampsOff(size: Dimension, minimum: Dimension, maximum: Dimension, extent: Double) -> Bool {
+            if case .length(let length) = size, points(length, extent) != extent { return true }
+            if isPercent(minimum) || isPercent(maximum) { return true }
+            if case .length(let length) = minimum, points(length, extent) > extent { return true }
+            if case .length(let length) = maximum, points(length, extent) < extent { return true }
+            return false
+        }
+        let width = Double(contentSize.width.value), height = Double(contentSize.height.value)
+        let bordered = [d.border.top, d.border.right, d.border.bottom, d.border.left]
+            .contains { points($0, width) != 0 }
+        if bordered
+            || clampsOff(size: d.size.width, minimum: d.minSize.width, maximum: d.maxSize.width, extent: width)
+            || clampsOff(size: d.size.height, minimum: d.minSize.height, maximum: d.maxSize.height, extent: height) {
+            noteUnlowerable(UnlowerableField(site: .deferred, field: "containingBlock"))
+        }
     }
 
     // MARK: - Post-layout phases

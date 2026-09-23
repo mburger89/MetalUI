@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CH`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CT`** (stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -5395,3 +5395,506 @@ always cold, always `firstIndex == 0`, and the census pins the placement formula
 only at its origin. The windowing itself is pinned by `ListLoweringTests` and
 `ListTests` (`LR-BY`, `LR-BW`), which is where it belongs; recorded so a later
 reader does not treat the census's 2 000 rows as a windowing test.
+
+## LR-CH — `Deferred` becomes a presentation root only when its content is `.position(.absolute)`; an in-flow `Deferred` stays layout-transparent
+
+**Stage 5 design** (spec `specs/2026-09-23-engine-stage-5-design.md`, record §29).
+
+**The question.** §4.1 row 5 asks for "`Deferred` as a presentation root laid out
+against the window". Read literally, every `Deferred` would leave its parent's
+flow and be laid out against the window. Under the legacy authority `Deferred` has
+**no layout meaning**: `requestLayout` returns its content's node, so the content
+is an ordinary flow member, and only prepaint and paint change (layer 1, whole
+surface, zero translation; `AP-H`, `AP-I`) plus the layout-phase scroll-context
+reset. What takes a box out of flow and places it against the window is
+`.position(.absolute)` with no positioned ancestor (`AP-C`).
+
+**Evidence.** (1) The four element-level `DeferredTests` trees, all in-flow,
+already lower with **no diagnostic** and agree on every axis the tests assert
+(scratch S6, record §29 §2.2); the only disagreements are stage 3's viewport
+heights (`LR-BC`). (2) Overlay-presentation P4/P5: a presented `.sheet`/`.popover`
+is laid out 0 times and drawn nowhere in the presenter's tree — it is outside the
+presenter's layout. (3) Revision 2's Q4/Q4c: an overlay is proposed its host's
+size (100×100 at the root, 20×20 on a 20×20 view), and Q6/Q6c: it adds nothing to
+its host's size. So SwiftUI's "laid out against the window, outside the
+declaring view's layout" is a **window-root overlay**, not an overlay at the
+declaration site. (4) P1/P2/P3: an overlay is clipped by an ancestor and not
+hoisted over a later sibling; `.zIndex` hoists within one `ZStack` only — SwiftUI
+has no in-flow portal at all.
+
+**The ruling.**
+
+- **A `Deferred` whose one content node records a `LoweredItem` with
+  `declared.position == .absolute` is a presentation root** under the proposal
+  authority: the content is laid out in its own native run against the window
+  (`LR-CI`, `LR-CM`) and the `Deferred` hands its parent a placeholder every
+  lowered container drops (`LR-CK`).
+- **Every other `Deferred` lowers exactly as it does today** — layout-transparent,
+  its content a flow member — on both authorities. It needs no SwiftUI spelling,
+  because the answer is the legacy engine's and there is none to diverge from.
+- **The paint and prepaint halves and the scroll-context reset are unchanged and
+  authority-independent.**
+
+**Alternatives rejected.** (a) *Every `Deferred` a presentation* — changes the
+answer of every in-flow portal (a tooltip declared in a row would stop taking
+its row slot) with nothing in SwiftUI to say which answer is right, and the four
+exit trees would all move; it would be a semantics change dressed as a lowering.
+(b) *An overlay at the declaration site* — Q4c: proposed the declaring view's
+size, not the window's, so a scrim declared in a 420pt list could never cover a
+920pt window. (c) *Lower `.absolute` everywhere against the window* — possible
+with the same mechanism, but it would carry divergence 11 (laid out against the
+window, still clipped and scrolled by an ancestor) into the post-6b framework as
+a feature; `LR-CK` removes that spelling instead.
+
+**What it costs if wrong.** If a later design wants every `Deferred` out of flow,
+the cost is a one-line predicate in `Deferred.requestLayout` plus the in-flow
+tests' literals, and the mechanism below is unchanged. If the pair is the wrong
+trigger (a presentation spelled some other way), the reports keep the tree loud
+rather than wrong.
+
+## LR-CI — a presentation's placement is padding inside a window-sized frame, with a greedy item frame on each stretched axis
+
+**Evidence.** Revision 2's group Q, each arm with a control reading just inside
+and just outside its predicted box: Q1 (`.padding(top 5, leading 5)` inside
+`.frame(maxWidth: ∞, maxHeight: ∞, alignment: .topLeading)` → (5, 5)), Q1c (the
+bottom-trailing mirror → (63, 71)), Q2 (a greedy frame inside four-edge padding
+fills the gap), Q5c (`.topLeading` puts content at the origin). The legacy
+answers to reproduce, measured (record §29 §2.4): (5, 5); (163, 71); stretched
+between insets; all-auto at (0, 0) ignoring an in-flow sibling; 25 %/50 % at
+(50, 50) on a 200×100 window; a declared 40 with `minSize` 50 → 50.
+
+**The ruling.** Per axis, **structure from the declared style, lengths from the
+animated one** (`LR-AS`; `inset` animates): an `auto` size with both insets →
+item frame W greedy on that axis (min 0, max ∞), aliased as the element's rect
+(`LR-AB` item 3), padding on both edges; one inset → padding on that edge and the
+window frame aligned to it; neither → aligned leading at the window's origin
+(divergence 9, the legacy answer); a declared size → the element's own lowering
+answers it (min/max folded, `AP-E`), the leading inset wins when both are given
+(`AP-D`'s over-constrained rule). Registered innermost first: the element → W →
+`requestNativePadding` → `requestNativeFrame(width: window, height: window,
+alignment:)`. Percentages resolve per axis against `Frame.contentSize` (`AP-D`);
+rem × `rootFontSize`.
+
+**Why padding and not a custom `ProposalLayout` reproducing `placeAbsolute`.**
+Padding plus a filling frame is SwiftUI's idiomatic spelling (Q1–Q2) and is
+already pinned kernel behaviour; a custom layout would reproduce the legacy
+engine's measurement quirk (`LR-CJ`) exactly, but it would be a private
+re-implementation of CSS's absolute algorithm living on after stage 9.
+
+**What it costs if wrong.** A misplaced presentation is loud in every
+differential arm of test 1.1 (non-square on purpose: a width/height basis swap
+reads y 100 against 50 when `top` takes the width) and in the demo census.
+
+## LR-CJ — two proposal-only answers differ from the legacy engine on purpose, and min/max on an absolute box's auto axis reports
+
+**Evidence.** Measured (record §29 §2.4): an auto-width `Text` with `left` 0, 50
+or 150 in a 200×200 window is **196×32 in all three** — the legacy engine
+measures an absolute box against the containing block's full width
+(`placeAbsolute` passes `available: cb.size`), so at left 150 it overflows the
+window by 146. Q3: SwiftUI's leading padding proposes 50 of 100. A box stretched
+between insets leaving 10×10 with padding 10 is **20×20** in the legacy engine
+(`BM-4`). `minSize`/`maxSize` on an `auto` axis are **ignored** by the legacy
+engine, stretched or measured (four arms); only a declared axis is clamped.
+
+**The ruling.**
+
+1. **Measured content on an axis with one inset is proposed the window minus the
+   inset** (Q3) — a text wraps there, a greedy lowered container fills there.
+   Deliberate, proposal-authority only, pinned by name
+   (`anAbsoluteTextWrapsAtTheWindowMinusItsInsetWhereTheLegacyEngineWrapsAtTheWindow`).
+2. **A stretched axis keeps the inset box and lets the padding overflow**, W's
+   minimum staying 0 — `LR-AH`'s answer for a declared size below its padding and
+   `LR-AW`'s for a stretched item, applied to the third place the same question
+   arises. Pinned by name
+   (`anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBoxWhereTheLegacyEngineFloorsIt`).
+3. **`minSize`/`maxSize` on an absolute box's `auto` axis reports**
+   `<site>.minSize.absolute` / `<site>.maxSize.absolute`, owner **stage 8**. The
+   legacy answer (ignore) is an `AP-E` gap that SwiftUI (a frame honours its
+   minimum) and CSS both disagree with; lowering it to "ignore" would carry the
+   gap past stage 9, and lowering it to "clamp" would be a third deliberate change
+   nobody needs yet — the demo declares neither.
+
+Both deliberate answers are **unnumbered**, per record §04's 2026-09-21
+precedent for proposal-only stage-2 answers; the Docs phase decides.
+
+**What it costs if wrong.** (1) and (2) each flip by one line (propose the window
+instead of padding; W's minimum = the padding sum) with their pins' literals.
+(3) traps a production tree that uses the combination after 6b until stage 8 —
+loud, and fixable by declaring the size.
+
+## LR-CK — `.absolute`'s `position` and `inset` are reported by the consumer, the placeholder is dropped by every lowered container, and an absolute box outside a `Deferred` is removed
+
+**The ruling.**
+
+- **Moved to the consumer, names unchanged.** `legacyLeafDiagnostics` reports
+  `position` only for `.relative` and `inset` only when the position is not
+  `.absolute`. For an `.absolute` element, `planLegacyItems` appends `position`
+  and (any inset given) `inset` at the **child's** site after its other item
+  fields; `reportUnconsumedLoweredItems` appends `position.unconsumed` and
+  `inset.unconsumed` (the root included: the legacy root ignores its insets,
+  measured (0, 0), so a root's absolute is not the legacy answer either). A
+  `Deferred` consumes the record and lowers it (`LR-CI`). Every existing pin that
+  names `position`/`inset` uses `.relative` or a static inset
+  (`LoweringLeafTests`, `LayoutAuthorityTests`, `LoweringContainerTests`) and is
+  unchanged.
+- **An absolute box outside a `Deferred` is removed from the proposal
+  authority**: it reports as above and its trap names **stage 10** — the stage
+  that deletes `Style.position`/`inset` — where it named stage 2.
+  `owningStage`: `position…`/`inset…` → "10"; `….absolute` → "8"; site
+  `deferred` → "9".
+- **Dropped with the record**: `flexGrow`, `flexShrink`, `flexBasis`,
+  `alignSelf`, `margin` on the absolute content — the legacy engine ignores every
+  one (measured: (5, 5) 30×20 with all five set), so dropping them is its answer.
+- **The placeholder** (`LoweredItem.Kind.presentation`, declared `Style()`, site
+  `deferred`) is removed from `children` **at entry** — before `consume`, the
+  container rows' `childCount`, `planLegacyItems` and the single-child elision —
+  by `lowerLegacyNode`, `lowerLegacyLayer`'s frame arm and `loweredComponentFrame`
+  through one helper. The legacy engine filters an absolute child out of flow at
+  its two collection sites (`AP-B`); these three are the lowering's collection
+  sites. `ListRows` cannot receive one (its children are the `List`'s own row
+  `Box`es) and says so. **`loweredComponentFrame` over a placeholder member
+  reports `deferred.amended`**: the legacy amend overwrites the absolute box's own
+  size (divergence 48's mechanism), an answer not reproduced here.
+- **The placeholder is aliased to the content's element rect**
+  (`lowering.alias(content)`, resolved at alias time, so a stretched content
+  resolves to its W): the `Deferred`'s own `elementBounds` row is its content's,
+  as under the legacy authority, where the two share a node.
+
+**What it costs if wrong.** A consumer that misses the filter lays a 0×0 leaf out
+in flow — a gap or a spacing slot the legacy engine does not have. Test 1.4 has an
+arm per consumer and M1g/M1h remove the filter per site; a new consumer is the
+`LR-AQ` rule's "consumes or marks them" obligation with one more case.
+
+**Amended, stage-5 critic round 1 (`LR-CP` item 1).** The frame arm's
+`legacyFrameLayerDiagnostics` keeps the **undropped** `children.count`, because
+it compares against `ModifierLayer.lowered(_:childCount:)`, which
+`ModifiedElement` computed over the undropped children; only `consume`,
+planning and registration take the dropped list. Mutation M1o pins it.
+
+## LR-CL — the containing block is the window by construction, and every tree whose legacy containing block is not reports by name
+
+**Evidence.** Measured (record §29 §2.4): a bordered root puts a top/left-5 box at
+(9, 9) — the containing block is the root's **padding** box (`AP-C`); a root
+declaring width 100 in a 200 window puts a right/bottom-5 box at (85, 85); a
+`.relative` bordered ancestor at (0, 30) gives (58, 38); a `Deferred` root and an
+absolute root both ignore their insets, (0, 0).
+
+**The ruling.** A presentation's containing block is the window. The trees where
+the legacy engine's is not are each reported:
+
+- a **positioned ancestor** already reports at its own site (`.relative`:
+  `position`; `.absolute` outside a `Deferred`: `LR-CK`) — no new check;
+- **`deferred.containingBlock`**, raised in `computeRootLayout`, when the root's
+  **declared** style (its `LoweredItem`) has a non-zero border edge or a
+  non-`auto` size not resolving to the window's extent on that axis. The declared
+  style is the one the legacy engine would register; the root's native rect would
+  not do, because a hugging native root is not the window while the legacy auto
+  root is (`CS-I`). A root with no record — the harness's native root, sized to
+  the window — is the window;
+- **`deferred.nested`**, raised by a `Deferred` whose absolute content registered
+  another presentation, **unless** that content covers the window (four zero
+  insets, both sizes `auto`, no border — its padding box is then the window, and
+  the demo's card may hold a tooltip). Counting presentations before and after
+  the content's registration catches every depth: any presentation registered
+  inside has this one as a positioned ancestor;
+- **`deferred.root`** when the root node is a placeholder.
+
+Owner **stage 9**: once the legacy authority is deleted, a presentation's
+containing block is the window by definition and the four reports (with
+`deferred.amended`) are deleted with the answers they protect.
+
+**Amended, stage-5 critic round 1 (`LR-CP` item 2).** `deferred.containingBlock`
+also fires when the root's declared `minSize` resolves above, or `maxSize` below,
+the window's extent on an axis (a percentage counts): a `.frame(minWidth:)`/
+`.frame(maxWidth:)` root is a `.frameLayer` record that
+`reportUnconsumedLoweredItems` skips, and the legacy containing block follows
+the clamped root (measured (85, 85) / (285, 85) against (185, 85)).
+
+**What it costs if wrong.** Between 6b and 9 a production tree with a bordered or
+non-window-sized root and a modal traps. The demo's root is auto on both axes
+and unbordered.
+
+## LR-CM — presentations are laid out in their own runs, before the root, in `computeRootLayout`
+
+**The ruling.** Under the proposal authority, `Frame.computeRootLayout(root:)`
+runs `LR-CL`'s root checks, then each presentation root in registration order
+through `tree.computeNativeLayout(root:proposal:in:)` with the window as proposal
+and bounds, then the root exactly as today. **Before the root** so
+`LayoutTree.lastNativeLayoutWork` still reads the root's own run (`SA-M`'s pins
+unchanged; test 1.7). Separate runs, so a presentation's depth counts from its
+own root (`SA-L`) and the root's placement (`CN-J`) is untouched. In
+`computeRootLayout` rather than `render` because `ListTests`' `renderWindowed`
+and the lowering tests call it directly.
+
+**Rejected:** one run over a synthetic overlay of root and presentations — it
+would need the root wrapped in a centring frame to keep `CN-J`, adding two native
+levels to every root (the depth guard) and moving every root's work literal.
+
+**What it costs if wrong.** A work-count test over a presentation reads the root
+only; none exists, and 1.7 pins the order.
+
+## LR-CN — divergences 9, 10 and 11, and a stage-4 claim refuted
+
+**The ruling.**
+
+- **9** (all-auto insets at the containing block's origin, not CSS's static
+  position) **survives, on both authorities**: inside a `Deferred` it lowers to
+  the legacy answer (`LR-CI`); a new arm of test 1.1 pins it under both.
+- **10** (`Deferred` escapes every clip regardless of containing block) is
+  **unchanged**, its pins now run under both authorities (lane 2), and its row
+  gains the SwiftUI evidence it lacked: it agrees with SwiftUI's presentation
+  (P4/P5) and disagrees with SwiftUI's overlay (P1/P2).
+- **11** (an absolute box inside a `ScrollView` is still clipped and scrolled)
+  becomes **legacy-only**: the spelling reports under the proposal authority
+  (`LR-CK`), so the proposal arm of its pin asserts the report; it retires with
+  the legacy authority at stage 9.
+- **Record §27 §8.2's claim that `aListInsideADeferredIgnoresTheEscapedScrollersOffset`
+  "aborts" under `.proposal` is refuted**: switched to `.proposal` it passes
+  (record §29 §2.3). It was never measured. Lane 2 parameterises it; the erratum
+  belongs in record §27 at the Record phase, with the old sentence quoted.
+
+**What it costs if wrong.** Row text only; each divergence's pin is named.
+
+## LR-CO — the exit arms are hosted, the pass-level tests are not parameterised, and the stage runs in three lanes
+
+**The ruling.**
+
+- **Hosted**, because a native root is centred at its answer (`CN-J`, divergence
+  4, stage 6b's): rendered as the frame's root the in-flow trees move to x 65/95
+  and 125 (scratch S5). Three `DeferredTests` render through
+  `LayoutDifferential.render` (`DifferentialRoot`); the two scroll tests host in a
+  sized column `Box` over one `StateTable`, because `DifferentialRoot`'s legacy
+  stack offers fit-content and the viewport would hug its 340pt content and never
+  scroll (S6). A legacy literal that moves under hosting is a finding, recorded
+  before it is changed.
+- **The five pass-level `DeferredTests` are not parameterised** — no element, no
+  layout and no authority in their call path — on `LR-BN`'s footing, and each
+  says so at its declaration.
+- **Three lanes, sequential** (CLAUDE.md's budget rule): the mechanism and its
+  differential tests; the two exit suites plus `ListTests`' scenario and the roll
+  call; the must-not-move set through real windows, pixels and the record.
+  `AuthorityCoverage.expected` 67 → 74 → 82.
+- **No red-before by aborting the process** (`LR-BX`): new proposal windows are
+  pre-flighted under diagnostics, traps are exit tests.
+
+**What it costs if wrong.** A hosting choice that moves a legacy literal is caught
+by the literal itself; a lane split that proves wrong costs one merged lane.
+
+**Amended, stage-5 lane 2** (`LR-CR` item 1). The two scroll hosts are
+window-sized, cross-stretching **row** `Box`es, not the "sized column `Box`"
+this ruling named: a legacy `ScrollView` that is a column host's direct child
+keeps its content's height (its viewport node is `flexShrink: 0`), so a sized
+column host never scrolls and the offset clamps to 0. On a row's cross axis the
+viewport stretches to the host's height under both authorities, so the row is
+the host `DeferredTests`' scrolled test and 2.5 use (`renderInRowHost`).
+
+## LR-CP — stage 5 critic round 1: the frame arm's undropped count, a clamped root's containing block, a named animation curve, a red-before that exists, and a narrower SwiftUI claim
+
+**Stage 5 critic round 1** (spec `specs/2026-09-23-engine-stage-5-design.md`,
+record §29 §5). The committed design (`7654e63`) was attacked for unprobed
+SwiftUI claims, silent answer changes, the scrim's behaviour, environment and
+opacity, identity/hit-testing/accessibility/animation, `SA-G`, unreddenable
+tests and lane size. The probe was recompiled and run twice: **every** P, Q and H
+line re-ran byte-identical to its header (`diff` empty), so no SwiftUI claim
+moved. Five defects, each fixed in the spec in this commit:
+
+1. **The frame arm's style check must keep the undropped child count**
+   (amends `LR-CK`'s placeholder bullet). `lowerLegacyLayer` passes
+   `children.count` to `legacyFrameLayerDiagnostics`, which compares `declared`
+   with `layer.lowered(spec.style(), childCount:)`; `ModifiedElement` built
+   `declared` from the undropped count (the placeholder is one of its
+   children). `LR-CK` said the placeholder is removed "before … the container
+   rows' `childCount`", which read literally hands the diagnostics 0 for a
+   one-node frame over a presentation (declared `display: .stack`, expected
+   flex) and 1 for a two-member one (the reverse) — a spurious
+   `modifierLayer.style` in both of test 1.4's `.frame` arms. Read from the
+   source (`LegacyLowering.swift` `lowerLegacyLayer`/`legacyFrameLayerDiagnostics`,
+   `ModifiedElement.swift` `lowered(_:childCount:)`), not measured, because
+   nothing is implemented yet; mutation **M1o** (pass the dropped count) is
+   added to 1.4 so lane 1 measures it.
+2. **`deferred.containingBlock` also fires on a root `minSize`/`maxSize` that
+   clamps the root off the window** (amends `LR-CL`). The design checked border
+   and size only, reasoning that a root's min/max report `…unconsumed`; but a
+   `.frame(minWidth:)`/`.frame(maxWidth:)` root is a `.frameLayer` record, which
+   `reportUnconsumedLoweredItems` skips, so the tree would lower silently to a
+   different answer. **Measured at `e5caefb`** (scratch `ZZScratchCritic.swift`,
+   legacy, `Box { Deferred { 10×10, right/bottom 5 } }` under a root frame, 200×100
+   window, deleted after, `git status --short` clean): `.frame(maxWidth: 100)`
+   (85, 85); `.frame(minWidth: 300)` (285, 85); `.frame(maxWidth: 300)` and no
+   frame (185, 85). Three arms and mutation **M1p** join test 1.5. Percentage
+   min/max count as clamping (they report elsewhere anyway).
+3. **Test 3.5 names `.linear`.** `withAnimation`'s default is
+   `Animation.spring(duration: 0.5, bounce: 0)` (`Animation.swift:230`); "y 30 at
+   half" holds only for a linear (or symmetric) curve. The test now spells
+   `withAnimation(.linear(duration: 1))` and requires 30 to differ from both
+   endpoints.
+4. **Test 2.7 has a red-before.** The design said none was possible; at
+   `e5caefb` the child traps naming stage 2, so a `stage 10` assertion is red.
+5. **"SwiftUI has no in-flow portal at all" is narrowed** to "no probed SwiftUI
+   spelling is an in-flow portal" (P1/P2/P3 test `.overlay` and `.zIndex` only).
+   `LR-CH`'s decision does not rest on the broader sentence — an in-flow
+   `Deferred` keeps the legacy answer because it already agrees — so only the
+   wording moves.
+
+**Attacked and rejected, with the reason** (no change):
+
+- *Separate native runs violate `SA-G`.* No: every node in a presentation run is
+  native, the placeholder is a native leaf no lowered container attaches, and
+  `runNativeLayout` rounds only its own subtree (`roundNativeStoredRects(root)`),
+  so the root's run cannot re-round a presentation. Orphaned native nodes are
+  already tolerated (`Frame.unlowerable`'s doc comment).
+- *The declared-size-below-padding absolute box lowers silently differently.*
+  It does (legacy `BM-4` 20×20, lowered 8×8), but that is `LR-AH`'s standing
+  deliberate change for every box, pinned by stage 2's 4.3; `LR-CJ` item 2
+  applies it to the stretched case and names it.
+- *Root `margin`/`minSize`/`maxSize` on a non-frame root are missed.* They are
+  already reported as `…unconsumed` at the root (`reportUnconsumedLoweredItems`
+  reads the root's min, max and margin).
+- *M1d cannot redden.* It can: `Deferred`'s id is recorded by
+  `Element.prepaintGroup`'s `recordElementBounds(layout.id, bounds(of: node))`,
+  and `node` is the placeholder.
+- *Lane 1 is too large.* It holds every `Sources/` edit; splitting it would put
+  two lanes on `LegacyLowering.swift` and `LoweringState.swift`, which
+  CLAUDE.md's budget rule forbids. Three lanes stand.
+
+## LR-CQ — stage 5 lane 1's corrections: two reddened sets narrower than predicted, four source claims pinned, and one mutation handed to lane 3
+
+**Stage 5 lane 1** (record §29 §6). The lane's source (`1f83f45`) was green at
+1624; its verifier found the lane unfinished (no mutation table, no record
+section, M1b left applied — reverted) and four unpinned claims. Measured with
+every one of M1a–M1t run through the full unfiltered suite (record §29 §6.3):
+
+1. **M1h reddens only 1.4's two-member `.frame` arm**, not both `.frame` arms as
+   spec §7, `LR-CP` and the test's doc comment said. Over one node the undropped
+   0×0 placeholder sits inside a fixed 50×50 frame whose answer does not depend
+   on it, and the `Deferred`'s rect is aliased to its content, so the one-node
+   arm agrees under M1h. No arm is added: a one-node frame over nothing but a
+   placeholder has no observable answer the filter changes. The spec row (which
+   keeps the old wording as a quoted erratum) and the doc comment now say so.
+2. **M1g does not redden 1.4's `Stack` or `.padding` arms** (the spec predicted
+   the column, stack, scroll and `.padding` arms). It reddens the column, the
+   scroll arm, 1.1's divergence-9 arm, 1.7 and 1.8. A 0×0 child changes neither
+   a stack's union nor a one-child padding's answer, so the filter at those two
+   sites is observable by nothing; the arms stay as guards that the drop does not
+   break them. Spec row and doc comment corrected likewise.
+3. **Four claims in lane 1's source now have pins** (verifier's X2–X5, each
+   green at `1f83f45`): 1.5 gains `maxHeight` on an auto axis →
+   `[box.maxSize.absolute]` (**M1r**), a percentage `minWidth` on a declared
+   axis → `[box.minSize.percent]` (**M1s**), a presentation inside a bordered
+   `inset(0)` presentation → `[deferred.nested]` (**M1t**; also reddened by M1j),
+   and an assertion that each `<field>.absolute` the frame really reports is
+   owned by stage 8 (**M1q**). Each mutation was run and reddens 1.5 only.
+4. **Nothing in lane 1 pins that the inset lengths come from the animated style**
+   (`LR-AS`): the verifier's X1 (`length(animatedLeading/Trailing)` →
+   `length(leading/trailing)`) leaves 1624 green. This is spec §7's **M3c**, owned
+   by lane 3's 3.5 `anAnimatedInsetInterpolatesItsValueUnderBothAuthorities`,
+   which must redden under that exact edit; lane 3's verifier re-runs it.
+
+Pixels: the twelve `CN-R` images read 0 against `e5caefb`. The screen was locked
+(no capture owed).
+
+## LR-CR — stage 5 lane 2's corrections: the scroll hosts are rows, not columns, two reddened sets wider than predicted, and the red-befores as measured
+
+**Stage 5 lane 2** (record §29 §7). Tests only; the lane's commits are `52ff491`
+(red first, unhosted) and `985c443` (hosted, green at **1626**). Measured:
+
+1. **The two scroll hosts are window-sized, cross-stretching ROW `Box`es, not the
+   "sized column `Box`" `LR-CO` and spec §7 named.** A legacy `ScrollView` that
+   is a column host's direct child keeps its content's height: its viewport node
+   is `flexShrink: 0` (`ScrollView.swift`'s four-row table). 2.5's first draft,
+   in a 200×100 column host with 30 top padding, read the scroller's region
+   clipped to 200×70 while its `ScrollState.viewportExtent` read **300**, so the
+   offset of 40 clamped to 0 and the in-flow marker stayed at y 30 under
+   `.legacy` (the proposal viewport read 70 and scrolled — the lowered viewport
+   fills its proposal, `LR-BC`). On a row's cross axis the viewport is stretched
+   to the host's height under both authorities. `DeferredTests`' scrolled test
+   and 2.5 use `renderInRowHost`; `AbsoluteOverlayTests` hosts in the same shape
+   (its own wrapper already bounds its viewport, so either host works there; the
+   row is kept for one shape). `ListTests`' `hostStyle` column works for its
+   subjects because none is a `ScrollView` scrolled through `ScrollState`: they
+   push a `ScrollContext` directly. **Every legacy literal is unchanged by
+   hosting** in all five hosted tests (measured: each passes its unchanged
+   legacy assertions hosted).
+2. **M2a reddens more than the nested-scroll test**: also 2.5 under both
+   authorities (its two hitbox assertions) and five existing tests
+   (`aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel`,
+   `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor`,
+   `aDeferredScrollViewTakesTheWheelFromAnOverlappingSiblingBeneathIt(_:)`,
+   `anOpaqueDeferredScrimSwallowsAWheelEventInsteadOfScrollingTheListBeneath(_:)`,
+   `withinOneLayerTheLastRegisteredRegionStillWins(_:)`). **M2b** reddens, beyond
+   the hoist, scrolled and scrim tests the spec named, 2.6
+   `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt(_:)` under both
+   authorities (the portal half's whole-surface mask). Wider sets, not wrong
+   predictions: each named test is among them.
+3. **The red-befores, as measured** (spec §7's lane 2 table predicted them from
+   S5): unhosted under `.proposal`, only two of the five then-parameterised
+   scenarios were red — the nested-scroll test (inner region x **155**, width
+   **145**, outer x 125: the centred root, `CN-J`) and 2.6 (report `[box.position,
+   box.inset]`, and every rect **0×0 at (0, 0)** with mask (100, 85) 0×60 — S5's
+   "(100, 85)" is the mask's origin, not a rect's). The identity, hoist and
+   scrolled tests and 2.8 were green unhosted (the hoist test asserts widths and
+   paint order, not the x S5 saw move). 2.5 with lane 1's branch disabled in a
+   scratch copy: the pre-flight read `[stack.position, stack.inset]`. 2.7 with
+   the `position`/`inset` owning-stage line removed (e5caefb's behaviour): the
+   child's stderr named `box.position … stage 2`.
+4. **M2d reddens 2.7 only** (1 issue) — lane 1's 1.5 does not see it because its
+   owning-stage assertion reads only the `…absolute` fields.
+
+Pixels: the twelve `CN-R` images read 0 against `e5caefb`. The screen was locked
+at 04:02 PDT (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`): no
+capture owed.
+
+
+## LR-CS — stage 5 lane 3's corrections: a mutation that could not reach the phases it was named for, a layout-phase reading added, and three reddened sets as measured
+
+**Stage 5 lane 3** (record §29 §8). Tests only; the lane's commits are `7c0c414`
+(`PresentationWindowTests` 3.1–3.6, the two in-flow pins parameterised, roll call
+82) and `be5c697` (3.3's layout-phase reading). Suite **1632**. Measured:
+
+1. **M3b as the spec spelled it — `Deferred.requestLayout` wrapping its content in
+   the root environment — reddens nothing** (full suite, 1632 passed, at
+   `7c0c414`). The theme is a `PaintPass` reading and the disabled gate a
+   prepaint one (`Frame.registerHandlers`, `EV-D`), and `EnvironmentScope`
+   re-pushes its stored values around its content in prepaint and in paint
+   (`EnvironmentScope.swift`), so what a `Deferred` does to the environment in
+   layout never reaches either. The spelling does differ from the source — a
+   layout-phase reader inside the presentation sees the root — but nothing in the
+   suite read the environment in layout inside a `Deferred`. **So 3.3 gained that
+   reading** (`LayoutEnvironmentProbe`, a forwarding element reading a private
+   `presentationProbe` key in `requestLayout`, under `.environment(\.presentationProbe, 7)`),
+   and M3b as spelled now reddens 3.3 under both authorities (2 issues, the
+   reading 0 for 7). **M3b′ is added** — the root environment around all three of
+   `Deferred`'s phases — and reddens 3.3 (8 issues: theme, gate and reading),
+   3.8 `aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope`
+   under both (the 12pt box light) and `DisabledTests`'
+   `aDisabledScopeReachesIntoDeferredContent` (2 issues).
+2. **Spec §7's 3.7–3.8 row read "M3a, M3b"**: measured, **M3a** reddens 3.7
+   `aDeferredPortalInsideAFadedSubtreeIsStillFaded` (both) and 3.2 only; **M3b as
+   spelled reddens neither 3.7 nor 3.8**; 3.8's mutation is M3b′ (item 1).
+3. **M1c reddens more of lane 3 than the spec named, and only the proposal
+   arms**: 3.1 (4 issues — at the wheel point the topmost opaque hitbox is the
+   `List`'s region at (240, 455), so the wheel scrolls, the scrim click does not
+   dismiss and the separating arm reads 74, not 37), 3.4 (the record at the
+   card-sized (80, 85) 40×30) and — not predicted — 3.6 (no window-sized scrim
+   hitbox). The legacy arms cannot see it: M1c is a lowering edit.
+4. **M3d reddens the existing pass-level `nestedDeferredsAllLandOnTheSameRootLayer`
+   as well as 3.6** (both arms; the tooltip on layer 2). **M3c** (lane 1's X1,
+   the exact edit) reddens 3.5's proposal arm only: the transition's first frame
+   reads 50 for 10, and mid-flight 50 (the `try #require` that it differs from
+   both endpoints stops the test there).
+5. **M3a's mechanism**: `Frame.opacityStack` is private, so the mutation stashes
+   and clears it in `Frame.pushLayer` and restores it in `popLayer` (through a
+   static, not a stored property — `pushLayer` has no caller but the two
+   `deferred`s). Recorded because a reader re-running "`pass.deferred` resets the
+   opacity stack" cannot spell it in `Passes.swift`.
+
+**The red-befores**, as spec §7 predicted them: with lane 1's `Deferred` branch
+disabled in a scratch copy (`guard false, …`, restored), every
+`PresentationWindowTests` arm fails its pre-flight — `[stack.position,
+stack.inset]` (3.1 modal on, 3.4), `[box.position, box.inset]` (3.2, 3.3, 3.5's
+end state), `[box.position, box.inset, stack.position, stack.inset]` (3.6);
+3.7 and 3.8 are green under both authorities (in-flow `Deferred`s).
+
+Pixels: the twelve `CN-R` images read 0 against `e5caefb`. The screen was locked
+at 04:41 PDT (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`): no
+capture owed.

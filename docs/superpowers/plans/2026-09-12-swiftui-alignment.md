@@ -546,6 +546,50 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   obligations are listed in record §27 §11.3. *Merged with `master` at
   `f5e5651` (the HarfBuzz shaper line, record §26) on 2026-09-23: 1617 / 97 /
   77 on the merged tree; this stage's record renumbered §26 → §27.*
+  *Progress 2026-09-23 on `feat/engine-stage-5` (from `e5caefb`), stage 5 of
+  14, task still open.* Spec `specs/2026-09-23-engine-stage-5-design.md`;
+  rulings `LR-CH`…`LR-CS` in `../2026-09-17-engine-replacement-decisions.md`
+  (the same doc as stages 1–4); probe `swiftui-overlay-presentation.swift`
+  revision 2 (group Q added; P and H re-run byte-identical); record §29
+  (written as §28 and renumbered at the merge with `master` at `42b9ab4`,
+  whose portable-text line had already taken §28). **Stage 5 delivered** (three lanes, each with its own
+  mutation table, all verified `ok`): a `Deferred` whose one content node is
+  `.position(.absolute)` is now a presentation root under the proposal
+  authority (`LR-CH`) — element → greedy W on each stretched axis (aliased as
+  the element's rect) → padding for the given insets → a window-sized frame
+  aligned per axis (`LR-CI`), laid out in its own native run **before** the
+  root in `computeRootLayout` (`LR-CM`); the `Deferred` hands its parent a 0×0
+  placeholder aliased to the content's rect, dropped by every lowered
+  container (`LR-CK`). An in-flow `Deferred` is untouched. Two proposal-only
+  answers are pinned by name (measured content at window − inset; a stretched
+  axis keeps its inset box below its padding, `LR-CJ`); every case where the
+  legacy containing block is not the window reports by name, owner stage 9
+  (`LR-CL`); an absolute box **outside** a `Deferred` is removed from the
+  proposal authority and reports `position`/`inset` at the consumer, owner
+  stage 10 (`LR-CK`). Divergence 9 survives on both authorities; 10 is
+  unchanged and gains SwiftUI evidence (agrees with SwiftUI's presentation,
+  P4/P5; disagrees with its overlay, P1/P2); 11 is legacy-only from here
+  (`LR-CN`); record §27 §8.2's claim that a `List` inside a `Deferred` aborts
+  under `.proposal` is refuted (it was never measured — record §04's
+  2026-09-23 section). **Exit criterion met**: `DeferredTests` (5 of 10
+  element-level scenarios; the other five are pass-level and say so) and
+  `AbsoluteOverlayTests` (1 of 1) run under both authorities, plus the
+  must-not-move set through real `Window`s — the demo modal's scrim hoisting
+  over everything and escaping the `ScrollView`'s clip and scroll translation,
+  its click-to-dismiss and the wheel not scrolling the list beneath (`IN-W`),
+  a presentation keeping its declaring scope's environment and not resetting
+  opacity (`OM-AA`, divergence 46), nested presentations on one layer
+  (`AP-H`), an animated inset, and accessibility/focus — all pinned through
+  `PresentationWindowTests`, six scenarios under both authorities. The roll
+  call is now 82 scenarios across fifteen files. Suite 1617 → **1632**, 97
+  goldens unmoved, 77 guards (none added); twelve offscreen demo images 0
+  differing at every lane; **no real-window capture** (screen locked
+  throughout every lane). **Not done:** production still runs the legacy
+  authority (stage 6b); the four `deferred.*` reports, the two `…absolute`
+  reports and the consumer-side `position`/`inset` report are each owed a
+  deletion once their owning stage lands; the real-window capture this stage
+  owes stays open until the screen is next unlocked (not owed for acceptance:
+  no legacy path changed).
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

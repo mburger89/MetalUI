@@ -682,9 +682,21 @@ private struct EnvComponent: Component {
 /// not. **The disagreeing spelling** moves `.theme(.dark)` after the frame's
 /// background (15pt and 16pt), and both read dark — so the arm is shown to
 /// tell inside the scope from outside it, not to read light everywhere.
+///
+/// **Under both authorities** (plan task 7 stage 5 lane 3, spec 3.8, `LR-CO`): a
+/// plain `Frame`, so the proposal arm runs with diagnostics on and requires an
+/// empty report before anything is read (`LR-BX`). The `Deferred` is **in-flow**;
+/// the presentation-shaped twin is
+/// `aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities`
+/// (`PresentationWindowTests`). Colours only are read, so the proposal root's
+/// centring (`CN-J`) does not reach an assertion.
 @MainActor
-@Test func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope() throws {
-    let f = frame()
+@Test(arguments: AuthorityCoverage.authorities)
+func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
+    let f = Frame(contentSize: Size(width: px(200), height: px(50)), scaleFactor: 1,
+                  stateTable: StateTable(), theme: .light,
+                  layoutAuthority: authority, reportsUnlowerableFields: authority == .proposal)
     var root = Row {
         surfaceBox(10).theme(.dark)
         surfaceBox(11)
@@ -693,6 +705,7 @@ private struct EnvComponent: Component {
         surfaceBox(15).frame(width: px(16), height: px(10)).background(.surface).theme(.dark)
     }
     f.render(&root)
+    try #require(f.unlowerableFields.isEmpty, "\(authority): \(f.unlowerableFields)")
 
     let rects = f.finalizedScene().rects
     func colour(_ width: Float) throws -> Hsla {

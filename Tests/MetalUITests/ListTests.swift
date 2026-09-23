@@ -46,7 +46,9 @@ private func items(_ n: Int) -> [Item] {
 /// frames, and the `Style.padding` arm added to each of the two padding tests,
 /// 3 + 6); 289 − 241 = 48 is exactly
 /// `aListInsideADeferredIgnoresTheEscapedScrollersOffset`, the one scenario that
-/// stays legacy-only (40 escaped rows plus its 8-row windowed control).
+/// stayed legacy-only (40 escaped rows plus its 8-row windowed control). **Stage
+/// 5's lane 2 parameterised it** (`LR-CN`), so it now registers under the proposal
+/// authority too; these counts were taken before that and were not re-taken.
 private struct Row: Element {
     let item: Item
     /// When set, this row's own node asks for a fixed height — the "content
@@ -675,17 +677,27 @@ func aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows(_ authority: 
 /// **The differential is what makes this about `Deferred` rather than about
 /// windowing**: the identical `List` under the identical context, unwrapped,
 /// still windows.
-@Test @MainActor func aListInsideADeferredIgnoresTheEscapedScrollersOffset() throws {
+///
+/// **Under both authorities since stage 5's lane 2** (`LR-CN`), with **no
+/// red-before**: record §27 §8.2 said this scenario "aborts" the run under
+/// `.proposal`; measured at `e5caefb` it passes there (record §29 §2.3 — the
+/// `Deferred` is in-flow, so it lowers as it always has, and
+/// `withoutScrollContext` runs on both authorities). The claim was never
+/// measured. Its pin under the proposal arm is mutation M2e
+/// (`withoutScrollContext` removed from `Deferred.requestLayout`).
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
+func aListInsideADeferredIgnoresTheEscapedScrollersOffset(_ authority: LayoutAuthority) throws {
+    AuthorityCoverage.record(#function, authority)
     let data = items(40)
     let context = ScrollContext(offset: 280, viewportExtent: 112, axis: .vertical)
 
     let portal = Deferred { List(data, rowHeight: px(28)) { Row($0) } }
-    let (escaped, _) = renderWindowed(portal, context: context, authority: .legacy)
+    let (escaped, _) = renderWindowed(portal, context: context, authority: authority)
     #expect(escaped.scrollRegions.count == data.count,
             "a subtree that escapes a scroller's clip and translation has escaped its windowing too")
 
     let plain = List(data, rowHeight: px(28)) { Row($0) }
-    let (windowed, _) = renderWindowed(plain, context: context, authority: .legacy)
+    let (windowed, _) = renderWindowed(plain, context: context, authority: authority)
     #expect(windowed.scrollRegions.count < data.count,
             "the same list and the same context, not wrapped, still windows")
 }
