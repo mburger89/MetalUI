@@ -130,6 +130,15 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     #expect(!hidden.scene.rects.contains { isFilled($0, with: .accent, in: theme) },
             "a hidden element paints no rect of its colour (V1)")
     #expect(hidden.scene.glyphs.isEmpty, "nothing inside a hidden element paints, got \(hidden.scene.glyphs.count) glyphs")
+
+    // The root arm (`LR-DP` item 2): `render` paints the root directly, not through
+    // `paintGroup`, so it carries its own skip. A hidden root paints nothing.
+    let root = Box { Text("Hi") }.width(px(40)).height(px(40)).background(.accent)
+    let shownRoot = production(.proposal, root)
+    try #require(!shownRoot.scene.rects.isEmpty && !shownRoot.scene.glyphs.isEmpty, "control: the shown root paints")
+    let hiddenRoot = production(.proposal, root.hidden())
+    #expect(hiddenRoot.scene.rects.isEmpty && hiddenRoot.scene.glyphs.isEmpty,
+            "a hidden root paints nothing, got \(hiddenRoot.scene.rects.count) rects, \(hiddenRoot.scene.glyphs.count) glyphs")
 }
 
 // MARK: - 1.3 — hit testing (V2/V3)
@@ -157,6 +166,14 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     let hit = try #require(topmostOpaqueHitbox(in: hidden.hitboxes, at: point(50, 50)))
     #expect(hidden.hitboxes[hit].id == under, "a hidden top passes the click to what is under it (V3)")
     #expect(!hidden.hitboxes.contains { $0.id == top }, "a hidden element registers no pointer hitbox")
+
+    // The root arm (`LR-DP` item 2): `render` prepaints the root directly, so it
+    // carries its own pointer-disable scope. A hidden clickable root holding a
+    // clickable child registers no pointer hitbox at all.
+    let root = Box { Box().width(px(20)).height(px(20)).onClick {} }.width(px(40)).height(px(40)).onClick {}
+    try #require(production(.proposal, root).hitboxes.count == 2, "control: the shown root and its child register")
+    let hiddenRoot = production(.proposal, root.hidden())
+    #expect(hiddenRoot.hitboxes.isEmpty, "a hidden root registers no pointer hitbox, got \(hiddenRoot.hitboxes.count)")
 }
 
 // MARK: - 1.4 — per ModifiedElement layer (MC-B)
