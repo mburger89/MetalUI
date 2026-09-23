@@ -11,24 +11,26 @@ on:
     paths:
       - "Experiments/SDLGPU/**"
       - ".github/workflows/sdl-gpu-linux.yml"
-      # Frame 4's text is built by these (ruling PT-G).
+      # Frame 4's text is built by these (rulings PT-G, LB-J).
       - "Sources/MetalUIPortableText/**"
       - "Sources/MetalUIHarfBuzz/**"
       - "Sources/MetalUIFreeType/**"
       - "Sources/CHarfBuzz/**"
       - "Sources/CFreeType/**"
+      - "Sources/CUnibreak/**"
       - "Sources/MetalUIScene/**"
       - "Tests/Fonts/**"
   pull_request:
     paths:
       - "Experiments/SDLGPU/**"
       - ".github/workflows/sdl-gpu-linux.yml"
-      # Frame 4's text is built by these (ruling PT-G).
+      # Frame 4's text is built by these (rulings PT-G, LB-J).
       - "Sources/MetalUIPortableText/**"
       - "Sources/MetalUIHarfBuzz/**"
       - "Sources/MetalUIFreeType/**"
       - "Sources/CHarfBuzz/**"
       - "Sources/CFreeType/**"
+      - "Sources/CUnibreak/**"
       - "Sources/MetalUIScene/**"
       - "Tests/Fonts/**"
   workflow_dispatch:

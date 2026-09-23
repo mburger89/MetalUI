@@ -172,6 +172,14 @@ func portableFixture(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene
     // pixels: the line above sits between the corners and cannot see it.
     try text("WWW corner", x: 30, y: 274, size: 21, clip: clip)
     try text("Kerning AV To Ty, ligatures fi fl ffi, Ω Ж", x: 37.4, y: 315, size: 19)
+    // LB-J: a paragraph wrapped by `emitLines` — UAX #14 breaks, one
+    // `lineHeight` between baselines, the box's top-left as its origin.
+    let paragraphFont = try PortableFont(data: bytes, size: 13)
+    try PortableText.emitLines("Wrapped by emitLines: line breaks from libunibreak, "
+                               + "one baseline every lineHeight, kerning kept across a break (AV To).",
+                               font: paragraphFont, origin: (330.5, 108.25), wrappingAt: 262,
+                               scaleFactor: 1, color: color(0.55, 0.1, 0.95), contentMask: mask,
+                               into: &scene, atlas: atlas)
     scene.finalize()
     return scene
 }

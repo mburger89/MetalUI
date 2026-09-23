@@ -240,6 +240,105 @@ func breakBytes() -> [UInt8] {
     }
 }
 
+// MARK: - Line metrics and multi-line emission (LB-K)
+
+/// Each face's metrics at 13 pt: ascent, descent, leading and lineHeight bit
+/// patterns (UInt64 LE), face by face — FNV-1a 64 over all of them.
+let metricFaces = [notoSans, sourceSans, "NotoSansArabic-Regular.ttf"]
+
+func metricBytes() throws -> [UInt8] {
+    var bytes: [UInt8] = []
+    for face in metricFaces {
+        let metrics = try PortableFont(data: fontBytes(face), size: 13).metrics
+        for value in [metrics.ascent, metrics.descent, metrics.leading, metrics.lineHeight] {
+            let bits = value.bitPattern
+            for shift in stride(from: 0, through: 56, by: 8) { bytes.append(UInt8(truncatingIfNeeded: bits >> UInt64(shift))) }
+        }
+    }
+    return bytes
+}
+
+struct ParagraphCase: CustomStringConvertible {
+    let font: String, text: String, size: Double, width: Double, scale: Float
+    var description: String { "\(font) \(size)pt ×\(scale) w=\(width) \"\(text)\"" }
+}
+
+/// Wrapped paragraphs through `emitLines`, each reaching a rule of LB-H/LB-I:
+/// several lines with kerning across a break, a control character and a soft
+/// hyphen (substituted and dropped), tabs.
+let paragraphCorpus: [ParagraphCase] = [
+    ParagraphCase(font: notoSans, text: "The quick brown fox jumps over the lazy dog. AV To Ty\nsoft\u{AD}hyphen\u{AD}ated", size: 13, width: 120, scale: 2),
+    ParagraphCase(font: sourceSans, text: "tab\tseparated\tcolumns wrap\u{2028}here and there", size: 17, width: 90, scale: 1),
+]
+
+/// A paragraph pinned like an `emit` case: rects, `height` in the advance
+/// slot, the atlas's dirty rect and coverage.
+func pinParagraph(_ paragraphCase: ParagraphCase) throws -> (pinned: PinnedEmit, lines: Int) {
+    let font = try PortableFont(data: fontBytes(paragraphCase.font), size: paragraphCase.size)
+    let atlas = GlyphAtlas(width: atlasSide, height: atlasSide)
+    var scene = Scene()
+    let mask = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 4096, height: 4096))
+    atlas.beginFrame()
+    let paragraph = try PortableText.emitLines(paragraphCase.text, font: font, origin: (3.3, 7.6),
+                                               wrappingAt: paragraphCase.width,
+                                               scaleFactor: paragraphCase.scale,
+                                               color: MUIHsla(h: 0, s: 0, l: 1, a: 1),
+                                               contentMask: mask, into: &scene, atlas: atlas)
+    atlas.endFrame()
+    var bytes: [UInt8] = []
+    for glyph in scene.glyphs {
+        for value in [glyph.bounds.origin.x, glyph.bounds.origin.y,
+                      glyph.bounds.size.width, glyph.bounds.size.height,
+                      glyph.atlasBounds.origin.x, glyph.atlasBounds.origin.y,
+                      glyph.atlasBounds.size.width, glyph.atlasBounds.size.height] {
+            appendLittleEndian(Int32(value), to: &bytes)
+        }
+    }
+    let dirty = atlas.dirtyRect.map { [$0.x, $0.y, $0.width, $0.height] } ?? []
+    return (PinnedEmit(glyphs: scene.glyphs.count, rects: fnv1a64(bytes),
+                       advance: paragraph.height.bitPattern, dirty: dirty,
+                       coverage: fnv1a64(atlas.pixels)), paragraph.lines.count)
+}
+
+@Suite struct LineEmissionDeterminismTests {
+    @Test func lineMetricsMatchTheValuesRecordedOnMacOS() throws {
+        let checksum = fnv1a64(try metricBytes())
+        #expect(checksum == expectedMetricsChecksum,
+                "measured \(hex(checksum)), recorded on macOS \(hex(expectedMetricsChecksum))")
+    }
+
+    @Test func wrappedParagraphsMatchTheValuesRecordedOnMacOS() throws {
+        try #require(expectedParagraphs.count == paragraphCorpus.count)
+        for (index, paragraphCase) in paragraphCorpus.enumerated() {
+            let got = try pinParagraph(paragraphCase).pinned
+            #expect(got == expectedParagraphs[index],
+                    "\(paragraphCase): measured \(got), recorded on macOS \(expectedParagraphs[index])")
+        }
+    }
+
+    /// Not degenerate: every paragraph wraps and inks.
+    @Test func theCorpusIsNotDegenerate() throws {
+        for paragraphCase in paragraphCorpus {
+            let (pinned, lines) = try pinParagraph(paragraphCase)
+            #expect(lines > 2 && pinned.glyphs > 20 && pinned.dirty.count == 4, "\(paragraphCase)")
+        }
+    }
+
+    @Test(.enabled(if: recording, "set METALUI_PORTABLE_RECORD=1 to print the expected values"))
+    func record() throws {
+        var lines = ["let expectedMetricsChecksum: UInt64 = \(hex(fnv1a64(try metricBytes())))",
+                     "let expectedParagraphs: [PinnedEmit] = ["]
+        for paragraphCase in paragraphCorpus {
+            let (pinned, count) = try pinParagraph(paragraphCase)
+            try #require(count > 2 && pinned.glyphs > 20 && pinned.dirty.count == 4, "\(paragraphCase) measured nothing")
+            lines.append("    PinnedEmit(glyphs: \(pinned.glyphs), rects: \(hex(pinned.rects)), advance: \(hex(pinned.advance)), "
+                         + "dirty: \(pinned.dirty), coverage: \(hex(pinned.coverage))),  // \(paragraphCase)")
+        }
+        lines.append("]")
+        print(lines.joined(separator: "\n"))
+    }
+}
+
 let recording = ProcessInfo.processInfo.environment["METALUI_PORTABLE_RECORD"] == "1"
 
 // MARK: - Tests

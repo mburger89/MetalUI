@@ -22,6 +22,22 @@ public struct PortableLine: Sendable, Equatable {
     public let advance: Double
 }
 
+/// One glyph of a laid-out line, with its pen in points from the line's start
+/// (tabs at their stops); its own `xOffset`/`yOffset` still to be added.
+struct LinePlacedGlyph {
+    /// The glyph drawn — the shaper's, or the space glyph for a control
+    /// character.
+    let id: UInt16
+    let glyph: ShapedGlyph
+    let penX: Double
+}
+
+/// A display line and the glyphs that draw it.
+struct LaidOutLine {
+    let line: PortableLine
+    let glyphs: [LinePlacedGlyph]
+}
+
 /// `init_linebreak` fills libunibreak's lookup state once. A `static let` is
 /// initialised exactly once, thread-safely, on first use.
 private let lineBreakerReady: Void = { init_linebreak() }()
@@ -62,13 +78,20 @@ extension PortableText {
     /// last cluster boundary that fits, and always keeps at least one cluster.
     public static func lines(_ text: String, font: PortableFont,
                              wrappingAt width: Double?) throws -> [PortableLine] {
+        try layOut(text, font: font, wrappingAt: width).map(\.line)
+    }
+
+    /// `lines`, with each line's glyphs kept: the glyphs `emitLines` draws
+    /// (ruling LB-H) are the ones this measured, so the two cannot drift.
+    static func layOut(_ text: String, font: PortableFont,
+                       wrappingAt width: Double?) throws -> [LaidOutLine] {
         if let width {
             precondition(width > 0, "PortableText.lines was offered a wrapping width of \(width); "
                          + "a width must be positive (Shaper.shape's contract)")
         }
         let limit = width ?? .infinity
         let units = Array(text.utf16)
-        guard !units.isEmpty else { return [PortableLine(range: 0..<0, advance: 0)] }
+        guard !units.isEmpty else { return [LaidOutLine(line: PortableLine(range: 0..<0, advance: 0), glyphs: [])] }
 
         let breaks = lineBreaks(in: text)
         // Each glyph's advance is charged to the first unit of its cluster; a
@@ -79,10 +102,15 @@ extension PortableText {
         var unitAdvance = [Double](repeating: 0, count: units.count)
         var clusterStart = [Bool](repeating: false, count: units.count + 1)
         clusterStart[units.count] = true
+        // The current shaping's glyphs, and the unit its clusters count from.
+        var shaped: [ShapedGlyph] = []
+        var shapedFrom = 0
         func shape(from: Int) throws {
             let rest = String(decoding: units[from...], as: UTF16.self)
             for unit in from..<units.count { unitAdvance[unit] = 0; clusterStart[unit] = false }
-            for glyph in try HarfBuzzShaper.shape(rest, font: font.shaping).glyphs {
+            shaped = try HarfBuzzShaper.shape(rest, font: font.shaping).glyphs
+            shapedFrom = from
+            for glyph in shaped {
                 unitAdvance[from + glyph.cluster] += glyph.xAdvance
                 clusterStart[from + glyph.cluster] = true
             }
@@ -101,7 +129,10 @@ extension PortableText {
         }
         graphemeStart[units.count] = true
 
-        var result: [PortableLine] = []
+        let ignorable = ignorableUnits(of: text, count: units.count)
+        let spaceGlyph = font.shaping.glyph(for: " ")
+
+        var result: [LaidOutLine] = []
         var start = 0
         while start < units.count {
             if !clusterStart[start] { try shape(from: start) }
@@ -139,12 +170,31 @@ extension PortableText {
             // A line that ends inside a cluster cannot take a share of it, and
             // is re-shaped.
             let advance: Double
+            let lineGlyphs: [(glyph: ShapedGlyph, unit: Int)]
             if clusterStart[end] {
                 advance = (start..<end).reduce(0) { advancing($0, over: units[$1], by: unitAdvance[$1]) }
+                lineGlyphs = shaped.lazy.map { ($0, shapedFrom + $0.cluster) }
+                    .filter { (start..<end).contains($0.1) }
             } else {
                 advance = try shapedAdvance(units, start..<end, font: font)
+                let alone = String(decoding: units[start..<end], as: UTF16.self)
+                lineGlyphs = try HarfBuzzShaper.shape(alone, font: font.shaping).glyphs
+                    .map { ($0, start + $0.cluster) }
             }
-            result.append(PortableLine(range: start..<end, advance: advance))
+            // Each glyph's pen from the line's start, walked as the advance was,
+            // drawn as CoreText draws it (`drawnGlyph`).
+            var pen = 0.0
+            var placed: [LinePlacedGlyph] = []
+            placed.reserveCapacity(lineGlyphs.count)
+            for (glyph, unit) in lineGlyphs {
+                if let id = drawnGlyph(glyph.id, at: units[unit], ignorable: ignorable[unit],
+                                       space: spaceGlyph) {
+                    placed.append(LinePlacedGlyph(id: id, glyph: glyph, penX: pen))
+                }
+                pen = advancing(pen, over: units[unit], by: glyph.xAdvance)
+            }
+            result.append(LaidOutLine(line: PortableLine(range: start..<end, advance: advance),
+                                      glyphs: placed))
             start = end
         }
         return result
@@ -194,6 +244,40 @@ extension PortableText {
         if unit == 0x09 { return ((pen / defaultTabInterval).rounded(.down) + 1) * defaultTabInterval }
         if isHardBreak(unit) { return pen }
         return pen + advance
+    }
+
+    /// The glyph CoreText draws for the glyph HarfBuzz shaped as `id` at
+    /// `unit`, or `nil` for none (measured, LB-I):
+    ///
+    /// - a **default ignorable** (a soft hyphen, a zero-width joiner) draws
+    ///   nothing, where HarfBuzz gives it a zero-width space glyph. (CoreText
+    ///   reports glyph 0xFFFF for a line that is nothing but one, and draws
+    ///   nothing for it either.)
+    /// - a **control or hard-break character** the face has no glyph for (a
+    ///   newline, a tab, U+2028) draws the space glyph, where HarfBuzz gives it
+    ///   `.notdef` — which in most faces is a visible box.
+    static func drawnGlyph(_ id: UInt16, at unit: UInt16, ignorable: Bool, space: UInt16) -> UInt16? {
+        if ignorable { return nil }
+        if id == 0 && (isControl(unit) || isHardBreak(unit)) { return space }
+        return id
+    }
+
+    /// For each UTF-16 unit of `text`, whether it begins a default-ignorable
+    /// scalar. Swift's `Unicode.Scalar.Properties` is the standard library's
+    /// own table on every platform.
+    static func ignorableUnits(of text: String, count: Int) -> [Bool] {
+        var ignorable = [Bool](repeating: false, count: count)
+        var offset = 0
+        for scalar in text.unicodeScalars {
+            ignorable[offset] = scalar.properties.isDefaultIgnorableCodePoint
+            offset += scalar.utf16.count
+        }
+        return ignorable
+    }
+
+    /// A C0 or C1 control character — general category Cc.
+    static func isControl(_ unit: UInt16) -> Bool {
+        unit < 0x20 || (0x7F...0x9F).contains(unit)
     }
 
     /// UAX #14's hard-break characters (BK, CR, LF, NL).

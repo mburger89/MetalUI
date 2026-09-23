@@ -76,6 +76,31 @@ public final class FreeTypeFont {
     /// HarfBuzz's (`PT-B`).
     public var unitsPerEm: Int { Int(face.pointee.units_per_EM) }
 
+    /// The face's `hhea` ascender, descender (negative below the baseline)
+    /// and line gap, in design units — the three numbers CoreText's
+    /// `CTFontGetAscent`/`Descent`/`Leading` scale (measured, `LB-F`).
+    ///
+    /// **Not `FT_Face.ascender`/`descender`/`height`**: FreeType fills those
+    /// from OS/2's typographic metrics when the face sets `USE_TYPO_METRICS`,
+    /// and CoreText does not — both Noto faces set it, with typo numbers equal
+    /// to `hhea`'s, so only a patched face tells the two apart (record §31).
+    /// A face with no `hhea` table falls back to FreeType's numbers.
+    public var horizontalHeader: (ascender: Int, descender: Int, lineGap: Int) {
+        if let table = FT_Get_Sfnt_Table(face, FT_SFNT_HHEA) {
+            let hhea = table.assumingMemoryBound(to: TT_HoriHeader.self).pointee
+            return (Int(hhea.Ascender), Int(hhea.Descender), Int(hhea.Line_Gap))
+        }
+        let face = face.pointee
+        return (Int(face.ascender), Int(face.descender),
+                Int(face.height) - Int(face.ascender) + Int(face.descender))
+    }
+
+    /// FreeType's name for the face's outline format: `"TrueType"` for a
+    /// `glyf` face, `"CFF"` for an OpenType/CFF one (`FT_Get_Font_Format`).
+    public var format: String {
+        FT_Get_Font_Format(face).map { String(cString: $0) } ?? ""
+    }
+
     /// The face's glyph for a Unicode scalar, or 0 (`.notdef`) — for tests
     /// and for `PT-B`'s cross-engine check; a shaper supplies the ids that
     /// are actually drawn.
