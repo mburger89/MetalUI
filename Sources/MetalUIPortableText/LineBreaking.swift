@@ -29,6 +29,8 @@ struct LinePlacedGlyph {
     /// character.
     let id: UInt16
     let glyph: ShapedGlyph
+    /// The face it is drawn in — the requested one or a fallback (FB-A).
+    let font: PortableFont
     let penX: Double
 }
 
@@ -111,16 +113,16 @@ extension PortableText {
         var clusterStart = [Bool](repeating: false, count: units.count + 1)
         clusterStart[units.count] = true
         // The current shaping's glyphs, and the unit its clusters count from.
-        var shaped: [ShapedGlyph] = []
+        var shaped: [RunGlyph] = []
         var shapedFrom = 0
         func shape(from: Int) throws {
             let rest = String(decoding: units[from...], as: UTF16.self)
             for unit in from..<units.count { unitAdvance[unit] = 0; clusterStart[unit] = false }
-            shaped = try HarfBuzzShaper.shape(rest, font: font.shaping).glyphs
+            shaped = try shapeCascading(rest, font: font)
             shapedFrom = from
-            for glyph in shaped {
-                unitAdvance[from + glyph.cluster] += glyph.xAdvance
-                clusterStart[from + glyph.cluster] = true
+            for run in shaped {
+                unitAdvance[from + run.cluster] += run.glyph.xAdvance
+                clusterStart[from + run.cluster] = true
             }
         }
         try shape(from: 0)
@@ -138,7 +140,6 @@ extension PortableText {
         graphemeStart[units.count] = true
 
         let ignorable = ignorableUnits(of: text, count: units.count)
-        let spaceGlyph = font.shaping.glyph(for: " ")
 
         var result: [LaidOutLine] = []
         var start = 0
@@ -178,7 +179,7 @@ extension PortableText {
             // A line that ends inside a cluster cannot take a share of it, and
             // is re-shaped.
             let advance: Double
-            let lineGlyphs: [(glyph: ShapedGlyph, unit: Int)]
+            let lineGlyphs: [(run: RunGlyph, unit: Int)]
             if clusterStart[end] {
                 advance = (start..<end).reduce(0) { advancing($0, over: units[$1], by: unitAdvance[$1]) }
                 lineGlyphs = shaped.lazy.map { ($0, shapedFrom + $0.cluster) }
@@ -186,20 +187,19 @@ extension PortableText {
             } else {
                 advance = try shapedAdvance(units, start..<end, font: font)
                 let alone = String(decoding: units[start..<end], as: UTF16.self)
-                lineGlyphs = try HarfBuzzShaper.shape(alone, font: font.shaping).glyphs
-                    .map { ($0, start + $0.cluster) }
+                lineGlyphs = try shapeCascading(alone, font: font).map { ($0, start + $0.cluster) }
             }
             // Each glyph's pen from the line's start, walked as the advance was,
             // drawn as CoreText draws it (`drawnGlyph`).
             var pen = 0.0
             var placed: [LinePlacedGlyph] = []
             placed.reserveCapacity(lineGlyphs.count)
-            for (glyph, unit) in lineGlyphs {
-                if let id = drawnGlyph(glyph.id, at: units[unit], ignorable: ignorable[unit],
-                                       space: spaceGlyph) {
-                    placed.append(LinePlacedGlyph(id: id, glyph: glyph, penX: pen))
+            for (run, unit) in lineGlyphs {
+                if let id = drawnGlyph(run.glyph.id, at: units[unit], ignorable: ignorable[unit],
+                                       space: run.font.spaceGlyph) {
+                    placed.append(LinePlacedGlyph(id: id, glyph: run.glyph, font: run.font, penX: pen))
                 }
-                pen = advancing(pen, over: units[unit], by: glyph.xAdvance)
+                pen = advancing(pen, over: units[unit], by: run.glyph.xAdvance)
             }
             result.append(LaidOutLine(line: PortableLine(range: start..<end, advance: advance),
                                       glyphs: placed))
@@ -233,8 +233,8 @@ extension PortableText {
     static func shapedAdvance(_ units: [UInt16], _ range: Range<Int>, font: PortableFont) throws -> Double {
         let line = String(decoding: units[range], as: UTF16.self)
         var perUnit = [Double](repeating: 0, count: range.count)
-        for glyph in try HarfBuzzShaper.shape(line, font: font.shaping).glyphs {
-            perUnit[glyph.cluster] += glyph.xAdvance
+        for run in try shapeCascading(line, font: font) {
+            perUnit[run.cluster] += run.glyph.xAdvance
         }
         return zip(units[range], perUnit).reduce(0) { advancing($0, over: $1.0, by: $1.1) }
     }

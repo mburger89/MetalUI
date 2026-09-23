@@ -33,7 +33,7 @@ extension PortableText {
                                                    wrappingAt: width, scaleFactor: scaleFactor)
         for placement in placements {
             try emitGlyph(placement.id, deviceX: placement.deviceX, baselineY: placement.baselineY,
-                          font: font, scaleFactor: scaleFactor, color: color,
+                          font: placement.font, scaleFactor: scaleFactor, color: color,
                           contentMask: contentMask, maskCornerRadii: maskCornerRadii,
                           order: order, layer: layer, into: &scene, atlas: atlas)
         }
@@ -60,7 +60,7 @@ extension PortableText {
                 // y-down. Rounded on its own, as `placedGlyphs` rounds a run
                 // position's y.
                 result.append(GlyphPlacement(
-                    id: placed.id,
+                    id: placed.id, font: placed.font,
                     deviceX: (origin.x + (placed.penX + placed.glyph.xOffset)) * scale,
                     baselineY: baselineY - Int((placed.glyph.yOffset * scale).rounded())))
             }
@@ -71,8 +71,10 @@ extension PortableText {
 
 /// One glyph's pen at device scale: x before the subpixel split, and the
 /// device row of its baseline.
-struct GlyphPlacement: Equatable {
+struct GlyphPlacement {
     let id: UInt16
+    /// The face the glyph is drawn in (FB-A).
+    let font: PortableFont
     let deviceX: Double
     let baselineY: Int
 }
