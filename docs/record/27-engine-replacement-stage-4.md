@@ -2501,3 +2501,92 @@ clean`** — `List` is public and its stored `box`'s generic argument changed.
   `LR-CG` now carry **Amended, verification round** paragraphs. **`LR-CH` is the
   next id**, and the header's "next unused" line already says so — unmoved,
   because this round appended no ruling.
+
+## 12. Branch checker (2026-09-23, PDT) — adversarial pass over `f2e981f..HEAD`
+
+No file under `Sources/` or `Tests/` changed in this pass; every figure below
+was re-taken, not read off the sections above.
+
+**Suite.** `swift package clean`, then `swift build --build-system native
+--build-tests` (0 `error:`, one `warning:` — SwiftPM's deprecation notice) and
+the unfiltered `swift test --build-system native --no-parallel`:
+`Test run with 1617 tests in 3 suites passed after 67.338 seconds.` Four
+skipped, all gated (`regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500(authority:)`,
+FreeType's `measure(file:)`, HarfBuzz's `measure()`); the `FR-J no-argument
+frame: succeeded=` marker is in the log, so the guards ran. Goldens 97, `git
+diff --name-only f2e981f HEAD -- 'Tests/**/*.json'` empty. Guards 77 with
+`CLAUDE.md`'s per-file split (`UnitSafetyTests` lives in
+`Tests/MetalUICoreTests`). `cmp CLAUDE.md AGENTS.md` clean. Of 89 ruling ids and
+78 long identifiers cited in the branch's changed docs, every id resolves (the
+ten without a heading are the "next unused" ids and the `CS-3`-style typo
+examples) and two names do not: the spec's D15 row quoting the typo it fixed
+(correct as written) and §4's design-time
+`aWindowedListAgreesWithTheLegacyEngineOnEveryWindowedShape` (annotated there).
+
+**The 100 000-row exit test, run.** `METALUI_RUN_100K_LIST_TEST=1 swift test
+--build-system native --no-parallel --filter aListsWorkIsTheSameFor100kRowsAsFor500`
+passed both cases and printed, debug build:
+
+    MeasurePerformanceTests: cold frame at 100,000 rows, legacy, took 53.319904917 seconds
+    MeasurePerformanceTests: cold frame at 100,000 rows, proposal, took 29.214614417 seconds
+
+Slower than §10.4's 37.16 s / 24.98 s debug on the same machine — wall clock,
+asserted by nothing, and taken here with a real-window build running beside it,
+so read it only as "the proposal cold frame is still the faster one".
+
+**Two mutations of the checker's own design**, each on a committed tree,
+restored from a `cp` copy, `git status --short` empty afterwards, full
+unfiltered suite:
+
+| id | mutation (proposal branch of `ListRows.requestGroupLayout` only) | run | reddened |
+|---|---|---|---|
+| **MA** | realized rows registered `under: nil` instead of under the `List`'s id — row identity detached on the proposal path, legacy path untouched | 1617, **96 issues** | `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` (8 issues), `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne` (3), `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices` (2), `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` — **every parameterised issue on the `.proposal` case, 16 of 16, none on `.legacy`** — plus `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aLoweredListsRowIdentitiesAreTheLegacyOnes`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`, `aNilWidthListMeasuresEveryLogicalRowTwice`, `aZeroRowHeightLowersWithoutTrappingOrProducingNaN`, `theListSiteReportsNothingAndItsRowsItemFieldsAreLowered`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` |
+| **MB** | `registerLegacyItems(rowNodes, plans)` replaced by the bare `rowNodes` — the rows' item plans (stretch and the rest) not applied | 1617, **50 issues** | `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape` (33), `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight` (14), `aZeroRowHeightLowersWithoutTrappingOrProducingNaN` (1), `aListsWorkIsTheSameFor160RowsAsFor40(authority:)` `.proposal` (2) |
+
+MA is what says the retention, focus and accessibility suites' `.proposal`
+arms genuinely run the proposal path's identity rather than passing on shared
+code: they redden on that case alone. **MB's green set is itself a reading**:
+none of `ListTests`' 20 parameterised scenarios, the retention and
+accessibility suites or the census sees the rows' item plan go missing, so the
+lowered rows' cross-axis stretch is pinned by `ListLoweringTests` and by the
+proposal work count, and by nothing that `ListTests` reads. Not a defect —
+`ListTests` asserts windows and heights, and the row `Box` declares its own
+height — but the stretch should not be credited to the `ListTests` arms.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh` into a fresh directory,
+`f2e981f` → `372bf2a` (the merged tree's `Sources/`): every control at its
+bracketed value (1 048 576, 1 030 498, 210 027, 0, 1 048 576, 0, 544, 216, and
+0 indicator rects), then **12/12 differing=0, every scene dump identical**.
+The screen-lock probe printed no `CGSSessionScreenIsLocked` line and
+`displayAsleep main: 0`, so `docs/probes/window-capture/capture.sh` ran:
+stability a-vs-b 0 in all four windows, **default 0, preview 0**, control
+default-vs-preview **921 071** at `372bf2a`. This is the stage's fourth
+real-window capture and the first on the merged tree.
+
+**State confirmed.** Divergences 13 and 14 are as §11 and record §04's
+2026-09-23 section say: `visibleRange` still reads `pass.scrollContext` in
+`requestLayout` on both paths, and 14's pin is parameterised over
+`AuthorityCoverage.authorities` and green on both. Task 7's box is unticked; the
+stage note agrees with §4.1 row 4 except in the two ruled departures (`LR-BR`,
+`LR-BW`), which the parent design's status paragraph now names. The merge kept
+both sides: `git diff f5e5651 HEAD` over every HarfBuzz path is empty, and
+`git diff 18205e2 ebc5830 -- Sources/MetalUI Tests/MetalUITests` is §26 → §27
+comment renumbering only.
+
+**Doc defects fixed in this commit.** The parent design's "Where the task
+actually stands" paragraph named stages 1, 2, G and 3 only; `CLAUDE.md`'s
+roll-call hazard said the coverage came from "nine" other files where ten
+files call `AuthorityCoverage.record` (67 calls: `ListTests` 20,
+`ScrollRoutingTests` 16, `ScrollIndicatorTests` 14, `AccessibilityDefaultsTests`
+5, `ScrollViewTests` 4, `AXNodeTests` 3, `MeasurePerformanceTests` 2,
+`TombstoneTests`, `FocusTests`, `AccessibilityTreeTests` 1 each); the stage
+spec's "six amended" beside a list of seven amended rulings; §4's design-time
+test name; and `docs/record/README.md`'s HarfBuzz row, which still said it
+"may be renumbered at merge" after the merge had renumbered it.
+
+**Left as found (test sources, not docs):** the stale `65` / "nine" literals at
+`ZZAuthorityRollCall.swift:31,45` and `AuthorityCoverage.swift:54,63,223`
+(§11.3 item 14); the three `AccessibilityDefaultsTests` scenarios recording
+after `try #require(MTLCreateSystemDefaultDevice())` (lines 681, 760, 862;
+item 11); the 10 000-row twin's missing discriminating read (MV5e, item 12).
+None is a behaviour defect. **Verdict: mergeable.**

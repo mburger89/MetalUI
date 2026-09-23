@@ -20,7 +20,8 @@ afterwards; the measurements are in `docs/record/27-engine-replacement-stage-4.m
 
 **Critic round 1 raised 15 defects; all 15 were confirmed against the source and
 all 15 are applied.** Five carried a design decision of their own and are ruled
-`LR-BX`…`LR-CB`; six amended an existing ruling in place (`LR-BQ`, `LR-BR`,
+`LR-BX`…`LR-CB`; **seven** existing rulings were amended in place (this line
+read "six" before the branch checker counted the headings) (`LR-BQ`, `LR-BR`,
 `LR-BS`, `LR-BT`, `LR-BU`, `LR-BV`, `LR-BW` carry a paragraph headed **Amended,
 stage-4 critic round 1**). §10 is the disposition table. Nothing was rejected,
 so no ruling records a rejection.
