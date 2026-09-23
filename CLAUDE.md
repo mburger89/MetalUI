@@ -47,7 +47,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
-  its spec), `TI-` (next `TI-G`; rulings in its spec). A numbered citation
+  its spec), `TI-` (next `TI-G`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
+  spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -115,8 +116,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   fallback (`FB-`, spec `specs/2026-09-23-font-fallback-design.md`), §43
   portable bidi (`BD-`, spec `specs/2026-09-23-bidi-design.md`), §44
   accessibility off Apple through AccessKit (`AX-`, spec
-  `specs/2026-09-23-accesskit-accessibility-design.md`) and §45 text input
-  and `TextField` (`TI-`, spec `specs/2026-09-23-text-input-design.md`). **Cross-platform work
+  `specs/2026-09-23-accesskit-accessibility-design.md`) §45 text input
+  and `TextField` (`TI-`, spec `specs/2026-09-23-text-input-design.md`) and
+  §46 system font discovery (`SF-`, spec
+  `specs/2026-09-23-system-fonts-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -154,6 +157,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-23, `feat/system-fonts` — roadmap item 8b): 1752
+  tests, 97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both
+  build systems, taken the same way (`Test run with 1752 tests in 3 suites
+  passed`; the guards ran). **1752 = 1746 + 6** (`MetalUISystemFontsTests`,
+  which also runs on Linux and Windows); record §46.
 - **Counts (2026-09-23, `feat/text-input` — roadmap item 14): 1746 tests,
   97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both build
   systems, taken after `swift package clean` the same way (one summary line,
@@ -543,7 +551,14 @@ Eight constraints that fail silently:
   pin's Arabic case is the only test that sees a shaping offset**: the Apple
   oracle's Latin corpus has none (`noCorpusGlyphCarriesAShapingOffset`), so
   dropping `xOffset` from `emit`'s pen walk reddens nothing on macOS except
-  the portable package.
+  the portable package. **`MetalUISystemFonts` is the exception by design**
+  (`SF-A`): the one text target with a file system, importing Foundation
+  (swift-corelibs-foundation off Apple), `MetalUIFreeType` and
+  `MetalUIPortableText` — so discovery never leaks into the portable pipeline.
+  A system face is **lazy** (`SF-B`) and, unless it is one of the platform's
+  fallback families, **outside the cascade** (`SF-C`): registering a whole
+  installation with the byte API instead would open every face when the first
+  font resolves (`FB-B`).
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (gamma-space compositing, §7.8).

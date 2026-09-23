@@ -77,10 +77,12 @@ Apple-bound:
    windows, input (keys in AppKit's vocabulary), resize, scale, frame ticks,
    theme, close; accessibility an explicit no-op. `feat/sdl-platform`, spec
    `specs/2026-09-23-sdl-platform-design.md` (`SP-`), record §37.
-   8b. [ ] **System font discovery** — find installed fonts (fontconfig on
-   Linux; the Fonts directory or DirectWrite on Windows) and register them
-   with `PortableFontResolver`, choosing the platform's default face for
-   `family: nil`.
+   8b. [x] **System font discovery** — `MetalUISystemFonts`: the platform's
+   font directories scanned, faces named without loading them, registered
+   lazily with `PortableFontResolver`, the platform's default family for
+   `family: nil` (fontconfig's first on Linux) and its fallback families as
+   the cascade. `feat/system-fonts`, spec
+   `specs/2026-09-23-system-fonts-design.md` (`SF-`), record §46.
 9. [x] **`MetalUI` builds without AppKit/Metal** — declared everywhere,
    Apple dependencies appended on macOS; `App(platform:textSystem:)`; the
    demo's whole frame pinned across platforms and equal on Linux.
