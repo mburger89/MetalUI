@@ -1185,6 +1185,41 @@ removed (must redden the cold-frame row count at both authorities — `MP-I`).
 M5c: the demo census's `report.elements` literal (must redden 2.15; a count a
 later loop indexes on is `try #require`, shape 13).
 
+**Run (`LR-CG`, record §26 §10).** All three behave, and M5a's conditional is
+resolved in the direction the lane hoped: `List.overscan` 2 → 3 reddens the two
+native-work **literals** in both work tests' `.proposal` arms and leaves every
+**equality** green, because both counts move together. So the equality is
+window-invariant by construction and the literals are the whole of the
+`O(window)` claim — which is why §7's "and each equal to a literal" is not
+decoration. M5b reddens 16 issues across five tests including
+`table.count == 2 * n + 5` on **both** authorities; M5c reddens 2.15 with exactly
+one issue and no cascade, which is shape 13 working. A fourth, **M5d**
+(placement at the realized index rather than the logical one), was taken to ask
+whether the census's new 2 000 rows can see the windowing: 57 issues across nine
+tests and **the census is not one of them** — `LayoutDifferential.render` builds
+one frame, so the demo's `List` is always cold at `firstIndex == 0`.
+
+**The three literals were derived, not transcribed, and the route is not §2.5's**
+(`LR-CG` item 2). P1d's bare kernel stack is not the exit test's shape. Instead:
+a cold frame realizes every row, so the cold column at n = 40 / 160 / 500 / 2000
+is the same function of the realized count `r`, and it is exactly linear —
+`r + 1`, `6r + 7`, `7r + 8`, no residue over twelve numbers. The warm window is
+derived separately from `visibleRange` (`first = max(0, −2) = 0`,
+`last = ceil(370/28) + 2 = 16`, so **r = 16**), and the model predicts
+**17 / 103 / 120** there. The warm frames read exactly that at all four counts.
+
+**The report the diagnostics frame prints is `[box.minSize.unconsumed]` and
+nothing else**, at 40, 160, 500 and 100 000 alike — so the counters were not
+taken over a degenerate tree, and the paragraph above asking for that check is
+answered rather than assumed.
+
+**One half of the exit test is vacuous under `.proposal` and now says so**
+(`LR-CG` item 3): a lowered `Text` measures through `proposalTextMeasurement`
+and takes no min-content probe, so the tokenizer count is 0 at every row count
+and `calls100k == calls500` is `0 == 0`. The `.legacy` arm gains a
+`try #require(> 0)` reachability control and the `.proposal` arm asserts the
+zero by name.
+
 ## 7. The exit test
 
 Two tests, both named by §4.1 row 4.
@@ -1208,6 +1243,22 @@ parameterises anything:
   5 derives the exact numbers on a branching count, not by reading them off the
   first run).
 
+**Done, and run** (`LR-CG`; record §26 §10). The literals are **17 measure calls,
+103 cache hits, 120 cache misses** at r = 16 realized rows, derived as lane 5's
+section above sets out; under `.legacy` the same read is `NativeLayoutWork()`,
+which is the control saying the proposal numbers are this frame's own run.
+`METALUI_RUN_100K_LIST_TEST=1 … --filter aListsWorkIsTheSameFor100kRowsAsFor500`
+reads `1 test in 1 suite passed`, cold frame at 100 000 rows **37.16 s legacy /
+24.98 s proposal** in debug and **12.24 s / 7.55 s** in release on this machine
+(CLAUDE.md's `MP-I` row quotes ~17 s release and is stale; Docs-phase
+obligation). The test is parameterised over both
+authorities and **does not** call `AuthorityCoverage.record`: a gated name would
+be permanently missing from `seen` and would redden the roll call on every
+healthy run (`LR-CG` item 4). Its ungated twin
+`aListsWorkIsTheSameFor160RowsAsFor40` carries the name and the identical
+instrument, and `theResidentEntrySetStaysBoundedWhileScrolling10kRows` carries a
+second — `AuthorityCoverage.expected` 65 → **67**.
+
 **(2) The `ListTests` windowing arms under the proposal authority**: every
 scenario in `ListTests` except the `Deferred` one runs under
 `LayoutAuthority.allCases`, and the roll call in `AuthorityCoverage` (renamed
@@ -1219,6 +1270,16 @@ roll call exists at all (`LR-BN`).
 **Plus the census**, which is not named in §4.1 but is the stage's real
 integration check: `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`
 re-derived, with `report.unlowerable` empty (modal off).
+
+**Re-derived in lane 5, and §4.2(c)'s prediction holds in every part.** Modal
+off: report `[]`, 2035 ids, 6 agreeing, **0** legacy-only, **2029** disagreeing.
+Modal on: `[stack.position, stack.inset]`, 2041 ids, **2035** disagreeing. The
+`ScrollView` and the `List` stop being 0 wide (420 on both sides now, the widest
+realized row), and the modal's lowered-width override table disappears with them.
+The 2 000 row ids attribute to **55**, **X9** and **55's sub-pixel tail** — no new
+cause — and both modal states assert that the 29 chrome rows plus the 2 000 row
+ids plus the six modal ids are the *whole* report, so nothing escapes attribution
+(`LR-CG` item 5).
 
 ## 8. Demo, pixels and captures
 
@@ -1247,7 +1308,9 @@ non-zero reading is a **finding**, not a number to record.
 reproducing their recorded values exactly (record §26 §7.5). Lane 2's only
 change on the legacy path is `List.requestLayout` losing a branch that fired
 only under the proposal authority, so a zero was expected by construction and
-taken anyway.
+taken anyway. **Lanes 3, 4 and 5 likewise read 0 in all twelve** (record §26
+§8.6, §9.8, §10.6); lane 5 touches no file under `Sources/` at all, and the run
+was taken anyway for the reason the harness exists.
 
 **Real-window capture** only if
 `xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&
@@ -1267,7 +1330,7 @@ main: 0`; then `docs/probes/window-capture/capture.sh <scratch dir> f2e981f
 | `String(describing: datum.id)` not being injective (two ids that describe alike share one `StateTable` entry) — unchanged by this stage, still unguarded | unowned; `ElementID` is `String`-backed, a framework-wide job |
 | Variable row heights (a prefix-sum index) | out of scope for task 7 entirely |
 | ~~Committing the `CN-R` harness~~ | **retired: lane 1 commits it** (`LR-CB`), ending `LR-BJ`'s carry |
-| A real-window capture of the demo | whoever runs with an unlocked screen |
+| A real-window capture of the demo at stage 4's final HEAD | lane 3 took one at `352f838` (record §26 §8.7); lanes 4 and 5 both found `CGSSessionScreenIsLocked = 1` and `displayAsleep main: 1`, so neither could. Whoever next runs with an unlocked screen |
 | `ProposalScrollView` publishing a `ScrollContext`, so a `List` could window inside one | stage 11 / task 10 (carried from `LR-BF`) |
 | Everything stages 5–14 already own | unchanged |
 

@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CG`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE` and its lane 4 `LR-CF`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CH`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -5202,3 +5202,159 @@ both authorities.
 **What it costs if wrong.** Nothing behavioural: two gates where one would do,
 on a path that is already correct. What it would have cost to leave unrecorded
 is a reader believing a mutation round had exercised that conjunct.
+
+---
+
+## LR-CG — stage 4 lane 5's corrections: a diagnostics parameter rather than a fixture edit, work literals derived from the cold sweep, a vacuous half named, a gated scenario kept out of the roll call, and the census's 2 000 rows attributed by formula
+
+Five decisions the lane had to take, three of them because running it answered a
+question the brief had left open.
+
+### 1. The `.proposal` arms run on a diagnostics frame, and `demoLikeRows` is not touched
+
+Spec §6 lane 5 already ruled this (`LR-BX`, critic finding D1): `render` gains
+`reportsUnlowerableFields:`, the fixture keeps `.minHeight(Pixels(0))`. The lane
+adds the two measurements the ruling was written without.
+
+**What the diagnostics frame actually reports**, read off the run and now
+asserted exactly at all four `.proposal` call sites:
+`[box.minSize.unconsumed]` — one entry, the root's own, at 40, 160, 500 and
+100 000 rows alike. Nothing else. So the tree the work counters were taken over
+is **not** partly degenerate: `Frame.unlowerable` substitutes a 0×0 native leaf
+only for a *site* with no lowering, and there is none here.
+
+**And the abort it replaces is real**: a production `.proposal` frame over
+`demoLikeRows(40)` dies at
+`box.minSize.unconsumed has no proposal lowering (plan task 7, stage 2)`, with
+the identical tree under `reportsUnlowerableFields: true` exiting 0 beside it as
+the control (`aProductionFrameOverDemoLikeRowsAbortsUnderTheProposalAuthority`,
+`aDiagnosticsFrameOverDemoLikeRowsRunsUnderTheProposalAuthority`).
+
+**Contrast `LR-CF` item 2**, which dropped the same modifier from
+`AccessibilityDefaultsTests.scrolledList`. The two fixtures differ in exactly the
+way that ruling says: that one holds no literal measured against the modifier,
+this one holds every performance literal in the repository.
+
+**What it costs if wrong.** A performance harness whose frame is one flag away
+from production's. The flag changes nothing but the trap-versus-record branch,
+and the report being empty of everything but the root's own entry is the
+measurement that says so.
+
+### 2. The work literals are derived from the cold sweep and the window, not read off the warm run
+
+Spec §7 asks for `measureCalls`, `cacheHits` and `cacheMisses` "each equal to a
+literal hand-derived before the run … on a branching count, not by reading them
+off the first run" (`SA-M`). The shape §2.6's prototype P1d offered — a bare
+kernel stack of rows — is not the shape the exit test measures, which is a whole
+`demoLikeRows` frame with the row `Box`es, the `.padding`-free row wrapper, the
+`Text` leaves and the scroll viewport around them.
+
+**What was done instead, and it is a prediction rather than a fit.** A cold
+frame realizes every row (`MP-I`), so the cold column is the same function of
+the realized row count `r` sampled at r = 40, 160, 500 and 2000. It is exactly
+linear — `r + 1`, `6r + 7`, `7r + 8`, reproducing all twelve measured numbers
+with no residue. The *warm* window is derived independently, from
+`visibleRange`'s own arithmetic: at `offset == 0` over a 370pt viewport of 28pt
+rows, `first = max(0, 0 − 2) = 0` and `last = ceil(370/28) + 2 = 16`, so
+**r = 16**. The model evaluated there predicts **17 / 103 / 120**, and the warm
+frames read exactly that at all four row counts. The prediction was made on the
+cold column and confirmed on the warm one, two orders of magnitude from where
+the coefficients were taken.
+
+**Stated plainly, because the practices doc asks for it**: the coefficients 6 and
+7 were obtained by measuring, not by counting nodes in `LegacyLowering.swift`.
+What makes them more than a transcription is that they predict a point the fit
+never saw, and that **M5a** moves the literals exactly as `r + 1 / 6r + 7 /
+7r + 8` says it must at r = 17 (18 / 109 / 127).
+
+**What it costs if wrong.** The three literals would be a per-frame constant
+somebody had written down rather than a function of the window. M5a is the
+measurement that refutes that reading: it moves them and leaves the 500-vs-100k
+equality alone.
+
+### 3. The tokenizer half of the exit test is vacuous under `.proposal`, and the test says so
+
+`aListsWorkIsTheSameFor100kRowsAsFor500` and its ungated twin have counted
+`Shaper.runCallCounter` since the measure-performance milestone. Under the
+proposal authority that counter reads **0** at every row count: a lowered `Text`
+measures through `proposalTextMeasurement`, which hugs its widest line at the
+proposed width and never takes a min-content probe, so `Shaper.unbreakableRuns`
+is never reached. `#expect(calls100k == calls500)` is `0 == 0` on that arm —
+precisely the failure CLAUDE.md warns about for this instrument.
+
+**The ruling.** Do not delete the half and do not paper over it. The `.legacy`
+arm gains `try #require(calls500 > 0)` as a reachability control, the
+`.proposal` arm asserts the zero **by name**, with the mechanism, and the native
+work counters are what carry the proposal arm. `ShapingCache.storageCount` is
+not vacuous on either arm (72 legacy, 32 proposal, equal across row counts).
+
+**What it costs if wrong.** Nothing measured moves; what changes is that a
+reader of a green proposal arm no longer believes the tokenizer count is
+watching anything there.
+
+### 4. The gated 100 000-row scenario is parameterised but is NOT in `AuthorityCoverage.expected`
+
+`everyParameterisedScenarioRanUnderBothLayoutAuthorities` requires every name in
+`expected` to have been `record`ed by the time it runs. A scenario gated on
+`METALUI_RUN_100K_LIST_TEST` never records on an ordinary run, so listing it
+would redden the roll call on every healthy suite, and `record`ing without
+listing it reddens in its own arm. Either way the roll call would stop meaning
+what it says.
+
+**The ruling.** `aListsWorkIsTheSameFor100kRowsAsFor500` takes both authorities
+and calls nothing; its ungated twin `aListsWorkIsTheSameFor160RowsAsFor40`
+carries the name and runs the identical instrument at 40 against 160, and
+`theResidentEntrySetStaysBoundedWhileScrolling10kRows` carries the second.
+`expected` goes 65 → **67**, and a tenth file joins the path-order list.
+
+**What it costs if wrong.** A lane could reduce the gated test to `[.legacy]`
+and no roll call would say so. The exit test is run by hand, once, and its
+result is recorded (record §26 §10.4); the two ungated twins are what a later
+regression would trip over.
+
+### 5. The census's 2 000 row ids are attributed by formula under three existing causes, and the sub-pixel tail is one of them
+
+Spec §4.2(c) requires every disagreement to be attributable to a named cause (R,
+55, X9, 3) and calls anything else a finding. The 2 000 ids that moved from
+*legacy-only* to *disagreeing* are the demo `List`'s 500 rows, four apiece, and
+they attribute as follows, with no new cause:
+
+- **55** twice — x + 108 (the served 196 sidebar against the shrunk 88) and
+  y + 16 (the narrower main column wraps the paragraph one line taller);
+- **X9** — the inner `Box` 28 → 16 tall, a stretched single-child container not
+  stretching its child (`LR-AC`), which also moves the `Text` from the row's
+  vertical centre to its top;
+- **55's sub-pixel tail** — 42 of the 500 texts are one point narrower on the
+  legacy side.
+
+**That last one was nearly written down as an anomaly, and it is not.** The
+lowered sidebar is served its declared 196 exactly, so every lowered row text
+starts at the integer x = 252 and cumulative-edge rounding gives
+`round(natural)`. The legacy sidebar is flex-shrunk (`SZ-L`) to a width a hair
+under 88, so the legacy text starts at `144 − d` and the same rounding gives
+`floor(natural)` for exactly the rows whose natural width has a fraction in
+`[0.5, 0.5 + d)`. **210 of the 500 have a fraction at or above 0.5 and only 42
+floor**, so "the legacy engine floors" is the wrong reading and was the first
+one tried.
+
+**The ruling.** `d` is not available to the test — no rect records an unrounded
+origin, and `LayoutTree.measuredWidth` records a width and not an x — so the
+test **solves for it from the 500 rows** and asserts the bracket
+`d ∈ (0.0615234375, 0.076171875]`, measured, together with the fact that the
+bracket is non-empty. A single fractional origin explaining all 500 is the
+falsifiable claim; a row wrong for any other reason empties the bracket, and a
+change to the sidebar's shrunk width moves its endpoints and names itself.
+
+**What it costs if wrong.** Two committed literals that describe the legacy
+sidebar's sub-point rather than deriving it. Deriving it would mean either a
+§9.7 shrink computation in a test or a new harness field recording unrounded
+origins; both were judged out of a lane whose subject is `List`.
+
+**And the census cannot see the windowing.** Measured by **M5d** (placement at
+the realized index rather than the logical one): 57 issues across nine tests,
+and `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` is not one of
+them. `LayoutDifferential.render` builds one frame, so the demo's `List` is
+always cold, always `firstIndex == 0`, and the census pins the placement formula
+only at its origin. The windowing itself is pinned by `ListLoweringTests` and
+`ListTests` (`LR-BY`, `LR-BW`), which is where it belongs; recorded so a later
+reader does not treat the census's 2 000 rows as a windowing test.

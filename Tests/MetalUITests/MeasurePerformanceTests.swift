@@ -150,6 +150,15 @@ struct MeasurePerformanceTests {
         // load-bearing for that assertion, and this test's own instrument —
         // a per-frame call count, not a cross-frame one — is chosen to keep
         // it that way.
+        //
+        // **Under the proposal authority that assertion DOES read `0 == 0`,
+        // and not because of a shared cache** (plan task 7, stage 4, lane 5):
+        // a lowered `Text` measures through `proposalTextMeasurement`, which
+        // takes no min-content probe, so the tokenizer is never reached at
+        // all. `aListsWorkIsTheSameFor160RowsAsFor40` says so at its own
+        // declaration and carries the native work counters instead. This test
+        // is legacy-only and stays so — its subject is the min-content probe
+        // pair, which exists only on the legacy path.
         #expect(counter.count <= 40)
     }
 
@@ -376,7 +385,11 @@ struct MeasurePerformanceTests {
     ///
     /// **Disabled by default: it alone adds ~42 s debug / ~17 s release to the
     /// suite's wall clock**, dominated by the one mandatory 100,000-row cold
-    /// frame with full text shaping (ruling MP-I). Every later task, review
+    /// frame with full text shaping (ruling MP-I). **Twice that since stage 4's
+    /// lane 5**, which gave it a second authority: re-measured on this machine,
+    /// one cold 100 000-row frame is **37.16 s legacy / 24.98 s proposal** in
+    /// debug (whole test 62.9 s) and **12.24 s / 7.55 s** in release (20.1 s).
+    /// The ~17 s release figure `MP-I` carries predates both. Every later task, review
     /// and fix round in this milestone would otherwise pay that on every run.
     /// Matches `regenerateAllGoldens`'s own gating shape
     /// (`Tests/MetalUILayoutTests/GeneratorTests.swift`) — an expensive

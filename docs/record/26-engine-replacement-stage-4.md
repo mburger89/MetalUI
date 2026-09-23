@@ -3,13 +3,13 @@
 Plan task 7, stage 4 (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 4).
 Design: `docs/superpowers/specs/2026-09-23-engine-stage-4-design.md`. Rulings
-`LR-BQ`…`LR-CF` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`
+`LR-BQ`…`LR-CG` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`
 (`LR-BX`…`LR-CB` are critic round 1's, §5 below; `LR-CC` is lane 1's,
-`LR-CD` lane 2's, `LR-CE` lane 3's and `LR-CF` lane 4's).
+`LR-CD` lane 2's, `LR-CE` lane 3's, `LR-CF` lane 4's and `LR-CG` lane 5's).
 Branch `feat/engine-stage-4` from `f2e981f`.
 
-**Status, 2026-09-23 (PDT): lanes 1–4 landed; lane 5 design only.** §6
-is lane 1's record, §7 lane 2's, §8 lane 3's and §9 lane 4's. Every prototype in §2 was applied in
+**Status, 2026-09-23 (PDT): all five lanes landed.** §6
+is lane 1's record, §7 lane 2's, §8 lane 3's, §9 lane 4's and §10 lane 5's. Every prototype in §2 was applied in
 `/Users/maxburger/Developer/MetalUI-stage-4`, built, run and restored from a
 `cp` copy, with `git status --short` empty afterwards, before any lane started;
 §6.4's mutations were taken the same way, after lane 1's implementation commit.
@@ -1278,3 +1278,303 @@ this lane has.
 | `MeasurePerformanceTests.StatefulListRow`'s re-spelling and `render`'s `reportsUnlowerableFields:` parameter | spec §6 lane 5's own first obligation; lane 4 touches no performance fixture | lane 5 |
 | **other fixtures blinded by `.padding` becoming a wrapper at `f1944f8`** | carried from §6.9 and §8.8; lane 4 swept nothing new for it | unowned |
 | CLAUDE.md's `List` and roll-call mentions, and the 1580 → 1598 count | the lane may not edit CLAUDE.md | the Docs phase |
+
+---
+
+## 10. Lane 5 — work, the 100 000-row exit test, and the demo census (`LR-BX`; corrections in `LR-CG`)
+
+Three commits on `feat/engine-stage-4`:
+
+| commit | what |
+|---|---|
+| `a36a2cf` | the red-before: four child-process probes, two of them positive controls, with the pre-lane `StatefulListRow` spelling kept as a live fixture |
+| `de2b6a5` | `render`'s two parameters, the re-spelling, three parameterised scenarios with hand-derived native-work literals, the roll call 65 → 67, and the census re-derived |
+| this commit | `LR-CG`, the spec's corrections, this section |
+
+### 10.1 The red-before
+
+Lane 5's two reds are process aborts, not assertion failures, so the red was
+taken in child processes in
+`ListTests.aLegacySpelledListRowAbortsAProductionProposalFrame`'s shape
+(`LR-BX`). Both messages were measured first in a throwaway
+`Tests/MetalUITests/ZZScratchLane5.swift` (deleted; never committed) and are now
+recorded in each probe's own doc:
+
+```
+MetalUI/Frame.swift:1536: Fatal error: MetalUI: box.minSize.unconsumed has no
+proposal lowering (plan task 7, stage 2); …     [demoLikeRows' root .minHeight(0)]
+
+MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestNode has no
+proposal lowering (plan task 7, stage 6a); …    [StatefulListRow.requestLayout]
+```
+
+Each of the four was confirmed red and then green — the two stderr assertions
+pointed at strings that cannot match, the two controls flipped from `.success`
+to `.failure` — with `git status --short` clean after the restore:
+
+| probe | red as |
+|---|---|
+| `aProductionFrameOverDemoLikeRowsAbortsUnderTheProposalAuthority` | `Expectation failed: err.contains("NO-SUCH-STRING-A")` |
+| `aDiagnosticsFrameOverDemoLikeRowsRunsUnderTheProposalAuthority` | `expected exit status ".failure", but ".exitCode(EXIT_SUCCESS)" was reported instead` |
+| `aLegacySpelledStatefulListRowAbortsAProductionProposalFrame` | `Expectation failed: err.contains("NO-SUCH-STRING-B")` |
+| `aBoxSpelledRowInTheResidentSetFixtureDoesNotAbort` | `expected exit status ".failure", but ".exitCode(EXIT_SUCCESS)" was reported instead` |
+
+**Both controls are load-bearing**, and they control for different things. The
+diagnostics one says the first abort is the FLAG, not the `List`, the
+`ScrollView`, the `Text` or the proposal authority — which matters because that
+flag is the lane's own fix. The `Box()`-row one says the second abort is the
+ROW's spelling and not the production frame around it.
+
+### 10.2 The scratch measurements the lane turned on
+
+Taken before anything was written, in a throwaway file, and deleted:
+
+| question | answer |
+|---|---|
+| what does the diagnostics frame report over `demoLikeRows`? | `[box.minSize.unconsumed]`, at 40, 160, 500 and 2000 rows alike — nothing else |
+| warm native work under `.proposal`? | `measureCalls 17, cacheHits 103, cacheMisses 120` at **every** row count |
+| cold native work? | `n + 1`, `6n + 7`, `7n + 8`, exactly, at all four counts |
+| cold-frame wall clock, debug | 500: 0.16 s legacy / 0.11 s proposal; 5000: 1.68 / 1.16; 20 000: 7.06 / 4.76 |
+| tokenizer calls, warm | legacy **16** (one per realized row); proposal **0** |
+| `shapingCache.storageCount`, warm | legacy 72, proposal 32; constant in `n` on both |
+| the 10 000-row resident fixture under `.proposal` | cold `table.count` 20 005 = `2n + 5`, checkpoints 255 / 255 / 149 — **identical to legacy** |
+| the demo census now | report `[]`, 2035 ids, 6 agreeing, 0 legacy-only, 2029 disagreeing |
+
+### 10.3 The work literals — derived, and how
+
+`SA-M` and spec §7 ask for literals derived by hand on a branching count. §2.6's
+prototype P1d is a bare kernel stack of rows; the exit test measures a whole
+`demoLikeRows` frame, so its numbers were derived a different way (`LR-CG`
+item 2):
+
+1. **The window, from the source.** `visibleRange` at `offset == 0` with a 370pt
+   viewport and 28pt rows: `rawFirst = floor(0/28) − 2 = −2 → 0`,
+   `rawLast = ceil(370/28) + 2 = 14 + 2 = 16`. **r = 16 realized rows**, whatever
+   the logical count.
+2. **The function, from the cold column.** A cold frame realizes every row
+   (`MP-I`), so cold work at n = 40 / 160 / 500 / 2000 samples the same function
+   of `r`:
+
+   | n | `measureCalls` | `cacheHits` | `cacheMisses` |
+   |---|---|---|---|
+   | 40 | 41 | 247 | 288 |
+   | 160 | 161 | 967 | 1128 |
+   | 500 | 501 | 3007 | 3508 |
+   | 2000 | 2001 | 12007 | 14008 |
+
+   — `r + 1`, `6r + 7`, `7r + 8`, reproducing all twelve numbers with no residue.
+   The `+ 1` is `WindowedRowsLayout.sizeThatFits`; the `r` is the realized rows'
+   `Text` leaf closures (`measureCalls` counts leaf closures as well as custom
+   bodies, `ListLoweringTests` test 2.3's own correction).
+3. **The prediction.** At r = 16: **17 / 103 / 120**. The warm frames read
+   exactly that at all four counts.
+
+**Said plainly**: the coefficients 6 and 7 are measured, not counted off
+`LegacyLowering.swift`. What makes them a derivation rather than a
+transcription is that they predict a point the fit never saw, and that M5a moves
+the literals to exactly `18 / 109 / 127` when r becomes 17.
+
+Under `.legacy` the same read is `NativeLayoutWork()` — the control that says the
+proposal numbers are this frame's own native run.
+
+### 10.4 The exit test, run
+
+```
+METALUI_RUN_100K_LIST_TEST=1 swift test --build-system native --no-parallel \
+  --filter aListsWorkIsTheSameFor100kRowsAsFor500
+MeasurePerformanceTests: cold frame at 100,000 rows, legacy, took 37.163447792 seconds
+MeasurePerformanceTests: cold frame at 100,000 rows, proposal, took 24.978024166 seconds
+Test aListsWorkIsTheSameFor100kRowsAsFor500(authority:) with 2 test cases passed after 62.914 seconds.
+Test run with 1 test in 1 suite passed after 62.914 seconds.
+```
+
+Debug, this machine. **Release, re-run the same way** (`swift test -c release
+--build-system native --no-parallel --filter …`):
+
+```
+MeasurePerformanceTests: cold frame at 100,000 rows, legacy, took 12.238558583 seconds
+MeasurePerformanceTests: cold frame at 100,000 rows, proposal, took 7.552452 seconds
+Test run with 1 test in 1 suite passed after 20.122 seconds.
+```
+
+| configuration | legacy | proposal |
+|---|---|---|
+| debug | 37.16 s | 24.98 s |
+| release | **12.24 s** | **7.55 s** |
+
+**The proposal path's cold frame is about a third faster than the legacy one at
+100 000 rows, in both configurations** — not a goal of this stage and not
+asserted anywhere, recorded because it is the first time the two have been timed
+side by side on the same tree. `MP-I` stands: every row is still built on frame 0
+at both authorities.
+
+**CLAUDE.md's `MP-I` row quotes ~17 s release for this frame and this machine now
+reads 12.24 s.** Not a change this stage made — the legacy arm is the same code
+path the figure was taken on — but the quoted number is stale, and correcting it
+is a Docs-phase obligation (§10.10).
+
+The test is parameterised over both authorities and **does not** call
+`AuthorityCoverage.record`, because a gated name would be permanently missing
+from `seen` (`LR-CG` item 4). Its ungated twin carries the name.
+
+### 10.5 Every number
+
+| measure | before (lane 4's HEAD, `9ad98db`) | after (`de2b6a5`) |
+|---|---|---|
+| suite | 1598, **3 issues** | **1602**, **0 issues** (+4: the four abort probes; the three parameterisations move the total by nothing) |
+| the three standing issues | `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`'s, red since `c124f40` | **gone** — the census re-derived, which is what lanes 3 and 4 were leaving for this lane |
+| goldens | 97 | 97; `git diff --name-only f2e981f HEAD -- 'Tests/**/*.json'` empty |
+| typecheck guards | 77 | 77 — lane 5 adds no hazard a plain import can reach |
+| `error:` / `warning:` | 0 / only SwiftPM's deprecation notice | unchanged |
+| `AuthorityCoverage.expected` | 65 | **67** |
+| parameterised suites | 9 | **10** |
+| census, modal off | report `[list.noLowering]`, 2035 ids, 6 agreeing, 2000 legacy-only, 29 disagreeing | report **`[]`**, 2035 ids, 6 agreeing, **0** legacy-only, **2029** disagreeing |
+| census, modal on | `[stack.position, stack.inset, list.noLowering]`, 2041 ids, 35 disagreeing | **`[stack.position, stack.inset]`**, 2041 ids, **2035** disagreeing |
+| `ScrollView` / `List` lowered width in the census | 0 | **420** |
+| files under `Sources/` changed | — | **none** |
+
+`find Tests -name "*.json" | wc -l` reads 115 with `Tests/PortableTests/.build`
+present; the golden count is taken under `Tests/MetalUILayoutTests` only, as §1
+says.
+
+### 10.6 The four mutations
+
+Each on the **full unfiltered suite** from a `cp` copy, `git status --short`
+empty after each restore.
+
+| id | mutation | tests reddened | issues | named |
+|---|---|---|---|---|
+| **M5a** | `List.overscan` 2 → 3 (at `offset == 0` the leading side clamps, so exactly one extra row) | 18 | 39 | `aListsWorkIsTheSameFor160RowsAsFor40` (.proposal, both work literals); `aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` (both authorities each); `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`; `aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan`, `anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing`, `aScrolledListsSpacerDoesNotShrinkUnderPadding`, `aFractionalOffsetRoundsFirstDownAndLastUp`, `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`, `theListsSpacerIsANodeNotAnElement`, `aListInTheDifferentialHarnessReachesABoundedWindow`, `aListsSceneAndHitboxesAreUnchangedByTheGroup` (both authorities each); `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` (both) |
+| **M5a**, gated | the same, against the exit test | 1 | 2 | `aListsWorkIsTheSameFor100kRowsAsFor500` (.proposal), both work literals |
+| **M5b** | `visibleRange`'s `context.viewportExtent > 0` guard deleted | 5 | 16 | `theResidentEntrySetStaysBoundedWhileScrolling10kRows` (**both** authorities, `table.count == 2 * n + 5`); `aPresentContextWithZeroViewportExtentBuildsEveryRow` (both); `aColdFrameCreatesAtMostOneLineBreakTokenizer`; `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` (both, five assertions each); `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (its `try #require`) |
+| **M5c** | the census's `report.elements` literal 2035 → 2036 | 1 | **1** | `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` — one issue and no cascade, which is shape 13's `try #require` doing its job |
+| **M5d** (extra) | `WindowedRowsLayout.placeSubviews` places at `index` rather than `firstIndex + index` | 9 | 57 | `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape` (32), `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight` (15), and, `.proposal`-side only, `aScrolledListsSpacerDoesNotShrinkUnderPadding`, `aListsSceneAndHitboxesAreUnchangedByTheGroup`, `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`, `aWindowedRowSitsAtItsAbsoluteOffsetNotTheWindowsTop`, `anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing`, `aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan`, `aFractionalOffsetRoundsFirstDownAndLastUp` |
+
+**M5a's conditional, resolved.** Spec §6 lane 5 says M5a "must redden the work
+equality at 500 vs 100 000 **only if** the literals are per-realized-row — if it
+does not, the work test is counting something that does not depend on the window
+and the lane says so". It reddens the **literals** and leaves every **equality**
+green, at both row counts and in both work tests. That is the honest reading: the
+equality is window-invariant by construction — widening the window moves 500 and
+100 000 by the same amount — so **the literals are the whole of the `O(window)`
+claim** and an equality-only test would have been the shape the design feared.
+
+**M5d's finding: the census cannot see the windowing, and that is structural.**
+M5d moves nine tests and 57 issues and does not touch
+`theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`.
+`LayoutDifferential.render` builds one frame, so the demo's `List` is always cold
+and always at `firstIndex == 0`, where `firstIndex + index == index`. The census's
+2 000 new rows pin the placement formula **at its origin** and the cross-axis and
+box-model differences; the windowing itself is `ListLoweringTests`' and
+`ListTests`' (`LR-BY`, `LR-BW`). Recorded so a later reader does not treat the
+census as a windowing test.
+
+### 10.7 The census, re-derived once from a finished stage
+
+Left red across lanes 3 and 4 on purpose (spec §6 lane 5) so the census would be
+taken once against the whole stage. What moved, and nothing else did:
+
+| | lane 2 (`c124f40`) | now |
+|---|---|---|
+| `report.unlowerable`, modal off | `[]` (asserted `[list.noLowering]` → red) | **`[]`**, asserted |
+| ids | 2035 | 2035 |
+| agreeing | 6 | 6 |
+| legacyOnly | 0 (asserted 2000 → red) | **0**, asserted |
+| disagreeing | 2029 (asserted 29 → red) | **2029**, asserted |
+| the `ScrollView`'s and the `List`'s lowered widths | 0 | **420** |
+| the modal's lowered-width override table | two entries | **gone** |
+
+**The 420s.** Until this stage the lowered `List` reported and built no rows, so
+the viewport's non-scrolling axis — its content's answer, `CN-M` — was an empty
+content's 0. The windowed layout answers its widest realized row, which is 420
+(the demo's rows declare it), so the `List` and the viewport both read 420.
+
+**The override table goes for a reason worth writing down.** It existed because
+with one child the single-child stretch elision (`LR-AC`) left the `List`
+unstretched and 0 wide, and the modal's `Deferred` arriving as a second child
+stretched both to 420. The `List` now measures 420 on its own, so the two modal
+states agree and the special case has nothing left to carry.
+
+**The 2 000 rows, by formula** (`LR-CG` item 5). Four ids per row — the `List`'s
+own row `Box`, the demo row's `.padding` layer, the inner `Box`, the `Text`:
+
+| id | legacy | lowered | cause |
+|---|---|---|---|
+| row `Box`, `.padding` layer | `(132, 439 + 28i, 420, 28)` | `(240, 455 + 28i, 420, 28)` | **55** twice: x + 108 from the served 196 sidebar, y + 16 from the taller wrapped paragraph above |
+| inner `Box` | `(144, 439 + 28i, 396, 28)` | `(252, 455 + 28i, 396, 16)` | **X9** — a stretched single-child container does not stretch its child (`LR-AC`) |
+| `Text` | `(144, 445 + 28i, W, 16)` | `(252, 455 + 28i, round(natural), 16)` | **X9** again for the 6pt (the legacy inner box is 28 tall and `.alignItems(.center)` centres in it; the lowered one is 16 and the text sits at its top); **55's sub-pixel tail** for `W` |
+
+**The sub-pixel tail, and the first reading of it was wrong.** 42 of the 500
+legacy texts are one point narrower than their lowered twins. The first
+hypothesis — "the legacy engine floors a text's width" — was refuted by counting:
+**210** of the 500 natural widths have a fraction at or above 0.5 and only **42**
+floor. The real mechanism is the origin. The lowered main pane starts at the
+integer x = 252 (the sidebar is served its declared 196), so cumulative-edge
+rounding gives `round(natural)`; the legacy one starts at `144 − d` because the
+sidebar is flex-shrunk (`SZ-L`) to a width a hair under 88, so the same rounding
+gives `floor(natural)` for exactly the rows whose fraction lies in
+`[0.5, 0.5 + d)`.
+
+`d` is not recoverable from anything the frame stores — no rect keeps an
+unrounded origin, and `LayoutTree.measuredWidth` keeps a width and not an x — so
+the test **solves for it from the 500 rows** and asserts the bracket, measured:
+
+```
+d ∈ (0.0615234375, 0.076171875]
+```
+
+with `lower < upper` asserted separately. That second assertion is the real one:
+it says **one** fractional origin explains all 500 rows, and a row wrong for any
+other reason empties the bracket. Both endpoints are committed literals, so a
+change to the sidebar's shrunk width moves them and names itself.
+
+**Nothing escapes attribution.** Both modal states assert
+`Set(disagreeing.keys) == namedIDs`, where `namedIDs` is the 29 chrome ids plus
+the 2 000 row ids (plus the six modal ids with the modal on). A disagreement with
+no named cause fails by name rather than hiding in a count.
+
+### 10.8 The twelve `CN-R` images
+
+`docs/probes/demo-pixels/compare.sh <scratch>/pix5 f2e981f de2b6a5`. All nine
+controls reproduce their recorded values exactly before any commit-to-commit row:
+
+| control | recorded | this run |
+|---|---|---|
+| light vs dark, f0 | 1 048 576 | **1 048 576** |
+| default vs modal (light) | 1 030 498 | **1 030 498** |
+| default vs animation (light) | 210 027 | **210 027** (bbox (16,113)–(981,1007)) |
+| f0 vs f3 (light) | 0 | **0** |
+| preview light vs dark | 1 048 576 | **1 048 576** |
+| `chrome-legacy` vs `chrome-proposal` | 0 | **0** |
+| distinct values, `default-light-f0` | 544 | **544** |
+| distinct values, `chrome-legacy` | 216 | **216** |
+| indicator rects in all twelve | 0 | **0** |
+
+**`f2e981f` → `de2b6a5`: 0 differing pixels in all twelve, every scene dump
+identical.** Expected by construction — lane 5 changes no file under `Sources/`
+at all — and taken anyway, because "expected by construction" is what the harness
+exists to stop a lane from asserting. The demo is never scrolled in these images,
+so no scroll indicator is painted in any of them.
+
+### 10.9 Screen lock
+
+`docs/probes/appkit-screen-lock-state.swift` at this lane prints
+`session CGSSessionScreenIsLocked = 1`,
+`session CGSSessionScreenLockedTime = 1790143129`, `kCGSSessionOnConsoleKey = 1`,
+`displayAsleep main: 1`, `displayActive main: 0`,
+`preflightScreenCaptureAccess: true`, one screen `(0,0,2056,1329) scale=2.0`.
+**Locked**, so no real-window capture was taken — the gate is the printed lock
+state, not a judgement. `IOConsoleLocked` was not read (`FR-V`). Lane 3's
+unlocked window (§8.7) covers the branch as it stood at `352f838` only.
+
+### 10.10 Deferred out of lane 5
+
+| item | why | owner |
+|---|---|---|
+| a real-window capture at stage 4's final HEAD | the screen was locked (§10.9); the offscreen twelve read 0 | whoever next finds it unlocked |
+| CLAUDE.md's `MP-I` release figure (~17 s at 100 000 rows) | re-measured here at **12.24 s legacy / 7.55 s proposal** (§10.4); the lane may not edit CLAUDE.md | the Docs phase |
+| CLAUDE.md's `MP-I` row, divergence 18's `2n + 7` / 125 crossing, `List.swift`'s type doc, and the 1580 → 1602 count | the lane may not edit CLAUDE.md | the Docs phase |
+| the `d` bracket replaced by a derivation of the legacy sidebar's unrounded width | would need a §9.7 shrink computation in a test, or a harness field recording unrounded origins (`LR-CG` item 5) | unowned |
+| the census being unable to see the windowing (§10.6, M5d) | structural: the differential harness renders one frame | unowned; `ListLoweringTests` and `ListTests` cover it |
+| `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`, `aListInsideADeferredIgnoresTheEscapedScrollersOffset` under `.proposal` | carried from §9.10 | the stage that lowers `display`; stage 5 |
+| everything §7.7, §8.8 and §9.10 hand on | unchanged | as recorded there |
