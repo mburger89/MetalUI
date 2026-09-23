@@ -1,6 +1,6 @@
 # Engine replacement, stage 6a — custom elements, and tests that are about CSS answers (plan task 7)
 
-**Status, 2026-09-23 (PDT): DESIGNED, critic round 1 applied (`LR-DA`) — no lane has run.** Every measurement
+**Status, 2026-09-23 (PDT): DESIGNED, critic round 1 applied (`LR-DA`); lane 1 landed (`c95dc0d`, record §30 §8, `LR-DB`).** Every measurement
 below was taken on `feat/engine-stage-6a` from `b3c29b9` in
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-6a`, on scratch commits
 `9ccc0d8`…`59b63ad` that `a1b6edf` reverts to `b3c29b9`'s tree exactly; the
@@ -59,7 +59,7 @@ At `b3c29b9`, measured 2026-09-23:
 | suite | **1640 tests in 3 suites**, passed; 0 `error:`; the only `warning:` is SwiftPM's deprecation notice; `FR-J no-argument frame: succeeded=` present | `swift build --build-system native --build-tests`, then `swift test --build-system native --no-parallel`, unfiltered |
 | goldens | **97** | `find Tests/MetalUILayoutTests -name "*.json" \| wc -l` |
 | guards | **77** (`LayoutAuthorityCompileGuards` 1) | CLAUDE.md's per-file `grep -c canTypecheck` |
-| callers of the public pair | **66 test call sites in 35 files** (58 compiled, 8 in typecheck fixture strings); **0 in `Sources/`** | record §30 §1 |
+| callers of the public pair | **67 test call sites in 35 files** (58 compiled, **9** in typecheck fixture strings — 66 and 8 until lane 1 found guard 4's, `LR-DB`); **0 in `Sources/`** | record §30 §1, §8.3 |
 
 **No golden moves and none may**: nothing here touches `Sources/MetalUILayout/`.
 Check: `git diff --name-only b3c29b9 HEAD -- 'Tests/**/*.json'` empty.
@@ -189,7 +189,7 @@ green in A2.
 | `LayoutDifferential` | `ProbeLeaf` (120) | L | every differential harness caller |
 | `PhaseSeparationTests` | `registeringALayoutNodeDuringPaintDoesNotCompile` (87), `…DuringLayoutCompiles` (100) | G | both; the negative's `messages.contains("requestNode")` becomes `"requestNativeLeaf"` (`LR-CU` item 6: the claim — `PaintPass` cannot register a node — is unchanged; the name follows the registrar that survives stage 9) |
 | `ErasureCompileGuards` | `ValueBox` (160) | G | `aStructCanConformToElementObject` |
-| `ProposalNodeIDCompileGuards` | `Liar` (59), `mint` (81), `disagreeingGroupSource` (245) | G | `aMarkerConformerThatRegistersALegacyNodeDoesNotCompile` (its doc's "registers a legacy node" becomes "registers a node through the untyped entry"; the rejection message is the typed requirement's either way), `aProposalNodeIDCannotBeMintedOutsideMetalUI` (`ProposalNodeID(pass.requestNativeSpacer().layoutNodeID)`: still the internal initializer's error), `aProposalGroupWhoseEntryPointsDisagreeStillCompiles` (one node against zero: still disagreeing) |
+| `ProposalNodeIDCompileGuards` | `Liar` (59), `mint` (81), `disagreeingGroupSource` (245), **guard 4's negative (155; found by lane 1, `LR-DB`)** | G | `aMarkerConformerThatRegistersALegacyNodeDoesNotCompile` (its doc's "registers a legacy node" becomes "registers a node through the untyped entry"; the rejection message is the typed requirement's either way), `aProposalNodeIDCannotBeMintedOutsideMetalUI` (`ProposalNodeID(pass.requestNativeSpacer().layoutNodeID)`: still the internal initializer's error), `aProposalGroupWhoseEntryPointsDisagreeStillCompiles` (one node against zero: still disagreeing), `aNativeRegistrarRejectsALegacyChild` (`pass.requestNativeFrame(child: pass.requestNativeSpacer().layoutNodeID)`: still an untyped child, still the typed parameter's error) |
 | `FrameSizingCompileGuards` | `LegacyLeaf` in `bothLeavesSource` (46) | G | `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`, `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` |
 | `ModifiedElementCompileGuards` | `Leaf` in `leafSource` (37) | G | every guard in the file that splices `leafSource`, including the 24-modifier solver-budget guard |
 
@@ -240,7 +240,7 @@ pin it writes.
 
 Totals: **R 66 tests** (lane 2: 52, lane 3: 14); **P 57** — 32 P-CSS (lane 2: 3,
 lane 3: 29), 23 P-6b (lane 2: 6, lane 3: 17), 2 P-9 (lane 2); **Dual** 6 elements; **L** 10 fixtures; **Dep** 6
-(+ 3.1's); **G** 8 sites.
+(+ 3.1's); **G** 9 sites (8 until lane 1, `LR-DB`).
 
 ## 6. What must not move, and what does
 
@@ -300,10 +300,10 @@ nothing and nothing else can.
 |---|---|---|
 | 1.1 | the L fixtures: identical under legacy by construction; the parameterised suites green | **none possible** — a green mutant is the correct spelling (`LR-X`): swapping the legacy branch back to `pass.requestNode` is the same call under legacy; recorded as such |
 | 1.2 | `registeringALayoutNodeDuringPaintDoesNotCompile` re-spelled | **M1a** `PaintPass` gains an internal-forwarding `public func requestNativeLeaf(measure:) -> ProposalNodeID` (the negative compiles) |
-| 1.3 | `registeringALayoutNodeDuringLayoutCompiles` re-spelled | **M1b** `LayoutPass.requestNativeLeaf` made `internal` (the positive fails) |
-| 1.4 | `aStructCanConformToElementObject` re-spelled | **M1c** its named mutation: `ElementObject: AnyObject` |
-| 1.5 | the three `ProposalNodeIDCompileGuards` re-spelled | **M1d**/**M1e**/**M1f** each guard's own named mutation (guard 1: a trapping default `requestProposalGroupLayout` on every `ProposalElementGroup`; guard 2: `ProposalNodeID.init(_:)` `public`; guard 6: its doc comment's) |
-| 1.6 | `FrameSizingCompileGuards`' two and `ModifiedElementCompileGuards`' leaf-splicing guards re-spelled; **the solver-budget guard's in-test negative still fails and its positive passes at 1000** | **M1g**/**M1h** each guard's own named mutation, re-run (the practice: a mutation a doc comment names is re-run when the code under it changes) |
+| 1.3 | `registeringALayoutNodeDuringLayoutCompiles` re-spelled | **M1b** `LayoutPass.requestNativeLeaf` made `internal` (the positive fails) — *as run: `package`; `internal` breaks `MetalUIDemoContent` (`LR-DB`)* |
+| 1.4 | `aStructCanConformToElementObject` re-spelled | **M1c** its named mutation: `ElementObject: AnyObject` — *as run: with `AnyElementBox` a `final class`, which the mutation needs to build (`LR-DB`)* |
+| 1.5 | the four `ProposalNodeIDCompileGuards` re-spelled | **M1d**/**M1e**/**M1f**/**M1i** each guard's own named mutation (guard 1: a trapping default `requestProposalGroupLayout` on every `ProposalElementGroup` — *as run: `where Self: Element`, record §10's V-G1b (`LR-DB`)*; guard 2: `ProposalNodeID.init(_:)` `public`; guard 6: its doc comment's; guard 4: a `requestNativeFrame(child: LayoutNodeID, …)` overload) |
+| 1.6 | `FrameSizingCompileGuards`' two and `ModifiedElementCompileGuards`' leaf-splicing guards re-spelled; **the solver-budget guard's in-test negative still fails and its positive passes at 1000** | **M1g**/**M1h** each guard's own named mutation, re-run (the practice: a mutation a doc comment names is re-run when the code under it changes) — *as run: M1g-A/M1g-B (record §14's A and B) and M1h/M1h′ (the flat first-design overloads and the nesting `padding`), record §30 §8.4* |
 
 ### Lane 2 — authority-independent tests (R) and the P-only files (`LR-CU`, `LR-DA`)
 

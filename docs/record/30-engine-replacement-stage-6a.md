@@ -15,7 +15,9 @@ the stage's **entry measurement** is §4. Every one was taken on scratch
 commits (`9ccc0d8`…`59b63ad`, listed in §2) that `a1b6edf` reverts to
 `b3c29b9`'s tree exactly (`git diff --quiet b3c29b9 a1b6edf` succeeds); they
 stay in the history so a later reader can re-run an arm by checking it out.
-Critic round 1 is §7; the lanes append from §8.
+Critic round 1 is §7; the lanes append from §8. **Lane 1 (L, Dep, G) ran:
+§8, `LR-DB`** — it corrected §1's census from 66 sites (8 in fixture strings)
+to **67 (9)**.
 
 ## 1. Baseline at `b3c29b9`
 
@@ -59,6 +61,11 @@ requestLeaf'` reads **85 lines**. Of them:
   print one `warning:`** once the pair is deprecated. The spec's §5 lists every
   one with its disposition. (The task brief's "about 89" is this grep's order of
   magnitude; at `b3c29b9` it reads 85 lines, of which these 66 are callers.)
+  **Corrected by lane 1 (§8.3, `LR-DB`): 67 sites, 9 in fixture strings** —
+  `ProposalNodeIDCompileGuards:155`, guard 4's negative
+  (`pass.requestNativeFrame(child: pass.requestNode(…))`), shares its line with
+  a `requestNative` call, which this census's `grep -v requestNative` dropped.
+  The 58 compiled sites stand (§7.1 counted them by warning, not by grep).
 
 ## 2. The instrument: the default flipped, and five arms
 
@@ -467,7 +474,8 @@ two in each of `AXNodeTests`, `ComponentTests`, `ElementGroupTrapTests`,
 `TombstoneTests`, one in each of the other twelve), none in `Sources/`; the
 only other `warning:` was SwiftPM's notice. With the five typecheck-guard files
 that is §1's 35 files and 58 compiled sites. **No caller is missed by §1's
-grep.** (The task brief's "about 89" is the raw grep including `Sources/`'s 14
+grep.** *(True of the 58 compiled sites, which is what this check measured;
+the fixture-string count was one short — §8.3.)* (The task brief's "about 89" is the raw grep including `Sources/`'s 14
 lines on `frame.request…` and declarations; 89 − 14 − 5 doc comments − 4 on
 `pass.frame.` = 66.) Outside `Sources/`/`Tests/` the only hits are
 `docs/probes/modifier-composition-skeletons/*.swift`, standalone files no
@@ -556,3 +564,103 @@ header carries both.
   `EnvironmentTrapTests`) read their abort message off stderr, so a trap for a
   different reason under `.proposal` would redden them rather than pass them.
 
+
+## 8. Lane 1 — mechanical fixtures (L, Dep, G) — `LR-DB`
+
+On `feat/engine-stage-6a`, 2026-09-23. The change is `c95dc0d` (tests only; no
+`Sources/` line). Every mutation below was taken on top of it: the file copied
+to the scratchpad, edited, `swift build --build-system native --build-tests`,
+**full unfiltered** `swift test --build-system native --no-parallel`, the copy
+restored, `git status --short` read empty. Every run printed `FR-J no-argument
+frame: succeeded=`, so the guards ran.
+
+### 8.1 What moved
+
+| disp. | sites | what |
+|---|---|---|
+| **L** | 10 call sites in 9 fixtures | `AXListLeaf`, `ListTests.Row` (its node and its leaf), `ExcursionRow`, `StatefulListRow`, `LoweredProbeLeaf`, `ContextProbe`, `ScrollContextRecorder`, `ScrollRoutingTests.HitboxProbe`, `LayoutDifferential.ProbeLeaf`: the legacy branch's `pass.requestNode(`/`pass.requestLeaf(` → `pass.frame.requestNode(`/`pass.frame.requestLeaf(`. (The spec's "L 10 fixtures" counts sites.) |
+| **Dep** | 4 | `LegacySpelledAXListLeaf`, `LegacySpelledRow`, `LegacySpelledExcursionRow`, `LegacySpelledStatefulListRow`: `requestLayout` marked `@available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: it is the subject of <its exit test>, which reads the customElement trap (stage 6a, LR-CV)")`; bodies byte-identical |
+| **G** | **9** fixture strings | `PhaseSeparationTests` 2 (the negative's literal → `"requestNativeLeaf"`, `LR-CU` item 6), `ErasureCompileGuards` 1, `ProposalNodeIDCompileGuards` **4** (guards 1, 2, 4, 6), `FrameSizingCompileGuards` 1, `ModifiedElementCompileGuards` 1 |
+
+No `#expect`/`#require` line changed except PhaseSeparation's literal
+(`git diff b3c29b9 c95dc0d -- Tests | grep -E '^[-+].*#(expect|require)'` returns
+that one pair). One `#expect` message string is now loosely worded and was left
+alone because it is on an assertion line: guard 1's `"a marker conformer
+registering a legacy node must not compile"` — the fixture now registers a
+native leaf's untyped id; the doc above the guard says so.
+
+**Red-first does not apply to this lane**: it adds no test. Each re-spelled
+guard's red is its mutation (§8.4), taken on the re-spelled fixture.
+
+### 8.2 Suite, build, pixels
+
+- `c95dc0d`: **`Test run with 1640 tests in 3 suites passed after 77.177 seconds`**,
+  one summary line; 0 `error:`; the only `warning:` SwiftPM's notice under
+  `--build-system native`; `swift build --build-tests` (default build system):
+  `Build complete!`, 0 `error:`, 0 `warning:`.
+- Guard prints on the green run: `MC-A solver budget 1000: positive
+  succeeded=true`, negative `succeeded=false` with "unable to type-check this
+  expression in reasonable time" — **the solver-budget guard's positive still
+  passes at 1000 and its negative still fails** with the re-spelled `Leaf`;
+  `FR-J no-argument frame: succeeded=true deprecations=2`; the six
+  `PROPOSAL-NODE-ID GUARD` pairs read as before (1 liar false; 2 mint false /
+  read true; 4 legacy false / native true; 6 liar true / without false).
+- Goldens: `git diff --name-only b3c29b9 c95dc0d -- 'Tests/**/*.json'` empty.
+- **Twelve-image offscreen comparison** (`docs/probes/demo-pixels/compare.sh
+  <scratch> b3c29b9 c95dc0d`): the controls at their recorded values (1048576,
+  1030498, 210027, 0, 1048576, chrome pair 0, distinct 544 / 216, indicator
+  rects 0), and **`differing=0` / `scene identical` in all twelve**.
+- Lock probe: `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` — no
+  window capture (owed by lane 3 only when unlocked, spec §9).
+
+### 8.3 Finding: a ninth fixture-string caller
+
+`ProposalNodeIDCompileGuards.swift:155`, `aNativeRegistrarRejectsALegacyChild`'s
+negative fixture, `_ = pass.requestNativeFrame(child: pass.requestNode(style:
+Style(), children: []))`. §1's census grep excluded lines matching
+`requestNative`, and this call shares its line with one. It is a fixture string
+(no build warning, so §7.1's warning count could not see it), but it matters
+twice: the guard's `show` prints the child `swiftc`'s messages into the test
+log, so after the deprecation the log would carry a `warning: … is deprecated`
+line; and at stage 9's deletion the negative would still fail — for "no member
+`requestNode`", not for the typed child parameter, so its `messages.contains`
+reddens for the wrong reason. Re-spelled G:
+`pass.requestNativeFrame(child: pass.requestNativeSpacer().layoutNodeID)` — the
+untyped `LayoutNodeID` the guard is about, from the registrar that survives.
+Mutated as **M1i** below. A grep that does not drop such lines:
+`grep -rnE '[A-Za-z_]+\.request(Node|Leaf)\(' Tests | grep -vE 'frame\.request(Node|Leaf)\(' | grep -v '///'`
+— after `c95dc0d` it returns 48 lines: the 5 Dep lines of this lane and the 43
+lanes 2 and 3 own.
+
+### 8.4 Mutations
+
+| id | mutation (file, spelling as applied) | full-suite line | reddened — every test |
+|---|---|---|---|
+| 1.1 | **none possible** (`LR-X`): an L fixture's legacy branch back on `pass.requestNode(` is, under the legacy authority, exactly the call `Passes.swift:43–48`/`66–72` forward to, and that branch is unreachable under the proposal one | — | — |
+| **M1a** | `Passes.swift`, `PaintPass` gains `public func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> ProposalNodeID { ProposalNodeID(frame.requestNativeLeaf(measure: measure)) }` | `1640 … failed after 77.718 seconds with 2 issues` | `registeringALayoutNodeDuringPaintDoesNotCompile` (`PhaseSeparationTests.swift:93` `!result.succeeded`, `:95` `messages.contains("requestNativeLeaf")`) |
+| **M1b** | `Passes.swift:94`, `LayoutPass.requestNativeLeaf` `public` → **`package`**. The spec's `internal` does not build: `DemoContent.swift:983: error: 'requestNativeLeaf' is inaccessible due to 'internal' protection level` (`MetalUIDemoContent` is another module). `package` keeps the package building and hides the member from a fixture compiled without `-package-name` | `1640 … failed after 78.428 seconds with 9 issues` | `registeringALayoutNodeDuringLayoutCompiles` (`PhaseSeparationTests.swift:106`), `aStructCanConformToElementObject` (`ErasureCompileGuards.swift:169`), `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths` (`FrameSizingCompileGuards.swift:106`), `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` (`:175`), `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget` (`ModifiedElementCompileGuards.swift:123`), `aNestedModifiedElementCannotBeSpelled` (`:166`), `aProposalGroupWhoseEntryPointsDisagreeStillCompiles` (`ProposalNodeIDCompileGuards.swift:284`), and two guards that already spelled `requestNativeLeaf` at `b3c29b9`: `anExternalModuleCanBuildACustomLeafAndContainerFromPublicAPI` (`ProposalLayoutCompileGuards.swift:159`), `aFixedAndAFlexibleFrameDimensionCannotBeCombined` (`:292`). Not reddened: guard 1 (`aMarkerConformer…`) — its fixture is rejected either way and still names the typed requirement |
+| **M1c** | `AnyElement.swift`: `ElementObject: AnyObject`. **As spelled it does not build** (`AnyElementBox` is a struct conformer), so the mutant also makes `AnyElementBox` a `final class` and drops `mutating` from the three requirements and the box's three methods — the smallest edit that builds with a class-bound protocol | `1640 … failed after 78.288 seconds with 3 issues` | `aStructCanConformToElementObject` (`ErasureCompileGuards.swift:169` `result.succeeded`), `twoCopiesOfOneElementDoNotShareLayoutState` (`PipelineTests.swift:309` `inPrepaint.values == [1, 2]`, `:310` `inPaint.values == [1, 2]` — the class box shares one `LayoutState`, fact 2) |
+| **M1d** | `ProposalElementGroup.swift`: a trapping default `requestProposalGroupLayout` on **`extension ProposalElementGroup where Self: Element`** (record §10's V-G1b spelling). The unconstrained extension the spec names does not build: `DemoContent.swift:966: error: type 'GridPreviewCell' does not conform to protocol 'ProposalElementGroup'` (ambiguous with the existing defaults) | `1640 … failed after 78.319 seconds with 2 issues` | `aMarkerConformerThatRegistersALegacyNodeDoesNotCompile` (`ProposalNodeIDCompileGuards.swift:69` `!result.succeeded`, `:71` the typed-requirement message) |
+| **M1e** | `ProposalNodeID.swift:61`, `init(_:)` → `public init(_:)` | `1640 … failed after 78.574 seconds with 1 issue` | `aProposalNodeIDCannotBeMintedOutsideMetalUI` (`ProposalNodeIDCompileGuards.swift:96`, the `#require` that mint and read disagree) |
+| **M1f** | `ProposalNodeIDCompileGuards.swift`, `disagreeingGroupSource`: `let typedEntry = false && withTypedEntry ? …` (the positive fixture loses its typed entry — guard 6's doc) | `1640 … failed after 79.054 seconds with 1 issue` | `aProposalGroupWhoseEntryPointsDisagreeStillCompiles` (`:284`, the `#require`) |
+| **M1i** | `Passes.swift`: `LayoutPass` gains `public func requestNativeFrame(child: LayoutNodeID, width: Double? = nil) -> ProposalNodeID` (guard 4's doc) | `1640 … failed after 90.800 seconds with 1 issue` | `aNativeRegistrarRejectsALegacyChild` (`ProposalNodeIDCompileGuards.swift:169`, the `#require`) |
+| **M1g-A** | `FrameLayer.swift:225–226`, `ElementGroup`'s deprecated `frame()` deleted (record §14's mutation A) | `1640 … failed after 79.393 seconds with 2 issues` | `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths` (`FrameSizingCompileGuards.swift:106` `result.succeeded`, `:108` `deprecations == 2`; print `succeeded=false deprecations=1`, as record §14 read) |
+| **M1g-B** | `NativeModifiedContent.swift:300`, the proposal flexible `frame`'s `idealWidth:` label → `idealWidthM1gB` (record §14's mutation B) | `1640 … failed after 90.388 seconds with 2 issues` | `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` (`FrameSizingCompileGuards.swift:175`), `anIdealDimensionOnTheLegacyFrameTraps` (`FrameSizingTests.swift:293`, `.success` → `.signal(SIGTRAP)`) — record §14's pair |
+| **M1h** | `ModifiedElement.swift`: the first `MC-A` design's three concrete overloads (`padding(_: Pixels)`, `padding(_: Edges<Length>)`, `frame(width:height:)`, each `-> ModifiedElement<Content>`, working bodies) in an `extension ModifiedElement` | `1640 … failed after 78.653 seconds with 1 issue` | `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget` (`ModifiedElementCompileGuards.swift:123`, the `#require`; print `positive succeeded=false … unable to type-check this expression in reasonable time`). `aNestedModifiedElementCannotBeSpelled` stays green: its doc names a different mutation, taken next |
+| **M1h′** | `ModifiedElement.swift`: a single concrete **nesting** `padding(_: Pixels) -> ModifiedElement<Self>` (lane 2 test 1's mutation, named in `aNestedModifiedElementCannotBeSpelled`'s doc) | `1640 … failed after 78.005 seconds with 5 issues` | `aNestedModifiedElementCannotBeSpelled` (`:166`, the `#require`), `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget` (`:123`), `legacyModifierChainsInferOneConcreteType` (`ModifiedElementTests.swift:289`, `:294`), `decorationSubstitutionReachesTheElementOnBoxAndStack` (`AnimationTests.swift:1216` `baseline.layers == 2`) |
+
+Every re-spelled guard reddened under its own named mutation, on the re-spelled
+fixture. **Three of the spec's spellings could not be applied as written**
+(M1b `internal`, M1c alone, M1d unconstrained — each a build error, quoted
+above); each was taken in the nearest spelling that builds, recorded as
+applied (`LR-DB`).
+
+### 8.5 Handed on
+
+- Lanes 2 and 3 own the 43 remaining non-Dep lines of §8.3's grep. Lane 3's gate
+  grep (spec §7 3.5, `grep -rn 'pass\.requestNode(\|pass\.requestLeaf(\|layoutPass\.requestNode(' Tests`)
+  has no `-v requestNative` and so already keeps a line like guard 4's; only a
+  census that excludes `requestNative` lines misses it.
+- M1b's reddened set shows the G fixtures now depend on `requestNativeLeaf`
+  being public, as seven other guards already did — the dependency stage 9
+  leaves standing.

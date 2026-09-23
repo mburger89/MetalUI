@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DB`** (stage 6a's design took `LR-CT`…`LR-CZ` and its critic round 1 `LR-DA`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-DC`** (stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA` and its lane 1 `LR-DB`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -5998,6 +5998,12 @@ be the deprecated spelling, and typecheck fixture strings.
    unchanged, and the guard now survives stage 9. Every re-spelled guard's named
    mutation is re-run (spec §7, lane 1).
 
+   **Amended, stage-6a lane 1 (`LR-DB`):** the fixture-string calls are **nine**,
+   not eight — `ProposalNodeIDCompileGuards`' guard 4 negative
+   (`pass.requestNativeFrame(child: pass.requestNode(…))`) shares its line with a
+   `requestNative` call, which the census grep dropped. It moved G with the
+   others, onto `requestNativeSpacer().layoutNodeID`.
+
 **Evidence.** Record §30 §4 (the arms per test) and §5 (why A2-green means a
 native leaf keeps the assertion: the reported leaf A2 substitutes is itself a
 one-node 0×0 native leaf; why `paddingEdgesAreNotTransposed` is CSS-box: its
@@ -6210,3 +6216,61 @@ code path the grep missed would go unpinned by these 66 tests — the grep is th
 claim, and a lane that finds an authority read in such code reverses item 7 for
 the tests it reaches.
 
+---
+
+## LR-DB — stage 6a lane 1: the mechanical fixtures moved, a ninth fixture caller, and three mutations re-spelled so they build
+
+**Evidence.** Record §30 §8, every item run on `c95dc0d` (the lane's change;
+tests only) with full unfiltered suites.
+
+**The ruling.**
+
+1. **Lane 1 landed as designed** (`LR-CU` L, Dep and G; `LR-CV`): 10 L call
+   sites in 9 fixtures onto `pass.frame.requestNode`/`requestLeaf`; the four
+   `LegacySpelled…` rows' `requestLayout` behind a deprecated witness; the G
+   fixture strings onto `requestNativeLeaf(…).layoutNodeID` /
+   `requestNativeSpacer().layoutNodeID`. `Test run with 1640 tests in 3 suites
+   passed`, 0 `error:`, no `warning:` but SwiftPM's notice on the native build
+   and none on the default one; the twelve `CN-R` images 0 differing, scene
+   identical; goldens unmoved.
+2. **The census had a ninth fixture-string caller**:
+   `ProposalNodeIDCompileGuards.swift:155`, guard 4
+   (`aNativeRegistrarRejectsALegacyChild`)'s negative. `grep -v requestNative`
+   dropped it because its line also calls `requestNativeFrame`. Moved G onto
+   `requestNativeSpacer().layoutNodeID` (still an untyped `LayoutNodeID`, still
+   rejected by the typed child parameter); its named mutation (a
+   `requestNativeFrame(child: LayoutNodeID, …)` overload, **M1i**) reddens
+   exactly that guard. Spec §1, §5 and §7 and `LR-CU` item 6 amended to 67
+   sites, 9 in fixture strings. **A census grep must keep such lines** (spec §7
+   3.5's gate grep already does; §1's `grep -v requestNative` did not), e.g. `grep -rnE '[A-Za-z_]+\.request(Node|Leaf)\(' Tests | grep -vE 'frame\.request(Node|Leaf)\(' | grep -v '///'`.
+3. **Three mutations the spec named do not build as written, and were taken in
+   the nearest spelling that does** (the practice: record which spelling a
+   mutation was applied to):
+   - **M1b**: `LayoutPass.requestNativeLeaf` `internal` breaks
+     `MetalUIDemoContent` (another module); taken as **`package`**, which a
+     fixture compiled without `-package-name` cannot see. Reddens nine guards,
+     named in record §30 §8.4.
+   - **M1c**: `ElementObject: AnyObject` alone breaks the struct
+     `AnyElementBox`; taken with the box a `final class` and `mutating` dropped
+     from the requirements and the box. Reddens `aStructCanConformToElementObject`
+     and `twoCopiesOfOneElementDoNotShareLayoutState`.
+   - **M1d**: an unconstrained trapping default on `ProposalElementGroup` breaks
+     `DemoContent`'s proposal types; taken on `where Self: Element`, record §10's
+     V-G1b spelling. Reddens guard 1 alone.
+4. **M1h is two mutations**, because `ModifiedElementCompileGuards`' two
+   leaf-splicing guards name two: the first `MC-A` design's three flat
+   overloads (M1h: the solver-budget guard alone) and one nesting
+   `padding(_: Pixels) -> ModifiedElement<Self>` (M1h′: both guards, plus
+   `legacyModifierChainsInferOneConcreteType` and
+   `decorationSubstitutionReachesTheElementOnBoxAndStack`). The solver-budget
+   guard's positive passes at 1000 and its negative fails with the re-spelled
+   `Leaf`.
+5. **1.1 has no mutant** (`LR-X`): an L fixture's legacy branch put back on the
+   public forwarder is, under the legacy authority, the same call, and
+   unreachable under the proposal one.
+
+**What it costs if wrong.** Item 2: if another fixture caller hides on a line
+the new grep also misses, stage 9's deletion reddens its guard for the wrong
+reason — loud, at that guard. Item 3: a mutation re-spelled to build pins a
+slightly different declaration from the one the spec named; each spelling is
+recorded as applied, so a later re-run reproduces it.
