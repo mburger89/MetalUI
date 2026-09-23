@@ -1,5 +1,6 @@
 import Metal
 import MetalUIPlatform
+import MetalUIAppKit
 
 // MetalUI is the umbrella module: a client writes `import MetalUI` and gets the
 // geometry, unit and colour types its elements must name, the `Style` values
@@ -43,7 +44,7 @@ public final class App {
         self.device = device
         self.makeTextSystem = textSystem
         self.renderer = try Renderer(device: device)
-        self.platform = AppKitPlatform(device: device)
+        self.platform = AppKitPlatform(renderer: renderer)
     }
 
     /// Opens a window whose content is one root element, rebuilt every frame.
@@ -63,7 +64,6 @@ public final class App {
     ) throws -> Window {
         let platformWindow = try platform.openWindow(title: title, size: size)
         let window = Window(platformWindow: platformWindow,
-                            renderer: renderer,
                             startsDisplayLink: startsDisplayLink,
                             textSystem: makeTextSystem?(),
                             content: content)

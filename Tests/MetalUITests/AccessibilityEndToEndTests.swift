@@ -5,6 +5,7 @@ import AppKit
 import MetalUICore
 import MetalUIRender
 @testable import MetalUIPlatform
+@testable import MetalUIAppKit
 @testable import MetalUI
 
 // Lane 2 of the accessibility bridge, end to end: a real `AppKitPlatform`
@@ -57,7 +58,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
         size: Size(width: px(Float(width)), height: px(Float(height))))
     let appKit = try #require(platformWindow as? AppKitWindow)
     let nsWindow = try #require(appKit.hostView.window)
-    let window = Window(platformWindow: platformWindow, renderer: try Renderer(device: device),
+    let window = Window(platformWindow: platformWindow,
                         startsDisplayLink: false, content: content)
     return (window, appKit, nsWindow)
 }

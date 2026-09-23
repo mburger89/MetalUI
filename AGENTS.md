@@ -40,7 +40,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   rulings in its spec, no separate decisions doc), `LB-` (next `LB-P`;
   rulings in its three specs: line breaking, lines emission, content sizes),
   `FN-` (next `FN-E`; rulings in its spec), `PC-` (next `PC-D`; rulings in
-  its spec), `TS-` (next `TS-E`; rulings in its spec). A numbered citation
+  its spec), `TS-` (next `TS-E`; rulings in its spec), `RS-` (next `RS-E`;
+  rulings in its spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -69,7 +70,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Eleven record files are not tasks of
+  and G2 is unblocked rather than waiting. Twelve record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
@@ -84,9 +85,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   `specs/2026-09-23-portable-lines-emit-design.md`) and §32 portable min-
   and max-content (`LB-L`…, spec `specs/2026-09-23-portable-content-sizes-design.md`),
   §33 portable font resolution (`FN-`, spec
-  `specs/2026-09-23-portable-font-resolver-design.md`) and §34 Core and
-  Layout off macOS (`PC-`, spec `specs/2026-09-23-portable-core-layout-design.md`)
-  and §35 the text seam (`TS-`, spec `specs/2026-09-23-text-seam-design.md`). **Cross-platform work
+  `specs/2026-09-23-portable-font-resolver-design.md`), §34 Core and
+  Layout off macOS (`PC-`, spec `specs/2026-09-23-portable-core-layout-design.md`),
+  §35 the text seam (`TS-`, spec `specs/2026-09-23-text-seam-design.md`)
+  and §36 the render seam (`RS-`, spec `specs/2026-09-23-render-seam-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -231,16 +233,25 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   that needs WebKit or Darwin is compiled out by `#if canImport(…)` per
   declaration (`PC-B`); typecheck guards read only this platform's `.build`
   (`PC-C`) and skip off macOS.
-- **Targets:** seventeen one-way-dependent (`MetalUICore`, `MetalUILayout`,
+- **Targets:** eighteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
   `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`, `CUnibreak`,
-  `MetalUIHarfBuzz`, `MetalUITextSystem`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
-  `MetalUIPlatform`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
+  `MetalUIHarfBuzz`, `MetalUITextSystem`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`,
+  `MetalUIPlatform`, `MetalUIRender`, `MetalUIAppKit`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
   `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so
   tests can import it (`LR-S`). `MetalUIScene` holds
   `Scene`/`DrawRun`/`PrimitiveKind`, the glyph atlas types and the `FontKey`
   struct; `MetalUIText` and `MetalUIRender` re-export it (`PS-B`), so its
   types need no new import. It is also a library product, consumed by
-  `Experiments/SDLGPU/Portable`. `CFreeType` is FreeType 2.14.3, vendored
+  `Backends/SDL` — a **separate package** (`MetalUISDL`, so the root never
+  needs SDL3) holding `SDLWindowRenderer` and the replay parity harness
+  (`RS-D`). **Windows draw through `PlatformWindow.renderer`, a
+  `WindowRenderer`** (`RS-A`: `beginFrame() -> Float?`, then
+  `finishFrame(scene:atlas:)`), declared in `MetalUIPlatform`, which is now
+  portable (imports only `MetalUICore`, `MetalUIScene`). `MetalWindowRenderer`
+  (`MetalUIRender`, which depends on `MetalUIPlatform` — the old edge
+  reversed) is the Metal one over a `RenderSurface` (`RS-B`); the AppKit
+  platform lives in `MetalUIAppKit` (`RS-C`) and shares one `Renderer`
+  across windows. `Window` holds no `Renderer`. `CFreeType` is FreeType 2.14.3, vendored
   (`FT-A`; `Sources/CFreeType/VENDORED.md`), a C target with no Swift API.
   `MetalUIFreeType` is the FreeType-backed glyph rasterizer (`FreeTypeFont`,
   `FreeTypeRaster`, `FT-B`…`FT-E`) that matches `GlyphRaster`'s contract
@@ -286,7 +297,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   library product; nothing in production calls it (`PT-I`). The subpixel
   placement rule lives once, in `GlyphImage.subpixelPlacement(forDeviceX:)`
   (`PT-C`); `GlyphRaster` forwards — do not re-inline it on either side.
-  `Experiments/SDLGPU`'s frame 4 is drawn from it (`PT-G`).
+  `Experiments/SDLGPU`'s frame 4 is drawn from it (`PT-G`) and replayed by
+  `Backends/SDL`.
 
 Eight constraints that fail silently:
 
@@ -528,7 +540,11 @@ glyph atlas is grow-only; `evictUnusedSince` has no caller and would strand
 pixels.
 
 **Renderer.** No semaphore; the atlas texture is written only while
-`atlasTextureWasEncoded` is false, else replaced. `Text.requestLayout` and
+`atlasTextureWasEncoded` is false, else replaced, and it is uploaded
+**before** encode (`MetalWindowRenderer.finishFrame`; mutation R1 reddens the
+blank-first-frame test). The SDL renderer keeps its atlas texture between
+frames and re-uploads it whole when dirty; both clear the atlas' dirty rect
+after a frame. `Text.requestLayout` and
 `ProposalText`'s measure closures use unguarded `MainActor.assumeIsolated` —
 layout must stay synchronous on the main actor.
 

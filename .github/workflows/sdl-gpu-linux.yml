@@ -1,8 +1,9 @@
-# SDL GPU experiment: record fixtures on macOS with the production Metal
-# renderer (frame 4's text made by MetalUIPortableText, ruling PT-G), then
-# build Experiments/SDLGPU/Portable on Linux (no MetalUI, no
-# Apple frameworks) and replay them on Mesa llvmpipe (CPU Vulkan), and on
-# Windows through SDL's Direct3D 12 backend (WARP on GPU-less runners).
+# SDL GPU backend: record fixtures on macOS with the production Metal
+# renderer (Experiments/SDLGPU's Replay; frame 4's text made by
+# MetalUIPortableText, ruling PT-G), then build Backends/SDL on Linux (no
+# Apple frameworks) — its tests include the SDLWindowRenderer's (ruling RS-D)
+# — and replay the fixtures on Mesa llvmpipe (CPU Vulkan), and on Windows
+# through SDL's Direct3D 12 backend (WARP on GPU-less runners).
 
 name: SDL GPU Linux + Windows
 
@@ -10,6 +11,8 @@ on:
   push:
     paths:
       - "Experiments/SDLGPU/**"
+      - "Backends/SDL/**"
+      - "Sources/MetalUIPlatform/**"
       - ".github/workflows/sdl-gpu-linux.yml"
       # Frame 4's text is built by these (rulings PT-G, LB-J).
       - "Sources/MetalUIPortableText/**"
@@ -23,6 +26,8 @@ on:
   pull_request:
     paths:
       - "Experiments/SDLGPU/**"
+      - "Backends/SDL/**"
+      - "Sources/MetalUIPlatform/**"
       - ".github/workflows/sdl-gpu-linux.yml"
       # Frame 4's text is built by these (rulings PT-G, LB-J).
       - "Sources/MetalUIPortableText/**"
@@ -47,7 +52,7 @@ jobs:
       - name: Install SDL3
         run: brew install sdl3 pkg-config
       - name: Compiled shaders match replay.hlsl
-        working-directory: Experiments/SDLGPU/Portable/Shaders
+        working-directory: Backends/SDL/Shaders
         run: shasum -a 256 -c compiled/SOURCE.sha256
       - name: Record, and check SDL Metal parity live
         # --portable: the HLSL -> SPIR-V -> MSL stages, the same source Linux runs.
@@ -81,7 +86,7 @@ jobs:
       - name: Build image (Swift, SDL3 from source, Mesa)
         uses: docker/build-push-action@v7
         with:
-          context: Experiments/SDLGPU/Portable/linux
+          context: Backends/SDL/linux
           tags: metalui-portable
           load: true
           cache-from: type=gha,scope=portable-${{ matrix.arch }}
@@ -90,12 +95,12 @@ jobs:
         # --dump reports every frame, writes raw BGRA, and still fails over tolerance.
         run: |
           mkdir -p Experiments/SDLGPU/linux-dump
-          # The whole repo: Portable/ depends on the root package's MetalUIScene.
-          docker run --rm -v "$PWD":/work -w /work/Experiments/SDLGPU/Portable metalui-portable bash -ec '
+          # The whole repo: Backends/SDL depends on the root package.
+          docker run --rm -v "$PWD":/work -w /work/Backends/SDL metalui-portable bash -ec '
             vulkaninfo --summary 2>/dev/null | grep -E "deviceName|driverName" || true
             swift build --scratch-path /tmp/build
             swift test --scratch-path /tmp/build
-            $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../fixtures --driver vulkan --dump ../linux-dump --expect 5
+            $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../../Experiments/SDLGPU/fixtures --driver vulkan --dump ../../Experiments/SDLGPU/linux-dump --expect 5
           '
       - uses: actions/upload-artifact@v7
         if: failure()
@@ -137,16 +142,16 @@ jobs:
         run: Get-CimInstance Win32_VideoController | Format-Table Name, DriverVersion
       - name: Build, test and replay
         # No pkg-config on Windows: hand SwiftPM SDL's include and library paths.
-        working-directory: Experiments/SDLGPU/Portable
+        working-directory: Backends/SDL
         run: |
           $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB")
           swift build @flags
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           swift test @flags
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          New-Item -ItemType Directory -Force ..\windows-dump | Out-Null
+          New-Item -ItemType Directory -Force ..\..\Experiments\SDLGPU\windows-dump | Out-Null
           $bin = (swift build @flags --show-bin-path)
-          & "$bin\PortableReplay.exe" ..\fixtures --driver direct3d12 --dump ..\windows-dump --expect 5
+          & "$bin\PortableReplay.exe" ..\..\Experiments\SDLGPU\fixtures --driver direct3d12 --dump ..\..\Experiments\SDLGPU\windows-dump --expect 5
           exit $LASTEXITCODE
       - uses: actions/upload-artifact@v7
         if: failure()

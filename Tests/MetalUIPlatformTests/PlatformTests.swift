@@ -4,6 +4,8 @@ import Metal
 import AppKit
 import MetalUICore
 @testable import MetalUIPlatform
+@testable import MetalUIAppKit
+import MetalUIRender
 
 @MainActor
 @Test func openWindowProducesASurfaceSizedToItsContent() throws {
@@ -17,7 +19,12 @@ import MetalUICore
     #expect(window.contentSize.height.value == 300)
     #expect(window.scaleFactor >= 1.0)
 
-    let frame = try window.surface.nextFrame()
+    // The AppKit window draws through a Metal `WindowRenderer` over its own
+    // layer surface (ruling RS-C); the surface itself is read here directly.
+    let appKitWindow = try #require(window as? AppKitWindow)
+    let metal = try #require(window.renderer as? MetalWindowRenderer)
+    #expect(metal.surface === appKitWindow.surface)
+    let frame = try appKitWindow.surface.nextFrame()
     #expect(frame.views.count == 1)
     // Surface is sized in device pixels, so it tracks the scale factor.
     #expect(frame.views[0].colorTexture.width == Int(400 * window.scaleFactor))

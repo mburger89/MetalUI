@@ -317,3 +317,216 @@ bool replay_show(ReplayGPU *g, uint32_t seconds) {
     SDL_DestroyWindow(window);
     return ok;
 }
+
+/* ---- The MetalUI window renderer (ruling RS-D) --------------------------- */
+
+struct MUIRenderer {
+    ReplayGPU *gpu;                 /* device, pipelines, sampler */
+    SDL_Window *window;
+    SDL_GPUCommandBuffer *cmd;      /* between begin and finish */
+    SDL_GPUTexture *target;         /* the swapchain texture, or `offscreen` */
+    uint32_t width, height;
+    SDL_GPUTexture *offscreen;
+    uint32_t offscreen_width, offscreen_height;
+    SDL_GPUTexture *atlas;
+    uint32_t atlas_width, atlas_height;
+    SDL_GPUFence *fence;            /* the last offscreen frame */
+};
+
+MUIRenderer *mui_renderer_create(const char *shader_dir, const char *driver) {
+    ReplayGPU *gpu = replay_create_portable(shader_dir, driver);
+    if (!gpu) return NULL;
+    MUIRenderer *r = calloc(1, sizeof(*r));
+    if (!r) { replay_destroy(gpu); SDL_SetError("allocation failed"); return NULL; }
+    r->gpu = gpu;
+    return r;
+}
+
+const char *mui_renderer_driver(MUIRenderer *r) { return replay_driver(r->gpu); }
+
+void mui_renderer_destroy(MUIRenderer *r) {
+    if (!r) return;
+    SDL_GPUDevice *d = r->gpu->device;
+    SDL_WaitForGPUIdle(d);
+    if (r->cmd) SDL_CancelGPUCommandBuffer(r->cmd);
+    if (r->fence) SDL_ReleaseGPUFence(d, r->fence);
+    if (r->offscreen) SDL_ReleaseGPUTexture(d, r->offscreen);
+    if (r->atlas) SDL_ReleaseGPUTexture(d, r->atlas);
+    if (r->window) SDL_ReleaseWindowFromGPUDevice(d, r->window);
+    replay_destroy(r->gpu);
+    free(r);
+}
+
+bool mui_renderer_claim_window(MUIRenderer *r, void *window) {
+    if (!SDL_ClaimWindowForGPUDevice(r->gpu->device, (SDL_Window *)window)) return false;
+    r->window = (SDL_Window *)window;
+    return true;
+}
+
+bool mui_renderer_set_offscreen_size(MUIRenderer *r, uint32_t w, uint32_t h) {
+    if (!w || !h || w > 8192 || h > 8192) return SDL_SetError("invalid offscreen size");
+    if (r->offscreen && r->offscreen_width == w && r->offscreen_height == h) return true;
+    if (r->offscreen) SDL_ReleaseGPUTexture(r->gpu->device, r->offscreen);
+    r->offscreen = texture(r->gpu, w, h, true);
+    r->offscreen_width = w; r->offscreen_height = h;
+    return r->offscreen != NULL;
+}
+
+int mui_renderer_begin(MUIRenderer *r, uint32_t *w, uint32_t *h) {
+    if (r->cmd) { SDL_CancelGPUCommandBuffer(r->cmd); r->cmd = NULL; }
+    r->cmd = SDL_AcquireGPUCommandBuffer(r->gpu->device);
+    if (!r->cmd) return -1;
+    if (r->window) {
+        SDL_GPUTexture *swap = NULL;
+        if (!SDL_WaitAndAcquireGPUSwapchainTexture(r->cmd, r->window, &swap, &r->width, &r->height)) {
+            SDL_CancelGPUCommandBuffer(r->cmd); r->cmd = NULL; return -1;
+        }
+        if (!swap) { SDL_CancelGPUCommandBuffer(r->cmd); r->cmd = NULL; return 0; }
+        r->target = swap;
+    } else {
+        if (!r->offscreen) { SDL_CancelGPUCommandBuffer(r->cmd); r->cmd = NULL;
+                             SDL_SetError("no window claimed and no offscreen size"); return -1; }
+        r->target = r->offscreen;
+        r->width = r->offscreen_width; r->height = r->offscreen_height;
+    }
+    *w = r->width; *h = r->height;
+    return 1;
+}
+
+bool mui_renderer_finish(MUIRenderer *r,
+    const void *rects, uint32_t rb, const void *glyphs, uint32_t gb,
+    const ReplayRun *runs, uint32_t count,
+    const uint8_t *atlas, uint32_t aw, uint32_t ah, bool atlas_dirty,
+    const float *projection) {
+    if (!r->cmd) return SDL_SetError("finish without a successful begin");
+    SDL_GPUDevice *d = r->gpu->device;
+    SDL_GPUCommandBuffer *cmd = r->cmd;
+    r->cmd = NULL;
+    SDL_GPUBuffer *buffers[3] = {0};
+    SDL_GPUTransferBuffer *uploads[4] = {0};
+    void *packed[2] = {0};
+    bool ok = false;
+
+    /* The CPU ABI is scalar-packed (120/88 bytes); SDL storage buffers use
+       16-byte lanes, so each record is copied into a 128/96-byte slot. */
+    const float aligned_quad[] = {0,0,0,0, 1,0,0,0, 0,1,0,0, 1,1,0,0};
+    const void *data[] = {aligned_quad, rects, glyphs};
+    uint32_t sizes[] = {sizeof(aligned_quad), rb, gb};
+    const uint32_t old_stride[] = {120, 88}, new_stride[] = {128, 96};
+    for (int i = 0; i < 2; i++) {
+        if (sizes[i + 1] % old_stride[i]) { SDL_SetError("unexpected MetalUI primitive ABI"); goto cleanup; }
+        uint32_t records = sizes[i + 1] / old_stride[i];
+        if (!records) continue;
+        packed[i] = calloc(records, new_stride[i]);
+        if (!packed[i]) { SDL_SetError("packing allocation failed"); goto cleanup; }
+        for (uint32_t j = 0; j < records; j++)
+            memcpy((uint8_t *)packed[i] + j * new_stride[i],
+                   (const uint8_t *)data[i + 1] + j * old_stride[i], old_stride[i]);
+        data[i + 1] = packed[i]; sizes[i + 1] = records * new_stride[i];
+    }
+    for (int i = 0; i < 3; i++) {
+        if (!sizes[i]) continue;
+        SDL_GPUBufferCreateInfo info = { .usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, .size = sizes[i] };
+        buffers[i] = SDL_CreateGPUBuffer(d, &info);
+        uploads[i] = transfer(r->gpu, sizes[i], false, data[i]);
+        if (!buffers[i] || !uploads[i]) goto cleanup;
+    }
+    bool atlas_new = !r->atlas || r->atlas_width != aw || r->atlas_height != ah;
+    if (atlas_new) {
+        if (r->atlas) SDL_ReleaseGPUTexture(d, r->atlas);
+        r->atlas = texture(r->gpu, aw, ah, false);
+        r->atlas_width = aw; r->atlas_height = ah;
+        if (!r->atlas) goto cleanup;
+    }
+    if (atlas_new || atlas_dirty) {
+        uploads[3] = transfer(r->gpu, aw * ah, false, atlas);
+        if (!uploads[3]) goto cleanup;
+    }
+    SDL_GPUCopyPass *copy = SDL_BeginGPUCopyPass(cmd);
+    if (!copy) goto cleanup;
+    for (int i = 0; i < 3; i++) if (sizes[i]) {
+        SDL_GPUTransferBufferLocation src = { .transfer_buffer = uploads[i] };
+        SDL_GPUBufferRegion dst = { .buffer = buffers[i], .size = sizes[i] };
+        SDL_UploadToGPUBuffer(copy, &src, &dst, false);
+    }
+    if (uploads[3]) {
+        SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[3] };
+        SDL_GPUTextureRegion atlas_dst = { .texture = r->atlas, .w = aw, .h = ah, .d = 1 };
+        SDL_UploadToGPUTexture(copy, &atlas_src, &atlas_dst, false);
+    }
+    SDL_EndGPUCopyPass(copy);
+
+    struct { float width, height; uint32_t first_instance, padding; } viewport = {(float)r->width, (float)r->height, 0, 0};
+    SDL_PushGPUVertexUniformData(cmd, 1, projection, sizeof(float) * 16);
+    SDL_GPUColorTargetInfo target = {
+        .texture = r->target, .load_op = SDL_GPU_LOADOP_CLEAR, .store_op = SDL_GPU_STOREOP_STORE
+    };
+    SDL_GPURenderPass *pass = SDL_BeginGPURenderPass(cmd, &target, 1, NULL);
+    if (!pass) goto cleanup;
+    for (uint32_t i = 0; i < count; i++) {
+        bool glyph = runs[i].kind == 1;
+        SDL_GPUBuffer *primitives = buffers[glyph ? 2 : 1];
+        if (!primitives) continue;
+        SDL_GPUBuffer *vertex_buffers[] = {buffers[0], primitives};
+        SDL_BindGPUGraphicsPipeline(pass, glyph ? r->gpu->glyph : r->gpu->rect);
+        SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 2);
+        SDL_BindGPUFragmentStorageBuffers(pass, 0, &primitives, 1);
+        if (glyph) {
+            SDL_GPUTextureSamplerBinding binding = {r->atlas, r->gpu->sampler};
+            SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
+        }
+        viewport.first_instance = runs[i].start;
+        SDL_PushGPUVertexUniformData(cmd, 0, &viewport, sizeof(viewport));
+        SDL_DrawGPUPrimitives(pass, 4, runs[i].count, 0, 0);
+    }
+    SDL_EndGPURenderPass(pass);
+    if (r->window) {
+        ok = SDL_SubmitGPUCommandBuffer(cmd);
+    } else {
+        if (r->fence) { SDL_ReleaseGPUFence(d, r->fence); r->fence = NULL; }
+        r->fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
+        ok = r->fence != NULL;
+    }
+    cmd = NULL;
+cleanup:
+    if (cmd) SDL_CancelGPUCommandBuffer(cmd);
+    /* SDL releases these once the GPU no longer uses them. */
+    for (int i = 0; i < 3; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(d, buffers[i]);
+    for (int i = 0; i < 4; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(d, uploads[i]);
+    free(packed[0]); free(packed[1]);
+    return ok;
+}
+
+bool mui_renderer_read_offscreen(MUIRenderer *r, uint8_t *out) {
+    if (!r->offscreen) return SDL_SetError("no offscreen target");
+    SDL_GPUDevice *d = r->gpu->device;
+    if (r->fence) { SDL_WaitForGPUFences(d, true, &r->fence, 1); SDL_ReleaseGPUFence(d, r->fence); r->fence = NULL; }
+    uint32_t w = r->offscreen_width, h = r->offscreen_height, pitch = (w * 4 + 255) & ~255u;
+    SDL_GPUTransferBuffer *download = transfer(r->gpu, pitch * h, true, NULL);
+    if (!download) return false;
+    bool ok = false;
+    SDL_GPUFence *fence = NULL;
+    SDL_GPUCommandBuffer *cmd = SDL_AcquireGPUCommandBuffer(d);
+    if (!cmd) goto done;
+    SDL_GPUCopyPass *copy = SDL_BeginGPUCopyPass(cmd);
+    if (!copy) { SDL_CancelGPUCommandBuffer(cmd); goto done; }
+    SDL_GPUTextureRegion src = { .texture = r->offscreen, .w = w, .h = h, .d = 1 };
+    SDL_GPUTextureTransferInfo dst = { .transfer_buffer = download, .pixels_per_row = pitch / 4, .rows_per_layer = h };
+    SDL_DownloadFromGPUTexture(copy, &src, &dst);
+    SDL_EndGPUCopyPass(copy);
+    fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
+    if (!fence || !SDL_WaitForGPUFences(d, true, &fence, 1)) goto done;
+    const uint8_t *mapped = SDL_MapGPUTransferBuffer(d, download, false);
+    if (!mapped) goto done;
+    for (uint32_t y = 0; y < h; y++) memcpy(out + y * w * 4, mapped + y * pitch, w * 4);
+    SDL_UnmapGPUTransferBuffer(d, download);
+    ok = true;
+done:
+    if (fence) SDL_ReleaseGPUFence(d, fence);
+    SDL_ReleaseGPUTransferBuffer(d, download);
+    return ok;
+}
+
+float mui_window_pixel_density(void *window) {
+    return SDL_GetWindowPixelDensity((SDL_Window *)window);
+}

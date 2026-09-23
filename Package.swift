@@ -8,7 +8,7 @@ import PackageDescription
 // CoreText — is declared only on macOS, below.
 var products: [Product] = [
         // Platform-free per-frame data (ruling PS-A), for backends outside this
-        // package; first consumer: Experiments/SDLGPU/Portable.
+        // package; first consumer: Backends/SDL.
         .library(name: "MetalUIScene", targets: ["MetalUIScene"]),
         // FreeType glyph rasterizer (ruling FT-B), for non-Apple backends.
         .library(name: "MetalUIFreeType", targets: ["MetalUIFreeType"]),
@@ -18,6 +18,9 @@ var products: [Product] = [
         .library(name: "MetalUIPortableText", targets: ["MetalUIPortableText"]),
         // The text seam (ruling TS-A).
         .library(name: "MetalUITextSystem", targets: ["MetalUITextSystem"]),
+        // The platform protocols, for platforms outside this package
+        // (Backends/SDL; ruling RS-A).
+        .library(name: "MetalUIPlatform", targets: ["MetalUIPlatform"]),
 
 ]
 
@@ -126,6 +129,11 @@ var targets: [Target] = [
         // one in MetalUIPortableText. Imports only MetalUIScene.
         .target(name: "MetalUITextSystem", dependencies: ["MetalUIScene"]),
 
+        // The platform protocols — windows, input, accessibility, and the
+        // `WindowRenderer` a window draws with (ruling RS-A). Portable: the
+        // AppKit implementation is `MetalUIAppKit`, the SDL one `Backends/SDL`.
+        .target(name: "MetalUIPlatform", dependencies: ["MetalUICore", "MetalUIScene"]),
+
 ]
 
 #if os(macOS)
@@ -154,7 +162,8 @@ targets += [
         // with no CI.
         .target(
             name: "MetalUIRender",
-            dependencies: ["MetalUICore", "MetalUIShaderTypes", "MetalUIScene", "MetalUIText"],
+            dependencies: ["MetalUICore", "MetalUIShaderTypes", "MetalUIScene", "MetalUIText",
+                           "MetalUIPlatform"],
             resources: [.copy("Shaders")]
         ),
         // `MetalUIText` is a dependency of `MetalUIRender` already; it is named
@@ -163,17 +172,20 @@ targets += [
         .testTarget(name: "MetalUIRenderTests",
                     dependencies: ["MetalUIRender", "MetalUIScene", "MetalUIText"]),
 
+        // AppKit: the macOS `Platform` and `PlatformWindow`, drawing through
+        // `MetalWindowRenderer` (ruling RS-C).
         .target(
-            name: "MetalUIPlatform",
-            dependencies: ["MetalUICore", "MetalUIRender"]
+            name: "MetalUIAppKit",
+            dependencies: ["MetalUICore", "MetalUIPlatform", "MetalUIRender"]
         ),
-        .testTarget(name: "MetalUIPlatformTests", dependencies: ["MetalUIPlatform"]),
+        .testTarget(name: "MetalUIPlatformTests",
+                    dependencies: ["MetalUIPlatform", "MetalUIAppKit", "MetalUIRender"]),
 
         .target(
             name: "MetalUI",
             dependencies: [
                 "MetalUICore", "MetalUILayout", "MetalUIText", "MetalUITextSystem", "MetalUIRender",
-                "MetalUIPlatform",
+                "MetalUIPlatform", "MetalUIAppKit",
             ]
         ),
         // `MetalUIText` is a dependency of `MetalUI` already; it is named again
@@ -186,7 +198,7 @@ targets += [
         .testTarget(
             name: "MetalUITests",
             dependencies: ["MetalUI", "MetalUIText", "MetalUITestSupport", "MetalUIDemoContent",
-                           "MetalUIPortableText"]
+                           "MetalUIPortableText", "MetalUIAppKit"]
         ),
         // The demo's content, a library so `MetalUITests` can import it (ruling
         // LR-S). In no product: it is demo content, not framework API. It makes

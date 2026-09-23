@@ -1,11 +1,13 @@
 import MetalUICore
-import MetalUIRender
+import MetalUIScene
 
 @MainActor
 public protocol PlatformWindow: AnyObject {
     var contentSize: Size<Pixels> { get }
     var scaleFactor: Float { get }
-    var surface: any RenderSurface { get }
+    /// Draws this window's frames (ruling RS-A): the Metal renderer on
+    /// AppKit, SDL GPU through `Backends/SDL`.
+    var renderer: any WindowRenderer { get }
     var title: String { get set }
 
     /// The host's current colour environment (spec §7.9). Read at window
@@ -58,4 +60,21 @@ public protocol Platform: AnyObject {
 public enum PlatformError: Error, CustomStringConvertible {
     case windowCreationFailed
     public var description: String { "could not create a platform window" }
+}
+
+/// What a window's frames are drawn with (ruling RS-A): one scene and the
+/// glyph atlas it samples, into the window's drawable. `Window` calls
+/// ``beginFrame()`` before building a frame — it needs the scale factor the
+/// frame will be drawn at — and ``finishFrame(scene:atlas:)`` after.
+@MainActor
+public protocol WindowRenderer: AnyObject {
+    /// Acquires the next drawable and returns its device scale factor, or
+    /// `nil` when none is available this tick; the window stays dirty and
+    /// retries, and ``finishFrame(scene:atlas:)`` is not called.
+    func beginFrame() -> Float?
+
+    /// Uploads `atlas` if it changed, draws `scene` into the drawable
+    /// ``beginFrame()`` acquired, and presents it. `false` means the frame was
+    /// not drawn; the window stays dirty and retries.
+    func finishFrame(scene: Scene, atlas: GlyphAtlas) -> Bool
 }

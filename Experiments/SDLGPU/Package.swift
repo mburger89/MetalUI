@@ -8,12 +8,12 @@ let package = Package(
     platforms: [.macOS(.v14)],
     dependencies: [
         .package(name: "MetalUI", path: "../.."),
-        .package(name: "SDLGPUPortable", path: "Portable")
+        .package(name: "MetalUISDL", path: "../../Backends/SDL")
     ],
     targets: [
         .executableTarget(name: "Replay", dependencies: [
-            .product(name: "SDLReplay", package: "SDLGPUPortable"),
-            .product(name: "ReplayFixture", package: "SDLGPUPortable"),
+            .product(name: "SDLReplay", package: "MetalUISDL"),
+            .product(name: "ReplayFixture", package: "MetalUISDL"),
             .product(name: "MetalUI", package: "MetalUI"),
             // Frame 4's text (ruling PT-G): HarfBuzz + FreeType, no CoreText.
             .product(name: "MetalUIPortableText", package: "MetalUI")
