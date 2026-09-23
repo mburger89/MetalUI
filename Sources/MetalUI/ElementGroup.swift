@@ -270,8 +270,11 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
 /// survives indefinitely**. (**"which is the demo and most applications" was
 /// struck 2026-09-10**: since the animation milestone every registering element
 /// mints a `$anim` entry on first sight, unconditionally, so the demo's 500-row
-/// list alone puts the table at 1007. Measured on `demoLikeRows(_:)`, whose rows
-/// declare no `@State`: `storage.count == 2n + 7`, crossing at **125 rows**.
+/// list alone puts the table at 1006. Measured on `demoLikeRows(_:)`, whose rows
+/// declare no `@State`: `storage.count == 2n + 6`, crossing at **126 rows**
+/// (`2n + 7` and 125 until plan task 7's stage 4 lane 1 demoted `List`'s
+/// windowing spacer from an element to a node, ruling `LR-BS`; re-measured by
+/// rendering 124 through 127 and watching whether an excursion was reaped).
 /// A tree stays under the gate now only if it is genuinely small.) The gate
 /// counts *entries*, not live ones, and tombstones are entries: an app that
 /// churns conditional subtrees crosses it without ever holding 257 live

@@ -456,8 +456,8 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
 /// (grow, stretch, `alignSelf`, the scroller box's zero basis and minimum, the
 /// `List` spacer's `flexShrink(0)` on a declared height).
 ///
-/// **2. Every disagreement, with its cause** (modal off: 2036 ids, 6 agreeing — the
-/// harness root, the header's layer, row, avatar and bar, the hairline — 30
+/// **2. Every disagreement, with its cause** (modal off: 2035 ids, 6 agreeing — the
+/// harness root, the header's layer, row, avatar and bar, the hairline — 29
 /// disagreeing, 2000 legacy-only, the `List`'s rows, 0 lowered-only). Rects no text
 /// reaches are literals; rects a text reaches are derived below from the shaping
 /// cache (`LR-F`): lowered text sizes from `proposalTextMeasurement` at the widths
@@ -473,13 +473,22 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
 /// | **55** a declared 196 sidebar is served first where CSS shrinks it to 88 | F5; stack-algorithms G9, G4r | 2.9 | sidebar layer 88 → 196 wide; its column, "Library" and the four bars 60 → 168 wide; main-pane layer x 116 → 224, 788 → 680 wide; main column 756 → 648; every main-pane descendant x + 108; "Text renders" 756 → 648 wide; the paragraph 756×48 → 648×64; the scroller `Box` y 439 → 455 |
 /// | **X9** a stretched single-child container does not stretch its child (`LR-AC`) | X9 | 1.3 | the sidebar column 282 → 160 tall |
 /// | **3** the lowered viewport fills its proposal (`LR-BC`) | stage-3 V1–V4; A7, A10, A11 | stage 3, lane 2 | the `ScrollView` 420×0 → 0×**73**, the 73 being cause **R**'s own 73 arriving one level deeper (the scroller `Box`'s new height) |
-/// | **4** `List` has no lowering | — (site-level) | stage 4 | the `List` (420×14000 → 0×14000) and its row `Box` (420×0 → 0×0), both now at the viewport's origin. **The three widths stay 0** because the `List` reports and builds no rows, so the viewport's non-scrolling axis — its content's answer (`CN-M`) — is the empty content's 0. That half is stage 4's |
+/// | **4** `List` has no lowering | — (site-level) | stage 4 | the `List` (420×14000 → 0×14000), now at the viewport's origin. **Both widths stay 0** because the `List` reports and builds no rows, so the viewport's non-scrolling axis — its content's answer (`CN-M`) — is the empty content's 0. That half is stage 4's |
+///
+/// **The `List`'s windowing spacer left this census in stage 4's lane 1**
+/// (`LR-BS`): it used to be a `Box` ELEMENT at `child(child(scroll, 0), 0)` and
+/// so recorded a `Frame.elementBounds` row of its own (420×0 → 0×0, the
+/// thirtieth disagreement); it is now a bare legacy node, which records none.
+/// The counts moved by exactly one in each place — 2036 → 2035 ids and 30 → 29
+/// disagreements, 2042 → 2041 and 36 → 35 with the modal on — and nothing else
+/// in the census moved, which is the measurement that says the demotion changed
+/// bookkeeping rather than geometry.
 ///
 /// **Measured first against the prediction** (prototype P3 and scratch R2, record
 /// §21): identical in both modal states, every pair (record §21, lane 2).
 ///
-/// **3. Modal on**: 2042 ids, 6 agreeing, **36** disagreeing — the 30 above (the
-/// `List` and its row box one index later, after the `Deferred`) plus the modal's six
+/// **3. Modal on**: 2041 ids, 6 agreeing, **35** disagreeing — the 29 above (the
+/// `List` one index later, after the `Deferred`) plus the modal's six
 /// ids (the `Deferred`, its `Stack`, the card's padding layer, its column and two
 /// texts), which are stage 5's (`position`, `inset`) and asserted by id only.
 ///
@@ -499,7 +508,7 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
     demoModel.showModal = false
     let report = LayoutDifferential.compare(width: 920, height: 560) { demoContent() }
     #expect(report.unlowerable == [entry(.list, "noLowering")], "\(report.unlowerable)")
-    try #require(report.elements == 2036, "\(report.elements)")
+    try #require(report.elements == 2035, "\(report.elements)")
     #expect(report.agreeing.count == 6 && report.legacyOnly.count == 2000 && report.loweredOnly.isEmpty,
             "agreeing \(report.agreeing.count) legacyOnly \(report.legacyOnly.count) loweredOnly \(report.loweredOnly.count)")
 
@@ -597,10 +606,8 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
          bounds(240, loweredScrollerY, 0, 129 + loweredMain - loweredScrollerY)),
         (child(scroll, 0), bounds(132, legacyScrollerY, 420, 14000),
          bounds(240, loweredScrollerY, 0, 14000)),
-        (child(child(scroll, 0), 0), bounds(132, legacyScrollerY, 420, 0),
-         bounds(240, loweredScrollerY, 0, 0)),
     ]
-    try #require(expected.count == 30)
+    try #require(expected.count == 29)
     // The predictions the derivations must reproduce (P3, R2; record §21).
     #expect([legacyOuter, legacyBody, legacyRenders, legacyParagraph, legacyScrollerY,
              loweredRenders, loweredParagraph, loweredScrollerY, library] == [439, 310, 26, 48, 439, 26, 64, 455, 16])
@@ -609,7 +616,7 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
                                                   child(headerRow, 1), hairline]
     #expect(Set(report.agreeing) == agreeingExpected)
     let disagreeing = Dictionary(uniqueKeysWithValues: report.disagreeing.map { ($0.id, ($0.legacy, $0.lowered)) })
-    try #require(report.disagreeing.count == 30, "\(report.disagreeing.count)")
+    try #require(report.disagreeing.count == 29, "\(report.disagreeing.count)")
     for row in expected {
         let got = disagreeing[row.id]
         #expect(got?.0 == row.legacy && got?.1 == row.lowered,
@@ -623,9 +630,9 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
     #expect(modal.unlowerable == [entry(.stack, "position"), entry(.stack, "inset"),
                                   entry(.list, "noLowering")],
             "\(modal.unlowerable)")
-    try #require(modal.elements == 2042, "\(modal.elements)")
+    try #require(modal.elements == 2041, "\(modal.elements)")
     #expect(Set(modal.agreeing) == agreeingExpected)
-    try #require(modal.disagreeing.count == 36, "\(modal.disagreeing.count)")
+    try #require(modal.disagreeing.count == 35, "\(modal.disagreeing.count)")
     let modalPairs = Dictionary(uniqueKeysWithValues: modal.disagreeing.map { ($0.id, ($0.legacy, $0.lowered)) })
     let deferred = child(scroll, 0), stack = child(deferred, 0), card = child(stack, 0), column = child(card, 0)
     for id in [deferred, stack, card, column, child(column, 0), child(column, 1)] {
@@ -644,12 +651,10 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
     let modalLowered: [GlobalElementID: Bounds<Pixels>] = [
         scroll: bounds(240, loweredScrollerY, 420, 129 + loweredMain - loweredScrollerY),
         child(scroll, 1): bounds(240, loweredScrollerY, 420, 14000),
-        child(child(scroll, 1), 0): bounds(240, loweredScrollerY, 0, 0),
     ]
     for row in expected {
-        // The `List` and its row box sit one index later, after the `Deferred`.
-        let id = row.id == child(scroll, 0) ? child(scroll, 1)
-            : row.id == child(child(scroll, 0), 0) ? child(child(scroll, 1), 0) : row.id
+        // The `List` sits one index later, after the `Deferred`.
+        let id = row.id == child(scroll, 0) ? child(scroll, 1) : row.id
         let got = modalPairs[id]
         let lowered = modalLowered[id] ?? row.lowered
         #expect(got?.0 == row.legacy && got?.1 == lowered,

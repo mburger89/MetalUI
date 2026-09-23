@@ -540,6 +540,7 @@ private func renderWindowed<E: Element>(_ element: inout E, context: ScrollConte
 /// back to 1) must redden it.
 @Test @MainActor func aListInTheDifferentialHarnessReachesABoundedWindow() throws {
     let data = items(40)
+    let table = StateTable()
     // The demo's own scroller shape, and it is load-bearing here: the harness
     // root is a `display: .stack` that offers its children fit-content, so a
     // bare `ScrollView` takes its content's full 1120pt as its viewport and
@@ -552,7 +553,8 @@ private func renderWindowed<E: Element>(_ element: inout E, context: ScrollConte
     var column = Style()
     column.flexDirection = .column
     column.size = Size(width: .length(.pixels(px(200))), height: .length(.pixels(px(200))))
-    let frame = LayoutDifferential.render(authority: .legacy, width: 200, height: 200) {
+    let frame = LayoutDifferential.render(authority: .legacy, width: 200, height: 200,
+                                          stateTable: table, frames: 2) {
         Box(style: column) {
             Box {
                 ScrollView(.vertical) {
