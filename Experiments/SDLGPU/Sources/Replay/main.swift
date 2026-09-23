@@ -151,6 +151,7 @@ func portableFixture(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene
         }
         try PortableText.emit(value, font: font, origin: (x, y + size), scaleFactor: 1,
                               color: color(0.55, 0.1, 0.95), contentMask: clip ?? mask,
+                              maskCornerRadii: corners(clip == nil ? 0 : 12),
                               into: &scene, atlas: atlas)
     }
     atlas.beginFrame()
@@ -165,9 +166,11 @@ func portableFixture(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene
     rect(bounds(155, 152, 92, 25), color(0.08, 0.95, 0.5, 0.65), radius: 5)
     let clip = bounds(36, 237, Float(width - 72), 58)
     rect(bounds(20, 230, Float(width), 82), color(0.73, 0.5, 0.45), clip: clip, clipRadius: 12)
-    // The mask carries no radius here: `emit` takes a content mask but not
-    // its corner radii, so a glyph under the rounded corner is clipped square.
+    // Rounded like frames 0–3: `emit` takes the mask's corner radii.
     try text("Rounded clip: abcdefghijklmnopqrstuvwxyz", x: 25, y: 249, size: 21, clip: clip)
+    // Through the clip's bottom-left 12 px corner, so the rounded mask decides
+    // pixels: the line above sits between the corners and cannot see it.
+    try text("WWW corner", x: 30, y: 274, size: 21, clip: clip)
     try text("Kerning AV To Ty, ligatures fi fl ffi, Ω Ж", x: 37.4, y: 315, size: 19)
     scene.finalize()
     return scene

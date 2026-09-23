@@ -137,11 +137,42 @@ all passing on macOS.
 
 ## Open
 
-- **Rounded content masks.** `emit` takes a `contentMask` but no corner radii,
-  so frame 4's clipped line is clipped square where frames 0–3 round it. A
-  caller clipping text to a rounded box needs a `maskCornerRadii` parameter.
-- **Paint order.** `emit` stamps `order: 0` on every glyph, like production;
-  a caller that orders primitives by `order` rather than emission sequence
-  cannot interleave portable text with its rects.
+- ~~**Rounded content masks.**~~ ~~**Paint order.**~~ Closed by `PT-J`, see
+  "Follow-up" below.
 - **One line, one run.** No line breaking, bidi across runs, itemization or
   fallback — the spec's non-goals, unchanged.
+
+## Follow-up: mask radii, order and layer (`PT-J`, 2026-09-23)
+
+Branch `feat/portable-text-mask-order`, from `master` at `42b9ab4`. Closes the
+two "Open" items above.
+
+- `PortableText.emit` gains `maskCornerRadii` (default square), `order` and
+  `layer` (defaults 0), stamped on every glyph and passed to `Scene.insert`
+  — what `Frame.draw` takes from `activeClipRadii`, `order: 0` and
+  `activeLayer`. Defaults keep every earlier call's output; PT-H's pins hold
+  unchanged.
+- `EmitParameterTests.swift`, 5 tests: radii reach every glyph; order reaches
+  every glyph; the defaults; a layer-1 run paints after a later layer-0 rect;
+  an order-5 run paints after a later order-1 rect. Written first; they did
+  not compile against the old signature.
+- Mutations (`--filter MetalUIPortableTextTests`, reverted):
+
+  | Mutant | Reddens |
+  |---|---|
+  | radii not passed (square literal) | `theMaskCornerRadiiReachEveryEmittedGlyph` |
+  | order not passed (`order: 0`) | `theOrderReachesEveryEmittedGlyph`, `aHigherOrderPaintsAfterALaterRectWithALowerOrder` |
+  | layer not passed (`insert` without `layer:`) | `aHigherLayerPaintsAfterALaterRectOnALowerLayer` |
+
+- **Frame 4 did not see the radius at first.** Passing 12 px corners for its
+  clipped line, as frames 0–3 do, changed **0** pixels against a square mask:
+  that line sits between the clip's corners. A second clipped line, `WWW
+  corner`, now runs through the bottom-left corner; rounded vs square then
+  differs in **17** pixels, all in x 36–45, y 286–294 (Metal reference
+  images, measured). Frame 4 has 137 glyphs (was 128); `Replay --portable`
+  0 px, `PortableReplay` SDL Metal and Vulkan (MoltenVK) 0 / 0 px, order
+  control 302 px >16, Δ154. Linux and Windows: this branch's CI.
+
+  Counts after `swift package clean`: **`Test run with 1630 tests in 3 suites
+  passed`** (1625 + 5), guards ran, 97 goldens unmoved, 0 `error:`/`warning:`
+  on the default build system; `Tests/PortableTests` 4 + 6 + 5 unchanged.

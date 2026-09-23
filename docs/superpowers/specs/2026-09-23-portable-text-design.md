@@ -3,7 +3,7 @@
 **Status:** implemented on `feat/portable-text`, 2026-09-23 (record §28);
 Linux and Windows green in PR #10's CI. Drafted the same day. Decided with the user: wire the
 shaper and rasterizer together, and render the result through SDL.
-**Ruling prefix:** `PT-` (lettered; next `PT-J`).
+**Ruling prefix:** `PT-` (lettered; next `PT-K`).
 **Builds on:** `MetalUIHarfBuzz` (`SH-`), `MetalUIFreeType` (`FT-`),
 `MetalUIScene` (`PS-`), and `Experiments/SDLGPU` for the render.
 
@@ -76,6 +76,13 @@ policy, colour glyphs.
   atlas dirty rect and an FNV-1a checksum of the atlas coverage, recorded on
   macOS and asserted on Linux and Windows. Recording validates every row
   before writing (record §26's hazard).
+- **PT-J — the mask's corner radii, `order` and `layer` are the caller's**
+  (2026-09-23, amends PT-E; record §28 "Follow-up"). `emit` gains
+  `maskCornerRadii: MUICorners`, `order: UInt32` and `layer: Int`, stamped on
+  every glyph of the run and passed to `Scene.insert` — the three things
+  `Frame.draw` takes from frame state (`activeClipRadii`, `order: 0`,
+  `activeLayer`). Defaults are a square mask, 0 and 0, so every earlier call
+  draws as before and PT-H's pins do not move.
 - **PT-I — no behaviour change on Apple.** `Text`, `Shaper` and `GlyphRaster`
   keep their production roles; the only production edit is PT-C's move.
   Counts: 1595 + the new tests, 97 goldens, 77 guards, 0 errors, 0 warnings on
