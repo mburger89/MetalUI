@@ -3,11 +3,11 @@
 Plan task 7, stage 5 (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 5).
 Design: `docs/superpowers/specs/2026-09-23-engine-stage-5-design.md`. Rulings
-`LR-CH`…`LR-CO` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`.
+`LR-CH`…`LR-CO` (design), `LR-CP` (critic round 1) and `LR-CQ`…`LR-CS` (lanes 1–3) in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`.
 Branch `feat/engine-stage-5` from `e5caefb`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-5`.
 
-**Status, 2026-09-23 (PDT): design committed; lane 1 landed (§6, `LR-CQ`); lanes 2 and 3 have not run.** Every
+**Status, 2026-09-23 (PDT): all three lanes landed — lane 1 (§6, `LR-CQ`), lane 2 (§7, `LR-CR`), lane 3 (§8, `LR-CS`); the stage is closed in §9–§16 and waits on the Record phase (CLAUDE.md, the divergence rows) and integration.** Every
 measurement in §2 was taken from a scratch test file
 (`Tests/MetalUITests/ZZScratchStage5.swift`, kept in the session scratchpad,
 never committed) and one temporary edit to `ListTests.swift` restored from a `cp`
@@ -350,3 +350,217 @@ identical**. Lock probe at 04:02 PDT: `CGSSessionScreenIsLocked = 1`,
 Nothing of lane 2's. The erratum to record §27 §8.2 (`LR-CN`) belongs to the
 Record phase, as `LR-CN` says.
 
+
+## 8. Lane 3 — the must-not-move set through real windows (`LR-CO`; corrections `LR-CS`)
+
+Commits: `7c0c414` (`PresentationWindowTests` 3.1–3.6, the two in-flow pins 3.7–3.8
+parameterised, `AuthorityCoverage` 74 → 82), `be5c697` (3.3's layout-phase
+reading, after M3b as spelled was measured green), and the commit carrying this
+section (`LR-CS`, the spec's lane-3 rows corrected, §9–§16). Tests only:
+`PresentationWindowTests` (new), `DecorationPaintTests`, `EnvironmentTests`,
+`AuthorityCoverage`, `ZZAuthorityRollCall`.
+
+**What the six tests hold, each under both authorities through a real `Window`**
+over a `FakePlatformWindow`, each window opened only after the same content's
+`LayoutDifferential.compare` report is `try #require`d empty, and each hosted in a
+window-sized `DifferentialRoot` except 3.1:
+
+| # | test | holds |
+|---|---|---|
+| 3.1 | `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheelUnderBothAuthorities` | `demoContent()` as the root of a 920 window, modal up: over the `List` and outside the card the topmost opaque hitbox is the scrim at the window on layer 1; a wheel there is claimed and the list stays at 0 (`IN-W`); a card click keeps the modal, a scrim click dismisses it; then the same wheel scrolls the list by 37 (the separating arm). Pre-flighted in both modal states, through the harness **and** as the frame's root under diagnostics |
+| 3.2 | `aPresentationInsideAFadedSubtreeIsStillFadedUnderBothAuthorities` | a presentation at the window's (10, 10), declared in a 0.5-faded box at x 50, paints at half its unfaded alpha (`OM-AA`, divergence 46) |
+| 3.3 | `aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities` | inside `.environment(\.presentationProbe, 7).theme(.dark).disabled(d)`: dark (a sibling outside, light); disabled → no hitbox, no click, no focus (control: hit, 1 click, focused); the layout-phase reading is 7 |
+| 3.4 | `aPresentationsAccessibilityRecordAndFocusMatchUnderBothAuthorities` | the `inset(0)` scrim's "Close modal" record: a `.button`, a root of the tree, geometry the window on layer 1; the card inside focusable, focus survives a frame, a key reaches it |
+| 3.5 | `anAnimatedInsetInterpolatesItsValueUnderBothAuthorities` | `withAnimation(.linear(duration: 1))` `top` 10 → 50: 10 at the transition's first frame, **30** at half (required to differ from both endpoints), 50 at the end; pre-flighted in both end states |
+| 3.6 | `nestedPresentationsLandOnOneLayerUnderBothAuthorities` | a tooltip presentation inside the `inset(0)` scrim: no report, both hitboxes on layer 1, the tooltip at the window's (5, 5), outranking the scrim there and painting after it (`AP-H`) |
+
+3.7 `aDeferredPortalInsideAFadedSubtreeIsStillFaded(_:)` and 3.8
+`aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope(_:)` are the
+existing in-flow pins, parameterised: 3.7 pre-flights through the harness before
+its proposal window, 3.8 is a plain `Frame` that runs its proposal arm with
+diagnostics and requires an empty report.
+
+### 8.1 Suite
+
+At `be5c697`, `swift build --build-system native --build-tests` (0 `error:`, the
+only `warning:` SwiftPM's deprecation notice), then unfiltered `swift test
+--build-system native --no-parallel`: **`Test run with 1632 tests in 3 suites
+passed after 66.710 seconds`** (taken at `7c0c414`; every mutation run below at
+`be5c697` printed 1632 too) — 1626 + 6, the six `PresentationWindowTests`; 3.7
+and 3.8 move no count. The log carries `FR-J no-argument frame: succeeded=`
+(guards ran). No golden moved (`git diff --name-only e5caefb HEAD --
+'Tests/**/*.json'` empty); no guard added (77). `AuthorityCoverage.expected`
+**82**, read back green by `everyParameterisedScenarioRanUnderBothLayoutAuthorities`,
+whose contributing files are now fifteen (`DecorationPaintTests`,
+`EnvironmentTests` and `PresentationWindowTests` all sort before
+`ZZAuthorityRollCall`). Filtered, the eight lane-3 tests take 2.8 s, 2.6 s of it
+3.1 (four 920×920 demo renders of pre-flight and a 920 window).
+
+### 8.2 Red first
+
+The lane is tests-only and its subject landed in lane 1, so the red is the
+pre-lane-1 behaviour, taken as lanes 1 and 2 took theirs: `Deferred.swift`'s
+presentation `guard` made `guard false, …` in a scratch copy, filtered run,
+source restored from the copy, `git status --short` clean. **8 tests, 12 issues**:
+every `PresentationWindowTests` arm, both authorities, fails its pre-flight —
+
+- 3.1 `modal true: [stack.position, stack.inset]`;
+- 3.2, 3.3 `[box.position, box.inset]`; 3.5 `the end state: [box.position, box.inset]`;
+- 3.4 `[stack.position, stack.inset]`;
+- 3.6 `[box.position, box.inset, stack.position, stack.inset]` (the tooltip and the scrim).
+
+3.7 and 3.8 green under both authorities, as spec §7 predicted (their
+`Deferred`s are in-flow). Over lane 1's source (unchanged since `1f83f45`) all
+eight are green.
+
+### 8.3 Mutations
+
+Each: committed tree (`7c0c414` for M3a and the first M3b run, `be5c697` for the rest),
+source copied with `cp`, one edit, build (0 errors), **unfiltered** suite, source
+restored from the copy, `git status --short` empty after every one. Every run
+printed its summary line; every row is 1632 tests.
+
+| id | edit (file, branch) | issues | reddened |
+|---|---|---|---|
+| M3a | `Frame.pushLayer`: stash `opacityStack` in a static and clear it; `popLayer`: restore it (`LR-CS` item 5 — `opacityStack` is private, and `pushLayer` has no caller but the two `deferred`s) | 4 | 3.2 (both), 3.7 `aDeferredPortalInsideAFadedSubtreeIsStillFaded` (both) |
+| M3b | `Deferred.requestLayout`: `pass.withoutScrollContext { … }` wrapped in `frame.withEnvironment(frame.rootEnvironment) { … }` — at `7c0c414` | 0 | **none** — the theme and the gate are prepaint/paint readings `EnvironmentScope` re-pushes around the `Deferred` (`LR-CS` item 1) |
+| M3b | the same edit, at `be5c697` | 2 | 3.3 (both; the layout reading `[0]` for `[7]`) |
+| M3b′ | as M3b, plus `Deferred.prepaint`'s and `.paint`'s `pass.deferred { … }` each wrapped in the root environment | 12 | 3.3 (both, 4 each: theme, gate, disabled theme, reading), 3.8 `aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope` (both; `colour(12)` light), `aDisabledScopeReachesIntoDeferredContent` (clicks 1, focused) |
+| M3c | `lowerPresentation`: `length(animatedLeading)` → `length(leading)` and `length(animatedTrailing)` → `length(trailing)`, both occurrences each — lane 1's X1, the identical edit | 2 | 3.5 `.proposal` only (first frame 50 for 10; mid-flight 50, the `#require` stops the arm) |
+| M3d | `Frame.pushLayer`: `layerStack.append(activeLayer + Self.rootLayer)` | 3 | 3.6 (both; tooltip layer 2), `nestedDeferredsAllLandOnTheSameRootLayer` |
+| M1c | `lowerPresentation`: `frame.lowering.alias(node, to: root)` (W) deleted — lane 1's M1c re-run over lane 3 | 22 | lane 3: 3.1 `.proposal` (4: the hit at the wheel point is the `List`'s region at (240, 455); the list scrolls; the scrim click does not dismiss; the separating arm reads 74), 3.4 `.proposal` (record (80, 85) 40×30), 3.6 `.proposal` (no window-sized scrim hitbox); and lane 1's and 2's: 1.1 (12), 1.2, 1.8 (2), 2.5 `.proposal` |
+
+### 8.4 Pixels and screen
+
+`docs/probes/demo-pixels/compare.sh <scratch> e5caefb be5c697`: every control at
+its recorded value (1048576, 1030498, 210027, 0, 1048576, 0; distinct 544 and
+216; indicator rects 0), and **all twelve images `differing=0`, scene
+identical**. Lock probe at 04:41 PDT: `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1` — locked, so `capture.sh` was not run (not owed).
+
+## 9. What landed — the stage
+
+- **A `Deferred` whose one content node is `.position(.absolute)` is a
+  presentation root under the proposal authority** (`LR-CH`): its content lowers
+  as element → greedy W on each stretched axis (aliased as the element's rect) →
+  padding for the given insets → a window-sized frame aligned per axis (`LR-CI`),
+  laid out in its own native run before the root in `computeRootLayout` (`LR-CM`),
+  and the `Deferred` hands its parent a 0×0 placeholder aliased to the content's
+  element rect, which every lowered container drops
+  (`LoweringState.droppingPresentations`, `LR-CK`). An in-flow `Deferred` lowers
+  as before; the legacy authority is untouched.
+- **Reports by name** where the legacy containing block is not the window
+  (`deferred.containingBlock`, `deferred.nested`, `deferred.root`,
+  `deferred.amended` — owner stage 9, `LR-CL`), for `minSize`/`maxSize` on an
+  absolute box's auto axis (`…absolute`, stage 8, `LR-CJ`), and for an absolute
+  box outside a `Deferred` (`position`/`inset` at the consumer, stage 10,
+  `LR-CK`).
+- **Two deliberate proposal-only answers** (`LR-CJ`), pinned by name: content
+  measured at window − inset on an axis with one inset, and a box stretched below
+  its padding keeping its inset box.
+- **The exit test** (spec §8): 5 of `DeferredTests`' 10 element-level scenarios
+  and 1 of 1 in `AbsoluteOverlayTests` under both authorities, plus the exit test
+  2.7 — lane 2 (§7). **The must-not-move set** through real windows under both
+  authorities — lane 3 (§8).
+- **The demo with the modal on lowers with an empty report** (1.8), which removes
+  the last `Deferred`/absolute entry stage 6b would have trapped on.
+- Divergence 9 survives on both authorities; 10 unchanged (agrees with SwiftUI's
+  presentation, P4/P5); 11 legacy-only from here (`LR-CN`). The rows' amendments
+  belong to the Record phase.
+
+## 10. Tests per file
+
+1617 at `e5caefb` → **1632** (+15). Guards 77, goldens 97, both unchanged.
+
+| file | change | count |
+|---|---|---|
+| `PresentationLoweringTests.swift` | new (lane 1: 1.1–1.7) | +7 |
+| `PresentationWindowTests.swift` | new (lane 3: 3.1–3.6) | +6 |
+| `DeferredTests.swift` | four scenarios parameterised and hosted, 2.5 new, five pass-level tests say why they are not parameterised (lane 2) | +1 |
+| `AbsoluteOverlayTests.swift` | divergence 11 parameterised, 2.7 new (lane 2) | +1 |
+| `ListTests.swift` | 2.8 parameterised (lane 2) | 0 |
+| `DecorationPaintTests.swift`, `EnvironmentTests.swift` | one pin each parameterised (lane 3: 3.7, 3.8) | 0 |
+| `LoweringCorpusTests.swift` | the census's modal half re-derived (lane 1: 1.8) | 0 |
+| `LayoutAuthorityTests.swift` | the site roll's `deferred` arm (lane 1: 1.9) | 0 |
+| `AuthorityCoverage.swift`, `ZZAuthorityRollCall.swift` | 67 → 74 (lane 2) → **82** (lane 3); fifteen contributing files | 0 |
+
+## 11. Red runs, in one place
+
+Lane 1 §6.2 (9 tests, 128 issues over `83c6bd1`'s source); lane 2 §7.2 (two of
+five scenarios red unhosted, 2.5 and 2.7 red with lane 1's branch / owning-stage
+line reverted in scratch); lane 3 §8.2 (8 tests, 12 issues with lane 1's branch
+disabled). **No red-before was taken by aborting the process** (`LR-BX`): every
+proposal window was pre-flighted, every trap is an exit test (1.6, 2.7).
+
+## 12. Mutations, in one place
+
+Lane 1 M1a–M1t and X1 (§6.3); lane 2 M2a, M2b, M2d, M2e (§7.3); lane 3 M3a, M3b
+(twice), M3b′, M3c, M3d and M1c re-run (§8.3). **Green mutants, each explained**:
+lane 1's X1 (owned by 3.5, and red there as M3c) and the first M3b (the spelling
+could not reach the phases it was named for; 3.3 gained a layout reading,
+`LR-CS`).
+
+## 13. Demo comparisons
+
+Every lane: `compare.sh` against `e5caefb`, all twelve `CN-R` images
+`differing=0`, scene identical, controls at their recorded values (§6.4, §7.4,
+§8.4). **`capture.sh` was never owed**: the screen was locked at every lane
+(03:11, 04:02, 04:41 PDT). No demo look is owed: production runs the legacy
+authority until stage 6b.
+
+## 14. Hazards
+
+- **3.1 writes the global `demoModel.showModal`** (and `animationDemoActive =
+  false`), restored by `defer`. `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`
+  sets both explicitly, so order does not matter today; a new demo test that
+  reads the model without setting it inherits whatever ran last.
+- **3.1 is the slowest lane-3 test** (2.6 s filtered): four 920×920 demo renders
+  of pre-flight plus a 920 window.
+- **The roll call now reads fifteen files' coverage** and depends on Swift
+  Testing's unspecified cross-file order (CLAUDE.md's CI hazard); it still names
+  what it had not seen.
+- **Every lane-3 scenario records coverage before `try #require(MTLCreateSystemDefaultDevice())`**,
+  so a display-less runner fails at the require without the roll call's second,
+  misleading failure (the `AccessibilityDefaultsTests` hazard CLAUDE.md lists does
+  not grow).
+- **The layout-phase half of "a presentation keeps its declaring scope" is pinned
+  by one reading** (3.3's `LayoutEnvironmentProbe`); nothing else in the suite
+  reads the environment in layout inside a `Deferred`. `LayoutEnvironmentProbe`
+  forwards the three phases and does not mirror `Element`'s group hooks (`MC-B`)
+  — correct over a single `Box`, not a general wrapper.
+- **A proposal-authority regression in a presentation traps in a `Window`** and
+  truncates the run with no summary line; the pre-flights exist to make that a
+  failure. A new presentation window test owes one (and one per animated end
+  state).
+
+## 15. Deferred, each with an owner
+
+Unchanged from spec §10: the four `deferred.*` reports (stage 9); an absolute box
+outside a `Deferred`, `Position.relative`, `inset` on a static box, the public
+spelling of a presentation's insets (stage 10); `…absolute` and `size.percent` on
+an absolute box (stage 8); divergence 11's retirement (stage 9); root placement
+(stage 6b); numbering the two `LR-CJ` answers and amending divergence rows 9, 10
+and 11 (the Docs phase). Added by this lane: **the real-window capture**, owed
+whenever the screen is next unlocked against this branch (not owed for
+acceptance: no legacy path changed, and the offscreen twelve read 0).
+
+## 16. For the integrator
+
+- **Record number collision.** This file is `§28`, written against `e5caefb`;
+  `master` has since taken §28 for the portable text line (`42b9ab4`). At the
+  merge this record becomes **§29** (the renumbering precedent: record §23 §8,
+  §25 and §27 headers), and every "record §28" in this branch's spec, rulings,
+  test comments and this file must move with it — sweep `grep -rn "§28"` over
+  `docs/superpowers/specs/2026-09-23-engine-stage-5-design.md`,
+  `docs/superpowers/2026-09-17-engine-replacement-decisions.md` (`LR-CH`…`LR-CS`
+  only) and `Tests/MetalUITests/`, leaving portable text's own citations alone.
+- **Counts**: 1632 tests on this branch alone (1617 + 15), 97 goldens, 77 guards.
+  Merged with `master` (portable text's +8 over 1617): **1640** expected, to be
+  measured after `swift package clean`.
+- **`AuthorityCoverage.expected` is 82**; its literal and the roll call's
+  `#require` move together.
+- **Decisions doc**: next unused `LR-CT`.
+- **CLAUDE.md (Record phase)**: the `Deferred` paragraph (presentation root under
+  `.proposal`), the stage list (stage 5 → record §29, `LR-CH`…`LR-CS`), the
+  counts, the roll call's 67 → 82 and its file list, divergence rows 9/10/11
+  (record §04), and "no demo look owed until 6b". `AGENTS.md` copied after.

@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CS`** (stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ` and its lane 2 `LR-CR`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CT`** (stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -5836,3 +5836,57 @@ Pixels: the twelve `CN-R` images read 0 against `e5caefb`. The screen was locked
 at 04:02 PDT (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`): no
 capture owed.
 
+
+## LR-CS — stage 5 lane 3's corrections: a mutation that could not reach the phases it was named for, a layout-phase reading added, and three reddened sets as measured
+
+**Stage 5 lane 3** (record §28 §8). Tests only; the lane's commits are `7c0c414`
+(`PresentationWindowTests` 3.1–3.6, the two in-flow pins parameterised, roll call
+82) and `be5c697` (3.3's layout-phase reading). Suite **1632**. Measured:
+
+1. **M3b as the spec spelled it — `Deferred.requestLayout` wrapping its content in
+   the root environment — reddens nothing** (full suite, 1632 passed, at
+   `7c0c414`). The theme is a `PaintPass` reading and the disabled gate a
+   prepaint one (`Frame.registerHandlers`, `EV-D`), and `EnvironmentScope`
+   re-pushes its stored values around its content in prepaint and in paint
+   (`EnvironmentScope.swift`), so what a `Deferred` does to the environment in
+   layout never reaches either. The spelling does differ from the source — a
+   layout-phase reader inside the presentation sees the root — but nothing in the
+   suite read the environment in layout inside a `Deferred`. **So 3.3 gained that
+   reading** (`LayoutEnvironmentProbe`, a forwarding element reading a private
+   `presentationProbe` key in `requestLayout`, under `.environment(\.presentationProbe, 7)`),
+   and M3b as spelled now reddens 3.3 under both authorities (2 issues, the
+   reading 0 for 7). **M3b′ is added** — the root environment around all three of
+   `Deferred`'s phases — and reddens 3.3 (8 issues: theme, gate and reading),
+   3.8 `aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope`
+   under both (the 12pt box light) and `DisabledTests`'
+   `aDisabledScopeReachesIntoDeferredContent` (2 issues).
+2. **Spec §7's 3.7–3.8 row read "M3a, M3b"**: measured, **M3a** reddens 3.7
+   `aDeferredPortalInsideAFadedSubtreeIsStillFaded` (both) and 3.2 only; **M3b as
+   spelled reddens neither 3.7 nor 3.8**; 3.8's mutation is M3b′ (item 1).
+3. **M1c reddens more of lane 3 than the spec named, and only the proposal
+   arms**: 3.1 (4 issues — at the wheel point the topmost opaque hitbox is the
+   `List`'s region at (240, 455), so the wheel scrolls, the scrim click does not
+   dismiss and the separating arm reads 74, not 37), 3.4 (the record at the
+   card-sized (80, 85) 40×30) and — not predicted — 3.6 (no window-sized scrim
+   hitbox). The legacy arms cannot see it: M1c is a lowering edit.
+4. **M3d reddens the existing pass-level `nestedDeferredsAllLandOnTheSameRootLayer`
+   as well as 3.6** (both arms; the tooltip on layer 2). **M3c** (lane 1's X1,
+   the exact edit) reddens 3.5's proposal arm only: the transition's first frame
+   reads 50 for 10, and mid-flight 50 (the `try #require` that it differs from
+   both endpoints stops the test there).
+5. **M3a's mechanism**: `Frame.opacityStack` is private, so the mutation stashes
+   and clears it in `Frame.pushLayer` and restores it in `popLayer` (through a
+   static, not a stored property — `pushLayer` has no caller but the two
+   `deferred`s). Recorded because a reader re-running "`pass.deferred` resets the
+   opacity stack" cannot spell it in `Passes.swift`.
+
+**The red-befores**, as spec §7 predicted them: with lane 1's `Deferred` branch
+disabled in a scratch copy (`guard false, …`, restored), every
+`PresentationWindowTests` arm fails its pre-flight — `[stack.position,
+stack.inset]` (3.1 modal on, 3.4), `[box.position, box.inset]` (3.2, 3.3, 3.5's
+end state), `[box.position, box.inset, stack.position, stack.inset]` (3.6);
+3.7 and 3.8 are green under both authorities (in-flow `Deferred`s).
+
+Pixels: the twelve `CN-R` images read 0 against `e5caefb`. The screen was locked
+at 04:41 PDT (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`): no
+capture owed.
