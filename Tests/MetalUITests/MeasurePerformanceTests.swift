@@ -42,7 +42,7 @@ struct MeasurePerformanceTests {
     static func render(_ content: () -> some Element,
                        size: Size<Pixels> = Size(width: Pixels(920), height: Pixels(560)),
                        states: StateTable, shapingCache: ShapingCache = ShapingCache(),
-                       authority: LayoutAuthority = .legacy,
+                       authority: LayoutAuthority = Frame.defaultLayoutAuthority,
                        reportsUnlowerableFields: Bool = false) -> Frame {
         let frame = Frame(contentSize: size, scaleFactor: 2, stateTable: states,
                           shapingCache: shapingCache, theme: .dark,

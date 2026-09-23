@@ -139,10 +139,11 @@ public final class Window {
     }
 
     /// The layout authority every frame this window builds runs under (plan task
-    /// 7, ruling LR-B): `.legacy` until stage 6b switches the default. A write
-    /// marks the window dirty, as `environment`'s does, a no-op included.
-    /// **Internal**, pinned by `aPlainImportCannotChooseTheLayoutAuthority`.
-    var layoutAuthority: LayoutAuthority = .legacy {
+    /// 7, ruling LR-B): `Frame.defaultLayoutAuthority`, `.proposal` since stage
+    /// 6b's switch (`LR-DF`). A write marks the window dirty, as `environment`'s
+    /// does, a no-op included. **Internal**, pinned by
+    /// `aPlainImportCannotChooseTheLayoutAuthority`.
+    var layoutAuthority: LayoutAuthority = Frame.defaultLayoutAuthority {
         didSet { setNeedsRedraw() }
     }
 

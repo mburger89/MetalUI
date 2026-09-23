@@ -189,7 +189,7 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
 @MainActor
 private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
                    theme: Theme = .light, table: StateTable = StateTable(),
-                   authority: LayoutAuthority = .legacy) -> Frame {
+                   authority: LayoutAuthority = Frame.defaultLayoutAuthority) -> Frame {
     Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: scale,
           stateTable: table, theme: theme, layoutAuthority: authority)
 }
@@ -976,7 +976,7 @@ private func branching(_ a: Int, _ b: Int, _ c: Int) -> ArrayGroup<Level2> {
 }
 
 @MainActor
-private func counts<C: ElementGroup>(_ content: C, authority: LayoutAuthority = .legacy)
+private func counts<C: ElementGroup>(_ content: C, authority: LayoutAuthority = Frame.defaultLayoutAuthority)
     throws -> (push: Int, snapshot: Int, transform: Int) {
     let f = frame(400, 400, authority: authority)
     var root = Box(content: content)

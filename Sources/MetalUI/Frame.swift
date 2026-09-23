@@ -1482,7 +1482,7 @@ public final class Frame {
          focusedElement: GlobalElementID? = nil,
          transaction: Animation? = nil,
          collectsAccessibility: Bool = false,
-         layoutAuthority: LayoutAuthority = .legacy,
+         layoutAuthority: LayoutAuthority = Frame.defaultLayoutAuthority,
          reportsUnlowerableFields: Bool = false,
          recordsElementBounds: Bool = false) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
@@ -1516,8 +1516,17 @@ public final class Frame {
     /// Which engine this frame's legacy elements register with. See
     /// `LayoutAuthority`. **A `let`, for `collectsAccessibility`'s reason**: half
     /// a tree lowered is ruling SA-G's mixed tree. `Window` passes its own
-    /// `layoutAuthority`; a frame built anywhere else defaults to `.legacy`.
+    /// `layoutAuthority`; a frame built anywhere else defaults to
+    /// `defaultLayoutAuthority`.
     let layoutAuthority: LayoutAuthority
+
+    /// The authority a frame and a `Window` start under (plan task 7, stage 6b,
+    /// ruling `LR-DF`): **`.proposal`** — production runs the proposal engine.
+    /// One constant, so `Frame.init`'s default and `Window.layoutAuthority`'s
+    /// initial value cannot drift apart. Internal, as `layoutAuthority` is
+    /// (`aPlainImportCannotChooseTheLayoutAuthority`); pinned by
+    /// `aFrameAndAWindowDefaultToTheProposalAuthority`.
+    static let defaultLayoutAuthority: LayoutAuthority = .proposal
 
     /// Whether a site with no proposal lowering records an `UnlowerableField` and
     /// carries on instead of trapping. **Set only by tests** (the differential

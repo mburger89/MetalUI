@@ -49,7 +49,7 @@ private struct Item: Identifiable { let id: Int }
 @MainActor private func collect<E: Element>(_ element: E, stateTable: StateTable = StateTable(),
                                            width: Float = 300, height: Float = 300,
                                            collects: Bool = true,
-                                           authority: LayoutAuthority = .legacy)
+                                           authority: LayoutAuthority = Frame.defaultLayoutAuthority)
     -> (Frame, AccessibilityTree) {
     var element = element
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
