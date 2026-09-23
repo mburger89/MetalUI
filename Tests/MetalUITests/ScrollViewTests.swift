@@ -57,9 +57,9 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// What a wrong `requestLayout` (e.g. one that resolved the content node's
 /// height instead of letting it overflow) catches here: the content height
 /// would read 100, matching the viewport, and the second `#expect` reddens.
-@Test(arguments: ScrollAuthorityCoverage.authorities) @MainActor
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
 func theContentNodeOverflowsTheViewport(_ authority: LayoutAuthority) throws {
-    ScrollAuthorityCoverage.record(#function, authority)
+    AuthorityCoverage.record(#function, authority)
     var view = ScrollView(.vertical) {
         Column {
             Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
@@ -122,9 +122,9 @@ func theContentNodeOverflowsTheViewport(_ authority: LayoutAuthority) throws {
 /// expected width is `CTLineGetTypographicBounds` on each label's own
 /// single-line `CTLine`, summed. Nothing in `MetalUIText` or `MetalUILayout`
 /// contributes to the expectation.
-@Test(arguments: ScrollAuthorityCoverage.authorities) @MainActor
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
 func aScrollViewOfTextDoesNotShrinkItsContentToTheViewport(_ authority: LayoutAuthority) throws {
-    ScrollAuthorityCoverage.record(#function, authority)
+    AuthorityCoverage.record(#function, authority)
     let a = "The quick brown fox jumps over the lazy dog"
     let b = "Pack my box with five dozen liquor jugs"
     let ctFont = FontResolver.resolve(family: nil, size: 13).ctFont
@@ -166,9 +166,9 @@ func aScrollViewOfTextDoesNotShrinkItsContentToTheViewport(_ authority: LayoutAu
 /// Three rows, each its own `Box` with a background, so each emits its own
 /// `MUIRect` inside the clipped block — proving the radius reaches every
 /// primitive the clip covers, not just the first.
-@Test(arguments: ScrollAuthorityCoverage.authorities) @MainActor
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
 func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips(_ authority: LayoutAuthority) throws {
-    ScrollAuthorityCoverage.record(#function, authority)
+    AuthorityCoverage.record(#function, authority)
     // `.width(Pixels(50))` as well as the height: the legacy engine stretched
     // these rows to the 50pt viewport, the kernel viewport's cross answer is its
     // content's (`CN-M`), and a row that declares neither is 0 wide under the
@@ -224,9 +224,9 @@ func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips(_ authority: LayoutAut
 /// `cornerRadius` would pass the test above and every existing clip test
 /// (none of which reads `maskCornerRadii` back) while rounding every
 /// `ScrollView` in the corpus that never asked for it.
-@Test(arguments: ScrollAuthorityCoverage.authorities) @MainActor
+@Test(arguments: AuthorityCoverage.authorities) @MainActor
 func aScrollViewWithNoCornerRadiusClipsSquare(_ authority: LayoutAuthority) throws {
-    ScrollAuthorityCoverage.record(#function, authority)
+    AuthorityCoverage.record(#function, authority)
     var view = ScrollView(.vertical) {
         Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
         Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
@@ -248,44 +248,48 @@ func aScrollViewWithNoCornerRadiusClipsSquare(_ authority: LayoutAuthority) thro
 
 // MARK: - Plan task 7, stage 3, lane 3: the stage's exit criterion (spec 3.4)
 
-/// **3.4.** The roll call: every scroll scenario in `ScrollRoutingTests`,
-/// `ScrollIndicatorTests` and this file ran under **both** layout authorities.
+/// **3.4.** The roll call: every parameterised scenario in `ScrollRoutingTests`,
+/// `ScrollIndicatorTests`, `ListTests` and this file ran under **both** layout
+/// authorities.
 ///
 /// **Why a test at all.** A `@Test(arguments:)` test counts as ONE test in the
-/// summary line — measured on this suite, `LR-BI` — so parameterising 34
+/// summary line — measured on this suite, `LR-BI` — so parameterising 54
 /// scenarios over two authorities moves the total by nothing and the exit
 /// criterion cannot be read off it. Reducing the `arguments:` list to `[.legacy]`
-/// (mutation **M3c**) would pass every test, move no count, and deliver none of
-/// the stage.
+/// (stage 3's mutation **M3c**, stage 4's **M3a**) would pass every test, move no
+/// count, and deliver none of the stage.
 ///
 /// **Two halves, and only one of them is here** (`LR-BN`; see
-/// `ScrollAuthorityCoverage`'s doc for why the design's "counter" shape could not
-/// be made falsifiable). `ScrollAuthorityCoverage.record` verifies the whole set
+/// `AuthorityCoverage`'s doc for why the design's "counter" shape could not
+/// be made falsifiable). `AuthorityCoverage.record` verifies the whole set
 /// the moment the last expected name arrives, wherever that arm lands in the run.
-/// This test holds the hand-derived literals: the 34 names, and the `arguments:`
+/// This test holds the hand-derived literals: the 54 names, and the `arguments:`
 /// list itself.
 ///
-/// **Declared at the end of the last of the three files**, because its third
+/// **Declared at the end of the last of the four files**, because its third
 /// `#require` reads what has been recorded so far. Swift Testing runs a file's
-/// tests in source order and the files in path order —
+/// tests in source order and the files in path order — `ListTests` →
 /// `ScrollIndicatorTests` → `ScrollRoutingTests` → `ScrollViewTests`, measured
-/// twice at this HEAD — so by here all 34 have run. If that ever changes this
-/// fails naming the scenarios it had not yet seen, rather than passing quietly.
-@Test @MainActor func everyScrollScenarioRanUnderBothLayoutAuthorities() throws {
+/// twice at stage 4 lane 3's HEAD as it was measured twice at stage 3's — so by
+/// here all 54 have run. `ListTests.swift` joins the argument rather than being
+/// assumed safe by it: see `AuthorityCoverage`'s own doc, which now states the
+/// path-sort the claim rests on. If that ever changes this fails naming the
+/// scenarios it had not yet seen, rather than passing quietly.
+@Test @MainActor func everyParameterisedScenarioRanUnderBothLayoutAuthorities() throws {
     try #require(LayoutAuthority.allCases.count == 2,
                  "the exit criterion is 'both authorities'; a third would need every literal in the three suites re-derived")
-    try #require(ScrollAuthorityCoverage.authorities == LayoutAuthority.allCases,
+    try #require(AuthorityCoverage.authorities == LayoutAuthority.allCases,
                  "every scenario is declared over this one list — M3c reduces it and nothing else would say so")
-    try #require(ScrollAuthorityCoverage.expected.count == 34,
-                 "the hand-derived scenario count: 16 routing + 14 indicator + 4 ScrollViewTests")
+    try #require(AuthorityCoverage.expected.count == 54,
+                 "the hand-derived scenario count: 16 routing + 14 indicator + 4 ScrollViewTests + 20 ListTests")
 
-    let missing = ScrollAuthorityCoverage.expected.subtracting(ScrollAuthorityCoverage.seen.keys).sorted()
+    let missing = AuthorityCoverage.expected.subtracting(AuthorityCoverage.seen.keys).sorted()
     try #require(missing.isEmpty,
                  "these scenarios recorded no coverage: \(missing)")
     let all = Set(LayoutAuthority.allCases)
-    for (name, authorities) in ScrollAuthorityCoverage.seen.sorted(by: { $0.key < $1.key }) {
+    for (name, authorities) in AuthorityCoverage.seen.sorted(by: { $0.key < $1.key }) {
         #expect(authorities == all, "\(name) ran under \(authorities.count) authority, not both")
     }
-    #expect(ScrollAuthorityCoverage.verifiedWholeSet,
+    #expect(AuthorityCoverage.verifiedWholeSet,
             "record() must have verified the whole set once the last scenario arrived")
 }

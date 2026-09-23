@@ -12,7 +12,7 @@
 // the commit under test, at `Tests/MetalUITests/ZZDemoPixels.swift`, by
 // `compare.sh` next to it — see that script's header for the whole method. It
 // is named `ZZ…` so Swift Testing's path-order file walk runs it last, which
-// keeps it out of the way of `ScrollAuthorityCoverage`'s roll-call ordering
+// keeps it out of the way of `AuthorityCoverage`'s roll-call ordering
 // argument.
 //
 // **Twelve images, and what each is for.** Eight of the legacy demo at 1024²

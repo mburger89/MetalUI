@@ -2,15 +2,21 @@ import Testing
 @testable import MetalUI
 
 // Plan task 7, stage 3, lane 3 (`LR-BI`, corrected by `LR-BN`): the roll call the
-// stage's exit criterion is read off.
+// stage's exit criterion is read off. **Renamed from `ScrollAuthorityCoverage` by
+// stage 4's lane 3** (`LR-CB`), in the same commit that added `ListTests`'
+// twenty scenarios to it: a name that says "scroll" over a set containing a
+// `List`'s windowing scenarios is a name that lies to the next reader, and the
+// same goes for `everyScrollScenarioRanUnderBothLayoutAuthorities`, now
+// `everyParameterisedScenarioRanUnderBothLayoutAuthorities`.
 //
-// `ScrollRoutingTests`, `ScrollIndicatorTests` and `ScrollViewTests` run their
-// scenarios under **both** layout authorities, as `@Test(arguments:)` cases. A
-// parameterised test counts as ONE test in the summary line, so the suite total
-// cannot say whether the second authority ran — hence this registry and
-// `everyScrollScenarioRanUnderBothLayoutAuthorities` (spec 3.4), which reads it.
+// `ScrollRoutingTests`, `ScrollIndicatorTests`, `ScrollViewTests` and `ListTests`
+// run their scenarios under **both** layout authorities, as `@Test(arguments:)`
+// cases. A parameterised test counts as ONE test in the summary line, so the
+// suite total cannot say whether the second authority ran — hence this registry
+// and `everyParameterisedScenarioRanUnderBothLayoutAuthorities` (spec 3.4),
+// which reads it.
 
-/// Every parameterised scroll scenario's name, and which authorities it has been
+/// Every parameterised scenario's name, and which authorities it has been
 /// seen under this run.
 ///
 /// **Not a counter of executions** (this is `LR-BN`'s correction to `LR-BI`).
@@ -24,29 +30,52 @@ import Testing
 /// - **`record` itself verifies the whole set** the moment the last expected name
 ///   arrives, so in an unfiltered run the completeness check fires exactly once,
 ///   inside whichever arm completes the set, whatever the order.
-/// - `everyScrollScenarioRanUnderBothLayoutAuthorities` holds the hand-derived
-///   literals — the 34 names and the `arguments:` list itself — and reads what has
+/// - `everyParameterisedScenarioRanUnderBothLayoutAuthorities` holds the hand-derived
+///   literals — the 54 names and the `arguments:` list itself — and reads what has
 ///   been recorded by the time it runs.
 ///
 /// **The second half does depend on order, and the dependency is measured rather
 /// than assumed**: Swift Testing runs a file's tests in source order and the files
-/// in path order, so `ScrollIndicatorTests` → `ScrollRoutingTests` →
-/// `ScrollViewTests`, and 3.4 is declared at the END of the last of the three.
-/// Measured twice at this HEAD, identical both times. If that ever changes the
-/// test fails **naming the scenarios it had not yet seen**, rather than passing
-/// quietly — which is why the completeness check above does not live here.
+/// in path order, so `ListTests` → `ScrollIndicatorTests` → `ScrollRoutingTests` →
+/// `ScrollViewTests`, and 3.4 is declared at the END of the last of the four.
+/// Measured twice at this HEAD, identical both times.
+///
+/// **Stage 4's lane 3 added `ListTests.swift` and re-measured rather than
+/// inheriting the argument** (`LR-CB`). The stage-3 version of this paragraph
+/// named three files and did not say that the claim rests on where the new files
+/// sort. It does: `Tests/MetalUITests/ListTests.swift` sorts before every
+/// `Tests/MetalUITests/Scroll*.swift`, so the roll call still runs last. A file
+/// added later whose path sorts AFTER `ScrollViewTests.swift` would break this
+/// half — which is the case `ZZDemoPixels.swift`'s `ZZ…` prefix was chosen to
+/// avoid, and the reason `docs/probes/demo-pixels/` keeps it out of the suite.
+/// `ListLoweringTests.swift` also arrived in this stage and is **not** in the
+/// argument, because it contributes no name: its nine tests each run both
+/// authorities inside one body through `LayoutDifferential.compare`, so none of
+/// them is a `@Test(arguments:)` case and none calls `record`.
+///
+/// If the ordering ever changes the test fails **naming the scenarios it had not
+/// yet seen**, rather than passing quietly — which is why the completeness check
+/// above does not live here.
 @MainActor
-enum ScrollAuthorityCoverage {
-    /// The single `arguments:` list every parameterised scroll scenario is
-    /// declared over. **Mutation M3c edits this**, and 3.4 reads it: a lane that
-    /// quietly reduced it to `[.legacy]` would otherwise pass every test and move
-    /// no count.
+enum AuthorityCoverage {
+    /// The single `arguments:` list every parameterised scenario is
+    /// declared over. **Mutations M3c (stage 3) and M3a (stage 4) edit this**, and
+    /// 3.4 reads it: a lane that quietly reduced it to `[.legacy]` would otherwise
+    /// pass every test and move no count.
     /// **`nonisolated`**: `@Test(arguments:)` evaluates its list outside any
     /// actor, so a main-actor-isolated one does not compile.
     nonisolated static let authorities: [LayoutAuthority] = LayoutAuthority.allCases
 
-    /// The 34 scenario names, written out by hand before the first run (practices
+    /// The 54 scenario names, written out by hand before the first run (practices
     /// shape 13: a count a later loop indexes on is a literal, not a derivation).
+    ///
+    /// **34 + 20 since stage 4's lane 3.** `ListTests` has 22 `@Test`s; two are
+    /// not here and each says so at its own declaration:
+    /// `aListInsideADeferredIgnoresTheEscapedScrollersOffset`, because `Deferred`
+    /// as a presentation root is stage 5's, and
+    /// `aLegacySpelledListRowAbortsAProductionProposalFrame`, which is a
+    /// child-process probe about the spelling the lane replaced and has no
+    /// authority argument to take.
     ///
     /// **34, not the 37 the design predicted.** `ScrollViewTests`' three
     /// `ScrollChrome.clamp` tests — `theOffsetClampsToTheScrollableRange`,
@@ -94,6 +123,27 @@ enum ScrollAuthorityCoverage {
         "aScrollViewOfTextDoesNotShrinkItsContentToTheViewport",
         "aScrollViewsCornerRadiusReachesEveryPrimitiveItClips",
         "aScrollViewWithNoCornerRadiusClipsSquare",
+        // ListTests (20) — stage 4, lane 3 (`LR-BW`, `LR-CB`)
+        "aListSizesItselfToCountTimesRowHeight",
+        "aRowKeepsItsIdentityWhenItsPositionChanges",
+        "aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent",
+        "paddingOnAListDoesNotShrinkItsRowsBelowRowHeight",
+        "distinctRowsGetDistinctIdentities",
+        "anEmptyListHasZeroHeightAndTrapsNothing",
+        "aWidthModifierOnAListReachesItsLayoutNode",
+        "aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan",
+        "aWindowedListStillReportsItsFullContentHeight",
+        "aWindowedRowSitsAtItsAbsoluteOffsetNotTheWindowsTop",
+        "aZeroRowHeightDoesNotTrapOnceAScrollContextIsPresent",
+        "aPresentContextWithZeroViewportExtentBuildsEveryRow",
+        "anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing",
+        "aScrolledListsSpacerDoesNotShrinkUnderPadding",
+        "aFractionalOffsetRoundsFirstDownAndLastUp",
+        "aVerticalListInsideAHorizontalScrollViewBuildsEveryRow",
+        "aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows",
+        "theListsSpacerIsANodeNotAnElement",
+        "aListInTheDifferentialHarnessReachesABoundedWindow",
+        "aListsSceneAndHitboxesAreUnchangedByTheGroup",
     ]
 
     private(set) static var seen: [String: Set<LayoutAuthority>] = [:]
@@ -102,7 +152,7 @@ enum ScrollAuthorityCoverage {
     /// half ran" from "it never ran because the run was filtered".
     private(set) static var verifiedWholeSet = false
 
-    /// Called first thing by every parameterised scroll scenario, with `#function`
+    /// Called first thing by every parameterised scenario, with `#function`
     /// and the authority its arm is running under.
     ///
     /// Raises its own issues, so a scenario whose name is not in `expected` — a
@@ -115,13 +165,13 @@ enum ScrollAuthorityCoverage {
     /// when the last expected name first arrives every OTHER name has had all its
     /// arms — but that name itself has had exactly one, and including it would
     /// make this fire on every healthy run. The one scenario it cannot speak for
-    /// is covered by `everyScrollScenarioRanUnderBothLayoutAuthorities`, which
+    /// is covered by `everyParameterisedScenarioRanUnderBothLayoutAuthorities`, which
     /// runs after all of them.
     static func record(_ function: String, _ authority: LayoutAuthority,
                        sourceLocation: SourceLocation = #_sourceLocation) {
         let name = String(function.prefix { $0 != "(" })
         #expect(expected.contains(name),
-                "\(name) records coverage but is not in ScrollAuthorityCoverage.expected — add it there (and re-derive the 34)",
+                "\(name) records coverage but is not in AuthorityCoverage.expected — add it there (and re-derive the 54)",
                 sourceLocation: sourceLocation)
         seen[name, default: []].insert(authority)
         guard !verifiedWholeSet, Set(seen.keys) == expected else { return }
