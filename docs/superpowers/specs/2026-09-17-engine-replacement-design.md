@@ -27,8 +27,8 @@ It departs from §4.1 row 4's wording in two ruled places — the windowed layou
 answers `rowHeight × logicalCount` on the height rather than probe K6's greedy
 answer (`LR-BR`), and `ListTests`' custom rows are re-spelled through the
 legacy lowering rather than as native probe leaves (`LR-BW`). **Stage 5
-(`Deferred`'s absolute content as a presentation root) has landed on
-`feat/engine-stage-5`, not yet merged** (record §28, spec
+(`Deferred`'s absolute content as a presentation root) has landed,
+merged with `master` at `42b9ab4`** (record §29, spec
 [`2026-09-23-engine-stage-5-design.md`](2026-09-23-engine-stage-5-design.md)):
 it matches §4.1 row 5's wording, and its own two proposal-only answers
 (`LR-CJ`) are noted there rather than as a departure from this table. §4.1's

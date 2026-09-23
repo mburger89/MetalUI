@@ -961,7 +961,7 @@ not.
 
 ## 2026-09-23: 9, 10 and 11 amended (plan task 7 stage 5)
 
-Record §28; rulings `LR-CH`…`LR-CS` in
+Record §29; rulings `LR-CH`…`LR-CS` in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **No number is
 retired and none is added** — the table stays at **fifty-eight**. All three
 amendments are **proposal-authority only**: production still runs the legacy
@@ -1000,7 +1000,7 @@ authority until stage 6b, so nothing here is production-visible yet.
 
 **An erratum to record §27, found while measuring these:** §27 §8.2 says
 `aListInsideADeferredIgnoresTheEscapedScrollersOffset` "aborts" under
-`.proposal`. Measured at `e5caefb` (record §28 §2.3), switched to `.proposal`
+`.proposal`. Measured at `e5caefb` (record §29 §2.3), switched to `.proposal`
 it **passes**; the claim was never run. It was not a divergence row and
 retracts nothing here — noted because it was found by the same measurement
 pass.

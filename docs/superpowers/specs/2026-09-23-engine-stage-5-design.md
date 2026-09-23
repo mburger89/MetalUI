@@ -3,15 +3,15 @@
 **Status, 2026-09-23 (PDT): DELIVERED — all three lanes implemented, all
 three verified `ok`.** Lane 1's commits are `b447c9a` (red first), `1f83f45`
 (source) and `97306d4` (corrections); its corrections are `LR-CQ` and record
-§28 §6. Lane 2's are `52ff491` (red first) and `985c443` (hosted); its
-corrections are `LR-CR` and record §28 §7. Lane 3's are `7c0c414` and
-`be5c697`; its corrections are `LR-CS` and record §28 §8. Suite **1632**
+§29 §6. Lane 2's are `52ff491` (red first) and `985c443` (hosted); its
+corrections are `LR-CR` and record §29 §7. Lane 3's are `7c0c414` and
+`be5c697`; its corrections are `LR-CS` and record §29 §8. Suite **1632**
 tests, 97 goldens, 77 guards, none moved. Every measurement below was taken on
 `feat/engine-stage-5` at `e5caefb` in
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-5`, from a scratch test file
 (`ZZScratchStage5.swift`) and one temporary edit to `ListTests.swift`, both
 restored before commit with `git status --short` showing only this design's
-docs and probe; the measurements are in `docs/record/28-engine-replacement-stage-5.md`
+docs and probe; the measurements are in `docs/record/29-engine-replacement-stage-5.md`
 §2. Rulings `LR-CH`…`LR-CO`, critic round 1's `LR-CP`, and lanes 1–3's
 `LR-CQ`…`LR-CS`, in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
@@ -101,7 +101,7 @@ its differential, the same box inside `Deferred` at (5, 5) with the whole
 ### 2.2 Both suites' trees under the proposal authority, today
 
 Scratch **S5** (plain `Frame`, the tree as root) and **S6**
-(`LayoutDifferential.compare`), record §28 §2.2:
+(`LayoutDifferential.compare`), record §29 §2.2:
 
 - **The four in-flow trees lower with no diagnostic.** In the harness, the
   hoist tree agrees in all 5 ids with scenes, hitboxes, accessibility and state
@@ -128,7 +128,7 @@ the record carries the erratum (`LR-CN`).
 
 ### 2.4 The legacy engine's absolute answers, measured
 
-Scratch **S5**/**L** inside `Box { Deferred { … } }` (record §28 §2.4); the
+Scratch **S5**/**L** inside `Box { Deferred { … } }` (record §29 §2.4); the
 columns are what the lowering must reproduce or rule:
 
 | shape (window 200×100 unless noted) | legacy rect |
@@ -387,7 +387,7 @@ happens (CLAUDE.md).
 Three, sequential in one worktree. Each lane commits its implementation first,
 then runs its mutations (commit, restore from a `cp` copy, full unfiltered
 suite, `git status --short` after each, every reddened test named), then appends
-its section to record §28 and its corrections ruling (the next unused `LR-`
+its section to record §29 and its corrections ruling (the next unused `LR-`
 letter), and re-takes the twelve `CN-R` images. **No lane takes a red-before by
 aborting the process** (`LR-BX`): every proposal-authority window or production
 frame in a new test is pre-flighted under diagnostics with `try #require` on an

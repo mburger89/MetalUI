@@ -265,7 +265,7 @@ nothing sets it until stage 6b — so no row is deleted here either.
 
 ## 2026-09-23: no row changed at engine replacement stage 5
 
-Record §28; rulings `LR-CH`…`LR-CS`. **Checked and none added, edited or
+Record §29; rulings `LR-CH`…`LR-CS`. **Checked and none added, edited or
 deleted.** Stage 5's new consumer-side reports
 (`deferred.containingBlock`/`.nested`/`.root`/`.amended`, `<site>.minSize`/
 `maxSize.absolute`, and `position`/`inset` moved to the consumer for an

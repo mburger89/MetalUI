@@ -550,9 +550,9 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   14, task still open.* Spec `specs/2026-09-23-engine-stage-5-design.md`;
   rulings `LR-CH`…`LR-CS` in `../2026-09-17-engine-replacement-decisions.md`
   (the same doc as stages 1–4); probe `swiftui-overlay-presentation.swift`
-  revision 2 (group Q added; P and H re-run byte-identical); record §28 (this
-  branch — renumbered §29 at merge with `master`, whose portable-text line
-  already took §28). **Stage 5 delivered** (three lanes, each with its own
+  revision 2 (group Q added; P and H re-run byte-identical); record §29
+  (written as §28 and renumbered at the merge with `master` at `42b9ab4`,
+  whose portable-text line had already taken §28). **Stage 5 delivered** (three lanes, each with its own
   mutation table, all verified `ok`): a `Deferred` whose one content node is
   `.position(.absolute)` is now a presentation root under the proposal
   authority (`LR-CH`) — element → greedy W on each stretched axis (aliased as

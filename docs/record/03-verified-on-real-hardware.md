@@ -1371,7 +1371,7 @@ Record §25. Written into the root `CLAUDE.md`'s human-verification bullet at th
 
 ## 2026-09-23: one row added at engine replacement stage 5
 
-Record §28. Written into the root `CLAUDE.md`'s human-verification bullet at
+Record §29. Written into the root `CLAUDE.md`'s human-verification bullet at
 the `feat/engine-stage-5` Docs phase and recorded here in full.
 
 - **Release-window capture of the default demo and the preview against

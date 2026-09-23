@@ -108,13 +108,10 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-5` (2026-09-23 — plan task 7 stage 5, branched from
-`e5caefb`, before `master`'s portable-text merge) the suite reports **1632
+On `feat/engine-stage-5` (2026-09-23 — plan task 7 stage 5, merged with the
+portable text line on `master` at `42b9ab4`) the suite reports **1640
 tests**, in one summary line over three suites. That total includes **97**
 layout goldens generated from WebKit and **77** `swiftc -typecheck` guards.
-(`master` itself, at `e5caefb`, was 1617; its later portable-text merge is
-1625, a different +8 from this branch's +15 — the two land together at
-integration.)
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them.
@@ -319,19 +316,21 @@ transforms, and text colour animation.
   for its third stage — scrolling and `Component` distribution —
   [`27-engine-replacement-stage-4.md`](docs/record/27-engine-replacement-stage-4.md)
   for its fourth stage — the windowed proposal `List` — and
-  [`28-engine-replacement-stage-5.md`](docs/record/28-engine-replacement-stage-5.md)
-  for its fifth stage — `Deferred` as a presentation root (written on
-  `feat/engine-stage-5`, not yet merged; `master`'s `28` is the portable-text
-  line, so this one is renumbered `29` at merge). Four files are
+  [`29-engine-replacement-stage-5.md`](docs/record/29-engine-replacement-stage-5.md)
+  for its fifth stage — `Deferred` as a presentation root (written as `28`
+  and renumbered `29` at its merge, because `master`'s portable-text line had
+  already published `28`). Five files are
   not task tracks:
   [`19-claude-md-full-2026-09-21.md`](docs/record/19-claude-md-full-2026-09-21.md)
   is the root `CLAUDE.md` as it read before it was cut to rules only,
   [`20-portable-scene.md`](docs/record/20-portable-scene.md) is the
   `MetalUIScene` move, and
   [`24-freetype-rasterizer.md`](docs/record/24-freetype-rasterizer.md) is the
-  FreeType rasterizer (`MetalUIFreeType`), and
+  FreeType rasterizer (`MetalUIFreeType`),
   [`26-harfbuzz-shaper.md`](docs/record/26-harfbuzz-shaper.md) is the
-  HarfBuzz shaper (`MetalUIHarfBuzz`).
+  HarfBuzz shaper (`MetalUIHarfBuzz`), and
+  [`28-portable-text.md`](docs/record/28-portable-text.md) is the portable
+  text pipeline (`MetalUIPortableText`).
 - [`docs/superpowers/`](docs/superpowers/) — a decisions document per
   completed milestone, each ruling with its reasoning and what it costs if wrong.
 - SwiftUI alignment:
@@ -356,9 +355,8 @@ transforms, and text colour animation.
     [stage 3](docs/superpowers/specs/2026-09-22-engine-stage-3-design.md)
     [stage 4](docs/superpowers/specs/2026-09-23-engine-stage-4-design.md)
     and [stage 5](docs/superpowers/specs/2026-09-23-engine-stage-5-design.md)
-    specs (plan task 7, stages 1, 2, G, 3, 4 and 5 of 14 landed — stage 5 on
-    `feat/engine-stage-5`, not yet merged: legacy elements lower onto the
-    kernel under an internal proposal authority, with SwiftUI's flex-item
+    specs (plan task 7, stages 1, 2, G, 3, 4 and 5 of 14 landed — legacy
+    elements lower onto the kernel under an internal proposal authority, with SwiftUI's flex-item
     semantics, scrolling, `Component` distribution, a windowed `List` and
     `Deferred`'s absolute content as a presentation root; production still
     uses the CSS engine)

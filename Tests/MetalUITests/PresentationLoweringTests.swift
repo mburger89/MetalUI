@@ -18,7 +18,7 @@ import MetalUICore
 // **Diagnostics are compared by their printed description** (`"box.position"`),
 // not by `UnlowerableField` values, so that this file compiled against the source
 // before `LoweringSite.deferred` existed and its red-before could be taken by
-// running it (record §28, lane 1).
+// running it (record §29, lane 1).
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
 private func dim(_ v: Float) -> MetalUICore.Dimension { .length(.pixels(Pixels(v))) }

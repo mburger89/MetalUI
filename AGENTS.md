@@ -36,8 +36,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-CT`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
-  `SH-L`; rulings in its spec, no separate decisions doc). A numbered citation
-  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`) is a typo; sweep
+  `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-J`;
+  rulings in its spec, no separate decisions doc). A numbered citation
+  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
@@ -56,7 +57,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   7 stage 4 `LR-BQ`…`LR-CG` (§27, spec
   `specs/2026-09-23-engine-stage-4-design.md`, same decisions doc; **no new
   probe** — its SwiftUI claims are `swiftui-stack-algorithms.swift`'s K6),
-  7 stage 5 `LR-CH`…`LR-CS` (§28 on `feat/engine-stage-5`, spec
+  7 stage 5 `LR-CH`…`LR-CS` (§29, spec
   `specs/2026-09-23-engine-stage-5-design.md`, same decisions doc, probe
   `swiftui-overlay-presentation.swift` revision 2 — group Q added, P and H
   re-run byte-identical), 7 stage G grids
@@ -65,20 +66,23 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Four record files are not tasks of
+  and G2 is unblocked rather than waiting. Five record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
-  `specs/2026-09-22-freetype-rasterizer-design.md`, rulings in that spec) and
+  `specs/2026-09-22-freetype-rasterizer-design.md`, rulings in that spec),
   §26 the HarfBuzz shaper (`SH-`, spec
-  `specs/2026-09-22-harfbuzz-shaper-design.md`, rulings in that spec).
+  `specs/2026-09-22-harfbuzz-shaper-design.md`, rulings in that spec) and
+  §28 the portable text pipeline (`PT-`, spec
+  `specs/2026-09-23-portable-text-design.md`, rulings in that spec).
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
   — each stage record was renumbered (24→25, 26→27) at its merge because the
   other line was pushed first (record §25's and §27's headers, and the
-  precedent in record §23 §8). **§28 (stage 5) is written on `feat/engine-stage-5`
-  from `e5caefb`, before `master`'s portable-text line took `28` for its own
-  record** — stage 5's record renumbers 28→29 at its merge, the same shape as
-  24→25 and 26→27.
+  precedent in record §23 §8). §28 was written as §27 and renumbered when
+  stage 4 reached `master` first. **§29 (stage 5) was written as §28** on
+  `feat/engine-stage-5` from `e5caefb` and renumbered 28→29 at its merge,
+  because `master`'s portable-text line had already published §28 — the same
+  shape as 24→25 and 26→27 (record §29's header).
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -95,34 +99,31 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5, branched
-  from `e5caefb` before `master`'s portable-text merge): 1632 tests, 97
+- **Counts (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
+  with `master` at `42b9ab4`, the portable text line): 1640 tests, 97
   goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:`, taken after
   `swift package clean` with `swift build --build-system native
   --build-tests` then unfiltered `swift test --build-system native
-  --no-parallel` (**one summary line**, `Test run with 1632 tests in 3 suites
-  passed`; four skipped: the two gated tests and the FreeType and HarfBuzz
-  oracles' gated measurement tests; the guards ran — the log carries `FR-J
-  no-argument frame: succeeded=`). Goldens unmoved against `e5caefb`
-  (`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` is empty).
-  **1632 = 1617 + 15**: lane 1 (the presentation root) +7, lane 2 (the exit
-  suites) +2, lane 3 (the must-not-move set through real windows) +6; record
-  §28. **This stage added no golden and no guard**, so 97 / 77 are unchanged,
-  the per-file list below is unchanged and so is the "all 77 guards skip
-  under the default build system" sentence. Before this stage: **1617 tests,
-  97 goldens, 77 typecheck guards** at `e5caefb` (`feat/engine-stage-4`
-  merged with `master` at `f5e5651`, the HarfBuzz shaper line): taken the
-  same way (**one summary line**, `Test run with 1617 tests in 3 suites
-  passed` — the extra suites are `MetalUIFreeTypeTests` and
-  `MetalUIHarfBuzzTests`). Goldens unmoved against
-  `f2e981f` and `f5e5651` (`git diff --name-only f2e981f HEAD --
-  'Tests/**/*.json'` is empty). **1617 = 1580 + 15 + 22**: master `f5e5651`
-  (1595) is `integrate/stage-3`'s 1580 plus the HarfBuzz line's 15 (record
-  §26), and stage 4 adds 22 (lane 1 +3, lane 2 +9, lane 3 +1, lane 4 +5,
-  lane 5 +4; record §27). **Neither line added a golden or a guard**, so
-  97 / 77 are unchanged there too. **`List` is
+  --no-parallel` (**one summary line**, `Test run with 1640 tests in 3 suites
+  passed`; five skipped: the two gated tests and the FreeType, HarfBuzz and
+  portable text oracles' gated measurement tests; the guards ran — the log
+  carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
+  `e5caefb` (`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` is
+  empty). **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
+  15 (lane 1, the presentation root, +7; lane 2, the exit suites, +2; lane 3,
+  the must-not-move set through real windows, +6; record §29) plus the
+  portable text line's 8 (`MetalUIPortableTextTests`; record §28;
+  `Tests/PortableTests` separately runs 4 + 6 + 5). Each side was taken the
+  same way before the merge: 1632 on `feat/engine-stage-5` alone, 1625 at
+  `master` `42b9ab4`. **None of these lines added a golden or a guard**, so
+  97 / 77 are unchanged, the per-file list below is unchanged and so is the
+  "all 77 guards skip under the default build system" sentence. Master's
+  1617 was itself **1580 + 15 + 22**: master `f5e5651` (1595) is
+  `integrate/stage-3`'s 1580 plus the HarfBuzz line's 15 (record §26), and
+  stage 4 adds 22 (lane 1 +3, lane 2 +9, lane 3 +1, lane 4 +5, lane 5 +4;
+  record §27). **`List` is
   public and its stored `box`'s generic argument changed at stage 4, so
-  `swift package clean` before re-taking.** Before these two lines: 1602 /
+  `swift package clean` before re-taking.** Before stage 4 met the HarfBuzz line: 1602 /
   97 / 77 on `feat/engine-stage-4` alone, 1595 / 97 / 77 at master
   `f5e5651`, both from 1580 / 97 / 77 on `integrate/stage-3` (2026-09-22,
   task 7 stage 3 merged with the FreeType rasterizer line), itself **1558 +
@@ -148,10 +149,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Four** gated tests count toward the total while skipped —
+  **Five** gated tests count toward the total while skipped —
   `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`, the
-  FreeType oracle's `measure(file:)` and the HarfBuzz oracle's `measure()`
-  (`METALUI_HARFBUZZ_MEASURE=1`). The lone `warning:`
+  FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
+  (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
+  `theMeasuredDifferences` (`METALUI_PORTABLE_ORACLE_MEASURE=1`). The lone `warning:`
   under native is SwiftPM's deprecation notice.
 - **Goldens must not move** on a change outside `Sources/MetalUILayout/`
   (`find Tests/MetalUILayoutTests -name "*.json" | wc -l` — not all of
@@ -177,8 +179,10 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `EnvironmentCompileGuards`'. A guard about what an external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
-  (default swiftbuild system, `--scratch-path`, `-c release`, a worktree) —
-  the total does not move and the run passes.
+  (default swiftbuild system, `--scratch-path`, `-c release`) — the total
+  does not move and the run passes. A worktree with its own `.build` at its
+  root runs them (measured under `~/Developer/worktrees/`, record §28); grep
+  the log for `FR-J no-argument frame: succeeded=` rather than assume.
 - **Adding an AppKit or WebKit test? Run the whole suite unfiltered** (shared
   process and run loop; `--filter` is a different program).
 - **`swift package clean` when the impossible happens**: SIGSEGV, a truncated
@@ -189,9 +193,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   stage added six stored mark tables to `LayoutTree`, and the `MetalUIScene`
   move relocated `Scene`, `FontKey`, `GlyphImage` and the atlas types across
   three modules.
-- **Targets:** fourteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
+- **Targets:** fifteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
   `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`,
-  `MetalUIHarfBuzz`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
+  `MetalUIHarfBuzz`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
   `MetalUIPlatform`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
   `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so
   tests can import it (`LR-S`). `MetalUIScene` holds
@@ -209,9 +213,17 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `MetalUIHarfBuzz` is the HarfBuzz-backed shaper (`HarfBuzzFont`,
   `HarfBuzzShaper`, `SH-B`…`SH-E`), depending on `CHarfBuzz` only; also a
   library product. Nothing in production calls it — `Shaper` stays the shaper
-  on Apple platforms (`SH-J`).
+  on Apple platforms (`SH-J`). `MetalUIPortableText` joins the two
+  (`PT-A`…`PT-E`): `PortableFont` opens one file in both engines and **checks
+  they agree** at construction (`PT-B`), and `PortableText.emit` turns one run
+  on one line into `MUIGlyph`s plus atlas coverage with `Frame.draw`'s
+  arithmetic (`PT-D`) — no line breaking, bidi, itemization or fallback. Also
+  a library product; nothing in production calls it (`PT-I`). The subpixel
+  placement rule lives once, in `GlyphImage.subpixelPlacement(forDeviceX:)`
+  (`PT-C`); `GlyphRaster` forwards — do not re-inline it on either side.
+  `Experiments/SDLGPU`'s frame 4 is drawn from it (`PT-G`).
 
-Seven constraints that fail silently:
+Eight constraints that fail silently:
 
 - `MetalUILayout` imports only `MetalUICore` (anchored grep).
 - `MetalUIScene` imports only `MetalUIShaderTypes` — no Foundation, CoreText,
@@ -232,6 +244,16 @@ Seven constraints that fail silently:
   `MetalUIHarfBuzz` and `MetalUIFreeType` products) pins HarfBuzz's glyph
   ids, clusters and design-unit positions byte-for-byte against macOS on
   Linux and Windows CI (`SH-I`).
+- `MetalUIPortableText` imports only `MetalUIScene`, `MetalUIShaderTypes`,
+  `MetalUIHarfBuzz` and `MetalUIFreeType` — no Foundation, CoreText,
+  CoreGraphics or Metal (`PT-A`). macOS cannot see a violation; the
+  `scene-linux` job builds this target too, and `Tests/PortableTests`' third
+  target, `PortableTextDeterminismTests`, pins its emitted rects, advance,
+  atlas dirty rect and coverage byte-for-byte against macOS (`PT-H`). **That
+  pin's Arabic case is the only test that sees a shaping offset**: the Apple
+  oracle's Latin corpus has none (`noCorpusGlyphCarriesAShapingOffset`), so
+  dropping `xOffset` from `emit`'s pen walk reddens nothing on macOS except
+  the portable package.
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (gamma-space compositing, §7.8).
@@ -460,7 +482,7 @@ sleep: drive `simulateTick(timestamp:)`.
 ## SwiftUI alignment — the proposal layout path
 
 A propose/measure/place engine sits beside the CSS engine. Detail: §19
-"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §28.
+"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29.
 
 - **Two engines, chosen by the window root alone**
   (`tree.isNativeLayoutNode(root)`). A native root is placed centred at its own
@@ -741,7 +763,7 @@ expected, measured facts:
   adding a number, its first 2026-09-23 section likewise amends **13, 14 and
   18** for stage 4 — 13 and 14 survive unchanged with 14's pin now running
   under both authorities, and 18's numbers move to `2n + 6`, crossing at
-  **126** rows — and its second 2026-09-23 section (stage 5, this branch)
+  **126** rows — and its second 2026-09-23 section (stage 5)
   amends **9, 10 and 11** without retiring or adding a number: 9 survives on
   both authorities, 10 is unchanged and gains SwiftUI evidence (agrees with
   SwiftUI's presentation, disagrees with its overlay), 11 becomes

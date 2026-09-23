@@ -5398,7 +5398,7 @@ reader does not treat the census's 2 000 rows as a windowing test.
 
 ## LR-CH — `Deferred` becomes a presentation root only when its content is `.position(.absolute)`; an in-flow `Deferred` stays layout-transparent
 
-**Stage 5 design** (spec `specs/2026-09-23-engine-stage-5-design.md`, record §28).
+**Stage 5 design** (spec `specs/2026-09-23-engine-stage-5-design.md`, record §29).
 
 **The question.** §4.1 row 5 asks for "`Deferred` as a presentation root laid out
 against the window". Read literally, every `Deferred` would leave its parent's
@@ -5411,7 +5411,7 @@ reset. What takes a box out of flow and places it against the window is
 
 **Evidence.** (1) The four element-level `DeferredTests` trees, all in-flow,
 already lower with **no diagnostic** and agree on every axis the tests assert
-(scratch S6, record §28 §2.2); the only disagreements are stage 3's viewport
+(scratch S6, record §29 §2.2); the only disagreements are stage 3's viewport
 heights (`LR-BC`). (2) Overlay-presentation P4/P5: a presented `.sheet`/`.popover`
 is laid out 0 times and drawn nowhere in the presenter's tree — it is outside the
 presenter's layout. (3) Revision 2's Q4/Q4c: an overlay is proposed its host's
@@ -5459,7 +5459,7 @@ and just outside its predicted box: Q1 (`.padding(top 5, leading 5)` inside
 `.frame(maxWidth: ∞, maxHeight: ∞, alignment: .topLeading)` → (5, 5)), Q1c (the
 bottom-trailing mirror → (63, 71)), Q2 (a greedy frame inside four-edge padding
 fills the gap), Q5c (`.topLeading` puts content at the origin). The legacy
-answers to reproduce, measured (record §28 §2.4): (5, 5); (163, 71); stretched
+answers to reproduce, measured (record §29 §2.4): (5, 5); (163, 71); stretched
 between insets; all-auto at (0, 0) ignoring an in-flow sibling; 25 %/50 % at
 (50, 50) on a 200×100 window; a declared 40 with `minSize` 50 → 50.
 
@@ -5487,7 +5487,7 @@ reads y 100 against 50 when `top` takes the width) and in the demo census.
 
 ## LR-CJ — two proposal-only answers differ from the legacy engine on purpose, and min/max on an absolute box's auto axis reports
 
-**Evidence.** Measured (record §28 §2.4): an auto-width `Text` with `left` 0, 50
+**Evidence.** Measured (record §29 §2.4): an auto-width `Text` with `left` 0, 50
 or 150 in a 200×200 window is **196×32 in all three** — the legacy engine
 measures an absolute box against the containing block's full width
 (`placeAbsolute` passes `available: cb.size`), so at left 150 it overflows the
@@ -5573,7 +5573,7 @@ planning and registration take the dropped list. Mutation M1o pins it.
 
 ## LR-CL — the containing block is the window by construction, and every tree whose legacy containing block is not reports by name
 
-**Evidence.** Measured (record §28 §2.4): a bordered root puts a top/left-5 box at
+**Evidence.** Measured (record §29 §2.4): a bordered root puts a top/left-5 box at
 (9, 9) — the containing block is the root's **padding** box (`AP-C`); a root
 declaring width 100 in a 200 window puts a right/bottom-5 box at (85, 85); a
 `.relative` bordered ancestor at (0, 30) gives (58, 38); a `Deferred` root and an
@@ -5650,7 +5650,7 @@ only; none exists, and 1.7 pins the order.
   the legacy authority at stage 9.
 - **Record §27 §8.2's claim that `aListInsideADeferredIgnoresTheEscapedScrollersOffset`
   "aborts" under `.proposal` is refuted**: switched to `.proposal` it passes
-  (record §28 §2.3). It was never measured. Lane 2 parameterises it; the erratum
+  (record §29 §2.3). It was never measured. Lane 2 parameterises it; the erratum
   belongs in record §27 at the Record phase, with the old sentence quoted.
 
 **What it costs if wrong.** Row text only; each divergence's pin is named.
@@ -5691,7 +5691,7 @@ the host `DeferredTests`' scrolled test and 2.5 use (`renderInRowHost`).
 ## LR-CP — stage 5 critic round 1: the frame arm's undropped count, a clamped root's containing block, a named animation curve, a red-before that exists, and a narrower SwiftUI claim
 
 **Stage 5 critic round 1** (spec `specs/2026-09-23-engine-stage-5-design.md`,
-record §28 §5). The committed design (`7654e63`) was attacked for unprobed
+record §29 §5). The committed design (`7654e63`) was attacked for unprobed
 SwiftUI claims, silent answer changes, the scrim's behaviour, environment and
 opacity, identity/hit-testing/accessibility/animation, `SA-G`, unreddenable
 tests and lane size. The probe was recompiled and run twice: **every** P, Q and H
@@ -5759,10 +5759,10 @@ moved. Five defects, each fixed in the spec in this commit:
 
 ## LR-CQ — stage 5 lane 1's corrections: two reddened sets narrower than predicted, four source claims pinned, and one mutation handed to lane 3
 
-**Stage 5 lane 1** (record §28 §6). The lane's source (`1f83f45`) was green at
+**Stage 5 lane 1** (record §29 §6). The lane's source (`1f83f45`) was green at
 1624; its verifier found the lane unfinished (no mutation table, no record
 section, M1b left applied — reverted) and four unpinned claims. Measured with
-every one of M1a–M1t run through the full unfiltered suite (record §28 §6.3):
+every one of M1a–M1t run through the full unfiltered suite (record §29 §6.3):
 
 1. **M1h reddens only 1.4's two-member `.frame` arm**, not both `.frame` arms as
    spec §7, `LR-CP` and the test's doc comment said. Over one node the undropped
@@ -5795,7 +5795,7 @@ Pixels: the twelve `CN-R` images read 0 against `e5caefb`. The screen was locked
 
 ## LR-CR — stage 5 lane 2's corrections: the scroll hosts are rows, not columns, two reddened sets wider than predicted, and the red-befores as measured
 
-**Stage 5 lane 2** (record §28 §7). Tests only; the lane's commits are `52ff491`
+**Stage 5 lane 2** (record §29 §7). Tests only; the lane's commits are `52ff491`
 (red first, unhosted) and `985c443` (hosted, green at **1626**). Measured:
 
 1. **The two scroll hosts are window-sized, cross-stretching ROW `Box`es, not the
@@ -5847,7 +5847,7 @@ capture owed.
 
 ## LR-CS — stage 5 lane 3's corrections: a mutation that could not reach the phases it was named for, a layout-phase reading added, and three reddened sets as measured
 
-**Stage 5 lane 3** (record §28 §8). Tests only; the lane's commits are `7c0c414`
+**Stage 5 lane 3** (record §29 §8). Tests only; the lane's commits are `7c0c414`
 (`PresentationWindowTests` 3.1–3.6, the two in-flow pins parameterised, roll call
 82) and `be5c697` (3.3's layout-phase reading). Suite **1632**. Measured:
 

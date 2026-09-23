@@ -680,7 +680,7 @@ func aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows(_ authority: 
 ///
 /// **Under both authorities since stage 5's lane 2** (`LR-CN`), with **no
 /// red-before**: record §27 §8.2 said this scenario "aborts" the run under
-/// `.proposal`; measured at `e5caefb` it passes there (record §28 §2.3 — the
+/// `.proposal`; measured at `e5caefb` it passes there (record §29 §2.3 — the
 /// `Deferred` is in-flow, so it lowers as it always has, and
 /// `withoutScrollContext` runs on both authorities). The claim was never
 /// measured. Its pin under the proposal arm is mutation M2e

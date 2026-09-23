@@ -72,4 +72,20 @@ public struct GlyphImage: Sendable {
     /// Device pixels of empty margin on every side of the ink box, in every
     /// rasterizer (`GlyphRaster.inkPadding` documents why; ruling FT-D).
     package static let inkPadding = 1
+
+    /// Splits a device-pixel pen position into the whole pixel a glyph's
+    /// bitmap is placed at and the rasterization variant that carries the
+    /// remainder (`GlyphRaster.subpixelPlacement(forDeviceX:)` documents why;
+    /// ruling PT-C). Both pipelines round a pen the same way because they call
+    /// this, not because they repeat the formula.
+    ///
+    /// Note the carry: a fraction that rounds up to a whole pixel returns the
+    /// **next** `pixelX` with variant 0, never a variant equal to
+    /// ``subpixelVariants``, which would index a bitmap that does not exist.
+    public static func subpixelPlacement(forDeviceX x: Double) -> (pixelX: Int, variant: Int) {
+        let whole = x.rounded(.down)
+        let variant = Int(((x - whole) * Double(subpixelVariants)).rounded())
+        if variant >= subpixelVariants { return (Int(whole) + 1, 0) }
+        return (Int(whole), variant)
+    }
 }

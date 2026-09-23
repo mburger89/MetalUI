@@ -38,10 +38,7 @@ public enum GlyphRaster {
     /// `subpixelVariant` argument: without it that argument has no defined
     /// meaning, and a renderer would be free to invent a different one.
     public static func subpixelPlacement(forDeviceX x: Double) -> (pixelX: Int, variant: Int) {
-        let whole = floor(x)
-        let variant = Int(((x - whole) * Double(subpixelVariants)).rounded())
-        if variant >= subpixelVariants { return (Int(whole) + 1, 0) }
-        return (Int(whole), variant)
+        GlyphImage.subpixelPlacement(forDeviceX: x)
     }
 
     /// The horizontal offset, in **device pixels**, that `variant` rasterizes at.

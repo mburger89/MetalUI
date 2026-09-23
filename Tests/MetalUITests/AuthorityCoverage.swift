@@ -96,7 +96,7 @@ enum AuthorityCoverage {
     /// element-level scenarios, hosted, plus its new demo-shaped scrim (2.5);
     /// `AbsoluteOverlayTests`' one (divergence 11, whose proposal arm asserts the
     /// report); and `ListTests`' `aListInsideADeferredIgnoresTheEscapedScrollersOffset`,
-    /// kept out below on a claim record §28 §2.3 refutes. `DeferredTests`' five
+    /// kept out below on a claim record §29 §2.3 refutes. `DeferredTests`' five
     /// pass-level tests are **not** here and each says why at its declaration (no
     /// element, no layout, no authority in its call path — `LR-BN`), nor is
     /// `anAbsoluteBoxOutsideADeferredTrapsAProductionProposalFrame`, an exit test
@@ -226,7 +226,7 @@ enum AuthorityCoverage {
         // AbsoluteOverlayTests (1) — stage 5, lane 2 (divergence 11, `LR-CN`)
         "anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt",
         // ListTests (1) — stage 5, lane 2 (`LR-CN`): the scenario stage 4 kept
-        // legacy-only on a claim record §28 §2.3 refutes
+        // legacy-only on a claim record §29 §2.3 refutes
         "aListInsideADeferredIgnoresTheEscapedScrollersOffset",
         // PresentationWindowTests (6) — stage 5, lane 3 (`LR-CO`): the
         // must-not-move set through real windows

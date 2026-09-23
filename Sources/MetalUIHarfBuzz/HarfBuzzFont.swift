@@ -64,6 +64,15 @@ public final class HarfBuzzFont {
         hb_blob_destroy(blob)
     }
 
+    /// The face's glyph for a Unicode scalar, or 0 (`.notdef`) — the cmap
+    /// lookup alone, with no shaping. For `PT-B`'s cross-engine check; shaped
+    /// text takes its ids from ``HarfBuzzShaper``.
+    public func glyph(for scalar: Unicode.Scalar) -> UInt16 {
+        var id: hb_codepoint_t = 0
+        guard hb_font_get_nominal_glyph(font, scalar.value, &id) != 0 else { return 0 }
+        return UInt16(truncatingIfNeeded: id)
+    }
+
     /// Design units to points at this font's size (SH-D).
     func points(_ units: Int32) -> Double { Double(units) * size / Double(unitsPerEm) }
 }

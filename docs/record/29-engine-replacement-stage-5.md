@@ -1,4 +1,16 @@
-# §28 — Engine replacement, stage 5: `Deferred`'s absolute content as a presentation root
+# §29 — Engine replacement, stage 5: `Deferred`'s absolute content as a presentation root
+
+**Renumbered from §28 to §29 at merge with `master` (2026-09-23):** the
+portable text line (PR #10, `42b9ab4`) was pushed first and keeps §28, so
+every `§28` this track wrote was repointed to `§29` and the file renamed
+(`docs/record/28-engine-replacement-stage-5.md` →
+`29-engine-replacement-stage-5.md`); the precedent is record §23 §8 and the
+§25 and §27 headers. The portable text line's own `§28` citations were left
+alone, and so were three historical mentions below — §16's "Record number
+collision" note and §17's "(the §28 row)" and "(the §28→§29 renumbering …)",
+which describe this file as it stood before the merge. Counts re-taken on the
+merged tree: **1640 / 97 / 77, `Test run with 1640 tests in 3 suites passed` (1617 + 15 + 8)** (`CLAUDE.md` "Build and test"). Figures
+below that read 1632 are this branch's own, before the merge.
 
 Plan task 7, stage 5 (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 5).
@@ -7,7 +19,7 @@ Design: `docs/superpowers/specs/2026-09-23-engine-stage-5-design.md`. Rulings
 Branch `feat/engine-stage-5` from `e5caefb`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-5`.
 
-**Status, 2026-09-23 (PDT): all three lanes landed — lane 1 (§6, `LR-CQ`), lane 2 (§7, `LR-CR`), lane 3 (§8, `LR-CS`); the stage is closed in §9–§16, and the Record phase (§17) has updated CLAUDE.md, AGENTS.md, records §03/§04/§05/README and the plan. Only integration (the §28→§29 renumber) is left.** Every
+**Status, 2026-09-23 (PDT): all three lanes landed — lane 1 (§6, `LR-CQ`), lane 2 (§7, `LR-CR`), lane 3 (§8, `LR-CS`); the stage is closed in §9–§16, and the Record phase (§17) has updated CLAUDE.md, AGENTS.md, records §03/§04/§05/README and the plan. Integration (the §28→§29 renumber) was done at the merge with `master`; see the note above.** Every
 measurement in §2 was taken from a scratch test file
 (`Tests/MetalUITests/ZZScratchStage5.swift`, kept in the session scratchpad,
 never committed) and one temporary edit to `ListTests.swift` restored from a `cp`
