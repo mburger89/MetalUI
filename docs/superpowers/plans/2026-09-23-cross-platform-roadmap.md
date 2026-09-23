@@ -97,9 +97,10 @@ Apple-bound:
 
 ### After the demo runs
 
-11. [ ] **Font fallback** — a glyph missing from the primary face comes from
-    a fallback face (the CJK line in SDL frames 0–3 is CoreText's fallback;
-    frame 4 avoids it).
+11. [x] **Font fallback** — an ordered cascade of registered faces, per
+    grapheme; equal to CoreText's with the same cascade list. RTL fallback
+    waits for item 12. `feat/font-fallback`, spec
+    `specs/2026-09-23-font-fallback-design.md` (`FB-`), record §42.
 12. [ ] **Bidi and script itemization** — UAX #9 across runs and runs split
     by script; today one call is one direction.
 13. [ ] **Accessibility off Apple** — AT-SPI (Linux) and UI Automation

@@ -8,6 +8,8 @@ import MetalUIFreeType
 ///   ignoring case and nothing else — no whitespace folding, no family plus
 ///   style synthesis (`"Source Sans 3 Regular"` is not a name of Source Sans
 ///   3, whose full name is `"Source Sans 3"`);
+/// - a resolved font falls back to every other registered face, in the order
+///   registered (ruling FB-B), for characters it has no glyph for;
 /// - `nil` is the default face, and a name that matches nothing — `""`
 ///   included — **substitutes** the default face rather than failing, as
 ///   `CTFontCreateWithName` substitutes Helvetica. Callers key caches on the
@@ -61,6 +63,17 @@ public final class PortableFontResolver {
             let wanted = name.lowercased()
             return faces.firstIndex { $0.names.contains(wanted) }
         } ?? defaultFace
+        let font = try font(face: index, size: size)
+        // The cascade (ruling FB-B): every other registered face, in the order
+        // registered, at this size — what draws a character this face lacks.
+        if font.fallbacks.isEmpty, faces.count > 1 {
+            font.fallbacks = try faces.indices.filter { $0 != index }.map { try self.font(face: $0, size: size) }
+        }
+        return font
+    }
+
+    /// Face `index` at `size`, memoized.
+    private func font(face index: Int, size: Double) throws -> PortableFont {
         let request = FontRequest(face: index, size: size)
         if let cached = cache[request] { return cached }
         let face = faces[index]
