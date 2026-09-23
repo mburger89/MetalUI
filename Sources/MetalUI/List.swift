@@ -409,6 +409,22 @@ where Data.Element: Identifiable {
         // A row's logical index, for an accessibility client, only while one is
         // active and only for a bounded window (AB-L, AB-X): an unbounded window
         // publishes no rows at all, so indices there would be written for nothing.
+        //
+        // **The `windowIsBounded` conjunct is belt-and-braces and NOTHING can
+        // pin it** — measured, plan task 7 stage 4 lane 4's mutation M4b
+        // (`LR-CF`). Dropping it and running the whole suite unfiltered reddens
+        // not one test, because the two things a hint could reach are both shut
+        // on an unbounded window anyway: `prepaint` below wraps the rows in
+        // `withAccessibilitySuppressed(except: id)`, which is what
+        // `Frame.registerHandlers`' record branch checks, and that method strips
+        // `logicalIndex` before its `declaration.isEmpty` test, so a hint alone
+        // emits no `AXNode` and writes no `$ax` slot either (AB-L, AB-U). The
+        // line stays because it says what this value means; the measurement is
+        // recorded here so a later reader does not mistake it for a tested
+        // guard. `AB-X` rule 1 is pinned through the suppression instead, by
+        // `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`
+        // and `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`'
+        // zero-`rowHeight` arm, both on both layout authorities (mutation M4b').
         let indexesRows = windowIsBounded && pass.collectsAccessibility
 
         let windowStart = data.index(data.startIndex, offsetBy: window.lowerBound)
