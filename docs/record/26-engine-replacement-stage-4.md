@@ -758,3 +758,252 @@ named cause is a finding.
 | the nil-width path's `O(logicalCount)` cost | measured here (2.4b); mitigating it would change `visibleRange`, which `LR-BT` pins shut | stage 6b (spec §9) |
 | a real-window capture | the screen was locked | whoever runs a lane with an unlocked screen |
 | CLAUDE.md's divergence-18 row, and any CLAUDE.md rule about `List` and the proposal authority | the lane may not edit CLAUDE.md | the Docs phase |
+
+---
+
+## 8. Lane 3 — `ListTests` under both authorities, and the roll call renamed (`LR-BW`, `LR-BY`, `LR-CB`; corrections in `LR-CE`)
+
+Three commits on `feat/engine-stage-4`:
+
+| commit | what |
+|---|---|
+| `c4ce2f0` | the red-before: a child-process probe recording the trap, with `LegacySpelledRow` kept as its standing subject |
+| `7c031b1` | the re-spelling, the host box, the twenty parameterised scenarios, and the registry's rename — one commit, because the first two cannot be separated |
+| `352f838` | M3c's finding: a bounds pin that could not see its subject |
+
+### 8.1 The red-before
+
+The lane's red cannot be an assertion failure. Running `ListTests` under
+`.proposal` with `Row` spelled as it was does not fail — it **aborts**, at
+`Frame.requestNode`'s backstop, ending the run with no summary line and no list
+of what failed. So the red is taken in a child process, in
+`LayoutAuthorityTests`' shape (`LR-BX` shape (b)), over P1a6's host with the
+legacy-spelled row, in both its spellings. Both children exit non-zero. The two
+messages, captured by pointing the assertion at a string that cannot match and
+then reverting (`git status --short` clean afterwards):
+
+```
+MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestNode has no
+proposal lowering (plan task 7, stage 6a); a tree containing it cannot run under
+the proposal layout authority.
+
+MetalUI/Frame.swift:1536: Fatal error: MetalUI: customElement.requestLeaf has no
+proposal lowering (plan task 7, stage 6a); a tree containing it cannot run under
+the proposal layout authority.
+```
+
+`LegacySpelledRow` and the probe **stay** after the re-spelling, rather than
+being deleted with the spelling they describe. They are the standing evidence
+for why `Row` goes through the lowering, and the thing that goes quiet if a
+future edit puts `pass.requestNode` back — which is worth more than a commit
+that removes its own red.
+
+### 8.2 What landed
+
+**`Row` re-spelled**, both registrations, branching on `pass.lowersToProposal`:
+the childless arm through `lowerLegacyNode(…, children: [], site: .customElement)`
+(which forwards to `lowerLegacyLeaf` over a 0×0 native leaf by itself), the
+`contentHeight` arm through `lowerLegacyLeaf` over a `requestNativeLeaf`. Not
+`ProbeLeaf`'s spelling, for the reason §2.5 measured.
+
+**Three helpers, not two.** `laidOut` and `renderWindowed` gain the host box,
+`recordsElementBounds: true` and — `laidOut` only — a prepaint pass.
+`renderedInHost` is new: four tests called `Frame(…).render(&list)` directly and
+needed the same host and the same authority as the rest.
+
+**Twenty of twenty-two scenarios parameterised.** The two that are not each say
+so at their own declaration and in `AuthorityCoverage.expected`'s doc:
+`aListInsideADeferredIgnoresTheEscapedScrollersOffset` (a `Deferred` presentation
+root is stage 5) and the child-process probe above.
+
+**The registry renamed in the same commit**: `ScrollAuthorityCoverage` →
+`AuthorityCoverage`, `everyScrollScenarioRanUnderBothLayoutAuthorities` →
+`everyParameterisedScenarioRanUnderBothLayoutAuthorities`, the literal 34 → 54,
+and the header's path-order argument extended (§8.5).
+
+### 8.3 Every number
+
+| measure | before (lane 2's HEAD, `688b834`) | after (`352f838`) |
+|---|---|---|
+| suite | 1592 | **1593** (+1, the child-process probe; the twenty parameterisations move the total by nothing, which is why the roll call exists) |
+| issues | 3 | **3**, the same three — `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`'s, left red by lane 2 for lane 5 (§7.6) |
+| goldens | 97 | 97; `git diff --name-only f2e981f HEAD -- 'Tests/**/*.json'` empty |
+| typecheck guards | 77 | 77 — no guard added, and none is owed: `Row` and the three helpers are `private` to one test file and `List`'s public surface did not move |
+| twelve `CN-R` images | 0 differing | **0 differing, every scene dump identical** — §8.6 |
+| real-window capture | never taken in this stage | **0 differing, default and preview** — §8.7, the first in the stage |
+
+**Literals that moved: exactly one.**
+`aWindowedListStillReportsItsFullContentHeight` renders at `frameHeight: 1200`
+instead of 600. The host box declares the frame's own height, so a 1120pt list
+inside a 600pt host is a flex item with 520pt of negative free space — which the
+legacy engine absorbs by shrinking the `List`'s box to 600 and the kernel does
+not, because `paddedAndSized` makes the declared height a fixed native frame.
+That is a disagreement the harness would have introduced, and 1200 is the
+smallest round number above 1120 (`LR-CE` item 1). Every other literal in the
+file — every `y`-offset set, every row height, every scene rect and hitbox
+string in `aListsSceneAndHitboxesAreUnchangedByTheGroup` — reads identically on
+both authorities, unchanged from `688b834`.
+
+**Adding a prepaint pass to `laidOut` moved nothing, and the whole change moved
+one test.** The design named the prepaint pass as a behaviour change for every
+test using the helper — hitboxes, scroll regions, focus entries and
+accessibility records all register in prepaint — so the full unfiltered suite
+was run after it. Nothing outside `ListTests` moved at all. Inside it, exactly
+one test moved, and for the host box rather than for prepaint:
+`theListsSpacerIsANodeNotAnElement` addressed the `List` as
+`GlobalElementID.child(of: nil, at: 0, name: nil)`, which is now the **host**,
+and reads `subjectID(named: nil)` instead. The three `laidOut` callers do now
+collect the scroll regions their rows register, and none of them asserts on that
+count except `anEmptyListHasZeroHeightAndTrapsNothing`, whose list has no rows —
+so the pass is paid for and observed by nothing, which is the honest statement of
+its cost.
+
+**The row registration census, re-counted rather than carried over.** §4.2 read
+224 nodes and 3 leaves at `f2e981f`. Measured at this HEAD with a temporary
+counter on `Row`'s four branches, one unfiltered run, then reverted:
+
+| | legacy | proposal |
+|---|---|---|
+| nodes | **289** | **241** |
+| leaves | **3** | **3** |
+
+Both deltas are attributable, and both confirm a number rather than replacing
+one. `289 − 241 = 48` is exactly
+`aListInsideADeferredIgnoresTheEscapedScrollersOffset`, the one legacy-only
+scenario (40 escaped rows plus its 8-row windowed control). `289 − 224 = 65` is
+lane 1's four additions: `theListsSpacerIsANodeNotAnElement` (6),
+`aListInTheDifferentialHarnessReachesABoundedWindow` (40 on its unbounded first
+frame, 10 on its windowed second), and the `Style.padding` arm added to each of
+`paddingOnAListDoesNotShrinkItsRowsBelowRowHeight` (3) and
+`aScrolledListsSpacerDoesNotShrinkUnderPadding` (6). So §4.2's 224 is confirmed
+at `f2e981f` by arithmetic that closes exactly.
+
+### 8.4 The three mutations
+
+Taken on `7c031b1` (M3a, M3b, M3c) and again on `352f838` (M3c), each restored
+from a `cp` copy with `git status --short` clean afterwards, each on the **full
+unfiltered** suite. The prediction is kept beside the reading.
+
+| # | what | predicted | **measured** |
+|---|---|---|---|
+| **M3a** | `AuthorityCoverage.authorities` reduced to `[.legacy]` | the roll call | **2 tests, 54 issues** — `aScrollViewWithNoCornerRadiusClipsSquare` 53 (the arm whose `record` completes the set, one issue per other scenario seen under one authority), `everyParameterisedScenarioRanUnderBothLayoutAuthorities` 1 (its `authorities == allCases` require). Run total 57 issues, the 3 standing ones included |
+| **M3b** | `Row`'s proposal leaf branch made a bare `requestNativeLeaf` | `aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent` under `.proposal` | **exactly that**, `.proposal` arm only, **3 issues** — `region.bounds.size.height == px(28)`, one per row. Nothing else moved, on either authority |
+| **M3c** | `recordsElementBounds` dropped back to its default in `laidOut` | the **three** tests that read the `List`'s bounds | **two**: `aListSizesItselfToCountTimesRowHeight` and `aWidthModifierOnAListReachesItsLayoutNode`, one issue per arm. §8.4.1 |
+
+M3a's shape reproduces stage 3's reading exactly, scaled: stage 3 measured 2
+tests and 34 issues over 34 names, and 54 names give 53 + 1. That the completer
+is still `aScrollViewWithNoCornerRadiusClipsSquare` — the last scenario in the
+last file — is the order argument's second half confirming itself.
+
+M3b is the measured reason `ProbeLeaf` is not the re-spelling. A directly
+registered native leaf records no `LoweredItem`, so `planLegacyItems` cannot
+plan it, the row `Box` never stretches or floors it, and all three rows read a
+height other than `rowHeight`. It is also the only mutation in this lane that
+distinguishes the two authorities: the legacy arm is untouched and stays green.
+
+#### 8.4.1 M3c's finding: a pin that could not see its subject
+
+`anEmptyListHasZeroHeightAndTrapsNothing` stayed green under M3c, and the
+reason is the helper rather than the test. `laidOut` returned
+`frame.elementBounds[subject] ?? <0×0>`, so "no record" and "zero" were the same
+value — and that test's assertion is that the height **is** zero, which is the
+mutation's own answer. Practices shape 14 arrived at through a convenience: the
+`??` was written to keep the call sites tidy and it made one of them
+unfalsifiable.
+
+Fixed in `352f838`: both helpers return `Bounds<Pixels>?` and all four readers
+`try #require` it. **M3c re-run against that commit reddens all three, six
+issues** — one per arm. The `??` spelling is not to be reintroduced; any fixture
+whose expected answer is zero on some axis is blind behind it, and this file has
+one such fixture today.
+
+### 8.5 The order argument, re-measured twice
+
+The roll call's second half depends on Swift Testing running files in path
+order. Re-measured at this HEAD by reading the order tests start in, twice,
+identical both times (the index is the position among distinct test names in one
+unfiltered run):
+
+| | run 1 | run 2 |
+|---|---|---|
+| `ListTests` first scenario (`aListSizesItselfToCountTimesRowHeight`) | 1149 | 1149 |
+| `ListTests` last scenario (`aListsSceneAndHitboxesAreUnchangedByTheGroup`) | 1169 | 1169 |
+| `ScrollIndicatorTests` first (`theIndicatorIsTheLastPrimitiveInTheScene`) | 1419 | 1419 |
+| `ScrollRoutingTests` first (`aWheelEventInsideARegionScrollsIt`) | 1433 | 1433 |
+| `ScrollViewTests` first (`theContentNodeOverflowsTheViewport`) | 1449 | 1449 |
+| `everyParameterisedScenarioRanUnderBothLayoutAuthorities` | **1456** | **1456** |
+
+So `ListTests` → `ScrollIndicatorTests` → `ScrollRoutingTests` →
+`ScrollViewTests`, roll call last. The argument now **states the sort it rests
+on** — `Tests/MetalUITests/ListTests.swift` sorts before every
+`Tests/MetalUITests/Scroll*.swift` — which the stage-3 version did not, and names
+the case that would break it: a file added later whose path sorts after
+`ScrollViewTests.swift`. That is exactly why `ZZDemoPixels.swift` carries its
+`ZZ…` prefix, and the two comments now cross-reference.
+
+`ListLoweringTests.swift` is **not** in the argument, against `LR-CB`'s wording,
+because it contributes no name: its nine tests each run both authorities inside
+one body through `LayoutDifferential.compare`, so none is a `@Test(arguments:)`
+case and none calls `record` (`LR-CE` item 4).
+
+### 8.6 The twelve `CN-R` images
+
+`docs/probes/demo-pixels/compare.sh /tmp/pix-lane3 f2e981f 352f838`. All eight
+controls reproduce their recorded values exactly before any commit-to-commit
+row:
+
+| control | recorded | this run |
+|---|---|---|
+| light vs dark, f0 | 1 048 576 | **1 048 576** |
+| default vs modal (light) | 1 030 498 | **1 030 498** |
+| default vs animation (light) | 210 027 | **210 027** |
+| f0 vs f3 (light) | 0 | **0** |
+| preview light vs dark | 1 048 576 | **1 048 576** |
+| `chrome-legacy` vs `chrome-proposal` | 0 | **0** |
+| distinct values, `default-light-f0` | 544 | **544** |
+| distinct values, `chrome-legacy` | 216 | **216** |
+| indicator rects in all twelve | 0 | **0** |
+
+**`f2e981f` → `352f838`: 0 differing pixels in all twelve, every scene dump
+identical.** Expected by construction — lane 3 changes nothing under `Sources/`
+at all — and taken anyway, because "expected by construction" is what the
+harness exists to stop a lane from asserting.
+
+### 8.7 The first real-window capture of the stage
+
+`docs/probes/appkit-screen-lock-state.swift` at this lane prints **no**
+`CGSSessionScreenIsLocked` and no `CGSSessionScreenLockedTime` line,
+`kCGSSessionOnConsoleKey = 1`, `displayAsleep main: 0`, `displayActive main: 1`,
+`preflightScreenCaptureAccess: true`, one screen `(0,0,2056,1329) scale=2.0`.
+Unlocked, for the first time in this stage — lanes 1 and 2 and every lane of
+stage 3 read a locked screen. `IOConsoleLocked` was not read (`FR-V`).
+
+So `docs/probes/window-capture/capture.sh /tmp/win-lane3 f2e981f 352f838`, real
+release windows captured by id with no shadow, no input sent and the pointer not
+moved:
+
+| row | result |
+|---|---|
+| `f2e981f` default, a vs b (1.5 s apart) | 1840×1176 differing=0 |
+| `f2e981f` preview, a vs b | 1840×1176 differing=0 |
+| `352f838` default, a vs b | 1840×1176 differing=0 |
+| `352f838` preview, a vs b | 1840×1176 differing=0 |
+| **`f2e981f` → `352f838` default** | **1840×1176 differing=0** |
+| **`f2e981f` → `352f838` preview** | **1840×1176 differing=0** |
+| control, default vs preview at `352f838` | 1840×1176 differing=**921 071**, bbox (0,15)–(1839,1175) |
+
+The four stability pairs read 0 and the control reads non-zero, so the zeros in
+the middle are a measurement rather than a broken instrument. This retires lanes
+1 and 2's "a real-window capture — the screen was locked" deferral **for the
+branch as it stands at `352f838`**; it does not retire it for lanes 4 and 5,
+which change different files.
+
+### 8.8 Deferred out of lane 3
+
+| item | why | owner |
+|---|---|---|
+| retention, focus and the `AXTable` records under both authorities | lane 3 parameterises `ListTests`; the suites that pin `TB-AH`, `AB-L` and `AB-X` are lane 4's | lane 4 (`LR-BU`) |
+| `aListInsideADeferredIgnoresTheEscapedScrollersOffset` under `.proposal` | `Deferred` as a presentation root has no lowering | stage 5 |
+| the demo census's re-derivation, and the three issues still standing | §7.6 | lane 5 |
+| **other fixtures blinded by `.padding` becoming a wrapper at `f1944f8`** | carried from §6.9; lane 3 swept nothing new for it | unowned |
+| CLAUDE.md's `List`/`ScrollAuthorityCoverage` mentions, and the 1580 → 1593 count | the lane may not edit CLAUDE.md | the Docs phase |

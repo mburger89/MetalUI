@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-CE`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC` and its lane 2 `LR-CD`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-CF`** (stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD` and its lane 3 `LR-CE`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -4953,3 +4953,97 @@ diverges". Measured, it reddens **2.4, 2.2's two nil-width arms and 2.4b**.
 Three pins for the diverging half rather than one; 2.4 is the one that names it.
 Recorded because the spec's sentence would otherwise read as a claim about
 coverage that the suite contradicts.
+
+---
+
+## LR-CE — stage 4 lane 3's corrections: a host that needs a height, a pin that could not see its subject, and two rows the design put in the wrong lane
+
+Lane 3 re-spelled `ListTests`' `Row` through the legacy lowering, parameterised
+its scenarios over both authorities, and renamed the roll call. Four things the
+design (`LR-BW`, `LR-BY`, `LR-CB`, spec §6 lane 3 and §6 lane 4) got wrong or
+left unstated, each found by running rather than by reading. Measurements are
+record §26 §8.
+
+### 1. The host box needs a declared HEIGHT, not only a width
+
+**The design says** both helpers gain "a fixed-size `Box` wrapper (P1a6's shape,
+a declared width and a column direction)". P1a6 declared a width and left the
+height `auto`, which is correct for P1a6's three-row list and wrong for this
+file.
+
+**Why.** A root with an `auto` main axis takes the definite space offered
+(divergence 4, `CS-I`), so an auto-height host in a 600pt frame is 600pt. Six of
+this file's fixtures are 40-row or 100-row lists — 1120pt and 2800pt — which as
+flex items of that host have hundreds of points of negative free space. The
+legacy engine shrinks the `List`'s own box; the kernel does not, because
+`paddedAndSized` turns the `List`'s declared height into a fixed native frame
+and a native stack shrinks nothing. That is a disagreement between the two
+authorities that the **harness** would have introduced, in the one file whose
+whole point this lane is to read both authorities against each other.
+
+**The ruling.** `hostStyle(width:height:)` declares both axes, at the frame's
+own size, so the host is exactly the window and the subject is never squeezed.
+Where a subject is taller than the frame and its own height is the assertion —
+`aWindowedListStillReportsItsFullContentHeight`, 40 × 28 = 1120 — the test
+raises the frame instead (`frameHeight: 1200`), which is one literal, named at
+its call site with the arithmetic. Every other literal in the file is unchanged
+on both authorities, measured.
+
+**What it costs if wrong.** Nothing production-visible: this is a test harness.
+The cost of *not* doing it is worse than a wrong number — it is a file of
+two-authority comparisons whose disagreements are its own.
+
+### 2. `M3c` reddened two of three, and the third could not see its subject
+
+Spec §6 lane 3 requires **M3c** (`recordsElementBounds` dropped back to its
+default in `laidOut`) to "redden the three tests that read the `List`'s bounds;
+if it reddens nothing, they are not reading what the lane thinks they read". It
+reddened **two**: `aListSizesItselfToCountTimesRowHeight` and
+`aWidthModifierOnAListReachesItsLayoutNode`, one issue per arm.
+
+**`anEmptyListHasZeroHeightAndTrapsNothing` stayed green**, and the reason is
+the helper, not the test: it returned `frame.elementBounds[subject] ?? <0×0>`,
+so an unrecorded bounds and a zero one were the same value — and that test
+asserts a height of **0**, which is the mutation's own answer. Practices shape
+14's "a test that cannot fail", arrived at through a convenience.
+
+**The ruling.** Both helpers return `Bounds<Pixels>?` and every reader
+`try #require`s it. M3c re-run against the corrected commit reddens **all
+three**, six issues. The `??` spelling is not to be reintroduced: any fixture
+whose expected answer is zero on some axis is blind behind it, and this file has
+one such fixture today and will gain more.
+
+### 3. Divergence 14's pin is parameterised in lane 3, not lane 4
+
+Spec §6 lane 4's table lists `ListTests`'
+`aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows` among the
+suites lane 4 parameterises. Lane 3 parameterises **every** scenario in
+`ListTests` in one commit — it has to, because the re-spelling and the
+`.proposal` arms must land together (`LR-BX`) and a half-parameterised file
+would leave the roll call's literal wrong between the two lanes.
+
+So that row is delivered here. Lane 4 owns the rest of its table; for this one
+it need only confirm the test still asserts the **wrong** answer on purpose and
+now says so on both paths. The divergence is `visibleRange`'s, which is
+authority-blind, and the second arm's content is exactly that claim: the
+lowering neither fixes it nor makes it worse.
+
+### 4. `ListLoweringTests.swift` is not in the roll call's order argument, and the argument now says why
+
+`LR-CB` has the lane extend the header's path-order argument "to the new files",
+naming `ListTests.swift` and `ListLoweringTests.swift`. Only the first belongs
+there. `ListLoweringTests`' nine tests each run **both** authorities inside one
+body, through `LayoutDifferential.compare`; none is a `@Test(arguments:)` case
+and none calls `AuthorityCoverage.record`, so the file contributes no name and
+the roll call cannot be affected by where it sorts.
+
+The argument's real content — which the stage-3 version left unstated, and which
+`LR-CB` was right that a reader needs — is the **sort**:
+`Tests/MetalUITests/ListTests.swift` sorts before every
+`Tests/MetalUITests/Scroll*.swift`, so the roll call, declared at the end of
+`ScrollViewTests.swift`, still runs last. That is now written down, together
+with the case it warns about: a file added later whose path sorts *after*
+`ScrollViewTests.swift` breaks the second half of the check — which is precisely
+why `ZZDemoPixels.swift` carries a `ZZ…` prefix. Re-measured twice at this HEAD,
+identical both times: `ListTests` → `ScrollIndicatorTests` → `ScrollRoutingTests`
+→ `ScrollViewTests`, roll call last.

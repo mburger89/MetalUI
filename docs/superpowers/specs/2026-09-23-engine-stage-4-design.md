@@ -970,9 +970,13 @@ the `List` the frame's **root**, and a native root is stored at the full window
 (`aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout`), so
 `aListSizesItselfToCountTimesRowHeight` would read 600 instead of 280. Both
 helpers gain a fixed-size `Box` wrapper (P1a6's shape, a declared width and a
-column direction) under **both** authorities — and to read the `List`'s own
-bounds out of that wrapper, three things must change that the design had not
-named:
+column direction) under **both** authorities — **and a declared HEIGHT too,
+which this sentence did not say and which lane 3 measured it needs** (`LR-CE`
+item 1: an `auto` main axis takes the definite space offered, so six of this
+file's 40- and 100-row fixtures would be flex items with hundreds of points of
+negative free space, which the legacy engine absorbs and the kernel does not) —
+and to read the `List`'s own bounds out of that wrapper, three further things
+must change that the design had not named:
 
 - `Frame.elementBounds` is written only when `recordsElementBounds` is set
   (`Frame.swift:1524-1527`), and **both helpers construct
@@ -1007,15 +1011,22 @@ of `ListTests`' host shape with the legacy-spelled `Row`, capturing and
 recording the trap message. Then the re-spelling and the `.proposal` arms land
 **in one commit**, and from there the reds are ordinary assertion failures.
 
-**Mutations.** M3a: the registry's `authorities` reduced to `[.legacy]` (must
-redden the roll call — the mutation stage 3's `LR-BN` wrote the registry for).
-M3b: the re-spelled `Row`'s proposal branch made a bare `requestNativeLeaf`
-(must redden `aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent` under
-`.proposal`, because a directly-registered native leaf records no `LoweredItem`
-— the measured reason `ProbeLeaf` is not the re-spelling, §2.3). **M3c**:
-`recordsElementBounds` dropped back to its default in `laidOut` (must redden the
-three tests that read the `List`'s bounds; if it reddens nothing, they are not
-reading what the lane thinks they read).
+**Mutations, predicted and then measured** (record §26 §8.4; corrections in
+`LR-CE`).
+
+| # | what | predicted | **measured** |
+|---|---|---|---|
+| M3a | the registry's `authorities` reduced to `[.legacy]` | the roll call — the mutation stage 3's `LR-BN` wrote the registry for | **2 tests, 54 issues**: `aScrollViewWithNoCornerRadiusClipsSquare` (53, the arm whose `record` completes the set) and `everyParameterisedScenarioRanUnderBothLayoutAuthorities` (1) |
+| M3b | the re-spelled `Row`'s proposal branch made a bare `requestNativeLeaf` | `aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent` under `.proposal`, because a directly-registered native leaf records no `LoweredItem` — the measured reason `ProbeLeaf` is not the re-spelling, §2.3 | **exactly that**, `.proposal` arm only, 3 issues (one per row's height) |
+| M3c | `recordsElementBounds` dropped back to its default in `laidOut` | the three tests that read the `List`'s bounds; if it reddens nothing, they are not reading what the lane thinks they read | **two of the three** — `anEmptyListHasZeroHeightAndTrapsNothing` could not see it, because the helper substituted a 0×0 bounds for an unrecorded one and the test asserts 0 (`LR-CE` item 2). Both helpers now return an `Optional` each reader `try #require`s; re-run, M3c reddens all three, 6 issues |
+
+**What lane 3 read, beyond the mutations** (record §26 §8). Exactly one literal
+moved — `aWindowedListStillReportsItsFullContentHeight`'s frame, 600 → 1200, for
+the reason in `LR-CE` item 1 — and every other literal in the file is unchanged
+on both authorities. Adding a prepaint pass to `laidOut` moved nothing anywhere
+in the suite. The row registration census, re-counted: **289 legacy nodes, 3
+legacy leaves, 241 proposal nodes, 3 proposal leaves** in one unfiltered run,
+both deltas from §4.2's 224 fully attributed.
 
 ### Lane 4 — retention, focus and accessibility under both authorities (`LR-BU`)
 
@@ -1037,7 +1048,7 @@ says means an arm is vacuous. The `AXTable`, its `rowCount`, its realized rows'
 | **`AccessibilityDefaultsTests`** | `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (`:381`) | both authorities |
 | **`AccessibilityDefaultsTests`** | `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` (`:740`) | both authorities |
 | **`AccessibilityDefaultsTests`** | `aClientDoesNotChangeStateRetention` (`:662`) | both authorities |
-| `ListTests` | `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows` (divergence 14) | both authorities, still asserting the **wrong** answer on purpose, with the message updated to say it is pinned on both paths |
+| ~~`ListTests`~~ | ~~`aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows` (divergence 14)~~ | **delivered by lane 3** (`LR-CE` item 3): lane 3 parameterises every scenario in `ListTests` in one commit, because the re-spelling and the `.proposal` arms must land together. It asserts the **wrong** answer on purpose on both paths and its message says so. Lane 4 confirms, and owns the rest of this table |
 
 `AccessibilityTreeTests` has exactly **two** `List` usages (`:144`, `:734`), and
 `:144` is inside `anInactiveWindowBuildsAndPublishesNothing`, which asserts
@@ -1234,7 +1245,7 @@ it; two (D1, D2) would each have ended a lane's run with no summary line; two
 | D10 | the nil-width branch has no work bound; and `placeCustom` measures every child again, so "zero measure calls" was wrong on both paths | **applied** — §3.2.1 is the corrected arithmetic (`O(logicalCount)`, 2 per logical row); test 2.4b measures the slope; §9 carries the mitigation | §3.2.1, §6 lane 2, §9, `LR-CA`, `LR-BQ`/`LR-BR` amended |
 | D11 | `LR-BT`'s "now fixable" is one term of two; `ScrollContext` cannot supply the other | **applied — downgraded rather than prototyped.** Prototyping it would mean designing a `ScrollContext` change stage 4 has ruled itself out of touching; the honest statement costs nothing and the 6b hand-off is re-stated | §4.3, §9, `LR-BT` amended |
 | D12 | four of lane 2's eight "red-befores" do not compile at lane 1's HEAD | **applied — classified rather than split.** Splitting lane 2 would separate the layout from the site-check deletion, and neither half can be green alone | §6 lane 2, `LR-BX` |
-| D13 | the roll call's name will lie, and its order argument rests on an unstated accident | **applied** — renamed to `AuthorityCoverage` in the same change, the argument extended to the new files and re-measured twice | §6 lane 3, §7, `LR-CB` |
+| D13 | the roll call's name will lie, and its order argument rests on an unstated accident | **applied** — renamed to `AuthorityCoverage` in the same change, the argument extended to the new files and re-measured twice. **Lane 3's correction**: only `ListTests.swift` belongs in the argument — `ListLoweringTests.swift` contributes no name, because its nine tests run both authorities inside one body (`LR-CE` item 4) | §6 lane 3, §7, `LR-CB`, `LR-CE` |
 | D14 | every lane's demo criterion rests on an uncommitted harness | **applied, in the stronger form the finding offered** — lane 1 commits it, retiring the deferral, because it has been rebuilt three times in stage 3 alone at about an hour each | §8, §9, §6 lane 1, `LR-CB` |
 | D15 | `aTheListsSpacerIsANodeNotAnElement` | **applied** — `theListsSpacerIsANodeNotAnElement` | §6 lane 1 |
 
