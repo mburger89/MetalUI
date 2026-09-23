@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-DF`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-DS`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -73,6 +73,15 @@ milestones append their record to `docs/record/` and put only the rule here.
   `specs/2026-09-23-engine-stage-6a-design.md`, same decisions doc; **no new
   SwiftUI probe** — the stage's only probe,
   `swift-deprecated-witness-silence.sh`, is a compiler determinism check),
+  7 stage 6b `LR-DF`…`LR-DR` (§41, spec
+  `specs/2026-09-23-engine-stage-6b-design.md`, same decisions doc — the root
+  switch: `Window`'s and `Frame`'s default authority is now `.proposal`,
+  production runs the proposal engine; three probes re-run byte-identical
+  (`swiftui-stack-algorithms.swift`'s R control/R1–R4 for `CN-J`,
+  `swiftui-engine-replacement-stage1.swift`'s H0–H2,
+  `swiftui-engine-replacement-stage2.swift`'s V0–V3), plus two new harnesses,
+  `docs/probes/native-depth-ceiling/` (the release re-bisection) and
+  `docs/probes/stage-6b-flip-instrument.patch`),
   7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
@@ -101,8 +110,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`),
   §39 MetalUI off Apple (`XP-`, spec `specs/2026-09-23-metalui-portable-design.md`),
   §40 the demo on Linux and Windows (`DC-`, spec
-  `specs/2026-09-23-demo-cross-platform-design.md`), §41 portable font
-  fallback (`FB-`, spec `specs/2026-09-23-font-fallback-design.md`) and §42
+  `specs/2026-09-23-demo-cross-platform-design.md`), §42 portable font
+  fallback (`FB-`, spec `specs/2026-09-23-font-fallback-design.md`) and §43
   portable bidi (`BD-`, spec `specs/2026-09-23-bidi-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
@@ -118,6 +127,12 @@ milestones append their record to `docs/record/` and put only the rule here.
   **§38 (stage 6a) was written as §30** on `feat/engine-stage-6a` from
   `b3c29b9` and renumbered 30→38 at its merge, because `master` had already
   published §30–§37 (PRs #11–#20, `64c5271`; record §38's header).
+  **§41 (stage 6b) was written as §39** on `feat/engine-stage-6b` from
+  `aef88ce` and renumbered 39→41 at its merge, because `master` had already
+  published §39–§40 (PR #22, `654a503`; record §41's header).
+  **§42 (font fallback) was written as §40**, renumbered 40→41 at the
+  stage-6a merge and 41→42 when stage 6b reached `master` first; **§43
+  (bidi) was written as §41** and moved with it, 41→42→43.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -134,19 +149,90 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
-- **Counts (2026-09-23, `feat/bidi` — roadmap items 9–12 — merged with
-  `master` at `aef88ce`, stage 6a): 1699 tests, 97 goldens, 78 typecheck
-  guards**, taken the same way: **1699 = 1688 + 3 + 4 + 4**, master's
-  stage-6a figure below plus `MetalUICrossPlatformTests`' 3 (record §39),
-  font fallback's 4 (record §41) and bidi's 4 (record §42), three of them
-  gated, so twelve gated tests skip — the nine below, `recordDemoFrames`,
-  `measureFallbackDifferences` and `measureBidiDifferences`. The paragraph
-  after next is this line's figure before the merge (1697).
-- **Counts (2026-09-23, `feat/engine-stage-6a` — plan task 7 stage 6a —
-  merged with `master` at `64c5271`, PRs #11–#20): 1688 tests, 97 goldens,
+- **Counts (2026-09-23, `feat/bidi` — roadmap items 11–12 — merged with
+  `master` at `2cc763d`, stage 6b): 1712 tests, 97 goldens, 78 typecheck
+  guards**, taken the same way: **1712 = 1708 + 4**, font fallback's
+  figure below plus bidi's 4 (record §43, one gated, so twelve gated tests
+  skip — font fallback's eleven and `measureBidiDifferences`).
+- **Counts (2026-09-23, `feat/font-fallback` — roadmap item 11 — merged
+  with `master` at `2cc763d`, stage 6b): 1708 tests, 97 goldens, 78
+  typecheck guards**, taken the same way: **1708 = 1704 + 4**, master's
+  stage-6b figure below plus font fallback's 4 (record §42, one gated, so
+  eleven gated tests skip — master's ten and `measureFallbackDifferences`).
+- **Counts (2026-09-23, `feat/engine-stage-6b` — plan task 7 stage 6b —
+  merged with `master` at `654a503`, PR #22, roadmap items 9 and 10): 1704
+  tests, 97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both
+  build systems (`swift build --build-tests` under the default one too),
+  taken after `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1704 tests in 3 suites
+  passed`; the ten gated tests of master's paragraph below skipped; the
+  guards ran — the log carries `FR-J no-argument frame: succeeded=`). Goldens
+  unmoved against `aef88ce`. **1704 = 1691 + 13**: `master`'s `654a503`
+  (1691, its own figure below, taken the same way) plus stage 6b's 13 (the
+  branch paragraph next). **One pin moved with the switch, by design**:
+  `Tests/MetalUICrossPlatformTests/Expected.swift`, the demo frame
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` pins (`XP-C`), was re-recorded
+  on macOS — the same frame under `layoutAuthority: .legacy` still reads the
+  old values, and every paired rect and glyph delta is one of stage 6b's
+  named causes (record §41 §20); a `swift:6.4-noble` aarch64 container read
+  the new values, and Linux x86_64 and Windows CI re-confirm them on push.
+  `Backends/SDL`'s `PortableReplay` (6 fixtures, frame 5 the demo) and
+  `DemoCapture` passed on macOS at 0 px after re-recording the fixtures.
+- **Stage 6b's counts before the merge (2026-09-23, `feat/engine-stage-6b`
+  from `aef88ce`): 1701 tests, 97 goldens,
   78 typecheck guards**, 0 `error:`, 0 `warning:` on both build systems
   (`swift build --build-tests` under the default one too), taken after
   `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1701 tests in 3 suites
+  passed`; the same nine gated tests skipped as below; the guards ran — the
+  log carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
+  `aef88ce` (`git diff --name-only aef88ce HEAD -- 'Tests/**/*.json'` empty).
+  **1701 = 1688 + 13**: lane 1 (`hidden()` lowered under the proposal
+  authority, the root's px/rem `minSize`/`maxSize` folded, the depth guard
+  re-bisected in release for the first time) +9 (`HiddenLoweringTests` 6,
+  `RootFieldLoweringTests` 2, and the fix-round addition
+  `aHiddenTextIsHiddenUnderTheProposalAuthority`), lane 2 (every other red of
+  the flipped default made independent of it, `LR-DG`'s fixture rule) +1
+  (`everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`), lane
+  3 (the switch itself and the exit test) +3 (`RootSwitchTests`' 3.1–3.3);
+  record §41. **`Frame.defaultLayoutAuthority` is now `.proposal`** (internal;
+  `Frame.init`'s default and `Window.layoutAuthority`'s initial value both
+  read it) — **production now runs the proposal engine**, and every
+  `.legacy`-in-production sentence elsewhere in this file describes history,
+  not the present. Root placement is unchanged (`CN-J`: a native root is
+  centred at its own answer); `NativeLayoutRun.maxDepth` moves 88 → 72,
+  re-bisected in both debug and release for the first time (`LR-DK`); the
+  demo's list row gains one declared height
+  (`.height(Pixels(28))`) so its labels stay centred under the switch, its
+  deepest native level moving 29 → 30; the fourteen-image offscreen
+  comparison (`docs/probes/demo-pixels/compare.sh`) attributes every pixel
+  delta to one of four named causes (a sidebar/panel width SwiftUI answers
+  where the CSS engine shrank it, that width's paragraph re-wrap, the modal
+  card's height at the lowered column's width, and one-point rounding) — none
+  outside. Exit test `noProductionFrameReachesTheLegacyEngine` is green:
+  `demoContent()`, `nativeLayoutPreviewContent()` (`MetalUIDemoContent`,
+  `LR-S`) and a `List`, each driven through a real `Window`, bump
+  `Frame.legacyRootLayoutCounter` zero times. **The real-window capture was
+  not taken** — the screen was locked at every check across the stage — and
+  is owed to the human, along with the demo-layout human-verification rows
+  record §03 re-opens (`LR-DM`; sidebar 196, animation panel 320, modal card
+  height, list-row labels now vertically centred). **No golden moved; guards
+  unmoved** (78; `LR-DR` item 3: no new guard this stage). History: record
+  §41.
+- **Master's counts before stage 6b met it (2026-09-23, `feat/demo-cross-platform` — roadmap items 9 and 10
+  — merged with `master` at `aef88ce`, stage 6a): 1691 tests, 97 goldens, 78
+  typecheck guards**, taken the same way: **1691 = 1688 + 3**, master's
+  stage-6a figure below plus `MetalUICrossPlatformTests`' 3 (record §39; one
+  a gated recorder, so ten gated tests skip — the nine below and
+  `recordDemoFrames`). The paragraph after next is this line's figure before
+  the merge (1689 = 1686 + 3).
+- **Master's counts before items 9 and 10 (2026-09-23, `feat/engine-stage-6a` —
+  plan task 7 stage 6a — merged with `master` at `64c5271`, PRs #11–#20): 1688
+  tests, 97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both
+  build systems (`swift build --build-tests` under the default one too),
+  taken after `swift package clean` with `swift build --build-system native
   --build-tests` then unfiltered `swift test --build-system native
   --no-parallel` (**one summary line**, `Test run with 1688 tests in 3 suites
   passed`; the same nine gated tests skipped as below; the guards ran — the
@@ -201,7 +287,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `EmitLinesTests`; record §31), content sizes' 10 (record §32) and font
   resolution's 6 (record §33), the text seam's 5 (record §35) and
   `MetalUICrossPlatformTests`' 3 (record §39, one a gated recorder) and
-  font fallback's 4 (record §41, one gated) and bidi's 4 (record §42, one
+  font fallback's 4 (record §42, one gated) and bidi's 4 (record §43, one
   gated; `Tests/PortableTests` separately runs 18 + 6 + 5 since bidi;
   `Tests/PortableTests` separately runs 16 + 6 + 5); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
   15 (lane 1, the presentation root, +7; lane 2, the exit suites, +2; lane 3,
@@ -540,8 +626,10 @@ case where the legacy containing block is not the window
 absolute box **outside** a `Deferred` (`position`/`inset` at the consumer,
 owner stage 10), and `minSize`/`maxSize` on an absolute box's `auto` axis
 (`…absolute`, owner stage 8) each **report by name** rather than lower to a
-different answer. `LayoutAuthority.proposal` is still inert in production
-until stage 6b, so none of this is reachable outside a test yet.
+different answer. **Production runs `.proposal` since stage 6b**
+(`Frame.defaultLayoutAuthority`), so a `Deferred` over absolute content in the
+demo or any other production tree now takes this path by default, not only
+under a test's explicit authority.
 
 **`Component`** is layout-transparent and identity-opaque: no layout node, one
 cursor index, `@State` under its own id. Its `.padding` wraps each top-level
@@ -668,15 +756,21 @@ sleep: drive `simulateTick(timestamp:)`.
 ## SwiftUI alignment — the proposal layout path
 
 A propose/measure/place engine sits beside the CSS engine. Detail: §19
-"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38.
+"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38, §41.
 
 - **Two engines, chosen by the window root alone**
   (`tree.isNativeLayoutNode(root)`). A native root is placed centred at its own
   answer (`CN-J`). The kernel is the private `NativeNode` enum in
   `LayoutTree.swift` (twelve cases + `custom(any ProposalLayout)`); a new case
   must choose its zero-spacing edges.
-- **Layout authority (task 7, `LR-`):** `Frame.layoutAuthority`, `.legacy` in
-  production, internal until stage 6b. Under `.proposal` every legacy site
+- **Layout authority (task 7, `LR-`):** `Frame.layoutAuthority`, internal
+  (no public spelling — `LR-DF` left it that way). **`.proposal` in
+  production since stage 6b** (`Frame.defaultLayoutAuthority`, `LR-DF`):
+  `Frame.init`'s default and `Window.layoutAuthority`'s initial value both
+  read it, so a frame or window built with no explicit authority is
+  production's own path, not a test convenience. Production frames never set
+  `reportsUnlowerableFields`, so an unlowerable field still traps rather than
+  reports. Under `.proposal` every legacy site
   checks the authority itself and lowers (border-box: content → padding →
   fixed frame, built from the **animated** style, checked against the
   declared); unlowerable fields trap naming `<site>.<field>` or, with
@@ -776,6 +870,36 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   probe, `docs/probes/swift-deprecated-witness-silence.sh`, is a compiler
   determinism check (a deprecated protocol witness warns nothing), not a
   SwiftUI claim.
+- **Stage 6b throws the switch** (`LR-DF`…`LR-DR`): `Frame.defaultLayoutAuthority`
+  becomes `.proposal`, and with it `Frame.init`'s default and
+  `Window.layoutAuthority`'s initial value — **production now runs the
+  proposal engine**. No public spelling gained (`LR-DF` item 2); production
+  frames keep trapping, never reporting, on an unlowerable field. Of stage
+  6a's 92 still-red rows at the flipped default (record §38 §4, this stage's
+  work list): the 14 exit-trap tests are untouched (green once traps are
+  fatal again; **12** by lane 2's reading — lane 1 turned three into passing
+  tests of the new behaviour and added one, `LR-DQ` item 1), the 2 `D` tests
+  are rewritten to assert `.proposal`, `hidden()` now lowers (closing the 5
+  `AV` rows, `LR-DH`), a declared root axis folds its px/rem
+  `minSize`/`maxSize` (closing the root-fold rows, `LR-DI` amended by
+  `LR-DO`), and the 75 root-placement rows (54 RP and 21 of the 23 CE+RP) are
+  disposed by `LR-DG`'s fixture rule — 28 re-derive their literals as
+  `(W − w) / 2` and run `.proposal` (root placement is unmoved, `CN-J`;
+  divergence 4, the legacy engine's top-left window-filling root, stays a
+  legacy-authority-only row, retired with the CSS engine by 7b), 43 pass under
+  either authority once given the window's extent explicitly on an `auto` root
+  axis, 2 keep a greedy frame and 2 that neither recipe greens are pinned
+  `.legacy`. **20 tests in all are pinned `.legacy`
+  by this stage, each with a named owner** (`LR-DQ` item 2): 15 for 7b (12
+  CSS, 1 RP+CSS-frame, the 2 neither-recipe rows) and 5 for 9 (3 N9, the 2
+  tokenizer tests). `NativeLayoutRun.maxDepth` moves 88 →
+  72, the first release re-bisection alongside debug (`LR-DK`, "Depth guard"
+  below); the demo's list row gains `.height(Pixels(28))` so its labels stay
+  centred under the switch (`LR-DJ`), moving its deepest native level 29 → 30.
+  Exit test `noProductionFrameReachesTheLegacyEngine`: `demoContent()`,
+  `nativeLayoutPreviewContent()` (`MetalUIDemoContent`, `LR-S`) and a `List`,
+  each through a real `Window`, bump `Frame.legacyRootLayoutCounter` (a
+  `@TaskLocal`, main-actor only) zero times. Record §41.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -803,15 +927,28 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   it or it would make a node non-finite at a finite proposal. Measurements may
   be infinite, stored rects may not, nothing may be NaN. Relaxing a trap into a
   clamp later is additive; the reverse breaks callers.
-- **Depth guard** `NativeLayoutRun.maxDepth` = 88 (`SA-L`); raise only after
-  re-bisecting all four node kinds. A padded, sized legacy container lowers to
-  3 native levels, and since stage 2 an item with a margin, a padding, a size
-  and a stretch is **five**, so a chain of those reaches the 88/89 boundary at
-  122/123 nodes (record §21, test 4.8). The default demo's deepest lowered path
-  is **measured at 18**, not the 22 `LR-Q` estimated. **`SA-L`'s own depth
-  table is stale**: the vertical stack completes 128 levels at `cb2e708` where
-  the 2026-09-14 table reads 151, which by `SA-L`'s rule would give 72 rather
-  than 88 (found by the grids track; owner is `LR-Q`'s stage 6b re-bisection).
+- **Depth guard** `NativeLayoutRun.maxDepth` = **72** (`SA-L`, moved from 88 by
+  stage 6b's `LR-DK`); raise only after re-bisecting all four node kinds in
+  **both** debug and release (stage 6b was the first release re-bisection).
+  **Chosen by legacy's safety fraction, not legacy's number**: the largest
+  multiple of 8 not above 0.60 of the smallest native **debug** ceiling on a
+  1 MB thread (the one-child stack, 127/128) — 0.60 × 127 = 76.2, so 72; debug
+  governs, release's smallest ceiling (653, also the stacks) is 9× headroom.
+  A padded, sized legacy container lowers to 3 native levels, and since
+  stage 2 an item with a margin, a padding, a size and a stretch is **five**,
+  so a chain of those now reaches the 72/73 boundary at 100/101 nodes (test
+  4.8, `LANE4-4.8 nodes=100 deepest=72`; 122/123 at 88; record §41 §10.1). **Production roots,
+  measured through a real `Window` at the new default** (record §41 §5,
+  §12.3): the demo's deepest native level is **30** (modal off, on, and
+  animating — one more than the pre-re-spelling 29, `LR-DJ`'s list-row
+  height; the earlier "measured at 18" predated stages 3 and 4, whose scroll
+  viewport and windowed `List` add levels), the proposal preview 10, a
+  `ScrollView { List }` root 15–16 depending on whether its row declares a
+  height. **`SA-L`'s pre-6b table was stale in the direction that mattered**:
+  the vertical stack completed 128 levels at `cb2e708` where the 2026-09-14
+  table read 151, which by `SA-L`'s own rule gives 72 rather than 88 — found
+  by the grids track, closed by stage 6b's re-bisection (`LR-Q` item 3,
+  `docs/probes/native-depth-ceiling/`).
   **Work counters:** `LayoutTree.lastNativeLayoutWork` (`SA-M`) on a branching
   tree, literals derived before the run.
 - **`Grid` and `GridRow` (stage G, `GR-`).** A column is as wide as its widest
@@ -972,24 +1109,29 @@ expected, measured facts:
   amends **9, 10 and 11** without retiring or adding a number: 9 survives on
   both authorities, 10 is unchanged and gains SwiftUI evidence (agrees with
   SwiftUI's presentation, disagrees with its overlay), 11 becomes
-  legacy-only (retires with the legacy authority at stage 9));
+  legacy-only (retires with the legacy authority at stage 9); and its
+  2026-09-23 (stage 6b) section amends **4** without retiring or adding a
+  number: `CN-J` is production's root placement (a native root is centred at
+  its own answer, unchanged by the switch), and divergence 4 (the legacy
+  engine's `CS-I`: a hugging root fills the offered extent from (0, 0))
+  becomes **legacy-authority only**, pinned by its own CSS-engine tests,
+  retired with the legacy engine at 7b);
   §19 "Known divergences" is the frozen 48-row copy. Many are *pinned wrong on
   purpose*; a test named for one reddening may be a fix, not a bug.
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
   `Style.aspectRatio`/`overflow`, `margin: .auto`, `Style.border` on a
   container, `Position.relative` offset, `hidden()` on drawing/focusable
   subtrees, `AnyElement`'s `@State`, `PaintPass.isActive`, `onInput`'s `->
-  Bool`, colour glyphs, baselines, `LayoutAuthority.proposal` in production,
+  Bool`, colour glyphs, baselines,
   `locale`/`layoutDirection`/`dynamicTypeSize`, one axis each of
   `markNativeGridRow`/`markNativeGridCell`'s alignment, a grid mark outside a
   grid, …) — §19 "Declared but inert", record §05, whose 2026-09-21 section
   carries the stage 2 and grids changes, whose 2026-09-22 one carries stage
   3's and whose first 2026-09-23 one carries stage 4's: `UnlowerableField` site
   `.list` now has **no site-level reporter left** (the same shape as site
-  `component`), `LayoutAuthority.proposal` in production stays inert until
-  stage 6b, and the internal `ListRows.GroupLayout.spacer` is stored on every
-  frame of every legacy `List` and read by nothing. **Three of those rows are
-  legacy-authority only**: under `.proposal`, stage 2 lowers `margin: .auto`
+  `component`), and the internal `ListRows.GroupLayout.spacer` is stored on
+  every frame of every legacy `List` and read by nothing. **Three of those rows
+  are legacy-authority only**: under `.proposal`, stage 2 lowers `margin: .auto`
   to nothing explicitly, `Style.border` on a container to insets, and a
   `Text`'s `Style.padding` around its leaf. `Style.overflow` is **not** one of
   them: stage 3's lowering does not carry it either, and `loweredLayout` says
@@ -999,13 +1141,17 @@ expected, measured facts:
   (`deferred.containingBlock`/`.nested`/`.root`/`.amended`, the two
   `…absolute` fields, `position`/`inset` moved to the consumer) are
   diagnostics read by the report mechanism itself, not stored-but-unread
-  state; `LayoutAuthority.proposal` in production is still the one inert row
-  this stage touches, and it is unchanged.
+  state. **`LayoutAuthority.proposal` in production is no longer inert — its
+  row is deleted** (stage 6b, `LR-DF`: production now runs it by default); the
+  entry above listed it until this stage.
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
   2026-09-21 section adds the two stage 2 / grids rows, whose 2026-09-22 one
-  adds stage 3's and whose 2026-09-23 one adds stage 5's. Nothing
+  adds stage 3's, whose first 2026-09-23 one adds stage 5's and whose second
+  2026-09-23 one (stage 6b) **re-opens the demo-layout rows**: production now
+  runs the proposal engine by default, so every look the demo shows is this
+  stage's to own. Nothing
   in the suite sees paint order, portals, scroll direction, presentation, the
   display link or real hover; those are looks. Padded legacy container rule:
   container modifiers and `.flexGrow(1)` before `.padding`; size, background,
@@ -1025,12 +1171,26 @@ expected, measured facts:
   control, plus the twelve offscreen images at 0 at every lane and twice more
   in verification. **The demo's `List` is never windowed in any of them** (one
   cold frame, `firstIndex == 0`), so the windowing is pinned by tests, not by
-  pixels. Nothing in production runs under the proposal authority, so **no
-  demo look is owed until stage 6b**. **Stage 5's capture is open too**: the
-  screen was locked at all three lanes (03:11, 04:02, 04:41 PDT), so
+  pixels. Nothing in production ran under the proposal authority before stage
+  6b, so no demo look was owed before it. **Stage 5's capture is open too**:
+  the screen was locked at all three lanes (03:11, 04:02, 04:41 PDT), so
   `capture.sh` was never run; the offscreen twelve read 0 differing at every
-  lane, and no demo look is owed by this stage either — `Deferred` as a
-  presentation root is reachable only under `LayoutAuthority.proposal`.
+  lane — no demo look was owed by that stage either, since `Deferred` as a
+  presentation root was reachable only under `LayoutAuthority.proposal`, still
+  not production's path at the time. **Stage 6b's real-window capture is open
+  too, and now IS owed**: `LayoutAuthority.proposal` is production's default
+  as of this stage, and the demo's pixels changed (a sidebar/panel width, its
+  paragraph's re-wrap, the modal card's height, list-row labels now vertically
+  centred — every one probe-backed and named, record §41 §4, §12.6). The
+  screen was locked at every check across all three lanes and the critic
+  round, so `capture.sh` was never run; the fourteen-image offscreen
+  comparison stands in and reads exactly those four named causes and nothing
+  else. **Five looks a human still owes**: the real-window capture itself, the
+  sidebar now reading 196 where the CSS engine shrank it (to 96 at 1024², 88
+  at the demo's own 920×560),
+  the animation panel at 320, the modal card's new height, and the list rows'
+  labels now centred in their declared 28 pt row — none of these was ever seen
+  on a real display.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;
   re-measure before reasoning from them. **`MP-I`'s 100 000-row cold frame
@@ -1076,4 +1236,8 @@ expected, measured facts:
     way inside `PresentationWindowTests`, which is why every scenario there
     pre-flights under diagnostics with `try #require` on an empty report
     before opening its `Window` — a new presentation window test owes one
-    pre-flight (and one per animated end state).
+    pre-flight (and one per animated end state). **Stage 6b makes this a
+    production hazard, not only a test one**: every `Frame`/`Window` built
+    with no explicit authority now runs `.proposal` by default, so a
+    lowering site that receives a `LoweredItem` nobody consumes traps at
+    runtime in the app, not only in a test that opted into diagnostics.

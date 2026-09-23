@@ -374,9 +374,15 @@ import MetalUIRender
     GlobalElementID.child(of: nil, at: 0, name: ElementID(name))
 }
 
-@MainActor private func animFrame(_ table: StateTable, timestamp: Double, side: Float = 300) -> Frame {
-    Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
-          scaleFactor: 1, stateTable: table, timestamp: timestamp)
+/// `authority` `nil` leaves `Frame`'s default; the registering-site guard
+/// pinned to the legacy authority by stage 6b (`LR-DI`) passes `.legacy`.
+@MainActor private func animFrame(_ table: StateTable, timestamp: Double, side: Float = 300,
+                                  authority: LayoutAuthority? = nil) -> Frame {
+    authority.map {
+        Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
+              scaleFactor: 1, stateTable: table, timestamp: timestamp, layoutAuthority: $0)
+    } ?? Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
+               scaleFactor: 1, stateTable: table, timestamp: timestamp)
 }
 
 /// Spec §9 test 1's first half. A field that differs while a transaction is
@@ -777,6 +783,12 @@ import MetalUIRender
 /// member `Box`'s own call. A caller's `.width`/`.height`/`.padding` ON the
 /// component snaps, and that half is **pinned wrong on purpose** (finding
 /// B-7). See the arm's comment and `StyledComponent`'s doc.
+///
+/// **P-CSS, owner 7b (stage 6b, `LR-DI`, `LR-DO` item 2)**: every arm reads
+/// `pass.style(node)`, the CSS tree, so every frame here passes `.legacy`. Its
+/// proposal twin — the map of each arm to the proposal-side test pinning the
+/// same site, and the arms that had none — is
+/// `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` below.
 @Test @MainActor func everyRegisteringSiteAnimatesItsStyle() throws {
     func styled(flexGrow: Float) -> Style {
         var s = Style()
@@ -790,11 +802,11 @@ import MetalUIRender
         let table = StateTable()
         let id = eid("box")
 
-        var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0, authority: .legacy))
         var box1 = Box(style: styled(flexGrow: 0))
         _ = box1.requestLayout(id, pass: &pass1)
 
-        var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0, authority: .legacy))
         var midStyle: Style!
         withAnimation(.linear(duration: 1)) {
             var box2 = Box(style: styled(flexGrow: 100))
@@ -806,7 +818,7 @@ import MetalUIRender
                 'from' value 0, got \(midStyle.flexGrow)
                 """)
 
-        var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+        var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5, authority: .legacy))
         var box3 = Box(style: styled(flexGrow: 100))
         let (node3, _) = box3.requestLayout(id, pass: &pass3)
         #expect(pass3.style(node3).flexGrow == 50, """
@@ -821,11 +833,11 @@ import MetalUIRender
         let table = StateTable()
         let id = eid("stack")
 
-        var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0, authority: .legacy))
         var stack1 = Stack { Box() }
         _ = stack1.requestLayout(id, pass: &pass1)
 
-        var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0, authority: .legacy))
         var midStyle: Style!
         withAnimation(.linear(duration: 1)) {
             var stack2 = Stack { Box() }.flexGrow(100)
@@ -837,7 +849,7 @@ import MetalUIRender
                 'from' value 0, got \(midStyle.flexGrow)
                 """)
 
-        var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+        var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5, authority: .legacy))
         var stack3 = Stack { Box() }.flexGrow(100)
         let (node3, _) = stack3.requestLayout(id, pass: &pass3)
         #expect(pass3.style(node3).flexGrow == 50, """
@@ -866,7 +878,7 @@ import MetalUIRender
         ])
         table.write(slot, seed)
 
-        var pass = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+        var pass = LayoutPass(frame: animFrame(table, timestamp: 0.5, authority: .legacy))
         var scroll = ScrollView { Box() }
         let (_, layout) = scroll.requestLayout(id, pass: &pass)
         let out = pass.style(layout.contentNode)
@@ -893,7 +905,7 @@ import MetalUIRender
         ])
         table.write(slot, seed)
 
-        var pass = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+        var pass = LayoutPass(frame: animFrame(table, timestamp: 0.5, authority: .legacy))
         var scroll = ScrollView { Box() }
         let (node, _) = scroll.requestLayout(id, pass: &pass)
         let out = pass.style(node)
@@ -915,7 +927,7 @@ import MetalUIRender
         // — which for a `StyledComponent` is AFTER its `amend` has run.
         func nodeStyles<G: ElementGroup>(_ group: G, _ table: StateTable, at t: Double) -> [Style] {
             var group = group
-            var pass = LayoutPass(frame: animFrame(table, timestamp: t))
+            var pass = LayoutPass(frame: animFrame(table, timestamp: t, authority: .legacy))
             var cursor = 0
             let (nodes, _) = group.requestGroupLayout(under: eid("component"), at: &cursor, pass: &pass)
             return nodes.map { pass.style($0) }
@@ -1012,7 +1024,7 @@ import MetalUIRender
             func wrapperAndMember<G: ElementGroup>(_ group: G, _ table: StateTable, at t: Double)
                 -> (wrapper: Style, member: Style)? {
                 var group = group
-                var pass = LayoutPass(frame: animFrame(table, timestamp: t))
+                var pass = LayoutPass(frame: animFrame(table, timestamp: t, authority: .legacy))
                 var cursor = 0
                 let (nodes, _) = group.requestGroupLayout(under: eid("component"), at: &cursor, pass: &pass)
                 guard nodes.count == 1 else { return nil }
@@ -1070,7 +1082,7 @@ import MetalUIRender
 
         /// `nil` when the outer layer's node does not have exactly one child.
         func paddings(inner: Float, outer: Float, at t: Double) -> (inner: Length, outer: Length)? {
-            var pass = LayoutPass(frame: animFrame(table, timestamp: t))
+            var pass = LayoutPass(frame: animFrame(table, timestamp: t, authority: .legacy))
             var chain = Box().width(Pixels(10)).height(Pixels(10))
                 .padding(Edges(all: .pixels(Pixels(inner))))
                 .padding(Edges(all: .pixels(Pixels(outer))))
@@ -1094,6 +1106,164 @@ import MetalUIRender
         #expect(start?.outer == .pixels(8) && mid.outer == .pixels(24), """
                 ModifiedElement outermost layer: registering site does not animate — expected 8 \
                 then 24, got \(String(describing: start?.outer)) then \(mid.outer)
+                """)
+    }
+}
+
+// MARK: - Stage 6b test 2.1: the proposal twin of the registering-site guard
+
+/// **Test 2.1** (stage 6b, `LR-DO` item 2, `LR-DQ`). `everyRegisteringSiteAnimatesItsStyle`
+/// above reads `pass.style(node)` — the CSS tree — and is pinned to the legacy
+/// authority (`LR-DI`, owner 7b). Stage 6b's map of each of its site arms to the
+/// test that pins the same site **under the proposal authority**:
+///
+/// | legacy arm | shared `animated(` call | proposal-side pin (its mutation) |
+/// |---|---|---|
+/// | `Box` | `Box.swift` | `aLoweredBoxRegistersItsAnimatedWidth` (V7), `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap` (V1), `aLoweredMarginRegistersItsAnimatedValue` (V4n) |
+/// | `Stack` | `Stack.swift` | `aLoweredStackLaysOutItsAnimatedWidthAndPadding` (V4) |
+/// | `ScrollView` content | `ScrollView.swift`'s lowered path, its own call | **none** — `aLoweredScrollViewKeepsItsTwoAnimationSlots` pins the slot's existence, not that the lowered content reads the animated value: **arm (b) here** |
+/// | `ScrollView` viewport | the same, its own call | `aLoweredScrollViewKeepsItsTwoAnimationSlots` (the slot). Its values are **unobservable** under the proposal authority by construction: the viewport's `LoweredItem` declares `Style()`, and `LR-AS` builds every item wrapper from the declared style, so no animated viewport field is ever read |
+/// | `Component` member's own declaration | the member `Box`'s | the `Box` row (the member IS a `Box`, lowered by the same branch) |
+/// | a caller's modifier on a `Component` | none (B-7: snaps on both paths) | **none**: **arm (c) here**, pinned wrong on purpose as the legacy arm is |
+/// | `ModifiedElement` inner layer | `ModifiedElement.swift`, per layer | **none** — 4.7 and 4.11 animate a one-layer chain's frame layer only: **arm (a)**, inner half |
+/// | `ModifiedElement` outermost layer | the same | 4.7 / 4.11 for a **frame** layer; a padding layer's own lowering is unpinned: **arm (a)**, outermost half |
+///
+/// Every arm renders through `Frame.render` under `.proposal` in a 200×100
+/// top-leading `DifferentialRoot`, with diagnostics on and each report required
+/// empty, and reads `Frame.elementBounds` — the lowered rects, not a `Style`.
+///
+/// - **(a)** `Box(10×10).padding(inner).padding(outer)`, inner 4 → 20 and outer
+///   8 → 40 under `withAnimation(.linear(duration: 1))`. Derived by hand: before
+///   and at the transaction's start the outer layer is (0, 0) 34×34, the inner
+///   (8, 8) 18×18 and the leaf (12, 12); half-way (inner 12, outer 24) the outer is
+///   (0, 0) 82×82, the inner (24, 24) 34×34 and the leaf (36, 36).
+/// - **(b)** `Box { ScrollView(.vertical) { Box(20×10) } }.width(80).height(60)`
+///   with an in-flight `padding.left` 40 → 0 seeded into the content node's `$anim`
+///   slot (the legacy arm's seeding, a length a lowered container's
+///   `paddedAndSized` reads from the animated style): half-way the leaf sits 20
+///   right of the viewport's x; the unseeded control, 0.
+/// - **(c)** `Row { Panel(100).width(196 → 320).height(40 → 80); 1×1 marker }`:
+///   under the proposal authority a caller's `.width` on a component is a native
+///   frame around each member (`loweredComponentFrame`, divergence 48's fix), and
+///   it SNAPS — the marker's x (the frame's width) reads the target 320 at the
+///   transaction's start and half-way, where an animating frame would read 196
+///   then 258. **Wrong on purpose (B-7)**: if this reads 196 / 258, the snap is
+///   fixed; flip the arm with the legacy one.
+///
+/// Mutations, one per new arm (record §41 §11): the inner layer lowered from its
+/// declared style (`lowerLegacyLayer` handed the pre-`animated` style) reddens
+/// (a)'s inner half; the same for the outermost layer, its outer half; the lowered
+/// `ScrollView`'s content `animated(` call dropped reddens (b) (and
+/// `aLoweredScrollViewKeepsItsTwoAnimationSlots`). (c) has no `animated(` call to
+/// drop: it pins an absence, and its reddening event is B-7's fix.
+@Test @MainActor func everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority() throws {
+    let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+    func child(_ parent: GlobalElementID, _ index: Int) -> GlobalElementID {
+        GlobalElementID.child(of: parent, at: index, name: nil)
+    }
+    func bounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixels> {
+        Bounds(origin: Point(x: Pixels(x), y: Pixels(y)), size: Size(width: Pixels(w), height: Pixels(h)))
+    }
+    /// One proposal frame over `element` in a 200×100 top-leading harness root,
+    /// report required empty; the bounds of `ids`.
+    func rects<E: ElementGroup>(_ table: StateTable, _ ids: [GlobalElementID], timestamp: Double,
+                                animating: Bool, _ element: E) -> [Bounds<Pixels>?] {
+        var harness = DifferentialRoot(width: 200, height: 100) { element }
+        let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                          stateTable: table, timestamp: timestamp,
+                          transaction: animating ? .linear(duration: 1) : nil,
+                          layoutAuthority: .proposal, reportsUnlowerableFields: true,
+                          recordsElementBounds: true)
+        frame.render(&harness)
+        #expect(frame.unlowerableFields.isEmpty, "t \(timestamp): \(frame.unlowerableFields)")
+        return ids.map { frame.elementBounds[$0] }
+    }
+
+    // MARK: (a) ModifiedElement — the inner padding layer and the outermost one
+    do {
+        let outer = child(root, 0), inner = child(outer, 0), leaf = child(inner, 0)
+        func chain(inner: Float, outer: Float) -> ModifiedElement<Box<EmptyGroup>> {
+            Box().width(Pixels(10)).height(Pixels(10))
+                .padding(Edges(all: .pixels(Pixels(inner))))
+                .padding(Edges(all: .pixels(Pixels(outer))))
+        }
+        let table = StateTable()
+        let ids = [outer, inner, leaf]
+        let baseline = rects(table, ids, timestamp: 0, animating: false, chain(inner: 4, outer: 8))
+        let start = rects(table, ids, timestamp: 0, animating: true, chain(inner: 20, outer: 40))
+        let mid = rects(table, ids, timestamp: 0.5, animating: false, chain(inner: 20, outer: 40))
+        let rest = [bounds(0, 0, 34, 34), bounds(8, 8, 18, 18), bounds(12, 12, 10, 10)]
+        try #require(baseline == rest, "(a) set up — the baseline chain: \(baseline)")
+        #expect(start[0] == rest[0] && mid[0] == bounds(0, 0, 82, 82),
+                "(a) outermost padding layer: expected 34 then 82 wide, got \(start[0].map(String.init(describing:)) ?? "nil") then \(mid[0].map(String.init(describing:)) ?? "nil")")
+        #expect(start[1] == rest[1] && start[2] == rest[2]
+                    && mid[1] == bounds(24, 24, 34, 34) && mid[2] == bounds(36, 36, 10, 10),
+                "(a) inner padding layer: expected the leaf at 12 then 36 inside an 18 then 34 layer, got start \(start) mid \(mid)")
+    }
+
+    // MARK: (b) ScrollView — the lowered content node reads its animated style
+    do {
+        let scroller = child(child(root, 0), 0)
+        let leaf = child(scroller, 0)
+        func tree() -> Box<ScrollView<Box<EmptyGroup>>> {
+            Box { ScrollView(.vertical) { Box().width(Pixels(20)).height(Pixels(10)) } }
+                .width(Pixels(80)).height(Pixels(60))
+        }
+        func leafOffset(seeded: Bool) throws -> Float {
+            let table = StateTable()
+            if seeded {
+                // The legacy arm's seeding, at the lowered branch's own slot: the
+                // baseline is the content style the site declares this frame (a
+                // column, every other field default), so only the seeded field is
+                // in flight.
+                var seedStyle = Style()
+                seedStyle.flexDirection = .column
+                table.write(animRetentionSlot(for: scrollViewContentAnimID(for: scroller)),
+                            AnimatedElementState(style: seedStyle, decoration: Decoration(), inFlight: [
+                                "padding.left": AnimatedFieldState(caseTag: 0, from: 40, to: 0, startTime: 0,
+                                                                   animation: .linear(duration: 1), velocity: 0)
+                            ]))
+            }
+            let r = rects(table, [scroller, leaf], timestamp: 0.5, animating: false, tree())
+            let viewport = try #require(r[0], "(b) the scroller recorded no bounds")
+            let content = try #require(r[1], "(b) the leaf recorded no bounds")
+            return content.origin.x.value - viewport.origin.x.value
+        }
+        let control = try leafOffset(seeded: false)
+        try #require(control == 0, "(b) set up — unseeded, the leaf is at the viewport's x: \(control)")
+        let seeded = try leafOffset(seeded: true)
+        #expect(seeded == 20, """
+                (b) ScrollView content node: the lowered content must lay out the interpolated \
+                padding.left (20 half-way from 40 to 0), got \(seeded)
+                """)
+    }
+
+    // MARK: (c) Component — a caller's modifier snaps (B-7), wrong on purpose
+    do {
+        struct Panel: Component {
+            var content: some ElementGroup { Box().width(Pixels(100)).height(Pixels(10)) }
+        }
+        let row = child(root, 0)
+        let marker = child(row, 1)
+        func tree(_ w: Float, _ h: Float) -> some Element {
+            Row {
+                Panel().width(Pixels(w)).height(Pixels(h))
+                Box().width(Pixels(1)).height(Pixels(1))
+            }.alignItems(.flexStart)
+        }
+        let table = StateTable()
+        func markerX(_ w: Float, _ h: Float, timestamp: Double, animating: Bool) -> Float? {
+            rects(table, [marker], timestamp: timestamp, animating: animating, tree(w, h))[0]?.origin.x.value
+        }
+        try #require(markerX(196, 40, timestamp: 0, animating: false) == 196,
+                     "(c) set up — the component's frame is 196 wide before the change")
+        let start = markerX(320, 80, timestamp: 0, animating: true)
+        let mid = markerX(320, 80, timestamp: 0.5, animating: false)
+        #expect(start == 320 && mid == 320, """
+                WRONG ON PURPOSE — B-7, under the proposal authority too. A caller's .width on a \
+                Component snaps: an animating frame would read 196 then 258, and today reads the \
+                target 320 at both. If this now reads 196 / 258, the snap is fixed; flip this arm \
+                with the legacy one. Read \(String(describing: start)) then \(String(describing: mid))
                 """)
     }
 }
@@ -1743,11 +1913,20 @@ private let probeSeparatorRGB = Rgba(r: 0.60, g: 0.10, b: 0.90)
 @MainActor private func colorFrame(_ table: StateTable, timestamp: Double,
                                    theme: Theme, side: Float = 100,
                                    mousePosition: Point<Pixels>? = nil,
-                                   focusedElement: GlobalElementID? = nil) -> Frame {
-    Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
-          scaleFactor: 1, stateTable: table,
-          theme: theme, timestamp: timestamp,
-          mousePosition: mousePosition, focusedElement: focusedElement)
+                                   focusedElement: GlobalElementID? = nil,
+                                   authority: LayoutAuthority? = nil) -> Frame {
+    // `nil` leaves `Frame`'s default; a test whose literals were re-derived for
+    // `CN-J`'s centred root (stage 6b, `LR-DG`) passes `.proposal`.
+    authority.map {
+        Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
+              scaleFactor: 1, stateTable: table,
+              theme: theme, timestamp: timestamp,
+              mousePosition: mousePosition, focusedElement: focusedElement,
+              layoutAuthority: $0)
+    } ?? Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
+               scaleFactor: 1, stateTable: table,
+               theme: theme, timestamp: timestamp,
+               mousePosition: mousePosition, focusedElement: focusedElement)
 }
 
 /// Componentwise, with each component named — never `==` on the whole `Hsla`.
@@ -1906,7 +2085,11 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
         return b
     }
     let id = eid("chain")
-    let inside = Point(x: Pixels(20), y: Pixels(20))
+    // Stage 6b (`LR-DG`, R-centre — predicted "fill", but the root declares
+    // both axes): the 40x40 root is centred in the 100x100 frame at 30..70
+    // (`CN-J`), so (50, 50) is inside it where (20, 20) was at the legacy
+    // top-left root; every frame below passes `.proposal`.
+    let inside = Point(x: Pixels(50), y: Pixels(50))
 
     func painted(_ frame: Frame) throws -> Hsla {
         var element = box()
@@ -1920,20 +2103,20 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     do {
         let table = StateTable()
         // Frame 1: not hovered — the baseline is the plain `background` token.
-        let plain = try painted(colorFrame(table, timestamp: 0, theme: theme))
+        let plain = try painted(colorFrame(table, timestamp: 0, theme: theme, authority: .proposal))
         expectColor(plain, h: 0.642857, s: 0.777778, l: 0.45, "unhovered: the plain token")
 
         // Frame 2: hovered, under a transaction. The EFFECTIVE token moved from
         // `background` to `accent` without any `Decoration` field changing at
         // all — which is the point.
-        let frame2 = colorFrame(table, timestamp: 0, theme: theme, mousePosition: inside)
+        let frame2 = colorFrame(table, timestamp: 0, theme: theme, mousePosition: inside, authority: .proposal)
         var started: Hsla?
         try withAnimationThrowing(.linear(duration: 1)) { started = try painted(frame2) }
         expectColor(started, h: 0.642857, s: 0.777778, l: 0.45,
                     "the frame hover begins reads its own `from`")
 
         // Frame 3: still hovered, halfway.
-        let mid = try painted(colorFrame(table, timestamp: 0.5, theme: theme, mousePosition: inside))
+        let mid = try painted(colorFrame(table, timestamp: 0.5, theme: theme, mousePosition: inside, authority: .proposal))
         expectColor(mid, h: midBackgroundToAccent.h, s: midBackgroundToAccent.s,
                     l: midBackgroundToAccent.l, "hover fades through the effective colour")
     }
@@ -1942,16 +2125,16 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     // alone (step 7's mutation) cannot pass both arms by coincidence.
     do {
         let table = StateTable()
-        let plain = try painted(colorFrame(table, timestamp: 0, theme: theme))
+        let plain = try painted(colorFrame(table, timestamp: 0, theme: theme, authority: .proposal))
         expectColor(plain, h: 0.642857, s: 0.777778, l: 0.45, "unfocused: the plain token")
 
-        let frame2 = colorFrame(table, timestamp: 0, theme: theme, focusedElement: id)
+        let frame2 = colorFrame(table, timestamp: 0, theme: theme, focusedElement: id, authority: .proposal)
         var started: Hsla?
         try withAnimationThrowing(.linear(duration: 1)) { started = try painted(frame2) }
         expectColor(started, h: 0.642857, s: 0.777778, l: 0.45,
                     "the frame focus begins reads its own `from`")
 
-        let mid = try painted(colorFrame(table, timestamp: 0.5, theme: theme, focusedElement: id))
+        let mid = try painted(colorFrame(table, timestamp: 0.5, theme: theme, focusedElement: id, authority: .proposal))
         expectColor(mid, h: midBackgroundToSeparator.h, s: midBackgroundToSeparator.s,
                     l: midBackgroundToSeparator.l, "focus fades through the effective colour")
     }

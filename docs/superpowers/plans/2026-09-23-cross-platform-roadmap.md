@@ -100,11 +100,11 @@ Apple-bound:
 11. [x] **Font fallback** — an ordered cascade of registered faces, per
     grapheme; equal to CoreText's with the same cascade list. RTL fallback
     waits for item 12. `feat/font-fallback`, spec
-    `specs/2026-09-23-font-fallback-design.md` (`FB-`), record §41.
+    `specs/2026-09-23-font-fallback-design.md` (`FB-`), record §42.
 12. [x] **Bidi and script itemization** — SheenBidi; runs by face, level
     and script; visual lines equal to CoreText's (and item 11's RTL fallback
     with them). `feat/bidi`, spec `specs/2026-09-23-bidi-design.md` (`BD-`),
-    record §42.
+    record §43.
 13. [x] **Accessibility off Apple** — AccessKit (AT-SPI, UI Automation,
     and NSAccessibility for SDL on macOS) behind `publishAccessibilityTree`.
     `feat/accessibility`, spec `specs/2026-09-23-accesskit-accessibility-design.md`

@@ -1,7 +1,7 @@
-# 41 — Portable font fallback, 2026-09-23
+# 42 — Portable font fallback, 2026-09-23
 
 Branch `feat/font-fallback`, from `feat/demo-cross-platform` (PR #22, record
-§40). Written as §40 and renumbered 40→41 when stage 6a took §38. Spec: `docs/superpowers/specs/2026-09-23-font-fallback-design.md`,
+§40). Written as §40 and renumbered 40→41 when stage 6a took §38, and 41→42 when stage 6b took §41. Spec: `docs/superpowers/specs/2026-09-23-font-fallback-design.md`,
 rulings `FB-A`…`FB-C` (next `FB-D`). Roadmap item 11.
 
 ## What changed

@@ -286,8 +286,14 @@ public struct ModifiedElement<Content: ElementGroup>: Element, StyledElement {
         guard depth < inner.count else {
             return prepaintLayerBody(depth, id: id, bounds: bounds, layout: &layout, pass: &pass)
         }
-        return pass.frame.suppressingAccessibilityIfHidden(layout.inner[depth].node) {
-            prepaintLayerBody(depth, id: id, bounds: bounds, layout: &layout, pass: &pass)
+        // Stage 6b (ruling `LR-DH` item 4): the pointer-disable scope for an inner
+        // layer a lowered `hidden()` put in `Frame.hiddenNodes`, mirrored here as the
+        // suppression is.
+        let node = layout.inner[depth].node
+        return pass.frame.suppressingAccessibilityIfHidden(node) {
+            pass.frame.disablingHitTestingIfHidden(node) {
+                prepaintLayerBody(depth, id: id, bounds: bounds, layout: &layout, pass: &pass)
+            }
         }
     }
 
@@ -342,6 +348,11 @@ public struct ModifiedElement<Content: ElementGroup>: Element, StyledElement {
                                      layout: inout Layout,
                                      prepaint: inout Content.GroupPrepaint,
                                      pass: inout PaintPass) {
+        // Stage 6b (ruling `LR-DH` item 4): an inner layer a lowered `hidden()` put
+        // in `Frame.hiddenNodes` paints nothing, and nothing inside it paints —
+        // `Element.paintGroup`'s skip mirrored per layer (the outermost layer's node
+        // is the element's, which `paintGroup` checks before calling `paint`).
+        if depth < inner.count, pass.frame.hiddenNodes.contains(layout.inner[depth].node) { return }
         let decoration = depth == inner.count ? outermost.decoration : inner[depth].decoration
         pass.paintDecoration(decoration, in: bounds, for: id) {
             guard depth > 0 else {

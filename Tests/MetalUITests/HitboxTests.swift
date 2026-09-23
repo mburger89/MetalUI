@@ -313,7 +313,11 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// the element's own `prepaint`, from inside it — so if `resolveHover` moved
 /// to run before `prepaint`, this is what would catch it.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); stage 6b
+/// (`LR-DG`, R-centre — predicted "fill", but the root is a `HitboxProbe`,
+/// which declares both axes and takes no `Self`-returning size) moves it to
+/// `.proposal`: the 40x40 root is centred in the 100x100 frame at 30..70
+/// (`CN-J`), so (50, 50) is where (20, 20) was at the legacy top-left root.
 @Test @MainActor func hoverResolvedThroughARealRenderHasNoLag() throws {
     let idBox = HitboxIDBox()
     var probe = HitboxProbe(elementID: ElementID("btn"),
@@ -321,8 +325,8 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
                       stateTable: StateTable(), shapingCache: ShapingCache(),
                       glyphAtlas: GlyphAtlas(width: 64, height: 64),
-                      theme: Theme.forAppearance(.light), mousePosition: pt(20, 20),
-                      layoutAuthority: .legacy)
+                      theme: Theme.forAppearance(.light), mousePosition: pt(50, 50),
+                      layoutAuthority: .proposal)
 
     frame.render(&probe)
 
@@ -346,10 +350,12 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// press tracking. `aNamedChildUnderDeferredResolvesTheSameAsUnderABox` in
 /// `DeferredTests.swift` builds its own fixtures for the same reason.
 ///
-/// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §38, disposition P-6b): its five tests read hitboxes at legacy
-/// coordinates, which the proposal root's centring moves (`CN-J`), so each
-/// passes `.legacy` until stage 6b rules root placement.
+/// **A stage 6a Dual leaf since stage 6b** (`LR-DI`, spec §5.2's P-6b rule):
+/// `declaredSizeNativeLeaf` under the proposal authority, `Frame`'s internal
+/// legacy registrar under the legacy one. Stage 6a had pinned its five tests to
+/// `.legacy` (disposition P-6b); stage 6b re-spells them by `LR-DG` — the three
+/// whose root is the probe itself are R-centred on `.proposal`, the two with a
+/// `Row` root are R-filled and run at the window's default.
 private struct HitboxProbe: Element {
     var elementID: ElementID?
     var size: Size<Pixels>
@@ -375,7 +381,9 @@ private struct HitboxProbe: Element {
         var style = Style()
         style.size = Size(width: .length(.pixels(size.width)),
                           height: .length(.pixels(size.height)))
-        return (pass.frame.requestNode(style: style, children: []), Empty())
+        return (pass.lowersToProposal
+                    ? declaredSizeNativeLeaf(style, pass)
+                    : pass.frame.requestNode(style: style, children: []), Empty())
     }
 
     /// Returns the registered `HitboxID` itself as `PrepaintState`, threaded
@@ -428,10 +436,14 @@ private func mouseMoved(to position: Point<Pixels>) -> InputEvent {
 /// nothing before the first event, the pressed element's id after `mouseDown`,
 /// `nil` again after `mouseUp`.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); stage 6b
+/// (`LR-DG`, R-centre — predicted "fill", but the root is a `HitboxProbe`,
+/// which declares both axes and takes no `Self`-returning size) moves it to
+/// `.proposal`: the 40x40 root is centred in the 100x100 frame at 30..70
+/// (`CN-J`), so (50, 50) is where (20, 20) was at the legacy top-left root.
 @Test @MainActor func activeIsSetOnMouseDownAndHeldUntilMouseUp() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .legacy) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
         HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)))
     }
     window.drawFrameIfNeeded()
@@ -439,10 +451,10 @@ private func mouseMoved(to position: Point<Pixels>) -> InputEvent {
 
     #expect(window.active == nil, "nothing is active before any mouse event")
 
-    platformWindow.simulateInput(mouseDown(at: pt(20, 20)))
+    platformWindow.simulateInput(mouseDown(at: pt(50, 50)))
     #expect(window.active == expected, "mouseDown over the hitbox makes it active")
 
-    platformWindow.simulateInput(mouseUp(at: pt(20, 20)))
+    platformWindow.simulateInput(mouseUp(at: pt(50, 50)))
     #expect(window.active == nil, "mouseUp clears it")
 }
 
@@ -451,26 +463,30 @@ private func mouseMoved(to position: Point<Pixels>) -> InputEvent {
 /// is held must not clear `active`, and moving back onto it must not need to
 /// re-set it (it was never cleared).
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); stage 6b
+/// (`LR-DG`, R-centre — predicted "fill", but the root is a `HitboxProbe`,
+/// which declares both axes and takes no `Self`-returning size) moves it to
+/// `.proposal`: the 40x40 root is centred in the 100x100 frame at 30..70
+/// (`CN-J`), so (50, 50) is where (20, 20) was at the legacy top-left root.
 @Test @MainActor func aPressThatLeavesTheHitboxAndReturnsStaysActive() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .legacy) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
         HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)))
     }
     window.drawFrameIfNeeded()
     let expected = GlobalElementID.child(of: nil, at: 0, name: ElementID("btn"))
 
-    platformWindow.simulateInput(mouseDown(at: pt(20, 20)))
+    platformWindow.simulateInput(mouseDown(at: pt(50, 50)))
     #expect(window.active == expected)
 
     platformWindow.simulateInput(mouseMoved(to: pt(90, 90)))
     #expect(window.active == expected,
             "moving off the hitbox while the button is held does not clear active")
 
-    platformWindow.simulateInput(mouseMoved(to: pt(20, 20)))
+    platformWindow.simulateInput(mouseMoved(to: pt(50, 50)))
     #expect(window.active == expected, "and it is still active back on the hitbox")
 
-    platformWindow.simulateInput(mouseUp(at: pt(20, 20)))
+    platformWindow.simulateInput(mouseUp(at: pt(50, 50)))
     #expect(window.active == nil, "released at last, wherever the pointer ends up")
 }
 
@@ -505,11 +521,14 @@ private final class ToggleBox {
 /// point at `extra` or fall off the end; one keyed on `GlobalElementID` is
 /// unaffected either way.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): the `Row` root declares the 100x100 window's
+/// extent on its two auto axes, so `btn` sits at x 0…40, y 30…70 on both
+/// authorities.
 @Test @MainActor func activeSurvivesAFrameBoundary() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let toggle = ToggleBox()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .legacy) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
             if toggle.extraSiblingFirst {
                 HitboxProbe(elementID: ElementID("extra"),
@@ -517,6 +536,7 @@ private final class ToggleBox {
             }
             HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)))
         }
+        .width(px(100)).height(px(100))
     }
     window.drawFrameIfNeeded()
     let rootID = GlobalElementID.child(of: nil, at: 0, name: nil)
@@ -571,15 +591,19 @@ private final class ToggleBox {
 /// `Window.drawFrameIfNeeded()` — see the report for that mutation's redden
 /// after this test was added.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): the `Row` root declares the 100x100 window's
+/// extent on its two auto axes, so `btn` sits at x 0…40, y 30…70 on both
+/// authorities.
 @Test @MainActor func aMouseMovedEventMakesTheBoxUnderItHoveredOnTheNextFrame() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let hoverBox = HoverBox()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .legacy) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
             HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)),
                        hoverBox: hoverBox)
         }
+        .width(px(100)).height(px(100))
     }
     window.drawFrameIfNeeded()
     #expect(!hoverBox.isHovered, "no mouse event has ever reached the window")

@@ -44,12 +44,17 @@ private struct LegacyNodeUnderAProposalMarker: ProposalElement {
 /// registration. Before the check it rendered silently wrong: the design's
 /// evidence 4 measured the leaf's closure running 0 times and its bounds at
 /// (70, 0, 0×0) in this 140×90 frame.
+/// N9, pinned to the legacy authority by stage 6b (`LR-DI`), owner stage 9: the
+/// check this test is about is `SA-G`'s legacy-authority trap (a native node
+/// under a legacy registration); under the proposal authority the legacy
+/// container lowers and nothing traps. It retires with the legacy authority.
 @Test func aProposalElementInsideALegacyContainerTrapsAtRegistration() async {
     let result = await #expect(processExitsWith: .failure,
                                observing: [\.standardErrorContent]) {
         await MainActor.run {
             var root = Column { Rectangle() }
-            Frame(contentSize: Size(width: Pixels(140), height: Pixels(90)), scaleFactor: 1)
+            Frame(contentSize: Size(width: Pixels(140), height: Pixels(90)), scaleFactor: 1,
+                  layoutAuthority: .legacy)
                 .render(&root)
         }
     }
@@ -70,12 +75,17 @@ private struct LegacyNodeUnderAProposalMarker: ProposalElement {
 /// `StyledComponent` is not an `Element`, so it cannot be the root itself.
 /// Before the check the width was silently inert: the proposal engine never
 /// reads `Style`.
+/// N9, pinned to the legacy authority by stage 6b (`LR-DI`), owner stage 9: the
+/// check this test is about is `SA-G`'s legacy-authority trap (a native node
+/// under a legacy registration); under the proposal authority the legacy
+/// container lowers and nothing traps. It retires with the legacy authority.
 @Test func aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration() async {
     let result = await #expect(processExitsWith: .failure,
                                observing: [\.standardErrorContent]) {
         await MainActor.run {
             var root = Column { Toggle().width(Pixels(70)) }
-            Frame(contentSize: Size(width: Pixels(140), height: Pixels(90)), scaleFactor: 1)
+            Frame(contentSize: Size(width: Pixels(140), height: Pixels(90)), scaleFactor: 1,
+                  layoutAuthority: .legacy)
                 .render(&root)
         }
     }
@@ -103,11 +113,16 @@ private struct LegacyNodeUnderAProposalMarker: ProposalElement {
 /// leaves the wrap's registration as the only legacy `newNode` in the
 /// process: delete the wrap and nothing traps, and the exit expectation
 /// itself fails.
+/// N9, pinned to the legacy authority by stage 6b (`LR-DI`), owner stage 9: the
+/// check this test is about is `SA-G`'s legacy-authority trap (a native node
+/// under a legacy registration); under the proposal authority the legacy
+/// container lowers and nothing traps. It retires with the legacy authority.
 @Test func aPaddingModifierOnAProposalComponentTraps() async {
     let result = await #expect(processExitsWith: .failure,
                                observing: [\.standardErrorContent]) {
         await MainActor.run {
-            let frame = Frame(contentSize: Size(width: Pixels(140), height: Pixels(90)), scaleFactor: 1)
+            let frame = Frame(contentSize: Size(width: Pixels(140), height: Pixels(90)), scaleFactor: 1,
+                              layoutAuthority: .legacy)
             var pass = LayoutPass(frame: frame)
             var styled = Toggle().padding(Pixels(4))
             var cursor = 0

@@ -21,11 +21,13 @@ struct MeasurePerformanceTests {
     /// pass it** (plan task 7, stage 4, lane 5; `LR-BX`, `LR-CG`). This builds a
     /// PRODUCTION frame by default — the shape `Window` builds — and
     /// `demoLikeRows`' root `Box` declares `.minHeight(Pixels(0))`, which
-    /// `reportUnconsumedLoweredItems` still reports for a root, so a `.proposal`
-    /// arm without the flag does not fail, it aborts the whole run with no
-    /// summary line. `aProductionFrameOverDemoLikeRowsAbortsUnderTheProposal`
-    /// `Authority` at the foot of this file is that abort kept as an observable,
-    /// and the diagnostics frame beside it is the positive control.
+    /// `reportUnconsumedLoweredItems` reported for a root until stage 6b's lane 1,
+    /// so a `.proposal` arm without the flag aborted the whole run with no summary
+    /// line. The root declares its height, so since that lane the minimum folds
+    /// (`LR-DO` item 1) and a production frame completes —
+    /// `aProductionFrameOverDemoLikeRowsCompletesUnderTheProposalAuthority` at the
+    /// foot of this file, inverted from the abort it used to keep. The flag stays:
+    /// any future report must read red here, not abort.
     ///
     /// **`demoLikeRows` is NOT changed to drop the modifier**, deliberately: its
     /// own header says removing a pin from it "would silently inflate every later
@@ -40,7 +42,7 @@ struct MeasurePerformanceTests {
     static func render(_ content: () -> some Element,
                        size: Size<Pixels> = Size(width: Pixels(920), height: Pixels(560)),
                        states: StateTable, shapingCache: ShapingCache = ShapingCache(),
-                       authority: LayoutAuthority = .legacy,
+                       authority: LayoutAuthority = Frame.defaultLayoutAuthority,
                        reportsUnlowerableFields: Bool = false) -> Frame {
         let frame = Frame(contentSize: size, scaleFactor: 2, stateTable: states,
                           shapingCache: shapingCache, theme: .dark,
@@ -53,16 +55,19 @@ struct MeasurePerformanceTests {
 
     /// `demoLikeRows(_:)`'s whole diagnostics report, at either authority.
     ///
-    /// **One entry, and it is the root's own and nothing to do with `List`.**
-    /// `reportUnconsumedLoweredItems` exempts a root from `flexGrow`,
-    /// `flexShrink`, `flexBasis` and `alignSelf` and from nothing else
-    /// (`LoweringState.swift`), so the fixture's root `.minHeight(Pixels(0))`
-    /// reports — the shape
-    /// `anItemFieldNoLoweredContainerConsumesIsReportedByName`'s root arms already
-    /// document. **Any other entry is a finding**, and the work numbers taken
-    /// alongside it are not this stage's (spec §6 lane 5).
+    /// **Empty at both since stage 6b's lane 1** (`LR-DO` item 1). Until then it
+    /// was one entry at `.proposal`, the root's own `box.minSize.unconsumed`:
+    /// `reportUnconsumedLoweredItems` exempted a root from `flexGrow`,
+    /// `flexShrink`, `flexBasis` and `alignSelf` and from nothing else, so the
+    /// fixture's root `.minHeight(Pixels(0))` reported. The root **declares** its
+    /// height (370), and a px/rem minimum or maximum on a declared root axis now
+    /// folds into it (the element's own frame already folded it, `LR-AG`) and
+    /// stops reporting, so the report is empty. The tree was never degenerate for
+    /// it — the root's report was noted after registration, not replaced by a leaf
+    /// — so no work literal in this file moves. **Any entry is a finding**, and the
+    /// work numbers taken alongside it are not this stage's (spec §6 lane 5).
     static func demoLikeRowsReport(_ authority: LayoutAuthority) -> [UnlowerableField] {
-        authority == .proposal ? [UnlowerableField(site: .box, field: "minSize.unconsumed")] : []
+        []
     }
 
     /// The native layout work one warm `demoLikeRows(_:)` frame does, at either
@@ -111,12 +116,17 @@ struct MeasurePerformanceTests {
 
     @Test
     func aWarmFrameTokenizesEachDistinctStringAtMostOnce() throws {
+        // Pinned to the legacy authority by stage 6b (`LR-DI`, `LR-DO` item 1),
+        // owner stage 9, for its OWN reason only: its subject is the legacy
+        // min-content probe pair (the last paragraph below), which the proposal
+        // path does not take. `demoLikeRows`' root no longer reports under the
+        // proposal authority (lane 1's fold), so the pin is not about a trap.
         let states = StateTable()
-        _ = Self.render({ demoLikeRows(40) }, states: states)   // warm
+        _ = Self.render({ demoLikeRows(40) }, states: states, authority: .legacy)   // warm
 
         let counter = Shaper.RunCallCounter()
         Shaper.$runCallCounter.withValue(counter) {
-            _ = Self.render({ demoLikeRows(40) }, states: states)
+            _ = Self.render({ demoLikeRows(40) }, states: states, authority: .legacy)
         }
 
         // 40 rows share no strings, so 40 distinct strings is the ceiling a
@@ -175,12 +185,16 @@ struct MeasurePerformanceTests {
     /// process-wide and an earlier test may already have created it.
     @Test
     func aColdFrameCreatesAtMostOneLineBreakTokenizer() throws {
+        // Pinned to the legacy authority by stage 6b (`LR-DI`, `LR-DO` item 1),
+        // owner stage 9, for its own reason: `calls == 40` counts the legacy
+        // min-content probes, and a lowered `Text` takes none (the proposal arm
+        // would read 0 and fail the reachability control, not the claim).
         let states = StateTable()
         let calls = Shaper.RunCallCounter()
         let creations = Shaper.RunCallCounter()
         Shaper.$runCallCounter.withValue(calls) {
             Shaper.$tokenizerCreationCounter.withValue(creations) {
-                _ = Self.render({ demoLikeRows(40) }, states: states)
+                _ = Self.render({ demoLikeRows(40) }, states: states, authority: .legacy)
             }
         }
         #expect(calls.count == 40)
@@ -205,20 +219,35 @@ struct MeasurePerformanceTests {
     /// did build and paint `Text`s, so a zero is not a frame that built none.
     @Test
     func aWarmFrameReachesTheUncachedFontResolverZeroTimes() throws {
+        // Stage 6b (`LR-DI`, `LR-DO` item 1): runs at the helper's default
+        // authority — stage 6b's flip makes it `.proposal` — with diagnostics
+        // on, and asserts each render's report EXACTLY against
+        // `demoLikeRowsReport(_:)` (empty at both since lane 1's root fold), so
+        // a report reads red here instead of aborting the suite (`LR-BX`'s
+        // pattern). Before lane 1 a production frame over this fixture trapped
+        // on the root's `box.minSize.unconsumed`.
         let states = StateTable()
         let cache = ShapingCache()
 
         let cold = FontResolver.CallCounter()
+        var coldFrame: Frame?
         FontResolver.$resolveCallCounter.withValue(cold) {
-            _ = Self.render({ demoLikeRows(40) }, states: states, shapingCache: cache)
+            coldFrame = Self.render({ demoLikeRows(40) }, states: states, shapingCache: cache,
+                                    reportsUnlowerableFields: true)
         }
 
         let lookupsBefore = cache.lookups
         let warm = FontResolver.CallCounter()
+        var warmFrame: Frame?
         FontResolver.$resolveCallCounter.withValue(warm) {
-            _ = Self.render({ demoLikeRows(40) }, states: states, shapingCache: cache)
+            warmFrame = Self.render({ demoLikeRows(40) }, states: states, shapingCache: cache,
+                                    reportsUnlowerableFields: true)
         }
 
+        for (name, frame) in [("cold", try #require(coldFrame)), ("warm", try #require(warmFrame))] {
+            #expect(frame.unlowerableFields == Self.demoLikeRowsReport(frame.layoutAuthority),
+                    "\(name) frame at \(frame.layoutAuthority): \(frame.unlowerableFields)")
+        }
         #expect(cache.lookups > lookupsBefore)
         #expect(warm.count == 0)
         #expect(cold.count == 1)
@@ -820,8 +849,18 @@ private struct MeasureRow: Identifiable { let id: Int }
 /// removing a pin from it "would silently inflate every later before/after ratio
 /// measured against this harness", and every committed literal in this file is
 /// measured against it.
-@Test func aProductionFrameOverDemoLikeRowsAbortsUnderTheProposalAuthority() async {
-    let run = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+///
+/// **Inverted by stage 6b's lane 1** (`LR-DO` item 1; it was
+/// `aProductionFrameOverDemoLikeRowsAbortsUnderTheProposalAuthority`, expecting
+/// `.failure`). The root declares its height, so its `.minHeight(0)` folds into it
+/// and no longer reports: a production frame over `demoLikeRows` now **completes**.
+/// The abort it used to pin is kept, for a root minimum that cannot fold (an
+/// **auto** axis), by `RootFieldLoweringTests`' 1.8 through a production `Window`.
+///
+/// Mutation that must redden it: **M1h**, the root fold removed (the child aborts on
+/// `box.minSize.unconsumed`).
+@Test func aProductionFrameOverDemoLikeRowsCompletesUnderTheProposalAuthority() async {
+    await #expect(processExitsWith: .success) {
         await MainActor.run {
             var root = demoLikeRows(40)
             Frame(contentSize: Size(width: Pixels(920), height: Pixels(560)),
@@ -829,9 +868,6 @@ private struct MeasureRow: Identifiable { let id: Int }
                   theme: .dark, layoutAuthority: .proposal).render(&root)
         }
     }
-    let err = String(decoding: run?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(err.contains("box.minSize.unconsumed has no proposal lowering"),
-            "aborted, but not at the root's own minSize:\n\(err)")
 }
 
 /// **The positive control for the probe above, and it is the lane's fix.** The

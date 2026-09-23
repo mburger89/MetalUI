@@ -632,6 +632,54 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   wait for stage 7b; the two P-9 tests, the Dep fixtures, the L fixtures'
   legacy branches, the Dual elements' legacy branches, `LoweringSite.customElement`
   and the internal pair itself all wait for stage 9's deletion.
+  *Progress 2026-09-23 on `feat/engine-stage-6b` (from `aef88ce`, `master`'s
+  tip after the stage-6a merge), stage 6b of 14, task still open.* Spec
+  `specs/2026-09-23-engine-stage-6b-design.md`; rulings `LR-DF`…`LR-DR` in
+  `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages
+  1–6a); three probes re-run byte-identical
+  (`swiftui-stack-algorithms.swift`'s R control/R1–R4,
+  `swiftui-engine-replacement-stage1.swift`'s H0–H2,
+  `swiftui-engine-replacement-stage2.swift`'s V0–V3) plus two new harnesses,
+  `docs/probes/native-depth-ceiling/` and
+  `docs/probes/stage-6b-flip-instrument.patch`; record §41. **Stage 6b
+  delivered** (a critic round plus three lanes, each with its own mutation
+  table, all verified `ok`): `Frame.defaultLayoutAuthority` is now
+  `.proposal` — `Frame.init`'s default and `Window.layoutAuthority`'s initial
+  value both read it, and **production now runs the proposal engine**; no
+  public spelling gained, production frames keep trapping rather than
+  reporting. Every row of stage 6a's 92-row flipped-default table is disposed
+  by name: 14 exit-trap tests untouched (12 after lane 1, `LR-DQ` item 1), 2
+  `D` tests rewritten, `hidden()`
+  lowered under `.proposal` closing 5 `AV` rows, a declared root axis's
+  px/rem `minSize`/`maxSize` folded into its declared size closing the root
+  rows, and the remaining 75 root-placement rows disposed by `LR-DG`'s rule
+  (28 re-derived as `(W − w)/2` under `.proposal`, 43 given the
+  window's extent explicitly so they pass under either authority, 2 kept a
+  greedy frame, 2 pinned `.legacy` because neither recipe greens them; 20
+  tests pinned `.legacy` in all, 15 owned by 7b and 5 by 9, `LR-DQ` item 2). **Root placement
+  ruled**: `CN-J` is production's answer, unchanged by the switch; divergence
+  4 (the legacy engine's top-left, window-filling root) becomes a
+  legacy-authority-only row, retired with the CSS engine at 7b.
+  `NativeLayoutRun.maxDepth` re-bisected in release for the first time
+  alongside debug, 88 → 72 (debug governs; release headroom 9×). The demo's
+  list row gains one declared height (`.height(Pixels(28))`) so its labels
+  stay centred under the switch, moving its deepest native level 29 → 30.
+  **Exit criterion met**: `noProductionFrameReachesTheLegacyEngine` —
+  `demoContent()`, `nativeLayoutPreviewContent()` and a `List`, each through a
+  real `Window`, bump `Frame.legacyRootLayoutCounter` zero times. Suite 1688 →
+  **1701** (+13: lane 1 +9, lane 2 +1, lane 3 +3), 97 goldens unmoved, 78
+  guards unmoved (none added); the fourteen-image offscreen comparison
+  attributes every differing pixel to one of four named causes (a
+  sidebar/panel width SwiftUI answers where the CSS engine had shrunk it,
+  that width's paragraph re-wrap, the modal card's height at the lowered
+  column's width, and one-point rounding) — none outside; **no real-window
+  capture** (screen locked at every measurement across the stage). **Not
+  done:** the 15 tests this stage pinned `.legacy` for 7b (12 CSS + 1
+  RP+CSS-frame + the 2 of `LR-DQ` item 2), beside stage 6a's own 33 CSS pins
+  (`LR-DD`), wait for stage 7b's retirement of the CSS-engine tests; this
+  stage's other 5 pins (3 N9, 2 tokenizer tests), the N9/RT/P-9 rows and the internal legacy registrar pair wait for stage 9's deletion;
+  the real-window capture and the demo-layout human-verification rows record
+  §03 re-opens are owed to the human, next time the screen is unlocked.
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

@@ -239,16 +239,15 @@ func makeFakeWindow<Root: Element>(
     // frame-clock tests — passes `true` so `Window.init` hands the fake the
     // closure `simulateTick` fires.
     startsDisplayLink: Bool = false,
-    // Plan task 7, stage 3, lane 3 (ruling LR-BI): which engine this window's
-    // frames register with. `.legacy` is what every call site written before the
-    // lane passes, and what production uses until stage 6b. **A window builds
-    // production frames**, so under `.proposal` anything with no lowering yet
-    // TRAPS rather than reporting — `Window` never sets
-    // `reportsUnlowerableFields` — and the process ends with no summary line.
-    // A caller reaching for `.proposal` owes a `LayoutDifferential.compare`
-    // pre-flight, or fixtures already measured to report nothing (`WindowPair`
-    // does the former; the scroll suites' fixtures are the latter).
-    layoutAuthority: LayoutAuthority = .legacy,
+    // Plan task 7, stage 3, lane 3 (ruling LR-BI), and stage 6b (LR-DF): which
+    // engine this window's frames register with. `nil` leaves `Window`'s own
+    // default — `Frame.defaultLayoutAuthority`, `.proposal` since the switch — so
+    // a window test at defaults IS production. **A window builds production
+    // frames**, so under `.proposal` anything with no lowering yet TRAPS rather
+    // than reporting — `Window` never sets `reportsUnlowerableFields` — and the
+    // process ends with no summary line. A `.legacy` here is always a pin its
+    // test wrote, with an owner.
+    layoutAuthority: LayoutAuthority? = nil,
     content: @escaping @MainActor () -> Root
 ) throws -> (Window, FakePlatformWindow) {
     let platformWindow = try FakePlatformWindow(device: device, size: size)
@@ -256,10 +255,12 @@ func makeFakeWindow<Root: Element>(
     let window = Window(platformWindow: platformWindow,
                         startsDisplayLink: startsDisplayLink,
                         content: content)
-    // Written only when it differs, so the 1561 call sites that take the default
+    // Written only when given and different, so the call sites that take the default
     // reach `drawFrameIfNeeded` through exactly the states they did before: a
     // write dirties the window even when it changes nothing.
-    if layoutAuthority != window.layoutAuthority { window.layoutAuthority = layoutAuthority }
+    if let layoutAuthority, layoutAuthority != window.layoutAuthority {
+        window.layoutAuthority = layoutAuthority
+    }
     return (window, platformWindow)
 }
 

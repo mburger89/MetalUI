@@ -150,10 +150,14 @@ private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Fl
 /// six arms whose x is not 20; dropping `alignItems` reddens the six whose y is
 /// not 10; swapping the two axes reddens the four corners.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); stage 6b
+/// (`LR-DG`, R-centre — the root is the frame layer) moves it to `.proposal`:
+/// the 60×40 layer is centred in the 300×200 frame at ((300 − 60) / 2,
+/// (200 − 40) / 2) = (120, 80) (`CN-J`), so every origin below is the probe's
+/// offset plus (120, 80).
 @Test @MainActor func aLegacyFramePlacesItsChildAtEachOfTheNineAlignments() throws {
     func origin(_ alignment: ProposalAlignment) throws -> Origin {
-        let log = try render(authority: .legacy) { log in
+        let log = try render(authority: .proposal) { log in
             Mark("leaf", log: log, width: 20, height: 20)
                 .frame(width: px(60), height: px(40), alignment: alignment)
         }
@@ -165,15 +169,15 @@ private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Fl
     try #require(topLeading != centre,
                  "the instrument cannot see alignment: topLeading \(topLeading), center \(centre)")
 
-    #expect(topLeading == Origin(0, 0), "topLeading \(topLeading)")
-    #expect(try origin(.top) == Origin(20, 0))
-    #expect(try origin(.topTrailing) == Origin(40, 0))
-    #expect(try origin(.leading) == Origin(0, 10))
-    #expect(centre == Origin(20, 10), "center \(centre)")
-    #expect(try origin(.trailing) == Origin(40, 10))
-    #expect(try origin(.bottomLeading) == Origin(0, 20))
-    #expect(try origin(.bottom) == Origin(20, 20))
-    #expect(try origin(.bottomTrailing) == Origin(40, 20))
+    #expect(topLeading == Origin(120, 80), "topLeading \(topLeading)")
+    #expect(try origin(.top) == Origin(140, 80))
+    #expect(try origin(.topTrailing) == Origin(160, 80))
+    #expect(try origin(.leading) == Origin(120, 90))
+    #expect(centre == Origin(140, 90), "center \(centre)")
+    #expect(try origin(.trailing) == Origin(160, 90))
+    #expect(try origin(.bottomLeading) == Origin(120, 100))
+    #expect(try origin(.bottom) == Origin(140, 100))
+    #expect(try origin(.bottomTrailing) == Origin(160, 100))
 }
 
 // MARK: - 2.2 a fixed frame does not shrink (ruling FR-P)
@@ -339,40 +343,46 @@ private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Fl
 /// Mutation: mint the layer nodes outermost-first (arms 1 and 2 swap); drop
 /// `justifyContent` (arm 3).
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): every root declares the 300×200 frame's
+/// extent on its two auto axes — what `CS-I` gave the legacy root, now spelled
+/// — so the literals hold on both authorities, and the test reads both
+/// (`render`'s authority is a required argument, record §38 §17).
 @Test @MainActor func chainedLegacyFramesAgreeWithSwiftUIsOrderingRules() throws {
-    let innerWide = try render(authority: .legacy) { log in
-        Row {
-            Mark("leaf", log: log, width: 20, height: 20).frame(width: px(100)).frame(width: px(50))
-            Mark("sibling", log: log, width: 5, height: 5)
-        }.alignItems(.flexStart)
-    }
-    let outerWide = try render(authority: .legacy) { log in
-        Row {
-            Mark("leaf", log: log, width: 20, height: 20).frame(width: px(50)).frame(width: px(100))
-            Mark("sibling", log: log, width: 5, height: 5)
-        }.alignItems(.flexStart)
-    }
-    let innerLeafX = Origin(try #require(innerWide.bounds["leaf"])).x
-    let outerLeafX = Origin(try #require(outerWide.bounds["leaf"])).x
-    try #require(innerLeafX != outerLeafX,
-                 "the instrument cannot see chain order: \(innerLeafX) and \(outerLeafX)")
+    for authority in [LayoutAuthority.legacy, .proposal] {
+        let innerWide = try render(authority: authority) { log in
+            Row {
+                Mark("leaf", log: log, width: 20, height: 20).frame(width: px(100)).frame(width: px(50))
+                Mark("sibling", log: log, width: 5, height: 5)
+            }.alignItems(.flexStart).width(px(300)).height(px(200))
+        }
+        let outerWide = try render(authority: authority) { log in
+            Row {
+                Mark("leaf", log: log, width: 20, height: 20).frame(width: px(50)).frame(width: px(100))
+                Mark("sibling", log: log, width: 5, height: 5)
+            }.alignItems(.flexStart).width(px(300)).height(px(200))
+        }
+        let innerLeafX = Origin(try #require(innerWide.bounds["leaf"])).x
+        let outerLeafX = Origin(try #require(outerWide.bounds["leaf"])).x
+        try #require(innerLeafX != outerLeafX,
+                     "the instrument cannot see chain order: \(innerLeafX) and \(outerLeafX)")
 
-    #expect(Origin(try #require(innerWide.bounds["sibling"])).x == 50, "E1's outer width")
-    #expect(innerLeafX == 15, "E1's leaf")
-    #expect(Origin(try #require(outerWide.bounds["sibling"])).x == 100, "E2's outer width")
-    #expect(outerLeafX == 40, "E2's leaf")
+        #expect(Origin(try #require(innerWide.bounds["sibling"])).x == 50, "E1's outer width, \(authority)")
+        #expect(innerLeafX == 15, "E1's leaf, \(authority)")
+        #expect(Origin(try #require(outerWide.bounds["sibling"])).x == 100, "E2's outer width, \(authority)")
+        #expect(outerLeafX == 40, "E2's leaf, \(authority)")
 
-    let aligned = try render(authority: .legacy) { log in
-        Row {
-            Mark("leaf", log: log, width: 20, height: 20)
-                .frame(width: px(60), height: px(40))
-                .frame(width: px(120), height: px(100), alignment: .topLeading)
-            Mark("sibling", log: log, width: 5, height: 5)
-        }.alignItems(.flexStart)
+        let aligned = try render(authority: authority) { log in
+            Row {
+                Mark("leaf", log: log, width: 20, height: 20)
+                    .frame(width: px(60), height: px(40))
+                    .frame(width: px(120), height: px(100), alignment: .topLeading)
+                Mark("sibling", log: log, width: 5, height: 5)
+            }.alignItems(.flexStart).width(px(300)).height(px(200))
+        }
+        #expect(Origin(try #require(aligned.bounds["sibling"])).x == 120, "E6's outer width, \(authority)")
+        #expect(Origin(try #require(aligned.bounds["leaf"])) == Origin(20, 10), "E6's leaf, \(authority)")
     }
-    #expect(Origin(try #require(aligned.bounds["sibling"])).x == 120, "E6's outer width")
-    #expect(Origin(try #require(aligned.bounds["leaf"])) == Origin(20, 10), "E6's leaf")
 }
 
 // MARK: - 2.6 a frame's width reaches a measured leaf
@@ -389,26 +399,32 @@ private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Fl
 ///
 /// Mutation: drop `size.width` from `FrameSpec.style()`.
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
+/// by stage 6b (`LR-DG`, R-fill): every root declares the 300×200 frame's
+/// extent on its two auto axes — what `CS-I` gave the legacy root, now spelled
+/// — so the literals hold on both authorities, and the test reads both
+/// (`render`'s authority is a required argument, record §38 §17).
 @Test @MainActor func aLegacyFrameProposesItsWidthToAMeasuredLeaf() throws {
-    let framed = try render(authority: .legacy) { log in
-        Column {
-            Text("alpha bravo charlie delta").font(size: 12).frame(width: px(60))
-            Mark("marker", log: log, width: 5, height: 5)
+    for authority in [LayoutAuthority.legacy, .proposal] {
+        let framed = try render(authority: authority) { log in
+            Column {
+                Text("alpha bravo charlie delta").font(size: 12).frame(width: px(60))
+                Mark("marker", log: log, width: 5, height: 5)
+            }.width(px(300)).height(px(200))
         }
-    }
-    let bare = try render(authority: .legacy) { log in
-        Column {
-            Text("alpha bravo charlie delta").font(size: 12)
-            Mark("marker", log: log, width: 5, height: 5)
+        let bare = try render(authority: authority) { log in
+            Column {
+                Text("alpha bravo charlie delta").font(size: 12)
+                Mark("marker", log: log, width: 5, height: 5)
+            }.width(px(300)).height(px(200))
         }
-    }
-    let framedY = Origin(try #require(framed.bounds["marker"])).y
-    let bareY = Origin(try #require(bare.bounds["marker"])).y
-    try #require(framedY != bareY, "the frame's width never reached the leaf: \(framedY), \(bareY)")
+        let framedY = Origin(try #require(framed.bounds["marker"])).y
+        let bareY = Origin(try #require(bare.bounds["marker"])).y
+        try #require(framedY != bareY, "the frame's width never reached the leaf: \(framedY), \(bareY)")
 
-    #expect(framedY == 60, "four wrapped 15pt lines: \(framedY)")
-    #expect(bareY == 15, "one unwrapped line: \(bareY)")
+        #expect(framedY == 60, "four wrapped 15pt lines: \(framedY), \(authority)")
+        #expect(bareY == 15, "one unwrapped line: \(bareY), \(authority)")
+    }
 }
 
 // MARK: - 2.7 a frame around a `List` still builds every row
@@ -766,7 +782,12 @@ private struct StretchingPair: Component {
 /// `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient` (record §17,
 /// "Closeout").
 ///
-/// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4).
+/// P-CSS, owner 7b (stage 6b, `LR-DQ` item 2): pinned to the legacy authority
+/// since stage 6a (then CE+RP, record §38 §4), and **kept** there. Every
+/// expected width here is "a hidden element takes no space" — CSS's answer.
+/// Under the proposal authority `hidden()` keeps its space (`LR-DH`, probe H1),
+/// so no root recipe can make these numbers the proposal authority's; the
+/// proposal half is `HiddenLoweringTests`' `aHiddenFrameLayerLowersAsIfShown`.
 @Test @MainActor func hiddenAfterASingleChildLegacyFrameStillHidesTheElement() throws {
     let rows: [(chain: String, expected: Float, measure: () throws -> Float)] = [
         ("hidden()", 0, {

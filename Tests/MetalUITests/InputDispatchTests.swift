@@ -53,12 +53,16 @@ private final class ClickLog {
 @Test @MainActor func aClickInsideTheBoundsRunsTheHandler() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ClickLog()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+    // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
+    // proposal authority it is centred at its own 40x40 answer (`CN-J`):
+    // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
+                                                      layoutAuthority: .proposal) {
         Box().width(px(40)).height(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
 
-    click(platformWindow, at: pt(20, 20))
+    click(platformWindow, at: pt(50, 50))
     #expect(log.names == ["btn"], "a press and release inside the box is one click")
 }
 
@@ -70,7 +74,11 @@ private final class ClickLog {
 @Test @MainActor func aClickOutsideTheBoundsDoesNotRunTheHandler() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ClickLog()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+    // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
+    // proposal authority it is centred at its own 40x40 answer (`CN-J`):
+    // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
+                                                      layoutAuthority: .proposal) {
         Box().width(px(40)).height(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
@@ -79,7 +87,7 @@ private final class ClickLog {
     #expect(log.count == 0, "the press never landed on the box")
     // And the box really is where this test assumes it is — otherwise the line
     // above would pass against a box that had somehow been laid out at 0x0.
-    click(platformWindow, at: pt(20, 20))
+    click(platformWindow, at: pt(50, 50))
     #expect(log.names == ["btn"], "the same fixture does fire inside the bounds")
 }
 
@@ -124,18 +132,22 @@ private final class ClickLog {
     let log = ClickLog()
     let label = LabelBox()
     label.name = "v1"
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+    // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
+    // proposal authority it is centred at its own 40x40 answer (`CN-J`):
+    // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
+                                                      layoutAuthority: .proposal) {
         Box().width(px(40)).height(px(40)).onClick { log.names.append(label.name) }
     }
 
     window.drawFrameIfNeeded()
-    click(platformWindow, at: pt(20, 20))
+    click(platformWindow, at: pt(50, 50))
     #expect(log.names == ["v1"], "frame 1's handler runs for an event arriving after frame 1")
 
     label.name = "v2"
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
-    click(platformWindow, at: pt(20, 20))
+    click(platformWindow, at: pt(50, 50))
     #expect(log.names == ["v1", "v2"],
             "frame 2 replaced the handler set; the click runs frame 2's closure")
 }
@@ -196,7 +208,10 @@ private final class LabelBox {
 @Test @MainActor func aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ClickLog()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+    // Stage 6b (`LR-DG`, R-centre — the spec's table predicted "fill", but the
+    // root declares both axes): the 60x60 root is centred, (100 - 60) / 2 = 20.
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
+                                                      layoutAuthority: .proposal) {
         Box {
             Box().width(px(30)).height(px(30)).onClick { log.names.append("inner") }
         }
@@ -204,15 +219,15 @@ private final class LabelBox {
     }
     window.drawFrameIfNeeded()
 
-    // The child sits at (0, 0) 30x30 inside a container at (0, 0) 60x60, so
+    // The child sits at (20, 20) 30x30 inside a container at (20, 20) 60x60, so
     // this point is inside both.
-    click(platformWindow, at: pt(10, 10))
+    click(platformWindow, at: pt(30, 30))
     #expect(log.names == ["inner"],
             "the child took the click, and the container did not also receive it")
 
     // The differential: the container's own uncovered area still clicks it, so
     // the line above is about ranking rather than about a dead container.
-    click(platformWindow, at: pt(45, 45))
+    click(platformWindow, at: pt(65, 65))
     #expect(log.names == ["inner", "outer"], "outside the child, the container wins")
 }
 
@@ -228,7 +243,9 @@ private final class LabelBox {
 @Test @MainActor func aNestedHandlerWinsOverItsContainingStackToo() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ClickLog()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+    // Stage 6b (`LR-DG`, R-centre): the 60x60 root is centred at (20, 20).
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
+                                                      layoutAuthority: .proposal) {
         Stack {
             Box().width(px(30)).height(px(30)).onClick { log.names.append("inner") }
         }
@@ -237,11 +254,11 @@ private final class LabelBox {
     window.drawFrameIfNeeded()
 
     // A `Stack` centres its children, so the 30x30 child sits at (15, 15) inside
-    // a 60x60 stack rooted at (0, 0).
-    click(platformWindow, at: pt(30, 30))
+    // a 60x60 stack rooted at (20, 20): the child at 35..65.
+    click(platformWindow, at: pt(50, 50))
     #expect(log.names == ["inner"], "the child ranks above the stack that contains it")
 
-    click(platformWindow, at: pt(5, 5))
+    click(platformWindow, at: pt(25, 25))
     #expect(log.names == ["inner", "outer"], "outside the child, the stack wins")
 }
 
@@ -287,15 +304,19 @@ private final class LabelBox {
 @Test @MainActor func aPressThatLeavesTheElementAndReturnsStillClicks() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ClickLog()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+    // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
+    // proposal authority it is centred at its own 40x40 answer (`CN-J`):
+    // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
+                                                      layoutAuthority: .proposal) {
         Box().width(px(40)).height(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
 
-    platformWindow.simulateInput(mouseDown(at: pt(20, 20)))
+    platformWindow.simulateInput(mouseDown(at: pt(50, 50)))
     platformWindow.simulateInput(mouseMoved(to: pt(90, 90)))
-    platformWindow.simulateInput(mouseMoved(to: pt(20, 20)))
-    platformWindow.simulateInput(mouseUp(at: pt(20, 20)))
+    platformWindow.simulateInput(mouseMoved(to: pt(50, 50)))
+    platformWindow.simulateInput(mouseUp(at: pt(50, 50)))
     #expect(log.names == ["btn"], "the press was never released elsewhere, so it is one click")
 }
 
@@ -328,13 +349,16 @@ private final class LabelBox {
 /// which is the measured reason the gate exists rather than a preference.
 @Test @MainActor func onlyABoxWithAHandlerRegistersAHitbox() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let (plain, _) = try makeFakeWindow(device: device, size: 100) {
+    let (plain, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
         Box().width(px(40)).height(px(40))
     }
     plain.drawFrameIfNeeded()
     #expect(plain.lastHitboxes.isEmpty, "a Box with no handler is not a hit target")
 
-    let (clickable, _) = try makeFakeWindow(device: device, size: 100) {
+    // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
+    // proposal authority it is centred at its own 40x40 answer (`CN-J`):
+    // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
+    let (clickable, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
         Box().width(px(40)).height(px(40)).onClick {}
     }
     clickable.drawFrameIfNeeded()
@@ -342,7 +366,7 @@ private final class LabelBox {
                              "onClick registers exactly one hitbox, got \(clickable.lastHitboxes.count)")
     #expect(boxes[0].opaque, "a click target consumes the point")
     #expect(boxes[0].scroll == nil, "it is not a scroller")
-    #expect(boxes[0].bounds == Bounds(origin: pt(0, 0),
+    #expect(boxes[0].bounds == Bounds(origin: pt(30, 30),
                                       size: Size(width: px(40), height: px(40))),
             "registered at the box's own resolved bounds")
 }
@@ -361,9 +385,14 @@ private final class LabelBox {
     let log = ClickLog()
 
     func fires(_ name: String, _ content: @escaping @MainActor () -> some Element) throws {
-        let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, content: content)
+        // Stage 6b (`LR-DG`, R-centre): every arm's root declares 40x40, so it
+        // is centred at 30..70 and (50, 50) is its middle, as (20, 20) was at
+        // the legacy top-left root.
+        let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
+                                                          layoutAuthority: .proposal,
+                                                          content: content)
         window.drawFrameIfNeeded()
-        click(platformWindow, at: pt(20, 20))
+        click(platformWindow, at: pt(50, 50))
         #expect(log.names == [name], "\(name): onClick compiled but registered nothing")
         log.names.removeAll()
     }
@@ -469,7 +498,11 @@ private struct Datum: Identifiable { let id: Int }
 @Test @MainActor func aDispatchedClickDoesNotAlsoReachTheWindowsRawHandler() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ClickLog()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+    // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
+    // proposal authority it is centred at its own 40x40 answer (`CN-J`):
+    // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
+                                                      layoutAuthority: .proposal) {
         Box().width(px(40)).height(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
@@ -479,7 +512,7 @@ private struct Datum: Identifiable { let id: Int }
         return false
     }
 
-    click(platformWindow, at: pt(20, 20))
+    click(platformWindow, at: pt(50, 50))
     #expect(log.names == ["btn"])
     #expect(raw.isEmpty, "the click was claimed, so the raw handler never saw the release")
 
@@ -544,6 +577,9 @@ private struct Datum: Identifiable { let id: Int }
                     return nameTheSibling ? b.id("b") : b
                 }()
             }
+            // Stage 6b (`LR-DG`, R-fill): the window's extent declared on both
+            // auto root axes — what `CS-I` gave the legacy root, now spelled.
+            .width(px(100)).height(px(100))
         }
         window.drawFrameIfNeeded()
         // A `Row` in a 100x100 window: the two 40-wide boxes at x 0..40 and

@@ -26,7 +26,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// an element tree at all, so a second authority would be an argument their
 /// bodies never read (`LR-BN`'s rule).
 @MainActor private func bareFrame(_ side: Float = 300,
-                                  authority: LayoutAuthority = .legacy) -> Frame {
+                                  authority: LayoutAuthority = Frame.defaultLayoutAuthority) -> Frame {
     Frame(contentSize: Size(width: px(side), height: px(side)),
           scaleFactor: 1, stateTable: StateTable(),
           shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
@@ -527,7 +527,10 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     box.elementID = ElementID("root")
     box.handlers.axNode = AXNode(role: .button, label: "Go")
 
-    let frame = bareFrame()
+    // Stage 6b (`LR-DG`, R-centre): the 40x20 root declares both axes, so under
+    // the proposal authority it is centred in the 300x300 frame at
+    // ((300 - 40) / 2, (300 - 20) / 2) = (130, 140) (`CN-J`).
+    let frame = bareFrame(authority: .proposal)
     frame.render(&box)
 
     // Named explicitly, rather than left `nil`, so this id is `.named("root")`
@@ -537,7 +540,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     let rootID = GlobalElementID.child(of: nil, at: 0, name: box.elementID)
     let node = try #require(frame.axNodes[rootID])
     #expect(node.role == .button && node.label == "Go")
-    #expect(node.frame == rect(0, 0, 40, 20), "the box's own resolved bounds")
+    #expect(node.frame == rect(130, 140, 40, 20), "the box's own resolved bounds")
     #expect(node.children.isEmpty,
             "Box cannot yet enumerate its own children's ids — see Box.prepaint's own comment")
 }
@@ -674,7 +677,7 @@ private struct LegacySpelledAXListLeaf: Element {
 @MainActor
 private func renderListWindowed<Data: RandomAccessCollection, Row: Element>(
     _ list: inout List<Data, Row>, context: ScrollContext,
-    authority: LayoutAuthority = .legacy
+    authority: LayoutAuthority = Frame.defaultLayoutAuthority
 ) -> Frame where Data.Element: Identifiable {
     let frame = bareFrame(600, authority: authority)
     frame.pushScrollContext(context)

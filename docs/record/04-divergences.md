@@ -1020,3 +1020,36 @@ new *evidence for stage 6b and 7b's future rulings*, not a divergence in its
 own right: nothing in it is reachable outside a test today, since
 `LayoutAuthority.proposal` stays inert in production until stage 6b (record
 §05's row, unchanged — see that file's own 2026-09-23 section).
+
+## 2026-09-23: 4 amended (plan task 7 stage 6b, the root switch)
+
+Record §41; rulings `LR-DF`…`LR-DR` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **No number is
+retired and none is added** — the table stays at **fifty-eight**. Stage 6b
+throws the switch: `Frame.defaultLayoutAuthority` is now `.proposal`, so
+production runs the proposal engine by default, and this is the first stage
+whose ruling on divergence 4 is production-visible rather than a
+proposal-authority-only evidence row.
+
+- **4** (ruling `CS-I`: an `auto` root axis takes the offered extent and sits
+  at (0, 0), where a browser fills the inline axis and shrink-wraps the block
+  one). **Becomes legacy-authority only.** `LR-DG` rules that production's
+  root placement is `CN-J`, not `CS-I`: a native root is measured at the
+  window's proposal and centred at its own answer, unchanged by the switch
+  (`computeRootLayout`'s native branch is untouched; `docs/probes/swiftui-stack-algorithms.swift`'s
+  R control/R1–R4, re-run 2026-09-23, back SwiftUI's centred answer). Every
+  legacy root now lowers to a native one under the default authority, so
+  `CS-I` is reachable only through an explicit `.legacy` `Frame`/`Window` —
+  pinned by its own CSS-engine tests
+  (`anAutoRootWithNoOfferedExtentMeasuresItsContent` and the root-sizing tests
+  in `MetalUILayoutTests`), which stay green because they construct that
+  authority explicitly. The row is not retired here: it retires with those
+  CSS-engine tests at 7b (`LR-DG` item 2), alongside the 15 tests this stage
+  pinned `.legacy` for 7b (12 CSS, 1 RP+CSS-frame, the 2 of `LR-DQ` item 2);
+  its other 5 pins (3 N9, 2 tokenizer tests) are stage 9's (`LR-DQ` item 2:
+  20 pins in all). **What it costs if wrong**: a hugging production root
+  that regressed to `CS-I`'s top-left, window-filling answer would move every
+  such root from the window's centre back to its top-left corner — loud on
+  the first frame, and pinned by `aHuggingLegacyRootIsCentredInAProductionWindow`
+  (record §41 §12.2–§12.5; mutations M2a, top-leading, and M2b, the window
+  rect, each redden it and every other root-placement-reading test).
