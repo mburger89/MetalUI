@@ -4,7 +4,9 @@ Plan task 7, stage 8 (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 8,
 §8; `FR-F`, `FR-G`, `FR-H`, `FR-I`). Design:
 `docs/superpowers/specs/2026-09-24-engine-stage-8-design.md`. Rulings
-`LR-ER`…`LR-EX` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`.
+`LR-ER`…`LR-FB` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md` (next unused
+`LR-FC`).
 Branch `feat/engine-stage-8` from `85217e3`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-8`. Probe:
 `docs/probes/swiftui-engine-stage-8.swift` (groups F, P, T; output in its
@@ -17,6 +19,16 @@ recipe's two mechanical rules).
 (§49 is stage 7b). If another line reaches `master` first with a §50, this file
 is renumbered at merge by the precedent of record §23 §8 and the
 §25/§27/§29/§38/§41/§48 headers.
+
+**Status, 2026-09-24 (PDT): delivered.** §12 is the Record phase's close: all
+three lanes' verdicts were `ok: true` with mutation tables (§8–§11); a clean
+`swift package clean` + native build + unfiltered suite at the final head
+(`05d670b`) reads **1452 tests in 3 suites passed**, 0 goldens, **79** guards,
+0 `error:`/the one SwiftPM `warning:` on both build systems; the fourteen-image
+offscreen comparison against `85217e3` still reads 0 differing (no `Sources/`
+line moved since lane 3's `39adea3`, where it was last measured); spec §8's
+five exit criteria all hold. CLAUDE.md/AGENTS.md, records §04/§05/README, the
+plan's task 7 note and the top-level README are updated to match (§12).
 
 **Status, 2026-09-24 (PDT): design.** §1–§5 were written with no file under
 `Sources/`, `Tests/` or `Package.swift` changed in a commit. Every prototype
@@ -808,3 +820,104 @@ log. Every changed line equals its `85217e3` line modulo the `css` prefix. No
 assertion edited, no test renamed or retired; before − removed + added =
 after, 1452 − 0 + 0 = 1452. No `Sources/` line and no demo-reachable file
 changed, so the offscreen comparison and `Backends/SDL` were not re-run.
+
+## 12. The stage's close (Record phase, 2026-09-24, PDT)
+
+Spec §8's exit criteria, each read at `05d670b` (lane 3's head; the two Record
+phase commits before this one touch only test/doc files):
+
+1. **0 `warning:`** besides SwiftPM's notice, with the eight deprecations in
+   place. After `swift package clean`: `swift build --build-system native
+   --build-tests` → `Build complete!`, 0 `error:`, the one `warning:`
+   SwiftPM's own deprecation-of-the-flag notice; `swift build --build-tests`
+   (default build system) → 0 `error:`, 0 `warning:`.
+2. Unfiltered `swift test --build-system native --no-parallel` →
+   **`Test run with 1452 tests in 3 suites passed`** (91.433 s), the log
+   carrying `FR-J no-argument frame: succeeded=true` and `N3.1 sizing
+   deprecations: succeeded=true count=8`. **79 guards**: `grep -c
+   canTypecheck` per guard file sums to 80 (`FrameSizingCompileGuards` now 3,
+   every other file as at `85217e3`), less `Typecheck.swift`'s own
+   declaration and `UnitSafetyTests`' comment-line hit = 79; `typecheckFile`'s
+   helper count 38 → 39 (`FrameSizingCompileGuards`' N3.1 guard and its
+   control arm both call `typecheckFile`). **0 goldens** (`find
+   Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0).
+3. **The census re-taken with the deprecations in**: `grep -nE
+   '\.(width|height|minWidth|maxWidth|minHeight|maxHeight)\('
+   Sources/MetalUIDemoContent/*.swift` returns **5 lines, all comments**
+   (`DemoContent.swift:528,675,677,681,692` — each names the old spelling in
+   a doc comment explaining the conversion, never a call). No `Sources/`
+   target outside a `D`-class witness calls any of the eight (the native
+   build's 0 `error:`/1 `warning:` above is only reachable if every remaining
+   call is inside a `@available(*, deprecated, …)` declaration — a live call
+   anywhere else would print `warning: 'x' is deprecated` under
+   `-warnings-as-errors` off, and none does; `git grep` for the six bare names
+   and `(fraction:` outside `Tests/MetalUITests/CSSSizing.swift`,
+   `ModifierTests.swift`'s `DeprecatedSizingCases` and doc comments finds
+   nothing else).
+4. **The fourteen-image offscreen comparison against `85217e3`**: `docs/probes/demo-pixels/compare.sh`
+   read **0 differing, scene identical, all fourteen images** at lane 1's
+   `29c7200`, again unchanged at lane 3's `39adea3` (§11.9), and `git diff
+   --stat 39adea3 05d670b -- Sources/` is **empty** — no `Sources/` line moved
+   since, so the result stands at this head without re-running the script.
+   `DemoFrameDeterminismTests` is unedited and green (in the 1452). The demo's
+   hitbox/accessibility/hovered-scene comparison
+   (`docs/probes/stage-8-demo-hit-ax-hover.swift`) read byte-identical at
+   `29c7200` (§8.5) and is likewise unaffected by any later commit (all
+   `Sources/` changes since are `Box.swift`'s attributes/comments and
+   `Component.swift`'s comments, `LR-EZ`/`LR-FB`). `Backends/SDL` built with
+   the deprecation in drew **0** deprecation warnings and its
+   `PortableReplay`/`DemoCapture` passed unedited (§11.9); nothing in
+   `Backends/SDL` or `Tests/PortableTests` calls any of the eight (`git grep`
+   empty).
+5. **N1.1–N1.6** (lane 1, §8.2/§8.7) and **N3.1** (lane 3, §11.3/§11.7) are
+   green in the 1452; each named mutation reddened what §6 names (§8.4, §9,
+   §10.5, §11.2, §11.7, §11.11); the site-coverage sets held with **equality**
+   throughout (Ms1–Ms3 identical base vs head, §10.5; Ms4 identical before vs
+   after the fix, §11.11) rather than merely `⊇`.
+
+All five hold. **Accounting**: 1445 − 0 + 7 = 1452 (lane 1's six T rows,
+`LR-EZ`/`LR-FA`; lane 3's one D row, `ModifierTests`' eight sizing rows moved
+verbatim into `DeprecatedSizingCases`, one test relocated, not eight created);
+guards 78 → 79; goldens 0 → 0. **Class totals, measured**: F, tests only
+(excluding the demo's own 25 production sites): 129 (lane 3's of 425) + 37
+(lane 1's `PresentationWindowTests` 24 + `FrameSizingTests` 13) = **166**; K
+1115 (lane 2) + 296 (lane 3's fallback) = **1411**, plus lane 1's
+`PresentationLoweringTests`/`AnimationTests` sites that stayed K1/K2 (56 and
+26 minus the arms `LR-EV` moved to F, not separately counted);
+D 8 (`ModifierTests`, one test); R 0. Portable CI untouched: `MetalUICoreTests`
++ `MetalUILayoutTests` + `MetalUICrossPlatformTests` stay **200 + 22 + 3**
+(no census site in any file those targets build).
+
+Handed on (spec §9): to stage 9, the K1 tests' legacy arms retire with the
+legacy authority, their proposal arms keeping the `css*` spelling until
+stage 10; to stage 10, `CSSSizing.swift` and every `css*` site (≈ 1411, this
+stage's own K plus lane 2's) die or are re-spelled with `Style.size`/
+`minSize`/`maxSize`, the `Style()` writes in tests (232 lines, 50 files,
+record §50 §2) likewise, and every `Style`-field report this stage inherited
+and kept (percentages, a non-greedy `maxSize`, a length `flexBasis`, a root's
+auto-axis min/max and margin, a floored `space-*`, `…absolute` on a
+`Style`-written box) dies with its field; out of task 7, to plan task 15
+(closeout), divergence 52 (`Row`/`Column` default spacing, re-owned from
+stage 10 by `LR-EY`, since both stages' exit is "0 px against the prior
+stage" and a public default under every default-gap caller's pixels cannot
+satisfy both).
+
+**Not done, with owners already assigned above**: no engine file, `Style`
+field, legacy registrar, the legacy authority itself or a `Component`
+modifier is deleted or changed in meaning (`Component.width`/`height` and
+`StyledComponent.width`/`height` stay undeprecated, reconciliation stage 11's,
+`LR-ER` item 2). The real-window capture and the demo-layout
+human-verification rows record §03 re-opened at stage 6b remain owed to the
+human; this stage's own changes to the demo (comments and the recipe's
+reordering) are not visually distinguishable from stage 7b's state in any way
+the offscreen comparison cannot already certify, so no new look is added to
+that ledger.
+
+Docs updated to match this close: `CLAUDE.md`/`AGENTS.md` (counts, the `LR-`
+next letter, the record map, the "Sizing modifiers" paragraph and every
+example using a deprecated spelling), `docs/record/04-divergences.md` and
+`docs/record/05-declared-but-inert.md` (each gains a dated "no row changed"
+section explaining why, since neither divergence 48 nor any inert-API row is
+touched by the deprecation), `docs/record/README.md`, the plan's task 7 note
+(dated, not ticked — stages 9–14 remain), and this repository's top-level
+`README.md`.

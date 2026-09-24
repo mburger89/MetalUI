@@ -3,15 +3,28 @@
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 row 8, §8; rulings `FR-F`, `FR-G`, `FR-H`, `FR-I`
 ([`../2026-09-15-frame-sizing-decisions.md`](../2026-09-15-frame-sizing-decisions.md)).
-Rulings `LR-ER`…`LR-EY` in
-[`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
+Rulings `LR-ER`…`LR-FB` in
+[`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
+(next unused `LR-FC`).
 Record: `docs/record/50-engine-replacement-stage-8.md` (§2 the census, §3 the
-scratch measurements, §4 the demo prototype, §5 the converter's viability).
+scratch measurements, §4 the demo prototype, §5 the converter's viability, §7
+the design critic round, §8–§9 lane 1, §10 lane 2, §11 lane 3).
 Probe: `docs/probes/swiftui-engine-stage-8.swift` (groups F, P, T, output in its
 header). Instruments: `docs/probes/stage-8-deprecation-sites.txt`,
 `docs/probes/stage-8-demo-recipe.patch`, `docs/probes/stage-8-sizing-converter.py`.
 Branch `feat/engine-stage-8` from `85217e3`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-8`.
+
+**Status, 2026-09-24 (PDT): delivered.** All three lanes verified `ok: true`
+(mutation tables in each lane's own record section). The Record phase closed
+the stage: `swift package clean` then a native build and unfiltered suite read
+**1452 tests in 3 suites passed** (0 `error:`, the one `warning:` SwiftPM's
+notice; 0 `warning:` on the default build system), **0 goldens**, **79**
+typecheck guards (`FrameSizingCompileGuards` 2 → 3), the fourteen-image
+offscreen comparison against `85217e3` reading 0 differing throughout. Spec
+§8's five exit criteria all hold (record §50 §12). CLAUDE.md/AGENTS.md, record
+§04/§05/README, the plan's task 7 note and this repository's README are
+updated to match.
 
 **Status, 2026-09-24 (PDT): lanes 1–3 delivered** (lane 1 `LR-EZ`/`LR-FA`,
 record §50 §8–§9; lane 2, record §50 §10; lane 3 `LR-FB`, record §50 §11) on
