@@ -206,3 +206,259 @@ Read against `caa331a`; ruling `LR-FH`, with amended paragraphs on `LR-FD`,
 - **Upheld**: the containing-block reports' deletion, `deferred.amended`'s
   re-ownership to 11, the plan's stale sentence waiting for the Record phase,
   lane 3 unsplit — reasons in `LR-FH` item 7.
+
+## 5. Lane 1 — the differential harness and its users (2026-09-24)
+
+Commits `1148ccb` (the collapse) and `e710e4b` (two site-coverage dropouts);
+ruling `LR-FI`. Tests only: `git diff b9a5d7f e710e4b --stat -- Sources` is empty.
+27 files: `LayoutDifferential.swift`, the 24 users spec §4 lists, and the
+registry's two literals (`AuthorityCoverage.swift`, `ZZAuthorityRollCall.swift`).
+
+### 5.1 The base set (before any edit)
+
+Ma–Me (spec §6 lane 1, spelled in the probe file's header) each applied to
+`3828612` (= `b9a5d7f` plus design docs; no `Sources/`/`Tests/` difference),
+full unfiltered suite, restored from a copy, `git status --short` empty after
+each. Every reddened test with its issue count is in
+`docs/probes/stage-9-site-coverage.txt` (`## base`): **Ma 20** tests (134
+issues), **Mb 52** (336), **Mc 6** (40), **Md 2** (57), **Me 8** (106). This is
+the stage's base set, which lanes 2 and 3 re-read (`LR-FH` item 2).
+
+### 5.2 The collapse, and the count
+
+- `LayoutDifferential.swift` single-authority (`LR-FI` item 1).
+- The five registry contributors' **49** scenarios collapsed (`ScrollRoutingTests`
+  16, `ListTests` 21, `DeferredTests` 5, `PresentationWindowTests` 6,
+  `DecorationPaintTests` 1): `arguments:`, the authority parameter,
+  `AuthorityCoverage.record` and every per-authority branch removed.
+  `AuthorityCoverage.expected` 87 → **38** names, the roll call's `#require`
+  87 → 38 with its sum re-written (14 indicator + 4 `ScrollViewTests` + 3
+  `AXNodeTests` + 6 `AccessibilityDefaultsTests` + 5 `AccessibilityTreeTests` + 1
+  `FocusTests` + 1 `TombstoneTests` + 2 `MeasurePerformanceTests` + 1
+  `AbsoluteOverlayTests` + 1 `EnvironmentTests`); the roll call stays green.
+- Every differential test: literals kept, agreement assertions deleted, a
+  literal added where only the agreement carried a named observation (§5.4).
+- Loops over `[LayoutAuthority.legacy, .proposal]` collapsed to the proposal
+  iteration (T); `layoutAuthority:` arguments, `lowersToProposal` branches,
+  `pass.frame.requestNode`/`requestLeaf` and `site: .customElement` gone from
+  every file of the lane.
+- `PresentationLoweringTests` 1.5: the seven containing-block arms removed, the
+  `ScrollView`-without-`Deferred` arm added (`[box.position, box.inset]`,
+  divergence 11's proposal fact), `#require` 18 → **12**.
+  `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`: the two `customElement`
+  arms and the bordered-root `deferred.containingBlock` arm removed, 11 → 9
+  (`LR-FI` item 4).
+
+**Retirements, 11 rows** (spec §6 lane 1's table, numbers kept):
+
+| # | test (file) | row | replacement / concept |
+|---|---|---|---|
+| 2 | `theDifferentialHarnessSeesAOnePointDisagreementAtExactlyThatElement` (`LayoutAuthorityTests`) | D | the two-engine comparison |
+| 3 | `theDifferentialHarnessComparesPaintHitboxesAccessibilityAndState` (`LayoutAuthorityTests`) | D | the two-engine comparison |
+| 4 | `aFrameAndAWindowDefaultToTheProposalAuthority` (`LayoutAuthorityTests`) | D | an authority default |
+| 5 | `aWindowBuildsEveryFrameUnderItsLayoutAuthority` (`LayoutAuthorityTests`) | D | a window's authority |
+| 6 | `aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority` (`LayoutAuthorityTests`) | R | lane 3's G6a |
+| 7 | `aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne` (`LayoutAuthorityTests`) | R | G6a |
+| 8 | `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` (`LayoutAuthorityTests`) | D | `Frame`'s legacy backstop |
+| 10 | `aLegacySpelledListRowAbortsAProductionProposalFrame` (`ListTests`) | R | G6a |
+| 16 | `theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore` (`HiddenLoweringTests`) | D | the legacy hidden path |
+| 17 | `aPresentationTrapsAProductionProposalFrameNamingItsField` (`PresentationLoweringTests`) | R | N3.1 |
+| 18 | `anIdealDimensionOnTheLegacyFrameTraps` (`FrameSizingTests`) | D | `LR-H`'s legacy ideal trap |
+
+**Count**: unfiltered `swift test --build-system native --no-parallel` at
+`1148ccb` and at `e710e4b` → **`Test run with 1441 tests in 3 suites passed`**
+(1452 − 11 = 1441), the log carrying `FR-J no-argument frame: succeeded=`,
+eleven gated tests skipped (unchanged), 0 `error:`, one `warning:` (SwiftPM's
+notice); `swift build --build-tests` (default build system) at `e710e4b`: `Build
+complete!`, 0 `error:`, 0 `warning:`.
+
+### 5.3 T rows
+
+**Renames, 46** (`LR-FE` item 6; old → new; each test's doc names its old name):
+`aLoweredRowAndColumnAgreeWithTheLegacyContainersOverFixedChildren` →
+`aLoweredRowAndColumnPlaceFixedChildrenByGapAndCrossAlignment`;
+`everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` →
+`everyContainerFieldEitherLowersOrIsReportedByName`;
+`aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren` →
+`aLoweredRowLetsItsFixedChildrenOverflowItsDeclaredWidth`;
+`aProposalElementInsideALoweredContainerLaysOutUnderTheProposalAuthorityAndTrapsUnderTheLegacyOne` →
+`aProposalElementInsideALoweredContainerLaysOut`;
+`aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation` →
+`aLoweredFixedSizeBoxPaintsAndHitTestsAtItsDeclaredSize`;
+`aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth` →
+`aLoweredTextLaysOutAndDrawsAtItsNaturalWidth`;
+`aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock` →
+`aLoweredTextHugsItsWidestLineRatherThanFillingItsOffer`;
+`aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes` →
+`aLoweredStackPlacesFixedChildrenAtAllNineAlignments`;
+`aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent` →
+`aLoweredStackOffersItsChildItsProposal` (the collapsed test no longer asserts
+the legacy half); `aLoweredPaddingLayerAgreesWithTheLegacyWrapper` →
+`aLoweredPaddingLayerInsetsItsContentByEachEdge`;
+`aLoweredFixedFrameLayerAgreesWithTheLegacyFrameOverAFixedChild` →
+`aLoweredFixedFrameLayerPlacesAFixedChildAtEachAlignment`;
+`aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps` →
+`aLoweredFlexibleFrameLayerTakesSwiftUIsAnswer`;
+`anIdealFrameLowersUnderTheProposalAuthorityAndStillTrapsUnderTheLegacyOne` →
+`anIdealFrameLowersAtANilProposal`;
+`spaceAroundAndSpaceEvenlyOverflowFromTheStartOnBothPaths` →
+`spaceAroundAndSpaceEvenlyOverflowFromTheStart`;
+`aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt` →
+`aComponentsWidthFramesEachMember`;
+`theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities` →
+`theOrderOfAComponentsDistributingModifiersIsObservable`;
+`chainedComponentAmendsComposeTheSameWayUnderBothAuthorities` →
+`chainedComponentAmendsCompose`;
+`aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem` →
+`aFrameOverAMultiMemberComponentFramesEachMember`;
+`paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt` →
+`paddingOnALoweredTextPadsItsLeaf`;
+`aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox` →
+`aDeclaredSizeBelowThePaddingKeepsItsFixedFrame`;
+`theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement` →
+`theStageOneCorpusLowersWithNoDiagnostic`;
+`theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm` →
+`theStageOneCorpusPinsEachSwiftUIAnswerWithItsProbeArm`;
+`anAlignSelfWrapperFillsAnIndefiniteContainerWhereCSSHugs` →
+`anAlignSelfWrapperFillsAnIndefiniteContainer`;
+`anAlignSelfInsideAOneChildWrapperFillsTheWrapperWhereCSSIgnoresIt` →
+`anAlignSelfInsideAOneChildWrapperFillsTheWrapper`;
+`growingSiblingsShareTheSurplusEquallyWhereCSSAddsItToTheirBases` →
+`growingSiblingsShareTheSurplusEqually`;
+`theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt` →
+`theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidth`;
+`aGrowInsideAOneChildPaddingFillsTheWrapperWhereCSSLeavesItUngrown` →
+`aGrowInsideAOneChildPaddingFillsTheWrapper`;
+`aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape` →
+`aLoweredScrollViewLaysOutEveryBoundedShape`;
+`aLoweredScrollViewFillsItsProposalOnTheScrollingAxisWhereTheLegacyViewportHugs` →
+`aLoweredScrollViewFillsItsProposalOnTheScrollingAxis`;
+`aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows` →
+`aLoweredHorizontalScrollViewIsBoundedByItsParent`;
+`aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements` →
+`aLoweredWindowDispatchesClicksFocusAndKeys`;
+`aLoweredWindowPublishesTheSameAccessibilityTree` →
+`aLoweredWindowPublishesItsAccessibilityTree`;
+`aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths` →
+`aLoweredTreeMintsItsStateSlotsAndAnimatesItsWidths`;
+`anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBoxWhereTheLegacyEngineFloorsIt` →
+`anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBox`;
+`anAbsoluteTextWrapsAtTheWindowMinusItsInsetWhereTheLegacyEngineWrapsAtTheWindow` →
+`anAbsoluteTextWrapsAtTheWindowMinusItsInset`;
+`aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities` →
+`aFramedAbsoluteBoxIsAPresentationRoot`;
+`aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape` →
+`aLoweredListLaysOutEveryWindowedShape`;
+`aLoweredListsRowIdentitiesAreTheLegacyOnes` →
+`aLoweredListsRowsAreNamedDirectlyUnderTheList`;
+`theDifferentialRootPlacesItsContentTopLeadingAtItsSizeUnderBothAuthorities` →
+`theDifferentialRootPlacesItsContentTopLeadingAtItsSize`;
+`aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities` →
+`aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScroll`; and
+`PresentationWindowTests`' six (`theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel`,
+`aPresentationInsideAFadedSubtreeIsStillFaded`,
+`aPresentationKeepsItsDeclaringScopesEnvironment`,
+`aPresentationPublishesItsAccessibilityRecordAndTakesFocus` (from
+`aPresentationsAccessibilityRecordAndFocusMatchUnderBothAuthorities`),
+`anAnimatedInsetInterpolatesItsValue`, `nestedPresentationsLandOnOneLayer`,
+each from its `…UnderBothAuthorities` spelling).
+
+**Other T rows** (arms or spellings changed, no expected value re-valued):
+1.5 and `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` (§5.2);
+`aComponentAmendDoesNotTrapUnderTheProposalAuthority` loses its absence check of
+`SA-G`'s `setStyle` message (lane 3 deletes the precondition; the `.success` exit
+sees any trap); `aProposalTextBelowItsWidestBrokenLineAnswersTheProposal`'s
+discriminator bound re-spelled off `ShapingCache.minContentWidth` (`LR-FI` item
+6); `anItemFieldNoLoweredContainerConsumesIsReportedByName`'s four root arms
+assert their recorded answer (all ignored by the legacy root) directly; every
+collapsed loop and scenario; `ListLoweringTests.LoweredProbeLeaf` and
+`ListTests.Row` at `site: .box`.
+
+### 5.4 The literals the agreement carried
+
+Derived by hand before the run; the two that read red on the first run are
+recorded as found (`LR-FI` item 3):
+
+- **First-run red lines** (unfiltered run on the uncommitted collapse, `Test run
+  with 1441 tests in 3 suites failed … with 5 issues`):
+  `aLoweredScrollViewLaysOutEveryBoundedShape() recorded an issue at
+  LoweringScrollTests.swift:665:23: Expectation failed: r.bounds[id] == rect`
+  and `… r.hitboxRects == regions` (A8: 160×60, derived 80×60);
+  `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder() recorded an
+  issue at LoweringDistributionTests.swift:520:9: Expectation failed:
+  reversed.frame.stateTable.ids.contains(slot)` ×3 (no `$state0` for an
+  unwritten `@State`; `$ax` used).
+- **Added**: container 3.4's chrome (8 glyphs, the two buttons' hitboxes and
+  accessibility frames), 3.5's five lane-5 arms' rects; leaf 2.1 (scene rect,
+  hitbox, accessibility frame, px and rem), 2.4's twelve `Text` arms (the natural
+  rect), 2.5's eight arms (rect, glyph count, no hitbox, accessibility text and
+  frame, tint reaches the glyphs), 2.6 and stack 4.2's separating `#require`
+  (widest line < 60), 2.8's glyph rows per arm; stack 4.3's six glyphs;
+  distribution 5.7's paint, hit and accessibility order and `$ax` slots; item
+  1.10's decoration, hitbox, accessibility frame and wrap rows (120 and 4), 1.13's
+  four root arms, 1.14's and 2.12's row rects (§5.5); scroll 2.1's A1/A5/A8/A9
+  rects, scenes and scroll regions, 2.3's region (divergence pin, proposal-only),
+  2.4's accessibility frame (divergence pin, proposal-only); parity 5.4's hitboxes
+  and glyph count; presentation 1.1's hitbox and background, 1.4's hitbox in all
+  six arms and the column's third child at y 22; list 2.1's B4 (layer, list,
+  rows, window 3…16), 2.6's rows, 2.8's identity structure; the demo census's
+  `Deferred` and scrim at 920×560.
+- **Confirmed against the legacy arm** (`LR-FI` item 2): a scratch patch to
+  `LayoutDifferential.report` (legacy root inlined, `ProbeLeaf` and
+  `LoweredProbeLeaf` given back their legacy branch; reverted, `git status` then
+  showing only the lane's files) printed `ORACLE AGREE` for every arm of the 14
+  tests carrying an added literal through `report` (3.4, 3.5, 2.1, 2.4, 2.5, 4.3,
+  5.7, 1.10, 1.1, 1.4, list 2.1's B1/B5/B6, list 2.6, scroll 2.1, stack 4.1), and `ORACLE
+  DIFFER` exactly on the divergence pins (scroll 2.3, 2.4, stack 4.2, the demo
+  census) where the added literal is proposal-only or was already compared on
+  both sides. The windowed list arms and the parity windows are covered by
+  `LR-FI` item 2(b).
+
+### 5.5 The site-coverage re-run at the head
+
+Ma–Me at `1148ccb` (probe file, `## head`): **every base test reddens at the
+head or is its renamed self**, except two Mb dropouts —
+`aStretchedUnsizedSpaceDistributionContainerIsReported` and
+`aGrownUnsizedSpaceDistributionContainerIsReported`, whose controls' agreement
+alone saw the grown/stretched row's own rect. Each gained that rect as a literal
+(`e710e4b`: 200×10, 260×10), and **Mb re-run at `e710e4b` reddens both** (2
+issues each; 56 tests, 264 issues). No base test is a retired row of this lane.
+Head-only reds (tests the literals now make each mutation see) are listed in the
+probe file; they are additions, not a requirement.
+
+### 5.6 The demo
+
+The fourteen-image comparison, `b9a5d7f` → `1148ccb`: **0 differing, scene
+identical, in all fourteen**. The committed `ZZDemoPixels.swift` traps at
+`1148ccb` (its `chrome-legacy` image puts the now native-only `DifferentialRoot`
+under `.legacy`: `LayoutTree.swift:765: Fatal error: native layout subtree
+contains a legacy node`), so the comparison ran `compare.sh` from a scratch copy
+whose `ZZDemoPixels.swift` inlines the pre-stage-9 root as `PixelsLane1Root`
+(both commits built with the same file). Controls at `b9a5d7f`: light vs dark
+1048576, default vs modal 1031003, default vs animation 454895, f0 vs f3 0,
+preview light vs dark 1048576, chrome legacy vs proposal 0, distinct 544 / 216,
+prod default vs modal 491221, indicator rects 0. **Two controls differ from the
+values `compare.sh`'s header quotes** (1030498, 210027) — those were recorded
+before stage 6b moved the demo onto the proposal engine; the header's numbers,
+not the harness, are stale (lane 3 owns the file).
+
+### 5.7 Handed on
+
+- **Lane 2**: stale citations of this lane's renamed tests in its files —
+  `ComponentTests.swift:28`, `ElementGroupTrapTests.swift:422`,
+  `OuterModifierMatrixTests.swift:857`, `ElementLayoutTests.swift:17`,
+  `EnvironmentTests.swift:715`; `AuthorityCoverage.swift`'s docs (the registry
+  it deletes).
+- **Lane 3**: stale citations in `Sources/` doc comments — `Component.swift:277,
+  349, 366`, `Passes.swift:49`, `Frame.swift:1542, 1568`, `ModifiedElement.swift:82`,
+  `Box.swift:984`, `ListRows.swift:124`, `Rounding.swift:49–50`,
+  `ElementGroup.swift:685`; the pixel harness (§5.6); `compare.sh`'s control
+  values. `RootFieldLoweringTests`' root-margin arm names its field's owner as
+  stage 9 in its doc ("a root **margin** (owner 9)") — no row of spec §5 names it;
+  its trap stands (`box.margin.unconsumed`), and its owner needs a ruling.
+- **Exit-criterion grep survivors in this lane's files**, all historical doc
+  text: `LayoutAuthorityTests.swift:76` (`layoutAuthority`), `:177`
+  (`customElement`), `ListLoweringTests.swift:72`, `ListTests.swift:25, 847`,
+  `LoweringCorpusTests.swift:172`, `ScrollRoutingTests.swift:515, 775`
+  (`customElement`), `LoweringLeafTests.swift:497` (`textMeasure`), `:502`
+  (`minContentWidth`).

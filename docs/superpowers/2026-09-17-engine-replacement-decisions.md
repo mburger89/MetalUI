@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FI`** (stage 9's design took `LR-FC`…`LR-FG` and its critic round 1 `LR-FH`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FJ`** (stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH` and its lane 1 `LR-FI`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -9194,3 +9194,72 @@ in `LR-FD`.
 is one commit lane 2 reverses by deletion; if lane 1 miscounts, the roll call
 names the missing scenario. Item 2: three more rounds of five full-suite runs
 (about eight minutes each).
+
+
+## LR-FI — stage 9 lane 1: the harness's single-authority API, the literals the agreement carried, one arm the design missed, and what lane 1 hands on
+
+**Evidence.** Record §51 §5 (lane 1): the site-coverage base set at `b9a5d7f`
+and its re-run at the lane's head (`docs/probes/stage-9-site-coverage.txt`),
+the scratch oracle over the added literals (§5.4), the fourteen-image
+comparison (§5.6), and the suite at the head, `Test run with 1441 tests in 3
+suites passed`.
+
+**The ruling.**
+
+1. **The harness API** (`LR-FE` item 5, spelled). `LayoutDifferential` keeps its
+   name (the record cites it) and holds `render(width:height:scaleFactor:stateTable:frames:_:)
+   -> Frame` and `report(width:height:scaleFactor:frames:_:) -> Report` (and
+   `report(_ frame:)`), always diagnostics on and bounds recorded. `Report` is
+   `elements`, `unlowerable`, `bounds` (the old `loweredBounds`) and `frame`, with
+   main-actor helpers for the observations the agreement used to carry:
+   `hitboxRects`, `accessibilityFrames`, `accessibilityTexts`, `sceneRects`,
+   `glyphRowCount(top:lineHeight:)`. `WindowPair` is replaced by the free function
+   `makeLoweredWindow(device:size:startsDisplayLink:_:)`, which keeps its
+   pre-flight (a non-empty report is a `try #require` failure, not a trap).
+   `DifferentialRoot` and `ProbeLeaf` are native-only; `ProbeLeaf`'s four
+   disagree-on-purpose knobs went with the harness self-tests they served.
+2. **A literal added where the agreement carried a named observation**, derived
+   by hand before the run, and **confirmed against the legacy arm** in one of two
+   ways, both recorded: (a) for every arm rendered through `report`, a scratch
+   oracle patch (reverted) rendered the same tree under `.legacy` and compared
+   bounds, scene, hitboxes, accessibility and state ids — `AGREE` on every arm
+   that carries an added literal; (b) for arms that do not go through `report`
+   (the `List` seeded arms, the parity windows), the base suite was green with
+   the agreement asserted and lane 1 changes no `Sources/` line, so the lowered
+   answer the literal is asserted on equals the legacy answer at `b9a5d7f`. Two
+   literals added on **divergence pins** (`aLoweredHorizontalScrollViewIsBoundedByItsParent`'s
+   scroll-region hitbox, `aLoweredScrollViewsContentKeepsItsNaturalExtent`'s
+   accessibility frame) are proposal-only by construction — the legacy arm
+   differed there on purpose — and are marked so.
+3. **Two first-run corrections**, recorded rather than hidden: A8's scroller is
+   160×60, not the 80×60 first derived (a vertical viewport's cross answer is its
+   content's width, which the stack does not compress; the legacy engine agreed,
+   which is why the old agreement held); and an unwritten `@State` mints no
+   `$state0`, so 5.7's state literal is each box's `$ax` slot.
+4. **One arm the design missed.** `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
+   (`LayoutAuthorityTests`) carried, besides its two `customElement` arms, a
+   bordered root over a presentation reporting `deferred.containingBlock` — the
+   same tree as 1.5's first containing-block arm. It is removed with 1.5's seven
+   (`LR-FF`, `LR-FG` item 4): lane 3 cannot edit that file, and N3.1's bordered
+   arm carries the tree's new answer. The test's arm count moves 11 → 9.
+5. **Site moves.** The two test fixtures that lowered through
+   `site: .customElement` (`ListLoweringTests.LoweredProbeLeaf`, `ListTests.Row`)
+   use `.box`, which reports nothing for their default style either (spec §6 lane
+   1 step 6).
+6. **Two lane-3 dependencies re-spelled in lane 1's files**: `LoweringLeafTests`'
+   below-word discriminator read `ShapingCache.minContentWidth` (`LR-FD` deletes
+   it) and now reads the widest word shaped unwrapped — the same number for its
+   ASCII string; `LoweringItemTests`' zero-basis text arm's legacy assertion,
+   which read the same accessor, went with the legacy half.
+7. **Renames** (`LR-FE` item 6): 46 test renames, each a T row in record §51
+   §5.3, each test's doc naming its old name. Names that state only "under the
+   proposal authority" are **not** renamed (the spec's list does not name them).
+8. **The committed `ZZDemoPixels.swift` stops running at lane 1's head**: its
+   `chrome-legacy` image renders `DifferentialRoot` under `.legacy`, which is now
+   native-only and traps (`SA-G`). Lane 1's comparison used a scratch copy with
+   the pre-stage-9 root inlined (record §51 §5.6); lane 3's
+   `ZZDemoPixels-stage9.swift` must not use `DifferentialRoot` under `.legacy`.
+
+**What it costs if wrong.** Item 2(b): a lowered answer that the base suite's
+agreement never compared would carry an unconfirmed literal; every such literal
+is listed in §5.4. Item 4: none — the arm's fact moves to N3.1.

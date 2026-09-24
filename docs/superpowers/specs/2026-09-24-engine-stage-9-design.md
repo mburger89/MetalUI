@@ -3,7 +3,7 @@
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 row 9, §8. Rulings `LR-FC`…`LR-FH` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
-(next unused `LR-FI`; `LR-FH` is the critic round's).
+(next unused `LR-FJ`; `LR-FH` is the critic round's, `LR-FI` lane 1's).
 Record: `docs/record/51-engine-replacement-stage-9.md` (§1 baseline, §2 the
 entry measurement, §3 the containing-block measurement).
 Instruments: `docs/probes/stage-9-legacy-reach-instrument.patch` (the runtime
@@ -17,7 +17,7 @@ new SwiftUI claim (record §51 §3).
 Branch `feat/engine-stage-9` from `b9a5d7f`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-9`.
 
-**Status, 2026-09-24 (PDT): design, critic round 1 applied (`LR-FH`).** No `Sources/` or `Tests/` file changed
+**Status, 2026-09-24 (PDT): lane 1 landed (`1148ccb`, `e710e4b`; `LR-FI`; record §51 §5), 1441 tests; lanes 2–3 to come. Design: critic round 1 applied (`LR-FH`).** In the design phase no `Sources/` or `Tests/` file changed
 in a commit; every scratch patch was applied, built, run and restored with
 `git checkout`, `git status --short` showing only this design's files after.
 
@@ -111,6 +111,7 @@ Record §51 §2 has the method and the figures.
 | `LR-FF` | every stage-9-owned item disposed by name (§5) |
 | `LR-FG` | three lanes, their order, the accounting (1452 − 43 + 1 = 1410), the guards (79, three re-spelled to read absence), the demo harness revision |
 | `LR-FH` | critic round 1: the lanes re-cut by harness (lane 1 the differential harness and its users, lane 2 the scenario registry's other contributors plus every other test), the site-coverage check re-run at every lane's head, the R/D labels corrected, M3a's arm count, one unprobed SwiftUI sentence struck; the containing-block and `deferred.amended` dispositions and the plan's deferred status fix upheld |
+| `LR-FI` | lane 1: the harness's single-authority API (`report`, `makeLoweredWindow`, `Report.frame` and its helpers), how an added literal is confirmed against the legacy arm (a scratch oracle, or the base-green argument), two first-run literal corrections, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s `deferred.containingBlock` arm removed with 1.5's seven, the committed pixel harness no longer running at lane 1's head |
 
 ## 4. API and files
 
