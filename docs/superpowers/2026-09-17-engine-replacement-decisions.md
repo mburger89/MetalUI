@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-EL`** (stage 7b's design took `LR-EC`…`LR-EK`, appended at the end; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-EM`** (stage 7b's design took `LR-EC`…`LR-EK` and its critic round 1 `LR-EL`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -7575,6 +7575,14 @@ authority touches" would delete 195 tests whose proposal arms pin the facts
 stage to retire them; stage 9 would have to separate CSS answers from
 comparisons again, the work record §38 §4 already did.
 
+
+**Amended, stage-7b critic round 1 (`LR-EL` finding 1).** Section A holds
+**199**, not 195, and section C **111**, not 115: `MeasurePerformanceTests`'
+four markers (`aListsWorkIsTheSameFor160RowsAsFor40`,
+`theResidentEntrySetStaysBoundedWhileScrolling10kRows` — both authorities —
+and the two tokenizer pins) were filed under C although item 3 keeps them, so
+item 4's "exactly section A" could never have held. Every "195" in this
+ruling reads 199; the census file, record §49 §2 and the spec are corrected.
 ---
 
 ## LR-ED — five verdicts, and how the count reconciles
@@ -7640,6 +7648,17 @@ production lowering branches on (`flexShrink` 1 is "compress"; 0 would make
 every item `fixedSize`); keeping `ResolveTests` would keep a pin on code
 nothing in production runs.
 
+
+**Amended, stage-7b critic round 1 (`LR-EL` finding 5).** "`Resolve.swift`,
+deleted at stage 9" over-reads the parent spec: §4.1 row 9 deletes
+`Resolve.swift`'s **percentage half**. The verdict stands on the narrower
+reason: every caller of `resolveLength`/`resolveDimension`/`resolveEdges`/
+`resolveMargin`/`clamp` is in `FlexEngine.swift` or `FlexBaseSize.swift`
+(grep, 2026-09-24), which row 9 deletes whole, so the px/rem half has no
+caller after stage 9 either and the lowering resolves px/rem itself (the pins
+named above). Whether stage 9 deletes the uncalled px/rem half or stage 10
+does with `Style`'s CSS fields is theirs; `ResolveTests` pins no production
+path in the meantime.
 ---
 
 ## LR-EF — `NativeBoundaryTrapTests`' three `computeLayout(` callers are retired
@@ -7780,3 +7799,73 @@ against.
 **What it costs if wrong.** Stage 9 deleting "the legacy comparison tests"
 wholesale would unpin 100-odd facts this stage moved onto them, and nothing
 would redden.
+
+---
+
+## LR-EL — stage 7b critic round 1
+
+**Method.** The committed design (`acca9ef`) re-read against the source and
+its own census, by script where a count was involved: every backticked name in
+record §49 §4's replacement column resolved against `func` declarations in
+`Tests/` (all resolve except the ten N names and 7a's snake_case golden-arm
+labels, each found in `GoldenReplacementFlexTests`/`GoldenReplacementStackTests`);
+every table row's test found in its file; every census B/C name matched to an
+R/D/N/T row and every A name to none; every test carrying `.legacy` in
+`Tests/` accounted for by the table, census A, an exit test, a known
+stage-9 pin or a registration-only test that never lays out (a scanner's
+remaining hits were doc comments naming `.legacy` above a proposal test). Two cited probes re-run byte for byte under `/usr/bin/swift`
+(Apple Swift 6.4): `swiftui-engine-stage-7a.swift` 17/17 lines verbatim in
+its header (W0/W1, S0/S1, A0/A1 read as cited), and
+`swiftui-component-distribution.swift` 25/25 (G2 `outer 120x26`, G7 `outer
+148x10`, G8 `outer 70x10`, as cited).
+
+**Findings applied.**
+
+1. **The exit census could not pass.** `MeasurePerformanceTests`' four
+   CSS-engine markers sat in census section C ("§2.6's files") though that file
+   is not a §2.6 file and `LR-EC` item 3 keeps every one of its tests; exit
+   criterion 3 requires the post-stage census to equal A exactly. Moved to A
+   (199); C reads 111; record §49 §2's "the other 76" reads 80 (some reach
+   `computeLayout` only in an exit child). `LR-EC` amended.
+2. **Spec §6's lane steps contradicted `LR-EJ` and the mutation tables'
+   header**: step 3 took the family mutations before step 4's removal while
+   the table header and `LR-EJ` say after. Re-ordered: remove, commit, then
+   mutate; the N tests' own red-before mutations may come first.
+3. **M1i predicted a green test red.** `nativeLayoutWorkIsPerCall` compares a
+   second call's `lastNativeLayoutWork` to the first's; with the cache never
+   hitting, both calls are equally uncached and still equal. Removed from the
+   must-redden column (only `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal`'s
+   `cacheHits == 51` literal is predicted). A mutation table naming a test that
+   cannot redden would have sent lane 1 looking for a broken instrument.
+4. **N3.4 read as a snapshot** ("the lane measures where the border and the
+   clip land and pins that"). Re-worded: literals derived from `LR-BH`'s
+   lowering before the run; a disagreement is a finding.
+5. **`LR-EE`'s "`Resolve.swift`, deleted at stage 9"** over-read row 9 (its
+   percentage half). `LR-EE` amended; verdict unchanged.
+
+**Attacks that found nothing** (recorded so a later round need not repeat
+them): no `Sources/` behaviour line and no deletion of `FlexEngine`, the
+legacy authority, `Frame.requestNode`/`requestLeaf` or the lowering is
+planned (stages 8–11 not pre-empted); no removed test is missing from the
+table (lane lists sum to 190 + 36 + 10 = 236; 1670 − 236 + 10 = 1444); every
+D row's SwiftUI claim cites a re-run arm or says "no SwiftUI claim", and no D
+concept (wrap, weighted shrink, length basis, the automatic minimum,
+`display: none`'s zero space, sub-one grow, the CSS measure cache, non-window
+containing blocks) has a SwiftUI spelling the probes show — percentages are
+not declared absent from SwiftUI, only owned by stage 8's per-site respelling
+(`LR-AI`, `LR-AP`); no N test runs under `.legacy`, so none adds to census A;
+no identity, hit-testing, accessibility or animation assertion outside a
+retired test moves (byte-level removal check, spec §6); the three lanes touch
+disjoint files.
+
+**Rejected.** Keeping `computeLayoutRejectsANativeRoot` alive by reaching
+`computeLayout` without the literal `computeLayout(` spelling (a function
+reference, or a `.legacy` `Frame` over a native root): the first dodges the
+grep's purpose (`LR-EF` already rules so), and the second cannot reach it —
+`Frame.computeRootLayout` branches on `isNativeLayoutNode(root)` first. The
+precondition stays unpinned 7b→9, as `LR-EF` records.
+
+**What it costs if wrong.** Finding 1 unfixed ends the stage at an exit
+criterion that cannot be met, or tempts lane 3 to retire four stage-9 tests to
+meet it; finding 3 unfixed spends a lane's time on a mutation "that reddens
+nothing".

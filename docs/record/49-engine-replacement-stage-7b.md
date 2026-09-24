@@ -3,7 +3,7 @@
 Plan task 7, stage 7b (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 7b,
 `LR-U`, §8). Design: `docs/superpowers/specs/2026-09-23-engine-stage-7b-design.md`.
-Rulings `LR-EC`…`LR-EK` in
+Rulings `LR-EC`…`LR-EK` (critic round 1: `LR-EL`) in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md`. Branch
 `feat/engine-stage-7b` from `41344e5`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-7b`. Instrument:
@@ -109,14 +109,15 @@ N9 traps and 3.1's trap halves).
 
 **Result: 357 tests reach `computeLayout`** (the census file lists them):
 
-- **115** in §2.6's eighteen files (the other 76 call `measureNode`,
-  `LayoutContext`, `collectLines`, `resolveLength` or `Style` directly);
+- **111** in §2.6's eighteen files (the other 80 call `measureNode`,
+  `LayoutContext`, `collectLines`, `resolveLength` or `Style` directly, or
+  reach `computeLayout` only inside an exit test's child process);
 - **47** in the retirement set's element files: 46 of the 50 7b-owned pins
   (the other four — `everyRegisteringSiteAnimatesItsStyle` and the three
   `StackElementTests` — register a `Style` on a `.legacy` `Frame` without
   laying it out) and `RootSwitchTests.aHuggingLegacyRootIsCentredInAProductionWindow`,
   whose `.legacy` arm is divergence 4's last pin (a T row);
-- **195** elsewhere — **stage 9's, not 7b's** (`LR-EC`): every
+- **199** elsewhere — **stage 9's, not 7b's** (`LR-EC`): every
   `AuthorityCoverage`-parameterised scenario's `.legacy` arm (`ListTests` 21,
   `ScrollRoutingTests` 16, `ScrollIndicatorTests` 14, `PresentationWindowTests`
   6, `AccessibilityDefaultsTests` 6, `DeferredTests` 5, `AccessibilityTreeTests`
@@ -132,22 +133,39 @@ N9 traps and 3.1's trap halves).
   `ProposalNodeIDTests`' N9 row, `noProductionFrameReachesTheLegacyEngine`'s
   control, and single rows in `AbsoluteOverlayTests`, `DecorationPaintTests`,
   `EnvironmentTests`, `FocusTests`, `TextFieldTests`, `TextSystemSeamTests`
-  and `TombstoneTests`.
+  and `TombstoneTests`, and `MeasurePerformanceTests`' four (below).
+
+**Correction, stage-7b critic round 1 (`LR-EL` finding 1).** The design
+first read 115 / 195 and filed `MeasurePerformanceTests`' four markers
+(`aListsWorkIsTheSameFor160RowsAsFor40`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows`,
+`aColdFrameCreatesAtMostOneLineBreakTokenizer`,
+`aWarmFrameTokenizesEachDistinctStringAtMostOnce`) under section C, "§2.6's
+files" — but that file is not one of §2.6's 24, and `LR-EC` item 3 keeps all
+of its tests. Left there, exit criterion 3 (the census equals section A
+exactly) could never pass. The critic re-read the census against the table
+by script (every B/C name must be an R/D/N/T row; every A name must be in no
+row): those four were the only exceptions. They move to A (199), C reads 111;
+the total 357 is unchanged.
 
 **What this says.** A retirement stage cannot empty the legacy authority's
-reach: 195 tests use it as the other arm of a comparison, and every one of
+reach: 199 tests use it as the other arm of a comparison (or, for
+`MeasurePerformanceTests`' two tokenizer rows, as a `.legacy` pin stage 9
+owns), and every one of
 those dies or is re-spelled with the authority at stage 9. What 7b *can*
 empty is the CSS engine's use **as a subject**: after 7b the same instrument
-must read exactly the 195 of section A — no test of §2.6's files, no 7b pin
+must read exactly the 199 of section A — no test of §2.6's files, no 7b pin
 (exit criterion, spec §8).
 
 **`MeasurePerformanceTests`** (named by `LR-U` for its 17 494 legacy nodes,
-record §18) is none of these: its rows were re-spelled through the lowering
+record §18) retires nothing, though four of its tests reach the CSS engine
+(section A): its rows were re-spelled through the lowering
 by stage 4 (`LR-BW`), its native work literal (`demoLikeRowsWarmWork`,
 **17 / 103 / 120**, derived before it was read) is asserted by
 `aListsWorkIsTheSameFor160RowsAsFor40`'s proposal arm and by the gated 100k
-twin, and the two tests still pinned `.legacy` there are stage 9's own
-(tokenizer min-content). **No test is retired from it** (`LR-EC`).
+twin, `aListsWorkIsTheSameFor160RowsAsFor40` and
+`theResidentEntrySetStaysBoundedWhileScrolling10kRows` run both authorities
+(their `.legacy` arms are census A), and the two tests still pinned `.legacy`
+there are stage 9's own (tokenizer min-content). **No test is retired from it** (`LR-EC`).
 
 ## 3. SwiftUI evidence (re-run 2026-09-24)
 

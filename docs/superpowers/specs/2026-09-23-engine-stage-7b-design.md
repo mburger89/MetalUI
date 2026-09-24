@@ -1,7 +1,7 @@
 # Engine replacement, stage 7b — the non-golden CSS-engine tests retired (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 7b, §8, ruling `LR-U`. Rulings `LR-EC`…`LR-EK` in
+§4.1 row 7b, §8, ruling `LR-U`. Rulings `LR-EC`…`LR-EK` (critic round 1: `LR-EL`) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Record: `docs/record/49-engine-replacement-stage-7b.md` (its §4 is the 245-row
 retirement table this design commits). Instrument:
@@ -24,7 +24,7 @@ three `NativeBoundaryTrapTests` that call `computeLayout(` (`LR-EF`).
 Divergence 4 retires (`LR-EH`). **It does not pre-empt 8–11**: `FlexEngine`,
 `computeLayout`, the legacy authority, `Frame.requestNode`/`requestLeaf`, the
 legacy lowering and every test that uses the legacy authority as the *other
-arm of a comparison* (195 tests, record §49 §2) stay for stage 9. **No
+arm of a comparison* (199 tests, record §49 §2) stay for stage 9. **No
 behaviour line of `Sources/` changes** (`LR-EG`).
 
 ## Contents
@@ -53,19 +53,23 @@ lines: 117 in the eighteen §2.6 files still present, 3 in
 ## 2. The entry measurement
 
 One `print` at `computeLayout`'s entry, one unfiltered run (record §49 §2):
-**357 tests reach the CSS engine** — 115 in §2.6's files, 47 in the element
+**357 tests reach the CSS engine** — 111 in §2.6's files, 47 in the element
 files this stage edits (46 of the 50 pins and `RootSwitchTests` 3.2's
-`.legacy` arm), and **195 that are stage 9's**: the `.legacy` arm of every
+`.legacy` arm), and **199 that are stage 9's**: the `.legacy` arm of every
 `AuthorityCoverage` scenario, every differential lowering test, the harness's
 own tests, three loops over both authorities, N9 and the deprecated
-registrar's legacy half. The census file lists all three sets; after this
-stage the same instrument must read **exactly** the 195 (§8).
+registrar's legacy half, and `MeasurePerformanceTests`' four (two
+both-authority work tests, two tokenizer pins — `LR-EC` item 3 keeps them).
+The census file lists all three sets; after this stage the same instrument
+must read **exactly** the 199 (§8). *(The design first read 115 / 195 with
+those four under C, which would have made §8 item 3 unpassable; corrected by
+the critic round, `LR-EL` finding 1.)*
 
 ## 3. Decisions
 
 | ruling | decides |
 |---|---|
-| `LR-EC` | the scope: which tests 7b retires, and that the 195 comparison users and `MeasurePerformanceTests` are not among them (its `LR-U` row is already met by stage 4's native work literal) |
+| `LR-EC` | the scope: which tests 7b retires, and that the 199 comparison users and `MeasurePerformanceTests` are not among them (its `LR-U` row is already met by stage 4's native work literal) |
 | `LR-ED` | the five verdicts (R, D, N, T, K) and the accounting: before − removed + added = after; T and K are rows, not removals |
 | `LR-EE` | `StyleTests` kept (owner stage 10); `ResolveTests` retired (`Resolve.swift` has no caller outside the CSS engine files) |
 | `LR-EF` | `NativeBoundaryTrapTests`' three `computeLayout(` calls retired: the exit grep is literal, and each fact they pin is either kept from the native side or dies with `computeLayout` |
@@ -74,6 +78,7 @@ stage the same instrument must read **exactly** the 195 (§8).
 | `LR-EI` | no new SwiftUI probe; the five cited probes re-run today |
 | `LR-EJ` | three lanes by file family, in order; nothing removed before its replacements are confirmed and its N tests are green; mutation sampling per family |
 | `LR-EK` | a replacement that is a differential (two-authority) test is stage 9's to re-spell, never to delete with its legacy arm |
+| `LR-EL` | critic round 1: census A is 199 (C 111), lane steps remove before mutating, M1i's must-redden column corrected, N3.4's literals derived before the run, `LR-EE`'s `Resolve.swift` reason narrowed; the rejected grep dodge |
 
 ## 4. API and files
 
@@ -147,15 +152,18 @@ each on disjoint files (`LR-EJ`). Each lane, in this order:
    read). An R row that does not hold becomes an N row with a finding and a
    new test named for it; the count moves by +1 and the record says so.
 2. **Write its N tests** (and T edits), green, committed.
-3. **Commit, then take the family mutations below**, each on a committed tree:
-   copy the file to the scratchpad, edit, `swift build --build-system native
-   --build-tests`, **full unfiltered** `swift test --build-system native
-   --no-parallel`, restore from the copy, `git status --short` clean. Name
-   every test each mutant reddens (not a count). **The replacement named in
-   the family's row must be among them** — taken after step 4 where the
-   retired test would otherwise also redden, so the replacement is shown to
-   redden on its own.
-4. **Remove** its R/D/N tests (whole files or named `@Test`s), commit.
+3. **Remove** its R/D/N tests (whole files or named `@Test`s), commit.
+4. **Then take the family mutations below**, each on the committed tree with
+   the retired tests gone (`LR-EJ`; the design first listed the mutations
+   before the removal, contradicting its own table header and `LR-EJ` —
+   `LR-EL` finding 2): copy the file to the scratchpad, edit, `swift build
+   --build-system native --build-tests`, **full unfiltered** `swift test
+   --build-system native --no-parallel`, restore from the copy, `git status
+   --short` clean. Name every test each mutant reddens (not a count). **The
+   replacement named in the family's row must be among them**, so it is shown
+   to redden on its own, with no retired twin to redden for it. The N tests'
+   own red-before mutations (M1.1, M2.1–M2.4, M3.1–M3.5) may be taken at step
+   2, since nothing retired observes them.
 5. Suite, both build systems, guards (`FR-J` in the log), the pixel
    comparison (§7), its record section (§6.1/§6.2/§6.3 of record §49), and its
    rulings from the next unused `LR-` letter.
@@ -208,7 +216,7 @@ removal):
 | M1f | F4 | the lowered `Row`/`Column` hands its native stack spacing 0 instead of the declared gap | `fixedItemsPackFromTheMainStartAtTheirOwnSizesAndGap`, `aLoweredContainerSpacesItsChildrenByTheGapOnItsMainAxis` |
 | M1g | F5 | a margin lowered **inside** the aliased item frame instead of outside it | `marginsOffsetEachItemOutsideItsBorderBox`, `aMarginLowersAsPaddingOutsideTheItem` |
 | M1h | F6 | the `flexWrap` diagnostic removed from `legacyContainerDiagnostics` | `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs` |
-| M1i | F7 | the kernel's measure cache never hits (`measureNative` always misses) | `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal`, `nativeLayoutWorkIsPerCall` |
+| M1i | F7 | the kernel's measure cache never hits (`measureNative` always misses) | `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` (its literal `cacheHits == 51`). **Not** `nativeLayoutWorkIsPerCall`: it compares two calls to each other, both uncached under the mutant, so it stays green (`LR-EL` finding 3) |
 | M1j | F7 (D pin) | a positive `flexShrink` lowered as `fixedSize` | `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight` |
 | M1k | F8 | the presentation lowering ignores the `right`/`bottom` insets | `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` |
 | M1l | F9 | the lowering's rem factor made 10 in place of the frame's root font size | `aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation` (its rem arm) |
@@ -318,9 +326,13 @@ flexible (FR-E) arm is not carried (its concept is D). **M3.3:**
 (`FrameDecorationInteractionTests`): the fade, clip and border scopes reaching
 both members under `.proposal`, read from the scene; no node count (CSS
 shape). A two-member component's frame lowers to a row of per-member frames
-(divergence 56, `LR-BH`), so the lane **measures** where the border and the
-clip land and pins that, naming the difference from the legacy arm in the
-record. **M3.4:** the frame layer's opacity scope pushed around its own fill
+(divergence 56, `LR-BH`), so the lane **derives** where the border and the
+clip land from `LR-BH`'s lowering (the per-member frames' rects and which
+layer carries the decoration) **before the run**, writes those literals, and
+only then runs; a disagreement is a finding to explain, never a number to
+copy from the output (the design first said "measures … and pins that", a
+snapshot; `LR-EL` finding 4). The difference from the retired legacy arm is
+named in the record. **M3.4:** the frame layer's opacity scope pushed around its own fill
 only, not its content.
 
 **N3.5 `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`**
@@ -379,7 +391,7 @@ count, both build systems, pixels, and the census compared.
 3. **The census:** `docs/probes/stage-7b-css-engine-instrument.patch`
    applied at the stage's HEAD, one unfiltered run, reverted — the set of
    tests printing a marker equals **section A of the census file exactly**
-   (195 names, none of section B or C). A test outside A that prints is a
+   (199 names, none of section B or C). A test outside A that prints is a
    missed retirement; an A test that stops printing is a stage-9 comparison
    this stage broke.
 4. 0 px in all fourteen images against `41344e5`; 0 `warning:` on both build
@@ -404,7 +416,7 @@ count, both build systems, pixels, and the census compared.
   legacy-only pins retire; each row stays or goes by whether the legacy
   authority still stores the field), README; the plan; the parent spec's
   status.
-- **To stage 9 (`LR-EK`):** the 195 census-A tests; every R replacement that
+- **To stage 9 (`LR-EK`):** the 199 census-A tests; every R replacement that
   is a differential test (the `Lowering*` suites, `ListLoweringTests`,
   `PresentationLoweringTests`, `HiddenLoweringTests`, the both-authority
   loops) must keep its **proposal** arm when the legacy authority goes — that
