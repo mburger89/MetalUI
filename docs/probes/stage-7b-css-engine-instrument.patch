@@ -1,0 +1,12 @@
+diff --git a/Sources/MetalUILayout/FlexEngine.swift b/Sources/MetalUILayout/FlexEngine.swift
+index 0aa4aa4..5046ac8 100644
+--- a/Sources/MetalUILayout/FlexEngine.swift
++++ b/Sources/MetalUILayout/FlexEngine.swift
+@@ -105,6 +105,7 @@ public func computeLayout(
+     // trap instead (ruling SA-I).
+     precondition(!tree.isNativeLayoutNode(root),
+                  "computeLayout called on a native root — use computeNativeLayout (SA-G)")
++    print("SEVENB-CSS-ENGINE")
+     let ctx = LayoutContext(rootFontSize: rootFontSize)
+     tree.beginLayout()
+     defer { tree.endLayout() }

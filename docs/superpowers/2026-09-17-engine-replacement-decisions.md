@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-EC`** (stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-EL`** (stage 7b's design took `LR-EC`…`LR-EK`, appended at the end; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -7526,3 +7526,257 @@ block.
 **What it costs if wrong.** A stale gated count would send the Record phase's
 `CLAUDE.md` edit to "four", and a later reader re-taking the count would find
 nine and suspect a lost test.
+
+---
+
+## LR-EC — stage 7b's scope: the CSS engine as a subject, not as the other arm of a comparison
+
+**The question.** `LR-U` gives 7b "the non-golden tests of §2.6's 24 files and
+the element-level tests 6a pinned to `.legacy`", with `grep -rn
+"computeLayout(" Tests` empty at the exit. At `41344e5` the legacy authority
+is reached by far more tests than those: which does 7b retire?
+
+**Evidence.** Record §49 §2: one `print` at `computeLayout`'s entry
+(`docs/probes/stage-7b-css-engine-instrument.patch`), one unfiltered run
+(1670 passed, 3 294 markers). **357** tests reach the CSS engine in-process:
+115 in §2.6's eighteen surviving files, 47 in the element files holding the 50
+pins with a 7b owner (46 pins plus `RootSwitchTests` 3.2's `.legacy` arm),
+and **195** others — every `AuthorityCoverage` scenario's `.legacy` arm, every
+`Lowering*`/`ListLowering`/`PresentationLowering`/`HiddenLowering`
+differential test, the harness's own tests, three loops over both authorities,
+N9 rows and 3.1's legacy half. The list is committed
+(`docs/probes/stage-7b-css-engine-census.txt`).
+
+**The ruling.**
+
+1. **7b retires every test whose subject is the CSS engine or a legacy-only
+   answer**: the 187 tests of §2.6's files other than `StyleTests` (`LR-EE`),
+   the 50 7b-owned pins (33 from 6a, 15 from 6b's `LR-DQ` item 2, `LR-DI`'s two
+   kept `P-CSS` pins), and `NativeBoundaryTrapTests`' three `computeLayout(`
+   callers (`LR-EF`); and trims `RootSwitchTests` 3.2's `.legacy` arm
+   (`LR-EH`).
+2. **The 195 are stage 9's.** Each uses the legacy authority as the *other
+   arm* of a comparison whose proposal arm is the pin; they die or are
+   re-spelled with the authority (`LR-EK`). Retiring them here would delete
+   the proposal arms that 7b's own R rows cite.
+3. **`MeasurePerformanceTests` retires nothing.** `LR-U`'s "17 494 legacy
+   nodes → a native work-count test" is already met: stage 4 re-spelled its
+   rows through the lowering (`LR-BW`) and pinned `demoLikeRowsWarmWork`'s
+   hand-derived 17 / 103 / 120 in `aListsWorkIsTheSameFor160RowsAsFor40`'s
+   proposal arm and the gated 100k twin (`LR-CG`, record §27 §10). Its two
+   `.legacy` pins are stage 9's (tokenizer min-content, `LR-DQ` item 9).
+4. **The exit census.** After 7b, the same instrument must print for exactly
+   census section A — the 195 — and nothing else.
+
+**What it costs if wrong.** Reading `LR-U` as "everything the legacy
+authority touches" would delete 195 tests whose proposal arms pin the facts
+7b's table relies on, leaving R rows pointing at nothing. Reading it narrower
+(only §2.6's files) would leave 50 `.legacy` pins with a 7b owner and no
+stage to retire them; stage 9 would have to separate CSS answers from
+comparisons again, the work record §38 §4 already did.
+
+---
+
+## LR-ED — five verdicts, and how the count reconciles
+
+**The ruling.** Each row of record §49 §4 carries one verdict:
+
+- **R** — retired; a named test that exists at `41344e5` (checked by script:
+  every backticked name resolves to a `func` in `Tests/`) asserts the same
+  fact under the proposal engine. The owning lane reads the arm before
+  removing anything; an R it cannot confirm becomes N with a finding.
+- **D** — retired; the concept is CSS-only (named), and the row names the
+  native test pinning what the proposal authority does with that shape (a
+  report by name, or the native answer). A SwiftUI claim in a D row cites a
+  probe arm re-run 2026-09-24 (`LR-EI`); otherwise the row says "no SwiftUI
+  claim".
+- **N** — retired; its non-CSS fact (MC-B's structural identity, EV-H/EV-I's
+  inert environment values, OM-J's region, CO-U's side door, the modifier
+  matrix, a framed `List`'s windowing, a framed `ScrollView`'s wheel, an empty
+  container's zero) gets a new proposal-authority test first, each with a
+  named mutation that reddens it.
+- **T** — kept; a named CSS arm removed or a helper re-pointed, every kept
+  `#expect`/`#require` line byte-identical (script).
+- **K** — kept untouched, owner reassigned.
+
+**The count.** before − (R + D + N) + (new tests) = after: **1670 − 236 + 10
+= 1444**. T and K rows are accounted for but move nothing. Eleven N rows make
+ten tests (N1.1 answers two).
+
+**Why N and T rather than re-pinning a test to `.proposal` unchanged.** Stage
+6a's M3g flipped every lane-3 `.legacy` pin to `.proposal` and all 29 CSS pins
+went red (record §38 §10.5): their observations (node counts, rects, the Dual
+leaves' answers) *are* the legacy answer. A re-pinned test with changed
+literals is a new test and is named as one; a test whose non-CSS assertions
+survive untouched is trimmed and says which lines went.
+
+**What it costs if wrong.** An R row asserting a neighbouring fact rather than
+the same one would silently drop a pin; the lane's read-before-remove step and
+the per-family mutations (spec §6) are the check, and the row converts to N.
+
+---
+
+## LR-EE — `StyleTests` stays; `ResolveTests` goes
+
+**Evidence.** `Style` is the proposal lowering's input in production: every
+legacy element's declared and animated style is read by the lowering, and
+`Style.default` fills native nodes' placeholder rows
+(`everyNativeRegistrarAcceptsNativeChildrenWithoutTrapping` reads it).
+`Resolve.swift`'s `resolveLength`, `resolveDimension`, `resolveEdges`,
+`resolveMargin` and `clamp` have **no caller outside the CSS engine files**
+(grep of `Sources/`, 2026-09-24: comments only in `Units.swift`, `Box.swift`,
+`DemoContent.swift`).
+
+**The ruling.** `StyleTests`' four tests are **K**, owner stage 10 (which
+deletes `Style`'s CSS fields). `ResolveTests`' six are **D** (`Resolve.swift`,
+deleted at stage 9), with the lowering's own px/rem resolution pinned by
+`aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation` and the "rem"
+arm of `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, its fold
+by `aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent` and
+`aRootsMinimumAndMaximumFoldIntoItsDeclaredSize`.
+
+**What it costs if wrong.** Retiring `StyleTests` would unpin defaults the
+production lowering branches on (`flexShrink` 1 is "compress"; 0 would make
+every item `fixedSize`); keeping `ResolveTests` would keep a pin on code
+nothing in production runs.
+
+---
+
+## LR-EF — `NativeBoundaryTrapTests`' three `computeLayout(` callers are retired
+
+**The question.** The exit grep is literal, and three kernel-file tests call
+`computeLayout(`: `computeLayoutRejectsANativeRoot` (`SA-G`'s legacy entry),
+`computeLayoutCalledFromANativeMeasureClosureTraps` (`SA-I`'s one flag) and
+`registeringANodeDuringLegacyLayoutTraps`.
+
+**The ruling.** All three are retired, none re-spelled to dodge the grep (a
+function reference to `computeLayout` would pass the grep and keep the test —
+the grep's purpose, not its letter, is that no test runs the CSS engine as a
+subject).
+
+- `registeringANodeDuringLegacyLayoutTraps` → **R**: the check is the shared
+  storage append's, pinned by `registeringALegacyLeafDuringNativeLayoutTraps`
+  and `registeringANativeNodeDuringNativeLayoutTraps`.
+- `computeLayoutCalledFromANativeMeasureClosureTraps` → **R**: one flag is
+  still visible from the legacy API during a native run
+  (`setStyleOnALegacyNodeDuringNativeLayoutTraps` — a split flag reddens it,
+  lane 1's M1b), and native re-entry by
+  `computeNativeLayoutReenteredFromAMeasureClosureTraps`.
+- `computeLayoutRejectsANativeRoot` → **D**: the CSS engine's own entry
+  precondition, which production cannot reach — `Frame.computeRootLayout`
+  branches on `isNativeLayoutNode(root)` before calling it, and
+  `noProductionFrameReachesTheLegacyEngine` counts zero legacy root layouts.
+  The rest of `SA-G` stays pinned.
+
+**What it costs if wrong.** `computeLayout`'s native-root precondition is
+unpinned from 7b to 9: deleting it would let a test-built `.legacy` frame lay
+a native root out as an empty flex box. No production path passes one, and
+stage 9 deletes the function.
+
+---
+
+## LR-EG — `Sources/`: no behaviour line; comments only where they would lie
+
+**Evidence.** Grep of `Sources/` for the 236 retired names (record §49 §6.1
+will list every hit): most sit in CSS-only files (`FlexEngine.swift`,
+`ResolveFlexibleLengths.swift`, `FlexBaseSize.swift`, `FlexLines.swift`,
+`Alignment.swift`, `LayoutContext.swift`); others in files that outlive stage
+9 (`Rounding.swift`, `Component.swift`, `ModifiedElement.swift`, `Box.swift`,
+`Units.swift`, `EnvironmentValues.swift`, `ScrollView.swift`). The candidate
+test-only hooks (`LayoutContext`'s `hits`/`misses`, read only by
+`MeasureCacheTests` and `LeafProbeShortcutTests`) live in a file stage 9
+deletes whole.
+
+**The ruling.** No declaration or statement under `Sources/` changes. A
+comment in a file that outlives stage 9 that names a retired test **as a
+present pin** is re-pointed to that row's replacement (comment lines only;
+checked by the diff grep in spec §4). Comments in CSS-only files are listed in
+the record and left, as `LR-EB` left six: they describe measurements taken on
+code 9 deletes. `LayoutContext`'s counters stay for stage 9.
+
+**What it costs if wrong.** A stale comment in shared code (`roundLayout`'s,
+which names `computeLayoutRoundsEveryStoredRect` and
+`shrinkIsWeightedByBaseSize` as what reddens) would send a later reader to a
+test that no longer exists — `LR-EB` re-measured that comment once already.
+
+---
+
+## LR-EH — divergence 4 retires with its last pins
+
+**Evidence.** Record §04's stage-6b section: divergence 4 (`CS-I`) is
+legacy-authority only, "pinned by its own CSS-engine tests
+(`anAutoRootWithNoOfferedExtentMeasuresItsContent` and the root-sizing tests
+in `MetalUILayoutTests`)" and retiring "with those CSS-engine tests at 7b
+(`LR-DG` item 2)". The census adds one more pin: `RootSwitchTests` 3.2's
+`.legacy` arm reads the CSS answer (0, 40).
+
+**The ruling.** `autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot` and
+`anAutoRootWithNoOfferedExtentMeasuresItsContent` are D rows (divergence 4);
+3.2 loses its `.legacy` arm (T) — its production literal (21, 40) is derived
+from stack-algorithms R1/R2, re-run 2026-09-24, not from the other arm, and
+6b's M2a still reddens it. The Record phase retires the label (58 → 57 live;
+4 joins the never-reused list).
+
+**What it costs if wrong.** A live divergence with no pin is a row nothing
+checks; a retired one still pinned is a test asserting a number the table says
+is gone. Retiring the tests and the row together avoids both.
+
+---
+
+## LR-EI — no new SwiftUI probe
+
+**Evidence.** Every SwiftUI claim in record §49 §4 is an arm of an existing
+probe: 7a's W/G/S/A/B, stage-1 H0–H2, stack-algorithms G9/A5/R1/R2,
+component-distribution G2/G7/G8, frame-semantics D4/D7. Each probe was re-run
+2026-09-24 under `/usr/bin/swift` (Apple Swift 6.4, macOS 27.0), exit 0, and
+every output line was found verbatim in its recorded header (17/17, 79/79,
+787/787, 25/25, 291/291; record §49 §3). Each cited group carries its own
+positive control (W0, G0, S0, A0, B0, H0/H2).
+
+**The ruling.** No probe is written. A D row that needs a SwiftUI fact outside
+those arms makes no SwiftUI claim instead.
+
+**What it costs if wrong.** A lane that finds itself needing a new claim adds a
+probe with a separating arm and a ruling; nothing in the design depends on one.
+
+---
+
+## LR-EJ — three lanes, in order, removal last
+
+**The ruling.** Lane 1: the eighteen engine files, `NativeBoundaryTrapTests`,
+N1.1 in `LoweringLeafTests` (−190, +1). Lane 2: `FrameSizingTests`,
+`ComponentTests`, `ElementLayoutTests`, `ContainerIntegrationTests`,
+`ModifiedElementTests`, `ModifierCompositionProofTests` (−36, +4, one T).
+Lane 3: `TextMeasureTests`, `EnvironmentTests`, `StackElementTests`,
+`AnimationTests`, `FrameDecorationInteractionTests`,
+`OuterModifierMatrixTests`, `RootSwitchTests` (−10, +5, four T) and the exit
+criteria. Disjoint files; run one at a time. Within a lane: confirm each R by
+reading, write and commit the N/T work green, remove, then take the family
+mutations (spec §6) on the committed tree so each replacement is shown to
+redden with its retired twin gone; name every reddened test. Nothing is
+removed before its replacements are confirmed and its N tests green (`LR-DX`'s
+rule).
+
+**Why three.** CLAUDE.md's budget: two or three lanes, split only where files
+are disjoint. Lane 1 is large but mechanical (one new test, twelve family
+mutations); lanes 2 and 3 carry the N tests that need derivation.
+
+**What it costs if wrong.** A removal before its replacement is confirmed is a
+window where a fact is unpinned; running the mutations only before removal
+would let a replacement "redden" because its retired twin did.
+
+---
+
+## LR-EK — a differential replacement keeps its proposal arm through stage 9
+
+**The ruling.** Many R rows cite a test that compares the two authorities
+(`LayoutDifferential.compare`, `AuthorityCoverage` scenarios, the
+both-authority loops). After 7b that test's **proposal arm is the only pin** of
+the retired test's fact. Stage 9, deleting the legacy authority, re-spells each
+such test as proposal-only (keeping its literals) rather than deleting it with
+its legacy arm; record §49 §4's replacement column is the list to check
+against.
+
+**What it costs if wrong.** Stage 9 deleting "the legacy comparison tests"
+wholesale would unpin 100-odd facts this stage moved onto them, and nothing
+would redden.
