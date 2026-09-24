@@ -184,6 +184,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-24, `fix/windows-demo-stack` from `b9a5d7f`, stage 8
+  merged): 1454 tests**, 0 `error:`, 0 `warning:` under the default build
+  system, taken the same way as the paragraph below (`Test run with 1454
+  tests in 3 suites passed`; the FR-J line present). **1454 = 1452 + 2**:
+  `DemoStackBudgetTests`' two (the 1 MB-thread build of every production tree
+  and its 256 KB control); record §50 §14.
 - **Stage 8's counts (2026-09-24, `feat/engine-stage-8` from `85217e3`,
   plan task 7 stage 8 — not yet merged with `master`): 1452 tests, 0 goldens,
   79 typecheck guards**, 0 `error:` on both build systems, the one `warning:`
@@ -1609,3 +1615,18 @@ expected, measured facts:
     with no explicit authority now runs `.proposal` by default, so a
     lowering site that receives a `LoweredItem` nobody consumes traps at
     runtime in the app, not only in a test that opted into diagnostics.
+  - **Windows threads have 1 MB stacks** (the main thread and Swift Testing's
+    workers; macOS's and Linux's main threads have 8 MB), and a debug builder
+    closure reserves a slot for every temporary it holds — the demo's tree
+    value is 35 KB, so its builder frames measured 138–248 KB each on macOS
+    arm64, and `demoContent()` needed a 1200 KB thread at `b9a5d7f` (stage
+    8's `.frame` layers; 896 KB at `85217e3`), overflowing both Windows jobs
+    while macOS and Linux passed. Since the fix it needs 528 KB: each section
+    is its own function, passed as an argument to a generic composing
+    function (the note after `demoContent()`). **A new demo section goes in
+    its own function the same way**, not inline in a composing builder. Guard:
+    `everyProductionTreeBuildsOnAOneMegabyteThread` (an exit test, all three
+    platforms; it builds, it cannot render off the main thread —
+    `assumeIsolated`). swift-corelibs Foundation silently ignores a
+    `Thread.stackSize` of 64 KB, so a small-stack control there needs 128 KB
+    or more. Record §50 §14.
