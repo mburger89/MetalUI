@@ -435,8 +435,11 @@ private struct Datum: Identifiable { let id: Int }
 /// **An `onClick` inside a `ScrollView` swallows that scroller's wheel.** This
 /// test asserts the behaviour this framework has today, which is *not* what a
 /// browser does — it is pinned so the cost is a decision a reader can find
-/// rather than a surprise, exactly as the divergence pins in `ListTests` and
-/// `AbsolutePositioningTests` are.
+/// rather than a surprise, exactly as the divergence pins in `ListTests` are,
+/// and as the retired `AbsolutePositioningTests`' were (stage 7b deleted the
+/// whole file; e.g. divergence 9's arm is now
+/// `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, record §49
+/// row 141).
 ///
 /// The mechanism is Task 7's fold: a wheel event stops at the topmost **opaque**
 /// hitbox under the pointer and scrolls only if that hitbox is itself a

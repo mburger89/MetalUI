@@ -117,8 +117,11 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
 
 /// **Test 4.1** (`LR-BG`), a **divergence pin**. A caller's `.width(70)` on a
 /// component OVERWRITES each member's own declared width under the legacy
-/// authority (divergence 48, `aComponentsWidthStillOverwritesItsMembersDeclaredWidth`)
-/// and FRAMES each member under the proposal one, which is SwiftUI's answer.
+/// authority (divergence 48; its own CSS-engine pin,
+/// `aComponentsWidthStillOverwritesItsMembersDeclaredWidth`, was retired by
+/// stage 7b as a D row — this test is now divergence 48's legacy-arm pin
+/// until stage 9, record §49 row 219) and FRAMES each member under the
+/// proposal one, which is SwiftUI's answer.
 ///
 /// | arm | legacy | lowered | SwiftUI |
 /// |---|---|---|---|

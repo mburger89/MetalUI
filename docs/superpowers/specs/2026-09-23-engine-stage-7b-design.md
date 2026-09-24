@@ -1,7 +1,8 @@
 # Engine replacement, stage 7b — the non-golden CSS-engine tests retired (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 7b, §8, ruling `LR-U`. Rulings `LR-EC`…`LR-EK` (critic round 1: `LR-EL`) in
+§4.1 row 7b, §8, ruling `LR-U`. Rulings `LR-EC`…`LR-EP` (critic round 1:
+`LR-EL`; `LR-EP` the Record phase's own verification) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Record: `docs/record/49-engine-replacement-stage-7b.md` (its §4 is the 245-row
 retirement table this design commits). Instrument:
@@ -20,7 +21,14 @@ element log, not the node count; the `Component` `width(_:)` row is
 M3.5′ and M3c′). Exit (§8): `grep -rn "computeLayout(" Tests` empty; `Test run
 with 1445 tests in 3 suites passed`; the census reads section A's 199 exactly;
 0 px in all fourteen images; `Sources/` comment-only; 0 `warning:` on both
-build systems. The design paragraphs below are kept as written.
+build systems. **Verified** (record §49 §8, `LR-EP`): an independent re-check
+of all three lanes confirmed every count and reconciliation and found two
+documentation errors, both corrected in place — the gated-test count (a
+carried-over "nine" corrected to the measured **eleven**) and divergence 4's
+retirement (restated: the row retires, but its behaviour stays exercised,
+unnamed, by roughly thirty `.legacy` arms until stage 9) — plus six stale
+test-file comments, re-pointed. No test, count, guard or golden moved by the
+verification. The design paragraphs below are kept as written.
 
 **What this stage is.** Every test that uses the CSS engine **as its
 subject** is retired with a row naming either the native test that asserts

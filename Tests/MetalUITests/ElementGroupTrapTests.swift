@@ -415,10 +415,12 @@ struct StateProbe: Element, StyledElement {
 ///
 /// **Deliberately not a trap.** Aborting would turn a data bug into a crash in a
 /// shipping app — an `ArrayGroup` whose data genuinely holds duplicate keys is a
-/// wrong list, not a wrong program. The same reasoning as
-/// `anOverConstrainedBoxGrowsToFitItsPaddingAndBorder` (which carried this
-/// reasoning under its old name, `containerDoesNotGrowToFitOverconstrained…`,
-/// until the sizing milestone closed the divergence): name the other
+/// wrong list, not a wrong program. The same reasoning the retired
+/// `anOverConstrainedBoxGrowsToFitItsPaddingAndBorder` carried under its old
+/// name, `containerDoesNotGrowToFitOverconstrained…`, until the sizing
+/// milestone closed the divergence, and stage 7b retired in turn (its D-row
+/// replacement is `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`,
+/// record §49 row 70): name the other
 /// answer in the comment so the choice is a decision rather than a surprise.
 @MainActor
 @Test func twoSiblingsWithTheSameIDShareOneStateEntry() {

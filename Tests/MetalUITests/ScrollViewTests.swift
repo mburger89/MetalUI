@@ -50,9 +50,11 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// deleting that line leaves this test green. The case where it is
 /// load-bearing needs content whose intrinsic sizes differ and is pinned by
 /// `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport` below; the engine
-/// mechanism is pinned independently of `ScrollView` by
+/// mechanism was pinned independently of `ScrollView` by the retired
 /// `flexShrinkHoldsAContentNodeOpenOnceItsAutomaticMinimumIsRemoved`
-/// (`Tests/MetalUILayoutTests/ScrollLayoutTests.swift`).
+/// (`Tests/MetalUILayoutTests/ScrollLayoutTests.swift`, deleted whole by
+/// stage 7b); its D-row replacement is
+/// `aZeroShrinkKeepsItsNaturalMainSizeAndOverflows` (record §49 row 187).
 ///
 /// What a wrong `requestLayout` (e.g. one that resolved the content node's
 /// height instead of letting it overflow) catches here: the content height

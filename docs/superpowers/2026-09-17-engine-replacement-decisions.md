@@ -8083,3 +8083,67 @@ keeping the amend kind would have pinned a legacy answer the proposal
 authority does not give; M3.5 and the paint mutation as spelled would have
 recorded a trap as a sample; M3c alone would have left F15 without its
 replacement reddening, which spec §6 step 4 requires.
+
+---
+
+## LR-EP — the Record phase's independent re-check: the gated count was nine for the wrong branch, and divergence 4 still has legacy-arm witnesses
+
+**Evidence.** An independent re-verification of all three lanes (record §49
+§8), run at each lane's own closing commit, re-confirmed every suite count,
+removal reconciliation, `Sources/` diff and pixel comparison the lanes
+themselves reported, and re-ran several mutations §6's own tables had not
+covered (row 139's `lowerPresentation.axis` leading-inset clause, row 37's
+`alignmentFactor` overflow clause, row 54's `roundNativeStoredRects` call —
+completing the `MR2` re-run record §48 flagged as not yet done — and row 16's
+`hidden()` D replacement). Two findings did not confirm the record as
+written.
+
+**Finding 1 — the gated count.** Record §49 §5, §6.1, §6.2 and §7's first
+draft all read "gated tests stay nine". Measured on this stage's own tree by
+two independent methods (the suite log's `skipped.` lines, and `git grep -c
+'enabled(if: ProcessInfo' -- Tests` excluding `Tests/PortableTests`), both
+read **eleven**, at `41344e5` and at every lane's closing commit. "Nine" is
+`LR-EB`'s figure for `feat/engine-stage-7a` measured **before** it merged
+with `master` (1616 tests, ten gated less `regenerateAllGoldens`); this
+stage's own baseline is the **merged** `41344e5` (1670 tests), which already
+carried three more gated tests on `master`'s side of that merge
+(`recordDemoFrames`, `measureFallbackDifferences`, `measureBidiDifferences`)
+that the pre-merge branch never had. CLAUDE.md's own counts paragraph for
+`41344e5` already read "eleven gated tests skipped" — record §49 disagreed
+with the rule file it was built against, without anyone re-taking the figure
+from this stage's own baseline.
+
+**Finding 2 — divergence 4's retirement, overstated.** Record §49 §7's first
+draft said "divergence 4 has no pin left". A mutation of
+`Frame.computeRootLayout`'s legacy branch (offering `.maxContent` on both
+axes instead of the window's definite extent — the exact behaviour
+divergence 4 (`CS-I`) names) reddens 43 issues across 30 tests whose
+`.legacy` arm depends on a hugging legacy root filling the window —
+`AuthorityCoverage`-parameterised scroll, presentation, list and field tests
+among them. Production's own arm does not redden. `LR-EH`'s own "what it
+costs if wrong" named this exact risk ("a retired one still pinned is a test
+asserting a number the table says is gone") without checking for it.
+
+**The ruling.** Both are corrected in place in record §49 (§5, §6.1, §6.2, §7,
+§8), not by re-opening the lanes' own work: no test, count, guard or golden
+moves. Gated tests read **eleven** everywhere in record §49. Divergence 4
+retires as a row about the CSS engine — its two CSS-engine D rows (56, 57)
+are gone and 3.2's `.legacy` arm no longer asserts the legacy number by name
+— but `CS-I`'s behaviour stays exercised, unnamed, by the `.legacy` arm of
+roughly thirty `AuthorityCoverage`-parameterised tests until stage 9 deletes
+the legacy authority and those arms with it. Six stale test-file comments
+found in the same pass (`NativeDepthGuardTests.swift`, `ScrollViewTests.swift`,
+`ElementGroupTrapTests.swift`, `InputDispatchTests.swift`,
+`LoweringComponentTests.swift`, `LoweringCorpusTests.swift`) are re-pointed,
+comment lines only, each naming its retired row and D/N replacement.
+`FlexEngine.swift:107`'s `computeLayout`-on-a-native-root precondition is
+recorded as knowingly unpinned from this stage until stage 9 deletes
+`computeLayout` — no code change; its own exit test (row 188) retired as D,
+and the D replacement is the exit criterion itself (no test anywhere still
+calls `computeLayout`).
+
+**What it costs if wrong.** A stale "nine" sends CLAUDE.md's own count
+sideways at the next stage that copies it forward rather than re-measuring;
+"no pin left" tells stage 9 it can delete the legacy authority without
+checking these thirty tests' `.legacy` arms, when in fact they are exactly
+the tests stage 9 must re-spell or retire when that authority goes.

@@ -3,7 +3,8 @@
 Plan task 7, stage 7b (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 7b,
 `LR-U`, §8). Design: `docs/superpowers/specs/2026-09-23-engine-stage-7b-design.md`.
-Rulings `LR-EC`…`LR-EK` (critic round 1: `LR-EL`) in
+Rulings `LR-EC`…`LR-EO` (critic round 1: `LR-EL`; `LR-EP`, this record's own
+verification pass) in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md`. Branch
 `feat/engine-stage-7b` from `41344e5`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-7b`. Instrument:
@@ -15,9 +16,15 @@ Rulings `LR-EC`…`LR-EK` (critic round 1: `LR-EL`) in
 is renumbered at merge by the precedent of record §23 §8 and the
 §25/§27/§29/§38/§41/§48 headers.
 
-**Status, 2026-09-24 (PDT): delivered.** §6.1–§6.3 are the three lanes and §7
-the stage's close (1445 tests; the census reads section A exactly; 0 px). The
-design-time status below is kept as written.
+**Status, 2026-09-24 (PDT): delivered and verified.** §6.1–§6.3 are the three
+lanes and §7 the stage's close (1445 tests; the census reads section A
+exactly; 0 px). §8 is an independent re-check of all three lanes: it found
+and fixed two documentation errors (the gated-test count read "nine" where
+the merged baseline is **eleven**; divergence 4's retirement was stated as
+"no pin left" where roughly thirty `.legacy` arms still exercise its
+behaviour unnamed until stage 9) and six stale test-file comments, all
+corrected in place — no code, count, guard or golden moved. The design-time
+status below is kept as written.
 
 **Status, 2026-09-24 (PDT): design.** §1–§5 were written with no file under
 `Sources/`, `Tests/` or `Package.swift` changed in a commit: the instrument was
@@ -505,8 +512,11 @@ lane 1 ends at **1482** (1670 + 2 − 190, measured), lane 2 at **1450** and lan
 at **1445**: **1670 − 236 + 11 = 1445**. The table above is the design's.
 
 Guards stay **78** (no guard is added or removed: none of the retired files
-holds `canTypecheck`, checked by grep). Gated tests stay **nine** (none of the
-retired tests is `.enabled(if:)`). `AuthorityCoverage.expected` stays **82**
+holds `canTypecheck`, checked by grep). Gated tests stay **eleven** (none of
+the retired tests is `.enabled(if:)`; this section originally read "nine",
+carried over from stage 7a's pre-merge branch figure (`LR-EB`) rather than
+taken from this stage's own 1670-test baseline — corrected in §8).
+`AuthorityCoverage.expected` stays **82**
 (no retired or trimmed test calls `AuthorityCoverage.record`).
 
 **Name collision.** `theCacheIsActuallyConsulted` is retired from
@@ -674,7 +684,8 @@ comment-only `Sources/` edits): native build 0 `error:`, one `warning:`
 (SwiftPM's deprecation notice); **`Test run with 1482 tests in 3 suites
 passed`**, `FR-J no-argument frame: succeeded=true`; default build system
 `swift build --build-tests` 0 `error:`, 0 `warning:`. Guards 78 (no guard file
-touched), gated nine (none retired was gated), `AuthorityCoverage.expected` 82.
+touched), gated eleven (none retired was gated — corrected from this section's
+first-draft "nine", §8), `AuthorityCoverage.expected` 82.
 
 **Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 41344e5 6e2b3c0`:
 **0 differing and scene identical in all fourteen images**. Controls at
@@ -850,7 +861,8 @@ which Linux and Windows CI do not run; **200 + 22 + 3** stands (`LR-EM` item 5).
 `error:`, one `warning:` (SwiftPM's deprecation notice); **`Test run with 1450
 tests in 3 suites passed`**, `FR-J no-argument frame: succeeded=true`; default
 build system `swift build --build-tests` 0 `error:`, 0 `warning:`. Guards 78
-(no guard file touched), gated nine (none retired was gated),
+(no guard file touched), gated eleven (none retired was gated — corrected from
+this section's first-draft "nine", §8),
 `AuthorityCoverage.expected` 82 (no retired or new test records coverage).
 `Tests/PortableTests`, `Backends/`, `Tests/MetalUICrossPlatformTests` and
 `Package.swift` untouched (`git diff --stat 41344e5` over them is empty).
@@ -1072,15 +1084,189 @@ further change is comment lines):
    F10–F13 §6.2, F14–F17 §6.3 (F15's by M3c′, `LR-EO` item 4).
 
 Also held: guards **78** (no guard file touched, `grep -c canTypecheck`
-unchanged), gated tests **nine**, `AuthorityCoverage.expected` **82** (no
+unchanged), gated tests **eleven** (this paragraph originally read "nine";
+corrected in §8 — see there for why), `AuthorityCoverage.expected` **82** (no
 retired, trimmed or new test records coverage); `git diff --stat 41344e5 --
 Tests/MetalUICrossPlatformTests Tests/PortableTests Backends Package.swift`
-empty, so `DemoFrameDeterminismTests` is unedited and green. **Divergence 4
-has no pin left** (`LR-EH`: its two CSS-engine pins were D rows of lane 1, and
-3.2's `.legacy` arm was removed here).
+empty, so `DemoFrameDeterminismTests` is unedited and green. **Divergence 4's
+CSS-engine tests retire** (`LR-EH`: its two CSS-engine pins were D rows of
+lane 1, and 3.2's `.legacy` arm was removed here) — **restated in §8**: the
+label retires as a row about the CSS engine, but the behaviour it named
+(`CS-I`) is still exercised, unnamed, by the `.legacy` arm of roughly thirty
+`AuthorityCoverage`-parameterised tests until stage 9 removes the legacy
+authority itself.
 
 Handed on (spec §9): to the Record phase, the counts **1445 / 0 / 78**, the
 portable figure **200 + 22 + 3**, divergence 4 retired (58 → 57 live), the
 freeze-loop CI hazard deleted with its test, and the listed Sources comments
 in CSS-only files (§5.1); to stage 9, the 199 census-A tests and every
 differential replacement's proposal arm (`LR-EK`).
+
+## 8. Verification — an independent re-check per lane, two corrections (2026-09-24)
+
+Each lane was independently re-verified after it landed, at its own closing
+commit (lane 1 `3f9f08d`, lane 2 `fb0558c`, lane 3 `c88c901`): a clean-tree
+rebuild, the removal reconciled against §4 by script, sample mutations
+re-run, and the offscreen demo comparison re-taken. All three read **ok**;
+two findings came back for the Record phase to fix, both documentation, not
+code — recorded here as `LR-EP`.
+
+**Suite and reconciliation, confirmed at each lane's own commit.** Lane 1:
+`Test run with 1482 tests in 3 suites passed` (incremental build, guards ran);
+removed-name diff (190) matches rows 1–190 one to one; `Sources/` diff
+comment-only; `grep -rn "computeLayout(" Tests` leaves only
+`ElementLayoutTests.swift:309` (lane 2's); offscreen demo 0 px in all
+fourteen; probe `swiftui-engine-stage-7a.swift` re-run, all 17 lines verbatim.
+Lane 2: `Test run with 1450 tests in 3 suites passed`; 36 removed names match
+rows 195–231 one to one (row 229 correctly read as T, not removed); every
+kept `@Test` body unchanged except the T row; `grep -rn "computeLayout("
+Tests` empty; `git grep -c canTypecheck` 80 at both `41344e5` and this commit
+(78 guards, one comment, one declaration — unchanged); offscreen demo 0 px;
+probe `swiftui-component-distribution.swift` re-run, all 18 lines verbatim.
+Lane 3: `Test run with 1445 tests in 3 suites passed after 87.299 seconds`;
+`Sources/` diff comment-only; `grep -rn "computeLayout(" Tests --include='*.swift'`
+empty; guards 78 (79 hits, one comment); offscreen demo 0 differing pixels,
+scene identical, all fourteen, every control at its recorded value; probe
+`swiftui-component-distribution.swift` re-run, all 25 lines verbatim
+(including G7, the per-member frame row 219's arm rests on).
+
+**Additional mutation confirmations, beyond §6's own tables** — each on the
+lane's closing commit, restored from a copy, `git status --short` empty
+after:
+
+- **Row 8, F1** (M1.2 re-run): `LayoutTree.paddingProposal`'s two
+  `Swift.max(0, …)` removed — 6 issues, `aPaddingWiderThanItsProposalOffersItsChildZeroNeverANegativeSize`
+  alone. Confirms N1.2 still holds the fact its retired parent (row 71) held.
+- **Row 8's neighbourhood, F1** (M1.1 re-run): `lowerShownLegacyNode`'s
+  empty-container leaf answers 1×1 instead of 0×0 — 71 issues, exactly the 14
+  tests §6.1's M1.1 named.
+- **Row 139, F8** (new): `lowerPresentation.axis`'s `else if hasLeading` →
+  `else if hasLeading && !hasTrailing` (the trailing inset would win over the
+  leading one on a declared size) — 7 issues; both of row 139's named
+  replacements (`aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`,
+  `aDeferredAbsoluteBoxResolvesItsInsetsAgainstTheWindowAndLeavesTheFlow`)
+  redden. §6.1 had exercised `lowerPresentation.axis` only through M1k
+  (`hasTrailing`'s own definition); this is the first mutation of row 139's
+  own "leading wins" clause.
+- **Row 37, F3** (new): `alignmentFactor(JustifyContent)`'s `.spaceAround`/
+  `.spaceEvenly` cases both read `0.5` (overflowing content centred instead of
+  distributing backwards) — 4 issues, `spaceAroundAndSpaceEvenlyOverflowFromTheStartOnBothPaths`
+  alone. §6.1's M1e exercised a different clause of the same function
+  (`betweenCount`); this is row 37's own mutation.
+- **Row 54, F4** (new — completes `MR2`, which §6.1 §"MR1" flagged as **not
+  re-run**): the `roundNativeStoredRects(root)` call deleted from
+  `computeNativeLayout` — 1328 issues, 61 tests, both of row 54's named
+  replacements (`nativeLayoutRoundsStoredRectanglesAfterFractionalPlacement`,
+  `equalGrowersShareTheLineAndAMaximumCapsItsGrower`) among them. `MR2`'s "57
+  at 1616" figure (record §48) is now independently reconfirmed at this
+  stage's tree, closing the gap §6.1 left open.
+- **Row 16, F2, D** (new): `lowerLegacyNode`'s hidden branch returns
+  `requestNativeFrame(child: node, width: 0, height: 0)` instead of keeping
+  the child's space — 23 issues across the `hidden()` family
+  (`aHiddenChildKeepsItsSpaceUnderTheProposalAuthority`,
+  `aHiddenElementPaintsNothingUnderTheProposalAuthority`,
+  `aHiddenRootPublishesNothing`, and six more). Confirms row 16's D
+  replacement (`LR-DH`'s "keeps its space" answer) is still what the lowering
+  does.
+- **Lane 2's row 226 and row 216** (re-read, not mutated again): confirmed
+  already resolved inline in §6.2's own "R confirmation" paragraph before
+  this check ran — row 226's stack-default half is pinned by
+  `aStackWithoutSpacingPutsEightBetweenViewsAndNothingBesideASpacer`, and row
+  216's thin spot (no text-bodied proposal arm) is stated as a known gap
+  rather than silently dropped. No further change.
+
+**Correction 1 — the gated-test count (`LR-EP`).** §5, §6.1, §6.2 and the
+first draft of §7 said gated tests "stay nine". Measured on this section's
+own tree by two independent methods — the log's `skipped.` lines
+(`recordDemoFrames`, `measure(file:)`, `measure()`, `theMeasuredDifferences`,
+`measureBidiDifferences`, `measureContentSizeDifferences`,
+`measureFallbackDifferences`, `measureWrapDifferences`,
+`measureLineEmissionDifferences`, `measurePatchedFaceMetrics`,
+`aListsWorkIsTheSameFor100kRowsAsFor500(authority:)`) and
+`git grep -c 'enabled(if: ProcessInfo' -- Tests` excluding `Tests/PortableTests`
+— both read **eleven**, at `41344e5` and at every lane's closing commit
+alike. "Nine" was `LR-EB`'s figure for `feat/engine-stage-7a` **before** it
+merged with `master` (1616 tests, ten gated less `regenerateAllGoldens`); this
+stage's own baseline is the **merged** `41344e5` (1670 tests), where three
+more gated tests already existed on `master`'s side
+(`recordDemoFrames`, `measureFallbackDifferences`, `measureBidiDifferences`)
+that `feat/engine-stage-7a` alone never carried. CLAUDE.md's own "Counts"
+paragraph for `41344e5` already read "eleven gated tests skipped" — this
+stage's record disagreed with the rule file it was building on. Every "nine"
+in §5, §6.1, §6.2 and §7 is corrected in place to "eleven"; none of the
+lanes' own arithmetic (test counts, removal reconciliation) depended on the
+wrong figure.
+
+**Correction 2 — divergence 4's retirement, restated (`LR-EP`).** §7's first
+draft said "divergence 4 has no pin left". Lane 3's own mutation (§6.3's
+"M3e" row and this section's re-derivation) refutes the "no pin" half:
+changing `Frame.computeRootLayout`'s legacy branch to offer `.maxContent` on
+both axes instead of the window's definite extent — the CSS-only behaviour
+divergence 4 names (`CS-I`) — reddens 43 issues across 30 tests whose
+`.legacy` arm depends on a hugging legacy root filling the window: among
+them `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheelUnderBothAuthorities`,
+`aFieldLaysOutAndEditsUnderBothAuthorities`,
+`theResidentEntrySetStaysBoundedWhileScrolling10kRows`, and every
+`ScrollIndicatorTests`/`ScrollRoutingTests` scenario with a `.legacy` arm.
+Production's own arm (`aHuggingLegacyRootIsCentredInAProductionWindow`'s
+production case) does not redden, confirming the label is right to retire as
+a *production* fact — but `LR-EH`'s own "what it costs if wrong" named
+exactly this risk ("a retired one still pinned is a test asserting a number
+the table says is gone"), and it happened: the two D rows this stage retired
+(rows 56 and 57, `autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot`
+and `anAutoRootWithNoOfferedExtentMeasuresItsContent`) and 3.2's dropped
+`.legacy` arm were divergence 4's only *named* pins, but not its only
+*exercised* ones. **The restatement**: divergence 4 retires as a row about
+the CSS engine — its two CSS-engine tests are gone and 3.2 no longer asserts
+the legacy number by name — but `CS-I`'s behaviour stays exercised, unnamed,
+by the `.legacy` arm of the `AuthorityCoverage`-parameterised tests (roughly
+thirty, by this section's mutation) until stage 9 deletes the legacy
+authority itself and those arms with it. The Record phase retires divergence
+4's row in record §04 with this wording, not with "no pin left".
+
+**Comments, closed out.** The six file:line pairs §6.1 and §6.2 handed to the
+Record phase as stale (`NativeDepthGuardTests.swift:20,23`,
+`ScrollViewTests.swift:54–55`, `ElementGroupTrapTests.swift:419–420`,
+`InputDispatchTests.swift:438–439`, `LoweringComponentTests.swift:120`,
+`LoweringCorpusTests.swift:170`) are re-pointed, comment lines only, each at a
+named retired row with its D/N replacement; `git diff -- Tests | grep -E
+'^[-+]' | grep -vE '^(\+\+\+|---)' | grep -vE '^[-+]\s*(///|//)'` prints
+nothing over the six files, confirming no assertion moved. The other three
+file:line groups §6.1 listed (`TextMeasureTests.swift:318,342–343`,
+`ModifiedElementTests.swift:723,832,840`) were already fixed by their owning
+lanes by the time this check ran (`ModifiedElementTests`' `malloc_logger`
+notes already say "gone since stage 7b deleted `FreezeLoopAllocationTests.swift`";
+`TextMeasureTests.swift` carries no remaining reference to a retired name —
+its one `measureNode` mention is the CSS engine's own surviving function, not
+a retired test); `AnimationTests.swift:1007–1011` and
+`FrameDecorationInteractionTests.swift:379` were deleted along with the tests
+they were inside. `LoweringComponentTests.swift:120`'s fix also updates its
+own claim: test 4.1, in this same file, is now divergence 48's own
+legacy-arm pin (its CSS-engine twin, row 219, retired as D).
+
+**`FlexEngine.swift:107`'s trap, left unpinned by design.** Lane 1's finding
+holds: `precondition(!tree.isNativeLayoutNode(root), "computeLayout called on
+a native root — use computeNativeLayout (SA-G)")` has no exit test since row
+188 (`computeLayoutRejectsANativeRoot`, verdict D) was retired — its D
+replacement is the exit criterion itself (`grep -rn "computeLayout(" Tests`
+empty: no test calls `computeLayout` on anything, native root or otherwise,
+so nothing can reach this line to prove it traps). CLAUDE.md's "traps are
+pinned by exit tests" rule is knowingly unmet here from this stage until
+stage 9 deletes `computeLayout` and the precondition with it; no code change
+is owed in the meantime.
+
+**Final rebuild after these fixes.** `swift package clean`, then native
+`swift build --build-system native --build-tests` (0 `error:`, the one
+`warning:` SwiftPM's deprecation notice), then unfiltered `swift test
+--build-system native --no-parallel`: **`Test run with 1445 tests in 3 suites
+passed after 86.235 seconds`**, `FR-J no-argument frame: succeeded=true
+deprecations=2` in the log, **eleven** `skipped.` lines (named above). Default
+`swift build --build-tests`: 0 `error:`, 0 `warning:`. Guards: `git grep -c
+canTypecheck -- Tests` sums to 80 (79 in guard files + 1 in `Typecheck.swift`'s
+declaration; 78 guards, one `UnitSafetyTests` hit a comment) — unchanged.
+Goldens: `find Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0 —
+unchanged. `git diff --stat -- Tests/` over the six re-pointed files shows
+comment-line changes only (checked above); no `Sources/` file touched by this
+section. The count, guards and goldens are unmoved from §7's own figures
+(**1445 / 0 / 78**); only the gated figure (eleven, not nine) and divergence
+4's wording change.
