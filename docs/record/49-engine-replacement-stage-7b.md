@@ -678,7 +678,7 @@ touched), gated nine (none retired was gated), `AuthorityCoverage.expected` 82.
 animation 454895; f0 vs f3 0; preview light vs dark 1048576; chrome legacy vs
 proposal 0; distinct 544 / 216; prod default vs modal 491221, distinct
 `prod-default-light` 529; indicator rects 0 — record §48 §6.1's `2cc763d`
-values, as expected (7a moved no pixel). `DemoFrameDeterminismTests` unedited
+values, as expected (7a moved no pixel). Re-run against the lane's last code commit, `compare.sh <scratch> 41344e5 a924bcb` (the comment-only `Sources/` edits included): **0 differing, scene identical, all fourteen**. `DemoFrameDeterminismTests` unedited
 (`git diff 41344e5 -- Tests/MetalUICrossPlatformTests` empty); it reddened only
 under M1f and M1j/M1j (all sizes), as a sibling of the demo's gap and shrink.
 
