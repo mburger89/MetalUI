@@ -1158,3 +1158,23 @@ a reader who greps only for their original 2026-09-16 test names — each now
 has a live pin, named above; a reader following the frozen table's original
 column without this section would conclude wrongly that the fact went
 untested.
+
+## 2026-09-24: no row changed (plan task 7 stage 8)
+
+Record §50; rulings `LR-ER`…`LR-FB` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **The table
+stays at fifty-seven; no number is retired, added or amended.** Stage 8
+deprecates the eight `StyledElement` sizing modifiers toward `.frame` and
+converts every in-repo caller by class (F to `.frame`, K to
+`CSSSizing.swift`'s same-closure-body helpers, D into a deprecated witness),
+but no assertion is edited (`LR-EW`'s F rule, `LR-FB`'s K rule) and no test is
+retired (class R is empty). Divergence **48**'s pin,
+`LoweringComponentTests.aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`,
+is about `Component.width`, which stage 8 does **not** deprecate (`LR-ER` item
+2: it neither writes an element's own box nor returns `Self`) — the file's
+other, `StyledElement`-typed sizing calls move to `css*` spellings (K1, lane
+2), but the pin's own subject and assertion are untouched. No other row's
+named pin calls one of the eight either (checked by grep against record §04's
+table above): 52/53 are about `Row`/`Column`/`Stack`/`ZStack` container
+defaults, 55 about `flexShrink` compression, 9 about absolute-box placement,
+4 already retired at 7b.

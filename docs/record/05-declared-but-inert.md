@@ -345,3 +345,17 @@ nothing in the suite would catch a regression in them between now and
 stage 9, when `FlexBaseSize.swift` itself retires. Not a declared-but-inert
 row in the usual sense (the property is reachable, just untested) — noted here
 because this is the row those two names were cited from.
+
+## 2026-09-24: no row changed at engine replacement stage 8
+
+Record §50; rulings `LR-ER`…`LR-FB`. Stage 8 deprecates the eight
+`StyledElement` sizing modifiers and converts every in-repo caller, but adds
+no new always-inert API and removes none: `.width`/`.height`/`min*`/`max*`
+and `width(fraction:)`/`height(fraction:)` still write their field and are
+still read (deprecated, not inert — a call still lowers). The demo's own
+`.minHeight(Pixels(0))` (now `.frame(minHeight: 0)`) reads as **inert in this
+one production site** since stage 6b (the scroller box holds a lowered
+`ScrollView`, whose viewport fills its proposal on the scrolling axis,
+`LR-BB`, so the box's content never floors it) — this is a fact about one
+call site's context, not a declared-but-globally-inert API, so it takes no
+row here; record §50 §3's O1/O2 measurements are where it is recorded.

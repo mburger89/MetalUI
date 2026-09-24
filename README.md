@@ -113,17 +113,17 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-7b` (2026-09-24 — plan task 7 stage 7b, the non-golden
-CSS-engine tests retired, not yet merged with `master`) the suite reports
-**1445 tests** (1670 − 236 + 11), in one
-summary line over three suites. That total includes **78** `swiftc -typecheck`
-guards and no goldens: stage 7a retired all 97 (record §48), and stage 7b
-retired the CSS engine's remaining non-golden tests — every one of spec
-§2.6's files and the element tests stages 6a/6b had pinned to the legacy
-authority — each with a row naming its native replacement or the CSS-only
-concept it dies with (record §49). `FlexEngine` and the legacy layout
-authority are unchanged; only the tests that exercised the CSS engine **as
-their subject** are gone.
+On `feat/engine-stage-8` (2026-09-24 — plan task 7 stage 8, the sizing
+vocabulary deprecated toward `.frame`, not yet merged with `master`) the
+suite reports **1452 tests** (1445 + 7), in one
+summary line over three suites. That total includes **79** `swiftc -typecheck`
+guards and no goldens: stage 7a retired all 97 (record §48), stage 7b
+retired the CSS engine's remaining non-golden tests (record §49), and stage 8
+deprecates the eight `StyledElement` sizing modifiers (`width`, `height`,
+`min*`, `max*`, `width(fraction:)`, `height(fraction:)`) toward `.frame` in
+the same change, converting every in-repo caller (record §50) — no test is
+retired for this stage. `FlexEngine` and the legacy layout
+authority are unchanged; only the sizing modifiers' own spelling moves.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them. **Production has run the
@@ -385,8 +385,9 @@ transforms, and text colour animation.
     [stage 6a](docs/superpowers/specs/2026-09-23-engine-stage-6a-design.md)
     [stage 6b](docs/superpowers/specs/2026-09-23-engine-stage-6b-design.md)
     [stage 7a](docs/superpowers/specs/2026-09-23-engine-stage-7a-design.md)
-    and [stage 7b](docs/superpowers/specs/2026-09-23-engine-stage-7b-design.md)
-    specs (plan task 7, stages 1, 2, G, 3, 4, 5, 6a, 6b, 7a and 7b of 14
+    [stage 7b](docs/superpowers/specs/2026-09-23-engine-stage-7b-design.md)
+    and [stage 8](docs/superpowers/specs/2026-09-24-engine-stage-8-design.md)
+    specs (plan task 7, stages 1, 2, G, 3, 4, 5, 6a, 6b, 7a, 7b and 8 of 14
     landed —
     legacy elements lower onto the kernel, with SwiftUI's flex-item
     semantics, scrolling, `Component` distribution, a windowed `List` and
@@ -395,7 +396,9 @@ transforms, and text colour animation.
     off them; **production now runs the proposal engine by default** —
     stage 6b's root switch, `Frame.defaultLayoutAuthority = .proposal`; the
     97 WebKit goldens are retired — stage 7a; the CSS engine's remaining
-    non-golden tests are retired — stage 7b, not yet merged with `master`)
+    non-golden tests are retired — stage 7b; the eight `StyledElement` sizing
+    modifiers are deprecated toward `.frame` — stage 8, not yet merged with
+    `master`)
   - [grids spec](docs/superpowers/specs/2026-09-17-grids-design.md)
     (plan task 7 stage G, delivered: SwiftUI's `Grid` and `GridRow` on the
     proposal path as a kernel node; lazy grids are proposed as stage G2)

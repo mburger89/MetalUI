@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-ER`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-FC`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -98,6 +98,15 @@ milestones append their record to `docs/record/` and put only the rule here.
   concept; divergence 4 retires as a CSS-engine row (`LR-EH`, `LR-EP`); **no
   new SwiftUI probe** — its claims are arms of five existing probes, re-run
   2026-09-24 (`LR-EI`)),
+  7 stage 8 `LR-ER`…`LR-FB` (§50, spec
+  `specs/2026-09-24-engine-stage-8-design.md`, same decisions doc — the
+  eight `StyledElement` sizing modifiers deprecated toward `.frame` in the
+  same change (`FR-I`), every in-repo caller converted by class (F 129 sites
+  to `.frame`, K 296 plus lane 2's 1115 kept as `Style` writes through
+  `CSSSizing.swift`, D `ModifierTests`' eight rows into a deprecated
+  witness), `LR-EV`'s framed absolute box discharging the two `…absolute`
+  fields stage 5 left owned here; probe `swiftui-engine-stage-8.swift`
+  groups F, P, T),
   7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
@@ -175,6 +184,74 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Stage 8's counts (2026-09-24, `feat/engine-stage-8` from `85217e3`,
+  plan task 7 stage 8 — not yet merged with `master`): 1452 tests, 0 goldens,
+  79 typecheck guards**, 0 `error:` on both build systems, the one `warning:`
+  SwiftPM's deprecation notice under native (0 under the default one), taken
+  after `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1452 tests in 3 suites
+  passed`; **eleven** gated tests skipped, unchanged by this stage; the guards
+  ran — the log carries `FR-J no-argument frame: succeeded=` and `N3.1 sizing
+  deprecations: succeeded=true count=8`). No goldens to move (`find
+  Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0, as at `85217e3`).
+  **1452 = 1445 + 7**, 0 removed: lane 1's six `LR-EZ`/`LR-FA` T rows plus
+  lane 3's one D row (`ModifierTests`' eight sizing rows spliced into
+  `DeprecatedSizingCases`, a `DeprecatedSpelling` witness, is one test moved,
+  not eight new ones). Guards move **78 → 79**
+  (`FrameSizingCompileGuards` 2 → 3 for N3.1's control and its per-modifier
+  arms; `typecheckFile`'s helper count 38 → 39). **The eight `StyledElement`
+  sizing modifiers are deprecated toward `.frame`** (`FR-I`, `LR-ER`; the
+  design first said "ten", `Box.swift` declares eight, `LR-EY` item 1): the
+  entry census read 1692 warnings (25 in the demo, 1667 in
+  `Tests/MetalUITests`, 0 in every other target). Every in-repo caller
+  converts in the same change, by class (`LR-EW`, `LR-FB`): **F, converted to
+  `.frame`** by the recipe (`LR-ES`) — measured at 129 of the 22 lane-3 files'
+  425 sites plus lane 1's 37 (`PresentationWindowTests` 24,
+  `FrameSizingTests` 13) and the demo's 25; **K, the `Style` write kept** through
+  `Tests/MetalUITests/CSSSizing.swift`'s eight one-line helpers (`.cssWidth(`
+  etc., exactly at the census's positions, same closure body, N1.1 pins it) —
+  1115 sites in 28 files (lane 2, `LR-EW`) plus 296 of lane 3's 425 (the
+  site-coverage check's per-test fallback, `LR-FB`: a test whose sized `Box`
+  carries its own handler, focus, key context, action, accessibility node or
+  own background paint stays K, or R2's move onto the frame layer would pin
+  `ModifiedElement`'s registration instead of the named site's); **D**,
+  `ModifierTests`' eight rows into `DeprecatedSizingCases`, a
+  `DeprecatedSpelling` witness reached through `oldSpelling(_:)`, which warns
+  nothing (`docs/probes/swift-deprecated-witness-silence.sh`, stage 6a's
+  precedent); **R (retired) is empty** — no test died for this stage. **A
+  framed box can now be an absolute presentation's content** (`LR-EV`: a
+  `.frame` layer over at most one node whose declared style is
+  `position: .absolute` reports neither `modifierLayer.style` nor
+  `modifierLayer.position`/`.inset` inside a `Deferred`, and answers SwiftUI's
+  frame bounds on an auto axis where the legacy engine ignores them — a
+  proposal-only answer, `LR-CJ`'s precedent), discharging the two `…absolute`
+  fields stage 5 left owned here (over several nodes it still reports,
+  owner stage 11). The demo is converted by
+  `docs/probes/stage-8-demo-recipe.patch`'s recipe (29 insertions, 41
+  deletions in `DemoContent.swift`) and reads **0 px against `85217e3` in all
+  fourteen images**, scene identical; the demo's hitboxes, accessibility tree
+  and hovered-scene comparison (`docs/probes/stage-8-demo-hit-ax-hover.swift`)
+  are byte-identical; `DemoFrameDeterminismTests` is unedited and green.
+  **Portable CI is untouched** (`MetalUICoreTests`, `MetalUILayoutTests`,
+  `MetalUICrossPlatformTests` stay **200 + 22 + 3**; no census site falls in
+  `Backends/SDL`, `Tests/PortableTests`, `Tests/MetalUICrossPlatformTests`,
+  `Experiments` or any `Sources/` target but the demo's comments). `git grep`
+  finds no call of the eight outside a `D`-class witness in any of those; a
+  `Backends/SDL` build with the deprecation in draws **0** deprecation
+  warnings, and its `PortableReplay`/`DemoCapture` pass unedited. **The
+  `Style()` writes in tests (232 lines, 50 files) and lane 2's/lane 3's ≈ 1411
+  `css*` sites are re-owned to stage 10** (`LR-ER` item 6, `LR-FB`), which
+  deletes the `Style` fields and touches every writer once rather than twice;
+  every `Style`-field report this stage inherited (percentages, a non-greedy
+  `maxSize`, a length `flexBasis`, a root's auto-axis min/max and margin, a
+  floored `space-*`, `…absolute` on a `Style`-written box) **stays reported**
+  and dies with its field at stage 10 (`LR-ER` item 4). Divergence 52
+  (`Row`/`Column` default spacing) moves from stage 10 to **plan task 15**
+  (closeout), because both stages' exit is "0 px against the prior stage" and
+  a public default under every default-gap caller's pixels cannot satisfy
+  both (`LR-EY`, amending the design's stage-10 assignment). History: record
+  §50 (§7 the design critic round, §8–§9 lane 1, §10 lane 2, §11 lane 3).
 - **Stage 7b's counts (2026-09-24, `feat/engine-stage-7b` from `41344e5`,
   plan task 7 stage 7b — not yet merged with `master`): 1445 tests, 0 goldens,
   78 typecheck guards**, 0 `error:` on both build systems, the one `warning:`
@@ -328,7 +405,8 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   centred at its own answer); `NativeLayoutRun.maxDepth` moves 88 → 72,
   re-bisected in both debug and release for the first time (`LR-DK`); the
   demo's list row gains one declared height
-  (`.height(Pixels(28))`) so its labels stay centred under the switch, its
+  (`.height(Pixels(28))`, respelled `.frame(height: Pixels(28))` by stage 8's
+  deprecation) so its labels stay centred under the switch, its
   deepest native level moving 29 → 30; the fourteen-image offscreen
   comparison (`docs/probes/demo-pixels/compare.sh`) attributes every pixel
   delta to one of four named causes (a sidebar/panel width SwiftUI answers
@@ -491,11 +569,13 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `LayoutAuthorityCompileGuards`, `GridCompileGuards`,
   `UnitSafetyTests` (one hit is a comment),
   `AXNodeTests`, `SceneBoundaryCompileGuards`; `Typecheck.swift` holds only
-  the declaration. Two helpers, 40 and 38 (37 before stage 6a's guard 3.2):
-  `typecheck(_:importing:)` wraps the fixture in a function (Swift 5, nothing
-  `public`/file-scope compiles); `typecheckFile(_:importing:)` is whole-file
+  the declaration. Two helpers, 40 and 39 (38 before stage 8's guard 3.2, 37
+  before stage 6a's): `typecheck(_:importing:)` wraps the fixture in a
+  function (Swift 5, nothing `public`/file-scope compiles);
+  `typecheckFile(_:importing:)` is whole-file
   Swift 6 — the six/two/six of `ProposalLayout`/`ModifiedElement`/
-  `ProposalNodeID`, two `FrameSizing`, three `Decoration`, four `Container`,
+  `ProposalNodeID`, **three** `FrameSizing` (stage 8's N3.1 and its control
+  arm), three `Decoration`, four `Container`,
   four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary` and seven of
   `EnvironmentCompileGuards`'. A guard about what an external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
@@ -738,9 +818,30 @@ lowering.
 
 **Sizing modifiers** (`width`, `height`, `min/max…`, `width(fraction:)`,
 `height(fraction:)`) write the element's own box and return `Self`; `.frame`
-wraps (`FR-F`). Not deprecated (`FR-I`). `.minHeight(0)` is the only way to
-cancel flex's automatic minimum (`FR-G`). `fraction: 0.5` is half; `percent:`
-is a deprecated rename that still takes a fraction (`CN-O`).
+wraps (`FR-F`). **Deprecated toward `.frame` since stage 8** (`FR-I`; the eight
+`StyledElement` sizing modifiers — the six sizes and clamps plus the two
+`fraction:` spellings — `LR-ER`…`LR-ES`): every in-repo caller converted in
+the same change, `FR-I`'s one move, as stage 6a did for the public registrars
+(the branch gates on 0 `warning:`). The recipe (`LR-ES`): one frame per run of
+adjacent calls (R1); a decoration, handler, accessibility modifier, `hidden()`
+or `.id()` on the sized element moves **after** the frame, onto the outer layer
+(R2, `.id()` still outermost); a sized container's frame reproduces where its
+content sat via `alignment:` (R3); an item field between the frame and its
+nearest inner wrapper is the frame's child's record and is **dropped** — it is
+re-spelled in SwiftUI's vocabulary instead, e.g. `flexGrow(1)` on a fixed cross
+axis → `.frame(<cross>: v).frame(max<Main>: .infinity)` (R4); a fixed axis and
+a bound on the other axis are two frames, the flexible one inner, **both**
+aligned where the content sat (R5); an absolute box's size is a frame
+**before** `.position`/`.inset` (R6, `LR-EV` — a framed box over at most one
+node can itself be a `Deferred`'s presentation content, discharging the two
+`…absolute` fields stage 5 left here); a structural path used only to locate
+state is re-derived, one asserted as a value keeps its site (R7); an animated
+size interpolates as before, nothing snaps (R8). `Component.width`/`height`
+and `StyledComponent.width`/`height` are **not** deprecated — they neither
+write an element's own box nor return `Self` — reconciliation is stage 11's
+(`LR-ER` item 2). `.frame(minHeight: 0)` is now the only way to cancel flex's
+automatic minimum (`FR-G`). `fraction: 0.5` is half; `percent:` is a
+deprecated rename that still takes a fraction (`CN-O`).
 
 **`List`** is a windowed `Box`: needs `Identifiable` data, uniform `rowHeight`,
 an enclosing `ScrollView`, and being that scroller's **only**
@@ -1080,7 +1181,8 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   CSS, 1 RP+CSS-frame, the 2 neither-recipe rows) and 5 for 9 (3 N9, the 2
   tokenizer tests). `NativeLayoutRun.maxDepth` moves 88 →
   72, the first release re-bisection alongside debug (`LR-DK`, "Depth guard"
-  below); the demo's list row gains `.height(Pixels(28))` so its labels stay
+  below); the demo's list row gains `.height(Pixels(28))` (respelled
+  `.frame(height: Pixels(28))` by stage 8's deprecation) so its labels stay
   centred under the switch (`LR-DJ`), moving its deepest native level 29 → 30.
   Exit test `noProductionFrameReachesTheLegacyEngine`: `demoContent()`,
   `nativeLayoutPreviewContent()` (`MetalUIDemoContent`, `LR-S`) and a `List`,

@@ -741,6 +741,46 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   the 199 census-A tests and every differential replacement's proposal arm
   wait for stage 9 (`LR-EK`); the real-window capture and the demo-layout
   human-verification rows record §03 re-opens are still owed to the human.
+  *Progress 2026-09-24 on `feat/engine-stage-8` (from `85217e3`, `master`'s
+  tip after the stage-7b merge), stage 8 of 14, task still open.* Spec
+  `specs/2026-09-24-engine-stage-8-design.md`; rulings `LR-ER`…`LR-FB` in
+  `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages
+  1–7b; `LR-EY` the design critic round, `LR-FA` lane 1's review round's
+  correction); probe `docs/probes/swiftui-engine-stage-8.swift` (groups F, P,
+  T); record `docs/record/50-engine-replacement-stage-8.md`. **The eight
+  `StyledElement` sizing modifiers — the six sizes and clamps and
+  `width(fraction:)`/`height(fraction:)` — are deprecated toward `.frame`**
+  in the same change (`FR-I`, as stage 6a deprecated the public registrars),
+  and every in-repo caller converts by class (`LR-EW`, `LR-FB`): **F** to
+  `.frame` by recipe R1–R8 (`LR-ES`) — 129 of lane 3's 22 files' 425 sites,
+  lane 1's `PresentationWindowTests`/`FrameSizingTests` (37) and the demo's
+  25; **K** the `Style` write kept through `Tests/MetalUITests/CSSSizing.swift`'s
+  eight same-closure-body helpers — 1115 sites in 28 files (lane 2) plus 296
+  of lane 3's 425 by the site-coverage check's per-test fallback; **D**
+  `ModifierTests`' eight rows spliced into a deprecated protocol witness that
+  warns nothing; **R (retired) is empty** — no assertion is edited and no test
+  is retired for this stage. A framed box over at most one node can now be an
+  absolute presentation's content (`LR-EV`), which discharges the two
+  `…absolute` fields stage 5 left owned here. Exit criteria met: 0 `warning:`
+  besides SwiftPM's notice on both build systems with the deprecations in;
+  suite **1452** (1445 + 7, 0 removed); guards **79**
+  (`FrameSizingCompileGuards` 2 → 3); goldens **0** (unmoved); 0 px in all
+  fourteen offscreen images against `85217e3`, `DemoFrameDeterminismTests`
+  unedited, and the demo's hitbox/accessibility/hovered-scene comparison
+  byte-identical; `Backends/SDL` built with the deprecation in draws 0
+  deprecation warnings and its `PortableReplay`/`DemoCapture` pass unedited;
+  portable CI untouched (**200 + 22 + 3**). A design critic round (`LR-EY`)
+  found the modifier count was eight, not ten, and narrowed `LR-EV` to a
+  frame over at most one node; a lane-1 review round (`LR-FA`) found a framed
+  absolute box **as the frame's root** reported nothing and fixed it. **Not
+  done:** no engine file, `Style` field, legacy registrar, the legacy
+  authority or a `Component` modifier is deleted or changed in meaning; the
+  `Style()` writes in tests (232 lines, 50 files) and lane 2's/lane 3's ≈ 1411
+  `css*` sites are re-owned to stage 10, which also inherits every
+  `Style`-field report this stage kept; divergence 52 (`Row`/`Column` default
+  spacing) moves from stage 10 to plan task 15 (closeout), because both
+  stages' exit is "0 px against the prior stage" and a public default under
+  every default-gap caller's pixels cannot satisfy both.
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and
