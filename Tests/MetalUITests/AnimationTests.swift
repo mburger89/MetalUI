@@ -374,15 +374,12 @@ import MetalUIRender
     GlobalElementID.child(of: nil, at: 0, name: ElementID(name))
 }
 
-/// `authority` `nil` leaves `Frame`'s default; the registering-site guard
-/// pinned to the legacy authority by stage 6b (`LR-DI`) passes `.legacy`.
-@MainActor private func animFrame(_ table: StateTable, timestamp: Double, side: Float = 300,
-                                  authority: LayoutAuthority? = nil) -> Frame {
-    authority.map {
-        Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
-              scaleFactor: 1, stateTable: table, timestamp: timestamp, layoutAuthority: $0)
-    } ?? Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
-               scaleFactor: 1, stateTable: table, timestamp: timestamp)
+/// At `Frame`'s default authority (the registering-site guard stage 6b pinned to
+/// `.legacy`, `LR-DI`, was its only other caller, retired at stage 7b, record §49
+/// row 241).
+@MainActor private func animFrame(_ table: StateTable, timestamp: Double, side: Float = 300) -> Frame {
+    Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
+          scaleFactor: 1, stateTable: table, timestamp: timestamp)
 }
 
 /// Spec §9 test 1's first half. A field that differs while a transaction is
@@ -743,379 +740,17 @@ import MetalUIRender
             """)
 }
 
-// MARK: - Task 4: every registering site substitutes through `animated`
+// MARK: - Task 4 / stage 6b test 2.1: every registering site substitutes through `animated`
 
-/// Spec §5's correction block: there is no single choke point. `Box`,
-/// `Stack` and `ScrollView`'s two nodes each call
-/// `LayoutPass.requestNode` independently, so nothing enforces that any one
-/// of them actually routes its declared `Style`/`Decoration` through
-/// `animated(_:_:for:pass:)` before handing it to the layout engine — on
-/// `onClickIsLiveOnEveryConformerThatCanRegisterOne`'s footing
-/// (`InputDispatchTests.swift`), which exists for the identical reason: a
-/// conformer can compile and register nothing.
-///
-/// **`Box` and `Stack`** are checked the way Task 3's own tests check the
-/// helper directly (see `aFieldThatDiffersUnderATransactionBeginsAnimating…`
-/// above): a fresh element is reconstructed each frame — exactly as
-/// `Frame.render` rebuilds one from the content closure every frame — with a
-/// real, caller-visible field (`flexGrow`) declared differently, and the
-/// registered node's `Style` is read back through `pass.style(_:)`.
-///
-/// **`ScrollView`'s two nodes have no caller-visible `Style` at all** — the
-/// type is not `StyledElement`, and `contentStyle`/`viewportStyle` are built
-/// entirely from constants inside `requestLayout` (spec §5's own reason this
-/// site needs two independent `$anim` slots — see `ScrollView.requestLayout`'s
-/// comment). So there is no declared field a test can vary across frames the
-/// way it can for `Box`/`Stack`. Each is instead checked by pre-seeding an
-/// in-flight, unfinished `AnimatedFieldState` directly into the `inFlight`
-/// dictionary of an `AnimatedElementState` baseline written to the exact
-/// `$anim` slot that site's own wiring derives (ruling U's reshaped
-/// storage — `AnimatedStyle.swift`), targeting the value the site always
-/// declares (`flexShrink: 0` for the content node, `flexGrow: 0` — never
-/// explicitly set — for the viewport node). A wired site substitutes the
-/// still-interpolating value in; an unwired one hands the raw declared value
-/// straight through unchanged, which is exactly the differential a mutation
-/// that un-wires the site needs to redden.
-///
-/// **`Component` is not a registering site** — it contributes no node — but a
-/// value can reach a component's node from two places. Its arm checks both.
-/// A width declared INSIDE the component (the control) animates through the
-/// member `Box`'s own call. A caller's `.width`/`.height`/`.padding` ON the
-/// component snaps, and that half is **pinned wrong on purpose** (finding
-/// B-7). See the arm's comment and `StyledComponent`'s doc.
-///
-/// **P-CSS, owner 7b (stage 6b, `LR-DI`, `LR-DO` item 2)**: every arm reads
-/// `pass.style(node)`, the CSS tree, so every frame here passes `.legacy`. Its
-/// proposal twin — the map of each arm to the proposal-side test pinning the
-/// same site, and the arms that had none — is
-/// `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` below.
-@Test @MainActor func everyRegisteringSiteAnimatesItsStyle() throws {
-    func styled(flexGrow: Float) -> Style {
-        var s = Style()
-        s.flexGrow = flexGrow
-        return s
-    }
-
-    // MARK: Box
-
-    do {
-        let table = StateTable()
-        let id = eid("box")
-
-        var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0, authority: .legacy))
-        var box1 = Box(style: styled(flexGrow: 0))
-        _ = box1.requestLayout(id, pass: &pass1)
-
-        var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0, authority: .legacy))
-        var midStyle: Style!
-        withAnimation(.linear(duration: 1)) {
-            var box2 = Box(style: styled(flexGrow: 100))
-            let (node, _) = box2.requestLayout(id, pass: &pass2)
-            midStyle = pass2.style(node)
-        }
-        #expect(midStyle.flexGrow == 0, """
-                Box: registering site does not animate — expected the transaction-start \
-                'from' value 0, got \(midStyle.flexGrow)
-                """)
-
-        var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5, authority: .legacy))
-        var box3 = Box(style: styled(flexGrow: 100))
-        let (node3, _) = box3.requestLayout(id, pass: &pass3)
-        #expect(pass3.style(node3).flexGrow == 50, """
-                Box: registering site does not animate — expected the halfway value 50, \
-                got \(pass3.style(node3).flexGrow)
-                """)
-    }
-
-    // MARK: Stack
-
-    do {
-        let table = StateTable()
-        let id = eid("stack")
-
-        var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0, authority: .legacy))
-        var stack1 = Stack { Box() }
-        _ = stack1.requestLayout(id, pass: &pass1)
-
-        var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0, authority: .legacy))
-        var midStyle: Style!
-        withAnimation(.linear(duration: 1)) {
-            var stack2 = Stack { Box() }.flexGrow(100)
-            let (node, _) = stack2.requestLayout(id, pass: &pass2)
-            midStyle = pass2.style(node)
-        }
-        #expect(midStyle.flexGrow == 0, """
-                Stack: registering site does not animate — expected the transaction-start \
-                'from' value 0, got \(midStyle.flexGrow)
-                """)
-
-        var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5, authority: .legacy))
-        var stack3 = Stack { Box() }.flexGrow(100)
-        let (node3, _) = stack3.requestLayout(id, pass: &pass3)
-        #expect(pass3.style(node3).flexGrow == 50, """
-                Stack: registering site does not animate — expected the halfway value 50, \
-                got \(pass3.style(node3).flexGrow)
-                """)
-    }
-
-    // MARK: ScrollView — content node
-
-    do {
-        let table = StateTable()
-        let id = eid("scroll-content")
-        let animID = scrollViewContentAnimID(for: id)
-        let slot = animRetentionSlot(for: animID)
-        // Ruling U: the baseline `style` must match what `ScrollView` will
-        // actually declare for `contentStyle` this frame (a default `Style`
-        // with `flexShrink = 0`) so every OTHER field's native equality
-        // check short-circuits and only the pre-seeded `flexShrink` entry
-        // exercises the animation machinery.
-        var seedStyle = Style()
-        seedStyle.flexShrink = 0
-        let seed = AnimatedElementState(style: seedStyle, decoration: Decoration(), inFlight: [
-            "flexShrink": AnimatedFieldState(caseTag: 0, from: -100, to: 0, startTime: 0,
-                                             animation: .linear(duration: 1), velocity: 0)
-        ])
-        table.write(slot, seed)
-
-        var pass = LayoutPass(frame: animFrame(table, timestamp: 0.5, authority: .legacy))
-        var scroll = ScrollView { Box() }
-        let (_, layout) = scroll.requestLayout(id, pass: &pass)
-        let out = pass.style(layout.contentNode)
-        #expect(out.flexShrink == -50, """
-                ScrollView content node: registering site does not animate — expected the \
-                interpolated value -50, got \(out.flexShrink)
-                """)
-    }
-
-    // MARK: ScrollView — viewport node
-
-    do {
-        let table = StateTable()
-        let id = eid("scroll-viewport")
-        let animID = scrollViewViewportAnimID(for: id)
-        let slot = animRetentionSlot(for: animID)
-        // Ruling U: `viewportStyle` never sets `flexGrow` explicitly, so the
-        // seeded baseline is a plain default `Style()` — matching what
-        // `ScrollView` will actually declare this frame, on the content
-        // node's footing above.
-        let seed = AnimatedElementState(style: Style(), decoration: Decoration(), inFlight: [
-            "flexGrow": AnimatedFieldState(caseTag: 0, from: -100, to: 0, startTime: 0,
-                                           animation: .linear(duration: 1), velocity: 0)
-        ])
-        table.write(slot, seed)
-
-        var pass = LayoutPass(frame: animFrame(table, timestamp: 0.5, authority: .legacy))
-        var scroll = ScrollView { Box() }
-        let (node, _) = scroll.requestLayout(id, pass: &pass)
-        let out = pass.style(node)
-        #expect(out.flexGrow == -50, """
-                ScrollView viewport node: registering site does not animate — expected the \
-                interpolated value -50, got \(out.flexGrow)
-                """)
-    }
-
-    // MARK: Component — the member's own declaration, and a caller's modifier
-
-    do {
-        struct Panel: Component {
-            let innerWidth: Pixels
-            var content: some ElementGroup { Box().width(innerWidth).height(10) }
-        }
-
-        // Every node `group` returns, read back after its `requestGroupLayout`
-        // — which for a `StyledComponent` is AFTER its `amend` has run.
-        func nodeStyles<G: ElementGroup>(_ group: G, _ table: StateTable, at t: Double) -> [Style] {
-            var group = group
-            var pass = LayoutPass(frame: animFrame(table, timestamp: t, authority: .legacy))
-            var cursor = 0
-            let (nodes, _) = group.requestGroupLayout(under: eid("component"), at: &cursor, pass: &pass)
-            return nodes.map { pass.style($0) }
-        }
-
-        // Control: the width declared INSIDE the component animates, because
-        // it reaches the member `Box`'s own `animated(...)` call.
-        do {
-            let table = StateTable()
-            _ = nodeStyles(Panel(innerWidth: 196), table, at: 0)
-            var start: [Style] = []
-            withAnimation(.linear(duration: 1)) {
-                start = nodeStyles(Panel(innerWidth: 320), table, at: 0)
-            }
-            let mid = nodeStyles(Panel(innerWidth: 320), table, at: 0.5)
-            try #require(start.count == 1 && mid.count == 1)
-            #expect(start[0].size.width == .length(.pixels(196)), """
-                    Component member: a width declared inside the component does not animate — \
-                    expected 'from' 196, got \(start[0].size.width)
-                    """)
-            #expect(mid[0].size.width == .length(.pixels(258)), """
-                    Component member: a width declared inside the component does not animate — \
-                    expected the halfway value 258, got \(mid[0].size.width)
-                    """)
-        }
-
-        // A caller's modifier on the component. **PINNED WRONG ON PURPOSE**
-        // (review finding B-7). All three `Component` modifiers — `width`,
-        // `height`, `padding` — SNAP even inside `withAnimation`.
-        //
-        // **Re-measured in the outer-modifiers task (lane 4, `OM-D`).** The
-        // `.padding` is no longer an amend of the member's `Style.padding` but
-        // a WRAPPER NODE around the member, registered by
-        // `StyledComponent.requestGroupLayout` through `pass.requestNode`
-        // with no `animated(...)` call and no `$anim` slot of its own. So the
-        // node `group` returns for `.width(196).height(40).padding(4)` is the
-        // wrapper, and the member is its only child. Two readings, both
-        // snapping: the WRAPPER's `padding.left` reads **20 at t = 0 and
-        // again at t = 0.5** (correct: 4, then 12), and the MEMBER's
-        // (w, h) reads **(320, 80) at both samples** (correct: (196, 40), then
-        // (258, 60)) — what the control arm above gives for the same width
-        // declared inside the component. Before lane 4 the one amended node
-        // read (320, 80, 20) at both samples; the mechanism is unchanged and
-        // the numbers moved to two nodes.
-        //
-        // This is NOT the `.auto` / case-change snap: the member declares real
-        // pixel baselines for `size` (100 x 10), and `padding` is a `Length`,
-        // which has no `.auto`. The mechanism is ordering, twice over.
-        // `.amend` runs `pass.setStyle` AFTER the member `Box.requestLayout`
-        // has already called `animated(...)` and stored its `$anim` baseline,
-        // so that baseline never contains the caller's value and `setStyle`
-        // overwrites the interpolated result with the raw target on every
-        // frame. `.wrap` registers a node under NO element id at all — a
-        // `StyledComponent` mints no identity (`addingAModifierDoesNotResetAComponentsState`)
-        // — so there is no slot for `animated(...)` to compare against even
-        // if it were called.
-        //
-        // The blocker is `ElementGroup.requestGroupLayout`: it returns a flat
-        // `[LayoutNodeID]`, so `StyledComponent` cannot name a member's id or
-        // its `$anim` slot. The fix needs the associated-type change ruling
-        // TB-M names. Two cheaper fixes are unsound. Calling `animated` on the
-        // member's slot from here would rewrite its baseline with an empty
-        // `Decoration()`, because the member's `Decoration` is unreachable too.
-        // An ambient amendment on the pass would be consumed by the first
-        // `animated` call to run, and `Box.requestLayout` registers children
-        // first, so it would land on grandchildren, against CO-U.
-        //
-        // When that change lands, flip these expectations to the correct
-        // values above, delete this framing, and delete the `Component` row
-        // from CLAUDE.md's "What snaps rather than animates".
-        //
-        // MUTATIONS, re-taken at lane 4 (each restored afterwards; the named
-        // tests are the readings on the merged suite, record §15 lane 4):
-        // - Making `StyledComponent.requestGroupLayout` skip `.amend`'s
-        //   `pass.setStyle(node, style)` makes the MEMBER read its own
-        //   (100, 10) at both samples: reddens this arm's member half and
-        //   `ComponentTests`' `widthAloneDistributesToEachTopLevelChild`,
-        //   `heightAloneDistributesToEachTopLevelChild`,
-        //   `widthAndHeightComposeOnAChainedModifier`,
-        //   `aComponentsWidthStillOverwritesItsMembersDeclaredWidth` and
-        //   `aModifierOnAComponentAppliesInTheOrderItIsWritten`.
-        // - Making `.wrap` an amend of `Style.padding` (lane 4's own named
-        //   mutation) makes the returned node the member again, with no
-        //   child: the `#require` below fails, and so do lane 4's padding
-        //   tests in `ComponentTests` and the matrix's Component padding row.
-        // - Deleting `Box.requestLayout`'s `animated(...)` call makes the
-        //   control arm above read 320 at both samples, which reddens it along
-        //   with this test's `Box` arm and many others. The pinned arm is
-        //   unaffected, because the caller's value never went through that
-        //   call.
-        do {
-            /// The wrapper `group` returns and the member under it; `nil`
-            /// unless there is exactly one of each.
-            func wrapperAndMember<G: ElementGroup>(_ group: G, _ table: StateTable, at t: Double)
-                -> (wrapper: Style, member: Style)? {
-                var group = group
-                var pass = LayoutPass(frame: animFrame(table, timestamp: t, authority: .legacy))
-                var cursor = 0
-                let (nodes, _) = group.requestGroupLayout(under: eid("component"), at: &cursor, pass: &pass)
-                guard nodes.count == 1 else { return nil }
-                let children = pass.frame.tree.children(nodes[0])
-                guard children.count == 1 else { return nil }
-                return (pass.style(nodes[0]), pass.style(children[0]))
-            }
-
-            let table = StateTable()
-            try #require(wrapperAndMember(Panel(innerWidth: 100).width(196).height(40).padding(4), table, at: 0) != nil,
-                         "Component: `.padding` must return ONE wrapper node holding the member as its only child (OM-D)")
-            var start: (wrapper: Style, member: Style)?
-            withAnimation(.linear(duration: 1)) {
-                start = wrapperAndMember(Panel(innerWidth: 100).width(320).height(80).padding(20), table, at: 0)
-            }
-            let mid = try #require(wrapperAndMember(Panel(innerWidth: 100).width(320).height(80).padding(20), table, at: 0.5))
-            let begin = try #require(start)
-            let readings = """
-                start (member w, member h, wrapper padding.left) = (\(begin.member.size.width), \
-                \(begin.member.size.height), \(begin.wrapper.padding.left)); mid = (\(mid.member.size.width), \
-                \(mid.member.size.height), \(mid.wrapper.padding.left))
-                """
-            #expect(begin.member.size.width == .length(.pixels(320))
-                    && begin.member.size.height == .length(.pixels(80))
-                    && begin.wrapper.padding.left == .pixels(20), """
-                    WRONG ON PURPOSE — B-7. A caller's modifier on a Component snaps: 'from' \
-                    should be (196, 40, 4) and today reads the target (320, 80, 20). If this \
-                    now reads (196, 40, 4), the snap is fixed; flip the arm. \(readings)
-                    """)
-            #expect(mid.member.size.width == .length(.pixels(320))
-                    && mid.member.size.height == .length(.pixels(80))
-                    && mid.wrapper.padding.left == .pixels(20), """
-                    WRONG ON PURPOSE — B-7. Halfway should read (258, 60, 12) and today reads \
-                    the target (320, 80, 20). If it now reads (258, 60, 12), the snap is \
-                    fixed; flip the arm. \(readings)
-                    """)
-        }
-    }
-
-    // MARK: ModifiedElement — the inner layer as well as the outermost
-
-    // Ruling MC-I (modifier-composition lane 2). `.padding`/`.frame` chains are
-    // ONE `ModifiedElement` whose `requestLayout` loops over its layers, each
-    // registering its own node through `animated(...)` under its own id. A
-    // two-layer chain, read back at BOTH nodes: an implementation that wires
-    // only the outermost layer — the one `StyledElement`'s accessors reach —
-    // passes an arm on a one-layer chain. The inner node is read as the outer
-    // node's only child in the tree, not through `ModifiedElement.Layout`, so
-    // the reading does not depend on the code under test's own bookkeeping.
-    // Paddings differ per layer (4 → 20 inner, 8 → 40 outer), so a transposed
-    // or shared baseline is a mismatch rather than a coincidence.
-    do {
-        let table = StateTable()
-        let id = eid("modified")
-
-        /// `nil` when the outer layer's node does not have exactly one child.
-        func paddings(inner: Float, outer: Float, at t: Double) -> (inner: Length, outer: Length)? {
-            var pass = LayoutPass(frame: animFrame(table, timestamp: t, authority: .legacy))
-            var chain = Box().width(Pixels(10)).height(Pixels(10))
-                .padding(Edges(all: .pixels(Pixels(inner))))
-                .padding(Edges(all: .pixels(Pixels(outer))))
-            let (node, _) = chain.requestLayout(id, pass: &pass)
-            let children = pass.frame.tree.children(node)
-            guard children.count == 1 else { return nil }
-            return (pass.style(children[0]).padding.left, pass.style(node).padding.left)
-        }
-
-        try #require(paddings(inner: 4, outer: 8, at: 0) != nil,
-                     "ModifiedElement: the outer layer's node must have exactly one child")
-        var start: (inner: Length, outer: Length)?
-        withAnimation(.linear(duration: 1)) {
-            start = paddings(inner: 20, outer: 40, at: 0)
-        }
-        let mid = try #require(paddings(inner: 20, outer: 40, at: 0.5))
-        #expect(start?.inner == .pixels(4) && mid.inner == .pixels(12), """
-                ModifiedElement INNER layer: registering site does not animate — expected 4 then \
-                12, got \(String(describing: start?.inner)) then \(mid.inner)
-                """)
-        #expect(start?.outer == .pixels(8) && mid.outer == .pixels(24), """
-                ModifiedElement outermost layer: registering site does not animate — expected 8 \
-                then 24, got \(String(describing: start?.outer)) then \(mid.outer)
-                """)
-    }
-}
-
-// MARK: - Stage 6b test 2.1: the proposal twin of the registering-site guard
-
-/// **Test 2.1** (stage 6b, `LR-DO` item 2, `LR-DQ`). `everyRegisteringSiteAnimatesItsStyle`
-/// above reads `pass.style(node)` — the CSS tree — and is pinned to the legacy
-/// authority (`LR-DI`, owner 7b). Stage 6b's map of each of its site arms to the
-/// test that pins the same site **under the proposal authority**:
+/// **Test 2.1** (stage 6b, `LR-DO` item 2, `LR-DQ`). **The registering-site guard
+/// since stage 7b** (record §49 row 241): its legacy twin,
+/// `everyRegisteringSiteAnimatesItsStyle`, read `pass.style(node)` — the CSS
+/// tree — under the legacy authority (`LR-DI`, owner 7b) and was retired; a site
+/// with no `animated(` call on the proposal path reddens here or in the pin the
+/// table names. Spec §5's correction block still holds: there is no single choke
+/// point, so each site's call is pinned on its own. Stage 6b's map of each of the
+/// retired test's site arms to the test that pins the same site **under the
+/// proposal authority**:
 ///
 /// | legacy arm | shared `animated(` call | proposal-side pin (its mutation) |
 /// |---|---|---|
@@ -1270,7 +905,8 @@ import MetalUIRender
 
 // MARK: - Task 4 fix round 1: the `Decoration` half was unguarded at every site
 
-/// **`everyRegisteringSiteAnimatesItsStyle` reads back only `pass.style(node)`,
+/// **`everyRegisteringSiteAnimatesItsStyle` (retired at stage 7b, record §49
+/// row 241) read back only `pass.style(node)`,
 /// which cannot see `decoration` at all — so `Box.swift`'s own comment
 /// ("storing the result back on `self` … is what makes `cornerRadius`
 /// animation … reach the screen rather than only the layout node") shipped
@@ -1614,7 +1250,8 @@ import MetalUIRender
 /// `theInFlightDictionaryIsEmptyWhenSettledAndHoldsOnlyTheMovingField` goes
 /// through a registering site** — both call `animated(...)` directly, so
 /// neither would notice `Box`/`Stack`/`ScrollView` being un-wired. That is
-/// `everyRegisteringSiteAnimatesItsStyle` and the per-site guards' job; this
+/// `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` and the
+/// per-site guards' job (`everyRegisteringSiteAnimatesItsStyle` until stage 7b); this
 /// test covers the field table, not the call sites.
 ///
 /// **The 25-field deletion was re-run against this test in an isolated
@@ -2921,7 +2558,8 @@ final class AnimationDriveModel {
             """)
 }
 
-/// The colour analogue of `everyRegisteringSiteAnimatesItsStyle`, and spec
+/// The colour analogue of the registering-site guard
+/// (`everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`), and spec
 /// exit criterion 8's shape applied to the paint phase: **one case per site
 /// that fills a background**, so a fourth site added later fails a test rather
 /// than silently snapping.

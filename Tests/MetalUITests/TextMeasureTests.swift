@@ -57,46 +57,18 @@ private let label = "The quick brown fox jumps over the lazy dog"
 ///
 /// **Not `Frame.render`**, which does not give back the root id. It runs the
 /// layout phase and the engine, which is everything a measure function
-/// participates in; the paint test below uses `render` instead.
+/// participates in. At `Frame`'s default authority (the four `.legacy` callers
+/// stage 6b pinned, `LR-DI`, were retired at stage 7b, record §49 rows 232–235).
 @MainActor
 private func laidOut<E: Element>(_ element: inout E, width: Double, height: Double = 600,
-                                 cache: ShapingCache = ShapingCache(),
-                                 authority: LayoutAuthority? = nil) -> (Frame, LayoutNodeID) {
-    // `nil` leaves `Frame`'s default; the four CSS answers stage 6b pins
-    // (`LR-DI`, owner 7b) pass `.legacy`.
-    let frame = authority.map {
-        Frame(contentSize: Size(width: Pixels(Float(width)), height: Pixels(Float(height))),
-              scaleFactor: 1, stateTable: StateTable(), shapingCache: cache, layoutAuthority: $0)
-    } ?? Frame(contentSize: Size(width: Pixels(Float(width)), height: Pixels(Float(height))),
-               scaleFactor: 1, stateTable: StateTable(), shapingCache: cache)
+                                 cache: ShapingCache = ShapingCache()) -> (Frame, LayoutNodeID) {
+    let frame = Frame(contentSize: Size(width: Pixels(Float(width)), height: Pixels(Float(height))),
+                      scaleFactor: 1, stateTable: StateTable(), shapingCache: cache)
     var pass = LayoutPass(frame: frame)
     let (root, _) = element.requestLayout(GlobalElementID.child(of: nil, at: 0, name: nil),
                                           pass: &pass)
     frame.computeRootLayout(root: root)
     return (frame, root)
-}
-
-// MARK: - `newLeaf` has a production caller
-
-/// **The row this task exists to delete.** `newLeaf` is the only thing that
-/// attaches a `MeasureFunction` and nothing in `Sources/` called it, so every
-/// production node's `tree.measure()` was `nil` — §9.2's content branch and
-/// §4.5's automatic minimum were live for containers and dead for leaves.
-///
-/// The `Box` half is not decoration. "The text node has a measure function" also
-/// passes if `requestNode` started attaching one to everything, which would make
-/// every container answer from a closure instead of from its children.
-@MainActor
-@Test func aTextLeafCarriesAMeasureFunctionWhereABoxDoesNot() {
-    // P-CSS, owner 7b (stage 6b, `LR-DI`): reads `tree.measure`, the CSS engine's measure function (CSS-style).
-    var text = Text(sample)
-    let (textFrame, textNode) = laidOut(&text, width: 400, authority: .legacy)
-    #expect(textFrame.tree.measure(textNode) != nil)
-    #expect(textFrame.tree.children(textNode).isEmpty)
-
-    var box = Box()
-    let (boxFrame, boxNode) = laidOut(&box, width: 400, authority: .legacy)
-    #expect(boxFrame.tree.measure(boxNode) == nil)
 }
 
 // MARK: - The three sizing modes (spec §3.4)
@@ -262,117 +234,6 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
     }
 }
 
-// MARK: - What wrapping buys, end to end
-
-/// **A long label in a narrow column wraps instead of running off the end** —
-/// the reason wrapping is in M2 rather than deferred.
-///
-/// 120pt of system 13pt holds three lines of the label, so the box is
-/// `3 × 16 = 48` tall — `lineHeight` is `ceil(15.3105) = 16` (line-height
-/// rounding), already a whole number before the engine's own pixel rounding
-/// runs. A single-line implementation would report one line and 16.
-///
-/// **`.alignItems(.stretch)` no longer changes this answer, and the paragraph
-/// that used to stand here is why the test keeps it.** It said `.stretch` was
-/// "load-bearing and not incidental to the wrap", because `Column` centres by
-/// default (ruling EP-8) and a centred child took its cross size from
-/// `collectItems`' max-content branch — 270 wide inside a 120 column while still
-/// sized 46 tall. Divergence 6's fix makes a column's `auto` cross size
-/// shrink-to-fit, so the centred label is 120 wide too and
-/// `aCentringColumnShrinkWrapsItsTextLikeWebKit` below is the same wrap without
-/// the modifier. `.stretch` stays here as the explicit half of the pair: the two
-/// tests agreeing is the evidence, and one of them has to spell the modifier
-/// out for that to mean anything.
-@MainActor
-@Test func aLongLabelInAStretchedColumnWrapsRatherThanOverflowing() {
-    // P-CSS, owner 7b (stage 6b, `LR-DI`): a WebKit answer (CSS-text).
-    var column = Column { Text(label) }.alignItems(.stretch)
-    let (frame, root) = laidOut(&column, width: 120, authority: .legacy)
-    let rect = frame.tree.layout(frame.tree.children(root)[0])
-
-    let lineHeight = ctLineHeight(font.ctFont)
-    #expect(rect.width == 120)
-    #expect(rect.height == (3 * lineHeight).rounded())
-    #expect(rect.height > 2 * lineHeight)
-
-    // The same label in a column wide enough for one line is one line tall, so
-    // the height above is the wrap and not a constant.
-    var wide = Column { Text(label) }.alignItems(.stretch)
-    let (wideFrame, wideRoot) = laidOut(&wide, width: 400, authority: .legacy)
-    #expect(wideFrame.tree.layout(wideFrame.tree.children(wideRoot)[0]).height
-            == lineHeight.rounded())
-}
-
-/// **A centring column shrink-wraps its text, and the box's two axes now agree
-/// with each other.** Ruling TX-H, and the end-to-end consequence of divergence
-/// 6's fix.
-///
-/// **This test asserted the opposite until that fix landed**, and it was named
-/// `aCentringColumnDoesNotShrinkWrapItsTextUnlikeWebKit`: the label's box came
-/// out **270 wide and 46 tall** in a 120-wide column — the height being the
-/// three lines it takes at 120 and the width the one line it would take if
-/// nothing wrapped it — so it hung 75pt off each side while being sized as
-/// though it had not. `collectItems`' `ownCross` measured max-content on
-/// whichever axis was the cross one; a column's cross axis is the **inline**
-/// axis, where CSS shrink-wraps. The rule is the engine's rather than this
-/// element's, and `anAutoCrossSizeInAColumnIsFitContentLikeWebKit` in
-/// `MetalUILayoutTests` pins it with no text in it at all.
-///
-/// **The narrow column is the discriminator and the 120-wide one is not.**
-/// Where the widest word fits, fit-content answers exactly the offered width —
-/// which is also what `.alignItems(.stretch)` gives, so the first block below
-/// would pass against an implementation that stretched everything. At 20pt the
-/// min-content floor binds: the box takes its **widest word**, overflows, and
-/// sits at a negative x that a stretched box never has.
-///
-/// Both oracles are CoreText's, not this engine's: `ctAdvance` per word for the
-/// floor, and `roundLayout`'s own rule — round both edges, subtract — applied to
-/// numbers computed here.
-///
-/// **This used to not mean text renders correctly, and now it is closer.**
-/// What was divergence 6/7 (ruling TX-H — the renumbering that retired the
-/// old 6 and moved the old 7 into its slot is recorded at CLAUDE.md's own
-/// divergence 6 entry) is fixed by the sizing milestone's Task 8: a
-/// `Row { Text(…) }` used to take its cross size from the item's
-/// *hypothetical* main size rather than its used one, so a shrunk row of text
-/// was one line tall while §4.5 narrowed it to three lines' worth of width.
-/// `layOutChildren` now re-measures a non-stretched auto-cross item's
-/// fit-content cross size from its used main size, once
-/// `resolveFlexibleLengths` has resolved it, and the two agree. See
-/// `anItemsCrossSizeIsMeasuredFromItsUsedMainSizeMatchingWebKit`
-/// (`FlexEngineTests.swift`, renamed from
-/// `anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit` — it asserted the
-/// wrong answer on purpose and said so in its own message, so the fix inverts
-/// it rather than deleting it).
-@MainActor
-@Test func aCentringColumnShrinkWrapsItsTextLikeWebKit() {
-    // P-CSS, owner 7b (stage 6b, `LR-DI`): a WebKit answer (CSS-text).
-    var column = Column { Text(label) }
-    let (frame, root) = laidOut(&column, width: 120, authority: .legacy)
-    let rect = frame.tree.layout(frame.tree.children(root)[0])
-
-    #expect(rect.width == 120)
-    #expect(rect.x == 0)
-    // Three lines at 120 — the height it was already being given, now paired
-    // with a width that agrees with it.
-    #expect(rect.height == (3 * ctLineHeight(font.ctFont)).rounded())
-
-    // 20pt is narrower than every word, so fit-content floors at min-content —
-    // the widest word, shaped standalone, which is what a min-content query
-    // asks for. A stretched box would be exactly 20 wide at x = 0.
-    let widestWord = label.split(separator: " ")
-        .map { ctAdvance(String($0), font.ctFont) }.max()!
-    var narrow = Column { Text(label) }
-    let (narrowFrame, narrowRoot) = laidOut(&narrow, width: 20, authority: .legacy)
-    let narrowRect = narrowFrame.tree.layout(narrowFrame.tree.children(narrowRoot)[0])
-
-    let x = (20 - widestWord) / 2
-    #expect(narrowRect.x == x.rounded())
-    #expect(narrowRect.width == (x + widestWord).rounded() - x.rounded())
-    #expect(narrowRect.width > 20)
-    #expect(narrowRect.x < 0)
-}
-
 // MARK: - The cache is the window's, not the frame's
 
 /// **One shaping cache across frames, and a second frame adds no misses.**
@@ -401,43 +262,4 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
     #expect(missesAfterFirstFrame > 0)
     #expect(cache.misses == missesAfterFirstFrame)
     #expect(cache.hits > hitsAfterFirstFrame)
-}
-
-// MARK: - Paint
-
-/// A `Text` paints its background **and its glyphs**.
-///
-/// **This was `aTextPaintsItsBackgroundAndNoGlyphsYet`, and both halves of that
-/// name have expired.** It asserted that a `Text` produced one rect and nothing
-/// else, because the atlas and the renderer's text pipeline were still ahead;
-/// the glyph emitter closed that, so the claim is now false and the test says
-/// the new truth instead of being deleted.
-///
-/// **The other half is a lesson rather than a change of fact: the old test never
-/// pinned "no glyphs" at all.** It predates `Scene.glyphs`, so its body only
-/// ever counted rects — and it stayed green through the entire commit that made
-/// a `Text` emit forty-odd sprites. A name is not an assertion, which is why the
-/// glyph count below is here and not merely in the title.
-@MainActor
-@Test func aTextPaintsItsBackgroundAndItsGlyphs() {
-    // P-CSS, owner 7b (stage 6b, `LR-DI`): a WebKit answer (CSS-text).
-    let frame = Frame(contentSize: Size(width: Pixels(120), height: Pixels(600)),
-                      scaleFactor: 1, layoutAuthority: .legacy)
-    var column = Column { Text(label).background(.surface) }.alignItems(.stretch)
-    frame.render(&column)
-
-    let scene = frame.finalizedScene()
-    #expect(scene.rects.count == 1)
-    if let rect = scene.rects.first {
-        #expect(rect.bounds.size.width == 120)
-        #expect(rect.bounds.size.height == Float((3 * ctLineHeight(font.ctFont)).rounded()))
-    }
-
-    // One sprite per inked glyph. The count comes from CoreText's own line —
-    // every glyph of the string, minus its eight spaces, which have no ink and
-    // therefore no sprite. `GlyphEmitterTests` pins where each one lands.
-    let attributed = NSAttributedString(string: label, attributes: [ctFontKey: font.ctFont])
-    let runs = CTLineGetGlyphRuns(CTLineCreateWithAttributedString(attributed)) as! [CTRun]
-    let glyphs = runs.reduce(0) { $0 + CTRunGetGlyphCount($1) }
-    #expect(scene.glyphs.count == glyphs - label.filter { $0 == " " }.count)
 }

@@ -49,24 +49,15 @@ private func hover(_ window: Window, _ platform: FakePlatformWindow, at point: P
 }
 
 /// `Row { subject; 1x1 marker }.alignItems(.flexStart)`, the fixture shape
-/// `DecorationPaintTests` and `OuterModifierMatrixTests` use. The `alignItems`
-/// is load-bearing: `Row` centres on the cross axis (EP-8), so without it a
-/// frame layer's y is the container's answer, not the frame's.
-@MainActor
-private func inRow<E: ElementGroup>(_ make: @escaping @MainActor () -> E) -> some Element {
-    Row {
-        make()
-        Box().width(px(1)).height(px(1)).background(.scrim)
-    }.alignItems(.flexStart)
-}
-
-/// `inRow` with the 200x200 window's extent declared on both of the row's axes
-/// — stage 6b's R-fill (`LR-DG`). The legacy root filled every `auto` axis with
-/// the window (`CS-I`, divergence 4) and sat at (0, 0); a proposal root is
-/// centred at its own answer (`CN-J`), so a fixture reading absolute
-/// coordinates off a hugging row spells the window's extent itself.
-/// `Self`-returning sizing adds no layer, so identity is unchanged, and the
-/// legacy answer is the one `CS-I` computed.
+/// `DecorationPaintTests` and `OuterModifierMatrixTests` use, with the 200x200
+/// window's extent declared on both of the row's axes — stage 6b's R-fill
+/// (`LR-DG`). The `alignItems` is load-bearing: `Row` centres on the cross axis
+/// (EP-8), so without it a frame layer's y is the container's answer, not the
+/// frame's. A proposal root is centred at its own answer (`CN-J`), so a fixture
+/// reading absolute coordinates off a hugging row spells the window's extent
+/// itself. `Self`-returning sizing adds no layer, so identity is unchanged.
+/// (The hugging `inRow` went with its last callers, the two `.legacy` tests
+/// stage 7b retired, record §49 rows 242–243.)
 @MainActor
 private func inFilledRow<E: ElementGroup>(_ make: @escaping @MainActor () -> E) -> some Element {
     Row {
@@ -75,17 +66,14 @@ private func inFilledRow<E: ElementGroup>(_ make: @escaping @MainActor () -> E) 
     }.alignItems(.flexStart).width(px(200)).height(px(200))
 }
 
-/// Renders `make` in a fresh `side`x`side` fake window and returns it. `nil`
-/// leaves the window's default authority; the two CSS answers pinned by stage
-/// 6b (`LR-DI`) pass `.legacy`.
+/// Renders `make` in a fresh `side`x`side` fake window, at the window's
+/// default authority, and returns it.
 @MainActor
-private func render<E: Element>(side: Int = 200, authority: LayoutAuthority? = nil,
+private func render<E: Element>(side: Int = 200,
                                 _ make: @escaping @MainActor () -> E) throws
     -> (Window, FakePlatformWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
-    let (window, platform) = try authority.map {
-        try makeFakeWindow(device: device, size: side, layoutAuthority: $0, content: make)
-    } ?? makeFakeWindow(device: device, size: side, content: make)
+    let (window, platform) = try makeFakeWindow(device: device, size: side, content: make)
     window.drawFrameIfNeeded()
     return (window, platform)
 }
@@ -226,84 +214,6 @@ private struct TwoMembers: Component {
 }
 
 // MARK: - 2. FR-C x OM-J: contentShape on a frame layer insets the frame's box
-
-/// **`.contentShape(inset:)` written after a frame insets the FRAME layer's hit
-/// region; written before it, the child's** — and on the flexible overload the
-/// region is the layer's clamped size, not the child's.
-///
-/// `OM-J` applies the inset in `Frame.registerHandlers` to the bounds of the
-/// layer whose `Handlers` carry it; `FR-C` makes the frame one such layer.
-/// Three arms against a control:
-///
-/// - after the fixed frame: `[10 10 40x20]` inside the 60x40 layer;
-/// - before it (`.onClick.contentShape(inset: 5)` then `.frame`): the 20x20
-///   child centred at (20, 10), so `[25 15 10x10]`;
-/// - after the flexible frame `.frame(minWidth: 80, maxWidth: 100)` on a 20pt
-///   child: the layer is 80 wide (`FR-E`: the minimum, never the proposal)
-///   and 20 tall (no height bound), so an inset of 5 reads `[5 5 70x10]`.
-///
-/// Clicks confirm each region: the edge point (5, 20) hits the control and
-/// misses the inset arm; (30, 20) hits both.
-@Test @MainActor func aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBox() throws {
-    @MainActor func regions<E: ElementGroup>(_ make: @escaping @MainActor (ClickCounter) -> E)
-        throws -> (regions: [String], counter: ClickCounter, platform: FakePlatformWindow, window: Window) {
-        let counter = ClickCounter()
-        // P-CSS, owner 7b (stage 6b, `LR-DI`): the flexible arm is `FR-E`'s
-        // legacy frame (the minimum, never the proposal), a CSS answer the
-        // proposal authority does not give; the whole test stays on `.legacy`.
-        let (window, platform) = try render(authority: .legacy) { inRow { make(counter) } }
-        return (window.lastHitboxes.map(describe), counter, platform, window)
-    }
-
-    let control = try regions { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
-            .frame(width: px(60), height: px(40))
-            .onClick { counter.bump() }
-    }
-    let after = try regions { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
-            .frame(width: px(60), height: px(40))
-            .contentShape(inset: px(10))
-            .onClick { counter.bump() }
-    }
-    let before = try regions { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
-            .onClick { counter.bump() }
-            .contentShape(inset: px(5))
-            .frame(width: px(60), height: px(40))
-    }
-    let flexible = try regions { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
-            .frame(minWidth: px(80), maxWidth: px(100))
-            .contentShape(inset: px(5))
-            .onClick { counter.bump() }
-    }
-
-    try #require(control.regions != after.regions,
-                 why("the control and the inset arm must register different regions: "
-                     + "\(control.regions) vs \(after.regions)"))
-    #expect(control.regions == ["[0.0 0.0 60.0x40.0]"],
-            why("the control registers the frame layer's whole box: \(control.regions)"))
-    #expect(after.regions == ["[10.0 10.0 40.0x20.0]"],
-            why("an inset written after the frame insets the FRAME's box: \(after.regions)"))
-    #expect(before.regions == ["[25.0 15.0 10.0x10.0]"],
-            why("an inset written before the frame insets the CHILD's box, centred in the frame: "
-                + "\(before.regions)"))
-    #expect(flexible.regions == ["[5.0 5.0 70.0x10.0]"],
-            why("on the flexible frame the region is the layer's clamped 80x20 less the inset: "
-                + "\(flexible.regions)"))
-
-    click(control.platform, at: pt(5, 20))
-    click(after.platform, at: pt(5, 20))
-    #expect(control.counter.count == 1, "the edge point hits the control")
-    #expect(after.counter.count == 0, "and misses the inset frame layer")
-    click(after.platform, at: pt(30, 20))
-    #expect(after.counter.count == 1, "while the centre still hits it")
-    click(before.platform, at: pt(22, 20))
-    #expect(before.counter.count == 0, "inside the frame but outside the child's inset box: a miss")
-    click(before.platform, at: pt(30, 20))
-    #expect(before.counter.count == 1, "the child's centre hits")
-}
 
 /// **N3.3 — `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBox`
 /// under the proposal authority** (stage 7b, record §49 row 242). `OM-J` × `FR-C`:
@@ -446,83 +356,6 @@ private struct TwoMembers: Component {
 }
 
 // MARK: - 4. CO-U side door x OM-N / OM-G: a component's frame carries the new decorations
-
-/// **`anyComponent.frame(...)` is the side door through which a `Component`
-/// reaches every `StyledElement` decoration, and the new scopes reach its
-/// members through it**: `.opacity` fades both members' fills, `.clipped()`
-/// masks them to the frame's box, `.border` outlines the frame, and none of
-/// it distributes — the members keep their own 30x10 and 50x20.
-///
-/// CLAUDE.md records the door "by reading only"; this is its first
-/// measurement. The frame track pinned that the frame WRAPS a component's body
-/// (`aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`); the
-/// outer-modifier track pinned each scope on a `Box`. A component's `padding`
-/// now wraps per member (`OM-D`), so the third arm puts one under the frame
-/// and reads two more nodes and the same fade — the per-member wrappers sit
-/// inside the frame's scope.
-@Test @MainActor func aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembers() throws {
-    @MainActor func nodeCount<E: ElementGroup>(_ make: @escaping @MainActor () -> E) -> Int {
-        var root = inRow(make)
-        // P-CSS, owner 7b (stage 6b, `LR-DI`): the node counts are the legacy
-        // tree's shape (CSS-structure); the whole test stays on `.legacy`.
-        let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
-                          layoutAuthority: .legacy)
-        frame.render(&root)
-        return frame.tree.nodeCount
-    }
-    @MainActor func members(_ scene: Scene) throws -> (a: MUIRect, b: MUIRect) {
-        (try rect(scene, 30, 10), try rect(scene, 50, 20))
-    }
-
-    let bare = nodeCount { TwoMembers() }
-    let framed = nodeCount {
-        TwoMembers().frame(width: px(100), height: px(40)).opacity(0.5)
-            .border(.separator, width: px(2)).clipped()
-    }
-    let padded = nodeCount {
-        TwoMembers().padding(px(4)).frame(width: px(100), height: px(40)).opacity(0.5)
-    }
-    #expect(framed == bare + 1, "the frame is ONE node around the body, not one per member; \(framed) vs \(bare)")
-    #expect(padded == bare + 3, "a per-member padding (OM-D) under the frame: two wrappers and one frame; \(padded) vs \(bare)")
-
-    let (control, _) = try render(authority: .legacy) {
-        inRow { TwoMembers().frame(width: px(100), height: px(40)) }
-    }
-    let (decorated, _) = try render(authority: .legacy) {
-        inRow {
-            TwoMembers().frame(width: px(100), height: px(40)).opacity(0.5)
-                .border(.separator, width: px(2)).clipped()
-        }
-    }
-    let (paddedWindow, _) = try render(authority: .legacy) {
-        inRow { TwoMembers().padding(px(4)).frame(width: px(100), height: px(40)).opacity(0.5) }
-    }
-
-    let plain = try members(control.lastScene)
-    let faded = try members(decorated.lastScene)
-    let paddedMembers = try members(paddedWindow.lastScene)
-    try #require(plain.a.background.a == 1 && plain.b.background.a == 1,
-                 why("set up — the control's members are opaque: " + describe(plain.a) + " " + describe(plain.b)))
-    try #require(plain.a.contentMask.size.width == 200,
-                 why("set up — the control's members are masked by the surface only: " + describe(plain.a)))
-
-    #expect(faded.a.background.a == 0.5 && faded.b.background.a == 0.5,
-            why("the frame's opacity fades BOTH members: " + describe(faded.a) + " " + describe(faded.b)))
-    #expect(faded.a.contentMask.size.width == 100 && faded.a.contentMask.size.height == 40
-                && faded.b.contentMask.size.width == 100 && faded.b.contentMask.size.height == 40,
-            why("the frame's clip masks both members to its 100x40: " + describe(faded.a) + " " + describe(faded.b)))
-    let border = try rect(decorated.lastScene, 100, 40)
-    #expect(isBordered(border, with: .separator, in: decorated.theme),
-            why("the frame's rect carries the border: " + describe(border)))
-    #expect(paddedMembers.a.background.a == 0.5 && paddedMembers.b.background.a == 0.5,
-            why("the per-member padding wrappers sit inside the frame's opacity scope: "
-                + describe(paddedMembers.a) + " " + describe(paddedMembers.b)))
-    // The members' own sizes were found by size above, so the frame did not
-    // distribute; their positions show the body centred as a unit in the frame
-    // (the frame track's numbers, one level up).
-    #expect(plain.a.bounds.origin.x == 10 && plain.b.bounds.origin.x == 40,
-            why("the body is centred as a unit: a at 10, b at 40; got " + describe(plain.a) + " " + describe(plain.b)))
-}
 
 /// **N3.4 — `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembers` under
 /// the proposal authority** (stage 7b, record §49 row 243). `CO-U`'s side door ×

@@ -390,8 +390,10 @@ enum ComponentModifierOp {
 /// where (196, 40) / 4 and then (258, 60) / 12 are correct. The same width
 /// declared inside the component animates, 196 then 258. This is not the
 /// `.auto` snap: the fixture's member declares pixel sizes.
-/// `everyRegisteringSiteAnimatesItsStyle`'s `Component` arm
-/// (`AnimationTests.swift`) pins both readings.
+/// Those legacy-authority readings were pinned by `everyRegisteringSiteAnimatesItsStyle`,
+/// retired at stage 7b (record §49 row 241); the snap under the proposal
+/// authority is arm (c) of `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`
+/// (`AnimationTests.swift`).
 ///
 /// **The fix is blocked on `ElementGroup`, not on this type.**
 /// `requestGroupLayout` returns a flat `[LayoutNodeID]`, so nothing here can
@@ -416,8 +418,9 @@ enum ComponentModifierOp {
 /// typecheck guard in `ErasureCompileGuards.swift` pin the absence. The side
 /// door stays open: `anyComponent.frame(...)` returns a `ModifiedElement`, so
 /// `.frame(…).opacity(…).clipped().border(…)` compiles on any component and
-/// scopes its members without distributing (measured at integration,
-/// `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembers`).
+/// scopes its members without distributing (measured at integration; under the
+/// proposal authority,
+/// `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembersUnderTheProposalAuthority`).
 ///
 /// **Ops reach node-contributing members only.** `requestGroupLayout` maps them
 /// over the nodes the body returned, so a member that contributes none (a

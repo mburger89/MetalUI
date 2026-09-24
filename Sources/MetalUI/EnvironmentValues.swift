@@ -91,11 +91,12 @@ public struct EnvironmentValues {
     /// `Locale.current` under a window, which stamps it into
     /// `Window.environment` (ruling EV-Y). **No built-in consumer**: `Text`'s
     /// tokenizer and typesetter never receive it (ruling EV-H, pinned by
-    /// `aLocaleChangesNoTextMeasurement`).
+    /// `aLocaleChangesNoTextMeasurementUnderTheProposalAuthority`).
     public var locale: Locale
 
     /// Carried; changes no built-in text size, as in SwiftUI on macOS (ruling
-    /// EV-I, probe G, pinned by `dynamicTypeSizeChangesNoTextMeasurement`).
+    /// EV-I, probe G, pinned by
+    /// `dynamicTypeSizeChangesNoTextMeasurementUnderTheProposalAuthority`).
     public var dynamicTypeSize: DynamicTypeSize = .large
 
     /// One device pixel, in points: `1 / scaleFactor` of the frame's surface.

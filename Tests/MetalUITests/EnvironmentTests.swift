@@ -1060,24 +1060,6 @@ private final class TransformCounter {
 
 // MARK: - E16, E17, E21: carried values with no built-in effect (EV-I, EV-K, EV-H)
 
-@MainActor
-private func textMeasure<C: ElementGroup>(_ content: (NodeProbe<Text>) -> C, _ text: Text)
-    throws -> (min: SizeD, max: SizeD) {
-    let nodes = NodeLog()
-    // P-CSS, owner 7b (stage 6b, `LR-DI`): the two tests reading this helper
-    // read `tree.measure`, the CSS engine's measure function (CSS-style), which
-    // a lowered `Text` does not carry; pinned by argument, not by the helper's
-    // default, which stage 6b's flip moves.
-    let f = frame(400, 100, authority: .legacy)
-    var root = Row { content(NodeProbe(inner: text, label: "text", log: nodes)) }
-    f.render(&root)
-    let node = try #require(nodes.nodes["text"])
-    let measure = try #require(f.tree.measure(node))
-    let min = measure(.unspecified, AvailableSpaceSize(width: .minContent, height: .maxContent))
-    let max = measure(.unspecified, AvailableSpaceSize(width: .maxContent, height: .maxContent))
-    return (min, max)
-}
-
 /// A `Text`'s measured size under the **proposal** authority, read off
 /// `Frame.elementBounds` (stage 7b, record §49 rows 236–237): `ideal` in a
 /// 4000-wide frame — wider than any string here at 26pt, so the leaf answers
@@ -1155,23 +1137,6 @@ private func proposalTextMeasure<C: ElementGroup>(_ content: (Text) -> C, _ text
     #expect(english.broken == bare.broken)
 }
 
-/// **E16.** `dynamicTypeSize` changes no text measurement — probe G, where a
-/// SwiftUI `.body` text measures 120×16 at the default and at
-/// `accessibility5`. Aligned behaviour on macOS, not an inert API (ruling
-/// EV-I); pinned so a later "fix" has to face the probe. **Positive control**:
-/// a 26pt font measures differently.
-@MainActor
-@Test func dynamicTypeSizeChangesNoTextMeasurement() throws {
-    let text = Text("Hello, dynamic type")
-    let bare = try textMeasure({ $0 }, text)
-    let large = try textMeasure({ $0.dynamicTypeSize(.accessibility5) }, text)
-    let control = try textMeasure({ $0 }, text.font(size: 26))
-
-    try #require(control.max != bare.max, "the control font must measure differently")
-    #expect(large.max == bare.max)
-    #expect(large.min == bare.min)
-}
-
 /// **E17. PINNED WRONG ON PURPOSE** (ruling EV-K). Under `.rightToLeft`
 /// SwiftUI mirrors: probe H places a 10pt and a 20pt child at x **90** and
 /// **70** in a 100pt leading frame. MetalUI does not mirror yet and places them
@@ -1195,25 +1160,4 @@ private func proposalTextMeasure<C: ElementGroup>(_ content: (Text) -> C, _ text
     let twenty = try #require(rects.first { $0.bounds.size.width == 20 })
     #expect(ten.bounds.origin.x == 0)
     #expect(twenty.bounds.origin.x == 10)
-}
-
-/// **E21. PINNED INERT** (ruling EV-H). A locale reaches no text measurement:
-/// `Text`'s tokenizer and typesetter never receive it. **Not claimed as
-/// aligned** — no probe measured SwiftUI text under a locale. Thai is the
-/// sample because its word breaks come from a dictionary, the one place a
-/// locale-aware tokenizer could plausibly move min-content. **Positive
-/// control**: a 26pt font measures differently.
-@MainActor
-@Test func aLocaleChangesNoTextMeasurement() throws {
-    let text = Text("กรุงเทพมหานคร อมรรัตนโกสินทร์")
-    let bare = try textMeasure({ $0 }, text)
-    let thai = try textMeasure({ $0.environment(\.locale, Locale(identifier: "th_TH")) }, text)
-    let english = try textMeasure({ $0.environment(\.locale, Locale(identifier: "en_US")) }, text)
-    let control = try textMeasure({ $0 }, text.font(size: 26))
-
-    try #require(control.max != bare.max, "the control font must measure differently")
-    #expect(thai.min == bare.min)
-    #expect(thai.max == bare.max)
-    #expect(english.min == bare.min)
-    #expect(english.max == bare.max)
 }
