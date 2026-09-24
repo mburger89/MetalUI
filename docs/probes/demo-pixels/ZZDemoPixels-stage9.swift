@@ -12,7 +12,7 @@
 // `b9a5d7f` the two chrome images were equal (0 differing), so the head's
 // `chrome-legacy` against `b9a5d7f`'s is the check that the one remaining
 // path draws what the legacy one drew. `compare.sh` picks this copy for a
-// commit whose `Tests/MetalUITests/Fakes.swift` has no `layoutAuthority:`
+// commit whose `Tests/MetalUITests/Fakes.swift` declares no `layoutAuthority: LayoutAuthority?`
 // parameter, and `ZZDemoPixels.swift` otherwise. Everything else — the
 // fourteen images, their sizes, their frame counts, the scene dump — is
 // byte-for-byte the original's; read that file's header for the method.

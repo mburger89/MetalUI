@@ -85,9 +85,10 @@ for c in "$@"; do
   rm -rf src-$sha && mkdir -p src-$sha
   git -C $REPO archive $c | tar -x -C src-$sha
   # Stage 9 (`LR-FG` item 7): a commit whose Fakes.swift has no
-  # `layoutAuthority:` parameter has no layout authority to choose, so it gets
+  # `layoutAuthority: LayoutAuthority?` parameter (a declaration, not a comment
+  # naming it) has no layout authority to choose, so it gets
   # the stage-9 copy, which renders the chrome pair twice under the one authority.
-  if grep -q 'layoutAuthority:' src-$sha/Tests/MetalUITests/Fakes.swift; then
+  if grep -q 'layoutAuthority: LayoutAuthority' src-$sha/Tests/MetalUITests/Fakes.swift; then
     cp $HERE/ZZDemoPixels.swift src-$sha/Tests/MetalUITests/ZZDemoPixels.swift
   else
     cp $HERE/ZZDemoPixels-stage9.swift src-$sha/Tests/MetalUITests/ZZDemoPixels.swift
