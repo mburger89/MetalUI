@@ -468,9 +468,10 @@ private func paddingStyle(_ points: Float) -> Style {
 /// changes `animLive`'s length; only this wrapper shows that the comparison sees
 /// ONE inner layer that skipped the helper, lane 2's likeliest bug.
 ///
-/// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §38, disposition P-CSS): its one test compares a chain with
-/// hand-built legacy boxes, and passes `.legacy` explicitly.
+/// **A Dual fixture since stage 7b** (record §49 §6.2, N2.2): under the
+/// proposal authority it lowers through `lowerLegacyNode` at site `box`, as
+/// `Box` does, still without the `animated` call; under the legacy one it
+/// registers through `Frame`'s internal legacy registrar (stage 6a, P-CSS).
 private struct BoxWithoutAnimated<Content: ElementGroup>: StyledElement {
     var style: Style
     var decoration = Decoration()
@@ -492,7 +493,9 @@ private struct BoxWithoutAnimated<Content: ElementGroup>: StyledElement {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         // `Box.requestLayout` calls `animated(style, decoration, for: id, pass:)` here.
-        let node = pass.frame.requestNode(style: style, children: children)
+        let node = pass.lowersToProposal
+            ? pass.lowerLegacyNode(style, declared: style, children: children, site: .box)
+            : pass.frame.requestNode(style: style, children: children)
         return (node, Layout(node: node, content: contentLayout))
     }
 
@@ -711,6 +714,158 @@ private func frameStyle(width: Float, height: Float) -> Style {
     #expect(chain.hitboxes == oracle.hitboxes, "hitboxes \(chain.hitboxes) vs \(oracle.hitboxes)")
     #expect(chain.rects == oracle.rects)
     #expect(chain.nodeCount == oracle.nodeCount)
+    #expect(chain.layerIDs == oracle.layerIDs)
+    #expect(chain.animLive == oracle.animLive)
+}
+
+/// **A modifier chain is observationally identical to hand-built nested
+/// `Box`es under the proposal authority** — N2.2 of stage 7b (record §49 §4
+/// row 231, spec §6 lane 2): ruling MC-B's oracle, the retired
+/// `aModifierChainIsIdenticalToHandBuiltNestedBoxes`'s chain and nested `Box`es
+/// unchanged, rendered under `.proposal`, so the chain's layers go through the
+/// layer lowering and each oracle `Box` through `lowerLegacyNode` at site
+/// `box` (`BoxWithoutAnimated` too, made Dual for this test).
+///
+/// **Every disagreeing oracle — paddings swapped, `.id` moved, a click
+/// dropped, a layer fewer, a layer that skips `animated` at an equal count,
+/// the radii exchanged, the inner fills reordered — is `try #require`d to
+/// disagree with the oracle before the chain is compared with it** (practices
+/// shape 15). **The retired test's node-count comparison is not carried**
+/// (`LR-EN`; the comment at the comparisons).
+///
+/// Red-before (record §49 §6.2, M2.2): `ModifiedElement`'s inner paint loop
+/// run innermost-first (the retired test's N8).
+@Test @MainActor func aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority() throws {
+    let chain = try observe(authority: .proposal) { log in
+        Row {
+            CountingLeaf("leaf", log: log)
+                .background(.accent).onClick {}
+                .padding(4).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                .frame(width: 60, height: 40)
+                .background(.surface).cornerRadius(5).onClick {}
+                .padding(8)
+                .background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+    let oracle = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        CountingLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+    let paddingsSwapped = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(4), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(8), content:
+                        CountingLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+    let idMoved = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        CountingLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}.id("mid")
+        }
+    }
+    let clickDropped = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        CountingLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5)
+            ).background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+    let animSkipped = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                BoxWithoutAnimated(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        CountingLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+    let layerFewer = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: paddingStyle(4), content:
+                    CountingLeaf("leaf", log: log).background(.accent).onClick {}
+                ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+            ).background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+
+    // The radii-swapped oracle: the padding-4 layer's radius and the outermost
+    // layer's exchanged, every other declaration unchanged.
+    let radiiSwapped = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        CountingLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(9)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(3).onClick {}
+        }
+    }
+
+    // Each disagreeing oracle must differ in the observation it is named for.
+    try #require(paddingsSwapped.rects != oracle.rects, "the rect comparison cannot fail")
+    try #require(idMoved.leafID != oracle.leafID, "the wrapped element's id comparison cannot fail")
+    try #require(idMoved.hitboxes.map(\.id) != oracle.hitboxes.map(\.id),
+                 "the hitbox id comparison cannot fail")
+    try #require(clickDropped.hitboxes.count != oracle.hitboxes.count,
+                 "the hitbox list comparison cannot fail")
+    try #require(layerFewer.layerIDs != oracle.layerIDs && layerFewer.animLive != oracle.animLive,
+                 "the $anim liveness comparison cannot fail")
+    // No node-count comparison under the proposal authority (record §49 §6.2,
+    // LR-EN): the frame layer lowers to ONE native frame, the oracle's
+    // `Box(style: frameStyle(...))` — a hand spelling of the LEGACY frame's
+    // CSS lowering, a one-cell `display: .stack` — to an overlay inside a fixed
+    // frame (`lowerShownLegacyNode`'s stack branch), so the two native trees
+    // differ by one node (7 against 8) by construction. One layer = one node is
+    // the legacy tree's shape (CSS-structure), as the T row of
+    // `legacyModifierChainsInferOneConcreteType` rules.
+    try #require(animSkipped.layerIDs == oracle.layerIDs, "the equal-count oracle must keep every layer id")
+    try #require(animSkipped.animLive == [true, false, true],
+                 "a layer that skips animated() must read dead at its own depth; read \(animSkipped.animLive)")
+    // Inner layers' corner radii and the order of their fills. The chain has
+    // TWO inner layers with backgrounds (padding 4, the frame), each with a
+    // radius unlike the outermost's, so a fill painted with the outermost
+    // layer's radius, or the inner fills emitted innermost-first, both move
+    // `rects`.
+    try #require(oracle.rects.count == 4, "outer, frame, padding-4 and leaf fills; read \(oracle.rects.count)")
+    try #require(radiiSwapped.rects != oracle.rects, "the corner-radius comparison cannot fail")
+    try #require(radiiSwapped.rects.map(\.withoutRadii) == oracle.rects.map(\.withoutRadii),
+                 "the radii-swapped oracle must differ from the oracle in radii alone")
+    var innerFillsSwapped = oracle.rects
+    innerFillsSwapped.swapAt(1, 2)
+    try #require(innerFillsSwapped != oracle.rects, "the inner-fill order comparison cannot fail")
+    // And the oracle itself has the shape the comparison is about.
+    try #require(oracle.animLive == [true, true, true], "every layer holds a live $anim slot")
+    try #require(oracle.hitboxes.count == 3)
+
+    #expect(chain.leafID == oracle.leafID, "leaf id \(chain.leafID) vs \(oracle.leafID)")
+    #expect(chain.leafBounds == oracle.leafBounds)
+    #expect(chain.hitboxes == oracle.hitboxes, "hitboxes \(chain.hitboxes) vs \(oracle.hitboxes)")
+    #expect(chain.rects == oracle.rects)
     #expect(chain.layerIDs == oracle.layerIDs)
     #expect(chain.animLive == oracle.animLive)
 }

@@ -513,6 +513,60 @@ private func widthInRow<Chain: Element>(authority: LayoutAuthority, rowWidth: Fl
             """)
 }
 
+/// **A frame around a `List` builds exactly the rows the unframed `List`
+/// builds, under the proposal authority** — N2.3 of stage 7b (record §49 §4
+/// row 197, spec §6 lane 2), the non-CSS half of the retired
+/// `aLegacyFrameAroundAListStillBuildsEveryRow` (no `ListLoweringTests` arm
+/// frames a `List`: grep). The CSS half — the framed rows keeping their 400pt
+/// width by the automatic minimum — dies with the CSS engine.
+///
+/// Forty 40pt rows in a `ScrollView` in a 400×600 window, sharing one
+/// `StateTable` across two frames. **The literal is derived from
+/// `List.visibleRange` before the run**: the lowered viewport fills its
+/// proposal on the scrolling axis (600, `LR-BC`), the offset is 0, so the
+/// window is `floor(0 / 40) − 2 … ceil(600 / 40) + 2`, clamped into `0..<40`:
+/// rows **0 through 16**, seventeen of the forty. The cold frame builds every
+/// row (`MP-I`: no measured viewport yet), which is the disagreeing control —
+/// `try #require`d to read all forty, unlike the warm frame.
+///
+/// Red-before (record §49 §6.2, M2.3): `visibleRange` returning `0..<count`
+/// (windowing off) — both warm arms read forty rows against the literal.
+@Test @MainActor func aFramedListBuildsTheRowsTheUnframedListBuildsUnderTheProposalAuthority() throws {
+    struct Datum: Identifiable { let id: String }
+    let data = (0..<40).map { Datum(id: "row-\($0)") }
+
+    func rowsBuilt<Wrapped: Element>(_ wrap: @escaping (List<[Datum], Mark>) -> Wrapped)
+        -> (cold: [Int], warm: [Int]) {
+        let log = SizeLog()
+        var root = ScrollView {
+            wrap(List(data, rowHeight: px(40)) { Mark($0.id, log: log, width: 400, height: 20) })
+        }
+        let size = Size(width: px(400), height: px(600))
+        let table = StateTable()
+        func built() -> [Int] {
+            log.bounds.keys
+                .compactMap { $0.hasPrefix("row-") ? Int($0.dropFirst(4)) : nil }
+                .sorted()
+        }
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&root)
+        let cold = built()
+        log.bounds.removeAll()
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&root)
+        return (cold, built())
+    }
+
+    let window = Array(0..<17)
+    let bare = rowsBuilt { $0 }
+    let framed = rowsBuilt { $0.frame(width: px(200)) }
+    try #require(bare.cold == Array(0..<40) && framed.cold == Array(0..<40),
+                 "the cold frame builds every row (MP-I): bare \(bare.cold.count), framed \(framed.cold.count)")
+    try #require(bare.cold != window, "the control must disagree with the windowed literal")
+
+    #expect(bare.warm == window, "the unframed list built \(bare.warm)")
+    #expect(framed.warm == window, "`.frame(width: 200)` built \(framed.warm)")
+    #expect(framed.warm == bare.warm, "framed \(framed.warm) against unframed \(bare.warm)")
+}
+
 // MARK: - 5.1 a single-child frame overflows (ruling CN-N, closing FR-N)
 
 /// Two legacy marks as ONE component, so a frame around it wraps two nodes —
@@ -1368,5 +1422,116 @@ private func insets(top: Float?, right: Float?, bottom: Float?, left: Float?) ->
         }
     }
     #expect(g.region == Rect(40, 80, 160, 40) && g.content == Rect(40, 80, 400, 40) && g.offset == 0,
+            "G: \(g)")
+}
+
+/// **A `ScrollView` inside a frame keeps its viewport and wheel, through a
+/// real `Window` at the default (proposal) authority** — N2.4 of stage 7b
+/// (record §49 §4 row 206, spec §6 lane 2), the retired
+/// `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel`'s four
+/// arms re-derived for the proposal engine (no `LoweringScrollTests` arm
+/// frames a `ScrollView`: grep). Each arm pre-flights the same tree in a
+/// 200×200 `Frame` with diagnostics on and `try #require`s an empty report
+/// before its `Window` opens (CLAUDE.md "a window test in a mode that traps
+/// pre-flights in a mode that reports").
+///
+/// **Literals, derived by hand before the run.** The `Row` (gap 0, cross
+/// axis centred) is the root and is centred at its own answer (`CN-J`). The
+/// lowered viewport answers its proposal on the scrolling axis and its
+/// content's answer on the other (`LR-BC`); a frame centres it unless told
+/// otherwise; content rects are layout rects, unscrolled.
+///
+/// - **A**, `ScrollView(.vertical) { c 80×400 }` in a 120×100 frame: the row
+///   is 150×100 at (25, 50), the frame at (55, 50), the viewport 80×100
+///   centred in it at (75, 50); c at (75, 50) 80×400; the wheel scrolls
+///   **37** (the CSS engine's viewport hugged its 400pt content and scrolled
+///   0).
+/// - **F**, A's scroll view in a `Box` declared 100 tall: the box hugs the
+///   viewport's 80 and stretches it to 100, so the same (75, 50) 80×100, c
+///   (75, 50), offset 37.
+/// - **H**, F's box in a 60×60 `.topLeading` frame: the row is 90×60 at (55,
+///   70), the frame at (85, 70), the 80×100 box at its top-leading corner:
+///   region (85, 70) 80×100, c (85, 70), offset 37.
+/// - **G**, `ScrollView(.horizontal) { c 400×40 }` in a `Box` declared 100
+///   wide in a 120×100 frame: the viewport takes the box's 100 on the
+///   scrolling axis and its content's 40 on the other; the 100×40 box centred
+///   in the frame at (65, 80): region (65, 80) 100×40, c (65, 80) 400×40,
+///   offset 37.
+///
+/// **The control**: A's scroll view over a 50pt-tall c, which fits its 100pt
+/// viewport and cannot scroll, `try #require`d to read an offset unlike A's
+/// (the instrument can see a scroll).
+///
+/// Red-before (record §49 §6.2, M2.4): `ScrollChrome.clamp(offset:content:viewport:)`
+/// returning 0.
+@Test @MainActor func aScrollViewInsideAFrameKeepsItsViewportAndWheelUnderTheProposalAuthority() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    func arm<Content: Element>(at x: Float, _ y: Float, horizontal: Bool = false,
+                               _ make: @escaping @MainActor (SizeLog) -> Content) throws
+        -> (region: Rect, content: Rect, offset: Double) {
+        var preflight = make(SizeLog())
+        let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
+                                layoutAuthority: .proposal, reportsUnlowerableFields: true)
+        diagnostics.render(&preflight)
+        try #require(diagnostics.unlowerableFields.isEmpty,
+                     "the pre-flight reported \(diagnostics.unlowerableFields.map(\.description))")
+        let log = SizeLog()
+        let (window, platform) = try makeFakeWindow(device: device, size: 200) { make(log) }
+        window.drawFrameIfNeeded()
+        let region = try #require(window.lastScrollRegions.first, "no scroll region registered")
+        let delta = horizontal ? Point(x: px(-37), y: px(0)) : Point(x: px(0), y: px(-37))
+        platform.simulateInput(.scrollWheel(ScrollEvent(position: Point(x: px(x), y: px(y)), delta: delta)))
+        window.drawFrameIfNeeded()
+        let offset = try #require(window.stateTable.peek(region.id, as: ScrollState.self)).offset
+        return (Rect(region.bounds), Rect(try #require(log.bounds["c"])), offset)
+    }
+
+    let a = try arm(at: 115, 100) { log in
+        Row {
+            Mark("pad", log: log, width: 30, height: 30)
+            ScrollView(.vertical) { Mark("c", log: log, width: 80, height: 400) }
+                .frame(width: px(120), height: px(100))
+        }
+    }
+    let fits = try arm(at: 115, 100) { log in
+        Row {
+            Mark("pad", log: log, width: 30, height: 30)
+            ScrollView(.vertical) { Mark("c", log: log, width: 80, height: 50) }
+                .frame(width: px(120), height: px(100))
+        }
+    }
+    try #require(a.offset != fits.offset, "neither arm's offset moved, so the wheel is unobserved: \(a.offset)")
+
+    #expect(a.region == Rect(75, 50, 80, 100) && a.content == Rect(75, 50, 80, 400) && a.offset == 37,
+            "A: \(a)")
+    let f = try arm(at: 115, 100) { log in
+        Row {
+            Mark("pad", log: log, width: 30, height: 30)
+            Box { ScrollView(.vertical) { Mark("c", log: log, width: 80, height: 400) } }
+                .height(px(100))
+                .frame(width: px(120), height: px(100))
+        }
+    }
+    #expect(f.region == Rect(75, 50, 80, 100) && f.content == Rect(75, 50, 80, 400) && f.offset == 37,
+            "F: \(f)")
+    let h = try arm(at: 120, 100) { log in
+        Row {
+            Mark("pad", log: log, width: 30, height: 30)
+            Box { ScrollView(.vertical) { Mark("c", log: log, width: 80, height: 400) } }
+                .height(px(100))
+                .frame(width: px(60), height: px(60), alignment: .topLeading)
+        }
+    }
+    #expect(h.region == Rect(85, 70, 80, 100) && h.content == Rect(85, 70, 80, 400) && h.offset == 37,
+            "H: \(h)")
+    let g = try arm(at: 115, 100, horizontal: true) { log in
+        Row {
+            Mark("pad", log: log, width: 30, height: 30)
+            Box { ScrollView(.horizontal) { Mark("c", log: log, width: 400, height: 40) } }
+                .width(px(100))
+                .frame(width: px(120), height: px(100))
+        }
+    }
+    #expect(g.region == Rect(65, 80, 100, 40) && g.content == Rect(65, 80, 400, 40) && g.offset == 37,
             "G: \(g)")
 }

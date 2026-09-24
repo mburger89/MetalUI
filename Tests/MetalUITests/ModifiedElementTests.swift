@@ -117,8 +117,9 @@ private struct LayerLeaf: StyledElement {
 /// what `String(describing:)` prints.
 ///
 /// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §38, disposition P-CSS): the one test that lays it out counts the
-/// legacy tree's nodes, and passes `.legacy` explicitly.
+/// (record §38, disposition P-CSS). Nothing lays it out since stage 7b trimmed
+/// `legacyModifierChainsInferOneConcreteType` (record §49 §4 row 229): only
+/// its type name and its chains' layer counts are read.
 private struct ChainLeaf: StyledElement {
     var style = Style()
     var decoration = Decoration()
@@ -280,7 +281,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 /// Three receivers, none of which mentions `LayerBase` or `_wrap`: a leaf, a
 /// `Component` (whose `.frame` then `.padding(4)` reaches `ModifiedElement`'s
 /// own `padding`), and an external generic group. The stored spellings
-/// typecheck, and the stored `Row`'s layers still register one node each.
+/// typecheck.
 ///
 /// Green on the skeleton, whose type was already flat; red on the nesting
 /// skeleton only as a build failure ("cannot assign value of type
@@ -294,7 +295,11 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 /// here, test 2's flat chain, and tests 3 and 5's run-time layer, avoid a
 /// `Pixels` padding on a chain.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4);
+/// **trimmed by stage 7b** (record §49 §4 row 229, T): the `.legacy` `Frame`
+/// that rendered the stored `Row` and read `nodeCount == 4` (one node per
+/// layer, the legacy tree's shape) is gone, so the test is authority-free; the
+/// `Row` stays as a compile-time assertion of its stored type.
 @Test @MainActor func legacyModifierChainsInferOneConcreteType() throws {
     let leafChain = ChainLeaf().padding(4).frame(width: 60).padding(Edges(all: .pixels(px(8)))).width(70)
     let componentChain = ChainComp().frame(width: 60).padding(4)
@@ -313,12 +318,9 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 
     let stored: ModifiedElement<ChainLeaf> = ChainLeaf().padding(4).frame(width: 60)
     #expect(stored.layerCount == 2)
-    var row: Row<ModifiedElement<ChainLeaf>> = Row {
+    let _: Row<ModifiedElement<ChainLeaf>> = Row {
         ChainLeaf().frame(width: 60).padding(Edges(all: .pixels(px(8))))
     }
-    let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1, layoutAuthority: .legacy)
-    frame.render(&row)
-    #expect(frame.tree.nodeCount == 4, "the row, two layers and the leaf; got \(frame.tree.nodeCount)")
 }
 
 // MARK: - 2: generic code over a chain (ruling MC-B)
@@ -474,6 +476,158 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
         #expect(chain.hitboxes == oracle.hitboxes, "\(label): hitboxes \(chain.hitboxes) vs \(oracle.hitboxes)")
         #expect(chain.rects == oracle.rects, "\(label): rects")
         #expect(chain.nodeCount == oracle.nodeCount, "\(label): nodes \(chain.nodeCount) vs \(oracle.nodeCount)")
+        #expect(chain.layerIDs == oracle.layerIDs, "\(label): layer ids")
+        #expect(chain.animLive == oracle.animLive, "\(label): $anim liveness \(chain.animLive)")
+    }
+}
+
+/// **A `.padding` written in generic code over a chain is identical to the
+/// flat chain under the proposal authority** — N2.1 of stage 7b (record §49
+/// §4 row 230, spec §6 lane 2), the non-CSS fact of the retired
+/// `aGenericWrapOverAChainIsIdenticalToTheFlatChain` (ruling MC-B) re-observed
+/// on the production path: same type, same layer count, and every observation
+/// `observe` takes, against the same hand-built nested `Box`es (each `Box`
+/// lowered by `lowerLegacyNode` at site `box`, the chain's layers by the
+/// layer lowering), rendered under `.proposal`.
+///
+/// **Every disagreeing oracle is `try #require`d to disagree with the oracle
+/// before any agreeing comparison is read** (practices shape 15): paddings
+/// swapped (rects), `.id("mid")` moved to the outermost layer (leaf id, hitbox
+/// ids), the frame layer's `onClick` dropped (hitbox list), the frame layer
+/// omitted (layer ids, `$anim` liveness), the radii exchanged (radii alone),
+/// and the inner fills reordered. **The retired test's node-count comparison
+/// is not carried** (`LR-EN`; the comment at the comparisons).
+///
+/// Red-before (record §49 §6.2, M2.1): `_wrap` replacing the outermost layer
+/// instead of appending one.
+@Test @MainActor func aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority() throws {
+    func flatChain(_ log: LayerLog) -> ModifiedElement<LayerLeaf> {
+        LayerLeaf("leaf", log: log)
+            .background(.accent).onClick {}
+            .padding(4).id("mid").background(.surfaceSecondary).cornerRadius(3)
+            .frame(width: 60, height: 40)
+            .background(.surface).cornerRadius(5).onClick {}
+            // `Edges`, not `Pixels`, for test 1's reason (a `Pixels` padding on
+            // a chain would stop compiling under its mutation).
+            .padding(Edges(all: .pixels(px(8))))
+            .background(.separator).cornerRadius(9).onClick {}
+    }
+    func genericChain(_ log: LayerLog) -> ModifiedElement<LayerLeaf> {
+        wrapInPadding8(
+            LayerLeaf("leaf", log: log)
+                .background(.accent).onClick {}
+                .padding(4).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                .frame(width: 60, height: 40)
+                .background(.surface).cornerRadius(5).onClick {}
+        )
+        .background(.separator).cornerRadius(9).onClick {}
+    }
+    let probeLog = LayerLog()
+    let flatValue = flatChain(probeLog), genericValue = genericChain(probeLog)
+    try #require(name(genericValue) == name(flatValue),
+                 "generic \(name(genericValue)) vs flat \(name(flatValue))")
+    try #require(flatValue.layerCount == 3 && genericValue.layerCount == 3,
+                 "layers: flat \(flatValue.layerCount), generic \(genericValue.layerCount)")
+
+    let flat = try observe(authority: .proposal) { log in Row { flatChain(log) } }
+    let generic = try observe(authority: .proposal) { log in Row { genericChain(log) } }
+    let oracle = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        LayerLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+    let paddingsSwapped = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(4), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(8), content:
+                        LayerLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+    let idMoved = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        LayerLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}.id("mid")
+        }
+    }
+    let clickDropped = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        LayerLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5)
+            ).background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+    let layerFewer = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: paddingStyle(4), content:
+                    LayerLeaf("leaf", log: log).background(.accent).onClick {}
+                ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+            ).background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+    let radiiSwapped = try observe(authority: .proposal) { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        LayerLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(9)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(3).onClick {}
+        }
+    }
+
+    // Every disagreeing oracle first.
+    try #require(paddingsSwapped.rects != oracle.rects, "the rect comparison cannot fail")
+    try #require(idMoved.leafID != oracle.leafID, "the wrapped element's id comparison cannot fail")
+    try #require(idMoved.hitboxes.map(\.id) != oracle.hitboxes.map(\.id),
+                 "the hitbox id comparison cannot fail")
+    try #require(clickDropped.hitboxes.count != oracle.hitboxes.count,
+                 "the hitbox list comparison cannot fail")
+    try #require(layerFewer.layerIDs != oracle.layerIDs && layerFewer.animLive != oracle.animLive,
+                 "the $anim liveness comparison cannot fail")
+    // No node-count comparison under the proposal authority (record §49 §6.2,
+    // LR-EN): the frame layer lowers to ONE native frame, the oracle's
+    // `Box(style: frameStyle(...))` — a hand spelling of the LEGACY frame's
+    // CSS lowering, a one-cell `display: .stack` — to an overlay inside a fixed
+    // frame (`lowerShownLegacyNode`'s stack branch), so the two native trees
+    // differ by one node (7 against 8) by construction. One layer = one node is
+    // the legacy tree's shape (CSS-structure), as the T row of
+    // `legacyModifierChainsInferOneConcreteType` rules.
+    try #require(oracle.rects.count == 4, "outer, frame, padding-4 and leaf fills; read \(oracle.rects.count)")
+    try #require(radiiSwapped.rects != oracle.rects, "the corner-radius comparison cannot fail")
+    try #require(radiiSwapped.rects.map(\.withoutRadii) == oracle.rects.map(\.withoutRadii),
+                 "the radii-swapped oracle must differ from the oracle in radii alone")
+    var innerFillsSwapped = oracle.rects
+    innerFillsSwapped.swapAt(1, 2)
+    try #require(innerFillsSwapped != oracle.rects, "the inner-fill order comparison cannot fail")
+    try #require(oracle.animLive == [true, true, true], "every layer holds a live $anim slot")
+    try #require(oracle.hitboxes.count == 3)
+
+    for (label, chain) in [("generic", generic), ("flat", flat)] {
+        #expect(chain.leafID == oracle.leafID, "\(label): leaf id \(chain.leafID) vs \(oracle.leafID)")
+        #expect(chain.leafBounds == oracle.leafBounds, "\(label): leaf bounds")
+        #expect(chain.hitboxes == oracle.hitboxes, "\(label): hitboxes \(chain.hitboxes) vs \(oracle.hitboxes)")
+        #expect(chain.rects == oracle.rects, "\(label): rects")
         #expect(chain.layerIDs == oracle.layerIDs, "\(label): layer ids")
         #expect(chain.animLive == oracle.animLive, "\(label): $anim liveness \(chain.animLive)")
     }
