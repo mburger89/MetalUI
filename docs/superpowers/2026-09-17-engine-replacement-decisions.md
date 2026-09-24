@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DZ`** (stage 7a's design took `LR-DS`…`LR-DX` and its critic round 1 `LR-DY`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-EA`** (stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY` and its lane 1 `LR-DZ`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -7374,3 +7374,37 @@ cannot move; the legacy engine and every `.legacy` test stay (7b, 9).
 that cannot see their value — the failure `LR-DS` exists to prevent. Without item
 3 a later stage lowering `flexBasis` or `maxSize` could read 7a's D verdict as
 "nothing to test".
+
+## LR-DZ — stage 7a lane 1: the flex R arms land as designed; the pixel controls are `2cc763d`'s, not record §41's
+
+**Lane 1 (2026-09-23, PDT), record §42 §6.1.** Tests 1.1–1.8 (29 arms) and the
+`goldenArm` harness landed at `43a490a` exactly as spec §6 designs them, green
+on arrival (`LR-DW`); M1a–M1h each reddened exactly the arms the spec predicts,
+M1g's four "recorded, not required" arms included, and MH turned 1.1 green with
+the `try #require` gone and red again with it restored. No deviation in the
+tests or the harness.
+
+**The one correction.** Spec §7's pixel row and `LR-DX` ask for "every control
+as record §41 read it". Record §41 read the controls at `aef88ce`, the
+**pre-switch** base (§12.6, and its branch checker's `compare.sh aef88ce HEAD`);
+`compare.sh` prints them at its **first** commit, which for stage 7a is
+`2cc763d`, where production already runs the proposal engine. There three read
+differently — default vs modal **1031003** (1030498 at `aef88ce`), default vs
+animation **454895** (210027), prod default vs modal **491221** (491923) — and
+the rest as before. Measured, not assumed: `compare.sh aef88ce 2cc763d` on the
+same machine reads every `aef88ce` control at its bracketed value and all
+fourteen images at record §41 §12.6's numbers, so the harness reproduces §41 and
+the three are the switch's own image moves. **The ruling:** stage 7a's controls
+are the `2cc763d` values of record §42 §6.1 (light vs dark 1048576, 1031003,
+454895, f0 vs f3 0, preview 1048576, chrome 0, distinct 544 / 216, prod
+491221, distinct 529, indicator rects 0), and each lane's comparison
+`compare.sh <scratch> 2cc763d HEAD` must read them and 0 px in all fourteen
+images. The script's bracketed expectations are not edited (they document
+`aef88ce`, and `docs/probes/` scripts are not this stage's to respell).
+
+**Rejected.** *Treat the three as a harness fault and stop.* Rejected: the
+`aef88ce → 2cc763d` cross-check reproduces every number §41 recorded.
+
+**What it costs if wrong.** A later lane reading the bracketed values would
+report a false pixel regression at the base commit, or wave a real one through
+as "the known switch drift".

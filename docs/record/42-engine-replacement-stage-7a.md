@@ -3,7 +3,7 @@
 Plan task 7, stage 7a (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 7a,
 §8). Design: `docs/superpowers/specs/2026-09-23-engine-stage-7a-design.md`.
-Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`) in
+Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`; lane 1: `LR-DZ`) in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md`. Branch
 `feat/engine-stage-7a` from `2cc763d`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-7a`. Probe:
@@ -386,3 +386,70 @@ The gated tests fall from five to four (`regenerateAllGoldens` goes with
 ## 6. Lanes
 
 (appended by the lanes)
+
+### 6.1 Lane 1 — flex R arms (2026-09-23, PDT)
+
+**Commits.** `43a490a` — `Tests/MetalUITests/GoldenReplacementSupport.swift`
+(`GoldenBox`, `goldenArm`, the `g`-prefixed tree vocabulary) and
+`GoldenReplacementFlexTests.swift` (tests 1.1–1.8, **29 arms**, each its golden's
+own `Box(style:)` tree with §5.1's literals); this record section and `LR-DZ`
+in the commit after it. No `Sources/` change (`git diff 2cc763d -- Sources`
+empty), nothing under `Tests/PortableTests` or `Backends`.
+
+**Red-before.** Characterization (`LR-DW`): all eight tests were **green on
+arrival** — there is no red line to record for the tests themselves; their
+red-before is the mutation table below. Suite at `43a490a`, build 0 `error:`,
+the one `warning:` SwiftPM's deprecation notice: **`Test run with 1712 tests in
+3 suites passed after 98.150 seconds`**, `FR-J no-argument frame:
+succeeded=true` in the log. **1712 = 1704 + 8**, as §5.3 expects after lane 1.
+
+**Mutations.** Each applied to `43a490a`'s `Sources/MetalUI/LegacyLowering.swift`
+(the one spelling quoted), restored from a copy, full unfiltered `swift test
+--build-system native --no-parallel`, `git status --short` empty after each
+restore. Every one reddened exactly its predicted arms (spec §6's lane-1 table);
+the reddened tests are listed in full, the lane's own in **bold**.
+
+| id | spelling applied | issues | tests reddened | arms reddened (the arm's boxes that moved) |
+|---|---|---|---|---|
+| M1a | `var spacing = gap` → `var spacing = 0.0` | 123 | **`fixedItemsPackFromTheMainStartAtTheirOwnSizesAndGap`**, `aGrowingChildTakesTheRemainingMainSpace`, `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap`, `aLoweredContainerPaddingSitsInsideItsDeclaredSize`, `aLoweredContainerSpacesItsChildrenByTheGapOnItsMainAxis`, `aLoweredRowAndColumnAgreeWithTheLegacyContainersOverFixedChildren`, `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault`, `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths`, `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`, `aLoweredWindowPublishesTheSameAccessibilityTree`, `aPresentationPlaceholderIsDroppedByEveryLoweredContainer`, `aProposalElementInsideALoweredContainerLaysOutUnderTheProposalAuthorityAndTrapsUnderTheLegacyOne`, `aReverseContainerPlacesItsChildrenFromTheMainEnd`, `gapIsPerAxisAndTheRowReadsTheHorizontalOne`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (18) | `flex_row_gap` only (y 72→60, z 174→150) |
+| M1b | `let betweenCount = distribution == .spaceAround ? 2 : 1` → `let betweenCount = 1` | 11 | **`justifyContentDistributesADeclaredMainSizesFreeSpace`**, `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `spaceAroundAndSpaceEvenlyLowerToSpacersWhileTheyFit` (3) | `flex_row_justify_around` only (a 40→60, c 310→290 — evenly's numbers) |
+| M1c | `alignmentFactor(_: AlignItems?)`: `case .flexEnd: 1` → `0` | 39 | **`alignItemsAndAlignSelfPlaceEachItemOnTheCrossAxis`**, `aHiddenChildKeepsItsSpaceUnderTheProposalAuthority`, `aLoweredRowAndColumnAgreeWithTheLegacyContainersOverFixedChildren`, `aLoweredSizedContainerPlacesItsContentByJustifyContentAndAlignItems`, `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes`, `aStretchedContainersContentSitsByItsOwnAlignment` (6) | `flex_row_align_end_with_self` a (y 80→0) and c (y 60→0) |
+| M1d | `if declared.flexDirection.isReverse { nodes.reverse() }` deleted | 68 | **`aReverseDirectionPacksItemsFromTheMainEnd`**, **`marginsOffsetEachItemOutsideItsBorderBox`**, `aGrownReverseContainerPlacesFromTheMainEndOfItsItemFrame`, `aReverseContainerOverflowsTowardItsMainStart`, `aReverseContainerPlacesItsChildrenFromTheMainEnd`, `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder` (7) | `flex_row_reverse`, `flex_column_reverse_justify_end` (all three boxes each); 1.6's `flex_row_reverse_margins`, `flex_column_reverse_margins`, `flex_row_reverse_stretch` (all three boxes each) |
+| M1e | `paddedAndSized`'s `inset(_:_:)`: `resolvedLength(padding) + resolvedLength(border)` → `resolvedLength(padding)` | 16 | **`paddingAndBorderInsetTheContentBoxEdgeByEdge`**, `aStyleBorderLowersAsInsetsInsideTheDeclaredSize` (2) | all three: `flex_row_padding_border` (a, b, c), `flex_column_padding_asymmetric` (a, b, c), `flex_nested_padding` (mid, g1, g2, sib) |
+| M1f | `planLegacyItems`' `marginInsets`: `right: marginEdge(a.margin.right)` / `left: marginEdge(a.margin.left)` swapped | 26 | **`marginsOffsetEachItemOutsideItsBorderBox`**, `aMarginLowersAsPaddingOutsideTheItem` (2) | the five with unequal horizontal margins: `flex_row_margins`, `flex_row_margin_with_grow`, `flex_row_reverse_margins`, `flex_column_reverse_margins`, `flex_row_grow_space_between_margins`; **not** `flex_row_stretch_with_margins`, `flex_row_stretch_min_height_margins`, `flex_row_reverse_stretch` |
+| M1g | the `if greedy` branch's `return (lo, Swift.max(lo ?? 0, Swift.max(0, resolvedDimension(animatedMax) ?? .infinity)))` → `return (lo, .infinity)` | 20 | **`equalGrowersShareTheLineAndAMaximumCapsItsGrower`**, **`alignItemsAndAlignSelfPlaceEachItemOnTheCrossAxis`**, **`marginsOffsetEachItemOutsideItsBorderBox`**, `aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere`, `aStretchedItemIsClampedByItsOwnMinimumAndMaximum` (5) | required: `flex_row_grow_with_max`, `flex_column_grow_with_max` (a, b, c each); expected and seen: `flex_row_stretch_mixed` (d), `flex_row_stretch_with_margins` (b), `flex_row_grow_space_between_margins` (a, b), `flex_row_reverse_stretch` (c) |
+| M1h | the `if greedy` branch's `let lo = resolvedDimension(animatedMin) ?? (stretched ? 0 : nil)` → `?? 0` | 5 | **`autoMainSizesSumTheirContentAndAGrowerIsFlooredByIt`**, `aZeroBasisGrowerTakesItsShareDownToItsContent` (2) | `flex_item_floored_by_content` (squeezed 80→50, other 20→50 wide at 50) |
+
+No mutation reddened a golden consumer (`OracleTests`/`GeneratorTests` run the
+CSS engine, which none of these lines reaches), and no mutation reddened a test
+of the lane's that its table did not predict.
+
+**MH — the harness decision.** Two runs, both full and unfiltered. (a) In
+`GoldenReplacementSupport.swift` the missing-id `try #require(matches.count == 1,
+…)` replaced by `guard matches.count == 1 else { continue }`, and in 1.1's
+`flex_row_three_fixed` literal `y:60,0,90x30` renamed `yy:60,0,90x30`: **`Test
+run with 1712 tests in 3 suites passed`** — the arm names an id its tree never
+declares and goes green (the broken instrument). (b) The `try #require`
+restored, the rename kept: **1 issue**, `fixedItemsPackFromTheMainStartAtTheirOwnSizesAndGap`
+only, `flex_row_three_fixed: id "yy" names 0 elements, not one`. Both files
+restored from the copy; `git status --short` empty.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 2cc763d 43a490a`:
+**0 differing and scene identical in all fourteen images** (the twelve `CN-R`
+images and the two `prod-*`). Controls at `2cc763d`: light vs dark 1048576;
+default vs modal **1031003**; default vs animation **454895**; f0 vs f3 0;
+preview light vs dark 1048576; chrome legacy vs proposal 0; distinct 544 / 216;
+prod default vs modal **491221**, distinct `prod-default-light` 529; indicator
+rects 0. Three differ from the bracketed values the script prints, which record
+§41 read at **`aef88ce`**, the pre-switch base — not at `2cc763d`. Cross-check,
+`compare.sh <scratch> aef88ce 2cc763d` on this machine: every control at
+`aef88ce` reads its bracketed value exactly (1030498, 210027, 491923, …), and
+the fourteen images read record §41 §12.6's numbers exactly (168380 × 4, 172126,
+172105, 341608, 341606, preview and chrome 0, 95649, 100745). So the three are
+the stage-6b switch moving the default, modal and animation images differently,
+not a harness fault; spec §7's "every control as record §41 read it" is
+corrected by `LR-DZ` to the `2cc763d` values above.
+
+**Deferrals.** None from lane 1. `DemoFrameDeterminismTests`' `theDemoFrameMatchesTheValuesRecordedOnMacOS`
+stays green and unedited (it reddened only under M1a, as a sibling of the
+demo's gap).

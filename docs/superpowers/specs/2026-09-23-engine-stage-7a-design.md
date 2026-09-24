@@ -1,7 +1,7 @@
 # Engine replacement, stage 7a — the goldens retired (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 7a, §8. Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`) in
+§4.1 row 7a, §8. Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`; lane 1: `LR-DZ`) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Record: `docs/record/42-engine-replacement-stage-7a.md` (its §4 is the 97-row
 retirement table this design commits). Probe:
@@ -221,7 +221,7 @@ Runs only when lanes 1 and 2 are committed and green in an unfiltered run.
 | must not move | pinned by |
 |---|---|
 | production behaviour, identity, hit testing, accessibility, animation | no `Sources/` code change (`git diff 2cc763d -- Sources` = `///` lines of `roundLayout`'s doc comment only) |
-| pixels | `docs/probes/demo-pixels/compare.sh <scratch> 2cc763d <HEAD>`: all twelve images **0 px**, every control as record §41 read it |
+| pixels | `docs/probes/demo-pixels/compare.sh <scratch> 2cc763d <HEAD>`: all twelve images **0 px**, every control at its `2cc763d` value (`LR-DZ`: record §41 read them at `aef88ce`; record §42 §6.1 lists the `2cc763d` values) |
 | cross-platform demo pin | `DemoFrameDeterminismTests` green and unedited (`git diff 2cc763d -- Tests/PortableTests Backends` empty) |
 | every non-golden test's assertion | lane 3's diff of the five surviving consumer files touches only removed consumers, `assertMatchesGolden` and the trimmed test's two golden lines |
 | 0 `warning:` | both build systems, as at baseline |
