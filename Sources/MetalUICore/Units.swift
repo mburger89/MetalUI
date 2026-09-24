@@ -51,8 +51,9 @@ public enum Length: Hashable, Sendable {
     case rems(Rems)
 
     /// A **fraction** of the containing block, not a percentage: `0.5` is half.
-    /// `resolveLength` is `f * parent`, and every call site in `Sources/` and
-    /// in the layout fixtures passes `0.5`, `0.25`, `0.10`.
+    /// It resolves to `f * parent` (the CSS engine's `resolveLength`, deleted at
+    /// stage 9, and the lowering's own reading; a lowered percentage reports by
+    /// name), and every call site in `Sources/` passes `0.5`, `0.25`, `0.10`.
     ///
     /// **`MetalUI`'s `width(fraction:)`/`height(fraction:)`/`flexBasis(fraction:)`
     /// forward their argument to this case untouched**, pinned on the legacy

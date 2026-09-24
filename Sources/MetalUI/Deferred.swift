@@ -39,21 +39,19 @@ import MetalUILayout
 /// covers, so windowing against that content's offset is wrong in the same way
 /// sliding with it would be.
 ///
-/// **Its layout meaning, per authority** (plan task 7, stage 5, rulings `LR-CH`,
-/// `LR-CI`, `LR-CM`). Under the legacy authority none: the content is an ordinary
-/// member of its parent's flow, and what takes a box out of flow and places it
-/// against the window is `.position(.absolute)` with no positioned ancestor.
-/// Under the proposal authority the same holds for an **in-flow** content (it
-/// already lowers to the legacy answer), and a `Deferred` whose content is
-/// `.position(.absolute)` becomes a **presentation root**: the content is lowered
+/// **Its layout meaning** (plan task 7, stage 5, rulings `LR-CH`, `LR-CI`,
+/// `LR-CM`; one authority since stage 9). An **in-flow** content is an ordinary
+/// member of its parent's flow. A `Deferred` whose content is
+/// `.position(.absolute)` is a **presentation root**: the content is lowered
 /// as padding inside a window-sized frame, laid out in its own native run before
 /// the frame's root, and this element hands its parent a 0×0 placeholder that
 /// every lowered container drops — SwiftUI's window-root overlay (probe
 /// `swiftui-overlay-presentation.swift` Q1–Q6), outside the presenter's layout as
-/// a sheet is (P4/P5). A tree whose legacy containing block is not the window
-/// reports `deferred.containingBlock`, `deferred.nested` or `deferred.root`
-/// (`LR-CL`). The paint and prepaint halves and the scroll-context reset are
-/// unchanged and authority-independent.
+/// a sheet is (P4/P5). Its containing block is the window whatever surrounds it
+/// (stage 9, `LR-FF`: the `deferred.containingBlock`, `.nested` and `.root`
+/// reports of `LR-CL` protected a legacy containing block and went with the
+/// legacy engine). The paint and prepaint halves and the scroll-context reset are
+/// unchanged.
 public struct Deferred<Content: Element>: Element {
     public var elementID: ElementID?
     public var content: Content
@@ -70,9 +68,6 @@ public struct Deferred<Content: Element>: Element {
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, LayoutState) {
         var cursor = 0
-        // Stage 5 (ruling `LR-CL`): presentations registered before this one's
-        // content, so a presentation registered INSIDE it can be told apart.
-        let presentationsBefore = pass.frame.lowering.presentations.count
         // The portal's third half, and it runs in THIS phase rather than in
         // the two below. `pass.deferred` resets the clip stack and the
         // accumulated scroll translation for prepaint and paint; nothing reset
@@ -89,40 +84,33 @@ public struct Deferred<Content: Element>: Element {
         // becomes `Deferred`'s own node, reached through `content`'s own
         // derived child identity rather than `Deferred`'s.
         let node = nodes[0]
-        // Under the proposal authority an ABSOLUTE content makes this `Deferred`
-        // a presentation root (plan task 7, stage 5, ruling `LR-CH`); an in-flow
-        // content lowers exactly as it always has, and so does everything under
-        // the legacy authority.
-        guard pass.lowersToProposal, let item = pass.frame.lowering.items[node],
+        // An ABSOLUTE content makes this `Deferred` a presentation root (plan
+        // task 7, stage 5, ruling `LR-CH`); an in-flow content lowers exactly as
+        // it always has.
+        guard let item = pass.frame.lowering.items[node],
               item.declared.position == .absolute
         else { return (node, LayoutState(content: contentLayout)) }
-        return (presentationPlaceholder(for: node, item, presentationsBefore: presentationsBefore,
-                                        pass: &pass),
+        return (presentationPlaceholder(for: node, item, pass: &pass),
                 LayoutState(content: contentLayout))
     }
 
-    /// The proposal-authority half of `requestLayout` for an absolute content
-    /// (rulings `LR-CH`, `LR-CK`, `LR-CL`): checks for a presentation nested in
-    /// this one, consumes the content's record, lowers it into its own
+    /// The presentation half of `requestLayout` for an absolute content
+    /// (rulings `LR-CH`, `LR-CK`): consumes the content's record, lowers it into its own
     /// presentation root against the window (`LayoutPass.lowerPresentation`),
     /// queues that root for `Frame.computeRootLayout` (`LR-CM`) and returns the
     /// 0×0 placeholder every lowered container drops.
     ///
     /// **The placeholder is aliased to the content's element rect**, resolved now
     /// (its W when a stretched axis registered one), so this `Deferred`'s own
-    /// `elementBounds` row is its content's — as under the legacy authority, where
-    /// the two share one node.
+    /// `elementBounds` row is its content's — as under the legacy authority
+    /// (until stage 9), where the two shared one node.
     private func presentationPlaceholder(for node: LayoutNodeID, _ item: LoweredItem,
-                                         presentationsBefore: Int,
                                          pass: inout LayoutPass) -> LayoutNodeID {
         let frame = pass.frame
-        // Any presentation registered inside has this one as a positioned
-        // ancestor, whose padding box is the legacy containing block. It is the
-        // window only when this content covers the window (`LR-CL`).
-        if frame.lowering.presentations.count > presentationsBefore
-            && !pass.presentationCoversWindow(item.declared) {
-            frame.noteUnlowerable(UnlowerableField(site: .deferred, field: "nested"))
-        }
+        // A presentation registered inside this one is laid out against the
+        // window too, like every presentation (stage 9, `LR-FF`: the
+        // `deferred.nested` report protected a legacy containing block that is
+        // gone with the legacy engine).
         _ = frame.lowering.consume(node)
         let root = pass.lowerPresentation(node, item)
         let placeholder = frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }

@@ -621,11 +621,9 @@ public func demoContent() -> some Element {
                 Text("Text renders").font(size: 22)
 
                 // **The wrapping path.** No width is declared: the column's
-                // `.alignItems(.stretch)` below gives this leaf the pane's
-                // content width as a definite cross extent, `flexBaseSize`
-                // offers that same extent when it measures the leaf's height,
-                // and `textMeasure`'s `.definite(w)` row typesets at it — so
-                // the paragraph re-wraps on every horizontal resize with no
+                // `.alignItems(.stretch)` below lowers to a cross-axis frame
+                // that proposes the pane's content width to this leaf, and the
+                // lowered text measurement wraps at it — so the paragraph re-wraps on every horizontal resize with no
                 // constant in this file naming a width. The string is long
                 // enough to take three or more lines at the 920pt default and
                 // to change its line count well before the window reaches its

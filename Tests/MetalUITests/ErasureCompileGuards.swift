@@ -237,8 +237,15 @@ func backgroundCannotBeCalledOnAComponent() throws {
 
 // MARK: - Fact 5 (fix wave): `LayoutPass.style`/`setStyle` are not public
 
-/// `LayoutPass.style(_:)` and `setStyle(_:_:)` are `internal`, and this is the
-/// only artifact that can say so. They read back and overwrite the `Style` of
+/// **Stage 9** (`LR-FC`, `LR-FG` item 6): both accessors are deleted with the
+/// legacy engine, and the guard is re-spelled to read their **absence** — the
+/// fixture fails with "has no member 'style'", where `contains("style")` alone
+/// would pass for an access-level rejection or for nothing. Mutation **M3f**:
+/// an internal `func style(_:)` restored on `LayoutPass` makes the message the
+/// access-level one, and the guard red. The history below is the fix wave's.
+///
+/// `LayoutPass.style(_:)` and `setStyle(_:_:)` were `internal`, and this was the
+/// only artifact that could say so. They read back and overwrite the `Style` of
 /// any `LayoutNodeID` a caller can name — a sibling's, a parent's — during the
 /// request phase; as `public` they would hand every out-of-module element that
 /// reach, for one in-module caller (`StyledComponent`, `Component.swift`).
@@ -280,8 +287,8 @@ func layoutPassStyleAccessorsAreNotPublic() throws {
         """, importing: "MetalUI")
     #expect(!result.succeeded,
             "`LayoutPass.style`/`setStyle` are reachable from outside MetalUI — they must stay internal:\n\(result.output)")
-    #expect(result.messages.contains("style"),
-            "rejected, but not for the reason this test is about:\n\(result.output)")
+    #expect(result.messages.contains("value of type 'LayoutPass' has no member 'style'"),
+            "rejected, but not because the accessor is gone:\n\(result.output)")
 }
 
 // MARK: - Fact 6 (Animation fix round 1): `Animation.pendingTransaction` is not public

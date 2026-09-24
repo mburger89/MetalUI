@@ -10,130 +10,28 @@ import MetalUITextSystem
 /// **Ruling TX-E, and it is a release crash rather than a note.**
 /// `Shaper.shape` preconditions on `width > 0` (spec §3.4: a non-positive width
 /// is an ill-formed request, not a narrower line), `precondition` is live in
-/// `-O`, and **a flex item shrinking to zero main size is an ordinary layout
-/// state**: §9.7 hands a `.definite(0)` available extent to any item on an
-/// over-full line whose share runs out. So the clamp lives here, at the measure
-/// function's boundary, where "as narrow as you can" is a real request — not in
-/// the shaper, where it would silently answer a different question than the one
-/// asked.
+/// `-O`, and a zero proposal is an ordinary layout state (a compressed stack
+/// child, a zero-width frame). So the clamp lives at the measurement's boundary
+/// (`proposalTextMeasurement`, and `paint`'s re-wrap), where "as narrow as you
+/// can" is a real request — not in the shaper, where it would silently answer a
+/// different question than the one asked.
 ///
 /// The value is arbitrary within `(0, one character wide)`: every width below
 /// the narrowest glyph produces the same character-per-line answer, measured at
-/// 0.001, 0.5, 1 and 5 (see ``MetalUIText/Shaper/unbreakableRuns(of:)``).
-/// 0.5 is the value Task 2's positive control already uses.
+/// 0.001, 0.5, 1 and 5. 0.5 is the value Task 2's positive control already
+/// uses.
 let smallestWrapWidth = 0.5
 
-/// Measures `string` the way spec §3.4's table says, for one axis' worth of
-/// question at a time.
+/// A run of text: the framework's first leaf.
 ///
-/// | `available.width` | wrapped at | width reported |
-/// |---|---|---|
-/// | `.maxContent` | nothing — one line per hard line break | the widest line |
-/// | `.minContent` | the widest unbreakable run | that run's width |
-/// | `.definite(w)` | `max(w, smallestWrapWidth)` | the widest resulting line |
-///
-/// **The max-content row said "one line" until it was measured wrong.** The
-/// unwrapped shape was a single `CTLine` for the whole string, so a label with
-/// a hard break (`"Ready\nSet\nGo"`) reported the **sum** of its lines — 75.004
-/// where every definite width at or above 37.565 reported 37.565 — and a
-/// centring `Column` placed its box on that width while `paint`, which re-wraps
-/// at the measured width and lays each line from the box's left edge, drew the
-/// ink about 19pt left of centre. The shaper now breaks at hard breaks with no
-/// width offered (see `Shaper.shape(_:font:wrappingAt:)`), so the row now
-/// gives the answer every definite width at or above the widest line gives.
-/// Pinned by `aLabelWithHardBreaksMeasuresItsWidestLineAtMaxContent`.
-///
-/// The min-content row is the one the design spec words differently — it says
-/// "typeset at a small positive width; the widest resulting line". Measured,
-/// that is not the same answer, and ``MetalUIText/Shaper/unbreakableRuns(of:)``
-/// carries the numbers: `CTTypesetterSuggestLineBreak` breaks *inside* a word it
-/// cannot fit, so a tiny width reports the widest **character** (11.489 for the
-/// sample below) where CSS's min-content — and §4.5's automatic minimum, whose
-/// whole purpose here is to stop a long label being squeezed until it breaks
-/// mid-word — needs the longest **run** (110.348).
-///
-/// `known` wins on either axis (§5.5): a `Text` with an explicit `.width(100)`
-/// is typeset at 100 and reports 100 whatever the content measures. That is
-/// `measureNode`'s existing contract rather than a new rule; `Text` is simply
-/// the first production leaf to exercise it.
-///
-/// **The height is always the height of the shape the width question produced**
-/// — `lines × lineHeight`, uniform in M2 because a `Text` carries one font at
-/// one size (§2). `available.height` is therefore not read: a text run's height
-/// is a consequence of the width it was wrapped at, so there is no separate
-/// min/max-content answer in the block axis. A `known.height` still wins, since
-/// the caller is then stating the box rather than asking for one.
-///
-/// **Two numbers that come from different shapes, on the `.minContent` branch
-/// alone.** The width reported there is the unbreakable-run width — 110.348 for
-/// `"a bb supercalifragilistic dd"` at 13pt — while the height is the shape at
-/// that width, whose widest line is 113.928 because a *trailing space* hangs
-/// past the break. Reporting 113.928 as min-content would fold a space nobody
-/// sees into §4.5's floor; reporting the run width and the shape's height is
-/// CSS's own split.
-@MainActor
-func textMeasure(_ string: String, font: FontKey, system: any TextSystem,
-                 known: OptionalSizeD, available: AvailableSpace) -> SizeD {
-    // The width the text is typeset at, and — on the min-content branch — the
-    // width to report, which is not the same number. See the doc comment.
-    let wrapWidth: Double?
-    var reportedWidth: Double?
-
-    if let knownWidth = known.width {
-        wrapWidth = max(knownWidth, smallestWrapWidth)
-        reportedWidth = knownWidth
-    } else {
-        switch available {
-        case .maxContent:
-            wrapWidth = nil
-        case .minContent:
-            // The widest unbreakable run, memoized per (string, font). `Shaper`
-            // character-breaks a word it cannot fit, so `shape(wrappingAt: tiny)`
-            // answers "the widest character" (11.489) where §4.5 needs "the
-            // longest word" (110.348) — hence runs rather than a narrow typeset.
-            let minContent = system.minContentWidth(string, font: font)
-            wrapWidth = max(minContent, smallestWrapWidth)
-            reportedWidth = minContent
-        case .definite(let offered):
-            wrapWidth = max(offered, smallestWrapWidth)
-        }
-    }
-
-    let shaped = system.measure(string, font: font, wrappingAt: wrapWidth)
-    return SizeD(width: reportedWidth ?? shaped.widestLine,
-                 height: known.height ?? shaped.totalHeight)
-}
-
-#if canImport(MetalUIText)
-/// ``textMeasure(_:font:system:known:available:)`` over a CoreText shaping
-/// cache — the spelling the measurement tests use to ask the Apple path
-/// directly.
-@MainActor
-func textMeasure(_ string: String, font: ResolvedFont, cache: ShapingCache,
-                 known: OptionalSizeD, available: AvailableSpace) -> SizeD {
-    cache.registerFont(font)
-    return textMeasure(string, font: font.key, system: CoreTextTextSystem(cache: cache),
-                       known: known, available: available)
-}
-#endif
-
-/// The overload the engine's `MeasureFunction` shape calls, which takes the
-/// whole `AvailableSpaceSize` and reads only its width. Separate so that the
-/// function above cannot be *given* a height question it silently ignores.
-@MainActor
-func textMeasure(_ string: String, font: FontKey, system: any TextSystem,
-                 known: OptionalSizeD, available: AvailableSpaceSize) -> SizeD {
-    textMeasure(string, font: font, system: system, known: known, available: available.width)
-}
-
-/// A run of text: the framework's first leaf, and `newLeaf`'s first production
-/// caller.
-///
-/// **What this element makes live.** `newLeaf` is the only thing that attaches a
-/// `MeasureFunction`, and until this type nothing in `Sources/` called it — so
-/// every production node's `tree.measure()` was `nil`, and §9.2's content branch
-/// and §4.5's automatic minimum were live for *containers* and dead for
-/// *leaves*. A `Text` measures.
+/// **It measures through the frame's text system** (`TS-A`): a lowered leaf
+/// whose answer is `proposalTextMeasurement` — wrapped at the proposed width,
+/// the widest line and `lines × lineHeight` (`LR-F`, `LR-AU`). Until stage 9 a
+/// legacy branch attached a CSS `MeasureFunction` (`textMeasure`, with a
+/// tokenizer min-content row, TX-F); both went with the CSS engine (`LR-FC`,
+/// `LR-FD`). The max-content answer — one line per hard break, TX-K — is the
+/// unwrapped shape's widest line, pinned by
+/// `aLabelWithHardBreaksMeasuresItsWidestLineAtMaxContent`.
 ///
 /// **It draws.** ``paint(_:bounds:layout:prepaint:pass:)`` shapes the string at
 /// the width layout settled on, walks each line's runs, and hands every glyph to
@@ -215,19 +113,11 @@ public struct Text: Element, StyledElement {
         let key = system.resolveFont(family: fontFamily, size: fontSize)
         let string = self.string
 
-        if pass.lowersToProposal {
-            let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
-                pass.frame.requestNativeLeaf { proposal in
-                    MainActor.assumeIsolated {
-                        proposalTextMeasurement(string, font: key, system: system, proposal: proposal)
-                    }
+        let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
+            pass.frame.requestNativeLeaf { proposal in
+                MainActor.assumeIsolated {
+                    proposalTextMeasurement(string, font: key, system: system, proposal: proposal)
                 }
-            }
-            return (node, Layout(node: node))
-        }
-        let node = pass.frame.requestLeaf(style: style) { known, available in
-            MainActor.assumeIsolated {
-                textMeasure(string, font: key, system: system, known: known, available: available)
             }
         }
         return (node, Layout(node: node))
@@ -373,8 +263,7 @@ public struct Text: Element, StyledElement {
         // epsilon is a blind additive fudge and could not be bounded, this is
         // the width the box was measured at.
         //
-        // **Under the proposal authority too** (plan task 7, ruling LR-X): a
-        // lowered `Text` with a declared size registers a fixed frame around its
+        // **Lowered, too** (plan task 7, ruling LR-X): a lowered `Text` with a declared size registers a fixed frame around its
         // native leaf, and `layout.node` is the frame, whose measured width is the
         // width the leaf was proposed — the question its shape answered. The
         // leaf's own width is its widest line, which is wider than the frame when
@@ -389,8 +278,8 @@ public struct Text: Element, StyledElement {
         // horizontal insets. Wrapping at the element's width instead — W's, when the
         // text is stretched or grown — would overflow the trailing padding and re-line
         // (critic round 1's finding 5; spec 4.2's stretched arm pins it).
-        // `Frame.lowering.textLeaves` is empty under the legacy authority and for an
-        // unpadded text, so both keep painting at `bounds.origin` at `layout.node`'s
+        // `Frame.lowering.textLeaves` is empty for an unpadded text, which keeps
+        // painting at `bounds.origin` at `layout.node`'s
         // measured width.
         let glyphNode = pass.frame.lowering.textLeaves[layout.node]
         let origin = glyphNode.map { pass.bounds(of: $0).origin } ?? bounds.origin

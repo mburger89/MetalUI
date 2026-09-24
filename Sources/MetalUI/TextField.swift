@@ -84,28 +84,16 @@ public struct TextField: Element, StyledElement {
         let system = pass.textSystem
         let key = system.resolveFont(family: fontFamily, size: fontSize)
         let text = self.text, placeholder = self.placeholder
-        if pass.lowersToProposal {
-            // Greedy on the width, as SwiftUI's `TextField` is; one line tall.
-            let node = pass.lowerLegacyLeaf(style, declared: style, site: .textField) {
-                pass.frame.requestNativeLeaf { proposal in
-                    MainActor.assumeIsolated {
-                        let offered = proposal.width.flatMap { $0.isFinite ? $0 : nil }
-                        let width = offered
-                            ?? Self.naturalWidth(text: text, placeholder: placeholder, font: key, system: system)
-                        return LayoutMeasurement(size: SizeD(width: width,
-                                                             height: Self.lineHeight(font: key, system: system)))
-                    }
+        // Greedy on the width, as SwiftUI's `TextField` is; one line tall.
+        let node = pass.lowerLegacyLeaf(style, declared: style, site: .textField) {
+            pass.frame.requestNativeLeaf { proposal in
+                MainActor.assumeIsolated {
+                    let offered = proposal.width.flatMap { $0.isFinite ? $0 : nil }
+                    let width = offered
+                        ?? Self.naturalWidth(text: text, placeholder: placeholder, font: key, system: system)
+                    return LayoutMeasurement(size: SizeD(width: width,
+                                                         height: Self.lineHeight(font: key, system: system)))
                 }
-            }
-            return (node, Layout(node: node))
-        }
-        let node = pass.frame.requestLeaf(style: style) { known, available in
-            MainActor.assumeIsolated {
-                let offered: Double?
-                if case .definite(let width) = available.width { offered = width } else { offered = nil }
-                let width = known.width ?? offered
-                    ?? Self.naturalWidth(text: text, placeholder: placeholder, font: key, system: system)
-                return SizeD(width: width, height: known.height ?? Self.lineHeight(font: key, system: system))
             }
         }
         return (node, Layout(node: node))

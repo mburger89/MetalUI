@@ -248,15 +248,10 @@ func makeFakeWindow<Root: Element>(
     // frame-clock tests — passes `true` so `Window.init` hands the fake the
     // closure `simulateTick` fires.
     startsDisplayLink: Bool = false,
-    // Plan task 7, stage 3, lane 3 (ruling LR-BI), and stage 6b (LR-DF): which
-    // engine this window's frames register with. `nil` leaves `Window`'s own
-    // default — `Frame.defaultLayoutAuthority`, `.proposal` since the switch — so
-    // a window test at defaults IS production. **A window builds production
-    // frames**, so under `.proposal` anything with no lowering yet TRAPS rather
-    // than reporting — `Window` never sets `reportsUnlowerableFields` — and the
-    // process ends with no summary line. A `.legacy` here is always a pin its
-    // test wrote, with an owner.
-    layoutAuthority: LayoutAuthority? = nil,
+    // A window builds production frames, so anything with no lowering TRAPS
+    // rather than reporting — `Window` never sets `reportsUnlowerableFields` —
+    // and the process ends with no summary line. (Its `layoutAuthority:`
+    // parameter went with the legacy authority at stage 9, `LR-FC`.)
     content: @escaping @MainActor () -> Root
 ) throws -> (Window, FakePlatformWindow) {
     let platformWindow = try FakePlatformWindow(device: device, size: size)
@@ -264,12 +259,6 @@ func makeFakeWindow<Root: Element>(
     let window = Window(platformWindow: platformWindow,
                         startsDisplayLink: startsDisplayLink,
                         content: content)
-    // Written only when given and different, so the call sites that take the default
-    // reach `drawFrameIfNeeded` through exactly the states they did before: a
-    // write dirties the window even when it changes nothing.
-    if let layoutAuthority, layoutAuthority != window.layoutAuthority {
-        window.layoutAuthority = layoutAuthority
-    }
     return (window, platformWindow)
 }
 

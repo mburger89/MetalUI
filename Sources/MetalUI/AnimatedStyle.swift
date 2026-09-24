@@ -5,8 +5,8 @@ import MetalUILayout
 /// its animated `Style`/`Decoration` through before handing them to the layout
 /// engine. M4 spec 3 (`docs/superpowers/specs/2026-09-03-animation-design.md`)
 /// §5: there is no single choke point (`Box`, `Stack` and `ScrollView`'s two
-/// nodes each call the legacy registrar — `Frame.requestNode` since plan task 7's
-/// per-site authority checks — independently), so
+/// nodes each register independently — through the lowering since stage 9,
+/// through the CSS `Frame.requestNode` or the lowering before it), so
 /// this is the mechanism they all call instead — Task 4 wires the four sites,
 /// this task builds and pins the mechanism itself.
 ///

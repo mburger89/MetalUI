@@ -700,8 +700,7 @@ public final class Frame {
     /// `hiddenNodes`, and plainly otherwise (plan task 7, stage 6b, ruling `LR-DH`
     /// item 2): a lowered `hidden()` registers no pointer hitbox, and neither does
     /// anything inside it (stage-2 probe V3: a hidden view passes the tap to the view
-    /// under it). **`hiddenNodes` only**, so the legacy path — where `hiddenNodes` is
-    /// always empty — hit-tests exactly as before. Focus, keys and scroll regions are
+    /// under it). Focus, keys and scroll regions are
     /// outside this gate, as they are outside `allowsHitTesting(false)`'s (`OM-AK`).
     func disablingHitTestingIfHidden<R>(_ node: LayoutNodeID, _ body: () -> R) -> R {
         guard hiddenNodes.contains(node) else { return body() }
@@ -1101,16 +1100,16 @@ public final class Frame {
         return body()
     }
 
-    /// Runs `body` inside an accessibility suppression scope when `node`'s style
-    /// is `display: none`, and plainly otherwise — the one `display: none` check
-    /// (ruling AB-O), shared by `Element.prepaintGroup` (a whole element) and
+    /// Runs `body` inside an accessibility suppression scope when `node` is
+    /// hidden (`isHidden`), and plainly otherwise — the one hidden check (ruling
+    /// AB-O), shared by `Element.prepaintGroup` (a whole element) and
     /// `ModifiedElement`'s per-layer prepaint (each inner layer, which receives
     /// no group default of its own — ruling MC-B's "any hook in those defaults
-    /// is mirrored per layer"). The style is read only while collecting.
-    /// Pinned per layer by `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`.
+    /// is mirrored per layer"). Read only while collecting. Pinned per layer by
+    /// `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`.
     ///
-    /// **Reads `isHidden` since stage 6b** (`LR-DH` item 3): `display == .none` or
-    /// `hiddenNodes`, so a lowered `hidden()` suppresses too.
+    /// **Reads `isHidden` since stage 6b** (`LR-DH` item 3), which reads
+    /// `hiddenNodes` alone since stage 9 (`LR-FC`).
     func suppressingAccessibilityIfHidden<R>(_ node: LayoutNodeID, _ body: () -> R) -> R {
         guard collectsAccessibility, isHidden(node) else { return body() }
         return withAccessibilitySuppressed(except: nil, body)
@@ -1489,7 +1488,6 @@ public final class Frame {
          focusedElement: GlobalElementID? = nil,
          transaction: Animation? = nil,
          collectsAccessibility: Bool = false,
-         layoutAuthority: LayoutAuthority = Frame.defaultLayoutAuthority,
          reportsUnlowerableFields: Bool = false,
          recordsElementBounds: Bool = false) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
@@ -1520,27 +1518,15 @@ public final class Frame {
         self.focusedElement = focusedElement
         self.transaction = transaction
         self.collectsAccessibility = collectsAccessibility
-        self.layoutAuthority = layoutAuthority
         self.reportsUnlowerableFields = reportsUnlowerableFields
         self.recordsElementBounds = recordsElementBounds
     }
 
-    // MARK: - Layout authority (plan task 7, rulings LR-B, LR-C, LR-D)
-
-    /// Which engine this frame's legacy elements register with. See
-    /// `LayoutAuthority`. **A `let`, for `collectsAccessibility`'s reason**: half
-    /// a tree lowered is ruling SA-G's mixed tree. `Window` passes its own
-    /// `layoutAuthority`; a frame built anywhere else defaults to
-    /// `defaultLayoutAuthority`.
-    let layoutAuthority: LayoutAuthority
-
-    /// The authority a frame and a `Window` start under (plan task 7, stage 6b,
-    /// ruling `LR-DF`): **`.proposal`** — production runs the proposal engine.
-    /// One constant, so `Frame.init`'s default and `Window.layoutAuthority`'s
-    /// initial value cannot drift apart. Internal, as `layoutAuthority` is
-    /// (`aPlainImportCannotChooseTheLayoutAuthority`); pinned by
-    /// `aFrameAndAWindowDefaultToTheProposalAuthority`.
-    static let defaultLayoutAuthority: LayoutAuthority = .proposal
+    // MARK: - Lowering diagnostics (plan task 7, rulings LR-C, LR-D)
+    //
+    // Stage 9 (`LR-FC`) deleted the layout authority — `layoutAuthority`, its
+    // `init` parameter and `defaultLayoutAuthority` — with the legacy engine:
+    // every frame lowers its legacy elements onto the proposal kernel.
 
     /// Whether a site with no proposal lowering records an `UnlowerableField` and
     /// carries on instead of trapping. **Set only by tests** (the differential
@@ -1554,26 +1540,25 @@ public final class Frame {
     private(set) var unlowerableFields: [UnlowerableField] = []
 
     /// The proposal lowering's item records and bounds aliases (plan task 7, stage
-    /// 2; rulings LR-AB, LR-AT). Empty under the legacy authority.
+    /// 2; rulings LR-AB, LR-AT).
     var lowering = LoweringState()
 
     /// The element nodes a lowered `hidden()` produced this frame (plan task 7,
-    /// stage 6b, ruling `LR-DH`): under the proposal authority a `display: .none`
-    /// node is laid out as if shown and its element node is inserted here by
-    /// `LegacyLowering.swift`, and the three gates read it — paint skipped
-    /// (`Element.paintGroup`), hitboxes under the pointer-disable scope
-    /// (`disablingHitTestingIfHidden`), accessibility suppressed (`isHidden`) — per
-    /// inner `ModifiedElement` layer, in `AnyElement`'s group entry and at the root.
-    /// **Empty under the legacy authority**, always, which is what keeps that path
-    /// byte-identical (`theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore`).
+    /// stage 6b, ruling `LR-DH`): a `display: .none` node is laid out as if shown
+    /// and its element node is inserted here by `LegacyLowering.swift`, and the
+    /// three gates read it — paint skipped (`Element.paintGroup`), hitboxes under
+    /// the pointer-disable scope (`disablingHitTestingIfHidden`), accessibility
+    /// suppressed (`isHidden`) — per inner `ModifiedElement` layer, in
+    /// `AnyElement`'s group entry and at the root. The one source of "hidden"
+    /// since stage 9 (`LR-FC`).
     var hiddenNodes: Set<LayoutNodeID> = []
 
-    /// Whether `node` is hidden for accessibility: its registered style says
-    /// `display: .none` (the legacy path, ruling AB-O) or a lowered `hidden()` put it
-    /// in `hiddenNodes` (the proposal path, where the node is native and carries no
-    /// style — `LR-DH` item 3).
+    /// Whether `node` is hidden for accessibility: a lowered `hidden()` put it in
+    /// `hiddenNodes` (`LR-DH` item 3). Until stage 9 it also read the node's
+    /// registered style for the legacy path's `display: .none` (ruling AB-O); no
+    /// node carries a style since (`LR-FC`).
     func isHidden(_ node: LayoutNodeID) -> Bool {
-        hiddenNodes.contains(node) || style(node).display == .none
+        hiddenNodes.contains(node)
     }
 
     /// Whether `elementBounds` is filled. Set only by tests (the differential
@@ -1616,45 +1601,9 @@ public final class Frame {
 
     // MARK: - Layout phase
 
-    /// Registers a legacy CSS node. **Internal and undeprecated** (stage 6a pins
-    /// tests about CSS answers to the legacy authority through it, ruling LR-R);
-    /// every in-module legacy site calls this rather than `LayoutPass`'s public
-    /// forwarder, which reports `customElement`.
-    ///
-    /// **Under the proposal authority it is a backstop, not a site check**: every
-    /// legacy site checks the authority itself before it gets here (ruling LR-C),
-    /// so reaching this means a site forgot. It cannot name that site (`Frame`
-    /// never infers one), so in production it traps with a site-less message, and
-    /// under diagnostics it returns a 0×0 native leaf **without recording** — the
-    /// missing entry is what `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
-    /// reads, without truncating the suite.
-    func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
-        guard layoutAuthority == .legacy else { return unguardedLegacyRegistration("requestNode") }
-        return tree.newNode(style: style, children: children)
-    }
-
-    /// Registers a **leaf** — a childless node that reports its own content size
-    /// through `measure` (spec §3.1).
-    ///
-    /// This is `newLeaf`'s only production call site. Everything the engine can
-    /// do with a measured content size — §9.2's content branch, §4.5's automatic
-    /// minimum, an `auto` cross size — was reachable only for containers before
-    /// it existed, because `tree.measure()` was `nil` on every production node.
-    ///
-    /// Under the proposal authority, the same backstop as `requestNode`.
-    func requestLeaf(style: Style, measure: @escaping MeasureFunction) -> LayoutNodeID {
-        guard layoutAuthority == .legacy else { return unguardedLegacyRegistration("requestLeaf") }
-        return tree.newLeaf(style: style, measure: measure)
-    }
-
-    /// `requestNode`/`requestLeaf`'s backstop under the proposal authority.
-    private func unguardedLegacyRegistration(_ registrar: String) -> LayoutNodeID {
-        precondition(reportsUnlowerableFields, """
-            MetalUI: Frame.\(registrar) reached under the proposal layout authority by a \
-            site that did not check the authority itself (plan task 7, ruling LR-C).
-            """)
-        return requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
-    }
+    // Stage 9 (`LR-FC`): the legacy registrars `requestNode(style:children:)`
+    // and `requestLeaf(style:measure:)`, and their proposal-authority backstop
+    // (`LR-C`), went with the legacy engine. Every registrar below is native.
 
     func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
         tree.newNativeLeaf(measure: measure)
@@ -1726,142 +1675,33 @@ public final class Frame {
         tree.newNativeLayout(layout, children: children)
     }
 
-    /// Reads back a node's current `Style` — `StyledComponent`'s read half of
-    /// amend-in-place (`Component.swift`), the first production caller of
-    /// `LayoutTree.setStyle`'s sibling `style(_:)`.
-    func style(_ id: LayoutNodeID) -> Style {
-        tree.style(id)
-    }
-
-    /// Overwrites a node's `Style` after it has already been registered.
-    /// `StyledComponent`'s write half: a `width`/`height` on a `Component`
-    /// distributes by amending each of its top-level nodes' styles in place
-    /// (spec §5, `OM-F`). A `padding` on a `Component` no longer comes here —
-    /// since the outer-modifiers task it wraps each top-level node in a new
-    /// node through `requestNode` (`OM-D`).
-    func setStyle(_ id: LayoutNodeID, _ style: Style) {
-        tree.setStyle(id, style)
-    }
-
-    /// Counts the frames that reached the **legacy** branch of
-    /// `computeRootLayout` — the CSS engine's only caller in `MetalUI` — while a
-    /// caller has bound one (plan task 7, stage 6b, ruling `LR-DL`). The
-    /// `Shaper.runCallCounter` shape: a `@TaskLocal`, `nil` in production and in
-    /// every test that never binds it, so production pays one task-local read
-    /// per legacy frame and nothing on the proposal branch. Read by
-    /// `noProductionFrameReachesTheLegacyEngine` (`RootSwitchTests`), whose
-    /// `.legacy` window is the positive control that it counts at all.
-    ///
-    /// **No lock**, unlike `RunCallCounter`: `computeRootLayout` runs only on
-    /// the main actor (layout is synchronous there, CLAUDE.md "Renderer"), so
-    /// every bump and read is on one thread; `@unchecked Sendable` is what a
-    /// `@TaskLocal` value needs, not a claim of cross-thread use.
-    final class LegacyRootLayoutCounter: @unchecked Sendable {
-        private(set) var count = 0
-        func bump() { count += 1 }
-        init() {}
-    }
-
-    /// The counter bound by the calling task, if any; see
-    /// `LegacyRootLayoutCounter`.
-    @TaskLocal static var legacyRootLayoutCounter: LegacyRootLayoutCounter?
-
     /// Lays the finished tree out, between `requestLayout` and `prepaint`. Not
     /// reachable from any pass: elements contribute nodes, the frame runs the
     /// engine on the finished root.
     ///
-    /// **The root alone chooses the engine** (ruling SA-G). A legacy root runs
-    /// the CSS flex engine at the content size. A native root is measured at the
+    /// **One engine since stage 9** (`LR-FC`). The root is measured at the
     /// content size and placed CENTRED at its own answer
     /// (`computeNativeLayout(root:proposal:centredIn:)`, ruling CN-J, probe
-    /// R1/R2); a root that takes the whole offer fills the window.
+    /// R1/R2); a root that takes the whole offer fills the window. Until stage 9
+    /// a legacy root ran the CSS flex engine here instead.
     ///
-    /// **Presentations first** (plan task 7, stage 5, rulings `LR-CL`, `LR-CM`).
-    /// Under the proposal authority, with any presentation registered: the root's
-    /// containing-block checks (`reportPresentationContainingBlock(root:)`), then
-    /// each presentation root in registration order in its own native run, with
-    /// the window as proposal and bounds, then the root exactly as before.
+    /// **Presentations first** (plan task 7, stage 5, ruling `LR-CM`). With any
+    /// presentation registered: each presentation root in registration order in
+    /// its own native run, with the window as proposal and bounds, then the root
+    /// exactly as before.
     /// **Before** the root, so `LayoutTree.lastNativeLayoutWork` still reads the
     /// root's own run (`SA-M`); separate runs, so a presentation's depth counts
     /// from its own root (`SA-L`) and the root's placement (`CN-J`) is untouched.
     func computeRootLayout(root: LayoutNodeID) {
-        if layoutAuthority == .proposal && !lowering.presentations.isEmpty {
-            reportPresentationContainingBlock(root: root)
-            let width = Double(contentSize.width.value), height = Double(contentSize.height.value)
-            for presentation in lowering.presentations {
-                tree.computeNativeLayout(root: presentation.root,
-                                         proposal: ProposedSize(width: width, height: height),
-                                         in: LayoutRect(x: 0, y: 0, width: width, height: height))
-            }
-        }
-        if tree.isNativeLayoutNode(root) {
-            _ = tree.computeNativeLayout(
-                root: root,
-                proposal: ProposedSize(width: Double(contentSize.width.value),
-                                       height: Double(contentSize.height.value)),
-                centredIn: LayoutRect(x: 0, y: 0,
-                               width: Double(contentSize.width.value),
-                               height: Double(contentSize.height.value))
-            )
-            return
-        }
-        // The legacy branch — counted for stage 6b's exit test (`LR-DL`).
-        Frame.legacyRootLayoutCounter?.bump()
-        computeLayout(
-            tree,
-            root: root,
-            available: AvailableSpaceSize(
-                width: .definite(Double(contentSize.width.value)),
-                height: .definite(Double(contentSize.height.value))),
-            rootFontSize: rootFontSize)
-    }
-
-    /// Ruling `LR-CL` (as amended by `LR-CP` item 2): a presentation's containing
-    /// block is the window by construction, so every tree whose **legacy**
-    /// containing block is not reports by name — `deferred.root` when the root
-    /// node is a placeholder, and `deferred.containingBlock` when the root's
-    /// **declared** style (its `LoweredItem`) has a non-zero border edge (the
-    /// containing block is the root's padding box, `AP-C`), a non-`auto` size not
-    /// resolving to the window's extent on that axis, or a `minSize` resolving
-    /// above / `maxSize` below that extent (any percentage counts) — the last for
-    /// a `.frame(minWidth:)`/`.frame(maxWidth:)` root, a `.frameLayer` record whose
-    /// bounds the unconsumed report never reads. The declared style is the one the legacy
-    /// engine would register; the root's native rect would not do, because a
-    /// hugging native root is not the window while the legacy auto root is
-    /// (`CS-I`). A root with no record — the differential harness's native root,
-    /// sized to the window — is the window.
-    private func reportPresentationContainingBlock(root: LayoutNodeID) {
-        if lowering.isPresentation(root) {
-            noteUnlowerable(UnlowerableField(site: .deferred, field: "root"))
-            return
-        }
-        guard let item = lowering.items[root] else { return }
-        let d = item.declared
-        func points(_ length: Length, _ extent: Double) -> Double {
-            switch length {
-            case .pixels(let p): Double(p.value)
-            case .rems(let r): Double(r.value) * rootFontSize
-            case .percent(let f): Double(f) * extent
-            }
-        }
-        func isPercent(_ dimension: Dimension) -> Bool {
-            if case .length(.percent) = dimension { true } else { false }
-        }
-        func clampsOff(size: Dimension, minimum: Dimension, maximum: Dimension, extent: Double) -> Bool {
-            if case .length(let length) = size, points(length, extent) != extent { return true }
-            if isPercent(minimum) || isPercent(maximum) { return true }
-            if case .length(let length) = minimum, points(length, extent) > extent { return true }
-            if case .length(let length) = maximum, points(length, extent) < extent { return true }
-            return false
-        }
         let width = Double(contentSize.width.value), height = Double(contentSize.height.value)
-        let bordered = [d.border.top, d.border.right, d.border.bottom, d.border.left]
-            .contains { points($0, width) != 0 }
-        if bordered
-            || clampsOff(size: d.size.width, minimum: d.minSize.width, maximum: d.maxSize.width, extent: width)
-            || clampsOff(size: d.size.height, minimum: d.minSize.height, maximum: d.maxSize.height, extent: height) {
-            noteUnlowerable(UnlowerableField(site: .deferred, field: "containingBlock"))
+        for presentation in lowering.presentations {
+            tree.computeNativeLayout(root: presentation.root,
+                                     proposal: ProposedSize(width: width, height: height),
+                                     in: LayoutRect(x: 0, y: 0, width: width, height: height))
         }
+        _ = tree.computeNativeLayout(root: root,
+                                     proposal: ProposedSize(width: width, height: height),
+                                     centredIn: LayoutRect(x: 0, y: 0, width: width, height: height))
     }
 
     // MARK: - Post-layout phases
@@ -1870,7 +1710,7 @@ public final class Frame {
     /// absolute rects, so no parent offset is added here.
     ///
     /// **Through the lowering's bounds alias** (plan task 7, stage 2, ruling LR-AB):
-    /// under the proposal authority an element its parent grew or stretched is the
+    /// an element its parent grew or stretched is the
     /// item frame the parent registered around it, so every reader of an element's
     /// rect — decoration, hitbox, accessibility, glyph origin — sees the CSS box. A
     /// reader of `tree.layout` for an element would bypass it.
@@ -2055,7 +1895,7 @@ public final class Frame {
         StateBinder.bind(element, in: self, id: rootID)
 
         // Unlike the atlas's bracket below, this one wraps layout as well as
-        // paint: a `Text`'s `MeasureFunction` shapes during `requestLayout`
+        // paint: a `Text`'s measurement shapes during layout
         // and `Text.paint` shapes again at the box's final rounded width, and
         // `ShapingCache.endFrame()`'s sweep must see both touches as this
         // frame's before it can tell them from stale ones. See
@@ -2081,8 +1921,7 @@ public final class Frame {
         // Since stage 6b (`LR-DH`) the check reads `isHidden` — a lowered hidden
         // root is native and carries no style — and a root in `hiddenNodes` also
         // prepaints under the pointer-disable scope and skips its paint below, the
-        // two gates `Element`'s group defaults apply to every other element (legacy
-        // unchanged: `hiddenNodes` is empty there).
+        // two gates `Element`'s group defaults apply to every other element.
         var prepaintState = disablingHitTestingIfHidden(root) {
             collectsAccessibility && isHidden(root)
                 ? withAccessibilitySuppressed(except: nil) {

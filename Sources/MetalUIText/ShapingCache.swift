@@ -2,9 +2,9 @@ import Foundation
 
 /// A window-level cache over ``Shaper``, keyed on the CONTENT that determines
 /// a shape rather than on element identity (spec §3.2) — `(string, font,
-/// width)` for a full shape via ``shaped(_:font:wrappingAt:)``, and
-/// `(string, font)` alone for the width-independent min-content memo via
-/// ``minContentWidth(_:font:)``.
+/// width)` for a full shape via ``shaped(_:font:wrappingAt:)``. (Its
+/// width-independent min-content memo, `minContentWidth(_:font:)`, went with
+/// the legacy engine's tokenizer min-content at stage 9, `LR-FD`.)
 ///
 /// **Deliberately not the `StateTable`.** `StateTable` (spec §4.3) is for
 /// state that *cannot* be recomputed from an element's values: scroll offset,
@@ -15,7 +15,8 @@ import Foundation
 /// callers offering the same `(string, font, width)` share one entry.
 ///
 /// **Owned by the window beside `StateTable`, `@MainActor` for the same
-/// reason.** `MeasureFunction` is `@Sendable` and non-isolated, but a
+/// reason.** A kernel measure closure (`ProposalMeasureFunction`) is
+/// `@Sendable` and non-isolated, but a
 /// global-actor-isolated class is implicitly `Sendable`, so *this cache* may
 /// be captured by that closure even though the values it hands back may not:
 /// ``ShapedText`` wraps a `CTLine` and ``ResolvedFont`` wraps a `CTFont`,
@@ -35,8 +36,8 @@ import Foundation
 @MainActor
 public final class ShapingCache {
     /// `(string, FontKey, width)`. `width` is compared and hashed by
-    /// `bitPattern` where present — the same technique `LayoutContext`'s
-    /// `MeasureKey` uses for its optional doubles — rather than by `==`,
+    /// `bitPattern` where present — the technique the deleted CSS engine's
+    /// `LayoutContext.MeasureKey` used for its optional doubles — rather than by `==`,
     /// because IEEE-754 equality is not reflexive for every bit pattern
     /// (NaN) and this cache needs a total, reflexive key comparison instead.
     /// **A near-miss here — two widths a caller considers "the same" landing
@@ -68,9 +69,8 @@ public final class ShapingCache {
     /// A cached value stamped with the generation it was last touched in —
     /// hit or inserted — so ``endFrame()`` can tell "used this frame, or
     /// recently enough" from "stale" without a second, parallel dictionary to
-    /// keep in sync. Generic over both `storage`'s `ShapedText` and
-    /// `minContent`'s `Double` so the sweep in ``endFrame()`` is one function
-    /// rather than two copies that could drift.
+    /// keep in sync. Generic so the sweep in ``endFrame()`` is one function
+    /// (it served a second, min-content, dictionary until stage 9).
     private struct Entry<Value> {
         var value: Value
         var generation: Int
@@ -80,9 +80,8 @@ public final class ShapingCache {
 
     /// The font last registered under each key, for ``font(for:)``.
     ///
-    /// **Never swept, and the asymmetry with `storage` and `minContent` is
-    /// deliberate, not a missing `sweep` call.** ``endFrame()`` sweeps those
-    /// two; this and `resolvedFonts` are plain dictionaries it never visits.
+    /// **Never swept, and the asymmetry with `storage` is deliberate, not a
+    /// missing `sweep` call.** ``endFrame()`` sweeps that; this and `resolvedFonts` are plain dictionaries it never visits.
     ///
     /// - **Growth is one entry per distinct ``FontKey``, and no larger than
     ///   `resolvedFonts`.** Every font `Sources/` registers — through
@@ -109,30 +108,13 @@ public final class ShapingCache {
     /// attribute, the second's a font name), and shape Latin identically but
     /// Arabic, Devanagari, CJK and emoji to different widths. Under one key,
     /// the **last** ``registerFont(_:)`` wins here, and the **first**
-    /// ``shaped(_:font:wrappingAt:)`` or ``minContentWidth(_:font:)`` call
-    /// for a string wins its entry in `storage` or `minContent`.
+    /// ``shaped(_:font:wrappingAt:)`` call for a string wins its entry in
+    /// `storage`.
     /// `Text(s)` and `Text(s).font(family: "System Font", size: 13)` reach
     /// exactly those two requests; nothing in `Sources/` spells that name.
     /// Pinned wrong on purpose by
     /// `twoRequestsWithEqualFontKeysShareOneShapeThoughTheyShapeDifferently`.
     private var fonts: [FontKey: ResolvedFont] = [:]
-
-    /// **Keyed on the string and the resolved font, and deliberately NOT on any
-    /// width.** Min-content is width-independent by definition — that is what
-    /// lets CSS Sizing §4.5 use it as a floor — so folding a width in would miss
-    /// on every frame of a resize and cache nothing.
-    private struct MinContentKey: Hashable {
-        var string: String
-        var font: FontKey
-    }
-
-    /// Swept exactly as `storage` is, by the same ``endFrame()`` call. A
-    /// caller who bounds only `storage` and forgets this dictionary has
-    /// fixed nothing — it grows exactly the same way, unbounded, with
-    /// nothing able to see it. (The first test written against this bound
-    /// read only `storage`'s count for exactly that reason, and passed
-    /// while this dictionary kept growing; the test now reads both.)
-    private var minContent: [MinContentKey: Entry<Double>] = [:]
 
     /// Cache observability, and the only way anything outside this file can
     /// see whether the cache is a cache — a ``shaped(_:font:wrappingAt:)``
@@ -143,16 +125,11 @@ public final class ShapingCache {
 
     /// Every call to ``shaped(_:font:wrappingAt:)``, hit or miss. `hits + misses`
     /// already gives this; it is named separately because the assertion that
-    /// matters is the *lookup* count — the per-run loop in `Text`'s min-content
-    /// branch drives it, and a hit is not free at 604 ns.
+    /// matters is the *lookup* count — a hit is not free at 604 ns.
     var lookups: Int { hits + misses }
 
     /// Entry count, for tests. `storage` stays private.
     var storageCount: Int { storage.count }
-
-    /// Entry count for `minContent`, on the same footing as ``storageCount``
-    /// and for the same reason — see `minContent`'s own doc comment.
-    var minContentCount: Int { minContent.count }
 
     /// True for the duration of one frame's layout-and-paint construction —
     /// the same shape as `GlyphAtlas.isBuildingFrame` and
@@ -196,15 +173,16 @@ public final class ShapingCache {
     /// `staleAfterGenerations` survives a frame in which the dictionary was
     /// over this threshold.*
     ///
-    /// `storage` and `minContent` are swept independently against this same
-    /// number — they hold different things and there is no reason one's
-    /// growth should starve the other's budget. The two font dictionaries,
+    /// `storage` is swept against this number (and, until stage 9, the
+    /// min-content memo was too, independently). The two font dictionaries,
     /// `fonts` and `resolvedFonts`, are not swept against it or anything
     /// else; `fonts`' doc comment says why.
     ///
     /// **Measured against `demoLikeRows(40)`, the test harness modelled on
     /// the demo's scroller — not against the demo itself, whose own list is
-    /// longer and whose visible window is smaller.**
+    /// longer and whose visible window is smaller — and under the legacy
+    /// engine, whose `textMeasure` also filled the min-content memo; the
+    /// figures below are that measurement's, not re-taken since stage 9.**
     ///
     /// Two different quantities, and confusing them is what this paragraph
     /// exists to stop. **Touched per steady-state frame: 64 `storage`
@@ -361,39 +339,14 @@ public final class ShapingCache {
         return result
     }
 
-    /// The width of the longest unbreakable run — CSS's min-content — memoized.
-    ///
-    /// **Memoizing the result rather than the runs is the point.** Caching
-    /// `Shaper.unbreakableRuns` alone removes the tokenizer walk and leaves the
-    /// per-run shaping lookups behind; measured, that is ~0.79 ms of a 4.97 ms
-    /// frame still on the table. Storing the width collapses the tokenizer walk
-    /// and the whole loop into one dictionary hit.
-    public func minContentWidth(_ string: String, font: ResolvedFont) -> Double {
-        let key = MinContentKey(string: string, font: font.key)
-        // See `shaped(_:font:wrappingAt:)`'s comment on the same pattern.
-        if let idx = minContent.index(forKey: key) {
-            minContent.values[idx].generation = currentGeneration
-            return minContent.values[idx].value
-        }
-        var width = 0.0
-        // The main-actor twin of `Shaper.unbreakableRuns(of:)`: the same runs,
-        // from one re-pointed tokenizer instead of a new one per miss.
-        for run in Shaper.unbreakableRunsReusingTokenizer(of: string) {
-            width = max(width, shaped(run, font: font, wrappingAt: nil).widestLine)
-        }
-        minContent[key] = Entry(value: width, generation: currentGeneration)
-        return width
-    }
-
     /// Begins one frame's worth of shaping. Every ``shaped(_:font:wrappingAt:)``
-    /// or ``minContentWidth(_:font:)`` call made before the matching
+    /// call made before the matching
     /// ``endFrame()`` stamps its entry with the generation this call
     /// establishes — the same contract as `GlyphAtlas.beginFrame()`.
     ///
     /// Brackets **layout and paint both**, unlike the atlas's bracket, which
-    /// wraps only paint. A `Text`'s `MeasureFunction` shapes during layout
-    /// (`textMeasure`, for both the `.definite` and `.minContent` branches)
-    /// and `Text.paint` shapes again at the box's final rounded width — both
+    /// wraps only paint. A `Text`'s measurement shapes during layout
+    /// (`proposalTextMeasurement`) and `Text.paint` shapes again at the box's final rounded width — both
     /// touches belong to the same frame, and `endFrame()`'s sweep must see
     /// both as live. `Frame.render` calls this before `requestLayout` runs
     /// and this type's `endFrame()` after `paint` returns, for that reason.
@@ -403,8 +356,8 @@ public final class ShapingCache {
         currentGeneration += 1
     }
 
-    /// Ends the frame ``beginFrame()`` began, then sweeps the two shape
-    /// dictionaries, `storage` and `minContent`. The two font dictionaries,
+    /// Ends the frame ``beginFrame()`` began, then sweeps the shape
+    /// dictionary, `storage`. The two font dictionaries,
     /// `fonts` and `resolvedFonts`, are deliberately left alone — see `fonts`.
     ///
     /// **Only evicts when a dictionary is over ``sweepThreshold``, and only
@@ -428,7 +381,6 @@ public final class ShapingCache {
         precondition(isBuildingFrame, "endFrame called without a matching beginFrame")
         isBuildingFrame = false
         sweep(&storage)
-        sweep(&minContent)
     }
 
     /// Drops every entry untouched for ``staleAfterGenerations``, but only

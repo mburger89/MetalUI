@@ -94,8 +94,7 @@ public struct FontMetrics: Hashable, Sendable {
     ///
     /// The pin is now `metricsMatchCoreText`, which adds CoreText's three
     /// numbers up itself and applies the same `ceil`, rather than asking this
-    /// property to. Task 4's `MeasureFunction` is a second consumer, not the
-    /// first.
+    /// property to. Text measurement is a second consumer, not the first.
     public var lineHeight: Double { ceil(ascent + descent + leading) }
 
     public init(ascent: Double, descent: Double, leading: Double) {

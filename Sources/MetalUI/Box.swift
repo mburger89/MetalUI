@@ -58,8 +58,8 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
     /// Carried from `requestLayout` to the later phases.
     ///
     /// `node` is stored rather than re-derived because there is nothing to
-    /// re-derive it from: the registrar (`Frame.requestNode`, or the lowering's
-    /// outermost kernel node under the proposal authority, ruling LR-A) mints ids
+    /// re-derive it from: the registrar (the lowering's outermost kernel node,
+    /// ruling LR-A) mints ids
     /// and hands them out once. `content` is the children's own threaded state.
     public struct Layout {
         public var node: LayoutNodeID
@@ -68,7 +68,7 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
 
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
-        // Children first: `requestNode` takes already-registered ids, so a
+        // Children first: a registrar takes already-registered ids, so a
         // container builds bottom-up and the engine sees a complete subtree.
         //
         // The cursor starts at 0 here and nowhere else: it is this container's
@@ -86,16 +86,12 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // reach the screen rather than only the layout node.
         let declared = style
         (style, decoration) = animated(style, decoration, for: id, pass: &pass)
-        // The site's own authority check (plan task 7, ruling LR-C). Under the
-        // proposal authority the (animated) style is lowered onto kernel nodes;
-        // the checks read the declared one (`LegacyLowering.swift`). A childless
-        // `Box` lowers since lane 2, a `Box` with children — and so `Row` and
-        // `Column` — since lane 3; a field outside the lowering table traps by
-        // name, or is reported with a 0×0 native leaf in its place under
+        // The (animated) style is lowered onto kernel nodes; the checks read the
+        // declared one (`LegacyLowering.swift`; plan task 7, rulings LR-C, and
+        // the only path since stage 9). A field outside the lowering table traps
+        // by name, or is reported with a 0×0 native leaf in its place under
         // diagnostics.
-        let node = pass.lowersToProposal
-            ? pass.lowerLegacyNode(style, declared: declared, children: children, site: .box)
-            : pass.frame.requestNode(style: style, children: children)
+        let node = pass.lowerLegacyNode(style, declared: declared, children: children, site: .box)
         return (node, Layout(node: node, content: contentLayout))
     }
 
@@ -154,8 +150,9 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
 
 extension Box where Content == EmptyGroup {
     /// A childless box — a sized leaf, and a **0x0** one unless its style says
-    /// otherwise: it reports no content size of its own, because it registers
-    /// through `requestNode` rather than `requestLeaf`.
+    /// otherwise: it reports no content size of its own (it lowers to a 0×0
+    /// native leaf inside its declared size; until stage 9 it registered through
+    /// the CSS `requestNode` rather than `requestLeaf`).
     ///
     /// That sentence used to end "…the framework has no leaf that reports a
     /// content size, because `newLeaf` has no production caller". `Text`
@@ -976,12 +973,13 @@ extension StyledElement {
     /// *sizing* modifier anywhere. `FR-Q` counted four: its fourth,
     /// `borderWidth(_ edges:)`, was deleted by the outer-modifiers track in
     /// the same integration, ruling `OM-M`, and the paint-only `border` that
-    /// replaced it takes `Pixels`). A rem resolves in
-    /// `MetalUILayout/Resolve.swift` against `Frame.rootFontSize` — a single
+    /// replaced it takes `Pixels`). A rem resolves in the lowering
+    /// (`LegacyLowering.swift`'s `resolvedLength`; the CSS engine's `Resolve.swift`
+    /// until stage 9) against `Frame.rootFontSize` — a single
     /// per-frame `let`, default 16, not a per-element font size. `ResolveTests`
     /// pinned it until stage 7b retired that file (record §49 row 173); the
     /// lowering's rem resolution is pinned by the rem arms of
-    /// `aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation` and
+    /// `aLoweredFixedSizeBoxPaintsAndHitTestsAtItsDeclaredSize` and
     /// `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` (record
     /// §49 §6.1, M1l). SwiftUI has neither, so it is a
     /// MetalUI divergence kept under `FR-H`'s disposition; it is a box-model
@@ -1154,43 +1152,20 @@ extension StyledElement {
 
     // MARK: Participation
 
-    /// `display: none` — the element and its subtree contribute no box.
-    ///
-    /// It still runs all three phases and still registers its nodes; the engine
-    /// filters it out of its parent's item list, so its rect stays at the zero
-    /// `LayoutTree` initialised it with.
-    ///
-    /// **This is a LAYOUT modifier and paint does not honour it. A hidden
-    /// subtree containing a `Text` still emits glyphs, at the surface's own
-    /// origin.** Nothing in `Sources/MetalUI` reads `Style.display` during
-    /// paint: `Box.paint` fills its bounds and recurses into
-    /// `content.paintGroup` unconditionally, so a hidden `Box`'s own fill is
-    /// harmlessly degenerate (a zero-size rect) while its children paint from
-    /// the zero rect's origin — which, a hidden node never having been placed,
-    /// is `(0, 0)` in surface coordinates rather than anywhere near where the
-    /// element was written. `Text.paint` then re-shapes at
-    /// `max(bounds.width, smallestWrapWidth)`, and `smallestWrapWidth` is 0.5,
-    /// so the string wraps after **every character** and stacks one glyph per
-    /// line down the window's left edge.
-    ///
-    /// Measured, not read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); … }`
-    /// in a 400×300 frame emits the expected zero rect **and two glyphs**, at
-    /// `(0, 2)` and `(−1, 18)` — the second negative in x, its left side
-    /// bearing carrying it outside the surface entirely.
-    ///
-    /// So `hidden()` is safe on a subtree of `Box`es and wrong on anything that
-    /// draws its own content. Use a conditional in the `@ElementBuilder` block
-    /// instead — `if showIt { … }` — which removes the element from the tree
-    /// rather than from the item list; `Sources/MetalUIDemoContent/DemoContent.swift`'s modal
-    /// does exactly that, and carries the vanishing-`if` identity caveat at its
-    /// call site. CLAUDE.md's declared-but-inert table has the row.
-    ///
-    /// **Everything above is the legacy authority.** Under the proposal
-    /// authority (stage 6b, ruling `LR-DH`) a hidden node lowers **as if
-    /// shown** — it keeps its space, as SwiftUI's `hidden()` does — and joins
-    /// `Frame.hiddenNodes`: it and its subtree paint nothing (a hidden `Text`
-    /// emits no glyph), register their pointer hitboxes under the
+    /// `display: none` — SwiftUI's `hidden()` (plan task 7, stage 6b, ruling
+    /// `LR-DH`): the node lowers **as if shown** — it keeps its space — and
+    /// joins `Frame.hiddenNodes`, so it and its subtree paint nothing (a hidden
+    /// `Text` emits no glyph), register their pointer hitboxes under the
     /// `hitTestingDisabled` scope and publish nothing to accessibility.
+    ///
+    /// **History.** Until stage 9 (`LR-FC`) the legacy authority's `display:
+    /// none` filtered the element out of its parent's item list and left its
+    /// rect at zero while paint still ran: a hidden subtree containing a `Text`
+    /// emitted glyphs from the surface origin, one per line (measured: two
+    /// glyphs at `(0, 2)` and `(−1, 18)` for `Column { Box { Text("Hi") }…
+    /// .hidden() }`), which is why CLAUDE.md's declared-but-inert table carried
+    /// the modifier as unsafe on drawing subtrees and recommended a conditional
+    /// in the `@ElementBuilder` block instead.
     public func hidden() -> Self {
         modifying { $0.display = .none }
     }

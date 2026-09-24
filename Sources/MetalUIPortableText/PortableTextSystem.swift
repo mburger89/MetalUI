@@ -25,7 +25,6 @@ public final class PortableTextSystem: TextSystem {
         var generation: Int
     }
     private var measurements: [MeasureKey: Entry<TextMeasurement>] = [:]
-    private var minContent: [MeasureKey: Entry<Double>] = [:]
     private var generation = 0
 
     public init(resolver: PortableFontResolver) {
@@ -51,17 +50,6 @@ public final class PortableTextSystem: TextSystem {
         let value = TextMeasurement(widestLine: lines.reduce(0) { max($0, $1.advance) },
                                     totalHeight: Double(lines.count) * portable.metrics.lineHeight)
         measurements[key] = Entry(value: value, generation: generation)
-        return value
-    }
-
-    public func minContentWidth(_ string: String, font: FontKey) -> Double {
-        let key = MeasureKey(string: string, font: font, width: nil)
-        if let hit = minContent[key] {
-            minContent[key]?.generation = generation
-            return hit.value
-        }
-        let value = trapping { try PortableText.minContentWidth(string, font: registered(font)) }
-        minContent[key] = Entry(value: value, generation: generation)
         return value
     }
 
@@ -96,7 +84,6 @@ public final class PortableTextSystem: TextSystem {
     /// same two-frame lifetime `ShapingCache` gives its entries.
     public func endFrame() {
         measurements = measurements.filter { generation - $0.value.generation <= 1 }
-        minContent = minContent.filter { generation - $0.value.generation <= 1 }
     }
 
     private func registered(_ key: FontKey) -> PortableFont {

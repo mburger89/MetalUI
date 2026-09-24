@@ -56,7 +56,7 @@ struct LoweredItem {
     var consumed = false
 }
 
-/// A frame's lowering state. **Empty under the legacy authority.**
+/// A frame's lowering state.
 struct LoweringState {
     /// Each lowered element's item record, by the node it returned.
     var items: [LayoutNodeID: LoweredItem] = [:]
@@ -70,13 +70,12 @@ struct LoweringState {
     /// box's; the glyphs belong at the LEAF's origin and wrap at the LEAF's measured
     /// width, or a stretched padded text would wrap at its item frame's width and
     /// overflow its trailing padding (critic round 1's finding 5). Empty when no
-    /// lowered `Text` carries a padding — and under the legacy authority.
+    /// lowered `Text` carries a padding.
     var textLeaves: [LayoutNodeID: LayoutNodeID] = [:]
     /// Every presentation registered this frame, in registration order (plan task
     /// 7, stage 5, rulings `LR-CH`, `LR-CM`): the placeholder its `Deferred`
     /// returned and the root of its own native run, which `Frame.computeRootLayout`
-    /// lays out against the window **before** the frame's root. Empty under the
-    /// legacy authority.
+    /// lays out against the window **before** the frame's root.
     var presentations: [(placeholder: LayoutNodeID, root: LayoutNodeID)] = []
 
     /// `children` without the presentation placeholders (ruling `LR-CK`): the
@@ -154,7 +153,6 @@ extension Frame {
     /// spelling reports (`aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred`,
     /// arm 4).
     func reportUnconsumedLoweredItems(root: LayoutNodeID) {
-        guard layoutAuthority == .proposal else { return }
         for node in lowering.order {
             guard let item = lowering.items[node], !item.consumed,
                   item.kind != .presentation else { continue }

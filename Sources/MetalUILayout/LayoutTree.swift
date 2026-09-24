@@ -30,7 +30,11 @@ public struct LayoutNodeID: Hashable, Sendable {
 /// Parallel arrays rather than a class per node: the engine walks these in tight
 /// loops, and `reset(generation:)` keeps capacity so a per-frame rebuild does not
 /// re-allocate. Nothing here knows what a leaf actually contains — text, images
-/// and app content all arrive as a `MeasureFunction` (spec §3.1).
+/// and app content all arrive as a `ProposalMeasureFunction` (spec §3.1).
+///
+/// **Every node is native since stage 9** (plan task 7, `LR-FC`): the CSS
+/// engine, its `newNode`/`newLeaf`/`style`/`setStyle`/`measure` API and the
+/// placeholder `Style.default` rows native nodes carried are deleted.
 ///
 /// ## Generations (ruling C-3)
 ///
@@ -45,9 +49,7 @@ public struct LayoutNodeID: Hashable, Sendable {
 /// verify with `grep -rn "LayoutTree(" Sources/`. Tests that never exchange ids
 /// between trees pass `0` and lose nothing by it.
 public final class LayoutTree {
-    private var styles: [Style] = []
     private var childLists: [[LayoutNodeID]] = []
-    private var measures: [MeasureFunction?] = []
     private var layouts: [LayoutRect] = []
     private var measuredWidths: [Double] = []
     private var nativeNodes: [Int: NativeNode] = [:]
@@ -64,7 +66,7 @@ public final class LayoutTree {
     /// hole 4). Written by every native registrar that takes children
     /// (`recordParent`), which traps on a child that already has one — a node
     /// under two parents, or listed twice in one. Cleared by
-    /// `reset(generation:)`. Legacy `newNode` is not checked. A stored property
+    /// `reset(generation:)`. A stored property
     /// on a public class read across a module boundary: `swift package clean`
     /// after changing it (CN-R).
     private var nativeParents: [Int: Int] = [:]
@@ -130,33 +132,22 @@ public final class LayoutTree {
 
     public init(generation: UInt64) { self.generation = generation }
 
-    public var nodeCount: Int { styles.count }
+    public var nodeCount: Int { childLists.count }
 
-    /// True while EITHER engine is laying this tree out: legacy `computeLayout`,
-    /// or native `computeNativeLayout` / `measureNativeLayout` (ruling SA-I).
+    /// True while the kernel is laying this tree out — `computeNativeLayout` or
+    /// `measureNativeLayout` (ruling SA-I).
     ///
-    /// Task 3 memoizes `measureNode` on the assumption that styles do not change
-    /// during a run. Nothing enforced that before this flag, and a style written
-    /// mid-layout would hand back a cached size computed for the *old* style —
-    /// a wrong answer no fixture could catch, because the fixture and the golden
-    /// would both be generated from the settled tree.
-    ///
-    /// **One flag for both engines, not one each.** They write the same
-    /// `layouts` array through the same `setLayout`, and a legacy measurement
-    /// memoizes against the same `styles`, so a second flag would let a native
-    /// measure closure run legacy layout over this tree mid-run. While it is
-    /// set, these trap: `setStyle`, every registration (`appendNode`, which
-    /// `newNode`, `newLeaf` and every native registrar reach),
-    /// `reset(generation:)`, and a re-entrant layout call of either engine
-    /// (`beginLayout`'s message names `computeLayout` for history; it covers
-    /// both).
-    ///
-    /// The flag lives here rather than on `LayoutContext` because `setStyle` is a
-    /// tree method and has no context in hand.
+    /// A run memoizes measurements and indexes the storage arrays, so while it
+    /// is set these trap: every registration (`appendNode`, which every native
+    /// registrar reaches), `reset(generation:)`, and a re-entrant layout call.
+    /// **One engine since stage 9** (`LR-FC`): until then the same flag guarded
+    /// the CSS engine's `computeLayout` and `setStyle` too, and was not split
+    /// because both engines wrote the same `layouts` through the same
+    /// `setLayout`.
     private(set) var isLayingOut = false
 
     func beginLayout() {
-        precondition(!isLayingOut, "computeLayout re-entered on the same tree")
+        precondition(!isLayingOut, "native layout re-entered on the same tree")
         isLayingOut = true
     }
 
@@ -168,69 +159,40 @@ public final class LayoutTree {
     /// staleness rule can be asserted without provoking a trap.
     public func isCurrent(_ id: LayoutNodeID) -> Bool { id.generation == generation }
 
-    /// Registers a legacy (CSS) node.
+    /// The storage append every native registrar reaches.
     ///
-    /// **A native child traps** (ruling SA-G): the CSS engine would lay it out
-    /// as an empty flex box whose measure never runs, stored at a centred 0×0.
-    /// There is no adapter in either direction; the root is the boundary
-    /// (`Frame.computeRootLayout`). Native registrars do not come through here:
-    /// they append their placeholder `Style.default` row through `appendNode`.
-    public func newNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
-        for child in children {
-            precondition(nativeNodes[slot(child)] == nil,
-                         "legacy layout node given a native child — a proposal subtree cannot sit under a CSS container (SA-G)")
-        }
-        return appendNode(style: style, children: children)
-    }
-
-    /// The storage append every registration reaches: `newNode`, `newLeaf`
-    /// (through `newNode`) and every native registrar.
-    ///
-    /// **It holds the registration check and not the native-child check.** A
-    /// registration while either engine is laying the tree out grows the arrays
-    /// the run is indexing (ruling SA-I), so it traps here, once, for every
-    /// path. The native-child check lives in `newNode` alone, because native
-    /// registrars append native children by design.
-    private func appendNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
+    /// **It holds the registration check.** A registration while the kernel is
+    /// laying the tree out grows the arrays the run is indexing (ruling SA-I),
+    /// so it traps here, once, for every path.
+    private func appendNode(children: [LayoutNodeID]) -> LayoutNodeID {
         precondition(!isLayingOut, "layout node registered while layout is running (SA-I)")
         for child in children { _ = slot(child) }
-        styles.append(style)
         childLists.append(children)
-        measures.append(nil)
         layouts.append(LayoutRect(x: 0, y: 0, width: 0, height: 0))
         measuredWidths.append(0)
-        return LayoutNodeID(generation: generation, index: styles.count - 1)
-    }
-
-    public func newLeaf(style: Style, measure: @escaping MeasureFunction) -> LayoutNodeID {
-        let id = newNode(style: style, children: [])
-        measures[id.index] = measure
-        return id
+        return LayoutNodeID(generation: generation, index: childLists.count - 1)
     }
 
     /// Registers a native leaf for the SwiftUI-style layout migration.
     ///
     /// Native nodes reuse this tree's generation-stamped ids and resolved-rect
-    /// storage. `Style.default` is temporary compatibility storage only: the
-    /// native engine never reads it.
+    /// storage.
     public func newNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
-        let id = appendNode(style: .default, children: [])
+        let id = appendNode(children: [])
         nativeNodes[id.index] = .leaf(measure)
         return id
     }
 
     /// Registers a native overlay, equivalent to a SwiftUI `ZStack`.
     ///
-    /// Every child must already be native. This makes the migration boundary
-    /// structural: a native subtree cannot accidentally delegate one child back
-    /// into the CSS engine. Every child is measured at the overlay's proposal,
+    /// Every child is measured at the overlay's proposal,
     /// which answers the union of those answers (probe A4). Placement proposes
     /// each child the overlay's own placed size and aligns its answer within the
     /// union of those answers, at the overlay's origin (ruling CN-E; `placeNative`).
     public func newNativeOverlay(children: [LayoutNodeID],
                                  alignment: ProposalAlignment = .center) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
-        let id = appendNode(style: .default, children: children)
+        let id = appendNode(children: children)
         recordParent(id, of: children)
         nativeNodes[id.index] = .overlay(alignment: alignment)
         return id
@@ -244,7 +206,7 @@ public final class LayoutTree {
                                            alignment: ProposalAlignment = .center) -> LayoutNodeID {
         _ = nativeNode(child)
         _ = nativeNode(overlay)
-        let id = appendNode(style: .default, children: [child, overlay])
+        let id = appendNode(children: [child, overlay])
         recordParent(id, of: [child, overlay])
         nativeNodes[id.index] = .overlayAttachment(alignment: alignment)
         return id
@@ -321,7 +283,7 @@ public final class LayoutTree {
         _ = nativeNode(child)
         Self.validateFrameAxis("width", "Width", fixed: width, min: minWidth, ideal: idealWidth, max: maxWidth)
         Self.validateFrameAxis("height", "Height", fixed: height, min: minHeight, ideal: idealHeight, max: maxHeight)
-        let id = appendNode(style: .default, children: [child])
+        let id = appendNode(children: [child])
         recordParent(id, of: [child])
         nativeNodes[id.index] = .frame(width: width, height: height,
                                        minWidth: minWidth, idealWidth: idealWidth,
@@ -349,7 +311,7 @@ public final class LayoutTree {
         precondition(insets.top.isFinite && insets.right.isFinite
                         && insets.bottom.isFinite && insets.left.isFinite,
                      "padding insets must be finite (SA-J), got \(insets)")
-        let id = appendNode(style: .default, children: [child])
+        let id = appendNode(children: [child])
         recordParent(id, of: [child])
         nativeNodes[id.index] = .padding(insets: insets)
         return id
@@ -364,7 +326,7 @@ public final class LayoutTree {
                                    horizontal: Bool = true,
                                    vertical: Bool = true) -> LayoutNodeID {
         _ = nativeNode(child)
-        let id = appendNode(style: .default, children: [child])
+        let id = appendNode(children: [child])
         recordParent(id, of: [child])
         nativeNodes[id.index] = .fixedSize(horizontal: horizontal, vertical: vertical)
         return id
@@ -392,7 +354,7 @@ public final class LayoutTree {
         _ = nativeNode(child)
         precondition(ratio.isFinite && ratio != 0,
                      "aspect ratio must be finite and non-zero (SA-J), got \(ratio)")
-        let id = appendNode(style: .default, children: [child])
+        let id = appendNode(children: [child])
         recordParent(id, of: [child])
         nativeNodes[id.index] = .aspectRatio(ratio: ratio, contentMode: contentMode)
         return id
@@ -411,7 +373,7 @@ public final class LayoutTree {
     public func newNativeLayoutPriority(child: LayoutNodeID, priority: Double) -> LayoutNodeID {
         _ = nativeNode(child)
         precondition(!priority.isNaN, "layout priority must not be NaN (SA-J)")
-        let id = appendNode(style: .default, children: [child])
+        let id = appendNode(children: [child])
         recordParent(id, of: [child])
         nativeNodes[id.index] = .layoutPriority(priority)
         return id
@@ -440,7 +402,7 @@ public final class LayoutTree {
         if let minLength {
             precondition(minLength.isFinite, "spacer minLength must be finite (SA-J), got \(minLength)")
         }
-        let id = appendNode(style: .default, children: [])
+        let id = appendNode(children: [])
         nativeNodes[id.index] = .spacer(minLength: minLength ?? ProposalSpacing.platformDefault)
         return id
     }
@@ -474,7 +436,7 @@ public final class LayoutTree {
         if let spacing {
             precondition(spacing.isFinite, "linear stack spacing must be finite (SA-J), got \(spacing)")
         }
-        let id = appendNode(style: .default, children: children)
+        let id = appendNode(children: children)
         recordParent(id, of: children)
         for child in children { markSpacers(child, axis: axis) }
         nativeNodes[id.index] = .linearStack(axis: axis, spacing: spacing,
@@ -496,7 +458,7 @@ public final class LayoutTree {
     public func newNativeScrollViewport(child: LayoutNodeID,
                                         axis: ProposalStackAxis) -> LayoutNodeID {
         _ = nativeNode(child)
-        let id = appendNode(style: .default, children: [child])
+        let id = appendNode(children: [child])
         recordParent(id, of: [child])
         nativeNodes[id.index] = .scrollViewport(axis: axis)
         return id
@@ -510,7 +472,7 @@ public final class LayoutTree {
     public func newNativeLayout(_ layout: some ProposalLayout,
                                 children: [LayoutNodeID]) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
-        let id = appendNode(style: .default, children: children)
+        let id = appendNode(children: children)
         recordParent(id, of: children)
         nativeNodes[id.index] = .custom(layout)
         return id
@@ -615,31 +577,7 @@ public final class LayoutTree {
         return measureNative(root, proposal: proposal, run: run)
     }
 
-    /// Whether this node belongs to the native layout path.
-    public func isNativeLayoutNode(_ id: LayoutNodeID) -> Bool {
-        nativeNodes[slot(id)] != nil
-    }
-
-    public func style(_ id: LayoutNodeID) -> Style { styles[slot(id)] }
-
-    /// Writes a legacy node's style.
-    ///
-    /// Traps while either engine is laying the tree out (ruling SA-I), and on a
-    /// native node at any time (ruling SA-G): the proposal engine never reads
-    /// `Style`, so the write would be silently inert. The reachable route is a
-    /// legacy `width`/`height` on a proposal `Component` (`StyledComponent`'s
-    /// amend); its `padding` wraps instead and meets `newNode`'s native-child
-    /// check.
-    public func setStyle(_ id: LayoutNodeID, _ s: Style) {
-        precondition(!isLayingOut,
-                     "setStyle called while computeLayout is running — measured sizes are memoized against the styles this would change")
-        precondition(nativeNodes[slot(id)] == nil,
-                     "setStyle on a native layout node — the proposal engine never reads Style (SA-G)")
-        styles[slot(id)] = s
-    }
-
     public func children(_ id: LayoutNodeID) -> [LayoutNodeID] { childLists[slot(id)] }
-    public func measure(_ id: LayoutNodeID) -> MeasureFunction? { measures[slot(id)] }
     public func layout(_ id: LayoutNodeID) -> LayoutRect { layouts[slot(id)] }
     /// Stores a node's root-absolute rect.
     ///
@@ -713,9 +651,7 @@ public final class LayoutTree {
                      silently address different nodes (ruling C-3)
                      """)
         self.generation = generation
-        styles.removeAll(keepingCapacity: true)
         childLists.removeAll(keepingCapacity: true)
-        measures.removeAll(keepingCapacity: true)
         layouts.removeAll(keepingCapacity: true)
         measuredWidths.removeAll(keepingCapacity: true)
         nativeNodes.removeAll(keepingCapacity: true)
@@ -762,7 +698,9 @@ public final class LayoutTree {
     private func nativeNode(_ id: LayoutNodeID) -> NativeNode {
         let index = slot(id)
         guard let node = nativeNodes[index] else {
-            preconditionFailure("native layout subtree contains a legacy node")
+            // Unreachable since stage 9 (`LR-FC` item 3): every registrar that
+            // appends a node records its kernel case.
+            preconditionFailure("layout node \(index) has no kernel case")
         }
         return node
     }
@@ -1487,7 +1425,8 @@ public final class LayoutTree {
         }
     }
 
-    /// Native layout shares the legacy engine's root-absolute rounding contract.
+    /// The root-absolute rounding contract (`roundLayout`; the CSS engine shared
+    /// it until stage 9).
     /// Measurement stays fractional; only the stored rectangles seen by later
     /// phases are rounded from cumulative edges.
     private func roundNativeStoredRects(_ node: LayoutNodeID) {
@@ -1586,20 +1525,15 @@ extension LayoutTree {
     /// so its mark wins. `cells` may be empty. Marks on a node that never sits
     /// under a grid are inert.
     ///
-    /// **Traps on a legacy node** (SA-G) and **on a node that already has a
-    /// native parent**: the grid that reads the mark registers after it, so a
-    /// parented node's mark could never be read. Without the first check a mark
-    /// on a legacy node is accepted and then either traps inside
-    /// `newNativeGrid` with a different message or, if that node never reaches
-    /// a grid, is inert for ever — an `SA-G` lie with no diagnostic where it is
-    /// written (second critic round, finding 12; ruling GR-AD).
+    /// **Traps on a node that already has a native parent**: the grid that
+    /// reads the mark registers after it, so a parented node's mark could never
+    /// be read. (Until stage 9 it also trapped on a legacy node, `SA-G`, ruling
+    /// GR-AD; no legacy node can be minted since, `LR-FC` item 3.)
     public func markNativeGridRow(_ cells: [LayoutNodeID], alignment: ProposalAlignment? = nil) {
         let token = nextGridRowToken
         nextGridRowToken += 1
         for cell in cells {
             let index = slot(cell)
-            precondition(nativeNodes[index] != nil,
-                         "a grid row mark written on a legacy node (SA-G), node \(index)")
             precondition(nativeParents[index] == nil,
                          "a grid row mark written after its node was parented (GR-A), node \(index)")
             gridRowTokens[index] = token
@@ -1626,15 +1560,13 @@ extension LayoutTree {
     /// (GT1; SA-J), and so does a single count or a node's sum above
     /// `Int32.max` (ruling GR-S: SwiftUI reads a 40-bit count as its low 32
     /// bits, GX22, which the kernel will not reproduce silently). A row's sum
-    /// is checked by `newNativeGrid`. Traps on a legacy node and on a node that
-    /// already has a native parent, as `markNativeGridRow` does.
+    /// is checked by `newNativeGrid`. Traps on a node that already has a native
+    /// parent, as `markNativeGridRow` does.
     public func markNativeGridCell(_ node: LayoutNodeID, columns: Int? = nil,
                                    anchor: ProposalAlignment? = nil,
                                    columnAlignment: ProposalAlignment? = nil,
                                    unsizedAxes: ProposalAxes = []) {
         let index = slot(node)
-        precondition(nativeNodes[index] != nil,
-                     "a grid cell mark written on a legacy node (SA-G), node \(index)")
         precondition(nativeParents[index] == nil,
                      "a grid cell mark written after its node was parented (GR-A), node \(index)")
         if let columns {
@@ -1716,8 +1648,9 @@ extension LayoutTree {
     /// the platform default decided per boundary (0 beside a zero-spacing
     /// edge, GR-D); a given spacing is used verbatim, negative included.
     ///
-    /// **Checks, in order:** each child is native, with a message naming its
-    /// position, before any other read of it (SA-G); each given spacing is
+    /// **Checks, in order:** each child's id is this tree's (C-3), before any
+    /// other read of it (until stage 9 this loop also required each child to be
+    /// native, SA-G; `LR-FC` item 3); each given spacing is
     /// finite, the message naming `horizontalSpacing` or `verticalSpacing`
     /// (SA-J; SwiftUI answers nan and inf, GS9, GS10); each child has no other
     /// parent (CN-L); and each row's sum of spans is at most `Int32.max`, the
@@ -1732,9 +1665,7 @@ extension LayoutTree {
     public func newNativeGrid(children: [LayoutNodeID], alignment: ProposalAlignment = .center,
                               horizontalSpacing: Double? = nil,
                               verticalSpacing: Double? = nil) -> LayoutNodeID {
-        for (position, child) in children.enumerated() {
-            precondition(nativeNodes[slot(child)] != nil, "grid child \(position) is a legacy node (SA-G)")
-        }
+        for child in children { _ = slot(child) }
         if let horizontalSpacing {
             precondition(horizontalSpacing.isFinite,
                          "grid horizontalSpacing must be finite (SA-J), got \(horizontalSpacing)")
@@ -1743,7 +1674,7 @@ extension LayoutTree {
             precondition(verticalSpacing.isFinite,
                          "grid verticalSpacing must be finite (SA-J), got \(verticalSpacing)")
         }
-        let id = appendNode(style: .default, children: children)
+        let id = appendNode(children: children)
         recordParent(id, of: children)
         let inputs = children.map { child in
             let horizontal = zeroSpacingEdges(child, axis: .horizontal)

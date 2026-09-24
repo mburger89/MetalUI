@@ -28,10 +28,6 @@ public final class CoreTextTextSystem: TextSystem {
         return TextMeasurement(widestLine: shaped.widestLine, totalHeight: shaped.totalHeight)
     }
 
-    public func minContentWidth(_ string: String, font: FontKey) -> Double {
-        cache.minContentWidth(string, font: registered(font))
-    }
-
     public func caretOffsets(_ string: String, font: FontKey) -> [Double] {
         Shaper.caretOffsets(string, font: registered(font))
     }

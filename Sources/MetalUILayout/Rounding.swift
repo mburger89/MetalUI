@@ -19,16 +19,13 @@ public struct LayoutRect: Sendable, Equatable {
 ///
 /// This is Taffy's `round_layout` strategy.
 ///
-/// Two callers apply it, one per engine, and both must keep applying *this*
-/// function rather than a second implementation, or the two engines' rounded
-/// rects would drift apart:
-///
-/// - `computeLayout` in `FlexEngine.swift` calls `roundStoredRects`, which
-///   applies this to every node's absolute rect, depth-first, as the last step
-///   of layout — after positioning, so every rect it rounds is already
-///   root-absolute, which is this function's precondition.
-/// - `LayoutTree`'s `roundNativeStoredRects` does the same at the end of a
-///   native (proposal) run, recording each node's unrounded width first.
+/// One caller applies it: `LayoutTree`'s `roundNativeStoredRects`, at the end
+/// of a native (proposal) run, to every node's absolute rect, depth-first,
+/// recording each node's unrounded width first — after positioning, so every
+/// rect it rounds is already root-absolute, which is this function's
+/// precondition. (Until stage 9 the CSS engine's `computeLayout` applied it
+/// too, through `roundStoredRects`, and both engines had to share *this*
+/// function; that engine is deleted, `LR-FC`.)
 ///
 /// `NativeGridTests` also rounds its probe's recorded rects through this
 /// function, so a grid's expected values live in the same rounded space.
@@ -39,7 +36,8 @@ public struct LayoutRect: Sendable, Equatable {
 /// 100); stage 7a retired the goldens (record §48). Measured after it, in the
 /// full suite at 1616 tests:
 ///
-/// - **Deleting `roundStoredRects`' call from `computeLayout`** reddened 28
+/// - **Deleting `roundStoredRects`' call from `computeLayout`** (the CSS
+///   engine's, deleted at stage 9) reddened 28
 ///   tests, among them `computeLayoutRoundsEveryStoredRect` and
 ///   `shrinkIsWeightedByBaseSize` on the legacy engine and every lowering
 ///   differential that compares the legacy engine's rects with the native
@@ -48,7 +46,8 @@ public struct LayoutRect: Sendable, Equatable {
 ///   deletion reddens **26** — the lowering differentials alone, among them
 ///   `aLoweredPaddingLayerAgreesWithTheLegacyWrapper` and
 ///   `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth` (record §49 §6.1,
-///   MR1).
+///   MR1; renamed at stage 9 `aLoweredPaddingLayerInsetsItsContentByEachEdge` and
+///   `aLoweredTextLaysOutAndDrawsAtItsNaturalWidth`, record §51 §5.3).
 /// - **Deleting `roundNativeStoredRects`' call to this function** reddens 57,
 ///   among them `nativeLayoutRoundsStoredRectanglesAfterFractionalPlacement`,
 ///   `flex_row_seven_equal`'s arm of

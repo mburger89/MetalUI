@@ -19,26 +19,26 @@ import MetalUILayout
 // 4. a native registrar handed a legacy child;
 // 5. a custom-layout container handed its content's untyped nodes.
 //
-// **What it does not check — seven holes, each pinned or cited (MC-G):**
+// **What it does not check — seven holes, each pinned or cited (MC-G).** Four
+// of them (2, 3, 5 and 6) were about a legacy (CSS) node or subtree reaching a
+// native tree, backstopped by ruling SA-G's run-time traps; stage 9 deleted the
+// legacy registrars, so no such node can be minted and those traps and pins
+// retired with them (`LR-FC` item 3, `LR-FF`; record §51):
 //
 // 1. a group writing both entry points, which can disagree (guard 6, pinned wrong
 //    on purpose);
-// 2. a legacy NODE registered on the side during a typed entry and discarded
-//    (`anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected`, arm a);
-// 3. `unsafeBitCast`, or `@testable` code calling the internal initializer — the
-//    run-time traps of ruling SA-G stay the backstop
-//    (`aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`);
+// 2. *(closed at stage 9)* a legacy node registered on the side during a typed
+//    entry and discarded;
+// 3. `unsafeBitCast`, or `@testable` code calling the internal initializer — which
+//    since stage 9 can only wrap a native node of this tree (or trip
+//    `LayoutTree.slot`'s generation check);
 // 4. one typed id used twice — **closed at run time since plan task 6's ruling
 //    CN-L**: every native registrar with children records each child's parent
 //    and traps on a second (`aNativeNodeRegisteredTwiceTraps`, an exit test);
 //    the type still does not prevent it;
-// 5. a legacy style modifier on a proposal `Component`, whose `StyledComponent`
-//    is a plain `ElementGroup` — closed at run time by two existing SA-G traps,
-//    `setStyle`'s for `width`/`height` and `newNode`'s native-child check for
-//    `padding`'s wrapper (`OM-Z`; `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`,
-//    `aPaddingModifierOnAProposalComponentTraps`);
-// 6. a legacy SUBTREE laid out on the side and discarded, which still binds
-//    `@State` and moves `$anim` baselines (the same test as 2, arm b);
+// 5. *(closed at stage 3, `LR-BG`, and for good at stage 9)* a legacy style
+//    modifier on a proposal `Component`: both ops lower;
+// 6. *(closed at stage 9)* a legacy subtree laid out on the side and discarded;
 // 7. a typed id stored from an earlier frame, caught at run time by
 //    `LayoutTree.slot`'s generation check
 //    (`aTypedNodeIDStoredFromAnEarlierFrameTraps`).

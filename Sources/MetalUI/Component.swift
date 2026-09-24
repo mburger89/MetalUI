@@ -263,18 +263,19 @@ extension Component {
 /// top-level nodes **in the order the modifiers were written** (outer
 /// modifiers task, ruling `OM-E`).
 ///
-/// Two kinds, because the legacy path now has two kinds of modifier. `.amend`
-/// is distribution as the `Component` milestone measured it (`CO-U`): a size
-/// written onto the member node's own `Style`, which is what `width`/`height`
-/// still are (`OM-F`). `.wrap` is what `.padding` became when `MC-A` made it a
-/// wrapper on the `Element` path: a real legacy node registered around the
-/// member, carrying the same `Style` a `ModifierLayer` carries.
+/// Two kinds. `.amend` is `width`/`height` (`OM-F`): since stage 3 lane 4
+/// (`LR-BG`) it lowers to one native frame **around** the member
+/// (`LayoutPass.loweredComponentFrame`); until stage 9 the legacy authority
+/// wrote the size onto the member node's own `Style` instead (`CO-U`). `.wrap`
+/// is what `.padding` became when `MC-A` made it a wrapper on the `Element`
+/// path: a one-child container around the member, carrying the same `Style` a
+/// `ModifierLayer` carries, lowered as any other.
 ///
 /// `StyledComponent.requestGroupLayout` walks the list once per member with a
-/// "current node": an amend writes the current node, a wrap replaces it. That
+/// "current node": each op replaces it. That
 /// is what makes `.padding(4).width(70)` (the padded box is 70 wide) and
 /// `.width(70).padding(4)` (the member is 70 wide, then padded to 78) differ —
-/// `theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities`
+/// `theOrderOfAComponentsDistributingModifiersIsObservable`
 /// (stage 7b retired the legacy-only original, record §49 §4 row 218). Keeping an amend set
 /// beside a wrap set would collapse those two into one answer.
 ///
@@ -289,11 +290,11 @@ extension Component {
 /// leaves the member's own value alone, so `.width(p).height(q)` is two ops
 /// that do not fight.
 enum ComponentModifierOp {
-    /// The size written onto the current node's own `Style`, `.auto` on an axis
-    /// the caller did not name. `width`/`height`.
+    /// The size of the native frame registered around the current node, `.auto`
+    /// on an axis the caller did not name. `width`/`height`.
     case amend(Size<Dimension>)
-    /// Registers a legacy node with `style` around the current node, which the
-    /// new node then replaces. `padding`.
+    /// Lowers a one-child container with `style` around the current node, which
+    /// the new node then replaces. `padding`.
     case wrap(Style)
 }
 
@@ -336,64 +337,31 @@ enum ComponentModifierOp {
 /// nodes only, painted by nothing, and that is also why they cannot animate
 /// (below).
 ///
-/// **A CALLER'S `width`/`height` OVERWRITES THE COMPONENT'S OWN LAYOUT,
-/// silently, and this is a recorded divergence rather than a defect** (`OM-F`,
-/// owned by plan task 4). `.amend` runs `var style = pass.style(node);
-/// amend(&style); pass.setStyle(node, style)`, and every amend this file
-/// declares is a plain `=` on one `Style` field — so a caller reaches
-/// *through* the component and obliterates whatever the component's author
-/// wrote on that same field. **Measured** on a component whose author declared
-/// `.width(30)` on child `a` and `.width(50)` on child `b`, rendered in a
-/// 300x40 `Row` (`aComponentsWidthStillOverwritesItsMembersDeclaredWidth`,
-/// retired by stage 7b, record §49 §4 row 219; divergence 48's pin is now the
-/// legacy arm of `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`):
-///
-/// ```
-/// bare          a: 30.0   b: 50.0
-/// .width(70)    a: 70.0   b: 70.0
-/// ```
-///
-/// SwiftUI's `.frame(width: 70)` on the same custom view WRAPS each member and
-/// keeps it 30 and 50 wide, centred in 70 (probe arms G7/G8). Making
-/// `Component.width` wrap is a sizing-semantics change the outer-modifiers
-/// task was told not to make; task 4's frame work owns it. Until then, a
-/// component's declared sizes belong inside the component.
-///
-/// **Under the proposal authority that is already SwiftUI's answer** (plan
+/// **A caller's `width`/`height` frames each member, SwiftUI's answer** (plan
 /// task 7, stage 3, lane 4, `LR-BG`): the amend lowers to one native frame per
-/// member, so the same `Pair().width(70)` reads 30 and 50 at x 20 and 80. The
-/// two authorities disagree here on purpose until stage 6b switches the root,
-/// and `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt` pins
-/// both sides as literals.
+/// member, so a component whose author declared `.width(30)` on child `a` and
+/// `.width(50)` on child `b`, given `.width(70)`, reads 30 and 50 centred in 70
+/// each (probe arms G7/G8). **History**: until stage 9 the legacy authority's
+/// amend overwrote the member's own `Style` field — both read 70 — which was
+/// divergence 48 (`OM-F`); that answer went with the legacy engine (`LR-FC`).
+/// Pinned by `aComponentsWidthFramesEachMember`.
 ///
 /// **Order is observable, and it is MetalUI's order, not SwiftUI's member
 /// geometry.** `.padding(4).width(70)` reads outer 70 with the member 30 wide
 /// at the 4 inset; `.width(70).padding(4)` reads outer 78 with the member
 /// itself 70 wide. SwiftUI's G15/G16 read the same outer 70/78 but keep the
-/// member 30 wide (centred at x 20, then at x 24), because its `.frame` wraps
-/// where `width` here amends — `OM-F` again, seen through order.
+/// member 30 wide (centred at x 20, then at x 24).
 ///
 /// **A CALLER'S MODIFIER ON A COMPONENT NEVER ANIMATES. It snaps, even inside
 /// `withAnimation`.** This is a defect (review finding B-7), not a design
-/// choice, and it is pinned wrong on purpose, on two nodes since lane 4.
-/// `.amend` runs `pass.setStyle` only after `component.requestGroupLayout` has
-/// returned; by then each member element has already called
-/// `animated(_:_:for:pass:)` and stored its `$anim` baseline, so the baseline
-/// never holds the caller's value, and `setStyle` overwrites the interpolated
-/// result with the raw target on every frame. `.wrap` registers its node under
-/// no element id at all, so there is no slot for `animated` to compare against
-/// even if it were called.
-///
-/// Measured with `.linear(duration: 1)` and `.width(196).height(40).padding(4)`
-/// changed to `.width(320).height(80).padding(20)`: the member reads (320, 80)
-/// and the wrapper's `padding.left` reads 20 at t = 0 and again at t = 0.5,
-/// where (196, 40) / 4 and then (258, 60) / 12 are correct. The same width
-/// declared inside the component animates, 196 then 258. This is not the
-/// `.auto` snap: the fixture's member declares pixel sizes.
-/// Those legacy-authority readings were pinned by `everyRegisteringSiteAnimatesItsStyle`,
-/// retired at stage 7b (record §49 row 241); the snap under the proposal
-/// authority is arm (c) of `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`
-/// (`AnimationTests.swift`).
+/// choice, and it is pinned wrong on purpose. The ops run only after
+/// `component.requestGroupLayout` has returned, each registering its node from
+/// the op's raw value under no element id, so there is no `$anim` slot for
+/// `animated(_:_:for:pass:)` to compare against. The snap is arm (c) of
+/// `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`
+/// (`AnimationTests.swift`); the legacy authority's readings were pinned by
+/// `everyRegisteringSiteAnimatesItsStyle` until stage 7b (record §49 row 241).
+/// The same width declared inside the component animates.
 ///
 /// **The fix is blocked on `ElementGroup`, not on this type.**
 /// `requestGroupLayout` returns a flat `[LayoutNodeID]`, so nothing here can
@@ -407,9 +375,8 @@ enum ComponentModifierOp {
 /// a component's size today, declare the value inside the component (a stored
 /// property its `content` reads) rather than as a modifier on it.
 ///
-/// **Only `Style`-backed modifiers can work this way.** `LayoutTree.setStyle`
-/// reaches a node's `Style` and `requestNode` takes one; nothing reaches
-/// `Decoration` or `Handlers` per node, because those are per-ELEMENT state
+/// **Only layout modifiers can work this way.** An op registers a layout node
+/// around a member; nothing reaches `Decoration` or `Handlers` per node, because those are per-ELEMENT state
 /// registered by each `StyledElement`'s own `prepaint`. So `background`,
 /// `onClick`, `focusable`, `keyContext`, and the outer-modifiers task's
 /// `border`/`focusBorder`/`opacity`/`clipped`/`contentShape` are deliberately
@@ -428,22 +395,12 @@ enum ComponentModifierOp {
 /// is dropped, as the old amend dropped it (by reading, unpinned; SwiftUI
 /// unprobed).
 ///
-/// **On a proposal body every op traps** (`OM-Z`, closing `MC-G` hole 5): an
-/// amend reaches `LayoutTree.setStyle`, which refuses a native node, and a
-/// wrap reaches `LayoutTree.newNode`, which refuses a native child — both
-/// ruling SA-G's own preconditions, no new one. Pinned by
-/// `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration` and
-/// `aPaddingModifierOnAProposalComponentTraps`
-/// (`NativeBoundaryIntegrationTests.swift`). **That is the legacy authority's
-/// answer, and it is the only one that traps.** Under the proposal authority
-/// (plan task 7) both ops LOWER since stage 3's lane 4 (`LR-BG`): an amend
-/// registers one native frame per member and a wrap goes through
-/// `lowerLegacyNode` at site `component`, so a component over proposal content
-/// builds cleanly and neither op reports anything (`LR-BO`). Pinned by
-/// `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority` — whose
-/// component half is now an agreement arm — and by
-/// `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s two `Component`
-/// arms, which assert the absence of an entry. The lowering's own geometry is
+/// **On a proposal body both ops lower** (plan task 7, stage 3 lane 4,
+/// `LR-BG`): an amend registers one native frame per member and a wrap goes
+/// through `lowerLegacyNode` at site `component`, so a component over proposal
+/// content builds cleanly and neither op reports anything (`LR-BO`). Until
+/// stage 9 the legacy authority trapped here instead (`OM-Z`, `SA-G`); those
+/// pins retired with it (record §51). The lowering's own geometry is
 /// `LoweringComponentTests.swift`.
 public struct StyledComponent<C: Component>: ElementGroup {
     var component: C
@@ -465,32 +422,16 @@ public struct StyledComponent<C: Component>: ElementGroup {
             for op in ops {
                 switch op {
                 case .amend(let patch):
-                    // Each op branches on the authority itself (plan task 7,
-                    // ruling LR-C). Stage 3 lane 4 LOWERS both (LR-BG): an amend
-                    // that overwrote the member's `Style` becomes one native
-                    // frame AROUND it — SwiftUI's answer to divergence 48 — and
-                    // so it REPLACES `current` on this path where it left it
-                    // alone on the legacy one. Neither reports any more.
-                    if pass.lowersToProposal {
-                        current = pass.loweredComponentFrame(current, patch)
-                    } else {
-                        var style = pass.style(current)
-                        // Only the axes the patch declares: an `.auto` axis is
-                        // "not named", not "reset to auto", or `.width(p)` then
-                        // `.height(q)` would undo each other.
-                        if patch.width != .auto { style.size.width = patch.width }
-                        if patch.height != .auto { style.size.height = patch.height }
-                        pass.setStyle(current, style)
-                    }
+                    // Stage 3 lane 4 (LR-BG): one native frame AROUND the member
+                    // — SwiftUI's answer, which retired divergence 48 with the
+                    // legacy engine — so it REPLACES `current`.
+                    current = pass.loweredComponentFrame(current, patch)
                 case .wrap(let style):
-                    // A `.padding` wrapper is an ordinary one-child legacy
-                    // container, so it lowers through the container lowering at
-                    // its own site (LR-BG; prototype arm C3 agrees with the
-                    // legacy engine in every observation).
-                    current = pass.lowersToProposal
-                        ? pass.lowerLegacyNode(style, declared: style, children: [current],
-                                               site: .component)
-                        : pass.frame.requestNode(style: style, children: [current])
+                    // A `.padding` wrapper is an ordinary one-child container,
+                    // lowered through the container lowering at its own site
+                    // (LR-BG).
+                    current = pass.lowerLegacyNode(style, declared: style, children: [current],
+                                                   site: .component)
                 }
             }
             return current
@@ -512,8 +453,8 @@ public struct StyledComponent<C: Component>: ElementGroup {
 }
 
 /// The amend patch `Component.width`/`StyledComponent.width` carries: the
-/// declared axis, and `.auto` on the other — "not named", which neither the
-/// legacy write nor the lowered frame touches (`LR-BG`).
+/// declared axis, and `.auto` on the other — "not named", which the lowered
+/// frame leaves to the member (`LR-BG`).
 private func componentWidth(_ points: Pixels) -> Size<Dimension> {
     Size(width: .length(.pixels(points)), height: .auto)
 }
@@ -525,7 +466,7 @@ private func componentHeight(_ points: Pixels) -> Size<Dimension> {
 
 /// The `Style` a padding wrapper carries: the same one `StyledElement.padding`
 /// gives a `ModifierLayer` (`Box.swift`), so the two paths share one box
-/// model — an `auto`-sized legacy node whose only `Style` field is `padding`.
+/// model — an `auto`-sized node whose only `Style` field is `padding`.
 private func paddingWrapperStyle(_ points: Pixels) -> Style {
     var style = Style()
     style.padding = Edges(all: .pixels(points))
@@ -547,8 +488,8 @@ extension Component {
     ///
     /// **Not deprecated, though the `StyledElement` modifier it matches is**
     /// (plan task 7, stage 8, ruling `LR-ER` item 2): this one does not write
-    /// an element's own box or return `Self`; under the proposal authority it
-    /// already lowers to one native frame per member (`LR-BG` — SwiftUI's
+    /// an element's own box or return `Self`; it lowers to one native frame per
+    /// member (`LR-BG` — SwiftUI's
     /// answer, component distribution probe G7/G8); and `Component.frame` over
     /// several members is a horizontal row (`LR-BH`), so it is not a rename
     /// target. Its reconciliation with `.frame` is stage 11's.
@@ -561,8 +502,8 @@ extension Component {
     ///
     /// **Not deprecated, though the `StyledElement` modifier it matches is**
     /// (plan task 7, stage 8, ruling `LR-ER` item 2): this one does not write
-    /// an element's own box or return `Self`; under the proposal authority it
-    /// already lowers to one native frame per member (`LR-BG` — SwiftUI's
+    /// an element's own box or return `Self`; it lowers to one native frame per
+    /// member (`LR-BG` — SwiftUI's
     /// answer, component distribution probe G7/G8); and `Component.frame` over
     /// several members is a horizontal row (`LR-BH`), so it is not a rename
     /// target. Its reconciliation with `.frame` is stage 11's.

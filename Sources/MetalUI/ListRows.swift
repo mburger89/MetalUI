@@ -1,80 +1,48 @@
 import MetalUICore
 import MetalUILayout
 
-/// `List`'s row arrangement: the leading window spacer and the realized rows,
-/// as an `ElementGroup` rather than as `Pair(Box(spacerStyle),
-/// ArrayGroup(rows))` (ruling `LR-BS`, plan task 7 stage 4, lane 1).
+/// `List`'s row arrangement: the realized rows under one `WindowedRowsLayout`,
+/// as an `ElementGroup` (ruling `LR-BS`, plan task 7 stage 4, lane 1; `LR-BQ`,
+/// lane 2).
 ///
 /// **Why a group and not an element.** Something has to arrange the realized
-/// rows, and under the proposal authority (lane 2) that something is a
-/// `ProposalLayout` registered over them. Whatever holds it must introduce **no
-/// identity level**: `TombstoneTests.rowID` and `FocusTests.rowID` hand-compute
+/// rows, and that something is a `ProposalLayout` registered over them.
+/// Whatever holds it must introduce **no identity level**:
+/// `TombstoneTests.rowID` and `FocusTests.rowID` hand-compute
 /// `scrollerID → listID → child(of: listID, name: datum.id) → child(at: 0)`,
 /// with a `$state0`/`$focus` slot below, and an element between the `List` and
 /// its rows would add a level, silently re-point both chains and reset every
 /// row's `@State`, focus, `$anim` and accessibility node once. A group consumes
 /// cursor indices and introduces no level, so it is the only shape available.
 ///
-/// **The spacer is a bare NODE here, where it used to be a `Box` element, and
-/// that is this lane's one moving legacy number.** An element costs a
-/// `StateTable` entry it never reads: `Box.requestLayout` calls
-/// `animated(_:_:for:pass:)`, which mints a `$anim` slot on first sight of
-/// every registering element, unconditionally. Under the proposal authority
-/// there will be no spacer at all — the windowed layout places row *i* at
-/// `(firstIndex + i) × rowHeight` directly — so an element here would make the
-/// two authorities' `StateTable` id sets differ for **every** `List`, which
-/// stage 1's §5.1 item 4 forbids and which `LayoutDifferential`'s
-/// `stateSlotsEqual` reports. Keeping a dead element on the proposal path
-/// purely to hold a number equal was rejected.
+/// **ONE node, and no spacer.** The layout places row *i* at `(firstIndex + i)
+/// × rowHeight` directly, stating the invariant instead of arranging for a CSS
+/// flex column to produce it, and no CSS-defeating device is needed: the kernel
+/// has neither an automatic minimum for `minSize.height: 0` to remove nor a
+/// freeze loop for `flexShrink: 0` to stop. Both lines stay on `rowStyle`
+/// anyway, inert rather than removed, so the file keeps ONE row style
+/// (`LR-BS`). **History**: until stage 9 (`LR-FC`) the legacy authority
+/// registered a bare leading spacer node (a `Box` element before stage 4, which
+/// cost a `$anim` entry per `List`) plus the rows, flat, for a flex column to
+/// place; it went with the legacy engine, and with it `ListRows.spacerStyle` and
+/// `GroupLayout.spacer`. `theListsSpacerIsANodeNotAnElement` and
+/// `aListsSceneAndHitboxesAreUnchangedByTheGroup` (`ListTests.swift`) still pin
+/// that no element sits at positional 0 and that the scene and hitboxes hold.
 ///
-/// **Nothing else about the spacer changes.** It carries the identical `Style`
-/// and registers through the identical registrar, and an element that declares
-/// neither a `Decoration` nor a `Handlers` emits no rect and registers no
-/// hitbox, no focus entry and no accessibility record (`Frame.registerHandlers`
-/// appends only when `hasSomethingToSay`). What it stops doing is minting that
-/// `$anim` entry and recording a `Frame.elementBounds` row of its own. Pinned
-/// by `theListsSpacerIsANodeNotAnElement` and
-/// `aListsSceneAndHitboxesAreUnchangedByTheGroup` (`ListTests.swift`), and by
-/// `theResidentEntrySetStaysBoundedWhileScrolling10kRows`'s `2n + 5`.
-///
-/// **The rows number from cursor 0, where `Pair` started them at 1**, because
-/// the spacer no longer consumes an index. No row id moves: every row carries
-/// `.id(String(describing: datum.id))`, so its component is `.named` and a name
-/// replaces a position rather than joining it — the `at:` argument is never
-/// consulted once a `name:` is supplied. Mutation **M1c** (advancing the cursor
-/// past the spacer as `Pair` did) is the measurement of that claim.
-///
-/// **Two arrangements, one per authority** (`LR-BQ`, stage 4 lane 2).
-///
-/// - **legacy** — the leading spacer node plus the rows, flat, exactly what
-///   `Pair(Box(spacerStyle), ArrayGroup(rows))` returned. An ordinary flex
-///   column then places built row *i* at `window.lowerBound × rowHeight + i ×
-///   rowHeight`, which is its absolute offset.
-/// - **proposal** — ONE node: a `WindowedRowsLayout` over the rows, which
-///   places row *i* at `(firstIndex + i) × rowHeight` directly. **There is no
-///   spacer on this path at all** — the layout states the invariant instead of
-///   arranging for a CSS flex column to produce it — and no CSS-defeating
-///   device is needed: the kernel has neither an automatic minimum for
-///   `minSize.height: 0` to remove nor a freeze loop for `flexShrink: 0` to
-///   stop. Both lines stay on `rowStyle` anyway, inert rather than removed, so
-///   the file keeps ONE row style instead of two that can drift (`LR-BS`).
+/// **The rows number from cursor 0.** No row id depends on it: every row
+/// carries `.id(String(describing: datum.id))`, so its component is `.named`
+/// and a name replaces a position rather than joining it — the `at:` argument
+/// is never consulted once a `name:` is supplied.
 ///
 /// The rows' cross-axis stretch, their minima and maxima and every other flex
 /// **item** field come from stage 2's `planLegacyItems` / `registerLegacyItems`,
 /// called here with the `List`'s own declared style as the parent — so a row is
 /// wrapped exactly as it would be if the `List`'s `Box` had lowered it as a
-/// direct child, which is what it did before this lane and what the legacy
-/// engine still does.
+/// direct child.
 struct ListRows<Row: Element>: ElementGroup {
     /// Each realized row, already wrapped in the `Box` that pins its height and
     /// already carrying its `.id(String(describing: datum.id))`.
     var rows: [Box<Row>]
-
-    /// The leading spacer's style: `size.height` = `window.lowerBound ×
-    /// rowHeight` and `flexShrink = 0`. Built by `List.requestLayout`, which
-    /// owns the reasoning for both fields. **Legacy path only** — the proposal
-    /// path registers no spacer.
-    var spacerStyle: Style
 
     /// The uniform row height, in points, as `WindowedRowsLayout` wants it.
     var rowHeight: Double
@@ -92,25 +60,16 @@ struct ListRows<Row: Element>: ElementGroup {
     /// the animated one; nothing on a `List`'s own style is animatable today).
     var listStyle: Style
 
-    /// The spacer's node and each row's own `SingleElementLayout`, threaded to
+    /// Each row's own `SingleElementLayout`, threaded to
     /// `prepaintGroup`/`paintGroup` the way every other group threads its
-    /// members'. The spacer's node is carried rather than dropped so that a
-    /// later phase could read its rect; nothing does today, and that is why it
-    /// is a node rather than an element. **`nil` under the proposal
-    /// authority**, which registers no spacer.
+    /// members'.
     struct GroupLayout {
-        var spacer: LayoutNodeID?
         var rows: [SingleElementLayout<Box<Row>>]
     }
 
     typealias GroupPrepaint = [Box<Row>.PrepaintState]
 
-    /// **Under the legacy authority the spacer is registered first**, so the
-    /// node order handed to the enclosing `Box` is `[spacer] + rows` —
-    /// byte-identical to what `Pair(spacer, ArrayGroup(rows))` returned, and the
-    /// order the flex column reads as "skip this much, then the window".
-    /// **Under the proposal authority there is no spacer**, and the whole group
-    /// is one node.
+    /// The whole group is one node (`loweredNode(_:pass:)`).
     ///
     /// Each row goes through **`requestGroupLayout`**, not `requestLayout`:
     /// that entry is where `Element`'s group default lives, and it is what
@@ -118,11 +77,8 @@ struct ListRows<Row: Element>: ElementGroup {
     /// (`GlobalElementID.enteringGroupMember`, ruling `MC-H`). Calling
     /// `requestLayout` directly compiles and silently drops all three.
     ///
-    /// **The cursor sequence is the same on both authorities** — the spacer
-    /// consumes no index on either, because it is a node rather than a member.
-    /// Row ids therefore do not depend on the authority, which is half of what
-    /// `aLoweredListsRowIdentitiesAreTheLegacyOnes` pins (the other half being
-    /// that a group introduces no id LEVEL).
+    /// **A group introduces no id level**, which `aLoweredListsRowsAreNamedDirectlyUnderTheList`
+    /// pins.
     mutating func requestGroupLayout(under parent: GlobalElementID?,
                                      at cursor: inout Int,
                                      pass: inout LayoutPass) -> ([LayoutNodeID], GroupLayout) {
@@ -130,28 +86,16 @@ struct ListRows<Row: Element>: ElementGroup {
         rowNodes.reserveCapacity(rows.count)
         var layouts: [SingleElementLayout<Box<Row>>] = []
         layouts.reserveCapacity(rows.count)
-        func buildRows() {
-            for index in rows.indices {
-                let (built, rowLayout) = rows[index].requestGroupLayout(under: parent,
-                                                                        at: &cursor, pass: &pass)
-                rowNodes.append(contentsOf: built)
-                layouts.append(rowLayout)
-            }
+        for index in rows.indices {
+            let (built, rowLayout) = rows[index].requestGroupLayout(under: parent,
+                                                                    at: &cursor, pass: &pass)
+            rowNodes.append(contentsOf: built)
+            layouts.append(rowLayout)
         }
-
-        guard pass.lowersToProposal else {
-            // The identical registrar `Box(style: spacerStyle)` reached.
-            // Registering it raw here rather than through `Box` is the whole of
-            // the demotion — no `animated` call, so no `$anim` slot.
-            let spacer = pass.frame.requestNode(style: spacerStyle, children: [])
-            buildRows()
-            return ([spacer] + rowNodes, GroupLayout(spacer: spacer, rows: layouts))
-        }
-        buildRows()
-        return ([loweredNode(rowNodes, pass: &pass)], GroupLayout(spacer: nil, rows: layouts))
+        return ([loweredNode(rowNodes, pass: &pass)], GroupLayout(rows: layouts))
     }
 
-    /// `requestGroupLayout`'s proposal-authority arm (`LR-BQ`, `LR-BR`): the
+    /// `requestGroupLayout`'s arrangement (`LR-BQ`, `LR-BR`): the
     /// realized rows' item wrappers, then one `WindowedRowsLayout` over them.
     ///
     /// **Every row's record is consumed here** (`LR-AQ`: a record no lowered
@@ -261,13 +205,13 @@ struct ListRows<Row: Element>: ElementGroup {
 /// ruling `LR-BR`): it answers the list's **full** content extent on the
 /// stacking axis and places realized row *i* at `(firstIndex + i) × rowHeight`.
 ///
-/// **It states the windowing invariant once, where the legacy path arranges for
-/// a CSS flex column to produce it** — a leading spacer sized
-/// `firstIndex × rowHeight`, `minSize.height: 0` on each row to remove CSS's
-/// automatic minimum, `flexShrink: 0` on each row and on the spacer to keep the
-/// freeze loop out, and a declared `size.height` on the container so the
-/// scrollbar sees the whole list. Only the last of those five survives here,
-/// and it survives as this type's own `sizeThatFits`.
+/// **It states the windowing invariant once, where the legacy path (until
+/// stage 9) arranged for a CSS flex column to produce it** — a leading spacer
+/// sized `firstIndex × rowHeight`, `minSize.height: 0` on each row to remove
+/// CSS's automatic minimum, `flexShrink: 0` on each row and on the spacer to
+/// keep the freeze loop out, and a declared `size.height` on the container so
+/// the scrollbar sees the whole list. Only the last of those five survives
+/// here, and it survives as this type's own `sizeThatFits`.
 ///
 /// **What it answers, and where that is deliberately NOT SwiftUI's answer**
 /// (probe K6, re-run 2026-09-23, `docs/probes/swiftui-stack-algorithms.swift`):

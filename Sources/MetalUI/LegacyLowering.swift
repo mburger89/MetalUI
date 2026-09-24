@@ -3,9 +3,9 @@ import MetalUILayout
 
 // Plan task 7, stage 1: legacy elements lowered onto the proposal kernel in place
 // (`docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §5.4; rulings
-// LR-A, LR-E, LR-F). Under the proposal layout authority a legacy site keeps its
-// type, ids, `prepaint` and `paint`, and registers kernel nodes from its `Style`
-// here instead of a CSS node through `Frame.requestNode`.
+// LR-A, LR-E, LR-F). A legacy site keeps its type, ids, `prepaint` and `paint`,
+// and registers kernel nodes from its `Style` here — its only path since stage 9
+// deleted the CSS registrar `Frame.requestNode` with the legacy engine (`LR-FC`).
 //
 // **Lane 2 lowers leaves** — a childless `Box` and a `Text`. **Lane 3 lowers
 // containers** — a `Box` with children, and so `Row` and `Column` — onto a native
@@ -85,8 +85,7 @@ extension LayoutPass {
     }
 
     /// `style` with a `display: .none` replaced by `display` (ruling `LR-DH`): the
-    /// style a hidden node lowers from, since under the proposal authority it is laid
-    /// out as if shown. Any other display is left alone.
+    /// style a hidden node lowers from, since it is laid out as if shown. Any other display is left alone.
     private func showing(_ style: Style, as display: Display) -> Style {
         guard style.display == .none else { return style }
         var shown = style
@@ -451,7 +450,9 @@ extension LayoutPass {
     /// `<site>.<field>.unconsumed` for every non-default item field the member
     /// declares — and in a production frame every report is a **trap**, so
     /// `MyComponent().width(70)` over a member declaring `.flexGrow(1)` would work
-    /// under the legacy authority and abort under the proposal one at stage 6b.
+    /// under the legacy authority and abort under the proposal one at stage 6b
+    /// (the legacy authority is deleted since stage 9; the abort is what the
+    /// consume prevents).
     ///
     /// **The parent kind is `.stack`**, as a frame's is everywhere else in the
     /// lowering, so the member's `flexGrow`, `flexShrink`, `flexBasis`,
@@ -1294,24 +1295,5 @@ extension LayoutPass {
                                         width: Double(window.width.value),
                                         height: Double(window.height.value),
                                         alignment: proposalAlignment(horizontal: h.factor, vertical: v.factor))
-    }
-
-    /// Whether a presentation's content box **is** the window (ruling `LR-CL`): four
-    /// zero insets, both sizes `auto` and no border, so its padding box — the
-    /// containing block of any presentation registered inside it — is the window.
-    /// The one nested case the legacy engine answers as the lowering does (the
-    /// demo's card could hold a tooltip); every other nesting reports
-    /// `deferred.nested`.
-    func presentationCoversWindow(_ style: Style) -> Bool {
-        let i = style.inset, b = style.border
-        return [i.top, i.right, i.bottom, i.left].allSatisfy(isZero)
-            && style.size.width == .auto && style.size.height == .auto
-            && [b.top, b.right, b.bottom, b.left].allSatisfy { edge in
-                switch edge {
-                case .pixels(let p): p.value == 0
-                case .rems(let r): r.value == 0
-                case .percent(let f): f == 0
-                }
-            }
     }
 }
