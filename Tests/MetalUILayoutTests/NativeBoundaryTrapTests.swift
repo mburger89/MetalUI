@@ -36,59 +36,24 @@ private struct PassThroughLayout: ProposalLayout {
     func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {}
 }
 
-// MARK: - Mixing, in every direction (SA-G)
+// MARK: - Native children at every registrar (SA-G)
 
-/// A native node handed to a legacy `newNode` as a child traps at registration.
-/// Before this check the CSS engine laid the native node out as an empty flex
-/// box: its measure never ran and it was stored at a centred 0×0 (the design's
-/// evidence 4).
-@Test func aNativeNodeRegisteredUnderALegacyNodeTraps() async {
-    let result = await #expect(processExitsWith: .failure,
-                               observing: [\.standardErrorContent]) {
-        let tree = LayoutTree(generation: 0)
-        let native = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 5, height: 5)) }
-        _ = tree.newNode(style: Style(), children: [native])
-    }
-    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("given a native child"),
-            "aborted, but not at the native-child check this test is about:\n\(stderr)")
-}
+// Stage 9 deleted the legacy half of SA-G's mixing traps with the CSS engine
+// (`LR-FC`, record §51): `aNativeNodeRegisteredUnderALegacyNodeTraps`,
+// `aLegacyNodeRegisteredUnderANativeStackTraps`,
+// `aLegacyNodeRegisteredUnderACustomLayoutTraps`,
+// `aStyleWrittenOntoANativeNodeTraps`, `setStyleOnALegacyNodeDuringNativeLayoutTraps`
+// and `registeringALegacyLeafDuringNativeLayoutTraps` pinned `newNode`,
+// `setStyle` and `newLeaf`, which no longer exist. The native halves stay
+// pinned below: `registeringANativeNodeDuringNativeLayoutTraps` and
+// `computeNativeLayoutReenteredFromAMeasureClosureTraps`.
 
-/// A legacy node handed to a native stack traps at registration. The check
-/// predates this lane (`nativeNode(_:)`) and had no test.
-@Test func aLegacyNodeRegisteredUnderANativeStackTraps() async {
-    let result = await #expect(processExitsWith: .failure,
-                               observing: [\.standardErrorContent]) {
-        let tree = LayoutTree(generation: 0)
-        let legacy = tree.newNode(style: Style(), children: [])
-        _ = tree.newNativeLinearStack(children: [legacy], axis: .horizontal)
-    }
-    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("contains a legacy node"),
-            "aborted, but not at the legacy-child check this test is about:\n\(stderr)")
-}
-
-/// The same for the one protocol-backed registrar, `newNativeLayout`.
-@Test func aLegacyNodeRegisteredUnderACustomLayoutTraps() async {
-    let result = await #expect(processExitsWith: .failure,
-                               observing: [\.standardErrorContent]) {
-        let tree = LayoutTree(generation: 0)
-        let legacy = tree.newNode(style: Style(), children: [])
-        _ = tree.newNativeLayout(PassThroughLayout(), children: [legacy])
-    }
-    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("contains a legacy node"),
-            "aborted, but not at the legacy-child check this test is about:\n\(stderr)")
-}
-
-/// The positive control for the native-child check: all thirteen native
-/// registrars accept native children without trapping. They must not route
-/// through the checking `newNode`, because every one of them hands native
-/// children to the storage append.
-///
-/// The `precondition`s confirm every registrar still appends one storage row
-/// with a `Style.default`, since that row is what `nodeCount` and `style(_:)`
-/// read.
+/// All thirteen native registrars accept native children without trapping
+/// (the positive control for the native-child check until stage 9, and still
+/// the one test that registers through every registrar). Each appends one
+/// storage row, which `nodeCount` reads. (Until stage 9 it also required each
+/// node to read `isNativeLayoutNode` and a `Style.default` placeholder row,
+/// both deleted, `LR-FC`.)
 @Test func everyNativeRegistrarAcceptsNativeChildrenWithoutTrapping() async {
     await #expect(processExitsWith: .success) {
         let tree = LayoutTree(generation: 0)
@@ -111,26 +76,8 @@ private struct PassThroughLayout: ProposalLayout {
         ids.append(tree.newNativeGrid(children: [leaf(), leaf()]))                   // 13 newNativeGrid
         // 13 registered nodes plus 16 leaves registered as their children.
         precondition(tree.nodeCount == 29, "node count \(tree.nodeCount)")
-        for id in ids {
-            precondition(tree.isNativeLayoutNode(id))
-            precondition(tree.style(id) == .default)
-        }
+        precondition(ids.count == 13, "registrars \(ids.count)")
     }
-}
-
-/// A `Style` written onto a native node traps, outside any layout. The
-/// proposal engine never reads it, so before this check the write was silently
-/// inert (`StyledComponent`'s path, ruling SA-G).
-@Test func aStyleWrittenOntoANativeNodeTraps() async {
-    let result = await #expect(processExitsWith: .failure,
-                               observing: [\.standardErrorContent]) {
-        let tree = LayoutTree(generation: 0)
-        let native = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 5, height: 5)) }
-        tree.setStyle(native, Style())
-    }
-    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("setStyle on a native layout node"),
-            "aborted, but not at the native-style check this test is about:\n\(stderr)")
 }
 
 // MARK: - Re-entrancy and mutation during a layout call (SA-I, SA-H clause 7)
@@ -159,28 +106,6 @@ private struct PassThroughLayout: ProposalLayout {
             "aborted, but not at the re-entrancy check this test is about:\n\(stderr)")
 }
 
-/// `setStyle`'s existing precondition now fires during NATIVE layout, on a
-/// legacy node of the same tree, because the native entry point holds the flag.
-@Test func setStyleOnALegacyNodeDuringNativeLayoutTraps() async {
-    let result = await #expect(processExitsWith: .failure,
-                               observing: [\.standardErrorContent]) {
-        let tree = LayoutTree(generation: 0)
-        boundaryTree = tree
-        boundaryNode = tree.newNode(style: Style(), children: [])
-        let leaf = tree.newNativeLeaf { _ in
-            if let t = boundaryTree, let legacy = boundaryNode {
-                t.setStyle(legacy, Style())
-            }
-            return LayoutMeasurement(size: SizeD(width: 5, height: 5))
-        }
-        let root = tree.newNativeOverlay(children: [leaf])
-        tree.computeNativeLayout(root: root, proposal: proposal, in: bounds)
-    }
-    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("setStyle called while"),
-            "aborted, but not at the layout-time style check this test is about:\n\(stderr)")
-}
-
 /// Registering a native node from inside native layout traps: it grows the
 /// arrays the run is indexing.
 @Test func registeringANativeNodeDuringNativeLayoutTraps() async {
@@ -190,25 +115,6 @@ private struct PassThroughLayout: ProposalLayout {
         boundaryTree = tree
         let leaf = tree.newNativeLeaf { _ in
             _ = boundaryTree?.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 1, height: 1)) }
-            return LayoutMeasurement(size: SizeD(width: 5, height: 5))
-        }
-        let root = tree.newNativeOverlay(children: [leaf])
-        tree.computeNativeLayout(root: root, proposal: proposal, in: bounds)
-    }
-    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("registered while layout is running"),
-            "aborted, but not at the registration check this test is about:\n\(stderr)")
-}
-
-/// Registering a LEGACY leaf from inside native layout traps too: `newLeaf`
-/// reaches the same storage append as every native registrar.
-@Test func registeringALegacyLeafDuringNativeLayoutTraps() async {
-    let result = await #expect(processExitsWith: .failure,
-                               observing: [\.standardErrorContent]) {
-        let tree = LayoutTree(generation: 0)
-        boundaryTree = tree
-        let leaf = tree.newNativeLeaf { _ in
-            _ = boundaryTree?.newLeaf(style: Style()) { _, _ in SizeD(width: 1, height: 1) }
             return LayoutMeasurement(size: SizeD(width: 5, height: 5))
         }
         let root = tree.newNativeOverlay(children: [leaf])

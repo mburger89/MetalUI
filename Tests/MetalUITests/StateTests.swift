@@ -148,7 +148,7 @@ private struct ReflectOnceElement: Element {
     var tree = Box(content: CounterElement(elementID: ElementID("counter")))
 
     for _ in 0..<3 {
-        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&tree)
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
     }
 
     #expect(tree.content.count == 3)
@@ -190,7 +190,7 @@ private struct ReflectOnceElement: Element {
     var tree = Box(content: ArrayGroup((0..<40).map { _ in ReflectOnceElement() }))
 
     for _ in 0..<2 {
-        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&tree)
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
     }
 
     #expect(StateBinder.reflectionCount == 2)

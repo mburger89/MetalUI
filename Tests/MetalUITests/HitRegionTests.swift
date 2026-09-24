@@ -86,17 +86,10 @@ private func keyDown(_ characters: String) -> InputEvent {
 /// `Frame.axNodes` either way, but an accessibility *client's* record — the only
 /// place `accessibleText` lands — is written only while one is collecting.
 @MainActor private func collect<E: Element>(_ element: E,
-                                            size: Float = 200,
-                                            authority: LayoutAuthority? = nil)
+                                            size: Float = 200)
     -> (Frame, AccessibilityTree) {
     var element = element
-    let frame = authority.map {
-        Frame(contentSize: Size(width: px(size), height: px(size)), scaleFactor: 1,
-              stateTable: StateTable(), shapingCache: ShapingCache(),
-              glyphAtlas: GlyphAtlas(width: 256, height: 256),
-              theme: Theme.forAppearance(.light), collectsAccessibility: true,
-              layoutAuthority: $0)
-    } ?? Frame(contentSize: Size(width: px(size), height: px(size)), scaleFactor: 1,
+    let frame = Frame(contentSize: Size(width: px(size), height: px(size)), scaleFactor: 1,
                stateTable: StateTable(), shapingCache: ShapingCache(),
                glyphAtlas: GlyphAtlas(width: 256, height: 256),
                theme: Theme.forAppearance(.light), collectsAccessibility: true)
@@ -129,14 +122,10 @@ private func measure<E: Element>(clickAt: Point<Pixels>,
                                  focusing: GlobalElementID,
                                  counter: ClickCounter,
                                  log: KeyLog,
-                                 authority: LayoutAuthority? = nil,
                                  _ make: @escaping @MainActor () -> E) throws -> HitReading {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
-    // `nil` leaves the window's default authority; a caller whose literals were
-    // re-derived for `CN-J`'s centring (stage 6b, `LR-DG`) passes `.proposal`.
-    let (window, platform) = try authority.map {
-        try makeFakeWindow(device: device, size: 200, layoutAuthority: $0, content: make)
-    } ?? makeFakeWindow(device: device, size: 200, content: make)
+    // (Took an optional layout authority from stage 6b, `LR-DG`, until stage 9.)
+    let (window, platform) = try makeFakeWindow(device: device, size: 200, content: make)
     window.drawFrameIfNeeded()
     let regions = window.lastHitboxes.map(describe)
     click(platform, at: clickAt)
@@ -259,16 +248,14 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
         // (200 - 40) / 2 = 80, so (100, 100) is where (20, 20) was.
         let onCounter = ClickCounter(), onLog = KeyLog()
         let on = try measure(clickAt: pt(100, 100), focusing: subjectID(),
-                             counter: onCounter, log: onLog,
-                             authority: .proposal) { make(false, onCounter) }
+                             counter: onCounter, log: onLog) { make(false, onCounter) }
         try #require(on.clicks == 1 && on.regions.count == 1,
                      why("\(site): the control must be hittable and register one region, or the "
                          + "disabled arm proves nothing: \(on)"))
 
         let offCounter = ClickCounter(), offLog = KeyLog()
         let off = try measure(clickAt: pt(100, 100), focusing: subjectID(),
-                              counter: offCounter, log: offLog,
-                              authority: .proposal) { make(true, offCounter) }
+                              counter: offCounter, log: offLog) { make(true, offCounter) }
         #expect(off.clicks == 0 && off.regions.isEmpty,
                 why("\(site): under .allowsHitTesting(false) this site must register nothing and "
                     + "run nothing: \(off)"))
@@ -388,8 +375,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
         // Stage 6b (`LR-DG`, R-centre): the 100x100 root is centred in the
         // 200x200 window at (200 - 100) / 2 = 50; every literal below is the
         // legacy top-left one moved by 50 on both axes.
-        let (window, platform) = try makeFakeWindow(device: device, size: 200,
-                                                    layoutAuthority: .proposal) {
+        let (window, platform) = try makeFakeWindow(device: device, size: 200) {
             shape(Box().cssWidth(px(100)).cssHeight(px(100)).background(.surface).id("subject")
                     .onClick { counter.bump() })
         }
@@ -483,8 +469,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     // reason: dropping it drops the input path and every arm reads zero.
     @MainActor func arm(_ inset: Pixels?, counter: ClickCounter)
         throws -> (regions: [String], window: Window, platform: FakePlatformWindow) {
-        let (window, platform) = try makeFakeWindow(device: device, size: 200,
-                                                    layoutAuthority: .proposal) {
+        let (window, platform) = try makeFakeWindow(device: device, size: 200) {
             Box {
                 let base = Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).id("child")
                     .onClick { counter.bump() }
@@ -541,7 +526,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     element.handlers.axNode = AXNode(role: .button, label: "shaped")
     // Stage 6b (`LR-DG`, R-centre): the 100x100 root is centred in the 200x200
     // frame at (200 - 100) / 2 = 50.
-    let (frame, tree) = collect(element, authority: .proposal)
+    let (frame, tree) = collect(element)
 
     let hit = try #require(frame.hitboxes.first, "the element declares an onClick and must register")
     try #require(hit.bounds.size.width.value == 60 && hit.bounds.size.height.value == 60,
@@ -581,7 +566,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     // Stage 6b (`LR-DG`, R-centre): the 40x40 root is centred in the 100x100
     // window at (100 - 40) / 2 = 30, so the 10pt-inset region is (40, 40) 20x20.
-    let (bare, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (bare, _) = try makeFakeWindow(device: device, size: 100) {
         Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface).id("subject")
             .contentShape(inset: px(10))
     }
@@ -590,7 +575,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
             why("a content shape does not create a hit region: "
                 + bare.lastHitboxes.map(describe).joined(separator: " | ")))
 
-    let (clickable, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (clickable, _) = try makeFakeWindow(device: device, size: 100) {
         Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface).id("subject")
             .contentShape(inset: px(10)).onClick { }
     }
@@ -823,8 +808,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
 
     @MainActor func fill(_ disabled: Bool) throws -> String {
         // Stage 6b (`LR-DG`, R-centre): the 40x40 root is centred at 30..70.
-        let (window, platform) = try makeFakeWindow(device: device, size: 100,
-                                                    layoutAuthority: .proposal) {
+        let (window, platform) = try makeFakeWindow(device: device, size: 100) {
             let base = Box().cssWidth(px(40)).cssHeight(px(40))
                 .background(.surface).hoverBackground(.accent).id("subject").onClick { }
             return disabled ? base.allowsHitTesting(false) : base

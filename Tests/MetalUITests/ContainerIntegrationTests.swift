@@ -673,11 +673,9 @@ private func pFlexible(_ name: String, _ idealW: Double, _ idealH: Double, _ log
 private func pp(_ width: Double?, _ height: Double?) -> ProposedSize { ProposedSize(width: width, height: height) }
 
 @MainActor
-private func render<Root: Element>(_ root: Root, _ width: Float, _ height: Float,
-                                   authority: LayoutAuthority = Frame.defaultLayoutAuthority) -> Frame {
+private func render<Root: Element>(_ root: Root, _ width: Float, _ height: Float) -> Frame {
     var root = root
-    let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1,
-                      layoutAuthority: authority)
+    let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1)
     frame.render(&root)
     return frame
 }

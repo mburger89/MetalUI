@@ -10,7 +10,8 @@ import MetalUILayout
 // max-content answer and to where a centring `Column` put the label.
 //
 // Oracles are CoreText's, reached without `Shaper` (shape 12), exactly as in
-// `TextMeasureTests.swift`, whose private helpers these repeat.
+// `TextMeasureTests.swift` before stage 9 (its private helpers, repeated here,
+// left it with the tests that used them).
 
 private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
 
@@ -33,7 +34,7 @@ private let threeLines = "Ready\nSet\nGo"
 /// **`.maxContent` of a label with hard breaks is its widest line, three lines
 /// tall — not the sum of its lines, one line tall.**
 ///
-/// Before the fix `textMeasure` answered 75.004 × 16 for this label: the one
+/// Before the fix the CSS measure function answered 75.004 × 16 for this label: the one
 /// `CTLine` the unwrapped shaper built laid `"Ready"`, `"Set"` and `"Go"` side
 /// by side, so the width was the sum and the height a single line. Every
 /// `.definite` width at or above 37.565 already answered 37.565 × 48.
@@ -49,27 +50,31 @@ private let threeLines = "Ready\nSet\nGo"
 /// the box's left edge, so `"Ready"`, the widest line, sat centred on ~181
 /// rather than 200. The assertion below is therefore on the widest line's
 /// centre, not the box's.
+///
+/// **Re-spelled onto `TextSystem.measure(_:font:wrappingAt: nil)` at stage 9**
+/// (`LR-FC`): it read the CSS measure function at `.maxContent`
+/// and at `.definite(400)`, deleted with the CSS engine. The seam's unwrapped
+/// measurement is the max-content answer (TX-K), and the same oracles apply.
 @MainActor
 @Test func aLabelWithHardBreaksMeasuresItsWidestLineAtMaxContent() {
-    let font = font
     let cache = ShapingCache()
+    let system = CoreTextTextSystem(cache: cache)
+    let key = system.resolveFont(family: nil, size: 13)
     let widest = ctAdvance("Ready")
     let lineHeight = ctLineHeight()
 
     // The arms disagree: this is a sample the defect is visible in.
     #expect(ctAdvance(threeLines) > widest + 30)
 
-    let maxContent = textMeasure(threeLines, font: font, cache: cache,
-                                 known: .unspecified, available: .maxContent)
-    #expect(abs(maxContent.width - widest) < 0.001)
-    #expect(abs(maxContent.height - 3 * lineHeight) < 0.001)
+    let maxContent = system.measure(threeLines, font: key, wrappingAt: nil)
+    #expect(abs(maxContent.widestLine - widest) < 0.001)
+    #expect(abs(maxContent.totalHeight - 3 * lineHeight) < 0.001)
 
     // Max-content agrees with a generous definite width, as it does for a
     // label with no hard break.
-    let wide = textMeasure(threeLines, font: font, cache: cache,
-                           known: .unspecified, available: .definite(400))
-    #expect(abs(maxContent.width - wide.width) < 0.001)
-    #expect(abs(maxContent.height - wide.height) < 0.001)
+    let wide = system.measure(threeLines, font: key, wrappingAt: 400)
+    #expect(abs(maxContent.widestLine - wide.widestLine) < 0.001)
+    #expect(abs(maxContent.totalHeight - wide.totalHeight) < 0.001)
 
     // Through a centring column 400 wide.
     let frame = Frame(contentSize: Size(width: Pixels(400), height: Pixels(600)),

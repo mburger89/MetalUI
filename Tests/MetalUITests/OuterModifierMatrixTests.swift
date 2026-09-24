@@ -233,8 +233,7 @@ private func observeUnderTheProposalAuthority<Subject: ElementGroup>(
         subject(ClickCounter())
         Box().cssWidth(px(1)).cssHeight(px(1)).background(.separator)
     }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
-    let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
-                            layoutAuthority: .proposal, reportsUnlowerableFields: true)
+    let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1, reportsUnlowerableFields: true)
     diagnostics.render(&preflight)
     try #require(diagnostics.unlowerableFields.isEmpty,
                  "the pre-flight reported \(diagnostics.unlowerableFields.map(\.description))")
@@ -246,7 +245,6 @@ private func observeUnderTheProposalAuthority<Subject: ElementGroup>(
             Box().cssWidth(px(1)).cssHeight(px(1)).background(.separator)
         }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
     }
-    try #require(window.layoutAuthority == .proposal, "not a proposal-authority window")
     window.recordsElementBounds = true
     window.drawFrameIfNeeded()
     interact(window, platform)
@@ -854,7 +852,7 @@ private struct ProposalMatrixRow {
 /// `chainedPaddingReplacesRatherThanAccumulates`, the amend-era pin of the
 /// opposite answer) until stage 7b retired it (record §49 row 215); under the
 /// proposal authority that half is `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer`
-/// and `theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities`.
+/// and `theOrderOfAComponentsDistributingModifiersIsObservable`.
 @Test @MainActor func legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
 

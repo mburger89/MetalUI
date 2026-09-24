@@ -42,16 +42,10 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     GlobalElementID.child(of: nil, at: 0, name: ElementID(name))
 }
 
-/// `authority` `nil` leaves `Frame`'s default; the tests whose literals were
-/// re-derived for `CN-J`'s centred root (stage 6b, `LR-DG`) pass `.proposal`.
-@MainActor private func render<E: Element>(_ element: inout E,
-                                           authority: LayoutAuthority? = nil) -> Frame {
-    let frame = authority.map {
-        Frame(contentSize: Size(width: px(300), height: px(300)),
-              scaleFactor: 1, stateTable: StateTable(),
-              shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 256, height: 256),
-              theme: Theme.forAppearance(.light), layoutAuthority: $0)
-    } ?? Frame(contentSize: Size(width: px(300), height: px(300)),
+/// (Took an optional layout authority from stage 6b, `LR-DG`, until stage 9,
+/// which deleted the legacy one.)
+@MainActor private func render<E: Element>(_ element: inout E) -> Frame {
+    let frame = Frame(contentSize: Size(width: px(300), height: px(300)),
                scaleFactor: 1, stateTable: StateTable(),
                shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 256, height: 256),
                theme: Theme.forAppearance(.light))
@@ -64,11 +58,10 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// throwing, so one silent arm cannot hide the arms after it.
 @MainActor private func expectEmits<E: StyledElement>(_ name: String, _ element: E,
                                                       declaring node: AXNode,
-                                                      at expectedBounds: Bounds<Pixels>,
-                                                      authority: LayoutAuthority? = nil) {
+                                                      at expectedBounds: Bounds<Pixels>) {
     var element = element
     element.handlers.axNode = node
-    let frame = render(&element, authority: authority)
+    let frame = render(&element)
     let id = rootID(name)
 
     guard let emitted = frame.axNodes[id] else {
@@ -106,22 +99,22 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 @Test @MainActor func aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers() {
     expectEmits("box", Box().cssWidth(px(41)).cssHeight(px(23)).id("box"),
                 declaring: AXNode(role: .button, label: "box-label"),
-                at: rect(130, 139, 41, 23), authority: .proposal)
+                at: rect(130, 139, 41, 23))
     expectEmits("column", Column { Box().cssWidth(px(10)).cssHeight(px(10)) }
                     .cssWidth(px(43)).cssHeight(px(29)).id("column"),
                 declaring: AXNode(role: .container, label: "column-label"),
-                at: rect(129, 136, 43, 29), authority: .proposal)
+                at: rect(129, 136, 43, 29))
     expectEmits("row", Row { Box().cssWidth(px(10)).cssHeight(px(10)) }
                     .cssWidth(px(47)).cssHeight(px(31)).id("row"),
                 declaring: AXNode(role: .generic, label: "row-label"),
-                at: rect(127, 135, 47, 31), authority: .proposal)
+                at: rect(127, 135, 47, 31))
     expectEmits("stack", Stack { Box().cssWidth(px(10)).cssHeight(px(10)) }
                     .cssWidth(px(53)).cssHeight(px(37)).id("stack"),
                 declaring: AXNode(role: .image, label: "stack-label"),
-                at: rect(124, 132, 53, 37), authority: .proposal)
+                at: rect(124, 132, 53, 37))
     expectEmits("text", Text("Hi").cssWidth(px(59)).cssHeight(px(19)).id("text"),
                 declaring: AXNode(role: .text, label: "text-label"),
-                at: rect(121, 141, 59, 19), authority: .proposal)
+                at: rect(121, 141, 59, 19))
     // `List` writes a `.container` node for itself when none is declared, so
     // this arm only shows that a DECLARED one reaches the frame through the
     // wrapped `Box` — `aCallerDeclaredAXNodeOnAListSurvivesLogicalCountBeingAdded`
@@ -129,7 +122,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     expectEmits("list", List([Datum(id: 0)], rowHeight: px(17)) { _ in Box() }
                     .cssWidth(px(61)).cssHeight(px(17)).id("list"),
                 declaring: AXNode(role: .button, label: "list-label"),
-                at: rect(120, 142, 61, 17), authority: .proposal)
+                at: rect(120, 142, 61, 17))
 
     // Ruling MC-I: a `.padding`/`.frame` chain is ONE `ModifiedElement` that
     // registers each layer's handlers — and so emits each layer's declared
@@ -140,7 +133,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
                     .padding(Edges(all: .pixels(px(7))))
                     .cssWidth(px(55)).cssHeight(px(37)).id("modifiedOuter"),
                 declaring: AXNode(role: .container, label: "modified-outer-label"),
-                at: rect(123, 132, 55, 37), authority: .proposal)
+                at: rect(123, 132, 55, 37))
     // The INNER arm declares its node on the padding-5 layer before the
     // padding-7 layer wraps it, so it is emitted under the inner layer's id,
     // `.positional(0)` under the root's. Its bounds, by hand: the outermost
@@ -152,7 +145,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
         inner.handlers.axNode = AXNode(role: .image, label: "modified-inner-label")
         var chain = inner.padding(Edges(all: .pixels(px(7)))).cssWidth(px(55)).cssHeight(px(37))
             .id("modifiedInner")
-        let frame = render(&chain, authority: .proposal)
+        let frame = render(&chain)
         let innerID = GlobalElementID.child(of: rootID("modifiedInner"), at: 0, name: nil)
         if let emitted = frame.axNodes[innerID] {
             #expect(emitted.role == .image && emitted.label == "modified-inner-label",
@@ -185,7 +178,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
         label
     }.cssWidth(px(100)).cssHeight(px(40)).id("row")
 
-    let frame = render(&row, authority: .proposal)
+    let frame = render(&row)
     let labelID = GlobalElementID.child(of: rootID("row"), at: 1, name: ElementID("label"))
     let node = try #require(frame.axNodes[labelID],
                             "a Text nested in a Row declared an AXNode and emitted none")

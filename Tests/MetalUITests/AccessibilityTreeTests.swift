@@ -35,20 +35,16 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 
 /// Renders `element` into a collecting `Frame` and builds the tree the way
 /// `Window.drawFrameIfNeeded` does.
-/// **`authority` since stage 4's lane 4**: `aLabelledListIsStillATable` is this
-/// file's one `List` test that can pin anything about a table (its other `List`
-/// usage asserts absence), and it runs under both. Every other caller takes the
-/// default `.legacy`.
+/// (Took a layout authority from stage 4's lane 4 until stage 9, which deleted
+/// the legacy one.)
 @MainActor private func collect<E: Element>(_ element: E, stateTable: StateTable = StateTable(),
                                            width: Float = 300, height: Float = 300,
-                                           focusedElement: GlobalElementID? = nil,
-                                           authority: LayoutAuthority = Frame.defaultLayoutAuthority)
+                                           focusedElement: GlobalElementID? = nil)
     -> (Frame, AccessibilityTree) {
     var element = element
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
                       stateTable: stateTable, theme: Theme.forAppearance(.light),
-                      focusedElement: focusedElement, collectsAccessibility: true,
-                      layoutAuthority: authority)
+                      focusedElement: focusedElement, collectsAccessibility: true)
     frame.render(&element)
     let tree = AccessibilityTreeBuilder.build(emissions: frame.axEmissions,
                                               focused: frame.focusedElement,
@@ -358,8 +354,7 @@ private struct Item: Identifiable { let id: Int }
     // cross axis (`LR-BB`), and the root is centred at that answer (`CN-J`):
     // x = (200 - 20) / 2 = 90, y = (100 - 100) / 2 = 0. Only x moves; the
     // halves above read y alone and hold on both authorities.
-    let (_, tree) = collect(makeTree(), stateTable: stateTable, width: 200, height: 100,
-                            authority: .proposal)
+    let (_, tree) = collect(makeTree(), stateTable: stateTable, width: 200, height: 100)
     let target = try #require(tree.id(labelled: "target"))
     let top = try #require(tree.id(labelled: "top"))
     let targetGeometry = try #require(tree.geometry[target])
@@ -619,13 +614,12 @@ private struct PressToRename: Component {
 /// exception is observable: excepting the hidden element would publish it as a
 /// root (hunting mutant H14).
 ///
-/// **Both authorities since stage 6b's lane 1** (`LR-DH`): under the proposal authority
+/// **Both authorities from stage 6b's lane 1 to stage 9** (`LR-DH`): under the proposal authority
 /// `hidden()` lowers as if shown and joins `Frame.hiddenNodes`, which the suppression
 /// reads; before the lane a `.proposal` frame over this fixture trapped on
 /// `box.display.none`.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce() throws {
     let column = GlobalElementID.child(of: nil, at: 0, name: nil)
     let hiddenBox = GlobalElementID.child(of: column, at: 0, name: nil)
     let hiddenFocusable = GlobalElementID.child(of: hiddenBox, at: 0, name: nil)
@@ -635,7 +629,7 @@ func hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedO
         declared(Box().cssWidth(px(10)).cssHeight(px(10)).id("x"), AXNode(label: "x-first"))
         declared(Box().cssWidth(px(20)).cssHeight(px(0)), AXNode(label: "divider"))
         declared(Box().cssWidth(px(10)).cssHeight(px(10)).id("x"), AXNode(label: "x-last"))
-    }, focusedElement: hiddenFocusable, authority: authority)
+    }, focusedElement: hiddenFocusable)
     #expect(frame.axNodes.values.contains { $0.label == "in" },
             "control: the hidden node is still emitted as today; only the record is suppressed")
     #expect(!tree.nodes.values.contains { $0.label == "in" }, "display: none content is not published")
@@ -661,22 +655,21 @@ func hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedO
 /// box, so both the root's own record and its content's are observable. The
 /// control is the same root without `hidden()`.
 ///
-/// **Both authorities since stage 6b's lane 1** (`LR-DH` item 3): under the proposal
+/// **Both authorities from stage 6b's lane 1 to stage 9** (`LR-DH` item 3): under the proposal
 /// authority the root's node is native, so `render`'s check reads `Frame.isHidden`
 /// (`display == .none ∨ hiddenNodes`), not the style alone.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aHiddenRootPublishesNothing(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aHiddenRootPublishesNothing() throws {
     func root(hidden: Bool) -> Box<Box<EmptyGroup>> {
         let box = Box { declared(Box().cssWidth(px(10)).cssHeight(px(10)).onClick {}, AXNode(label: "in")) }
             .cssWidth(px(20)).cssHeight(px(20)).onClick {}
         return hidden ? box.hidden() : box
     }
-    let (shownFrame, shown) = collect(root(hidden: false), authority: authority)
+    let (shownFrame, shown) = collect(root(hidden: false))
     try #require(shownFrame.axEmissions.count == 2, "control: the shown root and its box both record")
     #expect(shown.id(labelled: "in") != nil)
 
-    let (hiddenFrame, hidden) = collect(root(hidden: true), authority: authority)
+    let (hiddenFrame, hidden) = collect(root(hidden: true))
     #expect(hiddenFrame.axNodes.values.contains { $0.label == "in" },
             "control: the hidden root still prepaints, so its content still emits as today")
     #expect(hiddenFrame.axEmissions.isEmpty, "a hidden root records nothing")
@@ -699,18 +692,16 @@ func aHiddenRootPublishesNothing(_ authority: LayoutAuthority) throws {
 ///
 /// **Both authorities since stage 6b's lane 1** (`LR-DH` item 4): the lowered
 /// `.hidden()` layer joins `Frame.hiddenNodes`, which the per-layer wrap reads.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aHiddenInnerModifierLayerSuppressesEverythingInsideIt(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aHiddenInnerModifierLayerSuppressesEverythingInsideIt() throws {
     func target() -> Box<EmptyGroup> {
         declared(Box().cssWidth(px(10)).cssHeight(px(10)).onClick {}, AXNode(label: "in"))
     }
-    let (shownFrame, shown) = collect(Row { target().padding(px(4)).padding(px(4)) }, authority: authority)
+    let (shownFrame, shown) = collect(Row { target().padding(px(4)).padding(px(4)) })
     try #require(shownFrame.axEmissions.count == 1, "control: the unhidden box records")
     #expect(shown.id(labelled: "in") != nil)
 
-    let (hiddenFrame, hidden) = collect(Row { target().padding(px(4)).hidden().padding(px(4)) },
-                                        authority: authority)
+    let (hiddenFrame, hidden) = collect(Row { target().padding(px(4)).hidden().padding(px(4)) })
     #expect(hiddenFrame.axNodes.values.contains { $0.label == "in" },
             "control: the box inside the hidden layer still prepaints and emits as today")
     #expect(hiddenFrame.axEmissions.isEmpty, "nothing inside a hidden inner layer records")
@@ -734,25 +725,23 @@ func aHiddenInnerModifierLayerSuppressesEverythingInsideIt(_ authority: LayoutAu
 ///
 /// **Both authorities since stage 6b's lane 1** (`LR-DH`): the lowered frame layer is
 /// laid out as if shown and its node joins `Frame.hiddenNodes`.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient() throws {
     func target() -> Box<EmptyGroup> {
         declared(Box().cssWidth(px(10)).cssHeight(px(10)).onClick {}, AXNode(label: "in"))
     }
-    let (shownFrame, shown) = collect(Row { target().frame(width: px(40), height: px(40)) },
-                                      authority: authority)
+    let (shownFrame, shown) = collect(Row { target().frame(width: px(40), height: px(40)) })
     try #require(shownFrame.axEmissions.count == 1, "control: the framed, unhidden box records")
     #expect(shown.id(labelled: "in") != nil)
 
     let arms: [(chain: String, frame: Frame, tree: AccessibilityTree)] = [
-        { let (f, t) = collect(Row { target().frame(width: px(40), height: px(40)).hidden() }, authority: authority)
+        { let (f, t) = collect(Row { target().frame(width: px(40), height: px(40)).hidden() })
           return ("frame(width:height:).hidden()", f, t) }(),
-        { let (f, t) = collect(Row { target().frame(minWidth: px(40), maxWidth: px(80)).hidden() }, authority: authority)
+        { let (f, t) = collect(Row { target().frame(minWidth: px(40), maxWidth: px(80)).hidden() })
           return ("frame(minWidth:maxWidth:).hidden()", f, t) }(),
-        { let (f, t) = collect(Row { target().frame(width: px(40), height: px(40)).hidden().padding(px(4)) }, authority: authority)
+        { let (f, t) = collect(Row { target().frame(width: px(40), height: px(40)).hidden().padding(px(4)) })
           return ("frame(width:height:).hidden().padding(4)", f, t) }(),
-        { let (f, t) = collect(Row { target().frame(minWidth: px(40), maxWidth: px(80)).hidden().padding(px(4)) }, authority: authority)
+        { let (f, t) = collect(Row { target().frame(minWidth: px(40), maxWidth: px(80)).hidden().padding(px(4)) })
           return ("frame(minWidth:maxWidth:).hidden().padding(4)", f, t) }(),
     ]
     for arm in arms {
@@ -772,14 +761,12 @@ func aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient(_ authority
 /// holds the table's rows, their indices and the two window rules — but this is
 /// the one `List` assertion here that a table could fail, so it costs one
 /// argument to keep it honest on both paths.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aLabelledListIsStillATable(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aLabelledListIsStillATable() throws {
     let items = (0..<500).map(Item.init)
     let (_, tree) = collect(
         List(items, rowHeight: px(28)) { _ in Box().frame(width: px(20), height: px(28)) }
-            .handling { $0.axNode.label = "Contacts" },
-        authority: authority)
+            .handling { $0.axNode.label = "Contacts" })
     let list = try #require(tree.id(labelled: "Contacts"))
     #expect(tree.nodes[list]?.role == .table)
     #expect(tree.nodes[list]?.rowCount == 500)

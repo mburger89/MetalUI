@@ -28,10 +28,9 @@ private func sprites(_ frame: Frame) -> [[Float]] {
 }
 
 @MainActor
-private func render<E: Element>(_ make: () -> E, system: any TextSystem, scale: Float,
-                                authority: LayoutAuthority = Frame.defaultLayoutAuthority) -> Frame {
+private func render<E: Element>(_ make: () -> E, system: any TextSystem, scale: Float) -> Frame {
     let frame = Frame(contentSize: Size(width: Pixels(420), height: Pixels(600)), scaleFactor: scale,
-                      textSystem: system, layoutAuthority: authority)
+                      textSystem: system)
     var root = make()
     frame.render(&root)
     return frame
@@ -111,22 +110,36 @@ private func proposalTree() -> some Element {
 }
 
 /// A frame given the portable system never shapes through CoreText, in either
-/// phase or either authority: the CoreText cache it also holds stays empty.
-/// Equal sprites alone could not show this — with Noto Sans registered in
-/// both engines, a `Text` that measured through one and drew through the
-/// other would look the same.
+/// phase: the CoreText cache it also holds stays empty. Equal sprites alone
+/// could not show this — with Noto Sans registered in both engines, a `Text`
+/// that measured through one and drew through the other would look the same.
+///
+/// **The positive control** (stage 9, `LR-FE`): the same tree, the same kind
+/// of cache, through the CoreText system fills that cache — so the empty
+/// cache below is the portable system's doing, not an instrument that counts
+/// nothing. Until stage 9 the test looped over both layout authorities (and
+/// read the min-content memo too, deleted with tokenizer min-content,
+/// `LR-FD`); neither arm read a non-zero count, so the loop carried no
+/// control. Red once with the control frame given the portable system
+/// (record §51).
 @MainActor
 @Test func aPortableFrameNeverShapesThroughCoreText() throws {
-    for authority in [LayoutAuthority.legacy, .proposal] {
+    let controlCache = ShapingCache()
+    let control = Frame(contentSize: Size(width: Pixels(420), height: Pixels(600)), scaleFactor: 2,
+                        shapingCache: controlCache, textSystem: CoreTextTextSystem(cache: controlCache))
+    var controlRoot = legacyTree()
+    control.render(&controlRoot)
+    try #require(control.finalizedScene().glyphs.count > 60)
+    #expect(controlCache.storageCount > 0, "control: the CoreText system shapes into the cache")
+
+    do {
         let cache = ShapingCache()
         let frame = Frame(contentSize: Size(width: Pixels(420), height: Pixels(600)), scaleFactor: 2,
-                          shapingCache: cache, textSystem: try portableSystem(),
-                          layoutAuthority: authority)
+                          shapingCache: cache, textSystem: try portableSystem())
         var root = legacyTree()
         frame.render(&root)
         try #require(frame.finalizedScene().glyphs.count > 60)
-        #expect(cache.storageCount == 0, "\(authority)")
-        #expect(cache.minContentCount == 0, "\(authority)")
+        #expect(cache.storageCount == 0)
     }
     // And `ProposalText`, the other element on the seam.
     let cache = ShapingCache()

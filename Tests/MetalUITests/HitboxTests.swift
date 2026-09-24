@@ -325,8 +325,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
                       stateTable: StateTable(), shapingCache: ShapingCache(),
                       glyphAtlas: GlyphAtlas(width: 64, height: 64),
-                      theme: Theme.forAppearance(.light), mousePosition: pt(50, 50),
-                      layoutAuthority: .proposal)
+                      theme: Theme.forAppearance(.light), mousePosition: pt(50, 50))
 
     frame.render(&probe)
 
@@ -350,7 +349,8 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// press tracking. `aNamedChildUnderDeferredResolvesTheSameAsUnderABox` in
 /// `DeferredTests.swift` builds its own fixtures for the same reason.
 ///
-/// **A stage 6a Dual leaf since stage 6b** (`LR-DI`, spec §5.2's P-6b rule):
+/// **A stage 6a Dual leaf from stage 6b to stage 9** (`LR-DI`, spec §5.2's P-6b
+/// rule; its legacy branch went with the legacy authority at stage 9, record §51):
 /// `declaredSizeNativeLeaf` under the proposal authority, `Frame`'s internal
 /// legacy registrar under the legacy one. Stage 6a had pinned its five tests to
 /// `.legacy` (disposition P-6b); stage 6b re-spells them by `LR-DG` — the three
@@ -381,9 +381,7 @@ private struct HitboxProbe: Element {
         var style = Style()
         style.size = Size(width: .length(.pixels(size.width)),
                           height: .length(.pixels(size.height)))
-        return (pass.lowersToProposal
-                    ? declaredSizeNativeLeaf(style, pass)
-                    : pass.frame.requestNode(style: style, children: []), Empty())
+        return (declaredSizeNativeLeaf(style, pass), Empty())
     }
 
     /// Returns the registered `HitboxID` itself as `PrepaintState`, threaded
@@ -443,7 +441,7 @@ private func mouseMoved(to position: Point<Pixels>) -> InputEvent {
 /// (`CN-J`), so (50, 50) is where (20, 20) was at the legacy top-left root.
 @Test @MainActor func activeIsSetOnMouseDownAndHeldUntilMouseUp() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)))
     }
     window.drawFrameIfNeeded()
@@ -470,7 +468,7 @@ private func mouseMoved(to position: Point<Pixels>) -> InputEvent {
 /// (`CN-J`), so (50, 50) is where (20, 20) was at the legacy top-left root.
 @Test @MainActor func aPressThatLeavesTheHitboxAndReturnsStaysActive() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)))
     }
     window.drawFrameIfNeeded()

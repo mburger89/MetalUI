@@ -806,8 +806,7 @@ import MetalUIRender
         var harness = DifferentialRoot(width: 200, height: 100) { element }
         let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
                           stateTable: table, timestamp: timestamp,
-                          transaction: animating ? .linear(duration: 1) : nil,
-                          layoutAuthority: .proposal, reportsUnlowerableFields: true,
+                          transaction: animating ? .linear(duration: 1) : nil, reportsUnlowerableFields: true,
                           recordsElementBounds: true)
         frame.render(&harness)
         #expect(frame.unlowerableFields.isEmpty, "t \(timestamp): \(frame.unlowerableFields)")
@@ -1550,17 +1549,9 @@ private let probeSeparatorRGB = Rgba(r: 0.60, g: 0.10, b: 0.90)
 @MainActor private func colorFrame(_ table: StateTable, timestamp: Double,
                                    theme: Theme, side: Float = 100,
                                    mousePosition: Point<Pixels>? = nil,
-                                   focusedElement: GlobalElementID? = nil,
-                                   authority: LayoutAuthority? = nil) -> Frame {
-    // `nil` leaves `Frame`'s default; a test whose literals were re-derived for
-    // `CN-J`'s centred root (stage 6b, `LR-DG`) passes `.proposal`.
-    authority.map {
-        Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
-              scaleFactor: 1, stateTable: table,
-              theme: theme, timestamp: timestamp,
-              mousePosition: mousePosition, focusedElement: focusedElement,
-              layoutAuthority: $0)
-    } ?? Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
+                                   focusedElement: GlobalElementID? = nil) -> Frame {
+    // (Took an optional layout authority from stage 6b, `LR-DG`, until stage 9.)
+    Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
                scaleFactor: 1, stateTable: table,
                theme: theme, timestamp: timestamp,
                mousePosition: mousePosition, focusedElement: focusedElement)
@@ -1740,20 +1731,20 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     do {
         let table = StateTable()
         // Frame 1: not hovered — the baseline is the plain `background` token.
-        let plain = try painted(colorFrame(table, timestamp: 0, theme: theme, authority: .proposal))
+        let plain = try painted(colorFrame(table, timestamp: 0, theme: theme))
         expectColor(plain, h: 0.642857, s: 0.777778, l: 0.45, "unhovered: the plain token")
 
         // Frame 2: hovered, under a transaction. The EFFECTIVE token moved from
         // `background` to `accent` without any `Decoration` field changing at
         // all — which is the point.
-        let frame2 = colorFrame(table, timestamp: 0, theme: theme, mousePosition: inside, authority: .proposal)
+        let frame2 = colorFrame(table, timestamp: 0, theme: theme, mousePosition: inside)
         var started: Hsla?
         try withAnimationThrowing(.linear(duration: 1)) { started = try painted(frame2) }
         expectColor(started, h: 0.642857, s: 0.777778, l: 0.45,
                     "the frame hover begins reads its own `from`")
 
         // Frame 3: still hovered, halfway.
-        let mid = try painted(colorFrame(table, timestamp: 0.5, theme: theme, mousePosition: inside, authority: .proposal))
+        let mid = try painted(colorFrame(table, timestamp: 0.5, theme: theme, mousePosition: inside))
         expectColor(mid, h: midBackgroundToAccent.h, s: midBackgroundToAccent.s,
                     l: midBackgroundToAccent.l, "hover fades through the effective colour")
     }
@@ -1762,16 +1753,16 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     // alone (step 7's mutation) cannot pass both arms by coincidence.
     do {
         let table = StateTable()
-        let plain = try painted(colorFrame(table, timestamp: 0, theme: theme, authority: .proposal))
+        let plain = try painted(colorFrame(table, timestamp: 0, theme: theme))
         expectColor(plain, h: 0.642857, s: 0.777778, l: 0.45, "unfocused: the plain token")
 
-        let frame2 = colorFrame(table, timestamp: 0, theme: theme, focusedElement: id, authority: .proposal)
+        let frame2 = colorFrame(table, timestamp: 0, theme: theme, focusedElement: id)
         var started: Hsla?
         try withAnimationThrowing(.linear(duration: 1)) { started = try painted(frame2) }
         expectColor(started, h: 0.642857, s: 0.777778, l: 0.45,
                     "the frame focus begins reads its own `from`")
 
-        let mid = try painted(colorFrame(table, timestamp: 0.5, theme: theme, focusedElement: id, authority: .proposal))
+        let mid = try painted(colorFrame(table, timestamp: 0.5, theme: theme, focusedElement: id))
         expectColor(mid, h: midBackgroundToSeparator.h, s: midBackgroundToSeparator.s,
                     l: midBackgroundToSeparator.l, "focus fades through the effective colour")
     }

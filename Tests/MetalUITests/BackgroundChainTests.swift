@@ -139,7 +139,6 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
         // its 40x40 inner layer at 30..70 — and (50, 50) is inside each where
         // the legacy top-left root read (20, 20); (80, 80) is off every one.
         let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
-                                                          layoutAuthority: .proposal,
                                                           content: make)
         let theme = window.theme
         func expectFill(_ token: ColorToken, _ state: String) throws {
@@ -212,7 +211,6 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
         // centred and (50, 50) is inside each subject.
         let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                           startsDisplayLink: true,
-                                                          layoutAuthority: .proposal,
                                                           content: make)
         let theme = window.theme
 

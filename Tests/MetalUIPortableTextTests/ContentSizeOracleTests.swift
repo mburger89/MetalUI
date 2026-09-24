@@ -5,9 +5,65 @@ import Testing
 @testable import MetalUIText
 
 // Roadmap item 3 (rulings LB-L…): min- and max-content, and the unbreakable
-// runs under them, against MetalUI's Apple path — `Shaper.unbreakableRuns`
-// (`CFStringTokenizer`), `ShapingCache.minContentWidth` and
-// `Shaper.shape(wrappingAt: nil).widestLine`.
+// runs under them, against MetalUI's Apple path — the `CFStringTokenizer` walk
+// (`appleUnbreakableRuns`, below), the min-content it gives
+// (`appleMinContentWidth`) and `Shaper.shape(wrappingAt: nil).widestLine`.
+//
+// **The Apple arm's tokenizer is a test-local copy since stage 9** (`LR-FD`
+// item 3): stage 9 deleted tokenizer min-content from production —
+// `Shaper.unbreakableRuns` (`UnbreakableRuns.swift`) and
+// `ShapingCache.minContentWidth` — and this oracle is the one caller that still
+// needs CoreText's answer. The walk below is copied verbatim from
+// `UnbreakableRuns.swift` at `b9a5d7f` (`unbreakableRuns(of:)` and
+// `runs(walking:over:)`), less the two test counters stage 9 deleted with it;
+// the min-content is `ShapingCache.minContentWidth`'s loop, less its memo. The
+// oracle read the same agreement before and after the move
+// (`measureContentSizeDifferences`'s output identical, record §51).
+
+/// `string` split at every UAX #14 soft-wrap opportunity, with trailing
+/// whitespace removed from each piece — CoreText's (`CFStringTokenizer`'s)
+/// unbreakable runs. Verbatim from `appleUnbreakableRuns(of:)` at `b9a5d7f`,
+/// less its `runCallCounter`/`tokenizerCreationCounter` bumps. A tokenizer per
+/// call, `nil` locale.
+private func appleUnbreakableRuns(of string: String) -> [String] {
+    let cf = string as CFString
+    let length = CFStringGetLength(cf)
+    guard length > 0 else { return [] }
+    guard let tokenizer = CFStringTokenizerCreate(
+            kCFAllocatorDefault, cf, CFRangeMake(0, length),
+            kCFStringTokenizerUnitLineBreak, nil)
+    else { return [] }
+    return appleRuns(walking: tokenizer, over: string)
+}
+
+/// The UAX #14 walk: every token `tokenizer` yields over `string`, trailing
+/// whitespace trimmed, blank runs dropped. Verbatim from
+/// `Shaper.runs(walking:over:)` at `b9a5d7f`.
+private func appleRuns(walking tokenizer: CFStringTokenizer, over string: String) -> [String] {
+    let utf16 = Array(string.utf16)
+    var runs: [String] = []
+    while CFStringTokenizerAdvanceToNextToken(tokenizer) != [] {
+        let range = CFStringTokenizerGetCurrentTokenRange(tokenizer)
+        var run = Substring(String(
+            decoding: utf16[range.location ..< range.location + range.length],
+            as: UTF16.self))
+        while let last = run.last, last.isWhitespace { run = run.dropLast() }
+        if !run.isEmpty { runs.append(String(run)) }
+    }
+    return runs
+}
+
+/// CoreText's min-content: the widest unbreakable run, each shaped on a line of
+/// its own through `cache`. `ShapingCache.minContentWidth(_:font:)`'s miss
+/// branch at `b9a5d7f`, verbatim less the memo.
+@MainActor
+private func appleMinContentWidth(_ string: String, font: ResolvedFont, cache: ShapingCache) -> Double {
+    var width = 0.0
+    for run in appleUnbreakableRuns(of: string) {
+        width = max(width, cache.shaped(run, font: font, wrappingAt: nil).widestLine)
+    }
+    return width
+}
 //
 // Measured first (`METALUI_CONTENT_MEASURE=1`, 2026-09-23, macOS 27.0,
 // libunibreak 8.0): with no language, 2 of 35 strings' runs differed, and a
@@ -45,7 +101,7 @@ let runStrings = wrapStrings + [
 @MainActor func measureContentSizeDifferences() throws {
     var runDiffs = 0
     for text in runStrings {
-        let apple = Shaper.unbreakableRuns(of: text)
+        let apple = appleUnbreakableRuns(of: text)
         let portable = PortableText.unbreakableRuns(of: text)
         if apple != portable {
             runDiffs += 1
@@ -60,7 +116,7 @@ let runStrings = wrapStrings + [
             let cache = ShapingCache()
             for text in runStrings {
                 cases += 1
-                let appleMin = cache.minContentWidth(text, font: font.apple(size: size))
+                let appleMin = appleMinContentWidth(text, font: font.apple(size: size), cache: cache)
                 let portableMin = try PortableText.minContentWidth(text, font: font.portable(size: size))
                 if abs(appleMin - portableMin) > 1e-9 {
                     minDiffs += 1
@@ -104,7 +160,7 @@ func classPairStrings() -> [String] {
 @Test func everyClassPairBreaksAsCoreTextDoes() {
     let strings = classPairStrings()
     #expect(strings.count == 4_418)
-    let differing = strings.filter { Shaper.unbreakableRuns(of: $0) != PortableText.unbreakableRuns(of: $0) }
+    let differing = strings.filter { appleUnbreakableRuns(of: $0) != PortableText.unbreakableRuns(of: $0) }
     #expect(differing.isEmpty, "\(differing.count) differ; first \(differing.first.map { $0.debugDescription } ?? "")")
 }
 
@@ -114,7 +170,7 @@ let dictionaryScriptStrings = runStrings.filter { $0.unicodeScalars.contains { (
 @Test func everyCorpusStringButThaiSplitsIntoCoreTextsRuns() throws {
     try #require(dictionaryScriptStrings.count == 1)
     for text in runStrings where !dictionaryScriptStrings.contains(text) {
-        #expect(PortableText.unbreakableRuns(of: text) == Shaper.unbreakableRuns(of: text), "\(text.debugDescription)")
+        #expect(PortableText.unbreakableRuns(of: text) == appleUnbreakableRuns(of: text), "\(text.debugDescription)")
     }
 }
 
@@ -124,7 +180,7 @@ let dictionaryScriptStrings = runStrings.filter { $0.unicodeScalars.contains { (
 @Test func thaiBreaksOnlyAtSpacesWhereCoreTextUsesADictionary() {
     let text = "สวัสดีครับ ภาษาไทย"
     #expect(PortableText.unbreakableRuns(of: text) == ["สวัสดีครับ", "ภาษาไทย"])
-    #expect(Shaper.unbreakableRuns(of: text) == ["สวัสดี", "ครับ", "ภาษา", "ไทย"])
+    #expect(appleUnbreakableRuns(of: text) == ["สวัสดี", "ครับ", "ภาษา", "ไทย"])
 }
 
 /// The English curly quotes LB-L tailors, wrapped: `lines` breaks where
@@ -150,7 +206,7 @@ let dictionaryScriptStrings = runStrings.filter { $0.unicodeScalars.contains { (
 @Test func germanQuotesWrapWhereCoreTextsTypesetterLeavesItsTokenizer() throws {
     let font = try OracleFont("NotoSans-Regular.ttf")
     let text = "say „hi“ now"
-    #expect(PortableText.unbreakableRuns(of: text) == Shaper.unbreakableRuns(of: text))
+    #expect(PortableText.unbreakableRuns(of: text) == appleUnbreakableRuns(of: text))
     #expect(appleLines(text, font: font.apple(size: 13), width: 45).map(\.0) == [0..<9, 9..<12])
     #expect(try PortableText.lines(text, font: font.portable(size: 13), wrappingAt: 45).map(\.range)
             == [0..<4, 4..<11, 11..<12])
@@ -174,7 +230,7 @@ func covers(_ font: PortableFont, _ text: String) -> Bool {
             let portable = try font.portable(size: size)
             for text in runStrings where covers(portable, text) {
                 compared += 1
-                let appleMin = cache.minContentWidth(text, font: font.apple(size: size))
+                let appleMin = appleMinContentWidth(text, font: font.apple(size: size), cache: cache)
                 let appleMax = Shaper.shape(text, font: font.apple(size: size), wrappingAt: nil).widestLine
                 #expect(abs(try PortableText.minContentWidth(text, font: portable) - appleMin) <= 1e-9,
                         "\(file) \(size)pt min \(text.debugDescription)")

@@ -195,8 +195,7 @@ struct ContentSwapper<Content: ElementGroup>: Element {
 @MainActor
 private func renderSwapper<Content: ElementGroup>(_ content: Content,
                                                   replacedBy replacement: Content?) {
-    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
-                      layoutAuthority: .proposal)
+    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1)
     var element = ContentSwapper(content: content, replacement: replacement)
     frame.render(&element)
 }
@@ -419,7 +418,7 @@ struct StateProbe: Element, StyledElement {
 /// `anOverConstrainedBoxGrowsToFitItsPaddingAndBorder` carried under its old
 /// name, `containerDoesNotGrowToFitOverconstrained…`, until the sizing
 /// milestone closed the divergence, and stage 7b retired in turn (its D-row
-/// replacement is `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`,
+/// replacement is `aDeclaredSizeBelowThePaddingKeepsItsFixedFrame`,
 /// record §49 row 70): name the other
 /// answer in the comment so the choice is a decision rather than a surprise.
 @MainActor
@@ -427,7 +426,7 @@ struct StateProbe: Element, StyledElement {
     let log = ElementLog()
     let table = StateTable()
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)),
-                      scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
+                      scaleFactor: 1, stateTable: table)
     var column = Column {
         StateProbe("left", log: log).id("a").cssWidth(px(10)).cssHeight(px(10))
         StateProbe("right", log: log).id("a").cssWidth(px(10)).cssHeight(px(10))
@@ -458,7 +457,7 @@ struct StateProbe: Element, StyledElement {
     let log = ElementLog()
     let table = StateTable()
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)),
-                      scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
+                      scaleFactor: 1, stateTable: table)
     var column = Column {
         StateProbe("left", log: log).id("a").cssWidth(px(10)).cssHeight(px(10))
         StateProbe("right", log: log).id("b").cssWidth(px(10)).cssHeight(px(10))

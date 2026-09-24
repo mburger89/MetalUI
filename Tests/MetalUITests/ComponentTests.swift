@@ -25,7 +25,7 @@ import MetalUILayout
 // 207–219): each read the legacy tree's rects and node counts, and the
 // proposal authority's answer for every one is pinned in
 // `LoweringComponentTests` (`aComponentsPaddingLowersAsAnOrdinaryOneChildContainer`,
-// `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`, …).
+// `aComponentsWidthFramesEachMember`, …).
 //
 // The assertions below are structural and geometric together. A component that
 // wrongly contributed its own flex container would still produce the right
@@ -56,7 +56,9 @@ final class ComponentLog {
 
 /// A styled leaf that reports its own name and rect.
 ///
-/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
+/// **A Dual fixture from stage 6a to stage 9** (record §38, spec §5 lane 3); its
+/// legacy branch went with the legacy authority at stage 9 (record §51, lane 2).
+/// What follows is its history: under the
 /// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
 /// its R tests pass `.proposal`; under the legacy one it registers through
 /// `Frame`'s internal legacy registrar, and its fifteen P tests pass `.legacy`
@@ -80,9 +82,7 @@ private struct Leaf: Element, StyledElement {
     func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
         log.registered.append(name)
-        let node = pass.lowersToProposal
-            ? declaredSizeNativeLeaf(style, pass)
-            : pass.frame.requestNode(style: style, children: [])
+        let node = declaredSizeNativeLeaf(style, pass)
         return (node, node)
     }
 
@@ -181,12 +181,12 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 /// layout node", and it is the assertion a wrapping node reddens first.
 @MainActor
 @Test func aComponentContributesNoLayoutNodeOfItsOwn() {
-    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .proposal)
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
     var withComponent = Row { TwoLeaves(log: ComponentLog()) }
     frame.render(&withComponent)
     let withCount = frame.tree.nodeCount
 
-    let inlineFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .proposal)
+    let inlineFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
     let log = ComponentLog()
     var inline = Row {
         Leaf("a", log: log).cssWidth(px(30)).cssHeight(px(10))
@@ -448,7 +448,7 @@ private struct Wrapper: Component {
     var tree = Box(content: Wrapper(inner: CounterLeaf()))
 
     for _ in 0..<3 {
-        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&tree)
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
     }
 
     #expect(tree.content.inner.count == 3,
@@ -473,13 +473,13 @@ private struct Wrapper: Component {
     let log = ComponentLog()
 
     var solo = Box(content: Wrapper(inner: CounterLeaf(), elementID: ElementID("named")))
-    Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&solo)
+    Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&solo)
 
     var withSibling = Box {
         Leaf("sibling", log: log).cssWidth(px(10)).cssHeight(px(10))
         Wrapper(inner: CounterLeaf(), elementID: ElementID("named"))
     }
-    Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&withSibling)
+    Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&withSibling)
 
     #expect(withSibling.content.second.inner.count == 2,
             "a named component's content state must survive a sibling inserted before it; got \(withSibling.content.second.inner.count)")

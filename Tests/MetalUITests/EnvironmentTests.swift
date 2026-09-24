@@ -67,8 +67,8 @@ private final class EnvLog {
 /// **A native 10×10 leaf since stage 6a** (record §38, disposition R), as is
 /// `PropertyRecorder` below: the tests reading them are about the environment,
 /// which reads no authority, so each test whose tree holds a legacy container
-/// runs under the proposal authority (`frame(authority: .proposal)`, or a
-/// window's `layoutAuthority: .proposal`). No assertion moved.
+/// ran under the proposal authority explicitly until stage 9 made it the only
+/// one. No assertion moved.
 private struct EnvRecorder: Element {
     let label: String
     let log: EnvLog
@@ -188,10 +188,9 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
 
 @MainActor
 private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
-                   theme: Theme = .light, table: StateTable = StateTable(),
-                   authority: LayoutAuthority = Frame.defaultLayoutAuthority) -> Frame {
+                   theme: Theme = .light, table: StateTable = StateTable()) -> Frame {
     Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: scale,
-          stateTable: table, theme: theme, layoutAuthority: authority)
+          stateTable: table, theme: theme)
 }
 
 // MARK: - E1–E3: precedence and phases (EV-A, EV-L)
@@ -212,7 +211,7 @@ private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
             .environment(\.probe, 1)
         EnvRecorder(label: "A6", log: log)
     }
-    frame(authority: .proposal).render(&root)
+    frame().render(&root)
 
     let readings = ["A0", "A1", "A2", "A3", "A4", "A5", "A6"].map { log.paint[$0]?.probe }
     #expect(readings == [0, 1, 2, 1, 2, 1, 0])
@@ -231,7 +230,7 @@ private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
             .environment(\.probe, 5)
             .transformEnvironment(\.probe) { $0 += 100 }
     }
-    frame(authority: .proposal).render(&root)
+    frame().render(&root)
 
     #expect([log.paint["A7"]?.probe, log.paint["A8"]?.probe] == [110, 5])
 }
@@ -248,7 +247,7 @@ private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
             .environment(\.probe, 1)
         EnvRecorder(label: "outside", log: log)
     }
-    frame(authority: .proposal).render(&root)
+    frame().render(&root)
 
     #expect(log.probes("inner") == [2, 2, 2])
     #expect(log.probes("sibling") == [1, 1, 1])
@@ -269,7 +268,7 @@ private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
             .environment(\.probe, 1)
         EnvRecorder(label: "C", log: scopedLog)
     }, label: "row", log: scopedNodes)
-    let scopedFrame = frame(authority: .proposal)
+    let scopedFrame = frame()
     scopedFrame.render(&scoped)
 
     let bareLog = EnvLog()
@@ -278,7 +277,7 @@ private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
         Pair(EnvRecorder(label: "A", log: bareLog), EnvRecorder(label: "B", log: bareLog))
         EnvRecorder(label: "C", log: bareLog)
     }, label: "row", log: bareNodes)
-    frame(authority: .proposal).render(&bare)
+    frame().render(&bare)
 
     let row = try #require(scopedNodes.nodes["row"])
     #expect(scopedFrame.tree.children(row).count == 3)
@@ -297,22 +296,16 @@ private final class CounterLog {
 /// An `onClick` leaf whose `@State` counts its clicks, and records the count
 /// in paint.
 ///
-/// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §38, disposition P-6b): its one test reads a click at legacy
-/// coordinates, which the proposal root's centring moves (`CN-J`), so it is
-/// pinned to the legacy authority until stage 6b rules root placement.
+/// **A declared-size native leaf** (`declaredSizeNativeLeaf`). It registered
+/// through `Frame`'s internal legacy registrar from stage 6a (record §38,
+/// disposition P-6b) and was a Dual leaf from stage 6b (`LR-DI`) until stage 9
+/// deleted that registrar.
 private struct ClickCounter: Element {
     @State var n = 0
     let log: CounterLog
 
-    // A stage 6a Dual leaf since stage 6b (`LR-DI`, spec §5.2's P-6b rule):
-    // `declaredSizeNativeLeaf` under the proposal authority, `Frame`'s internal
-    // legacy registrar under the legacy one — so the one test using it runs at
-    // whatever authority its window has.
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.lowersToProposal
-            ? declaredSizeNativeLeaf(fixedStyle(20, 20), pass)
-            : pass.frame.requestNode(style: fixedStyle(20, 20), children: []), ())
+        (declaredSizeNativeLeaf(fixedStyle(20, 20), pass), ())
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -572,12 +565,12 @@ private struct NativeClickCounter: ProposalElement {
     let recorder = PropertyRecorder(log: log)
 
     var first = Row { recorder.environment(\.probe, 3) }
-    frame(authority: .proposal).render(&first)
+    frame().render(&first)
     #expect([log.layout, log.prepaint, log.paint] == [[3], [3], [3]])
 
     log.reset()
     var second = Row { recorder.environment(\.probe, 4) }
-    frame(authority: .proposal).render(&second)
+    frame().render(&second)
     #expect([log.layout, log.prepaint, log.paint] == [[4], [4], [4]])
 }
 
@@ -591,7 +584,7 @@ private struct NativeClickCounter: ProposalElement {
         recorder.environment(\.probe, 1)
         recorder.environment(\.probe, 2)
     }
-    frame(authority: .proposal).render(&root)
+    frame().render(&root)
     #expect(log.paint == [1, 2])
 }
 
@@ -611,7 +604,7 @@ private struct NativeClickCounter: ProposalElement {
 @Test func anEnvironmentPropertyInsideAnyElementIsInertAndReadsTheDefault() {
     let log = PropertyLog()
     var root = Row { AnyElement(PropertyRecorder(log: log)).environment(\.probe, 5) }
-    frame(authority: .proposal).render(&root)
+    frame().render(&root)
     #expect([log.layout, log.prepaint, log.paint] == [[0], [0], [0]])
 }
 
@@ -708,20 +701,17 @@ private struct EnvComponent: Component {
 /// background (15pt and 16pt), and both read dark — so the arm is shown to
 /// tell inside the scope from outside it, not to read light everywhere.
 ///
-/// **Under both authorities** (plan task 7 stage 5 lane 3, spec 3.8, `LR-CO`): a
-/// plain `Frame`, so the proposal arm runs with diagnostics on and requires an
-/// empty report before anything is read (`LR-BX`). The `Deferred` is **in-flow**;
+/// **Under both authorities from plan task 7 stage 5 lane 3 to stage 9** (spec
+/// 3.8, `LR-CO`): a plain `Frame` with diagnostics on, requiring an empty report
+/// before anything is read (`LR-BX`). The `Deferred` is **in-flow**;
 /// the presentation-shaped twin is
-/// `aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities`
-/// (`PresentationWindowTests`). Colours only are read, so the proposal root's
+/// `aPresentationKeepsItsDeclaringScopesEnvironment` (`PresentationWindowTests`). Colours only are read, so the proposal root's
 /// centring (`CN-J`) does not reach an assertion.
 @MainActor
-@Test(arguments: AuthorityCoverage.authorities)
-func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test
+func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope() throws {
     let f = Frame(contentSize: Size(width: px(200), height: px(50)), scaleFactor: 1,
-                  stateTable: StateTable(), theme: .light,
-                  layoutAuthority: authority, reportsUnlowerableFields: authority == .proposal)
+                  stateTable: StateTable(), theme: .light, reportsUnlowerableFields: true)
     var root = Row {
         surfaceBox(10).theme(.dark)
         surfaceBox(11)
@@ -730,7 +720,7 @@ func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope(_ autho
         surfaceBox(15).frame(width: px(16), height: px(10)).background(.surface).theme(.dark)
     }
     f.render(&root)
-    try #require(f.unlowerableFields.isEmpty, "\(authority): \(f.unlowerableFields)")
+    try #require(f.unlowerableFields.isEmpty, "\(f.unlowerableFields)")
 
     let rects = f.finalizedScene().rects
     func colour(_ width: Float) throws -> Hsla {
@@ -757,7 +747,7 @@ func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope(_ autho
 @MainActor
 @Test func theFramesRootEnvironmentCarriesItsThemeAndScale() throws {
     let log = EnvLog()
-    let retina = frame(scale: 2, theme: .dark, authority: .proposal)
+    let retina = frame(scale: 2, theme: .dark)
     var root = Row { surfaceBox(10); EnvRecorder(label: "px", log: log) }
     retina.render(&root)
     #expect(hsla(try #require(retina.finalizedScene().rects.first).background) == Theme.dark.surface)
@@ -765,11 +755,11 @@ func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope(_ autho
 
     let captureLog = EnvLog()
     var plain = Row { EnvRecorder(label: "px", log: captureLog) }
-    frame(scale: 1, authority: .proposal).render(&plain)
+    frame(scale: 1).render(&plain)
     let captured = try #require(captureLog.paint["px"])
     #expect(captured.pixelLength == 1)
 
-    let overwritten = frame(scale: 2, theme: .dark, authority: .proposal)
+    let overwritten = frame(scale: 2, theme: .dark)
     overwritten.rootEnvironment = captured
     var again = Row { surfaceBox(10); EnvRecorder(label: "px", log: log) }
     overwritten.render(&again)
@@ -843,11 +833,11 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
 @Test func aWholeValueWriteCannotResetTheThemeOrThePixelLength() throws {
     let captureLog = EnvLog()
     var plain = Row { EnvRecorder(label: "c", log: captureLog) }
-    frame(scale: 1, authority: .proposal).render(&plain)
+    frame(scale: 1).render(&plain)
     let captured = try #require(captureLog.paint["c"])
 
     let resetLog = EnvLog()
-    let resetFrame = frame(scale: 2, authority: .proposal)
+    let resetFrame = frame(scale: 2)
     var reset = Row {
         Pair(surfaceBox(10), EnvRecorder(label: "r", log: resetLog))
             .environment(\.self, EnvironmentValues())
@@ -862,7 +852,7 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
     #expect(resetLog.paint["control"]?.probe == 3)
 
     let restoreLog = EnvLog()
-    let restoreFrame = frame(scale: 2, authority: .proposal)
+    let restoreFrame = frame(scale: 2)
     var restore = Row {
         Pair(surfaceBox(10), EnvRecorder(label: "r", log: restoreLog))
             .transformEnvironment(\.self) { $0 = captured }
@@ -886,7 +876,7 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
 @Test func theWindowsEnvironmentReachesTheFrameAndASetRepaints() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let log = EnvLog()
-    let (window, _) = try makeFakeWindow(device: device, layoutAuthority: .proposal) {
+    let (window, _) = try makeFakeWindow(device: device) {
         Row { EnvRecorder(label: "w", log: log) }
     }
 
@@ -935,7 +925,7 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
 
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let log = EnvLog()
-    let (window, _) = try makeFakeWindow(device: device, layoutAuthority: .proposal) {
+    let (window, _) = try makeFakeWindow(device: device) {
         Row {
             EnvRecorder(label: "window", log: log)
             EnvRecorder(label: "reset", log: log).environment(\.self, EnvironmentValues())
@@ -951,7 +941,7 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
     // A `Frame` built without a window roots at the bare locale...
     let windowless = EnvLog()
     var bare = Row { EnvRecorder(label: "w", log: windowless) }
-    frame(authority: .proposal).render(&bare)
+    frame().render(&bare)
     #expect(windowless.paint["w"]?.locale.identifier == "", "a windowless Frame roots at EnvironmentValues()")
     // ...and an `@Environment` that was never bound reads the bare default.
     let unbound = Environment(\.locale)
@@ -976,9 +966,9 @@ private func branching(_ a: Int, _ b: Int, _ c: Int) -> ArrayGroup<Level2> {
 }
 
 @MainActor
-private func counts<C: ElementGroup>(_ content: C, authority: LayoutAuthority = Frame.defaultLayoutAuthority)
+private func counts<C: ElementGroup>(_ content: C)
     throws -> (push: Int, snapshot: Int, transform: Int) {
-    let f = frame(400, 400, authority: authority)
+    let f = frame(400, 400)
     var root = Box(content: content)
     f.render(&root)
     return (f.environmentPushCount, f.environmentSnapshotCount, f.environmentTransformCount)
@@ -1015,7 +1005,7 @@ private func counts<C: ElementGroup>(_ content: C, authority: LayoutAuthority = 
 
         let log = PropertyLog()
         let read = try counts(Pair(branching(a, b, c), PropertyRecorder(log: log))
-                                 .environment(\.probe, 1), authority: .proposal)
+                                 .environment(\.probe, 1))
         #expect(read.push == 3, "tree \(a)x\(b)x\(c)")
         #expect(read.snapshot == 3, "tree \(a)x\(b)x\(c): one bind per phase")
         #expect(log.paint == [1], "tree \(a)x\(b)x\(c): the reader must see the scope")
@@ -1044,14 +1034,14 @@ private final class TransformCounter {
     }
 
     var first = tree()
-    let firstFrame = frame(authority: .proposal)
+    let firstFrame = frame()
     firstFrame.render(&first)
     #expect(counter.n == 1)
     #expect(log.probes("t") == [1, 1, 1])
     #expect(firstFrame.environmentTransformCount == 1)
 
     var second = tree()
-    let secondFrame = frame(authority: .proposal)
+    let secondFrame = frame()
     secondFrame.render(&second)
     #expect(counter.n == 2)
     #expect(log.probes("t") == [2, 2, 2])
@@ -1076,8 +1066,7 @@ private func proposalTextMeasure<C: ElementGroup>(_ content: (Text) -> C, _ text
     let rowID = GlobalElementID.child(of: nil, at: 0, name: nil)
     let textID = GlobalElementID.child(of: rowID, at: 0, name: nil)
     func measured(width: Float) throws -> Size<Pixels> {
-        let f = Frame(contentSize: Size(width: px(width), height: px(1000)), scaleFactor: 1,
-                      layoutAuthority: .proposal, reportsUnlowerableFields: true,
+        let f = Frame(contentSize: Size(width: px(width), height: px(1000)), scaleFactor: 1, reportsUnlowerableFields: true,
                       recordsElementBounds: true)
         var root = Row { content(text) }
         f.render(&root)

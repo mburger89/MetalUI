@@ -32,11 +32,10 @@ private func up(_ x: Float, _ y: Float) -> InputEvent {
 /// (greedy) and is centred vertically at its line height.
 @MainActor
 private func fieldWindow(_ model: Model, disabled: Bool = false, submits: Bool = true,
-                         authority: LayoutAuthority? = nil,
                          extra: @escaping @MainActor (TextField) -> TextField = { $0 })
     throws -> (Window, FakePlatformWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    return try makeFakeWindow(device: device, size: 200, layoutAuthority: authority) {
+    return try makeFakeWindow(device: device, size: 200) {
         var field = TextField("Name", text: model.text) { model.text = $0 }
         if submits { field = field.onSubmit { model.submits += 1 } }
         return Box { extra(field).disabled(disabled) }
@@ -241,32 +240,45 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
             "the scroll stayed where the end put it: \(moved.origin.x.value)")
 }
 
-/// Both authorities. The proposal engine offers the field the width and it
-/// takes it, one line tall (SwiftUI's greedy `TextField`); the legacy CSS
-/// engine sizes it as it sizes a `Text` — its natural width, stretched across
-/// by `Box` (EP-8) — and the line is centred in whatever height it gets.
-/// Typing edits the same way under both. `.legacy` is pinned here on purpose,
-/// as the second arm of the pair (owner: stage 9, which deletes the legacy
-/// authority).
-@Test(arguments: [LayoutAuthority.proposal, .legacy])
-@MainActor func aFieldLaysOutAndEditsUnderBothAuthorities(_ authority: LayoutAuthority) throws {
+/// The engine offers the field the width and it takes it, one line tall
+/// (SwiftUI's greedy `TextField`), and typing edits it.
+///
+/// **The centring control** (stage 9, `LR-FE`): until stage 9 this test was
+/// `aFieldLaysOutAndEditsUnderBothAuthorities`, and its `.legacy` arm — the CSS
+/// engine sized the field as a `Text`, natural width, stretched to the window's
+/// 200 by `Box` (EP-8) — was the only arm where "the line is centred" could
+/// fail: a one-line-tall field puts its caret at its own top whether it centres
+/// or not. The second half gives the field a declared 60-point height, so the
+/// centred line (y + (60 − line) / 2) and a top-aligned one differ, and the
+/// assertion separates. Red once with `geometry`'s `lineY` read as the bounds'
+/// top (record §51).
+@Test @MainActor func aFieldLaysOutGreedilyAndEdits() throws {
     let model = Model("ab")
-    let (window, platform) = try fieldWindow(model, authority: authority)
+    let (window, platform) = try fieldWindow(model)
     window.drawFrameIfNeeded()
     let bounds = try fieldBounds(window)
     let target = try #require(window.lastHitboxes.first { $0.handlers.textInput != nil }?.handlers.textInput)
     let line = target.caretRect.size.height.value
-    if authority == .proposal {
-        #expect(bounds.size.width.value == 200 && bounds.size.height.value == line)
-    } else {
-        // "Name" is wider than "ab": the placeholder's width plus the caret.
-        #expect(bounds.size.width.value < 60 && bounds.size.height.value == 200)
-    }
+    #expect(bounds.size.width.value == 200 && bounds.size.height.value == line)
     let centred = bounds.origin.y.value + (bounds.size.height.value - line) / 2
-    #expect(target.caretRect.origin.y.value == centred, "\(authority): the line is centred")
+    #expect(target.caretRect.origin.y.value == centred, "the line is centred")
     platform.simulateInput(down(try caretX(window, at: 2), bounds.origin.y.value + 2))
     platform.simulateInput(.textInput("c"))
-    #expect(model.text == "abc", "\(authority)")
+    #expect(model.text == "abc")
+
+    // The control: a field taller than its line centres the line in it.
+    let tallModel = Model("ab")
+    let (tall, _) = try fieldWindow(tallModel, extra: { $0.cssHeight(Pixels(60)) })
+    tall.drawFrameIfNeeded()
+    let tallBounds = try fieldBounds(tall)
+    let tallTarget = try #require(tall.lastHitboxes.first { $0.handlers.textInput != nil }?.handlers.textInput)
+    let tallLine = tallTarget.caretRect.size.height.value
+    try #require(tallBounds.size.height.value == 60 && tallLine < 60,
+                 "the control needs a field taller than its line: \(tallBounds), line \(tallLine)")
+    let tallCentred = tallBounds.origin.y.value + (60 - tallLine) / 2
+    try #require(tallCentred != tallBounds.origin.y.value, "the two answers must differ")
+    #expect(tallTarget.caretRect.origin.y.value == tallCentred,
+            "the line is centred in the 60-point field: \(tallTarget.caretRect.origin.y.value)")
 }
 
 /// TI-C's paint, read off the frame's scene (fake window at scale 1, so scene

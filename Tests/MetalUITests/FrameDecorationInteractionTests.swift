@@ -242,14 +242,12 @@ private struct TwoMembers: Component {
     @MainActor func regions<E: ElementGroup>(_ make: @escaping @MainActor (ClickCounter) -> E)
         throws -> (regions: [String], counter: ClickCounter, platform: FakePlatformWindow, window: Window) {
         var preflight = inFilledRow { make(ClickCounter()) }
-        let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
-                                layoutAuthority: .proposal, reportsUnlowerableFields: true)
+        let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1, reportsUnlowerableFields: true)
         diagnostics.render(&preflight)
         try #require(diagnostics.unlowerableFields.isEmpty,
                      "the pre-flight reported \(diagnostics.unlowerableFields.map(\.description))")
         let counter = ClickCounter()
         let (window, platform) = try render { inFilledRow { make(counter) } }
-        try #require(window.layoutAuthority == .proposal, "not a proposal-authority window")
         return (window.lastHitboxes.map(describe), counter, platform, window)
     }
 
@@ -392,13 +390,11 @@ private struct TwoMembers: Component {
 @Test @MainActor func aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembersUnderTheProposalAuthority() throws {
     @MainActor func scene<E: ElementGroup>(_ make: @escaping @MainActor () -> E) throws -> (Scene, Theme) {
         var preflight = inFilledRow(make)
-        let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
-                                layoutAuthority: .proposal, reportsUnlowerableFields: true)
+        let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1, reportsUnlowerableFields: true)
         diagnostics.render(&preflight)
         try #require(diagnostics.unlowerableFields.isEmpty,
                      "the pre-flight reported \(diagnostics.unlowerableFields.map(\.description))")
         let (window, _) = try render { inFilledRow(make) }
-        try #require(window.layoutAuthority == .proposal, "not a proposal-authority window")
         return (window.lastScene, window.theme)
     }
     @MainActor func members(_ scene: Scene) throws -> (a: MUIRect, b: MUIRect) {

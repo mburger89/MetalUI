@@ -209,7 +209,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         Row { Row { EnabledRecorder("B8", log) } }.disabled(true)
     }
     Frame(contentSize: Size(width: px(200), height: px(50)), scaleFactor: 1,
-          stateTable: StateTable(), theme: .light, layoutAuthority: .proposal).render(&root)
+          stateTable: StateTable(), theme: .light).render(&root)
 
     let labels = ["B0", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8"]
     #expect(labels.map { log.enabled[$0] } == [true, false, true, false, false, true, false, false, false])

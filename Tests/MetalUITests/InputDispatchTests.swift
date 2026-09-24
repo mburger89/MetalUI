@@ -56,8 +56,7 @@ private final class ClickLog {
     // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
     // proposal authority it is centred at its own 40x40 answer (`CN-J`):
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
-                                                      layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
@@ -77,8 +76,7 @@ private final class ClickLog {
     // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
     // proposal authority it is centred at its own 40x40 answer (`CN-J`):
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
-                                                      layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
@@ -135,8 +133,7 @@ private final class ClickLog {
     // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
     // proposal authority it is centred at its own 40x40 answer (`CN-J`):
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
-                                                      layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append(label.name) }
     }
 
@@ -210,8 +207,7 @@ private final class LabelBox {
     let log = ClickLog()
     // Stage 6b (`LR-DG`, R-centre — the spec's table predicted "fill", but the
     // root declares both axes): the 60x60 root is centred, (100 - 60) / 2 = 20.
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
-                                                      layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box {
             Box().cssWidth(px(30)).cssHeight(px(30)).onClick { log.names.append("inner") }
         }
@@ -244,8 +240,7 @@ private final class LabelBox {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ClickLog()
     // Stage 6b (`LR-DG`, R-centre): the 60x60 root is centred at (20, 20).
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
-                                                      layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Stack {
             Box().cssWidth(px(30)).cssHeight(px(30)).onClick { log.names.append("inner") }
         }
@@ -307,8 +302,7 @@ private final class LabelBox {
     // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
     // proposal authority it is centred at its own 40x40 answer (`CN-J`):
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
-                                                      layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
@@ -349,7 +343,7 @@ private final class LabelBox {
 /// which is the measured reason the gate exists rather than a preference.
 @Test @MainActor func onlyABoxWithAHandlerRegistersAHitbox() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let (plain, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (plain, _) = try makeFakeWindow(device: device, size: 100) {
         Box().cssWidth(px(40)).cssHeight(px(40))
     }
     plain.drawFrameIfNeeded()
@@ -358,7 +352,7 @@ private final class LabelBox {
     // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
     // proposal authority it is centred at its own 40x40 answer (`CN-J`):
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
-    let (clickable, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (clickable, _) = try makeFakeWindow(device: device, size: 100) {
         Box().cssWidth(px(40)).cssHeight(px(40)).onClick {}
     }
     clickable.drawFrameIfNeeded()
@@ -389,7 +383,6 @@ private final class LabelBox {
         // is centred at 30..70 and (50, 50) is its middle, as (20, 20) was at
         // the legacy top-left root.
         let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
-                                                          layoutAuthority: .proposal,
                                                           content: content)
         window.drawFrameIfNeeded()
         click(platformWindow, at: pt(50, 50))
@@ -504,8 +497,7 @@ private struct Datum: Identifiable { let id: Int }
     // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
     // proposal authority it is centred at its own 40x40 answer (`CN-J`):
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
-                                                      layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()

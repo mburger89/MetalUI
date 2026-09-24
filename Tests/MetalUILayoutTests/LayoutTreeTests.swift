@@ -2,51 +2,35 @@ import Testing
 import MetalUICore
 @testable import MetalUILayout
 
-@Test func treeStoresStyleAndChildren() {
+/// A native 0×0 leaf: the one registration the id, generation, reset and
+/// adoption tests below need. **Re-spelled at stage 9** (`LR-FC`): these tests
+/// minted ids with the CSS `newNode(style:children:)`, deleted with the legacy
+/// engine; each fact is about ids, not about which engine owns the node.
+private func leaf(_ tree: LayoutTree) -> LayoutNodeID {
+    tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
+}
+
+/// **`treeStoresStyleAndChildren` until stage 9**: its style half read the
+/// legacy rows stage 9 deleted (`LR-FC`); the children half is kept, on native
+/// nodes.
+@Test func treeStoresChildren() {
     let tree = LayoutTree(generation: 0)
-    var childStyle = Style()
-    childStyle.flexGrow = 1
-    let child = tree.newNode(style: childStyle, children: [])
-    var rootStyle = Style()
-    rootStyle.flexDirection = .column
-    let root = tree.newNode(style: rootStyle, children: [child])
+    let child = leaf(tree)
+    let root = tree.newNativeOverlay(children: [child])
 
     #expect(tree.nodeCount == 2)
     #expect(tree.children(root) == [child])
     #expect(tree.children(child).isEmpty)
-    #expect(tree.style(child).flexGrow == 1)
-    #expect(tree.style(root).flexDirection == .column)
-}
-
-@Test func leavesCarryAMeasureFunctionAndBranchesDoNot() throws {
-    let tree = LayoutTree(generation: 0)
-    let leaf = tree.newLeaf(style: Style()) { known, available in
-        SizeD(width: known.width ?? 42, height: 7)
-    }
-    let branch = tree.newNode(style: Style(), children: [leaf])
-    #expect(tree.measure(leaf) != nil)
-    #expect(tree.measure(branch) == nil)
-
-    let m = try #require(tree.measure(leaf))
-    // Known width wins over available space.
-    let sized = m(OptionalSizeD(width: 99, height: nil),
-                  AvailableSpaceSize(width: .definite(500), height: .maxContent))
-    #expect(sized.width == 99)
-    #expect(sized.height == 7)
-    // With no known width, the leaf returns its own natural size.
-    let natural = m(OptionalSizeD(width: nil, height: nil),
-                    AvailableSpaceSize(width: .maxContent, height: .maxContent))
-    #expect(natural.width == 42)
 }
 
 @Test func resetClearsNodesForReuse() {
     let tree = LayoutTree(generation: 0)
-    _ = tree.newNode(style: Style(), children: [])
-    _ = tree.newNode(style: Style(), children: [])
+    _ = leaf(tree)
+    _ = leaf(tree)
     #expect(tree.nodeCount == 2)
     tree.reset(generation: 1)
     #expect(tree.nodeCount == 0)
-    let fresh = tree.newNode(style: Style(), children: [])
+    let fresh = leaf(tree)
     #expect(fresh.index == 0)   // indices restart, so the arena truly reuses storage
 }
 
@@ -58,12 +42,12 @@ import MetalUICore
 /// `isCurrent` returning a constant `false` would satisfy the first alone.
 @Test func anIdFromBeforeAResetIsNotCurrentAfterIt() {
     let tree = LayoutTree(generation: 7)
-    let stale = tree.newNode(style: Style(), children: [])
+    let stale = leaf(tree)
     tree.setLayout(stale, LayoutRect(x: 1, y: 2, width: 3, height: 4))
     #expect(tree.isCurrent(stale))
 
     tree.reset(generation: 8)
-    let fresh = tree.newNode(style: Style(), children: [])
+    let fresh = leaf(tree)
 
     #expect(stale.index == fresh.index)     // indistinguishable without a generation
     #expect(!tree.isCurrent(stale))
@@ -79,8 +63,8 @@ import MetalUICore
 @Test func anIdFromOneTreeIsNotCurrentInAnother() {
     let first = LayoutTree(generation: 1)
     let second = LayoutTree(generation: 2)
-    let a = first.newNode(style: Style(), children: [])
-    let b = second.newNode(style: Style(), children: [])
+    let a = leaf(first)
+    let b = leaf(second)
 
     #expect(a.index == b.index)
     #expect(first.isCurrent(a))
@@ -91,7 +75,7 @@ import MetalUICore
 
 @Test func layoutResultsAreStoredPerNode() {
     let tree = LayoutTree(generation: 0)
-    let n = tree.newNode(style: Style(), children: [])
+    let n = leaf(tree)
     #expect(tree.layout(n) == LayoutRect(x: 0, y: 0, width: 0, height: 0))
     tree.setLayout(n, LayoutRect(x: 5, y: 6, width: 7, height: 8))
     #expect(tree.layout(n) == LayoutRect(x: 5, y: 6, width: 7, height: 8))
@@ -110,8 +94,8 @@ import MetalUICore
                                observing: [\.standardErrorContent]) {
         let issuer = LayoutTree(generation: 1)
         let other = LayoutTree(generation: 2)
-        let id = issuer.newNode(style: Style(), children: [])
-        for _ in 0..<3 { _ = other.newNode(style: Style(), children: []) }
+        let id = leaf(issuer)
+        for _ in 0..<3 { _ = leaf(other) }
         _ = other.layout(id)
     }
     // The exit status alone would be satisfied by any abort in that body — an
@@ -131,8 +115,8 @@ import MetalUICore
     await #expect(processExitsWith: .success) {
         let issuer = LayoutTree(generation: 1)
         let other = LayoutTree(generation: 2)
-        let id = issuer.newNode(style: Style(), children: [])
-        for _ in 0..<3 { _ = other.newNode(style: Style(), children: []) }
+        let id = leaf(issuer)
+        for _ in 0..<3 { _ = leaf(other) }
         _ = issuer.layout(id)
     }
 }
@@ -149,7 +133,7 @@ import MetalUICore
     let result = await #expect(processExitsWith: .failure,
                                observing: [\.standardErrorContent]) {
         let tree = LayoutTree(generation: 5)
-        _ = tree.newNode(style: Style(), children: [])
+        _ = leaf(tree)
         tree.reset(generation: 5)
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
@@ -165,25 +149,26 @@ import MetalUICore
 @Test func resettingToAGreaterGenerationDoesNotTrap() async {
     await #expect(processExitsWith: .success) {
         let tree = LayoutTree(generation: 5)
-        _ = tree.newNode(style: Style(), children: [])
+        _ = leaf(tree)
         tree.reset(generation: 6)
     }
 }
 
 /// A node cannot adopt a child issued by another tree.
 ///
-/// The check in `newNode` is the one place a foreign id would otherwise be
+/// The check at registration is the one place a foreign id would otherwise be
 /// *stored* rather than merely read: it would sit in `childLists` and be handed
-/// to the engine on the next `computeLayout`, where the trap would fire far from
-/// the call that caused it. Catching it at the point of adoption is what makes
-/// the abort attributable.
+/// to the engine on the next layout, where the trap would fire far from the
+/// call that caused it. Catching it at the point of adoption is what makes the
+/// abort attributable. (Through `newNode`'s check until stage 9; a native
+/// registrar reaches the same `slot(_:)` check through `nativeNode(_:)`.)
 @Test func adoptingAChildFromAnotherTreeTraps() async {
     let result = await #expect(processExitsWith: .failure,
                                observing: [\.standardErrorContent]) {
         let issuer = LayoutTree(generation: 1)
         let other = LayoutTree(generation: 2)
-        let foreign = issuer.newNode(style: Style(), children: [])
-        _ = other.newNode(style: Style(), children: [foreign])
+        let foreign = leaf(issuer)
+        _ = other.newNativeOverlay(children: [foreign])
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
     #expect(stderr.contains("outlived the tree that issued it"),
@@ -196,8 +181,8 @@ import MetalUICore
     await #expect(processExitsWith: .success) {
         let issuer = LayoutTree(generation: 1)
         let other = LayoutTree(generation: 2)
-        let own = issuer.newNode(style: Style(), children: [])
-        _ = other.newNode(style: Style(), children: [])
-        _ = issuer.newNode(style: Style(), children: [own])
+        let own = leaf(issuer)
+        _ = leaf(other)
+        _ = issuer.newNativeOverlay(children: [own])
     }
 }

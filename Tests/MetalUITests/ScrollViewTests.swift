@@ -27,13 +27,12 @@ private func fixedHeight(_ h: Float) -> Style {
 /// is the same "run layout only" idiom `TextMeasureTests.laidOut` already uses,
 /// generalised to hand back the returned `LayoutState` instead of discarding it.
 @MainActor
-private func laidOut<E: Element>(_ element: inout E, width: Double, height: Double,
-                                 authority: LayoutAuthority = Frame.defaultLayoutAuthority)
+private func laidOut<E: Element>(_ element: inout E, width: Double, height: Double)
     -> (Frame, LayoutNodeID, E.LayoutState) {
     // Plan task 7, stage 3, lane 3 (`LR-BI`): `reportsUnlowerableFields` stays
     // off, so this helper fails the way a production frame does.
     let frame = Frame(contentSize: Size(width: Pixels(Float(width)), height: Pixels(Float(height))),
-                      scaleFactor: 1, layoutAuthority: authority)
+                      scaleFactor: 1)
     var pass = LayoutPass(frame: frame)
     let (root, layout) = element.requestLayout(GlobalElementID.child(of: nil, at: 0, name: nil),
                                                pass: &pass)
@@ -59,9 +58,8 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// What a wrong `requestLayout` (e.g. one that resolved the content node's
 /// height instead of letting it overflow) catches here: the content height
 /// would read 100, matching the viewport, and the second `#expect` reddens.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func theContentNodeOverflowsTheViewport(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func theContentNodeOverflowsTheViewport() throws {
     var view = ScrollView(.vertical) {
         Column {
             Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
@@ -69,8 +67,7 @@ func theContentNodeOverflowsTheViewport(_ authority: LayoutAuthority) throws {
             Box(style: fixedHeight(40))
         }
     }
-    let (frame, root, layout) = laidOut(&view, width: 200, height: 100,
-                                        authority: authority)
+    let (frame, root, layout) = laidOut(&view, width: 200, height: 100)
     #expect(frame.bounds(of: root).size.height == px(100))
     #expect(frame.bounds(of: layout.contentNode).size.height == px(200),
             "five 40pt rows must measure 200, not the viewport's 100")
@@ -124,9 +121,8 @@ func theContentNodeOverflowsTheViewport(_ authority: LayoutAuthority) throws {
 /// expected width is `CTLineGetTypographicBounds` on each label's own
 /// single-line `CTLine`, summed. Nothing in `MetalUIText` or `MetalUILayout`
 /// contributes to the expectation.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aScrollViewOfTextDoesNotShrinkItsContentToTheViewport(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aScrollViewOfTextDoesNotShrinkItsContentToTheViewport() throws {
     let a = "The quick brown fox jumps over the lazy dog"
     let b = "Pack my box with five dozen liquor jugs"
     let ctFont = FontResolver.resolve(family: nil, size: 13).ctFont
@@ -140,8 +136,7 @@ func aScrollViewOfTextDoesNotShrinkItsContentToTheViewport(_ authority: LayoutAu
                  "the fixture must overflow a 200pt viewport by a wide margin, got \(expected)")
 
     var view = ScrollView(.horizontal) { Text(a); Text(b) }
-    let (frame, root, layout) = laidOut(&view, width: 200, height: 100,
-                                        authority: authority)
+    let (frame, root, layout) = laidOut(&view, width: 200, height: 100)
     let viewportWidth = Double(frame.bounds(of: root).size.width.value)
     let contentWidth = Double(frame.bounds(of: layout.contentNode).size.width.value)
 
@@ -168,9 +163,8 @@ func aScrollViewOfTextDoesNotShrinkItsContentToTheViewport(_ authority: LayoutAu
 /// Three rows, each its own `Box` with a background, so each emits its own
 /// `MUIRect` inside the clipped block — proving the radius reaches every
 /// primitive the clip covers, not just the first.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips() throws {
     // `.cssWidth(Pixels(50))` as well as the height: the legacy engine stretched
     // these rows to the 50pt viewport, the kernel viewport's cross answer is its
     // content's (`CN-M`), and a row that declares neither is 0 wide under the
@@ -193,7 +187,7 @@ func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips(_ authority: LayoutAut
         $0.lastScrollTime = 0
     }
     let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1,
-                      stateTable: table, layoutAuthority: authority)
+                      stateTable: table)
     frame.render(&view)
     let scene = frame.finalizedScene()
 
@@ -226,16 +220,14 @@ func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips(_ authority: LayoutAut
 /// `cornerRadius` would pass the test above and every existing clip test
 /// (none of which reads `maskCornerRadii` back) while rounding every
 /// `ScrollView` in the corpus that never asked for it.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aScrollViewWithNoCornerRadiusClipsSquare(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aScrollViewWithNoCornerRadiusClipsSquare() throws {
     var view = ScrollView(.vertical) {
         Box(decoration: Decoration(background: .surface)).cssWidth(Pixels(50)).cssHeight(Pixels(20))
         Box(decoration: Decoration(background: .surface)).cssWidth(Pixels(50)).cssHeight(Pixels(20))
     }
 
-    let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1,
-                      layoutAuthority: authority)
+    let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1)
     frame.render(&view)
     let scene = frame.finalizedScene()
 

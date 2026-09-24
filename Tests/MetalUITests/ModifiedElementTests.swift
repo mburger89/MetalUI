@@ -64,7 +64,9 @@ private final class Generation {
 /// (declared FIRST, so its slot is `$state0`) and a default click handler that
 /// increments it. Lane 1's `CountingLeaf`, without the phase counters.
 ///
-/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
+/// **A Dual fixture from stage 6a to stage 9** (record §38, spec §5 lane 3); its
+/// legacy branch went with the legacy authority at stage 9 (record §51, lane 2).
+/// What follows is its history: under the
 /// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
 /// its two R tests pass `.proposal`; under the legacy one it registers through
 /// `Frame`'s internal legacy registrar, and its three P tests pass `.legacy`.
@@ -90,9 +92,7 @@ private struct LayerLeaf: StyledElement {
     }
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.lowersToProposal
-            ? declaredSizeNativeLeaf(style, pass)
-            : pass.frame.requestNode(style: style, children: []), ())
+        (declaredSizeNativeLeaf(style, pass), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -119,8 +119,9 @@ private struct LayerLeaf: StyledElement {
 /// The smallest legacy `StyledElement`, for the type-name tests: its name is
 /// what `String(describing:)` prints.
 ///
-/// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §38, disposition P-CSS). Nothing lays it out since stage 7b trimmed
+/// **A declared-size native leaf since stage 9** (it registered through
+/// `Frame`'s internal legacy registrar from stage 6a, record §38, disposition
+/// P-CSS, until stage 9 deleted it). Nothing lays it out since stage 7b trimmed
 /// `legacyModifierChainsInferOneConcreteType` (record §49 §4 row 229): only
 /// its type name and its chains' layer counts are read.
 private struct ChainLeaf: StyledElement {
@@ -130,7 +131,7 @@ private struct ChainLeaf: StyledElement {
     var handlers = Handlers()
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.frame.requestNode(style: style, children: []), ())
+        (declaredSizeNativeLeaf(style, pass), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -217,13 +218,12 @@ private struct Observation: Equatable {
 }
 
 @MainActor
-private func observe<Root: Element>(authority: LayoutAuthority,
-                                    _ make: (LayerLog) -> Root) throws -> Observation {
+private func observe<Root: Element>(_ make: (LayerLog) -> Root) throws -> Observation {
     let log = LayerLog()
     var root = make(log)
     let table = StateTable()
     let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
-                      stateTable: table, layoutAuthority: authority)
+                      stateTable: table)
     frame.render(&root)
     let leafID = try #require(log.ids["leaf"])
     let leafBounds = try #require(log.bounds["leaf"])
@@ -376,9 +376,9 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
     try #require(flatValue.layerCount == 3 && genericValue.layerCount == 3,
                  "layers: flat \(flatValue.layerCount), generic \(genericValue.layerCount)")
 
-    let flat = try observe(authority: .proposal) { log in Row { flatChain(log) } }
-    let generic = try observe(authority: .proposal) { log in Row { genericChain(log) } }
-    let oracle = try observe(authority: .proposal) { log in
+    let flat = try observe() { log in Row { flatChain(log) } }
+    let generic = try observe() { log in Row { genericChain(log) } }
+    let oracle = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -389,7 +389,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let paddingsSwapped = try observe(authority: .proposal) { log in
+    let paddingsSwapped = try observe() { log in
         Row {
             Box(style: paddingStyle(4), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -400,7 +400,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let idMoved = try observe(authority: .proposal) { log in
+    let idMoved = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -411,7 +411,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}.id("mid")
         }
     }
-    let clickDropped = try observe(authority: .proposal) { log in
+    let clickDropped = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -422,7 +422,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let layerFewer = try observe(authority: .proposal) { log in
+    let layerFewer = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: paddingStyle(4), content:
@@ -431,7 +431,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let radiiSwapped = try observe(authority: .proposal) { log in
+    let radiiSwapped = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -514,9 +514,9 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
     try #require(probe.layerCount == 2 && probe.outermost.elementID == ElementID("outer"),
                  "layers \(probe.layerCount), outermost name \(String(describing: probe.outermost.elementID))")
 
-    let flat = try observe(authority: .proposal) { log in Row { LayerLeaf("sibling", log: log); chain(log) } }
-    let oracle = try observe(authority: .proposal) { log in Row { LayerLeaf("sibling", log: log); nested(log, named: true) } }
-    let unnamed = try observe(authority: .proposal) { log in Row { LayerLeaf("sibling", log: log); nested(log, named: false) } }
+    let flat = try observe() { log in Row { LayerLeaf("sibling", log: log); chain(log) } }
+    let oracle = try observe() { log in Row { LayerLeaf("sibling", log: log); nested(log, named: true) } }
+    let unnamed = try observe() { log in Row { LayerLeaf("sibling", log: log); nested(log, named: false) } }
 
     try #require(unnamed.leafID != oracle.leafID, "the leaf id comparison cannot fail")
     try #require(unnamed.layerIDs != oracle.layerIDs, "the layer id comparison cannot fail")
@@ -556,7 +556,7 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = LayerLog()
     let generation = Generation()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row { growableChain(log, adding: generation.value > 0) }
     }
     window.drawFrameIfNeeded()

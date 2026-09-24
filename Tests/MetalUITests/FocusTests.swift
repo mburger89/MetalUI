@@ -717,7 +717,7 @@ private struct Datum: Identifiable { let id: Int }
 @Test @MainActor func isFocusedDuringPaintTracksTheWindowsFocus() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let probe = FocusProbe()
-    let (window, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (window, _) = try makeFakeWindow(device: device, size: 100) {
         Box { FocusReader(probe: probe) }.id("root")
     }
     window.drawFrameIfNeeded()
@@ -803,7 +803,7 @@ private struct FocusReader: Element {
 @Test @MainActor func focusingFromInsideAFrameSurvivesThatFrame() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let probe = SelfFocusProbe()
-    let (window, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (window, _) = try makeFakeWindow(device: device, size: 100) {
         Box { SelfFocuser(probe: probe) }.id("root")
     }
     probe.window = window
@@ -842,7 +842,7 @@ private struct FocusReader: Element {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let probe = SelfFocusProbe()
     probe.registersFocusable = false
-    let (window, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (window, _) = try makeFakeWindow(device: device, size: 100) {
         Box { SelfFocuser(probe: probe) }.id("root")
     }
     probe.window = window
@@ -950,9 +950,8 @@ private struct FocusListItem: Identifiable { let id: String }
 /// Mutation **M4a** (`staleAfterGenerations` 2 → 3) must redden this test on
 /// **both** authorities, and `TombstoneTests`' twin likewise.
 @MainActor
-@Test(arguments: AuthorityCoverage.authorities)
-func aFocusedListRowSurvivesABoundedExcursionButNotALongerOne(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test
+func aFocusedListRowSurvivesABoundedExcursionButNotALongerOne() throws {
     let rowHeight = px(20)
     let data = (0..<12).map { FocusListItem(id: "row\($0)") }
 
@@ -985,7 +984,7 @@ func aFocusedListRowSurvivesABoundedExcursionButNotALongerOne(_ authority: Layou
                                                     viewportExtent: current.viewportExtent))
             }
             let frame = Frame(contentSize: contentSize, scaleFactor: 1, stateTable: table,
-                              focusedElement: currentFocus, layoutAuthority: authority)
+                              focusedElement: currentFocus)
             frame.render(&tree)
             currentFocus = frame.focusedElement
         }

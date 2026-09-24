@@ -14,7 +14,7 @@ import MetalUILayout
 /// never about the engine — it is what `Stack.init` writes, which is exactly
 /// the stored `style` the engine is later handed. The observable twin (a
 /// `Stack`'s alignment placing its children, under the proposal authority) is
-/// `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes`.
+/// `aLoweredStackPlacesFixedChildrenAtAllNineAlignments`.
 /// `throws` and `inout` are kept so the three callers' bodies are unchanged.
 @MainActor
 private func styleOfRoot<E: StyledElement>(_ element: inout E) throws -> (Style, Decoration) {

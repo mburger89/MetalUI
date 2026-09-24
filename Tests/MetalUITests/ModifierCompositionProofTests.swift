@@ -97,7 +97,9 @@ private final class CompositionLog {
 /// `taps` is declared FIRST so its slot is `$state0` (the slot's ordinal is the
 /// property's `Mirror` index, `State.swift`).
 ///
-/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
+/// **A Dual fixture from stage 6a to stage 9** (record §38, spec §5 lane 3); its
+/// legacy branch went with the legacy authority at stage 9 (record §51, lane 2).
+/// What follows is its history: under the
 /// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
 /// its three R tests pass `.proposal`; under the legacy one it registers through
 /// `Frame`'s internal legacy registrar, and its two P tests pass `.legacy`.
@@ -125,9 +127,7 @@ private struct CountingLeaf: StyledElement {
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
         log.layout[name, default: 0] += 1
         log.events.append("layout \(name)")
-        return (pass.lowersToProposal
-            ? declaredSizeNativeLeaf(style, pass)
-            : pass.frame.requestNode(style: style, children: []), ())
+        return (declaredSizeNativeLeaf(style, pass), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -434,13 +434,12 @@ private struct Observation: Equatable {
 }
 
 @MainActor
-private func observe<Root: Element>(authority: LayoutAuthority,
-                                    _ make: (CompositionLog) -> Root) throws -> Observation {
+private func observe<Root: Element>(_ make: (CompositionLog) -> Root) throws -> Observation {
     let log = CompositionLog()
     var root = make(log)
     let table = StateTable()
     let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
-                      stateTable: table, layoutAuthority: authority)
+                      stateTable: table)
     frame.render(&root)
     let leafID = try #require(log.ids["leaf"])
     let leafBounds = try #require(log.bounds["leaf"])
@@ -471,7 +470,8 @@ private func paddingStyle(_ points: Float) -> Style {
 /// changes `animLive`'s length; only this wrapper shows that the comparison sees
 /// ONE inner layer that skipped the helper, lane 2's likeliest bug.
 ///
-/// **A Dual fixture since stage 7b** (record §49 §6.2, N2.2): under the
+/// **A Dual fixture from stage 7b to stage 9** (record §49 §6.2, N2.2; its legacy
+/// branch went with the legacy authority at stage 9, record §51): under the
 /// proposal authority it lowers through `lowerLegacyNode` at site `box`, as
 /// `Box` does, still without the `animated` call; under the legacy one it
 /// registers through `Frame`'s internal legacy registrar (stage 6a, P-CSS).
@@ -496,9 +496,7 @@ private struct BoxWithoutAnimated<Content: ElementGroup>: StyledElement {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         // `Box.requestLayout` calls `animated(style, decoration, for: id, pass:)` here.
-        let node = pass.lowersToProposal
-            ? pass.lowerLegacyNode(style, declared: style, children: children, site: .box)
-            : pass.frame.requestNode(style: style, children: children)
+        let node = pass.lowerLegacyNode(style, declared: style, children: children, site: .box)
         return (node, Layout(node: node, content: contentLayout))
     }
 
@@ -558,7 +556,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
 /// Red-before (record §49 §6.2, M2.2): `ModifiedElement`'s inner paint loop
 /// run innermost-first (the retired test's N8).
 @Test @MainActor func aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority() throws {
-    let chain = try observe(authority: .proposal) { log in
+    let chain = try observe() { log in
         Row {
             CountingLeaf("leaf", log: log)
                 .background(.accent).onClick {}
@@ -569,7 +567,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
                 .background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let oracle = try observe(authority: .proposal) { log in
+    let oracle = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -580,7 +578,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let paddingsSwapped = try observe(authority: .proposal) { log in
+    let paddingsSwapped = try observe() { log in
         Row {
             Box(style: paddingStyle(4), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -591,7 +589,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let idMoved = try observe(authority: .proposal) { log in
+    let idMoved = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -602,7 +600,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}.id("mid")
         }
     }
-    let clickDropped = try observe(authority: .proposal) { log in
+    let clickDropped = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -613,7 +611,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let animSkipped = try observe(authority: .proposal) { log in
+    let animSkipped = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 BoxWithoutAnimated(style: frameStyle(width: 60, height: 40), content:
@@ -624,7 +622,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let layerFewer = try observe(authority: .proposal) { log in
+    let layerFewer = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: paddingStyle(4), content:
@@ -636,7 +634,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
 
     // The radii-swapped oracle: the padding-4 layer's radius and the outermost
     // layer's exchanged, every other declaration unchanged.
-    let radiiSwapped = try observe(authority: .proposal) { log in
+    let radiiSwapped = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -708,7 +706,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
 @Test @MainActor func stateSurvivesFramesUnderALegacyModifierChain() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = CompositionLog()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
             CountingLeaf("leaf", log: log).padding(4).frame(width: 60, height: 40).padding(8)
         }
@@ -826,7 +824,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
     func counts<Root: Element>(_ make: (CompositionLog) -> Root) throws -> [Int] {
         let log = CompositionLog()
         var root = make(log)
-        Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1, layoutAuthority: .proposal).render(&root)
+        Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1).render(&root)
         let counts = log.counts("x")
         try #require(counts.count == 3)
         return counts
@@ -932,7 +930,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
 @Test @MainActor func aModifierChainRegistersAndPaintsOuterLayersFirst() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = CompositionLog()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
             CountingLeaf("leaf", log: log)
                 .background(.accent).onClick { log.events.append("inner") }
@@ -1088,9 +1086,10 @@ private struct Placement: Equatable, CustomStringConvertible {
 /// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
 /// by stage 6b (`LR-DG`, R-fill): the `Row` and `Column` roots declare the
 /// 200×200 frame's extent on their two auto axes — what `CS-I` gave the legacy
-/// root, now spelled — and the test reads both authorities.
+/// root, now spelled — and the test read both authorities until stage 9, which
+/// deleted the legacy one; the proposal iteration is kept (`LR-FE`).
 @Test @MainActor func modifierOrderChangesSizeAndPlacementAsSwiftUIDoes() throws {
-    for authority in [LayoutAuthority.legacy, .proposal] {
+    do {
         func place<Chain: Element>(_ chain: (CompositionLog) -> Chain) throws -> Placement {
             let size = Size(width: px(200), height: px(200))
             let rowLog = CompositionLog()
@@ -1098,13 +1097,13 @@ private struct Placement: Equatable, CustomStringConvertible {
                 chain(rowLog)
                 CountingLeaf("probe", log: rowLog, width: 1, height: 1)
             }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
-            Frame(contentSize: size, scaleFactor: 1, layoutAuthority: authority).render(&row)
+            Frame(contentSize: size, scaleFactor: 1).render(&row)
             let columnLog = CompositionLog()
             var column = Column {
                 chain(columnLog)
                 CountingLeaf("probe", log: columnLog, width: 1, height: 1)
             }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
-            Frame(contentSize: size, scaleFactor: 1, layoutAuthority: authority).render(&column)
+            Frame(contentSize: size, scaleFactor: 1).render(&column)
             let leaf = try #require(rowLog.bounds["leaf"])
             return Placement(width: try #require(rowLog.bounds["probe"]).origin.x.value,
                              height: try #require(columnLog.bounds["probe"]).origin.y.value,
@@ -1122,13 +1121,13 @@ private struct Placement: Equatable, CustomStringConvertible {
         try #require(o1 != o2, "the instrument cannot see order: O1 \(o1), O2 \(o2)")
         try #require(o3 != o4, "the instrument cannot see order: O3 \(o3), O4 \(o4)")
 
-        #expect(k0 == Placement(width: 20, height: 20, x: 0, y: 0), "K0 \(k0), \(authority)")
-        #expect(k1 == Placement(width: 36, height: 36, x: 8, y: 8), "K1 \(k1), \(authority)")
-        #expect(k2 == Placement(width: 52, height: 52, x: 16, y: 16), "K2 \(k2), \(authority)")
-        #expect(o1 == Placement(width: 60, height: 60, x: 20, y: 20), "O1 \(o1), \(authority)")
-        #expect(o2 == Placement(width: 76, height: 76, x: 28, y: 28), "O2 \(o2), \(authority)")
-        #expect(o3 == Placement(width: 56, height: 56, x: 18, y: 18), "O3 \(o3), \(authority)")
-        #expect(o4 == Placement(width: 64, height: 64, x: 22, y: 22), "O4 \(o4), \(authority)")
+        #expect(k0 == Placement(width: 20, height: 20, x: 0, y: 0), "K0 \(k0)")
+        #expect(k1 == Placement(width: 36, height: 36, x: 8, y: 8), "K1 \(k1)")
+        #expect(k2 == Placement(width: 52, height: 52, x: 16, y: 16), "K2 \(k2)")
+        #expect(o1 == Placement(width: 60, height: 60, x: 20, y: 20), "O1 \(o1)")
+        #expect(o2 == Placement(width: 76, height: 76, x: 28, y: 28), "O2 \(o2)")
+        #expect(o3 == Placement(width: 56, height: 56, x: 18, y: 18), "O3 \(o3)")
+        #expect(o4 == Placement(width: 64, height: 64, x: 22, y: 22), "O4 \(o4)")
     }
 }
 

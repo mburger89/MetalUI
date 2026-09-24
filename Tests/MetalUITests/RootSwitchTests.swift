@@ -7,14 +7,14 @@ import MetalUIDemoContent
 
 // Plan task 7, stage 6b, lane 3 (`docs/superpowers/specs/2026-09-23-engine-stage-6b-design.md`
 // §8 tests 3.1–3.3; rulings LR-DF, LR-DG, LR-DK, LR-DL): the root switch seen
-// through a production `Window` — no production root reaches the CSS engine,
-// a hugging legacy root is centred (`CN-J`), and every production root's
-// deepest native level is read.
+// through a production `Window` — a hugging legacy root is centred (`CN-J`),
+// and every production root's deepest native level is read. (3.1, the exit
+// test `noProductionFrameReachesTheLegacyEngine`, retired at stage 9 with the
+// legacy root-layout branch and counter it read, `LR-FH` item 3; stage 10's
+// symbol check is handed its role.)
 //
-// **Every window here is a `makeFakeWindow` window at its DEFAULT authority**
-// unless the test names `.legacy` — the default is production's
-// (`Frame.defaultLayoutAuthority`, `LR-DF`), so these are production frames:
-// diagnostics off, an unlowerable field traps.
+// **Every window here is a production `makeFakeWindow` window**: diagnostics
+// off, an unlowerable field traps.
 //
 // `demoContent()`, `nativeLayoutPreviewContent()` and `demoModel` are imported
 // from `MetalUIDemoContent` with a plain import (`LR-S`): the demo the binary
@@ -74,8 +74,7 @@ private let productionRoots: [ProductionRoot] = [
 /// `@MainActor` global, so its state is set here and put back before
 /// returning — a leak would silently change every test after this one.
 @MainActor
-private func draw(_ root: ProductionRoot, frames: Int,
-                  authority: LayoutAuthority? = nil) throws -> Window {
+private func draw(_ root: ProductionRoot, frames: Int) throws -> Window {
     let device = try #require(MTLCreateSystemDefaultDevice())
     demoModel.showModal = root.modal
     demoModel.animationDemoActive = root.animation
@@ -86,14 +85,11 @@ private func draw(_ root: ProductionRoot, frames: Int,
     let window: Window, platform: FakePlatformWindow
     switch root.content {
     case .demo:
-        (window, platform) = try makeFakeWindow(device: device, size: root.width,
-                                                layoutAuthority: authority) { demoContent() }
+        (window, platform) = try makeFakeWindow(device: device, size: root.width) { demoContent() }
     case .preview:
-        (window, platform) = try makeFakeWindow(device: device, size: root.width,
-                                                layoutAuthority: authority) { nativeLayoutPreviewContent() }
+        (window, platform) = try makeFakeWindow(device: device, size: root.width) { nativeLayoutPreviewContent() }
     case .list:
-        (window, platform) = try makeFakeWindow(device: device, size: root.width,
-                                                layoutAuthority: authority) { listRoot() }
+        (window, platform) = try makeFakeWindow(device: device, size: root.width) { listRoot() }
     }
     if let height = root.height {
         platform.simulateResize(to: Size(width: Pixels(Float(root.width)), height: Pixels(Float(height))))
@@ -103,46 +99,6 @@ private func draw(_ root: ProductionRoot, frames: Int,
         window.drawFrameIfNeeded()
     }
     return window
-}
-
-// MARK: - 3.1 — the exit test
-
-/// **3.1, the stage's exit test** (parent spec §4.1 row 6b, `LR-DL`): no
-/// production frame reaches the legacy engine. Every root in
-/// `productionRoots` — `demoContent()` with the modal off and on and the
-/// animation on, at 1024² and 920×560, `nativeLayoutPreviewContent()`, and a
-/// `ScrollView { List }` root — is drawn three frames through a window at the
-/// default authority with `Frame.legacyRootLayoutCounter` bound: it reads 0.
-///
-/// **The positive control is in the same test**: the demo through a `.legacy`
-/// window bumps the counter exactly once per frame drawn, so a counter that
-/// cannot count cannot pass.
-///
-/// Red before: the counter declared and never bumped — the control read 0.
-/// Mutations that must redden it: **M3a** `Frame.defaultLayoutAuthority` back
-/// to `.legacy` (the production arms count); **M3b** the bump removed (the
-/// control reads 0).
-@MainActor
-@Test func noProductionFrameReachesTheLegacyEngine() throws {
-    let frames = 3
-    for root in productionRoots {
-        let counter = Frame.LegacyRootLayoutCounter()
-        let window = try Frame.$legacyRootLayoutCounter.withValue(counter) {
-            try draw(root, frames: frames)
-        }
-        #expect(window.layoutAuthority == .proposal, "\(root.name): not a production window")
-        #expect(counter.count == 0, "\(root.name): \(counter.count) frame(s) reached the legacy engine")
-    }
-
-    // The positive control: the same demo, a `.legacy` window.
-    for root in productionRoots where root.content == .demo {
-        let control = Frame.LegacyRootLayoutCounter()
-        _ = try Frame.$legacyRootLayoutCounter.withValue(control) {
-            try draw(root, frames: frames, authority: .legacy)
-        }
-        #expect(control.count == frames,
-                "\(root.name): a .legacy window must bump the counter once per frame (read \(control.count))")
-    }
 }
 
 // MARK: - 3.2 — root placement through a window
@@ -167,15 +123,15 @@ private func draw(_ root: ProductionRoot, frames: Int,
     let device = try #require(MTLCreateSystemDefaultDevice())
     let rootID = GlobalElementID.child(of: nil, at: 0, name: nil)
     let boxID = GlobalElementID.child(of: rootID, at: 0, name: nil)
-    func boxRect(_ authority: LayoutAuthority?) throws -> Bounds<Pixels>? {
-        let (window, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: authority) {
+    func boxRect() throws -> Bounds<Pixels>? {
+        let (window, _) = try makeFakeWindow(device: device, size: 100) {
             Row { Box().cssWidth(Pixels(58)).cssHeight(Pixels(20)) }
         }
         window.recordsElementBounds = true
         window.drawFrameIfNeeded()
         return window.lastElementBounds[boxID]
     }
-    let production = try #require(try boxRect(nil))
+    let production = try #require(try boxRect())
     #expect(production == Bounds(origin: Point(x: Pixels(21), y: Pixels(40)),
                                  size: Size(width: Pixels(58), height: Pixels(20))))
 }

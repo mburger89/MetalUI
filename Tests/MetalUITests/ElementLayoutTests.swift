@@ -14,7 +14,7 @@ import MetalUILayout
 // by hand and run through the CSS engine directly; that oracle test
 // (`aNestedLayoutMatchesTheEngineRunDirectly`) and its fixture were retired by
 // stage 7b (record §49 §4 row 225), with the element-to-kernel agreement held
-// by `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`. The
+// by `theStageOneCorpusLowersWithNoDiagnostic`. The
 // tests that remain assert literal numbers.
 
 // MARK: - Probes
@@ -76,7 +76,9 @@ func declaredSizeNativeLeaf(_ style: Style, _ pass: LayoutPass) -> LayoutNodeID 
 /// Conforms to `StyledElement`, so the production modifiers apply to it and a
 /// modifier that writes the wrong `Style` field shows up as a wrong rect here.
 ///
-/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
+/// **A Dual fixture from stage 6a to stage 9** (record §38, spec §5 lane 3); its
+/// legacy branch went with the legacy authority at stage 9 (record §51, lane 2).
+/// What follows is its history: under the
 /// proposal authority it is `declaredSizeNativeLeaf`, and its three R tests pass
 /// `.proposal`; under the legacy one it registers through `Frame`'s internal
 /// legacy registrar, and its eleven P tests pass `.legacy` explicitly so stage
@@ -103,9 +105,7 @@ struct Probe: Element, StyledElement {
     func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
         log.registered.append(name)
-        let node = pass.lowersToProposal
-            ? declaredSizeNativeLeaf(style, pass)
-            : pass.frame.requestNode(style: style, children: [])
+        let node = declaredSizeNativeLeaf(style, pass)
         log.nodes[name] = node
         return (node, node)
     }
@@ -469,7 +469,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
 @MainActor
 @Test func aContainerGivesItsChildrenPathsBuiltFromItsOwn() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
+    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var tree = Column {
         Row {
             Probe("left", log: log).id("leaf").cssWidth(px(10)).cssHeight(px(10))
@@ -509,7 +509,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
 @MainActor
 @Test func anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition() {
     let log = ElementLog()
-    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
+    let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var tree = Column {
         Row {
             Probe("deep", log: log).id("named").cssWidth(px(10)).cssHeight(px(10))
@@ -581,12 +581,12 @@ private func pathID(_ names: String...) -> GlobalElementID {
 @MainActor
 @Test func aNodeIDDoesNotSilentlyResolveAgainstAnotherFramesTree() {
     let firstLog = ElementLog()
-    let first = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
+    let first = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var firstTree = Row { Probe("x", log: firstLog).cssWidth(px(20)).cssHeight(px(10)) }
     first.render(&firstTree)
 
     let secondLog = ElementLog()
-    let second = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
+    let second = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var secondTree = Row { Probe("y", log: secondLog).cssWidth(px(60)).cssHeight(px(40)) }
     second.render(&secondTree)
 

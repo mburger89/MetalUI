@@ -32,13 +32,17 @@ nonisolated(unsafe) private var flagSeenInside = 0
 /// Native layout holds `isLayingOut` while it runs, and only then (ruling SA-I).
 ///
 /// An exit `.success` test, because its red run on a correct-looking mutation
-/// is a trap: a flag that is never cleared makes the `setStyle` after the call
-/// abort, and in-process that would take the suite with it (practices shape 11).
+/// is a trap: a flag that is never cleared makes the registration after the
+/// call abort (`appendNode`'s SA-I check), and in-process that would take the
+/// suite with it (practices shape 11).
+///
+/// **Re-spelled at stage 9** (`LR-FC`): the probe after the call was a
+/// `setStyle` on a legacy node, whose SA-I check stage 9 deleted with the node;
+/// a native registration reaches the same flag through `appendNode`.
 @Test func nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns() async {
     await #expect(processExitsWith: .success) {
         let tree = LayoutTree(generation: 0)
         flagTree = tree
-        let legacy = tree.newNode(style: Style(), children: [])
         let leaf = tree.newNativeLeaf { _ in
             precondition(flagTree?.isLayingOut == true,
                          "isLayingOut is false inside a native measure closure")
@@ -51,7 +55,7 @@ nonisolated(unsafe) private var flagSeenInside = 0
                                  in: LayoutRect(x: 0, y: 0, width: 100, height: 100))
         precondition(flagSeenInside > 0, "the measure closure never ran")
         precondition(!tree.isLayingOut, "isLayingOut still true after the call returned")
-        tree.setStyle(legacy, Style())
+        _ = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 1, height: 1)) }
     }
 }
 
