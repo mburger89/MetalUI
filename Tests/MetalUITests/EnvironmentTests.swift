@@ -180,8 +180,8 @@ private struct NodeProbe<Inner: Element>: Element {
 }
 
 @MainActor
-private func surfaceBox(_ width: Float) -> ModifiedElement<Box<EmptyGroup>> {
-    Box().frame(width: px(width), height: px(10)).background(.surface)
+private func surfaceBox(_ width: Float) -> Box<EmptyGroup> {
+    Box().cssWidth(px(width)).cssHeight(px(10)).background(.surface)
 }
 
 private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
@@ -618,7 +618,7 @@ private struct NativeClickCounter: ProposalElement {
 private struct EnvComponent: Component {
     @Environment(\.probe) var probe
     var content: some ElementGroup {
-        Box().frame(width: px(10), height: px(10)).background(probe == 1 ? .accent : .surface)
+        Box().cssWidth(px(10)).cssHeight(px(10)).background(probe == 1 ? .accent : .surface)
     }
 }
 
@@ -800,7 +800,7 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
     // Stage 6b (`LR-DG`, R-fill): the 64x64 window's extent declared on the
     // childless root's two auto axes — a proposal `Box()` with none answers
     // 0x0 and paints nothing at the centre; the legacy root filled them itself.
-    func tree() -> ModifiedElement<Box<EmptyGroup>> { Box().frame(width: px(64), height: px(64)).background(.background) }
+    func tree() -> Box<EmptyGroup> { Box().background(.background).cssWidth(px(64)).cssHeight(px(64)) }
 
     let (lightWindow, lightPlatform) = try makeFakeWindow(device: device) { tree() }
     lightWindow.theme = .light

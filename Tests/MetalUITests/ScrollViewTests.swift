@@ -171,15 +171,15 @@ func aScrollViewOfTextDoesNotShrinkItsContentToTheViewport(_ authority: LayoutAu
 @Test(arguments: AuthorityCoverage.authorities) @MainActor
 func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips(_ authority: LayoutAuthority) throws {
     AuthorityCoverage.record(#function, authority)
-    // A width of 50 as well as the height: the legacy engine stretched
+    // `.cssWidth(Pixels(50))` as well as the height: the legacy engine stretched
     // these rows to the 50pt viewport, the kernel viewport's cross answer is its
     // content's (`CN-M`), and a row that declares neither is 0 wide under the
     // proposal authority (ruling `LR-BN`). 50 is the number the stretch already
     // produced, so no legacy literal below moves.
     var view = ScrollView(.vertical) {
-        Box().frame(width: Pixels(50), height: Pixels(20)).background(.surface)
-        Box().frame(width: Pixels(50), height: Pixels(20)).background(.surface)
-        Box().frame(width: Pixels(50), height: Pixels(20)).background(.surface)
+        Box(decoration: Decoration(background: .surface)).cssWidth(Pixels(50)).cssHeight(Pixels(20))
+        Box(decoration: Decoration(background: .surface)).cssWidth(Pixels(50)).cssHeight(Pixels(20))
+        Box(decoration: Decoration(background: .surface)).cssWidth(Pixels(50)).cssHeight(Pixels(20))
     }
     .cornerRadius(Pixels(14))
 
@@ -230,8 +230,8 @@ func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips(_ authority: LayoutAut
 func aScrollViewWithNoCornerRadiusClipsSquare(_ authority: LayoutAuthority) throws {
     AuthorityCoverage.record(#function, authority)
     var view = ScrollView(.vertical) {
-        Box().frame(width: Pixels(50), height: Pixels(20)).background(.surface)
-        Box().frame(width: Pixels(50), height: Pixels(20)).background(.surface)
+        Box(decoration: Decoration(background: .surface)).cssWidth(Pixels(50)).cssHeight(Pixels(20))
+        Box(decoration: Decoration(background: .surface)).cssWidth(Pixels(50)).cssHeight(Pixels(20))
     }
 
     let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1,
