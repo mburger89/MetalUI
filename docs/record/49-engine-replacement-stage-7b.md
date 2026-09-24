@@ -856,8 +856,10 @@ build system `swift build --build-tests` 0 `error:`, 0 `warning:`. Guards 78
 `41344e5`: light vs dark 1048576; default vs modal 1031003; default vs
 animation 454895; f0 vs f3 0; preview light vs dark 1048576; chrome legacy vs
 proposal 0; distinct 544 / 216; prod default vs modal 491221, distinct
-`prod-default-light` 529; indicator rects 0 — §6.1's values.
-`DemoFrameDeterminismTests` unedited; its `theDemoFrameMatchesTheValuesRecordedOnMacOS` reddened under M2a and M2e only, as a
+`prod-default-light` 529; indicator rects 0 — §6.1's values. Re-run against
+the lane's last code commit, `compare.sh <scratch> 41344e5 bf6488a` (the
+comment-only `Sources/` edits included): **0 differing, scene identical, all
+fourteen**. `DemoFrameDeterminismTests` unedited; its `theDemoFrameMatchesTheValuesRecordedOnMacOS` reddened under M2a and M2e only, as a
 sibling of the frame's alignment and the row's spacing.
 
 **Deferrals.** None of lane 2's rows. Handed on: the listed test-file
