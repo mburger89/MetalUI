@@ -250,3 +250,117 @@ Me presentationsAreLaidOutBeforeTheRootSoTheRootsWorkRecordIsUnchanged() 1
 # Identical to 669e487 in all five except Mb, which at 1148ccb did not redden the two dropouts
 #   aGrownUnsizedSpaceDistributionContainerIsReported() and aStretchedUnsizedSpaceDistributionContainerIsReported()
 # (Mb: 54 tests, 260 issues); e710e4b gave each its row's rect as a literal and both redden since (2 issues each).
+
+## head (9786c37, lane 2), all five re-run, extracted with the rule above
+# Ma: 20 tests; Test run with 1408 tests in 3 suites failed after 77.372 seconds with 96 issues.
+Ma aGrowingChildTakesTheRemainingMainSpace() 7
+Ma aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap() 1
+Ma aLoweredContainerPaddingSitsInsideItsDeclaredSize() 3
+Ma aLoweredContainerSpacesItsChildrenByTheGapOnItsMainAxis() 3
+Ma aLoweredRowAndColumnPlaceFixedChildrenByGapAndCrossAlignment() 6
+Ma aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault() 1
+Ma aLoweredTreeMintsItsStateSlotsAndAnimatesItsWidths() 1
+Ma aLoweredWindowDispatchesClicksFocusAndKeys() 5
+Ma aLoweredWindowPublishesItsAccessibilityTree() 1
+Ma aPresentationPlaceholderIsDroppedByEveryLoweredContainer() 1
+Ma aProposalElementInsideALoweredContainerLaysOut() 5
+Ma aReverseContainerPlacesItsChildrenFromTheMainEnd() 9
+Ma fixedItemsPackFromTheMainStartAtTheirOwnSizesAndGap() 2
+Ma gapIsPerAxisAndTheRowReadsTheHorizontalOne() 1
+Ma spaceAroundAndSpaceEvenlyLowerToSpacersWhileTheyFit() 4
+Ma spaceBetweenLowersToSpacersAtTheGap() 2
+Ma theDemoFrameMatchesTheValuesRecordedOnMacOS() 2
+Ma theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidth() 1
+Ma theStageOneCorpusLowersWithNoDiagnostic() 4
+Ma theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn() 37
+# Mb: 56 tests; Test run with 1408 tests in 3 suites failed after 76.994 seconds with 264 issues.
+Mb aClickTargetInsideAScrollViewSwallowsTheWheel() 2
+Mb aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding() 4
+Mb aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting() 1
+Mb aFrameOverSeveralMembersStillPlansEachMembersItemFields() 1
+Mb aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum() 3
+Mb aGridInsideALoweredContainerIsNeverStretchedWhereItsRecordedSiblingIs() 1
+Mb aGridsColumnWidthReachesAGrowingChildInsideALoweredCell() 1
+Mb aGrowFactorSumBelowOneStillFillsTheLine() 5
+Mb aGrowInsideAOneChildPaddingFillsTheWrapper() 1
+Mb aGrowerOnAHuggingContainersMainAxisFillsItsProposal() 1
+Mb aGrowingChildTakesTheRemainingMainSpace() 12
+Mb aGrownReverseContainerPlacesFromTheMainEndOfItsItemFrame() 1
+Mb aGrownUnsizedSpaceDistributionContainerIsReported() 2
+Mb aListsSceneAndHitboxesAreUnchangedByTheGroup() 2
+Mb aLoweredListLaysOutEveryWindowedShape() 72
+Mb aLoweredScrollViewFillsItsProposalOnTheScrollingAxis() 1
+Mb aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable() 3
+Mb aMarginLowersAsPaddingOutsideTheItem() 2
+Mb aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere() 1
+Mb aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent() 2
+Mb aNilAxisFrameLayerUnderAStretchingContainerIsStretched() 2
+Mb aReverseDirectionPacksItemsFromTheMainEnd() 1
+Mb aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent() 3
+Mb aSpacerBesideAGrowingChildTakesNothing() 1
+Mb aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields() 2
+Mb aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork() 1
+Mb aStretchedChildFillsTheLineOnItsCrossAxis() 18
+Mb aStretchedContainersContentSitsByItsOwnAlignment() 6
+Mb aStretchedItemInsideAHuggingItemFillsItsProposal() 1
+Mb aStretchedItemIsClampedByItsOwnMinimumAndMaximum() 2
+Mb aStretchedSingleChildContainerDoesNotStretchItsChild() 1
+Mb aStretchedStackChildFillsOnlyItsAutoAxesWithinItsOwnBounds() 4
+Mb aStretchedStackChildIsNotFlooredByItsPaddingAndBorder() 2
+Mb aStretchedUnsizedSpaceDistributionContainerIsReported() 2
+Mb aStyleBorderLowersAsInsetsInsideTheDeclaredSize() 1
+Mb aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight() 14
+Mb aZeroBasisGrowerTakesItsShareDownToItsContent() 4
+Mb aZeroRowHeightLowersWithoutTrappingOrProducingNaN() 5
+Mb aZeroShrinkKeepsItsNaturalMainSizeAndOverflows() 1
+Mb alignItemsAndAlignSelfPlaceEachItemOnTheCrossAxis() 2
+Mb anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned() 1
+Mb anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues() 3
+Mb autoMainSizesSumTheirContentAndAGrowerIsFlooredByIt() 2
+Mb divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem() 1
+Mb equalGrowersShareTheLineAndAMaximumCapsItsGrower() 13
+Mb everyContainerFieldEitherLowersOrIsReportedByName() 2
+Mb growingSiblingsShareTheSurplusEqually() 4
+Mb marginsOffsetEachItemOutsideItsBorderBox() 8
+Mb paddingAndBorderInsetTheContentBoxEdgeByEdge() 5
+Mb paddingOnAListDoesNotShrinkItsRowsBelowRowHeight() 6
+Mb paddingOnALoweredTextPadsItsLeaf() 1
+Mb reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder() 4
+Mb theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap() 5
+Mb theDemoFrameMatchesTheValuesRecordedOnMacOS() 2
+Mb theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn() 14
+Mb unequalGrowWeightsAreReportedOnTheParent() 2
+# Mc: 7 tests; Test run with 1408 tests in 3 suites failed after 76.942 seconds with 24 issues.
+Mc aLoweredContainerPaddingSitsInsideItsDeclaredSize() 2
+Mc aLoweredPaddingLayerInsetsItsContentByEachEdge() 2
+Mc aLoweredStackPlacesFixedChildrenAtAllNineAlignments() 9
+Mc aStyleBorderLowersAsInsetsInsideTheDeclaredSize() 1
+Mc everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority() 1
+Mc paddingAndBorderInsetTheContentBoxEdgeByEdge() 6
+Mc theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt() 3
+# Md: 9 tests; Test run with 1408 tests in 3 suites failed after 77.049 seconds with 81 issues.
+Md aFractionalOffsetRoundsFirstDownAndLastUp() 1
+Md aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan() 1
+Md aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows() 2
+Md aListsSceneAndHitboxesAreUnchangedByTheGroup() 2
+Md aLoweredListLaysOutEveryWindowedShape() 56
+Md aScrolledListsSpacerDoesNotShrinkUnderPadding() 2
+Md aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight() 15
+Md aWindowedRowSitsAtItsAbsoluteOffsetNotTheWindowsTop() 1
+Md anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing() 1
+# Me: 12 tests; Test run with 1408 tests in 3 suites failed after 76.830 seconds with 61 issues.
+Me aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape() 36
+Me aDeferredAbsoluteBoxResolvesItsInsetsAgainstTheWindowAndLeavesTheFlow() 4
+Me aFramedAbsoluteBoxIsAPresentationRoot() 4
+Me aFramesOwnBoundsOnAnAbsoluteAutoAxisAnswerAsSwiftUIsFrameDoes() 1
+Me aPresentationInsideAFadedSubtreeIsStillFaded() 1
+Me aPresentationKeepsItsDeclaringScopesEnvironment() 1
+Me aPresentationPlaceholderIsDroppedByEveryLoweredContainer() 8
+Me anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBox() 1
+Me anAbsoluteTextWrapsAtTheWindowMinusItsInset() 2
+Me anAnimatedInsetInterpolatesItsValue() 1
+Me nestedPresentationsLandOnOneLayer() 1
+Me presentationsAreLaidOutBeforeTheRootSoTheRootsWorkRecordIsUnchanged() 1
+# Against lane 1's head (669e487): every test reddens again under the same name (parameterised
+# scenarios lane 2 collapsed now print as NAME()); the one dropout is Me's
+# anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt, lane 2's retired row L1-15 (1 issue: 62 -> 61).

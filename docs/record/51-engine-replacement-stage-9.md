@@ -487,3 +487,161 @@ not the harness, are stale (lane 3 owns the file).
   `LoweringCorpusTests.swift:172`, `ScrollRoutingTests.swift:515, 775`
   (`customElement`), `LoweringLeafTests.swift:497` (`textMeasure`), `:502`
   (`minContentWidth`).
+
+## 6. Lane 2 — the registry's other contributors, and every other test that names a deleted symbol (2026-09-24)
+
+Commit `9786c37`; ruling `LR-FJ`. Tests only: `git diff 7de7ccd 9786c37 --stat --
+Sources` is empty. The static census grep, re-run at the lane's base (`7de7ccd`),
+found no test file outside spec §4's lane-1, lane-2 and lane-3 lists
+(`Tests/MetalUICrossPlatformTests/Expected.swift` names `.legacy` in a comment,
+left unedited; `Tests/PortableTests`' hits are `PortableText`'s kept content sizes).
+
+### 6.1 The collapse, and the count
+
+- The ten remaining registry contributors' **38** scenarios collapsed
+  (`ScrollIndicatorTests` 14, `ScrollViewTests` 4, `AXNodeTests` 3,
+  `AccessibilityDefaultsTests` 6, `AccessibilityTreeTests` 5, `FocusTests` 1,
+  `TombstoneTests` 1, `MeasurePerformanceTests` 2 plus the gated 100k twin,
+  `AbsoluteOverlayTests` 1 — retired, L1-15 — and `EnvironmentTests` 1);
+  `AuthorityCoverage.swift` and `ZZAuthorityRollCall.swift` deleted.
+- Every `layoutAuthority:`/`authority:` argument (all `.proposal` or the
+  default; the `.legacy` ones were the retired N9 pins, the loops and the
+  tokenizer pins), every helper's authority parameter, every `lowersToProposal`
+  branch and `pass.frame.requestNode`, every `site: .customElement` (to `.box`)
+  and every `window.layoutAuthority == .proposal` precondition removed from the
+  lane's files; the one loop over both authorities outside the registry
+  (`modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`) keeps its proposal
+  iteration.
+- `MeasurePerformanceTests`' `aListsWorkIsTheSame…` pair lost their tokenizer
+  half (the `runCallCounter` it counted is deleted, `LR-FD`); the native work
+  literals and the cache-entry equality carry them. `theShapingCacheStaysNear…`
+  lost its min-content dictionary bound (the dictionary is deleted).
+
+**Retirements, 33 rows** (spec §6 lane 2's 32, plus row 26, `LR-FJ` item 1):
+
+| # | test (file) | row | replacement / concept |
+|---|---|---|---|
+| 1–4 | `aProposalElementInsideALegacyContainerTrapsAtRegistration`, `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`, `aPaddingModifierOnAProposalComponentTraps`, `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer` (`NativeBoundaryIntegrationTests`, file deleted) | D | `SA-G`'s mixed tree |
+| 5 | `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` (`ProposalNodeIDTests`) | D | a legacy registration |
+| 6 | `noProductionFrameReachesTheLegacyEngine` (`RootSwitchTests`) | D | the legacy root-layout counter and branch (stage 10's symbol check handed on) |
+| 7–10 | `theThreeSizingModesAnswerWithCoreTextsOwnNumbers`, `minContentIsTheLongestRunNotTheWidestCharacter`, `anExplicitKnownSizeWinsOverTheMeasuredOne`, `aZeroAvailableExtentMeasuresRatherThanTraps` (`TextMeasureTests`) | D | the CSS measure function and its known/available pair |
+| 11–12 | `unbreakableRunsAreLineBreakOpportunitiesNotWordBoundaries`, `runsAreTrimmedOfTrailingWhitespaceAndBlankOnesAreDropped` (`UnbreakableRunsTests`, file deleted) | R | `ContentSizeOracleTests`' `everyClassPairBreaksAsCoreTextDoes`, `maxContentIsTheWidestHardLineAndRunsCarryNoTrailingSpace` |
+| 13–14 | `aMinContentMissReusesOneTokenizerRatherThanCreatingOnePerString`, `theReusedTokenizerAnswersExactlyAsAFreshOneDoes` (`TokenizerReuseTests`, file deleted) | D | tokenizer min-content |
+| 15–17 | `aSecondMinContentQueryTokenizesNothing`, `theMemoizedWidthEqualsTheMaxOverIndependentlyShapedRuns`, `aCounterOnlyCountsCallsWithinItsOwnBinding` (`ShapingCacheTests`) | D | the min-content memo and its counter |
+| 18 | `leavesCarryAMeasureFunctionAndBranchesDoNot` (`LayoutTreeTests`) | D | the CSS `MeasureFunction` |
+| 19–24 | `aNativeNodeRegisteredUnderALegacyNodeTraps`, `aLegacyNodeRegisteredUnderANativeStackTraps`, `aLegacyNodeRegisteredUnderACustomLayoutTraps`, `aStyleWrittenOntoANativeNodeTraps`, `setStyleOnALegacyNodeDuringNativeLayoutTraps`, `registeringALegacyLeafDuringNativeLayoutTraps` (`NativeBoundaryTrapTests`) | D | `SA-G`'s legacy half, `setStyle`, `newLeaf` |
+| 25 | `aLegacyNodeUnderAGridOrCarryingAGridMarkTraps` (`NativeGridTrapTests`) | D | a legacy node under a grid |
+| 26 | `aMinContentHitReStampsSoItSurvivesASweepingLoad` (`ShapingCacheTests`) | R | `aSweepNeverDropsAnEntryTheCurrentFrameTouched` (Mr, §6.4) |
+| L1-1 | `everyParameterisedScenarioRanUnderBothLayoutAuthorities` (`ZZAuthorityRollCall`, file deleted) | D | "both authorities ran" |
+| L1-9 | `aLegacySpelledAXListRowAbortsAProductionProposalFrame` (`AXNodeTests`) | R | lane 3's G6a |
+| L1-11 | `aLegacySpelledStatefulListRowAbortsAProductionProposalFrame` (`MeasurePerformanceTests`) | R | G6a |
+| L1-12 | `aLegacySpelledExcursionRowAbortsAProductionProposalFrame` (`TombstoneTests`) | R | G6a |
+| L1-13 | `aColdFrameCreatesAtMostOneLineBreakTokenizer` (`MeasurePerformanceTests`) | D | tokenizer min-content |
+| L1-14 | `aWarmFrameTokenizesEachDistinctStringAtMostOnce` (`MeasurePerformanceTests`) | D | tokenizer min-content |
+| L1-15 | `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt` (`AbsoluteOverlayTests`) | R | 1.5's `ScrollView` arm (lane 1); its `Deferred` escape half is `DeferredTests`' `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScroll` and the portal mask tests |
+
+The two exit tests' positive controls stay as tests of their own fact
+(`aBoxSpelledListRowDoesNotAbortAProductionProposalFrame`,
+`aBoxSpelledRowInTheResidentSetFixtureDoesNotAbort`: a production frame over a
+`Box`-spelled row completes).
+
+**Count**: unfiltered `swift test --build-system native --no-parallel` at
+`9786c37` → **`Test run with 1408 tests in 3 suites passed`** (**1441 − 33 =
+1408**, read off the test-name sets of the two logs: 35 names gone, 2 of them
+renames), the log carrying `FR-J no-argument frame: succeeded=`, eleven gated
+tests (unchanged: `aListsWorkIsTheSameFor100kRowsAsFor500` and
+`measureContentSizeDifferences` collapsed and stay gated), 0 `error:`, one
+`warning:` (SwiftPM's notice); `swift build --build-tests` (default build
+system): `Build complete!`, 0 `error:`, 0 `warning:`.
+
+### 6.2 T rows
+
+- **Renames**: `aFieldLaysOutAndEditsUnderBothAuthorities` →
+  `aFieldLaysOutGreedilyAndEdits` (gains the centring control, §6.3);
+  `treeStoresStyleAndChildren` → `treeStoresChildren` (the style half read the
+  deleted rows).
+- **Re-spelled native** (`LayoutTreeTests`): the six id/reset/adoption exit tests
+  and three plain tests mint with `newNativeLeaf`, adopt with `newNativeOverlay`
+  (the foreign child now traps at `nativeNode(_:)`'s `slot(_:)` with the same
+  "outlived the tree" message); `everyNativeRegistrarAcceptsNativeChildrenWithoutTrapping`
+  drops its `isNativeLayoutNode`/`style == .default` preconditions (keeps
+  `nodeCount == 29`, adds `ids.count == 13`);
+  `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns` probes the flag with a
+  native registration after the call.
+- `TextHardLineBreakTests.aLabelWithHardBreaksMeasuresItsWidestLineAtMaxContent`
+  on `CoreTextTextSystem.measure(_:font:wrappingAt:)` (nil and 400), same
+  CoreText oracles.
+- `ShapingCacheTests.anEntrySurvivesExactlyTwoUntouchedSweptFrames` on
+  `shaped(_:font:wrappingAt:)` and `misses`.
+- `ContentSizeOracleTests`' seven Apple-arm tests: the reference moved
+  (§6.5). `TextSystemSeamTests.aPortableFrameNeverShapesThroughCoreText`: the
+  loop over both authorities and its min-content assertion gone, a control
+  added (§6.3).
+- `RootSwitchTests.aHuggingLegacyRootIsCentredInAProductionWindow` and
+  `everyProductionRootsDeepestNativeLevelIsMeasured` unchanged apart from the
+  helper's argument; `ModifiedElementTests.ChainLeaf` a declared-size native leaf;
+  every collapsed scenario; lane 1's five stale citations (§5.7) and
+  `StackElementTests`' one corrected.
+
+### 6.3 The two positive controls, red once
+
+- **C1** (`Sources/MetalUI/TextField.swift`, `geometry`'s `lineY` read as the
+  bounds' top), full unfiltered suite: `Test run with 1408 tests in 3 suites
+  failed … with 1 issue` — `aFieldLaysOutGreedilyAndEdits() recorded an issue at
+  TextFieldTests.swift:280:5: Expectation failed:
+  tallTarget.caretRect.origin.y.value == tallCentred`. The one-line arm stayed
+  green, as §6.2 says it must.
+- **C2** (the control frame given the portable system, test-side): `… failed …
+  with 1 issue` — `aPortableFrameNeverShapesThroughCoreText() recorded an issue at
+  TextSystemSeamTests.swift:133:5: Expectation failed: controlCache.storageCount > 0`.
+
+Both restored from a copy, `git status --short` empty after.
+
+### 6.4 Mutations
+
+Each applied to `9786c37`, full unfiltered suite, restored from a copy,
+`git status --short` empty after; reds read with §5.1's rule.
+
+| mutation | reddened (issues) |
+|---|---|
+| **M2a** `slot(_:)`'s generation check deleted, at `9786c37` | `usingAnIdAgainstAnotherTreeTraps` (2), `adoptingAChildFromAnotherTreeTraps` (1), `aTypedNodeIDStoredFromAnEarlierFrameTraps` (1) — 4 |
+| **M2a** at the lane's base (`7de7ccd`'s tests) | the same three names (2, 2, 1) — 5; `anIdFromBeforeAResetIsNotCurrentAfterIt` reads `isCurrent` directly and reddens at neither |
+| **M2b** the oracle's trailing-whitespace trim dropped | `everyClassPairBreaksAsCoreTextDoes` (1), `everyCorpusStringButThaiSplitsIntoCoreTextsRuns` (27), `germanQuotesWrapWhereCoreTextsTypesetterLeavesItsTokenizer` (1), `minAndMaxContentMatchMetalUIsApplePathForEveryCoveredString` (136), `thaiBreaksOnlyAtSpacesWhereCoreTextUsesADictionary` (1) — 166 |
+| **M2c** `appendNode`'s SA-I precondition deleted | `registeringANativeNodeDuringNativeLayoutTraps` (2) only (`LR-FJ` item 2) |
+| **M2c′** `appendNode` refuses any registration after a completed native run | `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns` (1), `anInfiniteAxisSharesInfinityAfterAnInfiniteCommittedColumn` (1), then an in-process trap at `aResetTreeMeasuresItsNewRe…` truncates the run (signal 5): an incomplete set |
+| **Mr** `shaped`'s hit branch stops re-stamping | `aSweepNeverDropsAnEntryTheCurrentFrameTouched` (1) only — row 26's replacement |
+| **Ms1** `staleAfterGenerations` 2 → 1 | `anEntrySurvivesExactlyTwoUntouchedSweptFrames` (1) only |
+| **Ms3** `staleAfterGenerations` 2 → 3 | `anEntrySurvivesExactlyTwoUntouchedSweptFrames` (1) only |
+
+### 6.5 The oracle's moved reference
+
+`measureContentSizeDifferences` (`METALUI_CONTENT_MEASURE=1`, filtered — a
+measurement, not a count) at the lane's base, stashed, and at `9786c37`: the 62
+lines from `RUNS …` to `SIZES …` are **byte-identical** (md5
+`4696f1d2513fe815c5313e0bdb9cf4e9` both): `RUNS differing=1 of 35` (Thai),
+`SIZES cases=280 minDiffs=24 maxDiffs=32` (the uncovered strings, `LB-N`).
+
+### 6.6 The site-coverage re-run at the head
+
+Ma–Me at `9786c37`, extracted with §5.1's rule, every run's per-test issues
+summing to its summary line (probe file, lane 2's head section): **Ma 20** (96),
+**Mb 56** (264), **Mc 7** (24), **Md 9** (81), **Me 12** (61). Against lane 1's
+head every test reddens again under the same name — the scenarios lane 2
+collapsed (Mc's indicator clip) now print as `NAME()` — and the one dropout is
+Me's `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt`, retired row
+L1-15 (1 issue; 62 → 61). No head-only reds.
+
+### 6.7 The demo
+
+`compare.sh` from lane 1's scratch copy (§5.6), `b9a5d7f` → `9786c37`: **0
+differing, scene identical, in all fourteen**; the controls read exactly §5.6's
+values (1048576, 1031003, 454895, 0, 1048576, 0, 544, 216, 491221, 529, 0).
+
+### 6.8 Handed on
+
+- **Lane 3**: `Fakes.swift`'s `makeFakeWindow(layoutAuthority:)` has no test
+  caller left (only the committed `ZZDemoPixels.swift`, lane 3's); the exit-criterion grep's survivors in lane 2's files
+  are doc text only — `EnvironmentTests.swift:1084` (`MeasureFunction`),
+  `ComponentTests.swift:112` (`requestNode(`), `MeasurePerformanceTests.swift:167`
+  and `:573` (`unbreakableRuns`). Lane 3's count is **1408 + 1 = 1409**
+  (`LR-FJ` item 1).

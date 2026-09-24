@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FJ`** (stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH` and its lane 1 `LR-FI`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FK`** (stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI` and its lane 2 `LR-FJ`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -9276,3 +9276,61 @@ renames (record §51 §5.1, §5.5). (b) The root **margin**'s owner is **stage 1
 not 9: `LR-ER` item 4 already disposes `LR-DI` item 4's root min/max/margin (the
 report stays and dies with its field). `RootFieldLoweringTests`' doc is corrected;
 the trap is unchanged (record §51 §5.7).
+
+## LR-FJ — stage 9 lane 2: one more retirement than designed, M2c's instrument, the positive controls, and one emptied file
+
+**Evidence.** Record §51 §6 (lane 2): the suite at `9786c37`, `Test run with
+1408 tests in 3 suites passed`; the mutations Mr, Ms1, Ms3, M2a (at the lane's
+base and head), M2b, M2c and M2c′, and the two control reds C1 and C2; the
+site-coverage re-run (`docs/probes/stage-9-site-coverage.txt`, lane 2's head
+section); `measureContentSizeDifferences`' output at base and head (62 lines,
+identical); the fourteen-image comparison `b9a5d7f` → `9786c37`.
+
+**The ruling.**
+
+1. **`aMinContentHitReStampsSoItSurvivesASweepingLoad` is R, not T** (spec §6
+   lane 2's fallback, taken). Re-spelled onto `shaped(_:font:wrappingAt:)` it
+   is `aSweepNeverDropsAnEntryTheCurrentFrameTouched` — a live entry looked up,
+   a hit, on every frame of a sweeping load. Measured: **Mr** (the storage hit
+   branch stops re-stamping) reddens exactly that test. The replacement is that
+   test; the count moves by one: **1441 − 33 = 1408**, not 1409.
+   `anEntrySurvivesExactlyTwoUntouchedSweptFrames` stays **T**: nothing else
+   pins `staleAfterGenerations` on the storage side, and the re-spelled test
+   is the only red under **Ms1** (2 → 1) and **Ms3** (2 → 3).
+2. **M2c as designed cannot redden `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns`.**
+   Deleting `appendNode`'s SA-I precondition blinds the test's closing probe (a
+   registration after the call), which an exit `.success` test cannot see:
+   measured, M2c reddens only `registeringANativeNodeDuringNativeLayoutTraps`,
+   the precondition's own pin. The base spelling had the same property (a
+   deleted `setStyle` precondition would have blinded its `setStyle` probe).
+   The test's red against a stuck flag is its own
+   `precondition(!tree.isLayingOut …)`, a direct read. **M2c′** is the
+   mutation its probe separates: `appendNode`'s check confusing "has laid out"
+   with "is laying out" (`!isLayingOut && lastNativeLayoutWork ==
+   NativeLayoutWork()`). It reddens the re-spelled test, and — being a trap on
+   any registration after a completed native run — also traps in-process at
+   `NativeInvalidationContractTests`' `aResetTreeMeasuresItsNewRe…`, truncating
+   the run (signal 5); the reds read before the truncation are recorded, not a
+   complete set (record §51 §6.4).
+3. **The two proposal-side controls** (spec §6 lane 2 step 6). The `.legacy`
+   arm of `aPortableFrameNeverShapesThroughCoreText` expected 0 as well, so it
+   was never a control; the test gains one that separates — the same tree
+   through `CoreTextTextSystem` over its own cache fills it — red once (**C2**,
+   the control given the portable system: `controlCache.storageCount > 0`
+   fails, the only red). `aFieldLaysOutAndEditsUnderBothAuthorities`' `.legacy`
+   arm was the only arm where "the line is centred" could fail (a one-line
+   field's caret sits at its own top either way); renamed
+   `aFieldLaysOutGreedilyAndEdits`, it gains a 60-point field whose centred and
+   top-aligned answers differ (`#require`d), red once (**C1**, `geometry`'s
+   `lineY` read as the bounds' top: only the control's assertion fails).
+4. **`NativeBoundaryIntegrationTests.swift` is deleted**: all four of its tests
+   are retired rows 1–4, and its fixtures had no other user.
+5. **Doc-only survivors of the exit-criterion grep in lane 2's files**, all
+   history: `EnvironmentTests.swift:1084` (`MeasureFunction`),
+   `ComponentTests.swift:112` (`requestNode(`), `MeasurePerformanceTests.swift:167`
+   and `:573` (`unbreakableRuns`).
+
+**What it costs if wrong.** Item 1: none — the reddened set under Mr names the
+replacement. Item 2: M2c′'s set is incomplete by construction; the test it was
+chosen for is in it.
+

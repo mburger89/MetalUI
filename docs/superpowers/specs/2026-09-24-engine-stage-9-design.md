@@ -3,7 +3,7 @@
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 row 9, §8. Rulings `LR-FC`…`LR-FH` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
-(next unused `LR-FJ`; `LR-FH` is the critic round's, `LR-FI` lane 1's).
+(next unused `LR-FK`; `LR-FH` is the critic round's, `LR-FI` lane 1's, `LR-FJ` lane 2's).
 Record: `docs/record/51-engine-replacement-stage-9.md` (§1 baseline, §2 the
 entry measurement, §3 the containing-block measurement).
 Instruments: `docs/probes/stage-9-legacy-reach-instrument.patch` (the runtime
@@ -17,7 +17,7 @@ new SwiftUI claim (record §51 §3).
 Branch `feat/engine-stage-9` from `b9a5d7f`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-9`.
 
-**Status, 2026-09-24 (PDT): lane 1 landed (`1148ccb`, `e710e4b`; `LR-FI`; record §51 §5), 1441 tests; lanes 2–3 to come. Design: critic round 1 applied (`LR-FH`).** In the design phase no `Sources/` or `Tests/` file changed
+**Status, 2026-09-24 (PDT): lane 1 landed (`1148ccb`, `e710e4b`; `LR-FI`; record §51 §5), 1441 tests; lane 2 landed (`9786c37`; `LR-FJ`; record §51 §6), 1408 tests — one retirement more than designed (`LR-FJ` item 1), so lane 3's figure is 1408 + 1 = 1409; lane 3 to come. Design: critic round 1 applied (`LR-FH`).** In the design phase no `Sources/` or `Tests/` file changed
 in a commit; every scratch patch was applied, built, run and restored with
 `git checkout`, `git status --short` showing only this design's files after.
 
@@ -112,6 +112,7 @@ Record §51 §2 has the method and the figures.
 | `LR-FG` | three lanes, their order, the accounting (1452 − 43 + 1 = 1410), the guards (79, three re-spelled to read absence), the demo harness revision |
 | `LR-FH` | critic round 1: the lanes re-cut by harness (lane 1 the differential harness and its users, lane 2 the scenario registry's other contributors plus every other test), the site-coverage check re-run at every lane's head, the R/D labels corrected, M3a's arm count, one unprobed SwiftUI sentence struck; the containing-block and `deferred.amended` dispositions and the plan's deferred status fix upheld |
 | `LR-FI` | lane 1: the harness's single-authority API (`report`, `makeLoweredWindow`, `Report.frame` and its helpers), how an added literal is confirmed against the legacy arm (a scratch oracle, or the base-green argument), two first-run literal corrections, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s `deferred.containingBlock` arm removed with 1.5's seven, the committed pixel harness no longer running at lane 1's head |
+| `LR-FJ` | lane 2: `aMinContentHitReStampsSoItSurvivesASweepingLoad` R (1441 − 33 = 1408); M2c cannot redden the flag test, M2c′ does; the two proposal-side controls; `NativeBoundaryIntegrationTests.swift` deleted |
 
 ## 4. API and files
 
@@ -392,6 +393,12 @@ re-spelled onto `TextSystem.measure(_:font:wrappingAt: nil)`.
 `RootSwitchTests.aHuggingLegacyRootIsCentredInAProductionWindow` keeps its
 production arm (T). `ContentSizeOracleTests`' seven tests (T: reference moved).
 
+**Amended by `LR-FJ`**: `aMinContentHitReStampsSoItSurvivesASweepingLoad`
+took the R fallback above (replacement `aSweepNeverDropsAnEntryTheCurrentFrameTouched`,
+measured by Mr), so lane 2 retires 33; M2c reddens
+`registeringANativeNodeDuringNativeLayoutTraps` only, and M2c′ is the mutation
+the flag test's probe separates.
+
 **Mutations**: **M2a** `LayoutTree.slot(_:)`'s generation check deleted → the
 re-spelled `LayoutTreeTests` id/reset/adoption tests redden (name them; at base
 the same mutation reddens the same names — run both); **M2b** the oracle's
@@ -399,7 +406,7 @@ moved reference drops its trailing-whitespace trim → `ContentSizeOracleTests`'
 run-comparison tests redden; **M2c** `appendNode`'s `SA-I` precondition
 deleted → `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns` reddens.
 
-**Lane 2's count: 1441 − 32 = 1409.**
+**Lane 2's count: 1441 − 32 = 1409** as designed; **1441 − 33 = 1408** as landed (`LR-FJ` item 1).
 
 ### Lane 3 — the deletion (`LR-FC`, `LR-FD`, `LR-FF`)
 
@@ -443,7 +450,7 @@ source of hidden now carries every one; **M3h** `computeRootLayout` skips the
 presentations loop → `PresentationWindowTests`/`DeferredTests` redden (name
 them).
 
-**Lane 3's count: 1409 + 1 = 1410**; guards **79** (three re-spelled, none
+**Lane 3's count: 1409 + 1 = 1410** as designed, **1408 + 1 = 1409** after `LR-FJ`; guards **79** (three re-spelled, none
 added or removed; `typecheckFile`'s helper count unchanged).
 
 ## 7. What must not move; the demo
