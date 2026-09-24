@@ -1,6 +1,6 @@
 # Stage 8 deprecation census (plan task 7, stage 8; record §50 §2).
-# Every call site of the eight StyledElement sizing modifiers and width/height(fraction:),
-# as the compiler reports it: @available(*, deprecated) on those ten (Box.swift) in a scratch
+# Every call site of the eight StyledElement sizing modifiers (six sizes and clamps plus width/height(fraction:)),
+# as the compiler reports it: @available(*, deprecated) on those eight (Box.swift) in a scratch
 # build at 85217e3 (swift build --build-system native --build-tests), one line per
 # file:line:col, sorted. 1692 sites: 25 in Sources/MetalUIDemoContent, 1667 in
 # Tests/MetalUITests (55 files); none in any other Sources target, MetalUILayoutTests,

@@ -3,7 +3,7 @@
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 row 8, §8; rulings `FR-F`, `FR-G`, `FR-H`, `FR-I`
 ([`../2026-09-15-frame-sizing-decisions.md`](../2026-09-15-frame-sizing-decisions.md)).
-Rulings `LR-ER`…`LR-EX` in
+Rulings `LR-ER`…`LR-EY` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Record: `docs/record/50-engine-replacement-stage-8.md` (§2 the census, §3 the
 scratch measurements, §4 the demo prototype, §5 the converter's viability).
@@ -13,12 +13,14 @@ header). Instruments: `docs/probes/stage-8-deprecation-sites.txt`,
 Branch `feat/engine-stage-8` from `85217e3`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-8`.
 
-**Status, 2026-09-24 (PDT): design.** No file under `Sources/`, `Tests/` or
-`Package.swift` changed in a commit.
+**Status, 2026-09-24 (PDT): design, critic round 1 applied** (`LR-EY`; record
+§50 §7). No file under `Sources/`, `Tests/` or `Package.swift` changed in a
+commit.
 
-**What this stage is.** The eight `StyledElement` sizing modifiers (`width`,
-`height`, `minWidth`, `maxWidth`, `minHeight`, `maxHeight`) and
-`width(fraction:)`/`height(fraction:)` are **deprecated**, and every in-repo
+**What this stage is.** The **eight** `StyledElement` sizing modifiers — the
+six sizes and clamps (`width`, `height`, `minWidth`, `maxWidth`, `minHeight`,
+`maxHeight`) and `width(fraction:)`/`height(fraction:)` — are **deprecated**
+(the design first said "ten"; `Box.swift` declares eight, `LR-EY` item 1), and every in-repo
 caller moves off them **in the same change** — `FR-I`'s one move, as stage 6a
 did for the public registrars, because the branch gates on 0 `warning:`. The
 demo (production) is converted to `.frame` by the recipe (`LR-ES`) and reads 0
@@ -70,13 +72,14 @@ not move**. One typecheck-guard fixture is affected (G4, §6 lane 3).
 
 | ruling | decides |
 |---|---|
-| `LR-ER` | scope: which ten modifiers are deprecated and which are not (`Component`'s, `flexBasis(fraction:)`, the item and container modifiers); every item earlier stages left to "stage 8" disposed by name — T7 closed by spelling, divergence 52 re-owned to stage 10, and **one rule for every `Style`-field report whose public modifier this stage deprecates**: the report stays, the spelling moves to `.frame` (which never reports), and the report dies with its field at stage 10; the `Style()` clause re-scoped |
+| `LR-ER` | scope: which eight modifiers are deprecated and which are not (`Component`'s, `flexBasis(fraction:)`, the item and container modifiers); every item earlier stages left to "stage 8" disposed by name — T7 closed by spelling, divergence 52 re-owned out of task 7 to plan task 15 (`LR-EY` item 2), and **one rule for every `Style`-field report whose public modifier this stage deprecates**: the report stays, the spelling moves to `.frame` (which never reports), and the report dies with its field at stage 10; the `Style()` clause re-scoped |
 | `LR-ES` | the recipe under the proposal authority (`FR-F` amended): R1–R8, each measured |
 | `LR-ET` | `FR-G` amended: the automatic minimum under the proposal authority, the zero-minimum greedy frame as its spelling (probe F), and FR-G's live caller measured inert since 6b |
 | `LR-EU` | `FR-I` and `FR-H` amended: the deprecation lands, with messages rather than `renamed:`; `fraction:` deprecated with no replacement; G4's control arm is a T row |
 | `LR-EV` | a `.frame` layer written before `.position(.absolute)`/`.inset` is an absolute box: a presentation root under the proposal authority, its own bounds honoured as SwiftUI's frame (probe P); the `…absolute` `Style` reports re-owned to stage 10 |
 | `LR-EW` | the call-site classes F, K, D (and R, expected empty); the identity, animation and site-coverage rules each conversion is checked against |
 | `LR-EX` | three lanes, in order, deprecation last; the accounting (1445 − 0 + 7 = 1452; guards 78 → 79); the mutation plan |
+| `LR-EY` | critic round 1: eight modifiers, not ten; divergence 52 to plan task 15; `LR-EV` narrowed to a one-node frame; `Component.swift`'s promised comments owned; R4 restated; the demo's hit testing, accessibility and hover measured identical; `Backends/SDL` built with the deprecation in; the Record-phase copies completed; five findings rejected with reasons |
 
 ## 4. API and files
 
@@ -105,7 +108,10 @@ not move**. One typecheck-guard fixture is affected (G4, §6 lane 3).
   bounds honoured by its own kernel frame and never reported as `…absolute`;
   outside a `Deferred` it reports `modifierLayer.position`/`.inset` as an
   absolute box does. Every other field written after a frame still reports
-  `style`. No production tree takes this path today (the demo has no sized
+  `style`. **Only a frame over at most one node** is exempted: a frame over a
+  multi-member `Component` (`LR-BH`'s row of per-member frames) keeps
+  reporting `modifierLayer.style` for `position`/`inset` — its presentation
+  answer is unmeasured, owner stage 11 with `Component.frame` (`LR-EY` item 3). No production tree takes this path today (the demo has no sized
   absolute box); before this stage the spelling trapped.
 
 **Internal / test API.** `Tests/MetalUITests/CSSSizing.swift` (new, lane 1): an
@@ -120,8 +126,13 @@ visible to no other module. It dies with the fields at stage 10.
 `Sources/MetalUIDemoContent/DemoContent.swift`,
 `Tests/MetalUITests/CSSSizing.swift` (new), `PresentationLoweringTests`,
 `PresentationWindowTests`, `AnimationTests`, `FrameSizingTests`. Lane 2: the 28
-K files of §5. Lane 3: `Sources/MetalUI/Box.swift`, the 22 F files and
-`ModifierTests` of §5, `ContainerCompileGuards`, `FrameSizingCompileGuards`.
+K files of §5. Lane 3: `Sources/MetalUI/Box.swift`, `Sources/MetalUI/Component.swift`
+(**comment lines only**: the `Component.width`/`height` and
+`StyledComponent.width`/`height` doc comments gain `LR-ER` item 2's reason they
+are not deprecated while the `StyledElement` modifier they say they "match"
+is — `LR-ER` promised those comments and no lane owned the file, `LR-EY` item
+4), the 22 F files and `ModifierTests` of §5, `ContainerCompileGuards`,
+`FrameSizingCompileGuards`.
 **Nothing under `Backends/`, `Tests/PortableTests`,
 `Tests/MetalUICrossPlatformTests` (in particular `Expected.swift`) or
 `Package.swift` changes.** `FrameSpec`, `ModifiedElement`, `Style` and every
@@ -143,8 +154,8 @@ Each rule is stated with the measurement behind it (record §50 §3–§4).
   (`background`, `cornerRadius`, `border`, `hoverBackground`,
   `focusBackground`, `focusBorder`, `opacity`, `clipped`), a handler (`onClick`,
   `onKey`, `onAction`, `focusable`, `keyContext`, `contentShape`,
-  `allowsHitTesting`, `disabled`), an accessibility modifier and `.id()` written
-  on the sized element move **after** the frame, so they land on the outer layer
+  `allowsHitTesting`, `disabled`), an accessibility modifier, `hidden()` and
+  `.id()` written on the sized element move **after** the frame, so they land on the outer layer
   at the frame's size (`FR-F`'s recipe; `.id()` must be outermost, `MC-C`). A
   decoration given in an initializer (`Box(decoration:)`) becomes the
   equivalent modifiers after the frame (S2: **SAME**, `Box(decoration:)` vs
@@ -160,9 +171,16 @@ Each rule is stated with the measurement behind it (record §50 §3–§4).
   content's placement inside the padding (S5: `alignment: .top`; the demo's
   list row: `.leading`). **The converter applies R1 and R3 and flags the rest**
   (record §50 §5: 20 issues → 1 on 80 frames).
-- **R4 — an item field never shares a chain with a frame.** A `Style`-writing
-  modifier after a frame reports `modifierLayer.style` (S3c, a production trap);
-  before it, the frame consumes and **drops** it (S3b, silent). So the item
+- **R4 — an item field is never on the frame's own layer or on the layer it
+  wraps directly.** A `Style`-writing modifier after a frame reports
+  `modifierLayer.style` (S3c, a production trap); written between the frame and
+  the nearest inner wrapper (or on the base with no wrapper between) it is the
+  frame's child's record, which the frame consumes and **drops** (S3b,
+  silent). An item field **under** an inner wrapper is that wrapper's child's
+  and is kept: the demo sidebar's `.alignItems(.stretch).flexGrow(1)
+  .padding(14).frame(width:, alignment: .top)` keeps its `flexGrow`, which the
+  padding layer consumes (the patch, 0 px; `LR-EY` item 5 — the design's "never
+  shares a chain" contradicted its own patch). So the item
   field is re-spelled in SwiftUI's vocabulary: `flexGrow(1)` on the main axis
   with a fixed cross size → `.frame(<cross>: v).frame(max<Main>: .infinity)`
   (S3a **SAME**); `flexShrink(0)` beside a fixed main size → dropped (a fixed
@@ -264,14 +282,27 @@ report, with its comment rewritten — and N1.2–N1.4; (3) N1.5, N1.6; (4) appl
 would lie (the scroller box's "removing `.minHeight(Pixels(0))` still silently
 overrides … 14000pt" paragraph becomes `LR-ET`'s finding; the `.height(_:)`/
 `.minWidth(_:)` mentions; the `Chrome` typealias comment); (5) convert the four
-test files by class. `Box.swift` is **not** touched (lane 3).
+test files by class; (6) re-take the demo's **hit-testing, accessibility and
+hover** comparison against `85217e3` with
+`docs/probes/stage-8-demo-hit-ax-hover.swift` (a scratch test dropped into
+`Tests/MetalUITests`, run filtered, then deleted): every hitbox's bounds, layer,
+opacity and order, the published `AccessibilityTree` walked from its roots
+(role, label, value, flags, actions, frame, visible frame, child order — ids
+excluded, since R7 moves them), modal off and on, and the finalized scene
+rendered with the pointer at five positions (both counter buttons, the readout,
+the modal card, a list row) — must read **identical** (the design's patch
+already does, record §50 §7; `LR-EY` item 6); (7) measure, in a scratch test,
+MetalUI's own `Text("hi").frame(width: 100)` under `.proposal` — T7's MetalUI
+half, which `LR-ER` item 5 rests on and the design took from SwiftUI's number
+alone — and record the text's x; if it is not centred, T7 is a finding, not
+closed. `Box.swift` and `Component.swift` are **not** touched (lane 3).
 
 | test (file) | asserts | red before | mutation that must redden it |
 |---|---|---|---|
-| **N1.1** `theCSSSizingHelpersWriteWhatTheDeprecatedModifiersWrite` (`CSSSizing.swift`) | for each of the ten, the `Style` a `Box()` carries after `.cssX(v)` equals the one after the deprecated `.x(v)` (called in a D witness), with distinct values per axis so a swapped axis differs; the list's count `#require`d == 10 | the helpers do not exist (build) | **M1g**: `cssMinHeight` writes `maxSize.height` → N1.1 |
+| **N1.1** `theCSSSizingHelpersWriteWhatTheDeprecatedModifiersWrite` (`CSSSizing.swift`) | for each of the eight, the `Style` a `Box()` carries after `.cssX(v)` equals the one after the deprecated `.x(v)` (called in a D witness), with distinct values per axis so a swapped axis differs; the list's count `#require`d == 8 | the helpers do not exist (build) | **M1g**: `cssMinHeight` writes `maxSize.height` → N1.1 |
 | **N1.2** `aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities` (`PresentationLoweringTests`) | A1 — `Box().frame(width: 20, height: 20).background(.accent).onClick {}.position(.absolute).inset(top 10, left 30)` in a `Deferred`: rect and hitbox (30, 10) 20×20 under `.legacy` and `.proposal`, the proposal report empty; the old spelling (A0, in a D witness) the same | proposal: 0×0 and `modifierLayer.style` (record §50 §3) | **M1a**: restore the exact `style` comparison → N1.2, N1.4 |
 | **N1.3** `aFramesOwnBoundsOnAnAbsoluteAutoAxisAnswerAsSwiftUIsFrameDoes` (`PresentationLoweringTests`) | A4/A5 under `.proposal`: `.frame(minWidth: 100)` → 100×16, `.frame(maxWidth: 80)` → 80×16 over `Text("hi")` (probe P1/P2), no report; control arm (no frame) 11×16 | reports `modifierLayer.style` | **M1b**: drop the `.frameLayer` skip in `lowerPresentation` → N1.3 (reports `modifierLayer.minSize.absolute`) |
-| **N1.4** `aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred` (`PresentationLoweringTests`) | under `.proposal` with diagnostics: `.frame(20×20).position(.absolute).inset(…).flexGrow(1)` in a `Deferred` reports `modifierLayer.style`; `.frame(20×20).position(.absolute).inset(…)` in a `Column` with no `Deferred` reports `modifierLayer.position` then `modifierLayer.inset` | arm 2 reports `style` (not `position`) before step 2 | **M1c**: skip the comparison entirely when absolute → arm 1 green-for-wrong-reason, N1.4 red; **M1d**: restore the `.frameLayer` guard in `planLegacyItems` → arm 2 lowers silently, N1.4 red |
+| **N1.4** `aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred` (`PresentationLoweringTests`) | under `.proposal` with diagnostics: `.frame(20×20).position(.absolute).inset(…).flexGrow(1)` in a `Deferred` reports `modifierLayer.style`; `.frame(20×20).position(.absolute).inset(…)` in a `Column` with no `Deferred` reports `modifierLayer.position` then `modifierLayer.inset`; arm 3: a two-member `Component`'s `.frame(width: 20, height: 20).position(.absolute).inset(…)` in a `Deferred` still reports `modifierLayer.style` (`LR-EY` item 3) | arm 2 reports `style` (not `position`) before step 2 | **M1c**: skip the comparison entirely when absolute → arm 1 green-for-wrong-reason, N1.4 red; **M1d**: restore the `.frameLayer` guard in `planLegacyItems` → arm 2 lowers silently, N1.4 red; **M1h**: drop the one-node condition from the exemption → arm 3, N1.4 red |
 | **N1.5** `anAnimatedFrameWidthInterpolatesAsTheAnimatedWidthItReplacesDid` (`AnimationTests`) | the demo sidebar's shape (`Column{…}.alignItems(.stretch).flexGrow(1).padding(14)` + width 196 → 320 under `withAnimation`), old spelling (D witness) vs `.frame(width:, alignment: .top)`, driven by `simulateTick` at 0, ¼, ½ and the end: the padded box's rect equal at every tick and the mid ticks strictly between 196 and 320 (`#require`, so a snapping pair cannot agree at 196) | green on arrival — a must-not-move pin; its instrument is the mutation | **M1e**: `bound(_:_:)` in `lowerShownLegacyFrameLayer` returns the declared value → the frame snaps, N1.5 red |
 | **N1.6** `aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum` (`FrameSizingTests`) | S7a/S7b under `.proposal` through a `Window`-free `Frame` (400×300, a stretching `Column`): 80pt header, a 50×400 content in `.frame(minHeight: 0, maxHeight: .infinity, alignment: .topLeading).frame(width: 120, alignment: .leading)` — the box 120×220 at (0, 80), the content at (0, 80); without `minHeight:` the box answers the content's 400 and the header moves to y −90 (probe F0/F1; measured, record §50 §3); the old `.width(120).flexGrow(1).flexBasis(0).minHeight(0)` spelling (D witness) gives the first arm's three rects exactly | green on arrival (the kernel already agrees) — the pin the demo cannot give (record §50 §4, Mb) | **M1f**: `framed(_:)` passes `minHeight: nil` → N1.6 red |
 
@@ -305,15 +336,20 @@ the 22 F files with `docs/probes/stage-8-sizing-converter.py` plus R2, R4–R7 b
 hand, helper return types changed where the compiler says (`-> some Element`),
 K fallback per test where an assertion would move; (3) re-run Ms1–Ms3: **each
 reddened set after ⊇ before**, else the file whose tests dropped out reverts to
-K; (4) `ModifierTests` to D; (5) the ten `@available` attributes in `Box.swift`
+K; (4) `ModifierTests` to D; (5) the eight `@available` attributes in `Box.swift`
 and its "Size" section comment rewritten (the "None of the eight is deprecated"
 paragraph and `minHeight`'s "the only way to cancel" table become `LR-EU`'s and
 `LR-ET`'s text); (6) N3.1 and G4's T row; (7) both build systems at 0
-`warning:`.
+`warning:`; (8) with the deprecation in, build `Backends/SDL` (record §40/§44:
+`python3 Backends/SDL/scripts/fetch-accesskit.py` once, then
+`PKG_CONFIG_PATH=$PWD/.accesskit swift build --build-tests` there) and grep its
+log for `deprecated` — 0 (it compiles `MetalUIDemoContent` from the root
+package, so a demo site lane 1 missed would warn there too; `LR-EY` item 7) —
+and re-run its `PortableReplay`/`DemoCapture`.
 
 | test (file) | asserts | red before | mutation that must redden it |
 |---|---|---|---|
-| **N3.1** `theSizingModifiersAreDeprecatedTowardFrame` (`FrameSizingCompileGuards`, `typecheckFile`, plain `import MetalUI`) | a fixture calling all ten compiles; exactly **10** deprecations; each message contains its replacement's spelling (`.frame(width:)`, …, `no SwiftUI counterpart` for the two fractions); a control fixture spelling the same sizes with `.frame` draws 0 | the modifiers are not deprecated (count 0) | **M3a**: delete one `@available` → 9, N3.1 red (the new guard mutated red once, as every new guard is) |
+| **N3.1** `theSizingModifiersAreDeprecatedTowardFrame` (`FrameSizingCompileGuards`, `typecheckFile`, plain `import MetalUI`) | a fixture calling all eight compiles; exactly **8** deprecations; each message contains its replacement's spelling (`.frame(width:)`, …, `no SwiftUI counterpart` for the two fractions); a control fixture spelling the same sizes with `.frame` draws 0 | the modifiers are not deprecated (count 0) | **M3a**: delete one `@available` → 7, N3.1 red (the new guard mutated red once, as every new guard is) |
 | **T3.1** `thePercentSizingModifiersAreDeprecatedRenamesOfFraction` (`ContainerCompileGuards`, G4) — **a T row, not a removal** | its control arm read `deprecations(control) == 0` for `width(fraction:)`, `height(fraction:)`, `flexBasis(fraction:)`; it now reads **2**, and `flexBasis(fraction:)` alone reads 0; the `percent:` arm is unchanged (3 deprecations, each a rename) | the control reads 0 | **M3b**: delete `width(fraction:)`'s `@available` → the control reads 1, T3.1 red |
 
 ## 7. What must not move; the demo
@@ -335,18 +371,22 @@ paragraph and `minHeight`'s "the only way to cancel" table become `LR-EU`'s and
   `DemoFrameDeterminismTests`) are the check.
 - **Hit testing, accessibility, animation**: the demo's `onClick`s, labels and
   `hoverBackground` all move with R2 onto the layer that carries the frame, at
-  the same rect (S2); N1.5 pins the one animated size.
+  the same rect (S2) — **measured**, not only argued: the design's patch leaves
+  every hitbox, the whole published accessibility tree (ids excluded) and five
+  hovered scenes identical, modal off and on (record §50 §7; lane 1 step 6
+  re-takes it); N1.5 pins the one animated size.
 - **Every test not retired keeps its assertion** (T3.1 is the one T row).
   **Before − removed + added = after: 1445 − 0 + 7 = 1452.**
 - `Sources/` changes only in `LegacyLowering.swift` (lane 1's `LR-EV`),
-  `DemoContent.swift` (lane 1) and `Box.swift` (lane 3: attributes and
-  comments); `git diff 85217e3 -- Sources` names no other file.
+  `DemoContent.swift` (lane 1), `Box.swift` (lane 3: attributes and
+  comments) and `Component.swift` (lane 3: comment lines only); `git diff
+  85217e3 -- Sources` names no other file.
 
 ## 8. Exit criteria
 
 1. **0 `warning:`** besides SwiftPM's notice on `swift build --build-system
    native --build-tests` **and** on the default build system (`swift build
-   --build-tests`), with the ten deprecations in place; 0 `error:`.
+   --build-tests`), with the eight deprecations in place; 0 `error:`.
 2. Unfiltered `swift test --build-system native --no-parallel` → **`Test run
    with 1452 tests in 3 suites passed`**, the log carrying `FR-J no-argument
    frame: succeeded=` (guards ran); **79 guards** (`FrameSizingCompileGuards`
@@ -354,11 +394,13 @@ paragraph and `minHeight`'s "the only way to cancel" table become `LR-EU`'s and
 3. With the deprecations in, criterion 1's 0 is the census re-taken: no call
    site outside a D witness remains. `grep -nE
    '\.(width|height|minWidth|maxWidth|minHeight|maxHeight)\(' Sources/MetalUIDemoContent`
-   returns only comment lines, and every remaining test call of the ten is
+   returns only comment lines, and every remaining test call of the eight is
    inside a declaration marked `@available(*, deprecated, …)`.
 4. The fourteen-image comparison against `85217e3`: 0 differing, scene
    identical. `DemoFrameDeterminismTests` green unedited. `Backends/SDL`'s
-   `PortableReplay` and `DemoCapture` green unedited.
+   `PortableReplay` and `DemoCapture` green unedited, and its build with the
+   deprecation in draws 0 deprecation warnings (lane 3 step 8). The demo's
+   hitbox / accessibility / hovered-scene comparison (lane 1 step 6) identical.
 5. N1.1–N1.6, N3.1 green; each named mutation reddened what §6 names, and the
    site-coverage sets held (⊇).
 
@@ -372,14 +414,26 @@ paragraph and `minHeight`'s "the only way to cancel" table become `LR-EU`'s and
   6); every `Style`-field report stage 8 inherited and kept (`LR-ER` item 4:
   percentages, a non-greedy `maxSize`, a length `flexBasis`, a root's auto-axis
   min/max and margin, a floored `space-*`, `…absolute` on a `Style`-written
-  box) dies with its field; divergence 52 (`Row`/`Column` default spacing,
-  `LR-ER` item 3).
+  box) dies with its field.
+- **Out of task 7, to plan task 15 (closeout)**: divergence 52 (`Row`/`Column`
+  default spacing). The design first gave it to stage 10, whose exit is also
+  "0 px against 9" — the very conflict `LR-ER` item 3 cited against stage 8;
+  no stage of task 7 whose exit is 0 px can change a public default under every
+  default-gap caller's pixels (`LR-EY` item 2).
 - **To stage 11**: `Component.width`/`height` vs `Component.frame` over several
-  members (`LR-ER` item 2).
+  members (`LR-ER` item 2), and a framed multi-member `Component` as absolute
+  content (`LR-EY` item 3).
 - **To the Record phase** (not before): CLAUDE.md/AGENTS.md — the "Sizing
   modifiers" paragraph ("Not deprecated (`FR-I`)" and "`.minHeight(0)` is the
   only way to cancel flex's automatic minimum (`FR-G`)" replaced by `LR-EU`'s
-  and `LR-ET`'s rules), the counts, `LR-` next unused, the stage-8 bullet under
+  and `LR-ET`'s rules), **every other copy that recommends a now-deprecated
+  spelling** (`LR-EY` item 8): the "Legacy containers" paragraph's "size,
+  background and corner radius **after**" `.padding` (size is now `.frame`
+  after it), the "Legacy `.frame`" paragraph's "`width(fraction: 1)` fills"
+  (deprecated, and a trap under the proposal authority since 6b — the remedy is
+  `.frame(maxWidth: .infinity)`), the human-verification section's "Padded
+  legacy container rule" (same sentence), and `README.md`'s example
+  (`.width(Pixels(36)).height(Pixels(36))`, lines 149–150 at `85217e3`); the counts, `LR-` next unused, the stage-8 bullet under
   "SwiftUI alignment", the `Deferred` paragraph's `…absolute` sentence; the
   frame-sizing decisions doc's `FR-F`/`FR-G`/`FR-H`/`FR-I` each gain an
   "Amended, stage 8" pointer; records §04/§05 if a divergence or inert row

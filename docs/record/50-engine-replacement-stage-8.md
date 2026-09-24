@@ -22,8 +22,8 @@ is renumbered at merge by the precedent of record §23 §8 and the
 `Sources/`, `Tests/` or `Package.swift` changed in a commit. Every prototype
 below was applied to the working tree, built, run, captured (as a patch in
 the session scratchpad or under `docs/probes/`) and reverted; `git status
---short` showed only this design's `docs/` files afterwards. The lanes append
-§7 onward.
+--short` showed only this design's `docs/` files afterwards. §7 is the design
+critic round; the lanes append §8 onward.
 
 ## 1. Baseline at `85217e3`
 
@@ -36,7 +36,9 @@ frame: succeeded=true deprecations=2` (the guards ran). 0 goldens, 78 guards.
 ## 2. The entry measurement: the deprecation's warning count
 
 `@available(*, deprecated, message: "SCRATCH8")` on the eight
-`StyledElement` sizing modifiers and `width(fraction:)`/`height(fraction:)`
+`StyledElement` sizing modifiers — the six sizes and clamps and
+`width(fraction:)`/`height(fraction:)` (this sentence first read as if the six
+were eight, and the spec and rulings then said "ten"; `LR-EY` item 1)
 (`Sources/MetalUI/Box.swift`), one scratch build, reverted. **1692 distinct
 `file:line:col` warnings** — the committed census,
 `docs/probes/stage-8-deprecation-sites.txt`:
@@ -238,3 +240,38 @@ answers its content's 400 without a minimum, 120 with `minHeight: 0`), P0–P2
 (11 → 100 with `minWidth: 100`, → 80 with `maxWidth: 80`, proposed 170), T0/T1
 (a `.frame(width: 100)` centres its text at x 94.5; `.leading` puts it at 50).
 Each group's control differs from its arm.
+
+## 7. Design critic round 1 (`LR-EY`)
+
+**Probe re-run.** `/usr/bin/swift docs/probes/swiftui-engine-stage-8.swift`,
+twice, macOS 27.0, Apple Swift 6.4: exit 0, both runs byte-identical to each
+other and to the 10 lines recorded in the probe's header (`diff` empty) — F0/F1,
+P0–P2, T0/T1 with their controls.
+
+**The demo's hit testing, accessibility and hover.** The fourteen-image
+comparison cannot see them. `docs/probes/stage-8-demo-hit-ax-hover.swift`,
+copied into `Tests/MetalUITests` as a scratch test, run filtered at `85217e3`
+and at `85217e3` + `docs/probes/stage-8-demo-recipe.patch`, then deleted
+(`git status --short` clean afterwards):
+
+| what | modal off | modal on |
+|---|---|---|
+| hitboxes (bounds, layer, opacity, order) | 3, identical | 5, identical |
+| accessibility tree, ids excluded | 9 nodes, identical | identical (adds "Close modal" and the card) |
+| scene hovered at (270, 299), (470, 299), (370, 299), (400, 280), (300, 480) | identical | identical |
+
+Whole output 91 882 241 bytes each side, `diff` empty. The instrument separates:
+hovered over the minus button vs over the readout (no hitbox) the scenes differ
+(md5 `c37a1f61…` vs `9b3db702…`), and `hovered` reads true at the two buttons
+and the list row, false at the readout and the stack cluster, with the modal
+off. R7's extra identity level is invisible to all three, as argued.
+
+**Findings** (applied or rejected in `LR-EY`): "ten" modifiers were eight
+(N1.1/N3.1/M3a literals would have been wrong); divergence 52's new owner
+(stage 10) exits at 0 px too; `LR-EV` was unruled over a multi-member frame;
+`Component.swift`'s promised comments had no lane; R4 contradicted the demo
+patch; hit testing/accessibility/hover were argued, now measured; `Backends/SDL`
+was never built with the deprecation in; four more CLAUDE.md/README copies
+recommend a deprecated spelling. The accounting is unchanged: 1445 − 0 + 7 =
+1452, guards 78 → 79.
+

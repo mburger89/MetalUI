@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-EY`** (stage 8's design took `LR-ER`…`LR-EX`, appended at the end; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-EZ`** (stage 8's design took `LR-ER`…`LR-EX` and its critic round 1 `LR-EY`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -8189,7 +8189,7 @@ trap. Bounded: production runs `.proposal` since stage 6b and never reaches
 
 ---
 
-## LR-ER — stage 8's scope: ten modifiers deprecated, the rest named, and every "stage 8" hand-off disposed
+## LR-ER — stage 8's scope: eight modifiers deprecated, the rest named, and every "stage 8" hand-off disposed
 
 **Evidence.** Record §50 §2: the deprecation warns at 1692 sites, 25 in the demo
 and 1667 in `MetalUITests`, none in any other target or package. Every earlier
@@ -8251,6 +8251,15 @@ min/max and margin), and the parent spec §8's T7 row.
    two-authority test, costs one pass instead of two. No test is deleted for
    this clause.
 
+**Amended, stage-8 critic round 1 (`LR-EY` items 1–2).** The title said
+"ten": `Box.swift` declares eight (the six sizes and clamps, and the two
+`fraction:` spellings), and item 1 always listed eight. **Item 3's owner is
+wrong**: stage 10's exit is also "0 px against 9", the same conflict this item
+cites against stage 8. Divergence 52 leaves task 7 for plan task 15, the
+replacement closeout — the one place a public default under every default-gap
+caller's pixels can be ruled. Where the text below says stage 10 inherits
+divergence 52, read task 15.
+
 **What it costs if wrong.** Items 3, 4 and 6 move work, not behaviour: stage
 10 inherits divergence 52, seven report families and 232 `Style()` lines on top
 of the ≈ 1200 `css*` sites (`LR-EW`). If a later reader expects "stage 8
@@ -8292,6 +8301,14 @@ the frame "so it lands on the outer layer". On the legacy engine's one-cell
 stack that was a centring; on the proposal path it is a report, and in a
 production frame a report is a trap. The frame's own `alignment:` is SwiftUI's
 spelling of the same placement (S2: **SAME** with the two modifiers dropped).
+
+**Amended, stage-8 critic round 1 (`LR-EY` item 5).** "An item field never on
+a chain with a frame" contradicted the design's own demo patch, which keeps the
+sidebar's `.alignItems(.stretch).flexGrow(1).padding(14)` under its frame and
+reads 0 px. R4 is restated (spec §5.1): an item field is never on the frame's
+own layer (a report) or on the layer the frame wraps directly (consumed and
+dropped); under an inner wrapper it is that wrapper's child's record and is
+kept. R2 also lists `hidden()` among what moves after the frame.
 
 **What it costs if wrong.** A wrong rule is a pixel or an assertion: the demo's
 four discriminating mutations (Ma, Md, Me, Mf) redden
@@ -8344,7 +8361,7 @@ the `fraction:` spellings draw 0 deprecations.
 
 **The ruling.**
 
-1. The ten modifiers of `LR-ER` item 1 take `@available(*, deprecated,
+1. The eight modifiers of `LR-ER` item 1 take `@available(*, deprecated,
    message:)` with spec §4's messages, in lane 3, in the same commit that leaves
    no undecorated caller.
 2. **`message:`, not `renamed:`.** A `renamed:` produces a fix-it that rewrites
@@ -8405,6 +8422,14 @@ outside-a-`Deferred` `position` report for a frame layer.
 4. `minSize`/`maxSize` on the auto axis of a **`Style`-written** absolute box
    keep reporting `…absolute`, re-owned to stage 10 by `LR-ER` item 4 — the
    public spelling is now R6.
+
+**Amended, stage-8 critic round 1 (`LR-EY` item 3).** Item 1 is narrowed to a
+frame over **at most one node**. Over several — `anyComponent.frame(…)`, which
+lowers to `LR-BH`'s horizontal row of per-member frames — the presentation
+answer was never measured, and a row wrapper inside a presentation root is a
+shape stage 5 never lowered; it keeps reporting `modifierLayer.style` for
+`position`/`inset`, owner stage 11 with `Component.frame` (`LR-ER` item 2).
+Pinned by N1.4's arm 3; mutation M1h.
 
 **What it costs if wrong.** Item 1 widened to the whole style would let a
 `flexGrow` on an absolute frame layer lower silently (M1c reddens N1.4); item 3
@@ -8473,3 +8498,87 @@ deprecation did.
 **What it costs if wrong.** A lane that finds a K file must be F (or the
 reverse) moves the file with a recorded reason; the totals of spec §5.2 are
 re-taken from the census, not carried.
+
+---
+
+## LR-EY — stage 8's design critic round 1: findings applied and rejected
+
+**Evidence.** A critic pass over `25f02b2` (the design commit): the spec, rulings
+`LR-ER`…`LR-EX`, record §50, the census, the demo patch and the converter were
+read against `Box.swift`, `Component.swift`, `LegacyLowering.swift`,
+`DemoContent.swift`, CLAUDE.md and `README.md`; the SwiftUI probe
+`swiftui-engine-stage-8.swift` was re-run twice under `/usr/bin/swift` —
+**byte-identical to its recorded header and to each other** (all three groups,
+F, P and T, so every arm with its control); and a new instrument,
+`docs/probes/stage-8-demo-hit-ax-hover.swift`, compared the demo's hitboxes,
+accessibility tree and hovered scenes at `85217e3` against `85217e3` + the
+design's patch (record §50 §7).
+
+**Applied.**
+
+1. **"Ten" was eight.** `Box.swift` declares six sizes and clamps and two
+   `fraction:` spellings. The spec, `LR-ER`'s title, `LR-EU` item 1, N1.1's
+   `#require`d count (10 → 8), N3.1's expected deprecations (10 → 8) and M3a's
+   reading (9 → 7) all said ten; an N3.1 written to the spec would have been red
+   against the correct implementation, and N1.1's `#require` would have failed
+   on a correct eight-entry list. Fixed everywhere, including the census header
+   and record §50 §2.
+2. **Divergence 52's new owner had the conflict it was moved to escape.** Stage
+   10's exit is "0 px against 9". Re-owned out of task 7 to plan task 15
+   (`LR-ER` item 3 amended; spec §9).
+3. **`LR-EV` over a multi-member frame was unruled.** Narrowed to a frame over
+   at most one node; N1.4 gains arm 3, mutation M1h (`LR-EV` amended).
+4. **`LR-ER` item 2 promised doc comments nobody owned.** `Component.swift` was
+   in no lane and outside §7's list of changed `Sources/` files. Lane 3 owns its
+   comment lines (spec §4, §7).
+5. **R4 contradicted the patch** (`LR-ES` amended); R2 omitted `hidden()`.
+6. **Hit testing, accessibility and hover were argued, not measured.** The
+   fourteen-image comparison renders no pointer and reads no hitbox or
+   accessibility record. Measured now: **identical** — every hitbox (bounds,
+   layer, opacity, order), the whole published tree (ids excluded, since R7
+   moves them by design) and the scene hovered at five points, modal off and
+   on; the instrument separates (hovered vs unhovered scenes differ). Lane 1
+   re-takes it on its real conversion (step 6, exit criterion 4). And T7's
+   MetalUI half (`Text.frame(width:)` centring its text in MetalUI, not only
+   in SwiftUI) is measured by lane 1 (step 7) before `LR-ER` item 5 may call T7
+   closed.
+7. **The `Backends/SDL` gate was not taken with the deprecation in.** Lane 1
+   ran it before any deprecation existed; lane 3 now builds it after (step 8).
+   It compiles `MetalUIDemoContent` from the root package, so it is a second
+   reader of the demo's census.
+8. **Record-phase copies were incomplete.** Besides the "Sizing modifiers"
+   paragraph, CLAUDE.md recommends a now-deprecated spelling in three more
+   places — "size … after `.padding`" (Legacy containers), "`width(fraction:
+   1)` fills" (Legacy `.frame`; a trap under the proposal authority since 6b)
+   and the human-verification section's padded-container rule — and
+   `README.md`'s example writes `.width(Pixels(36)).height(Pixels(36))`. Added
+   to spec §9.
+
+**Rejected, with the reason.**
+
+- **"K keeps ≈ 1200 test sites off `.frame`, against the row's 'converted …
+  at every call site'."** Not a hidden deferral: those tests' subjects are the
+  `Style` fields' lowering and each registration site's own code, which stages
+  9–10 delete; `.frame` would change the subject or silently move the pin to a
+  `ModifiedElement` layer (record §50 §5's `DisabledTests` finding). The
+  deprecation gate still holds — every public call is gone — and `LR-EW`
+  already rules it with a named end (stage 10).
+- **"The `Style()` clause re-owned to stage 10 is a deferral."** Kept as
+  `LR-ER` item 6 rules it: stage 10 deletes those fields and must touch every
+  writer anyway; no gate reads `Style()`.
+- **"`width(percent:)`'s `renamed:` now points at a deprecated target."** The
+  fix-it chain lands on a deprecation whose message says what to do; changing
+  the `percent:` attributes would edit G4's percent arm, which the stage keeps
+  unchanged. Harmless, recorded.
+- **"The recipe's R-rules lack a SwiftUI probe."** Every R-rule is a claim about
+  MetalUI's own lowering, measured by the scratch pairs S1–S8 and the demo
+  mutations; the SwiftUI claims (F, P, T) are the probe's, re-run byte-identical
+  above.
+- **"Lane 3 is too large."** 425 F sites, most `R1`/`R3` mechanical through the
+  converter; splitting it would split the site-coverage check (Ms1–Ms3 must
+  bracket every F conversion) across agents. Kept; three lanes.
+
+**What it costs if wrong.** Items 1 and 3 are test literals and one condition;
+item 2 moves an owner; items 6–8 are measurements and documentation. The
+accounting is unchanged: **1445 − 0 + 7 = 1452 tests; 78 → 79 guards**
+(N1.4's third arm is an arm, not a test).
