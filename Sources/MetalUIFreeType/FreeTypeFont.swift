@@ -112,7 +112,10 @@ public final class FreeTypeFont {
     public var fullName: String { name(id: 4) }
 
     /// Name table entry `id`, decoded as ``fullName`` describes.
-    func name(id: UInt16) -> String {
+    func name(id: UInt16) -> String { Self.name(id: id, of: face) }
+
+    /// Name table entry `id` of `face`, decoded as ``fullName`` describes.
+    static func name(id: UInt16, of face: FT_Face) -> String {
         var best: (rank: Int, value: String)?
         for index in 0..<FT_Get_Sfnt_Name_Count(face) {
             var record = FT_SfntName()
@@ -148,5 +151,55 @@ public final class FreeTypeFont {
     /// are actually drawn.
     public func glyph(for scalar: Unicode.Scalar) -> UInt16 {
         UInt16(truncatingIfNeeded: FT_Get_Char_Index(face, FT_ULong(scalar.value)))
+    }
+}
+
+/// The three names a face is matched by, read from a font file on disk without
+/// loading it into memory (ruling SF-A): FreeType streams the name tables
+/// through its own file access (`FT_New_Face`).
+public struct FreeTypeFaceNames: Equatable, Sendable {
+    public let faceIndex: Int
+    public let postScript: String
+    public let family: String
+    public let full: String
+    /// The style, e.g. `"Regular"`, `"Bold Italic"` (`style_name`).
+    public let style: String
+
+    public init(faceIndex: Int, postScript: String, family: String, full: String, style: String) {
+        self.faceIndex = faceIndex
+        self.postScript = postScript
+        self.family = family
+        self.full = full
+        self.style = style
+    }
+
+    /// Every scalable face in the file at `path` with a PostScript name, in
+    /// face order — one for a `.ttf`/`.otf`, several for a collection. A file
+    /// FreeType cannot open, a bitmap-only face and a face with no PostScript
+    /// name contribute nothing: the same faces `FreeTypeFont` would refuse.
+    public static func read(path: String) -> [FreeTypeFaceNames] {
+        var library: FT_Library?
+        guard FT_Init_FreeType(&library) == 0, let library else { return [] }
+        defer { FT_Done_FreeType(library) }
+        var probe: FT_Face?
+        // Face index -1 asks only how many faces the file holds.
+        guard FT_New_Face(library, path, -1, &probe) == 0, let counted = probe else { return [] }
+        let count = Int(counted.pointee.num_faces)
+        FT_Done_Face(counted)
+        var names: [FreeTypeFaceNames] = []
+        for index in 0..<count {
+            var opened: FT_Face?
+            guard FT_New_Face(library, path, FT_Long(index), &opened) == 0, let face = opened else { continue }
+            defer { FT_Done_Face(face) }
+            guard face.pointee.face_flags & FT_Long(FT_FACE_FLAG_SCALABLE) != 0,
+                  let postScript = FT_Get_Postscript_Name(face).map({ String(cString: $0) }),
+                  !postScript.isEmpty else { continue }
+            names.append(FreeTypeFaceNames(
+                faceIndex: index, postScript: postScript,
+                family: face.pointee.family_name.map { String(cString: $0) } ?? "",
+                full: FreeTypeFont.name(id: 4, of: face),
+                style: face.pointee.style_name.map { String(cString: $0) } ?? ""))
+        }
+        return names
     }
 }

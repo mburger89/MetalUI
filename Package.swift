@@ -16,6 +16,8 @@ var products: [Product] = [
         .library(name: "MetalUIHarfBuzz", targets: ["MetalUIHarfBuzz"]),
         // The portable text pipeline (ruling PT-A).
         .library(name: "MetalUIPortableText", targets: ["MetalUIPortableText"]),
+        // The platform's installed fonts as a PortableFontResolver (SF-A).
+        .library(name: "MetalUISystemFonts", targets: ["MetalUISystemFonts"]),
         // The text seam (ruling TS-A).
         .library(name: "MetalUITextSystem", targets: ["MetalUITextSystem"]),
         // The platform protocols, for platforms outside this package
@@ -135,6 +137,13 @@ var targets: [Target] = [
         .target(name: "MetalUIPortableText",
                 dependencies: ["MetalUIScene", "MetalUIHarfBuzz", "MetalUIFreeType",
                                "CUnibreak", "MetalUITextSystem", "CSheenBidi"]),
+
+        // Installed fonts, discovered and registered lazily (rulings SF-A…SF-D).
+        // The one portable text target with a file system: imports Foundation
+        // (swift-corelibs-foundation off Apple), MetalUIFreeType and
+        // MetalUIPortableText.
+        .target(name: "MetalUISystemFonts", dependencies: ["MetalUIPortableText", "MetalUIFreeType"]),
+        .testTarget(name: "MetalUISystemFontsTests", dependencies: ["MetalUISystemFonts"]),
 
         // Shaping with no Apple framework (rulings SH-B, SH-K): imports only
         // CHarfBuzz. One run: no line breaking, bidi, itemization or fallback.
