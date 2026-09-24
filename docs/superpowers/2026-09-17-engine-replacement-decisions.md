@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-EO`** (stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM` and its lane 2 `LR-EN`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-EP`** (stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN` and its lane 3 `LR-EO`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -8005,3 +8005,81 @@ each).
 **What it costs if wrong.** Keeping the node count would have failed N2.1 and
 N2.2 on a CSS-structure fact and tempted a re-spelled oracle that no longer
 hand-spells anything; M2c as spelled would have recorded a trap as a sample.
+
+## LR-EO — stage 7b lane 3: the matrix's witnesses under the proposal authority, the `Component` `width` row's kind, M3.5 and M3c re-spelled; the stage closes at 1445
+
+**Findings, each measured** (record §49 §6.3 and §7; mutations on the committed
+tree, full unfiltered suite, restored from a copy, `git status --short` empty
+after each).
+
+1. **N3.5's witnesses.** The retired matrix's `wraps`/`selfStorage` witnesses
+   read `LayoutTree.nodeCount`, the legacy tree's shape: under the proposal
+   authority a `Self`-returning `.width` lowers to a native frame and a margin
+   to a native padding, so the node count moves for a modifier that adds no
+   layer. N3.5 reads `Frame.elementBounds`' entry count instead (one per
+   element **and per modifier layer**, each layer having its own id, `MC-C`),
+   plus the id-free sorted element rects for "the layout did not move". A
+   `Component`'s per-member wrappers carry no id, so a `Component` row's
+   `wraps` and `distributes` are both proved by one per-member witness: each
+   member's own size unchanged and **every** gap around every member open (a
+   wrapper around the group leaves the interior gap closed; a wrapper on some
+   members leaves an end gap closed). Every row's outer widths and both
+   `Component` rows' gaps were derived by hand and held on the first run.
+2. **The `Component` `width(_:)` row changes kind.** The retired matrix filed
+   it `distributes` alone — an amend that overwrote each member's declared
+   width (`OM-F`). Under the proposal authority it is a native frame per member
+   that keeps each member's width (`LR-BG`, divergence 48's proposal answer:
+   members 30 and 50 centred at 20 and 80 in two 70-wide frames), so N3.5 files
+   it `distributes` + `wraps`, as the `padding(_:)` row. The amend reading is
+   the legacy authority's, a D concept (divergence 48's legacy answer, record
+   §49 row 219).
+3. **M3.5 as spelled traps, and "adds no layer" is unspellable.**
+   `.padding(_:)` returns `ModifiedElement<LayerBase>`, which always carries a
+   layer; and writing `Style.padding` onto a chain receiver's outermost layer
+   makes a frame layer's style check report `modifierLayer.style`, which traps
+   a production window and truncates the run (measured: `Frame.swift:1603:
+   Fatal error: MetalUI: modifierLayer.style has no proposal lowering`). The
+   taken spelling, **M3.5′**, writes `Style.padding` on a **non-chain**
+   receiver (`LayerBase.self == Self.self`) and returns it wrapped in an empty
+   layer: the `padding(_:)` row reddens at its outer width (a border-box
+   padding inside a declared 40×40 grows nothing), not at its element count.
+   The `paintOnly` kind mutation is scoped the same way for the same trap
+   (`border(_:width:)` also writing `Style.border`).
+4. **M3c as spelled does not redden the row's named replacement.** A lowered
+   `Box` built from its declared style reddens twelve tests — among them the
+   three 2.1's table names for its `Box` row
+   (`aLoweredBoxRegistersItsAnimatedWidth`,
+   `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap`,
+   `aLoweredMarginRegistersItsAnimatedValue`) — but not
+   `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`
+   itself, whose arms are the inner/outer modifier layers, the `ScrollView`
+   content and the `Component` snap. **M3c′** — an inner `ModifiedElement`
+   layer lowered from its declared style — reddens 2.1 **alone**: since the
+   removal of `everyRegisteringSiteAnimatesItsStyle` (whose inner-layer arm was
+   the legacy twin), 2.1's arm (a) is the only pin of that site. Family F15's
+   sample is M3c′; M3c is recorded beside it.
+5. **M3.4's spelling.** A frame layer with opacity below 1 paints its content
+   and border at opacity 1 and only its own fill (none in N3.4's fixture) under
+   the opacity. It reddens N3.4 at its two fade `#expect`s,
+   `everyDecorationScopingSiteContainsItsOwnContent`, and — before the removal
+   — the retired legacy twin.
+6. **Comments.** `Sources/` comments naming a retired lane-3 test as a present
+   pin are re-pointed, comment lines only (`LR-EG`): `EnvironmentValues.swift`
+   (two, → N3.1/N3.2) and `Component.swift` (two: B-7's readings → 2.1's arm
+   (c); the frame side door → N3.4). `LR-EN` item 6's `AnimationTests`
+   1007–1011 and `FrameDecorationInteractionTests` 379 were inside retired
+   tests; its `OuterModifierMatrixTests` 854 is re-pointed to row 215's
+   replacements.
+7. **The stage closes as `LR-EM` item 2 predicted**: `Test run with 1445
+   tests in 3 suites passed` (1670 − 236 + 11), the census instrument's
+   markers (1075) in exactly section A's 199 tests, 0 px in all fourteen
+   images, the `Sources/` diff comment-only, 0 `warning:` on both build
+   systems. The portable figure stays **200 + 22 + 3** (no lane-3 file is in
+   `MetalUICoreTests` or `MetalUILayoutTests`).
+
+**What it costs if wrong.** Keeping the node-count witness would have
+misfiled `width(_:)` and `margin(_:)` as wraps under production's authority;
+keeping the amend kind would have pinned a legacy answer the proposal
+authority does not give; M3.5 and the paint mutation as spelled would have
+recorded a trap as a sample; M3c alone would have left F15 without its
+replacement reddening, which spec §6 step 4 requires.

@@ -15,6 +15,10 @@ Rulings `LR-EC`…`LR-EK` (critic round 1: `LR-EL`) in
 is renumbered at merge by the precedent of record §23 §8 and the
 §25/§27/§29/§38/§41/§48 headers.
 
+**Status, 2026-09-24 (PDT): delivered.** §6.1–§6.3 are the three lanes and §7
+the stage's close (1445 tests; the census reads section A exactly; 0 px). The
+design-time status below is kept as written.
+
 **Status, 2026-09-24 (PDT): design.** §1–§5 were written with no file under
 `Sources/`, `Tests/` or `Package.swift` changed in a commit: the instrument was
 applied to the working tree, built, run once unfiltered, captured as the patch
@@ -865,3 +869,218 @@ sibling of the frame's alignment and the row's spacing.
 **Deferrals.** None of lane 2's rows. Handed on: the listed test-file
 comments (Record phase; lane 3 for its own files); the count **1445** for lane
 3 (`LR-EM` item 2); the census re-run (exit criterion 3) at the stage's close.
+
+### 6.3 Lane 3 — text, style readers, decorations, the matrix, divergence 4 (2026-09-24, PDT)
+
+**Commits.** `00c8c73` — N3.1–N3.5 and the four T rows; `4f71a25` — the removal
+of rows 232–244's ten R/D/N tests, with the helpers only they used, and the
+`Sources/` comments naming them re-pointed (comment lines only); the commit
+after it — one more test-file comment, `LR-EO`, the spec's status, this section
+and §7.
+
+**R confirmation.** The four R rows' replacements exist and were read against
+the retired bodies. Row 233 (a stretched column's label wraps, 3 × 16): the
+lowered stretch's aliased item frame wraps its `Text` at the item's width
+(`theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, both its
+120-wide arm and its narrower-than-a-glyph arm), and
+`aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal` pins the
+leaf's wrapped answer. Row 234 (TX-H: a centring column shrink-wraps its text):
+`aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock` pins
+the proposal side (the leaf hugs its widest line at 60); the "like WebKit" half
+is fit-content, a CSS concept. Row 235 (a `Text` paints its background and its
+glyphs): `aHiddenElementPaintsNothingUnderTheProposalAuthority`'s shown control
+requires the `Text`'s glyphs, `spriteDestinationsAreThePenPositionPlusTheRasterizersBearings`
+where each lands, and `everyBackgroundPaintingSiteHonoursHoverAndFocus`'s `Text`
+site (a `makeFakeWindow` window, production's authority) its background. Row 241: 2.1's table maps
+every arm of the retired guard to a proposal-side pin — **but see M3c below**:
+2.1 itself carries only the inner/outer layer, `ScrollView`-content and
+`Component`-snap arms; its `Box` row is pinned by the three tests the table
+names. None failed.
+
+**The N tests and the T rows, written green, first run** (at the tree that
+became `00c8c73`, filtered, then the full suite): every hand-derived literal
+held on the first run — N3.3's three regions and five clicks, N3.4's member
+positions (a (25, 15), b (95, 10)), 160×40 border and clip, N3.5's twenty-one
+rows' outer widths and both `Component` rows' gaps ((20, 40, 20) and
+(20, 30, 10)). Each window arm pre-flighted under diagnostics and read an empty
+report. **`Test run with 1455 tests in 3 suites passed`** (1450 + 5),
+`FR-J no-argument frame: succeeded=true`.
+
+- **N3.1 / N3.2** (`EnvironmentTests`, beside `proposalTextMeasure`): the
+  `Text`'s `Frame.elementBounds` rect under `.proposal` at a 4000-wide frame
+  (its one-line answer — the leaf answers `min(ideal, proposal)`, so a frame
+  wider than every string here is its nil-width answer; a root cannot propose
+  nil) and at a 20-wide one (narrower than every word: the proposal's width,
+  the broken lines' height). The 26pt control differs at both, `#require`d
+  first.
+- **N3.4's difference from the retired legacy arm** (`LR-BH`, derived before
+  the run): there the frame was ONE 100×40 flex row around the body — members
+  packed and centred as a unit (a at 10, b at 40), border and clip 100×40, one
+  frame node; here each member is framed on its own (divergence 56's proposal
+  answer) and the layer's rect, which carries its decoration, is the row of
+  frames. The fixture frame is 80×40 (not 100×40) so the 160-wide row and the
+  1pt marker fit `inFilledRow`'s 200.
+- **N3.5**: `LR-EO` items 1–2 (the witnesses, and the `Component` `width(_:)`
+  row's kind).
+- **T rows 238–240**: `styleOfRoot` reads `element.style` (and returns its
+  `decoration` as the tuple's second half, so the three bodies' `let (style, _)
+  = try styleOfRoot(&element)` lines are unchanged). **T row 245**: the
+  `.legacy` arm's two lines removed; the doc now derives (21, 40) from R1/R2's
+  arithmetic, not from the other arm.
+
+**Red-before (N tests and the T rows), on `00c8c73`**, full unfiltered suite,
+restored from a copy, `git status --short` empty after each:
+
+| id | spelling applied | issues | every test reddened |
+|---|---|---|---|
+| M3.1 | `Text.requestLayout`'s lowered branch: the measurement's size × 2 when `pass.environment.dynamicTypeSize != .large` | 2 | `dynamicTypeSizeChangesNoTextMeasurementUnderTheProposalAuthority` (1) |
+| M3.2 | the same, keyed on `pass.environment.locale.identifier == "th_TH"` | 2 | `aLocaleChangesNoTextMeasurementUnderTheProposalAuthority` (1) |
+| M3.3 | `Frame.registerHandlers`: `hitRegion(bounds, inset: handlers.contentShapeInset)` → `inset: nil` | 10 | `aContentShapeInsetShrinksTheHitRegionAndChangesNoLayout`, `aContentShapeMovesNeitherTheAccessibilityFrameNorTheFocusRegistration`, `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBox`, `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBoxUnderTheProposalAuthority`, `aContentShapeWithoutAClickHandlerRegistersNothing`, `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`, `aLabelledClickTargetOnAFrameLayerPublishesTheFrameBoxWhileItsHitRegionIsInset`, `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays` (10) |
+| M3.4 | `ModifiedElement.paintLayer`: a frame layer (`frameSpec != nil`) with opacity below 1 paints its content and border at opacity 1, its own fill (if any) alone under the opacity | 5 | `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembers`, `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembersUnderTheProposalAuthority`, `everyDecorationScopingSiteContainsItsOwnContent` (3) |
+| M3.5′ | `padding(_ edges:)` on a non-chain receiver (`LayerBase.self == Self.self`): `Style.padding` written on the receiver, the wrapper layer empty (`LR-EO` item 3) | 2169 | `aChainsOuterLayerScopesContainTheLayersInsideIt`, `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`, `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aGrowInsideAOneChildPaddingFillsTheWrapperWhereCSSLeavesItUngrown`, `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`, `aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten`, `aLoweredPaddingLayerAgreesWithTheLegacyWrapper`, `aModifierChainAllocatesABoundedAmountOverNestedBoxes`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`, `aModifierChainRegistersAndPaintsOuterLayersFirst`, `anAlignSelfInsideAOneChildWrapperFillsTheWrapperWhereCSSIgnoresIt`, `anIDAfterAChainsLastWrapperNamesTheOutermostLayer`, `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`, `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `everyDecorationPaintingSiteDrawsItsBorder`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays`, `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, `everyRegisteringSiteAnimatesItsStyle`, `legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes`, `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`, `theElementBoundsLogRecordsTheRootEveryGroupMemberAndEveryInnerModifierLayer`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (28) |
+| T (238–240) | `Stack.init`: `style.alignItems = alignment == .center ? .stretch : alignment.blockAxis` | 34 | `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities`, `aHiddenClickTargetPassesTheClickToWhatIsUnderIt`, `aHiddenElementInsideAnyElementIsHiddenUnderTheProposalAuthority`, `allNineAlignmentsMapToTheirPairAndTheNineAreDistinct`, `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes`, `aMarginLowersAsPaddingOutsideTheItem`, `aNestedHandlerWinsOverItsContainingStackToo`, `aPresentationsAccessibilityRecordAndFocusMatchUnderBothAuthorities`, `aPressReleasedOverSomethingCoveringItIsNotAClick`, `aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields`, `clippedAlsoClipsTheHitboxesInsideIt`, `stackDefaultsToCentreNotStretch`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheelUnderBothAuthorities`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theTopmostOfTwoOverlappingHandlersRuns`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (17) |
+
+N3.1 and N3.2 redden at their two `#expect`s each (`EnvironmentTests.swift:1128`/`1129`,
+`1152`/`1153`: `large.ideal` 240×32 against 120×16 under M3.1); N3.3 at its
+disagreeing-arms `#require` (`:364`); N3.4 at its two fade `#expect`s; N3.5 under
+M3.5′ at the `padding(_:)` row's outer-width literal and its `wraps` outer-size
+witness (the empty layer still records an element rect, so the element-count
+witness holds — the outer box is what a self-storing padding cannot grow). T row
+245's red is M3e below (6b's M2a).
+
+**The removal.** `4f71a25`: `TextMeasureTests` 4, `EnvironmentTests` 2,
+`AnimationTests` 1, `FrameDecorationInteractionTests` 2,
+`OuterModifierMatrixTests` 1 — **10**. Helpers whose only callers were retired
+tests went with them: `EnvironmentTests.textMeasure`;
+`FrameDecorationInteractionTests.inRow` and `render`'s `authority:` parameter;
+the legacy matrix's `observe`, `Observation` and `MatrixRow`
+(`OuterModifierMatrixTests`); `laidOut`'s (`TextMeasureTests`) and
+`animFrame`'s (`AnimationTests`) `authority:` parameters, with the three
+`TextMeasureTests` `MARK`s left empty. `swift build --build-system native
+--build-tests` 0 `error:`, one `warning:` (SwiftPM's deprecation notice);
+**`Test run with 1445 tests in 3 suites passed`**, `FR-J no-argument frame:
+succeeded=true`. **1450 + 5 − 10 = 1445**, `LR-EM` item 2's figure.
+
+**Removal check by script** (record §49 §4 rows 232–245 read by script): each
+of the ten R/D/N names existed in its file at `41344e5` and no `func <name>`
+remains there; the four T rows exist and every kept `#expect`/`#require` line
+is byte-identical to `41344e5` (238: 5 of 5, 239: 3 of 3, 240: 2 of 2; 245: 3
+of 5, the two dropped being `let legacy = try #require(try boxRect(.legacy))`
+and its `#expect(legacy == …)`); every other surviving top-level `@Test` body
+in the seven files equals its `41344e5` text (`grep -cE '^\s*@Test'`:
+`AnimationTests` 42 → 41, `EnvironmentTests` 24 → 24, `FrameDecorationInteractionTests`
+8 → 8, `OuterModifierMatrixTests` 5 → 5, `RootSwitchTests` 3 → 3,
+`StackElementTests` 3 → 3, `TextMeasureTests` 9 → 5).
+
+**Family mutations**, each on the committed removal (`4f71a25`), the file
+copied to the scratchpad, edited, full unfiltered suite, restored from the
+copy, `git status --short` empty after every one. Every required replacement
+reddened — M3c's only in its `′` spelling (`LR-EO` item 4):
+
+| id | F | spelling applied | issues | every test reddened |
+|---|---|---|---|---|
+| M3a | F14 | `Text.requestLayout`'s lowered measure: `proposal: ProposedSize(width: nil, height: proposal.height)` | 2046 | `aLegacyFrameProposesItsWidthToAMeasuredLeaf`, `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent`, `aLoweredTextAndAProposalTextSizeOneGridColumnIdentically`, `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock`, `aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin`, `anAbsoluteTextWrapsAtTheWindowMinusItsInsetWhereTheLegacyEngineWrapsAtTheWindow`, `anExplicitKnownSizeWinsOverTheMeasuredOne`, `aTextShrunkByFlexStillWrapsAtItsShrunkWidth`, `aZeroBasisGrowerTakesItsShareDownToItsContent`, `aZeroShrinkKeepsItsNaturalMainSizeAndOverflows`, `everyWrappedLineEmitsItsGlyphs`, `paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt`, `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (17) |
+| M3b | F14 | `Text.paint`: `paintDecoration`'s content closure emptied (no `paintGlyphs`) | 45 | `aCentredShrinkWrappedLabelNeverWrapsAtAnyValue`, `aHiddenElementPaintsNothingUnderTheProposalAuthority`, `aHiddenTextIsHiddenUnderTheProposalAuthority`, `aLoweredPaddingLayerAgreesWithTheLegacyWrapper`, `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth`, `aPortableFrameNeverShapesThroughCoreText`, `aTextShrunkByFlexStillWrapsAtItsShrunkWidth`, `aWindowUploadsTheAtlasBeforeEncodingSoTheFirstFrameOfTextIsNotBlank`, `everyDecorationScopingSiteContainsItsOwnContent`, `everyWrappedLineEmitsItsGlyphs`, `glyphsAreTintedByTheThemeAndDefaultToTextPrimary`, `paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt`, `paintWrapsAtTheWidthLayoutMeasuredAtNotTheRoundedBox`, `spacesGetNoSprite`, `spriteDestinationsAreThePenPositionPlusTheRasterizersBearings`, `theAtlasSurvivesTheFrameThatFilledIt`, `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, `theCoreTextAndPortableSystemsDrawTheSameSprites`, `theDemoFrameDrawsRectsAndText`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theIndicatorIsTheLastPrimitiveInTheScene`, `theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore`, `thePortableSystemIsTheOneThatDraws`, `theSecondFrameOfTheSameTextPlacesItsSpritesIdentically`, `theWindowsPixelsAreExactlyTheGlyphBitmapsItsSpritesStandFor` (25) |
+| M3c | F15 | `Box.requestLayout`: `lowerLegacyNode(declared, declared: declared, …)` (the lowered `Box` from its declared style) | 19 | `aLoweredBoxRegistersItsAnimatedWidth`, `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap`, `aLoweredMarginRegistersItsAnimatedValue`, `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths`, `anAnimatedInsetInterpolatesItsValueUnderBothAuthorities`, `anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues`, `anAnimatedWriteThatIsNotTheFirstObservableWriteOfItsIntervalStillAnimates`, `anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting`, `aParkedTransactionIsConsumedByExactlyOneBuild`, `aTransactionParkedOutsideTheBuildAnimatesTheNextFrameEndToEnd`, `aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange`, `theDisplayLinkStaysRunningWhileAnimatingAndPausesOnTheFrameAfterTheLastEnds` (12) |
+| M3c′ | F15 | `ModifiedElement.requestLayout`: an inner layer lowered from its declared style (`mutantLayer.style = declared`) | 2 | `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` (1) |
+| M3d (M3.3) | F16 | M3.3 again | 8 | `aContentShapeInsetShrinksTheHitRegionAndChangesNoLayout`, `aContentShapeMovesNeitherTheAccessibilityFrameNorTheFocusRegistration`, `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBoxUnderTheProposalAuthority`, `aContentShapeWithoutAClickHandlerRegistersNothing`, `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`, `aLabelledClickTargetOnAFrameLayerPublishesTheFrameBoxWhileItsHitRegionIsInset`, `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority` (8) |
+| M3d (M3.4) | F16 | M3.4 again | 3 | `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembersUnderTheProposalAuthority`, `everyDecorationScopingSiteContainsItsOwnContent` (2) |
+| M3d (M3.5′), `wraps` | F16 | M3.5′ again | 2167 | `aChainsOuterLayerScopesContainTheLayersInsideIt`, `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`, `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aGrowInsideAOneChildPaddingFillsTheWrapperWhereCSSLeavesItUngrown`, `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`, `aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten`, `aLoweredPaddingLayerAgreesWithTheLegacyWrapper`, `aModifierChainAllocatesABoundedAmountOverNestedBoxes`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`, `aModifierChainRegistersAndPaintsOuterLayersFirst`, `anAlignSelfInsideAOneChildWrapperFillsTheWrapperWhereCSSIgnoresIt`, `anIDAfterAChainsLastWrapperNamesTheOutermostLayer`, `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`, `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `everyDecorationPaintingSiteDrawsItsBorder`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, `legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes`, `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`, `theElementBoundsLogRecordsTheRootEveryGroupMemberAndEveryInnerModifierLayer`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (26) |
+| M3d `selfStorage` | F16 | `margin(_ points:)`: `modifying { _ in }` (stores nothing) | 19 | `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer`, `aFrameOverSeveralMembersStillPlansEachMembersItemFields`, `aLoweredItemChainWithFourWrappersPerLevelAtTheNativeDepthLimitLaysOut`, `aLoweredItemChainWithFourWrappersPerLevelOnePastTheNativeDepthLimitTraps`, `aLoweredMarginRegistersItsAnimatedValue`, `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes`, `anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned`, `aNegativeMarginOverlapsItsSibling`, `anItemFieldNoLoweredContainerConsumesIsReportedByName`, `anItemFieldOnAGridCellIsReportedUnconsumed`, `aRootFieldWithNoLoweringTrapsInAProductionWindow`, `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` (14) |
+| M3d `paintOnly` | F16 | `border(_:width:)` on a non-chain receiver also writes `Style.border` (`LR-EO` item 3) | 3 | `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` (2) |
+| M3d `prepaintOnly` | F16 | M3.3 (above): N3.5's `contentShape(inset:)` row reddens at `hitRegionsMoved \|\| hitCountDelta != 0` | — | (the M3d (M3.3) row) |
+| M3d `distributes` | F16 | `StyledComponent.requestGroupLayout`: under `.proposal` a `.wrap` lowered around the first member only | 7 | `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities` (3) |
+| M3e | F17 | `computeRootLayout`: the native root run again centred in a container of its own answer's size at the origin (6b's M2a) | 231 | `aBackgroundsContentKeepsItsStateWhenThePrimaryChangesShape`, `aBoxWithADeclaredAXNodeEmitsItAtItsOwnResolvedBounds`, `aClickInsideTheBoundsRunsTheHandler`, `aClickOutsideTheBoundsDoesNotRunTheHandler`, `aClickOverABackgroundAndItsPrimaryReachesThePrimary`, `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`, `aContentShapeInsetShrinksTheHitRegionAndChangesNoLayout`, `aContentShapeMovesNeitherTheAccessibilityFrameNorTheFocusRegistration`, `aContentShapeWithoutAClickHandlerRegistersNothing`, `activeIsSetOnMouseDownAndHeldUntilMouseUp`, `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, `aDefaultSpacerAndAGreedyFrameThroughTheElementAPI`, `aDispatchedClickDoesNotAlsoReachTheWindowsRawHandler`, `aFocusRingOutranksAHoverBorderAndABorder`, `aGridRootIsCentredAtItsAnswer`, `aHandlerRegisteredOnFrameNRunsForAnEventBeforeFrameNPlusOne`, `aHoverBackgroundNeverPaintsUnderAllowsHitTestingFalse`, `aHuggingLegacyRootIsCentredInAProductionWindow`, `aLabelWithHardBreaksMeasuresItsWidestLineAtMaxContent`, `aLegacyFramePlacesItsChildAtEachOfTheNineAlignments`, `aNativeRootIsCentredAtItsAnswer`, `aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout`, `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor`, `aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire`, `aNestedHandlerWinsOverItsContainingStackToo`, `aNestedTextEmitsItsDeclaredAXNodeAtItsAbsoluteBounds`, `anIdealFrameHeightBecomesItsOuterHeightWhenTheAxisIsUnspecified`, `anIdealFrameLowersUnderTheProposalAuthorityAndStillTrapsUnderTheLegacyOne`, `anIdealFrameWidthBecomesItsOuterWidthWhenTheAxisIsUnspecified`, `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame`, `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`, `aPressOnOneElementReleasedOnAnotherIsNotAClick`, `aPressReleasedOverSomethingCoveringItIsNotAClick`, `aPressThatLeavesTheElementAndReturnsStillClicks`, `aPressThatLeavesTheHitboxAndReturnsStaysActive`, `aProposalLayoutContainerRendersThroughTheFramePipeline`, `aProposalScrollViewAnswersItsContentOnItsNonScrollingAxis`, `aProposalScrollViewsDirectChildrenAreACentredDefaultSpacedVStackOnEitherAxis`, `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent`, `aProposalTextInAStackIsShapedOncePerDistinctWidth`, `aPublicHStackFormsAnAllProposalLayoutSubtreeAndPlacesItsSpacer`, `aScrollViewInsideAFrameKeepsItsViewportAndWheelUnderTheProposalAuthority`, `aspectRatioFillCircumscribesTheParentProposalBeforeMeasuringItsChild`, `aspectRatioFitInscribesTheParentProposalBeforeMeasuringItsChild`, `aStackWithoutSpacingPutsEightBetweenViewsAndNothingBesideASpacer`, `aTapOnAnOverlaysPrimaryWritesOnlyThePrimarysState`, `aZStackRootPlacesItsChildrenAtItsOwnSizeWithinTheirUnion`, `chainedNativeFramesPreserveTheirDeclarationOrder`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain`, `everyHandlerRegisteringSiteHonoursAllowsHitTesting`, `everyZStackAndOverlayAlignmentPlacesAndSizesAsTheProbeReads`, `explicitStackSpacingIsUsedForEveryGapIncludingBesideASpacer`, `fixedSizeModifierWithholdsOnlyItsSelectedAxisFromTheChildProposal`, `hoverAndFocusFadeThroughTheSameEffectiveColourPath`, `hoveringAnOverlaysPrimaryDoesNotHoverTheOverlay`, `hoveringOneClickTargetDoesNotHoverItsSibling`, `hoverResolvedThroughARealRenderHasNoLag`, `hStackAndVStackDistributeAsTheProbeReadsThroughTheElementAPI`, `hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt`, `layoutPriorityPreservesASpacersFlexibleExpansion`, `nativeBackgroundWrapsTheResolvedOuterBoundsAndPaintsBeforeItsContent`, `nativeClipMasksOverflowingContentToItsOuterFrame`, `nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder`, `nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt`, `onClickIsLiveOnEveryConformerThatCanRegisterOne`, `onlyABoxWithAHandlerRegistersAHitbox`, `onTapPaintsItsHoverOverlayOnlyWhenThePointerIsOverItsResolvedBounds`, `onTapRegistersTheResolvedNativeBoundsAsAHittableTarget`, `proposalLayoutFrameUsesTheTypedProposalWrapper`, `spacerMinimumLengthSurvivesAConstrainedStackProposal`, `theProposalModifiersAcceptWhatTheKernelAccepts`, `theTopmostOfTwoOverlappingHandlersRuns`, `vStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt` (75) |
+
+Notes on the table:
+
+- **Where N3.5 reddens, by row**: M3.3 the `contentShape(inset:)` row; M3.5′
+  the `padding(_:)` (Element) row; M3d `selfStorage` the `margin(_:)` row, at
+  the broken-instrument `#require` (the two arms observe identically and store
+  identically, so the `self` claim cannot be proved); M3d `paintOnly` the
+  content-sized `border` row (outer 30 → 38, element rects moved); M3d
+  `distributes` the `Component` `padding(_:)` row (outer 120, gaps (20, 20, 0):
+  the trailing gap stays closed).
+- **M3d `distributes`** reddens N3.5 at three `#expect`s, and
+  `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer` and
+  `theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities`
+  beside it — N3.5 is one of three pins of per-member distribution.
+- **M3e** reads 75 tests and 231 issues, the figure of 6b's §12.5; the set
+  differs from that one only by lane 2's retirement of
+  `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents`
+  and lane 2's N2.4 (`aScrollViewInsideAFrameKeepsItsViewportAndWheelUnderTheProposalAuthority`)
+  reddening in its place.
+- `DemoFrameDeterminismTests`' `theDemoFrameMatchesTheValuesRecordedOnMacOS`
+  reddened under M3a, M3b and the T-row mutation (not under M3e — read, not
+  explained), as a
+  sibling of the demo's text measure, its glyphs and its `Stack` alignment; it
+  is unedited.
+
+**Comments** (`LR-EG`, `LR-EO` item 6). Re-pointed in `Sources/`, comment lines
+only: `EnvironmentValues.swift` (two: the locale and `dynamicTypeSize` pins →
+N3.2, N3.1), `Component.swift` (two: B-7's readings → 2.1's arm (c), the side
+door → N3.4). In lane 3's test files: 2.1's doc (it is the registering-site
+guard now) and three `AnimationTests` notes naming the retired guard, the matrix
+file's header and its `legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes` note
+(row 215's component half, listed by `LR-EN` item 6 as line 854), the
+`FrameDecorationInteractionTests` fixture docs. `LR-EN`'s `AnimationTests`
+1007–1011 and `FrameDecorationInteractionTests` 379 were inside tests this lane
+retired and went with them. `git diff 41344e5 -- Sources | grep -E '^[-+]' |
+grep -vE '^(\+\+\+|---)' | grep -vE '^[-+]\s*//'` prints nothing.
+
+**Portable CI figure.** Unchanged: every lane-3 file is in `MetalUITests`;
+**200 + 22 + 3** stands (`LR-EM` item 5).
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 41344e5 4f71a25`:
+**0 differing and scene identical in all fourteen images**. Controls at
+`41344e5`: light vs dark 1048576; default vs modal 1031003; default vs
+animation 454895; f0 vs f3 0; preview light vs dark 1048576; chrome legacy vs
+proposal 0; distinct 544 / 216; prod default vs modal 491221, distinct
+`prod-default-light` 529; indicator rects 0 — §6.1's values. The commit after
+`4f71a25` changes one test-file comment only.
+
+**Deferrals.** None of lane 3's rows.
+
+## 7. The stage's close (lane 3, 2026-09-24, PDT)
+
+Spec §8's exit criteria, each read at the tree after `4f71a25` (whose only
+further change is comment lines):
+
+1. **`grep -rn "computeLayout(" Tests --include='*.swift'`** (`.build`
+   excluded) **prints nothing** (since lane 2, §6.2).
+2. **1670 − 236 + 11 = 1445**: `Test run with 1445 tests in 3 suites passed`,
+   one summary line, `FR-J no-argument frame: succeeded=true`. Lane by lane:
+   1670 → 1482 (lane 1, + 2 − 190) → 1450 (lane 2, + 4 − 36) → 1445 (lane 3,
+   + 5 − 10); 236 removed = 190 + 36 + 10, 11 added = 2 + 4 + 5. The removal
+   check by script is green over all 245 rows: rows 1–190 (§6.1), 195–231
+   (§6.2), 232–245 (§6.3); rows 191–194 are `StyleTests`' four K rows, kept
+   (`LR-EE`).
+3. **The census**: `docs/probes/stage-7b-css-engine-instrument.patch` applied
+   at `4f71a25`, native build, one unfiltered run (`Test run with 1445 tests in
+   3 suites passed`, **1075 markers**), reverted (`git status --short` clean).
+   Attributed by the census file's rule (the preceding `started.` line), the
+   markers fall in **199 tests, exactly section A** — none outside it, none of
+   B or C, no A test silent, none unattributed.
+4. **0 px** in all fourteen images against `41344e5` (§6.3 "Pixels"; §6.1 and
+   §6.2 read the same at their lanes). **0 `warning:`**: native `swift build
+   --build-system native --build-tests` one `warning:`, SwiftPM's deprecation
+   notice; default `swift build --build-tests` 0 `error:`, 0 `warning:`.
+   **`Sources/` diff comment-only** (the check above prints nothing).
+5. **Every N test's named mutation is recorded** — N1.1/N1.2 (§6.1), N2.1–N2.4
+   (§6.2), N3.1–N3.5 (§6.3) — and **every family F1–F17 has at least one
+   mutation with its replacement among the reddened tests**: F1–F9 §6.1,
+   F10–F13 §6.2, F14–F17 §6.3 (F15's by M3c′, `LR-EO` item 4).
+
+Also held: guards **78** (no guard file touched, `grep -c canTypecheck`
+unchanged), gated tests **nine**, `AuthorityCoverage.expected` **82** (no
+retired, trimmed or new test records coverage); `git diff --stat 41344e5 --
+Tests/MetalUICrossPlatformTests Tests/PortableTests Backends Package.swift`
+empty, so `DemoFrameDeterminismTests` is unedited and green. **Divergence 4
+has no pin left** (`LR-EH`: its two CSS-engine pins were D rows of lane 1, and
+3.2's `.legacy` arm was removed here).
+
+Handed on (spec §9): to the Record phase, the counts **1445 / 0 / 78**, the
+portable figure **200 + 22 + 3**, divergence 4 retired (58 → 57 live), the
+freeze-loop CI hazard deleted with its test, and the listed Sources comments
+in CSS-only files (§5.1); to stage 9, the 199 census-A tests and every
+differential replacement's proposal arm (`LR-EK`).

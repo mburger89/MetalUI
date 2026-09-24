@@ -11,9 +11,16 @@ five existing probes re-run 2026-09-24, every output line verbatim in its
 header). Branch `feat/engine-stage-7b` from `41344e5`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-7b`.
 
-**Status, 2026-09-24 (PDT): lane 1 delivered** (record §49 §6.1, `LR-EM`:
-row 71 became N with a new test, so the stage's count is 1445, not 1444; M1j
-re-spelled M1j′). The design paragraph below is kept as written.
+**Status, 2026-09-24 (PDT): delivered — all three lanes** (record §49 §6.1–§7).
+Lane 1 (`LR-EM`: row 71 became N with a new test, so the stage's count is
+1445, not 1444; M1j re-spelled M1j′), lane 2 (`LR-EN`: the MC-B oracles carry
+no node count; M2c re-spelled M2c′), lane 3 (`LR-EO`: N3.5's witnesses read the
+element log, not the node count; the `Component` `width(_:)` row is
+`distributes` + `wraps` under the proposal authority; M3.5 and M3c re-spelled
+M3.5′ and M3c′). Exit (§8): `grep -rn "computeLayout(" Tests` empty; `Test run
+with 1445 tests in 3 suites passed`; the census reads section A's 199 exactly;
+0 px in all fourteen images; `Sources/` comment-only; 0 `warning:` on both
+build systems. The design paragraphs below are kept as written.
 
 **What this stage is.** Every test that uses the CSS engine **as its
 subject** is retired with a row naming either the native test that asserts

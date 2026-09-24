@@ -848,11 +848,13 @@ private struct ProposalMatrixRow {
 /// `.padding(4)` alone puts the leaf at 4 and the outer box at 28 — numbers
 /// neither of the other two arms can produce.
 ///
-/// This is the `Element` half of a claim whose `Component` half is
+/// This is the `Element` half of a claim whose `Component` half was
 /// `chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`
-/// (`ComponentTests.swift`, lane 4) — which replaced
+/// (`ComponentTests.swift`, lane 4; it replaced
 /// `chainedPaddingReplacesRatherThanAccumulates`, the amend-era pin of the
-/// opposite answer.
+/// opposite answer) until stage 7b retired it (record §49 row 215); under the
+/// proposal authority that half is `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer`
+/// and `theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities`.
 @Test @MainActor func legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
 
