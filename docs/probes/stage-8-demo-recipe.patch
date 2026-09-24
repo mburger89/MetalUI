@@ -1,0 +1,172 @@
+diff --git a/Sources/MetalUIDemoContent/DemoContent.swift b/Sources/MetalUIDemoContent/DemoContent.swift
+index 908eeeb..d263fe2 100644
+--- a/Sources/MetalUIDemoContent/DemoContent.swift
++++ b/Sources/MetalUIDemoContent/DemoContent.swift
+@@ -257,7 +257,8 @@ struct CounterPanel: Element {
+     /// `@ElementBuilder`'s `buildPartialBlock` would nest it, because the three
+     /// children are assembled by hand below — a builder block cannot close over
+     /// the two handlers *and* be written at the point the handlers exist.
+-    typealias Chrome = Pair<Pair<Box<Text>, Box<Text>>, Box<Text>>
++    typealias Square = ModifiedElement<Box<Text>>
++    typealias Chrome = Pair<Pair<Square, Square>, Square>
+ 
+     private var built: Box<Chrome> = CounterPanel.chrome(count: 0, minus: {}, plus: {})
+ 
+@@ -269,15 +270,13 @@ struct CounterPanel: Element {
+     /// (`StyledElement.hoverBackground(_:)`). The two belong together here even
+     /// though the framework keeps them separate.
+     static func button(_ label: String,
+-                       _ handler: @escaping @MainActor () -> Void) -> Box<Text> {
+-        Box(decoration: Decoration(background: .surfaceSecondary,
+-                                   cornerRadius: Pixels(8))) {
++                       _ handler: @escaping @MainActor () -> Void) -> Square {
++        Box {
+             Text(label).font(size: 22)
+         }
+-        .width(Pixels(36))
+-        .height(Pixels(36))
+-        .alignItems(.center)
+-        .justifyContent(.center)
++        .frame(width: Pixels(36), height: Pixels(36))
++        .background(.surfaceSecondary)
++        .cornerRadius(Pixels(8))
+         .hoverBackground(.accent)
+         .onClick(handler)
+     }
+@@ -288,10 +287,7 @@ struct CounterPanel: Element {
+         let readout = Box {
+             Text("Count \(count)").font(size: 22)
+         }
+-        .width(Pixels(140))
+-        .height(Pixels(36))
+-        .alignItems(.center)
+-        .justifyContent(.center)
++        .frame(width: Pixels(140), height: Pixels(36))
+ 
+         var row = Style()
+         row.flexDirection = .row
+@@ -403,12 +399,12 @@ public func demoContent() -> some Element {
+         // horizontal resize is visible even where nothing else moves.
+         Row(gap: Pixels(12)) {
+             Box()
+-                .width(Pixels(40)).height(Pixels(40))
++                .frame(width: Pixels(40), height: Pixels(40))
+                 .background(.accent)
+                 .cornerRadius(Pixels(20))
+             Box()
+-                .height(Pixels(12))
+-                .flexGrow(1)
++                .frame(height: Pixels(12))
++                .frame(maxWidth: Pixels(.infinity))
+                 .background(.surfaceSecondary)
+                 .cornerRadius(Pixels(6))
+         }
+@@ -432,7 +428,7 @@ public func demoContent() -> some Element {
+         // card with no bar (record §03, 2026-09-14).
+         .flexGrow(1)
+         .padding(Pixels(16))
+-        .height(Pixels(72))
++        .frame(height: Pixels(72))
+         .background(.surface)
+         .cornerRadius(Pixels(14))
+ 
+@@ -441,7 +437,7 @@ public func demoContent() -> some Element {
+         // It declares no width: it spans whatever its parent is, and the root
+         // column's `.alignItems(.stretch)` below is what says so.
+         Box()
+-            .height(Pixels(1))
++            .frame(height: Pixels(1))
+             .background(.separator)
+ 
+         // Body: the row that absorbs every vertical resize.
+@@ -471,10 +467,10 @@ public func demoContent() -> some Element {
+                 // and the paragraph below is not, the fault is in wrapping; if
+                 // neither is, it is in the atlas or the draw path.
+                 Text("Library")
+-                Box().height(Pixels(26)).background(.accent).cornerRadius(Pixels(6))
+-                Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
+-                Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
+-                Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
++                Box().frame(height: Pixels(26)).background(.accent).cornerRadius(Pixels(6))
++                Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
++                Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
++                Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
+             }
+             // **CLOSED, and it is NOT a divergence — measured against WebKit,
+             // which does the identical thing.** This column declares 196 and
+@@ -518,7 +514,7 @@ public func demoContent() -> some Element {
+             .alignItems(.stretch)
+             .flexGrow(1)
+             .padding(Pixels(14))
+-            .width(demoModel.animationDemoActive ? Pixels(320) : Pixels(196))
++            .frame(width: demoModel.animationDemoActive ? Pixels(320) : Pixels(196), alignment: .top)
+             .background(demoModel.animationDemoActive ? .accent : .surface)
+             .cornerRadius(Pixels(14))
+ 
+@@ -563,23 +559,19 @@ public func demoContent() -> some Element {
+                 // visibly being exactly that size.
+                 Stack(alignment: .center) {
+                     Box()
+-                        .width(Pixels(360))
+-                        .height(Pixels(128))
++                        .frame(width: Pixels(360), height: Pixels(128))
+                         .background(.accent)
+                         .cornerRadius(Pixels(12))
+                     Box()
+-                        .width(Pixels(160))
+-                        .height(Pixels(72))
++                        .frame(width: Pixels(160), height: Pixels(72))
+                         .background(.surface)
+                         .cornerRadius(Pixels(10))
+-                    Box(decoration: Decoration(background: .surfaceSecondary,
+-                                               cornerRadius: Pixels(14))) {
++                    Box {
+                         Text("3").font(size: 13)
+                     }
+-                    .width(Pixels(28))
+-                    .height(Pixels(28))
+-                    .alignItems(.center)
+-                    .justifyContent(.center)
++                    .frame(width: Pixels(28), height: Pixels(28))
++                    .background(.surfaceSecondary)
++                    .cornerRadius(Pixels(14))
+                 }
+                 .alignSelf(.flexStart)
+ 
+@@ -801,7 +793,7 @@ public func demoContent() -> some Element {
+                                     .alignItems(.stretch)
+                                     .flexGrow(1)
+                                     .padding(Pixels(20))
+-                                    .width(Pixels(360))
++                                    .frame(width: Pixels(360))
+                                     .background(.surface)
+                                     .cornerRadius(Pixels(16))
+                                     // Absorbs its own clicks so the scrim's
+@@ -891,23 +883,19 @@ public func demoContent() -> some Element {
+                             // Vertical centring within the row; horizontal
+                             // stays flex-start, the ordinary reading direction
+                             // for a list item's label.
+-                            .alignItems(.center)
+-                            .flexGrow(1)
+                             // See the `rowHeight` note above (`LR-DJ`).
+-                            .height(Pixels(28))
++                            .frame(height: Pixels(28))
+                             .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
+                                           bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
+-                            .width(Pixels(420))
++                            .frame(width: Pixels(420), alignment: .leading)
+                             // On the padding wrapper, so it spans the padding.
+                             .background(row.id.isMultiple(of: 2) ? .surface : .surfaceSecondary)
+                         }
+                     }
+                     .cornerRadius(Pixels(14))
+                 }
+-                .width(Pixels(420))
+-                .flexGrow(1)
+-                .flexBasis(Pixels(0))
+-                .minHeight(Pixels(0))
++                .frame(minHeight: Pixels(0), maxHeight: Pixels(.infinity), alignment: .topLeading)
++                .frame(width: Pixels(420))
+                 .background(.surface)
+                 .cornerRadius(Pixels(14))
+             }

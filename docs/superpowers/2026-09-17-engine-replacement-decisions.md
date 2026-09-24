@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-ER`** (stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-EY`** (stage 8's design took `LR-ER`…`LR-EX`, appended at the end; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -8186,3 +8186,290 @@ a split flag would let a legacy measure closure register a node mid-layout,
 growing the arrays the CSS engine indexes — silently, where `SA-I` promises a
 trap. Bounded: production runs `.proposal` since stage 6b and never reaches
 `computeLayout` (`noProductionFrameReachesTheLegacyEngine`).
+
+---
+
+## LR-ER — stage 8's scope: ten modifiers deprecated, the rest named, and every "stage 8" hand-off disposed
+
+**Evidence.** Record §50 §2: the deprecation warns at 1692 sites, 25 in the demo
+and 1667 in `MetalUITests`, none in any other target or package. Every earlier
+ruling that wrote "stage 8" was read (a grep of this doc for `stage 8`, 29
+hits): `LR-AI` (percentages), `LR-AG` (a non-greedy `maxSize`), `LR-AO` (a
+length `flexBasis`, divergence 52 via `LR-AL`), `LR-AQ` (an item field under a
+proposal container), `LR-AX` item 4 (a floored `space-*`), `LR-CJ` item 3 (the
+`…absolute` fields), `LR-DI` item 4 as amended by `LR-DO` (a root's auto-axis
+min/max and margin), and the parent spec §8's T7 row.
+
+**The ruling.**
+
+1. **Deprecated** (`LR-EU`): `StyledElement.width(_:)`, `height(_:)`,
+   `minWidth(_:)`, `maxWidth(_:)`, `minHeight(_:)`, `maxHeight(_:)`,
+   `width(fraction:)`, `height(fraction:)`.
+2. **Not deprecated**: `Component.width`/`height` and `StyledComponent.width`/
+   `height`. They do not write an element's own box and do not return `Self`
+   (CLAUDE.md's definition of a sizing modifier); under the proposal authority
+   each already lowers to one native frame per member (`LR-BG`, component
+   distribution probe G7/G8 — SwiftUI's answer); and `Component.frame` over
+   several members is a horizontal row (`LR-BH`), so a `renamed:` to it would
+   move members. Their reconciliation is stage 11's (modifier unification).
+   `flexBasis(fraction:)` and every item or container modifier stay: they are
+   not sizing, and their fields are stage 10's.
+3. **Divergence 52** (`Row`/`Column` default spacing, `LR-AL`) is **re-owned to
+   stage 10**. Closing it changes a public default under every default-gap
+   caller's pixels; this stage's exit is 0 px against `85217e3`. The two cannot
+   both hold.
+4. **One rule for every `Style`-field report whose public modifier this stage
+   deprecates or never had**: the report **stays**; the public spelling moves to
+   `.frame`, whose record is a frame layer's and is never reported; the report
+   dies with its field at **stage 10**. This disposes `LR-AI`'s percentages,
+   `LR-AG`'s non-greedy `maxSize`, `LR-AO`'s length `flexBasis`, `LR-AX` item
+   4's floored `space-*`, `LR-DI` item 4's root min/max/margin and `LR-CJ` item
+   3's `…absolute` **on a `Style`-written box** (`LR-EV` gives the framed box
+   its own answer). `LR-AQ`'s item fields under a proposal container likewise
+   keep reporting (owner 10).
+5. **T7** (SwiftUI centres `Text(…)` in `.frame(width:)`) is closed **by
+   spelling**, not by a behaviour change: the recipe writes `alignment:
+   .leading` where the old `.width` answer was leading (scratch S8, **SAME**),
+   and a caller who wants SwiftUI's centring writes `.frame(width:)` (probe T1:
+   x 94.5 vs T0's 50). Nothing moves.
+6. **The `Style()` clause** (parent row: "`Style()` writes of CSS fields in tests
+   moved onto modifiers or deleted with their tests") is **re-scoped**: the
+   census is recorded (record §50 §2: 232 lines, 50 files) and the writes are
+   **re-owned to stage 10**, except that lane 3 moves a `Style()` write that
+   sizes a childless `Box(style:)` and nothing else, in a file it already
+   converts, onto `.frame` by the same F rules. Reasons: no gate touches
+   `Style()` (it is not deprecated, and cannot be while `Box(style:)` is the
+   `Style` fields' public writer); a write of a sizing field is the very write
+   the K helpers make, so moving it onto one is cosmetic, and moving it onto
+   `.frame` is an F conversion with the same site risk and no deprecation to
+   justify it; the container-field writes (`flexDirection`, `alignItems`, `gap`)
+   have no one-to-one modifier (`Box(style:)` with `flexDirection = .column`
+   stretches where `Column` centres, EP-8); and the 39 in
+   `MetalUILayoutTests` write `LayoutTree` storage, stage 10's subject
+   (`LR-EE`). Stage 10 deletes the fields and must touch every writer once;
+   doing it there, after stage 9 has removed the legacy arm of every
+   two-authority test, costs one pass instead of two. No test is deleted for
+   this clause.
+
+**What it costs if wrong.** Items 3, 4 and 6 move work, not behaviour: stage
+10 inherits divergence 52, seven report families and 232 `Style()` lines on top
+of the ≈ 1200 `css*` sites (`LR-EW`). If a later reader expects "stage 8
+converted every `Style()` write", record §50 §2 and this ruling are where the
+re-scope is written. Item 2: a reader sees `.width` deprecated on `Box` and not
+on a `Component`; the two doc comments say why.
+
+---
+
+## LR-ES — the recipe under the proposal authority (`FR-F`'s recipe, amended)
+
+**Evidence.** `FR-F`'s recipe was written for the legacy engine: convert, move
+decorations/handlers/`alignItems`/`justifyContent` after the frame, fix the
+stored types. Production has run the proposal engine since stage 6b, where a
+`Style`-writing modifier after a `.frame` reports `modifierLayer.style`
+(`legacyFrameLayerDiagnostics`) — so `alignItems`/`justifyContent` after the
+frame, as `FR-F` wrote, would **trap** — and where a frame consumes and drops
+its child's item fields (`LR-AZ`). Scratch S1–S8 (record §50 §3), each pair
+rendered at `.proposal` with diagnostics and compared rect by rect, glyph by
+glyph and hitbox by hitbox; the demo prototype (§50 §4: 0 differing, scene
+identical, fourteen images); six demo mutations (Ma–Mf); the converter's
+20 → 1 issue count (§50 §5).
+
+**The ruling.** The recipe is spec §5.1's R1–R8: one frame per run (R1);
+paint, input, accessibility and `.id()` after the frame, `Box(decoration:)`
+split into modifiers after it (R2, S2); a sized container's frame aligned
+where the container put its content — `Row` `.leading`, `Column` `.top`,
+`Box` `.topLeading`, a centring container `.center` with its two container
+modifiers dropped (R3, S5, the list row); an item field never on a chain with a
+frame, re-spelled as SwiftUI's greedy frames (`flexGrow` → `.frame(maxMain:
+.infinity)`, S3a) or dropped (`flexShrink(0)` beside a fixed size) or moved
+(`margin` → `.padding`) (R4, S3b/S3c); a fixed axis and a bound — same axis
+folded, other axis two frames, flexible inner, fixed outer, both aligned (R5,
+S7a re-measured); an absolute box's size a frame before `.position` (R6,
+`LR-EV`); identity (R7) and animation (R8) as `LR-EW` rules them.
+
+**Why not `FR-F`'s order.** Its step 2 put `alignItems`/`justifyContent` after
+the frame "so it lands on the outer layer". On the legacy engine's one-cell
+stack that was a centring; on the proposal path it is a report, and in a
+production frame a report is a trap. The frame's own `alignment:` is SwiftUI's
+spelling of the same placement (S2: **SAME** with the two modifiers dropped).
+
+**What it costs if wrong.** A wrong rule is a pixel or an assertion: the demo's
+four discriminating mutations (Ma, Md, Me, Mf) redden
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`, F conversions keep their
+assertions or fall back to K, and the fourteen-image comparison is re-taken at
+lanes 1 and 3. The rule the demo cannot see — R5's zero minimum (Mb) — is N1.6's.
+
+---
+
+## LR-ET — `FR-G` amended: the automatic minimum under the proposal authority
+
+**Evidence.** `FR-G` kept the four clamps because of one live caller, the demo
+scroller box's `.minHeight(Pixels(0))`, measured (N7–N9b, legacy engine) to be
+the only spelling that cancels flex §4.5's automatic minimum. Record §50 §3,
+O1/O2: at `85217e3`, deleting that call — and, separately, it and
+`.flexBasis(Pixels(0))` — leaves `theDemoFrameMatchesTheValuesRecordedOnMacOS`
+green: under the proposal authority the box holds a lowered `ScrollView` whose
+viewport fills its proposal on the scrolling axis (`LR-BB`), so nothing floors
+the box. **FR-G's live caller has been inert in production since stage 6b.**
+The question it answered is still real for content that does not fill: scratch
+S7b (a greedy frame over 400pt of content answers 400 and pushes the header to
+y −90) vs S7a (with `minHeight: 0` it answers the 120 left), and SwiftUI
+answers identically (probe F0: 400, header at −140 in its 200pt host; F1: 120).
+
+**The ruling.** Under the proposal authority there is no automatic minimum; a
+greedy frame's lower bound is its content unless it declares a minimum, which
+is SwiftUI's rule (probe F). The cancellation's spelling is
+**`.frame(minHeight: 0, maxHeight: .infinity)`** on the growing box (the
+minimum on the greedy frame, not on a layer inside it — FR-G's N9/N9b were
+measuring the legacy engine's layer minimum, which is a different question).
+The deprecated `.minHeight(0)` on a grown axis still answers the same (it is
+W's minimum, `LR-AG`) and keeps working until stage 10. CLAUDE.md's sentence
+"`.minHeight(0)` is the only way to cancel flex's automatic minimum (`FR-G`)"
+is replaced at the Record phase by this rule; the `minHeight(_:)` doc comment's
+table (`Box.swift`) and the demo's scroller-box paragraph are rewritten by
+lanes 3 and 1.
+
+**What it costs if wrong.** If the zero minimum were dropped from the recipe,
+a growing box over non-filling content would keep its content height — a
+layout change the demo cannot see (Mb) and N1.6 exists to catch.
+
+---
+
+## LR-EU — `FR-I` and `FR-H` amended: the deprecation lands, with messages
+
+**Evidence.** `FR-I`: "Task 7, which deletes the legacy engine, migrates and
+deprecates in one move." Record §50 §2: 1692 sites, every one a test or the
+demo. G4 (`thePercentSizingModifiersAreDeprecatedRenamesOfFraction`) asserts
+the `fraction:` spellings draw 0 deprecations.
+
+**The ruling.**
+
+1. The ten modifiers of `LR-ER` item 1 take `@available(*, deprecated,
+   message:)` with spec §4's messages, in lane 3, in the same commit that leaves
+   no undecorated caller.
+2. **`message:`, not `renamed:`.** A `renamed:` produces a fix-it that rewrites
+   `.width(x)` to `.frame(width: x)` in place — R1 only — and would silently
+   skip R2–R6: a background left before its frame, a sized container's content
+   re-centred. The message names the replacement; the recipe does the rest.
+3. **`width(fraction:)`/`height(fraction:)` are deprecated with no replacement**
+   (`FR-H` amended): a fraction of the containing block has no SwiftUI
+   counterpart (`FR-H`, stage-2 probe C1/C2) and is unlowerable under the
+   proposal authority (`LR-AI`), so since stage 6b a production tree that calls
+   one traps. `FR-H` kept them "as an explicit MetalUI divergence with a
+   test" when production ran the legacy engine; that reason expired with the
+   switch. The `percent:` renames keep their own deprecation, unchanged.
+4. **G4's control arm is a T row**: it now expects 2 deprecations for the two
+   sizing `fraction:` calls and 0 for `flexBasis(fraction:)`; its `percent:` arm
+   is unchanged. The test is not removed.
+
+**What it costs if wrong.** The deprecation is a warning, not a removal: a
+caller outside the package still compiles. If the messages are wrong, N3.1 —
+which reads each message's replacement spelling — is what shows it.
+
+---
+
+## LR-EV — a framed box can be an absolute box
+
+**Evidence.** Record §50 §3, A0–A7. A1: `Box().frame(width: 20, height:
+20).background.onClick.position(.absolute).inset(…)` inside a `Deferred` lays out
+at (30, 10) 20×20 under the legacy authority and at 0×0 with
+`modifierLayer.style` under the proposal one — a production trap — because a
+`.position`/`.inset` written after a frame is compared as "a caller's modifier
+on the layer". A2 (the size moved to a child) agrees on both authorities but
+adds an element level and changes where the absolute box's handlers sit. So
+after this stage's deprecation **no undeprecated public spelling sizes an
+absolute box** except `Box(style:)` — the recipe would have no R6. With two
+conditions (the frame layer's `style` comparison takes `position`/`inset` from
+the declared style when it is absolute; `lowerPresentation`'s `…absolute` check
+skips a frame-layer record) A1 agrees on both authorities, A6/A7 (stretched)
+agree, and A4/A5 read SwiftUI's frame answers (100 with `minWidth: 100`, 80 with
+`maxWidth: 80`, probe P1/P2) where the legacy engine ignores both (`AP-E`). The
+unfiltered suite with the prototype: 1446 (1445 + the scratch), all green — no
+test pinned the old report. The prototype's hole: `planLegacyItems` skips the
+outside-a-`Deferred` `position` report for a frame layer.
+
+**The ruling.**
+
+1. A `.frame` layer whose **declared** style is `position: .absolute` does not
+   report `modifierLayer.style` for `position` and `inset`; every other field
+   still does.
+2. Inside a `Deferred` it is a presentation root like any absolute box
+   (`LR-CH`); its `FrameSpec` bounds are its own kernel frame's, so no
+   `…absolute` is reported for them and they answer as SwiftUI's frame does —
+   a **proposal-only** answer where the legacy engine ignores an auto-axis
+   bound (A4/A5; unnumbered, `LR-CJ`'s precedent for deliberate proposal-only
+   answers).
+3. Outside a `Deferred` it reports `modifierLayer.position`/`.inset`, as an
+   absolute box does (`LR-CK`): the `planLegacyItems` guard that skipped frame
+   layers is dropped with the exemption, in the same change.
+4. `minSize`/`maxSize` on the auto axis of a **`Style`-written** absolute box
+   keep reporting `…absolute`, re-owned to stage 10 by `LR-ER` item 4 — the
+   public spelling is now R6.
+
+**What it costs if wrong.** Item 1 widened to the whole style would let a
+`flexGrow` on an absolute frame layer lower silently (M1c reddens N1.4); item 3
+omitted would let a framed absolute box outside a `Deferred` lower in flow
+(M1d); item 2's proposal-only answers flip by restoring the report (M1b).
+
+---
+
+## LR-EW — the call-site classes, and what each conversion is checked against
+
+**Evidence.** Record §50 §3 (identity: a frame layer adds an identity level even
+where it adds no node), §5 (the converter's one residual failure is a literal
+structural path; `DisabledTests`' site loop would pass converted while no
+longer exercising `Box`'s, `Text`'s or `Stack`'s own `registerHandlers`). Stage
+6a's precedent (`LR-CV`): a test about a CSS answer moved onto the internal,
+undeprecated registrar rather than off its subject; a test about the deprecated
+registrar itself called it from a deprecated witness
+(`swift-deprecated-witness-silence.sh`).
+
+**The ruling.** Spec §5.2's classes F (convert by `LR-ES`, verified by
+unchanged assertions under every authority the test runs, K fallback per test,
+no assertion edited), K (`.x(` → `.cssX(` at the census's positions, the
+`Style` write kept by construction, for K1 field-lowering and two-authority
+tests and K2 per-site tests), D (the deprecated modifier's own tests, in a
+deprecated protocol witness) and R (expected empty). The file table in spec
+§5.2 is the starting classification; a lane may move a test from F to K with a
+recorded reason, never the reverse without the site-coverage check.
+
+- **Identity (R7).** A literal structural path used only to locate state is
+  re-derived; an asserted one keeps its assertion and the site goes K.
+- **Animation (R8).** No conversion may make an animation snap; N1.5 pins the
+  demo's one animated size, K2 keeps every site's own-style animation test on
+  its site.
+- **Site coverage.** Lane 3 runs Ms1–Ms3 before and after its F conversions;
+  each reddened set after must contain the one before.
+
+**Why K is most of the tests.** ≈ 1200 of 1667 test sites pin code that stages
+9 and 10 delete (the legacy lowering of `Style` fields, the legacy authority's
+arm of a comparison, and each site's own registration), where `.frame` would
+either change the subject or move the pin to `ModifiedElement` unseen. The demo
+— production — is converted whole.
+
+**What it costs if wrong.** A K site kept where F would have served costs
+stage 10 one more re-spelling. An F site that should have been K is the dangerous
+direction, which is why the site-coverage check gates it.
+
+---
+
+## LR-EX — three lanes, in order; the accounting
+
+**The ruling.** Lane 1 (`LegacyLowering.swift`, `DemoContent.swift`,
+`CSSSizing.swift` new, `PresentationLoweringTests`, `PresentationWindowTests`,
+`AnimationTests`, `FrameSizingTests`; N1.1–N1.6); lane 2 (the 28 K files; no new
+test; M2a/M2b base-vs-head); lane 3 (`Box.swift`, the 22 F files,
+`ModifierTests`, `ContainerCompileGuards`, `FrameSizingCompileGuards`; N3.1,
+T3.1, Ms1–Ms3; the deprecation and the 0-`warning:` gate on both build
+systems). Disjoint files; lanes 1 and 2 add no deprecation, so every lane
+commits at 0 `warning:`. **1445 − 0 + 7 = 1452 tests; 78 → 79 guards; 0
+goldens; one T row (G4); no R row expected.** The mutation plan is spec §6's.
+
+**Why three and in this order.** Lane 1 carries every behaviour change
+(`LR-EV`) and the helpers lane 2 renames onto; lane 2 is mechanical and large;
+lane 3 is the only one that can break the gate, so it lands last, as stage 6a's
+deprecation did.
+
+**What it costs if wrong.** A lane that finds a K file must be F (or the
+reverse) moves the file with a recorded reason; the totals of spec §5.2 are
+re-taken from the census, not carried.
