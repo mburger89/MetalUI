@@ -445,3 +445,130 @@ All four are still caught; three redden the census itself. Stage 2's six
 (M1a, M2a, M1d, M2k, M1m′, M5c′) were not re-run and remain owed to lane 3 or
 the Record phase; the census's doc comment now says so by name.
 
+
+## 10. Lane 2 — class K (`LR-EW`)
+
+**10.1 The census, re-taken on lane 1's head** (`c8f731a`): the eight
+`StyledElement` sizing modifiers given `@available(*, deprecated, message:
+"LANE2CENSUS")` in a scratch edit of `Box.swift`, `swift build --build-system
+native --build-tests`, every `warning:` carrying that message parsed to
+`file:line:col`, `Box.swift` restored (`git checkout`, `git status --short`
+empty). **1115 sites in the 28 K files**, the same per-file counts as the
+committed census (`docs/probes/stage-8-deprecation-sites.txt`); the positions
+agree exactly except 24 lines in the two K files lane 1 edited
+(`LoweringCorpusTests` 4, `LoweringPipelineParityTests` 20), which moved by
+line number only. An exit-test body (`#expect(processExitsWith:)`) is warned
+twice, once at its source position and once inside `macro expansion #expect`
+(29 such); only the source positions are sites, as in the committed census.
+
+**10.2 The substitution.** A script replaced each warned `.<name>(` with
+`.css<Name>(` at its census position, from the end of each file backward,
+asserting the text at the column is `<name>(` preceded by `.` (the two
+`fraction:` spellings map to `cssWidth(fraction:)`/`cssHeight(fraction:)`; none
+of the 1115 is one). `git diff`: 28 files, 608 lines changed, 608 removed;
+every `+` line equals its `-` line once each `.cssX(` is mapped back to `.x(`,
+and the `+` lines carry exactly 1115 `.css…(` calls. Nothing else changed. The
+scratch deprecation re-applied on the head warns **0** times in the 28 files;
+what still warns is lane 3's 22 F files and `ModifierTests` alone.
+
+**10.3 Red first.** No test is added in this lane, so there is no red line;
+the lane's instruments are the unchanged suite and M2a/M2b below.
+
+**10.4 Counts.** Unfiltered `swift test --build-system native --no-parallel`
+on lane 1's head: `Test run with 1451 tests in 3 suites passed`; on this
+lane's head (`6e621da`): **`Test run with 1451 tests in 3 suites passed`**,
+the log carrying `FR-J no-argument frame: succeeded=`, and the sorted list of
+passed/skipped test names identical to the base's (no test renamed). `swift
+build --build-system native --build-tests`: 0 `error:`, the one `warning:`
+SwiftPM's notice; `swift build --build-tests` (default build system): 0
+`error:`, 0 `warning:`. Before − removed + added = after: 1451 − 0 + 0 = 1451.
+
+**10.5 Mutations**, each applied by script to the committed tree, one build,
+the full unfiltered suite with `--skip-build`, the file restored from a copy,
+`git status --short` empty after each; run once on the lane's base (`c8f731a`)
+and once on its head (`6e621da`):
+
+| mutation | spelling applied | base | head |
+|---|---|---|---|
+| M2a | `LegacyLowering.swift` `planLegacyItems`, `axis(…)`'s non-greedy auto-axis tail: `return hasMin ? (resolvedDimension(animatedMin), nil) : nil` → `return nil` | `1451 tests … failed … with 16 issues`: `aFrameOverSeveralMembersStillPlansEachMembersItemFields`, `aGrownUnsizedSpaceDistributionContainerIsReported`, `aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent`, `anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned`, `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder` | the same five, 16 issues |
+| M2b | `Box.swift` `paint`: before `pass.paintDecoration(decoration, …)`, `var decoration = decoration; decoration.background = nil; decoration.hoverBackground = nil; decoration.focusBackground = nil` | 59 tests (below) | the same 59 |
+
+**M2b aborts the unfiltered run** (`Swift/ContiguousArrayBuffer.swift:695:
+Fatal error: Index out of range`) in tests that index `scene.rects[0]` after an
+unrequired count check, so the run was repeated with each crashing test added
+to `--skip` (anchored `name\(`) until a summary line printed: five crashers, in
+order `aBoxResolvesItsBackgroundTokenAgainstTheFramesTheme`,
+`theSameElementPaintsDifferentColoursUnderTheTwoThemes`,
+`aContainerPaintsItsBackgroundBeneathItsChildren`,
+`cornerRadiusReachesTheSceneThroughTheModifier`,
+`aHostAppearanceChangeSwapsTheThemeAndRepaints` — the same five, in the same
+order, on base and head — then `Test run with 1446 tests in 3 suites failed …
+with 82 issues` on both. The 59 (the five crashers included):
+`aBackgroundBeforeOrAfterALegacyFrameFillsTheBoxItWasWrittenOnAsSwiftUIDoes`,
+`aBackgroundIsEmittedBeforeTheChildrenAndABorderAfter`,
+`aBackgroundOnlyElementStillEmitsExactlyOneRect`,
+`aBareCornerRadiusDoesNotClipTheChildren`,
+`aBorderIsPaintedInsideTheElementsBoxAndChangesNoLayout`,
+`aBorderIsVisibleOverAChildThatFillsTheBox`,
+`aBoxResolvesItsBackgroundTokenAgainstTheFramesTheme`,
+`aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`,
+`aColourFadeOnAStyleStaticElementKeepsTheDisplayLinkRunning`,
+`aComponentReadsTheNearestEnvironmentInItsContent`,
+`aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembersUnderTheProposalAuthority`,
+`aContainerPaintsItsBackgroundBeneathItsChildren`,
+`aDisabledTargetIsNeitherHoveredNorPressed`,
+`aFrameLayersClipAndBorderBoundTheChildTheFrameCannotShrink`,
+`aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`,
+`aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum`,
+`aHiddenElementInsideAnyElementIsHiddenUnderTheProposalAuthority`,
+`aHiddenElementPaintsNothingUnderTheProposalAuthority`,
+`aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`,
+`aHostAppearanceChangeSwapsTheThemeAndRepaints`,
+`aHoverBackgroundNeverPaintsUnderAllowsHitTestingFalse`,
+`aHoveredBoxPaintsItsHoverBackground`,
+`aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten`,
+`aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`,
+`anAnimatedFrameWidthInterpolatesAsTheAnimatedWidthItReplacesDid`,
+`anAnimatedWriteThatIsNotTheFirstObservableWriteOfItsIntervalStillAnimates`,
+`anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting`,
+`anElementWithNeitherABackgroundNorABorderEmitsNoRect`,
+`aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask`,
+`anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected`,
+`aParkedTransactionIsConsumedByExactlyOneBuild`,
+`aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot`,
+`aScrollRegionInsideAllowsHitTestingFalseIsStillRegistered`,
+`aSecondOpacityOnOneElementReplacesTheFirstWhereSwiftUIMultiplies`,
+`aTransactionParkedOutsideTheBuildAnimatesTheNextFrameEndToEnd`,
+`aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange`,
+`aWholeValueWriteCannotResetTheThemeOrThePixelLength`,
+`clippedCutsTheSubtreeToTheElementsBoxAndRoundsItByTheCornerRadius`,
+`cornerRadiusReachesTheSceneThroughTheModifier`,
+`everyBackgroundPaintingSiteAnimatesItsColour`,
+`everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`,
+`everyBackgroundPaintingSiteHonoursHoverAndFocus`,
+`everyDecorationScopingSiteContainsItsOwnContent`,
+`everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`,
+`focusBackgroundPaintsOnlyWhileFocusIsHeld`,
+`focusOutranksHoverWhenAnElementIsBoth`,
+`hoverAndFocusFadeThroughTheSameEffectiveColourPath`,
+`hoverBackgroundWithoutAClickHandlerNeverPaints`,
+`hoveringOneClickTargetDoesNotHoverItsSibling`,
+`legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes`,
+`opacityMultipliesAndFadesTheElementsOwnBackground`,
+`opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot`,
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`,
+`theDisplayLinkStaysRunningWhileAnimatingAndPausesOnTheFrameAfterTheLastEnds`,
+`theFramesRootEnvironmentCarriesItsThemeAndScale`,
+`theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore`,
+`theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate`,
+`theSameElementPaintsDifferentColoursUnderTheTwoThemes`,
+`theSpaceKeyBindingSwapsTheThemeThroughTheFakePlatform`.
+Identical sets base vs head for both: K reaches the same code.
+
+**10.6 What must not move.** `docs/probes/demo-pixels/compare.sh <scratch>
+85217e3 6e621da`: controls at `85217e3` as in §8.5 (1048576, 1031003, 454895,
+0, 1048576, 0, 544, 216, 491221, 529, 0), then **all fourteen images
+`differing=0 scene identical`**. No `Sources/` file changed in the lane, so the
+hit-testing/accessibility/hover instrument and `Backends/SDL` were not re-run.
+
+**10.7 Deferred.** Nothing.
