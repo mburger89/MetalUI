@@ -285,7 +285,8 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// This closes a green hole: mutating the stretch clamp's two `against:`
 /// arguments from `containerCross` to `containerMain` reddened **nothing**.
 /// It is the identical slip `percentageFlexBasisResolvesAgainstTheMainAxis`
-/// exists to catch one axis over — the flex basis had a guard, the cross
+/// (retired with its golden by stage 7a, record §42) existed to catch one axis
+/// over — the flex basis had a guard, the cross
 /// min/max had none, because every cross bound in the corpus is in pixels and a
 /// pixel bound resolves the same against either extent.
 ///

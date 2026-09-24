@@ -3,14 +3,15 @@ import Foundation
 import MetalUICore
 @testable import MetalUILayout
 
-/// Build a tree from a fixture's shape by hand, run layout, and compare every
-/// node against the browser's answer for the same fixture.
+/// Build a tree by hand, run the CSS engine, and compare every node against the
+/// numbers it must produce.
 ///
-/// Comparisons here read the **committed** golden rather than driving WebKit.
-/// That is what makes `Golden/*.json` load-bearing: a rotted or hand-edited
-/// golden reddens these tests. `committedGoldensMatchTheBrowser` in
-/// GeneratorTests is the one place that re-drives the browser, and it is what
-/// catches a fixture edited without its golden being regenerated.
+/// Until plan task 7's stage 7a this file also compared sixteen trees against
+/// committed WebKit goldens. Those goldens, their comparisons and the oracle
+/// that generated them were retired by that stage: record §42's §4 names, for
+/// each golden, the native test arm that replaces it or the CSS-only concept it
+/// was deleted with. The tests left here are the CSS engine's own, and retire
+/// with it (stage 7b).
 
 /// Qualified: this file imports Foundation, whose Measurement API also exports a
 /// `Dimension` type, so the bare name is ambiguous here.
@@ -23,8 +24,8 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     return tree.newNode(style: s, children: [])
 }
 
-/// The three-child shape shared by `flex_row_three_fixed`,
-/// `flex_column_three_fixed` and `flex_row_gap`.
+/// The three-child shape of the retired goldens `flex_row_three_fixed`,
+/// `flex_column_three_fixed` and `flex_row_gap` (stage 7a, record §42).
 private func threeFixedChildren(
     direction: FlexDirection,
     width: Double,
@@ -41,36 +42,6 @@ private func threeFixedChildren(
     rootStyle.gap = Axes(both: .pixels(Pixels(Float(gap))))
     let root = tree.newNode(style: rootStyle, children: [x, y, z])
     return (tree, root, x, y, z)
-}
-
-/// Compare every named node's computed rect against the browser's rounded box.
-///
-/// `sourceLocation` defaults to the call site so a disagreement is reported at
-/// the test that failed, not inside this helper.
-func assertMatchesGolden(
-    _ tree: LayoutTree,
-    ids: [LayoutNodeID: String],
-    golden: GoldenFile,
-    tolerance: Double,
-    sourceLocation: SourceLocation = #_sourceLocation
-) {
-    let byID = Dictionary(uniqueKeysWithValues: golden.rounded.map { ($0.id, $0) })
-    for (node, id) in ids {
-        let ours = tree.layout(node)
-        guard let theirs = byID[id] else {
-            Issue.record("golden '\(golden.fixture)' has no node '\(id)'",
-                         sourceLocation: sourceLocation)
-            continue
-        }
-        #expect(abs(ours.x - theirs.x) <= tolerance,
-                "\(id).x: ours \(ours.x) vs WebKit \(theirs.x)", sourceLocation: sourceLocation)
-        #expect(abs(ours.y - theirs.y) <= tolerance,
-                "\(id).y: ours \(ours.y) vs WebKit \(theirs.y)", sourceLocation: sourceLocation)
-        #expect(abs(ours.width - theirs.width) <= tolerance,
-                "\(id).w: ours \(ours.width) vs WebKit \(theirs.width)", sourceLocation: sourceLocation)
-        #expect(abs(ours.height - theirs.height) <= tolerance,
-                "\(id).h: ours \(ours.height) vs WebKit \(theirs.height)", sourceLocation: sourceLocation)
-    }
 }
 
 @Test func rowPacksFixedChildrenLeftToRight() {
@@ -440,98 +411,6 @@ func assertMatchesGolden(
     #expect(free.layout(b2).width == 60)
 }
 
-/// **Ruling FS-3** (see CLAUDE.md's "known divergences", the fifth) — pins a
-/// deliberate divergence from CSS and from WebKit, not a bug.
-///
-/// CSS Sizing §4.5's automatic minimum is
-/// `min(specified size suggestion, content size suggestion)`. This engine
-/// implements the **content** half only — content sizing made it live for
-/// containers, and that is what turned FS-3 from a dormant gap into a
-/// measurable disagreement: an item is floored by its children even when its
-/// own definite `width` says it may be smaller.
-///
-/// **Measured against live WebKit**, on the tree this test builds:
-///
-/// ```html
-/// #root { display: flex; width: 150px; height: 60px; }
-/// .a { display: flex; width: 100px; }   /* holds a 200px child */
-/// .b { width: 100px; height: 20px; }
-/// ```
-///
-///     .a's style          WebKit        this engine    why
-///     width: 100px        a=100, b=50   a=200, b=0     min(100, 200) vs 200
-///     width: 130px        a=130, b=20   a=200, b=0     the floor ignores it
-///     width: 100px+min:0  a=75,  b=75   a=75,  b=75    no automatic minimum
-///
-/// The middle row is the sharpest form: WebKit's floor **tracks the specified
-/// width** and this engine's does not move at all, because it is the child's
-/// 200 in both cases. The third row is the differential that identifies the
-/// cause — an explicit `min-width: 0` replaces the automatic minimum, both
-/// engines shrink 100/100 into 150 as 75/75, and they agree exactly.
-///
-/// **Not implemented here, and the reason is reach, not effort** — the same
-/// one that kept ruling BM-4 out of the box-model milestone. The specified size
-/// suggestion changes an item's *floor*, which the freeze loop consumes and
-/// every ancestor then sees as a different stored size. It belongs in a sizing
-/// plan with the corpus regenerated behind it.
-///
-/// **Deliberately no fixture and no golden**, on the same footing as WebKit's
-/// flex sub-one clause: a golden would encode this engine's answer as correct,
-/// and a future fix should move nothing in the corpus. This test is the only
-/// pin, so implementing FS-3 must redden exactly it — verified by mutation.
-/// Seven `flex: 1 1 0` children splitting 100px, against WebKit —
-/// **`flex_row_seven_equal`'s first engine-vs-golden comparison.**
-///
-/// It was the one fixture of 61 with a golden and no comparison test: read only
-/// by `committedGoldensMatchTheBrowser`, which measures the browser and checks
-/// it against a file the browser produced. That is taxonomy shape 3 — a
-/// committed artifact constrained by nothing that consumes it — and
-/// `ContentSizingFixtureTests`' own header names the shape while the corpus held
-/// a live instance of it.
-///
-/// **It is the second non-integral fixture an engine comparison reads, and that
-/// is the point of adding it here rather than anywhere else.** 100 split seven
-/// ways is 14.28125 per child in WebKit and 14.2857… in the engine, so every
-/// number in this test exists only after `roundLayout` has run on both sides:
-/// the raw values do not agree and the rounded ones do. `flex_row_shrink` was
-/// the sole fixture holding that distinction up (see `Rounding.swift`, which
-/// says so and is corrected by this test), and a single fixture holding a
-/// distinction is how a blind spot comes back — give `flex_row_shrink` bases
-/// that divide evenly and nothing would have noticed.
-///
-/// Killed by the rounding mutation `(r.x + r.width).rounded()` →
-/// `.rounded(.down)` in `roundLayout`: measured `--no-parallel`, that reddens
-/// this test alongside `committedGoldensMatchTheBrowser`, moving `c1` 15→14,
-/// `c2` 14→13, `c5` 15→14 and `c6` 14→13 — the same four boxes on both sides,
-/// which is the evidence that engine and browser are being compared in the same
-/// space rather than each in its own.
-@Test func sevenEqualChildrenMatchWebKit() throws {
-    let golden = try loadGolden("flex_row_seven_equal")
-    let tree = LayoutTree(generation: 0)
-
-    var kidStyle = Style()
-    kidStyle.flexGrow = 1
-    kidStyle.flexShrink = 1
-    kidStyle.flexBasis = px(0)
-    let kids = (0..<7).map { _ in tree.newNode(style: kidStyle, children: []) }
-
-    var rootStyle = Style()
-    rootStyle.flexDirection = .row
-    rootStyle.size = Size(width: px(100), height: px(20))
-    let root = tree.newNode(style: rootStyle, children: kids)
-
-    // The fixture's own viewport (`allFixtures` in GeneratorTests), not the
-    // 800x600 most of the corpus uses.
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(400), height: .definite(200)))
-
-    var ids: [LayoutNodeID: String] = [root: "root"]
-    for (i, kid) in kids.enumerated() { ids[kid] = "c\(i)" }
-    // Tolerance 0.1, not 1: the whole subject here is which whole pixel each
-    // edge lands on, and a tolerance of 1 would accept the mutation above.
-    assertMatchesGolden(tree, ids: ids, golden: golden, tolerance: 0.1)
-}
-
 /// Ruling FS-3 — an item's automatic minimum is the SMALLER of its specified
 /// and content size suggestions, and both halves are live.
 ///
@@ -552,10 +431,11 @@ func assertMatchesGolden(
 /// thing a "floor at min(specified, content, explicit)" misreading would break
 /// while leaving cases 1 and 2 green.
 ///
-/// The three cases are not redundant with `specifiedSizeSuggestionMatchesWebKit`
-/// (the browser fixture): that one pins the 130 case end to end against a
-/// golden, and this one pins all three side by side with the `min-width: 0`
-/// control the fixture cannot carry — a fixture holds one tree.
+/// The three cases were not redundant with `specifiedSizeSuggestionMatchesWebKit`
+/// (the browser fixture, retired with its golden by stage 7a, record §42): that
+/// one pinned the 130 case end to end against a golden, and this one pins all
+/// three side by side with the `min-width: 0` control the fixture could not
+/// carry — a fixture holds one tree.
 @Test func anItemsAutomaticMinimumIsTheSmallerOfItsSpecifiedAndContentSizes() {
     /// The same tree three ways: `.a` is a container 200 wide on the inside and
     /// `aWidth` wide by declaration, `.b` is a leaf, and the root is too small
@@ -644,164 +524,6 @@ func assertMatchesGolden(
     #expect(tree.layout(conflicted) == LayoutRect(x: 80, y: 0, width: 120, height: 20))
 }
 
-@Test func rowOfFixedChildrenMatchesWebKit() throws {
-    let golden = try loadGolden("flex_row_three_fixed")
-    let (tree, root, x, y, z) = threeFixedChildren(direction: .row, width: 300, height: 50)
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", x: "x", y: "y", z: "z"],
-                        golden: golden, tolerance: 0.1)
-}
-
-@Test func columnOfFixedChildrenMatchesWebKit() throws {
-    let golden = try loadGolden("flex_column_three_fixed")
-    let (tree, root, x, y, z) = threeFixedChildren(direction: .column, width: 120, height: 400)
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", x: "x", y: "y", z: "z"],
-                        golden: golden, tolerance: 0.1)
-}
-
-@Test func rowWithGapMatchesWebKit() throws {
-    let golden = try loadGolden("flex_row_gap")
-    let (tree, root, x, y, z) = threeFixedChildren(direction: .row, width: 300, height: 50, gap: 12)
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", x: "x", y: "y", z: "z"],
-                        golden: golden, tolerance: 0.1)
-}
-
-/// Three items of differing main sizes, an explicit cross size on every one,
-/// and strictly positive free space — the shape shared by all four
-/// `justify-content` fixtures. `justify` is applied to the root; the row
-/// fixtures share sizes (40/70/50 wide, 40 tall in a 400-wide container), the
-/// column fixture inverts the axes (40/70/50 tall, 60 wide in a 400-tall
-/// container).
-private func threeJustifiedChildren(
-    direction: FlexDirection,
-    justify: JustifyContent,
-    width: Double,
-    height: Double
-) -> (LayoutTree, root: LayoutNodeID, a: LayoutNodeID, b: LayoutNodeID, c: LayoutNodeID) {
-    let tree = LayoutTree(generation: 0)
-    let isRow = direction.isRow
-    let a = isRow ? fixedChild(tree, w: 40, h: 40) : fixedChild(tree, w: 60, h: 40)
-    let b = isRow ? fixedChild(tree, w: 70, h: 40) : fixedChild(tree, w: 60, h: 70)
-    let c = isRow ? fixedChild(tree, w: 50, h: 40) : fixedChild(tree, w: 60, h: 50)
-    var rootStyle = Style()
-    rootStyle.flexDirection = direction
-    rootStyle.justifyContent = justify
-    rootStyle.size = Size(width: px(width), height: px(height))
-    let root = tree.newNode(style: rootStyle, children: [a, b, c])
-    return (tree, root, a, b, c)
-}
-
-@Test func rowJustifySpaceBetweenMatchesWebKit() throws {
-    let golden = try loadGolden("flex_row_justify_between")
-    let (tree, root, a, b, c) = threeJustifiedChildren(direction: .row, justify: .spaceBetween,
-                                                        width: 400, height: 40)
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
-}
-
-@Test func rowJustifySpaceAroundMatchesWebKit() throws {
-    let golden = try loadGolden("flex_row_justify_around")
-    let (tree, root, a, b, c) = threeJustifiedChildren(direction: .row, justify: .spaceAround,
-                                                        width: 400, height: 40)
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
-}
-
-@Test func rowJustifySpaceEvenlyMatchesWebKit() throws {
-    let golden = try loadGolden("flex_row_justify_evenly")
-    let (tree, root, a, b, c) = threeJustifiedChildren(direction: .row, justify: .spaceEvenly,
-                                                        width: 400, height: 40)
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
-}
-
-@Test func columnJustifyCenterMatchesWebKit() throws {
-    let golden = try loadGolden("flex_column_justify_center")
-    let (tree, root, a, b, c) = threeJustifiedChildren(direction: .column, justify: .center,
-                                                        width: 60, height: 400)
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
-}
-
-/// Three children of distinct heights (20/60/40), none equal to the 100px
-/// line — a uniform-height fixture would give `align-items: center` the same
-/// answer as every other alignment and pin nothing. Full-rect comparison so
-/// `x`/`width` (main axis, from Task 1) and `y`/`height` (cross axis, this
-/// task) are both checked in the one assertion.
-@Test func rowAlignCenterMatchesWebKit() throws {
-    let golden = try loadGolden("flex_row_align_center")
-    let tree = LayoutTree(generation: 0)
-    let a = fixedChild(tree, w: 40, h: 20)
-    let b = fixedChild(tree, w: 70, h: 60)
-    let c = fixedChild(tree, w: 50, h: 40)
-    var rootStyle = Style()
-    rootStyle.flexDirection = .row
-    rootStyle.alignItems = .center
-    rootStyle.size = Size(width: px(400), height: px(100))
-    let root = tree.newNode(style: rootStyle, children: [a, b, c])
-
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
-}
-
-/// `align-items: flex-end` on the container, with `align-self: center`
-/// overriding it on the middle child — pins both the container default and
-/// the per-item override against WebKit in one fixture. Same distinct
-/// heights (20/60/40) as `flex_row_align_center`.
-@Test func rowAlignEndWithSelfOverrideMatchesWebKit() throws {
-    let golden = try loadGolden("flex_row_align_end_with_self")
-    let tree = LayoutTree(generation: 0)
-    let a = fixedChild(tree, w: 40, h: 20)
-    var bStyle = Style()
-    bStyle.size = Size(width: px(70), height: px(60))
-    bStyle.alignSelf = .center
-    let bNode = tree.newNode(style: bStyle, children: [])
-    let c = fixedChild(tree, w: 50, h: 40)
-    var rootStyle = Style()
-    rootStyle.flexDirection = .row
-    rootStyle.alignItems = .flexEnd
-    rootStyle.size = Size(width: px(400), height: px(100))
-    let root = tree.newNode(style: rootStyle, children: [a, bNode, c])
-
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", bNode: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
-}
-
 /// A column container's cross axis is horizontal, not vertical — and the two
 /// tests above cannot exercise that: both are rows, so `isRow` is `true` in
 /// every assertion this file made before this test existed. That leaves two
@@ -831,230 +553,6 @@ private func threeJustifiedChildren(
     #expect(tree.layout(a) == LayoutRect(x: 160, y: 0,  width: 40, height: 30))
     #expect(tree.layout(b) == LayoutRect(x: 110, y: 30, width: 90, height: 40))
     #expect(tree.layout(c) == LayoutRect(x: 140, y: 70, width: 60, height: 50))
-}
-
-/// The only end-to-end guard on the trailing gap. Ruling AL-5.
-///
-/// Identical to `rowJustifySpaceBetweenMatchesWebKit`, but with `gap: 12`
-/// added on both the Swift tree and the fixture — and its golden's numbers
-/// are **byte-identical** to the no-gap fixture's (0 / 160 / 350 either way).
-/// That is not a mistake and this test is not a duplicate: `gap` cancels
-/// *precisely* under a correct `space-between`, because the stride is
-/// `(containerMain - content) / (n - 1)` and `content` has already subtracted
-/// the gaps out of `containerMain` before that division runs. Two fixtures,
-/// same numbers, on purpose — see the comment inside
-/// `flex_row_justify_between_gap.html` for the full explanation.
-///
-/// `lineContentSizeCountsGapsBetweenItemsOnly` (in AlignmentTests.swift) tests
-/// `lineContentSize` in isolation and never calls `positionItems` or
-/// `computeLayout`, so it cannot catch a trailing-gap regression that lives in
-/// the wiring between them. This test can: reintroducing the trailing gap
-/// (`gap * count` instead of `count - 1` in `lineContentSize`) shifts every
-/// non-root node here by `gap / (n - 1)` = 6px, far above the 0.1pt
-/// comparison tolerance, while `rowJustifySpaceBetweenMatchesWebKit` (no gap)
-/// stays green throughout. Do not delete this as a copy of that test.
-@Test func rowJustifySpaceBetweenWithGapMatchesWebKit() throws {
-    let golden = try loadGolden("flex_row_justify_between_gap")
-    let tree = LayoutTree(generation: 0)
-    let a = fixedChild(tree, w: 40, h: 40)
-    let b = fixedChild(tree, w: 70, h: 40)
-    let c = fixedChild(tree, w: 50, h: 40)
-    var rootStyle = Style()
-    rootStyle.flexDirection = .row
-    rootStyle.justifyContent = .spaceBetween
-    rootStyle.gap = Axes(both: .pixels(Pixels(12)))
-    rootStyle.size = Size(width: px(400), height: px(40))
-    let root = tree.newNode(style: rootStyle, children: [a, b, c])
-
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
-}
-
-/// WebKit's word on §9.4 stretch — and the only comparison in the corpus that
-/// can tell "stretch everything" apart from "stretch the right things".
-///
-/// Every other fixture is uniform on the cross axis: either all its children
-/// declare a height or none does, so a rule ignoring `align-self` and a rule
-/// ignoring the `auto` check both reproduce every committed golden. This one
-/// gives four children four different cross outcomes in one 100px line, and
-/// WebKit confirms all four: `a` (auto) stretches to 100, `b` keeps its
-/// definite 30, `c` opts out via `align-self: flex-start` and stays at its
-/// content's 0, and `d` stretches into its `max-height: 60`.
-///
-/// `d` is the only browser-verified evidence that a stretched size is clamped
-/// by the item's cross max; without it that clause rests on hand-written
-/// arithmetic alone. Deleting `.c`'s `align-self` line and regenerating moves
-/// `c.height` from 0 to 100 — verified, so the opt-out is genuinely load-bearing
-/// here rather than merely present.
-@Test func rowStretchMixedMatchesWebKit() throws {
-    let golden = try loadGolden("flex_row_stretch_mixed")
-    let tree = LayoutTree(generation: 0)
-
-    var aStyle = Style()                                  // auto height: stretches
-    aStyle.size = Size(width: px(60), height: .auto)
-    let a = tree.newNode(style: aStyle, children: [])
-
-    let b = fixedChild(tree, w: 70, h: 30)                // definite height wins
-
-    var cStyle = Style()                                  // opts out of stretch
-    cStyle.size = Size(width: px(50), height: .auto)
-    cStyle.alignSelf = .flexStart
-    let c = tree.newNode(style: cStyle, children: [])
-
-    var dStyle = Style()                                  // stretches, then clamps
-    dStyle.size = Size(width: px(80), height: .auto)
-    dStyle.maxSize = Size(width: .auto, height: px(60))
-    let d = tree.newNode(style: dStyle, children: [])
-
-    var rootStyle = Style()
-    rootStyle.flexDirection = .row
-    rootStyle.size = Size(width: px(400), height: px(100))
-    let root = tree.newNode(style: rootStyle, children: [a, b, c, d])
-
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d"],
-                        golden: golden, tolerance: 0.1)
-}
-
-/// `row-reverse` against WebKit: three unequal children, no `justify-content`
-/// override, so this pins the *default* `flex-start` reading against the
-/// reversed axis rather than something an explicit justify value might mask.
-///
-/// Same 40/70/50-in-400 shape as `rowReversePacksFromTheEndAndFlipsJustifyContent`
-/// in AlignmentTests.swift, but this one is browser-verified rather than
-/// hand-computed.
-@Test func rowReverseMatchesWebKit() throws {
-    let golden = try loadGolden("flex_row_reverse")
-    let tree = LayoutTree(generation: 0)
-    let a = fixedChild(tree, w: 40, h: 40)
-    let b = fixedChild(tree, w: 70, h: 40)
-    let c = fixedChild(tree, w: 50, h: 40)
-    var rootStyle = Style()
-    rootStyle.flexDirection = .rowReverse
-    rootStyle.size = Size(width: px(400), height: px(40))
-    let root = tree.newNode(style: rootStyle, children: [a, b, c])
-
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
-}
-
-/// `column-reverse` composed with `justify-content: flex-end` against WebKit —
-/// the fixture where a sign error in either flip shows, because a bug in only
-/// one of the two would still place the packed run at a plausible-looking
-/// edge.
-///
-/// Also the AL-7 fixture: `.a` has an explicit `height` (a definite **main**
-/// size in a column, which no other fixture in the corpus provides) and an
-/// `auto` width, so it stretches to the container's cross extent. `.b` and
-/// `.c` have explicit widths and do not.
-@Test func columnReverseJustifyEndMatchesWebKit() throws {
-    let golden = try loadGolden("flex_column_reverse_justify_end")
-    let tree = LayoutTree(generation: 0)
-
-    var aStyle = Style()                      // definite main size, auto cross: stretches
-    aStyle.size = Size(width: .auto, height: px(40))
-    let a = tree.newNode(style: aStyle, children: [])
-
-    let b = fixedChild(tree, w: 60, h: 70)
-    let c = fixedChild(tree, w: 80, h: 50)
-
-    var rootStyle = Style()
-    rootStyle.flexDirection = .columnReverse
-    rootStyle.justifyContent = .flexEnd
-    rootStyle.size = Size(width: px(100), height: px(400))
-    let root = tree.newNode(style: rootStyle, children: [a, b, c])
-
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
-}
-
-/// Padding and border inset the content box against WebKit: a row with four
-/// distinct padding edges and four distinct (and different-from-padding)
-/// border edges, two fixed children and a third that grows into whatever the
-/// content box leaves over. `flex_row_padding_border` is the fixture; see its
-/// HTML for why every edge and both boxes differ.
-@Test func rowPaddingAndBorderMatchesWebKit() throws {
-    let golden = try loadGolden("flex_row_padding_border")
-    let tree = LayoutTree(generation: 0)
-    let a = fixedChild(tree, w: 50, h: 30)
-    let b = fixedChild(tree, w: 60, h: 30)
-
-    var cStyle = Style()
-    cStyle.flexGrow = 1
-    cStyle.flexShrink = 1
-    cStyle.flexBasis = px(0)
-    cStyle.size = Size(width: .auto, height: px(30))
-    let c = tree.newNode(style: cStyle, children: [])
-
-    var rootStyle = Style()
-    rootStyle.flexDirection = .row
-    rootStyle.size = Size(width: px(400), height: px(100))
-    rootStyle.padding = Edges(top: .pixels(Pixels(20)), right: .pixels(Pixels(8)),
-                              bottom: .pixels(Pixels(4)), left: .pixels(Pixels(16)))
-    rootStyle.border = Edges(top: .pixels(Pixels(5)), right: .pixels(Pixels(3)),
-                             bottom: .pixels(Pixels(2)), left: .pixels(Pixels(7)))
-    let root = tree.newNode(style: rootStyle, children: [a, b, c])
-
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
-}
-
-/// The column counterpart: `flex_column_padding_asymmetric` uses fixed-pixel
-/// padding and border only — **it does not exercise percentage padding**, and
-/// nothing in the corpus does yet (Task 3 adds that fixture). Its shape
-/// (120x400, strongly non-square) is chosen so that fixture, when it lands,
-/// can tell a percentage resolved against width from one resolved against
-/// height; on its own, today, the non-square shape buys nothing. What this
-/// fixture *does* pin now: every child has an `auto` width, so stretch
-/// filling the reduced *content* width — not the border-box width — is the
-/// strongest single check that the content box reached the cross axis.
-@Test func columnPaddingAsymmetricMatchesWebKit() throws {
-    let golden = try loadGolden("flex_column_padding_asymmetric")
-    let tree = LayoutTree(generation: 0)
-
-    func autoWidthChild(h: Double) -> LayoutNodeID {
-        var s = Style()
-        s.size = Size(width: .auto, height: px(h))
-        return tree.newNode(style: s, children: [])
-    }
-    let a = autoWidthChild(h: 40)
-    let b = autoWidthChild(h: 90)
-    let c = autoWidthChild(h: 60)
-
-    var rootStyle = Style()
-    rootStyle.flexDirection = .column
-    rootStyle.size = Size(width: px(120), height: px(400))
-    rootStyle.padding = Edges(top: .pixels(Pixels(12)), right: .pixels(Pixels(30)),
-                              bottom: .pixels(Pixels(6)), left: .pixels(Pixels(18)))
-    rootStyle.border = Edges(top: .pixels(Pixels(4)), right: .pixels(Pixels(2)),
-                             bottom: .pixels(Pixels(8)), left: .pixels(Pixels(6)))
-    let root = tree.newNode(style: rootStyle, children: [a, b, c])
-
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
 }
 
 // MARK: - Two `auto` cross-size rules, both found by M2's text leaf
@@ -1115,9 +613,10 @@ private func wrappingChildInANarrowContainer(
 /// never measured. At 30 the min-content floor binds, `.a` overflows to 50, and
 /// centre / stretch give different widths *and* different x.
 ///
-/// The browser evidence is `FitContentFixtureTests` and its six fixtures; this
-/// test is the hand-written companion that carries the differential a single
-/// golden cannot.
+/// The browser evidence was `FitContentFixtureTests` and its six fixtures,
+/// retired with the goldens by stage 7a (record §42); this test was the
+/// hand-written companion that carried the differential a single golden could
+/// not.
 @Test func anAutoCrossSizeInAColumnIsFitContentLikeWebKit() {
     let (centred, a) = wrappingChildInANarrowContainer(direction: .column, align: .center)
     #expect(centred.layout(a).width == 120)

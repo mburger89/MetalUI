@@ -288,11 +288,12 @@ private func stack(_ tree: LayoutTree, _ children: [LayoutNodeID],
 /// The other half of the stretch rule: a child with a DECLARED size is not
 /// stretched, even under `align: .stretch, justify: .stretch` — it keeps its
 /// own 20x10 and sits at the start edge, matching WebKit
-/// (`stack_stretch_declared_size` in `StackFixtureTests.swift` pins the same
-/// rule against the live oracle). Verified as a negative control: reverting
+/// (the golden `stack_stretch_declared_size` pinned the same rule against the
+/// oracle until stage 7a retired it, record §42). Verified as a negative
+/// control, while that golden lived: reverting
 /// `positionStackItems`'s `widthIsAuto`/`heightIsAuto` guard to unconditional
-/// reddens exactly TWO tests — this one and
-/// `StackFixtureTests.stackStretchDeclaredSizeMatchesWebKit` — and leaves
+/// reddened exactly TWO tests — this one and
+/// `StackFixtureTests.stackStretchDeclaredSizeMatchesWebKit` — and left
 /// `stretchFillsTheContainerOnThatAxis` above green.
 ///
 /// **"This test alone" is what this comment used to say, and the fixture's

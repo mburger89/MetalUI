@@ -420,8 +420,8 @@ struct MeasurePerformanceTests {
     /// debug (whole test 62.9 s) and **12.24 s / 7.55 s** in release (20.1 s).
     /// The ~17 s release figure `MP-I` carries predates both. Every later task, review
     /// and fix round in this milestone would otherwise pay that on every run.
-    /// Matches `regenerateAllGoldens`'s own gating shape
-    /// (`Tests/MetalUILayoutTests/GeneratorTests.swift`) — an expensive
+    /// The gating shape the WebKit golden regenerator had before stage 7a
+    /// retired it with the goldens (record §42) — an expensive
     /// deliberate act, not a per-run guard. Enable deliberately:
     ///   METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
     ///
