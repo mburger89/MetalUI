@@ -1053,3 +1053,33 @@ proposal-authority-only evidence row.
   the first frame, and pinned by `aHuggingLegacyRootIsCentredInAProductionWindow`
   (record §41 §12.2–§12.5; mutations M2a, top-leading, and M2b, the window
   rect, each redden it and every other root-placement-reading test).
+
+## 2026-09-23: 55 amended (plan task 7 stage 7a, the goldens retired)
+
+Record §42; rulings `LR-DS`…`LR-EB` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **No number is
+retired and none is added** — the table stays at **fifty-eight**. Stage 7a
+deletes the 97 WebKit goldens and their consumers; every golden has a row in
+record §42 §4. Only one live row cited the goldens as its pin:
+
+- **55** (`CN-P` 4, G1: CSS shrinks items by base-size-weighted factors where
+  SwiftUI compresses without weights). Its pin column read "— (covered by the
+  CSS goldens; task 7)". The goldens that carried the CSS side
+  (`flex_row_shrink`, `flex_row_fractional_shrink`, `flex_row_shrink_to_zero`,
+  `flex_row_shrink_padded_weighting`, `flex_row_explicit_min`) are retired as
+  **D** rows (record §42 §4, rows 23, 27, 45–47). The row is now pinned by
+  name on both sides: the CSS engine's weighting by `shrinkIsWeightedByBaseSize`
+  (`FreezeLoopTests`, a CSS-engine test that stays until 7b), and the proposal
+  authority's unweighted answer by
+  `aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren`,
+  `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight`,
+  `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt` (stage
+  2's pins, above) and stage 7a's
+  `aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding`, whose
+  `flex_row_shrink_padded_weighting` arm pins the golden's own tree at the
+  native answer (a 200, b 200 at 200). It retires with the CSS engine (7b/9).
+
+Every other row's pin was checked by grep against the names of the 96 removed
+consumer tests and the eight removed `GeneratorTests`/`OracleTests`: none
+cites one. The prose paragraphs above that say "no fixture or golden encodes"
+a divergence stay true, and are now true of every divergence.

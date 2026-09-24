@@ -50,7 +50,15 @@ becomes legacy-authority only), the native depth limit is re-bisected in
 release and re-measured on every production root (88 → 72), and
 `noProductionFrameReachesTheLegacyEngine` is green — with the real-window
 capture and the demo-layout human-verification rows owed to the human (the
-screen was locked at every check). §4.1's
+screen was locked at every check). **Stage 7a (the goldens retired) has
+landed on its branch** (Record phase, 2026-09-23): `feat/engine-stage-7a` from
+`2cc763d`, record §42, spec
+[`2026-09-23-engine-stage-7a-design.md`](2026-09-23-engine-stage-7a-design.md).
+It meets §4.1 row 7a's exit with one respelling: the check is `find
+Tests/MetalUILayoutTests -name "*.json"`, not `find Tests`, because
+`Tests/PortableTests/.build/` holds JSON build artifacts — it reads 0, and every
+one of the 97 goldens has a row naming its native replacement arm (44) or its
+deleted CSS-only concept (53). Suite 1616, 0 px. §4.1's
 table below is still the plan of record for the remaining stages; the **live** per-stage status is the
 stage list under task 7 in
 `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, and task 7's box there

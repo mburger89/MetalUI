@@ -409,7 +409,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   2026-09-21), G2 lazy grids after stage 4 — **unblocked**, since stage 4
   landed the windowing they need; 6a custom
   elements and the public legacy registrars deprecated; 6b the root switch
-  (`noProductionFrameReachesTheLegacyEngine`); 7a goldens replaced; 7b
+  (`noProductionFrameReachesTheLegacyEngine`); 7a goldens replaced (delivered
+  2026-09-23); 7b
   non-golden CSS tests retired; 8 sizing vocabulary onto `.frame`; 9 engine
   deleted; 10 `Style`'s CSS fields and the `dlsym` closing check; 11 modifier
   unification. **Stage 1 delivered** (five lanes, each red first, all verified
@@ -680,6 +681,24 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   stage's other 5 pins (3 N9, 2 tokenizer tests), the N9/RT/P-9 rows and the internal legacy registrar pair wait for stage 9's deletion;
   the real-window capture and the demo-layout human-verification rows record
   §03 re-opens are owed to the human, next time the screen is unlocked.
+  *Progress 2026-09-23 on `feat/engine-stage-7a` (from `2cc763d`), stage 7a
+  of 14, task still open.* Spec `specs/2026-09-23-engine-stage-7a-design.md`;
+  rulings `LR-DS`…`LR-EB` in `../2026-09-17-engine-replacement-decisions.md`;
+  probe `docs/probes/swiftui-engine-stage-7a.swift` (arms W, G, S, A, B) and
+  instrument `docs/probes/stage-7a-transcription-instrument.patch`; record
+  `docs/record/42-engine-replacement-stage-7a.md`. **The 97 WebKit goldens are
+  retired**, each with a row in record §42 §4: 44 **R** rows replaced by a
+  native arm asserting the golden's own boxes on its own tree under the
+  proposal authority (`GoldenReplacementFlexTests` 1.1–1.8,
+  `GoldenReplacementStackTests` 2.1–2.4), 53 **D** rows deleted with a named
+  CSS-only concept and the native test that pins the proposal authority's
+  answer instead (2.5–2.8 for the silent and `wrap-reverse` shapes). `Golden/`,
+  `Fixtures/`, `Oracle/`, `GeneratorTests`, `OracleTests`, four all-consumer
+  files and 96 consumer tests removed; one consumer trimmed for 7b. Three
+  lanes, each with its own mutation table; suite **1616** (1704 − 96 − 5 − 3 +
+  8 + 8), goldens **0**, guards 78; 0 px in all fourteen offscreen images.
+  Nothing of 7b is pre-empted: the other CSS-engine tests, `FlexEngine` and
+  every `.legacy` pin stay for 7b and 9.
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

@@ -311,3 +311,14 @@ surface. Nothing else in the table's shape changes: `LayoutAuthority.allCases`
 (the test-observables row, added at stage 3) still has no production reader,
 and `UnlowerableField` site `.list`/`component` still has no site-level
 reporter — both unaffected by which authority is the default.
+
+## 2026-09-23: no row changed at engine replacement stage 7a
+
+Record §42; rulings `LR-DS`…`LR-EB`. **Checked and none added, edited or
+deleted.** Stage 7a deletes test files only (the goldens, their fixtures, the
+WebKit oracle and their consumers) and one doc comment in `Sources/`
+(`roundLayout`'s); nothing declared in `Sources/` gains or loses a reader. The
+test-only `assertMatchesGolden` is gone with its callers, and the one private
+test helper left with no caller (`FlexEngineTests`' `threeJustifiedChildren`)
+was deleted with them (`LR-EB`), so the removal leaves no stored-but-unread
+state of its own.

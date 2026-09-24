@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-DS`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-EC`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -81,6 +81,12 @@ milestones append their record to `docs/record/` and put only the rule here.
   `swiftui-engine-replacement-stage2.swift`'s V0–V3), plus two new harnesses,
   `docs/probes/native-depth-ceiling/` (the release re-bisection) and
   `docs/probes/stage-6b-flip-instrument.patch`),
+  7 stage 7a `LR-DS`…`LR-EB` (§42, spec
+  `specs/2026-09-23-engine-stage-7a-design.md`, same decisions doc — the 97
+  WebKit goldens retired, each with a row in record §42 §4 naming its native
+  replacement arm or its deleted CSS-only concept; probe
+  `swiftui-engine-stage-7a.swift` arms W, G, S, A, B; instrument
+  `docs/probes/stage-7a-transcription-instrument.patch`),
   7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
@@ -143,6 +149,20 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 ```
 
+- **Counts (2026-09-23, `feat/engine-stage-7a` — plan task 7 stage 7a — from
+  `2cc763d`): 1616 tests, 0 goldens, 78 typecheck guards**, 0 `error:`, 0
+  `warning:` on both build systems, taken with `swift build --build-system
+  native --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1616 tests in 3 suites
+  passed`; nine gated tests skipped; the guards ran — the log carries `FR-J
+  no-argument frame: succeeded=`). **1616 = 1704 − 96 − 5 − 3 + 8 + 8**: the
+  96 golden-consuming tests, `GeneratorTests`' 5 and `OracleTests`' 3 removed
+  with the goldens, and the 8 + 8 replacement tests of `GoldenReplacementFlexTests`
+  and `GoldenReplacementStackTests` added (record §42 §5.3, §6.3). **The
+  goldens are gone**: `Golden/`, `Fixtures/`, `Oracle/` and the WebKit oracle
+  with them, so no test in the repository imports WebKit. The twelve-image
+  offscreen comparison (and the two `prod-*` images) read 0 px against
+  `2cc763d`.
 - **Counts (2026-09-23, `feat/engine-stage-6b` — plan task 7 stage 6b —
   merged with `master` at `654a503`, PR #22, roadmap items 9 and 10): 1704
   tests, 97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both
@@ -310,8 +330,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Ten** gated tests count toward the total while skipped —
-  `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`, the
+  **Nine** gated tests count toward the total while skipped (ten until stage
+  7a removed `regenerateAllGoldens` with the goldens) —
+  `aListsWorkIsTheSameFor100kRowsAsFor500`, the
   FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
   (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
   `theMeasuredDifferences` (`METALUI_PORTABLE_ORACLE_MEASURE=1`) and the line
@@ -323,12 +344,18 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   (`METALUI_CROSSPLATFORM_RECORD=1`).
   The lone `warning:`
   under native is SwiftPM's deprecation notice.
-- **Goldens must not move** on a change outside `Sources/MetalUILayout/`
-  (`find Tests/MetalUILayoutTests -name "*.json" | wc -l` — not all of
-  `Tests/`, where `Tests/PortableTests/.build/` holds JSON build artifacts).
-  WebKit is the oracle for the CSS engine only. The proposal kernel shares `LayoutTree.swift` storage
-  (`newNode`, `reset`, `roundLayout`, the `SA-G`/`SA-I` preconditions), so a
-  proposal-path edit there can move a golden — run the fixtures. No text
+- **No goldens remain** (stage 7a, record §42):
+  `find Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0 — not `find
+  Tests`, where `Tests/PortableTests/.build/` holds JSON build artifacts. Each
+  of the 97 was retired with a row in record §42 §4: 44 by a native arm that
+  builds the golden's own tree and asserts its own boxes under the proposal
+  authority (`GoldenReplacementFlexTests`, `GoldenReplacementStackTests`,
+  through `goldenArm`), 53 with a named CSS-only concept and the native test
+  that pins what the proposal authority does instead. **Do not add a golden
+  or a WebKit fixture back**; a layout fact gets a native arm. The proposal
+  kernel shares `LayoutTree.swift` storage (`newNode`, `reset`, `roundLayout`,
+  the `SA-G`/`SA-I` preconditions), so a proposal-path edit there can move a
+  CSS-engine test or a lowering differential — run the whole suite. No text
   fixture, ever (TX-B).
 - **Guards:** `grep -c canTypecheck` per file across `PhaseSeparationTests`,
   `ErasureCompileGuards`, `ElementGroupTrapTests`, `ProposalLayoutCompileGuards`,
@@ -351,7 +378,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   does not move and the run passes. A worktree with its own `.build` at its
   root runs them (measured under `~/Developer/worktrees/`, record §28); grep
   the log for `FR-J no-argument frame: succeeded=` rather than assume.
-- **Adding an AppKit or WebKit test? Run the whole suite unfiltered** (shared
+- **Adding an AppKit test? Run the whole suite unfiltered** (shared
   process and run loop; `--filter` is a different program).
 - **`swift package clean` when the impossible happens**: SIGSEGV, a truncated
   run with no summary line, an expected value its source cannot produce, or
@@ -722,7 +749,7 @@ sleep: drive `simulateTick(timestamp:)`.
 ## SwiftUI alignment — the proposal layout path
 
 A propose/measure/place engine sits beside the CSS engine. Detail: §19
-"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38, §41.
+"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38, §41, §42.
 
 - **Two engines, chosen by the window root alone**
   (`tree.isNativeLayoutNode(root)`). A native root is placed centred at its own
@@ -866,6 +893,25 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   `nativeLayoutPreviewContent()` (`MetalUIDemoContent`, `LR-S`) and a `List`,
   each through a real `Window`, bump `Frame.legacyRootLayoutCounter` (a
   `@TaskLocal`, main-actor only) zero times. Record §41.
+- **Stage 7a retires the 97 WebKit goldens** (`LR-DS`…`LR-EB`). Verdicts
+  (`LR-DS`): **R** (44) — the golden's own tree, transcribed field for field
+  into `Box(style:)` with each `data-id` on `.id(_:)`, reproduces its rounded
+  boxes exactly under the proposal authority with an empty report, and a new
+  arm named for the golden asserts them (`goldenArm` in
+  `Tests/MetalUITests/GoldenReplacementSupport.swift`: `try #require` on an
+  empty report and on each id naming exactly one element; tests 1.1–1.8,
+  2.1–2.4); **D** (53) — the concept is CSS-only and deleted with the golden:
+  wrap (30), percentages (7), length basis and weighted shrink (6), automatic
+  minimum (3), border-box floor (3), unequal grow weights (2), sub-one grow
+  sum (2); each row cites the report-by-name test or, for the seven shapes
+  that lay out silently with another answer, a pin of the golden's own tree at
+  the native answer (2.5–2.7), plus 2.8 for `wrap-reverse`'s report. **A
+  replacement arm is a lowering test**: one reddening is a lowering change, not
+  a golden drifting. `GeneratorTests`, `OracleTests`, `Fixtures/`, `Oracle/`,
+  `Golden/`, four all-consumer files and 96 consumer tests are gone; one
+  consumer, `theClampedAutomaticMinimumIsStillFlooredByPaddingAndBorderMatchesWebKit`,
+  survives trimmed for 7b. 7a pre-empts nothing of 7b: every other CSS-engine
+  test, `FlexEngine` and every `.legacy`-pinned test stay. Record §42.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -1081,7 +1127,9 @@ expected, measured facts:
   its own answer, unchanged by the switch), and divergence 4 (the legacy
   engine's `CS-I`: a hugging root fills the offered extent from (0, 0))
   becomes **legacy-authority only**, pinned by its own CSS-engine tests,
-  retired with the legacy engine at 7b);
+  retired with the legacy engine at 7b; and its 2026-09-23 (stage 7a) section
+  amends **55**'s pin, which read "covered by the CSS goldens" — the goldens
+  are retired, and the row is pinned by name on both sides without them);
   §19 "Known divergences" is the frozen 48-row copy. Many are *pinned wrong on
   purpose*; a test named for one reddening may be a fix, not a bug.
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
