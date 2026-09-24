@@ -333,3 +333,21 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
     window.drawFrameIfNeeded()
     #expect(demoModel.fieldText == "echo" && demoModel.secondFieldText == "")
 }
+
+/// TI-G through a real `Window`: undo and redo reach the caller through
+/// `onChange`, like any edit.
+@Test @MainActor func undoAndRedoReachTheCallerThroughOnChange() throws {
+    let model = Model("")
+    let (window, platform) = try fieldWindow(model)
+    window.drawFrameIfNeeded()
+    let bounds = try fieldBounds(window)
+    platform.simulateInput(down(bounds.origin.x.value + 5, bounds.origin.y.value + 2))
+    for c in "undo" { platform.simulateInput(.textInput(String(c))) }
+    #expect(model.text == "undo")
+    let shortcut: Modifiers = TextEditing.platform == .mac ? .command : .control
+    platform.simulateInput(key("z", shortcut))
+    #expect(model.text == "")
+    window.drawFrameIfNeeded()
+    platform.simulateInput(key("z", shortcut.union(.shift)))
+    #expect(model.text == "undo")
+}

@@ -18,6 +18,8 @@ struct TextEditState: Equatable, Sendable {
     /// The selection the press that started a word or all drag made, which a
     /// drag always keeps.
     var dragOrigin: Range<Int> = 0..<0
+    /// Undo and redo (ruling TI-G).
+    var history = TextEditHistory()
 
     var selection: Range<Int> { min(anchor, head)..<max(anchor, head) }
 
@@ -29,6 +31,34 @@ struct TextEditState: Equatable, Sendable {
         copy.head = min(max(head, 0), count)
         return copy
     }
+}
+
+/// A field's undo and redo stacks (ruling TI-G): snapshots of the text and
+/// selection before each edit group. Consecutive typing, consecutive deletes
+/// backward and consecutive deletes forward each coalesce into one group;
+/// moving the caret, a click, a selection change or any other edit ends the
+/// group. Because a field is controlled, the history is only valid for the
+/// text its last edit produced: if the caller's text differs from it, someone
+/// else changed the text, and the history is dropped rather than replayed
+/// over a text it never saw.
+struct TextEditHistory: Equatable, Sendable {
+    struct Snapshot: Equatable, Sendable {
+        var text: String
+        var anchor: Int
+        var head: Int
+    }
+
+    enum EditKind: Equatable, Sendable { case typing, deleteBackward, deleteForward, other }
+
+    /// The deepest either stack grows; the oldest group falls off.
+    static let depth = 100
+
+    var undo: [Snapshot] = []
+    var redo: [Snapshot] = []
+    /// The kind of the group still open for coalescing, if any.
+    var openGroup: EditKind?
+    /// The text the last edit, undo or redo produced.
+    var lastText: String?
 }
 
 /// Text editing as pure functions over `(text, TextEditState)` (ruling TI-D):
@@ -70,7 +100,7 @@ enum TextEditing {
     static func key(_ key: KeyEvent, text: String, state: TextEditState,
                     clipboard: () -> String?, platform: Platform = platform) -> KeyOutcome {
         let characters = Array(text)
-        var state = state.clamped(to: characters.count)
+        var state = synced(state.clamped(to: characters.count), with: text)
         let unhandled = KeyOutcome(state: state, handled: false)
         // An input method owns the keys while it composes.
         if !state.composition.text.isEmpty { return KeyOutcome(state: state, handled: true) }
@@ -87,7 +117,14 @@ enum TextEditing {
             case "a":
                 state.anchor = 0
                 state.head = characters.count
+                state.history.openGroup = nil
                 return KeyOutcome(state: state, handled: true)
+            case "z":
+                let restored = shift ? redo(text: text, state: state) : undo(text: text, state: state)
+                return KeyOutcome(state: restored.state, text: restored.text, handled: true)
+            case "y" where platform == .other:
+                let restored = redo(text: text, state: state)
+                return KeyOutcome(state: restored.state, text: restored.text, handled: true)
             case "c":
                 let selected = String(characters[state.selection])
                 return KeyOutcome(state: state, copied: selected.isEmpty ? nil : selected, handled: true)
@@ -95,12 +132,14 @@ enum TextEditing {
                 guard !state.selection.isEmpty else { return KeyOutcome(state: state, handled: true) }
                 let selected = String(characters[state.selection])
                 let (newText, newState) = replace(state.selection, with: "", in: characters, state: state)
-                return KeyOutcome(state: newState, text: newText, copied: selected, handled: true)
+                return KeyOutcome(state: recording(.other, from: text, state, to: newText, newState),
+                                  text: newText, copied: selected, handled: true)
             case "v":
                 guard let pasted = clipboard(), !pasted.isEmpty else { return KeyOutcome(state: state, handled: true) }
                 let (newText, newState) = replace(state.selection, with: singleLine(pasted),
                                                   in: characters, state: state)
-                return KeyOutcome(state: newState, text: newText, handled: true)
+                return KeyOutcome(state: recording(.other, from: text, state, to: newText, newState),
+                                  text: newText, handled: true)
             default:
                 break
             }
@@ -112,6 +151,7 @@ enum TextEditing {
         func move(to target: Int) -> KeyOutcome {
             state.head = target
             if !shift { state.anchor = target }
+            state.history.openGroup = nil
             return KeyOutcome(state: state, handled: true)
         }
 
@@ -132,6 +172,7 @@ enum TextEditing {
             return move(to: characters.count)
         case deleteBackward:
             var range = state.selection
+            let single = range.isEmpty && !toEdge && !byWord
             if range.isEmpty {
                 let from: Int
                 if toEdge { from = 0 }
@@ -141,9 +182,12 @@ enum TextEditing {
             }
             guard !range.isEmpty else { return KeyOutcome(state: state, handled: true) }
             let (newText, newState) = replace(range, with: "", in: characters, state: state)
-            return KeyOutcome(state: newState, text: newText, handled: true)
+            return KeyOutcome(state: recording(single ? .deleteBackward : .other, from: text, state,
+                                               to: newText, newState),
+                              text: newText, handled: true)
         case deleteForward:
             var range = state.selection
+            let single = range.isEmpty && !byWord
             if range.isEmpty {
                 let to = byWord ? wordEnd(after: state.head, in: characters)
                     : min(characters.count, state.head + 1)
@@ -151,7 +195,9 @@ enum TextEditing {
             }
             guard !range.isEmpty else { return KeyOutcome(state: state, handled: true) }
             let (newText, newState) = replace(range, with: "", in: characters, state: state)
-            return KeyOutcome(state: newState, text: newText, handled: true)
+            return KeyOutcome(state: recording(single ? .deleteForward : .other, from: text, state,
+                                               to: newText, newState),
+                              text: newText, handled: true)
         case "\r", "\u{3}":
             return KeyOutcome(state: state, submitted: true, handled: true)
         default:
@@ -164,9 +210,69 @@ enum TextEditing {
     /// Committed text replaces the selection and ends any composition.
     static func insert(_ inserted: String, text: String, state: TextEditState) -> (String, TextEditState) {
         let characters = Array(text)
-        var state = state.clamped(to: characters.count)
+        var state = synced(state.clamped(to: characters.count), with: text)
         state.composition = .none
-        return replace(state.selection, with: singleLine(inserted), in: characters, state: state)
+        // One typed grapheme with nothing selected continues a typing group;
+        // typing over a selection starts one; anything longer (an input
+        // method's commit) is a group of its own.
+        let kind: TextEditHistory.EditKind = inserted.count == 1 ? .typing : .other
+        if !state.selection.isEmpty { state.history.openGroup = nil }
+        let (newText, newState) = replace(state.selection, with: singleLine(inserted), in: characters, state: state)
+        return (newText, recording(kind, from: text, state, to: newText, newState))
+    }
+
+    // MARK: Undo and redo (ruling TI-G)
+
+    /// `state` with its history dropped if `text` is not what the history's
+    /// last edit produced — the caller changed the text itself.
+    static func synced(_ state: TextEditState, with text: String) -> TextEditState {
+        guard let last = state.history.lastText, last != text else { return state }
+        var state = state
+        state.history = TextEditHistory()
+        return state
+    }
+
+    /// `after` with the edit from `(text, before)` recorded: a new undo group
+    /// unless it continues the open one, and redo cleared.
+    static func recording(_ kind: TextEditHistory.EditKind, from text: String, _ before: TextEditState,
+                          to newText: String, _ after: TextEditState) -> TextEditState {
+        var state = after
+        var history = before.history
+        if kind == .other || history.openGroup != kind {
+            history.undo.append(.init(text: text, anchor: before.anchor, head: before.head))
+            if history.undo.count > TextEditHistory.depth { history.undo.removeFirst() }
+        }
+        history.redo = []
+        history.openGroup = kind == .other ? nil : kind
+        history.lastText = newText
+        state.history = history
+        return state
+    }
+
+    /// The last group undone: `(text, state)`, `text` nil if there was nothing
+    /// to undo.
+    static func undo(text: String, state: TextEditState) -> (text: String?, state: TextEditState) {
+        var state = state
+        guard let snapshot = state.history.undo.popLast() else { return (nil, state) }
+        state.history.redo.append(.init(text: text, anchor: state.anchor, head: state.head))
+        return (snapshot.text, restored(snapshot, into: state))
+    }
+
+    /// The last undo redone.
+    static func redo(text: String, state: TextEditState) -> (text: String?, state: TextEditState) {
+        var state = state
+        guard let snapshot = state.history.redo.popLast() else { return (nil, state) }
+        state.history.undo.append(.init(text: text, anchor: state.anchor, head: state.head))
+        return (snapshot.text, restored(snapshot, into: state))
+    }
+
+    private static func restored(_ snapshot: TextEditHistory.Snapshot, into state: TextEditState) -> TextEditState {
+        var state = state
+        state.anchor = snapshot.anchor
+        state.head = snapshot.head
+        state.history.openGroup = nil
+        state.history.lastText = snapshot.text
+        return state
     }
 
     /// Marked text is shown at the caret; the text itself does not change
@@ -186,6 +292,7 @@ enum TextEditing {
                       text: String, state: TextEditState) -> TextEditState {
         let characters = Array(text)
         var state = state.clamped(to: characters.count)
+        state.history.openGroup = nil
         let index = min(max(index, 0), characters.count)
         state.composition = .none
         if extend {
@@ -218,6 +325,7 @@ enum TextEditing {
     static func drag(to index: Int, text: String, state: TextEditState) -> TextEditState {
         let characters = Array(text)
         var state = state.clamped(to: characters.count)
+        state.history.openGroup = nil
         let index = min(max(index, 0), characters.count)
         let origin = state.dragOrigin.clamped(to: 0..<(characters.count + 1))
         switch state.dragGranularity {
