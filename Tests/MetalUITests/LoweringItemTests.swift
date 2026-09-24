@@ -821,6 +821,12 @@ private struct AtOrigin: ProposalLayout {
 /// - controls `.center` and `.flexEnd` agree, the second child at x 100 and 180
 ///   (W carries the main factor).
 ///
+/// **Stage 9** (record §51, lane 1, the site-coverage re-run): the controls'
+/// agreement was the only thing that saw the stretched row's own rect — mutation
+/// Ma–Me's **Mb** (W not aliased) reddened this test at `b9a5d7f` through it and
+/// not at the lane's head — so the row's rect is a literal, derived by hand: the
+/// column's 200 wide, 10 tall, at (0, 0).
+///
 /// Mutation that must redden it: **M1p** the re-check removed (the three reports read
 /// empty).
 @MainActor
@@ -841,6 +847,7 @@ private struct AtOrigin: ProposalLayout {
         try #require(r.elements == 6, "\(justify)")
         expectCorpusNothingReported(r, "\(justify)")
         #expect(r.bounds[child(row, 1)] == bounds(x, 0, 20, 10), "\(justify)")
+        #expect(r.bounds[row] == bounds(0, 0, 200, 10), "\(justify): the stretched row")
         arms += 1
     }
     try #require(arms == 5)
@@ -1376,6 +1383,12 @@ let demoParagraph = """
 /// Mutations that must redden it: **M2m** the grow half of the re-check removed (the
 /// report reads empty); **M2m′** the re-check limited to a greedy W (the minimum arm
 /// reads empty).
+///
+/// **Stage 9** (record §51, lane 1, the site-coverage re-run): the controls'
+/// agreement was the only thing that saw the grown row's own rect — **Mb** (W not
+/// aliased) reddened this test at `b9a5d7f` through it and not at the lane's head
+/// — so the inner row's rect is a literal, derived by hand: 300 − 40 = 260 wide,
+/// 10 tall, at (0, 0).
 @MainActor
 @Test func aGrownUnsizedSpaceDistributionContainerIsReported() throws {
     func tree(_ justify: JustifyContent) -> some ElementGroup {
@@ -1393,6 +1406,7 @@ let demoParagraph = """
         expectCorpusNothingReported(r, "\(justify)")
         #expect([0, 1].map { r.bounds[child(inner, $0)] } == [bounds(a, 0, 20, 10), bounds(a + 20, 0, 20, 10)],
                 "\(justify)")
+        #expect(r.bounds[inner] == bounds(0, 0, 260, 10), "\(justify): the grown row")
     }
 }
 
