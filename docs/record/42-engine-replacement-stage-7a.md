@@ -365,7 +365,7 @@ asserts every listed box by its `data-id`, which the arm's tree names with
 | 2.7 | `sizing_specified_suggestion` | 800×600 | root 0,0,150×60 a 0,0,130×60 g1 0,0,200×20 b 130,0,100×20 |
 | 2.7 | `sizing_specified_suggestion_is_used_value` | 800×600 | root 0,0,150×60 a 0,0,100×60 g1 60,10,200×20 b 100,0,100×20 |
 | 2.7 | `sizing_over_constrained_grows` | 800×600 | root 0,0,400×300 box 0,0,100×80 kid 60,70,10×10 |
-| 2.8 | `flex_wrap_reverse`, `_align_content_end`, `_row_reverse` (`LR-DY`) | 800×600 | no boxes: `unlowerableFields` = `[box.flexWrap]`, `[box.flexWrap, box.alignContent]`, `[box.flexWrap]` (spec §6; read off `legacyContainerDiagnostics`, `LegacyLowering.swift:209`–210 — the lane measures it before committing) |
+| 2.8 | `flex_wrap_reverse`, `_align_content_end`, `_row_reverse` (`LR-DY`) | 800×600 | no boxes: `unlowerableFields` = `[box.flexWrap, box.alignContent]`, `[box.flexWrap, box.alignContent]`, `[box.flexWrap]` — measured by lane 2 on the goldens' own trees (`LR-EA`: `flex_wrap_reverse`'s fixture declares `align-content: flex-start`, which the design's two-child `Row` omitted and read as `[box.flexWrap]`) |
 
 ### 5.3 The count
 
@@ -453,3 +453,55 @@ corrected by `LR-DZ` to the `2cc763d` values above.
 **Deferrals.** None from lane 1. `DemoFrameDeterminismTests`' `theDemoFrameMatchesTheValuesRecordedOnMacOS`
 stays green and unedited (it reddened only under M1a, as a sibling of the
 demo's gap).
+
+### 6.2 Lane 2 — stack, absolute, D-pin and wrap-reverse arms (2026-09-23, PDT)
+
+**Commits.** `a4c9637` — `Tests/MetalUITests/GoldenReplacementStackTests.swift`:
+tests 2.1–2.4 (**15 R arms**, `stack_stretch_max` minus `p`), 2.5–2.7 (**7 D
+pins** at §5.2's native answers, each doc comment naming the golden, WebKit's
+answer, the native answer and the deleted concept) and 2.8 (**3 report arms**,
+`try #require(arms.count == 3)`), every golden arm through lane 1's `goldenArm`
+(reused, not copied); this section, `LR-EA`, and the spec/§5.2 corrections in the
+commit after it. No `Sources/` change (`git diff 2cc763d -- Sources` empty),
+nothing under `Tests/PortableTests` or `Backends`.
+
+**Red-before.** Characterization (`LR-DW`): all eight tests **green on arrival**
+(filtered run: `Test run with 8 tests in 0 suites passed`), so there is no red
+line for the tests themselves; their red-before is the mutation table below.
+Suite at `a4c9637`, build 0 `error:`, the one `warning:` SwiftPM's deprecation
+notice: **`Test run with 1720 tests in 3 suites passed after 95.301 seconds`**,
+`FR-J no-argument frame: succeeded=true` in the log. **1720 = 1712 + 8.**
+
+**One deviation (`LR-EA`).** 2.8's arms are the three goldens' **own trees**
+(`LR-DS`), not the design's simplified `Row`s. `flex_wrap_reverse`'s fixture
+declares `align-content: flex-start`, so it reports `[box.flexWrap,
+box.alignContent]`, not the `[box.flexWrap]` spec §6 predicted for its
+simplified tree; the other two read as predicted. §5.2's 2.8 row and spec §6's
+2.8 row now carry the measured arrays.
+
+**Mutations.** Each applied to `a4c9637`'s source (the spelling quoted), restored
+from a copy, full unfiltered `swift test --build-system native --no-parallel`,
+`git status --short` empty after each restore. The lane's own tests in **bold**.
+
+| id | spelling applied | issues | tests reddened | arms reddened (what moved) |
+|---|---|---|---|---|
+| M2a | `alignmentFactor(_: JustifyItems?)`: `case .end: 1` → `case .end: 0.5` | 16 | **`aStackPlacesAFixedChildAtItsAlignment`**, `aHiddenChildKeepsItsSpaceUnderTheProposalAuthority`, `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes` (3) | `stack_alignment_bottomtrailing` only (child x 280→140) |
+| M2b | `planLegacyItems`, `.stack` case: `stretchedH = alignsByStretching(parent.justifyItems) && d.size.width == .auto` → `… alignsByStretching(parent.justifyItems)` | 6 | **`aStretchedStackChildFillsOnlyItsAutoAxesWithinItsOwnBounds`**, `aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields` (2) | `stack_stretch_declared_size` only (child 300×10) |
+| M2c | `LayoutTree.measureNative`, `.overlay`: the per-axis-maximum `reduce` → every child measured, `result = all.first ?? LayoutMeasurement(size: .zero)` | 91 | **`aStackHugsItsLargestChildInsideARowAndAroundOne`**, **`aStretchedStackChildFillsOnlyItsAutoAxesWithinItsOwnBounds`**, `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal`, `aHiddenChildKeepsItsSpaceUnderTheProposalAuthority`, `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes`, `aMarginLowersAsPaddingOutsideTheItem`, `aNativeOverlayForwardsOneProposalMeasuresTheLargestChildAndCentresEachChild`, `aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields`, `aZStackPlacesEachChildWithItsOwnSizeAsTheProposal`, `aZStackPlacesItsChildrenAtItsOwnSizeWithinTheirUnion`, `aZStackRootPlacesItsChildrenAtItsOwnSizeWithinTheirUnion`, `everyZStackAndOverlayAlignmentPlacesAndSizesAsTheProbeReads`, `overlayAndBackgroundContentIsPlacedAtThePrimarysSize`, `severalViewsInAnOverlayOrBackgroundAreACentredZStackPositionedByTheAlignment` (14) | required: `stack_sizes_to_largest` (stack 90×70→50×40), `stack_in_flex` (stack 50×40, after x 130→90); also seen (`LR-EA`): `stack_stretch_max` (w 40×200→40×50) |
+| M2d | `lowerPresentation`: `maximum: d.maxSize.height, extent: window.height)` → `extent: window.width)` | 7 | **`aDeferredAbsoluteBoxResolvesItsInsetsAgainstTheWindowAndLeavesTheFlow`**, `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` (2) | `abs_percent_insets_nonsquare` only (abs y 10→20) |
+| M2e | `planLegacyItems`: `if d.flexGrow > 0 && !weightsReported {` → `if d.flexGrow >= 1 && !weightsReported {` | 6 | **`aGrowFactorSumBelowOneStillFillsTheLine`**, `unequalGrowWeightsAreReportedOnTheParent` (2) | both: `flex_row_fractional_grow` (a, b, c 0 wide), `flex_row_fractional_grow_clamped` (reports `box.maxSize`: a's maximum off a greedy axis) |
+| M2f | `planLegacyItems.axis`: a `floor:` parameter (the item's animated padding + border on that axis, passed at both call sites) and, in the `if greedy` branch, `let lo = stretched ? max(resolvedDimension(animatedMin) ?? 0, floor) : resolvedDimension(animatedMin)` | 2 | **`aStretchedStackChildIsNotFlooredByItsPaddingAndBorder`** (1) | both boxes: f and c 120×140 |
+| M2g | `paddedAndSized`: `let width = folded(…)` / `let height = folded(…)` each `.map { Swift.max($0, insets.left + insets.right) }` / `top + bottom` | 5 | **`aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding`**, `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`, `aLoweredBoxPaddingSitsInsideItsDeclaredSize` (3) | `sizing_over_constrained_grows` (box 120×140), `sizing_specified_suggestion_is_used_value` (a 120, b at 120); not `flex_row_shrink_padded_weighting` (padding 80 < 200) nor `sizing_specified_suggestion` (no padding) |
+| M2h | `legacyContainerDiagnostics`: `if declared.flexWrap != .noWrap {` → `if declared.flexWrap == .wrap {` | 3 | **`aWrapReverseContainerIsReportedByNameAsAWrappingOneIs`** (1) | all three: `flex_wrap_reverse` and `_align_content_end` read `["box.alignContent"]`, `_row_reverse` reads `[]`. **`everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` stayed green** (its "wrap" arm declares `.wrap`) |
+
+No mutation reddened a golden consumer (they run the CSS engine), and every
+predicted arm reddened.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 2cc763d a4c9637`:
+**0 differing and scene identical in all fourteen images**; every control at its
+`2cc763d` value (`LR-DZ`): light vs dark 1048576, default vs modal 1031003,
+default vs animation 454895, f0 vs f3 0, preview 1048576, chrome 0, distinct 544
+/ 216, prod default vs modal 491221, distinct `prod-default-light` 529, indicator
+rects 0.
+
+**Deferrals.** None. `DemoFrameDeterminismTests` green and unedited.

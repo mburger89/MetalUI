@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-EA`** (stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY` and its lane 1 `LR-DZ`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-EB`** (stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ` and its lane 2 `LR-EA`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -7408,3 +7408,41 @@ images. The script's bracketed expectations are not edited (they document
 **What it costs if wrong.** A later lane reading the bracketed values would
 report a false pixel regression at the base commit, or wave a real one through
 as "the known switch drift".
+
+## LR-EA — stage 7a lane 2: test 2.8's arms are the goldens' own trees, so `flex_wrap_reverse` reports `alignContent` too; M2c's extra arm
+
+**Lane 2 (2026-09-23, PDT), record §42 §6.2.** Tests 2.1–2.8 landed at `a4c9637`,
+green on arrival (`LR-DW`); M2a–M2h each reddened every arm the spec predicts;
+M2h left `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` green.
+
+**The correction.** Spec §6 designed 2.8's three arms as simplified trees (a
+two-child `Row` with `.flexWrap(.wrapReverse)`, the same plus
+`.alignContent(.flexEnd)`, a two-child `rowReverse` `Box`) and predicted
+`[box.flexWrap]` for `flex_wrap_reverse`. `LR-DS`'s own principle is that an arm
+replacing a golden builds **that golden's tree**, and the lane transcribed the
+three fixtures (`Tests/MetalUILayoutTests/Fixtures/flex_wrap_reverse*.html` at
+`2cc763d`) field for field as 2.1–2.7 do. `flex_wrap_reverse`'s fixture declares
+`align-content: flex-start` (its comment says why: so the unused cross space is
+measurable), which the simplified tree omitted. Measured under the proposal
+authority: `flex_wrap_reverse` → **`[box.flexWrap, box.alignContent]`**,
+`flex_wrap_reverse_align_content_end` → `[box.flexWrap, box.alignContent]`,
+`flex_wrap_reverse_row_reverse` (whose children carry margins) →
+`[box.flexWrap]` — no `margin.unconsumed`, because a reported container lays
+out a 0×0 leaf and never registers its children. The test asserts those three
+arrays exactly; spec §6's 2.8 row and record §42 §5.2's 2.8 row now read them.
+M2h still reddens all three arms: two drop `box.flexWrap` and keep
+`box.alignContent`, the third reads `[]`.
+
+**M2c's extra arm.** The overlay measuring its first child only also reddens
+2.2's `stack_stretch_max` (w 40×50, not 40×200): the root stack's overlay answers
+`h`'s 300×50 and `w` stretches only to that. Recorded, not required; the spec's
+M2c row names it.
+
+**Rejected.** *Keep the simplified trees.* Rejected: the retirement row claims
+the replacement asserts the golden's fact on the golden's tree; a tree without
+the fixture's `align-content` is a different shape, and the report it reads is
+not the one that tree gives.
+
+**What it costs if wrong.** Asserting `[box.flexWrap]` on the real tree would be
+red on arrival; asserting it on a simplified tree would leave `flex_wrap_reverse`
+retired on a shape it does not have.

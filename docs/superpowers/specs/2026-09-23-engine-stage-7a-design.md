@@ -1,7 +1,7 @@
 # Engine replacement, stage 7a — the goldens retired (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 7a, §8. Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`; lane 1: `LR-DZ`) in
+§4.1 row 7a, §8. Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`; lane 1: `LR-DZ`; lane 2: `LR-EA`) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Record: `docs/record/42-engine-replacement-stage-7a.md` (its §4 is the 97-row
 retirement table this design commits). Probe:
@@ -74,6 +74,8 @@ goldens exactly — the transcription is right. The proposal authority:
 | `LR-DW` | the new tests are characterization: green on arrival, their red-before is a named mutation run before they are committed |
 | `LR-DX` | three lanes, the removal last and only after every replacement is green; `Sources/` untouched but one doc comment |
 | `LR-DY` | critic round 1: test 2.8 for `wrap-reverse`'s report, row 86's citation, what "deleted" means for fields stages 8/10 still own (percentages, length `flexBasis`, non-greedy `maxSize`, grow weights), record miscounts |
+| `LR-DZ` | lane 1: the flex R arms as designed; the pixel controls are `2cc763d`'s |
+| `LR-EA` | lane 2: 2.8's arms are the goldens' own trees, so `flex_wrap_reverse` reports `alignContent` too; M2c's extra arm |
 
 ## 4. API and files
 
@@ -181,12 +183,12 @@ File: `GoldenReplacementStackTests.swift` (uses lane 1's helper for 2.1–2.7; 2
 |---|---|---|---|
 | 2.1 | `aStackPlacesAFixedChildAtItsAlignment` | `stack_alignment_center`, `_topleading`, `_bottomtrailing` | **M2a** `alignmentFactor(_: JustifyItems?)`: `.end` → 0.5 → `_bottomtrailing` (x 140) |
 | 2.2 | `aStretchedStackChildFillsOnlyItsAutoAxesWithinItsOwnBounds` | `stack_stretch`, `stack_stretch_declared_size`, `stack_stretch_min`, `stack_stretch_max` (the golden's tree **minus `p`**, asserting root, `h`, `w`) | **M2b** `planLegacyItems`, the `.stack` case: `&& d.size.width == .auto` dropped → `stack_stretch_declared_size` (child 300 wide) |
-| 2.3 | `aStackHugsItsLargestChildInsideARowAndAroundOne` | `stack_sizes_to_largest`, `stack_in_flex`, `flex_in_stack` | **M2c** `LayoutTree`'s `.overlay` measurement answers its first child's size, not the per-axis maximum → `stack_sizes_to_largest`, `stack_in_flex` (stack 50×40) |
+| 2.3 | `aStackHugsItsLargestChildInsideARowAndAroundOne` | `stack_sizes_to_largest`, `stack_in_flex`, `flex_in_stack` | **M2c** `LayoutTree`'s `.overlay` measurement answers its first child's size, not the per-axis maximum → `stack_sizes_to_largest`, `stack_in_flex` (stack 50×40); also seen, recorded (`LR-EA`): 2.2's `stack_stretch_max` (w 40×50) |
 | 2.4 | `aDeferredAbsoluteBoxResolvesItsInsetsAgainstTheWindowAndLeavesTheFlow` | `abs_containing_block_skips_static`, `abs_percent_insets_nonsquare`, `abs_over_constrained`, `abs_single_inset_auto_size` (window 200×100), `abs_removed_from_flow` (800×600) | **M2d** `lowerPresentation`: the vertical axis resolved against `window.width` → `abs_percent_insets_nonsquare` (y 20) |
 | 2.5 | `aGrowFactorSumBelowOneStillFillsTheLine` | D pins: `flex_row_fractional_grow` (133/134/133), `flex_row_fractional_grow_clamped` (50/350) | **M2e** `planLegacyItems`: `d.flexGrow > 0` → `d.flexGrow >= 1` for `grownH`/`grownV` → both arms |
 | 2.6 | `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder` | D pin: `stack_stretch_border_box_floor` (f 100×100, c 40×50) | **M2f** `planLegacyItems.axis`, stretched axis of a non-frame-layer item: `lo` = the item's padding + border on that axis (CSS's `BM-4` floor) → both boxes (120×140) |
 | 2.7 | `aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding` | D pins: `flex_row_shrink_padded_weighting`, `sizing_specified_suggestion`, `sizing_specified_suggestion_is_used_value`, `sizing_over_constrained_grows` | **M2g** `paddedAndSized`: each folded declared size raised to its padding + border sum (stage 2's M4c) → `sizing_over_constrained_grows` (120×140), `sizing_specified_suggestion_is_used_value` (a 120) |
-| 2.8 | `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs` (`LR-DY`) | D report arms, each rendered under the proposal authority and asserting `unlowerableFields` exactly: `flex_wrap_reverse` — a `Row` of two fixed children with `.flexWrap(.wrapReverse)` → `[box.flexWrap]`; `flex_wrap_reverse_align_content_end` — the same plus `.alignContent(.flexEnd)` → `[box.flexWrap, box.alignContent]` (that order: `legacyContainerDiagnostics` appends `flexWrap` first); `flex_wrap_reverse_row_reverse` — `Box(style:)` with `flexDirection: .rowReverse`, `flexWrap: .wrapReverse` over two fixed children → `[box.flexWrap]`. `try #require` on the arm count (shape 13) | **M2h** `legacyContainerDiagnostics` (`LegacyLowering.swift:209`): `declared.flexWrap != .noWrap` → `declared.flexWrap == .wrap` → all three arms; `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`'s `.wrap` arm must stay **green** (it cannot see this mutation — which is why 2.8 exists) |
+| 2.8 | `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs` (`LR-DY`) | D report arms, each rendered under the proposal authority and asserting `unlowerableFields` exactly: each arm is **its golden's own tree** (`LR-EA`, lane 2: the fixture's CSS as `Box(style:)` fields, as 2.1–2.7): `flex_wrap_reverse` (260×300, `wrap-reverse`, `align-content: flex-start`, five fixed children, three with `alignSelf`) → `[box.flexWrap, box.alignContent]`; `flex_wrap_reverse_align_content_end` (`wrap-reverse`, `align-content: flex-end`, `gap: 12px 0`, three fixed children) → `[box.flexWrap, box.alignContent]` (that order: `legacyContainerDiagnostics` appends `flexWrap` first); `flex_wrap_reverse_row_reverse` (`row-reverse`, `wrap-reverse`, `gap: 10px 6px`, three fixed children, two with margins) → `[box.flexWrap]`. `try #require` on the arm count (shape 13) | **M2h** `legacyContainerDiagnostics` (`LegacyLowering.swift:209`): `declared.flexWrap != .noWrap` → `declared.flexWrap == .wrap` → all three arms; `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`'s `.wrap` arm must stay **green** (it cannot see this mutation — which is why 2.8 exists) |
 
 Each D-pin test's doc comment names the golden, WebKit's answer, the native
 answer and the concept (record §42 §2's table), so a later reader who sees the
