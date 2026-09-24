@@ -188,9 +188,10 @@ Read against `caa331a`; ruling `LR-FH`, with amended paragraphs on `LR-FD`,
   `AuthorityCoverage` users and the differential-harness users overlap in five
   test files (49 of the 87 scenarios). Re-cut by harness: lane 1 −11 → 1441,
   lane 2 −32 → 1409, lane 3 +1 → 1410.
-- **Labels**: twelve retirements the design marked R have no replacement test
-  and are D (`LR-FF`'s amended paragraph lists them); the stage total is
-  unchanged.
+- **Labels**: thirteen retirements `LR-FF` marked "(R)" have no replacement
+  test and are D (its amended paragraph lists them); the spec's §6 tables
+  already read D for all but `noProductionFrameReachesTheLegacyEngine`, and
+  §5 had two R rows. The stage total is unchanged.
 - **M3a**: `reportPresentationContainingBlock(root:)` raises `deferred.root`
   as well as `deferred.containingBlock` (`Frame.swift:1833`), so restoring its
   call reddens five of N3.1's arms, not four.
