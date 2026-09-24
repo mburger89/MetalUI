@@ -14,7 +14,8 @@ import MetalUIDemoContent
 // note after `demoContent()`; record §50, "2026-09-24 — Windows stack
 // budget"). This builds every production tree on a 1 MB thread on every
 // platform, inside an exit test so that an overflow fails this test rather
-// than killing the run. Red at `b9a5d7f` on macOS: `.signal(SIGBUS)`.
+// than killing the run. Red at `b9a5d7f`: `.signal(SIGBUS)` on macOS arm64,
+// `.signal(SIGSEGV)` in a `swift:6.4-noble` aarch64 container.
 //
 // Only the BUILD runs on the small thread: rendering reaches `Text`'s and
 // `ProposalText`'s unguarded `MainActor.assumeIsolated`, which traps off the
@@ -45,16 +46,29 @@ func buildEveryProductionTree(onAThreadOf stackSize: Int) {
     while !thread.isFinished { Thread.sleep(forTimeInterval: 0.001) }
 }
 
+/// Too small for the demo on every platform (it needs 528 KB on macOS arm64),
+/// and large enough that every `Foundation` honours it: swift-corelibs
+/// silently keeps its 8 MB default for a request of 64 KB (measured in a
+/// `swift:6.4-noble` container: `stackSize` read back 8388608, and a recursion
+/// reached 8184 KB), which made a 64 KB arm of this harness pass on Linux.
+let tooSmallForTheDemo = 256 * 1024
+
 @Test func everyProductionTreeBuildsOnAOneMegabyteThread() async {
     await #expect(processExitsWith: .success) {
         buildEveryProductionTree(onAThreadOf: windowsDefaultStackSize)
     }
 }
 
-/// Not vacuous: the same harness with a thread far too small for the demo
-/// fails, so the test above can see an overflow at all.
+/// Not vacuous: the same harness with a thread too small for the demo fails,
+/// so the test above can see an overflow at all — and both sizes are the ones
+/// the thread will really get, not a request `Foundation` drops.
 @Test func aThreadTooSmallForTheDemoFailsTheSameHarness() async {
+    for size in [windowsDefaultStackSize, tooSmallForTheDemo] {
+        let thread = Thread {}
+        thread.stackSize = size
+        #expect(thread.stackSize == size, "Foundation did not keep a \(size)-byte stack request")
+    }
     await #expect(processExitsWith: .failure) {
-        buildEveryProductionTree(onAThreadOf: 64 * 1024)
+        buildEveryProductionTree(onAThreadOf: tooSmallForTheDemo)
     }
 }
