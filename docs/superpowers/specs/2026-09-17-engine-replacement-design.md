@@ -58,7 +58,33 @@ It meets §4.1 row 7a's exit with one respelling: the check is `find
 Tests/MetalUILayoutTests -name "*.json"`, not `find Tests`, because
 `Tests/PortableTests/.build/` holds JSON build artifacts — it reads 0, and every
 one of the 97 goldens has a row naming its native replacement arm (44) or its
-deleted CSS-only concept (53). Suite 1616, 0 px. §4.1's
+deleted CSS-only concept (53). Suite 1616, 0 px. **Stage 7b (the non-golden
+CSS-engine tests retired) has landed on its branch, not yet merged**
+(Record phase, 2026-09-24): `feat/engine-stage-7b` from `41344e5`, record
+§49, spec
+[`2026-09-23-engine-stage-7b-design.md`](2026-09-23-engine-stage-7b-design.md).
+It meets §4.1 row 7b's exit: `grep -rn "computeLayout(" Tests` is empty, and
+the 245-row retirement table (record §49 §4) accounts for every `@Test`
+removed — 236 removed, 11 added, 1670 − 236 + 11 = **1445**. Every one of the
+named-up-front mappings in row 7b's own cell held: `LayoutContextTests`' depth
+guard → `NativeDepthGuardTests`; `StackLayoutTests` → native overlay tests and
+stage 1's 4.1; `AlignmentTests` → `NativeStackDistributionTests` for what
+stage 2 maps, a deleted concept for the rest; `LeafProbeShortcutTests`,
+`FreezeLoopTests`, `FreezeLoopAllocationTests`, `FlexBaseSizeTests`,
+`IntrinsicModeTests`, `MeasureCacheTests`, `MeasureNodeTests` → a deleted
+concept, `NativeLayoutWorkTests` the kernel's own work-count pin, and the
+freeze-loop CI hazard retired with `FreezeLoopAllocationTests.swift`;
+`AbsolutePositioningTests` → stage 5's replacement; `MeasurePerformanceTests`
+retires nothing (its rows were re-spelled by stage 4; record §49 §2). An
+independent re-check of all three lanes (record §49 §8) corrected the
+gated-test count (nine → **eleven**, this stage's own merged baseline) and
+divergence 4's retirement (the row retires; its behaviour stays exercised,
+unnamed, by roughly thirty `.legacy` arms until stage 9). 0 px, goldens 0,
+guards 78 unmoved. Divergence 4 retires (58 → 57 live); nothing of 8–11 is
+pre-empted — `FlexEngine`, `computeLayout`, the legacy authority, the legacy
+lowering and every test using the legacy authority as the *other* arm of a
+comparison (the 199 of record §49 §2's census section A) all stay for stage 9.
+§4.1's
 table below is still the plan of record for the remaining stages; the **live** per-stage status is the
 stage list under task 7 in
 `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, and task 7's box there

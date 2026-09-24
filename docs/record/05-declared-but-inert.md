@@ -322,3 +322,26 @@ test-only `assertMatchesGolden` is gone with its callers, and the one private
 test helper left with no caller (`FlexEngineTests`' `threeJustifiedChildren`)
 was deleted with them (`LR-EB`), so the removal leaves no stored-but-unread
 state of its own.
+
+## 2026-09-24: no row changed at engine replacement stage 7b, two evidence citations lost
+
+Record §49; rulings `LR-EC`…`LR-EP`. **No row added, edited or deleted.**
+Stage 7b's `Sources/` diff is comment lines only (checked, record §49 §6.1's
+`git diff … | grep -vE '^[-+]\s*//'` prints nothing over every lane), so no
+declared-but-inert property gains or loses a reader. One row's evidence is
+thinner, not wrong: the `Style.padding`/`.border`/`.margin` on a leaf row (the
+long cell above) cites `aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`
+and `aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`, both in
+`FlexBaseSizeTests`, one of the seventeen files stage 7b retired whole (no row
+in record §49 §4 names either — the file's tests are all CSS-engine-subject
+tests with no distinct native fact to hand to an N row, since the shrink
+weighting they measure is `FlexItem.mainEdges`' own internal accounting, not
+externally observable under the proposal engine). `Sources/MetalUILayout/FlexBaseSize.swift:53`
+and `:128` still name them in comments, listed and left for stage 9 (record
+§49 §5.1). **The figures (50/50, 83/17, 125/75) are no longer asserted by any
+test** — the underlying `Sources/` code is untouched (this stage moved no
+`Sources/` behaviour line), so the numbers still hold if re-measured, but
+nothing in the suite would catch a regression in them between now and
+stage 9, when `FlexBaseSize.swift` itself retires. Not a declared-but-inert
+row in the usual sense (the property is reachable, just untested) — noted here
+because this is the row those two names were cited from.

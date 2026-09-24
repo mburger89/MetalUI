@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-EC`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-EQ`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -90,6 +90,14 @@ milestones append their record to `docs/record/` and put only the rule here.
   replacement arm or its deleted CSS-only concept; probe
   `swiftui-engine-stage-7a.swift` arms W, G, S, A, B; instrument
   `docs/probes/stage-7a-transcription-instrument.patch`),
+  7 stage 7b `LR-EC`…`LR-EP` (§49, spec
+  `specs/2026-09-23-engine-stage-7b-design.md`, same decisions doc — the
+  non-golden CSS-engine tests of spec §2.6's files and the element tests
+  stages 6a/6b pinned `.legacy` with a 7b owner are retired, each with a row
+  in record §49 §4 naming its native replacement or its deleted CSS-only
+  concept; divergence 4 retires as a CSS-engine row (`LR-EH`, `LR-EP`); **no
+  new SwiftUI probe** — its claims are arms of five existing probes, re-run
+  2026-09-24 (`LR-EI`)),
   7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
@@ -167,6 +175,52 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Stage 7b's counts (2026-09-24, `feat/engine-stage-7b` from `41344e5`,
+  plan task 7 stage 7b — not yet merged with `master`): 1445 tests, 0 goldens,
+  78 typecheck guards**, 0 `error:`, the one `warning:` SwiftPM's deprecation
+  notice on both build systems, taken after `swift package clean` with
+  `swift build --build-system native --build-tests` then unfiltered `swift
+  test --build-system native --no-parallel` (**one summary line**, `Test run
+  with 1445 tests in 3 suites passed after 86.235 seconds`; **eleven** gated
+  tests skipped — the same eleven named below, unchanged by this stage; the
+  guards ran — the log carries `FR-J no-argument frame: succeeded=`). No
+  goldens to move (`find Tests/MetalUILayoutTests -name "*.json" | wc -l`
+  reads 0, as at `41344e5`; none remained since stage 7a). **1445 = 1670 −
+  236 + 11**: 236 non-golden CSS-engine tests retired (190 the eighteen
+  engine files spec §2.6 left after stage 7a, plus `NativeBoundaryTrapTests`'
+  three `computeLayout(` callers; 36 frame/component/container/modifier-chain
+  tests; 10 text/style-reader/decoration/matrix/divergence-4 tests) and 11
+  new proposal-authority tests added (2 + 4 + 5) — every retired test's row
+  in record §49 §4 (245 rows) names either a native test that asserts the
+  same fact under the proposal engine, the CSS-only concept it dies with, or
+  the new test written first, red-before-green. `grep -rn "computeLayout("
+  Tests` is empty (the exit criterion `NativeBoundaryTrapTests` used to fail
+  on `layingOutATreeDeeperThanTheLimitTraps`-style callers, now gone).
+  **Divergence 4 retires as a CSS-engine row** (`LR-EH`, `LR-EP`): its two
+  D-row tests (`autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot`,
+  `anAutoRootWithNoOfferedExtentMeasuresItsContent`) and
+  `RootSwitchTests`' `.legacy` arm are gone, but `CS-I`'s behaviour (a
+  hugging legacy root fills the offered extent from (0, 0)) stays exercised,
+  unnamed, by the `.legacy` arm of roughly thirty `AuthorityCoverage`-
+  parameterised tests until stage 9 deletes the legacy authority and those
+  arms with it — it is not "no pin left". `Sources/` diff against `41344e5`
+  is comment-only (`git diff 41344e5 -- Sources | grep -E '^[-+]' | grep -vE
+  '^(\+\+\+|---)' | grep -vE '^[-+]\s*//'` prints nothing); **no `Sources/`
+  line of production behaviour moves**. The fourteen-image offscreen
+  comparison (`docs/probes/demo-pixels/compare.sh`) reads 0 differing pixels
+  and identical scenes against `41344e5`; `DemoFrameDeterminismTests` is
+  unedited and green. **Portable CI drops from 388 to 200** (record §49 §6.1,
+  `LR-EM` item 5): **200 = 388 − 189 + 1** — 190 of `MetalUILayoutTests`'
+  tests retired with the stage, one of them
+  (`freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine`) already
+  `#if canImport(Darwin)`-gated on Linux/Windows, plus one replacement
+  (N1.2); Linux and Windows CI now run **200 + 22 + 3** for
+  `MetalUILayoutTests` + `MetalUICoreTests` + `MetalUICrossPlatformTests`
+  (measured in `swift:6.4-noble`). Guards stay **78** (no guard file touched)
+  and goldens stay **0**. History: record §49 (its §8 is an independent
+  re-check of all three lanes, which corrected the gated count from a
+  carried-over "nine" to the measured **eleven** and restated divergence 4's
+  retirement as above).
 - **Counts (2026-09-24, `feat/engine-stage-7a` — plan task 7 stage 7a —
   merged with `master` at `6e01d9e`, records §42–§47): 1670 tests, 0 goldens,
   78 typecheck guards**, 0 `error:`, 0 `warning:` on both build systems,
@@ -466,14 +520,21 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
   and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
   appended on macOS in the manifest — and run `MetalUILayoutTests`,
-  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**388 + 22 + 3**,
-  measured in `swift:6.4-noble` after stage 7a; the WebKit goldens' 96
+  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**200 + 22 + 3**,
+  measured in `swift:6.4-noble` after stage 7b; the WebKit goldens' 96
   consumer tests and the two ungated corpus tests
   (`everyFixtureFileIsListedInTheCorpus`, `goldenFileRoundTripsThroughJSON`)
   were portable and counted in `MetalUILayoutTests`' figure, so retiring them
   at stage 7a drops it from 486 to 388 (486 − 96 − 2) — the 8 + 8 native
   replacements do not restore it, landing instead in `MetalUITests`, which
-  depends on `MetalUIAppKit` and is macOS-only), the last pinning the demo's
+  depends on `MetalUIAppKit` and is macOS-only; **stage 7b drops it again,
+  388 to 200** (388 − 189 + 1): 190 of `MetalUILayoutTests`' non-golden tests
+  retired with the CSS engine's own suites, one of them already
+  `#if canImport(Darwin)`-gated on this platform
+  (`freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine`), plus one
+  replacement (N1.2) — every other stage-7b replacement lands in
+  `MetalUITests`, which Linux and Windows CI do not run (record §49 §6.1,
+  `LR-EM` item 5)), the last pinning the demo's
   whole frame byte-for-byte against
   macOS (`XP-C`). Inside `MetalUI`, CoreText stays behind `#if
   canImport(MetalUIText)`; off Apple a `Frame`/`Window` without a text system
@@ -1241,8 +1302,8 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**58 live**, stable labels; retired labels never
-  reused: 3, 5–8, 12, 15, 17, 36, 37, 40, 59) — record §04 is current (its
+- **Known divergences** (**57 live**, stable labels; retired labels never
+  reused: 3, 4, 5–8, 12, 15, 17, 36, 37, 40, 59) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
   its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
   adding a number, its first 2026-09-23 section likewise amends **13, 14 and
@@ -1258,9 +1319,25 @@ expected, measured facts:
   its own answer, unchanged by the switch), and divergence 4 (the legacy
   engine's `CS-I`: a hugging root fills the offered extent from (0, 0))
   becomes **legacy-authority only**, pinned by its own CSS-engine tests,
-  retired with the legacy engine at 7b; and its 2026-09-23 (stage 7a) section
+  retired with the legacy engine at 7b; its 2026-09-23 (stage 7a) section
   amends **55**'s pin, which read "covered by the CSS goldens" — the goldens
-  are retired, and the row is pinned by name on both sides without them);
+  are retired, and the row is pinned by name on both sides without them; and
+  its 2026-09-24 (stage 7b) section **retires 4** (58 → 57 live; 4 joins the
+  never-reused list): its two CSS-engine tests
+  (`autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot`,
+  `anAutoRootWithNoOfferedExtentMeasuresItsContent`) and
+  `RootSwitchTests`' `.legacy` arm are gone, but `CS-I`'s behaviour (a
+  hugging legacy root fills the offered extent from (0, 0)) stays exercised,
+  unnamed, by the `.legacy` arm of roughly thirty
+  `AuthorityCoverage`-parameterised tests until stage 9 deletes the legacy
+  authority and those arms with it — **not** "retired with the legacy
+  engine" as the stage-6b section above anticipated; it retires here as a row
+  about the CSS engine, its behaviour outliving it unnamed (`LR-EH`, `LR-EP`,
+  record §49 §8); the same section also re-pins **9, 48, 52, 53 and 55**
+  without retiring or adding a number — each lost the single-authority
+  CSS-engine test that used to be its only pin, superseded by an
+  already-live differential test that carries both engines' answers in one
+  body (record §04's 2026-09-24 section names each pair));
   §19 "Known divergences" is the frozen 48-row copy. Many are *pinned wrong on
   purpose*; a test named for one reddening may be a fix, not a bug.
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
@@ -1350,9 +1427,13 @@ expected, measured facts:
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a
   guard that ran costs real `swiftc -typecheck` time, ~0.46 s each for the four
   `GridCompileGuards`, which is the only way to tell it from one that returned
-  true for free); the
-  freeze-loop allocation pin checks only half itself on Apple toolchains
-  (`FREEZE-ALLOC: strict per-pass bound NOT CHECKED`); `malloc_logger` tests
+  true for free); **retired with stage 7b's removal of
+  `FreezeLoopAllocationTests.swift`**: the freeze-loop allocation pin that
+  checked only half itself on Apple toolchains
+  (`FREEZE-ALLOC: strict per-pass bound NOT CHECKED`) — the surviving
+  `malloc_logger` installer is `ModifiedElementTests`' own copy, whose
+  hazard (two installers racing under a parallel run) is now moot with only
+  one left; `malloc_logger` tests still
   need `--no-parallel`; E24 hard-fails under the root locale; seven
   `AnimationTests` hard-fail without a display device. Two more were added by
   stage 3 (the first renamed and widened by stage 4, then widened again by

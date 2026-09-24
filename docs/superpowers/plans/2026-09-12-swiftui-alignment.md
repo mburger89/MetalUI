@@ -699,6 +699,47 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   8 + 8), goldens **0**, guards 78; 0 px in all fourteen offscreen images.
   Nothing of 7b is pre-empted: the other CSS-engine tests, `FlexEngine` and
   every `.legacy` pin stay for 7b and 9.
+  *Progress 2026-09-24 on `feat/engine-stage-7b` (from `41344e5`, `master`'s
+  tip after the stage-7a merge), stage 7b of 14, task still open.* Spec
+  `specs/2026-09-23-engine-stage-7b-design.md`; rulings `LR-EC`…`LR-EP` in
+  `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages
+  1–7a; `LR-EP` is this record phase's own correction); no new SwiftUI probe
+  — five existing probes re-run 2026-09-24, every output line verbatim in its
+  header (`LR-EI`); record `docs/record/49-engine-replacement-stage-7b.md`.
+  **The non-golden CSS-engine tests are retired**: the 187 left in spec
+  §2.6's eighteen files after 7a (`StyleTests`' 4 kept), the three
+  `NativeBoundaryTrapTests` `computeLayout(` callers, and the 50 element
+  tests stages 6a/6b pinned `.legacy` with a 7b owner — 245 rows in record
+  §49 §4, each an **R** (a native test already asserts the same fact), a
+  **D** (a named CSS-only concept with the native answer instead), an **N**
+  (a new proposal-authority test, eleven of them, ten new bodies), a **T**
+  (trimmed, byte-identical elsewhere) or a **K** (`StyleTests`, kept
+  untouched). A critic round (`LR-EL`) preceded three lanes, each with its
+  own mutation table, all verified `ok`; a fourth, independent re-check of
+  all three lanes (record §49 §8, `LR-EP`) found and fixed two documentation
+  errors — the gated-test count (carried over as "nine" from stage 7a's
+  pre-merge branch figure, where the merged baseline reads **eleven**) and
+  divergence 4's retirement (restated: the row retires, but `CS-I`'s
+  behaviour stays exercised, unnamed, by roughly thirty `.legacy` arms until
+  stage 9) — and six stale test-file comments, all comment-only. **Exit
+  criterion met**: `grep -rn "computeLayout(" Tests` empty; suite **1445**
+  (1670 − 236 + 11); the census instrument's markers fall in exactly the 199
+  tests that use the legacy authority as the other arm of a comparison, not
+  as a subject (record §49 §2); 0 px in all fourteen offscreen images;
+  `Sources/` diff comment-only (no behaviour line moves); 0 `warning:` on
+  both build systems. Goldens **0** (none remained), guards **78** unmoved.
+  **Divergence 4 retires** (58 → 57 live); divergences 9, 48, 52, 53 and 55
+  keep their fact with a new pin, their single-authority CSS-engine test
+  retired in favour of an already-live differential test that carries both
+  engines' answers (record §04's 2026-09-24 section). The freeze-loop
+  allocation CI hazard retires with `FreezeLoopAllocationTests.swift`
+  (record §08). Portable CI (`MetalUILayoutTests` + `MetalUICoreTests` +
+  `MetalUICrossPlatformTests`) drops **388 → 200**. **Not done:** `FlexEngine`,
+  `computeLayout`, the legacy authority, `Frame.requestNode`/`requestLeaf`
+  and the legacy lowering are untouched (7b retires tests, not `Sources/`);
+  the 199 census-A tests and every differential replacement's proposal arm
+  wait for stage 9 (`LR-EK`); the real-window capture and the demo-layout
+  human-verification rows record §03 re-opens are still owed to the human.
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

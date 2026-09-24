@@ -29,8 +29,11 @@ side, and which one runs is decided by the window's **root** element
 (`Frame.computeRootLayout`, `Sources/MetalUI/Frame.swift`):
 
 - **Legacy (CSS-derived):** `Box`, `Row`, `Column`, `Stack`, `ScrollView`,
-  `List`, `Deferred`, `Text`, and their modifiers. This is still the default
-  path, and the milestone demo uses it.
+  `List`, `Deferred`, `Text`, and their modifiers. **Production has run the
+  proposal engine by default since plan task 7's stage 6b** — every legacy
+  element still lowers through it unless a `Frame`/`Window` is built with an
+  explicit `.legacy` authority (a test convenience); the milestone demo is no
+  exception.
 - **Proposal layout (new):** `HStack`, `VStack`, `ZStack`, `Spacer`,
   `Rectangle`, `Color`, `ProposalScrollView`, `Text(…).proposalLayout()`, the
   single-child wrappers `ProposalFrame`, `Padding`, `Background` and
@@ -110,16 +113,22 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-7a` (2026-09-24 — plan task 7 stage 7a, the goldens
-retired, merged with `master` at `6e01d9e`) the suite reports **1670 tests**
-(1758 − 104 + 16), in one
+On `feat/engine-stage-7b` (2026-09-24 — plan task 7 stage 7b, the non-golden
+CSS-engine tests retired, not yet merged with `master`) the suite reports
+**1445 tests** (1670 − 236 + 11), in one
 summary line over three suites. That total includes **78** `swiftc -typecheck`
-guards and no WebKit goldens: stage 7a retired all 97 (record §48).
+guards and no goldens: stage 7a retired all 97 (record §48), and stage 7b
+retired the CSS engine's remaining non-golden tests — every one of spec
+§2.6's files and the element tests stages 6a/6b had pinned to the legacy
+authority — each with a row naming its native replacement or the CSS-only
+concept it dies with (record §49). `FlexEngine` and the legacy layout
+authority are unchanged; only the tests that exercised the CSS engine **as
+their subject** are gone.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
-[`CLAUDE.md`](CLAUDE.md) for how to count them. **Production now runs the
-proposal (SwiftUI-alignment) layout engine by default as of this stage** —
-`Frame.defaultLayoutAuthority` is `.proposal`.
+[`CLAUDE.md`](CLAUDE.md) for how to count them. **Production has run the
+proposal (SwiftUI-alignment) layout engine by default since plan task 7's
+stage 6b** — `Frame.defaultLayoutAuthority` is `.proposal`.
 
 ## What it looks like
 
@@ -375,15 +384,18 @@ transforms, and text colour animation.
     [stage 5](docs/superpowers/specs/2026-09-23-engine-stage-5-design.md)
     [stage 6a](docs/superpowers/specs/2026-09-23-engine-stage-6a-design.md)
     [stage 6b](docs/superpowers/specs/2026-09-23-engine-stage-6b-design.md)
-    and [stage 7a](docs/superpowers/specs/2026-09-23-engine-stage-7a-design.md)
-    specs (plan task 7, stages 1, 2, G, 3, 4, 5, 6a, 6b and 7a of 14 landed —
+    [stage 7a](docs/superpowers/specs/2026-09-23-engine-stage-7a-design.md)
+    and [stage 7b](docs/superpowers/specs/2026-09-23-engine-stage-7b-design.md)
+    specs (plan task 7, stages 1, 2, G, 3, 4, 5, 6a, 6b, 7a and 7b of 14
+    landed —
     legacy elements lower onto the kernel, with SwiftUI's flex-item
     semantics, scrolling, `Component` distribution, a windowed `List` and
     `Deferred`'s absolute content as a presentation root; the public
     custom-element registrars are deprecated with every test caller moved
     off them; **production now runs the proposal engine by default** —
     stage 6b's root switch, `Frame.defaultLayoutAuthority = .proposal`; the
-    97 WebKit goldens are retired — stage 7a)
+    97 WebKit goldens are retired — stage 7a; the CSS engine's remaining
+    non-golden tests are retired — stage 7b, not yet merged with `master`)
   - [grids spec](docs/superpowers/specs/2026-09-17-grids-design.md)
     (plan task 7 stage G, delivered: SwiftUI's `Grid` and `GridRow` on the
     proposal path as a kernel node; lazy grids are proposed as stage G2)

@@ -1083,3 +1083,78 @@ Every other row's pin was checked by grep against the names of the 96 removed
 consumer tests and the eight removed `GeneratorTests`/`OracleTests`: none
 cites one. The prose paragraphs above that say "no fixture or golden encodes"
 a divergence stay true, and are now true of every divergence.
+
+## 2026-09-24: 4 retired; 9's legacy pin moves; 48, 52, 53 and 55 keep their fact with a new pin (plan task 7 stage 7b)
+
+Record §49; rulings `LR-EC`…`LR-EP` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`. Stage 7b
+retires the non-golden CSS-engine tests of spec §2.6's 24 files and the
+element tests stages 6a/6b pinned `.legacy` with a 7b owner (245-row table,
+record §49 §4). Every pin below was checked against that table by grep for
+its exact name.
+
+- **4 retires** (58 → 57 live; joins the never-reused list, alongside 3, 5–8,
+  12, 15, 17, 36, 37, 40, 59). Its two CSS-engine tests
+  (`autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot`,
+  `anAutoRootWithNoOfferedExtentMeasuresItsContent`, both D, record §49 rows
+  56–57) and `RootSwitchTests`' `.legacy` arm (row 245, T) are gone. **This is
+  not "no pin left"**, corrected from record §49's own first draft (`LR-EP`):
+  `CS-I`'s behaviour — a hugging legacy root fills the offered extent from
+  (0, 0) — stays exercised, unnamed, by the `.legacy` arm of roughly thirty
+  `AuthorityCoverage`-parameterised tests (measured by mutating
+  `Frame.computeRootLayout`'s legacy branch: 43 issues, 30 tests, record §49
+  §8) until stage 9 deletes the legacy authority and those arms with it. The
+  row retires because nothing names `CS-I` any more by a CSS-engine-subject
+  test, not because the behaviour is gone.
+- **9** (an all-`auto`-inset absolute box sits at its containing block's
+  origin, not CSS's static position). **Unchanged**, but its pre-stage-5
+  legacy pin, `allAutoInsetsPlaceAtTheContainingBlockOriginNotTheStaticPosition`
+  (`AbsolutePositioningTests.swift`), is retired (R, record §49 row 141) along
+  with the whole file. The fact is unaffected: stage 5's amendment (above)
+  already added the live pin,
+  `PresentationLoweringTests`' 1.1 (its `.proposal` arm), and row 141's own
+  replacement, `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`'s
+  "no insets, after an in-flow sibling (divergence 9)" arm, carries the
+  legacy answer that the retired test used to.
+- **48, 52, 53 and 55 keep their fact; each loses the single-authority test
+  that used to be its only CSS-engine pin, superseded by a still-live
+  differential test that already asserted both engines' answers in one body.**
+  None of these divergences is *about* the legacy-vs-proposal split — 48 and
+  55 are legacy-vs-SwiftUI facts still true under an explicit `.legacy`
+  `Frame`/`Window` (production reaches neither since stage 6b); 52 and 53 are
+  `Row`/`Column`-vs-`HStack`/`VStack` container-identity facts, true under
+  *either* authority, since a lowered `Row`/`Column` still defaults to 0 and a
+  lowered `Stack` still offers fit-content (`aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault`'s
+  own `expectFullAgreement` checks legacy and lowered **agree** at the Row/Column
+  default). Retired pin → surviving pin, each checked by reading the
+  surviving test's body for both engines' numbers:
+  - **48**: `aComponentsWidthStillOverwritesItsMembersDeclaredWidth` (D, row
+    219) → `LoweringComponentTests.aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`,
+    whose `lane4Rects` calls read both `legacy:` and `lowered:` rects per
+    member (already cited as 48's proposal-side pin since stage 3; now its
+    only pin).
+  - **52**: `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`
+    (R, row 226) → `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault`
+    (both engines' gap-0 and gap-8 arms) plus
+    `aStackWithoutSpacingPutsEightBetweenViewsAndNothingBesideASpacer` (the
+    `HStack`/`VStack` half; record §49 §6.2's own reading of this row).
+  - **53**: `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal` (R,
+    row 227) → `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent`
+    (4.2; both engines in one body; stack-algorithms A5, re-run 2026-09-24).
+  - **55**: `shrinkIsWeightedByBaseSize` (D, row 112, `FreezeLoopTests` —
+    deleted whole) → `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight`
+    (already cited by 7a's amendment; its `legacyA`/lowered pair in one body
+    is both sides at once, so nothing is lost).
+  **56** needed no amendment: its 2026-09-16 pins
+  (`aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`,
+  `chainedFramesRemainConcreteAndNestTheirLayoutNodes`) are retired (R, rows
+  208–209) but stage 3 had already replaced them with
+  `aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem`,
+  which is not in this stage's retirement scope (a `Lowering*` differential,
+  not a CSS-engine-subject test) and stands unchanged.
+
+**What it costs if wrong.** Divergences 48, 52, 53 and 55 read as unpinned to
+a reader who greps only for their original 2026-09-16 test names — each now
+has a live pin, named above; a reader following the frozen table's original
+column without this section would conclude wrongly that the fact went
+untested.
