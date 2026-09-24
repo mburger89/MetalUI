@@ -1824,8 +1824,8 @@ public final class Frame {
     /// containing block is the root's padding box, `AP-C`), a non-`auto` size not
     /// resolving to the window's extent on that axis, or a `minSize` resolving
     /// above / `maxSize` below that extent (any percentage counts) — the last for
-    /// a `.frame(minWidth:)`/`.frame(maxWidth:)` root, a `.frameLayer` record the
-    /// unconsumed report never reads. The declared style is the one the legacy
+    /// a `.frame(minWidth:)`/`.frame(maxWidth:)` root, a `.frameLayer` record whose
+    /// bounds the unconsumed report never reads. The declared style is the one the legacy
     /// engine would register; the root's native rect would not do, because a
     /// hugging native root is not the window while the legacy auto root is
     /// (`CS-I`). A root with no record — the differential harness's native root,

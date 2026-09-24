@@ -658,13 +658,22 @@ private struct PlainPair: Component {
 /// 3. a two-member `Component`'s `.frame(width: 20, height: 20).position(.absolute)
 ///    .inset(…)` in a `Deferred` still reports `modifierLayer.style` — a row of
 ///    per-member frames as a presentation root is unmeasured (owner stage 11).
+/// 4. the same framed absolute box **as the frame's root** reports
+///    `modifierLayer.position.unconsumed` then `modifierLayer.inset.unconsumed`, as
+///    the own-box spelling reports `box.position.unconsumed`/`box.inset.unconsumed`
+///    there — an unconsumed frame-layer record
+///    whose declared style is absolute reports those two names and only those
+///    (`LR-FA`), so a converted absolute root still traps in production.
 ///
-/// Red before: arm 2 reports `[modifierLayer.style]`.
+/// Red before: arm 2 reports `[modifierLayer.style]`; arm 4 reported `[]` until
+/// `LR-FA` (lane 1's review round).
 ///
 /// Mutations that must redden it: **M1c** (the comparison skipped entirely when
 /// the declared style is absolute) → arm 1; **M1d** (the `.frameLayer` guard
 /// restored in `planLegacyItems`' outside-a-`Deferred` report) → arm 2 lowers
-/// silently; **M1h** (the one-node condition dropped from the exemption) → arm 3.
+/// silently; **M1h** (the one-node condition dropped from the exemption) → arm 3;
+/// **M1i** (`reportUnconsumedLoweredItems`' unconditional `.frameLayer` skip
+/// restored) → arm 4 lowers silently.
 @MainActor
 @Test func aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred() throws {
     let grown = rootDiagnostics(width: 200, height: 200) {
@@ -692,4 +701,9 @@ private struct PlainPair: Component {
     #expect(grown == ["modifierLayer.style"], "arm 1, a grow after the frame: \(grown)")
     #expect(inFlow == ["modifierLayer.position", "modifierLayer.inset"], "arm 2, no Deferred: \(inFlow)")
     #expect(pair == ["modifierLayer.style"], "arm 3, a two-member frame: \(pair)")
+    let asRoot = rootDiagnostics(width: 200, height: 200) {
+        Box().frame(width: px(20), height: px(20)).background(.accent)
+            .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
+    }
+    #expect(asRoot == ["modifierLayer.position.unconsumed", "modifierLayer.inset.unconsumed"], "arm 4, the frame's root: \(asRoot)")
 }

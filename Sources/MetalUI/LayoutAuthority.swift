@@ -68,7 +68,8 @@ enum LoweringSite: String, Sendable {
 /// **`component` reports nothing at all since stage 3's lane 4** (`LR-BO`): it
 /// read `"amend"` or `"wrap"` until both ops were lowered, and neither lowering
 /// can raise an entry at its own site — an amend's frame is recorded
-/// `kind: .frameLayer`, which the unconsumed report skips, and both ops plan
+/// `kind: .frameLayer`, whose fields the unconsumed report skips (all but an
+/// absolute `position`/`inset`, stage 8's `LR-FA`), and both ops plan
 /// exactly one child, so neither can raise `flexGrow.weights`, the one entry
 /// `parentSite:` names (`LR-BM`).
 struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
