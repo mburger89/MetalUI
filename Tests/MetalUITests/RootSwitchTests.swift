@@ -201,10 +201,13 @@ private func draw(_ root: ProductionRoot, frames: Int,
     // row spelling is why this `List` root reads 16 where the design's fixture,
     // without the declared height, read 15 (and this one, with the line
     // removed, reads 15 — measured). The window size and the demo's state move
-    // nothing.
+    // nothing. **29 again since stage 8** (`LR-EZ`, measured): the recipe drops
+    // the list row's `.alignItems(.center).flexGrow(1)` (`LR-ES`'s R4 — the
+    // frame's own `.center` does the centring), one lowered level fewer on the
+    // same deepest path.
     let expected: [String: Int] = [
-        "demo 1024": 30, "demo-modal 1024": 30, "demo-animation 1024": 30,
-        "demo 920x560": 30, "demo-modal 920x560": 30, "demo-animation 920x560": 30,
+        "demo 1024": 29, "demo-modal 1024": 29, "demo-animation 1024": 29,
+        "demo 920x560": 29, "demo-modal 920x560": 29, "demo-animation 920x560": 29,
         "preview 1024": 10, "list 920x560": 16,
     ]
     for root in productionRoots {

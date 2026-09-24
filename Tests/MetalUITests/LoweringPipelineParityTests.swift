@@ -116,7 +116,9 @@ private func expectWindowAgreement(_ r: LayoutDifferential.Report, _ step: Strin
         window.drawFrameIfNeeded()
     }
     let first = pair.report()
-    try #require(first.elements == 9, "\(first.elements)")
+    // 12 since stage 8 (`LR-EZ`): the counter's three squares each gained a
+    // `.frame` layer, one identity level apiece (`LR-ES`'s R7) — 9 + 3.
+    try #require(first.elements == 12, "\(first.elements)")
     expectWindowAgreement(first, "first frame")
     #expect(pair.lowered.window.lastElementBounds[counterElementID] == bounds(0, 0, 260, 60))
     #expect(pair.lowered.window.lastElementBounds[child(counterElementID, 2)] == bounds(212, 12, 36, 36))
@@ -183,7 +185,8 @@ private func expectWindowAgreement(_ r: LayoutDifferential.Report, _ step: Strin
     }
     #expect(Set(frames.map { "\($0)" }) == Set([bounds(12, 12, 36, 36), bounds(212, 12, 36, 36)].map { "\($0)" }))
     let report = pair.report()
-    try #require(report.elements == 9, "\(report.elements)")
+    // 12 since stage 8 (`LR-EZ`), as in 5.4 above.
+    try #require(report.elements == 12, "\(report.elements)")
     expectWindowAgreement(report, "accessibility")
 }
 

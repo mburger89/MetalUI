@@ -352,8 +352,8 @@ private struct PresentingPair: Component {
 /// - a presentation inside a **bordered** `inset(0)` presentation →
 ///   `deferred.nested` (its padding box is the window inset by the border;
 ///   `LR-CQ`);
-/// - and every `<field>.absolute` the frame reports is owned by **stage 8**
-///   (`LR-CQ`).
+/// - and every `<field>.absolute` the frame reports is owned by **stage 10**
+///   since stage 8 (`LR-CQ`; `LR-EZ` item 3 — it read stage 8 until then).
 ///
 /// Red-before: every `Deferred` arm reads `[box.position, box.inset]`; the
 /// absolute-root arm reads `[box.position, box.inset]`.
@@ -447,15 +447,18 @@ private struct PresentingPair: Component {
     for arm in arms {
         #expect(arm.got == arm.expected, "\(arm.name): \(arm.got)")
     }
-    // `<field>.absolute` belongs to stage 8's min/max recipe (`LR-CJ` item 3), read
-    // off the fields the frame really reported, not off a hand-built value.
+    // `<field>.absolute` belonged to stage 8's min/max recipe (`LR-CJ` item 3);
+    // since stage 8 it is stage 10's (`LR-EV` item 4, `LR-EZ` item 3: the public
+    // spelling is a `.frame` before `.position`, which never reports, so only a
+    // `Style`-written box reaches it, and it dies with the field). Read off the
+    // fields the frame really reported, not off a hand-built value.
     let absoluteFields = rootFields {
         Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).cssMinWidth(px(50)).cssMaxHeight(px(50)) } }
     }
     try #require(absoluteFields.map(\.description) == ["box.minSize.absolute", "box.maxSize.absolute"],
                  "\(absoluteFields)")
     for field in absoluteFields {
-        #expect(field.owningStage == "8", "\(field) is owned by stage \(field.owningStage)")
+        #expect(field.owningStage == "10", "\(field) is owned by stage \(field.owningStage)")
     }
 }
 

@@ -88,9 +88,13 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
         // from the proposal authority rather than lowered, and belong to the stage
         // that deletes `Style.position`/`inset`; `minSize`/`maxSize` on an
         // absolute box's `auto` axis (`<field>.absolute`, `LR-CJ` item 3) to
-        // stage 8's min/max recipe.
+        // stage 10 since stage 8 (`LR-EV` item 4, `LR-EZ` item 3): stage 8's
+        // public spelling of a bounded absolute box is a `.frame` before
+        // `.position`, which never reports (`LR-EV` item 2), so the report is
+        // left only to a `Style`-written box and dies with `Style.minSize`/
+        // `maxSize` (`LR-ER` item 4). Until stage 8 it read "8".
         if field.hasPrefix("position") || field.hasPrefix("inset") { return "10" }
-        if field.hasSuffix(".absolute") { return "8" }
+        if field.hasSuffix(".absolute") { return "10" }
         switch site {
         // `textField` (roadmap item 14) is a leaf lowered as `text` is, so its
         // field-level entries are the same stage's.
