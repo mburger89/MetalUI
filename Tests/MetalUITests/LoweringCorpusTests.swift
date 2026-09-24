@@ -504,11 +504,15 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
 ///
 /// Mutation that must redden it, re-run by stage 8's lane 1: **M-EZa** (the
 /// lowered frame layer's infinite maximum passed as `nil` — the greedy frame not
-/// greedy: cause O's lowered side collapses). The mutations stages 2–5 named for
-/// the pre-stage-8 census (M1a, M2a, M1d, M2k, M1m′, M5c′, stage 3's M2a/M2d,
-/// stage 5's M1c/M1d) targeted rows that now agree or no longer exist and were
-/// not re-run against this census; each is recorded where it was taken (records
-/// §21, §25, §27, §29).
+/// greedy: cause O's lowered side collapses). Four of the mutations earlier stages
+/// named for the pre-stage-8 census were **re-run against this one by lane 1's
+/// review round** (record §50 §9): stage 5's M1c (the presentation's W alias
+/// deleted) and M1d (the placeholder's alias deleted) and stage 3's M2a (the
+/// viewport a plain native leaf) each still redden this test, among others;
+/// stage 3's M2d (`flexShrink: 0` on the declared scroll content) traps at
+/// `theDemoFrameMatchesTheValuesRecordedOnMacOS` and truncates the run, as it
+/// did at stage 3. Stage 2's M1a, M2a, M1d, M2k, M1m′ and M5c′ were not re-run;
+/// each is recorded where it was taken (record §21).
 @MainActor
 @Test func theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn() throws {
     func entry(_ site: LoweringSite, _ field: String) -> UnlowerableField {

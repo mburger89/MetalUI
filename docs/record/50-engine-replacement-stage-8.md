@@ -397,5 +397,51 @@ removed; six T rows (`LR-EZ`).
 
 **8.8 Deferred, with owners.** `LoweringCorpusTests`' doc-comment mutations
 from stages 2–5 were not re-run against the re-derived census (lane 3 or the
-Record phase may; each is recorded where it was taken). `Backends/SDL`'s build
+Record phase may; each is recorded where it was taken). *Superseded in part by
+§9.2: four were re-run.* `Backends/SDL`'s build
 with the deprecation in is lane 3's step 8. Nothing else.
+
+## 9. Lane 1 review round (`LR-FA`)
+
+**9.1 The framed absolute root (major).** The reviewer found that a framed
+absolute box **as the frame's root** reported nothing under `.proposal` with
+diagnostics (`[]`), where the own-box spelling reports
+`[box.position.unconsumed, box.inset.unconsumed]` and the pre-stage-8 framed
+spelling reported `modifierLayer.style`: `Frame.reportUnconsumedLoweredItems`
+skipped every `.frameLayer` record, and `LR-EV` item 3's fix reached only
+`planLegacyItems`, which a root is never planned by. Red first: N1.4 gained
+arm 4 (`aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred`,
+`PresentationLoweringTests.swift:707`), which read `arm 4, the frame's root:
+[]`. Fix (`LR-FA`): an unconsumed `.frameLayer` record whose declared style is
+absolute reports `position.unconsumed` and, with an inset, `inset.unconsumed`
+— nothing else. A scratch test (never committed) read, with the fix: a
+two-member component frame as an absolute root
+`[modifierLayer.style, modifierLayer.position.unconsumed, modifierLayer.inset.unconsumed]`;
+`.frame(20×20).flexGrow(1).position(.absolute)` as root
+`[modifierLayer.style, modifierLayer.position.unconsumed]`; a plain framed root
+`[]`. Unfiltered suite: `Test run with 1451 tests in 3 suites passed`, the log
+carrying `FR-J no-argument frame: succeeded=true`; 0 `error:`, the one
+`warning:` SwiftPM's notice. No test added or removed (an arm), so 1451 stands.
+
+**M1i** — the unconditional skip restored (`guard d.position == .absolute else
+{ continue }` → `continue`), committed-from, restored from a copy, full
+unfiltered suite: `1451 tests … failed … with 1 issue`, reddening
+`aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred`
+only (arm 4). `git status --short` empty after the restore.
+
+**9.2 The census's earlier mutations (minor), re-run.** Each committed-from
+(`fix(stage 8 lane 1): LR-FA`), applied by script, full unfiltered suite,
+`Sources` restored from `HEAD`, `git status --short` showing only this round's
+uncommitted docs after each:
+
+| mutation | spelling applied | reddened |
+|---|---|---|
+| stage 5 M1c | `LegacyLowering.swift` `lowerPresentation`: `frame.lowering.alias(node, to: root)` deleted | 24 issues: `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, `aDeferredAbsoluteBoxResolvesItsInsetsAgainstTheWindowAndLeavesTheFlow`, `anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBoxWhereTheLegacyEngineFloorsIt`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` |
+| stage 5 M1d | `Deferred.swift` `presentationPlaceholder`: `frame.lowering.alias(placeholder, to: frame.lowering.alias(node))` deleted | 31 issues: `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, `aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities`, `aPresentationPlaceholderIsDroppedByEveryLoweredContainer`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` |
+| stage 3 M2a | `ScrollView.swift` `loweredLayout`: `requestNativeScrollViewport(child: contentNode, …)` replaced by `requestNativeLeaf { p in LayoutMeasurement(size: SizeD(width: p.width ?? 0, height: p.height ?? 0)) }` (content node orphaned) — stage 3 did not record its spelling, so this is a re-spelling | 126 issues, 21 tests: `aClickTargetInsideAScrollViewSwallowsTheWheel`, `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`, `aDisabledScrollViewStillScrollsOnTheWheel`, `aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows`, `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`, `aLoweredScrollViewFillsItsProposalOnTheScrollingAxisWhereTheLegacyViewportHugs`, `aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork`, `aLoweredScrollViewsContentKeepsItsNaturalExtent`, `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask`, `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame`, `aPresentationPlaceholderIsDroppedByEveryLoweredContainer`, `aScrollContextSurvivesALoweredViewportAcrossTwoFrames`, `aScrollRegionInsideAllowsHitTestingFalseIsStillRegistered`, `aScrollViewInsideAFrameKeepsItsViewportAndWheelUnderTheProposalAuthority`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`, `everyProductionRootsDeepestNativeLevelIsMeasured`, `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theTwoScrollElementsShareOneChromeImplementation`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` |
+| stage 3 M2d | `ScrollView.swift` `loweredLayout`: `declaredContent.flexShrink = 0` added | **aborts the run**: `Frame.swift:1603: Fatal error: MetalUI: scrollView.flexShrink.unconsumed has no proposal lowering`, inside `theDemoFrameMatchesTheValuesRecordedOnMacOS`; no summary line — as at stage 3 (record §25 §9.6). The census never ran |
+
+All four are still caught; three redden the census itself. Stage 2's six
+(M1a, M2a, M1d, M2k, M1m′, M5c′) were not re-run and remain owed to lane 3 or
+the Record phase; the census's doc comment now says so by name.
+
