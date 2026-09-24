@@ -3,30 +3,22 @@ import MetalUICore
 import MetalUILayout
 @testable import MetalUI
 
-/// Runs `element.requestLayout` in a throwaway 200x200 frame and hands back
-/// the `Style` the engine received for the root node, plus that node's id.
+/// Hands back the `Style` (and `Decoration`) `element` stores — for a `Stack`,
+/// the `Style` `Stack.init` built.
 ///
-/// **Reads the `Style` straight off `LayoutTree`, not through any production
-/// API** — nothing outside `MetalUI` can do this, and nothing needs to: a real
-/// caller never sees a `Style` back out, it only sees the geometry the engine
-/// produced from it. `LayoutPass.frame` and `Frame.tree` are both internal,
-/// reachable here only because this file is `@testable import MetalUI`. This
-/// mirrors `ScrollViewTests.laidOut` and `TextMeasureTests.laidOut` (build a
-/// `Frame`, drive `requestLayout` directly, skip `Frame.render`) rather than
-/// inventing a new idiom, generalised to read `Style` back instead of a
-/// resolved rect — `computeRootLayout` is deliberately not called, since the
-/// point is the `Style` `Stack.init` built, not what the engine did with it.
+/// **Reads the element's own `StyledElement.style`, with no `Frame` and no
+/// layout authority** (stage 7b, record §49 rows 238–240). Until stage 7b this
+/// registered the element on a `.legacy` `Frame` and read the `Style` back off
+/// the CSS tree (`LayoutTree.style`); a lowered `Stack` is a native node, whose
+/// tree carries no `Style` at all, and the question these three tests ask was
+/// never about the engine — it is what `Stack.init` writes, which is exactly
+/// the stored `style` the engine is later handed. The observable twin (a
+/// `Stack`'s alignment placing its children, under the proposal authority) is
+/// `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes`.
+/// `throws` and `inout` are kept so the three callers' bodies are unchanged.
 @MainActor
-private func styleOfRoot<E: Element>(_ element: inout E) throws -> (Style, LayoutNodeID) {
-    // P-CSS, owner 7b (stage 6b, `LR-DI`): this helper's three callers read the
-    // `Style` `Stack.init` wrote into the legacy tree (CSS-style); a lowered
-    // `Stack` is a native node, whose `tree.style` is not what they ask about.
-    let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)),
-                      scaleFactor: 1, layoutAuthority: .legacy)
-    var pass = LayoutPass(frame: frame)
-    let (root, _) = element.requestLayout(GlobalElementID.child(of: nil, at: 0, name: nil),
-                                          pass: &pass)
-    return (frame.tree.style(root), root)
+private func styleOfRoot<E: StyledElement>(_ element: inout E) throws -> (Style, Decoration) {
+    (element.style, element.decoration)
 }
 
 /// `Stack.init` writes the substrate; `Style`'s defaults do not move.

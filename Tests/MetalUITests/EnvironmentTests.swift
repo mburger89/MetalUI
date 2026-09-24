@@ -1078,6 +1078,83 @@ private func textMeasure<C: ElementGroup>(_ content: (NodeProbe<Text>) -> C, _ t
     return (min, max)
 }
 
+/// A `Text`'s measured size under the **proposal** authority, read off
+/// `Frame.elementBounds` (stage 7b, record §49 rows 236–237): `ideal` in a
+/// 4000-wide frame — wider than any string here at 26pt, so the leaf answers
+/// its one-line width, the answer it gives a nil width — and `broken` in a
+/// 20-wide frame, narrower than every word, so the leaf breaks and answers the
+/// proposal's width with its broken lines' height (`proposalTextMeasurement`,
+/// `LR-AU`). `content` wraps the `Text` in the environment write under test;
+/// an `EnvironmentScope` is identity-transparent, so the `Text` is the `Row`'s
+/// child 0 either way. Each frame reports rather than traps, and the report is
+/// required empty.
+@MainActor
+private func proposalTextMeasure<C: ElementGroup>(_ content: (Text) -> C, _ text: Text)
+    throws -> (ideal: Size<Pixels>, broken: Size<Pixels>) {
+    let rowID = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let textID = GlobalElementID.child(of: rowID, at: 0, name: nil)
+    func measured(width: Float) throws -> Size<Pixels> {
+        let f = Frame(contentSize: Size(width: px(width), height: px(1000)), scaleFactor: 1,
+                      layoutAuthority: .proposal, reportsUnlowerableFields: true,
+                      recordsElementBounds: true)
+        var root = Row { content(text) }
+        f.render(&root)
+        try #require(f.unlowerableFields.isEmpty,
+                     "the text reported \(f.unlowerableFields.map(\.description))")
+        return try #require(f.elementBounds[textID], "the text recorded no bounds").size
+    }
+    return (try measured(width: 4000), try measured(width: 20))
+}
+
+/// **E16 under the proposal authority** (stage 7b, record §49 row 236, N3.1):
+/// `dynamicTypeSize` changes no text measurement — probe G, where a SwiftUI
+/// `.body` text measures 120×16 at the default and at `accessibility5` (EV-I).
+/// The retired `dynamicTypeSizeChangesNoTextMeasurement` read the legacy
+/// leaf's CSS `MeasureFunction`; this reads the lowered leaf's answer at its
+/// ideal and at a broken width. **Positive control**: a 26pt font measures
+/// differently at both, `#require`d first.
+///
+/// Red-before (record §49 §6.3, M3.1): the lowered `Text`'s measurement scaled
+/// by 2 when `environment.dynamicTypeSize != .large`.
+@MainActor
+@Test func dynamicTypeSizeChangesNoTextMeasurementUnderTheProposalAuthority() throws {
+    let text = Text("Hello, dynamic type")
+    let bare = try proposalTextMeasure({ $0 }, text)
+    let large = try proposalTextMeasure({ $0.dynamicTypeSize(.accessibility5) }, text)
+    let control = try proposalTextMeasure({ $0 }, text.font(size: 26))
+
+    try #require(control.ideal != bare.ideal && control.broken != bare.broken,
+                 "the control font must measure differently: \(control) vs \(bare)")
+    #expect(large.ideal == bare.ideal)
+    #expect(large.broken == bare.broken)
+}
+
+/// **E21 under the proposal authority** (stage 7b, record §49 row 237, N3.2).
+/// **PINNED INERT** (EV-H): a locale reaches no text measurement — `Text`'s
+/// tokenizer and typesetter never receive it. Not claimed as aligned: no probe
+/// measured SwiftUI text under a locale. Thai is the sample because its word
+/// breaks come from a dictionary, the one place a locale-aware breaker could
+/// plausibly move the broken answer. **Positive control**: a 26pt font
+/// measures differently at both widths, `#require`d first.
+///
+/// Red-before (record §49 §6.3, M3.2): the lowered `Text`'s measurement scaled
+/// by 2 when the environment's locale is `th_TH`.
+@MainActor
+@Test func aLocaleChangesNoTextMeasurementUnderTheProposalAuthority() throws {
+    let text = Text("กรุงเทพมหานคร อมรรัตนโกสินทร์")
+    let bare = try proposalTextMeasure({ $0 }, text)
+    let thai = try proposalTextMeasure({ $0.environment(\.locale, Locale(identifier: "th_TH")) }, text)
+    let english = try proposalTextMeasure({ $0.environment(\.locale, Locale(identifier: "en_US")) }, text)
+    let control = try proposalTextMeasure({ $0 }, text.font(size: 26))
+
+    try #require(control.ideal != bare.ideal && control.broken != bare.broken,
+                 "the control font must measure differently: \(control) vs \(bare)")
+    #expect(thai.ideal == bare.ideal)
+    #expect(thai.broken == bare.broken)
+    #expect(english.ideal == bare.ideal)
+    #expect(english.broken == bare.broken)
+}
+
 /// **E16.** `dynamicTypeSize` changes no text measurement — probe G, where a
 /// SwiftUI `.body` text measures 120×16 at the default and at
 /// `accessibility5`. Aligned behaviour on macOS, not an inert API (ruling

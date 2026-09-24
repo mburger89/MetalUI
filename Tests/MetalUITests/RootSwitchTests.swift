@@ -150,14 +150,18 @@ private func draw(_ root: ProductionRoot, frames: Int,
 /// **3.2** (`LR-DG`, `CN-J`): a hugging legacy root is centred in a production
 /// window. `Row { Box().width(58).height(20) }` in a 100×100 window: the box at
 /// (21, 40) 58×20, as SwiftUI places a 58×20 root in a 100×100 host (stack probe
-/// R1/R2, re-run 2026-09-23: `(21, 40) 58×20`). The same tree through a
-/// `.legacy` window is the CSS answer, divergence 4 (`CS-I`): the auto row
-/// fills the window, starts its main axis at 0 and centres its cross axis —
-/// the box at (0, 40). The two arms disagree, so neither is vacuous.
+/// R1/R2, re-run 2026-09-23: `(21, 40) 58×20`). The literal is derived from
+/// those probe arms — `((100 − 58) / 2, (100 − 20) / 2)` — not from another arm
+/// of this test, so the arm is not vacuous on its own: a root placed top-leading
+/// reads (0, 0), one placed at the window rect reads (0, 40).
+///
+/// **Stage 7b (record §49 row 245, `LR-EH`) removed this test's `.legacy` arm**,
+/// which read divergence 4's CSS answer (`CS-I`: the auto row fills the window,
+/// the box at (0, 40)) — the last pin of divergence 4 outside the CSS engine's
+/// own retired tests; divergence 4 retires with it.
 ///
 /// Green on arrival after the flip; its red is taken as **M2a** (the native
-/// root top-leading) and **M2b** (placed at the window rect), and its
-/// `.legacy` arm is the answer `aef88ce`'s production gave.
+/// root top-leading) and **M2b** (placed at the window rect).
 @MainActor
 @Test func aHuggingLegacyRootIsCentredInAProductionWindow() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
@@ -174,9 +178,6 @@ private func draw(_ root: ProductionRoot, frames: Int,
     let production = try #require(try boxRect(nil))
     #expect(production == Bounds(origin: Point(x: Pixels(21), y: Pixels(40)),
                                  size: Size(width: Pixels(58), height: Pixels(20))))
-    let legacy = try #require(try boxRect(.legacy))
-    #expect(legacy == Bounds(origin: Point(x: Pixels(0), y: Pixels(40)),
-                             size: Size(width: Pixels(58), height: Pixels(20))))
 }
 
 // MARK: - 3.3 — every production root's depth

@@ -305,6 +305,85 @@ private struct TwoMembers: Component {
     #expect(before.counter.count == 1, "the child's centre hits")
 }
 
+/// **N3.3 — `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBox`
+/// under the proposal authority** (stage 7b, record §49 row 242). `OM-J` × `FR-C`:
+/// `.contentShape(inset:)` written after a fixed frame insets the FRAME layer's hit
+/// region; written before it, the child's. The fixture is `inFilledRow`, so the
+/// row is 200×200 in the 200×200 window and sits at (0, 0) (`CN-J`); the frame
+/// layer is its first child, at its leading, top edge (`.flexStart`). Derived by
+/// hand before the run:
+///
+/// - control: the frame layer's whole 60×40 box, `[0 0 60x40]`;
+/// - after the frame: inset 10 on each edge, `[10 10 40x20]`;
+/// - before it: the 20×20 child centred in the 60×40 frame at (20, 10), inset 5,
+///   `[25 15 10x10]`.
+///
+/// Clicks confirm each region, as the retired test's did: (5, 20) hits the control
+/// and misses the inset frame layer, (30, 20) hits both; (22, 20) is inside the
+/// frame but outside the child's inset box, (30, 20) its centre. The retired
+/// test's flexible arm is **not carried**: it read `FR-E`'s legacy clamp (the
+/// minimum, never the proposal), a CSS answer deleted with
+/// `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`'s row.
+/// Each arm pre-flights its tree under diagnostics with an empty report required.
+///
+/// Red-before (record §49 §6.3, M3.3): `Frame.registerHandlers` ignoring the
+/// content-shape inset.
+@Test @MainActor func aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBoxUnderTheProposalAuthority() throws {
+    @MainActor func regions<E: ElementGroup>(_ make: @escaping @MainActor (ClickCounter) -> E)
+        throws -> (regions: [String], counter: ClickCounter, platform: FakePlatformWindow, window: Window) {
+        var preflight = inFilledRow { make(ClickCounter()) }
+        let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
+                                layoutAuthority: .proposal, reportsUnlowerableFields: true)
+        diagnostics.render(&preflight)
+        try #require(diagnostics.unlowerableFields.isEmpty,
+                     "the pre-flight reported \(diagnostics.unlowerableFields.map(\.description))")
+        let counter = ClickCounter()
+        let (window, platform) = try render { inFilledRow { make(counter) } }
+        try #require(window.layoutAuthority == .proposal, "not a proposal-authority window")
+        return (window.lastHitboxes.map(describe), counter, platform, window)
+    }
+
+    let control = try regions { counter in
+        Box().width(px(20)).height(px(20)).background(.surface)
+            .frame(width: px(60), height: px(40))
+            .onClick { counter.bump() }
+    }
+    let after = try regions { counter in
+        Box().width(px(20)).height(px(20)).background(.surface)
+            .frame(width: px(60), height: px(40))
+            .contentShape(inset: px(10))
+            .onClick { counter.bump() }
+    }
+    let before = try regions { counter in
+        Box().width(px(20)).height(px(20)).background(.surface)
+            .onClick { counter.bump() }
+            .contentShape(inset: px(5))
+            .frame(width: px(60), height: px(40))
+    }
+
+    try #require(control.regions != after.regions,
+                 why("the control and the inset arm must register different regions: "
+                     + "\(control.regions) vs \(after.regions)"))
+    #expect(control.regions == ["[0.0 0.0 60.0x40.0]"],
+            why("the control registers the frame layer's whole box: \(control.regions)"))
+    #expect(after.regions == ["[10.0 10.0 40.0x20.0]"],
+            why("an inset written after the frame insets the FRAME's box: \(after.regions)"))
+    #expect(before.regions == ["[25.0 15.0 10.0x10.0]"],
+            why("an inset written before the frame insets the CHILD's box, centred in the frame: "
+                + "\(before.regions)"))
+
+    click(control.platform, at: pt(5, 20))
+    click(after.platform, at: pt(5, 20))
+    #expect(control.counter.count == 1, "the edge point hits the control")
+    #expect(after.counter.count == 0, "and misses the inset frame layer")
+    click(after.platform, at: pt(30, 20))
+    #expect(after.counter.count == 1, "while the centre still hits it")
+    click(before.platform, at: pt(22, 20))
+    #expect(before.counter.count == 0, "inside the frame but outside the child's inset box: a miss")
+    click(before.platform, at: pt(30, 20))
+    #expect(before.counter.count == 1, "the child's centre hits")
+}
+
 // MARK: - 3. FR-C x OM-L: the focus ring and hover border draw on the layer they are written on
 
 /// **A focus ring, a hover border and a plain border written after a legacy
@@ -443,6 +522,110 @@ private struct TwoMembers: Component {
     // (the frame track's numbers, one level up).
     #expect(plain.a.bounds.origin.x == 10 && plain.b.bounds.origin.x == 40,
             why("the body is centred as a unit: a at 10, b at 40; got " + describe(plain.a) + " " + describe(plain.b)))
+}
+
+/// **N3.4 — `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembers` under
+/// the proposal authority** (stage 7b, record §49 row 243). `CO-U`'s side door ×
+/// `OM-N`/`OM-G`/`OM-V`: `.opacity`, `.clipped()` and `.border` written after a
+/// component's `.frame` sit on the frame layer, and its scopes reach **both**
+/// members. The retired test's node counts (one frame node around the body; two
+/// padding wrappers and one frame) are the legacy tree's shape and are not
+/// carried.
+///
+/// **Derived from `LR-BH` before the run.** Under the proposal authority a frame
+/// layer over a two-member component lowers to **one native frame per member**,
+/// each carrying the whole `FrameSpec` (80×40, `.center`), rowed horizontally at
+/// spacing 0; that row is the layer's node, so the layer's rect — which carries
+/// its decoration — is the row's, **160×40**. In `inFilledRow` (the row at
+/// (0, 0), its first child leading and top):
+///
+/// - member a (30×10) centred in the first 80×40 frame: **(25, 15)**;
+/// - member b (50×20) centred in the second, from x = 80: **(95, 10)**;
+/// - the border rect is the layer's **(0, 0) 160×40**, and the clip masks both
+///   members to the same **(0, 0) 160×40**; the opacity halves both fills;
+/// - a component `.padding(4)` under the frame wraps each member (`OM-D`), so each
+///   frame centres a 38×18 / 58×28 wrapper whose member lands where it did
+///   unpadded, (25, 15) and (95, 10), inside the same opacity scope.
+///
+/// **What differs from the retired legacy arm**: there the frame was one 100×40
+/// flex row around the body, the members packed and centred as a unit (a at 10,
+/// b at 40) and the border and clip were 100×40; here each member is framed on its
+/// own (divergence 56's proposal answer, `LR-BH`) and the layer's box is the row
+/// of frames. Every arm pre-flights under diagnostics with an empty report
+/// required.
+///
+/// Red-before (record §49 §6.3, M3.4): a frame layer's opacity scope pushed
+/// around its own fill only, not its content.
+@Test @MainActor func aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembersUnderTheProposalAuthority() throws {
+    @MainActor func scene<E: ElementGroup>(_ make: @escaping @MainActor () -> E) throws -> (Scene, Theme) {
+        var preflight = inFilledRow(make)
+        let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
+                                layoutAuthority: .proposal, reportsUnlowerableFields: true)
+        diagnostics.render(&preflight)
+        try #require(diagnostics.unlowerableFields.isEmpty,
+                     "the pre-flight reported \(diagnostics.unlowerableFields.map(\.description))")
+        let (window, _) = try render { inFilledRow(make) }
+        try #require(window.layoutAuthority == .proposal, "not a proposal-authority window")
+        return (window.lastScene, window.theme)
+    }
+    @MainActor func members(_ scene: Scene) throws -> (a: MUIRect, b: MUIRect) {
+        (try rect(scene, 30, 10), try rect(scene, 50, 20))
+    }
+    func at(_ r: MUIRect, _ x: Float, _ y: Float) -> Bool {
+        r.bounds.origin.x == x && r.bounds.origin.y == y
+    }
+    func masked(_ r: MUIRect, _ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bool {
+        r.contentMask.origin.x == x && r.contentMask.origin.y == y
+            && r.contentMask.size.width == w && r.contentMask.size.height == h
+    }
+
+    let (control, _) = try scene { TwoMembers().frame(width: px(80), height: px(40)) }
+    let (decorated, theme) = try scene {
+        TwoMembers().frame(width: px(80), height: px(40)).opacity(0.5)
+            .border(.separator, width: px(2)).clipped()
+    }
+    let (padded, _) = try scene {
+        TwoMembers().padding(px(4)).frame(width: px(80), height: px(40)).opacity(0.5)
+    }
+
+    let plain = try members(control)
+    let faded = try members(decorated)
+    let paddedMembers = try members(padded)
+    try #require(plain.a.background.a == 1 && plain.b.background.a == 1,
+                 why("set up — the control's members are opaque: " + describe(plain.a) + " " + describe(plain.b)))
+    try #require(masked(plain.a, 0, 0, 200, 200) && masked(plain.b, 0, 0, 200, 200),
+                 why("set up — the control's members are masked by the surface only: "
+                     + describe(plain.a) + " " + describe(plain.b)))
+
+    // Each member framed on its own (`LR-BH`), centred in its 80×40 frame.
+    #expect(at(plain.a, 25, 15) && at(plain.b, 95, 10),
+            why("each member is centred in its own frame: a at (25, 15), b at (95, 10); got "
+                + describe(plain.a) + " " + describe(plain.b)))
+    #expect(at(faded.a, 25, 15) && at(faded.b, 95, 10),
+            why("the decorations move no member: " + describe(faded.a) + " " + describe(faded.b)))
+
+    #expect(faded.a.background.a == 0.5 && faded.b.background.a == 0.5,
+            why("the frame layer's opacity fades BOTH members: " + describe(faded.a) + " " + describe(faded.b)))
+    #expect(masked(faded.a, 0, 0, 160, 40) && masked(faded.b, 0, 0, 160, 40),
+            why("the frame layer's clip masks both members to its 160x40 row of frames: "
+                + describe(faded.a) + " " + describe(faded.b)))
+    let border = try rect(decorated, 160, 40)
+    #expect(at(border, 0, 0) && isBordered(border, with: .separator, in: theme)
+                && border.borderWidths.top == 2 && border.borderWidths.left == 2,
+            why("the frame layer's 160x40 rect carries the border: " + describe(border)))
+    let positions = rectPaintPositions(decorated)
+    let borderIndex = try #require(decorated.rects.firstIndex { $0.bounds.size.width == 160 })
+    let memberIndices = decorated.rects.indices.filter { [30, 50].contains(decorated.rects[$0].bounds.size.width) }
+    try #require(memberIndices.count == 2, "two member rects, got \(memberIndices.count)")
+    #expect(memberIndices.allSatisfy { positions[$0] < positions[borderIndex] },
+            "the border paints AFTER both members (OM-V)")
+
+    #expect(paddedMembers.a.background.a == 0.5 && paddedMembers.b.background.a == 0.5,
+            why("the per-member padding wrappers sit inside the frame's opacity scope: "
+                + describe(paddedMembers.a) + " " + describe(paddedMembers.b)))
+    #expect(at(paddedMembers.a, 25, 15) && at(paddedMembers.b, 95, 10),
+            why("a per-member padding under the frame moves neither member: "
+                + describe(paddedMembers.a) + " " + describe(paddedMembers.b)))
 }
 
 // MARK: - 5. FR-C x OM-J x AB-E: accessibility reads the frame's box, hit testing the inset
