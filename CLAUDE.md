@@ -395,13 +395,21 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
   and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
   appended on macOS in the manifest — and run `MetalUICoreTests`,
-  `MetalUILayoutTests` and `MetalUICrossPlatformTests` (486 + 22 + 3), the
-  last pinning the demo's whole frame byte-for-byte against macOS (`XP-C`).
-  Inside `MetalUI`, CoreText stays behind `#if canImport(MetalUIText)`; off
-  Apple a `Frame`/`Window` without a text system traps (`XP-B`). A test there
-  that needs WebKit or Darwin is compiled out by `#if canImport(…)` per
-  declaration (`PC-B`); typecheck guards read only this platform's `.build`
-  (`PC-C`) and skip off macOS.
+  `MetalUILayoutTests` and `MetalUICrossPlatformTests` (**388 + 22 + 3**,
+  measured in `swift:6.4-noble` after stage 7a; the WebKit goldens' 96
+  consumer tests were portable and counted in `MetalUILayoutTests`' figure, so
+  retiring them at stage 7a drops it from 486 to 388 — the 8 + 8 native
+  replacements do not restore it, landing instead in `MetalUITests`, which
+  depends on `MetalUIAppKit` and is macOS-only), the last pinning the demo's
+  whole frame byte-for-byte against
+  macOS (`XP-C`). Inside `MetalUI`, CoreText stays behind `#if
+  canImport(MetalUIText)`; off Apple a `Frame`/`Window` without a text system
+  traps (`XP-B`). A test there that needs Darwin is compiled out by `#if
+  canImport(Darwin)` per declaration (`PC-B`; stage 7a's golden removal also
+  retired that rule's only WebKit example — `MetalUILayoutTests` needs no
+  `#if canImport(WebKit)` gate anywhere now, since nothing there imports
+  WebKit); typecheck guards read only this platform's `.build` (`PC-C`) and
+  skip off macOS.
 - **Targets:** eighteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
   `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`, `CUnibreak`,
   `MetalUIHarfBuzz`, `MetalUITextSystem`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`,

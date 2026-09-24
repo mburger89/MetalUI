@@ -673,6 +673,28 @@ silent shapes, a pin of the golden's own tree at the native answer (2.5–2.7);
 the three `wrap-reverse` goldens got their own report test (2.8). The golden
 machinery and its 96 consumers are gone; one consumer survives trimmed for 7b.
 
+### 7.1 Linux/Windows CI count (measured, not carried by any lane)
+
+None of the three lanes measured the portable build. The 96 removed golden
+consumers (`AbsoluteFixtureTests`, `ContentSizingFixtureTests`,
+`FitContentFixtureTests`, and the trimmed `BoxModelTests`/`AlignmentTests`)
+carry no `#if canImport(WebKit)` guard — only `GeneratorTests` and
+`OracleTests` (the removed 5 + 3) were WebKit-gated — so the 96 were part of
+`MetalUILayoutTests`' portable count, and the 8 + 8 replacement tests that
+took their place (`GoldenReplacementFlexTests`/`GoldenReplacementStackTests`)
+landed in `MetalUITests`, which depends on `MetalUIAppKit` and is declared
+only under `#if os(macOS)` — they do not restore the portable count.
+Re-measured in `swift:6.4-noble` at this stage's tip (`swift build
+--build-tests` then `swift test --no-parallel`, three separate summary
+lines, one per target): `MetalUILayoutTests` **388** (486 before; one further
+test than the naive 486 − 96 = 390, because one `FreezeLoopAllocationTests`
+case is gated `#if canImport(Darwin)` and was already excluded on Linux),
+`MetalUICoreTests` **22** (unchanged), `MetalUICrossPlatformTests` **3**
+(unchanged) — **388 + 22 + 3**, not 486 + 22 + 3. 0 `error:`, 0 `warning:`
+on the container build. CLAUDE.md's "manifest is two lists" bullet is
+corrected to this measured figure in the same commit as the Record phase's
+other CLAUDE.md edits.
+
 ## 8. Handed on, and the Record phase
 
 | item | owner |
@@ -685,7 +707,10 @@ machinery and its 96 consumers are gone; one consumer survives trimmed for 7b.
 **Record phase** (this stage, after lane 3): `CLAUDE.md`/`AGENTS.md` (a
 stage-7a counts paragraph, 1616 / 0 / 78; the gated list ten → nine; the
 "Goldens must not move" bullet rewritten, since none remain; `LR-` next unused
-→ `LR-EC`; a stage-7a entry in "Where things are" and in "SwiftUI alignment");
+→ `LR-EC`; a stage-7a entry in "Where things are" and in "SwiftUI alignment";
+the "manifest is two lists" bullet's portable-CI figure corrected 486 → 388,
+measured in `swift:6.4-noble` (§7.1), and its "WebKit or Darwin" clause
+narrowed to "Darwin" now that no test in the tree imports WebKit);
 record §04 (divergence 55 amended: its pin no longer reads "the CSS goldens");
 records §03 and §05 (a dated "no row changed" section each); `docs/record/README.md`
 (§42's row); the plan (task 7's stage-7a progress paragraph; the checkbox stays
