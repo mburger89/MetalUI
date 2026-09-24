@@ -238,13 +238,20 @@ public struct Handlers {
     /// can hit it.
     public var contentShapeInset: Edges<Pixels>?
 
+    // MARK: Text input (roadmap item 14, ruling TI-B)
+
+    /// Set only by `TextField`: makes the element a pointer and key target
+    /// and hands `Window` what it needs to edit it from input. Internal, so
+    /// no caller can build a half-configured one.
+    var textInput: TextInputTarget?
+
     public init() {}
 
     /// Whether this element is a **pointer** hit target — the hitbox gate.
     ///
     /// `onClick` alone, deliberately: see the type's own doc comment for why
     /// folding focus in here would stop a list of focusable rows scrolling.
-    var isPointerTarget: Bool { onClick != nil }
+    var isPointerTarget: Bool { onClick != nil || textInput != nil }
 
     /// Whether this element has anything to say about the **keyboard** — the
     /// focus-registry gate (`FocusRegistry.register(_:id:)`).
@@ -257,6 +264,6 @@ public struct Handlers {
     /// `.keyContext(_:_:)` an API that compiles and does nothing on exactly the
     /// elements that use it.
     var isKeyTarget: Bool {
-        onKey != nil || isFocusable || !actions.isEmpty || keyContext != nil
+        onKey != nil || isFocusable || !actions.isEmpty || keyContext != nil || textInput != nil
     }
 }

@@ -46,6 +46,18 @@ public protocol PlatformWindow: AnyObject {
     /// **The timestamp is the link's, not a wall-clock read.** Every element in
     /// one frame must see the same instant, and `CACurrentMediaTime()` sampled
     /// per element would not give them one.
+    /// Starts or keeps text input with the caret at `caret` (window points),
+    /// where an input method puts its candidate window; `nil` stops it
+    /// (ruling TI-A). While it is active a printable key arrives as
+    /// `.textInput`, not `.keyDown`. No default implementation, on purpose.
+    func setTextInputArea(_ caret: Bounds<Pixels>?)
+
+    /// The system clipboard's plain text, if it holds any (ruling TI-A).
+    func readClipboard() -> String?
+
+    /// Replaces the system clipboard's contents with `text`.
+    func writeClipboard(_ text: String)
+
     func startDisplayLink(_ tick: @escaping (Double) -> Void)
     /// Pausing lets an idle window permit display downclocking (spec 4.4).
     func setDisplayLinkPaused(_ paused: Bool)

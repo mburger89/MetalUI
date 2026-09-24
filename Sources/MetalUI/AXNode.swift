@@ -13,6 +13,8 @@ public enum AXRole: Equatable, Sendable {
     case text
     case image
     case container
+    /// An editable line of text — `TextField` (ruling TI-C).
+    case textField
 }
 
 /// One descriptive trait an accessibility client can read off a node — spec

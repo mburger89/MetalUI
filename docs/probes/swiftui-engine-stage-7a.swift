@@ -1,7 +1,7 @@
 // SwiftUI probe: stage 7a of plan task 7 (the 97 WebKit goldens retired).
 // Evidence for the SwiftUI half of rulings LR-DS…LR-DX in
 // docs/superpowers/2026-09-17-engine-replacement-decisions.md. Every other
-// retirement row rests on MetalUI's own measured behaviour (record §42 §2), not
+// retirement row rests on MetalUI's own measured behaviour (record §48 §2), not
 // on a SwiftUI claim; these five groups back the claims the rulings make
 // about SwiftUI itself:
 //

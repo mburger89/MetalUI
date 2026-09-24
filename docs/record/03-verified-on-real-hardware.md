@@ -1443,7 +1443,7 @@ pointed at as "the first one still owed."**
 
 ## 2026-09-23: no look added at engine replacement stage 7a
 
-Record §42 §6.3, §7. **Nothing a human needs to see changed.** Stage 7a touches
+Record §48 §6.3, §7. **Nothing a human needs to see changed.** Stage 7a touches
 test files and one doc comment; the fourteen-image offscreen comparison
 (`docs/probes/demo-pixels/compare.sh <scratch> 2cc763d 4ad1c79`) reads **0
 differing and scene identical in all fourteen**, every control at its `2cc763d`

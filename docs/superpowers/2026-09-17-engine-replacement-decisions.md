@@ -7090,7 +7090,7 @@ ruling naming the deterministic native test or probe arm that replaces it, or
 naming the CSS-only concept deleted with it". What counts as a native test that
 "replaces" a golden?
 
-**Evidence** (record §42 §2). Each fixture's CSS transcribed into `Box(style:)`
+**Evidence** (record §48 §2). Each fixture's CSS transcribed into `Box(style:)`
 trees, rendered under both authorities through `LayoutDifferential.render`
 (instrument `docs/probes/stage-7a-transcription-instrument.patch`). 74 trees
 transcribed; the legacy authority reproduces all 74 goldens exactly. The
@@ -7106,7 +7106,7 @@ sits (`LegacyLowering.swift:209`, pinned by
 1. **R** — the golden's tree under the proposal authority reproduces its
    `rounded` boxes exactly with no report. Its replacement is a **new arm**,
    labelled with the golden's name, that builds the golden's own tree and
-   asserts those boxes literally (spec §6 tests 1.1–1.8, 2.1–2.4; record §42
+   asserts those boxes literally (spec §6 tests 1.1–1.8, 2.1–2.4; record §48
    §5.1). A lowering test asserting the same rule on other geometry is cited as
    corroboration, never as the replacement: the lowering suites assert
    `space-around` on 20-wide children, not the golden's 40/70/50, and a rule
@@ -7133,7 +7133,7 @@ witness, which is the failure the stage exists to prevent.
 
 ## LR-DT — the consumers go with their goldens (96 whole, one trimmed), the machinery with them; the 7b boundary; the count
 
-**The question.** Every golden has exactly one consumer `@Test` (record §42 §1).
+**The question.** Every golden has exactly one consumer `@Test` (record §48 §1).
 Deleting a golden breaks its consumer. Do the consumers go in 7a, and how is 7b
 (the non-golden CSS-engine tests, `LR-U`) not pre-empted?
 
@@ -7175,7 +7175,7 @@ corpus with the JSON removed and nothing retired.
 **The question.** For each D golden, what is deleted, why is it CSS-only, and
 what does the proposal authority do instead?
 
-**Evidence.** Record §42 §2 (the native answers) and §3 (probe
+**Evidence.** Record §48 §2 (the native answers) and §3 (probe
 `swiftui-engine-stage-7a.swift`, run 2026-09-23, exit 0, twice byte-identical,
 every group with a differing positive control).
 
@@ -7228,7 +7228,7 @@ percentages carry none.
 ## LR-DV — the seven silent D shapes get native pins of the golden's own tree
 
 **The question.** Seven D trees lay out under the proposal authority with no
-report and an answer that differs from WebKit (record §42 §2's table). Deleting
+report and an answer that differs from WebKit (record §48 §2's table). Deleting
 their goldens leaves those shapes unpinned natively: a later change could move
 them with nothing red.
 
@@ -7257,7 +7257,7 @@ precedent). Its red-before is the mutation spec §6 names for it, applied after
 the test is committed, the source restored from a copy, the **full unfiltered
 suite** run, and `git status --short` clean afterwards; the lane records every
 test and arm reddened, by name. The literals are written from the golden JSON
-(R) or record §42 §5.2 (D) **before** the test first runs. The shared helper is
+(R) or record §48 §5.2 (D) **before** the test first runs. The shared helper is
 itself a mutation site (**MH**): with its missing-id `try #require` turned into
 `continue` and one arm's id misspelled, that arm must go green, and red again
 when the require is restored.
@@ -7277,7 +7277,7 @@ instrument or a finding (practices); the table makes each lane show one.
 - **Lane 2** (Opus): `GoldenReplacementStackTests.swift`, tests 2.1–2.8, 15 R
   arms, 7 D-pin arms and 3 `wrap-reverse` report arms (2.8, `LR-DY`), mutations
   M2a–M2h; reuses lane 1's helper.
-- **Lane 3** (Opus): verifies all 97 rows of record §42 §4 against the
+- **Lane 3** (Opus): verifies all 97 rows of record §48 §4 against the
   committed tests before deleting anything, then removes the consumers, the
   machinery and the `resources:` line, trims the one test, rewrites `roundLayout`'s doc comment
   (`Rounding.swift`), whose caller list and corpus paragraphs describe the
@@ -7347,10 +7347,10 @@ cannot move; the legacy engine and every `.legacy` test stay (7b, 9).
    indefinite → auto) — not the field and not "fractions". The field keeps
    reporting by name until its owner respells or deletes it, and **a stage that
    later lowers one of these fields owes its own native test for the answer it
-   chooses**; it cannot cite a retired golden. The percentage rows of record §42 §4
+   chooses**; it cannot cite a retired golden. The percentage rows of record §48 §4
    (17–19, 40, 77, 82, 89, 90) already carry "owned by stage 8's recipe"; rows
    23, 24, 27, 29, 31, 45, 47, 86 and 87 now name their field's owner too. No SwiftUI claim is added.
-4. **Record miscounts.** Record §42 §2.2 listed "18 `flex_wrap_*`" among the 23
+4. **Record miscounts.** Record §48 §2.2 listed "18 `flex_wrap_*`" among the 23
    untranscribed trees; it is **16** (`flex_wrap_uneven` and
    `flex_wrap_min_vs_max_content` were transcribed — they are two of the seven
    wrap-bearing trees measured). The probe header and record §3 said the output
@@ -7377,7 +7377,7 @@ that cannot see their value — the failure `LR-DS` exists to prevent. Without i
 
 ## LR-DZ — stage 7a lane 1: the flex R arms land as designed; the pixel controls are `2cc763d`'s, not record §41's
 
-**Lane 1 (2026-09-23, PDT), record §42 §6.1.** Tests 1.1–1.8 (29 arms) and the
+**Lane 1 (2026-09-23, PDT), record §48 §6.1.** Tests 1.1–1.8 (29 arms) and the
 `goldenArm` harness landed at `43a490a` exactly as spec §6 designs them, green
 on arrival (`LR-DW`); M1a–M1h each reddened exactly the arms the spec predicts,
 M1g's four "recorded, not required" arms included, and MH turned 1.1 green with
@@ -7395,7 +7395,7 @@ the rest as before. Measured, not assumed: `compare.sh aef88ce 2cc763d` on the
 same machine reads every `aef88ce` control at its bracketed value and all
 fourteen images at record §41 §12.6's numbers, so the harness reproduces §41 and
 the three are the switch's own image moves. **The ruling:** stage 7a's controls
-are the `2cc763d` values of record §42 §6.1 (light vs dark 1048576, 1031003,
+are the `2cc763d` values of record §48 §6.1 (light vs dark 1048576, 1031003,
 454895, f0 vs f3 0, preview 1048576, chrome 0, distinct 544 / 216, prod
 491221, distinct 529, indicator rects 0), and each lane's comparison
 `compare.sh <scratch> 2cc763d HEAD` must read them and 0 px in all fourteen
@@ -7411,7 +7411,7 @@ as "the known switch drift".
 
 ## LR-EA — stage 7a lane 2: test 2.8's arms are the goldens' own trees, so `flex_wrap_reverse` reports `alignContent` too; M2c's extra arm
 
-**Lane 2 (2026-09-23, PDT), record §42 §6.2.** Tests 2.1–2.8 landed at `a4c9637`,
+**Lane 2 (2026-09-23, PDT), record §48 §6.2.** Tests 2.1–2.8 landed at `a4c9637`,
 green on arrival (`LR-DW`); M2a–M2h each reddened every arm the spec predicts;
 M2h left `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` green.
 
@@ -7429,7 +7429,7 @@ authority: `flex_wrap_reverse` → **`[box.flexWrap, box.alignContent]`**,
 `flex_wrap_reverse_row_reverse` (whose children carry margins) →
 `[box.flexWrap]` — no `margin.unconsumed`, because a reported container lays
 out a 0×0 leaf and never registers its children. The test asserts those three
-arrays exactly; spec §6's 2.8 row and record §42 §5.2's 2.8 row now read them.
+arrays exactly; spec §6's 2.8 row and record §48 §5.2's 2.8 row now read them.
 M2h still reddens all three arms: two drop `box.flexWrap` and keep
 `box.alignContent`, the third reads `[]`.
 
@@ -7449,7 +7449,7 @@ retired on a shape it does not have.
 
 ## LR-EB — stage 7a lane 3: the removal lands at 1616; the gated tests fall ten → nine, not five → four; one dead helper and the comments naming retired tests go with the consumers; the Sources hits stay listed
 
-**Lane 3 (2026-09-23, PDT), record §42 §6.3.** All 97 rows of record §42 §4
+**Lane 3 (2026-09-23, PDT), record §48 §6.3.** All 97 rows of record §48 §4
 were verified by script before anything was deleted: every R row's golden name
 occurs exactly once as a quoted arm label across
 `Tests/MetalUITests/GoldenReplacement*Tests.swift`, every consumer named in the
@@ -7464,7 +7464,7 @@ its `loadGolden` line and its `assertMatchesGolden` call and nothing else,
 `roundLayout`'s doc comment was rewritten (`62be7cf`, `4ad1c79`). Suite **1616**
 = 1704 − 96 − 5 − 3 + 8 + 8, exactly as `LR-DT` computes it.
 
-**Correction 1 — the gated count.** Spec §8 and record §42 §5.3 said the gated
+**Correction 1 — the gated count.** Spec §8 and record §48 §5.3 said the gated
 tests fall "from five to four". At `2cc763d` **ten** gated tests skip (the
 branch's `CLAUDE.md` names them: `regenerateAllGoldens`, the 100k `List`, seven
 oracle measurements and `recordDemoFrames`); after the removal **nine** skip,
@@ -7482,7 +7482,7 @@ three things, none an assertion:
    with them. No other file-scope helper in the five files lost its last use
    (checked by grep, comment lines excluded).
 2. **Comments that named a retired test in the present tense** are rewritten to
-   the past tense with a pointer at record §42: the file header of
+   the past tense with a pointer at record §48: the file header of
    `FlexEngineTests` (it described the goldens as load-bearing), the
    `threeFixedChildren` doc, two doc comments in `FlexEngineTests`, one each in
    `StackLayoutTests`, `BoxModelTests` and `AlignmentTests`, and the gating

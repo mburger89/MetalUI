@@ -35,6 +35,8 @@ public final class PortableTextSystem: TextSystem {
     public func resolveFont(family: String?, size: Double) -> FontKey {
         let font = trapping { try resolver.resolve(family: family, size: size) }
         fonts[font.key] = font
+        // A fallback's glyphs are keyed on the fallback's own face (FB-A).
+        for fallback in font.fallbacks where fonts[fallback.key] == nil { fonts[fallback.key] = fallback }
         return font.key
     }
 
@@ -63,6 +65,10 @@ public final class PortableTextSystem: TextSystem {
         return value
     }
 
+    public func caretOffsets(_ string: String, font: FontKey) -> [Double] {
+        trapping { try PortableText.caretOffsets(string, font: registered(font)) }
+    }
+
     public func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
                             origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
         let portable = registered(font)
@@ -72,7 +78,7 @@ public final class PortableTextSystem: TextSystem {
         }
         return placements.map { placement in
             let split = GlyphImage.subpixelPlacement(forDeviceX: placement.deviceX)
-            return TextGlyph(key: GlyphKey(font: font, glyph: placement.id, size: portable.size,
+            return TextGlyph(key: GlyphKey(font: placement.font.key, glyph: placement.id, size: placement.font.size,
                                            subpixelVariant: split.variant, scaleFactor: scaleFactor),
                              pixelX: split.pixelX, baselineY: placement.baselineY)
         }

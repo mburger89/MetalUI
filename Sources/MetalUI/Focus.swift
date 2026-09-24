@@ -59,6 +59,7 @@ struct FocusRegistry {
     /// of a structure that already exists — and a wrong one, since prepaint
     /// order is not the focus chain.
     private var contexts: [GlobalElementID: KeyContext] = [:]
+    private var textTargets: [GlobalElementID: TextInputTarget] = [:]
 
     /// Records whatever `handlers` asked for on the keyboard side, and nothing
     /// at all when it asked for neither.
@@ -88,6 +89,7 @@ struct FocusRegistry {
         if let onKey = handlers.onKey { keyHandlers[id] = onKey }
         if !handlers.actions.isEmpty { actionHandlers[id] = handlers.actions }
         if let context = handlers.keyContext { contexts[id] = context }
+        if let target = handlers.textInput { textTargets[id] = target }
     }
 
     /// Whether `id` declared itself focusable this frame.
@@ -106,6 +108,8 @@ struct FocusRegistry {
 
     /// The key context `id` contributed this frame, or `nil`.
     func context(for id: GlobalElementID) -> KeyContext? { contexts[id] }
+    /// The text field registered under `id` this frame (ruling TI-B).
+    func textTarget(for id: GlobalElementID) -> TextInputTarget? { textTargets[id] }
 
     /// How many ids declared themselves focusable — test observability, and the
     /// only way to assert that registration happened for an element that binds

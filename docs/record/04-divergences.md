@@ -1056,18 +1056,18 @@ proposal-authority-only evidence row.
 
 ## 2026-09-23: 55 amended (plan task 7 stage 7a, the goldens retired)
 
-Record §42; rulings `LR-DS`…`LR-EB` in
+Record §48; rulings `LR-DS`…`LR-EB` in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **No number is
 retired and none is added** — the table stays at **fifty-eight**. Stage 7a
 deletes the 97 WebKit goldens and their consumers; every golden has a row in
-record §42 §4. Only one live row cited the goldens as its pin:
+record §48 §4. Only one live row cited the goldens as its pin:
 
 - **55** (`CN-P` 4, G1: CSS shrinks items by base-size-weighted factors where
   SwiftUI compresses without weights). Its pin column read "— (covered by the
   CSS goldens; task 7)". The goldens that carried the CSS side
   (`flex_row_shrink`, `flex_row_fractional_shrink`, `flex_row_shrink_to_zero`,
   `flex_row_shrink_padded_weighting`, `flex_row_explicit_min`) are retired as
-  **D** rows (record §42 §4, rows 23, 27, 45–47). The row is now pinned by
+  **D** rows (record §48 §4, rows 23, 27, 45–47). The row is now pinned by
   name on both sides: the CSS engine's weighting by `shrinkIsWeightedByBaseSize`
   (`FreezeLoopTests`, a CSS-engine test that stays until 7b), and the proposal
   authority's unweighted answer by

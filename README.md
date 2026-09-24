@@ -22,7 +22,7 @@ child **measures** its answer, the parent **places** it. The aim is
 behavioural alignment, not source compatibility with SwiftUI. The CSS engine
 stays as migration evidence until each port is proven; its WebKit goldens were
 retired by plan task 7's stage 7a, each with a named native replacement or a
-named deleted CSS-only concept (record §42).
+named deleted CSS-only concept (record §48).
 
 **This is in progress, not delivered.** Today the two engines sit side by
 side, and which one runs is decided by the window's **root** element
@@ -110,10 +110,11 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-7a` (2026-09-23 — plan task 7 stage 7a, the goldens
-retired, from stage 6b's `2cc763d`) the suite reports **1616 tests**, in one
+On `feat/engine-stage-7a` (2026-09-24 — plan task 7 stage 7a, the goldens
+retired, merged with `master` at `6e01d9e`) the suite reports **1670 tests**
+(1758 − 104 + 16), in one
 summary line over three suites. That total includes **78** `swiftc -typecheck`
-guards and no WebKit goldens: stage 7a retired all 97 (record §42).
+guards and no WebKit goldens: stage 7a retired all 97 (record §48).
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them. **Production now runs the
@@ -257,7 +258,7 @@ each golden's own tree and assert its own boxes under the proposal authority;
 weighted shrink, the automatic minimum, the border-box floor, unequal grow
 weights, a sub-one grow sum), each with the native test that pins what the
 proposal authority does instead. The table is
-[record §42](docs/record/42-engine-replacement-stage-7a.md) §4.
+[record §48](docs/record/48-engine-replacement-stage-7a.md) §4.
 
 WebKit never said anything about the proposal-layout kernel. Its tests are
 `ProposedSizeTests`, `NativeLayoutTests` and `NativeLayoutIntegrationTests`.
@@ -335,7 +336,7 @@ transforms, and text colour animation.
   [`41-engine-replacement-stage-6b.md`](docs/record/41-engine-replacement-stage-6b.md)
   for its 6b stage — the root switch: production's default layout authority
   becomes `.proposal` — and
-  [`42-engine-replacement-stage-7a.md`](docs/record/42-engine-replacement-stage-7a.md)
+  [`48-engine-replacement-stage-7a.md`](docs/record/48-engine-replacement-stage-7a.md)
   for its 7a stage — the 97 WebKit goldens retired. Five files are
   not task tracks:
   [`19-claude-md-full-2026-09-21.md`](docs/record/19-claude-md-full-2026-09-21.md)

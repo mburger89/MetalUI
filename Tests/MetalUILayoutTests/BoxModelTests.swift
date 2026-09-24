@@ -132,7 +132,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// the fixture that drives the same rule: `resolveRootSize`, not
 /// `resolveNodeSize`. `overConstrainedBoxGrowsLikeWebKit`
 /// (`SizingFixtureTests.swift`, retired with its golden by stage 7a, record
-/// §42) put the identical declaration on a flex ITEM,
+/// §48) put the identical declaration on a flex ITEM,
 /// where the width is the item's main axis and goes through `flexBaseSize` and
 /// §4.5's automatic minimum instead. The two are not duplicates: deleting
 /// either site's floor leaves the other test green.

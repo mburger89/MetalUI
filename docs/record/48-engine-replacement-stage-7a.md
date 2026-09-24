@@ -1,4 +1,4 @@
-# §42 — Engine replacement, stage 7a: the goldens retired
+# §48 — Engine replacement, stage 7a: the goldens retired
 
 Plan task 7, stage 7a (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 7a,
@@ -11,10 +11,30 @@ Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`; lane 1: `LR-DZ`; lane 2:
 `docs/probes/swiftui-engine-stage-7a.swift` (arms W, G, S, A, B). Instrument:
 `docs/probes/stage-7a-transcription-instrument.patch`.
 
-**Numbering hazard.** Written as §42, the next free number at `2cc763d` (§41 is
-stage 6b). If another line reaches `master` first with a §42, this file is
-renumbered at merge by the precedent of record §23 §8 and the §25/§27/§29/§38/§41
-headers.
+**Renumbered from §42 to §48 at merge with `master` (2026-09-24):** `master`
+(`6e01d9e` — font fallback, bidi, AccessKit accessibility, text input, system
+fonts and text undo) was pushed first and keeps §42–§47, so every `§42` this
+track wrote was repointed to `§48` and the file renamed
+(`docs/record/42-engine-replacement-stage-7a.md` →
+`48-engine-replacement-stage-7a.md`); the precedent is record §23 §8 and the
+§25, §27, §29, §38 and §41 headers. Master's own `§42` citations (font
+fallback) were left alone. Nothing on `master` consumed a golden, a fixture,
+the WebKit oracle or `regenerateAllGoldens`, so the merge lost no master-side
+test; master's `Package.swift` changes (`CSheenBidi`, `MetalUISystemFonts`)
+sit beside this stage's dropped `resources:` line, and no workflow in
+`.github/workflows` asserts a test count. Counts re-taken on the merged tree
+after `swift package clean`: **1670 / 0 / 78, `Test run with 1670 tests in 3
+suites passed` (1758 − 104 + 16)** — master's 1758 less the 104 tests this
+stage removed (96 consumers, `GeneratorTests`' 5, `OracleTests`' 3) plus its
+16 replacements; eleven gated tests skipped (master's twelve less
+`regenerateAllGoldens`); 0 `error:`, 0 `warning:` on both build systems; the
+fourteen offscreen images read 0 px against `6e01d9e` (`CLAUDE.md` "Build
+and test").
+
+**Numbering hazard (as written).** Written as §42, the next free number at
+`2cc763d` (§41 is stage 6b). If another line reaches `master` first with a
+§42, this file is renumbered at merge by the precedent of record §23 §8 and
+the §25/§27/§29/§38/§41 headers.
 
 **Status, 2026-09-23 (PDT): delivered (§6–§8).** The goldens are gone:
 `find Tests/MetalUILayoutTests -name "*.json" | wc -l` reads **0**, the suite
@@ -722,7 +742,7 @@ measured in `swift:6.4-noble` (§7.1), and its "WebKit or Darwin" clause
 narrowed to "Darwin" now that no test in the tree imports WebKit);
 record §04 (divergence 55 amended: its pin no longer reads "the CSS goldens");
 records §03 and §05 (a dated "no row changed" section each); `docs/record/README.md`
-(§42's row); the plan (task 7's stage-7a progress paragraph; the checkbox stays
+(§48's row); the plan (task 7's stage-7a progress paragraph; the checkbox stays
 unticked); the parent spec's "where the task stands"; `README.md`.
 
 ## 9. Adversarial branch check (2026-09-24, at `ccdd9a8`)

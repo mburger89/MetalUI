@@ -314,7 +314,7 @@ reporter — both unaffected by which authority is the default.
 
 ## 2026-09-23: no row changed at engine replacement stage 7a
 
-Record §42; rulings `LR-DS`…`LR-EB`. **Checked and none added, edited or
+Record §48; rulings `LR-DS`…`LR-EB`. **Checked and none added, edited or
 deleted.** Stage 7a deletes test files only (the goldens, their fixtures, the
 WebKit oracle and their consumers) and one doc comment in `Sources/`
 (`roundLayout`'s); nothing declared in `Sources/` gains or loses a reader. The

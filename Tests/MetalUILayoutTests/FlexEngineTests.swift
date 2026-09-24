@@ -8,7 +8,7 @@ import MetalUICore
 ///
 /// Until plan task 7's stage 7a this file also compared sixteen trees against
 /// committed WebKit goldens. Those goldens, their comparisons and the oracle
-/// that generated them were retired by that stage: record §42's §4 names, for
+/// that generated them were retired by that stage: record §48's §4 names, for
 /// each golden, the native test arm that replaces it or the CSS-only concept it
 /// was deleted with. The tests left here are the CSS engine's own, and retire
 /// with it (stage 7b).
@@ -25,7 +25,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 }
 
 /// The three-child shape of the retired goldens `flex_row_three_fixed`,
-/// `flex_column_three_fixed` and `flex_row_gap` (stage 7a, record §42).
+/// `flex_column_three_fixed` and `flex_row_gap` (stage 7a, record §48).
 private func threeFixedChildren(
     direction: FlexDirection,
     width: Double,
@@ -432,7 +432,7 @@ private func threeFixedChildren(
 /// while leaving cases 1 and 2 green.
 ///
 /// The three cases were not redundant with `specifiedSizeSuggestionMatchesWebKit`
-/// (the browser fixture, retired with its golden by stage 7a, record §42): that
+/// (the browser fixture, retired with its golden by stage 7a, record §48): that
 /// one pinned the 130 case end to end against a golden, and this one pins all
 /// three side by side with the `min-width: 0` control the fixture could not
 /// carry — a fixture holds one tree.
@@ -614,7 +614,7 @@ private func wrappingChildInANarrowContainer(
 /// centre / stretch give different widths *and* different x.
 ///
 /// The browser evidence was `FitContentFixtureTests` and its six fixtures,
-/// retired with the goldens by stage 7a (record §42); this test was the
+/// retired with the goldens by stage 7a (record §48); this test was the
 /// hand-written companion that carried the differential a single golden could
 /// not.
 @Test func anAutoCrossSizeInAColumnIsFitContentLikeWebKit() {

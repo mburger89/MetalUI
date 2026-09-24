@@ -73,6 +73,25 @@ public final class HarfBuzzFont {
         return UInt16(truncatingIfNeeded: id)
     }
 
+    /// `glyph`'s advance before any shaping — the face's `hmtx` advance, with
+    /// no kerning or other positioning applied — in points (ruling TI-E: a
+    /// caret between a kerned pair sits halfway through the kern).
+    public func nominalAdvance(of glyph: UInt16) -> Double {
+        points(hb_font_get_glyph_h_advance(font, hb_codepoint_t(glyph)))
+    }
+
+    /// The caret positions the face's `GDEF` ligature caret list gives
+    /// `glyph`, in points from the glyph's origin, left to right — empty when
+    /// the face has none for it (ruling TI-E: CoreText puts a caret inside a
+    /// ligature here when the face says where).
+    public func ligatureCarets(of glyph: UInt16) -> [Double] {
+        var count = hb_ot_layout_get_ligature_carets(font, HB_DIRECTION_LTR, hb_codepoint_t(glyph), 0, nil, nil)
+        guard count > 0 else { return [] }
+        var carets = [hb_position_t](repeating: 0, count: Int(count))
+        _ = hb_ot_layout_get_ligature_carets(font, HB_DIRECTION_LTR, hb_codepoint_t(glyph), 0, &count, &carets)
+        return carets.prefix(Int(count)).map(points)
+    }
+
     /// Design units to points at this font's size (SH-D), as CoreText scales
     /// them: `units × (size / unitsPerEm)`, the ratio taken first. The other
     /// association (`units × size / unitsPerEm`) differs in the last bit, and

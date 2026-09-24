@@ -13,11 +13,11 @@ import MetalUICore
 // (`docs/probes/stage-7a-transcription-instrument.patch`) wrote it, a CSS grid with
 // `grid-area: 1/1` as `display: .stack`, an absolute box inside a `Deferred` with the
 // window sized to the fixture's `position: relative` root — and asserts, under the
-// **proposal** authority, the golden's `rounded` boxes (record §42 §5.1) exactly,
+// **proposal** authority, the golden's `rounded` boxes (record §48 §5.1) exactly,
 // with an empty report, through lane 1's `goldenArm` (reused, never copied).
 //
 // Tests 2.5–2.7 are D pins (`LR-DV`): the golden's own tree, asserting the **native**
-// answer (record §42 §5.2), which deliberately differs from WebKit's. Each doc comment
+// answer (record §48 §5.2), which deliberately differs from WebKit's. Each doc comment
 // names the golden, WebKit's answer, the native answer and the deleted CSS concept, so
 // a reader who sees the native number knows it is a divergence and not a regression.
 // What is deleted is the golden's CSS **answer**, not the field (`LR-DY` item 3).
@@ -26,7 +26,7 @@ import MetalUICore
 //
 // **Characterization** (`LR-DW`): every test is green on arrival; its red-before is
 // the mutation named in its doc comment (spec §6's lane-2 table), applied to the
-// committed source and run in the full unfiltered suite; record §42 §6.2 names every
+// committed source and run in the full unfiltered suite; record §48 §6.2 names every
 // test and arm each mutation reddened.
 
 // MARK: - 2.1–2.4, R arms
@@ -55,7 +55,7 @@ import MetalUICore
 /// A stretched stack child fills only its `auto` axes, clamped by its own minimum
 /// and maximum. `stack_stretch_max` is the golden's tree **minus `p`**, its
 /// percentage-maximum child (percentages are D, `LR-DU`; the whole tree reports
-/// `box.maxSize.percent`, record §42 §2): the arm asserts root, `h` and `w`.
+/// `box.maxSize.percent`, record §48 §2): the arm asserts root, `h` and `w`.
 /// **M2b** (`planLegacyItems`, the `.stack` case: `&& d.size.width == .auto`
 /// dropped) reddens `stack_stretch_declared_size` (child 300 wide).
 @MainActor

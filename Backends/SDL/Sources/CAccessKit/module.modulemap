@@ -1,0 +1,5 @@
+module CAccessKit [system] {
+    header "shim.h"
+    link "accesskit"
+    export *
+}

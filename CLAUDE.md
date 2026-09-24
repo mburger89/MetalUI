@@ -45,7 +45,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   its spec), `TS-` (next `TS-E`; rulings in its spec), `RS-` (next `RS-E`;
   rulings in its spec), `SP-` (next `SP-D`; rulings in its spec), `XP-`
   (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
-  `DC-` (next `DC-D`; rulings in its spec). A numbered citation
+  `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
+  its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
+  its spec), `TI-` (next `TI-H`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
+  spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -81,9 +84,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   `swiftui-engine-replacement-stage2.swift`'s V0–V3), plus two new harnesses,
   `docs/probes/native-depth-ceiling/` (the release re-bisection) and
   `docs/probes/stage-6b-flip-instrument.patch`),
-  7 stage 7a `LR-DS`…`LR-EB` (§42, spec
+  7 stage 7a `LR-DS`…`LR-EB` (§48, spec
   `specs/2026-09-23-engine-stage-7a-design.md`, same decisions doc — the 97
-  WebKit goldens retired, each with a row in record §42 §4 naming its native
+  WebKit goldens retired, each with a row in record §48 §4 naming its native
   replacement arm or its deleted CSS-only concept; probe
   `swiftui-engine-stage-7a.swift` arms W, G, S, A, B; instrument
   `docs/probes/stage-7a-transcription-instrument.patch`),
@@ -93,7 +96,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   integration (§23). **Lazy grids (`LazyVGrid`/`LazyHGrid`/`GridItem`) are out
   of scope**, proposed as stage G2 after stage 4 (`GR-L`) — **stage 4 has
   landed**, so the windowing they need exists (`WindowedRowsLayout`, `LR-BQ`)
-  and G2 is unblocked rather than waiting. Fifteen record files are not tasks of
+  and G2 is unblocked rather than waiting. Seventeen record files are not tasks of
   this plan: §19 is the
   frozen `CLAUDE.md` snapshot, §20 the portable `MetalUIScene` move (`PS-`),
   §24 the FreeType rasterizer (`FT-`, spec
@@ -113,9 +116,16 @@ milestones append their record to `docs/record/` and put only the rule here.
   §35 the text seam (`TS-`, spec `specs/2026-09-23-text-seam-design.md`),
   §36 the render seam (`RS-`, spec `specs/2026-09-23-render-seam-design.md`),
   §37 the SDL3 platform (`SP-`, spec `specs/2026-09-23-sdl-platform-design.md`),
-  §39 MetalUI off Apple (`XP-`, spec `specs/2026-09-23-metalui-portable-design.md`)
-  and §40 the demo on Linux and Windows (`DC-`, spec
-  `specs/2026-09-23-demo-cross-platform-design.md`). **Cross-platform work
+  §39 MetalUI off Apple (`XP-`, spec `specs/2026-09-23-metalui-portable-design.md`),
+  §40 the demo on Linux and Windows (`DC-`, spec
+  `specs/2026-09-23-demo-cross-platform-design.md`), §42 portable font
+  fallback (`FB-`, spec `specs/2026-09-23-font-fallback-design.md`), §43
+  portable bidi (`BD-`, spec `specs/2026-09-23-bidi-design.md`), §44
+  accessibility off Apple through AccessKit (`AX-`, spec
+  `specs/2026-09-23-accesskit-accessibility-design.md`) §45 text input
+  and `TextField` (`TI-`, spec `specs/2026-09-23-text-input-design.md`) and
+  §46 system font discovery (`SF-`, spec
+  `specs/2026-09-23-system-fonts-design.md`). **Cross-platform work
   follows `plans/2026-09-23-cross-platform-roadmap.md`**, one item per branch,
   ticked in the PR that lands it.
   **§24 is FreeType and §25 is stage 3; §26 is HarfBuzz and §27 is stage 4**
@@ -133,6 +143,13 @@ milestones append their record to `docs/record/` and put only the rule here.
   **§41 (stage 6b) was written as §39** on `feat/engine-stage-6b` from
   `aef88ce` and renumbered 39→41 at its merge, because `master` had already
   published §39–§40 (PR #22, `654a503`; record §41's header).
+  **§42 (font fallback) was written as §40**, renumbered 40→41 at the
+  stage-6a merge and 41→42 when stage 6b reached `master` first; **§43
+  (bidi) was written as §41** and moved with it, 41→42→43.
+  **§48 (stage 7a) was written as §42** on `feat/engine-stage-7a` from
+  `2cc763d` and renumbered 42→48 at its merge, because `master` had already
+  published §42–§47 (font fallback through text undo, `6e01d9e`; record
+  §48's header).
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -147,9 +164,23 @@ swift test --no-parallel 2>&1 | grep -oE "Test run with [0-9]+ tests" | grep -oE
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
+METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
-- **Counts (2026-09-23, `feat/engine-stage-7a` — plan task 7 stage 7a — from
+- **Counts (2026-09-24, `feat/engine-stage-7a` — plan task 7 stage 7a —
+  merged with `master` at `6e01d9e`, records §42–§47): 1670 tests, 0 goldens,
+  78 typecheck guards**, 0 `error:`, 0 `warning:` on both build systems,
+  taken after `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1670 tests in 3 suites
+  passed`; eleven gated tests skipped; the guards ran — the log carries `FR-J
+  no-argument frame: succeeded=`). **1670 = 1758 − 104 + 16**: `master`'s
+  `6e01d9e` (1758, its own figure below) less the 104 tests stage 7a removed
+  with the goldens (96 consumers, `GeneratorTests`' 5, `OracleTests`' 3) plus
+  its 16 replacements (record §48 §5.3, §6.3). No master-side test consumed a
+  golden, so none was lost at the merge. The fourteen offscreen images read 0
+  px against `6e01d9e`.
+- **Stage 7a's counts before the merge (2026-09-23, `feat/engine-stage-7a` from
   `2cc763d`): 1616 tests, 0 goldens, 78 typecheck guards**, 0 `error:`, 0
   `warning:` on both build systems, taken with `swift build --build-system
   native --build-tests` then unfiltered `swift test --build-system native
@@ -158,11 +189,44 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   no-argument frame: succeeded=`). **1616 = 1704 − 96 − 5 − 3 + 8 + 8**: the
   96 golden-consuming tests, `GeneratorTests`' 5 and `OracleTests`' 3 removed
   with the goldens, and the 8 + 8 replacement tests of `GoldenReplacementFlexTests`
-  and `GoldenReplacementStackTests` added (record §42 §5.3, §6.3). **The
+  and `GoldenReplacementStackTests` added (record §48 §5.3, §6.3). **The
   goldens are gone**: `Golden/`, `Fixtures/`, `Oracle/` and the WebKit oracle
   with them, so no test in the repository imports WebKit. The twelve-image
   offscreen comparison (and the two `prod-*` images) read 0 px against
   `2cc763d`.
+- **Counts (2026-09-23, `feat/text-undo` — `TI-G`): 1758 tests, 97 goldens,
+  78 typecheck guards**, 0 `error:`, 0 `warning:` on both build systems,
+  taken the same way; **1758 = 1752 + 6** (`TextEditingTests` +5,
+  `TextFieldTests` +1); record §47.
+- **Counts (2026-09-23, `feat/system-fonts` — roadmap item 8b): 1752
+  tests, 97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both
+  build systems, taken the same way (`Test run with 1752 tests in 3 suites
+  passed`; the guards ran). **1752 = 1746 + 6** (`MetalUISystemFontsTests`,
+  which also runs on Linux and Windows); record §46.
+- **Counts (2026-09-23, `feat/text-input` — roadmap item 14): 1746 tests,
+  97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both build
+  systems, taken after `swift package clean` the same way (one summary line,
+  `Test run with 1746 tests in 3 suites passed`; the guards ran). **1746 = 1712
+  + 4 + 30**: the caret-offset lane's 4 (`CaretOffsetOracleTests`) and text
+  input's 30 (`TextEditingTests` 10, `TextFieldTests` 13,
+  `TextInputPlatformTests` 7); record §45. Goldens and the demo-frame pin
+  unmoved. `Backends/SDL`: 21 + 19 on macOS (5 new `SDLTextInputTests`), 21 +
+  18 on Linux aarch64.
+- **Counts (2026-09-23, `feat/accessibility` — roadmap item 13): the root
+  package is untouched — 1712 / 97 / 78 as below**. The work is in the
+  separate `Backends/SDL` package: `MetalUISDLTests` 14 (5 new
+  `AccessKitTests`) + `ReplayFixtureTests` 21 on macOS; 13 + 21 on Linux
+  aarch64, where the NSAccessibility test does not exist (record §44).
+- **Counts (2026-09-23, `feat/bidi` — roadmap items 11–12 — merged with
+  `master` at `2cc763d`, stage 6b): 1712 tests, 97 goldens, 78 typecheck
+  guards**, taken the same way: **1712 = 1708 + 4**, font fallback's
+  figure below plus bidi's 4 (record §43, one gated, so twelve gated tests
+  skip — font fallback's eleven and `measureBidiDifferences`).
+- **Counts (2026-09-23, `feat/font-fallback` — roadmap item 11 — merged
+  with `master` at `2cc763d`, stage 6b): 1708 tests, 97 goldens, 78
+  typecheck guards**, taken the same way: **1708 = 1704 + 4**, master's
+  stage-6b figure below plus font fallback's 4 (record §42, one gated, so
+  eleven gated tests skip — master's ten and `measureFallbackDifferences`).
 - **Counts (2026-09-23, `feat/engine-stage-6b` — plan task 7 stage 6b —
   merged with `master` at `654a503`, PR #22, roadmap items 9 and 10): 1704
   tests, 97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both
@@ -273,23 +337,26 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   (43 CSS reds) own baseline — record §38 §2–§4, §12.
 - **Master's counts before stage 6a (2026-09-23, `feat/engine-stage-5` — plan task 7 stage 5 — merged
   with `master` at `42b9ab4`, the portable text line; then `PT-J`, +5; then line breaking, +6; then
-  lines emission, +14; then content sizes, +10; then font resolution, +6; then the text seam, +5; then MetalUI off Apple, +3): 1689 tests, 97
+  lines emission, +14; then content sizes, +10; then font resolution, +6; then the text seam, +5; then MetalUI off Apple, +3; then font fallback, +4; then bidi, +4): 1697 tests, 97
   goldens, 77 typecheck guards**, 0 `error:`, 0 `warning:`, taken after
   `swift package clean` with `swift build --build-system native
   --build-tests` then unfiltered `swift test --build-system native
-  --no-parallel` (**one summary line**, `Test run with 1689 tests in 3 suites
-  passed`; ten skipped: the two gated tests, the FreeType, HarfBuzz,
-  portable text, line breaking, lines emission (two) and content sizes
-  oracles' gated measurement tests, and the demo-frame recorder; the guards ran — the log
+  --no-parallel` (**one summary line**, `Test run with 1697 tests in 3 suites
+  passed`; twelve skipped: the two gated tests, the FreeType, HarfBuzz,
+  portable text, line breaking, lines emission (two), content sizes, font
+  fallback and bidi oracles' gated measurement tests, and the demo-frame
+  recorder; the guards ran — the log
   carries `FR-J no-argument frame: succeeded=`). Goldens unmoved against
   `e5caefb` (`git diff --name-only e5caefb HEAD -- 'Tests/**/*.json'` is
-  empty). **1689 = 1640 + 5 + 6 + 14 + 10 + 6 + 5 + 3**: the `PT-J` follow-up's
+  empty). **1697 = 1640 + 5 + 6 + 14 + 10 + 6 + 5 + 3 + 4 + 4**: the `PT-J` follow-up's
   `EmitParameterTests` (record §28), line breaking's 6 (the `LB-E` oracle,
   its gated measurement, contract tests; record §30) and lines emission's 14
   (ten metric/placement oracle tests, two of them gated, and four
   `EmitLinesTests`; record §31), content sizes' 10 (record §32) and font
   resolution's 6 (record §33), the text seam's 5 (record §35) and
-  `MetalUICrossPlatformTests`' 3 (record §39, one a gated recorder;
+  `MetalUICrossPlatformTests`' 3 (record §39, one a gated recorder) and
+  font fallback's 4 (record §42, one gated) and bidi's 4 (record §43, one
+  gated; `Tests/PortableTests` separately runs 18 + 6 + 5 since bidi;
   `Tests/PortableTests` separately runs 16 + 6 + 5); **1640 = 1617 + 15 + 8**: master's `e5caefb` (1617) plus stage 5's
   15 (lane 1, the presentation root, +7; lane 2, the exit suites, +2; lane 3,
   the must-not-move set through real windows, +6; record §29) plus the
@@ -330,8 +397,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Nine** gated tests count toward the total while skipped (ten until stage
-  7a removed `regenerateAllGoldens` with the goldens) —
+  **Eleven** gated tests count toward the total while skipped (twelve until
+  stage 7a removed `regenerateAllGoldens` with the goldens) —
   `aListsWorkIsTheSameFor100kRowsAsFor500`, the
   FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
   (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
@@ -340,14 +407,18 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   and the lines emission oracle's `measureLineEmissionDifferences` and
   `measurePatchedFaceMetrics` (both `METALUI_LINES_EMIT_MEASURE=1`) and the
   content sizes oracle's `measureContentSizeDifferences`
-  (`METALUI_CONTENT_MEASURE=1`) and `recordDemoFrames`
-  (`METALUI_CROSSPLATFORM_RECORD=1`).
+  (`METALUI_CONTENT_MEASURE=1`), `recordDemoFrames`
+  (`METALUI_CROSSPLATFORM_RECORD=1`), `measureFallbackDifferences`
+  (`METALUI_FALLBACK_MEASURE=1`) and `measureBidiDifferences`
+  (`METALUI_BIDI_MEASURE=1`). **Tests that register fonts with CoreText
+  process-wide race under a parallel run** (measured with a filtered run:
+  the resolver oracle and the seam test fail together) — `--no-parallel`.
   The lone `warning:`
   under native is SwiftPM's deprecation notice.
-- **No goldens remain** (stage 7a, record §42):
+- **No goldens remain** (stage 7a, record §48):
   `find Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0 — not `find
   Tests`, where `Tests/PortableTests/.build/` holds JSON build artifacts. Each
-  of the 97 was retired with a row in record §42 §4: 44 by a native arm that
+  of the 97 was retired with a row in record §48 §4: 44 by a native arm that
   builds the golden's own tree and asserts its own boxes under the proposal
   authority (`GoldenReplacementFlexTests`, `GoldenReplacementStackTests`,
   through `goldenArm`), 53 with a named CSS-only concept and the native test
@@ -412,10 +483,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `#if canImport(WebKit)` gate anywhere now, since nothing there imports
   WebKit); typecheck guards read only this platform's `.build` (`PC-C`) and
   skip off macOS.
-- **Targets:** eighteen one-way-dependent (`MetalUICore`, `MetalUILayout`,
-  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`, `CUnibreak`,
+- **Targets:** twenty one-way-dependent (`MetalUICore`, `MetalUILayout`,
+  `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`, `CUnibreak`, `CSheenBidi`,
   `MetalUIHarfBuzz`, `MetalUITextSystem`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`,
-  `MetalUIPlatform`, `MetalUIRender`, `MetalUIAppKit`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
+  `MetalUIPlatform`, `MetalUIPrimitives`, `MetalUIRender`, `MetalUIAppKit`, `MetalUI`,
+  `MetalUIDemoContent`, `MetalUIDemo`) plus
   `Tests/MetalUITestSupport`. `MetalUIDemoContent` holds the demo tree so
   tests can import it (`LR-S`). `MetalUIScene` holds
   `Scene`/`DrawRun`/`PrimitiveKind`, the glyph atlas types and the `FontKey`
@@ -424,8 +496,17 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `Backends/SDL` — a **separate package** (`MetalUISDL`, so the root never
   needs SDL3) holding `SDLWindowRenderer` and the replay parity harness
   (`RS-D`), and `SDLPlatform`/`SDLWindow`, the SDL3 `Platform` (`SP-A`;
-  keys translated to AppKit's characters so `Keymap` works, `SP-C`; **no
-  accessibility**, explicitly — a divergence until roadmap item 13, `SP-B`).
+  keys translated to AppKit's characters so `Keymap` works, `SP-C`; accessibility
+  through AccessKit** — AT-SPI, UI Automation, and NSAccessibility for the SDL
+  window on macOS, `AX-B`/`AX-C`, superseding `SP-B`). **`Backends/SDL`
+  links AccessKit's C bindings, fetched, not vendored (`AX-A`)**: run
+  `python3 Backends/SDL/scripts/fetch-accesskit.py` once, then build and test
+  that package with `PKG_CONFIG_PATH=$PWD/.accesskit` (Windows: the `-Xcc`/
+  `-Xswiftc` flags it prints); without it SwiftPM warns about pkg-config and
+  the link fails on `accesskit_*`. The root package never needs it. AccessKit
+  calls back on its own thread on Linux: callbacks only queue under a lock and
+  wake SDL (`mui_wake_for_accessibility`); requests reach
+  `onAccessibilityRequest` on the main thread, parked until it is set.
   **Windows draw through `PlatformWindow.renderer`, a
   `WindowRenderer`** (`RS-A`: `beginFrame() -> Float?`, then
   `finishFrame(scene:atlas:)`), declared in `MetalUIPlatform`, which is now
@@ -475,7 +556,17 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   `CTFontCreateWithName`'s rules — PostScript, family or full name, case
   folded and nothing else; `nil` and every unmatched name give the default
   face (`FN-A`…`FN-C`); its oracle runs once per default face, because a
-  single default hides a wrong match on that face's own name. Also a
+  single default hides a wrong match on that face's own name. **Every
+  shaping path goes through `shapeCascading`** (`FB-A`): a grapheme goes to
+  the first face of the font's cascade (`PortableFont.fallbacks`; from the
+  resolver, every other registered face, `FB-B`) that covers it, and glyphs
+  carry their face to placement and the atlas — a new shaping call site that
+  calls `HarfBuzzShaper` directly loses fallback. Runs also split by bidi
+  level and script and are shaped in their direction (`BD-B`, SheenBidi,
+  vendored as `CSheenBidi`); each line is laid out in UAX #9 visual order,
+  a right-to-left line's trailing whitespace hung off its left edge, and a
+  line starting inside a split lam-alef re-shaped (`BD-C`) — all measured
+  against CoreText, 0 differences over 320 cases. Also a
   library product; nothing in production calls it (`PT-I`). The subpixel
   placement rule lives once, in `GlyphImage.subpixelPlacement(forDeviceX:)`
   (`PT-C`); `GlyphRaster` forwards — do not re-inline it on either side.
@@ -518,7 +609,14 @@ Eight constraints that fail silently:
   pin's Arabic case is the only test that sees a shaping offset**: the Apple
   oracle's Latin corpus has none (`noCorpusGlyphCarriesAShapingOffset`), so
   dropping `xOffset` from `emit`'s pen walk reddens nothing on macOS except
-  the portable package.
+  the portable package. **`MetalUISystemFonts` is the exception by design**
+  (`SF-A`): the one text target with a file system, importing Foundation
+  (swift-corelibs-foundation off Apple), `MetalUIFreeType` and
+  `MetalUIPortableText` — so discovery never leaks into the portable pipeline.
+  A system face is **lazy** (`SF-B`) and, unless it is one of the platform's
+  fallback families, **outside the cascade** (`SF-C`): registering a whole
+  installation with the byte API instead would open every face when the first
+  font resolves (`FB-B`).
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (gamma-space compositing, §7.8).
@@ -677,7 +775,8 @@ fails the other. `registerHandlers` holds the hitbox, focus, AX record and the
 disabled gate; skipping it makes an element ungated and invisible to
 VoiceOver. **Any hook added to `Element`'s group defaults must be mirrored per
 layer in `ModifiedElement` and in `AnyElement`'s group entry** (`MC-B`,
-`LR-AA`). `Handlers` has eight members; `HandlerShape` (`ModifierTests`) and
+`LR-AA`). `Handlers` has nine members (the ninth, `textInput`, internal
+and set only by `TextField`, `TI-B`); `HandlerShape` (`ModifierTests`) and
 `HandlerFingerprint` (`OuterModifierMatrixTests`) each gain a field when it
 gains one.
 
@@ -704,10 +803,32 @@ everything inside via `Frame.suppressingAccessibilityIfHidden` (`AB-O`). A
 text-painting conformer passes `accessibleText:`. Qualify
 `MetalUIPlatform.AccessibilityRequest` in files importing AppKit.
 
-**Focus:** `Window.focus(_:)` is the only mover; clicking does not focus. Keys
-go to the `Keymap` first, then bubble raw `onKey` up the parent chain.
-`focusBorder(_:width:)` is the (opt-in) ring; background and border resolve
-`focus ?? hover ?? plain`.
+**Focus:** `Window.focus(_:)` is the only mover; clicking does not focus —
+**except a `TextField`**, which a press focuses (`TI-B`). Keys go to the
+`Keymap` first, then to a focused field's editing keys, then bubble raw
+`onKey` up the parent chain. `focusBorder(_:width:)` is the (opt-in) ring;
+background and border resolve `focus ?? hover ?? plain`.
+
+**Text input (`TI-`).** `TextField(_:text:onChange:)` is **controlled** (there
+is no value `Binding`; `Binding` is still `KeyBinding`'s alias) and one line.
+Its selection, composition and scroll live in `StateTable` under its own id.
+While a field is focused, `Window` calls `PlatformWindow.setTextInputArea`
+with its caret (nil otherwise), and a printable key arrives as
+`.textInput`, not `.keyDown` — AppKit routes it through the input context,
+SDL drops the key-down it also sends — so **plain-letter `Keymap` bindings are
+silent while a field is focused**; command shortcuts are not. `Window.editedText`
+carries an edit until the next frame: two edits between frames must compose
+(a cut then a paste read `"pastedhello"` without it). Caret positions come
+only from `TextSystem.caretOffsets` (`TI-E`), which follows the font's GDEF
+ligature carets and puts a caret halfway through a kern, as CoreText does —
+do not re-derive them from advances. `TextEditing` is pure and holds TI-D's
+key table for both platforms' conventions (`TextEditing.platform`: control is
+the shortcut and word key off Apple). **Undo and redo (`TI-G`) live in the
+field's `TextEditState.history`**: ⌘Z / ⌘⇧Z on Apple, ctrl-Z / ctrl-Y /
+ctrl-shift-Z elsewhere; typing and single deletes coalesce, and a caret move
+ends the group. The history is valid only for the text its last edit
+produced — a caller that changes the text itself drops it, rather than an
+undo replaying over a text it never saw.
 
 **Text.** `Text` and `ProposalText` measure and draw **only through
 `Frame.textSystem`** (`TS-A`): a `TextSystem` chosen once per app
@@ -759,7 +880,7 @@ sleep: drive `simulateTick(timestamp:)`.
 ## SwiftUI alignment — the proposal layout path
 
 A propose/measure/place engine sits beside the CSS engine. Detail: §19
-"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38, §41, §42.
+"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38, §41, §48.
 
 - **Two engines, chosen by the window root alone**
   (`tree.isNativeLayoutNode(root)`). A native root is placed centred at its own
@@ -921,7 +1042,7 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   `Golden/`, four all-consumer files and 96 consumer tests are gone; one
   consumer, `theClampedAutomaticMinimumIsStillFlooredByPaddingAndBorderMatchesWebKit`,
   survives trimmed for 7b. 7a pre-empts nothing of 7b: every other CSS-engine
-  test, `FlexEngine` and every `.legacy`-pinned test stay. Record §42.
+  test, `FlexEngine` and every `.legacy`-pinned test stay. Record §48.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm

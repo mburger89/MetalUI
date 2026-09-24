@@ -77,10 +77,12 @@ Apple-bound:
    windows, input (keys in AppKit's vocabulary), resize, scale, frame ticks,
    theme, close; accessibility an explicit no-op. `feat/sdl-platform`, spec
    `specs/2026-09-23-sdl-platform-design.md` (`SP-`), record §37.
-   8b. [ ] **System font discovery** — find installed fonts (fontconfig on
-   Linux; the Fonts directory or DirectWrite on Windows) and register them
-   with `PortableFontResolver`, choosing the platform's default face for
-   `family: nil`.
+   8b. [x] **System font discovery** — `MetalUISystemFonts`: the platform's
+   font directories scanned, faces named without loading them, registered
+   lazily with `PortableFontResolver`, the platform's default family for
+   `family: nil` (fontconfig's first on Linux) and its fallback families as
+   the cascade. `feat/system-fonts`, spec
+   `specs/2026-09-23-system-fonts-design.md` (`SF-`), record §46.
 9. [x] **`MetalUI` builds without AppKit/Metal** — declared everywhere,
    Apple dependencies appended on macOS; `App(platform:textSystem:)`; the
    demo's whole frame pinned across platforms and equal on Linux.
@@ -97,14 +99,22 @@ Apple-bound:
 
 ### After the demo runs
 
-11. [ ] **Font fallback** — a glyph missing from the primary face comes from
-    a fallback face (the CJK line in SDL frames 0–3 is CoreText's fallback;
-    frame 4 avoids it).
-12. [ ] **Bidi and script itemization** — UAX #9 across runs and runs split
-    by script; today one call is one direction.
-13. [ ] **Accessibility off Apple** — AT-SPI (Linux) and UI Automation
-    (Windows) behind `publishAccessibilityTree`.
-14. [ ] **Text input** — IME composition and clipboard through SDL3.
+11. [x] **Font fallback** — an ordered cascade of registered faces, per
+    grapheme; equal to CoreText's with the same cascade list. RTL fallback
+    waits for item 12. `feat/font-fallback`, spec
+    `specs/2026-09-23-font-fallback-design.md` (`FB-`), record §42.
+12. [x] **Bidi and script itemization** — SheenBidi; runs by face, level
+    and script; visual lines equal to CoreText's (and item 11's RTL fallback
+    with them). `feat/bidi`, spec `specs/2026-09-23-bidi-design.md` (`BD-`),
+    record §43.
+13. [x] **Accessibility off Apple** — AccessKit (AT-SPI, UI Automation,
+    and NSAccessibility for SDL on macOS) behind `publishAccessibilityTree`.
+    `feat/accessibility`, spec `specs/2026-09-23-accesskit-accessibility-design.md`
+    (`AX-`), record §44.
+14. [x] **Text input** — `TextField` with caret, selection, editing keys,
+    input-method composition and the clipboard, on AppKit and SDL3; caret
+    offsets from both text systems, equal to CoreText's. `feat/text-input`,
+    spec `specs/2026-09-23-text-input-design.md` (`TI-`), record §45.
 
 Not on this list: iOS (a UIKit `PlatformWindow`, and the `.touch` input the
 spec asks for) is Apple-platform work with its own spec; the CLAUDE.md header

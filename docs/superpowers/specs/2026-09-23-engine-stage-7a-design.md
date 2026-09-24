@@ -3,7 +3,7 @@
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 row 7a, §8. Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`; lane 1: `LR-DZ`; lane 2: `LR-EA`; lane 3: `LR-EB`) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
-Record: `docs/record/42-engine-replacement-stage-7a.md` (its §4 is the 97-row
+Record: `docs/record/48-engine-replacement-stage-7a.md` (its §4 is the 97-row
 retirement table this design commits). Probe:
 `docs/probes/swiftui-engine-stage-7a.swift` (arms W, G, S, A, B, run
 2026-09-23). Instrument: `docs/probes/stage-7a-transcription-instrument.patch`.
@@ -22,7 +22,7 @@ image; nothing under `Tests/PortableTests` or `Backends` changed. The design's
 history: critic round 1 (`LR-DY`) added test 2.8 and M2h, so the exit count is
 1616, not 1615; lane 3 corrected the gated count to ten → nine and widened
 §7's removal-diff row to one dead helper and comment-only edits (`LR-EB`).
-Record §42 §6–§8.
+Record §48 §6–§8.
 
 **What this stage is.** Each of the 97 WebKit goldens
 (`Tests/MetalUILayoutTests/Golden/*.json`) is retired with a row naming either
@@ -54,11 +54,11 @@ deprecation notice), unfiltered `swift test --build-system native
 --no-parallel` → **`Test run with 1704 tests in 3 suites passed`**, the log
 carrying `FR-J no-argument frame: succeeded=true`. **97** goldens
 (`find Tests/MetalUILayoutTests -name "*.json" | wc -l`), 78 guards. Every
-golden has exactly one consumer `@Test` (record §42 §1).
+golden has exactly one consumer `@Test` (record §48 §1).
 
 ## 2. The entry measurement
 
-Record §42 §2 in full. Each fixture's CSS was transcribed into `Box(style:)`
+Record §48 §2 in full. Each fixture's CSS was transcribed into `Box(style:)`
 trees with every golden id named by `.id(_:)`, and rendered under **both**
 authorities through `LayoutDifferential.render`. 74 of 97 were transcribed (the
 23 others each hold a `flex-wrap` box, which reports by name whatever its
@@ -134,9 +134,9 @@ greps for it).
 
 ## 5. The retirement, by family
 
-The table is record §42 §4, one row per golden: consumer removed, the fact it
+The table is record §48 §4, one row per golden: consumer removed, the fact it
 pins, the verdict, the replacement or deleted concept. The literals each R arm
-asserts are record §42 §5.1 (the golden's `rounded` boxes, read before deletion);
+asserts are record §48 §5.1 (the golden's `rounded` boxes, read before deletion);
 the D pins' native answers are §5.2.
 
 | family | R (new arm) | D (deleted concept → native pin) |
@@ -200,14 +200,14 @@ File: `GoldenReplacementStackTests.swift` (uses lane 1's helper for 2.1–2.7; 2
 | 2.8 | `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs` (`LR-DY`) | D report arms, each rendered under the proposal authority and asserting `unlowerableFields` exactly: each arm is **its golden's own tree** (`LR-EA`, lane 2: the fixture's CSS as `Box(style:)` fields, as 2.1–2.7): `flex_wrap_reverse` (260×300, `wrap-reverse`, `align-content: flex-start`, five fixed children, three with `alignSelf`) → `[box.flexWrap, box.alignContent]`; `flex_wrap_reverse_align_content_end` (`wrap-reverse`, `align-content: flex-end`, `gap: 12px 0`, three fixed children) → `[box.flexWrap, box.alignContent]` (that order: `legacyContainerDiagnostics` appends `flexWrap` first); `flex_wrap_reverse_row_reverse` (`row-reverse`, `wrap-reverse`, `gap: 10px 6px`, three fixed children, two with margins) → `[box.flexWrap]`. `try #require` on the arm count (shape 13) | **M2h** `legacyContainerDiagnostics` (`LegacyLowering.swift:209`): `declared.flexWrap != .noWrap` → `declared.flexWrap == .wrap` → all three arms; `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`'s `.wrap` arm must stay **green** (it cannot see this mutation — which is why 2.8 exists) |
 
 Each D-pin test's doc comment names the golden, WebKit's answer, the native
-answer and the concept (record §42 §2's table), so a later reader who sees the
+answer and the concept (record §48 §2's table), so a later reader who sees the
 native number knows it is a deliberate divergence and not a regression.
 
 ### Lane 3 — the removal (Opus)
 
 Runs only when lanes 1 and 2 are committed and green in an unfiltered run.
 
-1. **Verify every row first.** For each of record §42 §4's 97 rows: an R row's
+1. **Verify every row first.** For each of record §48 §4's 97 rows: an R row's
    test exists and contains an arm labelled with the golden's name
    (`grep -n '"<golden>"' Tests/MetalUITests/GoldenReplacement*Tests.swift`
    → one hit); a D row's cited tests exist (`grep -n "func <name>"`). A row
@@ -232,7 +232,7 @@ Runs only when lanes 1 and 2 are committed and green in an unfiltered run.
 | must not move | pinned by |
 |---|---|
 | production behaviour, identity, hit testing, accessibility, animation | no `Sources/` code change (`git diff 2cc763d -- Sources` = `///` lines of `roundLayout`'s doc comment only) |
-| pixels | `docs/probes/demo-pixels/compare.sh <scratch> 2cc763d <HEAD>`: all twelve images **0 px**, every control at its `2cc763d` value (`LR-DZ`: record §41 read them at `aef88ce`; record §42 §6.1 lists the `2cc763d` values) |
+| pixels | `docs/probes/demo-pixels/compare.sh <scratch> 2cc763d <HEAD>`: all twelve images **0 px**, every control at its `2cc763d` value (`LR-DZ`: record §41 read them at `aef88ce`; record §48 §6.1 lists the `2cc763d` values) |
 | cross-platform demo pin | `DemoFrameDeterminismTests` green and unedited (`git diff 2cc763d -- Tests/PortableTests Backends` empty) |
 | every non-golden test's assertion | lane 3's diff of the five surviving consumer files touches only removed consumers, `assertMatchesGolden` and the trimmed test's two golden lines — plus, by `LR-EB`, the dead `threeJustifiedChildren` and comment-only edits; every surviving `@Test` body byte-identical to `2cc763d` (checked by script) |
 | 0 `warning:` | both build systems, as at baseline |
@@ -246,7 +246,7 @@ Runs only when lanes 1 and 2 are committed and green in an unfiltered run.
 - `ls Tests/MetalUILayoutTests/Fixtures Tests/MetalUILayoutTests/Oracle
   Tests/MetalUILayoutTests/Golden` fails; `GeneratorTests.swift` and
   `OracleTests.swift` absent;
-- every one of record §42 §4's 97 rows verified by lane 3 step 1;
+- every one of record §48 §4's 97 rows verified by lane 3 step 1;
 - unfiltered `swift test --build-system native --no-parallel` → **`Test run
   with 1616 tests in 3 suites passed`** = 1704 − 96 − 5 − 3 + 8 + 8, the log
   carrying `FR-J no-argument frame: succeeded=`; nine gated tests skipped where

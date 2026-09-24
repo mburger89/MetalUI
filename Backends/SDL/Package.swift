@@ -25,13 +25,22 @@ let package = Package(
         // only where Swift imports CSDL, and nothing does. Without pkg-config
         // (Windows) nothing else asks for SDL3.
         .target(name: "SDLBridge", dependencies: ["CSDL"], linkerSettings: [.linkedLibrary("SDL3")]),
+        // AccessKit's C API (ruling AX-A): run scripts/fetch-accesskit.py, then
+        // build with PKG_CONFIG_PATH=.accesskit (Linux, macOS) or its -Xcc/-Xlinker
+        // flags (Windows).
+        .systemLibrary(name: "CAccessKit", pkgConfig: "accesskit"),
         .target(name: "ReplayFixture", dependencies: [.product(name: "MetalUIScene", package: "MetalUI")]),
         .target(name: "SDLReplay", dependencies: ["SDLBridge", "ReplayFixture",
                                                   .product(name: "MetalUIScene", package: "MetalUI")]),
-        .target(name: "MetalUISDL", dependencies: ["SDLBridge",
+        .target(name: "MetalUISDL", dependencies: ["SDLBridge", "CAccessKit",
                                                    .product(name: "MetalUIPlatform", package: "MetalUI"),
                                                    .product(name: "MetalUICore", package: "MetalUI"),
-                                                   .product(name: "MetalUIScene", package: "MetalUI")]),
+                                                   .product(name: "MetalUIScene", package: "MetalUI")],
+                // What AccessKit's Rust static library needs on Windows, where
+                // no pkg-config file says so (Linux and macOS: accesskit.pc).
+                linkerSettings: ["bcrypt", "ntdll", "propsys", "runtimeobject", "uiautomationcore",
+                                 "userenv", "ws2_32", "ole32", "oleaut32", "user32", "advapi32"]
+                    .map { .linkedLibrary($0, .when(platforms: [.windows])) }),
         .testTarget(name: "MetalUISDLTests", dependencies: ["MetalUISDL", "SDLReplay",
                                                            .product(name: "MetalUIScene", package: "MetalUI"),
                                                            .product(name: "MetalUIPortableText", package: "MetalUI")]),
@@ -45,6 +54,7 @@ let package = Package(
         // The demo in an SDL window (ruling DC-C).
         .executableTarget(name: "MetalUISDLDemo", dependencies: [
             "MetalUISDL",
+            .product(name: "MetalUISystemFonts", package: "MetalUI"),
             .product(name: "MetalUI", package: "MetalUI"),
             .product(name: "MetalUIDemoContent", package: "MetalUI"),
             .product(name: "MetalUIPortableText", package: "MetalUI")]),

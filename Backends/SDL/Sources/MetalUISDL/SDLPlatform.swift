@@ -93,6 +93,8 @@ public final class SDLPlatform: Platform {
         case Int(MUI_EVENT_CLOSE):
             guard let window = windows.removeValue(forKey: event.window_id) else { return }
             window.close()
+        case Int(MUI_EVENT_ACCESSIBILITY):
+            windows[event.window_id]?.deliverAccessibilityRequests()
         default:
             windows[event.window_id]?.handle(event)
         }
@@ -110,14 +112,27 @@ public final class SDLWindow: PlatformWindow {
     private var displayLinkTick: ((Double) -> Void)?
     private var displayLinkPaused = false
     private var closed = false
+    /// Optional for the same reason as `windowRenderer`: released before the
+    /// window it subclasses is destroyed.
+    private var accessKit: AccessKitAdapter?
+    private let accessKitIDs = AccessKitIDs()
+    /// Requests that arrived before `Window` installed its handler — parked,
+    /// as the AppKit bridge parks `.activate` (AB-B).
+    private var parkedAccessibilityRequests: [AccessibilityRequest] = []
 
     init(handle: OpaquePointer) throws {
         self.handle = handle
         id = mui_window_id(UnsafeMutableRawPointer(handle))
         windowRenderer = try SDLWindowRenderer(window: handle)
+        let raw = UnsafeMutableRawPointer(handle)
+        accessKit = AccessKitAdapter(windowID: id, title: String(cString: mui_window_title(raw)),
+                                     nativeWindow: mui_window_native_handle(raw))
+        updateAccessibilityWindowBounds()
     }
 
     public var renderer: any WindowRenderer { windowRenderer! }
+
+    var rawHandle: UnsafeMutableRawPointer { UnsafeMutableRawPointer(handle) }
 
     /// Points, as `PlatformWindow` wants them.
     public var contentSize: Size<Pixels> {
@@ -143,13 +158,92 @@ public final class SDLWindow: PlatformWindow {
     public var onAppearanceChange: ((Appearance) -> Void)?
     public var onClose: (() -> Void)?
 
-    /// Never called: SDL has no accessibility bridge (divergence, ruling
-    /// SP-B). Kept so `Window` can install its handler as on every platform.
-    public var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)?
+    /// Called with AccessKit's requests (ruling AX-C): `.activate` when a
+    /// screen reader first asks for the tree, then the actions it performs.
+    /// Delivered on the main thread from ``SDLPlatform/pumpEvents()``.
+    public var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)? {
+        didSet { deliverAccessibilityRequests() }
+    }
 
-    /// Publishes nothing — explicitly: AT-SPI and UI Automation are roadmap
-    /// item 13, and `AB-R` forbids a silent default (ruling SP-B).
-    public func publishAccessibilityTree(_ tree: AccessibilityTree) {}
+    /// Hands the tree to AccessKit — AT-SPI on Linux, UI Automation on
+    /// Windows, NSAccessibility on macOS (ruling AX-B).
+    public func publishAccessibilityTree(_ tree: AccessibilityTree) {
+        accessKit?.publish(.translate(tree, title: title, scale: Double(scaleFactor), ids: accessKitIDs))
+    }
+
+    /// Whether AccessKit's platform adapter exists for this window.
+    public var isAccessibilityConnected: Bool { accessKit?.isConnected ?? false }
+
+    /// AccessKit's own rendering of the tree it holds — Linux only, and only
+    /// once a screen reader (or ``simulateAccessibilityActivation()``) asked.
+    var accessKitDebugDescription: String? { accessKit?.debugDescription }
+
+    /// Queues requests as AccessKit's callbacks would — for tests, which have
+    /// no screen reader.
+    func simulateAccessKitRequest(_ queued: AccessKitAdapter.Queued) { accessKit?.enqueueForTesting(queued) }
+
+    func deliverAccessibilityRequests() {
+        if let accessKit {
+            for queued in accessKit.drain() {
+                switch queued {
+                case .activate: parkedAccessibilityRequests.append(.activate)
+                case let .action(action, number):
+                    if let request = AccessKitSnapshot.request(action, number: number, ids: accessKitIDs) {
+                        parkedAccessibilityRequests.append(request)
+                    }
+                }
+            }
+        }
+        guard let onAccessibilityRequest, !parkedAccessibilityRequests.isEmpty else { return }
+        let requests = parkedAccessibilityRequests
+        parkedAccessibilityRequests = []
+        for request in requests { _ = onAccessibilityRequest(request) }
+    }
+
+    /// AT-SPI asks no window handle, so Linux is told where the window is.
+    private func updateAccessibilityWindowBounds() {
+        var x: Int32 = 0, y: Int32 = 0
+        mui_window_position(UnsafeMutableRawPointer(handle), &x, &y)
+        let scale = Double(scaleFactor), size = contentSize
+        accessKit?.setWindowBounds(x: Double(x) * scale, y: Double(y) * scale,
+                                   width: Double(size.width.value) * scale,
+                                   height: Double(size.height.value) * scale)
+    }
+
+    // MARK: Text input (ruling TI-A)
+
+    /// The caret `setTextInputArea` last set; nil while text input is off.
+    private(set) var textInputCaret: Bounds<Pixels>?
+
+    public func setTextInputArea(_ caret: Bounds<Pixels>?) {
+        guard caret != textInputCaret else { return }
+        textInputCaret = caret
+        let raw = UnsafeMutableRawPointer(handle)
+        if let caret {
+            _ = mui_window_start_text_input(raw, Int32(caret.origin.x.value.rounded(.down)),
+                                            Int32(caret.origin.y.value.rounded(.down)),
+                                            Int32(max(1, caret.size.width.value.rounded(.up))),
+                                            Int32(max(1, caret.size.height.value.rounded(.up))))
+        } else {
+            _ = mui_window_stop_text_input(raw)
+        }
+    }
+
+    public func readClipboard() -> String? {
+        guard let text = mui_clipboard_text() else { return nil }
+        defer { mui_free(text) }
+        return String(cString: text)
+    }
+
+    public func writeClipboard(_ text: String) { _ = mui_set_clipboard_text(text) }
+
+    /// Whether a key-down is one SDL will also send as `SDL_EVENT_TEXT_INPUT`
+    /// — a printable keycode with no control or command — and so, while text
+    /// input is on, not a key (ruling TI-A).
+    nonisolated static func producesText(keycode: UInt32, modifiers: Modifiers) -> Bool {
+        guard modifiers.isDisjoint(with: [.control, .command]) else { return false }
+        return keycode >= 0x20 && keycode < 0x7F
+    }
 
     public func startDisplayLink(_ tick: @escaping (Double) -> Void) {
         displayLinkTick = tick
@@ -178,6 +272,7 @@ public final class SDLWindow: PlatformWindow {
         let modifiers = SDLKeys.modifiers(event.modifiers)
         switch Int(event.kind) {
         case Int(MUI_EVENT_RESIZE), Int(MUI_EVENT_EXPOSED):
+            updateAccessibilityWindowBounds()
             onResize?(contentSize, scaleFactor)
         case Int(MUI_EVENT_MOUSE_DOWN):
             _ = onInput?(.mouseDown(MouseEvent(position: position, modifiers: modifiers,
@@ -187,11 +282,21 @@ public final class SDLWindow: PlatformWindow {
                                              clickCount: Int(event.clicks))))
         case Int(MUI_EVENT_MOUSE_MOVE):
             _ = onInput?(.mouseMoved(MouseEvent(position: position, modifiers: modifiers)))
+        case Int(MUI_EVENT_MOUSE_DRAG):
+            _ = onInput?(.mouseDragged(MouseEvent(position: position, modifiers: modifiers)))
+        case Int(MUI_EVENT_TEXT_INPUT):
+            guard textInputCaret != nil, let text = event.text else { return }
+            _ = onInput?(.textInput(String(cString: text)))
+        case Int(MUI_EVENT_TEXT_EDITING):
+            guard textInputCaret != nil, let text = event.text else { return }
+            _ = onInput?(.textComposition(SDLKeys.composition(String(cString: text),
+                                                             start: Int(event.start), length: Int(event.length))))
         case Int(MUI_EVENT_WHEEL):
             _ = onInput?(.scrollWheel(ScrollEvent(position: position,
                                                   delta: SDLKeys.scrollDelta(x: event.dx, y: event.dy),
                                                   modifiers: modifiers, timestamp: event.timestamp)))
         case Int(MUI_EVENT_KEY_DOWN), Int(MUI_EVENT_KEY_UP):
+            if textInputCaret != nil, Self.producesText(keycode: event.keycode, modifiers: modifiers) { return }
             let keys = SDLKeys.characters(forKeycode: event.keycode, modifiers: modifiers)
             let key = KeyEvent(charactersIgnoringModifiers: keys.ignoringModifiers,
                                characters: keys.characters, modifiers: modifiers,
@@ -206,6 +311,7 @@ public final class SDLWindow: PlatformWindow {
     nonisolated deinit {
         MainActor.assumeIsolated {
             windowRenderer = nil
+            accessKit = nil
             mui_window_destroy(UnsafeMutableRawPointer(handle))
         }
     }
@@ -239,6 +345,28 @@ public enum SDLKeys {
         0x4000_003E: "\u{f708}", 0x4000_003F: "\u{f709}", 0x4000_0040: "\u{f70a}", 0x4000_0041: "\u{f70b}",
         0x4000_0042: "\u{f70c}", 0x4000_0043: "\u{f70d}", 0x4000_0044: "\u{f70e}", 0x4000_0045: "\u{f70f}",
     ]
+
+    /// SDL's editing event as a composition: `start`/`length` are code
+    /// points (SDL's unit), converted to Character offsets and clamped; an
+    /// empty text ends the composition. A negative start is "no selection":
+    /// the caret at the end.
+    static func composition(_ text: String, start: Int, length: Int) -> TextComposition {
+        guard !text.isEmpty else { return .none }
+        // The Characters that end at or before `codePoints` — rounding down
+        // inside a grapheme.
+        func characters(upTo codePoints: Int) -> Int {
+            var scalars = 0, characters = 0
+            for character in text {
+                scalars += character.unicodeScalars.count
+                if scalars > codePoints { break }
+                characters += 1
+            }
+            return characters
+        }
+        guard start >= 0 else { return TextComposition(text: text, selection: text.count..<text.count) }
+        let lower = characters(upTo: start)
+        return TextComposition(text: text, selection: lower..<max(lower, characters(upTo: start + max(0, length))))
+    }
 
     static func modifiers(_ bits: UInt32) -> Modifiers {
         var result: Modifiers = []

@@ -538,7 +538,22 @@ float mui_window_pixel_density(void *window) {
 
 /* ---- The SDL platform (ruling SP-A) ------------------------------------- */
 
-bool mui_platform_init(void) { return SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS); }
+static Uint32 accessibility_event_type = 0;
+
+bool mui_platform_init(void) {
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) return false;
+    if (accessibility_event_type == 0) accessibility_event_type = SDL_RegisterEvents(1);
+    return accessibility_event_type != 0;
+}
+
+bool mui_wake_for_accessibility(uint32_t window_id) {
+    SDL_Event e;
+    SDL_zero(e);
+    e.type = accessibility_event_type;
+    e.user.windowID = window_id;
+    e.common.timestamp = SDL_GetTicksNS();
+    return SDL_PushEvent(&e);
+}
 
 static uint32_t mods(SDL_Keymod m) {
     uint32_t r = 0;
@@ -552,6 +567,9 @@ static uint32_t mods(SDL_Keymod m) {
 static bool translate(const SDL_Event *e, MUIEvent *out) {
     memset(out, 0, sizeof(*out));
     out->timestamp = (double)e->common.timestamp / 1e9;
+    if (accessibility_event_type != 0 && e->type == accessibility_event_type) {
+        out->kind = MUI_EVENT_ACCESSIBILITY; out->window_id = e->user.windowID; return true;
+    }
     switch (e->type) {
     case SDL_EVENT_QUIT: out->kind = MUI_EVENT_QUIT; return true;
     case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
@@ -569,8 +587,16 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
         out->clicks = e->button.clicks; out->modifiers = mods(SDL_GetModState());
         return true;
     case SDL_EVENT_MOUSE_MOTION:
-        out->kind = MUI_EVENT_MOUSE_MOVE; out->window_id = e->motion.windowID;
+        out->kind = (e->motion.state & SDL_BUTTON_LMASK) ? MUI_EVENT_MOUSE_DRAG : MUI_EVENT_MOUSE_MOVE;
+        out->window_id = e->motion.windowID;
         out->x = e->motion.x; out->y = e->motion.y; out->modifiers = mods(SDL_GetModState());
+        return true;
+    case SDL_EVENT_TEXT_INPUT:
+        out->kind = MUI_EVENT_TEXT_INPUT; out->window_id = e->text.windowID; out->text = e->text.text;
+        return true;
+    case SDL_EVENT_TEXT_EDITING:
+        out->kind = MUI_EVENT_TEXT_EDITING; out->window_id = e->edit.windowID; out->text = e->edit.text;
+        out->start = e->edit.start; out->length = e->edit.length;
         return true;
     case SDL_EVENT_MOUSE_WHEEL: {
         out->kind = MUI_EVENT_WHEEL; out->window_id = e->wheel.windowID;
@@ -616,6 +642,17 @@ bool mui_push_event(const MUIEvent *in) {
     case MUI_EVENT_MOUSE_MOVE:
         e.type = SDL_EVENT_MOUSE_MOTION; e.motion.windowID = in->window_id;
         e.motion.x = in->x; e.motion.y = in->y; break;
+    case MUI_EVENT_MOUSE_DRAG:
+        e.type = SDL_EVENT_MOUSE_MOTION; e.motion.windowID = in->window_id; e.motion.state = SDL_BUTTON_LMASK;
+        e.motion.x = in->x; e.motion.y = in->y; break;
+    // Synthetic text for tests: SDL keeps the pointer, so the copy is leaked
+    // on purpose (a test pushes a handful).
+    case MUI_EVENT_TEXT_INPUT:
+        e.type = SDL_EVENT_TEXT_INPUT; e.text.windowID = in->window_id;
+        e.text.text = SDL_strdup(in->text ? in->text : ""); break;
+    case MUI_EVENT_TEXT_EDITING:
+        e.type = SDL_EVENT_TEXT_EDITING; e.edit.windowID = in->window_id;
+        e.edit.text = SDL_strdup(in->text ? in->text : ""); e.edit.start = in->start; e.edit.length = in->length; break;
     case MUI_EVENT_WHEEL:
         e.type = SDL_EVENT_MOUSE_WHEEL; e.wheel.windowID = in->window_id;
         e.wheel.x = in->dx; e.wheel.y = in->dy; e.wheel.mouse_x = in->x; e.wheel.mouse_y = in->y; break;
@@ -650,5 +687,29 @@ void mui_window_size(void *w, int32_t *width, int32_t *height) { SDL_GetWindowSi
 bool mui_window_set_title(void *w, const char *t) { return SDL_SetWindowTitle((SDL_Window *)w, t); }
 const char *mui_window_title(void *w) { return SDL_GetWindowTitle((SDL_Window *)w); }
 bool mui_window_show(void *w) { return SDL_ShowWindow((SDL_Window *)w); }
+bool mui_window_start_text_input(void *w, int32_t x, int32_t y, int32_t width, int32_t height) {
+    SDL_Rect area = { x, y, width, height };
+    if (!SDL_SetTextInputArea((SDL_Window *)w, &area, 0)) return false;
+    return SDL_TextInputActive((SDL_Window *)w) || SDL_StartTextInput((SDL_Window *)w);
+}
+bool mui_window_stop_text_input(void *w) { return SDL_StopTextInput((SDL_Window *)w); }
+char *mui_clipboard_text(void) {
+    if (!SDL_HasClipboardText()) return NULL;
+    return SDL_GetClipboardText();
+}
+bool mui_set_clipboard_text(const char *text) { return SDL_SetClipboardText(text); }
+void mui_free(void *memory) { SDL_free(memory); }
+void mui_window_position(void *w, int32_t *x, int32_t *y) { SDL_GetWindowPosition((SDL_Window *)w, x, y); }
+void *mui_window_native_handle(void *w) {
+    SDL_PropertiesID props = SDL_GetWindowProperties((SDL_Window *)w);
+#if defined(__APPLE__)
+    return SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, NULL);
+#elif defined(_WIN32)
+    return SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+#else
+    (void)props;
+    return NULL;
+#endif
+}
 int32_t mui_system_theme(void) { return SDL_GetSystemTheme() == SDL_SYSTEM_THEME_DARK ? 1 : 0; }
 double mui_now(void) { return (double)SDL_GetTicksNS() / 1e9; }

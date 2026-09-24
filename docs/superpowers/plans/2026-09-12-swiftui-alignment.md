@@ -686,8 +686,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   rulings `LR-DS`…`LR-EB` in `../2026-09-17-engine-replacement-decisions.md`;
   probe `docs/probes/swiftui-engine-stage-7a.swift` (arms W, G, S, A, B) and
   instrument `docs/probes/stage-7a-transcription-instrument.patch`; record
-  `docs/record/42-engine-replacement-stage-7a.md`. **The 97 WebKit goldens are
-  retired**, each with a row in record §42 §4: 44 **R** rows replaced by a
+  `docs/record/48-engine-replacement-stage-7a.md`. **The 97 WebKit goldens are
+  retired**, each with a row in record §48 §4: 44 **R** rows replaced by a
   native arm asserting the golden's own boxes on its own tree under the
   proposal authority (`GoldenReplacementFlexTests` 1.1–1.8,
   `GoldenReplacementStackTests` 2.1–2.4), 53 **D** rows deleted with a named

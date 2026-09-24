@@ -6,17 +6,17 @@ import MetalUICore
 
 // Plan task 7, stage 7a, lane 1 (`docs/superpowers/specs/2026-09-23-engine-stage-7a-design.md`
 // §5 and §6 lane 1; rulings LR-DS, LR-DW): the flex **R** goldens, retired. Each arm
-// is labelled by the WebKit golden it replaces (record §42 §4), builds that golden's
+// is labelled by the WebKit golden it replaces (record §48 §4), builds that golden's
 // own tree — its fixture's CSS as `Box(style:)` fields, transcribed exactly as the
 // design's instrument (`docs/probes/stage-7a-transcription-instrument.patch`) wrote
 // it, the instrument having shown the **legacy** authority reproduces every one of
 // these goldens on these trees — and asserts, under the **proposal** authority, the
-// golden's `rounded` boxes (record §42 §5.1) exactly, with an empty report.
+// golden's `rounded` boxes (record §48 §5.1) exactly, with an empty report.
 //
 // **Characterization** (`LR-DW`): the behaviour exists, so every test is green on
 // arrival. Its red-before is the mutation named in its doc comment (spec §6's
 // lane-1 table), applied to the committed source and run in the full unfiltered
-// suite; record §42 §6 names every test and arm each mutation reddened.
+// suite; record §48 §6 names every test and arm each mutation reddened.
 //
 // The trees use `Style` fields stages 8 and 10 respell or delete; these are lowering
 // tests and go with the lowering suites (spec §9).

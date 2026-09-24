@@ -16,6 +16,8 @@ var products: [Product] = [
         .library(name: "MetalUIHarfBuzz", targets: ["MetalUIHarfBuzz"]),
         // The portable text pipeline (ruling PT-A).
         .library(name: "MetalUIPortableText", targets: ["MetalUIPortableText"]),
+        // The platform's installed fonts as a PortableFontResolver (SF-A).
+        .library(name: "MetalUISystemFonts", targets: ["MetalUISystemFonts"]),
         // The text seam (ruling TS-A).
         .library(name: "MetalUITextSystem", targets: ["MetalUITextSystem"]),
         // The platform protocols, for platforms outside this package
@@ -102,6 +104,17 @@ var targets: [Target] = [
         // FreeType 2.14.3, vendored (ruling FT-A; Sources/CFreeType/VENDORED.md).
         // Only the per-module amalgamation files compile; each #includes the
         // rest of its module.
+        // SheenBidi 3.0.0, vendored (ruling BD-A; Sources/CSheenBidi/VENDORED.md):
+        // UAX #9 and script runs. Upstream's unity build: one file, which
+        // #includes the rest.
+        .target(
+            name: "CSheenBidi",
+            exclude: ["LICENSE", "VENDORED.md"],
+            sources: ["Source/SheenBidi.c"],
+            publicHeadersPath: "Headers",
+            cSettings: [.define("SB_CONFIG_UNITY"), .headerSearchPath("Source")]
+        ),
+
         .target(
             name: "CFreeType",
             exclude: ["LICENSE.TXT", "FTL.TXT", "VENDORED.md"],
@@ -122,7 +135,14 @@ var targets: [Target] = [
         // (rulings PT-A, PT-D): HarfBuzz shapes, FreeType rasterizes.
         .target(name: "MetalUIPortableText",
                 dependencies: ["MetalUIScene", "MetalUIHarfBuzz", "MetalUIFreeType",
-                               "CUnibreak", "MetalUITextSystem"]),
+                               "CUnibreak", "MetalUITextSystem", "CSheenBidi"]),
+
+        // Installed fonts, discovered and registered lazily (rulings SF-A…SF-D).
+        // The one portable text target with a file system: imports Foundation
+        // (swift-corelibs-foundation off Apple), MetalUIFreeType and
+        // MetalUIPortableText.
+        .target(name: "MetalUISystemFonts", dependencies: ["MetalUIPortableText", "MetalUIFreeType"]),
+        .testTarget(name: "MetalUISystemFontsTests", dependencies: ["MetalUISystemFonts"]),
 
         // Shaping with no Apple framework (rulings SH-B, SH-K): imports only
         // CHarfBuzz. One run: no line breaking, bidi, itemization or fallback.

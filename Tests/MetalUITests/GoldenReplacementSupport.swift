@@ -6,11 +6,11 @@ import MetalUICore
 
 // Plan task 7, stage 7a (`docs/superpowers/specs/2026-09-23-engine-stage-7a-design.md`
 // §4 and §6; rulings LR-DS, LR-DW): the shared harness of the tests that replace
-// the retired WebKit goldens. Each **R** golden (record §42 §4) is replaced by one
+// the retired WebKit goldens. Each **R** golden (record §48 §4) is replaced by one
 // arm that builds the golden's own `Box(style:)` tree — the fixture's CSS
 // transcribed field for field, every golden `data-id` on `.id(_:)` as the
 // outermost modifier — renders it under the **proposal** authority inside a
-// `DifferentialRoot` and asserts the golden's `rounded` boxes (record §42 §5.1)
+// `DifferentialRoot` and asserts the golden's `rounded` boxes (record §48 §5.1)
 // literally, off `Frame.elementBounds`.
 //
 // **Internal on purpose**: lane 2 (`GoldenReplacementStackTests.swift`) reuses
@@ -39,7 +39,7 @@ struct GoldenBox: CustomStringConvertible {
 
     var description: String { "\(id):\(x),\(y),\(width)x\(height)" }
 
-    /// Parses record §42 §5.1's spelling, `"root:0,0,300x50 x:0,0,60x20 …"`, so an
+    /// Parses record §48 §5.1's spelling, `"root:0,0,300x50 x:0,0,60x20 …"`, so an
     /// arm's literals read character for character as the record's row. A malformed
     /// entry traps (a typo in a literal must not become a silently skipped box).
     static func list(_ spelled: String) -> [GoldenBox] {
@@ -88,7 +88,7 @@ func goldenArm<C: ElementGroup>(_ golden: String, window: (Float, Float) = (800,
     try checkGoldenArm(golden, window: window, boxes, sourceLocation: sourceLocation, make)
 }
 
-/// `goldenArm` with the boxes spelled as record §42 §5.1 spells them
+/// `goldenArm` with the boxes spelled as record §48 §5.1 spells them
 /// (`GoldenBox.list`).
 @MainActor
 func goldenArm<C: ElementGroup>(_ golden: String, window: (Float, Float) = (800, 600),

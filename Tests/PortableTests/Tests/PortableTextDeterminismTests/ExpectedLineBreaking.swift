@@ -22,3 +22,9 @@ let expectedParagraphs: [PinnedEmit] = [
 
 // Roadmap item 3: runs and content widths; see ContentSizeDeterminismTests.
 let expectedContentChecksum: UInt64 = 0xd7c257bb6f02bed0
+
+// Roadmap item 12: bidi paragraphs; see BidiDeterminismTests.
+let expectedBidi: [PinnedEmit] = [
+    PinnedEmit(glyphs: 26, rects: 0x6cde91a18eac5bb2, advance: 0x404f800000000000, dirty: [0, 0, 326, 29], coverage: 0x281ff79e203522b6),
+    PinnedEmit(glyphs: 51, rects: 0xd85c6540af3448db, advance: 0x405f800000000000, dirty: [0, 0, 496, 53], coverage: 0x05db48df4f4f6645),
+]

@@ -36,7 +36,7 @@ public struct LayoutRect: Sendable, Equatable {
 /// **What detects a missing rounding pass.** Until plan task 7's stage 7a the
 /// WebKit goldens did, through their two non-integral fixtures
 /// (`flex_row_shrink`'s 1/64 quantum and `flex_row_seven_equal`'s seventh of
-/// 100); stage 7a retired the goldens (record §42). Measured after it, in the
+/// 100); stage 7a retired the goldens (record §48). Measured after it, in the
 /// full suite at 1616 tests:
 ///
 /// - **Deleting `roundStoredRects`' call from `computeLayout`** reddens 28

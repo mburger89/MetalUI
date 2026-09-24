@@ -541,6 +541,14 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
+            // Text fields (ruling TI-B): a press on one focuses it and places
+            // the caret, a drag from it selects, and committed or marked text
+            // goes to the focused one. Ahead of click dispatch — a field has
+            // no `onClick` — and of the raw handler.
+            if self.dispatchTextInput(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             // After scroll routing and before the raw handler, on the same
             // footing: an element that consumed the point consumed the event.
             if self.dispatchClick(event, pressedBefore: pressed) {
@@ -562,6 +570,13 @@ public final class Window {
             // every binding on the same keystroke; pinned by
             // `aBoundActionRunsBeforeARawOnKeyHandler`.
             if self.dispatchAction(event) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // A focused field's editing keys come after the keymap — an app's
+            // binding wins, as a menu shortcut does — and before the raw
+            // `onKey` bubble (ruling TI-B).
+            if self.dispatchTextKey(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -927,6 +942,8 @@ public final class Window {
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
+        editedText = [:]
+        updateTextInputArea()
         // Read BACK, not merely handed in: `Frame.resolveFocus()` cleared it if
         // this frame did not produce the focused element (design spec §4.2).
         // Assigning the property directly rather than through `focus(_:)`,
@@ -1212,7 +1229,7 @@ public final class Window {
         case .mouseUp(let mouse):
             lastMousePosition = mouse.position
             active = nil
-        case .mouseMoved(let mouse):
+        case .mouseMoved(let mouse), .mouseDragged(let mouse):
             lastMousePosition = mouse.position
         default:
             break
@@ -1375,6 +1392,98 @@ public final class Window {
     /// the time an input event arrives — so the list, not the closure, is what
     /// differs between the two call sites. There were three copies of that
     /// closure before this task and there is one now.
+    // MARK: Text input (ruling TI-B)
+
+    /// The caret last handed to `setTextInputArea`, so it is called on change.
+    private var lastTextInputArea: Bounds<Pixels>?
+
+    /// A field's text as the last edit left it, until the next frame rebuilds
+    /// its target: two edits between frames (a paste after a cut, an input
+    /// method committing twice) must compose, not both start from the text
+    /// the last frame saw. Measured: without it a cut then a paste read
+    /// "pastedhello".
+    private var editedText: [GlobalElementID: String] = [:]
+
+    private func currentText(_ id: GlobalElementID, _ target: TextInputTarget) -> String {
+        editedText[id] ?? target.text
+    }
+
+    private func applyEdit(_ id: GlobalElementID, _ target: TextInputTarget, _ text: String) {
+        guard text != currentText(id, target) else { return }
+        editedText[id] = text
+        target.onChange(text)
+    }
+
+    /// After each frame: text input is on exactly while a field is focused,
+    /// with that field's caret as the input method's area.
+    private func updateTextInputArea() {
+        let area = focusedElement.flatMap { lastFocusRegistry.textTarget(for: $0)?.caretRect }
+        guard area != lastTextInputArea else { return }
+        lastTextInputArea = area
+        platformWindow.setTextInputArea(area)
+    }
+
+    private func editState(_ id: GlobalElementID) -> TextEditState {
+        var state = TextEditState()
+        stateTable.withState(id, initial: TextEditState()) { state = $0 }
+        return state
+    }
+
+    private func setEditState(_ id: GlobalElementID, _ state: TextEditState) {
+        stateTable.withState(id, initial: TextEditState()) { $0 = state }
+    }
+
+    /// Pointer and text events for fields; see the call site.
+    private func dispatchTextInput(_ event: InputEvent) -> Bool {
+        switch event {
+        case .mouseDown(let mouse):
+            guard let index = topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position),
+                  let target = lastHitboxes[index].handlers.textInput else { return false }
+            let id = lastHitboxes[index].id
+            focus(id)
+            setEditState(id, TextEditing.press(at: target.boundary(atWindowX: Double(mouse.position.x.value)),
+                                              clickCount: mouse.clickCount,
+                                              extend: mouse.modifiers.contains(.shift),
+                                              text: currentText(id, target), state: editState(id)))
+            return true
+        case .mouseDragged(let mouse):
+            guard let id = active,
+                  let target = lastHitboxes.first(where: { $0.id == id })?.handlers.textInput else { return false }
+            setEditState(id, TextEditing.drag(to: target.boundary(atWindowX: Double(mouse.position.x.value)),
+                                             text: currentText(id, target), state: editState(id)))
+            return true
+        case .textInput(let inserted):
+            guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id) else { return false }
+            let (text, state) = TextEditing.insert(inserted, text: currentText(id, target), state: editState(id))
+            setEditState(id, state)
+            applyEdit(id, target, text)
+            return true
+        case .textComposition(let composition):
+            guard let id = focusedElement, lastFocusRegistry.textTarget(for: id) != nil else { return false }
+            setEditState(id, TextEditing.compose(composition, state: editState(id)))
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// The focused field's editing keys (TI-D's table).
+    private func dispatchTextKey(_ event: InputEvent) -> Bool {
+        guard case .keyDown(let key) = event, let id = focusedElement,
+              let target = lastFocusRegistry.textTarget(for: id) else { return false }
+        let outcome = TextEditing.key(key, text: currentText(id, target), state: editState(id),
+                                      clipboard: { [platformWindow] in platformWindow.readClipboard() })
+        guard outcome.handled else { return false }
+        setEditState(id, outcome.state)
+        if let copied = outcome.copied { platformWindow.writeClipboard(copied) }
+        if let text = outcome.text { applyEdit(id, target, text) }
+        if outcome.submitted {
+            guard let onSubmit = target.onSubmit else { return false }
+            onSubmit()
+        }
+        return true
+    }
+
     private func topmostHitboxOwner(at point: Point<Pixels>) -> GlobalElementID? {
         topmostOpaqueHitbox(in: lastHitboxes, at: point).map { lastHitboxes[$0].id }
     }

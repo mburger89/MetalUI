@@ -18,6 +18,14 @@ public final class PortableFont {
     /// The face's line metrics at `size` (ruling LB-F).
     public let metrics: PortableFontMetrics
 
+    /// Faces that draw what this one has no glyph for, in order (ruling FB-A)
+    /// — each at this font's size. Line metrics stay this face's, as the Apple
+    /// path's do.
+    public var fallbacks: [PortableFont] = []
+
+    /// The face's space glyph — what a control character draws (LB-I).
+    lazy var spaceGlyph: UInt16 = shaping.glyph(for: " ")
+
     /// Opens `data` in both engines.
     ///
     /// **The two engines are checked against each other here**, so a caller
@@ -130,23 +138,27 @@ public enum PortableText {
                             into scene: inout Scene, atlas: GlyphAtlas) throws -> Double {
         precondition(scaleFactor > 0, "a scale factor must be positive")
         let scale = Double(scaleFactor)
-        let run = try HarfBuzzShaper.shape(text, font: font.shaping)
-
         let units = Array(text.utf16)
+        // One line, laid out left to right in visual order (ruling BD-C).
+        let bidi = BidiParagraph(units)
+        let logical = try shapeCascading(text, font: font, levels: bidi.levels[...], scripts: bidi.scripts[...])
+        let glyphs = visualOrder(logical.map { (run: $0, payload: $0.cluster) }, line: 0..<units.count,
+                                 bidi: bidi, unitOf: { $0 }).map(\.run)
+
         let ignorable = ignorableUnits(of: text, count: units.count)
-        let space = font.shaping.glyph(for: " ")
         var pen = origin.x
-        for glyph in run.glyphs {
+        for run in glyphs {
+            let glyph = run.glyph
             defer { pen += glyph.xAdvance }
-            guard let id = drawnGlyph(glyph.id, at: units[glyph.cluster],
-                                      ignorable: ignorable[glyph.cluster], space: space) else { continue }
+            guard let id = drawnGlyph(glyph.id, at: units[run.cluster],
+                                      ignorable: ignorable[run.cluster], space: run.font.spaceGlyph) else { continue }
             try emitGlyph(id, deviceX: (pen + glyph.xOffset) * scale,
                           baselineY: Int(((origin.y - glyph.yOffset) * scale).rounded()),
-                          font: font, scaleFactor: scaleFactor, color: color,
+                          font: run.font, scaleFactor: scaleFactor, color: color,
                           contentMask: contentMask, maskCornerRadii: maskCornerRadii,
                           order: order, layer: layer, into: &scene, atlas: atlas)
         }
-        return run.advance
+        return glyphs.reduce(0) { $0 + $1.glyph.xAdvance }
     }
 
     /// One glyph with its pen at device x `deviceX` and its baseline on device
