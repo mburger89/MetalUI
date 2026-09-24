@@ -676,20 +676,29 @@ machinery and its 96 consumers are gone; one consumer survives trimmed for 7b.
 ### 7.1 Linux/Windows CI count (measured, not carried by any lane)
 
 None of the three lanes measured the portable build. The 96 removed golden
-consumers (`AbsoluteFixtureTests`, `ContentSizingFixtureTests`,
-`FitContentFixtureTests`, and the trimmed `BoxModelTests`/`AlignmentTests`)
-carry no `#if canImport(WebKit)` guard — only `GeneratorTests` and
-`OracleTests` (the removed 5 + 3) were WebKit-gated — so the 96 were part of
+consumers (in `FlexEngineTests`, `WrappingTests`, `StackFixtureTests`,
+`FreezeLoopTests`, `BoxModelTests`, `SizingFixtureTests`,
+`FitContentFixtureTests`, `AbsoluteFixtureTests` and
+`ContentSizingFixtureTests`, §1) carry no `#if canImport(WebKit)` guard, and
+neither do two of the eight removed machinery tests —
+`GeneratorTests.everyFixtureFileIsListedInTheCorpus` and
+`OracleTests.goldenFileRoundTripsThroughJSON`; only the other six are
+WebKit-gated. So 98 of the 104 removed tests were part of
 `MetalUILayoutTests`' portable count, and the 8 + 8 replacement tests that
 took their place (`GoldenReplacementFlexTests`/`GoldenReplacementStackTests`)
 landed in `MetalUITests`, which depends on `MetalUIAppKit` and is declared
 only under `#if os(macOS)` — they do not restore the portable count.
 Re-measured in `swift:6.4-noble` at this stage's tip (`swift build
 --build-tests` then `swift test --no-parallel`, three separate summary
-lines, one per target): `MetalUILayoutTests` **388** (486 before; one further
-test than the naive 486 − 96 = 390, because one `FreezeLoopAllocationTests`
-case is gated `#if canImport(Darwin)` and was already excluded on Linux),
-`MetalUICoreTests` **22** (unchanged), `MetalUICrossPlatformTests` **3**
+lines, one per target): `MetalUILayoutTests` **388** (486 before; **486 − 96
+− 2 = 388**. *Erratum, adversarial branch check:* this paragraph first read
+"only `GeneratorTests` and `OracleTests` (the removed 5 + 3) were
+WebKit-gated" and explained the 388 as "one further test than 486 − 96 = 390,
+because one `FreezeLoopAllocationTests` case is gated `#if canImport(Darwin)`"
+— wrong on both counts: two of the 5 + 3 are ungated, and a test already
+excluded on Linux before and after cannot move the difference. The
+`#if canImport(Darwin)` case does explain why the source's 389 `@Test`s in
+that target run as 388 there), `MetalUICoreTests` **22** (unchanged), `MetalUICrossPlatformTests` **3**
 (unchanged) — **388 + 22 + 3**, not 486 + 22 + 3. 0 `error:`, 0 `warning:`
 on the container build. CLAUDE.md's "manifest is two lists" bullet is
 corrected to this measured figure in the same commit as the Record phase's
@@ -715,3 +724,54 @@ record §04 (divergence 55 amended: its pin no longer reads "the CSS goldens");
 records §03 and §05 (a dated "no row changed" section each); `docs/record/README.md`
 (§42's row); the plan (task 7's stage-7a progress paragraph; the checkbox stays
 unticked); the parent spec's "where the task stands"; `README.md`.
+
+## 9. Adversarial branch check (2026-09-24, at `ccdd9a8`)
+
+An independent checker re-took the stage from `2cc763d..ccdd9a8`:
+
+- **Suite.** After `swift package clean`, `swift build --build-system native
+  --build-tests` (0 `error:`, the one `warning:` SwiftPM's deprecation
+  notice), then unfiltered `swift test --build-system native --no-parallel`:
+  **`Test run with 1616 tests in 3 suites passed`**, `FR-J no-argument frame:
+  succeeded=true` in the log. Guards 78 (79 `canTypecheck` hits, one a
+  comment). `find Tests/MetalUILayoutTests -name "*.json" | wc -l` → 0.
+  `cmp CLAUDE.md AGENTS.md` clean.
+- **Arithmetic.** 104 `@Test`s removed (96 consumers + 5 + 3), 16 added:
+  1704 − 104 + 16 = 1616. Every removed `@Test` is one of §4's 97 consumer
+  names or one of the eight machinery tests; every non-golden test's body in
+  the five edited legacy files is unchanged (the `+` lines there are comments
+  only). `Sources/` differs only in `Rounding.swift` comments; `Package.swift`
+  only in the dropped `resources:` line. `Tests/PortableTests`, `Backends`
+  and `Tests/MetalUICrossPlatformTests` untouched.
+- **The table, by an independent script.** §4's 97 rows name exactly the 97
+  goldens at `2cc763d` (43 R, 1 R (partial) + D, 53 D). Every R arm's literal
+  was compared against its golden JSON's `rounded` array at `2cc763d`: all
+  44 equal (`stack_stretch_max` minus `p`, as its row says); the seven
+  silent-D pins read §2's native column. Every test name cited in a row
+  resolves in `Tests/`.
+- **MX1** (`registerLegacyItems`: `frame.lowering.alias(child, to: node)` after
+  the item frame commented out — the stretch/grow item frame no longer the
+  element's rect): 334 issues, **55 tests** red: `aClickTargetInsideAScrollViewSwallowsTheWheel`, `aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding`, `aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting`, `aFrameOverSeveralMembersStillPlansEachMembersItemFields`, `aGridInsideALoweredContainerIsNeverStretchedWhereItsRecordedSiblingIs`, `aGridsColumnWidthReachesAGrowingChildInsideALoweredCell`, `aGrowerOnAHuggingContainersMainAxisFillsItsProposal`, `aGrowFactorSumBelowOneStillFillsTheLine`, `aGrowingChildTakesTheRemainingMainSpace`, `aGrowInsideAOneChildPaddingFillsTheWrapperWhereCSSLeavesItUngrown`, `aGrownReverseContainerPlacesFromTheMainEndOfItsItemFrame`, `aGrownUnsizedSpaceDistributionContainerIsReported`, `alignItemsAndAlignSelfPlaceEachItemOnTheCrossAxis`, `aListsSceneAndHitboxesAreUnchangedByTheGroup`, `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aLoweredScrollViewFillsItsProposalOnTheScrollingAxisWhereTheLegacyViewportHugs`, `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`, `aMarginLowersAsPaddingOutsideTheItem`, `aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere`, `aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent`, `anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned`, `anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues`, `aNilAxisFrameLayerUnderAStretchingContainerIsStretched`, `aReverseDirectionPacksItemsFromTheMainEnd`, `aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent`, `aSpacerBesideAGrowingChildTakesNothing`, `aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields`, `aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork`, `aStretchedChildFillsTheLineOnItsCrossAxis`, `aStretchedContainersContentSitsByItsOwnAlignment`, `aStretchedItemInsideAHuggingItemFillsItsProposal`, `aStretchedItemIsClampedByItsOwnMinimumAndMaximum`, `aStretchedSingleChildContainerDoesNotStretchItsChild`, `aStretchedStackChildFillsOnlyItsAutoAxesWithinItsOwnBounds`, `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder`, `aStretchedUnsizedSpaceDistributionContainerIsReported`, `aStyleBorderLowersAsInsetsInsideTheDeclaredSize`, `autoMainSizesSumTheirContentAndAGrowerIsFlooredByIt`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`, `aZeroBasisGrowerTakesItsShareDownToItsContent`, `aZeroRowHeightLowersWithoutTrappingOrProducingNaN`, `aZeroShrinkKeepsItsNaturalMainSizeAndOverflows`, `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`, `equalGrowersShareTheLineAndAMaximumCapsItsGrower`, `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `growingSiblingsShareTheSurplusEquallyWhereCSSAddsItToTheirBases`, `marginsOffsetEachItemOutsideItsBorderBox`, `paddingAndBorderInsetTheContentBoxEdgeByEdge`, `paddingOnAListDoesNotShrinkItsRowsBelowRowHeight`, `paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt`, `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder`, `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`, `unequalGrowWeightsAreReportedOnTheParent`. Ten of the sixteen
+  replacement tests, across 30 golden arms (every stretch, grow and
+  reverse-stretch arm).
+- **MX2** (`lowerPresentation`'s `axis`: `plan.greedy = true` → `false` for an
+  `auto` size between two insets): 22 issues, **8 tests** red:
+  `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`,
+  **`aDeferredAbsoluteBoxResolvesItsInsetsAgainstTheWindowAndLeavesTheFlow`**
+  (`abs_over_constrained`'s abs), `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities`,
+  `anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBoxWhereTheLegacyEngineFloorsIt`,
+  `aPresentationsAccessibilityRecordAndFocusMatchUnderBothAuthorities`,
+  `nestedPresentationsLandOnOneLayerUnderBothAuthorities`,
+  `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheelUnderBothAuthorities`,
+  `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`. Each mutation
+  applied from a clean tree, restored from a copy, `git status --short` empty
+  after.
+- **Pixels.** `docs/probes/demo-pixels/compare.sh` `2cc763d` → `ccdd9a8`:
+  **0 differing, scene identical, in all fourteen**; controls equal to §6.1's
+  `2cc763d` values.
+- **Real window.** The lock probe printed no lock key and `displayAsleep main:
+  0`, but the backstop failed — a full `screencapture -x` read `nonBlack=0` and
+  `capture.sh` stopped at "could not create image from window" — so no
+  real-window capture was taken; it stays owed with stage 6b's.
+- **Doc defect fixed**: §7.1's reason for 388 (above, with its erratum) and
+  the matching CLAUDE.md clause. No code defect found.

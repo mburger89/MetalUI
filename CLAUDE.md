@@ -394,11 +394,13 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
   **A new target goes in the list its imports allow**; Linux and Windows CI
   (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
   and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
-  appended on macOS in the manifest — and run `MetalUICoreTests`,
-  `MetalUILayoutTests` and `MetalUICrossPlatformTests` (**388 + 22 + 3**,
+  appended on macOS in the manifest — and run `MetalUILayoutTests`,
+  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**388 + 22 + 3**,
   measured in `swift:6.4-noble` after stage 7a; the WebKit goldens' 96
-  consumer tests were portable and counted in `MetalUILayoutTests`' figure, so
-  retiring them at stage 7a drops it from 486 to 388 — the 8 + 8 native
+  consumer tests and the two ungated corpus tests
+  (`everyFixtureFileIsListedInTheCorpus`, `goldenFileRoundTripsThroughJSON`)
+  were portable and counted in `MetalUILayoutTests`' figure, so retiring them
+  at stage 7a drops it from 486 to 388 (486 − 96 − 2) — the 8 + 8 native
   replacements do not restore it, landing instead in `MetalUITests`, which
   depends on `MetalUIAppKit` and is macOS-only), the last pinning the demo's
   whole frame byte-for-byte against
