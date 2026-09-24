@@ -137,3 +137,34 @@ private func proposalTree() -> some Element {
     try #require(frame.finalizedScene().glyphs.count > 40)
     #expect(cache.storageCount == 0, "ProposalText")
 }
+
+/// TI-H: both systems' `lineRanges` forward to the wrapping the line-breaking
+/// oracle already pins equal (13,464 cases) — here, through the seam itself,
+/// the two systems break the same strings at the same widths into the same
+/// UTF-16 ranges, hard breaks included, and a wrapped editor's lines follow.
+@MainActor
+@Test func bothSystemsBreakLinesAtTheSameRanges() throws {
+    CTFontManagerRegisterFontsForURL(notoURL as CFURL, .process, nil)
+    defer { CTFontManagerUnregisterFontsForURL(notoURL as CFURL, .process, nil) }
+    let apple = CoreTextTextSystem(), portable = try portableSystem()
+    let strings = ["", "one line", "first\nsecond\n", "a much longer paragraph that has to wrap across lines",
+                   "tab\tand  two spaces\nthen a café and naïve text", "\n\n"]
+    var compared = 0
+    for string in strings {
+        for width: Double? in [nil, 40, 90, 200] {
+            let a = apple.lineRanges(string, font: apple.resolveFont(family: "Noto Sans", size: 13), wrappingAt: width)
+            let p = portable.lineRanges(string, font: portable.resolveFont(family: nil, size: 13), wrappingAt: width)
+            #expect(a == p, "\(string.debugDescription) at \(String(describing: width))")
+            #expect(a.first?.lowerBound == 0 && a.last?.upperBound == string.utf16.count
+                    || (string.isEmpty && a == [0..<0]), "ranges cover the string")
+            compared += 1
+        }
+    }
+    try #require(compared == 24)
+    // A width forces more than one line, and hard breaks are kept in the range.
+    let wrapped = portable.lineRanges("a much longer paragraph that has to wrap across lines",
+                                      font: portable.resolveFont(family: nil, size: 13), wrappingAt: 90)
+    #expect(wrapped.count > 2)
+    #expect(portable.lineRanges("ab\ncd", font: portable.resolveFont(family: nil, size: 13), wrappingAt: nil)
+            == [0..<3, 3..<5])
+}

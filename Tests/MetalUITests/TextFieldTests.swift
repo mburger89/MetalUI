@@ -321,12 +321,13 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
 /// takes typing and echoes it.
 @Test @MainActor func theTextInputDemoRendersAndTypes() throws {
     demoModel.fieldText = ""
-    defer { demoModel.fieldText = ""; demoModel.secondFieldText = "" }
+    defer { demoModel.fieldText = ""; demoModel.secondFieldText = ""; demoModel.editorText = "" }
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platform) = try makeFakeWindow(device: device, size: 400) { textInputDemoContent() }
     window.drawFrameIfNeeded()
     let fields = window.lastHitboxes.filter { $0.handlers.textInput != nil }
-    try #require(fields.count == 2)
+    try #require(fields.count == 3)
+    #expect(fields.filter { $0.handlers.textInput?.lines != nil }.count == 1, "one of them multi-line")
     let first = fields[0].bounds
     platform.simulateInput(down(first.origin.x.value + 5, first.origin.y.value + 2))
     platform.simulateInput(.textInput("echo"))

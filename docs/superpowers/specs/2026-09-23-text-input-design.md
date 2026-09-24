@@ -2,8 +2,8 @@
 
 **Status: implemented** on `feat/text-input` (record §45); roadmap item 14 of
 `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:** `TI-`
-(`TI-A`…`TI-G`, next `TI-H`; rulings here; `TI-G` added by
-`feat/text-undo`, record §47). The user chose a full
+(`TI-A`…`TI-H`, next `TI-I`; rulings here; `TI-G` added by
+`feat/text-undo`, record §47; `TI-H` by `feat/text-editor`, record §48). The user chose a full
 `TextField`: caret, selection, editing keys, IME composition and the
 clipboard, on AppKit and on SDL3.
 
@@ -176,7 +176,42 @@ as the text, and reach the caller through `onChange` like any edit.
   produced, the history is dropped: an undo never replays over a text it
   never saw.
 
+### TI-H — `TextEditor`: multi-line editing
+
+`TextEditor(_ placeholder:text:onChange:)` is `TextField`'s editing — caret,
+selection, input methods, the clipboard, undo — over wrapped lines. It is
+controlled, a `StyledElement`, and greedy on **both** axes under the proposal
+authority, as SwiftUI's is. Under the legacy one it sizes as content: its
+natural width, and its lines' height.
+
+- **One line model.** `TextSystem.lineRanges(_:font:wrappingAt:)` gives the
+  display lines `measure` and `placeGlyphs` wrap into, as UTF-16 ranges with
+  their trailing whitespace and hard break. Both systems forward to the
+  wrapping the line-breaking oracle pins equal (13,464 cases).
+  `TextLineModel` holds those lines in graphemes, with `caretOffsets` per
+  line. The editor draws line by line from it, and the caret, a press, up and
+  down all read it, so none of them can drift from the glyphs.
+- **A caret at a wrap belongs to the next line.** The boundary after a
+  wrapped line's trailing space is drawn at the start of the next line. A
+  hard break's boundary stays on its own line, and a final line break opens
+  an empty line.
+- **Keys** (TI-D's table, plus):
+  - return inserts a line break (`onSubmit` is `TextField`'s only);
+  - up and down move to the nearest boundary at a remembered x, the column a
+    run of vertical moves keeps. Past the first or last line they go to the
+    text's start or end, and the column is forgotten;
+  - ⌘←/→ and Home/End go to the display line's ends; ⌘↑/↓ to the text's;
+  - ⌘delete deletes to the display line's start.
+- **Line breaks** in a paste or an input method's commit are normalized to
+  `\n` (CR LF, CR, U+2028…); `TextField` still flattens them to spaces.
+- **Scrolling** is vertical. The caret is scrolled into view after every
+  edit and caret move. The mouse wheel scrolls the content, clamped, and
+  leaves the caret. A wheel event after an edit, with no frame between, wins
+  over that edit's reveal.
+- **Accessibility:** a new role, `.textArea` — AppKit's `.textArea`,
+  AccessKit's `MULTILINE_TEXT_INPUT`. The lowering site is `textEditor`.
+
 ## Not in scope
 
-Multi-line editing (`TextEditor`), secure entry, formatters, spelling,
+Secure entry, formatters, spelling,
 drag and drop of text, bidirectional caret movement, and a blinking caret.

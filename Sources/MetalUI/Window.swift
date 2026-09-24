@@ -1162,6 +1162,16 @@ public final class Window {
             return false
         }
         let region = lastHitboxes[index]
+        // A multi-line text field scrolls its own content (ruling TI-H): the
+        // wheel moves its `scrollY` within its content and leaves the caret
+        // where it is, so the next frame does not scroll it back.
+        if let target = region.handlers.textInput, target.lines != nil {
+            stateTable.withState(region.id, initial: TextEditState()) {
+                $0.scrollY = min(max($0.scrollY - Double(event.delta.y.value), 0), target.maxScrollY)
+                $0.revealsCaret = false
+            }
+            return true
+        }
         // Opaque, and not a scroller: it consumed the point, so the event stops
         // here rather than falling through to whatever it covers.
         guard let axis = region.scroll else { return true }
@@ -1441,7 +1451,8 @@ public final class Window {
                   let target = lastHitboxes[index].handlers.textInput else { return false }
             let id = lastHitboxes[index].id
             focus(id)
-            setEditState(id, TextEditing.press(at: target.boundary(atWindowX: Double(mouse.position.x.value)),
+            setEditState(id, TextEditing.press(at: target.boundary(atWindowX: Double(mouse.position.x.value),
+                                                                   y: Double(mouse.position.y.value)),
                                               clickCount: mouse.clickCount,
                                               extend: mouse.modifiers.contains(.shift),
                                               text: currentText(id, target), state: editState(id)))
@@ -1449,12 +1460,14 @@ public final class Window {
         case .mouseDragged(let mouse):
             guard let id = active,
                   let target = lastHitboxes.first(where: { $0.id == id })?.handlers.textInput else { return false }
-            setEditState(id, TextEditing.drag(to: target.boundary(atWindowX: Double(mouse.position.x.value)),
+            setEditState(id, TextEditing.drag(to: target.boundary(atWindowX: Double(mouse.position.x.value),
+                                                                  y: Double(mouse.position.y.value)),
                                              text: currentText(id, target), state: editState(id)))
             return true
         case .textInput(let inserted):
             guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id) else { return false }
-            let (text, state) = TextEditing.insert(inserted, text: currentText(id, target), state: editState(id))
+            let (text, state) = TextEditing.insert(inserted, text: currentText(id, target), state: editState(id),
+                                                   multiline: target.lines != nil)
             setEditState(id, state)
             applyEdit(id, target, text)
             return true
@@ -1472,7 +1485,8 @@ public final class Window {
         guard case .keyDown(let key) = event, let id = focusedElement,
               let target = lastFocusRegistry.textTarget(for: id) else { return false }
         let outcome = TextEditing.key(key, text: currentText(id, target), state: editState(id),
-                                      clipboard: { [platformWindow] in platformWindow.readClipboard() })
+                                      clipboard: { [platformWindow] in platformWindow.readClipboard() },
+                                      lines: target.lines)
         guard outcome.handled else { return false }
         setEditState(id, outcome.state)
         if let copied = outcome.copied { platformWindow.writeClipboard(copied) }

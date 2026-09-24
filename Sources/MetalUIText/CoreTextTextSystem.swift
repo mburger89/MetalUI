@@ -1,3 +1,4 @@
+import CoreText
 import MetalUITextSystem
 
 /// The Apple path behind the ``TextSystem`` seam (ruling TS-B): CoreText
@@ -34,6 +35,13 @@ public final class CoreTextTextSystem: TextSystem {
 
     public func caretOffsets(_ string: String, font: FontKey) -> [Double] {
         Shaper.caretOffsets(string, font: registered(font))
+    }
+
+    public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?) -> [Range<Int>] {
+        cache.shaped(string, font: registered(font), wrappingAt: width).lines.map { shaped in
+            let range = CTLineGetStringRange(shaped.line)
+            return range.location..<(range.location + range.length)
+        }
     }
 
     public func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,

@@ -476,6 +476,8 @@ private struct InternalRegistrarRow: Element {
     // Roadmap item 14: `TextField` is its own site, lowered as `text` is.
     arms.append(("TextField", diagnostics { TextField("a", text: "", onChange: { _ in }).position(.relative) },
                  [field(.textField, "position")]))
+    arms.append(("TextEditor", diagnostics { TextEditor(text: "", onChange: { _ in }).position(.relative) },
+                 [field(.textEditor, "position")]))
     arms.append(("ModifiedElement, outermost registrar", diagnostics { Box().padding(px(4)).position(.relative) },
                  [field(.modifierLayer, "position")]))
     // The inner layer declares `position`, the outermost `inset`, so the two
@@ -525,7 +527,7 @@ private struct InternalRegistrarRow: Element {
                  [field(.customElement, "requestNode")]))
     arms.append(("custom requestLeaf", diagnostics { CustomLeafElement() },
                  [field(.customElement, "requestLeaf")]))
-    try #require(arms.count == 11)
+    try #require(arms.count == 12)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }

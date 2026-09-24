@@ -42,6 +42,8 @@ enum LoweringSite: String, Sendable {
     case text
     /// `TextField` (roadmap item 14): a leaf, lowered as `text` is.
     case textField
+    /// `TextEditor` (ruling TI-H): a leaf, lowered as `text` is.
+    case textEditor
     case modifierLayer
     case scrollView
     case list
@@ -94,7 +96,7 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
         switch site {
         // `textField` (roadmap item 14) is a leaf lowered as `text` is, so its
         // field-level entries are the same stage's.
-        case .box, .stack, .text, .textField, .modifierLayer:
+        case .box, .stack, .text, .textField, .textEditor, .modifierLayer:
             return field == "noLowering" ? "1" : "2"
         // Stage 3 lowered both. `scrollView` survives for a scroller **child**'s
         // unlowerable item field, which `lowerLegacyNode` reports at this site

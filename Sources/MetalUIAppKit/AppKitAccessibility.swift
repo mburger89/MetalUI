@@ -377,6 +377,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case .table: .table
         case .row: .row
         case .textField: .textField
+        case .textArea: .textArea
         }
     }
 
