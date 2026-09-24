@@ -143,13 +143,12 @@ final class Counter { var count = 0 }
 
 @MainActor
 func button(_ label: String, _ handler: @escaping @MainActor () -> Void) -> some Element {
-    Box(decoration: Decoration(background: .surfaceSecondary, cornerRadius: Pixels(8))) {
+    Box {
         Text(label).font(size: 22)
     }
-    .width(Pixels(36))
-    .height(Pixels(36))
-    .alignItems(.center)
-    .justifyContent(.center)
+    .frame(width: Pixels(36), height: Pixels(36))
+    .background(.surfaceSecondary)
+    .cornerRadius(Pixels(8))
     .hoverBackground(.accent)
     .onClick(handler)
 }
@@ -174,9 +173,13 @@ Reading `model.count` inside `content` is what subscribes the window to it:
 the whole frame build is tracked, so the next mutation redraws without an
 explicit invalidation call.
 
-`.width` and `.height` write the element's own CSS box; `.frame(width:)` —
-SwiftUI's spelling, with min/max and alignment — wraps it in a layer, and the
-two differ ([record §14](docs/record/14-frame-and-sizing.md)).
+Size with `.frame(width:height:)` — SwiftUI's spelling, with min/max and
+alignment — which wraps the element in a layer; paint and handlers written
+after it land on that layer, at the frame's size. The older `.width`/`.height`/
+`min*`/`max*` modifiers wrote the element's own CSS box and are deprecated
+toward `.frame` since plan task 7 stage 8
+([record §50](docs/record/50-engine-replacement-stage-8.md); the recipe is
+ruling `LR-ES`).
 
 On an ordinary element, `.padding` **wraps** its receiver in a
 `ModifiedElement` layer (one flat type however many `.padding`/`.frame` calls

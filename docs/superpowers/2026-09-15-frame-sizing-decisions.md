@@ -384,6 +384,18 @@ expectation's own message.
 
 ## FR-F — `width`/`height` stay as they are; the conversion is measured, not deferred on a hunch
 
+*Amended 2026-09-24 (plan task 7 stage 8):* **`width`/`height` are now
+deprecated toward `.frame`, and every in-repo caller moved off them in the
+same change** — the demo and 166 test sites to `.frame`, the tests whose
+subject is a `Style` field or a registration site to
+`Tests/MetalUITests/CSSSizing.swift`'s undeprecated same-body helpers
+(`LR-EW`, `LR-FB`). The recipe below is `LR-ES`'s R1–R8 as amended for the proposal
+authority (one frame per run; paint, input and `.id()` after the frame; a
+sized container's frame aligned where its content sat; item fields re-spelled
+in SwiftUI's vocabulary; two frames for a fixed axis and a bound on the other;
+an absolute box's frame before `.position`), in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`; record §50.
+
 **The claim being tested.** The plan records that a 2026-09-12 trial
 (`4aaca40`, reverted twelve minutes later by `d0a04d3`) "broke list
 virtualization, hit testing, and text measurement", and record §09 notes that
@@ -434,6 +446,15 @@ of silent.
 
 ## FR-G — `minWidth`/`maxWidth`/`minHeight`/`maxHeight` stay, and one live caller is the reason
 
+*Amended 2026-09-24 (plan task 7 stage 8, `LR-ET`):* the four clamps are
+deprecated. Under the proposal authority there is no automatic minimum; a
+greedy frame answers its content unless it declares a minimum (SwiftUI's rule,
+probe `swiftui-engine-stage-8.swift` F), so the cancellation is spelled
+`.frame(minHeight: 0, maxHeight: .infinity)` on the growing box — N9/N9b below
+measured the legacy engine's layer minimum, a different question. The live
+caller this ruling rests on has been inert in production since stage 6b
+(record §50 §3, O1/O2).
+
 **The finding.** These four have **10** call sites in `Tests/` and **one live** call in `Sources/` (four more `Sources/` matches are inside comments), so the count argument of `FR-F` does not apply. The reason they
 stay is the one caller: `Sources/MetalUIDemo/main.swift:881`'s
 `.minHeight(Pixels(0))` on the demo's list, whose own comment says it "replaces
@@ -475,6 +496,13 @@ comparison would catch, after the fact.
 
 ## FR-H — percentage sizing stays, as an explicit MetalUI divergence with a test
 
+*Amended 2026-09-24 (plan task 7 stage 8, `LR-EU` item 3):*
+`width(fraction:)`/`height(fraction:)` are deprecated with no replacement — a
+fraction of the containing block is unlowerable under the proposal authority
+(`LR-AI`), production's since stage 6b, so the "explicit divergence" reason
+expired with the switch. The `percent:` renames keep their own deprecation;
+`flexBasis(fraction:)` is not deprecated (`LR-ER` item 2).
+
 **Read `FR-T` first.** The three arms below were re-run by lane 3 and two are
 refuted (arm 1's "reads 150" and arm 2's root fallback); the third is
 explained, not investigated. `FR-T` holds the measured matrix. The
@@ -509,6 +537,13 @@ and leaving the Column arm alone, or from believing percentages work.
 ---
 
 ## FR-I — no deprecation lands in this task, and the reason is the 0-warning gate
+
+*Amended 2026-09-24 (plan task 7 stage 8, `LR-EU`):* **the deprecation
+landed** — the eight `StyledElement` sizing modifiers carry `@available(*,
+deprecated, message:)` (messages, not `renamed:`, whose fix-it would apply R1
+alone), migrated and deprecated in one move as this ruling said; pinned by
+`theSizingModifiersAreDeprecatedTowardFrame`. `Component.width`/`height` are
+not deprecated (`LR-ER` item 2, stage 11).
 
 **The ruling.** This task adds exactly one `@available(*, deprecated, …)`
 (`FR-J`'s no-argument `frame()`, which nothing calls). No existing API is

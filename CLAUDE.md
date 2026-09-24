@@ -195,12 +195,17 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   ran — the log carries `FR-J no-argument frame: succeeded=` and `N3.1 sizing
   deprecations: succeeded=true count=8`). No goldens to move (`find
   Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0, as at `85217e3`).
-  **1452 = 1445 + 7**, 0 removed: lane 1's six `LR-EZ`/`LR-FA` T rows plus
-  lane 3's one D row (`ModifierTests`' eight sizing rows spliced into
-  `DeprecatedSizingCases`, a `DeprecatedSpelling` witness, is one test moved,
-  not eight new ones). Guards move **78 → 79**
-  (`FrameSizingCompileGuards` 2 → 3 for N3.1's control and its per-modifier
-  arms; `typecheckFile`'s helper count 38 → 39). **The eight `StyledElement`
+  **1452 = 1445 + 7**, 0 removed: the seven are new tests — lane 1's
+  N1.1–N1.6 and lane 3's N3.1 (the `@Test` diff against `85217e3` adds exactly
+  these and removes none). Seven existing tests are **T rows**, literals
+  re-derived, not additions: `LR-EZ`'s six (the demo's element counts, its
+  deepest native level, the whole-demo census, the `…absolute` owning stage)
+  and G4's control arm (T3.1); `ModifierTests`' eight sizing rows moved into
+  `DeprecatedSizingCases`, a `DeprecatedSpelling` witness (class D), are the
+  same test relocated. Guards move **78 → 79**
+  (`FrameSizingCompileGuards` 2 → 3: N3.1, one guard whose control arm is a
+  second `typecheckFile` call in the same test; `typecheckFile`'s helper count
+  38 → 39). **The eight `StyledElement`
   sizing modifiers are deprecated toward `.frame`** (`FR-I`, `LR-ER`; the
   design first said "ten", `Box.swift` declares eight, `LR-EY` item 1): the
   entry census read 1692 warnings (25 in the demo, 1667 in
@@ -569,13 +574,13 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `LayoutAuthorityCompileGuards`, `GridCompileGuards`,
   `UnitSafetyTests` (one hit is a comment),
   `AXNodeTests`, `SceneBoundaryCompileGuards`; `Typecheck.swift` holds only
-  the declaration. Two helpers, 40 and 39 (38 before stage 8's guard 3.2, 37
+  the declaration. Two helpers, 40 and 39 (38 before stage 8's N3.1, 37
   before stage 6a's): `typecheck(_:importing:)` wraps the fixture in a
   function (Swift 5, nothing `public`/file-scope compiles);
   `typecheckFile(_:importing:)` is whole-file
   Swift 6 — the six/two/six of `ProposalLayout`/`ModifiedElement`/
-  `ProposalNodeID`, **three** `FrameSizing` (stage 8's N3.1 and its control
-  arm), three `Decoration`, four `Container`,
+  `ProposalNodeID`, **three** `FrameSizing` (stage 8's N3.1 the
+  third), three `Decoration`, four `Container`,
   four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary` and seven of
   `EnvironmentCompileGuards`'. A guard about what an external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
@@ -796,8 +801,9 @@ header in the same change.
 stretches (EP-8, set in inits) — a childless `Box` with no cross size paints
 nothing. **Modifier order decides which box a modifier reaches**: container
 modifiers (`.alignItems`, `.gap`, `.justifyContent`) and item modifiers
-(`.flexGrow`, `.alignSelf`, `.margin`) go **before** `.padding`; size,
-background and corner radius **after** it. All wrong orders compile. Chained
+(`.flexGrow`, `.alignSelf`, `.margin`) go **before** `.padding`; size (a
+`.frame`, since stage 8's deprecation), background and corner radius **after**
+it. All wrong orders compile. Chained
 `.padding` accumulates. They keep their CSS algorithms (`CN-A`, `CN-P`):
 `Row`/`Column` gap 0 vs `HStack`/`VStack` 8; `Stack` offers fit-content vs
 `ZStack` its proposal; porting `Row {}` → `HStack {}` changes behaviour
@@ -808,7 +814,9 @@ silently. `Stack` layers last-on-top; no `display: contents`, no z-index.
 by `size` + axis-named `minSize` (never `flexShrink = 0`, `FR-P`); fill only
 when BOTH maximums are infinite (`FR-O`). Over exactly one node it lowers to a
 one-cell `display: .stack` (`CN-N`) — the child overflows, and `.flexGrow`/
-`.alignSelf` on it do nothing (`width(fraction: 1)` fills); `lowered` must
+`.alignSelf` on it do nothing (`.frame(maxWidth: .infinity)` fills —
+`width(fraction: 1)`, the old remedy, is deprecated and traps under the
+proposal authority, `LR-EY` item 8); `lowered` must
 keep `display: .none`. Over 0 or ≥2 nodes it stays a flex row. `idealWidth`/
 `idealHeight` trap at legacy registration (`LR-H`). `.frame()` with no args is
 a deprecated no-op on both paths. **`ElementGroup` keeps exactly ONE fixed
@@ -820,15 +828,17 @@ lowering.
 `height(fraction:)`) write the element's own box and return `Self`; `.frame`
 wraps (`FR-F`). **Deprecated toward `.frame` since stage 8** (`FR-I`; the eight
 `StyledElement` sizing modifiers — the six sizes and clamps plus the two
-`fraction:` spellings — `LR-ER`…`LR-ES`): every in-repo caller converted in
+`fraction:` spellings — `LR-ER` item 1, `LR-EU`, with messages, not
+`renamed:`): every in-repo caller converted in
 the same change, `FR-I`'s one move, as stage 6a did for the public registrars
 (the branch gates on 0 `warning:`). The recipe (`LR-ES`): one frame per run of
 adjacent calls (R1); a decoration, handler, accessibility modifier, `hidden()`
 or `.id()` on the sized element moves **after** the frame, onto the outer layer
 (R2, `.id()` still outermost); a sized container's frame reproduces where its
 content sat via `alignment:` (R3); an item field between the frame and its
-nearest inner wrapper is the frame's child's record and is **dropped** — it is
-re-spelled in SwiftUI's vocabulary instead, e.g. `flexGrow(1)` on a fixed cross
+nearest inner wrapper is the frame's child's record and is **dropped**, and
+one written after the frame reports `modifierLayer.style` (a production trap) —
+it is re-spelled in SwiftUI's vocabulary instead, e.g. `flexGrow(1)` on a fixed cross
 axis → `.frame(<cross>: v).frame(max<Main>: .infinity)` (R4); a fixed axis and
 a bound on the other axis are two frames, the flexible one inner, **both**
 aligned where the content sat (R5); an absolute box's size is a frame
@@ -839,8 +849,15 @@ state is re-derived, one asserted as a value keeps its site (R7); an animated
 size interpolates as before, nothing snaps (R8). `Component.width`/`height`
 and `StyledComponent.width`/`height` are **not** deprecated — they neither
 write an element's own box nor return `Self` — reconciliation is stage 11's
-(`LR-ER` item 2). `.frame(minHeight: 0)` is now the only way to cancel flex's
-automatic minimum (`FR-G`). `fraction: 0.5` is half; `percent:` is a
+(`LR-ER` item 2). **Under the proposal authority there is no automatic minimum
+to cancel** (`LR-ET`, amending `FR-G`): a greedy frame's lower bound is its
+content unless it declares one, SwiftUI's rule (probe
+`swiftui-engine-stage-8.swift` F), so a growing box that must answer below its
+content is `.frame(minHeight: 0, maxHeight: .infinity)` — the minimum on the
+greedy frame itself, not a `.frame(minHeight: 0)` layer inside it (`FR-G`'s
+N9/N9b) — pinned by `aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum`.
+The demo's own FR-G caller has been inert since stage 6b (its box holds a
+lowered `ScrollView`, whose viewport fills its proposal, `LR-BB`). `fraction: 0.5` is half; `percent:` is a
 deprecated rename that still takes a fraction (`CN-O`).
 
 **`List`** is a windowed `Box`: needs `Identifiable` data, uniform `rowHeight`,
@@ -889,7 +906,10 @@ case where the legacy containing block is not the window
 (`deferred.containingBlock`/`.nested`/`.root`/`.amended`, owner stage 9), an
 absolute box **outside** a `Deferred` (`position`/`inset` at the consumer,
 owner stage 10), and `minSize`/`maxSize` on an absolute box's `auto` axis
-(`…absolute`, owner stage 8) each **report by name** rather than lower to a
+(`…absolute`, owner stage 10 since stage 8's `LR-EZ` item 3, and only on a
+`Style`-written box: a `.frame` written before `.position(.absolute)` over at
+most one node answers SwiftUI's frame bounds and never reports, `LR-EV`) each
+**report by name** rather than lower to a
 different answer. **Production runs `.proposal` since stage 6b**
 (`Frame.defaultLayoutAuthority`), so a `Deferred` over absolute content in the
 demo or any other production tree now takes this path by default, not only
@@ -1207,6 +1227,23 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   consumer, `theClampedAutomaticMinimumIsStillFlooredByPaddingAndBorderMatchesWebKit`,
   survives trimmed for 7b. 7a pre-empts nothing of 7b: every other CSS-engine
   test, `FlexEngine` and every `.legacy`-pinned test stay. Record §48.
+- **Stage 8 deprecates the sizing vocabulary** (`LR-ER`…`LR-FB`): the eight
+  `StyledElement` sizing modifiers carry `@available(*, deprecated, message:)`
+  toward `.frame` (the "Sizing modifiers" paragraph has the recipe), pinned by
+  the plain-import guard `theSizingModifiersAreDeprecatedTowardFrame` (N3.1).
+  **A test keeps a `Style` write only through `Tests/MetalUITests/CSSSizing.swift`**
+  (`cssWidth(_:)` …, the public modifier's closure body verbatim, pinned by
+  `theCSSSizingHelpersWriteWhatTheDeprecatedModifiersWrite`): class K, for a
+  test whose subject is a legacy field's lowering, a two-authority comparison
+  or a registration site's own handler/decoration/focus/accessibility
+  (`LR-EW`, `LR-FB` — R2's move onto a frame layer would silently re-point
+  such a pin at `ModifiedElement`). A new test that sizes a box writes
+  `.frame`; `css*` dies with the fields at stage 10. A framed absolute box is
+  a presentation root (`LR-EV`, one node only); unconsumed as the root it
+  reports `position`/`inset` `.unconsumed` (`LR-FA`). Stage 8 pre-empts
+  nothing of 9–11: no engine file, `Style` field, legacy registrar or the
+  legacy authority is deleted, and `Component.width`/`height` stay
+  undeprecated (stage 11). Record §50.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -1481,8 +1518,8 @@ expected, measured facts:
   stage's to own. Nothing
   in the suite sees paint order, portals, scroll direction, presentation, the
   display link or real hover; those are looks. Padded legacy container rule:
-  container modifiers and `.flexGrow(1)` before `.padding`; size, background,
-  corner radius after. **Four looks are open here**: the stage 2 / grids
+  container modifiers and `.flexGrow(1)` before `.padding`; size (a `.frame`
+  since stage 8), background, corner radius after. **Four looks are open here**: the stage 2 / grids
   release-window capture (the screen was locked; the offscreen half read nine
   of twelve images at 0 and attributed the three preview images to the grids
   track's four preview cells); the preview's grid itself, which nobody has

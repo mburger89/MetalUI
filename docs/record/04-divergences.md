@@ -1167,8 +1167,9 @@ stays at fifty-seven; no number is retired, added or amended.** Stage 8
 deprecates the eight `StyledElement` sizing modifiers toward `.frame` and
 converts every in-repo caller by class (F to `.frame`, K to
 `CSSSizing.swift`'s same-closure-body helpers, D into a deprecated witness),
-but no assertion is edited (`LR-EW`'s F rule, `LR-FB`'s K rule) and no test is
-retired (class R is empty). Divergence **48**'s pin,
+no converted call site's assertion is edited (`LR-EW`'s F rule, `LR-FB`'s K
+rule; the seven T rows re-derive demo literals and G4's control arm, none a
+divergence pin) and no test is retired (class R is empty). Divergence **48**'s pin,
 `LoweringComponentTests.aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`,
 is about `Component.width`, which stage 8 does **not** deprecate (`LR-ER` item
 2: it neither writes an element's own box nor returns `Self`) — the file's
@@ -1178,3 +1179,8 @@ named pin calls one of the eight either (checked by grep against record §04's
 table above): 52/53 are about `Row`/`Column`/`Stack`/`ZStack` container
 defaults, 55 about `flexShrink` compression, 9 about absolute-box placement,
 4 already retired at 7b.
+
+**Divergence 52's owner moves, its row does not** (`LR-ER` item 3 as amended by
+`LR-EY` item 2): `Row`/`Column` default spacing leaves plan task 7 for **plan
+task 15** (closeout), because every remaining stage of task 7 exits at 0 px
+against its predecessor and closing 52 moves every default-gap caller's pixels.

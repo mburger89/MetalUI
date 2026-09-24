@@ -758,8 +758,11 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   eight same-closure-body helpers — 1115 sites in 28 files (lane 2) plus 296
   of lane 3's 425 by the site-coverage check's per-test fallback; **D**
   `ModifierTests`' eight rows spliced into a deprecated protocol witness that
-  warns nothing; **R (retired) is empty** — no assertion is edited and no test
-  is retired for this stage. A framed box over at most one node can now be an
+  warns nothing; **R (retired) is empty** — no test is retired for this
+  stage, and no converted call site's assertion is edited; seven existing
+  tests are T rows whose literals were re-derived (`LR-EZ`'s six — the demo's
+  element counts, depth, whole-demo census and the `…absolute` owning stage —
+  and G4's control arm, T3.1). A framed box over at most one node can now be an
   absolute presentation's content (`LR-EV`), which discharges the two
   `…absolute` fields stage 5 left owned here. Exit criteria met: 0 `warning:`
   besides SwiftPM's notice on both build systems with the deprecations in;

@@ -20,6 +20,12 @@ recipe's two mechanical rules).
 is renumbered at merge by the precedent of record §23 §8 and the
 §25/§27/§29/§38/§41/§48 headers.
 
+**Status, 2026-09-24 (PDT): branch-checked.** §13 is the adversarial branch
+check of `85217e3..fea20eb`: the code stands (clean suite 1452, two new
+mutations each reddened named tests, fourteen images 0 px re-taken, 0
+warnings on both build systems and in `Backends/SDL`); it corrected the stage's
+accounting sentence and nine doc copies the Record phase had missed.
+
 **Status, 2026-09-24 (PDT): delivered.** §12 is the Record phase's close: all
 three lanes' verdicts were `ok: true` with mutation tables (§8–§11); a clean
 `swift package clean` + native build + unfiltered suite at the final head
@@ -875,9 +881,13 @@ phase commits before this one touch only test/doc files):
    throughout (Ms1–Ms3 identical base vs head, §10.5; Ms4 identical before vs
    after the fix, §11.11) rather than merely `⊇`.
 
-All five hold. **Accounting**: 1445 − 0 + 7 = 1452 (lane 1's six T rows,
-`LR-EZ`/`LR-FA`; lane 3's one D row, `ModifierTests`' eight sizing rows moved
-verbatim into `DeprecatedSizingCases`, one test relocated, not eight created);
+All five hold. **Accounting**: 1445 − 0 + 7 = 1452 — the seven are the new
+tests N1.1–N1.6 (lane 1) and N3.1 (lane 3), the only `@Test` lines the diff
+against `85217e3` adds (it removes none); *corrected by the branch check, §13:
+this sentence first credited the seven to "lane 1's six T rows" and "lane 3's
+one D row", which are edits to existing tests, not additions* — the T rows
+(`LR-EZ`'s six and T3.1) re-derive literals, and `ModifierTests`' eight sizing
+rows moved verbatim into `DeprecatedSizingCases` are one test relocated;
 guards 78 → 79; goldens 0 → 0. **Class totals, measured**: F, tests only
 (excluding the demo's own 25 production sites): 129 (lane 3's of 425) + 37
 (lane 1's `PresentationWindowTests` 24 + `FrameSizingTests` 13) = **166**; K
@@ -921,3 +931,97 @@ section explaining why, since neither divergence 48 nor any inert-API row is
 touched by the deprecation), `docs/record/README.md`, the plan's task 7 note
 (dated, not ticked — stages 9–14 remain), and this repository's top-level
 `README.md`.
+
+## 13. Adversarial branch check (2026-09-24, PDT)
+
+Checked `85217e3..fea20eb` in the stage-8 worktree, one agent, nothing else
+live. **Verdict: merge, with the doc corrections below committed on top.** No
+code defect found.
+
+**13.1 Build and suite, re-taken.** `swift package clean`, then `swift build
+--build-system native --build-tests`: `Build complete!`, 0 `error:`, one
+`warning:` (SwiftPM's `--build-system native` notice). Unfiltered `swift test
+--build-system native --no-parallel`: **`Test run with 1452 tests in 3 suites
+passed after 91.984 seconds`**, the log carrying `FR-J no-argument frame:
+succeeded=` and `N3.1 sizing deprecations: succeeded=true count=8`. `swift
+build --build-tests` on the default build system after the clean (a full
+compile, 69 s): 0 `warning:`, 0 `error:`. Guards: `canTypecheck` hits sum to 80
+over the fifteen files (`FrameSizingCompileGuards` 3), less `UnitSafetyTests`'
+comment line = **79**. Goldens: `find Tests/MetalUILayoutTests -name "*.json"`
+reads 0. `cmp CLAUDE.md AGENTS.md`: identical. Every `LR-`/`FR-`/other ruling
+id on an added doc line resolves to a heading or table row, except the four
+"next unused" letters (`LR-FC`, `CN-V`, `GR-AU`, `OM-AN`), which by design have
+none; all 95 camel-case identifiers of 17+ characters on added doc lines
+resolve in `Sources/`, `Tests/`, `Backends/` or `docs/probes/`.
+
+**13.2 `Backends/SDL`, with the deprecation in.** `swift package clean` there,
+then `PKG_CONFIG_PATH=$PWD/.accesskit swift test`: `MetalUIDemoContent` was
+recompiled (`[666 / 674] MetalUIDemoContent`), **0** lines matching
+`deprecated`; the only warnings are the pre-existing `ld` macOS-version notes
+on Homebrew's `libSDL3` and pkg-config's `-Wl,-rpath` flag. 21 + 19 tests
+passed, the figure CLAUDE.md records for macOS.
+
+**13.3 The offscreen comparison, re-taken** (`compare.sh <scratch> 85217e3
+fea20eb`): **0 differing, scene identical, in all fourteen images.** Controls
+non-zero where they must be; two differ from the script header's recorded
+values (default vs modal 1 031 003 against 1 030 498; default vs animation
+454 895 against 210 027) — both measured at `85217e3`, so they predate this
+stage (the demo moved at stage 6b) and say nothing about it. **No real-window
+capture**: `ioreg` read `IOConsoleLocked = true` at the check.
+
+**13.4 Two mutations of this check's own design** (each on a clean committed
+tree, the file restored from a copy, full unfiltered native suite, `git status
+--short` empty afterwards):
+
+| id | mutation | reddened (every test) | reading |
+|---|---|---|---|
+| **M-BC1** | the demo's `CounterPanel.button`: `.hoverBackground(.accent).onClick(handler)` moved **before** `.frame(width: 36, height: 36)` (a recipe R2 violation on the production tree; the paint still after the frame) | `aLoweredWindowPublishesTheSameAccessibilityTree` only (1 issue: the two buttons' AX frames read 10×26 and 14×26 at the label, not 36×36 at (12, 12)/(212, 12)) | R2 is pinned on the demo, but **only through accessibility geometry**: `theDemoFrameMatchesTheValuesRecordedOnMacOS` and the fourteen images cannot see it (the scene is unchanged — paint stayed after the frame), and the one test that clicks "+" (the same 5.5) compares the two authorities with each other, which move together, so only its frame literal saw it. The hit/AX/hover dump (§8.5) was a one-off instrument; this is the standing pin. |
+| **M-BC2** | `legacyFrameLayerDiagnostics`: `LR-EV`'s exemption copies `position` but not `inset` from the declared style | 7 tests, 20 issues: `aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities`, `aFramesOwnBoundsOnAnAbsoluteAutoAxisAnswerAsSwiftUIsFrameDoes`, `aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred` (N1.2–N1.4), and `PresentationWindowTests`' `anAnimatedInsetInterpolatesItsValueUnderBothAuthorities`, `aPresentationInsideAFadedSubtreeIsStillFadedUnderBothAuthorities`, `aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities`, `nestedPresentationsLandOnOneLayerUnderBothAuthorities` | Both halves of the exemption are load-bearing, and lane 1's F conversions (R6) in `PresentationWindowTests` really rest on `LR-EV`; the run completed (their pre-flights fail before a `Window` traps). |
+
+**13.5 Accounting.** The `@Test` diff against `85217e3` adds exactly seven
+functions — N1.1 (`CSSSizing.swift`), N1.2–N1.4 (`PresentationLoweringTests`),
+N1.5 (`AnimationTests`), N1.6 (`FrameSizingTests`), N3.1
+(`FrameSizingCompileGuards`) — and removes none: 1445 − 0 + 7 = 1452. §12's
+sentence, CLAUDE.md's counts paragraph and its guard sentence credited the
+seven to T rows and a D row; corrected. The assertion diff (97 `#expect`/
+`#require` lines touched outside `css*` substitutions) is the seven new tests,
+the seven T rows (`LR-EZ`'s six, T3.1) and the removed part 2b of the
+whole-demo census, which `LR-EZ` item 2 names.
+
+**13.6 Scope held.** `git diff 85217e3 -- Sources` names `Box.swift`,
+`Component.swift` (comments), `DemoContent.swift`, `LegacyLowering.swift`,
+`LayoutAuthority.swift`, `LoweringState.swift` (`LR-FA`) and `Frame.swift` (one
+comment line); spec §7's list lacked the last two (amended). No engine file,
+`Style` field, legacy registrar or the legacy authority is touched;
+`Component.width`/`height` stay undeprecated. Task 7's box in the plan is
+unticked.
+
+**13.7 Doc defects corrected** (spec §9's Record-phase list, which §12 said
+was done):
+
+1. CLAUDE.md "Sizing modifiers": "`.frame(minHeight: 0)` is now the only way to
+   cancel flex's automatic minimum" contradicted `LR-ET` (there is no
+   automatic minimum under the proposal authority, and `FR-G`'s N9/N9b
+   measured exactly that `.frame(minHeight: 0)` layer **not** cancelling it on
+   the legacy engine); rewritten to `LR-ET`'s rule and spelling, with its pin.
+   The paragraph's `LR-ER`…`LR-ES` citation for the deprecation became
+   `LR-ER` item 1, `LR-EU`.
+2. CLAUDE.md "Legacy containers", "Legacy `.frame`" (`width(fraction: 1)`
+   fills) and the human-verification "Padded legacy container rule" still
+   recommended the deprecated spellings (`LR-EY` item 8 named all three).
+3. CLAUDE.md `Deferred` paragraph: `…absolute` "owner stage 8" → stage 10, on
+   a `Style`-written box only (`LR-EZ` item 3, `LR-EV`).
+4. CLAUDE.md "SwiftUI alignment" had no stage-8 bullet (spec §9); added.
+5. `README.md`'s example still wrote `.width(Pixels(36)).height(Pixels(36))`
+   on a `Box(decoration:)` — now the demo's own recipe spelling — and its
+   sizing sentence described the old modifiers as current.
+6. `docs/superpowers/2026-09-15-frame-sizing-decisions.md`: `FR-F`, `FR-G`,
+   `FR-H`, `FR-I` had no "Amended, stage 8" pointer (spec §9); added.
+7. The parent spec's status block had no stage-8 sentence; added, naming the
+   three ruled departures from §4.1 row 8's wording.
+8. The plan's task 7 note, record §04's and README's rows said "no assertion
+   is edited"; seven T rows were. Record §04 now records divergence 52's owner
+   move; record §05's spelling of the demo's zero minimum was the wrong one.
+9. The CLAUDE.md guard sentences called N3.1 "guard 3.2" and counted its
+   control arm as a guard.
+

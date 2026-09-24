@@ -400,10 +400,14 @@ and re-run its `PortableReplay`/`DemoCapture`.
   the `…absolute` owning stage — are the exceptions, each re-derived).
   **Before − removed + added = after: 1445 − 0 + 7 = 1452** (1451 at lane 1).
 - `Sources/` changes only in `LegacyLowering.swift` (lane 1's `LR-EV`),
+  `LoweringState.swift` (lane 1's review round, `LR-FA`: an unconsumed
+  absolute frame-layer record reports `position`/`inset`), `Frame.swift`
+  (one doc-comment line, `LR-FA`'s wording),
   `LayoutAuthority.swift` (lane 1: `…absolute`'s owning stage, `LR-EZ` item 3),
   `DemoContent.swift` (lane 1), `Box.swift` (lane 3: attributes and
   comments) and `Component.swift` (lane 3: comment lines only); `git diff
-  85217e3 -- Sources` names no other file.
+  85217e3 -- Sources` names no other file (the first two added by lane 1's
+  review round; *amended by the branch check, record §50 §13*).
 
 ## 8. Exit criteria
 
