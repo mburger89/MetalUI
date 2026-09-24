@@ -40,7 +40,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 /// A fixed-size childless `Box` (lowered since lane 2: a 0×0 leaf in a fixed frame).
 @MainActor
 private func fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
-    Box().width(px(w)).height(px(h))
+    Box().cssWidth(px(w)).cssHeight(px(h))
 }
 
 /// Every whole-frame observation agrees and nothing was reported.
@@ -94,19 +94,19 @@ enum StageOneCorpus {
     static func demoHeader() -> some ElementGroup {
         Row(gap: px(12)) {
             Box()
-                .width(px(40)).height(px(40))
+                .cssWidth(px(40)).cssHeight(px(40))
                 .background(.accent)
                 .cornerRadius(px(20))
             Box()
-                .width(px(200))
-                .height(px(12))
+                .cssWidth(px(200))
+                .cssHeight(px(12))
                 .background(.surfaceSecondary)
                 .cornerRadius(px(6))
         }
         .alignItems(.center)
         .padding(px(16))
         .alignItems(.center)
-        .height(px(72))
+        .cssHeight(px(72))
         .background(.surface)
         .cornerRadius(px(14))
     }
@@ -117,20 +117,20 @@ enum StageOneCorpus {
     static func stackCluster() -> some ElementGroup {
         Stack(alignment: .center) {
             Box()
-                .width(px(360))
-                .height(px(128))
+                .cssWidth(px(360))
+                .cssHeight(px(128))
                 .background(.accent)
                 .cornerRadius(px(12))
             Box()
-                .width(px(160))
-                .height(px(72))
+                .cssWidth(px(160))
+                .cssHeight(px(72))
                 .background(.surface)
                 .cornerRadius(px(10))
             Box(decoration: Decoration(background: .surfaceSecondary, cornerRadius: px(14))) {
                 Text("3").font(size: 13)
             }
-            .width(px(28))
-            .height(px(28))
+            .cssWidth(px(28))
+            .cssHeight(px(28))
             .alignItems(.center)
             .justifyContent(.center)
         }
@@ -178,7 +178,7 @@ enum StageOneCorpus {
     /// frame layer (8, 8) 60×40, the `mid` layer (24, 19) 28×18, the box (28, 23).
     static func modifierChain() -> some ElementGroup {
         Row {
-            Box().width(px(20)).height(px(10))
+            Box().cssWidth(px(20)).cssHeight(px(10))
                 .background(.accent).onClick {}
                 .padding(px(4)).id("mid").background(.surfaceSecondary).cornerRadius(px(3))
                 .frame(width: px(60), height: px(40))
@@ -379,7 +379,7 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
 
     // Text hug (T8; stage-1 probe T2/T7).
     let hug = LayoutDifferential.compare(width: 300, height: 400) {
-        Column { Text(longString) }.width(px(60))
+        Column { Text(longString) }.cssWidth(px(60))
     }
     try #require(hug.elements == 3)
     #expect(hug.unlowerable.isEmpty, "\(hug.unlowerable)")
@@ -395,7 +395,7 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
 
     // Stack fit-content (divergence 53; stack-algorithms A5).
     let fit = LayoutDifferential.compare(width: 200, height: 300) {
-        Column { Stack { Text(longString) } }.width(px(60))
+        Column { Stack { Text(longString) } }.cssWidth(px(60))
     }
     try #require(fit.elements == 4)
     #expect(fit.unlowerable.isEmpty, "\(fit.unlowerable)")
@@ -410,7 +410,7 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
     // Flexible frame (frame probe D control; FR-E, divergence 35).
     let frameID = child(containerID, 0)
     let flexible = LayoutDifferential.compare(width: 200, height: 200) {
-        Column { fixed(20, 20).frame(minWidth: px(40), maxWidth: px(80)) }.width(px(100))
+        Column { fixed(20, 20).frame(minWidth: px(40), maxWidth: px(80)) }.cssWidth(px(100))
     }
     try #require(flexible.elements == 4)
     #expect(flexible.unlowerable.isEmpty, "\(flexible.unlowerable)")
@@ -423,7 +423,7 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
 
     // Row overflow (stack-algorithms G9, X13; divergence 55, LR-I).
     let overflow = LayoutDifferential.compare(width: 200, height: 100) {
-        Row { fixed(80, 20); fixed(80, 20) }.width(px(100))
+        Row { fixed(80, 20); fixed(80, 20) }.cssWidth(px(100))
     }
     try #require(overflow.elements == 4)
     #expect(overflow.unlowerable.isEmpty, "\(overflow.unlowerable)")

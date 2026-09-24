@@ -50,15 +50,15 @@ private let lane4Sibling = GlobalElementID.child(of: lane4Box, at: 1, name: nil)
 /// own `a` and `b`).
 private struct Lane4Pair: Component {
     var content: some ElementGroup {
-        Box().width(px(30)).height(px(10))
-        Box().width(px(50)).height(px(10))
+        Box().cssWidth(px(30)).cssHeight(px(10))
+        Box().cssWidth(px(50)).cssHeight(px(10))
     }
 }
 
 /// The prototype's `Solo`: one fixed 30×10 member (probe `Solo`).
 private struct Lane4Solo: Component {
     var content: some ElementGroup {
-        Box().width(px(30)).height(px(10))
+        Box().cssWidth(px(30)).cssHeight(px(10))
     }
 }
 
@@ -68,17 +68,17 @@ private struct Lane4Solo: Component {
 // `nil` (read in the red-before run).
 
 private struct Lane4GrowSolo: Component {
-    var content: some ElementGroup { Box().width(px(30)).height(px(10)).flexGrow(1) }
+    var content: some ElementGroup { Box().cssWidth(px(30)).cssHeight(px(10)).flexGrow(1) }
 }
 
 private struct Lane4MarginSolo: Component {
-    var content: some ElementGroup { Box().width(px(30)).height(px(10)).margin(px(4)) }
+    var content: some ElementGroup { Box().cssWidth(px(30)).cssHeight(px(10)).margin(px(4)) }
 }
 
 /// A declared width folds its own minimum in at `paddedAndSized`, so the
 /// minimum is only OBSERVABLE as the parent's plan when the axis is `auto`.
 private struct Lane4MinWidthSolo: Component {
-    var content: some ElementGroup { Box().height(px(10)).minWidth(px(40)) }
+    var content: some ElementGroup { Box().cssHeight(px(10)).cssMinWidth(px(40)) }
 }
 
 /// Every whole-frame observation agrees and nothing was reported.
@@ -135,7 +135,7 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
 @MainActor
 @Test func aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt() throws {
     let c1 = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4Pair().width(px(70)) }.width(px(300)).height(px(40))
+        Box { Lane4Pair().width(px(70)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(c1.unlowerable.isEmpty, "C1: \(c1.unlowerable)")
     try #require(c1.elements == 4, "C1 ids: root, Box and the two members; got \(c1.elements)")
@@ -143,7 +143,7 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
     try lane4Rects(c1, "C1 b", lane4MemberB, legacy: bnd(70, 0, 70, 10), lowered: bnd(80, 0, 50, 10))
 
     let c2 = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4Solo().width(px(70)) }.width(px(300)).height(px(40))
+        Box { Lane4Solo().width(px(70)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(c2.unlowerable.isEmpty, "C2: \(c2.unlowerable)")
     try #require(c2.elements == 3, "C2 ids: root, Box and the one member; got \(c2.elements)")
@@ -177,7 +177,7 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
 @MainActor
 @Test func aComponentsPaddingLowersAsAnOrdinaryOneChildContainer() throws {
     let c3 = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4Pair().padding(px(8)) }.width(px(300)).height(px(40))
+        Box { Lane4Pair().padding(px(8)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     lane4ExpectAgreement(c3, "C3")
     try #require(c3.elements == 4, "C3 ids: root, Box and the two members; got \(c3.elements)")
@@ -188,7 +188,7 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
 
     // C3a: a member the container lowering must actually do something for.
     let c3a = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4MarginSolo().padding(px(8)) }.width(px(300)).height(px(40))
+        Box { Lane4MarginSolo().padding(px(8)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     lane4ExpectAgreement(c3a, "C3a")
     try lane4Rects(c3a, "C3a a", lane4MemberA, legacy: bnd(12, 12, 30, 10), lowered: bnd(12, 12, 30, 10),
@@ -225,7 +225,7 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
 @MainActor
 @Test func aComponentAmendsFrameIsCentredOnlyOnTheAxisItDeclares() throws {
     let c7 = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4Pair().height(px(20)) }.width(px(300)).height(px(40))
+        Box { Lane4Pair().height(px(20)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(c7.unlowerable.isEmpty, "C7: \(c7.unlowerable)")
     try lane4Rects(c7, "C7 a", lane4MemberA, legacy: bnd(0, 0, 30, 20), lowered: bnd(0, 5, 30, 10))
@@ -233,7 +233,7 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
 
     // C1 again, for the axis the patch leaves `auto`: the members stay at y 0.
     let c1 = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4Pair().width(px(70)) }.width(px(300)).height(px(40))
+        Box { Lane4Pair().width(px(70)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(c1.loweredBounds[lane4MemberA]?.origin.y == Pixels(0),
             "C1 a lowered y: \(String(describing: c1.loweredBounds[lane4MemberA]))")
@@ -243,7 +243,7 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
     // The control: both axes declared, so both are centred — two amends, two
     // nested frames, one per axis.
     let both = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4Pair().width(px(70)).height(px(20)) }.width(px(300)).height(px(40))
+        Box { Lane4Pair().width(px(70)).height(px(20)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(both.unlowerable.isEmpty, "control: \(both.unlowerable)")
     try lane4Rects(both, "control a", lane4MemberA, legacy: bnd(0, 0, 70, 20), lowered: bnd(20, 5, 30, 10))
@@ -266,14 +266,14 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
 @MainActor
 @Test func theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities() throws {
     let c4 = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4Pair().padding(px(4)).width(px(70)) }.width(px(300)).height(px(40))
+        Box { Lane4Pair().padding(px(4)).width(px(70)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(c4.unlowerable.isEmpty, "C4: \(c4.unlowerable)")
     try lane4Rects(c4, "C4 a", lane4MemberA, legacy: bnd(4, 4, 30, 10), lowered: bnd(20, 4, 30, 10))
     try lane4Rects(c4, "C4 b", lane4MemberB, legacy: bnd(74, 4, 50, 10), lowered: bnd(80, 4, 50, 10))
 
     let c5 = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4Pair().width(px(70)).padding(px(4)) }.width(px(300)).height(px(40))
+        Box { Lane4Pair().width(px(70)).padding(px(4)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(c5.unlowerable.isEmpty, "C5: \(c5.unlowerable)")
     try lane4Rects(c5, "C5 a", lane4MemberA, legacy: bnd(4, 4, 70, 10), lowered: bnd(24, 4, 30, 10))
@@ -306,8 +306,8 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
     let twoAxes = LayoutDifferential.compare(width: 400, height: 100) {
         Box {
             Lane4Pair().width(px(70)).height(px(20))
-            Box().width(px(5)).height(px(5))
-        }.width(px(300)).height(px(40))
+            Box().cssWidth(px(5)).cssHeight(px(5))
+        }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(twoAxes.unlowerable.isEmpty, "two axes: \(twoAxes.unlowerable)")
     try #require(twoAxes.elements == 5,
@@ -319,8 +319,8 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
     let twice = LayoutDifferential.compare(width: 400, height: 100) {
         Box {
             Lane4Pair().width(px(70)).width(px(90))
-            Box().width(px(5)).height(px(5))
-        }.width(px(300)).height(px(40))
+            Box().cssWidth(px(5)).cssHeight(px(5))
+        }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(twice.unlowerable.isEmpty, "twice: \(twice.unlowerable)")
     try lane4Rects(twice, "twice sibling", lane4Sibling,
@@ -357,13 +357,13 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
 @MainActor
 @Test func anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned() throws {
     let grow = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4GrowSolo().width(px(70)) }.width(px(300)).height(px(40))
+        Box { Lane4GrowSolo().width(px(70)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(grow.unlowerable.isEmpty, "flexGrow: \(grow.unlowerable)")
     try lane4Rects(grow, "flexGrow", lane4MemberA, legacy: bnd(0, 0, 300, 10), lowered: bnd(20, 0, 30, 10))
 
     let margin = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4MarginSolo().width(px(70)) }.width(px(300)).height(px(40))
+        Box { Lane4MarginSolo().width(px(70)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(margin.unlowerable.isEmpty, "margin: \(margin.unlowerable)")
     try lane4Rects(margin, "margin", lane4MemberA, legacy: bnd(4, 4, 70, 10), lowered: bnd(20, 0, 30, 10))
@@ -371,7 +371,7 @@ private func lane4Rects(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glo
     // The planned arm: an `auto` width with a declared minimum, which only the
     // parent's item frame W can apply.
     let minimum = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4MinWidthSolo().width(px(70)) }.width(px(300)).height(px(40))
+        Box { Lane4MinWidthSolo().width(px(70)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(minimum.unlowerable.isEmpty, "minWidth: \(minimum.unlowerable)")
     try lane4Rects(minimum, "minWidth", lane4MemberA, legacy: bnd(0, 0, 70, 10), lowered: bnd(15, 0, 40, 10))
@@ -394,8 +394,8 @@ private let lane5MemberB = GlobalElementID.child(of: lane5Component, at: 1, name
 /// apply. Widths 30 and (floored) 40, heights 10, as `Lane4Pair`'s are.
 private struct Lane5FieldPair: Component {
     var content: some ElementGroup {
-        Box().width(px(30)).height(px(10)).margin(px(4))
-        Box().height(px(10)).minWidth(px(40))
+        Box().cssWidth(px(30)).cssHeight(px(10)).margin(px(4))
+        Box().cssHeight(px(10)).cssMinWidth(px(40))
     }
 }
 
@@ -429,7 +429,7 @@ private struct Lane5FieldPair: Component {
 @MainActor
 @Test func aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem() throws {
     let c6 = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4Pair().frame(width: px(70), height: px(40)) }.width(px(300)).height(px(40))
+        Box { Lane4Pair().frame(width: px(70), height: px(40)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(c6.unlowerable.isEmpty, "C6: \(c6.unlowerable)")
     try #require(c6.elements == 5, "C6 ids: root, Box, the frame layer and the two members; got \(c6.elements)")
@@ -439,10 +439,10 @@ private struct Lane5FieldPair: Component {
 
     // Two per-member frames and one row: +3 native nodes over the bare component.
     let framed = LayoutDifferential.render(authority: .proposal, width: 400, height: 100) {
-        Box { Lane4Pair().frame(width: px(70), height: px(40)) }.width(px(300)).height(px(40))
+        Box { Lane4Pair().frame(width: px(70), height: px(40)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     let bare = LayoutDifferential.render(authority: .proposal, width: 400, height: 100) {
-        Box { Lane4Pair() }.width(px(300)).height(px(40))
+        Box { Lane4Pair() }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(framed.tree.nodeCount == bare.tree.nodeCount + 3,
             "two per-member frames and one row; got \(framed.tree.nodeCount) against \(bare.tree.nodeCount)")
@@ -481,7 +481,7 @@ private struct Lane5FieldPair: Component {
 @MainActor
 @Test func aFrameOverSeveralMembersStillPlansEachMembersItemFields() throws {
     let fields = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane5FieldPair().frame(width: px(80), height: px(40)) }.width(px(300)).height(px(40))
+        Box { Lane5FieldPair().frame(width: px(80), height: px(40)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(fields.unlowerable.isEmpty, "fields: \(fields.unlowerable)")
     try #require(fields.elements == 5,
@@ -500,10 +500,10 @@ private struct Lane5FieldPair: Component {
 @MainActor
 @Test func aFrameOverOneMemberIsUnchanged() throws {
     let framed = LayoutDifferential.render(authority: .proposal, width: 400, height: 100) {
-        Box { Lane4Solo().frame(width: px(70), height: px(40)) }.width(px(300)).height(px(40))
+        Box { Lane4Solo().frame(width: px(70), height: px(40)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     let bare = LayoutDifferential.render(authority: .proposal, width: 400, height: 100) {
-        Box { Lane4Solo() }.width(px(300)).height(px(40))
+        Box { Lane4Solo() }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(framed.unlowerableFields.isEmpty, "one member: \(framed.unlowerableFields)")
     #expect(framed.tree.nodeCount == bare.tree.nodeCount + 1,
@@ -512,7 +512,7 @@ private struct Lane5FieldPair: Component {
     // And the geometry the single-node arm has always produced: the member keeps
     // its own 30×10 and is centred in the 70×40 frame.
     let one = LayoutDifferential.compare(width: 400, height: 100) {
-        Box { Lane4Solo().frame(width: px(70), height: px(40)) }.width(px(300)).height(px(40))
+        Box { Lane4Solo().frame(width: px(70), height: px(40)) }.cssWidth(px(300)).cssHeight(px(40))
     }
     #expect(one.unlowerable.isEmpty, "one member compare: \(one.unlowerable)")
     try lane4Rects(one, "one member", lane5MemberA, legacy: bnd(20, 15, 30, 10), lowered: bnd(20, 15, 30, 10),

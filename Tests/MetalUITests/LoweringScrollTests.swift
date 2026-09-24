@@ -477,7 +477,7 @@ private func lane2Field(_ site: LoweringSite, _ name: String) -> UnlowerableFiel
 /// A fixed-size childless `Box` — the one shape that can carry an item field.
 @MainActor
 private func lane2Fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
-    Box().width(lane2Px(w)).height(lane2Px(h))
+    Box().cssWidth(lane2Px(w)).cssHeight(lane2Px(h))
 }
 
 /// Every whole-frame observation agrees and nothing was reported.
@@ -559,7 +559,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 ProbeLeaf(width: 80, height: 40)
             }
         }
-        .width(lane2Px(80)).height(lane2Px(60))
+        .cssWidth(lane2Px(80)).cssHeight(lane2Px(60))
     }
     try #require(a1.elements == 6, "A1 ids: \(a1.elements)")
     lane2ExpectAgreement(a1, "A1")
@@ -574,9 +574,9 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                     ProbeLeaf(width: 80, height: 40)
                 }
             }
-            .width(lane2Px(80)).flexGrow(1).flexBasis(lane2Px(0)).minHeight(lane2Px(0))
+            .cssWidth(lane2Px(80)).flexGrow(1).flexBasis(lane2Px(0)).cssMinHeight(lane2Px(0))
         }
-        .alignItems(.stretch).width(lane2Px(120)).height(lane2Px(120))
+        .alignItems(.stretch).cssWidth(lane2Px(120)).cssHeight(lane2Px(120))
     }
     try #require(a2.elements == 8, "A2 ids: \(a2.elements)")
     lane2ExpectAgreement(a2, "A2")
@@ -599,7 +599,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 lane2Fixed(40, 40).alignSelf(.center)
             }
         }
-        .width(lane2Px(80)).height(lane2Px(60))
+        .cssWidth(lane2Px(80)).cssHeight(lane2Px(60))
     }
     try #require(a2b.elements == 5, "A2b ids: \(a2b.elements)")
     lane2ExpectAgreement(a2b, "A2b")
@@ -609,14 +609,14 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 
     let a5 = LayoutDifferential.compare(width: 200, height: 200) {
         Box { ScrollView(.vertical) { ProbeLeaf(width: 50, height: 30) } }
-            .width(lane2Px(100)).height(lane2Px(100))
+            .cssWidth(lane2Px(100)).cssHeight(lane2Px(100))
     }
     try #require(a5.elements == 4, "A5 ids: \(a5.elements)")
     lane2ExpectAgreement(a5, "A5")
 
     let a8 = LayoutDifferential.compare(width: 200, height: 200) {
         Box { ScrollView(.vertical) { ProbeLeaf(width: 160, height: 30) } }
-            .width(lane2Px(80)).height(lane2Px(60))
+            .cssWidth(lane2Px(80)).cssHeight(lane2Px(60))
     }
     try #require(a8.elements == 4, "A8 ids: \(a8.elements)")
     lane2ExpectAgreement(a8, "A8")
@@ -631,7 +631,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 }
             }
         }
-        .width(lane2Px(80)).height(lane2Px(60))
+        .cssWidth(lane2Px(80)).cssHeight(lane2Px(60))
     }
     try #require(a9.elements == 7, "A9 ids: \(a9.elements)")
     lane2ExpectAgreement(a9, "A9")
@@ -676,7 +676,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 ProbeLeaf(width: 50, height: 30)
             }
         }
-        .width(lane2Px(120)).height(lane2Px(100))
+        .cssWidth(lane2Px(120)).cssHeight(lane2Px(100))
     }
     #expect(a7.unlowerable.isEmpty, "A7: \(a7.unlowerable)")
     let a7Scroller = lane2Child(lane2Child(lane2Root, 0), 0)
@@ -700,7 +700,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 ProbeLeaf(width: 50, height: 30)
             }
         }
-        .width(lane2Px(120)).height(lane2Px(100))
+        .cssWidth(lane2Px(120)).cssHeight(lane2Px(100))
     }
     #expect(a11.unlowerable.isEmpty, "A11: \(a11.unlowerable)")
     let a11Scroller = lane2Child(lane2Child(lane2Root, 0), 0)
@@ -718,7 +718,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 ProbeLeaf(width: 50, height: 30)
             }
         }
-        .alignItems(.stretch).width(lane2Px(120)).height(lane2Px(100))
+        .alignItems(.stretch).cssWidth(lane2Px(120)).cssHeight(lane2Px(100))
     }
     #expect(a10.unlowerable.isEmpty, "A10: \(a10.unlowerable)")
     let a10Scroller = lane2Child(lane2Child(lane2Root, 0), 0)
@@ -767,7 +767,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 Rectangle(width: lane2Px(40), height: lane2Px(10), color: .accent)
             }
         }
-        .alignItems(.stretch).width(lane2Px(120)).height(lane2Px(60))
+        .alignItems(.stretch).cssWidth(lane2Px(120)).cssHeight(lane2Px(60))
     }
     #expect(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
     let box = lane2Child(lane2Root, 0)
@@ -818,7 +818,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 ProbeLeaf(width: 80, height: 40)
             }
         }
-        .width(lane2Px(100)).height(lane2Px(40))
+        .cssWidth(lane2Px(100)).cssHeight(lane2Px(40))
     }
     #expect(a4.unlowerable.isEmpty, "A4: \(a4.unlowerable)")
     let scroller = lane2Child(lane2Child(lane2Root, 0), 0)
@@ -878,7 +878,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 
     let a6 = LayoutDifferential.compare(width: 200, height: 200) {
         Box { ScrollView(.horizontal) { Text(sentence) } }
-            .width(lane2Px(100)).height(lane2Px(40))
+            .cssWidth(lane2Px(100)).cssHeight(lane2Px(40))
     }
     #expect(a6.unlowerable.isEmpty, "A6: \(a6.unlowerable)")
     let text = lane2Child(lane2Child(lane2Child(lane2Root, 0), 0), 0)
@@ -930,7 +930,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     // (a)
     let stretched = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) {
         Box { ScrollView(.horizontal) { ProbeLeaf(width: 40, height: 10) } }
-            .alignItems(.stretch).width(lane2Px(100)).height(lane2Px(60))
+            .alignItems(.stretch).cssWidth(lane2Px(100)).cssHeight(lane2Px(60))
     }
     #expect(stretched.unlowerableFields.isEmpty, "(a): \(stretched.unlowerableFields)")
     let scroller = lane2Child(lane2Child(lane2Root, 0), 0)
@@ -960,7 +960,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 lane2Fixed(20, 10).flexGrow(2)
             }
         }
-        .width(lane2Px(80)).height(lane2Px(60))
+        .cssWidth(lane2Px(80)).cssHeight(lane2Px(60))
     }
     #expect(weights.unlowerableFields == [lane2Field(.scrollView, "flexGrow.weights")],
             "(c): \(weights.unlowerableFields)")
@@ -995,7 +995,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     for authority in [LayoutAuthority.legacy, .proposal] {
         let frame = LayoutDifferential.render(authority: authority, width: 200, height: 200) {
             Box { ScrollView(.vertical) { ProbeLeaf(width: 80, height: 40) } }
-                .width(lane2Px(80)).height(lane2Px(60))
+                .cssWidth(lane2Px(80)).cssHeight(lane2Px(60))
         }
         let ids = frame.stateTable.ids
         #expect(ids.contains(contentSlot), "\(authority): no $anim-content slot")
@@ -1049,7 +1049,7 @@ private func lane2ExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 ProbeLeaf(width: 80, height: 40)
             }
         }
-        .width(lane2Px(80)).height(lane2Px(60))
+        .cssWidth(lane2Px(80)).cssHeight(lane2Px(60))
     }
     try #require(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
     #expect(frame.tree.nodeCount == 10, "nodes: \(frame.tree.nodeCount)")

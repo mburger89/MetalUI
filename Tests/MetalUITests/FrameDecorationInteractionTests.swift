@@ -62,8 +62,8 @@ private func hover(_ window: Window, _ platform: FakePlatformWindow, at point: P
 private func inFilledRow<E: ElementGroup>(_ make: @escaping @MainActor () -> E) -> some Element {
     Row {
         make()
-        Box().width(px(1)).height(px(1)).background(.scrim)
-    }.alignItems(.flexStart).width(px(200)).height(px(200))
+        Box().cssWidth(px(1)).cssHeight(px(1)).background(.scrim)
+    }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
 }
 
 /// Renders `make` in a fresh `side`x`side` fake window, at the window's
@@ -137,8 +137,8 @@ private func rectPaintPositions(_ scene: Scene) -> [Int] {
 /// and 50x20), `OuterModifierMatrixTests`' `TwoMembers` shape.
 private struct TwoMembers: Component {
     var content: some ElementGroup {
-        Box().width(px(30)).height(px(10)).background(.accent)
-        Box().width(px(50)).height(px(20)).background(.surface)
+        Box().cssWidth(px(30)).cssHeight(px(10)).background(.accent)
+        Box().cssWidth(px(50)).cssHeight(px(20)).background(.surface)
     }
 }
 
@@ -168,7 +168,7 @@ private struct TwoMembers: Component {
         let (window, _) = try render {
             inFilledRow {
                 { () -> ModifiedElement<Box<EmptyGroup>> in
-                    let chain = Box().width(px(200)).height(px(160)).background(.accent)
+                    let chain = Box().cssWidth(px(200)).cssHeight(px(160)).background(.accent)
                         .frame(width: px(60), height: px(40))
                     return (clipped ? chain.clipped() : chain).border(.separator, width: px(2))
                 }()
@@ -254,18 +254,18 @@ private struct TwoMembers: Component {
     }
 
     let control = try regions { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .frame(width: px(60), height: px(40))
             .onClick { counter.bump() }
     }
     let after = try regions { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .frame(width: px(60), height: px(40))
             .contentShape(inset: px(10))
             .onClick { counter.bump() }
     }
     let before = try regions { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .onClick { counter.bump() }
             .contentShape(inset: px(5))
             .frame(width: px(60), height: px(40))
@@ -340,14 +340,14 @@ private struct TwoMembers: Component {
     }
 
     try check("after the frame", size: (60, 40), origin: (0, 0), hoveredAtCornerReads: .accent) {
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .frame(width: px(60), height: px(40))
             .border(.surface, width: px(2)).hoverBorder(.accent, width: px(2))
             .focusBorder(.separator, width: px(2))
             .focusable().onClick {}
     }
     try check("before the frame", size: (20, 20), origin: (20, 10), hoveredAtCornerReads: .surface) {
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .border(.surface, width: px(2)).hoverBorder(.accent, width: px(2))
             .focusBorder(.separator, width: px(2))
             .focusable().onClick {}
@@ -498,14 +498,14 @@ private struct TwoMembers: Component {
     }
 
     let after = try publish("label after the frame") { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .frame(width: px(60), height: px(40))
             .contentShape(inset: px(10))
             .onClick { counter.bump() }
             .accessibilityLabel("go")
     }
     let before = try publish("label before the frame") { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .onClick { counter.bump() }
             .accessibilityLabel("go")
             .frame(width: px(60), height: px(40))
@@ -587,7 +587,7 @@ private struct TwoMembers: Component {
     }
 
     let control = try read("enabled") { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .frame(width: px(60), height: px(40))
             .border(.surface, width: px(2)).hoverBorder(.accent, width: px(2))
             .focusBorder(.separator, width: px(2))
@@ -595,7 +595,7 @@ private struct TwoMembers: Component {
             .disabled(false)
     }
     let disabled = try read("disabled") { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .frame(width: px(60), height: px(40))
             .border(.surface, width: px(2)).hoverBorder(.accent, width: px(2))
             .focusBorder(.separator, width: px(2))
@@ -603,7 +603,7 @@ private struct TwoMembers: Component {
             .disabled(true)
     }
     let scopeInside = try read("scope written before the frame") { counter in
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .disabled(true)
             .frame(width: px(60), height: px(40))
             .border(.surface, width: px(2)).hoverBorder(.accent, width: px(2))
@@ -661,13 +661,13 @@ private struct TwoMembers: Component {
     }
 
     let insetBefore = try arm { counter in
-        Box().width(px(120)).height(px(120)).background(.surface)
+        Box().cssWidth(px(120)).cssHeight(px(120)).background(.surface)
             .contentShape(inset: px(20))
             .padding(px(40))
             .onClick { counter.bump() }
     }
     let insetAfter = try arm { counter in
-        Box().width(px(120)).height(px(120)).background(.surface)
+        Box().cssWidth(px(120)).cssHeight(px(120)).background(.surface)
             .padding(px(40))
             .contentShape(inset: px(20))
             .onClick { counter.bump() }
@@ -726,19 +726,19 @@ private struct TwoMembers: Component {
     }
 
     let b1 = try read {
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .frame(width: px(60), height: px(60)).background(.accent)
     }
     let b2 = try read {
-        Box().width(px(20)).height(px(20)).background(.accent)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.accent)
             .frame(width: px(60), height: px(60))
     }
     let d1 = try read {
-        Box().width(px(20)).height(px(20)).background(.surface)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface)
             .padding(px(8)).frame(width: px(60), height: px(60)).background(.accent)
     }
     let d2 = try read {
-        Box().width(px(20)).height(px(20)).background(.accent)
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.accent)
             .padding(px(8)).frame(width: px(60), height: px(60))
     }
 

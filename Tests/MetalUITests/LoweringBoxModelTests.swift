@@ -56,7 +56,7 @@ private func style(_ edit: (inout Style) -> Void) -> Style {
 
 @MainActor
 private func fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
-    Box().width(px(w)).height(px(h))
+    Box().cssWidth(px(w)).cssHeight(px(h))
 }
 
 /// The lane's asymmetric border, one distinct value per edge (practices shape 1), so
@@ -138,10 +138,10 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 
     let stretched = LayoutDifferential.compare(width: 300, height: 200) {
         Row {
-            Box(style: style { $0.border = borderEdges }).width(px(20)).background(.accent)
+            Box(style: style { $0.border = borderEdges }).cssWidth(px(20)).background(.accent)
             fixed(20, 10)
         }
-        .alignItems(.stretch).height(px(60))
+        .alignItems(.stretch).cssHeight(px(60))
     }
     try #require(stretched.elements == 4)
     expectCorpusAgreement(stretched, "bordered box stretched")
@@ -221,7 +221,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
     let stretchedHeight = Float(atLeaf.totalHeight) + 20
 
     let stretched = LayoutDifferential.compare(width: 300, height: 200) {
-        Column { styled(longString, padded); fixed(20, 10) }.alignItems(.stretch).width(px(140))
+        Column { styled(longString, padded); fixed(20, 10) }.alignItems(.stretch).cssWidth(px(140))
     }
     try #require(stretched.elements == 4)
     #expect(stretched.unlowerable.isEmpty, "\(stretched.unlowerable)")
@@ -231,7 +231,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
     #expect(stretched.loweredBounds[sibling] == bounds(0, stretchedHeight, 20, 10))
 
     let stretchedGlyphs = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
-        Column { styled(longString, padded); fixed(20, 10) }.alignItems(.stretch).width(px(140))
+        Column { styled(longString, padded); fixed(20, 10) }.alignItems(.stretch).cssWidth(px(140))
     }.scene.glyphs
     let rightEdge = stretchedGlyphs.map { $0.bounds.origin.x + $0.bounds.size.width }.max() ?? 0
     try #require(rightEdge > 120, "\(rightEdge)")
@@ -385,10 +385,10 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 
     let stretched = LayoutDifferential.compare(width: 300, height: 200) {
         MetalUI.Row {
-            Box().width(px(20)).margin(marginEdges).background(.accent)
+            Box().cssWidth(px(20)).margin(marginEdges).background(.accent)
             fixed(20, 10)
         }
-        .alignItems(.stretch).height(px(60))
+        .alignItems(.stretch).cssHeight(px(60))
     }
     try #require(stretched.elements == 4)
     expectCorpusAgreement(stretched, "stretched item with cross margins")
@@ -397,10 +397,10 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 
     let grown = LayoutDifferential.compare(width: 300, height: 200) {
         MetalUI.Row {
-            Box().height(px(10)).flexGrow(1).margin(marginEdges).background(.accent)
+            Box().cssHeight(px(10)).flexGrow(1).margin(marginEdges).background(.accent)
             fixed(20, 10)
         }
-        .width(px(200))
+        .cssWidth(px(200))
     }
     try #require(grown.elements == 4)
     expectCorpusAgreement(grown, "grown item with main margins")
@@ -465,7 +465,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 @Test func anAutoMarginLowersAsZero() throws {
     let autoMargin = style { $0.margin = Edges(all: .auto) }
     let r = LayoutDifferential.compare(width: 300, height: 200) {
-        MetalUI.Row { Box(style: autoMargin).width(px(20)).height(px(10)); fixed(20, 10) }
+        MetalUI.Row { Box(style: autoMargin).cssWidth(px(20)).cssHeight(px(10)); fixed(20, 10) }
     }
     try #require(r.elements == 4)
     expectCorpusAgreement(r, "auto margin")
@@ -476,12 +476,12 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
     // Unconsumed, under the harness root: nothing is reported, where a px margin
     // reports `margin.unconsumed`.
     let unconsumed = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
-        Box(style: autoMargin).width(px(20)).height(px(10))
+        Box(style: autoMargin).cssWidth(px(20)).cssHeight(px(10))
     }.unlowerableFields
     #expect(unconsumed.isEmpty, "auto margin under the root: \(unconsumed)")
     let control = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
         Box(style: style { $0.margin = Edges(all: .length(.pixels(px(3)))) })
-            .width(px(20)).height(px(10))
+            .cssWidth(px(20)).cssHeight(px(10))
     }.unlowerableFields
     try #require(control == [field(.box, "margin.unconsumed")], "\(control)")
 }
@@ -556,17 +556,17 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 @MainActor
 private func marginItemChain(deeperInnermost: Bool) -> some Element {
     var element = deeperInnermost
-        ? AnyElement(Box().height(px(10))
+        ? AnyElement(Box().cssHeight(px(10))
             .flexShrink(0).flexGrow(1).alignSelf(.flexEnd).margin(px(1)))
         : AnyElement(Box()
             .flexShrink(0).flexGrow(1).alignSelf(.flexEnd).margin(px(1)))
     for _ in 0..<13 {
         let inner = element
-        element = AnyElement(MetalUI.Row { inner; Box().width(px(10)).height(px(10)) }
+        element = AnyElement(MetalUI.Row { inner; Box().cssWidth(px(10)).cssHeight(px(10)) }
             .flexShrink(0).flexGrow(1).alignSelf(.flexEnd).margin(px(1)))
     }
     let inner = element
-    return MetalUI.Row { inner; Box().width(px(10)).height(px(10)) }.width(px(100)).height(px(100))
+    return MetalUI.Row { inner; Box().cssWidth(px(10)).cssHeight(px(10)) }.cssWidth(px(100)).cssHeight(px(100))
 }
 
 /// **4.8, limit** (`SA-L`). `marginItemChain(deeperInnermost: false)` — 72 native

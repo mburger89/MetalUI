@@ -213,9 +213,9 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
     let log = ElementLog()
     let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var row = Row {
-        AnyElement(Probe("erased", log: log).width(px(40)).height(px(25)))
-        Probe("plain", log: log).width(px(60)).height(px(15))
-    }.width(px(200)).height(px(80))
+        AnyElement(Probe("erased", log: log).cssWidth(px(40)).cssHeight(px(25)))
+        Probe("plain", log: log).cssWidth(px(60)).cssHeight(px(15))
+    }.cssWidth(px(200)).cssHeight(px(80))
 
     frame.render(&row)
 
@@ -259,10 +259,10 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
     let log = ElementLog()
     let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
     var row = Row {
-        Probe("first", log: log).width(px(30)).height(px(10))
-        Probe("second", log: log).width(px(50)).height(px(20))
-        Probe("third", log: log).width(px(70)).height(px(30))
-    }.width(px(300)).height(px(40))
+        Probe("first", log: log).cssWidth(px(30)).cssHeight(px(10))
+        Probe("second", log: log).cssWidth(px(50)).cssHeight(px(20))
+        Probe("third", log: log).cssWidth(px(70)).cssHeight(px(30))
+    }.cssWidth(px(300)).cssHeight(px(40))
 
     frame.render(&row)
 
@@ -298,17 +298,17 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
     let rowLog = ElementLog()
     let rowFrame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var row = Row {
-        Probe("one", log: rowLog).width(px(40)).height(px(25))
-        Probe("two", log: rowLog).width(px(60)).height(px(15))
-    }.width(px(200)).height(px(80))
+        Probe("one", log: rowLog).cssWidth(px(40)).cssHeight(px(25))
+        Probe("two", log: rowLog).cssWidth(px(60)).cssHeight(px(15))
+    }.cssWidth(px(200)).cssHeight(px(80))
     rowFrame.render(&row)
 
     let columnLog = ElementLog()
     let columnFrame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var column = Column {
-        Probe("one", log: columnLog).width(px(40)).height(px(25))
-        Probe("two", log: columnLog).width(px(60)).height(px(15))
-    }.width(px(200)).height(px(80))
+        Probe("one", log: columnLog).cssWidth(px(40)).cssHeight(px(25))
+        Probe("two", log: columnLog).cssWidth(px(60)).cssHeight(px(15))
+    }.cssWidth(px(200)).cssHeight(px(80))
     columnFrame.render(&column)
 
     // **Was `(40, 0, …)` and `(0, 25, …)` before ruling EP-8.** Under stretch
@@ -382,16 +382,16 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
     let stackLog = ElementLog()
     let stackFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1)
     var column = Column {
-        Probe("stacked", log: stackLog).width(px(60)).height(px(20))
-    }.width(px(200)).height(px(90))
+        Probe("stacked", log: stackLog).cssWidth(px(60)).cssHeight(px(20))
+    }.cssWidth(px(200)).cssHeight(px(90))
     stackFrame.render(&column)
 
     let boxLog = ElementLog()
     let boxFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1)
     var box = Box {
-        Probe("boxed", log: boxLog).width(px(60)).height(px(20))
+        Probe("boxed", log: boxLog).cssWidth(px(60)).cssHeight(px(20))
     }
-    .flexDirection(.column).width(px(200)).height(px(90))
+    .flexDirection(.column).cssWidth(px(200)).cssHeight(px(90))
     boxFrame.render(&box)
 
     // (200 - 60) / 2 = 70, integral, so `roundLayout` is a no-op.
@@ -406,8 +406,8 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
     let rowLog = ElementLog()
     let rowFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1)
     var row = Row {
-        Probe("rowed", log: rowLog).width(px(60)).height(px(20))
-    }.width(px(200)).height(px(90))
+        Probe("rowed", log: rowLog).cssWidth(px(60)).cssHeight(px(20))
+    }.cssWidth(px(200)).cssHeight(px(90))
     rowFrame.render(&row)
     #expect(rect(rowLog.bounds["rowed"]!) == (0, 35, 60, 20))
 }
@@ -472,11 +472,11 @@ private func pathID(_ names: String...) -> GlobalElementID {
     let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
     var tree = Column {
         Row {
-            Probe("left", log: log).id("leaf").width(px(10)).height(px(10))
+            Probe("left", log: log).id("leaf").cssWidth(px(10)).cssHeight(px(10))
         }
         .id("first")
         Row {
-            Probe("right", log: log).id("leaf").width(px(10)).height(px(10))
+            Probe("right", log: log).id("leaf").cssWidth(px(10)).cssHeight(px(10))
         }
         .id("second")
     }
@@ -512,7 +512,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
     let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
     var tree = Column {
         Row {
-            Probe("deep", log: log).id("named").width(px(10)).height(px(10))
+            Probe("deep", log: log).id("named").cssWidth(px(10)).cssHeight(px(10))
         }
         // deliberately unnamed
     }
@@ -549,10 +549,10 @@ private func pathID(_ names: String...) -> GlobalElementID {
     let log = ElementLog()
     let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
     var row = Row {
-        Probe("first", log: log).width(px(30)).height(px(10))
-        Probe("second", log: log).width(px(50)).height(px(20))
+        Probe("first", log: log).cssWidth(px(30)).cssHeight(px(10))
+        Probe("second", log: log).cssWidth(px(50)).cssHeight(px(20))
     }
-    .gap(horizontal: px(20), vertical: px(5)).width(px(300)).height(px(60))
+    .gap(horizontal: px(20), vertical: px(5)).cssWidth(px(300)).cssHeight(px(60))
 
     frame.render(&row)
 
@@ -582,12 +582,12 @@ private func pathID(_ names: String...) -> GlobalElementID {
 @Test func aNodeIDDoesNotSilentlyResolveAgainstAnotherFramesTree() {
     let firstLog = ElementLog()
     let first = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
-    var firstTree = Row { Probe("x", log: firstLog).width(px(20)).height(px(10)) }
+    var firstTree = Row { Probe("x", log: firstLog).cssWidth(px(20)).cssHeight(px(10)) }
     first.render(&firstTree)
 
     let secondLog = ElementLog()
     let second = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1, layoutAuthority: .proposal)
-    var secondTree = Row { Probe("y", log: secondLog).width(px(60)).height(px(40)) }
+    var secondTree = Row { Probe("y", log: secondLog).cssWidth(px(60)).cssHeight(px(40)) }
     second.render(&secondTree)
 
     // Real ids, issued by `LayoutPass.requestNode` in each frame — not

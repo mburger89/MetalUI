@@ -468,7 +468,7 @@ private struct InternalRegistrarRow: Element {
 @Test func everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn() async throws {
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
     var arms: [Arm] = []
-    arms.append(("Box", diagnostics { Box().width(px(10)).height(px(10)).position(.relative) },
+    arms.append(("Box", diagnostics { Box().cssWidth(px(10)).cssHeight(px(10)).position(.relative) },
                  [field(.box, "position")]))
     arms.append(("Stack", diagnostics { Stack { ProbeLeaf(width: 10, height: 10) }.position(.relative) },
                  [field(.stack, "position")]))
@@ -485,8 +485,8 @@ private struct InternalRegistrarRow: Element {
                  [field(.modifierLayer, "position"), field(.modifierLayer, "inset")]))
     arms.append(("ScrollView", diagnostics {
         ScrollView {
-            Box().width(px(10)).height(px(10)).flexGrow(1)
-            Box().width(px(10)).height(px(10)).flexGrow(2)
+            Box().cssWidth(px(10)).cssHeight(px(10)).flexGrow(1)
+            Box().cssWidth(px(10)).cssHeight(px(10)).flexGrow(2)
         }
     }, [field(.scrollView, "flexGrow.weights")]))
     // **An ABSENCE arm since stage 4's lane 2** (§4.2(d), `LR-BV` as amended),
@@ -539,7 +539,7 @@ private struct InternalRegistrarRow: Element {
     bordered.border = Edges(all: .pixels(px(4)))
     var presentationRoot = Box(style: bordered) {
         Deferred {
-            Box().width(px(10)).height(px(10)).position(.absolute)
+            Box().cssWidth(px(10)).cssHeight(px(10)).position(.absolute)
                 .inset(Edges(top: .length(.pixels(px(5))), right: .auto, bottom: .auto,
                              left: .length(.pixels(px(5)))))
         }
@@ -618,9 +618,9 @@ private struct InternalRegistrarRow: Element {
 @MainActor
 @Test func theElementBoundsLogRecordsTheRootEveryGroupMemberAndEveryInnerModifierLayer() throws {
     var root = Stack(alignment: .topLeading) {
-        Box().width(px(20)).height(px(10))
-        Box().width(px(30)).height(px(40)).padding(px(4)).padding(px(8))
-    }.width(px(200)).height(px(100))
+        Box().cssWidth(px(20)).cssHeight(px(10))
+        Box().cssWidth(px(30)).cssHeight(px(40)).padding(px(4)).padding(px(8))
+    }.cssWidth(px(200)).cssHeight(px(100))
     let frame = Frame(contentSize: Size(width: px(200), height: px(100)), scaleFactor: 1,
                       recordsElementBounds: true)
     frame.render(&root)
@@ -645,8 +645,8 @@ private struct InternalRegistrarRow: Element {
 @Test func theElementBoundsLogIsEmptyUnlessRequested() throws {
     func tree() -> Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>> {
         Stack(alignment: .topLeading) {
-            Box().width(px(20)).height(px(10))
-            Box().width(px(30)).height(px(40))
+            Box().cssWidth(px(20)).cssHeight(px(10))
+            Box().cssWidth(px(30)).cssHeight(px(40))
         }
     }
     var quiet = tree()

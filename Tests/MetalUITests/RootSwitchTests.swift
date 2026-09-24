@@ -35,10 +35,10 @@ private func listRoot() -> some Element {
             }
             .alignItems(.center)
             .flexGrow(1)
-            .height(Pixels(28))
+            .cssHeight(Pixels(28))
             .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
                            bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
-            .width(Pixels(420))
+            .cssWidth(Pixels(420))
         }
     }
 }
@@ -169,7 +169,7 @@ private func draw(_ root: ProductionRoot, frames: Int,
     let boxID = GlobalElementID.child(of: rootID, at: 0, name: nil)
     func boxRect(_ authority: LayoutAuthority?) throws -> Bounds<Pixels>? {
         let (window, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: authority) {
-            Row { Box().width(Pixels(58)).height(Pixels(20)) }
+            Row { Box().cssWidth(Pixels(58)).cssHeight(Pixels(20)) }
         }
         window.recordsElementBounds = true
         window.drawFrameIfNeeded()

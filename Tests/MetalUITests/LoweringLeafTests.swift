@@ -74,7 +74,7 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 @MainActor
 @Test func aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation() throws {
     let pxReport = LayoutDifferential.compare(width: 100, height: 60) {
-        Box().width(px(30)).height(px(20)).background(.accent).cornerRadius(px(4))
+        Box().cssWidth(px(30)).cssHeight(px(20)).background(.accent).cornerRadius(px(4))
             .onClick {}.accessibilityLabel("px box")
     }
     try #require(pxReport.elements == 2)
@@ -324,7 +324,7 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     for authority in [LayoutAuthority.legacy, .proposal] {
         let table = StateTable()
         func widthAt(_ width: Float, timestamp: Double, animating: Bool) -> Pixels? {
-            let box = Box().width(px(width)).height(px(10))
+            let box = Box().cssWidth(px(width)).cssHeight(px(10))
             var root = DifferentialRoot(width: 200, height: 100) { box }
             let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
                               stateTable: table, timestamp: timestamp,
@@ -582,10 +582,10 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                               observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
             let arms: [(name: String, text: Text, width: Float?, height: Float?)] = [
-                ("width(100)", Text(longString).width(px(100)), 100, nil),
-                ("width(30)", Text(longString).width(px(30)), 30, nil),
-                ("width(5)", Text(longString).width(px(5)), 5, nil),
-                ("height(40)", Text(longString).height(px(40)), nil, 40),
+                ("width(100)", Text(longString).cssWidth(px(100)), 100, nil),
+                ("width(30)", Text(longString).cssWidth(px(30)), 30, nil),
+                ("width(5)", Text(longString).cssWidth(px(5)), 5, nil),
+                ("height(40)", Text(longString).cssHeight(px(40)), nil, 40),
             ]
             for arm in arms {
                 let element = arm.text
@@ -643,13 +643,13 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 100) {
             Row(gap: px(0)) {
                 element
-                Box().width(px(10)).height(px(10)).background(.accent)
+                Box().cssWidth(px(10)).cssHeight(px(10)).background(.accent)
             }
         }
         return (frame.elementBounds[empty], frame.elementBounds[sibling], frame.unlowerableFields)
     }
 
-    let control = observe(Stack { EmptyGroup() }.width(px(30)).height(px(20)))
+    let control = observe(Stack { EmptyGroup() }.cssWidth(px(30)).cssHeight(px(20)))
     let bare = observe(Stack { EmptyGroup() })
     try #require(control.empty != bare.empty, "the control must read a different rect: \(String(describing: control.empty))")
     try #require(control.sibling != bare.sibling, "the control must move the sibling: \(String(describing: control.sibling))")

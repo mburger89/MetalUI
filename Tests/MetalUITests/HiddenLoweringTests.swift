@@ -65,9 +65,9 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
 @Test @MainActor func aHiddenChildKeepsItsSpaceUnderTheProposalAuthority() throws {
     let report = LayoutDifferential.compare(width: 100, height: 100) {
         Column(gap: px(0)) {
-            Box().width(px(20)).height(px(20))
-            Box().width(px(20)).height(px(20)).hidden()
-            Box().width(px(20)).height(px(20))
+            Box().cssWidth(px(20)).cssHeight(px(20))
+            Box().cssWidth(px(20)).cssHeight(px(20)).hidden()
+            Box().cssWidth(px(20)).cssHeight(px(20))
         }
     }
     #expect(report.unlowerable.isEmpty, "\(report.unlowerable)")
@@ -91,8 +91,8 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     func stack(hidden: Bool) -> LayoutDifferential.Report {
         LayoutDifferential.compare(width: 100, height: 100) {
             let s = Stack(alignment: .bottomTrailing) {
-                Box().width(px(20)).height(px(10))
-                Box().width(px(10)).height(px(30))
+                Box().cssWidth(px(20)).cssHeight(px(10))
+                Box().cssWidth(px(10)).cssHeight(px(30))
             }
             hidden ? s.hidden() : s
         }
@@ -119,10 +119,10 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
 /// Mutation **M1c**: the paint skip removed from `Element.paintGroup`.
 @Test @MainActor func aHiddenElementPaintsNothingUnderTheProposalAuthority() throws {
     func tree(hidden: Bool) -> some Element {
-        let box = Box { Text("Hi") }.width(px(40)).height(px(40)).background(.accent)
+        let box = Box { Text("Hi") }.cssWidth(px(40)).cssHeight(px(40)).background(.accent)
         return Column {
             hidden ? box.hidden() : box
-            Box().width(px(10)).height(px(10))
+            Box().cssWidth(px(10)).cssHeight(px(10))
         }
     }
     let theme = Theme.light
@@ -138,7 +138,7 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
 
     // The root arm (`LR-DP` item 2): `render` paints the root directly, not through
     // `paintGroup`, so it carries its own skip. A hidden root paints nothing.
-    let root = Box { Text("Hi") }.width(px(40)).height(px(40)).background(.accent)
+    let root = Box { Text("Hi") }.cssWidth(px(40)).cssHeight(px(40)).background(.accent)
     let shownRoot = production(.proposal, root)
     try #require(!shownRoot.scene.rects.isEmpty && !shownRoot.scene.glyphs.isEmpty, "control: the shown root paints")
     let hiddenRoot = production(.proposal, root.hidden())
@@ -156,11 +156,11 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
 /// Mutation **M1d**: the `hitTestingDisabled` scope removed from `Element.prepaintGroup`.
 @Test @MainActor func aHiddenClickTargetPassesTheClickToWhatIsUnderIt() throws {
     func tree(hidden: Bool) -> some Element {
-        let top = Box().width(px(40)).height(px(40)).onClick {}
+        let top = Box().cssWidth(px(40)).cssHeight(px(40)).onClick {}
         return Stack {
-            Box().width(px(40)).height(px(40)).onClick {}
+            Box().cssWidth(px(40)).cssHeight(px(40)).onClick {}
             hidden ? top.hidden() : top
-        }.width(px(100)).height(px(100))
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     let under = child(rootID, 0), top = child(rootID, 1)
     let shown = production(.proposal, tree(hidden: false))
@@ -175,7 +175,7 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     // The root arm (`LR-DP` item 2): `render` prepaints the root directly, so it
     // carries its own pointer-disable scope. A hidden clickable root holding a
     // clickable child registers no pointer hitbox at all.
-    let root = Box { Box().width(px(20)).height(px(20)).onClick {} }.width(px(40)).height(px(40)).onClick {}
+    let root = Box { Box().cssWidth(px(20)).cssHeight(px(20)).onClick {} }.cssWidth(px(40)).cssHeight(px(40)).onClick {}
     try #require(production(.proposal, root).hitboxes.count == 2, "control: the shown root and its child register")
     let hiddenRoot = production(.proposal, root.hidden())
     #expect(hiddenRoot.hitboxes.isEmpty, "a hidden root registers no pointer hitbox, got \(hiddenRoot.hitboxes.count)")
@@ -195,11 +195,11 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
 /// Mutation **M1e**: `ModifiedElement`'s per-layer paint skip and hitbox scope removed.
 @Test @MainActor func aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer() throws {
     func tree(hidden: Bool) -> some Element {
-        let content = Box().width(px(10)).height(px(10)).background(.accent).onClick {}
+        let content = Box().cssWidth(px(10)).cssHeight(px(10)).background(.accent).onClick {}
         let inner = content.padding(px(4)).background(.surfaceSecondary).onClick {}
         return Row {
             (hidden ? inner.hidden() : inner).padding(px(4)).background(.separator).onClick {}
-        }.width(px(100)).height(px(100))
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     let theme = Theme.light
     try #require(Set([theme[.accent], theme[.surfaceSecondary], theme[.separator]].map { "\($0)" }).count == 3,
@@ -244,12 +244,12 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
 /// Mutation **M1f**: `AnyElement`'s entry gates removed.
 @Test @MainActor func aHiddenElementInsideAnyElementIsHiddenUnderTheProposalAuthority() throws {
     func tree(hidden: Bool) -> some Element {
-        let top = Box().width(px(40)).height(px(40)).background(.accent).onClick {}
+        let top = Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).onClick {}
             .handling { $0.axNode = AXNode(label: "top") }
         return Stack {
-            Box().width(px(40)).height(px(40)).onClick {}
+            Box().cssWidth(px(40)).cssHeight(px(40)).onClick {}
             AnyElement(hidden ? top.hidden() : top)
-        }.width(px(100)).height(px(100))
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     let theme = Theme.light
     let under = child(rootID, 0), top = child(rootID, 1)
@@ -283,8 +283,8 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
 /// leave **M1g** (the paint skip reading `display == .none`) unable to redden this.
 @Test @MainActor func theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore() throws {
     var root = Column {
-        Box { Text("Hi") }.width(px(80)).height(px(20)).background(.accent).onClick {}.hidden()
-        Box().width(px(10)).height(px(10)).background(.separator)
+        Box { Text("Hi") }.cssWidth(px(80)).cssHeight(px(20)).background(.accent).onClick {}.hidden()
+        Box().cssWidth(px(10)).cssHeight(px(10)).background(.separator)
     }
     let frame = Frame(contentSize: Size(width: px(400), height: px(300)), scaleFactor: 1,
                       stateTable: StateTable(), theme: .light, layoutAuthority: .legacy)
@@ -333,7 +333,7 @@ private enum LegacyHiddenBaseline {
         let text = Text("Hi").onClick {}
         return Column {
             hidden ? text.hidden() : text
-            Box().width(px(10)).height(px(10))
+            Box().cssWidth(px(10)).cssHeight(px(10))
         }
     }
     let textID = child(rootID, 0)

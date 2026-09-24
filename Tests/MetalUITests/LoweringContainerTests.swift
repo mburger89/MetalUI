@@ -41,7 +41,7 @@ private func field(_ site: LoweringSite, _ name: String) -> UnlowerableField {
 /// A fixed-size childless `Box` (lowered since lane 2: a 0×0 leaf in a fixed frame).
 @MainActor
 private func fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
-    Box().width(px(w)).height(px(h))
+    Box().cssWidth(px(w)).cssHeight(px(h))
 }
 
 /// Every whole-frame observation agrees and nothing was reported.
@@ -166,7 +166,7 @@ private func lowered(_ r: LayoutDifferential.Report, _ ids: [GlobalElementID]) -
         for (align, a) in aligns {
             let row = LayoutDifferential.compare(width: 200, height: 200) {
                 Row { fixed(20, 10); fixed(30, 20) }
-                    .width(px(100)).height(px(60)).justifyContent(justify).alignItems(align)
+                    .cssWidth(px(100)).cssHeight(px(60)).justifyContent(justify).alignItems(align)
             }
             try #require(row.elements == 4)
             expectFullAgreement(row, "row \(justify) \(align)")
@@ -177,7 +177,7 @@ private func lowered(_ r: LayoutDifferential.Report, _ ids: [GlobalElementID]) -
 
             let column = LayoutDifferential.compare(width: 200, height: 200) {
                 Column { fixed(20, 10); fixed(30, 20) }
-                    .width(px(100)).height(px(60)).justifyContent(justify).alignItems(align)
+                    .cssWidth(px(100)).cssHeight(px(60)).justifyContent(justify).alignItems(align)
             }
             try #require(column.elements == 4)
             expectFullAgreement(column, "column \(justify) \(align)")
@@ -198,7 +198,7 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
     Box(decoration: Decoration(background: .surfaceSecondary, cornerRadius: px(8))) {
         Text(label).font(size: 22)
     }
-    .width(px(36)).height(px(36)).alignItems(.center).justifyContent(.center)
+    .cssWidth(px(36)).cssHeight(px(36)).alignItems(.center).justifyContent(.center)
     .hoverBackground(.accent).onClick {}.accessibilityLabel(axLabel)
 }
 
@@ -230,7 +230,7 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
         }(), decoration: Decoration(background: .surface, cornerRadius: px(12))) {
             chromeButton("-", "Decrement")
             Box { Text("Count 0").font(size: 22) }
-                .width(px(140)).height(px(36)).alignItems(.center).justifyContent(.center)
+                .cssWidth(px(140)).cssHeight(px(36)).alignItems(.center).justifyContent(.center)
             chromeButton("+", "Increment")
         }
     }
@@ -347,14 +347,14 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
     // Stage 2, lane 1: the two-child stretch lowers (a greedy item frame, aliased) and
     // agrees, the auto-height child stretched to the declared 30 on both sides.
     let twoChild = LayoutDifferential.compare(width: 100, height: 100) {
-        Box { fixed(20, 10); Box().width(px(20)).background(.accent) }.height(px(30))
+        Box { fixed(20, 10); Box().cssWidth(px(20)).background(.accent) }.cssHeight(px(30))
     }
     try #require(twoChild.elements == 4)
     expectFullAgreement(twoChild, "two-child stretch")
     #expect(lowered(twoChild, [child(containerID, 0), child(containerID, 1)])
             == [bounds(0, 0, 20, 10), bounds(20, 0, 20, 30)])
     let sizedSingle = LayoutDifferential.compare(width: 100, height: 100) {
-        Box { Box().width(px(20)).background(.accent) }.height(px(30))
+        Box { Box().cssWidth(px(20)).background(.accent) }.cssHeight(px(30))
     }
     try #require(sizedSingle.elements == 3)
     expectFullAgreement(sizedSingle, "sized single-child stretch")
@@ -386,15 +386,15 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
     // shape `LoweringDistributionTests.swift` does not carry — every reverse arm there
     // declares a main size or is grown by its parent.
     let sizedBetween = LayoutDifferential.compare(width: 100, height: 100) {
-        Row { fixed(20, 10); fixed(30, 10) }.width(px(100)).justifyContent(.spaceBetween)
+        Row { fixed(20, 10); fixed(30, 10) }.cssWidth(px(100)).justifyContent(.spaceBetween)
     }
     expectFullAgreement(sizedBetween, "sized spaceBetween")
     let sizedAround = LayoutDifferential.compare(width: 100, height: 100) {
-        Column { fixed(20, 10); fixed(30, 10) }.height(px(100)).justifyContent(.spaceAround)
+        Column { fixed(20, 10); fixed(30, 10) }.cssHeight(px(100)).justifyContent(.spaceAround)
     }
     expectFullAgreement(sizedAround, "sized spaceAround")
     let sizedEvenly = LayoutDifferential.compare(width: 100, height: 100) {
-        Row { fixed(20, 10); fixed(30, 10) }.width(px(100)).justifyContent(.spaceEvenly)
+        Row { fixed(20, 10); fixed(30, 10) }.cssWidth(px(100)).justifyContent(.spaceEvenly)
     }
     expectFullAgreement(sizedEvenly, "sized spaceEvenly")
     let rowReverse = LayoutDifferential.compare(width: 100, height: 100) {
@@ -459,7 +459,7 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 @MainActor
 @Test func aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren() throws {
     let r = LayoutDifferential.compare(width: 200, height: 100) {
-        Row { fixed(80, 20); fixed(80, 20) }.width(px(100))
+        Row { fixed(80, 20); fixed(80, 20) }.cssWidth(px(100))
     }
     try #require(r.elements == 4)
     #expect(r.unlowerable.isEmpty, "\(r.unlowerable)")

@@ -304,7 +304,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 /// layer, the legacy tree's shape) is gone, so the test is authority-free; the
 /// `Row` stays as a compile-time assertion of its stored type.
 @Test @MainActor func legacyModifierChainsInferOneConcreteType() throws {
-    let leafChain = ChainLeaf().padding(4).frame(width: 60).padding(Edges(all: .pixels(px(8)))).width(70)
+    let leafChain = ChainLeaf().padding(4).frame(width: 60).padding(Edges(all: .pixels(px(8)))).cssWidth(70)
     let componentChain = ChainComp().frame(width: 60).padding(4)
     let groupChain = ChainGroup(ChainLeaf()).frame(width: 30)
 
@@ -602,7 +602,7 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
                 .padding(generation.value == 0 ? 4 : 12)
                 .frame(width: generation.value == 0 ? 60 : 80, height: 40)
         }
-        .width(px(100)).height(px(100))
+        .cssWidth(px(100)).cssHeight(px(100))
     }
     window.drawFrameIfNeeded()
     let bounds = try #require(log.bounds["leaf"])
@@ -653,7 +653,7 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                       startsDisplayLink: true) {
         Row { growableChain(log, adding: generation.value > 0) }
-            .width(px(100)).height(px(100))
+            .cssWidth(px(100)).cssHeight(px(100))
     }
     let p = GlobalElementID.child(of: rootID, at: 0, name: nil)
     let p0 = GlobalElementID.child(of: p, at: 0, name: nil)

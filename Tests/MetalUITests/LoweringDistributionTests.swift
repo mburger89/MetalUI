@@ -54,13 +54,13 @@ private func field(_ site: LoweringSite, _ name: String) -> UnlowerableField {
 /// A fixed-size childless `Box`.
 @MainActor
 private func fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
-    Box().width(px(w)).height(px(h))
+    Box().cssWidth(px(w)).cssHeight(px(h))
 }
 
 /// A fixed-size childless `Box` the legacy engine may not shrink.
 @MainActor
 private func rigid(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
-    Box().width(px(w)).height(px(h)).flexShrink(0)
+    Box().cssWidth(px(w)).cssHeight(px(h)).flexShrink(0)
 }
 
 /// Every whole-frame observation agrees and nothing was reported.
@@ -451,14 +451,14 @@ private struct DistributionCounter: Component {
 
     var content: some ElementGroup {
         let box = Box()
-            .height(Pixels(tall))
+            .cssHeight(Pixels(tall))
             .background(.accent)
             .onClick { taps += 1 }
             .accessibilityLabel("c\(Int(size))")
         switch role {
-        case .grower: return AnyElement(box.width(Pixels(size)).flexGrow(1))
-        case .plain: return AnyElement(box.width(Pixels(size)))
-        case .floored: return AnyElement(box.minWidth(Pixels(size)))
+        case .grower: return AnyElement(box.cssWidth(Pixels(size)).flexGrow(1))
+        case .plain: return AnyElement(box.cssWidth(Pixels(size)))
+        case .floored: return AnyElement(box.cssMinWidth(Pixels(size)))
         }
     }
 }

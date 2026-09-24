@@ -174,8 +174,8 @@ private enum Kind: String, CaseIterable, Hashable {
 /// in `ComponentTests.swift` records having found the hard way.
 private struct TwoMembers: Component {
     var content: some ElementGroup {
-        Box().width(px(30)).height(px(10)).background(.accent)
-        Box().width(px(50)).height(px(20)).background(.surface)
+        Box().cssWidth(px(30)).cssHeight(px(10)).background(.accent)
+        Box().cssWidth(px(50)).cssHeight(px(20)).background(.surface)
     }
 }
 
@@ -231,8 +231,8 @@ private func observeUnderTheProposalAuthority<Subject: ElementGroup>(
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     var preflight = Row {
         subject(ClickCounter())
-        Box().width(px(1)).height(px(1)).background(.separator)
-    }.alignItems(.flexStart).width(px(200)).height(px(200))
+        Box().cssWidth(px(1)).cssHeight(px(1)).background(.separator)
+    }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
     let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
                             layoutAuthority: .proposal, reportsUnlowerableFields: true)
     diagnostics.render(&preflight)
@@ -243,8 +243,8 @@ private func observeUnderTheProposalAuthority<Subject: ElementGroup>(
     let (window, platform) = try makeFakeWindow(device: device, size: 200) {
         Row {
             subject(counter)
-            Box().width(px(1)).height(px(1)).background(.separator)
-        }.alignItems(.flexStart).width(px(200)).height(px(200))
+            Box().cssWidth(px(1)).cssHeight(px(1)).background(.separator)
+        }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
     }
     try #require(window.layoutAuthority == .proposal, "not a proposal-authority window")
     window.recordsElementBounds = true
@@ -349,10 +349,10 @@ private struct ProposalMatrixRow {
                           note: "one ModifierLayer per call (MC-A)", outer: (40, 56),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40))
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40)).padding(px(8))
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).padding(px(8))
                                },
                                nil)
                           }),
@@ -361,10 +361,10 @@ private struct ProposalMatrixRow {
                           outer: (20, 60),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(20)).height(px(20))
+                                   Box().cssWidth(px(20)).cssHeight(px(20))
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(20)).height(px(20)).frame(width: px(60), height: px(60))
+                                   Box().cssWidth(px(20)).cssHeight(px(20)).frame(width: px(60), height: px(60))
                                },
                                nil)
                           }),
@@ -373,24 +373,24 @@ private struct ProposalMatrixRow {
         ProposalMatrixRow(name: "width(_:)", path: "legacy Element", kinds: [.selfStorage],
                           note: "writes Style.size.width on the receiver's own storage", outer: (0, 40),
                           arms: {
-                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in Box().height(px(40)) },
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in Box().cssHeight(px(40)) },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().height(px(40)).width(px(40))
+                                   Box().cssHeight(px(40)).cssWidth(px(40))
                                },
-                               storageDiffers(Box().height(px(40)), Box().height(px(40)).width(px(40))))
+                               storageDiffers(Box().cssHeight(px(40)), Box().cssHeight(px(40)).cssWidth(px(40))))
                           }),
         ProposalMatrixRow(name: "margin(_:)", path: "legacy Element", kinds: [.selfStorage],
                           note: "writes Style.margin; outside the box, so the marker moves by twice it",
                           outer: (20, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(20)).height(px(20))
+                                   Box().cssWidth(px(20)).cssHeight(px(20))
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(20)).height(px(20)).margin(px(10))
+                                   Box().cssWidth(px(20)).cssHeight(px(20)).margin(px(10))
                                },
-                               storageDiffers(Box().width(px(20)).height(px(20)),
-                                              Box().width(px(20)).height(px(20)).margin(px(10))))
+                               storageDiffers(Box().cssWidth(px(20)).cssHeight(px(20)),
+                                              Box().cssWidth(px(20)).cssHeight(px(20)).margin(px(10))))
                           }),
         ProposalMatrixRow(name: "hidden()", path: "legacy Element", kinds: [.selfStorage],
                           note: "writes Style.display = .none; under the proposal authority the box keeps "
@@ -398,38 +398,38 @@ private struct ProposalMatrixRow {
                           outer: (20, 20),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(20)).height(px(20))
+                                   Box().cssWidth(px(20)).cssHeight(px(20))
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(20)).height(px(20)).hidden()
+                                   Box().cssWidth(px(20)).cssHeight(px(20)).hidden()
                                },
-                               storageDiffers(Box().width(px(20)).height(px(20)),
-                                              Box().width(px(20)).height(px(20)).hidden()))
+                               storageDiffers(Box().cssWidth(px(20)).cssHeight(px(20)),
+                                              Box().cssWidth(px(20)).cssHeight(px(20)).hidden()))
                           }),
         ProposalMatrixRow(name: "id(_:)", path: "legacy Element", kinds: [.selfStorage],
                           note: "writes elementID and nothing the observation can see", outer: (40, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40))
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40)).id("beacon")
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).id("beacon")
                                },
-                               storageDiffers(Box().width(px(40)).height(px(40)),
-                                              Box().width(px(40)).height(px(40)).id("beacon")))
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).id("beacon")))
                           }),
         ProposalMatrixRow(name: "focusable()", path: "legacy Element", kinds: [.selfStorage],
                           note: "writes Handlers.isFocusable and registers NO pointer target",
                           outer: (40, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
-                                   Box().width(px(40)).height(px(40))
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
                                },
                                try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
-                                   Box().width(px(40)).height(px(40)).focusable()
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).focusable()
                                },
-                               storageDiffers(Box().width(px(40)).height(px(40)),
-                                              Box().width(px(40)).height(px(40)).focusable()))
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).focusable()))
                           }),
 
         // MARK: self AND paint-only
@@ -438,14 +438,14 @@ private struct ProposalMatrixRow {
                           note: "paints on a LIVE rect: both arms carry a background", outer: (40, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40)).background(.accent)
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40)).background(.accent)
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
                                        .border(.separator, width: px(4))
                                },
-                               storageDiffers(Box().width(px(40)).height(px(40)).background(.accent),
-                                              Box().width(px(40)).height(px(40)).background(.accent)
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
                                                   .border(.separator, width: px(4))))
                           }),
         ProposalMatrixRow(name: "border(_:width:) on a content-sized box", path: "legacy Element",
@@ -454,14 +454,14 @@ private struct ProposalMatrixRow {
                           outer: (30, 30),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box { Box().width(px(30)).height(px(10)) }
+                                   Box { Box().cssWidth(px(30)).cssHeight(px(10)) }
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box { Box().width(px(30)).height(px(10)) }
+                                   Box { Box().cssWidth(px(30)).cssHeight(px(10)) }
                                        .border(.separator, width: px(4))
                                },
-                               storageDiffers(Box { Box().width(px(30)).height(px(10)) },
-                                              Box { Box().width(px(30)).height(px(10)) }
+                               storageDiffers(Box { Box().cssWidth(px(30)).cssHeight(px(10)) },
+                                              Box { Box().cssWidth(px(30)).cssHeight(px(10)) }
                                                   .border(.separator, width: px(4))))
                           }),
         ProposalMatrixRow(name: "focusBorder(_:width:), genuinely focused", path: "legacy Element",
@@ -472,29 +472,29 @@ private struct ProposalMatrixRow {
                                   if let first = window.lastHitboxes.first { window.focus(first.id) }
                               }
                               return (try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: focus) { counter in
-                                          Box().width(px(40)).height(px(40)).background(.surface)
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
                                               .focusable().onClick { counter.bump() }
                                       },
                                       try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: focus) { counter in
-                                          Box().width(px(40)).height(px(40)).background(.surface)
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
                                               .focusBorder(.accent, width: px(2))
                                               .focusable().onClick { counter.bump() }
                                       },
-                                      storageDiffers(Box().width(px(40)).height(px(40)).background(.surface),
-                                                     Box().width(px(40)).height(px(40)).background(.surface)
+                                      storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface),
+                                                     Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
                                                          .focusBorder(.accent, width: px(2))))
                           }),
         ProposalMatrixRow(name: "opacity(_:)", path: "legacy Element", kinds: [.selfStorage, .paintOnly],
                           note: "a paint-phase SCOPE (OM-N)", outer: (40, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40)).background(.accent)
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5)
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).opacity(0.5)
                                },
-                               storageDiffers(Box().width(px(40)).height(px(40)).background(.accent),
-                                              Box().width(px(40)).height(px(40)).background(.accent)
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
                                                   .opacity(0.5)))
                           }),
         ProposalMatrixRow(name: "clipped()", path: "legacy Element", kinds: [.selfStorage, .paintOnly],
@@ -502,40 +502,40 @@ private struct ProposalMatrixRow {
                           outer: (40, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box { Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface) }
-                                       .width(px(40)).height(px(40))
+                                   Box { Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface) }
+                                       .cssWidth(px(40)).cssHeight(px(40))
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box { Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface) }
-                                       .width(px(40)).height(px(40)).clipped()
+                                   Box { Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface) }
+                                       .cssWidth(px(40)).cssHeight(px(40)).clipped()
                                },
-                               storageDiffers(Box().width(px(40)).height(px(40)),
-                                              Box().width(px(40)).height(px(40)).clipped()))
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).clipped()))
                           }),
         ProposalMatrixRow(name: "background(_:)", path: "legacy Element", kinds: [.selfStorage, .paintOnly],
                           note: "writes Decoration.background; emits one rect", outer: (40, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40))
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40)).background(.accent)
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
                                },
-                               storageDiffers(Box().width(px(40)).height(px(40)),
-                                              Box().width(px(40)).height(px(40)).background(.accent)))
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)))
                           }),
         ProposalMatrixRow(name: "cornerRadius(_:)", path: "legacy Element", kinds: [.selfStorage, .paintOnly],
                           note: "rounds the receiver's own fill; only its radii move", outer: (40, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40)).background(.accent)
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
-                                   Box().width(px(40)).height(px(40)).background(.accent)
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
                                        .cornerRadius(px(12))
                                },
-                               storageDiffers(Box().width(px(40)).height(px(40)).background(.accent),
-                                              Box().width(px(40)).height(px(40)).background(.accent)
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
                                                   .cornerRadius(px(12))))
                           }),
         ProposalMatrixRow(name: "hoverBackground(_:), genuinely hovered", path: "legacy Element",
@@ -546,15 +546,15 @@ private struct ProposalMatrixRow {
                                   platform.simulateInput(.mouseMoved(MouseEvent(position: pt(20, 20))))
                               }
                               return (try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: hover) { counter in
-                                          Box().width(px(40)).height(px(40)).background(.surface)
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
                                               .onClick { counter.bump() }
                                       },
                                       try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: hover) { counter in
-                                          Box().width(px(40)).height(px(40)).background(.surface)
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
                                               .hoverBackground(.accent).onClick { counter.bump() }
                                       },
-                                      storageDiffers(Box().width(px(40)).height(px(40)).background(.surface),
-                                                     Box().width(px(40)).height(px(40)).background(.surface)
+                                      storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface),
+                                                     Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
                                                          .hoverBackground(.accent)))
                           }),
         ProposalMatrixRow(name: "focusBackground(_:), genuinely focused", path: "legacy Element",
@@ -565,16 +565,16 @@ private struct ProposalMatrixRow {
                                   if let first = window.lastHitboxes.first { window.focus(first.id) }
                               }
                               return (try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: focus) { counter in
-                                          Box().width(px(40)).height(px(40)).background(.surface)
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
                                               .focusable().onClick { counter.bump() }
                                       },
                                       try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: focus) { counter in
-                                          Box().width(px(40)).height(px(40)).background(.surface)
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
                                               .focusBackground(.separator)
                                               .focusable().onClick { counter.bump() }
                                       },
-                                      storageDiffers(Box().width(px(40)).height(px(40)).background(.surface),
-                                                     Box().width(px(40)).height(px(40)).background(.surface)
+                                      storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface),
+                                                     Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
                                                          .focusBackground(.separator)))
                           }),
 
@@ -584,27 +584,27 @@ private struct ProposalMatrixRow {
                           outer: (40, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
-                                   Box().width(px(40)).height(px(40))
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
                                },
                                try observeUnderTheProposalAuthority(probe: pt(20, 20)) { counter in
-                                   Box().width(px(40)).height(px(40)).onClick { counter.bump() }
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).onClick { counter.bump() }
                                },
-                               storageDiffers(Box().width(px(40)).height(px(40)),
-                                              Box().width(px(40)).height(px(40)).onClick { }))
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).onClick { }))
                           }),
         ProposalMatrixRow(name: "contentShape(inset:)", path: "legacy Element",
                           kinds: [.selfStorage, .prepaintOnly],
                           note: "insets the region an onClick registers (OM-J, OM-AB)", outer: (40, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { counter in
-                                   Box().width(px(40)).height(px(40)).onClick { counter.bump() }
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).onClick { counter.bump() }
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { counter in
-                                   Box().width(px(40)).height(px(40)).onClick { counter.bump() }
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).onClick { counter.bump() }
                                        .contentShape(inset: px(10))
                                },
-                               storageDiffers(Box().width(px(40)).height(px(40)).onClick { },
-                                              Box().width(px(40)).height(px(40)).onClick { }
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).onClick { },
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).onClick { }
                                                   .contentShape(inset: px(10))))
                           }),
         ProposalMatrixRow(name: "allowsHitTesting(_:)", path: "legacy Element",
@@ -612,14 +612,14 @@ private struct ProposalMatrixRow {
                           note: "a scope over the receiver's OWN hitbox (OM-T)", outer: (40, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { counter in
-                                   Box().width(px(40)).height(px(40)).onClick { counter.bump() }
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).onClick { counter.bump() }
                                },
                                try observeUnderTheProposalAuthority(probe: pt(2, 2)) { counter in
-                                   Box().width(px(40)).height(px(40)).onClick { counter.bump() }
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).onClick { counter.bump() }
                                        .allowsHitTesting(false)
                                },
-                               storageDiffers(Box().width(px(40)).height(px(40)).onClick { },
-                                              Box().width(px(40)).height(px(40)).onClick { }
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).onClick { },
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).onClick { }
                                                   .allowsHitTesting(false)))
                           }),
 
@@ -775,7 +775,7 @@ private struct ProposalMatrixRow {
         let (window, _) = try makeFakeWindow(device: device, size: 200) {
             // Stage 6b (`LR-DG`, R-fill): the window's extent declared on the
             // row's two auto axes, so it sits at (0, 0) on both authorities.
-            Row { make() }.alignItems(.flexStart).width(px(200)).height(px(200))
+            Row { make() }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
         }
         window.drawFrameIfNeeded()
         let theme = window.theme
@@ -787,10 +787,10 @@ private struct ProposalMatrixRow {
     }
 
     let paddedThenFilled = try accentRect {
-        Box().width(px(20)).height(px(20)).padding(px(8)).background(.accent)
+        Box().cssWidth(px(20)).cssHeight(px(20)).padding(px(8)).background(.accent)
     }
     let filledThenPadded = try accentRect {
-        Box().width(px(20)).height(px(20)).background(.accent).padding(px(8))
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.accent).padding(px(8))
     }
     // **Two-layer arms, and they are not decoration.** Both chains above are
     // ONE `ModifierLayer` (`inner` empty), so `ModifiedElement.paint`'s loop
@@ -804,10 +804,10 @@ private struct ProposalMatrixRow {
     // `.padding(8).background.padding(4)` is probe arm A3 exactly: outer 44x44
     // with the INNER layer's fill at (4,4) 36x36.
     let twoLayersOutermostFilled = try accentRect {
-        Box().width(px(20)).height(px(20)).padding(px(4)).padding(px(4)).background(.accent)
+        Box().cssWidth(px(20)).cssHeight(px(20)).padding(px(4)).padding(px(4)).background(.accent)
     }
     let twoLayersInnerFilled = try accentRect {
-        Box().width(px(20)).height(px(20)).padding(px(8)).background(.accent).padding(px(4))
+        Box().cssWidth(px(20)).cssHeight(px(20)).padding(px(8)).background(.accent).padding(px(4))
     }
 
     try #require(describe(paddedThenFilled) != describe(filledThenPadded),
@@ -866,8 +866,8 @@ private struct ProposalMatrixRow {
             // row's two auto axes, so it sits at (0, 0) on both authorities.
             Row {
                 make()
-                Box().width(px(1)).height(px(1)).background(.separator)
-            }.alignItems(.flexStart).width(px(200)).height(px(200))
+                Box().cssWidth(px(1)).cssHeight(px(1)).background(.separator)
+            }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
         }
         window.drawFrameIfNeeded()
         let rects = window.lastScene.rects
@@ -879,13 +879,13 @@ private struct ProposalMatrixRow {
     }
 
     let twice = try leafAndOuter {
-        Box().width(px(20)).height(px(20)).background(.accent).padding(px(4)).padding(px(4))
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.accent).padding(px(4)).padding(px(4))
     }
     let once = try leafAndOuter {
-        Box().width(px(20)).height(px(20)).background(.accent).padding(px(8))
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.accent).padding(px(8))
     }
     let single = try leafAndOuter {
-        Box().width(px(20)).height(px(20)).background(.accent).padding(px(4))
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.accent).padding(px(4))
     }
 
     // The control, first: a chain that REPLACED would read `single`'s numbers
@@ -937,7 +937,7 @@ private struct ProposalMatrixRow {
         let (window, platform) = try makeFakeWindow(device: device, size: 200) {
             // Stage 6b (`LR-DG`, R-fill): the window's extent declared on the
             // row's two auto axes, so it sits at (0, 0) on both authorities.
-            Row { make(counter) }.alignItems(.flexStart).width(px(200)).height(px(200))
+            Row { make(counter) }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
         }
         window.drawFrameIfNeeded()
         platform.simulateInput(.mouseDown(MouseEvent(position: point)))
@@ -952,10 +952,10 @@ private struct ProposalMatrixRow {
     let centre = pt(90, 90)
 
     let paddedThenClickable = { @MainActor (counter: ClickCounter) in
-        Box().width(px(20)).height(px(20)).padding(px(80)).onClick { counter.bump() }
+        Box().cssWidth(px(20)).cssHeight(px(20)).padding(px(80)).onClick { counter.bump() }
     }
     let clickableThenPadded = { @MainActor (counter: ClickCounter) in
-        Box().width(px(20)).height(px(20)).onClick { counter.bump() }.padding(px(80))
+        Box().cssWidth(px(20)).cssHeight(px(20)).onClick { counter.bump() }.padding(px(80))
     }
 
     // Both orders must be live at the centre, or an "edge 0" reading below
@@ -976,7 +976,7 @@ private struct ProposalMatrixRow {
     // whose box is 100x100 at (40, 40) inside a 180x180 outer: (50, 50) is
     // inside it and the edge is not.
     let clickableInTheMiddle = { @MainActor (counter: ClickCounter) in
-        Box().width(px(20)).height(px(20)).padding(px(40)).onClick { counter.bump() }
+        Box().cssWidth(px(20)).cssHeight(px(20)).padding(px(40)).onClick { counter.bump() }
             .padding(px(40))
     }
     let middleLayerInside = try hits(at: pt(50, 50), clickableInTheMiddle)
@@ -1027,9 +1027,9 @@ private struct ProposalMatrixRow {
     let (window, _) = try makeFakeWindow(device: device, size: 200) {
         Row {
             Box {
-                Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
+                Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface)
             }
-            .width(px(40)).height(px(40)).background(.accent).cornerRadius(px(12))
+            .cssWidth(px(40)).cssHeight(px(40)).background(.accent).cornerRadius(px(12))
         }.alignItems(.flexStart)
     }
     window.drawFrameIfNeeded()
@@ -1056,9 +1056,9 @@ private struct ProposalMatrixRow {
     let (scroller, _) = try makeFakeWindow(device: device, size: 200) {
         Box {
             ScrollView(.vertical, elementID: ElementID("scroller")) {
-                Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
+                Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface)
             }
-        }.width(px(40)).height(px(40))
+        }.cssWidth(px(40)).cssHeight(px(40))
     }
     scroller.drawFrameIfNeeded()
     let scrollerWant = scroller.theme[ColorToken.surface]

@@ -191,7 +191,7 @@ private func lScrolledHost<Content: ElementGroup>(@ElementBuilder _ list: () -> 
         Box {
             ScrollView(.vertical) { list() }
         }
-        .flexGrow(1).flexBasis(lpx(0)).minHeight(lpx(0))
+        .flexGrow(1).flexBasis(lpx(0)).cssMinHeight(lpx(0))
     }
 }
 
@@ -272,7 +272,7 @@ private let lHostList = lChild(lHostScroller, 0)
 
     // B2 — a bounded window at firstIndex 0.
     let b2 = lSeededSides(width: 100, height: 100, frames: 2, offset: 0, scrollerID: lHostScroller) {
-        lScrolledHost { List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.width(lpx(100)) }
+        lScrolledHost { List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.cssWidth(lpx(100)) }
     }
     try lRequireBoundedWindow(b2.legacy, b2.lowered, count: 20, "B2")
     #expect(lRealizedIndices(b2.legacy) == Array(0...11), "B2 legacy window: \(lRealizedIndices(b2.legacy))")
@@ -283,7 +283,7 @@ private let lHostList = lChild(lHostScroller, 0)
 
     // B3 — the same, scrolled to 50, so firstIndex is 3.
     let b3 = lSeededSides(width: 100, height: 100, frames: 2, offset: 50, scrollerID: lHostScroller) {
-        lScrolledHost { List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.width(lpx(100)) }
+        lScrolledHost { List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.cssWidth(lpx(100)) }
     }
     try lRequireBoundedWindow(b3.legacy, b3.lowered, count: 20, "B3")
     #expect(lRealizedIndices(b3.legacy) == Array(3...16), "B3 legacy window: \(lRealizedIndices(b3.legacy))")
@@ -302,7 +302,7 @@ private let lHostList = lChild(lHostScroller, 0)
     // B4 — the same, with a padding layer above the list and a narrower row.
     let b4 = lSeededSides(width: 100, height: 100, frames: 2, offset: 50, scrollerID: lHostScroller) {
         lScrolledHost {
-            List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.width(lpx(80)).padding(lpx(10))
+            List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.cssWidth(lpx(80)).padding(lpx(10))
         }
     }
     try lRequireBoundedWindow(b4.legacy, b4.lowered, count: 20, "B4")
@@ -363,7 +363,7 @@ private let lHostList = lChild(lHostScroller, 0)
     table.withState(lHostScroller, initial: ScrollState()) { $0.offset = 50 }
     let frame = LayoutDifferential.render(authority: .proposal, width: 100, height: 100,
                                           stateTable: table, frames: 2) {
-        lScrolledHost { List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.width(lpx(100)) }
+        lScrolledHost { List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.cssWidth(lpx(100)) }
     }
     try #require(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
     let realized = lRealizedIndices(frame)

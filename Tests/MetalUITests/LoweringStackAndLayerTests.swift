@@ -43,14 +43,14 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 /// A fixed-size childless `Box` (lowered since lane 2).
 @MainActor
 private func fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
-    Box().width(px(w)).height(px(h))
+    Box().cssWidth(px(w)).cssHeight(px(h))
 }
 
 /// Two fixed boxes as ONE component, so a frame around it wraps two nodes.
 private struct TwoBoxes: Component {
     var content: some ElementGroup {
-        Box().width(Pixels(10)).height(Pixels(10))
-        Box().width(Pixels(10)).height(Pixels(10))
+        Box().cssWidth(Pixels(10)).cssHeight(Pixels(10))
+        Box().cssWidth(Pixels(10)).cssHeight(Pixels(10))
     }
 }
 
@@ -131,7 +131,7 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
                 == [bounds(0, 0, 20, 30), bounds(0, 20 * v, 20, 10), bounds(10 * h, 0, 10, 30)],
                 "unsized \(alignment)")
 
-        var stack = Stack(alignment: alignment) { fixed(20, 10); fixed(10, 30) }.width(px(100)).height(px(60))
+        var stack = Stack(alignment: alignment) { fixed(20, 10); fixed(10, 30) }.cssWidth(px(100)).cssHeight(px(60))
         stack.style.padding = Edges(top: .pixels(px(4)), right: .pixels(px(6)),
                                     bottom: .pixels(px(8)), left: .pixels(px(10)))
         let padded = stack
@@ -147,7 +147,7 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
     try #require(arms == 18)
 
     var ignoring = Stack(alignment: .bottomTrailing) { fixed(20, 10); fixed(10, 30) }
-        .width(px(100)).height(px(60))
+        .cssWidth(px(100)).cssHeight(px(60))
         .gap(horizontal: px(7), vertical: px(9)).justifyContent(.spaceBetween)
         .flexWrap(.wrap).alignContent(.center)
     ignoring.style.flexDirection = .column
@@ -190,7 +190,7 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
 @MainActor
 @Test func aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent() throws {
     let r = LayoutDifferential.compare(width: 200, height: 300) {
-        Column { Stack { Text(longString) } }.width(px(60))
+        Column { Stack { Text(longString) } }.cssWidth(px(60))
     }
     // root, column, stack, text
     try #require(r.elements == 4)
@@ -321,7 +321,7 @@ private let frameAlignments: [(ProposalAlignment, Float, Float)] = [
     let box = child(frameID, 0)
 
     let bounded = LayoutDifferential.compare(width: 200, height: 200) {
-        Column { fixed(20, 20).frame(minWidth: px(40), maxWidth: px(80)) }.width(px(100))
+        Column { fixed(20, 20).frame(minWidth: px(40), maxWidth: px(80)) }.cssWidth(px(100))
     }
     try #require(bounded.elements == 4)
     #expect(bounded.unlowerable.isEmpty, "\(bounded.unlowerable)")
@@ -332,7 +332,7 @@ private let frameAlignments: [(ProposalAlignment, Float, Float)] = [
     #expect(bounded.loweredBounds[box] == bounds(40, 0, 20, 20))
 
     let infinite = LayoutDifferential.compare(width: 200, height: 200) {
-        Column { fixed(20, 20).frame(maxWidth: px(.infinity)) }.width(px(100))
+        Column { fixed(20, 20).frame(maxWidth: px(.infinity)) }.cssWidth(px(100))
     }
     try #require(infinite.elements == 4)
     #expect(infinite.unlowerable.isEmpty, "\(infinite.unlowerable)")
@@ -533,8 +533,8 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
 @Test func aSizingModifierWrittenAfterAFrameIsReportedOnTheFrameLayer() throws {
     let style = field(.modifierLayer, "style")
     let arms: [(String, [UnlowerableField], [UnlowerableField])] = [
-        ("width after frame", report { fixed(10, 10).frame(width: px(40)).width(px(60)) }, [style]),
-        ("minWidth after frame", report { fixed(10, 10).frame(width: px(40)).minWidth(px(10)) }, [style]),
+        ("width after frame", report { fixed(10, 10).frame(width: px(40)).cssWidth(px(60)) }, [style]),
+        ("minWidth after frame", report { fixed(10, 10).frame(width: px(40)).cssMinWidth(px(10)) }, [style]),
         ("flexGrow after flexible frame", report { fixed(10, 10).frame(maxWidth: px(80)).flexGrow(1) }, [style]),
         ("alignItems after frame, inner layer",
          report { fixed(10, 10).frame(width: px(40)).alignItems(.flexEnd).padding(px(4)) }, [style]),
@@ -576,7 +576,7 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
     let arms: [(String, [UnlowerableField], [UnlowerableField])] = [
         ("one node", report { fixed(10, 10).frame(width: px(40)).hidden() }, []),
         ("two nodes", report { TwoBoxes().frame(width: px(40)).hidden() }, []),
-        ("with a width after it", report { fixed(10, 10).frame(width: px(40)).hidden().width(px(60)) }, [style]),
+        ("with a width after it", report { fixed(10, 10).frame(width: px(40)).hidden().cssWidth(px(60)) }, [style]),
         ("inner layer", report { fixed(10, 10).frame(width: px(40)).hidden().padding(px(4)) }, []),
         ("two nodes, not hidden", report { TwoBoxes().frame(width: px(40)) }, []),
     ]
@@ -639,7 +639,7 @@ private func animatedRects<E: ElementGroup>(_ authority: LayoutAuthority, _ ids:
 @MainActor
 @Test func aLoweredStackLaysOutItsAnimatedWidthAndPadding() throws {
     func stack(width: Float, padding: Float) -> Stack<Box<EmptyGroup>> {
-        var s = Stack(alignment: .topLeading) { fixed(10, 10) }.width(px(width)).height(px(20))
+        var s = Stack(alignment: .topLeading) { fixed(10, 10) }.cssWidth(px(width)).cssHeight(px(20))
         s.style.padding = Edges(all: .pixels(px(padding)))
         return s
     }

@@ -55,7 +55,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 /// A fixed-size childless `Box`.
 @MainActor
 private func fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
-    Box().width(px(w)).height(px(h))
+    Box().cssWidth(px(w)).cssHeight(px(h))
 }
 
 /// The proposal frame's diagnostics for `make()` inside a `width`×`height` harness root.
@@ -155,8 +155,8 @@ private struct AtOrigin: ProposalLayout {
             // The stretched child, and how many element ids it records.
             func c() -> AnyElement {
                 switch stretched {
-                case .box: AnyElement(isColumn ? Box().height(px(20)).background(.accent)
-                                               : Box().width(px(20)).background(.accent))
+                case .box: AnyElement(isColumn ? Box().cssHeight(px(20)).background(.accent)
+                                               : Box().cssWidth(px(20)).background(.accent))
                 case .text: AnyElement(Text("ab"))
                 case .row: AnyElement(Row { fixed(10, 10) }.justifyContent(.center).background(.accent))
                 }
@@ -168,13 +168,13 @@ private struct AtOrigin: ProposalLayout {
                 switch parent {
                 case .row:
                     let r = Row(content: content).alignItems(.stretch)
-                    return AnyElement(cross.map { r.height(px($0)) } ?? r)
+                    return AnyElement(cross.map { r.cssHeight(px($0)) } ?? r)
                 case .column:
                     let col = Column(content: content).alignItems(.stretch)
-                    return AnyElement(cross.map { col.width(px($0)) } ?? col)
+                    return AnyElement(cross.map { col.cssWidth(px($0)) } ?? col)
                 case .box:
                     let b = Box(content: content)
-                    return AnyElement(cross.map { b.height(px($0)) } ?? b)
+                    return AnyElement(cross.map { b.cssHeight(px($0)) } ?? b)
                 }
             }
             let name = "\(parent) parent, stretched \(stretched)"
@@ -232,7 +232,7 @@ private struct AtOrigin: ProposalLayout {
     for (align, f) in [(AlignItems.flexStart, Float(0)), (.center, 0.5), (.flexEnd, 1)] {
         let r = LayoutDifferential.compare(width: 300, height: 200) {
             Column { fixed(20, 10); Column { fixed(30, 10); fixed(50, 10) }.alignItems(align) }
-                .alignItems(.stretch).width(px(200))
+                .alignItems(.stretch).cssWidth(px(200))
         }
         try #require(r.elements == 6, "column \(align): \(r.elements)")
         expectCorpusAgreement(r, "stretched column \(align)")
@@ -244,7 +244,7 @@ private struct AtOrigin: ProposalLayout {
     for (justify, f) in [(JustifyContent.flexStart, Float(0)), (.center, 0.5), (.flexEnd, 1)] {
         let r = LayoutDifferential.compare(width: 300, height: 200) {
             Column { fixed(20, 10); Row { fixed(30, 10); fixed(50, 20) }.justifyContent(justify) }
-                .alignItems(.stretch).width(px(200))
+                .alignItems(.stretch).cssWidth(px(200))
         }
         try #require(r.elements == 6, "row \(justify): \(r.elements)")
         expectCorpusAgreement(r, "stretched row \(justify)")
@@ -276,10 +276,10 @@ private struct AtOrigin: ProposalLayout {
 @Test func aStretchedSingleChildContainerDoesNotStretchItsChild() throws {
     let r = LayoutDifferential.compare(width: 300, height: 200) {
         Column {
-            Box { Box().height(px(10)).background(.accent) }.flexDirection(.column)
+            Box { Box().cssHeight(px(10)).background(.accent) }.flexDirection(.column)
             fixed(80, 10)
         }
-        .alignItems(.stretch).width(px(200))
+        .alignItems(.stretch).cssWidth(px(200))
     }
     try #require(r.elements == 5)
     #expect(r.unlowerable.isEmpty, "\(r.unlowerable)")
@@ -316,12 +316,12 @@ private struct AtOrigin: ProposalLayout {
 @MainActor
 @Test func aStretchedItemIsClampedByItsOwnMinimumAndMaximum() throws {
     @ElementBuilder func items() -> some ElementGroup {
-        Box().width(px(20)).maxHeight(px(25)).background(.accent)
-        Box().width(px(20)).minHeight(px(60)).background(.accent)
+        Box().cssWidth(px(20)).cssMaxHeight(px(25)).background(.accent)
+        Box().cssWidth(px(20)).cssMinHeight(px(60)).background(.accent)
         fixed(20, 10)
     }
     let sized = LayoutDifferential.compare(width: 300, height: 200) {
-        Row { items() }.alignItems(.stretch).height(px(100))
+        Row { items() }.alignItems(.stretch).cssHeight(px(100))
     }
     try #require(sized.elements == 5)
     expectCorpusAgreement(sized, "sized row")
@@ -329,7 +329,7 @@ private struct AtOrigin: ProposalLayout {
             == [bounds(0, 0, 20, 25), bounds(20, 0, 20, 100), bounds(40, 0, 20, 10)])
 
     let stretched = LayoutDifferential.compare(width: 300, height: 200) {
-        Row { Row { items() }.alignItems(.stretch); fixed(10, 40) }.alignItems(.stretch).height(px(40))
+        Row { Row { items() }.alignItems(.stretch); fixed(10, 40) }.alignItems(.stretch).cssHeight(px(40))
     }
     try #require(stretched.elements == 7)
     expectCorpusAgreement(stretched, "row stretched to 40")
@@ -357,7 +357,7 @@ private struct AtOrigin: ProposalLayout {
             fixed(80, 10).alignSelf(.stretch)
             fixed(20, 10)
         }
-        .width(px(300))
+        .cssWidth(px(300))
     }
     try #require(r.elements == 6)
     expectCorpusAgreement(r, "alignSelf in a 300-wide column")
@@ -402,7 +402,7 @@ private struct AtOrigin: ProposalLayout {
 @MainActor
 @Test func aStretchedItemInsideAHuggingItemFillsItsProposal() throws {
     let r = LayoutDifferential.compare(width: 200, height: 100) {
-        Row { Column { fixed(30, 10); Box().height(px(10)).background(.accent) }.alignItems(.stretch) }
+        Row { Column { fixed(30, 10); Box().cssHeight(px(10)).background(.accent) }.alignItems(.stretch) }
     }
     try #require(r.elements == 5)
     #expect(r.unlowerable.isEmpty, "\(r.unlowerable)")
@@ -431,7 +431,7 @@ private struct AtOrigin: ProposalLayout {
 @Test func aNilAxisFrameLayerUnderAStretchingContainerIsStretched() throws {
     let layer = child(containerID, 0)
     let nilHeight = LayoutDifferential.compare(width: 300, height: 200) {
-        Box { fixed(10, 10).frame(width: px(30)).background(.accent); fixed(20, 40) }.height(px(40))
+        Box { fixed(10, 10).frame(width: px(30)).background(.accent); fixed(20, 40) }.cssHeight(px(40))
     }
     try #require(nilHeight.elements == 5)
     expectCorpusAgreement(nilHeight, "nil-height frame layer")
@@ -439,14 +439,14 @@ private struct AtOrigin: ProposalLayout {
 
     let nilWidth = LayoutDifferential.compare(width: 300, height: 200) {
         Box { fixed(10, 10).frame(height: px(30)).background(.accent); fixed(40, 20) }
-            .flexDirection(.column).width(px(40))
+            .flexDirection(.column).cssWidth(px(40))
     }
     try #require(nilWidth.elements == 5)
     expectCorpusAgreement(nilWidth, "nil-width frame layer")
     #expect([layer, child(layer, 0)].map { nilWidth.loweredBounds[$0] } == [bounds(0, 0, 40, 30), bounds(15, 10, 10, 10)])
 
     let both = LayoutDifferential.compare(width: 300, height: 200) {
-        Box { fixed(10, 10).frame(width: px(30), height: px(20)).background(.accent); fixed(20, 40) }.height(px(40))
+        Box { fixed(10, 10).frame(width: px(30), height: px(20)).background(.accent); fixed(20, 40) }.cssHeight(px(40))
     }
     try #require(both.elements == 5)
     expectCorpusAgreement(both, "frame layer declaring both axes")
@@ -479,11 +479,11 @@ private struct AtOrigin: ProposalLayout {
     var arms = 0
     let sized = LayoutDifferential.compare(width: 300, height: 200) {
         stretchingStack {
-            Box().width(px(20)).background(.accent)
-            Box().height(px(10)).background(.accent)
+            Box().cssWidth(px(20)).background(.accent)
+            Box().cssHeight(px(10)).background(.accent)
             Box().background(.accent)
         }
-        .width(px(100)).height(px(60))
+        .cssWidth(px(100)).cssHeight(px(60))
     }
     try #require(sized.elements == 5)
     expectCorpusAgreement(sized, "stretching stack")
@@ -522,7 +522,7 @@ private struct AtOrigin: ProposalLayout {
     arms += 1
 
     let fill = LayoutDifferential.compare(width: 200, height: 100) {
-        Row { stretchingStack { fixed(30, 10); Box().height(px(10)).background(.accent) } }
+        Row { stretchingStack { fixed(30, 10); Box().cssHeight(px(10)).background(.accent) } }
     }
     try #require(fill.elements == 5)
     #expect(fill.unlowerable.isEmpty, "\(fill.unlowerable)")
@@ -552,10 +552,10 @@ private struct AtOrigin: ProposalLayout {
 @Test func theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap() throws {
     let tree = { @MainActor in
         Column {
-            Box().height(px(20)).background(.accent).onClick {}.accessibilityLabel("wide")
+            Box().cssHeight(px(20)).background(.accent).onClick {}.accessibilityLabel("wide")
             Text(longString)
         }
-        .alignItems(.stretch).width(px(120))
+        .alignItems(.stretch).cssWidth(px(120))
     }
     let legacy = LayoutDifferential.render(authority: .legacy, width: 300, height: 200) { tree() }
     try #require(legacy.scene.glyphs.count >= longString.count - 6)
@@ -575,7 +575,7 @@ private struct AtOrigin: ProposalLayout {
     // one line where 4 puts one per line (measured: M1k made this arm's scenes
     // differ at 4 and 6, not at 9; record §21, lane 1).
     let narrowTree = { @MainActor in
-        Column { fixed(4, 10); Text("Wii il") }.alignItems(.stretch).width(px(4))
+        Column { fixed(4, 10); Text("Wii il") }.alignItems(.stretch).cssWidth(px(4))
     }
     let narrowLegacy = LayoutDifferential.render(authority: .legacy, width: 300, height: 200) { narrowTree() }
     try #require(narrowLegacy.scene.glyphs.count == 5)
@@ -631,9 +631,9 @@ private struct AtOrigin: ProposalLayout {
 @Test func aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork() throws {
     let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 100) {
         Column {
-            Row { Box().height(px(10)); Box().height(px(20)) }
-            Row { Box().height(px(10)); Box().height(px(30)) }
-            Box { Box().width(px(10)) }
+            Row { Box().cssHeight(px(10)); Box().cssHeight(px(20)) }
+            Row { Box().cssHeight(px(10)); Box().cssHeight(px(30)) }
+            Box { Box().cssWidth(px(10)) }
         }
         .alignItems(.stretch)
     }
@@ -665,28 +665,28 @@ private struct AtOrigin: ProposalLayout {
 @MainActor
 @Test func theCentringDefaultOfRowAndColumnStretchesNothing() throws {
     let row = LayoutDifferential.compare(width: 300, height: 200) {
-        Row { Box().width(px(20)).background(.accent); fixed(20, 40) }.height(px(100))
+        Row { Box().cssWidth(px(20)).background(.accent); fixed(20, 40) }.cssHeight(px(100))
     }
     try #require(row.elements == 4)
     expectCorpusAgreement(row, "centring row")
     #expect([0, 1].map { row.loweredBounds[child(containerID, $0)] } == [bounds(0, 50, 20, 0), bounds(20, 30, 20, 40)])
     let rowFrame = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
-        Row { Box().width(px(20)).background(.accent); fixed(20, 40) }.height(px(100))
+        Row { Box().cssWidth(px(20)).background(.accent); fixed(20, 40) }.cssHeight(px(100))
     }
     #expect(rowFrame.tree.nodeCount == 8)
 
     let column = LayoutDifferential.compare(width: 300, height: 200) {
-        Column { Box().height(px(20)).background(.accent); fixed(40, 20) }.width(px(100))
+        Column { Box().cssHeight(px(20)).background(.accent); fixed(40, 20) }.cssWidth(px(100))
     }
     try #require(column.elements == 4)
     expectCorpusAgreement(column, "centring column")
     #expect(column.loweredBounds[child(containerID, 0)] == bounds(50, 0, 0, 20))
     let columnFrame = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
-        Column { Box().height(px(20)).background(.accent); fixed(40, 20) }.width(px(100))
+        Column { Box().cssHeight(px(20)).background(.accent); fixed(40, 20) }.cssWidth(px(100))
     }
     #expect(columnFrame.tree.nodeCount == 8)
 
-    #expect(report { Row { Box().width(px(20)).maxHeight(px(25)); fixed(20, 40) }.height(px(100)) }
+    #expect(report { Row { Box().cssWidth(px(20)).cssMaxHeight(px(25)); fixed(20, 40) }.cssHeight(px(100)) }
             == [field(.box, "maxSize")])
 }
 
@@ -746,9 +746,9 @@ private struct AtOrigin: ProposalLayout {
                  unconsumed))
     arms.append(("ProposalScrollView", report { ProposalScrollView(.vertical) { LegacyUnderProposal(grow()) } }, unconsumed))
 
-    arms.append(("HStack minWidth", report { HStack { LegacyUnderProposal(fixed(20, 10).minWidth(px(5))) } },
+    arms.append(("HStack minWidth", report { HStack { LegacyUnderProposal(fixed(20, 10).cssMinWidth(px(5))) } },
                  [field(.box, "minSize.unconsumed")]))
-    arms.append(("HStack maxWidth", report { HStack { LegacyUnderProposal(fixed(20, 10).maxWidth(px(50))) } },
+    arms.append(("HStack maxWidth", report { HStack { LegacyUnderProposal(fixed(20, 10).cssMaxWidth(px(50))) } },
                  [field(.box, "maxSize.unconsumed")]))
     arms.append(("HStack alignSelf", report { HStack { LegacyUnderProposal(fixed(20, 10).alignSelf(.flexEnd)) } },
                  [field(.box, "alignSelf.unconsumed")]))
@@ -774,13 +774,13 @@ private struct AtOrigin: ProposalLayout {
         return frame
     }
     let plain = fixed(20, 10)
-    for (name, element) in [("root maxWidth on its declared width", plain.maxWidth(px(600))),
-                            ("root minWidth on its declared width", plain.minWidth(px(50)))] {
+    for (name, element) in [("root maxWidth on its declared width", plain.cssMaxWidth(px(600))),
+                            ("root minWidth on its declared width", plain.cssMinWidth(px(50)))] {
         arms.append((name, rootFrame(.proposal, element).unlowerableFields, []))
     }
-    let autoWidth = Box().height(px(10))
-    for (name, element, expected) in [("root maxWidth on an auto width", autoWidth.maxWidth(px(600)), "maxSize.unconsumed"),
-                                      ("root minWidth on an auto width", autoWidth.minWidth(px(50)), "minSize.unconsumed")] {
+    let autoWidth = Box().cssHeight(px(10))
+    for (name, element, expected) in [("root maxWidth on an auto width", autoWidth.cssMaxWidth(px(600)), "maxSize.unconsumed"),
+                                      ("root minWidth on an auto width", autoWidth.cssMinWidth(px(50)), "minSize.unconsumed")] {
         arms.append((name, rootFrame(.proposal, element).unlowerableFields, [field(.box, expected)]))
     }
     var ignoredByTheLegacyRoot: [String: Bool] = [:]
@@ -825,7 +825,7 @@ private struct AtOrigin: ProposalLayout {
 @Test func aStretchedUnsizedSpaceDistributionContainerIsReported() throws {
     func tree(_ justify: JustifyContent) -> some ElementGroup {
         Column { Row { fixed(20, 10); fixed(20, 10) }.justifyContent(justify); fixed(200, 10) }
-            .alignItems(.stretch).width(px(200))
+            .alignItems(.stretch).cssWidth(px(200))
     }
     var arms = 0
     for (justify, name) in [(JustifyContent.spaceBetween, "spaceBetween"), (.spaceAround, "spaceAround"),
@@ -908,15 +908,15 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
                 let name = "\(isRow ? "Row" : "Column") gap \(gap) \(grower)"
                 func g() -> AnyElement {
                     switch grower {
-                    case .box: AnyElement(isRow ? Box().height(px(10)).flexGrow(1).background(.accent)
-                                                : Box().width(px(10)).flexGrow(1).background(.accent))
+                    case .box: AnyElement(isRow ? Box().cssHeight(px(10)).flexGrow(1).background(.accent)
+                                                : Box().cssWidth(px(10)).flexGrow(1).background(.accent))
                     case .text: AnyElement(Text("ab").flexGrow(1))
                     case .row: AnyElement(Row { fixed(10, 10); fixed(20, 10) }.justifyContent(.flexEnd).flexGrow(1))
                     }
                 }
                 let r = LayoutDifferential.compare(width: 400, height: 400) {
-                    isRow ? AnyElement(Row(gap: px(gap)) { fixed(40, 10); g() }.width(px(300)))
-                          : AnyElement(Column(gap: px(gap)) { fixed(10, 40); g() }.height(px(300)))
+                    isRow ? AnyElement(Row(gap: px(gap)) { fixed(40, 10); g() }.cssWidth(px(300)))
+                          : AnyElement(Column(gap: px(gap)) { fixed(10, 40); g() }.cssHeight(px(300)))
                 }
                 try #require(r.elements == (grower == .row ? 6 : 4), "\(name): \(r.elements)")
                 expectCorpusAgreement(r, name)
@@ -964,10 +964,10 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
     for (wa, legacyA, loweredA) in [(Float(100), Float(190), Float(150)), (200, 240, 200)] {
         let r = LayoutDifferential.compare(width: 400, height: 100) {
             Row {
-                Box().width(px(wa)).height(px(10)).flexGrow(1).background(.accent)
-                Box().width(px(20)).height(px(10)).flexGrow(1).background(.accent)
+                Box().cssWidth(px(wa)).cssHeight(px(10)).flexGrow(1).background(.accent)
+                Box().cssWidth(px(20)).cssHeight(px(10)).flexGrow(1).background(.accent)
             }
-            .width(px(300))
+            .cssWidth(px(300))
         }
         try #require(r.elements == 4)
         #expect(r.unlowerable.isEmpty, "\(wa): \(r.unlowerable)")
@@ -979,10 +979,10 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
 
         let zero = LayoutDifferential.compare(width: 400, height: 100) {
             Row {
-                Box().width(px(wa)).height(px(10)).flexGrow(1).flexBasis(px(0)).minWidth(px(0)).background(.accent)
-                Box().width(px(20)).height(px(10)).flexGrow(1).flexBasis(px(0)).minWidth(px(0)).background(.accent)
+                Box().cssWidth(px(wa)).cssHeight(px(10)).flexGrow(1).flexBasis(px(0)).cssMinWidth(px(0)).background(.accent)
+                Box().cssWidth(px(20)).cssHeight(px(10)).flexGrow(1).flexBasis(px(0)).cssMinWidth(px(0)).background(.accent)
             }
-            .width(px(300))
+            .cssWidth(px(300))
         }
         try #require(zero.elements == 4)
         expectCorpusAgreement(zero, "\(wa) zero basis, minimum 0")
@@ -1001,7 +1001,7 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
 @MainActor
 @Test func unequalGrowWeightsAreReportedOnTheParent() throws {
     func row(_ fa: Float, _ fb: Float) -> some ElementGroup {
-        Row { Box().height(px(10)).flexGrow(fa); Box().height(px(10)).flexGrow(fb) }.width(px(300))
+        Row { Box().cssHeight(px(10)).flexGrow(fa); Box().cssHeight(px(10)).flexGrow(fb) }.cssWidth(px(300))
     }
     #expect(report { row(1, 2) } == [field(.box, "flexGrow.weights")])
     for (fa, fb) in [(Float(2), Float(2)), (0.5, 0.5)] {
@@ -1050,9 +1050,9 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
     let share = LayoutDifferential.compare(width: 400, height: 100) {
         Row {
             Row { fixed(40, 10); fixed(40, 10) }.flexGrow(1).flexBasis(px(0))
-            Box().height(px(10)).flexGrow(1).flexBasis(px(0)).background(.accent)
+            Box().cssHeight(px(10)).flexGrow(1).flexBasis(px(0)).background(.accent)
         }
-        .width(px(300))
+        .cssWidth(px(300))
     }
     try #require(share.elements == 6)
     expectCorpusAgreement(share, "zero-basis share")
@@ -1061,9 +1061,9 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
     let content = LayoutDifferential.compare(width: 400, height: 100) {
         Row {
             Row { fixed(100, 10); fixed(100, 10) }.flexGrow(1).flexBasis(px(0))
-            Box().height(px(10)).flexGrow(1).flexBasis(px(0)).background(.accent)
+            Box().cssHeight(px(10)).flexGrow(1).flexBasis(px(0)).background(.accent)
         }
-        .width(px(150))
+        .cssWidth(px(150))
     }
     try #require(content.elements == 6)
     expectCorpusAgreement(content, "zero-basis grower over rigid content (F10)")
@@ -1073,9 +1073,9 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
     let text = LayoutDifferential.compare(width: 400, height: 200) {
         Row {
             Text(word).flexGrow(1).flexBasis(px(0))
-            Box().height(px(10)).flexGrow(1).flexBasis(px(0))
+            Box().cssHeight(px(10)).flexGrow(1).flexBasis(px(0))
         }
-        .width(px(100))
+        .cssWidth(px(100))
     }
     try #require(text.elements == 4)
     #expect(text.unlowerable.isEmpty, "\(text.unlowerable)")
@@ -1090,22 +1090,22 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
     #expect(loweredText.size == Size(width: px(50), height: Pixels(Float(at50.size.height.rounded()))),
             "lowered \(loweredText)")
 
-    #expect(report { Row { Box().width(px(200)).height(px(10)).flexGrow(1).flexBasis(px(0)); fixed(10, 10) } }
+    #expect(report { Row { Box().cssWidth(px(200)).cssHeight(px(10)).flexGrow(1).flexBasis(px(0)); fixed(10, 10) } }
             == [field(.box, "flexBasis")], "sized zero-basis grower")
-    #expect(report { Row { Box().height(px(10)).flexBasis(px(0)); fixed(10, 10) } } == [field(.box, "flexBasis")],
+    #expect(report { Row { Box().cssHeight(px(10)).flexBasis(px(0)); fixed(10, 10) } } == [field(.box, "flexBasis")],
             "zero basis without grow")
-    #expect(report { Row { Box().height(px(10)).flexBasis(px(40)); fixed(10, 10) } } == [field(.box, "flexBasis")],
+    #expect(report { Row { Box().cssHeight(px(10)).flexBasis(px(40)); fixed(10, 10) } } == [field(.box, "flexBasis")],
             "flexBasis(40)")
-    #expect(report { Row { Box().height(px(10)).flexBasis(fraction: 0.5); fixed(10, 10) } } == [field(.box, "flexBasis")],
+    #expect(report { Row { Box().cssHeight(px(10)).flexBasis(fraction: 0.5); fixed(10, 10) } } == [field(.box, "flexBasis")],
             "flexBasis(fraction:)")
 
     let sized = LayoutDifferential.compare(width: 400, height: 100) {
         Row {
-            Row { fixed(40, 10); Box().height(px(10)).flexGrow(1).background(.accent) }
-                .width(px(200)).flexGrow(1).flexBasis(px(0)).minWidth(px(0))
-            Box().height(px(10)).flexGrow(1).flexBasis(px(0))
+            Row { fixed(40, 10); Box().cssHeight(px(10)).flexGrow(1).background(.accent) }
+                .cssWidth(px(200)).flexGrow(1).flexBasis(px(0)).cssMinWidth(px(0))
+            Box().cssHeight(px(10)).flexGrow(1).flexBasis(px(0))
         }
-        .width(px(300))
+        .cssWidth(px(300))
     }
     try #require(sized.elements == 6)
     #expect(sized.unlowerable.isEmpty, "\(sized.unlowerable)")
@@ -1141,8 +1141,8 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
 @Test func aZeroShrinkKeepsItsNaturalMainSizeAndOverflows() throws {
     let (cache, font) = systemFont()
     let row = LayoutDifferential.compare(width: 400, height: 200) {
-        Row { Text(longString).flexShrink(0); Box().width(px(50)).height(px(10)).flexShrink(0).background(.accent) }
-            .width(px(100))
+        Row { Text(longString).flexShrink(0); Box().cssWidth(px(50)).cssHeight(px(10)).flexShrink(0).background(.accent) }
+            .cssWidth(px(100))
     }
     try #require(row.elements == 4)
     expectCorpusAgreement(row, "row")
@@ -1152,8 +1152,8 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
     #expect(row.loweredBounds[child(containerID, 1)]?.origin.x == Pixels(oneLine))
 
     let column = LayoutDifferential.compare(width: 400, height: 200) {
-        Column { Text(longString).flexShrink(0); Box().width(px(10)).height(px(50)).flexShrink(0).background(.accent) }
-            .alignItems(.stretch).width(px(100)).height(px(20))
+        Column { Text(longString).flexShrink(0); Box().cssWidth(px(10)).cssHeight(px(50)).flexShrink(0).background(.accent) }
+            .alignItems(.stretch).cssWidth(px(100)).cssHeight(px(20))
     }
     try #require(column.elements == 4)
     expectCorpusAgreement(column, "column")
@@ -1180,10 +1180,10 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
     for (weight, legacyA) in [(Float(1), Float(50)), (3, 65)] {
         let r = LayoutDifferential.compare(width: 300, height: 100) {
             Row {
-                Box().width(px(80)).height(px(10)).flexShrink(1).background(.accent)
-                Box().width(px(80)).height(px(10)).flexShrink(weight).background(.accent)
+                Box().cssWidth(px(80)).cssHeight(px(10)).flexShrink(1).background(.accent)
+                Box().cssWidth(px(80)).cssHeight(px(10)).flexShrink(weight).background(.accent)
             }
-            .width(px(100))
+            .cssWidth(px(100))
         }
         try #require(r.elements == 4)
         #expect(r.unlowerable.isEmpty, "\(weight): \(r.unlowerable)")
@@ -1213,7 +1213,7 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
 @MainActor
 @Test func aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent() throws {
     let floor = LayoutDifferential.compare(width: 400, height: 100) {
-        Row { Box().height(px(10)).minWidth(px(50)).background(.accent); fixed(20, 10) }.width(px(300))
+        Row { Box().cssHeight(px(10)).cssMinWidth(px(50)).background(.accent); fixed(20, 10) }.cssWidth(px(300))
     }
     try #require(floor.elements == 4)
     expectCorpusAgreement(floor, "minWidth floor")
@@ -1222,10 +1222,10 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
     let scroller = LayoutDifferential.compare(width: 500, height: 400) {
         Column {
             fixed(420, 20)
-            Box { Box().height(px(400)).background(.accent) }
-                .width(px(420)).flexGrow(1).flexBasis(px(0)).minHeight(px(0)).background(.surface)
+            Box { Box().cssHeight(px(400)).background(.accent) }
+                .cssWidth(px(420)).flexGrow(1).flexBasis(px(0)).cssMinHeight(px(0)).background(.surface)
         }
-        .height(px(300))
+        .cssHeight(px(300))
     }
     try #require(scroller.elements == 5)
     expectCorpusAgreement(scroller, "the demo scroller's shape")
@@ -1233,7 +1233,7 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
     #expect([box, child(box, 0)].map { scroller.loweredBounds[$0] } == [bounds(0, 20, 420, 280), bounds(0, 20, 0, 400)])
 
     let fold = LayoutDifferential.compare(width: 400, height: 100) {
-        Row { Box().width(px(40)).minWidth(px(60)).height(px(10)).background(.accent); fixed(20, 10) }.width(px(300))
+        Row { Box().cssWidth(px(40)).cssMinWidth(px(60)).cssHeight(px(10)).background(.accent); fixed(20, 10) }.cssWidth(px(300))
     }
     try #require(fold.elements == 4)
     expectCorpusAgreement(fold, "static fold")
@@ -1255,20 +1255,20 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
 @MainActor
 @Test func aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere() throws {
     let grower = LayoutDifferential.compare(width: 400, height: 100) {
-        Row { Box().height(px(10)).flexGrow(1).maxWidth(px(80)).background(.accent); fixed(20, 10) }.width(px(300))
+        Row { Box().cssHeight(px(10)).flexGrow(1).cssMaxWidth(px(80)).background(.accent); fixed(20, 10) }.cssWidth(px(300))
     }
     try #require(grower.elements == 4)
     expectCorpusAgreement(grower, "maximum on a grower")
     #expect([0, 1].map { grower.loweredBounds[child(containerID, $0)] } == [bounds(0, 0, 80, 10), bounds(80, 0, 20, 10)])
 
     let sized = LayoutDifferential.compare(width: 400, height: 100) {
-        Row { Box().width(px(120)).height(px(10)).maxWidth(px(80)).background(.accent); fixed(20, 10) }.width(px(300))
+        Row { Box().cssWidth(px(120)).cssHeight(px(10)).cssMaxWidth(px(80)).background(.accent); fixed(20, 10) }.cssWidth(px(300))
     }
     try #require(sized.elements == 4)
     expectCorpusAgreement(sized, "maximum on a declared size")
     #expect(sized.loweredBounds[child(containerID, 0)] == bounds(0, 0, 80, 10))
 
-    #expect(report { Row { Text(longString).maxWidth(px(80)); fixed(20, 10) } } == [field(.text, "maxSize")])
+    #expect(report { Row { Text(longString).cssMaxWidth(px(80)); fixed(20, 10) } } == [field(.text, "maxSize")])
 }
 
 /// **2.9 — divergence pin** (`LR-AF`, divergence 55; stage-2 probe F5, stack-algorithms
@@ -1291,19 +1291,19 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
             Row(gap: px(12)) {
                 Column(gap: px(10)) {
                     Text("Library")
-                    Box().height(px(26)).background(.accent)
-                    Box().height(px(26)).background(.surfaceSecondary)
-                    Box().height(px(26)).background(.surfaceSecondary)
-                    Box().height(px(26)).background(.surfaceSecondary)
+                    Box().cssHeight(px(26)).background(.accent)
+                    Box().cssHeight(px(26)).background(.surfaceSecondary)
+                    Box().cssHeight(px(26)).background(.surfaceSecondary)
+                    Box().cssHeight(px(26)).background(.surfaceSecondary)
                 }
-                .alignItems(.stretch).flexGrow(1).padding(px(14)).width(px(196)).background(.surface)
+                .alignItems(.stretch).flexGrow(1).padding(px(14)).cssWidth(px(196)).background(.surface)
                 Column(gap: px(12)) { Text(demoParagraph); fixed(420, 20) }
                     .alignItems(.stretch).flexGrow(1).padding(px(16)).flexGrow(1).background(.surface)
             }
             .alignItems(.stretch)
             fixed(888, 1)
         }
-        .alignItems(.stretch).width(px(888))
+        .alignItems(.stretch).cssWidth(px(888))
     }
     #expect(r.unlowerable.isEmpty, "\(r.unlowerable)")
     let row = child(containerID, 0), sidebar = child(row, 0), main = child(row, 1)
@@ -1340,7 +1340,7 @@ let demoParagraph = """
 @MainActor
 @Test func aGrowerOnAHuggingContainersMainAxisFillsItsProposal() throws {
     let r = LayoutDifferential.compare(width: 200, height: 200) {
-        Column { fixed(30, 20); Box().width(px(30)).height(px(10)).flexGrow(1).background(.accent) }
+        Column { fixed(30, 20); Box().cssWidth(px(30)).cssHeight(px(10)).flexGrow(1).background(.accent) }
     }
     try #require(r.elements == 4)
     #expect(r.unlowerable.isEmpty, "\(r.unlowerable)")
@@ -1361,8 +1361,8 @@ let demoParagraph = """
 @MainActor
 @Test func aGrowInsideAOneChildPaddingFillsTheWrapperWhereCSSLeavesItUngrown() throws {
     let r = LayoutDifferential.compare(width: 300, height: 100) {
-        Row { fixed(40, 10); Box().width(px(30)).height(px(10)).flexGrow(1).background(.accent).padding(px(8)) }
-            .width(px(200))
+        Row { fixed(40, 10); Box().cssWidth(px(30)).cssHeight(px(10)).flexGrow(1).background(.accent).padding(px(8)) }
+            .cssWidth(px(200))
     }
     try #require(r.elements == 5)
     #expect(r.unlowerable.isEmpty, "\(r.unlowerable)")
@@ -1388,12 +1388,12 @@ let demoParagraph = """
 @MainActor
 @Test func aGrownUnsizedSpaceDistributionContainerIsReported() throws {
     func tree(_ justify: JustifyContent) -> some ElementGroup {
-        Row { Row { fixed(20, 10); fixed(20, 10) }.justifyContent(justify).flexGrow(1); fixed(40, 10) }.width(px(300))
+        Row { Row { fixed(20, 10); fixed(20, 10) }.justifyContent(justify).flexGrow(1); fixed(40, 10) }.cssWidth(px(300))
     }
     #expect(report { tree(.spaceBetween) } == [field(.box, "justifyContent.spaceBetween")])
     #expect(report {
-        Row { Row { fixed(20, 10); fixed(20, 10) }.justifyContent(.spaceBetween).minWidth(px(200)); fixed(40, 10) }
-            .width(px(300))
+        Row { Row { fixed(20, 10); fixed(20, 10) }.justifyContent(.spaceBetween).cssMinWidth(px(200)); fixed(40, 10) }
+            .cssWidth(px(300))
     } == [field(.box, "justifyContent.spaceBetween")], "a minimum")
     let inner = child(containerID, 0)
     for (justify, a) in [(JustifyContent.flexEnd, Float(220)), (.center, 110)] {
@@ -1412,10 +1412,10 @@ let demoParagraph = """
 @ElementBuilder
 private func animatedWeightsArm(_ on: Bool) -> some ElementGroup {
     Row {
-        Box().height(Pixels(10)).flexGrow(on ? 2 : 0).background(.accent)
-        Box().height(Pixels(10)).flexGrow(2).background(.accent)
+        Box().cssHeight(Pixels(10)).flexGrow(on ? 2 : 0).background(.accent)
+        Box().cssHeight(Pixels(10)).flexGrow(2).background(.accent)
     }
-    .width(Pixels(300))
+    .cssWidth(Pixels(300))
 }
 
 @Observable
@@ -1488,7 +1488,7 @@ private func animatedWidths<C: ElementGroup>(_ authority: LayoutAuthority, ids: 
     let row = child(rootID, 0)
     // Arm A.
     @ElementBuilder func armA(_ on: Bool) -> some ElementGroup {
-        Row { fixed(40, 10); Box().height(px(10)).flexGrow(on ? 1 : 0).background(.accent) }.width(px(300))
+        Row { fixed(40, 10); Box().cssHeight(px(10)).flexGrow(on ? 1 : 0).background(.accent) }.cssWidth(px(300))
     }
     for on in [false, true] {
         try #require(LayoutDifferential.compare(width: 400, height: 400) { armA(on) }.unlowerable.isEmpty, "A \(on)")
@@ -1500,8 +1500,8 @@ private func animatedWidths<C: ElementGroup>(_ authority: LayoutAuthority, ids: 
 
     // Arm C.
     @ElementBuilder func armC(_ on: Bool) -> some ElementGroup {
-        Row { fixed(260, 10); Box().height(px(10)).flexGrow(1).minWidth(px(on ? 80 : 40)).background(.accent) }
-            .width(px(300))
+        Row { fixed(260, 10); Box().cssHeight(px(10)).flexGrow(1).cssMinWidth(px(on ? 80 : 40)).background(.accent) }
+            .cssWidth(px(300))
     }
     for on in [false, true] {
         try #require(LayoutDifferential.compare(width: 400, height: 400) { armC(on) }.unlowerable.isEmpty, "C \(on)")

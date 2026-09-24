@@ -45,7 +45,7 @@ private func child(_ parent: GlobalElementID, _ index: Int) -> GlobalElementID {
 /// A fixed-size childless `Box`.
 @MainActor
 private func fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
-    Box().width(px(w)).height(px(h))
+    Box().cssWidth(px(w)).cssHeight(px(h))
 }
 
 private func bounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixels> {
@@ -146,7 +146,7 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
             GridRow {
                 LegacyUnderProposal(Row {
                     fixed(20, 10)
-                    Box().height(px(10)).flexGrow(1)
+                    Box().cssHeight(px(10)).flexGrow(1)
                 })
             }
             GridRow { LegacyUnderProposal(fixed(50, 12)) }
@@ -207,7 +207,7 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
     let frame = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
         Row {
             fixed(20, 10)
-            Box().width(px(15))
+            Box().cssWidth(px(15))
             Grid(alignment: .topLeading, horizontalSpacing: px(10), verticalSpacing: px(10)) {
                 GridRow {
                     Rectangle(width: px(30), height: px(10))
@@ -216,7 +216,7 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
             }
         }
         .alignItems(.stretch)
-        .height(px(40))
+        .cssHeight(px(40))
     }
     try #require(frame.unlowerableFields.isEmpty, "the tree must lower whole: \(frame.unlowerableFields)")
 
@@ -367,6 +367,6 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
             == [field("alignSelf.unconsumed")], "alignSelf")
     #expect(report { Grid { GridRow { LegacyUnderProposal(fixed(20, 10).margin(px(3))) } } }
             == [field("margin.unconsumed")], "margin")
-    #expect(report { Grid { GridRow { LegacyUnderProposal(fixed(20, 10).minWidth(px(5))) } } }
+    #expect(report { Grid { GridRow { LegacyUnderProposal(fixed(20, 10).cssMinWidth(px(5))) } } }
             == [field("minSize.unconsumed")], "minSize")
 }

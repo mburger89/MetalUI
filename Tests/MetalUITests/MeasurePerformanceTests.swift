@@ -374,7 +374,7 @@ struct MeasurePerformanceTests {
             let rowWidth = 80.0 + Double(i).truncatingRemainder(dividingBy: 40) * 0.5
             let frame = Self.render({
                 Box { Text("Row \(i) of 4000 — a scrollable list item") }
-                    .width(Pixels(Float(rowWidth)))
+                    .cssWidth(Pixels(Float(rowWidth)))
                     .alignItems(.stretch)
             }, size: Size(width: Pixels(Float(w)), height: Pixels(560)),
                states: states, shapingCache: cache)
@@ -744,14 +744,14 @@ func demoLikeRows(_ n: Int) -> some Element {
                 Box {
                     Text("Row \(datum.id + 1) of \(n) — a scrollable list item")
                 }
-                .width(Pixels(420))
+                .cssWidth(Pixels(420))
                 .alignItems(.stretch)
             }
         }
     }
-    .width(Pixels(420))
-    .height(Pixels(370))
-    .minHeight(Pixels(0))
+    .cssWidth(Pixels(420))
+    .cssHeight(Pixels(370))
+    .cssMinHeight(Pixels(0))
 }
 
 /// A `List` row with a live `@State` slot and no content — this file's own

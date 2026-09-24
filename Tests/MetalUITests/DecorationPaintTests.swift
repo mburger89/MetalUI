@@ -85,7 +85,7 @@ private func render<E: Element>(side: Int = 64, authority: LayoutAuthority = Fra
 private func inRow<E: Element>(_ make: @escaping @MainActor () -> E) -> some Element {
     Row {
         make()
-        Box().width(px(1)).height(px(1)).background(.scrim)
+        Box().cssWidth(px(1)).cssHeight(px(1)).background(.scrim)
     }.alignItems(.flexStart)
 }
 
@@ -101,8 +101,8 @@ private func inFilledRow<E: Element>(side: Int,
                                      _ make: @escaping @MainActor () -> E) -> some Element {
     Row {
         make()
-        Box().width(px(1)).height(px(1)).background(.scrim)
-    }.alignItems(.flexStart).width(px(Float(side))).height(px(Float(side)))
+        Box().cssWidth(px(1)).cssHeight(px(1)).background(.scrim)
+    }.alignItems(.flexStart).cssWidth(px(Float(side))).cssHeight(px(Float(side)))
 }
 
 /// Whether `rect` was filled with exactly `token` out of `theme`, ignoring the
@@ -201,7 +201,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 /// flat colour.
 @Test @MainActor func aBorderIsPaintedInsideTheElementsBoxAndChangesNoLayout() throws {
     let side = 64
-    @MainActor func box() -> Box<EmptyGroup> { Box().width(px(40)).height(px(40)) }
+    @MainActor func box() -> Box<EmptyGroup> { Box().cssWidth(px(40)).cssHeight(px(40)) }
 
     let (_, fillOnly) = try render(side: side) {
         inFilledRow(side: side) { box().background(.accent) }
@@ -256,8 +256,8 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 @Test @MainActor func aBackgroundIsEmittedBeforeTheChildrenAndABorderAfter() throws {
     let (window, _) = try render {
         inRow {
-            Box { Box().width(px(20)).height(px(20)).background(.surface) }
-                .width(px(40)).height(px(40))
+            Box { Box().cssWidth(px(20)).cssHeight(px(20)).background(.surface) }
+                .cssWidth(px(40)).cssHeight(px(40))
                 .background(.accent).border(.separator, width: px(4))
         }
     }
@@ -305,10 +305,10 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 @Test @MainActor func aBorderIsVisibleOverAChildThatFillsTheBox() throws {
     let side = 64
     let (_, separatorRef) = try render(side: side) {
-        inFilledRow(side: side) { Box().width(px(40)).height(px(40)).background(.separator) }
+        inFilledRow(side: side) { Box().cssWidth(px(40)).cssHeight(px(40)).background(.separator) }
     }
     let (_, accentRef) = try render(side: side) {
-        inFilledRow(side: side) { Box().width(px(40)).height(px(40)).background(.accent) }
+        inFilledRow(side: side) { Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent) }
     }
     let separatorByte = pixel(separatorRef, 1, 1, side: side)
     let accentByte = pixel(accentRef, 1, 1, side: side)
@@ -318,8 +318,8 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 
     let (_, platform) = try render(side: side) {
         inFilledRow(side: side) {
-            Box { Box().width(px(40)).height(px(40)).background(.accent) }
-                .width(px(40)).height(px(40))
+            Box { Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent) }
+                .cssWidth(px(40)).cssHeight(px(40))
                 .border(.separator, width: px(4))
         }
     }
@@ -340,7 +340,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 /// filled unconditionally would make every `Box` in a tree a primitive.
 @Test @MainActor func anElementWithNeitherABackgroundNorABorderEmitsNoRect() throws {
     let (window, _) = try render {
-        inRow { Box().width(px(40)).height(px(40)) }
+        inRow { Box().cssWidth(px(40)).cssHeight(px(40)) }
     }
     let rects = window.lastScene.rects
     // The marker is the control: if the fixture had not painted at all, "no
@@ -361,7 +361,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 /// all, so the second emission costs it nothing.
 @Test @MainActor func aBackgroundOnlyElementStillEmitsExactlyOneRect() throws {
     let (plain, _) = try render {
-        inRow { Box().width(px(40)).height(px(40)).background(.accent) }
+        inRow { Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent) }
     }
     let plainCount = plain.lastScene.rects.filter { $0.bounds.size.width == 40 }.count
     #expect(plainCount == 1,
@@ -372,7 +372,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     // would also pass against a helper that never emits a border.
     let (bordered, _) = try render {
         inRow {
-            Box().width(px(40)).height(px(40)).background(.accent)
+            Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
                 .border(.separator, width: px(4))
         }
     }
@@ -395,19 +395,19 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 /// decoration on an inner layer and one with it on the outermost.
 @MainActor private enum BorderSubject {
     static func box() -> some Element {
-        Box().width(px(40)).height(px(40))
+        Box().cssWidth(px(40)).cssHeight(px(40))
             .border(.surface, width: px(4)).hoverBorder(.accent, width: px(4))
             .focusBorder(.separator, width: px(4))
             .focusable().onClick {}
     }
     static func stack() -> some Element {
-        Stack { Box() }.width(px(40)).height(px(40))
+        Stack { Box() }.cssWidth(px(40)).cssHeight(px(40))
             .border(.surface, width: px(4)).hoverBorder(.accent, width: px(4))
             .focusBorder(.separator, width: px(4))
             .focusable().onClick {}
     }
     static func text() -> some Element {
-        Text("hi").width(px(40)).height(px(40))
+        Text("hi").cssWidth(px(40)).cssHeight(px(40))
             .border(.surface, width: px(4)).hoverBorder(.accent, width: px(4))
             .focusBorder(.separator, width: px(4))
             .focusable().onClick {}
@@ -415,20 +415,20 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     /// The INNER layer of a two-layer chain is the 40x40 subject, at (8, 8)
     /// inside an undecorated padding-8 layer.
     static func modifiedInner() -> some Element {
-        Box().width(px(30)).height(px(30))
+        Box().cssWidth(px(30)).cssHeight(px(30))
             .padding(Edges(all: .pixels(px(5))))
             .border(.surface, width: px(4)).hoverBorder(.accent, width: px(4))
             .focusBorder(.separator, width: px(4))
             .focusable().onClick {}
             .padding(Edges(all: .pixels(px(8))))
-            .width(px(56)).height(px(56))
+            .cssWidth(px(56)).cssHeight(px(56))
     }
     /// The same chain with the decoration on the OUTERMOST layer.
     static func modifiedOutermost() -> some Element {
-        Box().width(px(24)).height(px(24))
+        Box().cssWidth(px(24)).cssHeight(px(24))
             .padding(Edges(all: .pixels(px(4))))
             .padding(Edges(all: .pixels(px(4))))
-            .width(px(40)).height(px(40))
+            .cssWidth(px(40)).cssHeight(px(40))
             .border(.surface, width: px(4)).hoverBorder(.accent, width: px(4))
             .focusBorder(.separator, width: px(4))
             .focusable().onClick {}
@@ -694,8 +694,8 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     @MainActor func boxSite(_ opacity: Float, _ clipped: Bool, _ bordered: Bool)
         -> Box<Box<EmptyGroup>> {
         var subject = Box {
-            Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
-        }.width(px(40)).height(px(40))
+            Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface)
+        }.cssWidth(px(40)).cssHeight(px(40))
         if opacity < 1 { subject = subject.opacity(opacity) }
         if clipped { subject = subject.clipped() }
         if bordered { subject = subject.border(.separator, width: px(4)) }
@@ -705,8 +705,8 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     @MainActor func stackSite(_ opacity: Float, _ clipped: Bool, _ bordered: Bool)
         -> Stack<Box<EmptyGroup>> {
         var subject = Stack {
-            Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
-        }.width(px(40)).height(px(40))
+            Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface)
+        }.cssWidth(px(40)).cssHeight(px(40))
         if opacity < 1 { subject = subject.opacity(opacity) }
         if clipped { subject = subject.clipped() }
         if bordered { subject = subject.border(.separator, width: px(4)) }
@@ -714,7 +714,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     }
 
     @MainActor func textSite(_ opacity: Float, _ clipped: Bool, _ bordered: Bool) -> Text {
-        var subject = Text("hi").width(px(40)).height(px(40))
+        var subject = Text("hi").cssWidth(px(40)).cssHeight(px(40))
         if opacity < 1 { subject = subject.opacity(opacity) }
         if clipped { subject = subject.clipped() }
         if bordered { subject = subject.border(.separator, width: px(4)) }
@@ -726,7 +726,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     /// own layer's content would miss the child entirely (`OM-AD`).
     @MainActor func modifiedSite(_ opacity: Float, _ clipped: Bool, _ bordered: Bool)
         -> ModifiedElement<Box<EmptyGroup>> {
-        var subject = Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
+        var subject = Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface)
             .padding(Edges(all: .pixels(px(2))))
             .frame(width: px(40), height: px(40))
         if opacity < 1 { subject = subject.opacity(opacity) }
@@ -767,10 +767,10 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 @Test @MainActor func aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot() throws {
     let side = 64
     let (_, fillRef) = try render(side: side) {
-        inFilledRow(side: side) { Box().width(px(40)).height(px(40)).background(.accent) }
+        inFilledRow(side: side) { Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent) }
     }
     let (_, borderRef) = try render(side: side) {
-        inFilledRow(side: side) { Box().width(px(40)).height(px(40)).background(.separator) }
+        inFilledRow(side: side) { Box().cssWidth(px(40)).cssHeight(px(40)).background(.separator) }
     }
     let fillByte = pixel(fillRef, 20, 20, side: side)
     let borderByte = pixel(borderRef, 20, 20, side: side)
@@ -780,7 +780,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 
     let (_, platform) = try render(side: side) {
         inFilledRow(side: side) {
-            Box().width(px(40)).height(px(40)).background(.accent)
+            Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
                 .border(.separator, width: px(4)).cornerRadius(px(12))
         }
     }
@@ -831,10 +831,10 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
         return try rect(window.lastScene, 40, 40).background.a
     }
 
-    let opaque = try alpha { Box().width(px(40)).height(px(40)).background(.accent) }
+    let opaque = try alpha { Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent) }
     try #require(opaque > 0, "set up — the resting token must be visible at all, got \(opaque)")
 
-    let half = try alpha { Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5) }
+    let half = try alpha { Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).opacity(0.5) }
     #expect(abs(half - opaque * 0.5) < 0.001,
             why("the element's OWN fill is inside its opacity scope (OM-N, probe G3): expected "
                 + "\(opaque * 0.5), got \(half)"))
@@ -845,7 +845,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     // here is two SCOPES. The inner box's own fill sees both.
     let quarter = try alpha {
         Box {
-            Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5)
+            Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).opacity(0.5)
         }.opacity(0.5)
     }
     #expect(abs(quarter - opaque * 0.25) < 0.001,
@@ -880,12 +880,12 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
         return try rect(window.lastScene, 40, 40).background.a
     }
 
-    let opaque = try alpha { Box().width(px(40)).height(px(40)).background(.accent) }
+    let opaque = try alpha { Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent) }
     let backgroundFirst = try alpha {
-        Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5)
+        Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).opacity(0.5)
     }
     let opacityFirst = try alpha {
-        Box().width(px(40)).height(px(40)).opacity(0.5).background(.accent)
+        Box().cssWidth(px(40)).cssHeight(px(40)).opacity(0.5).background(.accent)
     }
 
     // The control: an unfaded fill must read differently from a faded one, or
@@ -936,21 +936,21 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
         return try rect(window.lastScene, 40, 40).background.a
     }
 
-    let once = try alpha { Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5) }
+    let once = try alpha { Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).opacity(0.5) }
     let twice = try alpha {
-        Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5).opacity(0.5)
+        Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).opacity(0.5).opacity(0.5)
     }
     let nested = try alpha {
         Box {
-            Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5)
+            Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).opacity(0.5)
         }.opacity(0.5)
     }
     let layered = try alpha {
-        Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5)
+        Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).opacity(0.5)
             .padding(Edges(all: .pixels(px(2))))
             .opacity(0.5)
     }
-    let opaque = try alpha { Box().width(px(40)).height(px(40)).background(.accent) }
+    let opaque = try alpha { Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent) }
     try #require(abs(nested - once) > 0.001,
                  why("set up — two SCOPES must read differently from one, or `replaces` below "
                      + "is unfalsifiable. nested \(nested), single \(once)"))
@@ -986,7 +986,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
         let (window, _) = try render(side: 200) {
             inFilledRow(side: 200) {
                 { () -> ModifiedElement<Box<EmptyGroup>> in
-                    let chain = Box().width(px(20)).height(px(20))
+                    let chain = Box().cssWidth(px(20)).cssHeight(px(20))
                         .padding(Edges(all: .pixels(px(4))))
                         .background(.accent)
                         .padding(Edges(all: .pixels(px(8))))
@@ -1052,10 +1052,10 @@ func aDeferredPortalInsideAFadedSubtreeIsStillFaded(_ authority: LayoutAuthority
             inRow {
                 Box {
                     Deferred {
-                        Box().width(px(20)).height(px(20)).background(.accent)
+                        Box().cssWidth(px(20)).cssHeight(px(20)).background(.accent)
                     }
                 }
-                .width(px(40)).height(px(40))
+                .cssWidth(px(40)).cssHeight(px(40))
                 .opacity(faded ? 0.5 : 1)
             }
         }
@@ -1093,8 +1093,8 @@ func aDeferredPortalInsideAFadedSubtreeIsStillFaded(_ authority: LayoutAuthority
             inFilledRow(side: 200) {
                 { () -> Box<Box<EmptyGroup>> in
                     let box = Box {
-                        Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
-                    }.width(px(40)).height(px(40)).background(.accent).cornerRadius(px(12))
+                        Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface)
+                    }.cssWidth(px(40)).cssHeight(px(40)).background(.accent).cornerRadius(px(12))
                     return clipped ? box.clipped() : box
                 }()
             }
@@ -1145,12 +1145,12 @@ func aDeferredPortalInsideAFadedSubtreeIsStillFaded(_ authority: LayoutAuthority
         let (window, platform) = try render(side: 200) {
             ScrollView(.vertical, elementID: ElementID("outer")) {
                 Box(style: style) {
-                    Box().width(px(100)).height(px(150)).flexShrink(0).background(.surface)
+                    Box().cssWidth(px(100)).cssHeight(px(150)).flexShrink(0).background(.surface)
                     Box {
-                        Box().width(px(100)).height(px(90)).flexShrink(0).background(.accent)
+                        Box().cssWidth(px(100)).cssHeight(px(90)).flexShrink(0).background(.accent)
                     }
-                    .width(px(100)).height(px(60)).flexShrink(0).clipped()
-                    Box().width(px(100)).height(px(150)).flexShrink(0).background(.scrim)
+                    .cssWidth(px(100)).cssHeight(px(60)).flexShrink(0).clipped()
+                    Box().cssWidth(px(100)).cssHeight(px(150)).flexShrink(0).background(.scrim)
                 }
             }
         }
@@ -1219,7 +1219,7 @@ func aDeferredPortalInsideAFadedSubtreeIsStillFaded(_ authority: LayoutAuthority
             // row's two auto axes, so the row sits at (0, 0) on both authorities.
             let (window, platform) = try makeFakeWindow(device: device, size: 200) {
                 Row { make(clipped, counter) }.alignItems(.flexStart)
-                    .width(px(200)).height(px(200))
+                    .cssWidth(px(200)).cssHeight(px(200))
             }
             window.drawFrameIfNeeded()
             let boxes = window.lastHitboxes
@@ -1253,21 +1253,21 @@ func aDeferredPortalInsideAFadedSubtreeIsStillFaded(_ authority: LayoutAuthority
 
     try check("Box", unclippedRegion: 60) { clipped, counter in
         let box = Box {
-            Box().width(px(60)).height(px(60)).flexShrink(0)
+            Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0)
                 .background(.surface).onClick { counter.bump() }
-        }.width(px(40)).height(px(40))
+        }.cssWidth(px(40)).cssHeight(px(40))
         return clipped ? box.clipped() : box
     }
     try check("Stack", unclippedRegion: 50) { clipped, counter in
         let stack = Stack {
-            Box().width(px(60)).height(px(60)).flexShrink(0)
+            Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0)
                 .background(.surface).onClick { counter.bump() }
-        }.width(px(40)).height(px(40))
+        }.cssWidth(px(40)).cssHeight(px(40))
         return clipped ? stack.clipped() : stack
     }
     // TWO layers, the clip on the outermost, for `OM-AD`'s reason.
     try check("ModifiedElement outermost layer", unclippedRegion: 50) { clipped, counter in
-        let chain = Box().width(px(60)).height(px(60)).flexShrink(0)
+        let chain = Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0)
             .background(.surface).onClick { counter.bump() }
             .padding(Edges(all: .pixels(px(2))))
             .frame(width: px(40), height: px(40))
@@ -1297,7 +1297,7 @@ func aDeferredPortalInsideAFadedSubtreeIsStillFaded(_ authority: LayoutAuthority
     let model = BorderFlipModel()
     let (window, platform) = try makeFakeWindow(device: device, size: 100,
                                                 startsDisplayLink: true) {
-        Box().width(px(40)).height(px(40))
+        Box().cssWidth(px(40)).cssHeight(px(40))
             .background(model.flipped ? .accent : .surface)
             .border(model.flipped ? .accent : .surface, width: px(4))
     }

@@ -50,12 +50,12 @@ private func rootFrame<E: Element>(_ authority: LayoutAuthority, _ element: E) -
 /// Mutation **M1h**: the root fold removed from `reportUnconsumedLoweredItems`.
 @Test @MainActor func aRootsMinimumAndMaximumFoldIntoItsDeclaredSize() throws {
     func content() -> Box<Box<EmptyGroup>> {
-        Box { Box().width(px(10)).height(px(10)) }.width(px(420)).height(px(370))
+        Box { Box().cssWidth(px(10)).cssHeight(px(10)) }.cssWidth(px(420)).cssHeight(px(370))
     }
     let arms: [(name: String, root: Box<Box<EmptyGroup>>, height: Float)] = [
-        ("height(370).minHeight(0)", content().minHeight(px(0)), 370),
-        ("height(370).minHeight(500)", content().minHeight(px(500)), 500),
-        ("height(370).maxHeight(300)", content().maxHeight(px(300)), 300),
+        ("height(370).minHeight(0)", content().cssMinHeight(px(0)), 370),
+        ("height(370).minHeight(500)", content().cssMinHeight(px(500)), 500),
+        ("height(370).maxHeight(300)", content().cssMaxHeight(px(300)), 300),
     ]
     try #require(arms.count == 3)
     for arm in arms {
@@ -107,7 +107,7 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
     let minimum = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             drawInAProductionProposalWindow {
-                Box { Box().width(Pixels(10)).height(Pixels(10)) }.width(Pixels(100)).minHeight(Pixels(50))
+                Box { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }.cssWidth(Pixels(100)).cssMinHeight(Pixels(50))
             }
         }
     }
@@ -116,7 +116,7 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
     await #expect(processExitsWith: .success) {
         await MainActor.run {
             drawInAProductionProposalWindow {
-                Box { Box().width(Pixels(10)).height(Pixels(10)) }.width(Pixels(100))
+                Box { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }.cssWidth(Pixels(100))
             }
         }
     }
@@ -125,8 +125,8 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
     let margin = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             drawInAProductionProposalWindow {
-                Box { Box().width(Pixels(10)).height(Pixels(10)) }
-                    .width(Pixels(100)).height(Pixels(100)).margin(Pixels(4))
+                Box { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }
+                    .cssWidth(Pixels(100)).cssHeight(Pixels(100)).margin(Pixels(4))
             }
         }
     }
@@ -135,7 +135,7 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
     await #expect(processExitsWith: .success) {
         await MainActor.run {
             drawInAProductionProposalWindow {
-                Box { Box().width(Pixels(10)).height(Pixels(10)) }.width(Pixels(100)).height(Pixels(100))
+                Box { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }.cssWidth(Pixels(100)).cssHeight(Pixels(100))
             }
         }
     }
@@ -147,7 +147,7 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
                 var style = Style()
                 style.size = Size(width: .length(.pixels(Pixels(100))), height: .length(.pixels(Pixels(100))))
                 style.maxSize.width = .length(.percent(0.5))
-                return Box(style: style) { Box().width(Pixels(10)).height(Pixels(10)) }
+                return Box(style: style) { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }
             }
         }
     }
@@ -159,7 +159,7 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
                 var style = Style()
                 style.size = Size(width: .length(.pixels(Pixels(100))), height: .length(.pixels(Pixels(100))))
                 style.maxSize.width = .length(.pixels(Pixels(50)))
-                return Box(style: style) { Box().width(Pixels(10)).height(Pixels(10)) }
+                return Box(style: style) { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }
             }
         }
     }

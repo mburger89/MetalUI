@@ -75,11 +75,11 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
             Box()
-                .width(px(40)).height(px(40))
+                .cssWidth(px(40)).cssHeight(px(40))
                 .background(.surface)
                 .hoverBackground(.accent)
                 .onClick {}
-        }.width(px(100)).height(px(100))
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     window.drawFrameIfNeeded()
     let cold = try buttonRect(window.lastScene)
@@ -110,7 +110,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
             Box()
-                .width(px(40)).height(px(40))
+                .cssWidth(px(40)).cssHeight(px(40))
                 .background(.surface)
                 .hoverBackground(.accent)
         }
@@ -157,13 +157,13 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
             Box()
-                .width(px(40)).height(px(40))
+                .cssWidth(px(40)).cssHeight(px(40))
                 .background(.surface)
                 .hoverBackground(.accent)
                 .focusBackground(.separator)
                 .focusable()
                 .onClick {}
-        }.width(px(100)).height(px(100))
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     window.drawFrameIfNeeded()
     #expect(isFilled(try buttonRect(window.lastScene), with: .surface, in: window.theme),
@@ -206,10 +206,10 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
             Box()
-                .width(px(40)).height(px(40))
+                .cssWidth(px(40)).cssHeight(px(40))
                 .background(.surface).hoverBackground(.accent).onClick {}
             Box()
-                .width(px(30)).height(px(30))
+                .cssWidth(px(30)).cssHeight(px(30))
                 .background(.surface).hoverBackground(.accent).onClick {}
         }
     }
@@ -244,7 +244,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     let (window, _) = try makeFakeWindow(device: device, size: 100) {
         Row {
             Box()
-                .width(px(40)).height(px(40))
+                .cssWidth(px(40)).cssHeight(px(40))
                 .background(.surface)
                 .focusBackground(.separator)
                 .focusable()

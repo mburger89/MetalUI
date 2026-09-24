@@ -104,22 +104,22 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// 61x17 at (120, 142), 55x37 at (123, 132); the inner layer 7 in from
 /// (122.5, 131.5), so (130, 139).
 @Test @MainActor func aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers() {
-    expectEmits("box", Box().width(px(41)).height(px(23)).id("box"),
+    expectEmits("box", Box().cssWidth(px(41)).cssHeight(px(23)).id("box"),
                 declaring: AXNode(role: .button, label: "box-label"),
                 at: rect(130, 139, 41, 23), authority: .proposal)
-    expectEmits("column", Column { Box().width(px(10)).height(px(10)) }
-                    .width(px(43)).height(px(29)).id("column"),
+    expectEmits("column", Column { Box().cssWidth(px(10)).cssHeight(px(10)) }
+                    .cssWidth(px(43)).cssHeight(px(29)).id("column"),
                 declaring: AXNode(role: .container, label: "column-label"),
                 at: rect(129, 136, 43, 29), authority: .proposal)
-    expectEmits("row", Row { Box().width(px(10)).height(px(10)) }
-                    .width(px(47)).height(px(31)).id("row"),
+    expectEmits("row", Row { Box().cssWidth(px(10)).cssHeight(px(10)) }
+                    .cssWidth(px(47)).cssHeight(px(31)).id("row"),
                 declaring: AXNode(role: .generic, label: "row-label"),
                 at: rect(127, 135, 47, 31), authority: .proposal)
-    expectEmits("stack", Stack { Box().width(px(10)).height(px(10)) }
-                    .width(px(53)).height(px(37)).id("stack"),
+    expectEmits("stack", Stack { Box().cssWidth(px(10)).cssHeight(px(10)) }
+                    .cssWidth(px(53)).cssHeight(px(37)).id("stack"),
                 declaring: AXNode(role: .image, label: "stack-label"),
                 at: rect(124, 132, 53, 37), authority: .proposal)
-    expectEmits("text", Text("Hi").width(px(59)).height(px(19)).id("text"),
+    expectEmits("text", Text("Hi").cssWidth(px(59)).cssHeight(px(19)).id("text"),
                 declaring: AXNode(role: .text, label: "text-label"),
                 at: rect(121, 141, 59, 19), authority: .proposal)
     // `List` writes a `.container` node for itself when none is declared, so
@@ -127,7 +127,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     // wrapped `Box` — `aCallerDeclaredAXNodeOnAListSurvivesLogicalCountBeingAdded`
     // (`AXNodeTests.swift`) owns the survival question.
     expectEmits("list", List([Datum(id: 0)], rowHeight: px(17)) { _ in Box() }
-                    .width(px(61)).height(px(17)).id("list"),
+                    .cssWidth(px(61)).cssHeight(px(17)).id("list"),
                 declaring: AXNode(role: .button, label: "list-label"),
                 at: rect(120, 142, 61, 17), authority: .proposal)
 
@@ -135,10 +135,10 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     // registers each layer's handlers — and so emits each layer's declared
     // node — in a loop. Two arms over a two-layer chain. The outermost arm goes
     // through `expectEmits`, which declares the node on the outermost layer.
-    expectEmits("modifiedOuter", Box().width(px(31)).height(px(13))
+    expectEmits("modifiedOuter", Box().cssWidth(px(31)).cssHeight(px(13))
                     .padding(Edges(all: .pixels(px(5))))
                     .padding(Edges(all: .pixels(px(7))))
-                    .width(px(55)).height(px(37)).id("modifiedOuter"),
+                    .cssWidth(px(55)).cssHeight(px(37)).id("modifiedOuter"),
                 declaring: AXNode(role: .container, label: "modified-outer-label"),
                 at: rect(123, 132, 55, 37), authority: .proposal)
     // The INNER arm declares its node on the padding-5 layer before the
@@ -148,9 +148,9 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     // 31 + 2x5 = 41 wide and 13 + 2x5 = 23 tall (the 37 - 2x7 = 23 a stretch
     // would give is the same number, so stretch cannot move it).
     do {
-        var inner = Box().width(px(31)).height(px(13)).padding(Edges(all: .pixels(px(5))))
+        var inner = Box().cssWidth(px(31)).cssHeight(px(13)).padding(Edges(all: .pixels(px(5))))
         inner.handlers.axNode = AXNode(role: .image, label: "modified-inner-label")
-        var chain = inner.padding(Edges(all: .pixels(px(7)))).width(px(55)).height(px(37))
+        var chain = inner.padding(Edges(all: .pixels(px(7)))).cssWidth(px(55)).cssHeight(px(37))
             .id("modifiedInner")
         let frame = render(&chain, authority: .proposal)
         let innerID = GlobalElementID.child(of: rootID("modifiedInner"), at: 0, name: nil)
@@ -178,12 +178,12 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// frame at ((300 - 100) / 2, (300 - 40) / 2) = (100, 130), so the `Text` is at
 /// (130, 145).
 @Test @MainActor func aNestedTextEmitsItsDeclaredAXNodeAtItsAbsoluteBounds() throws {
-    var label = Text("Hi").width(px(20)).height(px(10)).id("label")
+    var label = Text("Hi").cssWidth(px(20)).cssHeight(px(10)).id("label")
     label.handlers.axNode = AXNode(role: .text, label: "nested")
     var row = Row {
-        Box().width(px(30)).height(px(20))
+        Box().cssWidth(px(30)).cssHeight(px(20))
         label
-    }.width(px(100)).height(px(40)).id("row")
+    }.cssWidth(px(100)).cssHeight(px(40)).id("row")
 
     let frame = render(&row, authority: .proposal)
     let labelID = GlobalElementID.child(of: rootID("row"), at: 1, name: ElementID("label"))
@@ -207,13 +207,13 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
         #expect(frame.axNodes.isEmpty,
                 "\(name): declared no AXNode but emitted \(frame.axNodes.count)")
     }
-    expectSilent("box", Box().width(px(41)).height(px(23)).id("box"))
-    expectSilent("column", Column { Box().width(px(10)).height(px(10)) }
-                    .width(px(43)).height(px(29)).id("column"))
-    expectSilent("row", Row { Box().width(px(10)).height(px(10)) }
-                    .width(px(47)).height(px(31)).id("row"))
-    expectSilent("stack", Stack { Text("Hi") }.width(px(53)).height(px(37)).id("stack"))
-    expectSilent("text", Text("Hi").width(px(59)).height(px(19)).id("text")
+    expectSilent("box", Box().cssWidth(px(41)).cssHeight(px(23)).id("box"))
+    expectSilent("column", Column { Box().cssWidth(px(10)).cssHeight(px(10)) }
+                    .cssWidth(px(43)).cssHeight(px(29)).id("column"))
+    expectSilent("row", Row { Box().cssWidth(px(10)).cssHeight(px(10)) }
+                    .cssWidth(px(47)).cssHeight(px(31)).id("row"))
+    expectSilent("stack", Stack { Text("Hi") }.cssWidth(px(53)).cssHeight(px(37)).id("stack"))
+    expectSilent("text", Text("Hi").cssWidth(px(59)).cssHeight(px(19)).id("text")
                     .onClick {}.focusable())
 }
 

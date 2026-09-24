@@ -1097,13 +1097,13 @@ private struct Placement: Equatable, CustomStringConvertible {
             var row = Row {
                 chain(rowLog)
                 CountingLeaf("probe", log: rowLog, width: 1, height: 1)
-            }.alignItems(.flexStart).width(px(200)).height(px(200))
+            }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
             Frame(contentSize: size, scaleFactor: 1, layoutAuthority: authority).render(&row)
             let columnLog = CompositionLog()
             var column = Column {
                 chain(columnLog)
                 CountingLeaf("probe", log: columnLog, width: 1, height: 1)
-            }.alignItems(.flexStart).width(px(200)).height(px(200))
+            }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
             Frame(contentSize: size, scaleFactor: 1, layoutAuthority: authority).render(&column)
             let leaf = try #require(rowLog.bounds["leaf"])
             return Placement(width: try #require(rowLog.bounds["probe"]).origin.x.value,

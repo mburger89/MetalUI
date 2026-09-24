@@ -146,7 +146,7 @@ private struct Datum: Identifiable { let id: Int }
 private struct ClickComponent: Component {
     let log: ClickLog
     var content: some ElementGroup {
-        Box().width(px(40)).height(px(40)).onClick { log.names.append("component") }
+        Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("component") }
     }
 }
 
@@ -234,10 +234,10 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 
     let (p8, p8Platform) = try makeFakeWindow(device: device, size: 100) {
         Row {
-            Box().width(px(40)).height(px(40)).onClick { log.names.append("P8") }
+            Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("P8") }
                 .environment(\.isEnabled, true)
                 .disabled(true)
-        }.width(px(100)).height(px(100))
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     p8.drawFrameIfNeeded()
     click(p8Platform, at: pt(10, 50))
@@ -245,9 +245,9 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 
     let (p9, p9Platform) = try makeFakeWindow(device: device, size: 100) {
         Row {
-            Box().width(px(40)).height(px(40)).onClick { log.names.append("P9") }
+            Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("P9") }
                 .environment(\.isEnabled, false)
-        }.width(px(100)).height(px(100))
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     p9.drawFrameIfNeeded()
     click(p9Platform, at: pt(10, 50))
@@ -315,37 +315,37 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     }
 
     try arm("box") { d in
-        Row { Box().width(px(40)).height(px(40)).onClick { log.names.append("box") }.disabled(d) }.width(px(100)).height(px(100))
+        Row { Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("box") }.disabled(d) }.cssWidth(px(100)).cssHeight(px(100))
     }
     try arm("column") { d in
         Row {
-            Column { Box().width(px(40)).height(px(40)) }
-                .width(px(40)).height(px(40)).onClick { log.names.append("column") }.disabled(d)
-        }.width(px(100)).height(px(100))
+            Column { Box().cssWidth(px(40)).cssHeight(px(40)) }
+                .cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("column") }.disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     try arm("row") { d in
         Row {
-            Row { Box().width(px(40)).height(px(40)) }
-                .width(px(40)).height(px(40)).onClick { log.names.append("row") }.disabled(d)
-        }.width(px(100)).height(px(100))
+            Row { Box().cssWidth(px(40)).cssHeight(px(40)) }
+                .cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("row") }.disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     try arm("stack") { d in
         Row {
-            Stack { Box().width(px(40)).height(px(40)) }
-                .width(px(40)).height(px(40)).onClick { log.names.append("stack") }.disabled(d)
-        }.width(px(100)).height(px(100))
+            Stack { Box().cssWidth(px(40)).cssHeight(px(40)) }
+                .cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("stack") }.disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     try arm("text") { d in
-        Row { Text("x").width(px(40)).height(px(40)).onClick { log.names.append("text") }.disabled(d) }.width(px(100)).height(px(100))
+        Row { Text("x").cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("text") }.disabled(d) }.cssWidth(px(100)).cssHeight(px(100))
     }
     // The `onClick` is on the inner (padding) layer; the frame layer outside it.
     try arm("padding-frame") { d in
         Row {
-            Box().width(px(12)).height(px(12)).padding(px(4))
+            Box().cssWidth(px(12)).cssHeight(px(12)).padding(px(4))
                 .onClick { log.names.append("padding-frame") }
                 .frame(width: px(20), height: px(20))
                 .disabled(d)
-        }.width(px(100)).height(px(100))
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     try arm("proposal", at: pt(50, 50)) { d in
         HStack {
@@ -353,40 +353,40 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         }
     }
     try arm("component") { d in
-        Row { ClickComponent(log: log).disabled(d) }.width(px(100)).height(px(100))
+        Row { ClickComponent(log: log).disabled(d) }.cssWidth(px(100)).cssHeight(px(100))
     }
     try arm("list-row") { d in
         Row {
             List([Datum(id: 0)], rowHeight: px(40)) { _ in
                 Box {
-                    Box().width(px(40)).height(px(40)).onClick { log.names.append("list-row") }.disabled(d)
+                    Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("list-row") }.disabled(d)
                 }
             }
-            .width(px(40))
-        }.width(px(100)).height(px(100))
+            .cssWidth(px(40))
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     try arm("list") { d in
         Row {
             List([Datum(id: 0)], rowHeight: px(40)) { _ in Box() }
-                .width(px(40)).height(px(40)).onClick { log.names.append("list") }.disabled(d)
-        }.width(px(100)).height(px(100))
+                .cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("list") }.disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
 
     // EV-X: after the scope fires (O2); the same layers with the scope written
     // last do not (O1), and that spelling's own control does.
     let after = try fired("after", at: pt(10, 50)) {
         Row {
-            Box().width(px(20)).height(px(20)).disabled(true)
+            Box().cssWidth(px(20)).cssHeight(px(20)).disabled(true)
                 .frame(width: px(40), height: px(40)).onClick { log.names.append("after") }
-        }.width(px(100)).height(px(100))
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     #expect(after == 1, "a handler written after .disabled sits outside the scope and fires (EV-X, O2)")
     try arm("inside") { d in
         Row {
-            Box().width(px(20)).height(px(20))
+            Box().cssWidth(px(20)).cssHeight(px(20))
                 .frame(width: px(40), height: px(40)).onClick { log.names.append("inside") }
                 .disabled(d)
-        }.width(px(100)).height(px(100))
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
 }
 
@@ -430,10 +430,10 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     func ancestor(_ d: Bool) -> some Element {
         Row {
             Box {
-                Box().width(px(20)).height(px(20)).onClick { log.names.append("child") }.disabled(d)
+                Box().cssWidth(px(20)).cssHeight(px(20)).onClick { log.names.append("child") }.disabled(d)
             }
-            .width(px(40)).height(px(40)).onClick { log.names.append("parent") }
-        }.width(px(100)).height(px(100))
+            .cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("parent") }
+        }.cssWidth(px(100)).cssHeight(px(100))
     }
     #expect(try clicks(at: pt(10, 40)) { ancestor(false) } == ["child"],
             "control (N0/N3): an enabled child takes the click and the parent does not")
@@ -473,7 +473,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         let probes = ProbeLog()
         let (window, platform) = try makeFakeWindow(device: device, size: 100) {
             Row {
-                TargetProbe("x", probes, Box().width(px(20)).height(px(20)).focusable()
+                TargetProbe("x", probes, Box().cssWidth(px(20)).cssHeight(px(20)).focusable()
                         .onKey { _ in log.names.append("x"); return true })
                     .disabled(d)
             }
@@ -511,7 +511,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     let model = FlagModel()
     let probes = ProbeLog()
     let (window, _) = try makeFakeWindow(device: device, size: 100) {
-        Row { TargetProbe("x", probes, Box().width(px(20)).height(px(20)).focusable()).disabled(model.disabled) }
+        Row { TargetProbe("x", probes, Box().cssWidth(px(20)).cssHeight(px(20)).focusable()).disabled(model.disabled) }
     }
     window.drawFrameIfNeeded()
     let id = try #require(probes.ids["x"])
@@ -552,10 +552,10 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         let (window, platform) = try makeFakeWindow(device: device, size: 100) {
             Row {
                 Box {
-                    TargetProbe("child", probes, Box().width(px(20)).height(px(20)).focusable())
+                    TargetProbe("child", probes, Box().cssWidth(px(20)).cssHeight(px(20)).focusable())
                         .environment(\.isEnabled, true)
                 }
-                .width(px(40)).height(px(40))
+                .cssWidth(px(40)).cssHeight(px(40))
                 .onAction(Increment.self) { _ in log.names.append("parent") }
                 .disabled(d)
             }
@@ -603,11 +603,11 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         let (window, platform) = try makeFakeWindow(device: device, size: 100) {
             Row {
                 Box {
-                    TargetProbe("child", probes, Box().width(px(20)).height(px(20)).focusable()
+                    TargetProbe("child", probes, Box().cssWidth(px(20)).cssHeight(px(20)).focusable()
                             .onKey { _ in log.names.append("child"); return false })
                         .environment(\.isEnabled, true)
                 }
-                .width(px(40)).height(px(40))
+                .cssWidth(px(40)).cssHeight(px(40))
                 .onKey { _ in log.names.append("parent"); return true }
                 .disabled(d)
             }
@@ -648,11 +648,11 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         let (window, platform) = try makeFakeWindow(device: device, size: 100) {
             Row {
                 Box {
-                    TargetProbe("child", probes, Box().width(px(20)).height(px(20)).focusable()
+                    TargetProbe("child", probes, Box().cssWidth(px(20)).cssHeight(px(20)).focusable()
                             .onAction(PaneAction.self) { _ in log.names.append("child") })
                         .environment(\.isEnabled, true)
                 }
-                .width(px(40)).height(px(40))
+                .cssWidth(px(40)).cssHeight(px(40))
                 .keyContext("Pane")
                 .disabled(d)
             }
@@ -692,7 +692,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     let probes = ProbeLog()
     let (window, platform) = try makeFakeWindow(device: device, size: 100) {
         Row {
-            TargetProbe("x", probes, Box().width(px(40)).height(px(40)).focusable()
+            TargetProbe("x", probes, Box().cssWidth(px(40)).cssHeight(px(40)).focusable()
                     .onClick { log.names.append("x") })
                 .disabled(model.disabled)
         }
@@ -750,14 +750,14 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     }
 
     let hazard = try secondRequestSticks { model, probes in
-        Row { if model.present { TargetProbe("x", probes, Box().width(px(20)).height(px(20))) } }
+        Row { if model.present { TargetProbe("x", probes, Box().cssWidth(px(20)).cssHeight(px(20))) } }
     }
     #expect(hazard, "instrument (pinned wrong on purpose): a non-focusable enabled element's slot makes the second request stick")
 
     let disabled = try secondRequestSticks { model, probes in
         Row {
             if model.present {
-                TargetProbe("x", probes, Box().width(px(20)).height(px(20)).focusable()).disabled(true)
+                TargetProbe("x", probes, Box().cssWidth(px(20)).cssHeight(px(20)).focusable()).disabled(true)
             }
         }
     }
@@ -779,7 +779,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
             Row {
                 Row {
                     Deferred {
-                        TargetProbe("x", probes, Box().width(px(40)).height(px(40)).focusable()
+                        TargetProbe("x", probes, Box().cssWidth(px(40)).cssHeight(px(40)).focusable()
                                 .onClick { log.names.append("x") })
                     }
                 }
@@ -830,9 +830,9 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         let log = ClickLog()
         let (window, platform) = try makeFakeWindow(device: device, size: 100) {
             Row {
-                Box().width(px(40)).height(px(40)).onClick { log.names.append("x") }
+                Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("x") }
                     .disabled(model.disabled)
-            }.width(px(100)).height(px(100))
+            }.cssWidth(px(100)).cssHeight(px(100))
         }
         window.drawFrameIfNeeded()
         platform.simulateInput(.mouseDown(MouseEvent(position: pt(20, 50))))
@@ -874,10 +874,10 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         let probes = ProbeLog()
         let (window, platform) = try makeFakeWindow(device: device, size: 100) {
             Row {
-                TargetProbe("x", probes, Box().width(px(40)).height(px(40)).onClick {}
+                TargetProbe("x", probes, Box().cssWidth(px(40)).cssHeight(px(40)).onClick {}
                         .hoverBackground(.accent).background(.surface))
                     .disabled(d)
-            }.width(px(100)).height(px(100))
+            }.cssWidth(px(100)).cssHeight(px(100))
         }
         window.drawFrameIfNeeded()
         platform.simulateInput(.mouseMoved(MouseEvent(position: pt(20, 50))))
@@ -907,13 +907,13 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         let (window, platform) = try makeFakeWindow(device: device, size: 100) {
             Row {
                 Box {
-                    Box().width(px(20)).height(px(20)).onClick {}
+                    Box().cssWidth(px(20)).cssHeight(px(20)).onClick {}
                         .hoverBackground(.accent).background(.surface)
                         .disabled(d)
                 }
-                .width(px(40)).height(px(40)).onClick {}
+                .cssWidth(px(40)).cssHeight(px(40)).onClick {}
                 .hoverBackground(.accent).background(.surface)
-            }.width(px(100)).height(px(100))
+            }.cssWidth(px(100)).cssHeight(px(100))
         }
         window.drawFrameIfNeeded()
         platform.simulateInput(.mouseMoved(MouseEvent(position: pt(10, 40))))
@@ -947,7 +947,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 @MainActor
 @Test func aDisabledElementsAXNodeCarriesTheDisabledTrait() throws {
     func traits(_ d: Bool) throws -> Set<AXTrait> {
-        var declared = Box().width(px(30)).height(px(30))
+        var declared = Box().cssWidth(px(30)).cssHeight(px(30))
         declared.handlers.axNode = AXNode(role: .button, label: "b")
         let box = declared
         let probes = ProbeLog()
@@ -989,11 +989,11 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         let (window, platform) = try makeFakeWindow(device: device, size: 200) {
             Row {
                 Box {
-                    ScrollView(.vertical, elementID: ElementID("list")) { Box().width(px(40)).height(px(400)) }
+                    ScrollView(.vertical, elementID: ElementID("list")) { Box().cssWidth(px(40)).cssHeight(px(400)) }
                         .disabled(disabled)
                 }
-                .width(px(120)).height(px(120))
-            }.width(px(200)).height(px(200))
+                .cssWidth(px(120)).cssHeight(px(120))
+            }.cssWidth(px(200)).cssHeight(px(200))
         }
         window.drawFrameIfNeeded()
         platform.simulateInput(.scrollWheel(ScrollEvent(position: point, delta: Point(x: px(0), y: px(-37)))))

@@ -63,7 +63,7 @@ private func keyDown(_ characters: String) -> InputEvent {
 /// chrome sits at x 0 under both.
 @MainActor
 private func counterColumn() -> some ElementGroup {
-    Column { CounterPanel() }.width(px(400))
+    Column { CounterPanel() }.cssWidth(px(400))
 }
 
 /// The count `CounterPanel` holds in `window`'s state table.
@@ -236,8 +236,8 @@ private final class WidthModel {
 
     func animatedColumn(_ width: Float) -> some ElementGroup {
         Column {
-            Box().width(px(width)).height(px(20)).background(.accent)
-            Box().width(px(20)).height(px(10)).frame(width: px(width), height: px(20))
+            Box().cssWidth(px(width)).cssHeight(px(20)).background(.accent)
+            Box().cssWidth(px(20)).cssHeight(px(10)).frame(width: px(width), height: px(20))
         }
         .alignItems(.flexStart)
     }
@@ -332,8 +332,8 @@ private final class WidthModel {
 @Test func aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork() throws {
     let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 100) {
         Column {
-            Row { Box().width(px(10)).height(px(20)); Box().width(px(30)).height(px(10)) }
-            Row { Box().width(px(20)).height(px(10)); Box { Box().width(px(10)).height(px(10)) }.padding(px(4)) }
+            Row { Box().cssWidth(px(10)).cssHeight(px(20)); Box().cssWidth(px(30)).cssHeight(px(10)) }
+            Row { Box().cssWidth(px(20)).cssHeight(px(10)); Box { Box().cssWidth(px(10)).cssHeight(px(10)) }.padding(px(4)) }
         }
     }
     try #require(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
@@ -464,15 +464,15 @@ private func itemChain(containerInnermost: Bool) -> some Element {
     var padded = Style()
     padded.padding = Edges(all: .pixels(px(1)))
     var element = containerInnermost
-        ? AnyElement(Box(style: padded) { Box().height(px(10)) }.flexShrink(0).flexGrow(1).alignSelf(.flexEnd))
-        : AnyElement(Box(style: padded).height(px(10)).flexShrink(0).flexGrow(1).alignSelf(.flexEnd))
+        ? AnyElement(Box(style: padded) { Box().cssHeight(px(10)) }.flexShrink(0).flexGrow(1).alignSelf(.flexEnd))
+        : AnyElement(Box(style: padded).cssHeight(px(10)).flexShrink(0).flexGrow(1).alignSelf(.flexEnd))
     for _ in 0..<16 {
         let inner = element
-        element = AnyElement(Row { inner; Box().width(px(10)).height(px(10)) }
+        element = AnyElement(Row { inner; Box().cssWidth(px(10)).cssHeight(px(10)) }
             .flexShrink(0).flexGrow(1).alignSelf(.flexEnd))
     }
     let inner = element
-    return Row { inner; Box().width(px(10)).height(px(10)) }.width(px(100)).height(px(100))
+    return Row { inner; Box().cssWidth(px(10)).cssHeight(px(10)) }.cssWidth(px(100)).cssHeight(px(100))
 }
 
 /// **2.14, limit** (`LR-AB` as amended, `SA-L`). `itemChain(containerInnermost: false)`
