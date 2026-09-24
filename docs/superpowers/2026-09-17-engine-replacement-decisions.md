@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-EZ`** (stage 8's design took `LR-ER`…`LR-EX` and its critic round 1 `LR-EY`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FA`** (stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY` and its lane 1 `LR-EZ`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -8582,3 +8582,83 @@ design's patch (record §50 §7).
 item 2 moves an owner; items 6–8 are measurements and documentation. The
 accounting is unchanged: **1445 − 0 + 7 = 1452 tests; 78 → 79 guards**
 (N1.4's third arm is an arm, not a test).
+
+---
+
+## LR-EZ — stage 8 lane 1: what the demo's conversion moved that the design did not foresee, and the `…absolute` owner made real
+
+**Evidence.** Record §50 §8. Lane 1's red run (`9296f67`, the four files, the
+demo patch and N1.1–N1.6 in, `LegacyLowering.swift` not yet): besides the
+designed reds (N1.2–N1.4 and `PresentationWindowTests` 3.2/3.3/3.5/3.6, whose
+R6 spelling needs `LR-EV`), **four tests that read the demo by literal
+reddened**: `LoweringCorpusTests.swift:258` (`chrome.elements == 8`, read 11),
+`:571` (`report.elements == 2035`, read 3053), `LoweringPipelineParityTests.swift:119`
+and `:186` (`elements == 9`, read 12) and `RootSwitchTests.swift:213` (the
+demo's deepest native level, read 29 against 30, six roots). With the first
+literal corrected, the whole-demo census reddened further: 3031 of 3053 ids
+now **agree** where 6 of 2035 did. Production did not move: the fourteen-image
+comparison against `85217e3` read 0 differing, scene identical, in all
+fourteen (the design's patch plus lane 1's `.leading` on the scroller box's
+outer frame); `theDemoFrameMatchesTheValuesRecordedOnMacOS` stayed green
+unedited; the hit-testing/accessibility/hover dump was byte-identical
+(91 882 241 bytes both sides); `Backends/SDL`'s `DemoCapture` built the demo at
+the lane's head and read "byte-for-byte macOS's: true" against frame 5
+recorded at `85217e3`.
+
+**The ruling.**
+
+1. **Three structural literals are T rows, re-derived, not assertions
+   changed in kind** (spec §7's "every test not retired keeps its assertion"
+   said T3.1 was the one T row; it is not). Each counts the demo's elements
+   or native levels, and the conversion changes both by design: a `.frame`
+   layer is an identity level (R7) and the list row loses
+   `.alignItems(.center).flexGrow(1)` (R4). `chrome.elements` 8 → 11 and
+   parity's `elements` 9 → 12 (×2): the counter's three squares, one frame
+   layer each. The demo's deepest native level 30 → 29 (six roots): measured,
+   and the test's own doc comment says its literals move when a lowering adds
+   or drops a level.
+2. **The whole-demo census (`theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`)
+   is re-derived** — a T row, the largest. Its subject is the legacy-vs-lowered
+   comparison of the production demo, and **the legacy side of the demo is what
+   moved**: a `.frame` layer is the same box on both engines, so the legacy
+   engine now serves the sidebar its 196 (divergence 55's shrink has nothing to
+   shrink), the main pane wraps at 648 on both sides, and all 3 000 list-row
+   ids agree (part 2b, `rowCensus` and the sub-pixel bracket on the legacy
+   sidebar's shrunk origin are gone with them). What still disagrees — 22 ids,
+   27 with the modal — is attributed to three causes the census now names: **R**
+   (unchanged: the lowered root offers 560), **O** (`FR-O`: a single-axis
+   infinite maximum is inert on the legacy engine — the header bar 0 wide and
+   the scroller box hugging the `List`'s 14 000, whose height every legacy
+   ancestor carries) and **53f** (divergence 53 at a frame layer: the legacy
+   one-cell stack offers fit-content and centres it — the header's padding
+   layer 84 wide at x 418, the sidebar's 70 wide at x 79), plus the modal's
+   unchanged **C**. The legacy authority no longer renders the demo
+   presentably (an 84pt centred header card, 14 000pt content); it is no
+   production path since stage 6b, has no public spelling (`LR-DF`), and is
+   deleted at stage 9. Instrument: **M-EZa** (the lowered frame layer's
+   infinite maximum passed as `nil`) reddens it.
+3. **`<field>.absolute`'s `owningStage` moves 8 → 10** (`LayoutAuthority.swift`),
+   making `LR-EV` item 4's "re-owned to stage 10" true in the trap message;
+   left at "8", a production trap on a `Style`-written absolute box would name
+   a delivered stage. `aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName`'s
+   owning-stage assertion is its T row; **M-EZb** (back to "8") reddens it.
+   Spec §7's list of changed `Sources/` files gains `LayoutAuthority.swift`
+   (one line and its comment).
+4. **T7's MetalUI half, measured** (`LR-ER` item 5, `LR-EY` item 6): in a
+   300-wide `Column` under `.proposal`, `Text("hi").frame(width: 100)` puts
+   the frame at x 100 and the text at **x 145** (100 + 44.5, rounded;
+   SwiftUI's T1 reads 50 + 44.5 = 94.5), and `alignment: .leading` puts it at
+   **x 100** (SwiftUI's T0: the frame's own x). MetalUI centres as SwiftUI
+   does; T7 is closed by spelling, as `LR-ER` item 5 says. (The centred
+   text's element bounds read 10 wide, the leading one 11: cumulative-edge
+   rounding of a half-point origin, `Rounding.swift`.)
+5. **Accounting at lane 1**: 1445 − 0 + 6 = **1451** (N1.1–N1.6), no test
+   removed, **six T rows** (items 1–3: the chrome and whole-demo census
+   tests, the two parity tests, the depth test, the owning-stage test). The
+   stage's total becomes 1452 with lane 3's N3.1, and its T rows seven with
+   T3.1.
+
+**What it costs if wrong.** Items 1–2 are literals of tests whose legacy halves
+die at stage 9; a wrong derivation is a red test, and every row is asserted
+exactly with no disagreement left unattributed. Item 3 is a message string.
+

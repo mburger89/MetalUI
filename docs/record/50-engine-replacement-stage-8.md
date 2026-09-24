@@ -275,3 +275,127 @@ was never built with the deprecation in; four more CLAUDE.md/README copies
 recommend a deprecated spelling. The accounting is unchanged: 1445 − 0 + 7 =
 1452, guards 78 → 79.
 
+
+## 8. Lane 1 — the absolute arm, the helpers, the demo (`LR-EV`, `LR-EZ`)
+
+Commits: `9296f67` (red first: N1.1–N1.6, `CSSSizing.swift`, the demo recipe,
+the four files by class), `29c7200` (`LR-EV` in `LegacyLowering.swift`;
+`owningStage` for `…absolute` 8 → 10; the demo's structural literals
+re-derived), then this record and `LR-EZ`.
+
+**8.1 What changed.** `Tests/MetalUITests/CSSSizing.swift` (new): the eight
+`css*` helpers, each one line with its public modifier's closure body, and the
+class-D instrument (`DeprecatedSpelling`, a `@MainActor` protocol whose
+conformers' witnesses carry `@available(*, deprecated, …)`, reached through
+`oldSpelling(_:)`). `LegacyLowering.swift`: the frame layer's `style`
+comparison takes `position`/`inset` from the declared style when it is
+absolute **and the frame is over at most one node**; `lowerPresentation`'s
+`…absolute` flags skip a `.frameLayer` record; `planLegacyItems`' outside-a-
+`Deferred` `position`/`inset` report no longer skips a frame layer.
+`LayoutAuthority.swift`: `…absolute` owned by stage 10 (`LR-EZ` item 3).
+`DemoContent.swift`: the design's patch applied, the scroller box's outer
+frame `.leading` (R5), and the comments that would have lied rewritten — the
+`Square`/`Chrome` typealias, the header's modifier-order paragraph (size is
+`.frame` after `.padding`; no item modifier after the frame), the sidebar's
+animated width (R8, `alignment: .top`), the scroller box's automatic-minimum
+paragraph (now marked as the legacy engine's history, followed by `LR-ET`'s
+finding: two frames, `minHeight: 0` inert here and pinned by N1.6), the
+`.minWidth(_:)` mention, and the list row's `.height`/`.alignItems(.center)`
+mentions (the frame's `.center` does the centring).
+
+**By class.** `PresentationLoweringTests` 56 sites and `AnimationTests` 26 → K
+(`.x(` → `.cssX(` at the census positions, by script, no other change);
+`PresentationWindowTests` 24 → F (R1, R6 on the absolute boxes, `.topLeading`
+on 3.2's sized `Box` around a `Deferred`); `FrameSizingTests` 13 → F (the
+three `Row` roots `.frame(…, alignment: .topLeading)` — they declare
+`alignItems(.flexStart)`, so their content sat top-leading; the two `Column`
+roots `.top`; the three scroller arms' own-box size a `.frame` on the same
+axis). No F site fell back to K; no assertion in the four files changed except
+the owning-stage one (§8.3).
+
+**8.2 Red first** (unfiltered, `9296f67`): `Test run with 1451 tests in 3
+suites failed … with 29 issues`. Designed reds — N1.2
+(`PresentationLoweringTests.swift:580` `r.unlowerable.isEmpty`, and
+disagreeing/scenes/hitboxes/accessibility; `:582` `loweredBounds[box] ==
+expected`; `:588` the hitbox; `:591` `frame.unlowerableFields.isEmpty`), N1.3
+(`:638` `minimum.0 == pBounds(30, 10, 100, 16) && minimum.1.isEmpty`; `:640`
+the 80 arm), N1.4 (`:690` `inFlow == ["modifierLayer.position",
+"modifierLayer.inset"]`), and `PresentationWindowTests` 3.2, 3.3, 3.5, 3.6 on
+both authorities (their pre-flight's report: R6 needs `LR-EV`). N1.1 (its red
+was the build), N1.5 and N1.6 green on arrival. **Undesigned reds** — the
+demo's structural literals (`LR-EZ` items 1–2): `LoweringCorpusTests.swift:258`
+`chrome.elements == 8` (11), `:571` `report.elements == 2035` (3053),
+`LoweringPipelineParityTests.swift:119`/`:186` `elements == 9` (12),
+`RootSwitchTests.swift:213` `deepest == expected` ×6 (29, expected 30).
+
+**8.3 The re-derived census.** With the element count corrected, the
+whole-demo census read 3031 agreeing / 22 disagreeing (modal: 3060 ids, 3033 /
+27), where it read 6 / 2029 (modal 8 / 2033). Every disagreement, printed by a
+scratch test (never committed) and attributed:
+
+| cause | ids (legacy → lowered) |
+|---|---|
+| R + O | outer layer 920×14439 → 920×560; outer column 888×14407 → 888×528; body, sidebar frame, main layer ×14310 → ×431; main column 648×14278 → 648×399 |
+| O | the header bar's outer frame (486, 46) 0×12 → (84, 46) 804×12; the scroller's outer frame, greedy frame, `Box` and `ScrollView` (240, 455) 420×14000 → 420×73 |
+| 53f | header padding layer (418, 16) 84×72 → (16, 16) 888×72; its row (434, 32) 52×40 → (32, 32) 856×40; the avatar's frame (434, 32) → (32, 32) and `Box` (454, 52) → (52, 52); sidebar padding layer (79, 113) 70×188 → (16, 113) 196×188; its column (93, 127) 42×160 → (30, 127) 168×160; "Library" and the four bars' frames 42 → 168 wide at x 93 → 30 |
+| C (modal) | the card's frame and padding layer (280, 235) 360×90 → (280, 227) 360×106; its column 320×50 → 320×66; the two texts 8 pt higher |
+
+The test asserts each row by literal (legacy heights derived from the shaping
+cache as before, plus the `List`'s 28 × 500), that the 22 (27) are the whole
+of the report's disagreements, and the counts. The old part 2b (`rowCensus`,
+the 42-of-500 sub-pixel bracket) went with the row disagreements;
+`centredRounded` with the chrome's centred texts, which agree now.
+
+**8.4 Mutations**, each committed-from, restored from a copy, full unfiltered
+suite, `git status --short` empty after every restore:
+
+| mutation | reddened |
+|---|---|
+| M1a — exemption off (`if false && …`) | `aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities`, `aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred`, `aFramesOwnBoundsOnAnAbsoluteAutoAxisAnswerAsSwiftUIsFrameDoes`, `aPresentationInsideAFadedSubtreeIsStillFadedUnderBothAuthorities`, `aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities`, `anAnimatedInsetInterpolatesItsValueUnderBothAuthorities`, `nestedPresentationsLandOnOneLayerUnderBothAuthorities` (19 issues) |
+| M1b — `lowerPresentation` flags a frame layer's bounds | `aFramesOwnBoundsOnAnAbsoluteAutoAxisAnswerAsSwiftUIsFrameDoes` |
+| M1c — comparison skipped entirely when absolute | `aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred` |
+| M1d — `.frameLayer` guard restored in `planLegacyItems` | `aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred` |
+| M1e — `bound(_:_:)` returns the declared value | `anAnimatedFrameWidthInterpolatesAsTheAnimatedWidthItReplacesDid`, `aFrameLayerLowersFromItsAnimatedStyleForWhatStyleCarries`, `aFrameLayerLowersItsMinimaAndFiniteMaximaFromItsAnimatedStyle`, `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths` |
+| M1f — `framed(_:)` passes `minHeight: nil` | `aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum`, `aFrameLayerLowersItsMinimaAndFiniteMaximaFromItsAnimatedStyle` |
+| M1g — `cssMinHeight` writes `maxSize.height` | `theCSSSizingHelpersWriteWhatTheDeprecatedModifiersWrite` (only) |
+| M1h — one-node condition dropped | `aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred` |
+| M-EZa — a frame layer's infinite maximum passed as `nil` | `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum`, `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`, `resizingTheWindowDirtiesItAndTheNextFrameLaysOutAtTheNewSize`, `aRealAppKitResizeDirtiesTheWindowAndTheNextFrameReflows` |
+| M-EZb — `…absolute` owned by "8" again | `aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName` |
+| Ma — sidebar `alignment: .top` dropped | `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` |
+| Md — list row `.leading` dropped | `theDemoFrameMatchesTheValuesRecordedOnMacOS` |
+| Me — bar `.flexGrow(1)` before `.frame(height:)` for `.frame(maxWidth: .infinity)` | `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` |
+| Mf — button `.background`/`.cornerRadius` before its frame | `theDemoFrameMatchesTheValuesRecordedOnMacOS` |
+
+**8.5 What must not move.** `docs/probes/demo-pixels/compare.sh <scratch>
+85217e3 29c7200`: controls as in §4 (1048576, 1031003, 454895, 0, 1048576, 0,
+544, 216, 491221, 529, 0), then **all fourteen images `differing=0 scene
+identical`**. The hit-testing/accessibility/hover instrument
+(`docs/probes/stage-8-demo-hit-ax-hover.swift`, copied in, run filtered,
+deleted) at `85217e3`'s sources and at `29c7200`: **byte-identical**, 91 882 241
+bytes each (md5 `0017b034…`), 3 hitboxes modal off (8 `hit` lines in all),
+`hovered` true at both buttons and the list row, false at the readout and the
+stack cluster, modal off. `Backends/SDL` (fetch-accesskit, then
+`PKG_CONFIG_PATH=$PWD/.accesskit swift test`): 21 + 19 passed; fixtures
+recorded from `85217e3`'s archive (`Experiments/SDLGPU`, `swift run
+--build-system native Replay --portable --record`: frames 0–5 at 0 px, the
+draw-order mutation detected), then the lane head's `PortableReplay … --expect
+6` PASS (every frame 0 px, max Δ0) and `DemoCapture`: "scene built here: 518
+rects, 15710 glyphs, 1008 runs; byte-for-byte macOS's: true", PASS.
+`DemoFrameDeterminismTests` green unedited.
+
+**8.6 T7's MetalUI half** (`LR-EZ` item 4): in a 300-wide `Column` under
+`.proposal`, `Text("hi").frame(width: 100)` → frame (100, 0) 100×16, text at
+x **145**, glyph origins 145 and 152; `alignment: .leading` → text at x **100**.
+Centred, as SwiftUI's T1 (94.5 in a frame at 50). T7 is closed by spelling.
+
+**8.7 Counts.** Unfiltered `swift test --build-system native --no-parallel`:
+**`Test run with 1451 tests in 3 suites passed`** (1445 + 6), the log carrying
+`FR-J no-argument frame: succeeded=true`. `swift build --build-system native
+--build-tests`: 0 `error:`, the one `warning:` SwiftPM's notice; `swift build
+--build-tests` (default build system): 0 `warning:`, 0 `error:`. No test
+removed; six T rows (`LR-EZ`).
+
+**8.8 Deferred, with owners.** `LoweringCorpusTests`' doc-comment mutations
+from stages 2–5 were not re-run against the re-derived census (lane 3 or the
+Record phase may; each is recorded where it was taken). `Backends/SDL`'s build
+with the deprecation in is lane 3's step 8. Nothing else.

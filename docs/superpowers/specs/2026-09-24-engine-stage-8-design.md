@@ -13,9 +13,9 @@ header). Instruments: `docs/probes/stage-8-deprecation-sites.txt`,
 Branch `feat/engine-stage-8` from `85217e3`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-8`.
 
-**Status, 2026-09-24 (PDT): design, critic round 1 applied** (`LR-EY`; record
-§50 §7). No file under `Sources/`, `Tests/` or `Package.swift` changed in a
-commit.
+**Status, 2026-09-24 (PDT): lane 1 delivered** (`LR-EZ`; record §50 §8) on
+the design with critic round 1 applied (`LR-EY`; record §50 §7). Lanes 2 and 3
+to go.
 
 **What this stage is.** The **eight** `StyledElement` sizing modifiers — the
 six sizes and clamps (`width`, `height`, `minWidth`, `maxWidth`, `minHeight`,
@@ -79,6 +79,7 @@ not move**. One typecheck-guard fixture is affected (G4, §6 lane 3).
 | `LR-EV` | a `.frame` layer written before `.position(.absolute)`/`.inset` is an absolute box: a presentation root under the proposal authority, its own bounds honoured as SwiftUI's frame (probe P); the `…absolute` `Style` reports re-owned to stage 10 |
 | `LR-EW` | the call-site classes F, K, D (and R, expected empty); the identity, animation and site-coverage rules each conversion is checked against |
 | `LR-EX` | three lanes, in order, deprecation last; the accounting (1445 − 0 + 7 = 1452; guards 78 → 79); the mutation plan |
+| `LR-EZ` | lane 1: four tests that read the demo by literal move with R7/R4 (T rows: element counts, the depth, the whole-demo census re-derived — the legacy side of the demo moved, production did not); `…absolute`'s `owningStage` 8 → 10 (`LayoutAuthority.swift`); T7's MetalUI half measured (centred, x 145 in a frame at 100) |
 | `LR-EY` | critic round 1: eight modifiers, not ten; divergence 52 to plan task 15; `LR-EV` narrowed to a one-node frame; `Component.swift`'s promised comments owned; R4 restated; the demo's hit testing, accessibility and hover measured identical; `Backends/SDL` built with the deprecation in; the Record-phase copies completed; five findings rejected with reasons |
 
 ## 4. API and files
@@ -375,9 +376,12 @@ and re-run its `PortableReplay`/`DemoCapture`.
   every hitbox, the whole published accessibility tree (ids excluded) and five
   hovered scenes identical, modal off and on (record §50 §7; lane 1 step 6
   re-takes it); N1.5 pins the one animated size.
-- **Every test not retired keeps its assertion** (T3.1 is the one T row).
-  **Before − removed + added = after: 1445 − 0 + 7 = 1452.**
+- **Every test not retired keeps its assertion** (T3.1 and lane 1's six T
+  rows of `LR-EZ` — the demo's element counts and depth, the whole-demo census,
+  the `…absolute` owning stage — are the exceptions, each re-derived).
+  **Before − removed + added = after: 1445 − 0 + 7 = 1452** (1451 at lane 1).
 - `Sources/` changes only in `LegacyLowering.swift` (lane 1's `LR-EV`),
+  `LayoutAuthority.swift` (lane 1: `…absolute`'s owning stage, `LR-EZ` item 3),
   `DemoContent.swift` (lane 1), `Box.swift` (lane 3: attributes and
   comments) and `Component.swift` (lane 3: comment lines only); `git diff
   85217e3 -- Sources` names no other file.
