@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-EP`** (stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN` and its lane 3 `LR-EO`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-ER`** (stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -8147,3 +8147,42 @@ sideways at the next stage that copies it forward rather than re-measuring;
 "no pin left" tells stage 9 it can delete the legacy authority without
 checking these thirty tests' `.legacy` arms, when in fact they are exactly
 the tests stage 9 must re-spell or retire when that authority goes.
+
+## LR-EQ — stage 7b's adversarial branch check: row 190 is D, not R — the legacy engine's half of `SA-I`'s one flag is unpinned until stage 9
+
+**Evidence.** The branch check (record §49 §9) re-took the stage from a clean
+tree at `8d675eb` and ran two mutations of its own. **M-B1**: the
+`tree.beginLayout()` / `defer { tree.endLayout() }` pair deleted from
+`computeLayout` (`FlexEngine.swift`), so the CSS engine no longer holds
+`LayoutTree.isLayingOut` while it lays a tree out — full unfiltered suite
+**`Test run with 1445 tests in 3 suites passed`**, nothing reddened. Row 190
+(`NativeBoundaryTrapTests.registeringANodeDuringLegacyLayoutTraps`, "the check
+is not native-only") was filed **R** with `registeringALegacyLeafDuringNativeLayoutTraps`
+and `registeringANativeNodeDuringNativeLayoutTraps` as its replacements; both
+lay the tree out with the **native** engine, so neither can see whether the
+**legacy** engine sets the flag. Row 189's legacy half (`computeLayout`
+re-entered from a native measure closure) is the same shape: its replacements
+show the legacy *API* reads the native run's flag, never that the legacy
+*engine* raises it. **M-B2** (control, a different family): `Stack`'s
+`animated(` call deleted — 6 issues, `aLoweredStackLaysOutItsAnimatedWidthAndPadding`
+and `decorationSubstitutionReachesTheElementOnBoxAndStack`, the first being
+the `Stack` pin row 241's site map names; row 241 confirmed.
+
+**The ruling.** Row 190 is re-read as **D**: the fact it pinned — that the CSS
+engine's own layout call raises the shared flag — belongs to the CSS engine's
+entry (`computeLayout`, deleted at stage 9) and no native test can witness
+it; its two named tests stay as the pins of the native half and of the one
+storage check. Row 189 keeps **R** for its native half and carries the same
+note for its legacy half. The consequence is recorded rather than repaired,
+by the precedent of `LR-EP`'s `FlexEngine.swift:107` paragraph: from this
+stage until stage 9, CLAUDE.md's "**one `isLayingOut` flag guards both
+engines — do not split it**" is pinned on the native side only; a change that
+stops `computeLayout` bracketing its run reddens nothing. No test is restored
+(7b retires tests; a new legacy-engine test would be one more for stage 9 to
+retire) and no count, guard or golden moves.
+
+**What it costs if wrong.** If the legacy authority were to outlive stage 9,
+a split flag would let a legacy measure closure register a node mid-layout,
+growing the arrays the CSS engine indexes — silently, where `SA-I` promises a
+trap. Bounded: production runs `.proposal` since stage 6b and never reaches
+`computeLayout` (`noProductionFrameReachesTheLegacyEngine`).

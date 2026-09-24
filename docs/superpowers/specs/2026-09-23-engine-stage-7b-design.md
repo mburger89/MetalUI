@@ -1,8 +1,9 @@
 # Engine replacement, stage 7b — the non-golden CSS-engine tests retired (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 7b, §8, ruling `LR-U`. Rulings `LR-EC`…`LR-EP` (critic round 1:
-`LR-EL`; `LR-EP` the Record phase's own verification) in
+§4.1 row 7b, §8, ruling `LR-U`. Rulings `LR-EC`…`LR-EQ` (critic round 1:
+`LR-EL`; `LR-EP` the Record phase's own verification; `LR-EQ` the
+adversarial branch check — row 190 re-read as D) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Record: `docs/record/49-engine-replacement-stage-7b.md` (its §4 is the 245-row
 retirement table this design commits). Instrument:

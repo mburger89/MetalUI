@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-EQ`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-ER`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -90,7 +90,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   replacement arm or its deleted CSS-only concept; probe
   `swiftui-engine-stage-7a.swift` arms W, G, S, A, B; instrument
   `docs/probes/stage-7a-transcription-instrument.patch`),
-  7 stage 7b `LR-EC`…`LR-EP` (§49, spec
+  7 stage 7b `LR-EC`…`LR-EQ` (§49, spec
   `specs/2026-09-23-engine-stage-7b-design.md`, same decisions doc — the
   non-golden CSS-engine tests of spec §2.6's files and the element tests
   stages 6a/6b pinned `.legacy` with a 7b owner are retired, each with a row
@@ -177,8 +177,8 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 
 - **Stage 7b's counts (2026-09-24, `feat/engine-stage-7b` from `41344e5`,
   plan task 7 stage 7b — not yet merged with `master`): 1445 tests, 0 goldens,
-  78 typecheck guards**, 0 `error:`, the one `warning:` SwiftPM's deprecation
-  notice on both build systems, taken after `swift package clean` with
+  78 typecheck guards**, 0 `error:` on both build systems, the one `warning:`
+  SwiftPM's deprecation notice under native (0 under the default one), taken after `swift package clean` with
   `swift build --build-system native --build-tests` then unfiltered `swift
   test --build-system native --no-parallel` (**one summary line**, `Test run
   with 1445 tests in 3 suites passed after 86.235 seconds`; **eleven** gated
@@ -194,8 +194,8 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   in record §49 §4 (245 rows) names either a native test that asserts the
   same fact under the proposal engine, the CSS-only concept it dies with, or
   the new test written first, red-before-green. `grep -rn "computeLayout("
-  Tests` is empty (the exit criterion `NativeBoundaryTrapTests` used to fail
-  on `layingOutATreeDeeperThanTheLimitTraps`-style callers, now gone).
+  Tests` is empty (the stage's exit criterion: no test calls the CSS engine's
+  entry any more).
   **Divergence 4 retires as a CSS-engine row** (`LR-EH`, `LR-EP`): its two
   D-row tests (`autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot`,
   `anAutoRootWithNoOfferedExtentMeasuresItsContent`) and
@@ -220,7 +220,8 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   and goldens stay **0**. History: record §49 (its §8 is an independent
   re-check of all three lanes, which corrected the gated count from a
   carried-over "nine" to the measured **eleven** and restated divergence 4's
-  retirement as above).
+  retirement as above; its §9, the adversarial branch check, re-read row 190
+  as D — `LR-EQ`, the legacy half of `SA-I`'s one flag unpinned until stage 9).
 - **Counts (2026-09-24, `feat/engine-stage-7a` — plan task 7 stage 7a —
   merged with `master` at `6e01d9e`, records §42–§47): 1670 tests, 0 goldens,
   78 typecheck guards**, 0 `error:`, 0 `warning:` on both build systems,
@@ -1126,7 +1127,9 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   Single-child proposal wrappers precondition exactly one node.
 - **Invalidation** (`SA-H`, `SA-I`): the cache lives for one call; answers
   assumed pure; `setLayout` traps during measurement; **one `isLayingOut` flag
-  guards both engines — do not split it.**
+  guards both engines — do not split it.** Since stage 7b only the native
+  half is pinned: the CSS engine's bracket in `computeLayout` reddens nothing
+  if dropped (`LR-EQ`), until stage 9 deletes it.
 - **Validation** (`SA-J`, `SA-K`): reject a parameter only if SwiftUI rejects
   it or it would make a node non-finite at a finite proposal. Measurements may
   be infinite, stored rects may not, nothing may be NaN. Relaxing a trap into a

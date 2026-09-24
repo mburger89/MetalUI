@@ -4,7 +4,7 @@ Plan task 7, stage 7b (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 7b,
 `LR-U`, §8). Design: `docs/superpowers/specs/2026-09-23-engine-stage-7b-design.md`.
 Rulings `LR-EC`…`LR-EO` (critic round 1: `LR-EL`; `LR-EP`, this record's own
-verification pass) in
+verification pass; `LR-EQ`, the adversarial branch check, §9) in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md`. Branch
 `feat/engine-stage-7b` from `41344e5`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-7b`. Instrument:
@@ -25,6 +25,13 @@ the merged baseline is **eleven**; divergence 4's retirement was stated as
 behaviour unnamed until stage 9) and six stale test-file comments, all
 corrected in place — no code, count, guard or golden moved. The design-time
 status below is kept as written.
+
+**Status, 2026-09-24 (PDT): branch-checked.** §9 is the adversarial branch
+check of `41344e5..8d675eb`: clean build and full suite (1445), removal
+reconciled by script (236 removed, 11 added, every removed name one row),
+0 px in all fourteen, and two mutations of its own — one confirmed row 241,
+the other found **row 190 is D, not R** (`LR-EQ`). Documentation only; merge
+verdict in §9.
 
 **Status, 2026-09-24 (PDT): design.** §1–§5 were written with no file under
 `Sources/`, `Tests/` or `Package.swift` changed in a commit: the instrument was
@@ -417,7 +424,7 @@ divergence 4.
 | 187 | ScrollLayoutTests | `flexShrinkHoldsAContentNodeOpenOnceItsAutomaticMinimumIsRemoved` | `flexShrink: 0` holds a node open once a zero minimum removed the automatic one | D | F7 | **automatic minimum** (flex §4.5): a declared main size is neither shrunk nor floored by content (`aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding`; 7a probe A1 vs A0); a non-greedy `maxSize` is reported (`aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere`); `flexShrink(0)` lowers to `fixedSize` on the main axis (`aZeroShrinkKeepsItsNaturalMainSizeAndOverflows`) |
 | 188 | NativeBoundaryTrapTests | `computeLayoutRejectsANativeRoot` | `computeLayout` on a native root traps (SA-G's legacy entry) | D | F1 | **the CSS engine's entry** (`computeLayout`, stage 9): production never hands it a root — `Frame.computeRootLayout` branches on `isNativeLayoutNode(root)` first and `noProductionFrameReachesTheLegacyEngine` counts zero legacy root layouts; the rest of `SA-G` stays pinned (`aNativeNodeRegisteredUnderALegacyNodeTraps`, `aLegacyNodeRegisteredUnderANativeStackTraps`, `aStyleWrittenOntoANativeNodeTraps`) |
 | 189 | NativeBoundaryTrapTests | `computeLayoutCalledFromANativeMeasureClosureTraps` | one `isLayingOut` flag covers both engines (SA-I) | R | F1 | `setStyleOnALegacyNodeDuringNativeLayoutTraps` and `registeringALegacyLeafDuringNativeLayoutTraps` (legacy API sees the native run's flag); `computeNativeLayoutReenteredFromAMeasureClosureTraps` |
-| 190 | NativeBoundaryTrapTests | `registeringANodeDuringLegacyLayoutTraps` | registering during legacy layout traps (the check is not native-only) | R | F1 | `registeringALegacyLeafDuringNativeLayoutTraps`; `registeringANativeNodeDuringNativeLayoutTraps` (one storage append, one check) |
+| 190 | NativeBoundaryTrapTests | `registeringANodeDuringLegacyLayoutTraps` | registering during legacy layout traps (the check is not native-only) | R | F1 | `registeringALegacyLeafDuringNativeLayoutTraps`; `registeringANativeNodeDuringNativeLayoutTraps` (one storage append, one check) — **amended by the branch check (`LR-EQ`, §9): D, not R** — both replacements lay the tree out with the native engine, so neither sees whether **the CSS engine's entry** (`computeLayout`, stage 9) raises the flag; M-B1 (its bracket deleted) reddens nothing. The legacy half of `SA-I`'s one flag is unpinned until stage 9; row 189's legacy half likewise |
 | 191 | StyleTests | `defaultStyleMatchesCSSInitialValues` | `Style()` defaults are CSS initial values | K | — | **kept** (`LR-EE`): `Style` is the lowering's input in production until stage 10 deletes its CSS fields |
 | 192 | StyleTests | `defaultStaticIsExactlyTheMemberwiseDefault` | `Style.default == Style()` | K | — | **kept** (`LR-EE`): native nodes' placeholder rows read `Style.default` (`everyNativeRegistrarAcceptsNativeChildrenWithoutTrapping`) |
 | 193 | StyleTests | `flexDirectionKnowsItsAxis` | `FlexDirection` knows its axis | K | — | **kept** (`LR-EE`): the lowering reads it for every `Row`/`Column` |
@@ -1270,3 +1277,86 @@ comment-line changes only (checked above); no `Sources/` file touched by this
 section. The count, guards and goldens are unmoved from §7's own figures
 (**1445 / 0 / 78**); only the gated figure (eleven, not nine) and divergence
 4's wording change.
+
+## 9. Adversarial branch check (2026-09-24, PDT, `LR-EQ`)
+
+Re-taken from `8d675eb`, one agent, the worktree clean before and after.
+
+**Build and suite.** `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`, one `warning:` — SwiftPM's deprecation notice),
+unfiltered `swift test --build-system native --no-parallel`: **`Test run with
+1445 tests in 3 suites passed after 86.688 seconds`**, one summary line, `FR-J
+no-argument frame: succeeded=` present, eleven `skipped.` lines (the eleven
+§8 names). Default `swift build --build-tests`: `Build complete!`, 0
+`error:`, 0 `warning:`. Guards: `git grep -c canTypecheck -- Tests` sums to
+80 (78 guards, the declaration, one comment). Goldens: `find
+Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0. `cmp CLAUDE.md
+AGENTS.md` clean.
+
+**Retirement table, by script.** A scanner pairing each `@Test` attribute
+(comments stripped) with the next `func`, keyed on file **and** name, over
+`Tests/` less `Tests/PortableTests`: 1670 at `41344e5`, 1445 at `8d675eb`;
+**236 removed, 11 added** (exactly N1.1, N1.2, N2.1–N2.4, N3.1–N3.5), and the
+236 equal the table's R/D/N rows one to one, none missing, none extra —
+**1670 − 236 + 11 = 1445**. Every backticked name in a replacement column
+resolves to a `func` in `Tests/` at `8d675eb` except two, both cross-references
+to other retired rows (`aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`
+in row 242, `anAutoCrossSizeInAColumnIsFitContentLikeWebKit` in row 234), as
+their wording says. Every test name cited on a `+` line of any changed `.md`
+resolves to a definition at `41344e5` or `8d675eb` except
+`regenerateAllGoldens` (stage 7a's, cited as history); every backticked
+ruling id resolves except the "next unused" ones. `MetalUILayoutTests` holds
+389 `@Test`s at `41344e5` (388 portable, one `#if canImport(Darwin)`) and 200
+at `8d675eb`, none Darwin-gated: CLAUDE.md's **200 + 22 + 3** holds.
+`grep -rn "computeLayout(" Tests` prints nothing. `FlexEngine.swift`
+(`computeLayout`), `LayoutAuthority.legacy`, `Frame.requestNode` and the
+public `LayoutPass.requestNode` are all present. `Sources/` diff: every
+`+`/`-` line is a comment. `Tests/PortableTests`, `Backends` and
+`Package.swift`: no diff.
+
+**Identity, hit testing, accessibility, animation.** No removed name is an
+identity, focus, click, accessibility or animation test other than rows the
+table maps: `everyRegisteringSiteAnimatesItsStyle` (row 241, R, mutated below)
+and `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel` (N2, its
+wheel half under the proposal authority). The `ComponentTests` identity tests
+(`addingAModifierDoesNotResetAComponentsState`,
+`anEmptyComponentStillHoldsItsOwnState`, `anEmptyComponentContributesNoNodes`)
+are kept, byte-identical.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <dir> 41344e5 HEAD`: all
+fourteen images **differing=0, scene identical**; controls at `41344e5` read
+light-vs-dark 1048576, f0-vs-f3 0, chrome legacy-vs-proposal 0, distinct 544 /
+216, indicator rects 0 (the default-vs-modal 1031003 and default-vs-animation
+454895 are the post-6b figures, not the script header's pre-6b ones).
+**No real-window capture**: `docs/probes/appkit-screen-lock-state.swift`
+printed `displayAsleep main: 1`, `displayActive main: 0` — the capture stays
+owed to the human with the rest of §03's rows.
+
+**Mutations** (each: working tree clean, a copy taken, the edit applied by
+script and confirmed with `git diff --stat`, native build, full unfiltered
+suite, restored from the copy, `git status --short` empty after).
+
+| id | mutation | result | reading |
+|---|---|---|---|
+| M-B1 | `computeLayout` loses `tree.beginLayout()` / `defer { tree.endLayout() }` (the CSS engine no longer raises `isLayingOut`) | `Test run with 1445 tests in 3 suites passed` — **nothing reddens** | row 190's R replacements cannot see its fact; **finding**, `LR-EQ`: row 190 → D, row 189's legacy half likewise |
+| M-B2 | `Stack.requestLayout`'s `(style, decoration) = animated(…)` line deleted | 6 issues: `aLoweredStackLaysOutItsAnimatedWidthAndPadding` (4), `decorationSubstitutionReachesTheElementOnBoxAndStack` (2) | row 241 confirmed: the first is the `Stack` pin its replacement's site map names; `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` itself carries only arms (a)–(c) and does not redden, as its map says |
+
+An earlier attempt at M-B2 with BSD `sed` (`\s` unsupported) left the file
+unchanged and read 1445 passed; it was caught by the empty `git diff`, and is
+not counted — the table's M-B2 is the re-applied one.
+
+**Doc defects fixed in this section's commit**: the decisions doc's header
+still read "next unused `LR-EP`" after `LR-EP` was appended (now `LR-ER`);
+CLAUDE.md's stage-7b counts paragraph carried a garbled clause attributing
+`layingOutATreeDeeperThanTheLimitTraps` to `NativeBoundaryTrapTests`, and said
+the deprecation `warning:` held "on both build systems" (the default one
+prints none); the plan's progress note said "eleven of them, ten new bodies"
+(the design's figure) where lane 1's `LR-EM` made it eleven new tests over
+twelve N rows; row 190 amended as above, and CLAUDE.md's `SA-I` rule notes
+its legacy half is unpinned until stage 9.
+
+**Merge verdict: mergeable.** No code defect: the one finding is a test-gap
+classification on a CSS-engine-only fact that stage 9 deletes, recorded
+rather than repaired (`LR-EQ`). Task 7 stays unticked; the plan note and §4.1
+row 7b agree (7b retires tests, `FlexEngine` and the legacy authority wait for
+stage 9).

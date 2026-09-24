@@ -701,9 +701,10 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   every `.legacy` pin stay for 7b and 9.
   *Progress 2026-09-24 on `feat/engine-stage-7b` (from `41344e5`, `master`'s
   tip after the stage-7a merge), stage 7b of 14, task still open.* Spec
-  `specs/2026-09-23-engine-stage-7b-design.md`; rulings `LR-EC`…`LR-EP` in
+  `specs/2026-09-23-engine-stage-7b-design.md`; rulings `LR-EC`…`LR-EQ` in
   `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages
-  1–7a; `LR-EP` is this record phase's own correction); no new SwiftUI probe
+  1–7a; `LR-EP` is this record phase's own correction, `LR-EQ` the
+  adversarial branch check's: row 190 is D, not R); no new SwiftUI probe
   — five existing probes re-run 2026-09-24, every output line verbatim in its
   header (`LR-EI`); record `docs/record/49-engine-replacement-stage-7b.md`.
   **The non-golden CSS-engine tests are retired**: the 187 left in spec
@@ -712,7 +713,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   tests stages 6a/6b pinned `.legacy` with a 7b owner — 245 rows in record
   §49 §4, each an **R** (a native test already asserts the same fact), a
   **D** (a named CSS-only concept with the native answer instead), an **N**
-  (a new proposal-authority test, eleven of them, ten new bodies), a **T**
+  (a new proposal-authority test — eleven new tests over twelve N rows, after lane 1's `LR-EM` turned row 71 from R to N), a **T**
   (trimmed, byte-identical elsewhere) or a **K** (`StyleTests`, kept
   untouched). A critic round (`LR-EL`) preceded three lanes, each with its
   own mutation table, all verified `ok`; a fourth, independent re-check of
