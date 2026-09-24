@@ -11,8 +11,9 @@ five existing probes re-run 2026-09-24, every output line verbatim in its
 header). Branch `feat/engine-stage-7b` from `41344e5`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-7b`.
 
-**Status, 2026-09-24 (PDT): design.** No file under `Sources/`, `Tests/` or
-`Package.swift` changed in a commit.
+**Status, 2026-09-24 (PDT): lane 1 delivered** (record §49 §6.1, `LR-EM`:
+row 71 became N with a new test, so the stage's count is 1445, not 1444; M1j
+re-spelled M1j′). The design paragraph below is kept as written.
 
 **What this stage is.** Every test that uses the CSS engine **as its
 subject** is retired with a row naming either the native test that asserts
@@ -119,7 +120,7 @@ an unpinned one (CLAUDE.md "Practices"): N2.1 beside `observe` in
 The row-by-row table is record §49 §4; each row names the fact, the verdict,
 the family and the replacement. In summary:
 
-- **R (112)** — the fact has a proposal-engine test today. The largest
+- **R (112; 111 after `LR-EM`, row 71 → N)** — the fact has a proposal-engine test today. The largest
   sources: stage 7a's `GoldenReplacementFlexTests` / `GoldenReplacementStackTests`
   arms (fixed packing, gaps, distribution, cross alignment, reversal, padding
   and border, margins, grow with a cap, stacks, absolute boxes), the stage-2–5
@@ -137,7 +138,7 @@ the family and the replacement. In summary:
   and single concepts (FR-E's clamp, FR-O's both-axes rule, `CN-N`'s one-cell
   stack, divergence 48's legacy answer, …). Each names the native pin of what
   the proposal authority does instead.
-- **N (11 rows, 10 new tests)** — non-CSS facts the retired test observed
+- **N (11 rows, 10 new tests; 12 rows and 11 tests after `LR-EM`, N1.2)** — non-CSS facts the retired test observed
   through the legacy engine and nothing pins natively (§6).
 - **T (5)** — trimmed or re-spelled, kept assertions byte-identical (§6).
 - **K (4)** — `StyleTests` (`LR-EE`).
@@ -179,7 +180,7 @@ file other than the T rows equals its `41344e5` text.
 
 **Owns:** the eighteen files of record §49 §1 (seventeen deleted, `StyleTests`
 kept untouched), `NativeBoundaryTrapTests.swift`, `LoweringLeafTests.swift`.
-**Removes 190**: rows 1–190 of record §49 §4 (rows 191–194 are `StyleTests`'
+**Removes 190, adds 2** (N1.1, and N1.2 for row 71 by `LR-EM`): rows 1–190 of record §49 §4 (rows 191–194 are `StyleTests`'
 four K rows; lane 2's are 195–231, lane 3's 232–245): `LayoutContextTests` 10, `StackLayoutTests` 22,
 `AlignmentTests` 15, `FlexEngineTests` 19, `BoxModelTests` 26,
 `WrappingTests` 18, `FreezeLoopTests` 20, `AbsolutePositioningTests` 17,
@@ -217,7 +218,7 @@ removal):
 | M1g | F5 | a margin lowered **inside** the aliased item frame instead of outside it | `marginsOffsetEachItemOutsideItsBorderBox`, `aMarginLowersAsPaddingOutsideTheItem` |
 | M1h | F6 | the `flexWrap` diagnostic removed from `legacyContainerDiagnostics` | `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs` |
 | M1i | F7 | the kernel's measure cache never hits (`measureNative` always misses) | `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` (its literal `cacheHits == 51`). **Not** `nativeLayoutWorkIsPerCall`: it compares two calls to each other, both uncached under the mutant, so it stays green (`LR-EL` finding 3) |
-| M1j | F7 (D pin) | a positive `flexShrink` lowered as `fixedSize` | `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight` |
+| M1j | F7 (D pin) | a positive `flexShrink` lowered as `fixedSize` | `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight` — **cannot, measured** (`LR-EM` item 3: its boxes declare their widths, so `fixedSize` around a fixed frame changes nothing); the sample is **M1j′**, a positive shrink other than 1 reported, which reddens it alone |
 | M1k | F8 | the presentation lowering ignores the `right`/`bottom` insets | `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` |
 | M1l | F9 | the lowering's rem factor made 10 in place of the frame's root font size | `aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation` (its rem arm) |
 
@@ -385,7 +386,7 @@ count, both build systems, pixels, and the census compared.
 1. **`grep -rn "computeLayout(" Tests --include='*.swift'` (`.build`
    excluded) prints nothing.**
 2. **The retirement table accounts for every `@Test` removed:** 1670 − 236 +
-   10 = **1444**, `Test run with 1444 tests in 3 suites passed`, one summary
+   11 = **1445** (`LR-EM`; the design read + 10 = 1444), `Test run with 1445 tests in 3 suites passed`, one summary
    line, `FR-J` in the log; and the removal check by script (§6) green over all
    245 rows.
 3. **The census:** `docs/probes/stage-7b-css-engine-instrument.patch`

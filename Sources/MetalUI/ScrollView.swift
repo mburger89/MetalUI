@@ -149,10 +149,13 @@ public struct ScrollContext: Sendable, Equatable {
 /// (`Tests/MetalUITests/ScrollViewTests.swift`) is the pin, with CoreText as
 /// its oracle; deleting the line reddens exactly it. The engine mechanism the
 /// four-row table *does* isolate — that `flexShrink: 0` also holds a node open
-/// once an explicit zero minimum has removed the automatic one — stays pinned
+/// once an explicit zero minimum has removed the automatic one — was pinned
 /// independently of this type by
 /// `flexShrinkHoldsAContentNodeOpenOnceItsAutomaticMinimumIsRemoved`
-/// (`Tests/MetalUILayoutTests/ScrollLayoutTests.swift`).
+/// (`ScrollLayoutTests.swift`) until stage 7b retired it with the CSS engine's
+/// automatic minimum (record §49 row 187); under the proposal authority
+/// `flexShrink(0)` lowers to `fixedSize` on the main axis, pinned by
+/// `aZeroShrinkKeepsItsNaturalMainSizeAndOverflows`.
 ///
 /// **Scroll position is `StateTable` state, so it inherits §4.3's adoption
 /// rule**: a `ScrollView` inside a vanishing `if` hands its offset to the

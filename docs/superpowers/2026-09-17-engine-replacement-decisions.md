@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-EM`** (stage 7b's design took `LR-EC`…`LR-EK` and its critic round 1 `LR-EL`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-EN`** (stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL` and its lane 1 `LR-EM`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -7869,3 +7869,70 @@ precondition stays unpinned 7b→9, as `LR-EF` records.
 criterion that cannot be met, or tempts lane 3 to retire four stage-9 tests to
 meet it; finding 3 unfixed spends a lane's time on a mutation "that reddens
 nothing".
+
+---
+
+## LR-EM — stage 7b lane 1: one R row fails its confirmation, M1j re-spelled, the portable figure
+
+**Findings, each measured on the committed tree with the full unfiltered
+suite** (record §49 §6.1).
+
+1. **Record §49 row 71 is N, not R.** `BoxModelTests.aShrunkContainerNeverHandsItsChildANegativeContentBox`
+   pinned the CSS engine's `contentBox` `max(0, …)`. Its native analogue is
+   `LayoutTree.paddingProposal`'s `max(0, proposal − insets)` per axis, which
+   every lowered padding and `Style.padding` reaches — and removing it left
+   **all 1670 tests green** at `41344e5`: none of the row's three named
+   replacements (`aFrameNeverAnswersANegativeSize`,
+   `negativePaddingIsAcceptedAndItsResponseClampsPerAxis`,
+   `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`) offers a
+   child a proposal the insets exceed with a child that echoes it. New test
+   **N1.2 `aPaddingWiderThanItsProposalOffersItsChildZeroNeverANegativeSize`**
+   (`NativeLayoutTests.swift`, beside the kernel padding tests; a kernel fact,
+   so it runs on Linux and Windows too), literals derived before the run, a
+   positive control required to disagree first; the mutant reddens it and
+   nothing else. Every other R row of lane 1 was confirmed by reading its
+   replacement's arm, and each family by its mutation.
+2. **The counts move by +1.** Lane 1: 1670 + **2** − 190 = **1482** (spec §5's
+   1481). Stage: 1670 − 236 + **11** = **1445** (spec §8's 1444). Verdicts: R
+   111, D 113, N **12 rows, 11 new tests**, T 5, K 4 — still 245 rows.
+3. **M1j as spelled cannot redden its named D pin.** "A positive `flexShrink`
+   lowered as `fixedSize`" was run in two spellings — on an `auto` main axis
+   only (60 issues, 30 tests) and on every main size (68 issues, 36 tests) —
+   and **neither reddens `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight`**:
+   its two boxes declare their widths, so each lowers to a rigid fixed frame
+   and a `fixedSize` around it changes nothing. The mutation that sees the D
+   concept (weighted shrink dies) is the test's own: **M1j′**, a positive
+   shrink other than 1 reported → it reddens alone (2 issues). F7's D sample
+   is M1j′.
+4. **M1i hangs one exit child.** With the kernel cache never hitting,
+   `aChainOfMaxDepthNodesOfEveryKindSurvivesAOneMegabyteThread`'s child
+   re-measures a 72-level chain exponentially; it ran 30 minutes at 99% CPU
+   and was killed (recorded as reddened). M1i reddens
+   `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` on all of
+   its (1)–(3) — calls per proposal, `measureCalls`, `cacheHits`,
+   `cacheMisses` — not the `cacheHits` literal alone; `nativeLayoutWorkIsPerCall`
+   stays green, as `LR-EL` finding 3 predicted.
+5. **The portable CI figure** (Linux, `swift:6.4-noble`, `swift build
+   --build-tests` then `swift test --no-parallel`, 0 `error:`/`warning:`):
+   `MetalUILayoutTests` **200** = 388 − 189 + 1 (of the 190 removed, one
+   `FreezeLoopAllocationTests` case was already `#if canImport(Darwin)`; N1.2
+   adds one; N1.1 is in the macOS-only `MetalUITests`), `MetalUICoreTests`
+   22, `MetalUICrossPlatformTests` 3 — **200 + 22 + 3** for the Record phase.
+6. **Comments.** `Sources/` comments that stated a lane-1 test or file as a
+   present pin are re-pointed, comment lines only (`LR-EG`): `Rounding.swift`
+   (MR1 re-measured: 28 → **26**, exactly the two retired tests fewer),
+   `ScrollView.swift`, `Box.swift` (two: `ResolveTests`, `SizingFixtureTests`)
+   and `List.swift` (`SizingFixtureTests`) — the last three named a deleted
+   **file**, which record §49 §5.1's test-name grep could not see. CSS-only
+   files' comments naming a deleted file (`FlexEngine.swift` 386, 801, 1851,
+   1902) are listed, not edited. Test-file doc comments that name a retired
+   test or file are **not** edited by lane 1 (none of those files is lane 1's):
+   `NativeDepthGuardTests` 20, 23; `ScrollViewTests` 53–55 (a present pin);
+   `ElementGroupTrapTests` 419; `InputDispatchTests` 439; lane 3's
+   `TextMeasureTests` 318, 342–343; lane 2's `ModifiedElementTests` 723, 832,
+   840 (the `malloc_logger` collision hazard with the deleted
+   `FreezeLoopAllocationTests`, now one-sided). Handed to the Record phase.
+
+**What it costs if wrong.** Row 71 kept as R would have deleted the only pin of
+a clamp every padded element reaches, with nothing reddening; M1j kept as
+spelled would record F7's D sample as a mutation that cannot redden it.

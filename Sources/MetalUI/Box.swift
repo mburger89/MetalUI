@@ -847,8 +847,8 @@ extension StyledElement {
     ///
     /// The **root** is not a special case: ruling `SZ-A` made `resolveRootSize`
     /// resolve a root fraction against the extent that axis was offered
-    /// (oracle `rootPercentageMatchesWebKit`,
-    /// `Tests/MetalUILayoutTests/SizingFixtureTests.swift`); the test's root
+    /// (oracle `rootPercentageMatchesWebKit`, in `SizingFixtureTests.swift`,
+    /// retired with the goldens by stage 7a and the file by 7b); the test's root
     /// arm keeps that honest through the public modifier.
     public func width(fraction: Float) -> Self {
         modifying { $0.size.width = .length(.percent(fraction)) }
@@ -945,8 +945,12 @@ extension StyledElement {
     /// the same integration, ruling `OM-M`, and the paint-only `border` that
     /// replaced it takes `Pixels`). A rem resolves in
     /// `MetalUILayout/Resolve.swift` against `Frame.rootFontSize` — a single
-    /// per-frame `let`, default 16, not a per-element font size — and is
-    /// already pinned by `ResolveTests`. SwiftUI has neither, so it is a
+    /// per-frame `let`, default 16, not a per-element font size. `ResolveTests`
+    /// pinned it until stage 7b retired that file (record §49 row 173); the
+    /// lowering's rem resolution is pinned by the rem arms of
+    /// `aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation` and
+    /// `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` (record
+    /// §49 §6.1, M1l). SwiftUI has neither, so it is a
     /// MetalUI divergence kept under `FR-H`'s disposition; it is a box-model
     /// unit rather than a frame parameter, so plan task 4 left it alone.
     public func padding(_ edges: Edges<Length>) -> ModifiedElement<LayerBase> {

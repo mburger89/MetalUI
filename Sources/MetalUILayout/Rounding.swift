@@ -39,11 +39,16 @@ public struct LayoutRect: Sendable, Equatable {
 /// 100); stage 7a retired the goldens (record §48). Measured after it, in the
 /// full suite at 1616 tests:
 ///
-/// - **Deleting `roundStoredRects`' call from `computeLayout`** reddens 28
+/// - **Deleting `roundStoredRects`' call from `computeLayout`** reddened 28
 ///   tests, among them `computeLayoutRoundsEveryStoredRect` and
 ///   `shrinkIsWeightedByBaseSize` on the legacy engine and every lowering
 ///   differential that compares the legacy engine's rects with the native
-///   ones.
+///   ones. Stage 7b retired those two with the CSS-engine test files (record
+///   §49 rows 54 and 112); re-measured after it, at 1482 tests, the same
+///   deletion reddens **26** — the lowering differentials alone, among them
+///   `aLoweredPaddingLayerAgreesWithTheLegacyWrapper` and
+///   `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth` (record §49 §6.1,
+///   MR1).
 /// - **Deleting `roundNativeStoredRects`' call to this function** reddens 57,
 ///   among them `nativeLayoutRoundsStoredRectanglesAfterFractionalPlacement`,
 ///   `flex_row_seven_equal`'s arm of

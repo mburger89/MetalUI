@@ -287,7 +287,7 @@ divergence 4.
 | 68 | BoxModelTests | `stretchFillsTheContentBoxNotTheBorderBox` | a stretched item fills the content box, not the border box | R | F5 | `paddingAndBorderInsetTheContentBoxEdgeByEdge` (`flex_column_padding_asymmetric` arm: stretched items 64 wide at x 24) |
 | 69 | BoxModelTests | `growDistributesTheContentBoxNotTheBorderBox` | a grower's free space is the content box's | R | F5 | `paddingAndBorderInsetTheContentBoxEdgeByEdge` (`flex_row_padding_border` arm: the grower takes the remaining 256) |
 | 70 | BoxModelTests | `anOverConstrainedBoxGrowsToFitItsPaddingAndBorder` | BM-4: padding + border past a declared size grow the box | D | F5 | **border-box floor** (`BM-4`): the declared size is kept (`aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`, `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder`; 7a probe B1 vs B0) |
-| 71 | BoxModelTests | `aShrunkContainerNeverHandsItsChildANegativeContentBox` | `contentBox`'s max(0, …): no negative size reaches a child | R | F5 | `aFrameNeverAnswersANegativeSize`; `negativePaddingIsAcceptedAndItsResponseClampsPerAxis`; `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox` (padding larger than the declared size: no negative child) |
+| 71 | BoxModelTests | `aShrunkContainerNeverHandsItsChildANegativeContentBox` | `contentBox`'s max(0, …): no negative size reaches a child | R | F5 | `aFrameNeverAnswersANegativeSize`; `negativePaddingIsAcceptedAndItsResponseClampsPerAxis`; `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox` (padding larger than the declared size: no negative child) — **amended by lane 1 (`LR-EM` item 1): N, not R** — no named replacement reddens under the kernel clamp's removal; new test **N1.2** `aPaddingWiderThanItsProposalOffersItsChildZeroNeverANegativeSize` |
 | 72 | BoxModelTests | `anItemsCrossSizeGrowsToFitItsPaddingAndBorderEvenPastItsMax` | BM-4 at `resolveNodeSize`, after the min/max clamp | D | F5 | **border-box floor** (`BM-4`): the declared size is kept (`aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`, `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder`; 7a probe B1 vs B0) |
 | 73 | BoxModelTests | `anItemWithMinZeroStillGrowsToFitItsPaddingAndBorder` | BM-4 at `flexBaseSize` (a declared main size) | D | F5 | **border-box floor** (`BM-4`): the declared size is kept (`aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`, `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder`; 7a probe B1 vs B0) |
 | 74 | BoxModelTests | `aDefiniteFlexBasisIsFlooredByPaddingAndBorderToo` | BM-4 reaches a definite `flex-basis` | D | F5 | **border-box floor** (`BM-4`): the declared size is kept (`aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`, `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder`; 7a probe B1 vs B0); **length `flex-basis`**: reported by name (`aZeroBasisGrowerTakesItsShareDownToItsContent`, its 40px arm), owner stage 8/10 (`LR-AO`) |
@@ -496,6 +496,10 @@ the stage's close, lane by lane:
 | lane 2 | 1449 | 1481 + 4 (N2.1–N2.4) − 36 |
 | lane 3 | 1444 | 1449 + 5 (N3.1–N3.5) − 10 |
 
+**Amended by lane 1 (`LR-EM`).** Row 71 became N with a new test (N1.2), so
+lane 1 ends at **1482** (1670 + 2 − 190, measured), lane 2 at **1450** and lane 3
+at **1445**: **1670 − 236 + 11 = 1445**. The table above is the design's.
+
 Guards stay **78** (no guard is added or removed: none of the retired files
 holds `canTypecheck`, checked by grep). Gated tests stay **nine** (none of the
 retired tests is `.enabled(if:)`). `AuthorityCoverage.expected` stays **82**
@@ -525,3 +529,159 @@ Appended by the lanes (spec §6). Lane 1 owns the eighteen files of §1,
 `EnvironmentTests`, `StackElementTests`, `AnimationTests`,
 `FrameDecorationInteractionTests`, `OuterModifierMatrixTests`,
 `RootSwitchTests`.
+
+### 6.1 Lane 1 — the engine files (2026-09-24, PDT)
+
+**Commits.** `c3dd61b` — N1.1 `anEmptyLoweredStackOrContainerAnswersZeroOnItsAutoAxes`
+(`LoweringLeafTests.swift`) and N1.2 `aPaddingWiderThanItsProposalOffersItsChildZeroNeverANegativeSize`
+(`NativeLayoutTests.swift`, `LR-EM` item 1), green; `6e2b3c0` — the removal:
+seventeen files deleted whole (187 tests; every helper in them was
+file-private, so none was moved and none needed a new home — grep for each
+top-level declaration found no caller outside its file) and
+`NativeBoundaryTrapTests`' three `computeLayout(` tests with the `space`
+constant only they used; the commit after it — `Sources/` comment re-points
+(`LR-EM` item 6), `LR-EM`, the spec's amendments and this section.
+`StyleTests` untouched (K rows 191–194).
+
+**R confirmation.** Every R row's replacement was located (all exist) and its
+arm read against the retired test's body — the golden-replacement arms (7a),
+the `Lowering*` suites, the kernel suites. **One failed: row 71**
+(`aShrunkContainerNeverHandsItsChildANegativeContentBox`, the CSS engine's
+`contentBox` `max(0, …)`). Its native analogue, `LayoutTree.paddingProposal`'s
+per-axis `max(0, proposal − insets)`, was deleted on `41344e5` and the full
+unfiltered suite read **`Test run with 1670 tests in 3 suites passed`** — no
+named replacement offers a child a proposal its insets exceed. Row 71 became
+N (`LR-EM` item 1) with N1.2.
+
+**Red-before (N tests), on `c3dd61b`**, full unfiltered suite, restored from a
+copy, `git status --short` empty after each:
+
+- **M1.1** — `lowerShownLegacyNode`'s empty-container leaf `SizeD(width: 0,
+  height: 0)` → `SizeD(width: 1, height: 1)`: `Test run with 1672 tests in 3
+  suites failed … with 71 issues`. N1.1's lines: `LoweringLeafTests.swift:666:9:
+  Expectation failed: arm.empty == bounds(0, 5, 0, 0)` and `:667:9 … arm.sibling
+  == bounds(0, 0, 10, 10)` (8 issues over its four arms; the 30×20 control
+  unmoved). Reddened, all 14: `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, `alignItemsAndAlignSelfPlaceEachItemOnTheCrossAxis`, `aLoweredBoxPaddingSitsInsideItsDeclaredSize`, `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent`, `anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues`, `anEmptyLoweredStackOrContainerAnswersZeroOnItsAutoAxes`, `aPresentationPlaceholderIsDroppedByEveryLoweredContainer`, `aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork`, `aStretchedSingleChildContainerDoesNotStretchItsChild`, `aStyleBorderLowersAsInsetsInsideTheDeclaredSize`, `aZeroBasisGrowerTakesItsShareDownToItsContent`, `aZeroRowHeightLowersWithoutTrappingOrProducingNaN`, `theCentringDefaultOfRowAndColumnStretchesNothing`.
+- **M1.2** — `paddingProposal` without its two `Swift.max(0, …)`: **6 issues,
+  N1.2 alone** — `NativeLayoutTests.swift:502:5: Expectation failed:
+  overflowing.proposals == [ProposedSize(width: 0, height: 0)]`, then `:503`
+  (child rect), `:504` (answer), `:507`–`:509` (the one-axis arm). The
+  control arm unmoved. The same mutant on `41344e5` reddened nothing (above).
+
+Both N tests render `.proposal` only, so the CSS-engine census's section A is
+unchanged by them.
+
+**The removal.** `6e2b3c0`: `swift build --build-system native --build-tests`
+0 `error:`, one `warning:` (SwiftPM's deprecation notice); unfiltered `swift test
+--build-system native --no-parallel` → **`Test run with 1482 tests in 3 suites
+passed`**, `FR-J no-argument frame: succeeded=true` in the log. **1670 + 2 −
+190 = 1482.** Removal check by script: for all 190 rows, the name existed in
+its file at `41344e5` and no `func <name>(` remains in that file at HEAD (the
+seventeen files are gone; `ShapingCacheTests`' own `theCacheIsActuallyConsulted`
+is untouched, the check keying on file and name); `NativeBoundaryTrapTests`: 15
+tests at `41344e5`, 12 now, the three removed exactly the three rows, and the
+twelve survivors' bodies (doc comment through closing brace) byte-identical to
+`41344e5`. The file's one comment edit is outside every test body (its
+file-scope note now says "the retired `LayoutContextTests`'").
+`grep -rn "computeLayout(" Tests --include='*.swift'` now prints one line,
+`ElementLayoutTests.swift:309` — lane 2's
+`aNestedLayoutMatchesTheEngineRunDirectly`.
+
+**Family mutations**, each on the committed removal (`6e2b3c0`), the file
+copied to the scratchpad, edited, full unfiltered `swift test --build-system
+native --no-parallel`, restored from the copy, `git status --short` empty after
+every one. Every required replacement reddened **except M1j's** (below). The
+full reddened set of each is listed; issue counts are the summary line's.
+
+| id | F | spelling applied | issues | required replacement | every test reddened |
+|---|---|---|---|---|---|
+| M1a | F1 | `LayoutTree.beginLayout`: `precondition(!isLayingOut, "computeLayout re-entered on the same tree")` deleted | 1 | `computeNativeLayoutReenteredFromAMeasureClosureTraps` | `computeNativeLayoutReenteredFromAMeasureClosureTraps` (1) |
+| M1b | F1 | `setStyle`: `precondition(!isLayingOut, …)` → `let splitFlag = false; precondition(!splitFlag, …)` | 2 | `setStyleOnALegacyNodeDuringNativeLayoutTraps` | `setStyleOnALegacyNodeDuringNativeLayoutTraps` (1) |
+| M1c | F1 | `NativeLayoutRun.enter`: `depth <= NativeLayoutRun.maxDepth` → `depth <= NativeLayoutRun.maxDepth + 1` | 12 | `layingOutANativeTreeDeeperThanTheLimitTraps` | `aChainOf72GridsTraps`, `aLoweredItemChainWithFourWrappersPerLevelOnePastTheNativeDepthLimitTraps`, `aLoweredItemChainWithThreeWrappersPerLevelOnePastTheNativeDepthLimitTraps`, `aPlacementOnlyChainOfCustomLayoutsDeeperThanTheLimitTraps`, `layingOutANativeTreeDeeperThanTheLimitTraps`, `measuringANativeTreeDeeperThanTheLimitTraps` (6) |
+| M1d | F2 | `lowerShownLegacyNode`'s `display == .stack` branch: `horizontal: alignmentFactor(style.justifyItems)` → `1 - alignmentFactor(…)` | 42 | `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes`, `aStackPlacesAFixedChildAtItsAlignment` | `aHiddenChildKeepsItsSpaceUnderTheProposalAuthority`, `aLoweredStackLaysOutItsAnimatedWidthAndPadding`, `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes`, `aStackPlacesAFixedChildAtItsAlignment`, `aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields`, `aStretchedStackChildFillsOnlyItsAutoAxesWithinItsOwnBounds`, `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder`, `theElementBoundsLogRecordsTheRootEveryGroupMemberAndEveryInnerModifierLayer` (8) |
+| M1e | F3 | `distributedLegacyItems`: `betweenCount = distribution == .spaceAround ? 2 : 1` → `? 1 : 1` | 11 | `spaceAroundAndSpaceEvenlyLowerToSpacersWhileTheyFit`, `justifyContentDistributesADeclaredMainSizesFreeSpace` | `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `justifyContentDistributesADeclaredMainSizesFreeSpace`, `spaceAroundAndSpaceEvenlyLowerToSpacersWhileTheyFit` (3) |
+| M1f | F4 | `arrangeLegacyMainAxis`: `var spacing = gap` → `var spacing = 0.0` | 123 | `fixedItemsPackFromTheMainStartAtTheirOwnSizesAndGap`, `aLoweredContainerSpacesItsChildrenByTheGapOnItsMainAxis` | `aGrowingChildTakesTheRemainingMainSpace`, `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap`, `aLoweredContainerPaddingSitsInsideItsDeclaredSize`, `aLoweredContainerSpacesItsChildrenByTheGapOnItsMainAxis`, `aLoweredRowAndColumnAgreeWithTheLegacyContainersOverFixedChildren`, `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault`, `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths`, `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`, `aLoweredWindowPublishesTheSameAccessibilityTree`, `aPresentationPlaceholderIsDroppedByEveryLoweredContainer`, `aProposalElementInsideALoweredContainerLaysOutUnderTheProposalAuthorityAndTrapsUnderTheLegacyOne`, `aReverseContainerPlacesItsChildrenFromTheMainEnd`, `fixedItemsPackFromTheMainStartAtTheirOwnSizesAndGap`, `gapIsPerAxisAndTheRowReadsTheHorizontalOne`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (18) |
+| M1g | F5 | `registerLegacyItems`: the `marginInsets` padding registered right after `fixedSize`, inside the aliased item frame, and removed from its last-registered place | 13 | `marginsOffsetEachItemOutsideItsBorderBox`, `aMarginLowersAsPaddingOutsideTheItem` | `aMarginLowersAsPaddingOutsideTheItem`, `marginsOffsetEachItemOutsideItsBorderBox` (2) |
+| M1h | F6 | `legacyContainerDiagnostics`: the `flexWrap != .noWrap` line deleted | 5 | `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs` | `aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst`, `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs`, `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` (3) |
+| M1i | F7 | `measureNative`: `if let cached = run.cache[key]` → `if let cached = (run.cache.isEmpty ? run.cache[key] : nil)` (never hits) | 50 | `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` | `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal`, `aChainOfMaxDepthNodesOfEveryKindSurvivesAOneMegabyteThread`, `aDifferentRootProposalReMeasuresAndMovesTheRects`, `aGridsWorkAtFiniteProposalsIsOneLeafCallPerDistinctProposal`, `aGridsWorkAtNilIsOneLeafCallPerDistinctProposal`, `aLargeColumnCountCostsTheKernelOnePassPerColumn`, `aListsWorkIsTheSameFor160RowsAsFor40`, `aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork`, `aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork`, `aNativeHorizontalScrollViewportLeavesItsWidthUnspecifiedForContent`, `aNativeScrollViewportLeavesItsScrollingAxisUnspecifiedForContent`, `aPaddingWiderThanItsProposalOffersItsChildZeroNeverANegativeSize`, `aProposalTextInAStackIsShapedOncePerDistinctWidth`, `aResetTreeMeasuresItsNewRegistrationsFromScratch`, `aSecondComputeNativeLayoutCallReMeasuresEveryLeaf`, `aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork`, `aSubviewMeasuresOncePerDistinctProposalWithinOneRun`, `fixedSizeModifierWithholdsOnlyItsSelectedAxisFromTheChildProposal`, `nestedStacksUnderAnUnspecifiedCrossProposalDoBoundedWork` (19) |
+| M1j | F7 (D) | `planLegacyItems`: `d.flexShrink == 0 && mainAuto` → `d.flexShrink >= 0 && mainAuto` (the design's spelling) | 60 | `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight` — **not reddened** (`LR-EM` item 3) | `aFieldLaysOutAndEditsUnderBothAuthorities`, `aGrowInsideAOneChildPaddingFillsTheWrapperWhereCSSLeavesItUngrown`, `aListInTheDifferentialHarnessReachesABoundedWindow`, `aListsWorkIsTheSameFor160RowsAsFor40`, `aLongTextScrollsToKeepTheCaretVisible`, `aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork`, `aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows`, `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`, `aLoweredScrollViewFillsItsProposalOnTheScrollingAxisWhereTheLegacyViewportHugs`, `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`, `aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork`, `anAlignSelfInsideAOneChildWrapperFillsTheWrapperWhereCSSIgnoresIt`, `anAlignSelfWrapperFillsAnIndefiniteContainerWhereCSSHugs`, `anAppsKeymapBindingWinsOverEditingAndUnclaimedKeysBubble`, `aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields`, `aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork`, `aStretchedItemInsideAHuggingItemFillsItsProposal`, `aTextShrunkByFlexStillWrapsAtItsShrunkWidth`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`, `aZeroBasisGrowerTakesItsShareDownToItsContent`, `clickingAFieldFocusesItAndTypingEditsItsText`, `copyCutAndPasteGoThroughThePlatformClipboard`, `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`, `everyProductionRootsDeepestNativeLevelIsMeasured`, `textGoesOnlyToAFocusedField`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheelUnderBothAuthorities`, `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (30) |
+| M1j (all sizes) | F7 (D) | the same on every main size: `d.flexShrink >= 0` (no `mainAuto`) | 68 | the same — **not reddened** | `aFieldLaysOutAndEditsUnderBothAuthorities`, `aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem`, `aFrameOverOneMemberIsUnchanged`, `aGrowInsideAOneChildPaddingFillsTheWrapperWhereCSSLeavesItUngrown`, `aListInTheDifferentialHarnessReachesABoundedWindow`, `aListsWorkIsTheSameFor160RowsAsFor40`, `aLongTextScrollsToKeepTheCaretVisible`, `aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork`, `aLoweredChainAtTheNativeDepthLimitLaysOut`, `aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows`, `aLoweredItemChainWithFourWrappersPerLevelAtTheNativeDepthLimitLaysOut`, `aLoweredItemChainWithThreeWrappersPerLevelAtTheNativeDepthLimitLaysOut`, `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`, `aLoweredScrollViewFillsItsProposalOnTheScrollingAxisWhereTheLegacyViewportHugs`, `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`, `aLoweredScrollViewRegistersAHandDerivedAmountOfNativeWork`, `anAlignSelfInsideAOneChildWrapperFillsTheWrapperWhereCSSIgnoresIt`, `anAlignSelfWrapperFillsAnIndefiniteContainerWhereCSSHugs`, `anAppsKeymapBindingWinsOverEditingAndUnclaimedKeysBubble`, `aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields`, `aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork`, `aStretchedItemInsideAHuggingItemFillsItsProposal`, `aTextShrunkByFlexStillWrapsAtItsShrunkWidth`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`, `aZeroBasisGrowerTakesItsShareDownToItsContent`, `clickingAFieldFocusesItAndTypingEditsItsText`, `copyCutAndPasteGoThroughThePlatformClipboard`, `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`, `everyProductionRootsDeepestNativeLevelIsMeasured`, `textGoesOnlyToAFocusedField`, `theCentringDefaultOfRowAndColumnStretchesNothing`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheelUnderBothAuthorities`, `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (36) |
+| M1j′ | F7 (D) | **M1j′**: `if d.flexShrink < 0` → `if d.flexShrink < 0 \|\| (d.flexShrink > 0 && d.flexShrink != 1)` (a weight other than 1 reported) | 2 | `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight` | `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight` (1) |
+| M1k | F8 | `lowerPresentation.axis`: `hasTrailing = trailing != .auto` → `hasTrailing = false` | 28 | `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` | `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, `aDeferredAbsoluteBoxResolvesItsInsetsAgainstTheWindowAndLeavesTheFlow`, `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities`, `anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBoxWhereTheLegacyEngineFloorsIt`, `aPresentationsAccessibilityRecordAndFocusMatchUnderBothAuthorities`, `nestedPresentationsLandOnOneLayerUnderBothAuthorities`, `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheelUnderBothAuthorities`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (8) |
+| M1l | F9 | `resolvedLength`: `.rems(let r): Double(r.value) * frame.rootFontSize` → `* 10` | 15 | `aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation` (its `remReport` arm, line 93) | `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, `aLoweredContainerSpacesItsChildrenByTheGapOnItsMainAxis`, `aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation`, `aMarginLowersAsPaddingOutsideTheItem` (4) |
+
+Notes on the table:
+
+- **M1c** reddens every depth-trap test one level past the limit, including
+  the grid and lowered-chain ones; the "at the limit" tests stay green.
+- **M1i** hung `aChainOfMaxDepthNodesOfEveryKindSurvivesAOneMegabyteThread`'s
+  exit-test child: without the cache a 72-level chain is re-measured
+  exponentially. The child ran 30 minutes at 99% CPU (`sample` placed it in
+  that test's closure) and was killed with `kill`; the run then finished
+  (`failed after 1943 seconds with 50 issues`) and counts the test as reddened.
+  `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` reddened on
+  (1) `log.calls == log.proposals.count` (all ten leaves) and on
+  `measureCalls == 64`, `cacheHits == 51` and `cacheMisses == 90`; the spec's
+  "only the `cacheHits` literal" named the test, not its assertions.
+  `nativeLayoutWorkIsPerCall` stayed green, as `LR-EL` finding 3 predicted.
+  N1.2 is among the reddened (its proposal list is per call, not per distinct
+  proposal, once the cache never hits).
+- **M1j** as the design spelled it cannot redden
+  `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight`, measured in
+  two spellings (`LR-EM` item 3); **M1j′** reddens it alone. It is F7's D
+  sample.
+- **M1l** reddened the two rem arms named in `Box.swift`'s re-pointed comment
+  (`remReport`, and `PresentationLoweringTests.swift:180`'s `rem` arm).
+
+**MR1 — `Rounding.swift`'s comment re-measured.** `roundStoredRects(tree,
+root)` deleted from `computeLayout`, full suite: **2675 issues, 26 tests** —
+28 at 1616 (record §48) less exactly the two retired tests the comment named
+(`computeLayoutRoundsEveryStoredRect`, `shrinkIsWeightedByBaseSize`), every one
+a lowering differential: `aCentringColumnShrinkWrapsItsTextLikeWebKit`, `aComponentsPaddingWrapsEachTopLevelNode`, `aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem`, `aGrowingChildTakesTheRemainingMainSpace`, `aLoweredContainerPaddingSitsInsideItsDeclaredSize`, `aLoweredPaddingLayerAgreesWithTheLegacyWrapper`, `aLoweredScrollViewsContentKeepsItsNaturalExtent`, `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth`, `aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin`, `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`, `aLoweredWindowPublishesTheSameAccessibilityTree`, `anAbsoluteTextWrapsAtTheWindowMinusItsInsetWhereTheLegacyEngineWrapsAtTheWindow`, `aPresentationPlaceholderIsDroppedByEveryLoweredContainer`, `aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes`, `aStretchedChildFillsTheLineOnItsCrossAxis`, `aStretchedSingleChildContainerDoesNotStretchItsChild`, `aZeroBasisGrowerTakesItsShareDownToItsContent`, `aZeroShrinkKeepsItsNaturalMainSizeAndOverflows`, `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `everyContainerFieldIsIgnoredOnALoweredLeaf`, `paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt`, `spaceAroundAndSpaceEvenlyLowerToSpacersWhileTheyFit`, `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`. The comment is re-pointed to this
+figure; MR2 (57 at 1616) names no retired test and was not re-run.
+
+**Comments** (`LR-EM` item 6; `LR-EG`). Re-pointed, comment lines only:
+`Rounding.swift` (MR1), `ScrollView.swift` (row 187 → `aZeroShrinkKeepsItsNaturalMainSizeAndOverflows`),
+`Box.swift` (`ResolveTests` → the two M1l rem arms; `SizingFixtureTests`
+retired), `List.swift` (`SizingFixtureTests` retired). `git diff 41344e5 --
+Sources | grep -E '^[-+]' | grep -vE '^(\+\+\+|---)' | grep -vE '^[-+]\s*//'`
+prints nothing. Listed, not edited: `FlexEngine.swift` 386, 801, 1851, 1902
+(CSS-only, name a deleted file — beyond §5.1's list, which grepped test names);
+test-file comments in files lane 1 does not own — `NativeDepthGuardTests` 20,
+23; `ScrollViewTests` 53–55 (states the retired row 187 as a present pin);
+`ElementGroupTrapTests` 419; `InputDispatchTests` 439; `TextMeasureTests` 318,
+342–343 (lane 3); `ModifiedElementTests` 723, 832, 840 (lane 2: the
+`malloc_logger` collision with the deleted `FreezeLoopAllocationTests` is now
+one-sided). For the Record phase.
+
+**Portable CI figure** (`LR-EM` item 5). `git archive 6e2b3c0` built and run in
+`swift:6.4-noble` (`swift build --build-tests`, then `swift test
+--no-parallel`): 0 `error:`, 0 `warning:`; summary lines `200 tests`
+(`MetalUILayoutTests`), `22` (`MetalUICoreTests`), `3`
+(`MetalUICrossPlatformTests`), and `6` (`MetalUISystemFontsTests`, outside
+CLAUDE.md's figure). **200 = 388 − 189 + 1**: 190 removed, of which
+`freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine` was already
+`#if canImport(Darwin)` (its twin `freezeLoopMatchesItsAllocatingReferenceBitForBit`
+was not), plus N1.2. CLAUDE.md's **388 + 22 + 3 → 200 + 22 + 3** at the Record
+phase.
+
+**Suite, build systems, guards.** At this section's tree (the removal plus
+comment-only `Sources/` edits): native build 0 `error:`, one `warning:`
+(SwiftPM's deprecation notice); **`Test run with 1482 tests in 3 suites
+passed`**, `FR-J no-argument frame: succeeded=true`; default build system
+`swift build --build-tests` 0 `error:`, 0 `warning:`. Guards 78 (no guard file
+touched), gated nine (none retired was gated), `AuthorityCoverage.expected` 82.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 41344e5 6e2b3c0`:
+**0 differing and scene identical in all fourteen images**. Controls at
+`41344e5`: light vs dark 1048576; default vs modal 1031003; default vs
+animation 454895; f0 vs f3 0; preview light vs dark 1048576; chrome legacy vs
+proposal 0; distinct 544 / 216; prod default vs modal 491221, distinct
+`prod-default-light` 529; indicator rects 0 — record §48 §6.1's `2cc763d`
+values, as expected (7a moved no pixel). `DemoFrameDeterminismTests` unedited
+(`git diff 41344e5 -- Tests/MetalUICrossPlatformTests` empty); it reddened only
+under M1f and M1j/M1j (all sizes), as a sibling of the demo's gap and shrink.
+
+**Deferrals.** None of lane 1's rows. Handed on: the listed test-file
+comments (Record phase; lanes 2 and 3 for their own files), the portable
+figure, and the counts 1450 / 1445 for lanes 2 and 3 (`LR-EM` item 2).
