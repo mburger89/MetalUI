@@ -91,7 +91,9 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
 ///
 /// - a `minHeight` on the root's **auto** height (no declared size to fold into;
 ///   stage 8's recipe spells it as a `.frame`): `box.minSize.unconsumed`;
-/// - a root **margin** (owner 9): `box.margin.unconsumed`;
+/// - a root **margin**: `box.margin.unconsumed` — its report dies with the field at
+///   stage 10 (`LR-ER` item 4, which disposes `LR-DI` item 4's root min/max/margin;
+///   this doc read "owner 9" until stage 9's lane 1 fix round);
 /// - a root **percentage** `maxWidth`, on a declared width (a percentage never folds;
 ///   stage 8): `box.maxSize.unconsumed`.
 ///

@@ -9263,3 +9263,16 @@ suites passed`.
 **What it costs if wrong.** Item 2(b): a lowered answer that the base suite's
 agreement never compared would carry an unconfirmed literal; every such literal
 is listed in §5.4. Item 4: none — the arm's fact moves to N3.1.
+
+**Amended, stage-9 lane 1 fix round.** (a) The site-coverage base set was
+extracted with a pattern that matched only `Test NAME() failed …` and dropped
+every parameterised test (`Test NAME(_:) with K test cases failed …`): the base
+set is **Ma 20, Mb 56, Mc 7, Md 9, Me 13** tests, not 20/52/6/2/8. The probe
+file's header now states the parsing rule — both forms, and the per-test issue
+counts must sum to the summary line's total — and **lanes 2 and 3 re-read the set
+with that rule** (`LR-FH` item 2). All five re-run at `669e487`: every base test
+reddens under its own or its renamed name; there are no head-only reds beyond the
+renames (record §51 §5.1, §5.5). (b) The root **margin**'s owner is **stage 10**,
+not 9: `LR-ER` item 4 already disposes `LR-DI` item 4's root min/max/margin (the
+report stays and dies with its field). `RootFieldLoweringTests`' doc is corrected;
+the trap is unchanged (record §51 §5.7).

@@ -221,8 +221,26 @@ Ma–Me (spec §6 lane 1, spelled in the probe file's header) each applied to
 full unfiltered suite, restored from a copy, `git status --short` empty after
 each. Every reddened test with its issue count is in
 `docs/probes/stage-9-site-coverage.txt` (`## base`): **Ma 20** tests (134
-issues), **Mb 52** (336), **Mc 6** (40), **Md 2** (57), **Me 8** (106). This is
-the stage's base set, which lanes 2 and 3 re-read (`LR-FH` item 2).
+issues), **Mb 56** (336), **Mc 7** (40), **Md 9** (57), **Me 13** (106). This is
+the stage's base set, which lanes 2 and 3 re-read (`LR-FH` item 2), **with the
+parsing rule the probe file's header states**: a reddened test is a `Test NAME(…)
+failed after … with N issues.` line **or** a parameterised `Test NAME(_:) with K
+test cases failed after … with N issues.` line, and the per-test issue counts
+must sum to the summary line's total (all ten runs in the file pass that check).
+
+*Corrected in lane 1's fix round.* The lane first published **Mb 52, Mc 6, Md 2,
+Me 8**: its extraction matched only the first form and so dropped every
+parameterised test — Mb's `aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting`,
+`aListsSceneAndHitboxesAreUnchangedByTheGroup`,
+`aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent` and
+`paddingOnAListDoesNotShrinkItsRowsBelowRowHeight`; Mc's
+`theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt`
+(lane 2's); seven `ListTests` scenarios of Md; and five `PresentationWindowTests`/
+`AbsoluteOverlayTests` scenarios of Me, among them lane 2's
+`anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt`. Those are exactly
+the scenarios lane 2 collapses, so the gap would have blinded its re-read. The
+runs themselves stand (the issue totals reproduce); the lists were re-extracted
+from the same logs.
 
 ### 5.2 The collapse, and the count
 
@@ -416,15 +434,19 @@ recorded as found (`LR-FI` item 3):
 
 ### 5.5 The site-coverage re-run at the head
 
-Ma–Me at `1148ccb` (probe file, `## head`): **every base test reddens at the
-head or is its renamed self**, except two Mb dropouts —
-`aStretchedUnsizedSpaceDistributionContainerIsReported` and
+Ma–Me at `1148ccb`, then all five re-run at `669e487` (= `e710e4b`'s tests plus
+docs) in lane 1's fix round, both extracted with §5.1's rule (probe file, the two
+`## head` sections): at `669e487` **Ma 20** (96 issues), **Mb 56** (264), **Mc 7**
+(24), **Md 9** (81), **Me 13** (62). **Every base test reddens at the head under
+its own name or its renamed self** (`LR-FE` item 6). At `1148ccb` two Mb tests did
+not — `aStretchedUnsizedSpaceDistributionContainerIsReported` and
 `aGrownUnsizedSpaceDistributionContainerIsReported`, whose controls' agreement
-alone saw the grown/stretched row's own rect. Each gained that rect as a literal
-(`e710e4b`: 200×10, 260×10), and **Mb re-run at `e710e4b` reddens both** (2
-issues each; 56 tests, 264 issues). No base test is a retired row of this lane.
-Head-only reds (tests the literals now make each mutation see) are listed in the
-probe file; they are additions, not a requirement.
+alone saw the grown/stretched row's own rect (Mb 54 tests, 260 issues). Each gained
+that rect as a literal (`e710e4b`: 200×10, 260×10), and both redden since (2 issues
+each). No base test is a retired row of this lane. **There are no head-only reds
+beyond the renames**: the "head-only" tests the lane first listed for Md and Me
+were the same parameterised scenarios the base extraction dropped — collapsed,
+they print as `NAME()` at the head and were therefore matched there only.
 
 ### 5.6 The demo
 
@@ -453,9 +475,12 @@ not the harness, are stale (lane 3 owns the file).
   349, 366`, `Passes.swift:49`, `Frame.swift:1542, 1568`, `ModifiedElement.swift:82`,
   `Box.swift:984`, `ListRows.swift:124`, `Rounding.swift:49–50`,
   `ElementGroup.swift:685`; the pixel harness (§5.6); `compare.sh`'s control
-  values. `RootFieldLoweringTests`' root-margin arm names its field's owner as
-  stage 9 in its doc ("a root **margin** (owner 9)") — no row of spec §5 names it;
-  its trap stands (`box.margin.unconsumed`), and its owner needs a ruling.
+  values. `RootFieldLoweringTests`' root-margin arm named its field's owner as
+  stage 9 in its doc ("a root **margin** (owner 9)") and no row of spec §5 names
+  it. *Resolved in lane 1's fix round*: `LR-ER` item 4 (stage 8) already disposes
+  `LR-DI` item 4's root min/max/**margin** — the report stays and dies with its
+  field at **stage 10** — so the owner is 10, not 9; the doc now says so (`LR-FI`,
+  amendment). Its trap stands (`box.margin.unconsumed`), unchanged.
 - **Exit-criterion grep survivors in this lane's files**, all historical doc
   text: `LayoutAuthorityTests.swift:76` (`layoutAuthority`), `:177`
   (`customElement`), `ListLoweringTests.swift:72`, `ListTests.swift:25, 847`,
