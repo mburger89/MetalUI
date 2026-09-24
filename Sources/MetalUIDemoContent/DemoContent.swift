@@ -403,46 +403,47 @@ struct CounterPanel: Element {
 /// absolute and parent-relative coordinates coincide (practices doc, shape 2).
 @MainActor
 public func demoContent() -> some Element {
+    demoRoot(header: demoHeader(),
+             body: demoBody(sidebar: demoSidebar(),
+                            mainPane: demoMainPane(heroStack: demoHeroStack(),
+                                                   scrollBox: demoScrollBox())))
+}
+
+// **Why `demoContent()` is spelt as the functions below, and why the three
+// that compose are generic** (record §50, "2026-09-24 — Windows stack
+// budget"). Windows threads get a 1 MB stack — the Swift Testing worker that
+// runs `theDemoFrameMatchesTheValuesRecordedOnMacOS` and `DemoCapture.exe`'s
+// main thread both overflowed at `b9a5d7f`. In a debug build a non-generic
+// function or builder closure reserves its whole frame on entry, one slot per
+// temporary — every child value, every partial `Pair`, every intermediate of
+// a modifier chain — and the demo's tree value is 35 KB, so the frames are
+// large: written as one nested expression, `demoContent()` → closure #1 →
+// closure #2 → closure #2 reserved 138 + 186 + 248 + 248 KB on macOS arm64,
+// all live at once. Smallest thread stack that builds `demoContent()` on
+// macOS arm64, bisected in 16 KB steps: 896 KB at `85217e3`, 1200 KB at
+// `b9a5d7f` (stage 8's `.frame` layers grew the tree), 1136 KB with the
+// sections moved into functions that call each other, 1008 KB with those
+// functions building their children into `let`s first, and **528 KB as
+// written here**: every child is built by its own function as an ARGUMENT, so
+// its frame is gone before its parent composes, and the three composing
+// functions (`demoRoot`, `demoBody`, `demoMainPane`) are generic over their
+// children, so their temporaries are sized at run time rather than reserved
+// on entry (static frames 432, 288 and 560 bytes, against `demoContent()`'s
+// 72 KB). A composing function cannot be non-generic here — it would have to
+// name its children's opaque types — so the two halves were not measured apart.
+// None of this changes an element, a layer or an identity level — the builders
+// see the same values in the same positions, and the demo-frame pin (`XP-C`)
+// reads the same scene. `everyProductionTreeBuildsOnAOneMegabyteThread` is
+// the guard: give a new demo section its own function, passed in as an
+// argument, rather than growing a builder closure.
+
+/// The root column: header, hairline and body (see `demoContent()`).
+@MainActor
+private func demoRoot(header: some Element, body: some Element) -> some Element {
     Column(gap: Pixels(12)) {
         // Header: a fixed-height row whose second child eats the slack, so a
         // horizontal resize is visible even where nothing else moves.
-        Row(gap: Pixels(12)) {
-            Box()
-                .frame(width: Pixels(40), height: Pixels(40))
-                .background(.accent)
-                .cornerRadius(Pixels(20))
-            Box()
-                .frame(height: Pixels(12))
-                .frame(maxWidth: Pixels(.infinity))
-                .background(.surfaceSecondary)
-                .cornerRadius(Pixels(6))
-        }
-        // Kept although ruling EP-8 now makes it the default, because it is the
-        // one container here where centring is what the design *wants* — a 40pt
-        // avatar and a 12pt bar on a common centre line — rather than something
-        // it inherited. Both children declare a cross size, so this row needed
-        // no change; every other container below did.
-        .alignItems(.center)
-        // **Modifier order is load-bearing on every padded container in this
-        // file.** `.padding` adds an outer wrapper layer (SwiftUI-style,
-        // `f1944f8`; a `ModifiedElement` layer since ruling MC-A, no longer a
-        // `Box`), so everything written before it configures the padded
-        // container and everything after it configures the wrapper. Container
-        // settings (`alignItems`) and the inner `.flexGrow(1)` therefore go
-        // first; the size (`.frame(height:)` since stage 8, `LR-ES`),
-        // background and corner radius go after, so the frame's size still
-        // includes the padding and the background still covers it. The inner
-        // `.flexGrow(1)` makes the container fill the padding layer's main
-        // (row) axis — its cross axis already stretches. No item modifier may
-        // follow the `.frame`: on the frame's own layer it is a report, which
-        // a production frame turns into a trap (`LR-ES`'s R4).
-        // Written the other way round, this header rendered as an 84pt centred
-        // card with no bar (record §03, 2026-09-14).
-        .flexGrow(1)
-        .padding(Pixels(16))
-        .frame(height: Pixels(72))
-        .background(.surface)
-        .cornerRadius(Pixels(14))
+        header
 
         // A hairline. A separator is a thin filled box, which is why
         // `ColorToken.separator` is a token the renderer can actually honour.
@@ -453,518 +454,594 @@ public func demoContent() -> some Element {
             .background(.separator)
 
         // Body: the row that absorbs every vertical resize.
-        Row(gap: Pixels(12)) {
-            // Fixed-width sidebar. Its rows declare a height and no width:
-            // they fill the sidebar, and `.alignItems(.stretch)` is where the
-            // demo says that rather than inheriting it.
-            //
-            // **This is ruling EP-8 in one line.** EP-6 kept CSS's `stretch` as
-            // `Column`/`Row`'s default because an `auto` cross size resolved to
-            // 0, so a centred child here would have painted nothing — a
-            // mechanism, not a preference. Content sizing implemented the
-            // recursive subtree measurement EP-6 named as its blocker, the
-            // reason expired, and EP-8 took SwiftUI's answer (EP-5): stacks
-            // centre. **A childless `Box` still measures 0**, so these four
-            // would be 0 wide and invisible without the modifier below. That is
-            // the cost EP-8 accepted, and the remedy is exactly this — say
-            // "these fill their container" out loud, rather than hardcoding
-            // 196 - 28 into four children that would then silently disagree
-            // with the padding above them.
-            Column(gap: Pixels(10)) {
-                // **The single-line path, and M2's exit criterion has two
-                // halves — this is the first.** A `Text` narrower than its
-                // container never reaches `CTTypesetterSuggestLineBreak`'s
-                // wrapping branch at all, so it exercises shaping, the atlas
-                // and the glyph draw and nothing else. If this word is legible
-                // and the paragraph below is not, the fault is in wrapping; if
-                // neither is, it is in the atlas or the draw path.
-                Text("Library")
-                Box().frame(height: Pixels(26)).background(.accent).cornerRadius(Pixels(6))
-                Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
-                Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
-                Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
-            }
-            // **CLOSED, and it is NOT a divergence — measured against WebKit,
-            // which does the identical thing.** This column declares 196 and
-            // renders below that (97 / 73 / 70pt at windows 1200 / 920 / 700).
-            // It reads like a bug and is ordinary flex arithmetic: a `Column`
-            // is a flex item with an unset `flexShrink`, i.e. CSS's default of
-            // 1, so when its row cannot give every item its base size this one
-            // shrinks to its content floor like any other.
-            //
-            // Measured on this body row's shape through both engines, at a
-            // width where the main pane's demand forces a shrink (ruling
-            // `SZ-L`, `docs/superpowers/2026-08-30-sizing-decisions.md`):
-            //
-            //     sidebar flex-shrink: 1  ->  engine 69, WebKit 69
-            //     sidebar flex-shrink: 0  ->  engine 196, WebKit 196
-            //
-            // Exact agreement in both arms; 69 is the content floor to the
-            // pixel (41 + 14 + 14). **The remedy is `.flexShrink(0)` here, or
-            // a `minWidth` — a declaration that does not say what its author
-            // meant, not an engine defect.** It is deliberately not applied:
-            // this width feeds the whole layout, and the change was out of
-            // scope for the commit that measured it.
-            //
-            // CLAUDE.md used to attribute the squeeze to ruling FS-3. That was
-            // wrong twice over and `SZ-L` carries both halves: FS-3 cannot
-            // move this number in principle (`min(196, content) == content`
-            // whichever half of §4.5 is implemented), and there is no engine
-            // divergence here to attribute to anything.
-            // **The animation milestone's demo interaction — M4 spec 3.**
-            // 196 is the resting width `SZ-L` above is measured against;
-            // `demoModel.animationDemoActive` is the only thing that ever
-            // moves it away from that number, under the **A** key's
-            // `withAnimation` in `runDemo` (`main.swift`). Both this width and the
-            // background two lines down read the same bool inside the same
-            // transaction, so one keystroke drives the layout-phase helper
-            // (`AnimatedStyle.swift`) and the paint-phase one
-            // (`AnimatedColor.swift`) at once. The baseline is a declared
-            // pixel value rather than `.auto`, which is what lets the FIRST
-            // press animate rather than snap (`AnimatedStyle.swift`'s own
-            // documented `.auto` pitfall). Since stage 8 the width is a
-            // `.frame(width:)` (`LR-ES`); the frame layer reads its fixed size
-            // from its ANIMATED style, so it interpolates exactly as the old
-            // `.width(_:)` did (`LR-ES`'s R8, pinned by
-            // `anAnimatedFrameWidthInterpolatesAsTheAnimatedWidthItReplacesDid`).
-            // `alignment: .top` puts the padded column at the top of the
-            // stretched frame, where the old own-box width left it; without it
-            // the frame centres it (scratch S5, record §50 §3; demo mutation
-            // Ma reddens the demo-frame pin).
-            .alignItems(.stretch)
-            .flexGrow(1)
-            .padding(Pixels(14))
-            .frame(width: demoModel.animationDemoActive ? Pixels(320) : Pixels(196), alignment: .top)
-            .background(demoModel.animationDemoActive ? .accent : .surface)
-            .cornerRadius(Pixels(14))
-
-            Column(gap: Pixels(12)) {
-                // **The Stack milestone's exit criterion.** Replaces the
-                // plain accent hero box with a `Stack` of three children of
-                // visibly different sizes — a backdrop, a "photo" panel
-                // nested inside it, and a numeral badge nested inside that —
-                // all centred on one another rather than sequenced.
-                //
-                // **Z-order is the one thing about a `Stack` no positional
-                // test can see.** Every rect's `(x, y, width, height)` comes
-                // out identical whichever child painted first, so a
-                // regression that reversed paint order would leave all 517+
-                // layout tests green; only a human looking at the window can
-                // tell that "3" is drawn ON the panel rather than the panel
-                // painting over it. That is why this element, and not a unit
-                // test, is what the milestone's exit criterion asks a human
-                // to look at (CLAUDE.md records whether that look has
-                // happened yet).
-                //
-                // Declaration order is back-to-front (the `Stack` TYPE's doc
-                // comment, `Stack.swift` — not `Stack.paint`'s, which says
-                // only why the stack's own background is emitted before its
-                // children; `paint` itself just calls `content.paintGroup`
-                // and the ordering claim is one level up): the backdrop is
-                // declared first and painted
-                // first, the badge is declared last and painted last, so it
-                // sits on top. If the order in this file were reversed, the
-                // backdrop — the largest child, exactly covering the
-                // container — would paint over both smaller children and
-                // "3" would vanish entirely; that is the plainly-wrong
-                // result a flipped z-order produces here.
-                //
-                // `.alignSelf(.flexStart)` opts this one item out of the
-                // surrounding column's `.alignItems(.stretch)` (EP-8):
-                // without it, the `Stack`'s own auto width would stretch to
-                // the whole pane and the "sizes to its largest child"
-                // property (`Stack.swift`'s doc comment) would be invisible
-                // — the backdrop would end up centred in far more empty
-                // space than its own 360×128, rather than the container
-                // visibly being exactly that size.
-                Stack(alignment: .center) {
-                    Box()
-                        .frame(width: Pixels(360), height: Pixels(128))
-                        .background(.accent)
-                        .cornerRadius(Pixels(12))
-                    Box()
-                        .frame(width: Pixels(160), height: Pixels(72))
-                        .background(.surface)
-                        .cornerRadius(Pixels(10))
-                    Box {
-                        Text("3").font(size: 13)
-                    }
-                    .frame(width: Pixels(28), height: Pixels(28))
-                    .background(.surfaceSecondary)
-                    .cornerRadius(Pixels(14))
-                }
-                .alignSelf(.flexStart)
-
-                // **Milestone 3's exit criterion**, and it is in the main pane
-                // rather than in the `ScrollView` below on purpose — an
-                // `onClick` hitbox is opaque and would swallow that scroller's
-                // wheel over its own rect (divergence 16). See `CounterPanel`.
-                //
-                // Four things a human has to look at here, and no assertion in
-                // this repo can see any of them: whether clicking feels
-                // responsive, whether the hover highlight tracks the pointer,
-                // whether the focused panel is visibly distinguishable, and
-                // whether **+** / **-** move the count once **F** has focused
-                // it. CLAUDE.md records the criterion as open until somebody
-                // reports.
-                CounterPanel()
-
-                // **A second size, and it is a diagnostic rather than
-                // decoration.** The atlas key is
-                // `(resolvedFontKey, glyphID, size, subpixelVariant,
-                // scaleFactor)` (spec §3.5). Every letter of "Text renders" at
-                // 22pt also occurs in the paragraph below at 13pt, so a key
-                // that dropped `size` would serve one of the two from the
-                // other's slot and the mismatch is visible without measuring
-                // anything: a heading built from body-sized glyphs, or the
-                // reverse.
-                Text("Text renders").font(size: 22)
-
-                // **The wrapping path.** No width is declared: the column's
-                // `.alignItems(.stretch)` below gives this leaf the pane's
-                // content width as a definite cross extent, `flexBaseSize`
-                // offers that same extent when it measures the leaf's height,
-                // and `textMeasure`'s `.definite(w)` row typesets at it — so
-                // the paragraph re-wraps on every horizontal resize with no
-                // constant in this file naming a width. The string is long
-                // enough to take three or more lines at the 920pt default and
-                // to change its line count well before the window reaches its
-                // minimum size.
-                //
-                // **Two lines of it are the milestone's own record**, so that
-                // what is on screen and what is written down are the same
-                // sentence.
-                Text("""
-                     CoreText shapes this paragraph, a shelf packer places \
-                     each glyph in an R8 atlas exactly once, and the fragment \
-                     shader tints the coverage it samples with the theme's \
-                     text colour. Drag the window's edge and watch the line \
-                     breaks move: layout asks this leaf to measure itself at \
-                     the width it was offered, and paint re-shapes at the \
-                     width layout settled on.
-                     """)
-
-
-                // **The clipping-and-scroll milestone's exit criterion.**
-                // Replaces the three-weights filler row (M1's flexGrow demo,
-                // now covered by the sidebar rows and the header bar above) with
-                // a `ScrollView` over the row list below — the one element in this file
-                // that exercises clipping (rectangular AND, since ruling CL-A's
-                // follow-on, rounded), wheel routing with trackpad momentum,
-                // and an indicator painted over text.
-                //
-                // **`ScrollView` has no modifier surface** — it conforms to
-                // `Element`, not `StyledElement` — so nothing here can size
-                // or grow it directly; the wrapping `Box` below is sized
-                // instead. What follows, down to "Two things fix it", is the
-                // LEGACY engine's history (production ran it until stage
-                // 6b); the paragraph after it says what holds now. Measured
-                // (a throwaway probe against this exact tree) rather than
-                // assumed: giving the wrapping `Box` an explicit height alone
-                // does NOT bound the viewport, because CSS Sizing §4.5's
-                // automatic minimum floors a container at its CONTENT height on
-                // whichever axis is its MAIN axis relative to ITS OWN parent —
-                // here, height.
-                //
-                // **Ruling FS-3 has since landed — both halves of that floor
-                // are implemented — and this box is STILL unaffected by it,
-                // re-measured for the sizing milestone's own Task 9 rather
-                // than assumed.** FS-3's fix is `min(specified size
-                // suggestion, content size suggestion)`, and the specified
-                // half is read from the item's own `Style.size` (an explicit
-                // `.height(_:)`), which `FlexEngine` resolves only when
-                // `resolveDimension` finds a definite value there. This box
-                // declares no `.height(_:)` at all — only `.flexGrow(1)` and
-                // `.flexBasis(Pixels(0))` below, and a flex basis is not a
-                // specified size suggestion in `FlexEngine`'s reading of
-                // §4.5. So the `min` still reduces to `content` here exactly
-                // as it did before FS-3, and removing `.minHeight(Pixels(0))`
-                // still silently overrides the box back up to the full height
-                // of the stacked rows: **14000pt**, which is `demoRowCount *
-                // rowHeight` and so moves with the count above rather than
-                // being a constant of this tree. (Re-measured after the list
-                // became a 500-row `List`; the figure here read 1120 — 40 x
-                // 28 — until then, which was this tree's answer when the list
-                // was a `for` loop over 40 rows. `List` declares
-                // `count * rowHeight` as a fixed style property whether or
-                // not those rows are built, so windowing does not lower it.)
-                // Two things fixed it on the legacy engine, both on the
-                // wrapping `Box` alone: `.minHeight(Pixels(0))` replaced the
-                // automatic (content-based) floor with a literal zero, and
-                // `.flexGrow(1).flexBasis(Pixels(0))` made the box's HEIGHT
-                // grow-derived rather than content-derived.
-                //
-                // **What holds now (plan task 7, stage 8, ruling `LR-ET`).**
-                // Under the proposal authority there is no automatic minimum:
-                // the box is two frames — a greedy
-                // `.frame(minHeight: 0, maxHeight: .infinity)` that takes the
-                // pane's leftover height and reflows on resize, inside a fixed
-                // `.frame(width: 420)` (flexible inner, fixed outer, both
-                // aligned where the content sat: `LR-ES`'s R5). A greedy
-                // frame's lower bound is its content unless it declares a
-                // minimum — SwiftUI's rule, probe
-                // `swiftui-engine-stage-8.swift` F0/F1 — so `minHeight: 0` is
-                // the spelling of the old cancellation. **Here it is inert,
-                // measured** (record §50 §3, O1/O2; demo mutation Mb): the box
-                // holds a lowered `ScrollView` whose viewport fills its
-                // proposal on the scrolling axis (`LR-BB`), so nothing floors
-                // the box. It is kept because it is the right spelling for
-                // content that does not fill, and the demo cannot pin it —
-                // `aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum`
-                // does.
-                //
-                // **Width takes the opposite route, and is a real cost — but
-                // NOT the same automatic-minimum gap, and this paragraph used
-                // to say it was.** (CLAUDE.md used to record the same
-                // correction under divergence 5; that entry is retired now
-                // that ruling FS-3 is implemented — see
-                // `docs/superpowers/2026-08-30-sizing-decisions.md`.) The
-                // viewport's WIDTH is
-                // `ScrollView`'s own MAIN axis relative to this wrapping
-                // `Box`, and there is no modifier to grow it — but the real
-                // blocker, found by mutation, is that `ScrollView` conforms
-                // to `Element`, not `StyledElement`, and has no modifier
-                // surface at all, so nothing can reach
-                // `viewportStyle.flexGrow`: setting `flexGrow = 1` there
-                // (inside `ScrollView.requestLayout`) makes the viewport fill
-                // at every width, an ordinary main-axis flex fact unconnected
-                // to §4.5. A minimum width on the `Box` was not an unused
-                // escape either — measured bit-identical to no width spelling
-                // at all (on the legacy engine). Each row below is pinned to a literal
-                // 420pt instead, which is what fixes the viewport's own
-                // content-based width at exactly 420 regardless of the pane's
-                // available space; the wrapping `Box` repeats the same literal
-                // so its rounded background matches the viewport with no gap.
-                // Unlike the height fix, this one does not reflow on resize —
-                // the same trade-off the 196pt sidebar above already makes.
-                Box {
-                    ScrollView(.vertical) {
-                        // **The absolute-positioning milestone's exit
-                        // criterion**, and it is deliberately declared HERE —
-                        // inside the scroller, above the rows — because both
-                        // properties it exists to show are invisible anywhere
-                        // else in this file.
-                        //
-                        // `Deferred` does two things and each one has a
-                        // plainly-wrong failure: it hoists its subtree to the
-                        // root layer, so the rows declared *after* it would
-                        // paint over the panel if the hoist were lost, and it
-                        // resets the clip stack to the whole surface with no
-                        // accumulated offset, so the scrim would be cropped to
-                        // the 420pt viewport — and would slide away as the
-                        // list scrolled — if the portal were lost.
-                        //
-                        // **Neither is checkable by any assertion over rects.**
-                        // A `Deferred` contributes no layout node: its child's
-                        // `(x, y, width, height)` are identical whether or not
-                        // the hoist and the clip reset happen, exactly as a
-                        // `Stack`'s children are identical under a reversed
-                        // paint order. That is why this is a look and not a
-                        // test, and why CLAUDE.md records the look as the
-                        // milestone's open criterion.
-                        //
-                        // **`.position(.absolute)` is what "against the window"
-                        // means**, mechanically: an absolute box is placed
-                        // against the nearest ancestor whose position is not
-                        // `.static`, and nothing between here and the root
-                        // declares one — so its containing block is the root's
-                        // padding box, the whole window. `inset(Pixels(0))`
-                        // then gives both insets on both axes with an `auto`
-                        // size, which stretches the scrim across all of it.
-                        // Being absolute also takes it out of the scroll
-                        // content's flow, so it adds no row and no height.
-                        //
-                        // **The scrim is translucent rather than opaque**, so
-                        // that "the modal covers the window" and "the modal
-                        // replaced the window" are distinguishable at a glance
-                        // — an opaque one makes them identical to the only
-                        // check that can see either. It is *gated* rather than
-                        // dimmed further: see `showModal`'s own comment for why
-                        // the demo must be un-scrimmed by default.
-                        //
-                        // **Gated on `showModal`, and the `if` has a caveat
-                        // worth reading before adding state below it.** A
-                        // vanishing `if` does not reset its trailing siblings'
-                        // identity — it makes them ADOPT the vanished
-                        // element's slot, because the cursor that assigns
-                        // `.positional(_:)` components advances one place
-                        // differently on the two frames. The `List` below
-                        // hold no cross-frame state, so today this is
-                        // invisible; the `ScrollView`'s own offset is keyed on
-                        // the `ScrollView` node, which sits OUTSIDE this
-                        // builder and does not move. If a stateful element
-                        // ever lands after this `if`, the remedy is to name
-                        // the *trailing sibling* with `.id(_:)` — naming the
-                        // conditional content is the half that does not work
-                        // (CLAUDE.md's identity bullet).
-                        if demoModel.showModal {
-                            Deferred {
-                                Stack(alignment: .center) {
-                                    Column(gap: Pixels(8)) {
-                                        Text("Modal").font(size: 22)
-                                        Text("""
-                                             Declared inside the list, painted \
-                                             over it, and clipped by the window \
-                                             rather than by the scroller.
-                                             """)
-                                    }
-                                    // The fifth `.alignItems(.stretch)` in this
-                                    // file, and the only one not paying for a
-                                    // childless `Box` measuring 0 (ruling
-                                    // EP-8): both children here are `Text`,
-                                    // which shrink-wraps correctly on a
-                                    // column's cross axis since ruling TX-H. It
-                                    // buys two other things. The labels read
-                                    // left-aligned rather than centred, and —
-                                    // the load-bearing half — each `Text`
-                                    // takes the panel's whole 320pt content
-                                    // width instead of shrink-wrapping to its
-                                    // own max-content. **That was written to
-                                    // deny divergence 8 its input, and that
-                                    // reason has expired**: paint now wraps at
-                                    // the width layout measured at, so a
-                                    // shrink-wrapped label is safe. Kept
-                                    // because it is what makes the labels share
-                                    // one left edge, which is a look rather
-                                    // than a workaround.
-                                    .alignItems(.stretch)
-                                    .flexGrow(1)
-                                    .padding(Pixels(20))
-                                    .frame(width: Pixels(360))
-                                    .background(.surface)
-                                    .cornerRadius(Pixels(16))
-                                    // Absorbs its own clicks so the scrim's
-                                    // dismiss handler does not fire through
-                                    // the panel. It registers AFTER the scrim
-                                    // — a container registers before
-                                    // descending — and both sit on the same
-                                    // hoisted layer, so a registration-index
-                                    // tie-break puts this one on top
-                                    // (`topmostOpaqueHitbox`). There is no
-                                    // chaining, so the scrim never sees a
-                                    // click that landed here.
-                                    .onClick {}
-                                }
-                                .position(.absolute)
-                                .inset(Pixels(0))
-                                .background(.scrim)
-                                // **This is what makes the scrim a modal
-                                // rather than a wash**, and it is spec exit
-                                // criterion 4 made visible: an `onClick`
-                                // registers an OPAQUE hitbox, a wheel event
-                                // stops at the topmost opaque hitbox and
-                                // scrolls only if that hitbox is itself a
-                                // scroller, and `Deferred` has hoisted this one
-                                // to the root layer over the whole window. So
-                                // with the modal up, a wheel over the scrim
-                                // moves nothing — the limitation three
-                                // milestones recorded, closed. Clicking
-                                // dismisses, which is also how a human tells
-                                // the hitbox is really there.
-                                .onClick { demoModel.showModal = false }
-                                // A button to an accessibility client (AB-G).
-                                // The panel inside is interactive (its
-                                // click-absorbing `onClick {}`), so the scrim
-                                // keeps its children. The panel itself stays
-                                // UNlabelled on purpose: its combined label is
-                                // the modal's text, which a label would hide
-                                // (AB-Y).
-                                .accessibilityLabel("Close modal")
-                            }
-                        }
-
-                        // **`List`, not a `for` loop over every row.** A loop
-                        // builds an element, measures a `Text` and shapes a
-                        // string for every row in the data, whether or not it
-                        // is on screen; `List` builds only the rows
-                        // intersecting the viewport plus a two-row overscan,
-                        // so the cost of a frame is set by the viewport's
-                        // height and not by `demoRowCount`. That is why the
-                        // count below can be 500 without the frame growing.
-                        //
-                        // **`rowHeight` is the authority for a row's height**:
-                        // the wrapper `Box` `List` puts around each row pins
-                        // that height (and removes the automatic minimum that
-                        // would otherwise let a tall string grow past it).
-                        //
-                        // **The row below ALSO declares a 28pt height
-                        // (`.frame(height: Pixels(28))` since stage 8),
-                        // a second literal that must agree with `rowHeight`
-                        // and that nothing checks — since stage 6b's root
-                        // switch, on purpose** (ruling `LR-DJ`). Before it, the
-                        // row reached 28 by CSS cross-axis stretch. Under the
-                        // proposal authority a stretch is a cross-axis frame
-                        // AROUND the row (`LR-AC`, stage-2 probe X9: an outer
-                        // greedy-height frame places its fixed child at the
-                        // child's own height, centred), so the row itself
-                        // stayed as tall as its label and `.alignItems(.center)`
-                        // had nothing to centre in — every label sat 6pt
-                        // high. Declared, the row is 28 under either authority
-                        // (measured: 0 differing pixels in all twelve images at
-                        // the legacy default, record §41 §4 arm H0). Since
-                        // stage 8 the declaration is a `.frame`, whose default
-                        // `.center` alignment does the vertical centring the
-                        // `Box`'s own `.alignItems(.center)` used to (`LR-ES`).
-                        List(demoRows, rowHeight: Pixels(28)) { row in
-                            // Alternating row backgrounds, deliberately painted
-                            // edge-to-edge with the viewport: `ScrollView`'s
-                            // own `.cornerRadius(_:)` below (ruling CL-A) cuts
-                            // the clip to the SAME 14pt curve the wrapping
-                            // `Box`'s background paints, so a row scrolled to
-                            // the very top or bottom is cut by that curve too
-                            // instead of painting square into the corner the
-                            // background left transparent. The two radii are
-                            // two separate literals that must agree — nothing
-                            // enforces that they do, see `ScrollView.cornerRadius`'s
-                            // doc comment — and this demo is where a mismatch
-                            // would show.
-                            Box {
-                                Text("Row \(row.id + 1) of \(demoRowCount) — a scrollable list item")
-                            }
-                            // Vertical centring within the row is this
-                            // frame's default `.center` alignment; horizontal
-                            // stays leading — the outer frame's `.leading`
-                            // below, the ordinary reading direction for a list
-                            // item's label (demo mutation Md reddens the
-                            // demo-frame pin without it). See the `rowHeight`
-                            // note above (`LR-DJ`).
-                            .frame(height: Pixels(28))
-                            .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
-                                          bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
-                            .frame(width: Pixels(420), alignment: .leading)
-                            // On the padding wrapper, so it spans the padding.
-                            .background(row.id.isMultiple(of: 2) ? .surface : .surfaceSecondary)
-                        }
-                    }
-                    .cornerRadius(Pixels(14))
-                }
-                .frame(minHeight: Pixels(0), maxHeight: Pixels(.infinity), alignment: .topLeading)
-                .frame(width: Pixels(420), alignment: .leading)
-                .background(.surface)
-                .cornerRadius(Pixels(14))
-            }
-            // The hero box declares its height and fills its width from
-            // here, and so does the wrapping paragraph — which is what makes
-            // it re-wrap on resize. (This used to name "the row of weights";
-            // the clipping-and-scroll milestone replaced that row with the
-            // `ScrollView` box above, which declares both of its axes and
-            // takes nothing from this line.)
-            .alignItems(.stretch)
-            .flexGrow(1)
-            .padding(Pixels(16))
-            .flexGrow(1)
-            .background(.surface)
-            .cornerRadius(Pixels(14))
-        }
-        .flexGrow(1)
-        // Sidebar and main pane are full-height columns side by side.
-        .alignItems(.stretch)
+        body
     }
     // Header, hairline and body are full-width bands stacked down the window.
     .alignItems(.stretch)
     .flexGrow(1)
     .padding(Pixels(16))
     .background(.background)
+}
+
+/// The header band (see `demoContent()`).
+@MainActor
+private func demoHeader() -> some Element {
+    Row(gap: Pixels(12)) {
+        Box()
+            .frame(width: Pixels(40), height: Pixels(40))
+            .background(.accent)
+            .cornerRadius(Pixels(20))
+        Box()
+            .frame(height: Pixels(12))
+            .frame(maxWidth: Pixels(.infinity))
+            .background(.surfaceSecondary)
+            .cornerRadius(Pixels(6))
+    }
+    // Kept although ruling EP-8 now makes it the default, because it is the
+    // one container here where centring is what the design *wants* — a 40pt
+    // avatar and a 12pt bar on a common centre line — rather than something
+    // it inherited. Both children declare a cross size, so this row needed
+    // no change; every other container below did.
+    .alignItems(.center)
+    // **Modifier order is load-bearing on every padded container in this
+    // file.** `.padding` adds an outer wrapper layer (SwiftUI-style,
+    // `f1944f8`; a `ModifiedElement` layer since ruling MC-A, no longer a
+    // `Box`), so everything written before it configures the padded
+    // container and everything after it configures the wrapper. Container
+    // settings (`alignItems`) and the inner `.flexGrow(1)` therefore go
+    // first; the size (`.frame(height:)` since stage 8, `LR-ES`),
+    // background and corner radius go after, so the frame's size still
+    // includes the padding and the background still covers it. The inner
+    // `.flexGrow(1)` makes the container fill the padding layer's main
+    // (row) axis — its cross axis already stretches. No item modifier may
+    // follow the `.frame`: on the frame's own layer it is a report, which
+    // a production frame turns into a trap (`LR-ES`'s R4).
+    // Written the other way round, this header rendered as an 84pt centred
+    // card with no bar (record §03, 2026-09-14).
+    .flexGrow(1)
+    .padding(Pixels(16))
+    .frame(height: Pixels(72))
+    .background(.surface)
+    .cornerRadius(Pixels(14))
+}
+
+/// The body row: the sidebar and the main pane (see `demoContent()`).
+@MainActor
+private func demoBody(sidebar: some Element, mainPane: some Element) -> some Element {
+    Row(gap: Pixels(12)) {
+        sidebar
+        mainPane
+    }
+    .flexGrow(1)
+    // Sidebar and main pane are full-height columns side by side.
+    .alignItems(.stretch)
+}
+
+/// The fixed-width sidebar (see `demoBody()`).
+@MainActor
+private func demoSidebar() -> some Element {
+    // Fixed-width sidebar. Its rows declare a height and no width:
+    // they fill the sidebar, and `.alignItems(.stretch)` is where the
+    // demo says that rather than inheriting it.
+    //
+    // **This is ruling EP-8 in one line.** EP-6 kept CSS's `stretch` as
+    // `Column`/`Row`'s default because an `auto` cross size resolved to
+    // 0, so a centred child here would have painted nothing — a
+    // mechanism, not a preference. Content sizing implemented the
+    // recursive subtree measurement EP-6 named as its blocker, the
+    // reason expired, and EP-8 took SwiftUI's answer (EP-5): stacks
+    // centre. **A childless `Box` still measures 0**, so these four
+    // would be 0 wide and invisible without the modifier below. That is
+    // the cost EP-8 accepted, and the remedy is exactly this — say
+    // "these fill their container" out loud, rather than hardcoding
+    // 196 - 28 into four children that would then silently disagree
+    // with the padding above them.
+    Column(gap: Pixels(10)) {
+        // **The single-line path, and M2's exit criterion has two
+        // halves — this is the first.** A `Text` narrower than its
+        // container never reaches `CTTypesetterSuggestLineBreak`'s
+        // wrapping branch at all, so it exercises shaping, the atlas
+        // and the glyph draw and nothing else. If this word is legible
+        // and the paragraph below is not, the fault is in wrapping; if
+        // neither is, it is in the atlas or the draw path.
+        Text("Library")
+        Box().frame(height: Pixels(26)).background(.accent).cornerRadius(Pixels(6))
+        Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
+        Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
+        Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
+    }
+    // **CLOSED, and it is NOT a divergence — measured against WebKit,
+    // which does the identical thing.** This column declares 196 and
+    // renders below that (97 / 73 / 70pt at windows 1200 / 920 / 700).
+    // It reads like a bug and is ordinary flex arithmetic: a `Column`
+    // is a flex item with an unset `flexShrink`, i.e. CSS's default of
+    // 1, so when its row cannot give every item its base size this one
+    // shrinks to its content floor like any other.
+    //
+    // Measured on this body row's shape through both engines, at a
+    // width where the main pane's demand forces a shrink (ruling
+    // `SZ-L`, `docs/superpowers/2026-08-30-sizing-decisions.md`):
+    //
+    //     sidebar flex-shrink: 1  ->  engine 69, WebKit 69
+    //     sidebar flex-shrink: 0  ->  engine 196, WebKit 196
+    //
+    // Exact agreement in both arms; 69 is the content floor to the
+    // pixel (41 + 14 + 14). **The remedy is `.flexShrink(0)` here, or
+    // a `minWidth` — a declaration that does not say what its author
+    // meant, not an engine defect.** It is deliberately not applied:
+    // this width feeds the whole layout, and the change was out of
+    // scope for the commit that measured it.
+    //
+    // CLAUDE.md used to attribute the squeeze to ruling FS-3. That was
+    // wrong twice over and `SZ-L` carries both halves: FS-3 cannot
+    // move this number in principle (`min(196, content) == content`
+    // whichever half of §4.5 is implemented), and there is no engine
+    // divergence here to attribute to anything.
+    // **The animation milestone's demo interaction — M4 spec 3.**
+    // 196 is the resting width `SZ-L` above is measured against;
+    // `demoModel.animationDemoActive` is the only thing that ever
+    // moves it away from that number, under the **A** key's
+    // `withAnimation` in `runDemo` (`main.swift`). Both this width and the
+    // background two lines down read the same bool inside the same
+    // transaction, so one keystroke drives the layout-phase helper
+    // (`AnimatedStyle.swift`) and the paint-phase one
+    // (`AnimatedColor.swift`) at once. The baseline is a declared
+    // pixel value rather than `.auto`, which is what lets the FIRST
+    // press animate rather than snap (`AnimatedStyle.swift`'s own
+    // documented `.auto` pitfall). Since stage 8 the width is a
+    // `.frame(width:)` (`LR-ES`); the frame layer reads its fixed size
+    // from its ANIMATED style, so it interpolates exactly as the old
+    // `.width(_:)` did (`LR-ES`'s R8, pinned by
+    // `anAnimatedFrameWidthInterpolatesAsTheAnimatedWidthItReplacesDid`).
+    // `alignment: .top` puts the padded column at the top of the
+    // stretched frame, where the old own-box width left it; without it
+    // the frame centres it (scratch S5, record §50 §3; demo mutation
+    // Ma reddens the demo-frame pin).
+    .alignItems(.stretch)
+    .flexGrow(1)
+    .padding(Pixels(14))
+    .frame(width: demoModel.animationDemoActive ? Pixels(320) : Pixels(196), alignment: .top)
+    .background(demoModel.animationDemoActive ? .accent : .surface)
+    .cornerRadius(Pixels(14))
+}
+
+/// The main pane (see `demoBody()`).
+@MainActor
+private func demoMainPane(heroStack: some Element, scrollBox: some Element) -> some Element {
+    Column(gap: Pixels(12)) {
+        heroStack
+
+        // **Milestone 3's exit criterion**, and it is in the main pane
+        // rather than in the `ScrollView` below on purpose — an
+        // `onClick` hitbox is opaque and would swallow that scroller's
+        // wheel over its own rect (divergence 16). See `CounterPanel`.
+        //
+        // Four things a human has to look at here, and no assertion in
+        // this repo can see any of them: whether clicking feels
+        // responsive, whether the hover highlight tracks the pointer,
+        // whether the focused panel is visibly distinguishable, and
+        // whether **+** / **-** move the count once **F** has focused
+        // it. CLAUDE.md records the criterion as open until somebody
+        // reports.
+        CounterPanel()
+
+        // **A second size, and it is a diagnostic rather than
+        // decoration.** The atlas key is
+        // `(resolvedFontKey, glyphID, size, subpixelVariant,
+        // scaleFactor)` (spec §3.5). Every letter of "Text renders" at
+        // 22pt also occurs in the paragraph below at 13pt, so a key
+        // that dropped `size` would serve one of the two from the
+        // other's slot and the mismatch is visible without measuring
+        // anything: a heading built from body-sized glyphs, or the
+        // reverse.
+        Text("Text renders").font(size: 22)
+
+        // **The wrapping path.** No width is declared: the column's
+        // `.alignItems(.stretch)` below gives this leaf the pane's
+        // content width as a definite cross extent, `flexBaseSize`
+        // offers that same extent when it measures the leaf's height,
+        // and `textMeasure`'s `.definite(w)` row typesets at it — so
+        // the paragraph re-wraps on every horizontal resize with no
+        // constant in this file naming a width. The string is long
+        // enough to take three or more lines at the 920pt default and
+        // to change its line count well before the window reaches its
+        // minimum size.
+        //
+        // **Two lines of it are the milestone's own record**, so that
+        // what is on screen and what is written down are the same
+        // sentence.
+        Text("""
+             CoreText shapes this paragraph, a shelf packer places \
+             each glyph in an R8 atlas exactly once, and the fragment \
+             shader tints the coverage it samples with the theme's \
+             text colour. Drag the window's edge and watch the line \
+             breaks move: layout asks this leaf to measure itself at \
+             the width it was offered, and paint re-shapes at the \
+             width layout settled on.
+             """)
+
+        scrollBox
+    }
+    // The hero box declares its height and fills its width from
+    // here, and so does the wrapping paragraph — which is what makes
+    // it re-wrap on resize. (This used to name "the row of weights";
+    // the clipping-and-scroll milestone replaced that row with the
+    // `ScrollView` box above, which declares both of its axes and
+    // takes nothing from this line.)
+    .alignItems(.stretch)
+    .flexGrow(1)
+    .padding(Pixels(16))
+    .flexGrow(1)
+    .background(.surface)
+    .cornerRadius(Pixels(14))
+}
+
+/// The main pane's hero `Stack` (see `demoMainPane()`).
+@MainActor
+private func demoHeroStack() -> some Element {
+    // **The Stack milestone's exit criterion.** Replaces the
+    // plain accent hero box with a `Stack` of three children of
+    // visibly different sizes — a backdrop, a "photo" panel
+    // nested inside it, and a numeral badge nested inside that —
+    // all centred on one another rather than sequenced.
+    //
+    // **Z-order is the one thing about a `Stack` no positional
+    // test can see.** Every rect's `(x, y, width, height)` comes
+    // out identical whichever child painted first, so a
+    // regression that reversed paint order would leave all 517+
+    // layout tests green; only a human looking at the window can
+    // tell that "3" is drawn ON the panel rather than the panel
+    // painting over it. That is why this element, and not a unit
+    // test, is what the milestone's exit criterion asks a human
+    // to look at (CLAUDE.md records whether that look has
+    // happened yet).
+    //
+    // Declaration order is back-to-front (the `Stack` TYPE's doc
+    // comment, `Stack.swift` — not `Stack.paint`'s, which says
+    // only why the stack's own background is emitted before its
+    // children; `paint` itself just calls `content.paintGroup`
+    // and the ordering claim is one level up): the backdrop is
+    // declared first and painted
+    // first, the badge is declared last and painted last, so it
+    // sits on top. If the order in this file were reversed, the
+    // backdrop — the largest child, exactly covering the
+    // container — would paint over both smaller children and
+    // "3" would vanish entirely; that is the plainly-wrong
+    // result a flipped z-order produces here.
+    //
+    // `.alignSelf(.flexStart)` opts this one item out of the
+    // surrounding column's `.alignItems(.stretch)` (EP-8):
+    // without it, the `Stack`'s own auto width would stretch to
+    // the whole pane and the "sizes to its largest child"
+    // property (`Stack.swift`'s doc comment) would be invisible
+    // — the backdrop would end up centred in far more empty
+    // space than its own 360×128, rather than the container
+    // visibly being exactly that size.
+    Stack(alignment: .center) {
+        Box()
+            .frame(width: Pixels(360), height: Pixels(128))
+            .background(.accent)
+            .cornerRadius(Pixels(12))
+        Box()
+            .frame(width: Pixels(160), height: Pixels(72))
+            .background(.surface)
+            .cornerRadius(Pixels(10))
+        Box {
+            Text("3").font(size: 13)
+        }
+        .frame(width: Pixels(28), height: Pixels(28))
+        .background(.surfaceSecondary)
+        .cornerRadius(Pixels(14))
+    }
+    .alignSelf(.flexStart)
+}
+
+/// The main pane's scrolling list box (see `demoMainPane()`).
+@MainActor
+private func demoScrollBox() -> some Element {
+    // **The clipping-and-scroll milestone's exit criterion.**
+    // Replaces the three-weights filler row (M1's flexGrow demo,
+    // now covered by the sidebar rows and the header bar above) with
+    // a `ScrollView` over the row list below — the one element in this file
+    // that exercises clipping (rectangular AND, since ruling CL-A's
+    // follow-on, rounded), wheel routing with trackpad momentum,
+    // and an indicator painted over text.
+    //
+    // **`ScrollView` has no modifier surface** — it conforms to
+    // `Element`, not `StyledElement` — so nothing here can size
+    // or grow it directly; the wrapping `Box` below is sized
+    // instead. What follows, down to "Two things fix it", is the
+    // LEGACY engine's history (production ran it until stage
+    // 6b); the paragraph after it says what holds now. Measured
+    // (a throwaway probe against this exact tree) rather than
+    // assumed: giving the wrapping `Box` an explicit height alone
+    // does NOT bound the viewport, because CSS Sizing §4.5's
+    // automatic minimum floors a container at its CONTENT height on
+    // whichever axis is its MAIN axis relative to ITS OWN parent —
+    // here, height.
+    //
+    // **Ruling FS-3 has since landed — both halves of that floor
+    // are implemented — and this box is STILL unaffected by it,
+    // re-measured for the sizing milestone's own Task 9 rather
+    // than assumed.** FS-3's fix is `min(specified size
+    // suggestion, content size suggestion)`, and the specified
+    // half is read from the item's own `Style.size` (an explicit
+    // `.height(_:)`), which `FlexEngine` resolves only when
+    // `resolveDimension` finds a definite value there. This box
+    // declares no `.height(_:)` at all — only `.flexGrow(1)` and
+    // `.flexBasis(Pixels(0))` below, and a flex basis is not a
+    // specified size suggestion in `FlexEngine`'s reading of
+    // §4.5. So the `min` still reduces to `content` here exactly
+    // as it did before FS-3, and removing `.minHeight(Pixels(0))`
+    // still silently overrides the box back up to the full height
+    // of the stacked rows: **14000pt**, which is `demoRowCount *
+    // rowHeight` and so moves with the count above rather than
+    // being a constant of this tree. (Re-measured after the list
+    // became a 500-row `List`; the figure here read 1120 — 40 x
+    // 28 — until then, which was this tree's answer when the list
+    // was a `for` loop over 40 rows. `List` declares
+    // `count * rowHeight` as a fixed style property whether or
+    // not those rows are built, so windowing does not lower it.)
+    // Two things fixed it on the legacy engine, both on the
+    // wrapping `Box` alone: `.minHeight(Pixels(0))` replaced the
+    // automatic (content-based) floor with a literal zero, and
+    // `.flexGrow(1).flexBasis(Pixels(0))` made the box's HEIGHT
+    // grow-derived rather than content-derived.
+    //
+    // **What holds now (plan task 7, stage 8, ruling `LR-ET`).**
+    // Under the proposal authority there is no automatic minimum:
+    // the box is two frames — a greedy
+    // `.frame(minHeight: 0, maxHeight: .infinity)` that takes the
+    // pane's leftover height and reflows on resize, inside a fixed
+    // `.frame(width: 420)` (flexible inner, fixed outer, both
+    // aligned where the content sat: `LR-ES`'s R5). A greedy
+    // frame's lower bound is its content unless it declares a
+    // minimum — SwiftUI's rule, probe
+    // `swiftui-engine-stage-8.swift` F0/F1 — so `minHeight: 0` is
+    // the spelling of the old cancellation. **Here it is inert,
+    // measured** (record §50 §3, O1/O2; demo mutation Mb): the box
+    // holds a lowered `ScrollView` whose viewport fills its
+    // proposal on the scrolling axis (`LR-BB`), so nothing floors
+    // the box. It is kept because it is the right spelling for
+    // content that does not fill, and the demo cannot pin it —
+    // `aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum`
+    // does.
+    //
+    // **Width takes the opposite route, and is a real cost — but
+    // NOT the same automatic-minimum gap, and this paragraph used
+    // to say it was.** (CLAUDE.md used to record the same
+    // correction under divergence 5; that entry is retired now
+    // that ruling FS-3 is implemented — see
+    // `docs/superpowers/2026-08-30-sizing-decisions.md`.) The
+    // viewport's WIDTH is
+    // `ScrollView`'s own MAIN axis relative to this wrapping
+    // `Box`, and there is no modifier to grow it — but the real
+    // blocker, found by mutation, is that `ScrollView` conforms
+    // to `Element`, not `StyledElement`, and has no modifier
+    // surface at all, so nothing can reach
+    // `viewportStyle.flexGrow`: setting `flexGrow = 1` there
+    // (inside `ScrollView.requestLayout`) makes the viewport fill
+    // at every width, an ordinary main-axis flex fact unconnected
+    // to §4.5. A minimum width on the `Box` was not an unused
+    // escape either — measured bit-identical to no width spelling
+    // at all (on the legacy engine). Each row below is pinned to a literal
+    // 420pt instead, which is what fixes the viewport's own
+    // content-based width at exactly 420 regardless of the pane's
+    // available space; the wrapping `Box` repeats the same literal
+    // so its rounded background matches the viewport with no gap.
+    // Unlike the height fix, this one does not reflow on resize —
+    // the same trade-off the 196pt sidebar above already makes.
+    Box {
+        ScrollView(.vertical) {
+            // **The absolute-positioning milestone's exit
+            // criterion**, and it is deliberately declared HERE —
+            // inside the scroller, above the rows — because both
+            // properties it exists to show are invisible anywhere
+            // else in this file.
+            //
+            // `Deferred` does two things and each one has a
+            // plainly-wrong failure: it hoists its subtree to the
+            // root layer, so the rows declared *after* it would
+            // paint over the panel if the hoist were lost, and it
+            // resets the clip stack to the whole surface with no
+            // accumulated offset, so the scrim would be cropped to
+            // the 420pt viewport — and would slide away as the
+            // list scrolled — if the portal were lost.
+            //
+            // **Neither is checkable by any assertion over rects.**
+            // A `Deferred` contributes no layout node: its child's
+            // `(x, y, width, height)` are identical whether or not
+            // the hoist and the clip reset happen, exactly as a
+            // `Stack`'s children are identical under a reversed
+            // paint order. That is why this is a look and not a
+            // test, and why CLAUDE.md records the look as the
+            // milestone's open criterion.
+            //
+            // **`.position(.absolute)` is what "against the window"
+            // means**, mechanically: an absolute box is placed
+            // against the nearest ancestor whose position is not
+            // `.static`, and nothing between here and the root
+            // declares one — so its containing block is the root's
+            // padding box, the whole window. `inset(Pixels(0))`
+            // then gives both insets on both axes with an `auto`
+            // size, which stretches the scrim across all of it.
+            // Being absolute also takes it out of the scroll
+            // content's flow, so it adds no row and no height.
+            //
+            // **The scrim is translucent rather than opaque**, so
+            // that "the modal covers the window" and "the modal
+            // replaced the window" are distinguishable at a glance
+            // — an opaque one makes them identical to the only
+            // check that can see either. It is *gated* rather than
+            // dimmed further: see `showModal`'s own comment for why
+            // the demo must be un-scrimmed by default.
+            //
+            // **Gated on `showModal`, and the `if` has a caveat
+            // worth reading before adding state below it.** A
+            // vanishing `if` does not reset its trailing siblings'
+            // identity — it makes them ADOPT the vanished
+            // element's slot, because the cursor that assigns
+            // `.positional(_:)` components advances one place
+            // differently on the two frames. The `List` below
+            // hold no cross-frame state, so today this is
+            // invisible; the `ScrollView`'s own offset is keyed on
+            // the `ScrollView` node, which sits OUTSIDE this
+            // builder and does not move. If a stateful element
+            // ever lands after this `if`, the remedy is to name
+            // the *trailing sibling* with `.id(_:)` — naming the
+            // conditional content is the half that does not work
+            // (CLAUDE.md's identity bullet).
+            if demoModel.showModal {
+                demoModal()
+            }
+
+            // **`List`, not a `for` loop over every row.** A loop
+            // builds an element, measures a `Text` and shapes a
+            // string for every row in the data, whether or not it
+            // is on screen; `List` builds only the rows
+            // intersecting the viewport plus a two-row overscan,
+            // so the cost of a frame is set by the viewport's
+            // height and not by `demoRowCount`. That is why the
+            // count below can be 500 without the frame growing.
+            //
+            // **`rowHeight` is the authority for a row's height**:
+            // the wrapper `Box` `List` puts around each row pins
+            // that height (and removes the automatic minimum that
+            // would otherwise let a tall string grow past it).
+            //
+            // **The row below ALSO declares a 28pt height
+            // (`.frame(height: Pixels(28))` since stage 8),
+            // a second literal that must agree with `rowHeight`
+            // and that nothing checks — since stage 6b's root
+            // switch, on purpose** (ruling `LR-DJ`). Before it, the
+            // row reached 28 by CSS cross-axis stretch. Under the
+            // proposal authority a stretch is a cross-axis frame
+            // AROUND the row (`LR-AC`, stage-2 probe X9: an outer
+            // greedy-height frame places its fixed child at the
+            // child's own height, centred), so the row itself
+            // stayed as tall as its label and `.alignItems(.center)`
+            // had nothing to centre in — every label sat 6pt
+            // high. Declared, the row is 28 under either authority
+            // (measured: 0 differing pixels in all twelve images at
+            // the legacy default, record §41 §4 arm H0). Since
+            // stage 8 the declaration is a `.frame`, whose default
+            // `.center` alignment does the vertical centring the
+            // `Box`'s own `.alignItems(.center)` used to (`LR-ES`).
+            List(demoRows, rowHeight: Pixels(28)) { row in
+                // Alternating row backgrounds, deliberately painted
+                // edge-to-edge with the viewport: `ScrollView`'s
+                // own `.cornerRadius(_:)` below (ruling CL-A) cuts
+                // the clip to the SAME 14pt curve the wrapping
+                // `Box`'s background paints, so a row scrolled to
+                // the very top or bottom is cut by that curve too
+                // instead of painting square into the corner the
+                // background left transparent. The two radii are
+                // two separate literals that must agree — nothing
+                // enforces that they do, see `ScrollView.cornerRadius`'s
+                // doc comment — and this demo is where a mismatch
+                // would show.
+                Box {
+                    Text("Row \(row.id + 1) of \(demoRowCount) — a scrollable list item")
+                }
+                // Vertical centring within the row is this
+                // frame's default `.center` alignment; horizontal
+                // stays leading — the outer frame's `.leading`
+                // below, the ordinary reading direction for a list
+                // item's label (demo mutation Md reddens the
+                // demo-frame pin without it). See the `rowHeight`
+                // note above (`LR-DJ`).
+                .frame(height: Pixels(28))
+                .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
+                              bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
+                .frame(width: Pixels(420), alignment: .leading)
+                // On the padding wrapper, so it spans the padding.
+                .background(row.id.isMultiple(of: 2) ? .surface : .surfaceSecondary)
+            }
+        }
+        .cornerRadius(Pixels(14))
+    }
+    .frame(minHeight: Pixels(0), maxHeight: Pixels(.infinity), alignment: .topLeading)
+    .frame(width: Pixels(420), alignment: .leading)
+    .background(.surface)
+    .cornerRadius(Pixels(14))
+}
+
+/// The modal, gated on `showModal` inside `demoScrollBox()`'s scroller.
+@MainActor
+private func demoModal() -> some Element {
+    Deferred {
+        Stack(alignment: .center) {
+            Column(gap: Pixels(8)) {
+                Text("Modal").font(size: 22)
+                Text("""
+                     Declared inside the list, painted \
+                     over it, and clipped by the window \
+                     rather than by the scroller.
+                     """)
+            }
+            // The fifth `.alignItems(.stretch)` in this
+            // file, and the only one not paying for a
+            // childless `Box` measuring 0 (ruling
+            // EP-8): both children here are `Text`,
+            // which shrink-wraps correctly on a
+            // column's cross axis since ruling TX-H. It
+            // buys two other things. The labels read
+            // left-aligned rather than centred, and —
+            // the load-bearing half — each `Text`
+            // takes the panel's whole 320pt content
+            // width instead of shrink-wrapping to its
+            // own max-content. **That was written to
+            // deny divergence 8 its input, and that
+            // reason has expired**: paint now wraps at
+            // the width layout measured at, so a
+            // shrink-wrapped label is safe. Kept
+            // because it is what makes the labels share
+            // one left edge, which is a look rather
+            // than a workaround.
+            .alignItems(.stretch)
+            .flexGrow(1)
+            .padding(Pixels(20))
+            .frame(width: Pixels(360))
+            .background(.surface)
+            .cornerRadius(Pixels(16))
+            // Absorbs its own clicks so the scrim's
+            // dismiss handler does not fire through
+            // the panel. It registers AFTER the scrim
+            // — a container registers before
+            // descending — and both sit on the same
+            // hoisted layer, so a registration-index
+            // tie-break puts this one on top
+            // (`topmostOpaqueHitbox`). There is no
+            // chaining, so the scrim never sees a
+            // click that landed here.
+            .onClick {}
+        }
+        .position(.absolute)
+        .inset(Pixels(0))
+        .background(.scrim)
+        // **This is what makes the scrim a modal
+        // rather than a wash**, and it is spec exit
+        // criterion 4 made visible: an `onClick`
+        // registers an OPAQUE hitbox, a wheel event
+        // stops at the topmost opaque hitbox and
+        // scrolls only if that hitbox is itself a
+        // scroller, and `Deferred` has hoisted this one
+        // to the root layer over the whole window. So
+        // with the modal up, a wheel over the scrim
+        // moves nothing — the limitation three
+        // milestones recorded, closed. Clicking
+        // dismisses, which is also how a human tells
+        // the hitbox is really there.
+        .onClick { demoModel.showModal = false }
+        // A button to an accessibility client (AB-G).
+        // The panel inside is interactive (its
+        // click-absorbing `onClick {}`), so the scrim
+        // keeps its children. The panel itself stays
+        // UNlabelled on purpose: its combined label is
+        // the modal's text, which a label would hide
+        // (AB-Y).
+        .accessibilityLabel("Close modal")
+    }
 }
 
 /// A deliberately all-native preview of the migration path.
