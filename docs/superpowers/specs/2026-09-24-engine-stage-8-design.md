@@ -16,8 +16,9 @@ Branch `feat/engine-stage-8` from `85217e3`, worktree
 **Status, 2026-09-24 (PDT): lanes 1–3 delivered** (lane 1 `LR-EZ`/`LR-FA`,
 record §50 §8–§9; lane 2, record §50 §10; lane 3 `LR-FB`, record §50 §11) on
 the design with critic round 1 applied (`LR-EY`; record §50 §7). **Class F came
-out at 151 of the 22 files' 425 sites, K at 274** (`LR-FB`: the site-coverage
-fallback is per test); the Record phase is next.
+out at 129 of the 22 files' 425 sites, K at 296** (`LR-FB`: the site-coverage
+fallback is per test, over four mutations — Ms1–Ms3 and lane 2's M2b as Ms4,
+added by lane 3's review round); the Record phase is next.
 
 **What this stage is.** The **eight** `StyledElement` sizing modifiers — the
 six sizes and clamps (`width`, `height`, `minWidth`, `maxWidth`, `minHeight`,
@@ -82,7 +83,7 @@ not move**. One typecheck-guard fixture is affected (G4, §6 lane 3).
 | `LR-EW` | the call-site classes F, K, D (and R, expected empty); the identity, animation and site-coverage rules each conversion is checked against |
 | `LR-EX` | three lanes, in order, deprecation last; the accounting (1445 − 0 + 7 = 1452; guards 78 → 79); the mutation plan |
 | `LR-EZ` | lane 1: four tests that read the demo by literal move with R7/R4 (T rows: element counts, the depth, the whole-demo census re-derived — the legacy side of the demo moved, production did not); `…absolute`'s `owningStage` 8 → 10 (`LayoutAuthority.swift`); T7's MetalUI half measured (centred, x 145 in a frame at 100) |
-| `LR-FB` | lane 3: the site-coverage fallback is per test, not per file (spec §6 step 3 amended); measured outcome F 151 / K 274 in the 22 F files; a `Box`'s own background, which no Ms mutation pins, judged by K2's rule |
+| `LR-FB` | lane 3: the site-coverage fallback is per test, not per file (spec §6 step 3 amended); measured outcome F 129 / K 296 in the 22 F files; a `Box`'s own background pinned by M2b as a fourth Ms mutation (lane 3 review round), its ten dropouts K |
 | `LR-EY` | critic round 1: eight modifiers, not ten; divergence 52 to plan task 15; `LR-EV` narrowed to a one-node frame; `Component.swift`'s promised comments owned; R4 restated; the demo's hit testing, accessibility and hover measured identical; `Backends/SDL` built with the deprecation in; the Record-phase copies completed; five findings rejected with reasons |
 
 ## 4. API and files
@@ -256,7 +257,7 @@ Each rule is stated with the measurement behind it (record §50 §3–§4).
 |---|---|---|
 | 1 | F/K per test | `PresentationLoweringTests` (56, K1 — its subject is the presentation lowering — except arms that pin `LR-EV`), `PresentationWindowTests` (24, F: R6), `AnimationTests` (26, K2 — the own-style animation of each site, `everyRegisteringSiteAnimatesItsStyle`'s neighbours), `FrameSizingTests` (13, F), demo (25, F) |
 | 2 | K | K1: `LoweringItemTests` 142, `LoweringComponentTests` 62, `HiddenLoweringTests` 42, `LoweringScrollTests` 36, `RootFieldLoweringTests` 26, `LoweringBoxModelTests` 23, `LoweringPipelineParityTests` 21, `LoweringCorpusTests` 19, `LoweringStackAndLayerTests` 18, `LoweringContainerTests` 18, `LayoutAuthorityTests` 18, `LoweringLeafTests` 12, `LoweringDistributionTests` 8, `GridLoweringInteractionTests` 6, `ListLoweringTests` 5, `MeasurePerformanceTests` 5, `RootSwitchTests` 4, `ElementLayoutTests` 54 (its subject is an element's own box reaching the engine). K2: `OuterModifierMatrixTests` 194, `ModifiedElementTests` 5, `ModifierCompositionProofTests` 4, `DecorationPaintTests` 112, `FrameDecorationInteractionTests` 42, `BackgroundChainTests` 14, `PointerStatePaintTests` 16, `DisabledTests` 111, `AXEmitSiteTests` 46, `HitRegionTests` 52 — **1115 sites, 28 files** |
-| 3 | F (K fallback per test; **measured F 151 / K 274**, `LR-FB`, record §50 §11.4) | `AccessibilityTreeTests` 94, `InputDispatchTests` 68, `AccessibilityDefaultsTests` 67, `FocusTests` 48, `KeymapTests` 20, `ComponentTests` 20, `ObservationTests` 17, `TrackInteractionTests` 16, `EnvironmentTests` 12, `ThemeTests` 11, `ScrollViewTests` 10, `GlyphEmitterTests` 8, `ElementGroupTrapTests` 8, `AccessibilityEndToEndTests` 8, `ListTests` 4, `HitboxTests` 4, `StateTests` 2, `ProposalNodeIDTests` 2, `FrameLoopTests` 2, `DeferredTests` 2, `TextSystemSeamTests` 1, `TextMeasureTests` 1 — **425 sites, 22 files**; D: `ModifierTests` 8 |
+| 3 | F (K fallback per test; **measured F 129 / K 296**, `LR-FB`, record §50 §11.4) | `AccessibilityTreeTests` 94, `InputDispatchTests` 68, `AccessibilityDefaultsTests` 67, `FocusTests` 48, `KeymapTests` 20, `ComponentTests` 20, `ObservationTests` 17, `TrackInteractionTests` 16, `EnvironmentTests` 12, `ThemeTests` 11, `ScrollViewTests` 10, `GlyphEmitterTests` 8, `ElementGroupTrapTests` 8, `AccessibilityEndToEndTests` 8, `ListTests` 4, `HitboxTests` 4, `StateTests` 2, `ProposalNodeIDTests` 2, `FrameLoopTests` 2, `DeferredTests` 2, `TextSystemSeamTests` 1, `TextMeasureTests` 1 — **425 sites, 22 files**; D: `ModifierTests` 8 |
 
 Totals: 144 + 1115 + 433 = **1692**. K is the larger class (≈ 1200 of 1667
 test sites) **on purpose**: those tests pin the legacy lowering and the
@@ -335,10 +336,12 @@ positions hold — and nothing else. No test is added.
 Steps: (1) **before any conversion**, run the site-coverage mutations **Ms1**
 (`Box.prepaint` passes empty `Handlers` to `registerAndScope`), **Ms2**
 (`Text.paint` skips `paintDecoration`'s background half), **Ms3**
-(`Stack.paint` skips the same) and record every reddened test name; (2) convert
+(`Stack.paint` skips the same), **Ms4** (lane 2's M2b: `Box.paint` drops its
+own background, hover and focus colours; added by lane 3's review round, run
+with lane 2's five `--skip`s) and record every reddened test name; (2) convert
 the 22 F files with `docs/probes/stage-8-sizing-converter.py` plus R2, R4–R7 by
 hand, helper return types changed where the compiler says (`-> some Element`),
-K fallback per test where an assertion would move; (3) re-run Ms1–Ms3: **each
+K fallback per test where an assertion would move; (3) re-run Ms1–Ms4: **each
 reddened set after ⊇ before**, else the tests that dropped out revert to K
 (per test, `LR-FB`; the design said per file); (4) `ModifierTests` to D; (5) the eight `@available` attributes in `Box.swift`
 and its "Size" section comment rewritten (the "None of the eight is deprecated"

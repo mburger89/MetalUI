@@ -8731,10 +8731,12 @@ reason".
    Ms set takes K for its own sites and the helpers only it reaches; its
    file's other F sites stay F. The file-level wording of spec §6 step 3 is
    amended. The criterion is unchanged — the after set must contain the before
-   set — and it held **with equality** for all three mutations (129, 3, 5).
-2. **The outcome is recorded as measured: F 151 sites, K 274, in the 22 F
-   files** (the design's table read 425 F, 0 K). The stage's `css*` sites are
-   therefore lane 2's 1115 plus these 274 plus lane 1's, all stage 10's. Every
+   set — and it held **with equality** for all four mutations (Ms1–Ms3: 129,
+   3, 5; Ms4, lane 2's M2b: 63 — see the amendment below).
+2. **The outcome is recorded as measured: F 129 sites, K 296, in the 22 F
+   files** (the design's table read 425 F, 0 K; this ruling first read F 151 /
+   K 274, before the amendment below). The stage's `css*` sites are
+   therefore lane 2's 1115 plus these 296 plus lane 1's, all stage 10's. Every
    K line equals its `85217e3` line modulo the `css` prefix, checked
    mechanically; no assertion was edited, no test renamed or retired (R stays
    empty).
@@ -8743,17 +8745,40 @@ reason".
    decoration whose site no Ms mutation pins (`ObservationTests`,
    `ScrollViewTests`, `EnvironmentTests`, the `AccessibilityDefaultsTests`
    combination arms, most of `KeymapTests`' and `FocusTests`' windows'
-   fixed-size neighbours). `Box`'s own **background** paint (lane 2's M2b) is
-   not one of spec §6's Ms mutations; the F conversions that move a `Box`'s
-   `background` onto the frame layer (`ObservationTests`, `ScrollViewTests`,
-   `EnvironmentTests`' `theSpaceKeyBindingSwapsTheThemeThroughTheFakePlatform`)
-   were judged by K2's rule — none of those tests is about `Box.paint` — and
-   `aContainerPaintsItsBackgroundBeneathItsChildren`, which is, went K.
+   fixed-size neighbours). `Box`'s own **background** paint is pinned by
+   **Ms4**, lane 2's M2b (`Box.paint` drops its own background, hover and
+   focus colours), measured before and after like Ms1–Ms3 (amendment below):
+   every test M2b reddened before the conversion still reddens after it, so
+   the F sites that still move a `Box`'s `background` onto the frame layer
+   (`ObservationTests`' nine receivers among them) pin nothing M2b sees.
 
 **What it costs if wrong.** Per file would have K'd 84 more sites (the
 seven files' remaining F sites) that no Ms mutation distinguishes, costing stage 10 that many more re-spellings and
 nothing in coverage. Per test is only as good as the three Ms mutations: a
 site that none of them pins (a `Box`'s own background, `Text`'s own handlers)
-could still have moved unseen, which is why rule 3 names the background case
-and records its judgement rather than claiming a measurement.
+could still have moved unseen, which is why rule 3 names the background case.
+
+**Amended, stage-8 lane 3 review round.** Rule 3 first said the background
+moves were "judged by K2's rule — none of those tests is about `Box.paint`",
+by reading, and `ThemeTests` was not in its list at all. The review applied
+M2b before (`1604674`) and after (`61abb55`) with lane 2's five `--skip`s and
+found **ten** tests dropped out, none added: `ThemeTests`'
+`aBoxResolvesItsBackgroundTokenAgainstTheFramesTheme` (named for a `Box`),
+`theSameElementPaintsDifferentColoursUnderTheTwoThemes` and
+`cornerRadiusReachesTheSceneThroughTheModifier` (M2b crashes all three at
+`1604674`, at `ThemeTests.swift:110`/`:212`; at `61abb55` they passed, the
+background on the frame layer); `ScrollViewTests`'
+`aScrollViewsCornerRadiusReachesEveryPrimitiveItClips` and
+`aScrollViewWithNoCornerRadiusClipsSquare`; and `EnvironmentTests`'
+`aComponentReadsTheNearestEnvironmentInItsContent`,
+`aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope`,
+`aWholeValueWriteCannotResetTheThemeOrThePixelLength`,
+`theFramesRootEnvironmentCarriesItsThemeAndScale` and
+`theSpaceKeyBindingSwapsTheThemeThroughTheFakePlatform`. All ten took rule 1's
+per-test K (22 sites: `ThemeTests` 6, `ScrollViewTests` 10, `EnvironmentTests`
+6 — the helpers `surfaceBox`, `EnvComponent` and the key-binding test's
+`tree()`, each back to its `85217e3` line modulo the `css` prefix). M2b is now
+**Ms4**, and the after set equals the before set (63 names, 82 issues, the
+same five crashers in the same order when un-skipped). Record §50 §11.4 and
+§11.6 carry the measurement.
 

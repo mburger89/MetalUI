@@ -599,8 +599,17 @@ each mutation applied by script to the committed tree, restored from a copy,
 | Ms1 | `Box.swift` `prepaint`: `pass.registerAndScope(handlers, …)` → `pass.registerAndScope(Handlers(), …)` | `1451 tests … failed … with 236 issues`, **129 tests** (below) |
 | Ms2 | `Text.swift` `paint`: `var decoration = decoration; decoration.background = nil; decoration.hoverBackground = nil; decoration.focusBackground = nil` before `paintDecoration` | `1451 … 3 issues`: `everyBackgroundPaintingSiteAnimatesItsColour`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus` |
 | Ms3 | `Stack.swift` `paint`: the same line before `paintDecoration` | `1451 … 7 issues`: `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities`, `everyBackgroundPaintingSiteAnimatesItsColour`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `nestedPresentationsLandOnOneLayerUnderBothAuthorities` |
+| Ms4 (lane 2's M2b; added by the review round, §11.11) | `Box.swift` `paint`: the same line before `pass.paintDecoration(decoration, in: bounds, for: id) {` | with lane 2's five `--skip`s (§10.5): `1446 tests … failed … with 82 issues`, **63 tests** (below) |
 
 Ms1's 129: `aBoundActionReachesAnElementHandlerAlongTheFocusChain`, `aBoundActionRunsBeforeARawOnKeyHandler`, `aBoxWithADeclaredAXNodeEmitsItAtItsOwnResolvedBounds`, `aCallerDeclaredAXNodeOnAListSurvivesLogicalCountBeingAdded`, `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `aClickInsideTheBoundsRunsTheHandler`, `aClickNeedsTheTargetEnabledAtPressAndAtRelease`, `aClickOutsideTheBoundsDoesNotRunTheHandler`, `aClickTargetInsideAScrollViewSwallowsTheWheel`, `aClientDoesNotChangeStateRetention`, `aContentShapeInsetShrinksTheHitRegionAndChangesNoLayout`, `aContentShapeMovesNeitherTheAccessibilityFrameNorTheFocusRegistration`, `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBoxUnderTheProposalAuthority`, `aContentShapeWithoutAClickHandlerRegistersNothing`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities`, `aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel`, `aDisabledAncestorsRawKeyHandlerDoesNotSeeAKey`, `aDisabledClickTargetPassesTheClickToWhatIsUnderIt`, `aDisabledElementCannotAcquireFocus`, `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`, `aDisabledElementsActionHandlerDoesNotClaimAKeymapAction`, `aDisabledElementsAXNodeCarriesTheDisabledTrait`, `aDisabledPaneContributesNoKeyContext`, `aDisabledScopeReachesIntoDeferredContent`, `aDisabledTargetIsNeitherHoveredNorPressed`, `aDispatchedClickDoesNotAlsoReachTheWindowsRawHandler`, `aFocusableElementNeedsNoHandlerAndAHandlerNeedsNoFocusability`, `aFocusableRowInsideAScrollViewDoesNotSwallowTheWheel`, `aFocusedElementThatBecomesDisabledLosesFocusAtOnce`, `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`, `aFocusRingAndHoverBorderDrawOnTheLayerTheyAreWrittenOnAroundAFrame`, `aFocusRingOutranksAHoverBorderAndABorder`, `aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities`, `aFrameThatDoesNotCollectRecordsNothingAndSynthesisWritesNoRetentionSlot`, `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aHandlerRegisteredOnFrameNRunsForAnEventBeforeFrameNPlusOne`, `aHandlerThatClaimsTheEventStopsTheWalk`, `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aHiddenClickTargetPassesTheClickToWhatIsUnderIt`, `aHiddenElementInsideAnyElementIsHiddenUnderTheProposalAuthority`, `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`, `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`, `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`, `aHiddenRootPublishesNothing`, `aHoverBackgroundNeverPaintsUnderAllowsHitTestingFalse`, `aHoveredBoxPaintsItsHoverBackground`, `aKeyContextIsContributedByANonFocusableAncestor`, `aKeyContextRegistersNoPointerHitbox`, `aKeyEventDispatchesToTheFocusedElement`, `aKeyEventWithNothingFocusedReachesTheWindow`, `aKeyUpIsNotDispatchedToTheFocusChain`, `aLabelledClickTargetOnAFrameLayerPublishesTheFrameBoxWhileItsHitRegionIsInset`, `aLabelledListIsStillATable`, `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`, `aLayerAddedAtRunTimeKeepsTheOutermostAccessibilityNodeAndRepublishesTheWrappedOne`, `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`, `aListInTheDifferentialHarnessReachesABoundedWindow`, `aListsSceneAndHitboxesAreUnchangedByTheGroup`, `allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKeepsTheKeyboardOnes`, `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`, `anActionBubblesPastAnElementThatDoesNotHandleIt`, `anActivationRequestDirtiesACleanWindowAndItsNextFramePublishes`, `anAnimationWithAClientActivePostsNothingAndTouchesNoElement`, `anAppsKeymapBindingWinsOverEditingAndUnclaimedKeysBubble`, `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor`, `anElementThatStopsBeingFocusableLosesFocus`, `aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire`, `aNestedHandlerWinsOverItsContainingStackToo`, `anIDAfterAChainsLastWrapperNamesTheOutermostLayer`, `anIncrementRequestRunsTheAdjustmentHandler`, `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame`, `aNodesParentIsItsNearestEmittingAncestor`, `anUnchangedFrameIsNotRepublished`, `anUnhandledActionFallsThroughToTheRawKeyBubble`, `anUnhandledKeyEventBubblesToItsAncestorsInnermostFirst`, `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot`, `aPressIsRefusedWhereHitTestingIsDisabled`, `aPressOnOneElementReleasedOnAnotherIsNotAClick`, `aPressReleasedOverSomethingCoveringItIsNotAClick`, `aPressRequestRunsOnClickThroughTheLastFramesHitboxes`, `aPressThatLeavesTheElementAndReturnsStillClicks`, `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `aTwoStrokeSequenceDispatchesThroughTheWindow`, `aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling`, `aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount`, `aVirtualizedListsLogicalCountIsTheFullDataCountEvenWhenEveryRowFits`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`, `childrenFollowDeclarationOrderWhereIDsAloneCannot`, `clippedAlsoClipsTheHitboxesInsideIt`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`, `declaredRolesLabelsValuesAndTraitsReachThePublishedNode`, `eachLiveHandlerAloneMakesAnUndeclaredElementRecord`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain`, `everyHandlerRegisteringSiteHonoursAllowsHitTesting`, `everyHandlerRegisteringSiteStillPublishesItsAccessibilityPayload`, `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `focusabilityAndKeyHandlingRegisterNoPointerHitbox`, `focusBackgroundPaintsOnlyWhileFocusIsHeld`, `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`, `focusOutranksHoverWhenAnElementIsBoth`, `focusSurvivesAFrameInWhichTheFocusedElementIsRebuilt`, `focusSurvivesAndDispatchesInsideADeferredSubtree`, `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`, `hoverAndFocusFadeThroughTheSameEffectiveColourPath`, `hoveringOneClickTargetDoesNotHoverItsSibling`, `metalUIsDefaultHitRegionIsTheElementsWholeFrame`, `movingFocusAndClaimingAKeyBothRedrawTheWindow`, `onClickIsLiveOnEveryConformerThatCanRegisterOne`, `onKeyIsLiveOnEveryConformerThatCanRegisterOne`, `onlyABoxWithAHandlerRegistersAHitbox`, `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor`, `publishedFocusIsTheWindowsFocusAndAFocusRequestMovesIt`, `reEnablingRestoresClicksButNotFocus`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, `synthesizedNodesCostNothingWhileNoClientIsActive`, `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, `theGateReadsTheEnvironmentValueNotTheModifier`, `theHandlerReceivesTheEventThatArrived`, `theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows`, `theTopmostOfTwoOverlappingHandlersRuns`.
+
+Ms4's 63 (the five skipped crashers excluded; names read from every `Test
+<name>(…) recorded an issue` line, parameterised tests included — §10.5's list
+of 59 omits nine parameterised ones, `aDeferred…` ×4, `aListsSceneAndHitboxesAreUnchangedByTheGroup`,
+`anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt`,
+`aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope` and
+the two `aScrollView…CornerRadius…`/`…ClipsSquare` tests, and counts the five
+crashers in): `aBackgroundBeforeOrAfterALegacyFrameFillsTheBoxItWasWrittenOnAsSwiftUIDoes`, `aBackgroundIsEmittedBeforeTheChildrenAndABorderAfter`, `aBackgroundOnlyElementStillEmitsExactlyOneRect`, `aBareCornerRadiusDoesNotClipTheChildren`, `aBorderIsPaintedInsideTheElementsBoxAndChangesNoLayout`, `aBorderIsVisibleOverAChildThatFillsTheBox`, `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`, `aColourFadeOnAStyleStaticElementKeepsTheDisplayLinkRunning`, `aComponentReadsTheNearestEnvironmentInItsContent`, `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembersUnderTheProposalAuthority`, `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities`, `aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll`, `aDeferredElementHoistsItsChildAboveASiblingDeclaredAfterIt`, `aDeferredPortalInsideAFadedSubtreeIsStillFaded`, `aDisabledTargetIsNeitherHoveredNorPressed`, `aFrameLayersClipAndBorderBoundTheChildTheFrameCannotShrink`, `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum`, `aHiddenElementInsideAnyElementIsHiddenUnderTheProposalAuthority`, `aHiddenElementPaintsNothingUnderTheProposalAuthority`, `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`, `aHoverBackgroundNeverPaintsUnderAllowsHitTestingFalse`, `aHoveredBoxPaintsItsHoverBackground`, `aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten`, `aListsSceneAndHitboxesAreUnchangedByTheGroup`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`, `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt`, `anAnimatedFrameWidthInterpolatesAsTheAnimatedWidthItReplacesDid`, `anAnimatedWriteThatIsNotTheFirstObservableWriteOfItsIntervalStillAnimates`, `anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting`, `anElementWithNeitherABackgroundNorABorderEmitsNoRect`, `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask`, `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected`, `aParkedTransactionIsConsumedByExactlyOneBuild`, `aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot`, `aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope`, `aScrollRegionInsideAllowsHitTestingFalseIsStillRegistered`, `aScrollViewsCornerRadiusReachesEveryPrimitiveItClips`, `aScrollViewWithNoCornerRadiusClipsSquare`, `aSecondOpacityOnOneElementReplacesTheFirstWhereSwiftUIMultiplies`, `aTransactionParkedOutsideTheBuildAnimatesTheNextFrameEndToEnd`, `aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange`, `aWholeValueWriteCannotResetTheThemeOrThePixelLength`, `clippedCutsTheSubtreeToTheElementsBoxAndRoundsItByTheCornerRadius`, `everyBackgroundPaintingSiteAnimatesItsColour`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `everyDecorationScopingSiteContainsItsOwnContent`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `focusBackgroundPaintsOnlyWhileFocusIsHeld`, `focusOutranksHoverWhenAnElementIsBoth`, `hoverAndFocusFadeThroughTheSameEffectiveColourPath`, `hoverBackgroundWithoutAClickHandlerNeverPaints`, `hoveringOneClickTargetDoesNotHoverItsSibling`, `legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes`, `opacityMultipliesAndFadesTheElementsOwnBackground`, `opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theDisplayLinkStaysRunningWhileAnimatingAndPausesOnTheFrameAfterTheLastEnds`, `theFramesRootEnvironmentCarriesItsThemeAndScale`, `theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore`, `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate`, `theSpaceKeyBindingSwapsTheThemeThroughTheFakePlatform`.
 
 **11.3 Red first** (unfiltered, `e62cfd9`): `Test run with 1452 tests in 3
 suites failed … with 14 issues`. N3.1 `FrameSizingCompileGuards.swift:214`
@@ -678,22 +687,38 @@ four reasons, in this order:
    `aLayerAddedAtRunTimeKeepsTheOutermostAccessibilityNodeAndRepublishesTheWrappedOne`,
    whose boxes are in helpers (`PressToRename`, `labelledChain`), which then
    went K.
-4. No test took R: nothing was retired.
+4. **Ms4, `Box`'s own background** (the review round, §11.11): ten tests
+   M2b reddened before and not after, all K by rule 1 — 22 sites:
+   `ThemeTests`' `aBoxResolvesItsBackgroundTokenAgainstTheFramesTheme`,
+   `theSameElementPaintsDifferentColoursUnderTheTwoThemes` (its
+   `paintedBackground` helper) and `cornerRadiusReachesTheSceneThroughTheModifier`
+   (6); `ScrollViewTests`' `aScrollViewsCornerRadiusReachesEveryPrimitiveItClips`
+   and `aScrollViewWithNoCornerRadiusClipsSquare` (10, their R2 receivers
+   back to `Box(decoration: Decoration(background: .surface))`); and
+   `EnvironmentTests`' `aComponentReadsTheNearestEnvironmentInItsContent`
+   (`EnvComponent`), `aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope`,
+   `aWholeValueWriteCannotResetTheThemeOrThePixelLength` and
+   `theFramesRootEnvironmentCarriesItsThemeAndScale` (`surfaceBox`, back to
+   `-> Box<EmptyGroup>`), `theSpaceKeyBindingSwapsTheThemeThroughTheFakePlatform`
+   (its `tree()`) (6). The design's earlier line here — the background moves
+   "judged by K2's rule" by reading — was refuted by this measurement.
+5. No test took R: nothing was retired.
 
-**Result: F 151 sites, K 274, in the 22 files** (per file, F/K:
+**Result: F 129 sites, K 296, in the 22 files** (151/274 before §11.11) (per file, F/K:
 `AccessibilityDefaultsTests` 52/15, `AccessibilityEndToEndTests` 2/6,
 `AccessibilityTreeTests` 8/86, `ComponentTests` 6/14, `DeferredTests` 0/2,
-`ElementGroupTrapTests` 0/8, `EnvironmentTests` 12/0, `FocusTests` 10/38,
+`ElementGroupTrapTests` 0/8, `EnvironmentTests` 6/6, `FocusTests` 10/38,
 `FrameLoopTests` 2/0, `GlyphEmitterTests` 6/2, `HitboxTests` 2/2,
 `InputDispatchTests` 2/66, `KeymapTests` 10/10, `ListTests` 0/4,
-`ObservationTests` 17/0, `ProposalNodeIDTests` 0/2, `ScrollViewTests` 10/0,
+`ObservationTests` 17/0, `ProposalNodeIDTests` 0/2, `ScrollViewTests` 0/10,
 `StateTests` 2/0, `TextMeasureTests` 1/0, `TextSystemSeamTests` 1/0,
-`ThemeTests` 8/3, `TrackInteractionTests` 0/16). The design expected 425/0.
+`ThemeTests` 2/9, `TrackInteractionTests` 0/16). The design expected 425/0.
 **Every K line equals its `85217e3` line** once each `.cssX(` is mapped back to
 `.x(` (checked mechanically over all 22 files: the only non-`.frame` new-side
-lines left are the two `declared` signatures, `surfaceBox`'s and `Leaf`'s
-types, one re-broken `Box()` line in `ObservationTests` and one comment in
-`ScrollViewTests`). No assertion edited; no test renamed.
+lines left are the two `declared` signatures, `Leaf`'s type and one
+re-broken `Box()` line in `ObservationTests`; before §11.11 also
+`surfaceBox`'s type and one comment in `ScrollViewTests`, both back to their
+`85217e3` lines since). No assertion edited; no test renamed.
 
 **11.5 Class D.** `ModifierTests.everyPublicModifierWritesItsOwnFieldAndOnlyThatField`'s
 eight Size rows moved verbatim into `DeprecatedSizingCases`, a
@@ -706,7 +731,8 @@ final — before the D move, `Box.swift`'s comments and `Component.swift`'s,
 which touch no F file and no `Sources/` code line — with the eight
 deprecations in): Ms1 `1452 tests … failed … with 229 issues`, Ms2 `… 3
 issues`, Ms3 `… 7 issues`; **each reddened set is identical to its before set**
-(⊇ holds with equality; 129, 3, 5 tests).
+(⊇ holds with equality; 129, 3, 5 tests). Ms4 was not run here; §11.11
+measured it at the review round's head, equal to its before set.
 
 **11.7 Mutations of the new and changed guard** (committed `39adea3`, full
 unfiltered suite, restored from a copy, `git status --short` empty after):
@@ -749,5 +775,36 @@ instrument was not re-run.
 
 **11.10 Deferred, with owners.** The Record phase: CLAUDE.md/AGENTS.md
 (spec §9's list), and the F/K figures above in place of the design's
-425/0. Stage 10: the 274 new K sites join lane 2's 1115 (1389 `css*` sites in
+425/0. Stage 10: the 296 new K sites join lane 2's 1115 (1411 `css*` sites in
 the F and K files, plus lane 1's).
+
+**11.11 Review round: Ms4** (`LR-FB`, amended). The review applied lane 2's
+M2b before (`1604674`) and after (`61abb55`) with lane 2's five `--skip`s
+and found ten names missing after, none added — the ten of §11.4 reason 4.
+Re-measured here, each run by script (the mutation inserted before `Box.swift`'s
+one `pass.paintDecoration(decoration, in: bounds, for: id) {`, one native
+build, the full unfiltered suite with `--skip-build` and the five anchored
+`--skip`s, `Box.swift` restored from a copy, `git status --short` empty):
+
+| tree | summary | names |
+|---|---|---|
+| `1604674` (before) | `Test run with 1446 tests in 3 suites failed … with 82 issues` | 63 (§11.2) |
+| `61abb55` (lane 3's head) | `1447 tests … failed … with 72 issues` | 56: the 63 less the seven `ScrollViewTests`/`EnvironmentTests` names (the three `ThemeTests` ones are skipped in both runs, so this instrument shows them only by their crash at `1604674` and not at `61abb55`) |
+| `2f9e615` (the fix) | `1447 tests … failed … with 82 issues` | **63, identical to before** |
+
+Un-skipped at `2f9e615`, M2b aborts at the same five crashers in the same
+order as §10.5's base (`aBoxResolvesItsBackgroundTokenAgainstTheFramesTheme`,
+`theSameElementPaintsDifferentColoursUnderTheTwoThemes`,
+`aContainerPaintsItsBackgroundBeneathItsChildren`,
+`cornerRadiusReachesTheSceneThroughTheModifier`,
+`aHostAppearanceChangeSwapsTheThemeAndRepaints`, each
+`ContiguousArrayBuffer.swift:695: Fatal error: Index out of range`), then the
+same `1447 … 82 issues` — so the three `ThemeTests` tests pin `Box.paint`
+again. Unmutated at `2f9e615`: `swift build --build-system native
+--build-tests` 0 `error:`, the one `warning:` SwiftPM's notice; unfiltered
+**`Test run with 1452 tests in 3 suites passed`**, `N3.1 sizing deprecations:
+succeeded=true count=8` and `FR-J no-argument frame: succeeded=true` in the
+log. Every changed line equals its `85217e3` line modulo the `css` prefix. No
+assertion edited, no test renamed or retired; before − removed + added =
+after, 1452 − 0 + 0 = 1452. No `Sources/` line and no demo-reachable file
+changed, so the offscreen comparison and `Backends/SDL` were not re-run.
