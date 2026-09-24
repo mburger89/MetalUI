@@ -171,15 +171,15 @@ func aScrollViewOfTextDoesNotShrinkItsContentToTheViewport(_ authority: LayoutAu
 @Test(arguments: AuthorityCoverage.authorities) @MainActor
 func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips(_ authority: LayoutAuthority) throws {
     AuthorityCoverage.record(#function, authority)
-    // `.width(Pixels(50))` as well as the height: the legacy engine stretched
+    // A width of 50 as well as the height: the legacy engine stretched
     // these rows to the 50pt viewport, the kernel viewport's cross answer is its
     // content's (`CN-M`), and a row that declares neither is 0 wide under the
     // proposal authority (ruling `LR-BN`). 50 is the number the stretch already
     // produced, so no legacy literal below moves.
     var view = ScrollView(.vertical) {
-        Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
-        Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
-        Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
+        Box().frame(width: Pixels(50), height: Pixels(20)).background(.surface)
+        Box().frame(width: Pixels(50), height: Pixels(20)).background(.surface)
+        Box().frame(width: Pixels(50), height: Pixels(20)).background(.surface)
     }
     .cornerRadius(Pixels(14))
 
@@ -230,8 +230,8 @@ func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips(_ authority: LayoutAut
 func aScrollViewWithNoCornerRadiusClipsSquare(_ authority: LayoutAuthority) throws {
     AuthorityCoverage.record(#function, authority)
     var view = ScrollView(.vertical) {
-        Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
-        Box(decoration: Decoration(background: .surface)).width(Pixels(50)).height(Pixels(20))
+        Box().frame(width: Pixels(50), height: Pixels(20)).background(.surface)
+        Box().frame(width: Pixels(50), height: Pixels(20)).background(.surface)
     }
 
     let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1,

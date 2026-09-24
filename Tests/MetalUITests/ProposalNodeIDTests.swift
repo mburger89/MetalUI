@@ -78,7 +78,7 @@ private struct StatefulLegacyLeaf: Element {
 @MainActor
 private func orphanBox(_ probe: TypedIDProbe) -> Box<StatefulLegacyLeaf> {
     Box { StatefulLegacyLeaf(probe: probe) }
-        .width(Pixels(30)).height(Pixels(30))
+        .cssWidth(Pixels(30)).cssHeight(Pixels(30))
         .background(.accent)
 }
 

@@ -43,7 +43,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     var count = 0
 }
 
-@MainActor private func declared<C: ElementGroup>(_ box: Box<C>, _ node: AXNode) -> Box<C> {
+@MainActor private func declared<E: StyledElement>(_ box: E, _ node: AXNode) -> E {
     box.handling { $0.axNode = node }
 }
 
@@ -72,7 +72,7 @@ private func elements(_ list: [Any]?) -> [NSAccessibilityElement] {
     let model = Model()
     let (window, appKit, nsWindow) = try makeAppKitWindow {
         Column {
-            declared(Box().width(px(40)).height(px(20)).onClick { model.count += 1 },
+            declared(Box().cssWidth(px(40)).cssHeight(px(20)).onClick { model.count += 1 },
                      AXNode(role: .button, label: "Increment"))
         }
     }
@@ -112,7 +112,7 @@ private func elements(_ list: [Any]?) -> [NSAccessibilityElement] {
 /// sees each event exactly once.
 @Test @MainActor func aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient() throws {
     let (window, appKit, nsWindow) = try makeAppKitWindow {
-        Column { Box().width(px(40)).height(px(20)).onClick {} }
+        Column { Box().frame(width: px(40), height: px(20)).onClick {} }
     }
     defer { nsWindow.close() }
     var requests: [Request] = []
@@ -193,12 +193,12 @@ private func elements(_ list: [Any]?) -> [NSAccessibilityElement] {
         let (window, appKit, nsWindow) = try makeAppKitWindow {
             Column {
                 if model.showFirst {
-                    declared(Box().width(px(40)).height(px(20)).onClick { model.first += 1 },
+                    declared(Box().cssWidth(px(40)).cssHeight(px(20)).onClick { model.first += 1 },
                              AXNode(role: .button, label: "First"))
                 }
                 // One expression of one type in both arms, so the only
                 // difference between them is the name.
-                let trailing = declared(Box().width(px(40)).height(px(20)).onClick { model.second += 1 },
+                let trailing = declared(Box().cssWidth(px(40)).cssHeight(px(20)).onClick { model.second += 1 },
                                         AXNode(role: .button, label: "Second"))
                 named ? trailing.id("second") : trailing
             }

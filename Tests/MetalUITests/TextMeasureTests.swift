@@ -185,7 +185,7 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
     #expect(abs(fixedHeight.width - ctAdvance(sample, font.ctFont)) < 0.001)
 
     // And through the element, where the engine is what applies `known`.
-    var column = Column { Text(sample).width(Pixels(50)) }
+    var column = Column { Text(sample).frame(width: Pixels(50)) }
     let (frame, root) = laidOut(&column, width: 400)
     let rect = frame.tree.layout(frame.tree.children(root)[0])
     #expect(rect.width == 50)

@@ -102,7 +102,7 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
 
 @MainActor
 @Test func aBoxResolvesItsBackgroundTokenAgainstTheFramesTheme() {
-    var element = Box().width(Pixels(30)).height(Pixels(20)).background(.accent)
+    var element = Box().frame(width: Pixels(30), height: Pixels(20)).background(.accent)
     let frame = Frame(contentSize: Size(width: Pixels(30), height: Pixels(20)),
                       scaleFactor: 1, theme: .dark)
     frame.render(&element)
@@ -123,7 +123,7 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
     // Nothing about the element changes between them — which is what makes a
     // theme swap a repaint rather than a rebuild.
     func paintedBackground(theme: Theme) -> Hsla {
-        var element = Box().width(Pixels(10)).height(Pixels(10)).background(.surfaceSecondary)
+        var element = Box().frame(width: Pixels(10), height: Pixels(10)).background(.surfaceSecondary)
         let frame = Frame(contentSize: Size(width: Pixels(10), height: Pixels(10)),
                           scaleFactor: 1, theme: theme)
         frame.render(&element)
@@ -140,7 +140,7 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
     // `nil` is not "fill with transparent". A transparent fill would still cost
     // a rect, and rects are what the per-frame budget is spent on — so this is
     // the difference between a spacer costing nothing and costing a draw.
-    var element = Box().width(Pixels(30)).height(Pixels(20))
+    var element = Box().frame(width: Pixels(30), height: Pixels(20))
     let frame = Frame(contentSize: Size(width: Pixels(30), height: Pixels(20)), scaleFactor: 1)
     frame.render(&element)
 
@@ -154,9 +154,9 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
     // children would cover them — and the layout would still be perfect, so
     // only this ordering assertion can see it.
     var element = Column(gap: Pixels(0)) {
-        Box().height(Pixels(10)).background(.accent)
+        Box().cssHeight(Pixels(10)).background(.accent)
     }
-    .width(Pixels(50)).height(Pixels(40)).background(.surface)
+    .cssWidth(Pixels(50)).cssHeight(Pixels(40)).background(.surface)
 
     let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(40)),
                       scaleFactor: 1, theme: .light)
@@ -204,7 +204,7 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
 @Test func cornerRadiusReachesTheSceneThroughTheModifier() {
     // The per-corner test above goes through `Frame.fill` directly, so on its
     // own it would still pass if `Decoration.cornerRadius` were never read.
-    var element = Box().width(Pixels(40)).height(Pixels(20))
+    var element = Box().frame(width: Pixels(40), height: Pixels(20))
         .background(.accent).cornerRadius(Pixels(8))
     let frame = Frame(contentSize: Size(width: Pixels(40), height: Pixels(20)), scaleFactor: 1)
     frame.render(&element)

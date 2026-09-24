@@ -25,7 +25,7 @@ final class ProbeModel {
                               "no Metal device; run on macOS hardware")
     let model = ProbeModel()
     let (window, _) = try makeFakeWindow(device: device) {
-        Box().background(.surface).width(Pixels(10)).height(Pixels(Float(model.label.count)))
+        Box().frame(width: Pixels(10), height: Pixels(Float(model.label.count))).background(.surface)
     }
 
     // Drain the initial dirty state so the next write is the only cause.
@@ -50,7 +50,7 @@ final class ProbeModel {
                               "no Metal device; run on macOS hardware")
     let model = ProbeModel()
     let (window, _) = try makeFakeWindow(device: device) {
-        Box().background(.surface).width(Pixels(10)).height(Pixels(Float(model.label.count)))
+        Box().frame(width: Pixels(10), height: Pixels(Float(model.label.count))).background(.surface)
     }
 
     window.drawFrameIfNeeded()
@@ -90,8 +90,7 @@ final class ProbeModel {
     for framesToDraw in [1, 200] {
         let model = ProbeModel()
         let (window, _) = try makeFakeWindow(device: device) {
-            Box().background(.surface).width(Pixels(10))
-                 .height(Pixels(Float(model.label.count)))
+            Box().frame(width: Pixels(10), height: Pixels(Float(model.label.count))).background(.surface)
         }
 
         for _ in 0..<framesToDraw {
@@ -132,7 +131,7 @@ final class ProbeModel {
                               "no Metal device; run on macOS hardware")
     let model = ProbeModel()
     let (window, _) = try makeFakeWindow(device: device) {
-        Box().background(.surface).width(Pixels(10)).height(Pixels(Float(model.label.count)))
+        Box().frame(width: Pixels(10), height: Pixels(Float(model.label.count))).background(.surface)
     }
 
     for _ in 0..<200 {
@@ -160,7 +159,7 @@ final class ProbeModel {
                               "no Metal device; run on macOS hardware")
     let model = ProbeModel()
     let (window, platformWindow) = try makeFakeWindow(device: device) {
-        Box().background(.surface).width(Pixels(10)).height(Pixels(Float(model.label.count)))
+        Box().frame(width: Pixels(10), height: Pixels(Float(model.label.count))).background(.surface)
     }
 
     window.drawFrameIfNeeded()                       // drain the initial dirty
@@ -193,7 +192,7 @@ final class ProbeModel {
                               "no Metal device; run on macOS hardware")
     let model = ProbeModel()
     let (window, _) = try makeFakeWindow(device: device) {
-        Box().background(.surface).width(Pixels(10)).height(Pixels(Float(model.label.count)))
+        Box().frame(width: Pixels(10), height: Pixels(Float(model.label.count))).background(.surface)
     }
     window.drawFrameIfNeeded()
     try #require(!window.needsRedraw)
@@ -245,7 +244,7 @@ final class ProbeModel {
                               "no Metal device; run on macOS hardware")
     let model = ProbeModel()
     let (window, _) = try makeFakeWindow(device: device) {
-        Box().background(.surface).width(Pixels(10)).height(Pixels(Float(model.label.count)))
+        Box().frame(width: Pixels(10), height: Pixels(Float(model.label.count))).background(.surface)
     }
     window.drawFrameIfNeeded()
     try #require(!window.needsRedraw)
@@ -275,7 +274,7 @@ final class ProbeModel {
                               "no Metal device; run on macOS hardware")
     let model = ProbeModel()
     let (window, _) = try makeFakeWindow(device: device) {
-        Box().background(.surface).width(Pixels(10)).height(Pixels(Float(model.label.count)))
+        Box().frame(width: Pixels(10), height: Pixels(Float(model.label.count))).background(.surface)
     }
     window.drawFrameIfNeeded()
     try #require(!window.needsRedraw)
@@ -336,8 +335,8 @@ final class ProbeModel {
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 64, startsDisplayLink: true) {
         ScrollView(.vertical, elementID: ElementID("list")) {
             List(rows, rowHeight: Pixels(20)) { row in
-                Box().background(.surface)
-                     .height(Pixels(Float(row.model.label.count)))
+                Box()
+                     .frame(height: Pixels(Float(row.model.label.count))).background(.surface)
             }
         }
     }

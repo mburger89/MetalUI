@@ -347,7 +347,7 @@ func anEmptyListHasZeroHeightAndTrapsNothing(_ authority: LayoutAuthority) throw
 @Test(arguments: AuthorityCoverage.authorities) @MainActor
 func aWidthModifierOnAListReachesItsLayoutNode(_ authority: LayoutAuthority) throws {
     AuthorityCoverage.record(#function, authority)
-    let list = List(items(3), rowHeight: px(28)) { Row($0) }.width(px(123))
+    let list = List(items(3), rowHeight: px(28)) { Row($0) }.cssWidth(px(123))
     let (_, listBounds) = laidOut(list, authority: authority)
     #expect(try #require(listBounds).size.width == px(123))
 }
@@ -806,7 +806,7 @@ func aListInTheDifferentialHarnessReachesABoundedWindow(_ authority: LayoutAutho
                     List(data, rowHeight: px(28)) { Row($0) }
                 }
             }
-            .flexGrow(1).flexBasis(px(0)).minHeight(px(0))
+            .flexGrow(1).flexBasis(px(0)).cssMinHeight(px(0))
         }
     }
 
@@ -847,8 +847,8 @@ func aListsSceneAndHitboxesAreUnchangedByTheGroup(_ authority: LayoutAuthority) 
     AuthorityCoverage.record(#function, authority)
     let data = items(10)
     let list = List(data, rowHeight: px(28)) { _ in
-        Box().background(.accent).onClick {}.width(px(100))
-    }.width(px(120))
+        Box().background(.accent).onClick {}.cssWidth(px(100))
+    }.cssWidth(px(120))
     let context = ScrollContext(offset: 140, viewportExtent: 56, axis: .vertical)
     let (frame, _) = renderWindowed(list, context: context, authority: authority)
 

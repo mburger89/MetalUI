@@ -544,12 +544,28 @@ extension Component {
 
     /// Matches `StyledElement.width(_ points:)` (`Box.swift`). An amend of each
     /// member's own width (`OM-F`).
+    ///
+    /// **Not deprecated, though the `StyledElement` modifier it matches is**
+    /// (plan task 7, stage 8, ruling `LR-ER` item 2): this one does not write
+    /// an element's own box or return `Self`; under the proposal authority it
+    /// already lowers to one native frame per member (`LR-BG` — SwiftUI's
+    /// answer, component distribution probe G7/G8); and `Component.frame` over
+    /// several members is a horizontal row (`LR-BH`), so it is not a rename
+    /// target. Its reconciliation with `.frame` is stage 11's.
     public func width(_ points: Pixels) -> StyledComponent<Self> {
         StyledComponent(component: self, ops: [.amend(componentWidth(points))])
     }
 
     /// Matches `StyledElement.height(_ points:)` (`Box.swift`). An amend of
     /// each member's own height (`OM-F`).
+    ///
+    /// **Not deprecated, though the `StyledElement` modifier it matches is**
+    /// (plan task 7, stage 8, ruling `LR-ER` item 2): this one does not write
+    /// an element's own box or return `Self`; under the proposal authority it
+    /// already lowers to one native frame per member (`LR-BG` — SwiftUI's
+    /// answer, component distribution probe G7/G8); and `Component.frame` over
+    /// several members is a horizontal row (`LR-BH`), so it is not a rename
+    /// target. Its reconciliation with `.frame` is stage 11's.
     public func height(_ points: Pixels) -> StyledComponent<Self> {
         StyledComponent(component: self, ops: [.amend(componentHeight(points))])
     }
@@ -572,6 +588,10 @@ extension Component {
 /// version of this comment said "not accumulation — `.padding(4).padding(4)`
 /// leaves a component padded by 4", which was true of the amend it described
 /// and is inverted by `OM-D` on probe evidence (G4, E1–E3).
+///
+/// `width`/`height` here are **not deprecated**, though the `StyledElement`
+/// modifiers of the same names are since plan task 7's stage 8 — for the
+/// reason `Component.width(_:)` gives (ruling `LR-ER` item 2; stage 11's).
 extension StyledComponent {
     public func padding(_ points: Pixels) -> StyledComponent<C> {
         StyledComponent(component: component, ops: ops + [.wrap(paddingWrapperStyle(points))])

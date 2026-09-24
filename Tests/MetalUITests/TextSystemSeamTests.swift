@@ -43,7 +43,7 @@ private func render<E: Element>(_ make: () -> E, system: any TextSystem, scale: 
 private func legacyTree() -> some Element {
     Column {
         Text("The quick brown fox jumps over the lazy dog, twice over.")
-            .font(family: "Noto Sans", size: 17).width(Pixels(150))
+            .font(family: "Noto Sans", size: 17).frame(width: Pixels(150))
         Text("Kerning AV To Ty").font(family: "Noto Sans", size: 13)
         Text("Ready\nSet").font(family: "NotoSans-Regular", size: 22)
     }.alignItems(.flexStart)

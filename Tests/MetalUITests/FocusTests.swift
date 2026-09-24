@@ -51,9 +51,9 @@ private func rootID(_ name: String) -> GlobalElementID {
     let log = KeyLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
-            Box().width(px(40)).height(px(40)).id("a")
+            Box().cssWidth(px(40)).cssHeight(px(40)).id("a")
                 .focusable().onKey { _ in log.names.append("focused"); return true }
-            Box().width(px(40)).height(px(40)).id("b")
+            Box().cssWidth(px(40)).cssHeight(px(40)).id("b")
                 .focusable().onKey { _ in log.names.append("other"); return true }
         }
     }
@@ -79,7 +79,7 @@ private func rootID(_ name: String) -> GlobalElementID {
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box {
             Box {
-                Box().width(px(20)).height(px(20)).id("leaf")
+                Box().frame(width: px(20), height: px(20)).id("leaf")
                     .focusable().onKey { _ in log.names.append("leaf"); return false }
             }
             .id("mid").onKey { _ in log.names.append("mid"); return false }
@@ -117,7 +117,7 @@ private func rootID(_ name: String) -> GlobalElementID {
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box {
             Box {
-                Box().width(px(20)).height(px(20)).id("leaf")
+                Box().frame(width: px(20), height: px(20)).id("leaf")
                     .focusable().onKey { _ in log.names.append("leaf"); return false }
             }
             .id("mid").onKey { _ in log.names.append("mid"); return true }
@@ -150,7 +150,7 @@ private func rootID(_ name: String) -> GlobalElementID {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = KeyLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().cssWidth(px(40)).cssHeight(px(40)).id("a")
             .focusable().onKey { _ in log.names.append("element"); return true }
     }
     window.drawFrameIfNeeded()
@@ -186,7 +186,7 @@ private func rootID(_ name: String) -> GlobalElementID {
     let label = Label()
     label.name = "v1"
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().cssWidth(px(40)).cssHeight(px(40)).id("a")
             .focusable().onKey { _ in log.names.append(label.name); return true }
     }
     window.drawFrameIfNeeded()
@@ -242,7 +242,7 @@ private final class Label {
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box {
             if toggle.isOn {
-                Box().width(px(20)).height(px(20)).id("a")
+                Box().cssWidth(px(20)).cssHeight(px(20)).id("a")
                     .focusable().onKey { _ in log.names.append("element"); return true }
             }
         }
@@ -301,7 +301,7 @@ private final class Label {
     let (window, _) = try makeFakeWindow(device: device, size: 100) {
         Box {
             if toggle.isOn {
-                Box().width(px(20)).height(px(20)).id("a").focusable()
+                Box().frame(width: px(20), height: px(20)).id("a").focusable()
             }
         }
         .id("root")
@@ -338,8 +338,8 @@ private final class Toggle {
     toggle.isOn = true
     let (window, _) = try makeFakeWindow(device: device, size: 100) {
         toggle.isOn
-            ? Box().width(px(20)).height(px(20)).id("a").focusable()
-            : Box().width(px(20)).height(px(20)).id("a")
+            ? Box().cssWidth(px(20)).cssHeight(px(20)).id("a").focusable()
+            : Box().cssWidth(px(20)).cssHeight(px(20)).id("a")
     }
     window.drawFrameIfNeeded()
     window.focus(rootID("a"))
@@ -369,7 +369,7 @@ private final class Toggle {
     let log = KeyLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box {
-            Box().width(px(20)).height(px(20)).id("leaf").focusable()
+            Box().frame(width: px(20), height: px(20)).id("leaf").focusable()
         }
         .id("root").onKey { _ in log.names.append("root"); return true }
     }
@@ -399,7 +399,7 @@ private final class Toggle {
 @Test @MainActor func focusabilityAndKeyHandlingRegisterNoPointerHitbox() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (keyboardOnly, _) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).focusable().onKey { _ in true }
+        Box().cssWidth(px(40)).cssHeight(px(40)).focusable().onKey { _ in true }
     }
     keyboardOnly.drawFrameIfNeeded()
     #expect(keyboardOnly.lastHitboxes.isEmpty,
@@ -409,7 +409,7 @@ private final class Toggle {
 
     // The differential: the same box with `onClick` does register one.
     let (clickable, _) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).focusable().onClick {}
+        Box().cssWidth(px(40)).cssHeight(px(40)).focusable().onClick {}
     }
     clickable.drawFrameIfNeeded()
     #expect(clickable.lastHitboxes.count == 1, "`onClick` is what makes a hit target")
@@ -438,7 +438,7 @@ private func rootID2() -> GlobalElementID {
 @Test @MainActor func movingFocusAndClaimingAKeyBothRedrawTheWindow() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().cssWidth(px(40)).cssHeight(px(40)).id("a")
             .focusable().onKey { _ in true }
     }
     window.drawFrameIfNeeded()
@@ -546,7 +546,7 @@ private func rootID2() -> GlobalElementID {
         ScrollView(.vertical, elementID: ElementID("list")) {
             Box(style: column) {
                 Deferred(elementID: ElementID("portal")) {
-                    Box().width(px(20)).height(px(20)).id("leaf")
+                    Box().cssWidth(px(20)).cssHeight(px(20)).id("leaf")
                         .focusable().onKey { _ in log.names.append("leaf"); return true }
                 }
             }
@@ -580,7 +580,7 @@ private func rootID2() -> GlobalElementID {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, _) = try makeFakeWindow(device: device, size: 100) {
         Box {
-            Box { Box().width(px(20)).height(px(20)).id("leaf") }.id("mid")
+            Box { Box().frame(width: px(20), height: px(20)).id("leaf") }.id("mid")
         }
         .id("root")
     }
@@ -609,7 +609,7 @@ private func rootID2() -> GlobalElementID {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = KeyLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().cssWidth(px(40)).cssHeight(px(40)).id("a")
             .focusable().onKey { _ in log.names.append("element"); return true }
     }
     window.drawFrameIfNeeded()
@@ -638,7 +638,7 @@ private func rootID2() -> GlobalElementID {
     var seen: [String] = []
     var seenModifiers: [Modifiers] = []
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().cssWidth(px(40)).cssHeight(px(40)).id("a")
             .focusable().onKey { key in
                 seen.append(key.charactersIgnoringModifiers)
                 seenModifiers.append(key.modifiers)
@@ -678,28 +678,28 @@ private func rootID2() -> GlobalElementID {
     }
 
     try fires("box") {
-        Box().width(px(40)).height(px(40)).id("box")
+        Box().cssWidth(px(40)).cssHeight(px(40)).id("box")
             .focusable().onKey { _ in log.names.append("box"); return true }
     }
     try fires("column") {
-        Column { Box().width(px(40)).height(px(40)) }.id("column")
+        Column { Box().cssWidth(px(40)).cssHeight(px(40)) }.id("column")
             .focusable().onKey { _ in log.names.append("column"); return true }
     }
     try fires("row") {
-        Row { Box().width(px(40)).height(px(40)) }.id("row")
+        Row { Box().cssWidth(px(40)).cssHeight(px(40)) }.id("row")
             .focusable().onKey { _ in log.names.append("row"); return true }
     }
     try fires("stack") {
-        Stack { Box().width(px(40)).height(px(40)) }.id("stack")
+        Stack { Box().cssWidth(px(40)).cssHeight(px(40)) }.id("stack")
             .focusable().onKey { _ in log.names.append("stack"); return true }
     }
     try fires("text") {
-        Text("Hi").width(px(40)).height(px(40)).id("text")
+        Text("Hi").cssWidth(px(40)).cssHeight(px(40)).id("text")
             .focusable().onKey { _ in log.names.append("text"); return true }
     }
     try fires("list") {
         List([Datum(id: 0)], rowHeight: px(40)) { _ in Box() }
-            .width(px(40)).height(px(40)).id("list")
+            .cssWidth(px(40)).cssHeight(px(40)).id("list")
             .focusable().onKey { _ in log.names.append("list"); return true }
     }
 }

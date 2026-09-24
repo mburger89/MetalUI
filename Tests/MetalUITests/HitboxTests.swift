@@ -536,7 +536,7 @@ private final class ToggleBox {
             }
             HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)))
         }
-        .width(px(100)).height(px(100))
+        .cssWidth(px(100)).cssHeight(px(100))
     }
     window.drawFrameIfNeeded()
     let rootID = GlobalElementID.child(of: nil, at: 0, name: nil)
@@ -603,7 +603,7 @@ private final class ToggleBox {
             HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)),
                        hoverBox: hoverBox)
         }
-        .width(px(100)).height(px(100))
+        .frame(width: px(100), height: px(100), alignment: .leading)
     }
     window.drawFrameIfNeeded()
     #expect(!hoverBox.isHovered, "no mouse event has ever reached the window")

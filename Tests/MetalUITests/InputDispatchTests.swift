@@ -58,7 +58,7 @@ private final class ClickLog {
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                       layoutAuthority: .proposal) {
-        Box().width(px(40)).height(px(40)).onClick { log.names.append("btn") }
+        Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
 
@@ -79,7 +79,7 @@ private final class ClickLog {
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                       layoutAuthority: .proposal) {
-        Box().width(px(40)).height(px(40)).onClick { log.names.append("btn") }
+        Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
 
@@ -104,8 +104,8 @@ private final class ClickLog {
     let log = ClickLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Stack {
-            Box().width(px(60)).height(px(60)).onClick { log.names.append("outer") }
-            Box().width(px(30)).height(px(30)).onClick { log.names.append("inner") }
+            Box().cssWidth(px(60)).cssHeight(px(60)).onClick { log.names.append("outer") }
+            Box().cssWidth(px(30)).cssHeight(px(30)).onClick { log.names.append("inner") }
         }
     }
     window.drawFrameIfNeeded()
@@ -137,7 +137,7 @@ private final class ClickLog {
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                       layoutAuthority: .proposal) {
-        Box().width(px(40)).height(px(40)).onClick { log.names.append(label.name) }
+        Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append(label.name) }
     }
 
     window.drawFrameIfNeeded()
@@ -174,8 +174,8 @@ private final class LabelBox {
     let log = ClickLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
-            Box().width(px(40)).height(px(40)).onClick { log.names.append("left") }
-            Box().width(px(40)).height(px(40)).onClick { log.names.append("right") }
+            Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("left") }
+            Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("right") }
         }
     }
     window.drawFrameIfNeeded()
@@ -213,9 +213,9 @@ private final class LabelBox {
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                       layoutAuthority: .proposal) {
         Box {
-            Box().width(px(30)).height(px(30)).onClick { log.names.append("inner") }
+            Box().cssWidth(px(30)).cssHeight(px(30)).onClick { log.names.append("inner") }
         }
-        .width(px(60)).height(px(60)).onClick { log.names.append("outer") }
+        .cssWidth(px(60)).cssHeight(px(60)).onClick { log.names.append("outer") }
     }
     window.drawFrameIfNeeded()
 
@@ -247,9 +247,9 @@ private final class LabelBox {
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                       layoutAuthority: .proposal) {
         Stack {
-            Box().width(px(30)).height(px(30)).onClick { log.names.append("inner") }
+            Box().cssWidth(px(30)).cssHeight(px(30)).onClick { log.names.append("inner") }
         }
-        .width(px(60)).height(px(60)).onClick { log.names.append("outer") }
+        .cssWidth(px(60)).cssHeight(px(60)).onClick { log.names.append("outer") }
     }
     window.drawFrameIfNeeded()
 
@@ -280,8 +280,8 @@ private final class LabelBox {
     let log = ClickLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Stack {
-            Box().width(px(60)).height(px(60)).onClick { log.names.append("outer") }
-            Box().width(px(30)).height(px(30)).onClick { log.names.append("inner") }
+            Box().cssWidth(px(60)).cssHeight(px(60)).onClick { log.names.append("outer") }
+            Box().cssWidth(px(30)).cssHeight(px(30)).onClick { log.names.append("inner") }
         }
     }
     window.drawFrameIfNeeded()
@@ -309,7 +309,7 @@ private final class LabelBox {
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                       layoutAuthority: .proposal) {
-        Box().width(px(40)).height(px(40)).onClick { log.names.append("btn") }
+        Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
 
@@ -329,7 +329,7 @@ private final class LabelBox {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ClickLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).onClick { log.names.append("btn") }
+        Box().frame(width: px(40), height: px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
 
@@ -350,7 +350,7 @@ private final class LabelBox {
 @Test @MainActor func onlyABoxWithAHandlerRegistersAHitbox() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (plain, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
-        Box().width(px(40)).height(px(40))
+        Box().cssWidth(px(40)).cssHeight(px(40))
     }
     plain.drawFrameIfNeeded()
     #expect(plain.lastHitboxes.isEmpty, "a Box with no handler is not a hit target")
@@ -359,7 +359,7 @@ private final class LabelBox {
     // proposal authority it is centred at its own 40x40 answer (`CN-J`):
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
     let (clickable, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
-        Box().width(px(40)).height(px(40)).onClick {}
+        Box().cssWidth(px(40)).cssHeight(px(40)).onClick {}
     }
     clickable.drawFrameIfNeeded()
     let boxes = try #require(clickable.lastHitboxes.count == 1 ? clickable.lastHitboxes : nil,
@@ -397,18 +397,18 @@ private final class LabelBox {
         log.names.removeAll()
     }
 
-    try fires("box") { Box().width(px(40)).height(px(40)).onClick { log.names.append("box") } }
-    try fires("column") { Column { Box().width(px(40)).height(px(40)) }
-        .width(px(40)).height(px(40)).onClick { log.names.append("column") } }
-    try fires("row") { Row { Box().width(px(40)).height(px(40)) }
-        .width(px(40)).height(px(40)).onClick { log.names.append("row") } }
-    try fires("stack") { Stack { Box().width(px(40)).height(px(40)) }
-        .width(px(40)).height(px(40)).onClick { log.names.append("stack") } }
-    try fires("text") { Text("Hi").width(px(40)).height(px(40))
+    try fires("box") { Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("box") } }
+    try fires("column") { Column { Box().cssWidth(px(40)).cssHeight(px(40)) }
+        .cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("column") } }
+    try fires("row") { Row { Box().cssWidth(px(40)).cssHeight(px(40)) }
+        .cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("row") } }
+    try fires("stack") { Stack { Box().cssWidth(px(40)).cssHeight(px(40)) }
+        .cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("stack") } }
+    try fires("text") { Text("Hi").cssWidth(px(40)).cssHeight(px(40))
         .onClick { log.names.append("text") } }
     try fires("list") {
         List([Datum(id: 0)], rowHeight: px(40)) { _ in Box() }
-            .width(px(40)).height(px(40)).onClick { log.names.append("list") }
+            .cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("list") }
     }
     // Ruling MC-I: a `.padding`/`.frame` chain is ONE `ModifiedElement` that
     // registers each layer's handlers in a loop — two arms over a two-layer
@@ -416,14 +416,14 @@ private final class LabelBox {
     // outermost layer with none) and on the outermost. The wrapped `Box`
     // declares no handler, so (20, 20) can only reach the layer's.
     try fires("modified inner layer") {
-        Box().width(px(24)).height(px(24))
+        Box().cssWidth(px(24)).cssHeight(px(24))
             .padding(Edges(all: .pixels(px(4)))).onClick { log.names.append("modified inner layer") }
-            .padding(Edges(all: .pixels(px(4)))).width(px(40)).height(px(40))
+            .padding(Edges(all: .pixels(px(4)))).cssWidth(px(40)).cssHeight(px(40))
     }
     try fires("modified outermost layer") {
-        Box().width(px(24)).height(px(24))
+        Box().cssWidth(px(24)).cssHeight(px(24))
             .padding(Edges(all: .pixels(px(4))))
-            .padding(Edges(all: .pixels(px(4)))).width(px(40)).height(px(40))
+            .padding(Edges(all: .pixels(px(4)))).cssWidth(px(40)).cssHeight(px(40))
             .onClick { log.names.append("modified outermost layer") }
     }
 }
@@ -506,7 +506,7 @@ private struct Datum: Identifiable { let id: Int }
     // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                       layoutAuthority: .proposal) {
-        Box().width(px(40)).height(px(40)).onClick { log.names.append("btn") }
+        Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("btn") }
     }
     window.drawFrameIfNeeded()
     var raw: [String] = []
@@ -572,17 +572,17 @@ private struct Datum: Identifiable { let id: Int }
         let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
             Row {
                 if present.on {
-                    Box().width(px(40)).height(px(40)).onClick { log.names.append("A") }
+                    Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("A") }
                 }
                 {
-                    let b = Box().width(px(40)).height(px(40))
+                    let b = Box().cssWidth(px(40)).cssHeight(px(40))
                         .onClick { log.names.append("B") }
                     return nameTheSibling ? b.id("b") : b
                 }()
             }
             // Stage 6b (`LR-DG`, R-fill): the window's extent declared on both
             // auto root axes — what `CS-I` gave the legacy root, now spelled.
-            .width(px(100)).height(px(100))
+            .cssWidth(px(100)).cssHeight(px(100))
         }
         window.drawFrameIfNeeded()
         // A `Row` in a 100x100 window: the two 40-wide boxes at x 0..40 and

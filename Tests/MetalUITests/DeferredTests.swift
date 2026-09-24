@@ -427,12 +427,12 @@ func aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting(_ authority: 
                             Box(style: sized(20, 20))
                         }
                     }
-                    .width(px(150))
+                    .cssWidth(px(150))
                     .alignItems(.stretch)
                 }
             }
         }
-        .width(px(50))
+        .cssWidth(px(50))
         .alignItems(.stretch)
     }
     try #require(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")

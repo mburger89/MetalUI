@@ -429,8 +429,8 @@ struct StateProbe: Element, StyledElement {
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)),
                       scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
     var column = Column {
-        StateProbe("left", log: log).id("a").width(px(10)).height(px(10))
-        StateProbe("right", log: log).id("a").width(px(10)).height(px(10))
+        StateProbe("left", log: log).id("a").cssWidth(px(10)).cssHeight(px(10))
+        StateProbe("right", log: log).id("a").cssWidth(px(10)).cssHeight(px(10))
     }
     .id("root")
 
@@ -460,8 +460,8 @@ struct StateProbe: Element, StyledElement {
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)),
                       scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
     var column = Column {
-        StateProbe("left", log: log).id("a").width(px(10)).height(px(10))
-        StateProbe("right", log: log).id("b").width(px(10)).height(px(10))
+        StateProbe("left", log: log).id("a").cssWidth(px(10)).cssHeight(px(10))
+        StateProbe("right", log: log).id("b").cssWidth(px(10)).cssHeight(px(10))
     }
     .id("root")
 

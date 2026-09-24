@@ -309,7 +309,7 @@ private struct TwoOrdinalElement: Element {
 @Test func aScrollViewsPerFrameOffsetBookkeepingDoesNotDirtyTheTable() throws {
     let table = StateTable()
     let size = Size<Pixels>(width: px(100), height: px(100))
-    var tree = ScrollView(.vertical) { Box().width(px(50)).height(px(200)) }
+    var tree = ScrollView(.vertical) { Box().frame(width: px(50), height: px(200)) }
 
     Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
 

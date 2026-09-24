@@ -120,8 +120,8 @@ private struct TwoLeaves: Component {
     var elementID: ElementID?
 
     var content: some ElementGroup {
-        Leaf("a", log: log).width(px(30)).height(px(10))
-        Leaf("b", log: log).width(px(50)).height(px(30))
+        Leaf("a", log: log).cssWidth(px(30)).cssHeight(px(10))
+        Leaf("b", log: log).cssWidth(px(50)).cssHeight(px(30))
     }
 }
 
@@ -152,15 +152,15 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 @Test func aComponentsContentFlattensIntoItsParent() {
     let componentLog = ComponentLog()
     let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
-    var withComponent = Row { TwoLeaves(log: componentLog) }.width(px(300)).height(px(40))
+    var withComponent = Row { TwoLeaves(log: componentLog) }.frame(width: px(300), height: px(40), alignment: .leading)
     frame.render(&withComponent)
 
     let inlineLog = ComponentLog()
     let inlineFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
     var inline = Row {
-        Leaf("a", log: inlineLog).width(px(30)).height(px(10))
-        Leaf("b", log: inlineLog).width(px(50)).height(px(30))
-    }.width(px(300)).height(px(40))
+        Leaf("a", log: inlineLog).cssWidth(px(30)).cssHeight(px(10))
+        Leaf("b", log: inlineLog).cssWidth(px(50)).cssHeight(px(30))
+    }.frame(width: px(300), height: px(40), alignment: .leading)
     inlineFrame.render(&inline)
 
     #expect(componentLog.registered == ["a", "b"])
@@ -189,8 +189,8 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
     let inlineFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1, layoutAuthority: .proposal)
     let log = ComponentLog()
     var inline = Row {
-        Leaf("a", log: log).width(px(30)).height(px(10))
-        Leaf("b", log: log).width(px(50)).height(px(30))
+        Leaf("a", log: log).cssWidth(px(30)).cssHeight(px(10))
+        Leaf("b", log: log).cssWidth(px(50)).cssHeight(px(30))
     }
     inlineFrame.render(&inline)
 
@@ -214,7 +214,7 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 
     let log = ComponentLog()
     let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
-    var root = Row { Outer(log: log) }.width(px(300)).height(px(40))
+    var root = Row { Outer(log: log) }.frame(width: px(300), height: px(40), alignment: .leading)
     frame.render(&root)
 
     #expect(log.registered == ["a", "b"])
@@ -476,7 +476,7 @@ private struct Wrapper: Component {
     Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&solo)
 
     var withSibling = Box {
-        Leaf("sibling", log: log).width(px(10)).height(px(10))
+        Leaf("sibling", log: log).cssWidth(px(10)).cssHeight(px(10))
         Wrapper(inner: CounterLeaf(), elementID: ElementID("named"))
     }
     Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&withSibling)
