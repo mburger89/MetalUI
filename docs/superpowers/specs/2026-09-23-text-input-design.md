@@ -2,7 +2,8 @@
 
 **Status: implemented** on `feat/text-input` (record §45); roadmap item 14 of
 `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:** `TI-`
-(`TI-A`…`TI-F`, next `TI-G`; rulings here). The user chose a full
+(`TI-A`…`TI-G`, next `TI-H`; rulings here; `TI-G` added by
+`feat/text-undo`, record §47). The user chose a full
 `TextField`: caret, selection, editing keys, IME composition and the
 clipboard, on AppKit and on SDL3.
 
@@ -154,7 +155,28 @@ own queue; the caret-offset oracle. **A real input method's candidate
 window, dead keys on a real layout and the system clipboard across apps are
 human looks.**
 
+### TI-G — Undo and redo
+
+Each field keeps an undo and a redo stack of snapshots — text, anchor, head —
+in its `TextEditState` (`TextEditHistory`, at most 100 groups; the oldest
+falls off). Undo and redo are keys of TI-D's table: ⌘Z and ⌘⇧Z on Apple,
+ctrl-Z, ctrl-Y and ctrl-shift-Z elsewhere. They restore the selection as well
+as the text, and reach the caller through `onChange` like any edit.
+
+- **Groups.** Consecutive one-grapheme typing, consecutive single deletes
+  backward and consecutive single deletes forward each coalesce into one
+  group. A caret move, a click, a drag or select-all ends the open group.
+  Cut, paste, a word or line delete, and an input method's multi-grapheme
+  commit are each a group of their own. Typing over a selection starts a new
+  group even while a typing group is open.
+- **A new edit clears redo.**
+- **The history belongs to the text it produced.** A controlled field's
+  caller may replace the text (clear it on submit, reformat it). If the text
+  an event arrives with is not the one the history's last edit, undo or redo
+  produced, the history is dropped: an undo never replays over a text it
+  never saw.
+
 ## Not in scope
 
-Multi-line editing (`TextEditor`), undo, secure entry, formatters, spelling,
+Multi-line editing (`TextEditor`), secure entry, formatters, spelling,
 drag and drop of text, bidirectional caret movement, and a blinking caret.

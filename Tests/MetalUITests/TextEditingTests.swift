@@ -182,3 +182,143 @@ private func same(_ a: (String, Int, Int, Bool), _ b: (String, Int, Int, Bool)) 
     // Never past the end, and never negative.
     #expect(TextEditing.scroll(keeping: 20, visibleIn: 50, textWidth: 30, current: 25) == 0)
 }
+
+// MARK: - Undo and redo (TI-G)
+
+/// Drives a sequence of keys and text through the engine as `Window` does,
+/// carrying the text and state, and returns the final pair.
+private struct Session {
+    var text: String
+    var state = TextEditState()
+    var platform: TextEditing.Platform = .mac
+
+    init(_ text: String, caret: Int, platform: TextEditing.Platform = .mac) {
+        self.text = text
+        self.platform = platform
+        state.anchor = caret
+        state.head = caret
+    }
+
+    mutating func type(_ inserted: String) {
+        (text, state) = TextEditing.insert(inserted, text: text, state: state)
+    }
+
+    @discardableResult
+    mutating func press(_ name: String, _ modifiers: Modifiers = [], clipboard: String? = nil) -> Bool {
+        let outcome = TextEditing.key(key(name, modifiers), text: text, state: state,
+                                      clipboard: { clipboard }, platform: platform)
+        state = outcome.state
+        if let new = outcome.text { text = new }
+        return outcome.handled
+    }
+
+    var undoKey: (String, Modifiers) { platform == .mac ? ("z", .command) : ("z", .control) }
+    mutating func undo() { press(undoKey.0, undoKey.1) }
+    mutating func redo() { _ = platform == .mac ? press("z", [.command, .shift]) : press("y", .control) }
+}
+
+@Test func typingIsOneUndoGroupAndRedoRestoresIt() {
+    var s = Session("", caret: 0)
+    for c in "hello" { s.type(String(c)) }
+    s.undo()
+    #expect(s.text == "" && s.state.head == 0, "a run of typing undoes as one group")
+    s.redo()
+    #expect(s.text == "hello" && s.state.head == 5)
+    s.undo()
+    s.type("x")
+    s.redo()
+    #expect(s.text == "x", "a new edit clears redo")
+}
+
+@Test func caretMotionAndEditKindsSplitGroups() {
+    var s = Session("", caret: 0)
+    for c in "ab" { s.type(String(c)) }
+    s.press(TextEditing.leftArrow)
+    for c in "cd" { s.type(String(c)) }
+    #expect(s.text == "acdb")
+    s.undo()
+    #expect(s.text == "ab" && s.state.head == 1, "the caret move ended the first group")
+    s.undo()
+    #expect(s.text == "")
+
+    var d = Session("abcdef", caret: 6)
+    d.press(TextEditing.deleteBackward)
+    d.press(TextEditing.deleteBackward)
+    d.type("X")
+    #expect(d.text == "abcdX")
+    d.undo()
+    #expect(d.text == "abcd", "typing after deleting is its own group")
+    d.undo()
+    #expect(d.text == "abcdef" && d.state.head == 6, "two deletes backward are one group")
+}
+
+@Test func cutPasteAndReplacingASelectionUndoOneAtATime() {
+    var s = Session("hello world", caret: 0)
+    s.press("a", .command)
+    s.press("x", .command)
+    #expect(s.text == "")
+    s.press("v", .command, clipboard: "pasted")
+    s.press("v", .command, clipboard: "!")
+    #expect(s.text == "pasted!")
+    s.undo()
+    #expect(s.text == "pasted", "each paste is its own group")
+    s.undo()
+    s.undo()
+    #expect(s.text == "hello world" && s.state.selection == 0..<11, "the cut restores text and selection")
+
+    var r = Session("one two", caret: 0)
+    r.state.anchor = 4
+    r.state.head = 7
+    r.type("t")
+    r.type("en")        // an input method's two-grapheme commit: its own group
+    #expect(r.text == "one ten")
+    r.undo()
+    #expect(r.text == "one t")
+    r.undo()
+    #expect(r.text == "one two" && r.state.selection == 4..<7, "typing over a selection restores the selection")
+
+    // Typing over a selection starts a group even with a typing group open.
+    var g = Session("ab", caret: 2)
+    g.type("c")
+    g.state.anchor = 0
+    g.state.head = 1
+    g.type("Z")
+    #expect(g.text == "Zbc")
+    g.undo()
+    #expect(g.text == "abc" && g.state.selection == 0..<1)
+}
+
+@Test func anExternalChangeDropsTheHistory() {
+    var s = Session("", caret: 0)
+    s.type("a")
+    s.text = "reset by the app"     // the controlled field's caller replaced the text
+    let handled = s.press("z", .command)
+    #expect(handled)
+    #expect(s.text == "reset by the app", "no undo over a text the history never saw")
+    #expect(s.state.history.undo.isEmpty)
+}
+
+@Test func undoIsBoundedAndKeyedPerPlatform() {
+    var s = Session("", caret: 0)
+    for i in 0..<(TextEditHistory.depth + 20) {
+        s.press(TextEditing.leftArrow)   // each character its own group
+        s.type(String(i % 10))
+    }
+    #expect(s.state.history.undo.count == TextEditHistory.depth)
+
+    var o = Session("", caret: 0, platform: .other)
+    o.type("q")
+    o.undo()
+    #expect(o.text == "")
+    o.redo()
+    #expect(o.text == "q", "ctrl-y redoes off Apple")
+    o.press("z", [.control])
+    o.press("z", [.control, .shift])
+    #expect(o.text == "q", "ctrl-shift-z redoes too")
+    // ⌘Z is not undo off Apple, and ⌘Y is not redo on a Mac.
+    let commandZ = o.press("z", .command)
+    #expect(commandZ == false)
+    var m = Session("", caret: 0)
+    let commandY = m.press("y", .command)
+    #expect(commandY == false)
+}

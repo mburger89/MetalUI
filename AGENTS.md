@@ -47,7 +47,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
-  its spec), `TI-` (next `TI-G`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
+  its spec), `TI-` (next `TI-H`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
   spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
@@ -157,6 +157,10 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-23, `feat/text-undo` — `TI-G`): 1758 tests, 97 goldens,
+  78 typecheck guards**, 0 `error:`, 0 `warning:` on both build systems,
+  taken the same way; **1758 = 1752 + 6** (`TextEditingTests` +5,
+  `TextFieldTests` +1); record §47.
 - **Counts (2026-09-23, `feat/system-fonts` — roadmap item 8b): 1752
   tests, 97 goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both
   build systems, taken the same way (`Test run with 1752 tests in 3 suites
@@ -748,7 +752,8 @@ text-painting conformer passes `accessibleText:`. Qualify
 **Focus:** `Window.focus(_:)` is the only mover; clicking does not focus —
 **except a `TextField`**, which a press focuses (`TI-B`). Keys go to the
 `Keymap` first, then to a focused field's editing keys, then bubble raw
-`onKey` up the parent chain.
+`onKey` up the parent chain. `focusBorder(_:width:)` is the (opt-in) ring;
+background and border resolve `focus ?? hover ?? plain`.
 
 **Text input (`TI-`).** `TextField(_:text:onChange:)` is **controlled** (there
 is no value `Binding`; `Binding` is still `KeyBinding`'s alias) and one line.
@@ -764,9 +769,12 @@ only from `TextSystem.caretOffsets` (`TI-E`), which follows the font's GDEF
 ligature carets and puts a caret halfway through a kern, as CoreText does —
 do not re-derive them from advances. `TextEditing` is pure and holds TI-D's
 key table for both platforms' conventions (`TextEditing.platform`: control is
-the shortcut and word key off Apple).
-`focusBorder(_:width:)` is the (opt-in) ring; background and border resolve
-`focus ?? hover ?? plain`.
+the shortcut and word key off Apple). **Undo and redo (`TI-G`) live in the
+field's `TextEditState.history`**: ⌘Z / ⌘⇧Z on Apple, ctrl-Z / ctrl-Y /
+ctrl-shift-Z elsewhere; typing and single deletes coalesce, and a caret move
+ends the group. The history is valid only for the text its last edit
+produced — a caller that changes the text itself drops it, rather than an
+undo replaying over a text it never saw.
 
 **Text.** `Text` and `ProposalText` measure and draw **only through
 `Frame.textSystem`** (`TS-A`): a `TextSystem` chosen once per app
