@@ -19,48 +19,39 @@ public struct LayoutRect: Sendable, Equatable {
 ///
 /// This is Taffy's `round_layout` strategy.
 ///
-/// Two callers apply it today, and both must keep applying *this* function
-/// rather than a second implementation, or the corpus comparison below would
-/// validate the wrong thing:
+/// Two callers apply it, one per engine, and both must keep applying *this*
+/// function rather than a second implementation, or the two engines' rounded
+/// rects would drift apart:
 ///
-/// - `roundBoxes` in `GoldenFile.swift` puts browser output into the same
-///   rounded space ours is compared in.
 /// - `computeLayout` in `FlexEngine.swift` calls `roundStoredRects`, which
 ///   applies this to every node's absolute rect, depth-first, as the last step
 ///   of layout — after positioning, so every rect it rounds is already
 ///   root-absolute, which is this function's precondition.
+/// - `LayoutTree`'s `roundNativeStoredRects` does the same at the end of a
+///   native (proposal) run, recording each node's unrounded width first.
 ///
-/// **The corpus now detects a missing rounding pass, and it did not always.**
-/// An earlier version of this comment said every fixture was integral, that
-/// pointing the comparison helpers at `golden.raw` would leave the suite green,
-/// and that `computeLayoutRoundsEveryStoredRect` was the only test that could
-/// catch a missing pass. All three were measured false during the whole-branch
-/// review. What is true, measured at 115 tests and 16 fixtures unless a bullet
-/// says otherwise:
+/// `NativeGridTests` also rounds its probe's recorded rects through this
+/// function, so a grid's expected values live in the same rounded space.
 ///
-/// - **Two fixtures are non-integral**: `flex_row_shrink` (WebKit's 1/64
-///   quantum puts `a` at 133.328125 and `b` at 66.671875) and
-///   `flex_row_seven_equal` (100 split seven ways, 14.28125 each). The other
-///   fourteen still have `raw == rounded`.
-/// - **Deleting `roundStoredRects`' call from `computeLayout` reddens three
-///   tests**: `computeLayoutRoundsEveryStoredRect`, `shrinkIsWeightedByBaseSize`
-///   and `shrinkMatchesWebKit`.
-/// - **Pointing both golden-comparison helpers at `golden.raw` reddens two** —
-///   `shrinkMatchesWebKit` and `sevenEqualChildrenMatchWebKit`, 16 issues,
-///   re-measured `--no-parallel` at 342 tests and 61 fixtures. It was **one**
-///   until the content-sizing branch's final fix round, and the second is the
-///   point: `flex_row_seven_equal` had a golden and no engine comparison at all,
-///   so its only reader was `generatorRoundsWhenTheBrowserQuantizes`, which
-///   measures the browser and never runs the engine — taxonomy shape 3, and the
-///   asymmetry the paragraph below used to describe as live.
+/// **What detects a missing rounding pass.** Until plan task 7's stage 7a the
+/// WebKit goldens did, through their two non-integral fixtures
+/// (`flex_row_shrink`'s 1/64 quantum and `flex_row_seven_equal`'s seventh of
+/// 100); stage 7a retired the goldens (record §42). Measured after it, in the
+/// full suite at 1616 tests:
 ///
-/// **That hazard is now half-closed rather than open.** The raw/rounded
-/// distinction rested on *one* fixture reaching *one* comparison; it rests on
-/// two, and the two fail differently (a 1/64 quantum against a seventh of 100).
-/// Deleting either alone no longer restores the blind spot, but deleting both —
-/// or giving them geometry that divides evenly — still does, and nothing would
-/// say so. Re-measure these claims rather than trusting them; they have been
-/// wrong once already.
+/// - **Deleting `roundStoredRects`' call from `computeLayout`** reddens 28
+///   tests, among them `computeLayoutRoundsEveryStoredRect` and
+///   `shrinkIsWeightedByBaseSize` on the legacy engine and every lowering
+///   differential that compares the legacy engine's rects with the native
+///   ones.
+/// - **Deleting `roundNativeStoredRects`' call to this function** reddens 57,
+///   among them `nativeLayoutRoundsStoredRectanglesAfterFractionalPlacement`,
+///   `flex_row_seven_equal`'s arm of
+///   `equalGrowersShareTheLineAndAMaximumCapsItsGrower` (14/15/14/14/14/15/14)
+///   and the cross-platform demo pin `theDemoFrameMatchesTheValuesRecordedOnMacOS`.
+///
+/// Re-measure these claims rather than trusting them; an earlier version of
+/// this comment was wrong about the corpus it described.
 public func roundLayout(_ rects: [LayoutRect]) -> [LayoutRect] {
     rects.map { r in
         let x0 = r.x.rounded()
