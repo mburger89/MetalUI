@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-EB`** (stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ` and its lane 2 `LR-EA`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-EC`** (stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -7446,3 +7446,83 @@ not the one that tree gives.
 **What it costs if wrong.** Asserting `[box.flexWrap]` on the real tree would be
 red on arrival; asserting it on a simplified tree would leave `flex_wrap_reverse`
 retired on a shape it does not have.
+
+## LR-EB — stage 7a lane 3: the removal lands at 1616; the gated tests fall ten → nine, not five → four; one dead helper and the comments naming retired tests go with the consumers; the Sources hits stay listed
+
+**Lane 3 (2026-09-23, PDT), record §42 §6.3.** All 97 rows of record §42 §4
+were verified by script before anything was deleted: every R row's golden name
+occurs exactly once as a quoted arm label across
+`Tests/MetalUITests/GoldenReplacement*Tests.swift`, every consumer named in the
+table exists exactly once, and each of the 28 distinct test names cited by the D
+rows exists and is **not** among the tests removed. Then `Golden/`,
+`Fixtures/`, `Oracle/`, `GeneratorTests.swift`, `OracleTests.swift` and the four
+all-consumer files were deleted (204 paths), 66 consumer `@Test`s were removed
+from the five surviving files (with their doc comments and `@MainActor` lines),
+`theClampedAutomaticMinimumIsStillFlooredByPaddingAndBorderMatchesWebKit` lost
+its `loadGolden` line and its `assertMatchesGolden` call and nothing else,
+`assertMatchesGolden` and `Package.swift`'s `resources:` line went, and
+`roundLayout`'s doc comment was rewritten (`62be7cf`, `4ad1c79`). Suite **1616**
+= 1704 − 96 − 5 − 3 + 8 + 8, exactly as `LR-DT` computes it.
+
+**Correction 1 — the gated count.** Spec §8 and record §42 §5.3 said the gated
+tests fall "from five to four". At `2cc763d` **ten** gated tests skip (the
+branch's `CLAUDE.md` names them: `regenerateAllGoldens`, the 100k `List`, seven
+oracle measurements and `recordDemoFrames`); after the removal **nine** skip,
+read from the log by name. Where the design's five came from is not recorded;
+it is not this branch's figure. Spec §8 and §5.3 now read ten → nine.
+
+**Correction 2 — what the removal diff may touch.** Spec §7's row "lane 3's diff
+of the five surviving consumer files touches only removed consumers,
+`assertMatchesGolden` and the trimmed test's two golden lines" is widened by
+three things, none an assertion:
+
+1. **One dead helper.** `FlexEngineTests`' private `threeJustifiedChildren`
+   had exactly five callers, all golden consumers (the four row
+   `justify-content` goldens and `flex_column_justify_center`); it is deleted
+   with them. No other file-scope helper in the five files lost its last use
+   (checked by grep, comment lines excluded).
+2. **Comments that named a retired test in the present tense** are rewritten to
+   the past tense with a pointer at record §42: the file header of
+   `FlexEngineTests` (it described the goldens as load-bearing), the
+   `threeFixedChildren` doc, two doc comments in `FlexEngineTests`, one each in
+   `StackLayoutTests`, `BoxModelTests` and `AlignmentTests`, and the gating
+   sentence of `MeasurePerformanceTests`' 100k test (it cited
+   `GeneratorTests.swift`). `WrappingTests`' three `MARK` sections left with no
+   test under them are deleted.
+3. **What stays byte-identical, checked by script, not by reading**: every
+   surviving `@Test` body in the five files equals its `2cc763d` text, and the
+   trimmed test's six `#expect` lines hash identically at `2cc763d` and HEAD.
+
+**The references that stay (spec §6 lane 3 step 3).** `Sources/` keeps six
+comments naming a retired test or the oracle — `Style.swift:79`,
+`FlexEngine.swift:385`, `:1342`, `:1863`, `Alignment.swift:189`,
+`Box.swift:850` — because `LR-DX` allows one `Sources/` edit (the
+`roundLayout` block) and each describes a measurement that was taken; all six
+sit in CSS-engine code that 7b and 9 retire. `Tests/` keeps four historical
+mentions (`ElementLayoutTests.swift:538`, `FreezeLoopTests.swift:12`,
+`BoxModelTests.swift:225`, `:274`) that describe what a past mutation or
+fixture did, not what the suite pins now.
+
+**`roundLayout`'s doc comment is re-measured, not re-worded.** It had claimed
+the goldens detected a missing rounding pass. Measured in the full suite at
+1616: deleting `roundStoredRects(tree, root)` from `computeLayout` (MR1)
+reddens 28 tests, `computeLayoutRoundsEveryStoredRect` and
+`shrinkIsWeightedByBaseSize` among them; deleting `roundNativeStoredRects`'
+`roundLayout` call (MR2) reddens 57, among them
+`nativeLayoutRoundsStoredRectanglesAfterFractionalPlacement`,
+`flex_row_seven_equal`'s arm of
+`equalGrowersShareTheLineAndAMaximumCapsItsGrower` and
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`. The comment now says so and
+names the two callers (one per engine) plus `NativeGridTests`' use.
+
+**Rejected.** *Leave `threeJustifiedChildren` in place to keep the diff to the
+spec's letter.* Rejected: it is dead code whose only reason to exist was the
+deleted tests, and Swift does not warn about an unused private function, so
+nothing would ever flag it. *Rewrite the six `Sources/` comments.* Rejected:
+it would spend `LR-DX`'s `Sources/` budget on comments in code 7b and 9
+delete, and the `git diff 2cc763d -- Sources` check would no longer be one
+block.
+
+**What it costs if wrong.** A stale gated count would send the Record phase's
+`CLAUDE.md` edit to "four", and a later reader re-taking the count would find
+nine and suspect a lost test.

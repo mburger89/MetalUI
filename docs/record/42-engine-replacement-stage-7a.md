@@ -3,7 +3,8 @@
 Plan task 7, stage 7a (parent design
 `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §4.1 row 7a,
 §8). Design: `docs/superpowers/specs/2026-09-23-engine-stage-7a-design.md`.
-Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`; lane 1: `LR-DZ`) in
+Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`; lane 1: `LR-DZ`; lane 2:
+`LR-EA`; lane 3: `LR-EB`) in
 `docs/superpowers/2026-09-17-engine-replacement-decisions.md`. Branch
 `feat/engine-stage-7a` from `2cc763d`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-7a`. Probe:
@@ -15,12 +16,14 @@ stage 6b). If another line reaches `master` first with a §42, this file is
 renumbered at merge by the precedent of record §23 §8 and the §25/§27/§29/§38/§41
 headers.
 
-**Status, 2026-09-23 (PDT): design (§1–§5).** No file under `Sources/`,
-`Tests/` or `Package.swift` changed in a commit. The instrument was applied as an
+**Status, 2026-09-23 (PDT): delivered (§6–§8).** The goldens are gone:
+`find Tests/MetalUILayoutTests -name "*.json" | wc -l` reads **0**, the suite
+reads **1616**, and every one of §4's 97 rows was verified by script before the
+deletion (§6.3). The design (§1–§5) was written with no file under `Sources/`,
+`Tests/` or `Package.swift` changed: the instrument was applied as an
 uncommitted scratch test (`Tests/MetalUITests/ZZScratch7a.swift`), built, run
 with `--filter scratch7aDump`/`scratch7aDump2`, captured as the patch above and
-deleted; `git status --short` afterwards showed only this design's files. The
-lanes append from §6.
+deleted.
 
 ## 1. Baseline at `2cc763d`
 
@@ -380,8 +383,9 @@ asserts every listed box by its `data-id`, which the arm's tree names with
 | added: lane 2 (2.1–2.8; 2.8 from critic round 1, `LR-DY`) | + 8 |
 | **after** | **1616** |
 
-The gated tests fall from five to four (`regenerateAllGoldens` goes with
-`GeneratorTests`). Goldens 97 → **0**. Guards 78, unchanged.
+The gated tests fall from ten to nine (`regenerateAllGoldens` goes with
+`GeneratorTests`; this line read "five to four" until lane 3 counted them by
+name, `LR-EB`). Goldens 97 → **0**. Guards 78, unchanged.
 
 ## 6. Lanes
 
@@ -505,3 +509,184 @@ default vs animation 454895, f0 vs f3 0, preview 1048576, chrome 0, distinct 544
 rects 0.
 
 **Deferrals.** None. `DemoFrameDeterminismTests` green and unedited.
+
+### 6.3 Lane 3 — the removal (2026-09-23, PDT)
+
+**Commits.** `62be7cf` — the removal (204 deleted paths, five consumer files
+trimmed, `Package.swift`'s `resources:` line, comment-only edits in four more
+test files); `4ad1c79` — `roundLayout`'s doc comment, re-measured (below);
+`LR-EB`, this section and the Record phase in the commits after it. `git diff
+2cc763d -- Sources` is `///` lines of `roundLayout`'s block only; `git diff
+2cc763d -- Tests/PortableTests Backends` is empty.
+
+**Step 1 — every row verified before anything was deleted.** A script read
+§4's 97 rows and checked, against the tree at `c0ad54e`: each of the 44 R (and
+R-partial) rows' golden name occurs **exactly once** as a quoted arm label
+across `Tests/MetalUITests/GoldenReplacement*Tests.swift`; each row's consumer
+test exists exactly once; each of the **28** distinct test names cited in the
+replacement column exists, and none of them is a consumer about to be removed.
+Result: 97 rows, **0 failures**. Consumers per file, from the same read:
+`WrappingTests` 17, `FlexEngineTests` 16, `StackFixtureTests` 15,
+`FreezeLoopTests` 13, `BoxModelTests` 12, `SizingFixtureTests` 9,
+`FitContentFixtureTests` 6, `AbsoluteFixtureTests` 5,
+`ContentSizingFixtureTests` 4 — §1's figures.
+
+**Step 2 — the deletion.** `git rm`: `Golden/` (97 JSON + `.gitkeep`),
+`Fixtures/` (97 HTML), `Oracle/` (3), `GeneratorTests.swift`,
+`OracleTests.swift`, and the four all-consumer files
+(`AbsoluteFixtureTests`, `StackFixtureTests`, `FitContentFixtureTests`,
+`ContentSizingFixtureTests`) — 204 paths. From the five surviving files, 66
+consumer `@Test`s were removed by script, each with the comment and attribute
+lines directly above it (`FreezeLoopTests` spells `@MainActor` on its own line
+above `@Test`; a first pass that stopped at the attribute left thirteen dangling
+`@MainActor`s and was reset before anything was built or committed). `@Test`
+counts after: `FlexEngineTests` 35 → 19, `WrappingTests` 35 → 18,
+`FreezeLoopTests` 33 → 20, `BoxModelTests` 38 → 26, `SizingFixtureTests` 9 → 1.
+`theClampedAutomaticMinimumIsStillFlooredByPaddingAndBorderMatchesWebKit` lost
+its `let golden = try loadGolden(…)` line (and the blank after it) and its
+three-line `assertMatchesGolden` call; its six `#expect` lines hash identically
+at `2cc763d` and HEAD. `assertMatchesGolden` and `MetalUILayoutTests`'
+`resources: [.copy("Fixtures"), .copy("Golden")]` were removed. **Checked by
+script, not by reading: every surviving `@Test` body in the five files equals
+its `2cc763d` text** (19 + 18 + 20 + 26 + 1, the one difference the trimmed
+test).
+
+**Beyond spec §4's table (`LR-EB`).** One dead helper, `FlexEngineTests`'
+private `threeJustifiedChildren` (its five callers were all consumers); three
+`MARK` sections of `WrappingTests` left with no test beneath them; and
+comment-only rewrites of sentences naming a retired test in the present tense —
+`FlexEngineTests`' file header (it called `Golden/*.json` load-bearing and
+named `GeneratorTests`), its `threeFixedChildren` doc and two doc comments,
+`StackLayoutTests.swift:291`, `BoxModelTests.swift:133`,
+`AlignmentTests.swift:287`, and `MeasurePerformanceTests`' gating sentence
+(it cited `GeneratorTests.swift`).
+
+**Step 3 — dangling references.** `grep -rn -E
+"loadGolden|allFixtures|GeneratorTests|OracleTests|LayoutOracle|assertMatchesGolden|GoldenFile|roundBoxes|Golden/|Fixtures/"
+Tests Sources --exclude-dir=.build` after the rewrites: the hits left are the
+unrelated `FreeTypeOracleTests`, `HarfBuzzOracleTests`, `FontResolverOracleTests`
+and `ApplePathOracleTests` (other oracles, other packages' names) and
+`FlexEngine.swift:1342`'s `LayoutOracle`, which spec §6 lets stay (it describes
+a measurement that was taken; stage 9 deletes the file). A second grep, for the
+names of all 96 removed consumers and the eight removed machinery tests, finds
+these, **kept and listed** (`LR-EB`): in `Sources/`, `Style.swift:79`
+(`StackFixtureTests`), `FlexEngine.swift:385` and `Box.swift:850`
+(`rootPercentageMatchesWebKit`), `FlexEngine.swift:1863`
+(`stackMinContentContributionMatchesWebKit`), `Alignment.swift:189`
+(`wrapAlignContentBetweenMatchesWebKit`) — `LR-DX` allows one `Sources/` edit,
+each describes a measurement taken, and all sit in CSS-engine code 7b and 9
+retire; in `Tests/`, `ElementLayoutTests.swift:538` (a past mutation's reddened
+set), `FreezeLoopTests.swift:12` (why a parameter was removed),
+`BoxModelTests.swift:225` and `:274` (what a fixture reached) — historical. The
+`Rounding.swift` hits are gone with its rewritten comment.
+
+**`roundLayout`'s doc comment, re-measured.** The old comment said the goldens
+detected a missing rounding pass, naming `shrinkMatchesWebKit`,
+`sevenEqualChildrenMatchWebKit` and `generatorRoundsWhenTheBrowserQuantizes`.
+Two mutations measured what detects it now, each in the full unfiltered suite,
+restored from a copy, `git status --short` empty after:
+
+| id | spelling applied | issues | tests reddened |
+|---|---|---|---|
+| MR1 | `FlexEngine.swift`: `    roundStoredRects(tree, root)` commented out | 2686 | 28: `aCentringColumnShrinkWrapsItsTextLikeWebKit`, `aComponentsPaddingWrapsEachTopLevelNode`, `aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem`, `aGrowingChildTakesTheRemainingMainSpace`, `aLoweredContainerPaddingSitsInsideItsDeclaredSize`, `aLoweredPaddingLayerAgreesWithTheLegacyWrapper`, `aLoweredScrollViewsContentKeepsItsNaturalExtent`, `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth`, `aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin`, `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`, `aLoweredWindowPublishesTheSameAccessibilityTree`, `anAbsoluteTextWrapsAtTheWindowMinusItsInsetWhereTheLegacyEngineWrapsAtTheWindow`, `aPresentationPlaceholderIsDroppedByEveryLoweredContainer`, `aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes`, `aStretchedChildFillsTheLineOnItsCrossAxis`, `aStretchedSingleChildContainerDoesNotStretchItsChild`, `aZeroBasisGrowerTakesItsShareDownToItsContent`, `aZeroShrinkKeepsItsNaturalMainSizeAndOverflows`, `computeLayoutRoundsEveryStoredRect`, `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `everyContainerFieldIsIgnoredOnALoweredLeaf`, `paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt`, `shrinkIsWeightedByBaseSize`, `spaceAroundAndSpaceEvenlyLowerToSpacersWhileTheyFit`, `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` |
+| MR2 | `LayoutTree.swift`, `roundNativeStoredRects`: `        setLayout(node, roundLayout([layout(node)])[0])` commented out | 1249 | 57, among them `nativeLayoutRoundsStoredRectanglesAfterFractionalPlacement`, **`equalGrowersShareTheLineAndAMaximumCapsItsGrower`** (arm `flex_row_seven_equal`, c1 at 14.285714), **`aGrowFactorSumBelowOneStillFillsTheLine`** (both arms), **`aStackHugsItsLargestChildInsideARowAndAroundOne`** (`flex_in_stack`, `stack_in_flex`, `stack_sizes_to_largest`), `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theGridProbeCorpusAgreesCaseByCase`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theWindowsPixelsAreExactlyTheGlyphBitmapsItsSpritesStandFor`, `paintWrapsAtTheWidthLayoutMeasuredAtNotTheRoundedBox` and the grid, stack and lowering suites (the full list is in the MR2 log's reddened set; every name is a test that exists at HEAD) |
+
+So both engines' rounding passes are pinned without the goldens, and the
+seventh-of-100 case the goldens carried is now carried natively by
+`flex_row_seven_equal`'s arm. The comment says this, names the two callers (one
+per engine) and `NativeGridTests`' use, and keeps the "re-measure these claims"
+warning.
+
+**Step 4 — the five mutations re-run with the goldens gone.** Same method as
+§6.1/§6.2 (applied to `62be7cf`'s source, restored from a copy, full unfiltered
+suite, `git status --short` empty after each):
+
+| id | issues | tests reddened | arms reddened | vs the lane's own run |
+|---|---|---|---|---|
+| M1b | 11 | **`justifyContentDistributesADeclaredMainSizesFreeSpace`**, `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `spaceAroundAndSpaceEvenlyLowerToSpacersWhileTheyFit` | `flex_row_justify_around` | identical (§6.1: 11, the same three) |
+| M1f | 26 | **`marginsOffsetEachItemOutsideItsBorderBox`**, `aMarginLowersAsPaddingOutsideTheItem` | `flex_row_margins`, `flex_row_margin_with_grow`, `flex_row_reverse_margins`, `flex_column_reverse_margins`, `flex_row_grow_space_between_margins` | identical (§6.1: 26, the same two); `flex_row_reverse_stretch` appears once in the log only as source context, not as a failing arm |
+| M2d | 7 | **`aDeferredAbsoluteBoxResolvesItsInsetsAgainstTheWindowAndLeavesTheFlow`**, `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` | `abs_percent_insets_nonsquare` | identical (§6.2: 7, the same two) |
+| M2g | 5 | **`aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding`**, `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`, `aLoweredBoxPaddingSitsInsideItsDeclaredSize` | `sizing_over_constrained_grows`, `sizing_specified_suggestion_is_used_value` | identical (§6.2: 5, the same three) |
+| M2h | 3 | **`aWrapReverseContainerIsReportedByNameAsAWrappingOneIs`** | all three `flex_wrap_reverse*` arms | identical (§6.2: 3); `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` green again |
+
+None of the lanes' mutations had reddened a golden consumer (they run the CSS
+engine), so the goldens' removal was expected to move none of these sets, and
+it moved none.
+
+**Step 5 — the exit checks.**
+
+- `find Tests/MetalUILayoutTests -name "*.json" | wc -l` → **0**; `ls` of
+  `Fixtures`, `Oracle`, `Golden`, `GeneratorTests.swift`, `OracleTests.swift`
+  → "No such file or directory" for each.
+- `swift build --build-system native --build-tests`: 0 `error:`, the one
+  `warning:` SwiftPM's deprecation notice. Unfiltered `swift test
+  --build-system native --no-parallel`: **`Test run with 1616 tests in 3 suites
+  passed after 88.906 seconds`** (and 96.409 s at `62be7cf`), the log carrying
+  `FR-J no-argument frame: succeeded=true`; **nine** gated tests skipped, read
+  by name (`recordDemoFrames`, `measure(file:)`, `measure()`,
+  `theMeasuredDifferences`, `measureContentSizeDifferences`,
+  `measureWrapDifferences`, `measureLineEmissionDifferences`,
+  `measurePatchedFaceMetrics`, `aListsWorkIsTheSameFor100kRowsAsFor500`) —
+  ten at `2cc763d` with `regenerateAllGoldens` (`LR-EB` corrects §5.3's "five
+  to four").
+- Default build system: `swift build --build-tests` from an empty scratch path
+  (`--scratch-path` in the session scratchpad): 0 `error:`, **0 `warning:`**.
+- `DemoFrameDeterminismTests`' `theDemoFrameMatchesTheValuesRecordedOnMacOS`
+  green; `git diff 2cc763d -- Tests/PortableTests Backends` empty.
+- **Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 2cc763d 4ad1c79`:
+  **0 differing and scene identical in all fourteen images** (the twelve `CN-R`
+  images and the two `prod-*`); every control at its `2cc763d` value
+  (`LR-DZ`): light vs dark 1048576, default vs modal 1031003, default vs
+  animation 454895, f0 vs f3 0, preview 1048576, chrome 0, distinct 544 / 216,
+  prod default vs modal 491221, distinct `prod-default-light` 529, indicator
+  rects 0.
+
+**Deferrals.** None from lane 3. The kept references above are listed, not
+deferred: they retire with the code they sit in.
+
+## 7. Stage close — exit criteria
+
+| criterion (spec §8) | read |
+|---|---|
+| no golden JSON left | `find Tests/MetalUILayoutTests -name "*.json" \| wc -l` → **0** |
+| machinery gone | `Fixtures/`, `Oracle/`, `Golden/`, `GeneratorTests.swift`, `OracleTests.swift` absent |
+| every row verified | §6.3 step 1: 97 rows, 0 failures (R arm labels once each, 28 cited D tests exist and survive) |
+| suite | **1616** = 1704 − 96 − 5 − 3 + 8 + 8, one summary line, `FR-J` in the log |
+| warnings | 0 `error:`; native: SwiftPM's notice only; default: none |
+| mutation tables | §6.1 (M1a–M1h, MH), §6.2 (M2a–M2h), §6.3 (M1b, M1f, M2d, M2g, M2h re-run; MR1, MR2), every reddened test named |
+| pixels | 0 px, scene identical, fourteen images, controls at `2cc763d` |
+| must-not-move | `Sources/`: `roundLayout`'s `///` block only; every surviving test body byte-identical; `Tests/PortableTests`, `Backends` untouched |
+| `goldensUnchanged` | every deleted golden has a verified retirement row (§4, §6.3 step 1), and no golden JSON was edited in place before its deletion (`git log 2cc763d..62be7cf~1 -- 'Tests/MetalUILayoutTests/Golden'` is empty) |
+
+**Counts.** Tests **1616** (1704 before); goldens **0** (97); guards **78**
+(unchanged; this stage adds no typecheck guard, so none needed a red run);
+gated tests **9** (10).
+
+**What landed, in one paragraph.** The 97 WebKit goldens are retired. 44 are
+replaced by a native arm that builds the golden's own tree and asserts its own
+rounded boxes under the proposal authority (tests 1.1–1.8, 2.1–2.4); 53 die
+with a named CSS-only concept (wrap 30, percentages 7, length basis / weighted
+shrink 6, automatic minimum 3, border-box floor 3, unequal grow weights 2,
+sub-one grow sum 2), each with the native test that pins what the proposal
+authority does with that shape instead — a report by name, or, for the seven
+silent shapes, a pin of the golden's own tree at the native answer (2.5–2.7);
+the three `wrap-reverse` goldens got their own report test (2.8). The golden
+machinery and its 96 consumers are gone; one consumer survives trimmed for 7b.
+
+## 8. Handed on, and the Record phase
+
+| item | owner |
+|---|---|
+| the non-golden CSS-engine tests of `FlexEngineTests`, `WrappingTests`, `FreezeLoopTests`, `BoxModelTests`, the trimmed `theClampedAutomaticMinimum…` (its name still ends `MatchesWebKit`; renaming it is 7b's) | 7b (`LR-U`) |
+| the six `Sources/` comments naming retired tests, and `FlexEngine.swift:1342`'s `LayoutOracle` | 7b / 9 (they delete the code) |
+| the new tests' `Style` vocabulary (`margin`, `justifyContent`, `alignSelf`, `display: .stack`, `position`/`inset`) | 8, 10 |
+| divergence 55's pin text ("covered by the CSS goldens") | amended by this stage's Record phase, record §04 |
+
+**Record phase** (this stage, after lane 3): `CLAUDE.md`/`AGENTS.md` (a
+stage-7a counts paragraph, 1616 / 0 / 78; the gated list ten → nine; the
+"Goldens must not move" bullet rewritten, since none remain; `LR-` next unused
+→ `LR-EC`; a stage-7a entry in "Where things are" and in "SwiftUI alignment");
+record §04 (divergence 55 amended: its pin no longer reads "the CSS goldens");
+records §03 and §05 (a dated "no row changed" section each); `docs/record/README.md`
+(§42's row); the plan (task 7's stage-7a progress paragraph; the checkbox stays
+unticked); the parent spec's "where the task stands"; `README.md`.

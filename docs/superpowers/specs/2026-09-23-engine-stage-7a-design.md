@@ -1,7 +1,7 @@
 # Engine replacement, stage 7a — the goldens retired (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 7a, §8. Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`; lane 1: `LR-DZ`; lane 2: `LR-EA`) in
+§4.1 row 7a, §8. Rulings `LR-DS`…`LR-DX` (critic round 1: `LR-DY`; lane 1: `LR-DZ`; lane 2: `LR-EA`; lane 3: `LR-EB`) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md).
 Record: `docs/record/42-engine-replacement-stage-7a.md` (its §4 is the 97-row
 retirement table this design commits). Probe:
@@ -10,11 +10,19 @@ retirement table this design commits). Probe:
 Branch `feat/engine-stage-7a` from `2cc763d`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-7a`.
 
-**Status, 2026-09-23 (PDT): design, after critic round 1 (`LR-DY`).** Nothing
-under `Sources/`, `Tests/` or `Package.swift` changed in a commit. Round 1 added
-test 2.8 (the three `wrap-reverse` rows had no test asserting their report) and
-mutation M2h, so the exit count is **1616**, not 1615; it also corrected row 86's
-citation and two miscounts in record §42 (`LR-DY`).
+**Status, 2026-09-23 (PDT): delivered.** Three lanes, each committed with its
+record section: lane 1 (`43a490a`, tests 1.1–1.8, `LR-DZ`), lane 2 (`a4c9637`,
+tests 2.1–2.8, `LR-EA`), lane 3 (`62be7cf` the removal, `4ad1c79`
+`roundLayout`'s doc comment, `LR-EB`). **`find Tests/MetalUILayoutTests -name
+"*.json" | wc -l` reads 0; the suite reads `Test run with 1616 tests in 3 suites
+passed`** (1704 − 96 − 5 − 3 + 8 + 8), `FR-J` in the log, 0 `error:` and no
+`warning:` but SwiftPM's notice on either build system; the fourteen-image
+offscreen comparison against `2cc763d` reads 0 px and scene-identical in every
+image; nothing under `Tests/PortableTests` or `Backends` changed. The design's
+history: critic round 1 (`LR-DY`) added test 2.8 and M2h, so the exit count is
+1616, not 1615; lane 3 corrected the gated count to ten → nine and widened
+§7's removal-diff row to one dead helper and comment-only edits (`LR-EB`).
+Record §42 §6–§8.
 
 **What this stage is.** Each of the 97 WebKit goldens
 (`Tests/MetalUILayoutTests/Golden/*.json`) is retired with a row naming either
@@ -76,6 +84,7 @@ goldens exactly — the transcription is right. The proposal authority:
 | `LR-DY` | critic round 1: test 2.8 for `wrap-reverse`'s report, row 86's citation, what "deleted" means for fields stages 8/10 still own (percentages, length `flexBasis`, non-greedy `maxSize`, grow weights), record miscounts |
 | `LR-DZ` | lane 1: the flex R arms as designed; the pixel controls are `2cc763d`'s |
 | `LR-EA` | lane 2: 2.8's arms are the goldens' own trees, so `flex_wrap_reverse` reports `alignContent` too; M2c's extra arm |
+| `LR-EB` | lane 3: the removal at 1616; gated tests ten → nine; one dead helper and the present-tense comments naming retired tests go with the consumers; six `Sources/` comments stay, listed; `roundLayout`'s doc comment re-measured (MR1, MR2) |
 
 ## 4. API and files
 
@@ -225,7 +234,7 @@ Runs only when lanes 1 and 2 are committed and green in an unfiltered run.
 | production behaviour, identity, hit testing, accessibility, animation | no `Sources/` code change (`git diff 2cc763d -- Sources` = `///` lines of `roundLayout`'s doc comment only) |
 | pixels | `docs/probes/demo-pixels/compare.sh <scratch> 2cc763d <HEAD>`: all twelve images **0 px**, every control at its `2cc763d` value (`LR-DZ`: record §41 read them at `aef88ce`; record §42 §6.1 lists the `2cc763d` values) |
 | cross-platform demo pin | `DemoFrameDeterminismTests` green and unedited (`git diff 2cc763d -- Tests/PortableTests Backends` empty) |
-| every non-golden test's assertion | lane 3's diff of the five surviving consumer files touches only removed consumers, `assertMatchesGolden` and the trimmed test's two golden lines |
+| every non-golden test's assertion | lane 3's diff of the five surviving consumer files touches only removed consumers, `assertMatchesGolden` and the trimmed test's two golden lines — plus, by `LR-EB`, the dead `threeJustifiedChildren` and comment-only edits; every surviving `@Test` body byte-identical to `2cc763d` (checked by script) |
 | 0 `warning:` | both build systems, as at baseline |
 
 **Demo expectation: 0 px.** Nothing the demo runs changes.
@@ -240,8 +249,9 @@ Runs only when lanes 1 and 2 are committed and green in an unfiltered run.
 - every one of record §42 §4's 97 rows verified by lane 3 step 1;
 - unfiltered `swift test --build-system native --no-parallel` → **`Test run
   with 1616 tests in 3 suites passed`** = 1704 − 96 − 5 − 3 + 8 + 8, the log
-  carrying `FR-J no-argument frame: succeeded=`; four gated tests skipped where
-  five were;
+  carrying `FR-J no-argument frame: succeeded=`; nine gated tests skipped where
+  ten were (`LR-EB`: the design's "four where five" was not this branch's
+  figure);
 - 0 `error:`; the only `warning:` SwiftPM's deprecation notice (native) and none
   under the default build system;
 - the mutation table of §6 run and recorded, every reddened test named.
@@ -252,5 +262,5 @@ Runs only when lanes 1 and 2 are committed and green in an unfiltered run.
 |---|---|
 | the non-golden CSS-engine tests of the five surviving consumer files, and the trimmed `theClampedAutomaticMinimum…` (its `cMinZero` arm is 7b's) | 7b (`LR-U`) |
 | the new tests use `Style` fields (`margin`, `justifyContent`, `alignSelf`, `display: .stack`, `position`/`inset`) that stages 8 and 10 respell or delete; they are lowering tests and go with the lowering suites | 8, 10 |
-| `CLAUDE.md`/`AGENTS.md`: the "97 goldens" counts, "Goldens must not move", five → four gated tests, the golden `find` command; records §03/§04/§05/`README`; the plan | this stage's Record phase |
+| `CLAUDE.md`/`AGENTS.md`: the "97 goldens" counts, "Goldens must not move", ten → nine gated tests (`LR-EB`), the golden `find` command; records §03/§04/§05/`README`; the plan | this stage's Record phase |
 | `FlexEngine.swift:1342`'s `LayoutOracle` mention | 9 (deletes the file) |
