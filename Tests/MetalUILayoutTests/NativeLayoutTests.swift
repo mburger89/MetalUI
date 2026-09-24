@@ -456,6 +456,59 @@ private final class NativeProposalRecorder: @unchecked Sendable {
     #expect(tree.layout(child) == LayoutRect(x: 16, y: 12, width: 30, height: 10))
 }
 
+/// **A padding wider than its proposal offers its child 0 on that axis, never a
+/// negative size** — the kernel's `paddingProposal` clamp, `max(0, proposal −
+/// insets)` per axis. Plan task 7, stage 7b (record §49 row 71, an **R row that
+/// failed its confirmation** and became an N row): the retired
+/// `BoxModelTests.aShrunkContainerNeverHandsItsChildANegativeContentBox` pinned
+/// the CSS engine's `contentBox` guard, and removing the kernel's clamp reddened
+/// none of the replacements that row named (measured on `41344e5`, full
+/// unfiltered suite, 1670 passed under the mutant).
+///
+/// Literals derived before the run, over an echo leaf (it answers its proposal,
+/// a nil axis as 0) whose padding is laid out in bounds of its own answer:
+/// - **control**, 30 all round offered 100×100: the child is offered 40×40,
+///   stored (30, 30) 40×40, the padding answering 100×100;
+/// - 30 all round offered 40×40: the child is offered **0×0** (not −20×−20),
+///   stored (30, 30) 0×0, the padding answering 0 + 60 = 60×60;
+/// - top/bottom 30, left/right 5, offered 40×40: the child is offered **30×0** —
+///   the clamp is per axis — stored (5, 30) 30×0, the padding 40×60.
+///
+/// Red-before: `paddingProposal` without its two `Swift.max(0, …)` (the child is
+/// offered −20×−20 and stored −20×−20; the padding answers 40×40).
+@Test func aPaddingWiderThanItsProposalOffersItsChildZeroNeverANegativeSize() throws {
+    func arm(insets: Edges<Double>, proposal: Double)
+        -> (proposals: [ProposedSize], child: LayoutRect, answer: SizeD) {
+        let tree = LayoutTree(generation: 0)
+        let recorder = NativeProposalRecorder()
+        let echo = tree.newNativeLeaf { proposal in
+            recorder.proposals.append(proposal)
+            return LayoutMeasurement(size: SizeD(width: proposal.width ?? 0, height: proposal.height ?? 0))
+        }
+        let padding = tree.newNativePadding(child: echo, insets: insets)
+        let offered = ProposedSize(width: proposal, height: proposal)
+        let answer = tree.computeNativeLayout(root: padding, proposal: offered,
+                                              in: LayoutRect(x: 0, y: 0, width: proposal, height: proposal)).size
+        return (recorder.proposals, tree.layout(echo), answer)
+    }
+
+    let control = arm(insets: Edges(all: 30), proposal: 100)
+    let overflowing = arm(insets: Edges(all: 30), proposal: 40)
+    try #require(control.proposals != overflowing.proposals, "the arms must offer the child different sizes")
+    #expect(control.proposals == [ProposedSize(width: 40, height: 40)])
+    #expect(control.child == LayoutRect(x: 30, y: 30, width: 40, height: 40))
+    #expect(control.answer == SizeD(width: 100, height: 100))
+
+    #expect(overflowing.proposals == [ProposedSize(width: 0, height: 0)])
+    #expect(overflowing.child == LayoutRect(x: 30, y: 30, width: 0, height: 0))
+    #expect(overflowing.answer == SizeD(width: 60, height: 60))
+
+    let oneAxis = arm(insets: Edges(top: 30, right: 5, bottom: 30, left: 5), proposal: 40)
+    #expect(oneAxis.proposals == [ProposedSize(width: 30, height: 0)])
+    #expect(oneAxis.child == LayoutRect(x: 5, y: 30, width: 30, height: 0))
+    #expect(oneAxis.answer == SizeD(width: 40, height: 60))
+}
+
 @Test func aNativeFixedSizeWithholdsOnlyItsSelectedAxesFromTheChildProposal() {
     let tree = LayoutTree(generation: 0)
     let child = tree.newNativeLeaf { proposal in

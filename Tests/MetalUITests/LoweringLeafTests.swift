@@ -608,3 +608,63 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         #expect(out.contains("LANE2-2.8 \(name) agrees=true "), "\(name):\n\(out)\nstderr \(err)")
     }
 }
+
+// MARK: - N1.1 (stage 7b) — an empty container
+
+/// **N1.1** (plan task 7, stage 7b; record §49 rows 14 and 152, which it
+/// replaces: `StackLayoutTests.anEmptyStackMeasuresZero` and
+/// `MeasureNodeTests.measuringAnEmptyContainerIsZeroNotATrap`, both retired
+/// with the CSS engine). A container with no child — `Stack`, `Column`, `Row`
+/// and `Box` over `EmptyGroup()` — answers **0** on each of its `auto` axes
+/// under the proposal authority, and lowers without a trap or a report: it
+/// takes no space beside a 10×10 sibling in a `Row(gap: 0)`.
+///
+/// **Literals, derived before the run.** The harness root places the row at
+/// (0, 0) (`DifferentialRoot`, `.topLeading`); the lowered row hugs its
+/// children, so it is 10 tall; `Row` centres its cross axis (`EP-8`), so a
+/// 0-tall child sits at y (10 − 0) / 2 = **5**. Empty arm: the empty element
+/// (0, 5) 0×0, the sibling (0, 0) 10×10. **Positive control** (shape 15), an
+/// empty `Stack` declaring 30×20: the row is 20 tall, the stack (0, 0) 30×20,
+/// the sibling at x 30 and y (20 − 10) / 2 = 5 — required to disagree with the
+/// bare empty `Stack`'s arm before either is read, so the observation can see
+/// a non-zero answer.
+///
+/// Every arm renders under `.proposal` only (no `.legacy` arm, so the CSS-engine
+/// census does not grow), with `reportsUnlowerableFields` on.
+///
+/// Red-before, **M1.1**: the empty container's native leaf in
+/// `lowerShownLegacyNode` (`LegacyLowering.swift`) answers 1×1 instead of 0×0.
+@MainActor
+@Test func anEmptyLoweredStackOrContainerAnswersZeroOnItsAutoAxes() throws {
+    let empty = GlobalElementID.child(of: leafID, at: 0, name: nil)
+    let sibling = GlobalElementID.child(of: leafID, at: 1, name: nil)
+    func observe<E: Element>(_ element: E) -> (empty: Bounds<Pixels>?, sibling: Bounds<Pixels>?,
+                                                report: [UnlowerableField]) {
+        let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 100) {
+            Row(gap: px(0)) {
+                element
+                Box().width(px(10)).height(px(10)).background(.accent)
+            }
+        }
+        return (frame.elementBounds[empty], frame.elementBounds[sibling], frame.unlowerableFields)
+    }
+
+    let control = observe(Stack { EmptyGroup() }.width(px(30)).height(px(20)))
+    let bare = observe(Stack { EmptyGroup() })
+    try #require(control.empty != bare.empty, "the control must read a different rect: \(String(describing: control.empty))")
+    try #require(control.sibling != bare.sibling, "the control must move the sibling: \(String(describing: control.sibling))")
+    #expect(control.empty == bounds(0, 0, 30, 20), "control: \(String(describing: control.empty))")
+    #expect(control.sibling == bounds(30, 5, 10, 10), "control: \(String(describing: control.sibling))")
+    #expect(control.report.isEmpty, "control: \(control.report)")
+
+    let arms = [("Stack", bare),
+                ("Column", observe(Column { EmptyGroup() })),
+                ("Row", observe(Row { EmptyGroup() })),
+                ("Box", observe(Box { EmptyGroup() }))]
+    try #require(arms.count == 4)
+    for (name, arm) in arms {
+        #expect(arm.empty == bounds(0, 5, 0, 0), "\(name): \(String(describing: arm.empty))")
+        #expect(arm.sibling == bounds(0, 0, 10, 10), "\(name): \(String(describing: arm.sibling))")
+        #expect(arm.report.isEmpty, "\(name): \(arm.report)")
+    }
+}
