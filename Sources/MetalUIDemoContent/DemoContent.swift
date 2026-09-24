@@ -257,7 +257,17 @@ struct CounterPanel: Element {
     /// `@ElementBuilder`'s `buildPartialBlock` would nest it, because the three
     /// children are assembled by hand below — a builder block cannot close over
     /// the two handlers *and* be written at the point the handlers exist.
-    typealias Chrome = Pair<Pair<Box<Text>, Box<Text>>, Box<Text>>
+    ///
+    /// Each child is a `Square`: a `Box` around one `Text`, wrapped in ONE
+    /// `.frame` layer that carries the size, the paint and the handlers (plan
+    /// task 7, stage 8, ruling `LR-ES`'s R1–R3). The frame's default `.center`
+    /// alignment centres the label where the `Box` used to centre it with
+    /// `.alignItems(.center).justifyContent(.center)`, and the decoration the
+    /// `Box` used to take in its initializer is `.background`/`.cornerRadius`
+    /// written after the frame, so it paints the frame's 36×36 (scratch S2 in
+    /// record §50 §3: the scene, hitboxes and node count identical).
+    typealias Square = ModifiedElement<Box<Text>>
+    typealias Chrome = Pair<Pair<Square, Square>, Square>
 
     private var built: Box<Chrome> = CounterPanel.chrome(count: 0, minus: {}, plus: {})
 
@@ -269,15 +279,13 @@ struct CounterPanel: Element {
     /// (`StyledElement.hoverBackground(_:)`). The two belong together here even
     /// though the framework keeps them separate.
     static func button(_ label: String,
-                       _ handler: @escaping @MainActor () -> Void) -> Box<Text> {
-        Box(decoration: Decoration(background: .surfaceSecondary,
-                                   cornerRadius: Pixels(8))) {
+                       _ handler: @escaping @MainActor () -> Void) -> Square {
+        Box {
             Text(label).font(size: 22)
         }
-        .width(Pixels(36))
-        .height(Pixels(36))
-        .alignItems(.center)
-        .justifyContent(.center)
+        .frame(width: Pixels(36), height: Pixels(36))
+        .background(.surfaceSecondary)
+        .cornerRadius(Pixels(8))
         .hoverBackground(.accent)
         .onClick(handler)
     }
@@ -288,10 +296,7 @@ struct CounterPanel: Element {
         let readout = Box {
             Text("Count \(count)").font(size: 22)
         }
-        .width(Pixels(140))
-        .height(Pixels(36))
-        .alignItems(.center)
-        .justifyContent(.center)
+        .frame(width: Pixels(140), height: Pixels(36))
 
         var row = Style()
         row.flexDirection = .row
@@ -403,12 +408,12 @@ public func demoContent() -> some Element {
         // horizontal resize is visible even where nothing else moves.
         Row(gap: Pixels(12)) {
             Box()
-                .width(Pixels(40)).height(Pixels(40))
+                .frame(width: Pixels(40), height: Pixels(40))
                 .background(.accent)
                 .cornerRadius(Pixels(20))
             Box()
-                .height(Pixels(12))
-                .flexGrow(1)
+                .frame(height: Pixels(12))
+                .frame(maxWidth: Pixels(.infinity))
                 .background(.surfaceSecondary)
                 .cornerRadius(Pixels(6))
         }
@@ -423,16 +428,19 @@ public func demoContent() -> some Element {
         // `f1944f8`; a `ModifiedElement` layer since ruling MC-A, no longer a
         // `Box`), so everything written before it configures the padded
         // container and everything after it configures the wrapper. Container
-        // settings (`alignItems`) therefore go first; the flex-item size
-        // (`height`/`width`/`flexGrow`), background and corner radius go after,
-        // so the declared size still includes the padding and the background
-        // still covers it. The inner `.flexGrow(1)` makes the container fill
-        // the wrapper's main (row) axis — its cross axis already stretches.
+        // settings (`alignItems`) and the inner `.flexGrow(1)` therefore go
+        // first; the size (`.frame(height:)` since stage 8, `LR-ES`),
+        // background and corner radius go after, so the frame's size still
+        // includes the padding and the background still covers it. The inner
+        // `.flexGrow(1)` makes the container fill the padding layer's main
+        // (row) axis — its cross axis already stretches. No item modifier may
+        // follow the `.frame`: on the frame's own layer it is a report, which
+        // a production frame turns into a trap (`LR-ES`'s R4).
         // Written the other way round, this header rendered as an 84pt centred
         // card with no bar (record §03, 2026-09-14).
         .flexGrow(1)
         .padding(Pixels(16))
-        .height(Pixels(72))
+        .frame(height: Pixels(72))
         .background(.surface)
         .cornerRadius(Pixels(14))
 
@@ -441,7 +449,7 @@ public func demoContent() -> some Element {
         // It declares no width: it spans whatever its parent is, and the root
         // column's `.alignItems(.stretch)` below is what says so.
         Box()
-            .height(Pixels(1))
+            .frame(height: Pixels(1))
             .background(.separator)
 
         // Body: the row that absorbs every vertical resize.
@@ -471,10 +479,10 @@ public func demoContent() -> some Element {
                 // and the paragraph below is not, the fault is in wrapping; if
                 // neither is, it is in the atlas or the draw path.
                 Text("Library")
-                Box().height(Pixels(26)).background(.accent).cornerRadius(Pixels(6))
-                Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
-                Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
-                Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
+                Box().frame(height: Pixels(26)).background(.accent).cornerRadius(Pixels(6))
+                Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
+                Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
+                Box().frame(height: Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
             }
             // **CLOSED, and it is NOT a divergence — measured against WebKit,
             // which does the identical thing.** This column declares 196 and
@@ -514,11 +522,19 @@ public func demoContent() -> some Element {
             // (`AnimatedColor.swift`) at once. The baseline is a declared
             // pixel value rather than `.auto`, which is what lets the FIRST
             // press animate rather than snap (`AnimatedStyle.swift`'s own
-            // documented `.auto` pitfall).
+            // documented `.auto` pitfall). Since stage 8 the width is a
+            // `.frame(width:)` (`LR-ES`); the frame layer reads its fixed size
+            // from its ANIMATED style, so it interpolates exactly as the old
+            // `.width(_:)` did (`LR-ES`'s R8, pinned by
+            // `anAnimatedFrameWidthInterpolatesAsTheAnimatedWidthItReplacesDid`).
+            // `alignment: .top` puts the padded column at the top of the
+            // stretched frame, where the old own-box width left it; without it
+            // the frame centres it (scratch S5, record §50 §3; demo mutation
+            // Ma reddens the demo-frame pin).
             .alignItems(.stretch)
             .flexGrow(1)
             .padding(Pixels(14))
-            .width(demoModel.animationDemoActive ? Pixels(320) : Pixels(196))
+            .frame(width: demoModel.animationDemoActive ? Pixels(320) : Pixels(196), alignment: .top)
             .background(demoModel.animationDemoActive ? .accent : .surface)
             .cornerRadius(Pixels(14))
 
@@ -563,23 +579,19 @@ public func demoContent() -> some Element {
                 // visibly being exactly that size.
                 Stack(alignment: .center) {
                     Box()
-                        .width(Pixels(360))
-                        .height(Pixels(128))
+                        .frame(width: Pixels(360), height: Pixels(128))
                         .background(.accent)
                         .cornerRadius(Pixels(12))
                     Box()
-                        .width(Pixels(160))
-                        .height(Pixels(72))
+                        .frame(width: Pixels(160), height: Pixels(72))
                         .background(.surface)
                         .cornerRadius(Pixels(10))
-                    Box(decoration: Decoration(background: .surfaceSecondary,
-                                               cornerRadius: Pixels(14))) {
+                    Box {
                         Text("3").font(size: 13)
                     }
-                    .width(Pixels(28))
-                    .height(Pixels(28))
-                    .alignItems(.center)
-                    .justifyContent(.center)
+                    .frame(width: Pixels(28), height: Pixels(28))
+                    .background(.surfaceSecondary)
+                    .cornerRadius(Pixels(14))
                 }
                 .alignSelf(.flexStart)
 
@@ -642,8 +654,11 @@ public func demoContent() -> some Element {
                 // and an indicator painted over text.
                 //
                 // **`ScrollView` has no modifier surface** — it conforms to
-                // `Element`, not `StyledElement` — so nothing here can call
-                // `.height(_:)` or `.flexGrow(_:)` on it directly. Measured
+                // `Element`, not `StyledElement` — so nothing here can size
+                // or grow it directly; the wrapping `Box` below is sized
+                // instead. What follows, down to "Two things fix it", is the
+                // LEGACY engine's history (production ran it until stage
+                // 6b); the paragraph after it says what holds now. Measured
                 // (a throwaway probe against this exact tree) rather than
                 // assumed: giving the wrapping `Box` an explicit height alone
                 // does NOT bound the viewport, because CSS Sizing §4.5's
@@ -673,16 +688,30 @@ public func demoContent() -> some Element {
                 // was a `for` loop over 40 rows. `List` declares
                 // `count * rowHeight` as a fixed style property whether or
                 // not those rows are built, so windowing does not lower it.)
-                // Two things fix it, both on the wrapping `Box` alone:
-                // `.minHeight(Pixels(0))` replaces the automatic (content-based)
-                // floor with a literal zero, and `.flexGrow(1).flexBasis(Pixels(0))`
-                // makes the box's HEIGHT grow-derived rather than content-derived,
-                // so it takes exactly the pane's leftover vertical space and
-                // reflows on resize. The automatic minimum only ever binds an
-                // item's MAIN axis, so the viewport's HEIGHT — the wrapping
-                // `Box`'s CROSS axis, since it keeps `Box`'s default `.row`
-                // direction — reaches it cleanly through ordinary
-                // `align-items: stretch`, with no override needed there.
+                // Two things fixed it on the legacy engine, both on the
+                // wrapping `Box` alone: `.minHeight(Pixels(0))` replaced the
+                // automatic (content-based) floor with a literal zero, and
+                // `.flexGrow(1).flexBasis(Pixels(0))` made the box's HEIGHT
+                // grow-derived rather than content-derived.
+                //
+                // **What holds now (plan task 7, stage 8, ruling `LR-ET`).**
+                // Under the proposal authority there is no automatic minimum:
+                // the box is two frames — a greedy
+                // `.frame(minHeight: 0, maxHeight: .infinity)` that takes the
+                // pane's leftover height and reflows on resize, inside a fixed
+                // `.frame(width: 420)` (flexible inner, fixed outer, both
+                // aligned where the content sat: `LR-ES`'s R5). A greedy
+                // frame's lower bound is its content unless it declares a
+                // minimum — SwiftUI's rule, probe
+                // `swiftui-engine-stage-8.swift` F0/F1 — so `minHeight: 0` is
+                // the spelling of the old cancellation. **Here it is inert,
+                // measured** (record §50 §3, O1/O2; demo mutation Mb): the box
+                // holds a lowered `ScrollView` whose viewport fills its
+                // proposal on the scrolling axis (`LR-BB`), so nothing floors
+                // the box. It is kept because it is the right spelling for
+                // content that does not fill, and the demo cannot pin it —
+                // `aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum`
+                // does.
                 //
                 // **Width takes the opposite route, and is a real cost — but
                 // NOT the same automatic-minimum gap, and this paragraph used
@@ -699,9 +728,9 @@ public func demoContent() -> some Element {
                 // `viewportStyle.flexGrow`: setting `flexGrow = 1` there
                 // (inside `ScrollView.requestLayout`) makes the viewport fill
                 // at every width, an ordinary main-axis flex fact unconnected
-                // to §4.5. `.minWidth(_:)` does exist on `Box` and is not an
-                // unused escape either — measured bit-identical to no width
-                // spelling at all. Each row below is pinned to a literal
+                // to §4.5. A minimum width on the `Box` was not an unused
+                // escape either — measured bit-identical to no width spelling
+                // at all (on the legacy engine). Each row below is pinned to a literal
                 // 420pt instead, which is what fixes the viewport's own
                 // content-based width at exactly 420 regardless of the pane's
                 // available space; the wrapping `Box` repeats the same literal
@@ -801,7 +830,7 @@ public func demoContent() -> some Element {
                                     .alignItems(.stretch)
                                     .flexGrow(1)
                                     .padding(Pixels(20))
-                                    .width(Pixels(360))
+                                    .frame(width: Pixels(360))
                                     .background(.surface)
                                     .cornerRadius(Pixels(16))
                                     // Absorbs its own clicks so the scrim's
@@ -858,7 +887,8 @@ public func demoContent() -> some Element {
                         // that height (and removes the automatic minimum that
                         // would otherwise let a tall string grow past it).
                         //
-                        // **The row below ALSO declares `.height(Pixels(28))`,
+                        // **The row below ALSO declares a 28pt height
+                        // (`.frame(height: Pixels(28))` since stage 8),
                         // a second literal that must agree with `rowHeight`
                         // and that nothing checks — since stage 6b's root
                         // switch, on purpose** (ruling `LR-DJ`). Before it, the
@@ -871,7 +901,10 @@ public func demoContent() -> some Element {
                         // had nothing to centre in — every label sat 6pt
                         // high. Declared, the row is 28 under either authority
                         // (measured: 0 differing pixels in all twelve images at
-                        // the legacy default, record §41 §4 arm H0).
+                        // the legacy default, record §41 §4 arm H0). Since
+                        // stage 8 the declaration is a `.frame`, whose default
+                        // `.center` alignment does the vertical centring the
+                        // `Box`'s own `.alignItems(.center)` used to (`LR-ES`).
                         List(demoRows, rowHeight: Pixels(28)) { row in
                             // Alternating row backgrounds, deliberately painted
                             // edge-to-edge with the viewport: `ScrollView`'s
@@ -888,26 +921,25 @@ public func demoContent() -> some Element {
                             Box {
                                 Text("Row \(row.id + 1) of \(demoRowCount) — a scrollable list item")
                             }
-                            // Vertical centring within the row; horizontal
-                            // stays flex-start, the ordinary reading direction
-                            // for a list item's label.
-                            .alignItems(.center)
-                            .flexGrow(1)
-                            // See the `rowHeight` note above (`LR-DJ`).
-                            .height(Pixels(28))
+                            // Vertical centring within the row is this
+                            // frame's default `.center` alignment; horizontal
+                            // stays leading — the outer frame's `.leading`
+                            // below, the ordinary reading direction for a list
+                            // item's label (demo mutation Md reddens the
+                            // demo-frame pin without it). See the `rowHeight`
+                            // note above (`LR-DJ`).
+                            .frame(height: Pixels(28))
                             .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
                                           bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
-                            .width(Pixels(420))
+                            .frame(width: Pixels(420), alignment: .leading)
                             // On the padding wrapper, so it spans the padding.
                             .background(row.id.isMultiple(of: 2) ? .surface : .surfaceSecondary)
                         }
                     }
                     .cornerRadius(Pixels(14))
                 }
-                .width(Pixels(420))
-                .flexGrow(1)
-                .flexBasis(Pixels(0))
-                .minHeight(Pixels(0))
+                .frame(minHeight: Pixels(0), maxHeight: Pixels(.infinity), alignment: .topLeading)
+                .frame(width: Pixels(420), alignment: .leading)
                 .background(.surface)
                 .cornerRadius(Pixels(14))
             }

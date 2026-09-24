@@ -271,13 +271,13 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
             Row {
                 Mark("leaf", log: log, width: 20, height: 20).frame(width: px(100)).frame(width: px(50))
                 Mark("sibling", log: log, width: 5, height: 5)
-            }.alignItems(.flexStart).width(px(300)).height(px(200))
+            }.alignItems(.flexStart).frame(width: px(300), height: px(200), alignment: .topLeading)
         }
         let outerWide = try render(authority: authority) { log in
             Row {
                 Mark("leaf", log: log, width: 20, height: 20).frame(width: px(50)).frame(width: px(100))
                 Mark("sibling", log: log, width: 5, height: 5)
-            }.alignItems(.flexStart).width(px(300)).height(px(200))
+            }.alignItems(.flexStart).frame(width: px(300), height: px(200), alignment: .topLeading)
         }
         let innerLeafX = Origin(try #require(innerWide.bounds["leaf"])).x
         let outerLeafX = Origin(try #require(outerWide.bounds["leaf"])).x
@@ -295,7 +295,7 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
                     .frame(width: px(60), height: px(40))
                     .frame(width: px(120), height: px(100), alignment: .topLeading)
                 Mark("sibling", log: log, width: 5, height: 5)
-            }.alignItems(.flexStart).width(px(300)).height(px(200))
+            }.alignItems(.flexStart).frame(width: px(300), height: px(200), alignment: .topLeading)
         }
         #expect(Origin(try #require(aligned.bounds["sibling"])).x == 120, "E6's outer width, \(authority)")
         #expect(Origin(try #require(aligned.bounds["leaf"])) == Origin(20, 10), "E6's leaf, \(authority)")
@@ -327,13 +327,13 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
             Column {
                 Text("alpha bravo charlie delta").font(size: 12).frame(width: px(60))
                 Mark("marker", log: log, width: 5, height: 5)
-            }.width(px(300)).height(px(200))
+            }.frame(width: px(300), height: px(200), alignment: .top)
         }
         let bare = try render(authority: authority) { log in
             Column {
                 Text("alpha bravo charlie delta").font(size: 12)
                 Mark("marker", log: log, width: 5, height: 5)
-            }.width(px(300)).height(px(200))
+            }.frame(width: px(300), height: px(200), alignment: .top)
         }
         let framedY = Origin(try #require(framed.bounds["marker"])).y
         let bareY = Origin(try #require(bare.bounds["marker"])).y
@@ -485,7 +485,7 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
         Row {
             Mark("pad", log: log, width: 30, height: 30)
             Box { ScrollView(.vertical) { Mark("c", log: log, width: 80, height: 400) } }
-                .height(px(100))
+                .frame(height: px(100))
                 .frame(width: px(120), height: px(100))
         }
     }
@@ -495,7 +495,7 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
         Row {
             Mark("pad", log: log, width: 30, height: 30)
             Box { ScrollView(.vertical) { Mark("c", log: log, width: 80, height: 400) } }
-                .height(px(100))
+                .frame(height: px(100))
                 .frame(width: px(60), height: px(60), alignment: .topLeading)
         }
     }
@@ -505,10 +505,83 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
         Row {
             Mark("pad", log: log, width: 30, height: 30)
             Box { ScrollView(.horizontal) { Mark("c", log: log, width: 400, height: 40) } }
-                .width(px(100))
+                .frame(width: px(100))
                 .frame(width: px(120), height: px(100))
         }
     }
     #expect(g.region == Rect(65, 80, 100, 40) && g.content == Rect(65, 80, 400, 40) && g.offset == 37,
             "G: \(g)")
+}
+
+// MARK: - Stage 8: the zero minimum (`LR-ET`)
+
+/// The scroller box's old spelling — own-box width, grow, zero basis, zero
+/// minimum — the class-D arm of N1.6 (`LR-EW`).
+private struct GrowingBoxOldSpelling: DeprecatedSpelling {
+    let log: SizeLog
+    @available(*, deprecated, message: "spells the growing box with the deprecated .width/.minHeight on purpose: the old arm of aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum (stage 8, LR-EW class D)")
+    func spelled() -> Box<Mark> {
+        Box { Mark("content", log: log, width: 50, height: 400) }
+            .width(px(120)).flexGrow(1).flexBasis(px(0)).minHeight(px(0))
+            .background(.accent)
+    }
+}
+
+/// **N1.6** (stage 8 spec §6; `LR-ET`, `LR-ES`'s R5; probe
+/// `swiftui-engine-stage-8.swift` F0/F1; record §50 §3, S7a–S7d). Under the
+/// proposal authority, in a 400×300 frame, a stretching root `Column` holds an
+/// 80pt header and a 50×400 content in
+/// `.frame(minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
+/// .frame(width: 120, alignment: .leading)`: the box is **120×220 at (0, 80)**
+/// and the content at **(0, 80)**. Without `minHeight:` the greedy frame answers
+/// its content's 400 and the root column (480 tall, centred, `CN-J`) puts the
+/// header at **y −90** — SwiftUI's own rule (F0: no automatic minimum; F1: the
+/// zero minimum). The old spelling (`.width(120).flexGrow(1).flexBasis(0)
+/// .minHeight(0)`, a class-D witness) gives the first arm's three rects exactly.
+///
+/// The demo cannot pin this: its box holds a `ScrollView` whose viewport fills
+/// its proposal, so dropping the minimum there is invisible (record §50 §4, Mb).
+///
+/// Green on arrival (the kernel already agrees). Mutation that must redden it:
+/// **M1f** (`framed(_:)` passes `minHeight: nil`) → the first arm reads the
+/// second arm's answer.
+@Test @MainActor func aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum() throws {
+    func arm<Body: Element>(_ body: (SizeLog) -> Body) -> (header: Rect?, box: Rect?, content: Rect?) {
+        let log = SizeLog()
+        var root = Column {
+            Box().cssHeight(px(80)).background(.surface)
+            body(log)
+        }.alignItems(.stretch)
+        let frame = Frame(contentSize: Size(width: px(400), height: px(300)), scaleFactor: 1,
+                          layoutAuthority: .proposal, reportsUnlowerableFields: true)
+        frame.render(&root)
+        #expect(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
+        let rects = frame.finalizedScene().rects.map {
+            Rect($0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height)
+        }
+        return (rects.count == 2 ? rects[0] : nil, rects.count == 2 ? rects[1] : nil,
+                log.bounds["content"].map(Rect.init))
+    }
+    let zero = arm { log in
+        Box { Mark("content", log: log, width: 50, height: 400) }
+            .frame(minHeight: px(0), maxHeight: px(.infinity), alignment: .topLeading)
+            .frame(width: px(120), alignment: .leading)
+            .background(.accent)
+    }
+    let noMinimum = arm { log in
+        Box { Mark("content", log: log, width: 50, height: 400) }
+            .frame(maxHeight: px(.infinity), alignment: .topLeading)
+            .frame(width: px(120), alignment: .leading)
+            .background(.accent)
+    }
+    let old = arm { log in oldSpelling(GrowingBoxOldSpelling(log: log)) }
+    #expect(zero.header == Rect(0, 0, 400, 80), "zero minimum, header: \(String(describing: zero.header))")
+    #expect(zero.box == Rect(0, 80, 120, 220), "zero minimum, box: \(String(describing: zero.box))")
+    #expect(zero.content == Rect(0, 80, 50, 400), "zero minimum, content: \(String(describing: zero.content))")
+    #expect(noMinimum.header == Rect(0, -90, 400, 80),
+            "no minimum, header: \(String(describing: noMinimum.header))")
+    #expect(noMinimum.box.map { $0.height } == 400, "no minimum, box: \(String(describing: noMinimum.box))")
+    try #require(zero.header != nil && zero.box != nil && zero.content != nil)
+    #expect(old.header == zero.header && old.box == zero.box && old.content == zero.content,
+            "old spelling \(old) vs \(zero)")
 }

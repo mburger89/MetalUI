@@ -256,14 +256,14 @@ func aPresentationInsideAFadedSubtreeIsStillFadedUnderBothAuthorities(_ authorit
     func portal(faded: Bool) throws -> MUIRect {
         let (window, _) = try presentationWindow(authority) {
             Row {
-                Box().width(px(50)).height(px(50)).background(.surface)
+                Box().frame(width: px(50), height: px(50)).background(.surface)
                 Box {
                     Deferred {
-                        Box().width(px(20)).height(px(20)).background(.accent)
+                        Box().frame(width: px(20), height: px(20)).background(.accent)
                             .position(.absolute).inset(edges(top: pxDim(10), left: pxDim(10)))
                     }
                 }
-                .width(px(40)).height(px(40))
+                .frame(width: px(40), height: px(40), alignment: .topLeading)
                 .opacity(faded ? 0.5 : 1)
             }
             .alignItems(.flexStart)
@@ -306,10 +306,10 @@ func aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities(_ autho
         let log = Log()
         let (window, platform) = try presentationWindow(authority) {
             Row {
-                Box().width(px(11)).height(px(10)).background(.surface)
+                Box().frame(width: px(11), height: px(10)).background(.surface)
                 Deferred {
                     LayoutEnvironmentProbe(
-                        content: Box().width(px(30)).height(px(30)).background(.surface)
+                        content: Box().frame(width: px(30), height: px(30)).background(.surface)
                             .focusable().onClick { log.names.append("x") }
                             .position(.absolute).inset(edges(top: pxDim(50), left: pxDim(50))),
                         log: log)
@@ -368,10 +368,10 @@ func aPresentationsAccessibilityRecordAndFocusMatchUnderBothAuthorities(_ author
     let log = Log()
     let (window, platform) = try presentationWindow(authority) {
         Row {
-            Box().width(px(50)).height(px(50)).background(.surface)
+            Box().frame(width: px(50), height: px(50)).background(.surface)
             Deferred {
                 Stack(alignment: .center) {
-                    Box().width(px(40)).height(px(30)).background(.surface)
+                    Box().frame(width: px(40), height: px(30)).background(.surface)
                         .focusable().onClick {}
                         .onKey { _ in log.names.append("card"); return true }
                 }
@@ -427,9 +427,9 @@ func anAnimatedInsetInterpolatesItsValueUnderBothAuthorities(_ authority: Layout
     AuthorityCoverage.record(#function, authority)
     @MainActor func tree(_ top: Float) -> some Element {
         Row {
-            Box().width(px(10)).height(px(10)).background(.surface)
+            Box().frame(width: px(10), height: px(10)).background(.surface)
             Deferred {
-                Box().width(px(20)).height(px(20)).background(.accent)
+                Box().frame(width: px(20), height: px(20)).background(.accent)
                     .position(.absolute).inset(edges(top: pxDim(top), left: pxDim(30)))
             }
         }
@@ -471,12 +471,12 @@ func nestedPresentationsLandOnOneLayerUnderBothAuthorities(_ authority: LayoutAu
     AuthorityCoverage.record(#function, authority)
     let (window, _) = try presentationWindow(authority) {
         Row {
-            Box().width(px(50)).height(px(50)).background(.surface)
+            Box().frame(width: px(50), height: px(50)).background(.surface)
             Deferred {
                 Stack(alignment: .center) {
-                    Box().width(px(40)).height(px(30)).background(.surface)
+                    Box().frame(width: px(40), height: px(30)).background(.surface)
                     Deferred {
-                        Box().width(px(10)).height(px(10)).background(.accent).onClick {}
+                        Box().frame(width: px(10), height: px(10)).background(.accent).onClick {}
                             .position(.absolute).inset(edges(top: pxDim(5), left: pxDim(5)))
                     }
                 }

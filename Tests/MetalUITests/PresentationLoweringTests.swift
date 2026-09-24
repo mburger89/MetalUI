@@ -78,14 +78,14 @@ private func expectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 
 private struct PresentingSolo: Component {
     var content: some ElementGroup {
-        Deferred { absBox(insets(top: dim(5), left: dim(5))).width(px(10)).height(px(10)) }
+        Deferred { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssHeight(px(10)) }
     }
 }
 
 private struct PresentingPair: Component {
     var content: some ElementGroup {
-        Box().width(px(10)).height(px(10)).background(.surface)
-        Deferred { absBox(insets(top: dim(5), left: dim(5))).width(px(10)).height(px(10)) }
+        Box().cssWidth(px(10)).cssHeight(px(10)).background(.surface)
+        Deferred { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssHeight(px(10)) }
     }
 }
 
@@ -116,22 +116,22 @@ private struct PresentingPair: Component {
         arms.append((name, LayoutDifferential.compare(width: 200, height: 100, make), deferredIndex, expected))
     }
     arm("top/left px", pBounds(5, 5, 30, 20)) {
-        Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).width(px(30)).height(px(20)) } }
+        Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(30)).cssHeight(px(20)) } }
     }
     arm("right/bottom px, declared size", pBounds(163, 71, 30, 20)) {
-        Box { Deferred { absBox(insets(right: dim(7), bottom: dim(9))).width(px(30)).height(px(20)) } }
+        Box { Deferred { absBox(insets(right: dim(7), bottom: dim(9))).cssWidth(px(30)).cssHeight(px(20)) } }
     }
     arm("all four, auto size (stretched on both axes)", pBounds(40, 10, 140, 60)) {
         Box { Deferred { absBox(insets(top: dim(10), right: dim(20), bottom: dim(30), left: dim(40))) } }
     }
     arm("left/right, auto width, declared height", pBounds(10, 0, 160, 20)) {
-        Box { Deferred { absBox(insets(right: dim(30), left: dim(10))).height(px(20)) } }
+        Box { Deferred { absBox(insets(right: dim(30), left: dim(10))).cssHeight(px(20)) } }
     }
     arm("all four, declared size (the leading insets win)", pBounds(40, 10, 30, 20)) {
         Box {
             Deferred {
                 absBox(insets(top: dim(10), right: dim(20), bottom: dim(30), left: dim(40)))
-                    .width(px(30)).height(px(20))
+                    .cssWidth(px(30)).cssHeight(px(20))
             }
         }
     }
@@ -139,15 +139,15 @@ private struct PresentingPair: Component {
     // block's origin, not at CSS's static position after the in-flow sibling.
     arm("no insets, after an in-flow sibling (divergence 9)", deferredIndex: 1, pBounds(0, 0, 30, 20)) {
         Box {
-            Box().width(px(40)).height(px(20)).background(.surface)
-            Deferred { absBox(insets()).width(px(30)).height(px(20)) }
+            Box().cssWidth(px(40)).cssHeight(px(20)).background(.surface)
+            Deferred { absBox(insets()).cssWidth(px(30)).cssHeight(px(20)) }
         }
     }
     arm("percent: top against the height, left against the width", pBounds(50, 50, 10, 10)) {
         Box {
             Deferred {
                 absBox(insets(top: .length(.percent(0.5)), left: .length(.percent(0.25))))
-                    .width(px(10)).height(px(10))
+                    .cssWidth(px(10)).cssHeight(px(10))
             }
         }
     }
@@ -155,14 +155,14 @@ private struct PresentingPair: Component {
         Box {
             Deferred {
                 absBox(insets(top: .length(.rems(Rems(1))), left: .length(.rems(Rems(2)))))
-                    .width(px(10)).height(px(10))
+                    .cssWidth(px(10)).cssHeight(px(10))
             }
         }
     }
     arm("declared width 40, minWidth 50 (clamped on a declared axis, AP-E)", pBounds(5, 5, 50, 10)) {
         Box {
             Deferred {
-                absBox(insets(top: dim(5), left: dim(5))).width(px(40)).minWidth(px(50)).height(px(10))
+                absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(40)).cssMinWidth(px(50)).cssHeight(px(10))
             }
         }
     }
@@ -170,7 +170,7 @@ private struct PresentingPair: Component {
         pBounds(5, 5, 30, 20)) {
         Box {
             Deferred {
-                absBox(insets(top: dim(5), left: dim(5))).width(px(30)).height(px(20))
+                absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(30)).cssHeight(px(20))
                     .margin(px(7)).flexGrow(1).alignSelf(.center)
             }
         }
@@ -275,13 +275,13 @@ private struct PresentingPair: Component {
 @MainActor
 @Test func aPresentationPlaceholderIsDroppedByEveryLoweredContainer() throws {
     func presented() -> Deferred<Box<EmptyGroup>> {
-        Deferred { absBox(insets(top: dim(5), left: dim(5))).width(px(10)).height(px(10)) }
+        Deferred { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssHeight(px(10)) }
     }
     let column = LayoutDifferential.compare(width: 200, height: 100) {
         Column(gap: px(12)) {
-            Box().width(px(10)).height(px(10)).background(.surface)
+            Box().cssWidth(px(10)).cssHeight(px(10)).background(.surface)
             presented()
-            Box().width(px(11)).height(px(10)).background(.surface)
+            Box().cssWidth(px(11)).cssHeight(px(10)).background(.surface)
         }
     }
     expectAgreement(column, "gapped column")
@@ -290,7 +290,7 @@ private struct PresentingPair: Component {
             "the column's third child: \(String(describing: column.legacyBounds[third])) / \(String(describing: column.loweredBounds[third]))")
     let stack = LayoutDifferential.compare(width: 200, height: 100) {
         Stack {
-            Box().width(px(10)).height(px(10)).background(.surface)
+            Box().cssWidth(px(10)).cssHeight(px(10)).background(.surface)
             presented()
         }
     }
@@ -302,7 +302,7 @@ private struct PresentingPair: Component {
                 ProbeLeaf(width: 80, height: 200)
             }
         }
-        .width(px(80)).height(px(60))
+        .cssWidth(px(80)).cssHeight(px(60))
     }
     expectAgreement(scroll, "ScrollView content")
     let wrap = LayoutDifferential.compare(width: 200, height: 100) {
@@ -372,7 +372,7 @@ private struct PresentingPair: Component {
 @MainActor
 @Test func aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName() throws {
     func presented() -> Deferred<Box<EmptyGroup>> {
-        Deferred { absBox(insets(right: dim(5), bottom: dim(5))).width(px(10)).height(px(10)) }
+        Deferred { absBox(insets(right: dim(5), bottom: dim(5))).cssWidth(px(10)).cssHeight(px(10)) }
     }
     var bordered = Style()
     bordered.border = Edges(all: .pixels(px(4)))
@@ -380,9 +380,9 @@ private struct PresentingPair: Component {
     var arms: [Arm] = []
     arms.append(("bordered root", rootDiagnostics { Box(style: bordered) { presented() } },
                  ["deferred.containingBlock"]))
-    arms.append(("root width 100 in 200", rootDiagnostics { Box { presented() }.width(px(100)) },
+    arms.append(("root width 100 in 200", rootDiagnostics { Box { presented() }.cssWidth(px(100)) },
                  ["deferred.containingBlock"]))
-    arms.append(("root width 200", rootDiagnostics { Box { presented() }.width(px(200)) }, []))
+    arms.append(("root width 200", rootDiagnostics { Box { presented() }.cssWidth(px(200)) }, []))
     arms.append(("auto root", rootDiagnostics { Box { presented() } }, []))
     arms.append(("Deferred root", rootDiagnostics { presented() }, ["deferred.root"]))
     arms.append(("inside a top/left-5 presentation", rootDiagnostics {
@@ -400,13 +400,13 @@ private struct PresentingPair: Component {
         Box { Box { presented() }.position(.relative) }
     }, ["box.position"]))
     arms.append(("absolute in a column, no Deferred", rootDiagnostics {
-        Column { absBox(insets(top: dim(5), left: dim(5))).width(px(10)).height(px(10)) }
+        Column { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssHeight(px(10)) }
     }, ["box.position", "box.inset"]))
     arms.append(("absolute root", rootDiagnostics {
-        absBox(insets(top: dim(5), left: dim(5))).width(px(10)).height(px(10))
+        absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssHeight(px(10))
     }, ["box.position.unconsumed", "box.inset.unconsumed"]))
     arms.append(("minWidth on an auto axis", rootDiagnostics {
-        Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).height(px(10)).minWidth(px(50)) } }
+        Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).cssHeight(px(10)).cssMinWidth(px(50)) } }
     }, ["box.minSize.absolute"]))
     arms.append(("Component amend over a presentation member", rootDiagnostics {
         Box { PresentingSolo().width(px(70)) }
@@ -422,7 +422,7 @@ private struct PresentingPair: Component {
     }, []))
     // Lane 1 corrections (`LR-CQ`): four claims the source made that no arm saw.
     arms.append(("maxHeight on an auto axis", rootDiagnostics {
-        Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).width(px(10)).maxHeight(px(50)) } }
+        Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssMaxHeight(px(50)) } }
     }, ["box.maxSize.absolute"]))
     var percentMinimum = Style()
     percentMinimum.minSize.width = .length(.percent(0.5))
@@ -430,7 +430,7 @@ private struct PresentingPair: Component {
         Box {
             Deferred {
                 Box(style: percentMinimum).background(.accent).onClick {}.position(.absolute)
-                    .inset(insets(top: dim(5), left: dim(5))).width(px(40)).height(px(10))
+                    .inset(insets(top: dim(5), left: dim(5))).cssWidth(px(40)).cssHeight(px(10))
             }
         }
     }, ["box.minSize.percent"]))
@@ -450,7 +450,7 @@ private struct PresentingPair: Component {
     // `<field>.absolute` belongs to stage 8's min/max recipe (`LR-CJ` item 3), read
     // off the fields the frame really reported, not off a hand-built value.
     let absoluteFields = rootFields {
-        Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).minWidth(px(50)).maxHeight(px(50)) } }
+        Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).cssMinWidth(px(50)).cssMaxHeight(px(50)) } }
     }
     try #require(absoluteFields.map(\.description) == ["box.minSize.absolute", "box.maxSize.absolute"],
                  "\(absoluteFields)")
@@ -474,7 +474,7 @@ private struct PresentingPair: Component {
             bordered.border = Edges(all: .pixels(Pixels(4)))
             var root = Box(style: bordered) {
                 Deferred {
-                    Box().width(Pixels(10)).height(Pixels(10)).position(.absolute)
+                    Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)).position(.absolute)
                         .inset(Edges(top: .length(.pixels(Pixels(5))), right: .auto, bottom: .auto,
                                      left: .length(.pixels(Pixels(5)))))
                 }
@@ -513,7 +513,7 @@ private struct PresentingPair: Component {
         Box {
             ProbeLeaf(width: 20, height: 10)
             ProbeLeaf(width: 30, height: 10)
-            Deferred { absBox(insets(top: dim(5), left: dim(5))).width(px(10)).height(px(10)) }
+            Deferred { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssHeight(px(10)) }
         }
     }
     let without = frame {
@@ -529,4 +529,164 @@ private struct PresentingPair: Component {
     let a = with.tree.lastNativeLayoutWork, b = without.tree.lastNativeLayoutWork
     try #require(b.cacheMisses > 0)
     #expect(a == b, "with the presentation \(a), without \(b)")
+}
+
+// MARK: - Stage 8: a framed box can be an absolute box (`LR-EV`)
+//
+// Plan task 7, stage 8, lane 1 (spec `docs/superpowers/specs/2026-09-24-engine-stage-8-design.md`
+// §6, N1.2–N1.4; record §50). Stage 8 deprecates the sizing modifiers, so the
+// recipe sizes an absolute box with a `.frame` written BEFORE `.position` (R6).
+// Before `LR-EV` that spelling trapped a production frame: a `.position`/`.inset`
+// written after a frame was compared as "a caller's modifier on the layer" and
+// reported `modifierLayer.style`.
+
+/// A2's old spelling, the deprecated own-box size (class D, `LR-EW`).
+private struct FramedAbsoluteOldSpelling: DeprecatedSpelling {
+    @available(*, deprecated, message: "spells the absolute box with the deprecated sizing modifiers on purpose: A0, the control of aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities (stage 8, LR-EW class D)")
+    func spelled() -> Box<EmptyGroup> {
+        Box().width(px(20)).height(px(20)).background(.accent).onClick {}
+            .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
+    }
+}
+
+/// Two plain members, so a `.frame` over it is `LR-BH`'s row of per-member frames.
+private struct PlainPair: Component {
+    var content: some ElementGroup {
+        Box().cssWidth(px(10)).cssHeight(px(10)).background(.surface)
+        Box().cssWidth(px(10)).cssHeight(px(10)).background(.surface)
+    }
+}
+
+/// **N1.2** (`LR-EV` items 1–2; record §50 §3, A0/A1). A1 —
+/// `Box().frame(width: 20, height: 20).background(.accent).onClick {}
+/// .position(.absolute).inset(top 10, left 30)` inside a `Deferred` — lays out at
+/// (30, 10) 20×20 with its hitbox there, under **both** authorities, and the
+/// proposal frame reports nothing; A0, the deprecated own-box spelling, reads the
+/// same (its control).
+///
+/// Red before (`85217e3`'s source): the proposal arm lays the box out at 0×0 and
+/// reports `modifierLayer.style` (record §50 §3).
+///
+/// Mutation that must redden it: **M1a** (the frame layer's `style` comparison
+/// restored to the exact one — no absolute exemption) → this test and N1.4.
+@MainActor
+@Test func aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities() throws {
+    let expected = pBounds(30, 10, 20, 20)
+    let box = pChild(pChild(pChild(pRoot, 0), 0), 0)
+    func check<E: Element>(_ name: String, _ make: @escaping @MainActor () -> E) {
+        let report = LayoutDifferential.compare(width: 200, height: 200) {
+            Box { Deferred { make() } }.alignItems(.flexStart)
+        }
+        expectAgreement(report, name)
+        #expect(report.legacyBounds[box] == expected, "\(name): legacy \(String(describing: report.legacyBounds[box]))")
+        #expect(report.loweredBounds[box] == expected, "\(name): lowered \(String(describing: report.loweredBounds[box]))")
+        for authority in [LayoutAuthority.legacy, .proposal] {
+            let frame = LayoutDifferential.render(authority: authority, width: 200, height: 200) {
+                Box { Deferred { make() } }.alignItems(.flexStart)
+            }
+            let hits = frame.hitboxes.filter { $0.id == box }
+            #expect(hits.count == 1 && hits.first?.bounds == expected,
+                    "\(name), \(authority): hitboxes \(hits.map(\.bounds))")
+            if authority == .proposal {
+                #expect(frame.unlowerableFields.isEmpty, "\(name): \(frame.unlowerableFields)")
+            }
+        }
+    }
+    check("A1, .frame before .position") {
+        Box().frame(width: px(20), height: px(20)).background(.accent).onClick {}
+            .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
+    }
+    check("A0, the deprecated own-box size (control)") { oldSpelling(FramedAbsoluteOldSpelling()) }
+}
+
+/// **N1.3** (`LR-EV` item 2; probe `swiftui-engine-stage-8.swift` P0–P2). A
+/// frame's own bounds on an absolute box's `auto` axis answer as SwiftUI's frame
+/// does, under the proposal authority: `Box { Text("hi") }.frame(minWidth: 100)`
+/// is **100×16**, `.frame(maxWidth: 80)` is **80×16** (the text is 11 wide, so the
+/// maximum is greedy up to the window-minus-inset proposal, P2), and neither
+/// reports. The control arm (no frame) is **11×16** — so each arm's width is the
+/// frame's doing. A **proposal-only** answer: the legacy engine ignores an
+/// auto-axis bound on an absolute box (`AP-E`), unnumbered by `LR-CJ`'s precedent.
+///
+/// Red before: each framed arm reports `modifierLayer.style`.
+///
+/// Mutation that must redden it: **M1b** (`lowerPresentation`'s `…absolute`
+/// check no longer skips a `.frameLayer` record) → this test, reporting
+/// `modifierLayer.minSize.absolute` / `.maxSize.absolute`.
+@MainActor
+@Test func aFramesOwnBoundsOnAnAbsoluteAutoAxisAnswerAsSwiftUIsFrameDoes() throws {
+    let box = pChild(pChild(pChild(pRoot, 0), 0), 0)
+    func arm<E: Element>(_ name: String, _ make: @escaping @MainActor () -> E) -> (Bounds<Pixels>?, [String]) {
+        let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) {
+            Box { Deferred { make() } }.alignItems(.flexStart)
+        }
+        return (frame.elementBounds[box], frame.unlowerableFields.map(\.description))
+    }
+    let control = arm("control, no frame") {
+        Box { Text("hi") }.background(.accent).position(.absolute).inset(insets(top: dim(10), left: dim(30)))
+    }
+    let minimum = arm("minWidth 100") {
+        Box { Text("hi") }.frame(minWidth: px(100)).background(.accent)
+            .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
+    }
+    let maximum = arm("maxWidth 80") {
+        Box { Text("hi") }.frame(maxWidth: px(80)).background(.accent)
+            .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
+    }
+    try #require(control.0 == pBounds(30, 10, 11, 16) && control.1.isEmpty,
+                 "control: \(String(describing: control.0)) \(control.1)")
+    #expect(minimum.0 == pBounds(30, 10, 100, 16) && minimum.1.isEmpty,
+            "minWidth 100: \(String(describing: minimum.0)) \(minimum.1)")
+    #expect(maximum.0 == pBounds(30, 10, 80, 16) && maximum.1.isEmpty,
+            "maxWidth 80: \(String(describing: maximum.0)) \(maximum.1)")
+}
+
+/// **N1.4** (`LR-EV` items 1 and 3, as amended by `LR-EY` item 3). The
+/// exemption covers `position` and `inset` on a frame over at most one node, and
+/// nothing else:
+///
+/// 1. `.frame(20×20).position(.absolute).inset(…).flexGrow(1)` in a `Deferred`
+///    still reports `modifierLayer.style` — the grow is a caller's modifier on
+///    the frame's own layer;
+/// 2. `.frame(20×20).position(.absolute).inset(…)` in a `Column`, no `Deferred`,
+///    reports `modifierLayer.position` then `modifierLayer.inset` — removed from
+///    the proposal authority as any absolute box outside a `Deferred` is
+///    (`LR-CK`), not lowered in flow;
+/// 3. a two-member `Component`'s `.frame(width: 20, height: 20).position(.absolute)
+///    .inset(…)` in a `Deferred` still reports `modifierLayer.style` — a row of
+///    per-member frames as a presentation root is unmeasured (owner stage 11).
+///
+/// Red before: arm 2 reports `[modifierLayer.style]`.
+///
+/// Mutations that must redden it: **M1c** (the comparison skipped entirely when
+/// the declared style is absolute) → arm 1; **M1d** (the `.frameLayer` guard
+/// restored in `planLegacyItems`' outside-a-`Deferred` report) → arm 2 lowers
+/// silently; **M1h** (the one-node condition dropped from the exemption) → arm 3.
+@MainActor
+@Test func aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred() throws {
+    let grown = rootDiagnostics(width: 200, height: 200) {
+        Box {
+            Deferred {
+                Box().frame(width: px(20), height: px(20)).background(.accent)
+                    .position(.absolute).inset(insets(top: dim(10), left: dim(30))).flexGrow(1)
+            }
+        }
+    }
+    let inFlow = rootDiagnostics(width: 200, height: 200) {
+        Column {
+            Box().frame(width: px(20), height: px(20)).background(.accent)
+                .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
+        }
+    }
+    let pair = rootDiagnostics(width: 200, height: 200) {
+        Box {
+            Deferred {
+                PlainPair().frame(width: px(20), height: px(20))
+                    .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
+            }
+        }
+    }
+    #expect(grown == ["modifierLayer.style"], "arm 1, a grow after the frame: \(grown)")
+    #expect(inFlow == ["modifierLayer.position", "modifierLayer.inset"], "arm 2, no Deferred: \(inFlow)")
+    #expect(pair == ["modifierLayer.style"], "arm 3, a two-member frame: \(pair)")
 }

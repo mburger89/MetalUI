@@ -818,7 +818,7 @@ import MetalUIRender
     do {
         let outer = child(root, 0), inner = child(outer, 0), leaf = child(inner, 0)
         func chain(inner: Float, outer: Float) -> ModifiedElement<Box<EmptyGroup>> {
-            Box().width(Pixels(10)).height(Pixels(10))
+            Box().cssWidth(Pixels(10)).cssHeight(Pixels(10))
                 .padding(Edges(all: .pixels(Pixels(inner))))
                 .padding(Edges(all: .pixels(Pixels(outer))))
         }
@@ -841,8 +841,8 @@ import MetalUIRender
         let scroller = child(child(root, 0), 0)
         let leaf = child(scroller, 0)
         func tree() -> Box<ScrollView<Box<EmptyGroup>>> {
-            Box { ScrollView(.vertical) { Box().width(Pixels(20)).height(Pixels(10)) } }
-                .width(Pixels(80)).height(Pixels(60))
+            Box { ScrollView(.vertical) { Box().cssWidth(Pixels(20)).cssHeight(Pixels(10)) } }
+                .cssWidth(Pixels(80)).cssHeight(Pixels(60))
         }
         func leafOffset(seeded: Bool) throws -> Float {
             let table = StateTable()
@@ -876,14 +876,14 @@ import MetalUIRender
     // MARK: (c) Component — a caller's modifier snaps (B-7), wrong on purpose
     do {
         struct Panel: Component {
-            var content: some ElementGroup { Box().width(Pixels(100)).height(Pixels(10)) }
+            var content: some ElementGroup { Box().cssWidth(Pixels(100)).cssHeight(Pixels(10)) }
         }
         let row = child(root, 0)
         let marker = child(row, 1)
         func tree(_ w: Float, _ h: Float) -> some Element {
             Row {
                 Panel().width(Pixels(w)).height(Pixels(h))
-                Box().width(Pixels(1)).height(Pixels(1))
+                Box().cssWidth(Pixels(1)).cssHeight(Pixels(1))
             }.alignItems(.flexStart)
         }
         let table = StateTable()
@@ -1009,7 +1009,7 @@ import MetalUIRender
         func radii(inner: Float, outer: Float,
                    at t: Double) -> (layers: Int, inner: Float, outer: Float) {
             var pass = LayoutPass(frame: animFrame(table, timestamp: t))
-            var chain = Box().width(Pixels(10)).height(Pixels(10))
+            var chain = Box().cssWidth(Pixels(10)).cssHeight(Pixels(10))
                 .padding(4).cornerRadius(Pixels(inner))
                 .padding(8).cornerRadius(Pixels(outer))
             _ = chain.requestLayout(id, pass: &pass)
@@ -1712,7 +1712,7 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
 
     func box() -> Box<EmptyGroup> {
         var b = Box(style: Style(), decoration: Decoration())
-            .width(Pixels(40)).height(Pixels(40))
+            .cssWidth(Pixels(40)).cssHeight(Pixels(40))
             .background(.background)
             .hoverBackground(.accent)
             .focusBackground(.separator)
@@ -2345,7 +2345,7 @@ final class AnimationDriveModel {
                 // drawing every frame. Every assertion below reads the
                 // subject's WIDTH, so the token itself is never asserted.
                 Box().background(model.useAccent ? .accent : .background)
-                    .width(Pixels(model.width)).height(Pixels(40))
+                    .cssWidth(Pixels(model.width)).cssHeight(Pixels(40))
                     .id("subject")
             }
         }
@@ -2619,12 +2619,12 @@ final class AnimationDriveModel {
     }
 
     try check("Box") { token in
-        var b = Box().width(Pixels(40)).height(Pixels(40)).background(token)
+        var b = Box().cssWidth(Pixels(40)).cssHeight(Pixels(40)).background(token)
         b.elementID = ElementID("site")
         return b
     }
     try check("Stack") { token in
-        var s = Stack { Box() }.width(Pixels(40)).height(Pixels(40)).background(token)
+        var s = Stack { Box() }.cssWidth(Pixels(40)).cssHeight(Pixels(40)).background(token)
         s.elementID = ElementID("site")
         return s
     }
@@ -2640,14 +2640,14 @@ final class AnimationDriveModel {
     // outermost. Wiring only the outermost layer, the one `StyledElement`'s
     // accessors reach, passes the second arm and not the first.
     try check("ModifiedElement inner layer") { token in
-        var m = Box().width(Pixels(40)).height(Pixels(40))
+        var m = Box().cssWidth(Pixels(40)).cssHeight(Pixels(40))
             .padding(Edges(all: .pixels(Pixels(4)))).background(token)
             .padding(Edges(all: .pixels(Pixels(8))))
         m.elementID = ElementID("site")
         return m
     }
     try check("ModifiedElement outermost layer") { token in
-        var m = Box().width(Pixels(40)).height(Pixels(40))
+        var m = Box().cssWidth(Pixels(40)).cssHeight(Pixels(40))
             .padding(Edges(all: .pixels(Pixels(4))))
             .padding(Edges(all: .pixels(Pixels(8)))).background(token)
         m.elementID = ElementID("site")
@@ -2678,7 +2678,7 @@ final class AnimationDriveModel {
     let model = AnimationDriveModel()
     let (window, platformWindow) = try makeFakeWindowOnDefaultDevice(size: 300,
                                                                     startsDisplayLink: true) {
-        Box().width(Pixels(40)).height(Pixels(40))
+        Box().cssWidth(Pixels(40)).cssHeight(Pixels(40))
             .background(model.useAccent ? .accent : .background)
             .id("subject")
     }
@@ -2908,4 +2908,104 @@ final class AnimationDriveModel {
             dropping a legitimate animation, got \(String(describing: subjectWidth(window)))
             """)
     #expect(window.hasActiveAnimations, "and it is genuinely still interpolating")
+}
+
+// MARK: - Stage 8: an animated `.frame(width:)` (`LR-ES`'s R8)
+
+/// A scene rect's bounds, comparable.
+private struct SceneRect: Equatable, CustomStringConvertible {
+    var x, y, width, height: Float
+    init(_ b: MUIBounds) { (x, y, width, height) = (b.origin.x, b.origin.y, b.size.width, b.size.height) }
+    var description: String { "(\(x), \(y)) \(width)x\(height)" }
+}
+
+@Observable
+private final class SidebarWidthModel {
+    var wide = false
+}
+
+/// The demo sidebar's shape with its width spelled the deprecated way —
+/// `.width(_:)` on the padding layer — the class-D arm of N1.5 (`LR-EW`).
+private struct SidebarOldSpelling: DeprecatedSpelling {
+    let model: SidebarWidthModel
+    @available(*, deprecated, message: "spells the sidebar's width with the deprecated .width(_:) on purpose: the old arm of anAnimatedFrameWidthInterpolatesAsTheAnimatedWidthItReplacesDid (stage 8, LR-EW class D)")
+    func spelled() -> some Element {
+        Row {
+            Column {
+                Text("Library")
+                Box().cssHeight(Pixels(26)).background(.surfaceSecondary)
+            }
+            .alignItems(.stretch)
+            .flexGrow(1)
+            .padding(Pixels(14))
+            .width(model.wide ? Pixels(320) : Pixels(196))
+            .background(.accent)
+            Box().flexGrow(1)
+        }
+        .alignItems(.stretch)
+        .cssWidth(Pixels(600)).cssHeight(Pixels(400))
+    }
+}
+
+/// **N1.5** (stage 8 spec §6; `LR-ES`'s R8, `LR-EW`). The demo sidebar's one
+/// animated size: `Column { … }.alignItems(.stretch).flexGrow(1).padding(14)`
+/// sized 196 → 320 under `withAnimation(.linear(duration: 1))`, in a stretched
+/// `Row`, spelled the old way (`.width(_:)` on the padding layer, a class-D
+/// witness) and the recipe's way (`.frame(width:, alignment: .top)`, the demo
+/// conversion). Driven through a real `Window` by `simulateTick` at the start,
+/// ¼, ½ and the end: the scene's rects — the padded box's background and the
+/// row inside it — are **equal at every tick**, and the padded box's width at
+/// the two mid ticks is **strictly between 196 and 320** (`#require`d, so a pair
+/// that both snapped cannot agree at an endpoint and pass).
+///
+/// Green on arrival — a must-not-move pin (the frame layer reads its fixed size
+/// from its animated style, and takes the slot the sized modifier's `$anim` sat
+/// at, R7/R8). Its instrument is the mutation.
+///
+/// Mutation that must redden it: **M1e** (`bound(_:_:)` in
+/// `lowerShownLegacyFrameLayer` returns the declared value) → the frame snaps to
+/// 320 while the old spelling reads the interpolated width.
+@MainActor @Test func anAnimatedFrameWidthInterpolatesAsTheAnimatedWidthItReplacesDid() throws {
+    func run<E: Element>(_ make: @escaping @MainActor (SidebarWidthModel) -> E) throws -> [[SceneRect]] {
+        let model = SidebarWidthModel()
+        let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 600, startsDisplayLink: true) {
+            make(model)
+        }
+        var ticks: [[SceneRect]] = []
+        platform.simulateTick(timestamp: 100)
+        ticks.append(window.lastScene.rects.map { SceneRect($0.bounds) })
+        withAnimation(.linear(duration: 1)) { model.wide = true }
+        for t in [100, 100.25, 100.5, 101] {
+            platform.simulateTick(timestamp: t)
+            ticks.append(window.lastScene.rects.map { SceneRect($0.bounds) })
+        }
+        return ticks
+    }
+    let old = try run { oldSpelling(SidebarOldSpelling(model: $0)) }
+    let new = try run { model in
+        Row {
+            Column {
+                Text("Library")
+                Box().cssHeight(Pixels(26)).background(.surfaceSecondary)
+            }
+            .alignItems(.stretch)
+            .flexGrow(1)
+            .padding(Pixels(14))
+            .frame(width: model.wide ? Pixels(320) : Pixels(196), alignment: .top)
+            .background(.accent)
+            Box().flexGrow(1)
+        }
+        .alignItems(.stretch)
+        .cssWidth(Pixels(600)).cssHeight(Pixels(400))
+    }
+    try #require(old.count == 5 && new.count == 5)
+    for (i, rects) in old.enumerated() { try #require(rects.count == 2, "old tick \(i): \(rects)") }
+    let oldWidths = old.map { $0[0].width }
+    try #require(oldWidths.first == 196 && oldWidths.last == 320, "old endpoints: \(oldWidths)")
+    for i in [2, 3] {
+        try #require(oldWidths[i] > 196 && oldWidths[i] < 320, "old tick \(i) snapped: \(oldWidths)")
+    }
+    for (i, (o, n)) in zip(old, new).enumerated() {
+        #expect(o == n, "tick \(i): old \(o), new \(n)")
+    }
 }
