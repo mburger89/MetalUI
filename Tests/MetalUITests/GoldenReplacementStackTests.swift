@@ -313,7 +313,7 @@ import MetalUICore
 @MainActor
 @Test func aWrapReverseContainerIsReportedByNameAsAWrappingOneIs() throws {
     func report<C: ElementGroup>(@ElementBuilder _ make: @MainActor () -> C) -> [String] {
-        LayoutDifferential.render(authority: .proposal, width: 800, height: 600, make)
+        LayoutDifferential.render(width: 800, height: 600, make)
             .unlowerableFields.map(\.description)
     }
     let arms: [(golden: String, reported: [String], expected: [String])] = [

@@ -105,8 +105,7 @@ private func checkGoldenArm<C: ElementGroup>(_ golden: String, window: (Float, F
                                         _ make: @MainActor () -> C) throws {
     try #require(!boxes.isEmpty, "\(golden): an arm with no expected boxes asserts nothing",
                  sourceLocation: sourceLocation)
-    let frame = LayoutDifferential.render(authority: .proposal,
-                                          width: window.0, height: window.1, make)
+    let frame = LayoutDifferential.render(width: window.0, height: window.1, make)
     let reported = frame.unlowerableFields.map(\.description)
     try #require(reported.isEmpty,
                  "\(golden): the proposal authority reported \(reported)",

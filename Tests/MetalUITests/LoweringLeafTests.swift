@@ -9,7 +9,10 @@ import MetalUIText
 // §5.4 and §6 lane 2; rulings LR-E, LR-F, LR-X): the lowering table's leaf half —
 // a childless `Box` and a `Text` registered as kernel nodes under the proposal
 // layout authority, compared with the legacy engine through the differential
-// harness (`LayoutDifferential.swift`).
+// harness (`LayoutDifferential.swift`) until stage 9, which deleted the legacy
+// engine: each test now asserts the one frame by literal, the literals the
+// comparison alone carried derived by hand (ruling `LR-FE` item 2; record §51,
+// lane 1).
 //
 // **Red before**: every test here except 2.7 (a characterization pin) read red on
 // lane 1's tree, where `Box` and `Text` report `noLowering` at site level
@@ -47,66 +50,73 @@ private func text(_ string: String, _ edit: (inout Style) -> Void) -> Text {
     return t
 }
 
-/// Every whole-frame observation agrees, the one leaf agrees, and nothing was reported.
+/// Nothing was reported. (Until stage 9 this was `expectFullAgreement`, which
+/// also required every element, the scene, the hitboxes, the accessibility
+/// records and the state slots to agree with the legacy engine's; that
+/// comparison is the deleted concept, `LR-FE` item 2.)
 @MainActor
-private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
-                                 sourceLocation: SourceLocation = #_sourceLocation) {
+private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String,
+                                   sourceLocation: SourceLocation = #_sourceLocation) {
     #expect(r.unlowerable.isEmpty, "\(arm): \(r.unlowerable)", sourceLocation: sourceLocation)
-    #expect(r.disagreeing.isEmpty, "\(arm): \(r.disagreeing)", sourceLocation: sourceLocation)
-    #expect(r.legacyOnly.isEmpty && r.loweredOnly.isEmpty,
-            "\(arm): legacyOnly \(r.legacyOnly) loweredOnly \(r.loweredOnly)", sourceLocation: sourceLocation)
-    #expect(r.scenesEqual, "\(arm): scenes", sourceLocation: sourceLocation)
-    #expect(r.hitboxesEqual, "\(arm): hitboxes", sourceLocation: sourceLocation)
-    #expect(r.accessibilityEqual, "\(arm): accessibility", sourceLocation: sourceLocation)
-    #expect(r.stateSlotsEqual, "\(arm): state slots", sourceLocation: sourceLocation)
 }
 
 // MARK: - 2.1, 2.2 — a childless Box
 
 /// **2.1.** A fixed-size childless `Box`, declared in px and in rem, decorated
-/// (background, corner radius) and clickable with an accessibility label, agrees
-/// with its legacy twin in bounds, scene, hitboxes, accessibility and state slots,
-/// at literal rects derived by hand: 30×20 px; 2.5rem × 1.25rem at the frame's
-/// root font size 16 = 40×20.
+/// (background, corner radius) and clickable with an accessibility label, lays
+/// out at literal rects derived by hand: 30×20 px; 2.5rem × 1.25rem at the frame's
+/// root font size 16 = 40×20. Its scene, hitbox and accessibility record were
+/// compared with its legacy twin's until stage 9; since then they are literals at
+/// the same rect: one background rect, one hitbox, one accessibility record.
 ///
 /// Mutation that must redden it: **M2a**, rem lowered as px (× 1: 2.5×1.25, which
 /// rounds to 3×1).
+///
+/// **Renamed at stage 9** from `aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation() throws {
-    let pxReport = LayoutDifferential.compare(width: 100, height: 60) {
+@Test func aLoweredFixedSizeBoxPaintsAndHitTestsAtItsDeclaredSize() throws {
+    let pxReport = LayoutDifferential.report(width: 100, height: 60) {
         Box().cssWidth(px(30)).cssHeight(px(20)).background(.accent).cornerRadius(px(4))
             .onClick {}.accessibilityLabel("px box")
     }
     try #require(pxReport.elements == 2)
-    expectFullAgreement(pxReport, "px")
-    #expect(pxReport.loweredBounds[leafID] == bounds(0, 0, 30, 20))
+    expectNothingReported(pxReport, "px")
+    #expect(pxReport.bounds[leafID] == bounds(0, 0, 30, 20))
+    #expect(pxReport.sceneRects == [bounds(0, 0, 30, 20)], "px: \(pxReport.sceneRects)")
+    #expect(pxReport.hitboxRects == [leafID: bounds(0, 0, 30, 20)], "px: \(pxReport.hitboxRects)")
+    #expect(pxReport.accessibilityFrames == [leafID: bounds(0, 0, 30, 20)], "px: \(pxReport.accessibilityFrames)")
 
     let remStyle = style {
         $0.size = Size(width: .length(.rems(Rems(2.5))), height: .length(.rems(Rems(1.25))))
     }
-    let remReport = LayoutDifferential.compare(width: 100, height: 60) {
+    let remReport = LayoutDifferential.report(width: 100, height: 60) {
         Box(style: remStyle).background(.accent).cornerRadius(px(4))
             .onClick {}.accessibilityLabel("rem box")
     }
     try #require(remReport.elements == 2)
-    expectFullAgreement(remReport, "rem")
-    #expect(remReport.loweredBounds[leafID] == bounds(0, 0, 40, 20))
+    expectNothingReported(remReport, "rem")
+    #expect(remReport.bounds[leafID] == bounds(0, 0, 40, 20))
+    #expect(remReport.sceneRects == [bounds(0, 0, 40, 20)], "rem: \(remReport.sceneRects)")
+    #expect(remReport.hitboxRects == [leafID: bounds(0, 0, 40, 20)], "rem: \(remReport.hitboxRects)")
+    #expect(remReport.accessibilityFrames == [leafID: bounds(0, 0, 40, 20)], "rem: \(remReport.accessibilityFrames)")
 }
 
 /// **2.2.** `Style.padding` on a childless `Box` sits **inside** its declared
 /// size (CSS border-box; stage-1 probe B1): a 60×60 box padded (12, 4, 8, 12) is
-/// 60×60 on both sides; an unsized box padded (top 3, right 5, bottom 7, left 11)
-/// is 16×10 on both sides (the padding sums); a 10×10 box padded 8 on every edge
-/// (a declared size below the padding sum, `BM-4`) reports nothing **since stage 2's
-/// lane 4** and keeps its fixed 10×10 frame where CSS floors the border box at 16×16
-/// — the divergence spec 4.3 pins (`LR-AH` as amended); this arm only holds that the
-/// report is gone and the frame is the declared size.
+/// 60×60; an unsized box padded (top 3, right 5, bottom 7, left 11) is 16×10 (the
+/// padding sums); a 10×10 box padded 8 on every edge (a declared size below the
+/// padding sum, `BM-4`) reports nothing **since stage 2's lane 4** and keeps its
+/// fixed 10×10 frame where CSS floored the border box at 16×16 — the divergence
+/// spec 4.3 pinned (`LR-AH` as amended), whose legacy half went with the legacy
+/// engine at stage 9; this arm only holds that the report is gone and the frame is
+/// the declared size.
 ///
 /// Mutation that must redden it: **M2b**, padding placed outside the size frame
 /// (the first arm's lowered box reads 76×80).
 @MainActor
 @Test func aLoweredBoxPaddingSitsInsideItsDeclaredSize() throws {
-    let sized = LayoutDifferential.compare(width: 100, height: 100) {
+    let sized = LayoutDifferential.report(width: 100, height: 100) {
         Box(style: style {
             $0.size = Size(width: .length(.pixels(px(60))), height: .length(.pixels(px(60))))
             $0.padding = Edges(top: .pixels(px(12)), right: .pixels(px(4)),
@@ -114,28 +124,27 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         }).background(.accent)
     }
     try #require(sized.elements == 2)
-    expectFullAgreement(sized, "padded sized")
-    #expect(sized.loweredBounds[leafID] == bounds(0, 0, 60, 60))
+    expectNothingReported(sized, "padded sized")
+    #expect(sized.bounds[leafID] == bounds(0, 0, 60, 60))
 
-    let unsized = LayoutDifferential.compare(width: 100, height: 100) {
+    let unsized = LayoutDifferential.report(width: 100, height: 100) {
         Box(style: style {
             $0.padding = Edges(top: .pixels(px(3)), right: .pixels(px(5)),
                                bottom: .pixels(px(7)), left: .pixels(px(11)))
         }).background(.accent)
     }
     try #require(unsized.elements == 2)
-    expectFullAgreement(unsized, "padded unsized")
-    #expect(unsized.loweredBounds[leafID] == bounds(0, 0, 16, 10))
+    expectNothingReported(unsized, "padded unsized")
+    #expect(unsized.bounds[leafID] == bounds(0, 0, 16, 10))
 
-    let floor = LayoutDifferential.compare(width: 100, height: 100) {
+    let floor = LayoutDifferential.report(width: 100, height: 100) {
         Box(style: style {
             $0.size = Size(width: .length(.pixels(px(10))), height: .length(.pixels(px(10))))
             $0.padding = Edges(all: .pixels(px(8)))
         })
     }
     #expect(floor.unlowerable.isEmpty, "\(floor.unlowerable)")
-    #expect(floor.legacyBounds[leafID] == bounds(0, 0, 16, 16))
-    #expect(floor.loweredBounds[leafID] == bounds(0, 0, 10, 10))
+    #expect(floor.bounds[leafID] == bounds(0, 0, 10, 10))
 }
 
 // MARK: - 2.3, 2.4 — which fields a leaf reports
@@ -200,14 +209,14 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         if row.onBox {
             let s = style(row.edit)
             arms.append(("Box \(row.name)",
-                         LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                         LayoutDifferential.render(width: 100, height: 100) {
                              Box(style: s)
                          }.unlowerableFields,
                          [field(.box, row.name)]))
         }
         let t = text("ab", row.edit)
         arms.append(("Text \(row.name)",
-                     LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                     LayoutDifferential.render(width: 100, height: 100) {
                          t
                      }.unlowerableFields,
                      [field(.text, row.name)]))
@@ -237,13 +246,13 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     for row in combined {
         let s = style(row.edit)
         arms.append(("Box \(row.name)",
-                     LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                     LayoutDifferential.render(width: 100, height: 100) {
                          Box(style: s)
                      }.unlowerableFields,
                      row.expected.map { field(.box, $0) }))
         let t = text("ab", row.edit)
         arms.append(("Text \(row.name)",
-                     LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                     LayoutDifferential.render(width: 100, height: 100) {
                          t
                      }.unlowerableFields,
                      row.expected.map { field(.text, $0) }))
@@ -264,13 +273,13 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     for row in consumed {
         let s = style(row.edit)
         arms.append(("Box in a Row \(row.name)",
-                     LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                     LayoutDifferential.render(width: 100, height: 100) {
                          MetalUI.Row { Box(style: s) }
                      }.unlowerableFields,
                      [field(.box, row.name)]))
         let t = text("ab", row.edit)
         arms.append(("Text in a Row \(row.name)",
-                     LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+                     LayoutDifferential.render(width: 100, height: 100) {
                          MetalUI.Row { t }
                      }.unlowerableFields,
                      [field(.text, row.name)]))
@@ -301,8 +310,7 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
             s.inset.left = .length(.pixels(Pixels(4)))
             let box = Box(style: s)
             var root = DifferentialRoot(width: 100, height: 100) { box }
-            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1).render(&root)
         }
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
@@ -313,41 +321,41 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 
 /// **2.3c.** A lowered `Box` registers its **animated** style, not its declared
 /// one: a width going 20 → 100 under `withAnimation(.linear(duration: 1))` reads
-/// 20 on the frame that starts the transaction and 60 half-way, under the proposal
-/// authority exactly as under the legacy one. (Spec §6's 5.6 is the stage's
-/// animation pin; this is lane 2's own.)
+/// 20 on the frame that starts the transaction and 60 half-way (as under the legacy
+/// authority, until stage 9 deleted it). (Spec §6's 5.6 is the stage's animation
+/// pin; this is lane 2's own.)
 ///
 /// Mutation that must redden it: **V7**, `Box` lowers its declared style (the
 /// half-way frame reads 100).
 @MainActor
 @Test func aLoweredBoxRegistersItsAnimatedWidth() throws {
-    for authority in [LayoutAuthority.legacy, .proposal] {
-        let table = StateTable()
-        func widthAt(_ width: Float, timestamp: Double, animating: Bool) -> Pixels? {
-            let box = Box().cssWidth(px(width)).cssHeight(px(10))
-            var root = DifferentialRoot(width: 200, height: 100) { box }
-            let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
-                              stateTable: table, timestamp: timestamp,
-                              transaction: animating ? .linear(duration: 1) : nil,
-                              layoutAuthority: authority,
-                              reportsUnlowerableFields: authority == .proposal,
-                              recordsElementBounds: true)
-            frame.render(&root)
-            #expect(frame.unlowerableFields.isEmpty, "\(authority): \(frame.unlowerableFields)")
-            return frame.elementBounds[leafID]?.size.width
-        }
-        #expect(widthAt(20, timestamp: 0, animating: false) == px(20), "\(authority) baseline")
-        #expect(widthAt(100, timestamp: 0, animating: true) == px(20), "\(authority) transaction start")
-        #expect(widthAt(100, timestamp: 0.5, animating: false) == px(60), "\(authority) half-way")
+    let table = StateTable()
+    func widthAt(_ width: Float, timestamp: Double, animating: Bool) -> Pixels? {
+        let box = Box().cssWidth(px(width)).cssHeight(px(10))
+        var root = DifferentialRoot(width: 200, height: 100) { box }
+        let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                          stateTable: table, timestamp: timestamp,
+                          transaction: animating ? .linear(duration: 1) : nil,
+                          reportsUnlowerableFields: true,
+                          recordsElementBounds: true)
+        frame.render(&root)
+        #expect(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
+        return frame.elementBounds[leafID]?.size.width
     }
+    #expect(widthAt(20, timestamp: 0, animating: false) == px(20), "baseline")
+    #expect(widthAt(100, timestamp: 0, animating: true) == px(20), "transaction start")
+    #expect(widthAt(100, timestamp: 0.5, animating: false) == px(60), "half-way")
 }
 
 /// **2.4.** Every **container** field is ignored on a leaf, whatever its value
 /// (spec §5.4's leaves paragraph; `LR-E`, critic round 1 finding 6): the legacy
 /// engine lays out no children for a leaf. One arm per field with its most
 /// "unlowerable" value, plus `aspectRatio` and `overflow` (inert on legacy), each
-/// on a 30×20 childless `Box` and on `Text("ab")`: nothing is reported and every
-/// observation agrees.
+/// on a 30×20 childless `Box` and on `Text("ab")`: nothing is reported, the `Box`
+/// is 30×20 and the text sits at (0, 0) at its natural size — until stage 9 every
+/// observation was compared with the legacy engine's; since then the text's rect is
+/// a literal, derived before the run: its unwrapped widest line at 13pt, rounded,
+/// by one 16pt line.
 ///
 /// Mutation that must redden it: **M2d**, `.rowReverse` reported on a leaf.
 @MainActor
@@ -366,24 +374,30 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         ("aspectRatio", { $0.aspectRatio = 2 }),
         ("overflow.hidden", { $0.overflow = Axes(both: .hidden) }),
     ]
+    let textCache = ShapingCache()
+    let textWidth = textCache.shaped("ab", font: textCache.resolveFont(family: nil, size: 13),
+                                     wrappingAt: nil).widestLine
+    try #require(textWidth > 0)
+    let naturalText = bounds(0, 0, Float(textWidth.rounded()), 16)
     var count = 0
     for row in rows {
         let s = style {
             $0.size = Size(width: .length(.pixels(px(30))), height: .length(.pixels(px(20))))
             row.edit(&$0)
         }
-        let boxReport = LayoutDifferential.compare(width: 100, height: 100) {
+        let boxReport = LayoutDifferential.report(width: 100, height: 100) {
             Box(style: s).background(.accent)
         }
         try #require(boxReport.elements == 2)
-        expectFullAgreement(boxReport, "Box \(row.name)")
-        #expect(boxReport.loweredBounds[leafID] == bounds(0, 0, 30, 20), "Box \(row.name)")
+        expectNothingReported(boxReport, "Box \(row.name)")
+        #expect(boxReport.bounds[leafID] == bounds(0, 0, 30, 20), "Box \(row.name)")
         count += 1
 
         let t = text("ab", row.edit)
-        let textReport = LayoutDifferential.compare(width: 100, height: 100) { t }
+        let textReport = LayoutDifferential.report(width: 100, height: 100) { t }
         try #require(textReport.elements == 2)
-        expectFullAgreement(textReport, "Text \(row.name)")
+        expectNothingReported(textReport, "Text \(row.name)")
+        #expect(textReport.bounds[leafID] == naturalText, "Text \(row.name)")
         count += 1
     }
     try #require(count == 24)
@@ -392,59 +406,82 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 // MARK: - 2.5–2.8 — Text
 
 /// **2.5.** A `Text` at its natural width (a 1000-wide root, wider than every
-/// arm's line) agrees with its legacy twin in bounds, glyph scene, hitboxes,
-/// accessibility (its string) and state: a short and a long string × 13 and 22pt ×
-/// with and without `.foregroundColor(.accent)`. Each legacy frame is required to
-/// emit glyphs, so scene equality is not vacuous.
+/// arm's line): a short and a long string × 13 and 22pt × with and without
+/// `.foregroundColor(.accent)`. Until stage 9 each arm was compared with its
+/// legacy twin in bounds, glyph scene, hitboxes, accessibility and state; since
+/// then the observations are literals, derived before the run: the leaf at (0, 0),
+/// its width the shaper's unwrapped widest line at that size, rounded, and its
+/// height the shaped text's total height, rounded; one glyph per non-space
+/// character; no hitbox (a `Text` registers no pointer target); one accessibility
+/// record carrying the string at the leaf's rect; and a tinted arm's glyphs a
+/// different colour from the untinted arm's.
 ///
 /// Mutation that must redden it: **M2e**, the lowered leaf ignores `fontSize`
 /// (measures at 13pt).
+///
+/// **Renamed at stage 9** from `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth() throws {
+@Test func aLoweredTextLaysOutAndDrawsAtItsNaturalWidth() throws {
+    let cache = ShapingCache()
     var count = 0
     for string in ["Count 3", longString] {
         for size in [13.0, 22.0] {
+            let shaped = cache.shaped(string, font: cache.resolveFont(family: nil, size: size), wrappingAt: nil)
+            let natural = bounds(0, 0, Float(shaped.widestLine.rounded()), Float(shaped.totalHeight.rounded()))
+            var colours: [Bool: [Float]] = [:]
             for tinted in [false, true] {
                 let arm = "\(string) @\(size) tinted \(tinted)"
                 var t = Text(string).font(size: size)
                 if tinted { t = t.foregroundColor(.accent) }
                 let element = t
-                let legacy = LayoutDifferential.render(authority: .legacy, width: 1000, height: 100) { element }
-                try #require(legacy.scene.glyphs.count >= string.filter { $0 != " " }.count, "\(arm)")
-                let report = LayoutDifferential.compare(width: 1000, height: 100) { element }
+                let report = LayoutDifferential.report(width: 1000, height: 100) { element }
                 try #require(report.elements == 2)
-                expectFullAgreement(report, arm)
+                expectNothingReported(report, arm)
+                #expect(report.bounds[leafID] == natural, "\(arm): \(String(describing: report.bounds[leafID]))")
+                #expect(report.frame.scene.glyphs.count == string.filter { $0 != " " }.count, "\(arm)")
+                #expect(report.frame.hitboxes.isEmpty, "\(arm): \(report.hitboxRects)")
+                #expect(report.accessibilityTexts == [leafID: string], "\(arm): \(report.accessibilityTexts)")
+                #expect(report.accessibilityFrames[leafID] == natural, "\(arm)")
+                let colour = try #require(report.frame.scene.glyphs.first).color
+                colours[tinted] = [colour.h, colour.s, colour.l, colour.a]
                 count += 1
             }
+            let plain = try #require(colours[false]), tint = try #require(colours[true])
+            #expect(plain != tint,
+                    "\(string) @\(size): the tint must reach the glyphs")
         }
     }
     try #require(count == 8)
 }
 
-/// **2.6.** A lowered `Text` **hugs its widest line** where the legacy text fills
-/// the width it is offered (`LR-F`; stage-1 probe T2: SwiftUI answers 45 at 60).
-/// `Text(long)` directly in a 60-wide harness root: the legacy root `Stack` gives
-/// its child fit-content — `min(max-content, max(min-content, 60))` = 60, the rule
-/// a `Column` item's cross size follows too (ST-H, TX-H) — and the lowered leaf
-/// answers the shaper's widest line wrapped at 60 (44 on the design machine),
-/// computed here from a fresh `ShapingCache`. Directly under the root rather than
-/// in a `Column` because containers lower in lane 3 (ruling `LR-X`).
+/// **2.6.** A lowered `Text` **hugs its widest line** rather than filling the
+/// width it is offered (`LR-F`; stage-1 probe T2: SwiftUI answers 45 at 60).
+/// `Text(long)` directly in a 60-wide harness root: the leaf answers the shaper's
+/// widest line wrapped at 60 (44 on the design machine), computed here from a
+/// fresh `ShapingCache`, at the root's origin. Until stage 9 the legacy root
+/// `Stack` gave the same text fit-content — `min(max-content, max(min-content,
+/// 60))` = 60 (ST-H, TX-H) — and the test required the two to differ; the
+/// separating arm is now the `try #require` that the widest line is narrower
+/// than the 60 offered, so a leaf that filled its offer would fail.
 ///
 /// Mutation that must redden it: **M2f**, the lowered answer is the proposed width.
+///
+/// **Renamed at stage 9** from
+/// `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock() throws {
-    let report = LayoutDifferential.compare(width: 60, height: 300) { Text(longString) }
+@Test func aLoweredTextHugsItsWidestLineRatherThanFillingItsOffer() throws {
+    let report = LayoutDifferential.report(width: 60, height: 300) { Text(longString) }
     try #require(report.elements == 2)
     #expect(report.unlowerable.isEmpty)
-    let legacy = try #require(report.legacyBounds[leafID])
-    let lowered = try #require(report.loweredBounds[leafID])
+    let lowered = try #require(report.bounds[leafID])
     let cache = ShapingCache()
     let widest = cache.shaped(longString, font: cache.resolveFont(family: nil, size: 13),
                               wrappingAt: 60).widestLine
-    #expect(legacy.size.width == px(60))
+    try #require(Float(widest.rounded()) < 60, "the widest line must be narrower than the offer: \(widest)")
     #expect(lowered.size.width == Pixels(Float(widest.rounded())))
-    #expect(lowered.origin == legacy.origin)
-    try #require(legacy.size.width != lowered.size.width)
+    #expect(lowered.origin == Point(x: px(0), y: px(0)))
 }
 
 /// **3.3** (stage 1's 2.7, re-derived and renamed; ruling `LR-AU`). Below the
@@ -457,7 +494,13 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// `smallestWrapWidth`, and the typesetter breaks inside a word it cannot fit, so
 /// every line is one character — 11.18 here, a character with the trailing space
 /// the typesetter hangs on its line (7.91 without it), against a tokenizer
-/// min-content of 40.44 (`textMeasure`'s doc comment records the same split).
+/// min-content of 40.44 (`textMeasure`'s doc comment recorded the same split).
+///
+/// **Stage 9** (`LR-FD`): tokenizer min-content is deleted from production, so the
+/// discriminator's upper bound is re-spelled as what it measured for this string —
+/// the widest single word, shaped unwrapped ("charlie", 40.44) — rather than
+/// `ShapingCache.minContentWidth`; `longString` is ASCII words and spaces, so its
+/// line-break opportunities are exactly its spaces and the two agree.
 /// That answer was pinned wrong on purpose and is now the clamp's subject: the
 /// `try #require` below keeps it as the discriminator, so an arm whose widest
 /// broken line already fits the proposal cannot stand in for one that does not.
@@ -483,7 +526,7 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     let widestCharacter = lines
         .map { cache.shaped($0, font: font, wrappingAt: nil).widestLine }
         .max() ?? 0
-    let minContent = cache.minContentWidth(longString, font: font)
+    let minContent = words.map { cache.shaped(String($0), font: font, wrappingAt: nil).widestLine }.max() ?? 0
     // The discriminator: both proposals are BELOW the widest broken line, so an
     // unclamped answer is wider than the proposal at both.
     try #require(widestCharacter > 5 && widestCharacter < minContent)
@@ -568,7 +611,7 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// `.height(40)` (one line in a 1000-wide root, 40 tall).
 ///
 /// **The arms run in a child process** that must exit successfully and print one
-/// line per agreeing arm: a lowering that registers the text leaf both inside its
+/// line per arm at its declared size with nothing reported: a lowering that registers the text leaf both inside its
 /// frame and as the element's node traps on the kernel's one-parent precondition
 /// (`CN-L`), and in-process that ended the whole run with no summary line
 /// (mutation M2h, lane 2; practices shape 13).
@@ -577,6 +620,14 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// leaf, not the frame; **M2i**, glyphs wrapped at the leaf's answer to the
 /// frame's proposal (the design's `Text.Layout.measuredNode`), which draws the
 /// `.width(30)` and `.width(5)` arms in fewer, wider lines than the legacy text.
+///
+/// **Stage 9** (`LR-FE` item 2): the legacy comparison — which carried the glyph
+/// origin half, M2i's target — is gone, so each arm now also prints its glyph
+/// rows and the parent asserts them against literals, derived before the run: the
+/// text wraps at its frame's width, so the number of distinct glyph rows is the
+/// shaped line count of `longString` wrapped at that width (`ShapingCache`,
+/// computed in the child), and the first glyph row starts inside the frame's top
+/// line.
 @Test func aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin() async {
     let child = await #expect(processExitsWith: .success,
                               observing: [\.standardOutputContent, \.standardErrorContent]) {
@@ -587,17 +638,25 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                 ("width(5)", Text(longString).cssWidth(px(5)), 5, nil),
                 ("height(40)", Text(longString).cssHeight(px(40)), nil, 40),
             ]
+            let cache = ShapingCache()
+            let font = cache.resolveFont(family: nil, size: 13)
             for arm in arms {
                 let element = arm.text
-                let r = LayoutDifferential.compare(width: 1000, height: 900) { element }
-                let lowered = r.loweredBounds[leafID]
-                let agrees = r.elements == 2 && r.unlowerable.isEmpty && r.disagreeing.isEmpty
-                    && r.legacyOnly.isEmpty && r.loweredOnly.isEmpty && r.scenesEqual
-                    && r.hitboxesEqual && r.accessibilityEqual && r.stateSlotsEqual
+                let r = LayoutDifferential.report(width: 1000, height: 900) { element }
+                let lowered = r.bounds[leafID]
+                // One 16pt line per row: a glyph's row is the line its centre falls in.
+                let glyphs = r.frame.scene.glyphs
+                let rows = Set(glyphs.map { Int(($0.bounds.origin.y + $0.bounds.size.height / 2) / 16) })
+                let expectedRows = cache.shaped(longString, font: font,
+                                                wrappingAt: arm.width.map { Double($0) }).lines.count
+                let ok = r.elements == 2 && r.unlowerable.isEmpty
+                    && lowered?.origin == Point(x: px(0), y: px(0))
                     && (arm.width.map { lowered?.size.width == Pixels($0) } ?? true)
                     && (arm.height.map { lowered?.size.height == Pixels($0) } ?? true)
-                let line = "LANE2-2.8 \(arm.name) agrees=\(agrees) scenes=\(r.scenesEqual) "
-                    + "disagreeing=\(r.disagreeing) unlowerable=\(r.unlowerable) lowered=\(String(describing: lowered))\n"
+                    && rows.count == expectedRows && rows.min() == 0
+                let line = "LANE2-2.8 \(arm.name) ok=\(ok) rows=\(rows.count) expectedRows=\(expectedRows) "
+                    + "firstRow=\(String(describing: rows.min())) unlowerable=\(r.unlowerable) "
+                    + "lowered=\(String(describing: lowered))\n"
                 FileHandle.standardOutput.write(Data(line.utf8))
             }
         }
@@ -605,7 +664,7 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     let out = String(decoding: child?.standardOutputContent ?? [], as: UTF8.self)
     let err = String(decoding: child?.standardErrorContent ?? [], as: UTF8.self)
     for name in ["width(100)", "width(30)", "width(5)", "height(40)"] {
-        #expect(out.contains("LANE2-2.8 \(name) agrees=true "), "\(name):\n\(out)\nstderr \(err)")
+        #expect(out.contains("LANE2-2.8 \(name) ok=true "), "\(name):\n\(out)\nstderr \(err)")
     }
 }
 
@@ -640,7 +699,7 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     let sibling = GlobalElementID.child(of: leafID, at: 1, name: nil)
     func observe<E: Element>(_ element: E) -> (empty: Bounds<Pixels>?, sibling: Bounds<Pixels>?,
                                                 report: [UnlowerableField]) {
-        let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 100) {
+        let frame = LayoutDifferential.render(width: 200, height: 100) {
             Row(gap: px(0)) {
                 element
                 Box().cssWidth(px(10)).cssHeight(px(10)).background(.accent)

@@ -20,12 +20,14 @@ private func items(_ n: Int) -> [Item] {
 /// to register directly rather than through a full `ScrollView`, since a `Row`
 /// needs no scrolling of its own.
 ///
-/// **Spelled through the legacy lowering on both authorities** (`LR-BW`, stage 4
-/// lane 3, prototype P3). It registered `pass.requestNode` / `pass.requestLeaf`
-/// outright until then, which under `.proposal` hits `Frame.requestNode`'s
-/// backstop and **aborts the run** —
-/// `aLegacySpelledListRowAbortsAProductionProposalFrame`, at the end of this
-/// file, is that abort kept as an observable.
+/// **Spelled through the legacy lowering** (`LR-BW`, stage 4 lane 3, prototype
+/// P3; on both authorities until stage 9, which deleted the legacy branch and
+/// moved the site from `.customElement`, deleted with it, to `.box`). It
+/// registered `pass.requestNode` / `pass.requestLeaf` outright until stage 4,
+/// which under `.proposal` hit `Frame.requestNode`'s backstop and **aborted the
+/// run** — `aLegacySpelledListRowAbortsAProductionProposalFrame` kept that abort
+/// as an observable until stage 9 retired it with the registrars (record §51,
+/// lane 1 row 10).
 ///
 /// **Not `ProbeLeaf`'s spelling** (`LayoutDifferential.swift`), which stage 3's
 /// lane 3 used for its nine custom nodes: `ProbeLeaf` registers a **native leaf
@@ -71,11 +73,8 @@ private struct Row: Element {
             // `lowerLegacyLeaf` over a 0×0 native leaf all by itself, which is
             // the lowering of a childless `Box` — so the two branches describe
             // the same box on both authorities.
-            if pass.lowersToProposal {
-                return (pass.lowerLegacyNode(Style(), declared: Style(), children: [],
-                                             site: .customElement), ())
-            }
-            return (pass.frame.requestNode(style: Style(), children: []), ())
+            return (pass.lowerLegacyNode(Style(), declared: Style(), children: [],
+                                         site: .box), ())
         }
         // A LEAF whose measured content size is `contentHeight`, not a node
         // whose declared STYLE is — a declared `size.height` would set this
@@ -83,15 +82,11 @@ private struct Row: Element {
         // the flooring tests exist to exercise. A leaf's reported content
         // size is what feeds `Box<Row>`'s content size suggestion instead.
         let h = Double(contentHeight.value)
-        if pass.lowersToProposal {
-            let node = pass.lowerLegacyLeaf(Style(), declared: Style(), site: .customElement) {
-                pass.frame.requestNativeLeaf { _ in
-                    LayoutMeasurement(size: SizeD(width: 0, height: h))
-                }
+        let node = pass.lowerLegacyLeaf(Style(), declared: Style(), site: .box) {
+            pass.frame.requestNativeLeaf { _ in
+                LayoutMeasurement(size: SizeD(width: 0, height: h))
             }
-            return (node, ())
         }
-        let node = pass.frame.requestLeaf(style: Style()) { _, _ in SizeD(width: 0, height: h) }
         return (node, ())
     }
 
@@ -165,11 +160,11 @@ private func subjectID(named name: ElementID?) -> GlobalElementID {
 ///   regions, focus entries and accessibility records all register in prepaint —
 ///   and the full unfiltered suite was run after it (record §27 §8).
 @MainActor
-private func laidOut<E: Element>(_ element: E, authority: LayoutAuthority,
+private func laidOut<E: Element>(_ element: E,
                                  width: Float = 400, height: Float = 600)
     -> (Frame, Bounds<Pixels>?) {
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)),
-                      scaleFactor: 1, layoutAuthority: authority,
+                      scaleFactor: 1,
                       recordsElementBounds: true)
     let subject = subjectID(named: element.elementID)
     var host = Box(style: hostStyle(width: width, height: height), content: element)
@@ -189,10 +184,10 @@ private func laidOut<E: Element>(_ element: E, authority: LayoutAuthority,
 /// `Frame.render` would do this, but it makes its argument the root; this is
 /// `Frame.render`'s body over the host instead.
 @MainActor
-private func renderedInHost<E: Element>(_ element: E, authority: LayoutAuthority,
+private func renderedInHost<E: Element>(_ element: E,
                                         width: Float = 400, height: Float = 600) -> Frame {
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)),
-                      scaleFactor: 1, layoutAuthority: authority,
+                      scaleFactor: 1,
                       recordsElementBounds: true)
     var host = Box(style: hostStyle(width: width, height: height), content: element)
     frame.render(&host)
@@ -215,27 +210,23 @@ private func idOfRow(named name: String, in data: [Item], rowHeight: Pixels,
 }
 
 // 10 rows x 28 = 280, regardless of what any row measures.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aListSizesItselfToCountTimesRowHeight(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aListSizesItselfToCountTimesRowHeight() throws {
     let list = List(items(10), rowHeight: px(28)) { Row($0) }
-    let (_, listBounds) = laidOut(list, authority: authority)
+    let (_, listBounds) = laidOut(list)
     #expect(try #require(listBounds).size.height == px(280))
 }
 
 /// Identity comes from the DATA, not from position — the property windowing
 /// depends on. A row that moves position keeps its state; under positional
 /// identity it would adopt its new neighbour's.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aRowKeepsItsIdentityWhenItsPositionChanges(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aRowKeepsItsIdentityWhenItsPositionChanges() throws {
     let dataA = items(3)
-    let frameA = renderedInHost(List(dataA, rowHeight: px(28)) { Row($0) },
-                                authority: authority)
+    let frameA = renderedInHost(List(dataA, rowHeight: px(28)) { Row($0) })
 
     let dataB = Array(items(3).reversed())
-    let frameB = renderedInHost(List(dataB, rowHeight: px(28)) { Row($0) },
-                                authority: authority)
+    let frameB = renderedInHost(List(dataB, rowHeight: px(28)) { Row($0) })
 
     let idA = try idOfRow(named: "item-0", in: dataA, rowHeight: px(28), frame: frameA)
     let idB = try idOfRow(named: "item-0", in: dataB, rowHeight: px(28), frame: frameB)
@@ -247,12 +238,10 @@ func aRowKeepsItsIdentityWhenItsPositionChanges(_ authority: LayoutAuthority) th
 /// against `rowHeight: 28` — UNLESS `minSize.height` is overridden to 0. Every
 /// row still lands at `index * rowHeight` and keeps `rowHeight`'s own height,
 /// with the taller content simply overflowing its row.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent() throws {
     let data = items(3)
-    let frame = renderedInHost(List(data, rowHeight: px(28)) { Row($0, contentHeight: px(60)) },
-                               authority: authority)
+    let frame = renderedInHost(List(data, rowHeight: px(28)) { Row($0, contentHeight: px(60)) })
 
     let regions = frame.scrollRegions
     try #require(regions.count == 3)
@@ -269,12 +258,10 @@ func aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent(_ authority: LayoutAu
 /// 28. `flexShrink = 0` on the row style is what this test guards: rows keep
 /// `rowHeight` and overflow the padded content box instead of shrinking to
 /// fit it.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func paddingOnAListDoesNotShrinkItsRowsBelowRowHeight(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func paddingOnAListDoesNotShrinkItsRowsBelowRowHeight() throws {
     let data = items(3)
-    let frame = renderedInHost(List(data, rowHeight: px(28)) { Row($0) }.padding(px(10)),
-                               authority: authority)
+    let frame = renderedInHost(List(data, rowHeight: px(28)) { Row($0) }.padding(px(10)))
 
     let regions = frame.scrollRegions
     try #require(regions.count == 3)
@@ -301,7 +288,7 @@ func paddingOnAListDoesNotShrinkItsRowsBelowRowHeight(_ authority: LayoutAuthori
     // 21/22/21 and slide up.
     var padded = List(data, rowHeight: px(28)) { Row($0) }
     padded.style.padding = Edges(all: .pixels(px(10)))
-    let paddedFrame = renderedInHost(padded, authority: authority)
+    let paddedFrame = renderedInHost(padded)
     let paddedRegions = paddedFrame.scrollRegions
     try #require(paddedRegions.count == 3)
     #expect(paddedRegions.map(\.bounds.origin.y.value).sorted() == [10, 38, 66])
@@ -315,11 +302,10 @@ func paddingOnAListDoesNotShrinkItsRowsBelowRowHeight(_ authority: LayoutAuthori
 /// every row the SAME constant string would also satisfy (every row would
 /// then share one id, so any two "matches" trivially). This is the other
 /// half: two DIFFERENT rows in the SAME list must get DIFFERENT ids.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func distinctRowsGetDistinctIdentities(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func distinctRowsGetDistinctIdentities() throws {
     let data = items(3)
-    let frame = renderedInHost(List(data, rowHeight: px(28)) { Row($0) }, authority: authority)
+    let frame = renderedInHost(List(data, rowHeight: px(28)) { Row($0) })
 
     let idA = try idOfRow(named: "item-0", in: data, rowHeight: px(28), frame: frame)
     let idB = try idOfRow(named: "item-1", in: data, rowHeight: px(28), frame: frame)
@@ -329,11 +315,10 @@ func distinctRowsGetDistinctIdentities(_ authority: LayoutAuthority) throws {
 // `List([])` — no rows, no trap, zero height. `data.count == 0` reaches
 // `rowHeight * Float(0)` in `List.init` and an empty `data.map` in
 // `requestLayout`; neither has a special case to fall through.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func anEmptyListHasZeroHeightAndTrapsNothing(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func anEmptyListHasZeroHeightAndTrapsNothing() throws {
     let list = List([Item](), rowHeight: px(28)) { Row($0) }
-    let (frame, listBounds) = laidOut(list, authority: authority)
+    let (frame, listBounds) = laidOut(list)
     // `try #require`, not `listBounds?.size.height == px(0)`: an unrecorded
     // bounds and a 0pt one are the same answer to `??`, so the substituting
     // spelling could not see mutation M3c at all (record §27 §8.4).
@@ -344,11 +329,10 @@ func anEmptyListHasZeroHeightAndTrapsNothing(_ authority: LayoutAuthority) throw
 /// `List` conforms to `StyledElement` for more than the type checker — a
 /// modifier applied to it must reach the layout node `requestLayout` builds,
 /// not sit inert the way CLAUDE.md's declared-but-inert table catalogues.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aWidthModifierOnAListReachesItsLayoutNode(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aWidthModifierOnAListReachesItsLayoutNode() throws {
     let list = List(items(3), rowHeight: px(28)) { Row($0) }.cssWidth(px(123))
-    let (_, listBounds) = laidOut(list, authority: authority)
+    let (_, listBounds) = laidOut(list)
     #expect(try #require(listBounds).size.width == px(123))
 }
 
@@ -366,11 +350,10 @@ func aWidthModifierOnAListReachesItsLayoutNode(_ authority: LayoutAuthority) thr
 /// third change. It returns the subject's own bounds, which one test reads.
 @MainActor
 private func renderWindowed<E: Element>(_ element: E, context: ScrollContext,
-                                        authority: LayoutAuthority,
                                         frameHeight: Float = 600)
     -> (Frame, Bounds<Pixels>?) {
     let frame = Frame(contentSize: Size(width: px(400), height: px(frameHeight)),
-                      scaleFactor: 1, layoutAuthority: authority,
+                      scaleFactor: 1,
                       recordsElementBounds: true)
     let subject = subjectID(named: element.elementID)
     var host = Box(style: hostStyle(width: 400, height: frameHeight), content: element)
@@ -400,13 +383,12 @@ private func renderWindowed<E: Element>(_ element: E, context: ScrollContext,
 /// 40 rows at 28pt: offset 140 (row 5's top) and viewport 84 (3 rows) bound
 /// rows 5..<8 exactly; widened by `overscan == 2` on each side that is
 /// 3..<10 — rows 3 through 9.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan() throws {
     let data = items(40)
     let list = List(data, rowHeight: px(28)) { Row($0) }
     let context = ScrollContext(offset: 140, viewportExtent: 84, axis: .vertical)
-    let (frame, _) = renderWindowed(list, context: context, authority: authority)
+    let (frame, _) = renderWindowed(list, context: context)
 
     let ys = Set(frame.scrollRegions.map(\.bounds.origin.y.value))
     let expected = Set((3...9).map { Float($0) * 28 })
@@ -415,9 +397,8 @@ func aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan(_ authority: Layo
 
 /// The list's own height must stay count x rowHeight even though only a
 /// window is built — otherwise the scrollbar and the offset clamp are wrong.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aWindowedListStillReportsItsFullContentHeight(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aWindowedListStillReportsItsFullContentHeight() throws {
     let data = items(40)
     let list = List(data, rowHeight: px(28)) { Row($0) }
     let context = ScrollContext(offset: 140, viewportExtent: 84, axis: .vertical)
@@ -426,7 +407,7 @@ func aWindowedListStillReportsItsFullContentHeight(_ authority: LayoutAuthority)
     // the legacy engine and no such thing under the kernel — a disagreement the
     // HARNESS would have introduced. 1200 is the smallest round number above
     // 1120 (`LR-BY`).
-    let (frame, listBounds) = renderWindowed(list, context: context, authority: authority,
+    let (frame, listBounds) = renderWindowed(list, context: context,
                                              frameHeight: 1200)
 
     #expect(frame.scrollRegions.count < data.count, "the window must be a strict subset")
@@ -435,15 +416,14 @@ func aWindowedListStillReportsItsFullContentHeight(_ authority: LayoutAuthority)
 
 /// A row scrolled past keeps its position, so the window is placed rather
 /// than merely sized: row 50 sits at 50 x rowHeight, not at the window's top.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aWindowedRowSitsAtItsAbsoluteOffsetNotTheWindowsTop(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aWindowedRowSitsAtItsAbsoluteOffsetNotTheWindowsTop() throws {
     let data = items(100)
     let list = List(data, rowHeight: px(28)) { Row($0) }
     // Row 50's top is 50 x 28 = 1400; a 100pt viewport starting there keeps
     // it comfortably inside the window with room either side for overscan.
     let context = ScrollContext(offset: 1400, viewportExtent: 100, axis: .vertical)
-    let (frame, _) = renderWindowed(list, context: context, authority: authority, frameHeight: 2000)
+    let (frame, _) = renderWindowed(list, context: context, frameHeight: 2000)
 
     // `try #require` above already establishes the position directly — a
     // separate `!= px(0)` check here could never fail once that has matched,
@@ -460,13 +440,12 @@ func aWindowedRowSitsAtItsAbsoluteOffsetNotTheWindowsTop(_ authority: LayoutAuth
 /// traps — measured directly before the guard existed, with no summary line
 /// from the surrounding suite. Declining to window at all is what keeps a
 /// zero `rowHeight` as quiet as it always was.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aZeroRowHeightDoesNotTrapOnceAScrollContextIsPresent(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aZeroRowHeightDoesNotTrapOnceAScrollContextIsPresent() throws {
     let data = items(5)
     let list = List(data, rowHeight: px(0)) { Row($0) }
     let context = ScrollContext(offset: 0, viewportExtent: 100, axis: .vertical)
-    let (frame, _) = renderWindowed(list, context: context, authority: authority)
+    let (frame, _) = renderWindowed(list, context: context)
 
     #expect(frame.scrollRegions.count == 5, "a rowHeight nothing can be windowed against builds every row")
 }
@@ -479,13 +458,12 @@ func aZeroRowHeightDoesNotTrapOnceAScrollContextIsPresent(_ authority: LayoutAut
 /// Removing the `viewportExtent > 0` guard leaves this arithmetic-correct but
 /// wrong for that first frame: `offset == 0` and `viewportExtent == 0` bound
 /// almost nothing, so only a handful of rows near the top would be built.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aPresentContextWithZeroViewportExtentBuildsEveryRow(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aPresentContextWithZeroViewportExtentBuildsEveryRow() throws {
     let data = items(40)
     let list = List(data, rowHeight: px(28)) { Row($0) }
     let context = ScrollContext(offset: 0, viewportExtent: 0, axis: .vertical)
-    let (frame, _) = renderWindowed(list, context: context, authority: authority)
+    let (frame, _) = renderWindowed(list, context: context)
 
     #expect(frame.scrollRegions.count == 40)
 }
@@ -497,15 +475,14 @@ func aPresentContextWithZeroViewportExtentBuildsEveryRow(_ authority: LayoutAuth
 /// that clamp, an offset far past the end computes `first == last == count`
 /// and the list renders NOTHING — the same shape as the clipping milestone's
 /// dead-band defect, just at the opposite end of the same missing clamp.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing() throws {
     let data = items(40)
     let list = List(data, rowHeight: px(28)) { Row($0) }
     // 5000 is nowhere near 40 x 28 = 1120; clamped against `extent -
     // viewportExtent` = 1120 - 84 = 1036, which lands exactly on row 37's top.
     let context = ScrollContext(offset: 5000, viewportExtent: 84, axis: .vertical)
-    let (frame, _) = renderWindowed(list, context: context, authority: authority)
+    let (frame, _) = renderWindowed(list, context: context)
 
     let ys = Set(frame.scrollRegions.map(\.bounds.origin.y.value))
     let expected = Set((35...39).map { Float($0) * 28 })
@@ -518,9 +495,8 @@ func anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing(_ authority: Lay
 /// gives the spacer real height (a scrolled window) AND padding large enough
 /// to force real negative free space, so an unpinned spacer would absorb the
 /// deficit and pull every windowed row up from its true absolute offset.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aScrolledListsSpacerDoesNotShrinkUnderPadding(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aScrolledListsSpacerDoesNotShrinkUnderPadding() throws {
     let data = items(10)
     let list = List(data, rowHeight: px(28)) { Row($0) }.padding(px(60))
     // window = 3..<9 (offset 140 / 28 = row 5, minus overscan 2 = row 3;
@@ -529,7 +505,7 @@ func aScrolledListsSpacerDoesNotShrinkUnderPadding(_ authority: LayoutAuthority)
     // 160) is smaller than the spacer plus the six windowed rows
     // (84 + 6 x 28 = 252) — real negative free space, not a vacuous check.
     let context = ScrollContext(offset: 140, viewportExtent: 56, axis: .vertical)
-    let (frame, _) = renderWindowed(list, context: context, authority: authority)
+    let (frame, _) = renderWindowed(list, context: context)
 
     let ys = Set(frame.scrollRegions.map(\.bounds.origin.y.value))
     let expected = Set((3...8).map { 60 + Float($0) * 28 })
@@ -554,7 +530,7 @@ func aScrolledListsSpacerDoesNotShrinkUnderPadding(_ authority: LayoutAuthority)
     // spacer's pin removed it shrinks to 0 and every row rises by 84.
     var padded = List(data, rowHeight: px(28)) { Row($0) }
     padded.style.padding = Edges(all: .pixels(px(60)))
-    let (paddedFrame, _) = renderWindowed(padded, context: context, authority: authority)
+    let (paddedFrame, _) = renderWindowed(padded, context: context)
     let paddedYs = Set(paddedFrame.scrollRegions.map(\.bounds.origin.y.value))
     #expect(paddedYs == expected,
             "the spacer must not absorb a padded List's deficit; got \(paddedYs.sorted())")
@@ -566,13 +542,12 @@ func aScrolledListsSpacerDoesNotShrinkUnderPadding(_ authority: LayoutAuthority)
 /// fractional offset forces both to matter: 150 / 28 = 5.357 must floor to
 /// 5, and (150 + 90) / 28 = 8.571 must ceil to 9 — swapping either rounding
 /// direction reads a different window under this fixture.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aFractionalOffsetRoundsFirstDownAndLastUp(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aFractionalOffsetRoundsFirstDownAndLastUp() throws {
     let data = items(40)
     let list = List(data, rowHeight: px(28)) { Row($0) }
     let context = ScrollContext(offset: 150, viewportExtent: 90, axis: .vertical)
-    let (frame, _) = renderWindowed(list, context: context, authority: authority)
+    let (frame, _) = renderWindowed(list, context: context)
 
     let ys = Set(frame.scrollRegions.map(\.bounds.origin.y.value))
     let expected = Set((3...10).map { Float($0) * 28 })
@@ -592,24 +567,21 @@ func aFractionalOffsetRoundsFirstDownAndLastUp(_ authority: LayoutAuthority) thr
 /// **The differential is the second half**, without which this test would also
 /// pass under a mutation that stopped windowing altogether: the identical list
 /// under a `.vertical` context of the same numbers builds a strict subset.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aVerticalListInsideAHorizontalScrollViewBuildsEveryRow(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aVerticalListInsideAHorizontalScrollViewBuildsEveryRow() throws {
     let data = items(40)
 
     let horizontal = List(data, rowHeight: px(28)) { Row($0) }
     let (across, _) = renderWindowed(horizontal,
                                      context: ScrollContext(offset: 240, viewportExtent: 300,
-                                                            axis: .horizontal),
-                                     authority: authority)
+                                                            axis: .horizontal))
     #expect(across.scrollRegions.count == data.count,
             "a horizontal scroller says nothing about which rows of a vertical list are on screen")
 
     let vertical = List(data, rowHeight: px(28)) { Row($0) }
     let (down, _) = renderWindowed(vertical,
                                    context: ScrollContext(offset: 240, viewportExtent: 300,
-                                                          axis: .vertical),
-                                   authority: authority)
+                                                          axis: .vertical))
     #expect(down.scrollRegions.count < data.count,
             "the same numbers on the axis this List stacks on DO window it")
 }
@@ -638,9 +610,8 @@ func aVerticalListInsideAHorizontalScrollViewBuildsEveryRow(_ authority: LayoutA
 /// at once). The divergence is `visibleRange`'s, which is authority-blind, so
 /// the lowering neither fixes it nor makes it worse — and that is the claim the
 /// second arm makes.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows() throws {
     let data = items(40)
     var headerStyle = Style()
     headerStyle.size.height = .length(.pixels(px(300)))
@@ -654,8 +625,7 @@ func aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows(_ authority: 
     }
     let (frame, _) = renderWindowed(tree,
                                     context: ScrollContext(offset: 300, viewportExtent: 112,
-                                                           axis: .vertical),
-                                    authority: authority, frameHeight: 2000)
+                                                           axis: .vertical), frameHeight: 2000)
 
     // Row indices, recovered by subtracting the header the list sits below.
     let built = Set(frame.scrollRegions.map { Int(($0.bounds.origin.y.value - 300) / 28) })
@@ -685,19 +655,18 @@ func aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows(_ authority: 
 /// `withoutScrollContext` runs on both authorities). The claim was never
 /// measured. Its pin under the proposal arm is mutation M2e
 /// (`withoutScrollContext` removed from `Deferred.requestLayout`).
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aListInsideADeferredIgnoresTheEscapedScrollersOffset(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aListInsideADeferredIgnoresTheEscapedScrollersOffset() throws {
     let data = items(40)
     let context = ScrollContext(offset: 280, viewportExtent: 112, axis: .vertical)
 
     let portal = Deferred { List(data, rowHeight: px(28)) { Row($0) } }
-    let (escaped, _) = renderWindowed(portal, context: context, authority: authority)
+    let (escaped, _) = renderWindowed(portal, context: context)
     #expect(escaped.scrollRegions.count == data.count,
             "a subtree that escapes a scroller's clip and translation has escaped its windowing too")
 
     let plain = List(data, rowHeight: px(28)) { Row($0) }
-    let (windowed, _) = renderWindowed(plain, context: context, authority: authority)
+    let (windowed, _) = renderWindowed(plain, context: context)
     #expect(windowed.scrollRegions.count < data.count,
             "the same list and the same context, not wrapped, still windows")
 }
@@ -727,15 +696,14 @@ func aListInsideADeferredIgnoresTheEscapedScrollersOffset(_ authority: LayoutAut
 ///
 /// The assertion walks the whole table rather than probing one id, because the
 /// entry the spacer costs is not its own id but a `$anim` CHILD of it.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func theListsSpacerIsANodeNotAnElement(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func theListsSpacerIsANodeNotAnElement() throws {
     let data = items(10)
     let list = List(data, rowHeight: px(28)) { Row($0) }
     // A scrolled window, so the spacer has real height (84pt) and is a real
     // participant rather than a zero-sized no-op.
     let context = ScrollContext(offset: 140, viewportExtent: 56, axis: .vertical)
-    let (frame, _) = renderWindowed(list, context: context, authority: authority)
+    let (frame, _) = renderWindowed(list, context: context)
 
     // The `List` is the host box's single member, not the frame's root, since
     // stage 4 lane 3 (`LR-BY`) — so its own id is `subjectID(named: nil)`.
@@ -778,18 +746,15 @@ func theListsSpacerIsANodeNotAnElement(_ authority: LayoutAuthority) throws {
 /// anything. Mutation **M1f** (`frames:` forced back to 1) must redden it.
 ///
 /// **Lane 1 ran it on the legacy authority alone and stage 4's lane 3
-/// parameterised it** (`LR-BW`): `render` takes an authority, so the second arm
-/// is a second measurement rather than a re-run of the first — the only shape a
-/// parameterised arm may have (practices shape 15).
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aListInTheDifferentialHarnessReachesABoundedWindow(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+/// parameterised it** (`LR-BW`); stage 9 collapsed it to the one authority.
+@Test @MainActor
+func aListInTheDifferentialHarnessReachesABoundedWindow() throws {
     let data = items(40)
     let table = StateTable()
-    // The demo's own scroller shape, and it is load-bearing here: the harness
-    // root is a `display: .stack` that offers its children fit-content, so a
-    // bare `ScrollView` takes its content's full 1120pt as its viewport and
-    // windows nothing. `flexGrow(1).flexBasis(0).minHeight(0)` inside a
+    // The demo's own scroller shape, and it was load-bearing here until stage
+    // 9: the legacy harness root was a `display: .stack` that offered its
+    // children fit-content, so a bare `ScrollView` took its content's full
+    // 1120pt as its viewport and windowed nothing. `flexGrow(1).flexBasis(0).minHeight(0)` inside a
     // container with a declared height is what bounds the viewport at 200 —
     // exactly what `DemoContent.swift`'s scroller `Box` writes, measured
     // against the two alternatives (a plain fixed-height `Box` around the
@@ -798,7 +763,7 @@ func aListInTheDifferentialHarnessReachesABoundedWindow(_ authority: LayoutAutho
     var column = Style()
     column.flexDirection = .column
     column.size = Size(width: .length(.pixels(px(200))), height: .length(.pixels(px(200))))
-    let frame = LayoutDifferential.render(authority: authority, width: 200, height: 200,
+    let frame = LayoutDifferential.render(width: 200, height: 200,
                                           stateTable: table, frames: 2) {
         Box(style: column) {
             Box {
@@ -842,15 +807,14 @@ func aListInTheDifferentialHarnessReachesABoundedWindow(_ authority: LayoutAutho
 /// The fixture is deliberately a SCROLLED list with painted, clickable rows:
 /// the spacer has real height (84pt), so a rect or a hitbox accidentally
 /// emitted for it would land at a position nothing else occupies.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aListsSceneAndHitboxesAreUnchangedByTheGroup(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aListsSceneAndHitboxesAreUnchangedByTheGroup() throws {
     let data = items(10)
     let list = List(data, rowHeight: px(28)) { _ in
         Box().background(.accent).onClick {}.cssWidth(px(100))
     }.cssWidth(px(120))
     let context = ScrollContext(offset: 140, viewportExtent: 56, axis: .vertical)
-    let (frame, _) = renderWindowed(list, context: context, authority: authority)
+    let (frame, _) = renderWindowed(list, context: context)
 
     func key(_ b: Bounds<Pixels>) -> String {
         "\(b.origin.x.value),\(b.origin.y.value) \(b.size.width.value)x\(b.size.height.value)"
@@ -875,93 +839,12 @@ func aListsSceneAndHitboxesAreUnchangedByTheGroup(_ authority: LayoutAuthority) 
     #expect(hitboxes == expectedHitboxes, "\(hitboxes)")
 }
 
-// MARK: - Stage 4, lane 3 (`LR-BW`, `LR-BX`): the red-before, in a child process
+// MARK: - Stage 4, lane 3 (`LR-BW`, `LR-BX`): the red-before — retired at stage 9
 
-/// `ListTests`' row **as it was spelled before this lane**, kept as a live
-/// fixture so the probe below keeps a subject after `Row` is re-spelled.
-///
-/// Byte-for-byte `Row`'s two registrations at `688b834`: a childless
-/// `pass.requestNode` (the 224 nodes of §4.2's census) and, in the
-/// `contentHeight` arms, a `pass.requestLeaf` (the 3 leaves). Nothing else about
-/// it is load-bearing — it registers no scroll region, because the probe reads
-/// the process's exit status and stderr, not a frame.
-private struct LegacySpelledRow: Element {
-    var contentHeight: Pixels?
-
-    var elementID: ElementID? { nil }
-
-    @available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: it is the subject of aLegacySpelledListRowAbortsAProductionProposalFrame, which reads the customElement trap (stage 6a, LR-CV)")
-    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
-        -> (LayoutNodeID, Void) {
-        guard let contentHeight else {
-            return (pass.requestNode(style: Style(), children: []), ())
-        }
-        let h = Double(contentHeight.value)
-        return (pass.requestLeaf(style: Style()) { _, _ in SizeD(width: 0, height: h) }, ())
-    }
-
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                           layout: inout Void, pass: inout PrepaintPass) {}
-
-    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
-}
-
-/// **This lane's red-before, and the measured reason it could not be an
-/// ordinary failing test** (`LR-BX`, spec §6 lane 3).
-///
-/// Every scenario in this file is about to be parameterised over
-/// `LayoutAuthority.allCases`. Running them under `.proposal` with the row
-/// spelled as it was does not FAIL — it **aborts the whole run**, at
-/// `Frame.requestNode`'s backstop, with no summary line and no list of what
-/// failed, which is the failure mode
-/// `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` pins and
-/// `LayoutAuthorityTests.swift`'s header records stage 3 hitting. So the red is
-/// taken here, in a child process, where the abort is an observable rather than
-/// the end of the suite; the re-spelling and the `.proposal` arms then land in
-/// one commit and every later red in this file is an ordinary assertion failure.
-///
-/// The host shape is P1a6's — `Box(width 100, column) { List(3 rows, 28) { … } }`
-/// — the shape both helpers in this file adopt in the same lane, so what the
-/// probe aborts on is the ROW's registration and not the `List`'s own root
-/// position. Both spellings are checked, because the census counts both (224
-/// `requestNode`, 3 `requestLeaf`).
-///
-/// It stays after the re-spelling, pointed at `LegacySpelledRow`: it is the
-/// standing evidence for why `Row` is spelled through the lowering, and the
-/// thing that would go quiet if a future edit put `pass.requestNode` back.
-@MainActor
-private func legacySpelledHostShape(contentHeight: Pixels?)
-    -> Box<List<[Item], LegacySpelledRow>> {
-    var column = Style()
-    column.flexDirection = .column
-    column.size.width = .length(.pixels(px(100)))
-    return Box(style: column,
-               content: List(items(3), rowHeight: px(28)) {
-                   _ in LegacySpelledRow(contentHeight: contentHeight)
-               })
-}
-
-@Test func aLegacySpelledListRowAbortsAProductionProposalFrame() async {
-    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var root = legacySpelledHostShape(contentHeight: nil)
-            Frame(contentSize: Size(width: px(400), height: px(600)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
-        }
-    }
-    let nodeErr = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(nodeErr.contains("customElement.requestNode has no proposal lowering"),
-            "aborted, but not at the row's requestNode:\n\(nodeErr)")
-
-    let leaf = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var root = legacySpelledHostShape(contentHeight: px(60))
-            Frame(contentSize: Size(width: px(400), height: px(600)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
-        }
-    }
-    let leafErr = String(decoding: leaf?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(leafErr.contains("customElement.requestLeaf has no proposal lowering"),
-            "aborted, but not at the row's requestLeaf:\n\(leafErr)")
-}
+// `aLegacySpelledListRowAbortsAProductionProposalFrame` and its fixture
+// `LegacySpelledRow` kept stage 4's red-before as an observable: a row spelled
+// with the public `requestNode`/`requestLeaf` aborted a production frame on the
+// `customElement` trap. Lane 3 deletes the registrars and the site, so the row
+// can no longer be spelled; the re-spelled plain-import guard G6a
+// (`aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles`) is what now stops
+// a future edit putting `pass.requestNode` back (record §51, lane 1 row 10, R).

@@ -56,7 +56,7 @@ private func bounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pi
 @MainActor
 private func report<C: ElementGroup>(width: Float = 300, height: Float = 200,
                                      @ElementBuilder _ make: @MainActor () -> C) -> [UnlowerableField] {
-    LayoutDifferential.render(authority: .proposal, width: width, height: height, make).unlowerableFields
+    LayoutDifferential.render(width: width, height: height, make).unlowerableFields
 }
 
 /// A legacy element placed where a **proposal** container expects proposal content
@@ -141,7 +141,7 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
 /// the second the grower's.
 @MainActor
 @Test func aGridsColumnWidthReachesAGrowingChildInsideALoweredCell() throws {
-    let frame = LayoutDifferential.render(authority: .proposal, width: 120, height: 40) {
+    let frame = LayoutDifferential.render(width: 120, height: 40) {
         Grid(alignment: .topLeading, horizontalSpacing: px(10), verticalSpacing: px(10)) {
             GridRow {
                 LegacyUnderProposal(Row {
@@ -204,7 +204,7 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
 /// unrecorded child is stretched like a legacy one (the grid would become 40 tall).
 @MainActor
 @Test func aGridInsideALoweredContainerIsNeverStretchedWhereItsRecordedSiblingIs() throws {
-    let frame = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
+    let frame = LayoutDifferential.render(width: 300, height: 200) {
         Row {
             fixed(20, 10)
             Box().cssWidth(px(15))
@@ -276,7 +276,7 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
 
     @MainActor
     func loweredFirst(_ string: String, offer: Float = 300) throws -> (legacy: Float, proposal: Float, grid: Float) {
-        try widths(LayoutDifferential.render(authority: .proposal, width: offer, height: 100) {
+        try widths(LayoutDifferential.render(width: offer, height: 100) {
             Grid(alignment: .topLeading, horizontalSpacing: px(10), verticalSpacing: px(10)) {
                 GridRow { LegacyUnderProposal(Text(string)) }
                 GridRow { Text(string).proposalLayout() }
@@ -286,7 +286,7 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
 
     @MainActor
     func proposalFirst(_ string: String) throws -> (legacy: Float, proposal: Float, grid: Float) {
-        try widths(LayoutDifferential.render(authority: .proposal, width: 300, height: 100) {
+        try widths(LayoutDifferential.render(width: 300, height: 100) {
             Grid(alignment: .topLeading, horizontalSpacing: px(10), verticalSpacing: px(10)) {
                 GridRow { Text(string).proposalLayout() }
                 GridRow { LegacyUnderProposal(Text(string)) }

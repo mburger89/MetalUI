@@ -15,7 +15,8 @@ import MetalUIScene
 // to the view under it) and accessibility suppression reads `display == .none ∨
 // hiddenNodes`. Each gate is mirrored per inner `ModifiedElement` layer (`MC-B`) and
 // in `AnyElement`'s group entry, which reads `hiddenNodes` **only**, so the legacy
-// path is byte-identical (1.6).
+// path was byte-identical (1.6, retired with the legacy path at stage 9; record
+// §51, lane 1 row 16).
 //
 // **Production frames** (no diagnostics) for 1.2–1.5, as a `Window` builds them:
 // before the lane each trapped on `…display.none has no proposal lowering`.
@@ -37,12 +38,11 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// A production frame (no diagnostics), `width`×`height`, light theme, collecting
 /// accessibility, rendered once.
 @MainActor
-private func production<E: Element>(_ authority: LayoutAuthority, width: Float = 100, height: Float = 100,
+private func production<E: Element>(width: Float = 100, height: Float = 100,
                                     _ element: E) -> Frame {
     var element = element
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
-                      stateTable: StateTable(), theme: .light, collectsAccessibility: true,
-                      layoutAuthority: authority)
+                      stateTable: StateTable(), theme: .light, collectsAccessibility: true)
     frame.render(&element)
     return frame
 }
@@ -55,15 +55,15 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
 /// **1.1** (`LR-DH` item 1 and 6). `Column(gap: 0) { a; b.hidden(); c }`, each 20×20,
 /// in a `DifferentialRoot`: lowered, `c` sits at y = 40 — the hidden `b` keeps its 20
 /// (stage-1 probe H1, re-run 2026-09-23: `VStack(spacing:0){a20; b20.hidden(); c20}`
-/// is 20×60) — and the legacy engine places `c` at y = 20 (CSS `display: none` takes
-/// no box). Both arms asserted: the authorities now disagree on space by design.
+/// is 20×60) — where the legacy engine placed `c` at y = 20 (CSS `display: none`
+/// takes no box; asserted until stage 9 deleted that engine).
 /// Hidden `b`'s own origin, (0, 20), is **not** probe-backed — H1's leaf for the
 /// hidden view reads (0, 0) — and is asserted as MetalUI's "as if shown" choice.
 ///
 /// Red before: the proposal side reports `box.display.none`.
 /// Mutation **M1b**: `hidden()` lowered as a 0×0 leaf — `c` at 20 under both.
 @Test @MainActor func aHiddenChildKeepsItsSpaceUnderTheProposalAuthority() throws {
-    let report = LayoutDifferential.compare(width: 100, height: 100) {
+    let report = LayoutDifferential.report(width: 100, height: 100) {
         Column(gap: px(0)) {
             Box().cssWidth(px(20)).cssHeight(px(20))
             Box().cssWidth(px(20)).cssHeight(px(20)).hidden()
@@ -73,13 +73,11 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     #expect(report.unlowerable.isEmpty, "\(report.unlowerable)")
     let column = child(rootID, 0)
     let c = child(column, 2)
-    let legacyC = try #require(report.legacyBounds[c])
-    let loweredC = try #require(report.loweredBounds[c])
-    #expect(legacyC.origin.y == px(20), "legacy: the hidden b takes no box (CSS), got \(legacyC)")
+    let loweredC = try #require(report.bounds[c])
     #expect(loweredC.origin.y == px(40), "lowered: the hidden b keeps its 20 (H1), got \(loweredC)")
-    let loweredColumn = try #require(report.loweredBounds[column])
+    let loweredColumn = try #require(report.bounds[column])
     #expect(loweredColumn.size.height == px(60), "lowered column 20×60 (H1), got \(loweredColumn)")
-    let loweredB = try #require(report.loweredBounds[child(column, 1)])
+    let loweredB = try #require(report.bounds[child(column, 1)])
     // b's origin is a MetalUI choice, not a SwiftUI answer: "as if shown" places the
     // node where it would be shown. H1's leaf record for the hidden view reads
     // `(0, 0) 20x20`, so the probe backs the 20×60 and c at y = 40, not b at (0, 20).
@@ -89,7 +87,7 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     // "As if shown" needs the display `hidden()` overwrote: a `Stack` is laid out as
     // a stack (its site says so), not as the flex row `display: .none` would fall to.
     func stack(hidden: Bool) -> LayoutDifferential.Report {
-        LayoutDifferential.compare(width: 100, height: 100) {
+        LayoutDifferential.report(width: 100, height: 100) {
             let s = Stack(alignment: .bottomTrailing) {
                 Box().cssWidth(px(20)).cssHeight(px(10))
                 Box().cssWidth(px(10)).cssHeight(px(30))
@@ -100,13 +98,13 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     let shownStack = stack(hidden: false), hiddenStack = stack(hidden: true)
     #expect(hiddenStack.unlowerable.isEmpty, "\(hiddenStack.unlowerable)")
     let ids = [column, child(column, 0), child(column, 1)]
-    let shownRects = ids.map { shownStack.loweredBounds[$0] }
+    let shownRects = ids.map { shownStack.bounds[$0] }
     try #require(shownRects == [Bounds(origin: point(0, 0), size: Size(width: px(20), height: px(30))),
                                 Bounds(origin: point(0, 20), size: Size(width: px(20), height: px(10))),
                                 Bounds(origin: point(10, 0), size: Size(width: px(10), height: px(30)))],
                  "control: the shown stack, \(shownRects)")
-    #expect(ids.map { hiddenStack.loweredBounds[$0] } == shownRects,
-            "a hidden Stack is laid out as the shown stack, got \(ids.map { hiddenStack.loweredBounds[$0] })")
+    #expect(ids.map { hiddenStack.bounds[$0] } == shownRects,
+            "a hidden Stack is laid out as the shown stack, got \(ids.map { hiddenStack.bounds[$0] })")
 }
 
 // MARK: - 1.2 — paint (V0/V1)
@@ -126,12 +124,12 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
         }
     }
     let theme = Theme.light
-    let shown = production(.proposal, tree(hidden: false))
+    let shown = production(tree(hidden: false))
     try #require(shown.scene.rects.contains { isFilled($0, with: .accent, in: theme) },
                  "control: the shown box paints its accent rect")
     try #require(!shown.scene.glyphs.isEmpty, "control: the shown text paints its glyphs")
 
-    let hidden = production(.proposal, tree(hidden: true))
+    let hidden = production(tree(hidden: true))
     #expect(!hidden.scene.rects.contains { isFilled($0, with: .accent, in: theme) },
             "a hidden element paints no rect of its colour (V1)")
     #expect(hidden.scene.glyphs.isEmpty, "nothing inside a hidden element paints, got \(hidden.scene.glyphs.count) glyphs")
@@ -139,9 +137,9 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     // The root arm (`LR-DP` item 2): `render` paints the root directly, not through
     // `paintGroup`, so it carries its own skip. A hidden root paints nothing.
     let root = Box { Text("Hi") }.cssWidth(px(40)).cssHeight(px(40)).background(.accent)
-    let shownRoot = production(.proposal, root)
+    let shownRoot = production(root)
     try #require(!shownRoot.scene.rects.isEmpty && !shownRoot.scene.glyphs.isEmpty, "control: the shown root paints")
-    let hiddenRoot = production(.proposal, root.hidden())
+    let hiddenRoot = production(root.hidden())
     #expect(hiddenRoot.scene.rects.isEmpty && hiddenRoot.scene.glyphs.isEmpty,
             "a hidden root paints nothing, got \(hiddenRoot.scene.rects.count) rects, \(hiddenRoot.scene.glyphs.count) glyphs")
 }
@@ -163,11 +161,11 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
         }.cssWidth(px(100)).cssHeight(px(100))
     }
     let under = child(rootID, 0), top = child(rootID, 1)
-    let shown = production(.proposal, tree(hidden: false))
+    let shown = production(tree(hidden: false))
     let shownHit = try #require(topmostOpaqueHitbox(in: shown.hitboxes, at: point(50, 50)))
     try #require(shown.hitboxes[shownHit].id == top, "control: the unhidden top takes the click (V2)")
 
-    let hidden = production(.proposal, tree(hidden: true))
+    let hidden = production(tree(hidden: true))
     let hit = try #require(topmostOpaqueHitbox(in: hidden.hitboxes, at: point(50, 50)))
     #expect(hidden.hitboxes[hit].id == under, "a hidden top passes the click to what is under it (V3)")
     #expect(!hidden.hitboxes.contains { $0.id == top }, "a hidden element registers no pointer hitbox")
@@ -176,8 +174,8 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     // carries its own pointer-disable scope. A hidden clickable root holding a
     // clickable child registers no pointer hitbox at all.
     let root = Box { Box().cssWidth(px(20)).cssHeight(px(20)).onClick {} }.cssWidth(px(40)).cssHeight(px(40)).onClick {}
-    try #require(production(.proposal, root).hitboxes.count == 2, "control: the shown root and its child register")
-    let hiddenRoot = production(.proposal, root.hidden())
+    try #require(production(root).hitboxes.count == 2, "control: the shown root and its child register")
+    let hiddenRoot = production(root.hidden())
     #expect(hiddenRoot.hitboxes.isEmpty, "a hidden root registers no pointer hitbox, got \(hiddenRoot.hitboxes.count)")
 }
 
@@ -210,7 +208,7 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     let innerLayer = child(outer, 0)
     let content = child(innerLayer, 0)
 
-    let shown = production(.proposal, tree(hidden: false))
+    let shown = production(tree(hidden: false))
     for token in [ColorToken.accent, .surfaceSecondary, .separator] {
         try #require(shown.scene.rects.contains { isFilled($0, with: token, in: theme) },
                      "control: \(token) is painted")
@@ -218,7 +216,7 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     let shownHit = try #require(topmostOpaqueHitbox(in: shown.hitboxes, at: point(13, 50)))
     try #require(shown.hitboxes[shownHit].id == content, "control: the content takes the click")
 
-    let hidden = production(.proposal, tree(hidden: true))
+    let hidden = production(tree(hidden: true))
     #expect(hidden.scene.rects.contains { isFilled($0, with: .separator, in: theme) },
             "the outer layer still paints")
     #expect(!hidden.scene.rects.contains { isFilled($0, with: .surfaceSecondary, in: theme) },
@@ -254,66 +252,19 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
     let theme = Theme.light
     let under = child(rootID, 0), top = child(rootID, 1)
 
-    let shown = production(.proposal, tree(hidden: false))
+    let shown = production(tree(hidden: false))
     try #require(shown.scene.rects.contains { isFilled($0, with: .accent, in: theme) }, "control: paints")
     let shownHit = try #require(topmostOpaqueHitbox(in: shown.hitboxes, at: point(50, 50)))
     try #require(shown.hitboxes[shownHit].id == top, "control: the erased top takes the click")
     try #require(shown.axEmissions.contains { $0.id == top }, "control: the erased top records")
 
-    let hidden = production(.proposal, tree(hidden: true))
+    let hidden = production(tree(hidden: true))
     #expect(!hidden.scene.rects.contains { isFilled($0, with: .accent, in: theme) }, "paint skipped")
     let hit = try #require(topmostOpaqueHitbox(in: hidden.hitboxes, at: point(50, 50)))
     #expect(hidden.hitboxes[hit].id == under, "the click passes to what is under it")
     #expect(!hidden.axEmissions.contains { $0.id == top }, "a hidden erased element records nothing")
     #expect(hidden.axNodes.values.contains { $0.label == "top" },
             "control: the hidden element still prepaints and emits its declared node")
-}
-
-// MARK: - 1.6 — the legacy path, pinned
-
-/// **1.6** (`LR-DH` item 2, `LR-DO` item 5). Under the **legacy** authority a hidden,
-/// clickable, decorated `Box` holding a `Text` emits exactly what it emitted at
-/// `aef88ce` — `hidden()` filters layout and not paint there (`Box.hidden()`'s doc,
-/// CLAUDE.md's inert table), so the text's glyphs are painted from the hidden node's
-/// zero rect and its zero-size hitbox is registered — and `hiddenNodes` is empty.
-///
-/// The literals were **measured at the lane's first commit, before any `Sources/`
-/// line changed** (record §41, lane 1), not derived. The non-empty legacy emission is
-/// `try #require`d first: a fixture that emitted nothing for the hidden element would
-/// leave **M1g** (the paint skip reading `display == .none`) unable to redden this.
-@Test @MainActor func theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore() throws {
-    var root = Column {
-        Box { Text("Hi") }.cssWidth(px(80)).cssHeight(px(20)).background(.accent).onClick {}.hidden()
-        Box().cssWidth(px(10)).cssHeight(px(10)).background(.separator)
-    }
-    let frame = Frame(contentSize: Size(width: px(400), height: px(300)), scaleFactor: 1,
-                      stateTable: StateTable(), theme: .light, layoutAuthority: .legacy)
-    frame.render(&root)
-    let theme = Theme.light
-    try #require(!frame.scene.glyphs.isEmpty,
-                 "the legacy path must emit something for the hidden element, or M1g cannot redden this")
-    #expect(frame.hiddenNodes.isEmpty, "the legacy path never fills hiddenNodes")
-
-    let rects = frame.scene.rects.map { r -> String in
-        let fill = isFilled(r, with: .accent, in: theme) ? "accent"
-            : isFilled(r, with: .separator, in: theme) ? "separator" : "other"
-        return "\(fill) \(r.bounds.origin.x),\(r.bounds.origin.y) \(r.bounds.size.width)x\(r.bounds.size.height)"
-    }
-    let glyphs = frame.scene.glyphs.map { "\($0.bounds.origin.x),\($0.bounds.origin.y)" }
-    let hiddenBox = child(rootID, 0)
-    let hitboxes = frame.hitboxes.map {
-        "\($0.id == hiddenBox ? "hiddenBox" : "other") \($0.bounds.origin.x.value),\($0.bounds.origin.y.value) \($0.bounds.size.width.value)x\($0.bounds.size.height.value) opaque=\($0.opaque)"
-    }
-    #expect(rects == LegacyHiddenBaseline.rects, "rects: \(rects)")
-    #expect(glyphs == LegacyHiddenBaseline.glyphs, "glyphs: \(glyphs)")
-    #expect(hitboxes == LegacyHiddenBaseline.hitboxes, "hitboxes: \(hitboxes)")
-}
-
-/// What `aef88ce`'s legacy path emits for 1.6's fixture, measured (see 1.6).
-private enum LegacyHiddenBaseline {
-    static let rects: [String] = ["accent 0.0,0.0 0.0x0.0", "separator 195.0,0.0 10.0x10.0"]
-    static let glyphs: [String] = ["0.0,2.0", "-1.0,18.0"]
-    static let hitboxes: [String] = ["hiddenBox 0.0,0.0 0.0x0.0 opaque=true"]
 }
 
 // MARK: - 1.9 — a hidden Text (the leaf site)
@@ -337,13 +288,13 @@ private enum LegacyHiddenBaseline {
         }
     }
     let textID = child(rootID, 0)
-    let shown = production(.proposal, tree(hidden: false))
+    let shown = production(tree(hidden: false))
     try #require(!shown.scene.glyphs.isEmpty, "control: the shown text paints its glyphs")
     try #require(shown.hitboxes.contains { $0.id == textID }, "control: the shown text registers a hitbox")
     try #require(shown.axEmissions.contains { $0.id == textID }, "control: the shown text records")
     try #require(shown.hiddenNodes.isEmpty, "control: nothing is hidden")
 
-    let hidden = production(.proposal, tree(hidden: true))
+    let hidden = production(tree(hidden: true))
     #expect(hidden.hiddenNodes.count == 1, "the hidden text's node joins hiddenNodes, got \(hidden.hiddenNodes.count)")
     #expect(hidden.scene.glyphs.isEmpty, "a hidden text paints no glyph, got \(hidden.scene.glyphs.count)")
     #expect(!hidden.hitboxes.contains { $0.id == textID }, "a hidden text registers no pointer hitbox")

@@ -57,13 +57,14 @@ import Testing
                  "the exit criterion is 'both authorities'; a third would need every literal in the fifteen suites re-derived")
     try #require(AuthorityCoverage.authorities == LayoutAuthority.allCases,
                  "every scenario is declared over this one list — M3c/M4d reduce it and nothing else would say so")
-    try #require(AuthorityCoverage.expected.count == 87,
+    // Stage 9's lane 1 (record §51, `LR-FH` item 1): 87 − 49, the five files that
+    // also use the differential harness collapsed to one authority.
+    try #require(AuthorityCoverage.expected.count == 38,
                  """
-                 the hand-derived scenario count: 16 routing + 14 indicator + 4 ScrollViewTests \
-                 + 21 ListTests + 3 AXNodeTests + 6 AccessibilityDefaultsTests \
+                 the hand-derived scenario count: 14 indicator + 4 ScrollViewTests \
+                 + 3 AXNodeTests + 6 AccessibilityDefaultsTests \
                  + 5 AccessibilityTreeTests + 1 FocusTests + 1 TombstoneTests \
-                 + 2 MeasurePerformanceTests + 5 DeferredTests + 1 AbsoluteOverlayTests \
-                 + 6 PresentationWindowTests + 1 DecorationPaintTests + 1 EnvironmentTests
+                 + 2 MeasurePerformanceTests + 1 AbsoluteOverlayTests + 1 EnvironmentTests
                  """)
 
     let missing = AuthorityCoverage.expected.subtracting(AuthorityCoverage.seen.keys).sorted()

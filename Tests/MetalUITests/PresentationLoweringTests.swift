@@ -13,7 +13,15 @@ import MetalUICore
 // padding inside a window-sized frame (`LR-CI`), laid out in its own native run
 // before the root (`LR-CM`), and the `Deferred` hands its parent a 0×0 placeholder
 // every lowered container drops (`LR-CK`). Every tree whose legacy containing
-// block is not the window reports by name (`LR-CL`).
+// block is not the window reported by name (`LR-CL`) until stage 9.
+//
+// **Stage 9** (record §51, lane 1; rulings `LR-FE`, `LR-FF`): the legacy engine
+// is deleted, so each test keeps its lowered literals and loses its agreement
+// check (1.1's and 1.4's hitboxes and scene gain literals), 1.5 loses its seven
+// containing-block arms — their reports die with the legacy containing block in
+// lane 3, whose `PresentationContainingBlockTests` pins the window answer — and
+// gains divergence 11's proposal fact, and 1.6 (the production trap on
+// `deferred.containingBlock`) retires.
 //
 // **Diagnostics are compared by their printed description** (`"box.position"`),
 // not by `UnlowerableField` values, so that this file compiled against the source
@@ -57,23 +65,18 @@ private func rootFields<E: Element>(width: Float = 200, height: Float = 100,
                                     _ make: () -> E) -> [UnlowerableField] {
     var root = make()
     let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1,
-                      layoutAuthority: .proposal, reportsUnlowerableFields: true)
+                      reportsUnlowerableFields: true)
     frame.render(&root)
     return frame.unlowerableFields
 }
 
-/// Every whole-frame observation agrees and nothing was reported.
+/// Nothing was reported. (Until stage 9 this was `expectAgreement`, which also
+/// required every observation to agree with the legacy engine's; that comparison
+/// is the deleted concept, `LR-FE` item 2.)
 @MainActor
-private func expectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
-                             sourceLocation: SourceLocation = #_sourceLocation) {
+private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String,
+                                   sourceLocation: SourceLocation = #_sourceLocation) {
     #expect(r.unlowerable.isEmpty, "\(arm): \(r.unlowerable)", sourceLocation: sourceLocation)
-    #expect(r.disagreeing.isEmpty, "\(arm): \(r.disagreeing)", sourceLocation: sourceLocation)
-    #expect(r.legacyOnly.isEmpty && r.loweredOnly.isEmpty,
-            "\(arm): legacyOnly \(r.legacyOnly) loweredOnly \(r.loweredOnly)", sourceLocation: sourceLocation)
-    #expect(r.scenesEqual, "\(arm): scenes", sourceLocation: sourceLocation)
-    #expect(r.hitboxesEqual, "\(arm): hitboxes", sourceLocation: sourceLocation)
-    #expect(r.accessibilityEqual, "\(arm): accessibility", sourceLocation: sourceLocation)
-    #expect(r.stateSlotsEqual, "\(arm): state slots", sourceLocation: sourceLocation)
 }
 
 private struct PresentingSolo: Component {
@@ -96,8 +99,11 @@ private struct PresentingPair: Component {
 /// one arm per shape of spec §2.4 that lowers. Each arm puts `Box { Deferred {
 /// absolute box } }` under the harness root, so the `Deferred` is received by a
 /// lowered container (which drops its placeholder) and the harness root's native
-/// node is the window. Each: no report, every observation equal, and the box's and
-/// the `Deferred`'s rect equal to the legacy engine's measured answer.
+/// node is the window. Each: no report, and the box's and the `Deferred`'s rect
+/// equal to the legacy engine's measured answer. Until stage 9 every observation
+/// was also compared with the legacy engine's; since then the box's hitbox (it has
+/// an `onClick`) and its background — the two readers **M1c** names — are
+/// literals at the same rect.
 ///
 /// Red-before (at `e5caefb`'s source): every arm reports `[box.position,
 /// box.inset]` (`[box.position]` for "none").
@@ -113,7 +119,7 @@ private struct PresentingPair: Component {
     var arms: [Arm] = []
     func arm<C: ElementGroup>(_ name: String, deferredIndex: Int = 0, _ expected: Bounds<Pixels>,
                               @ElementBuilder _ make: @MainActor () -> C) {
-        arms.append((name, LayoutDifferential.compare(width: 200, height: 100, make), deferredIndex, expected))
+        arms.append((name, LayoutDifferential.report(width: 200, height: 100, make), deferredIndex, expected))
     }
     arm("top/left px", pBounds(5, 5, 30, 20)) {
         Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(30)).cssHeight(px(20)) } }
@@ -177,33 +183,36 @@ private struct PresentingPair: Component {
     }
     try #require(arms.count == 10)
     for arm in arms {
-        expectAgreement(arm.report, arm.name)
+        expectNothingReported(arm.report, arm.name)
         let deferred = pChild(pChild(pRoot, 0), arm.deferredIndex), box = pChild(deferred, 0)
-        #expect(arm.report.legacyBounds[box] == arm.expected, "\(arm.name): legacy box \(String(describing: arm.report.legacyBounds[box]))")
-        #expect(arm.report.loweredBounds[box] == arm.expected, "\(arm.name): lowered box \(String(describing: arm.report.loweredBounds[box]))")
-        #expect(arm.report.legacyBounds[deferred] == arm.expected, "\(arm.name): legacy Deferred \(String(describing: arm.report.legacyBounds[deferred]))")
-        #expect(arm.report.loweredBounds[deferred] == arm.expected, "\(arm.name): lowered Deferred \(String(describing: arm.report.loweredBounds[deferred]))")
+        #expect(arm.report.bounds[box] == arm.expected, "\(arm.name): lowered box \(String(describing: arm.report.bounds[box]))")
+        #expect(arm.report.bounds[deferred] == arm.expected, "\(arm.name): lowered Deferred \(String(describing: arm.report.bounds[deferred]))")
+        #expect(arm.report.hitboxRects[box] == arm.expected, "\(arm.name): hitbox \(String(describing: arm.report.hitboxRects[box]))")
+        #expect(arm.report.sceneRects.contains(arm.expected), "\(arm.name): background \(arm.report.sceneRects)")
     }
 }
 
 // MARK: - 1.2, 1.3 The two deliberate proposal-only answers (`LR-CJ`)
 
 /// **1.2** (`LR-CJ` item 2). A box stretched between insets leaving 10×10, with
-/// padding 10 on every edge: the legacy engine floors the border box at the
+/// padding 10 on every edge: the legacy engine floored the border box at the
 /// padding sum (`BM-4`) — **20×20** at (100, 10); the lowering keeps the inset box
 /// — **10×10** at (100, 10) — and lets the padding overflow, `LR-AH`/`LR-AW`'s
-/// answer applied to the third place the question arises. Pinned by name, both
-/// literals.
+/// answer applied to the third place the question arises. Pinned by name.
 ///
 /// Red-before: reports `[box.position, box.inset]`.
 ///
 /// Mutation that must redden it: **M1e** W's minimum set to the padding + border
 /// sum (lowered reads 20×20).
+///
+/// **Renamed at stage 9** from
+/// `anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBoxWhereTheLegacyEngineFloorsIt`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBoxWhereTheLegacyEngineFloorsIt() throws {
+@Test func anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBox() throws {
     var padded = Style()
     padded.padding = Edges(all: .pixels(px(10)))
-    let report = LayoutDifferential.compare(width: 200, height: 100) {
+    let report = LayoutDifferential.report(width: 200, height: 100) {
         Box {
             Deferred {
                 Box(style: padded).background(.accent)
@@ -213,8 +222,7 @@ private struct PresentingPair: Component {
     }
     #expect(report.unlowerable.isEmpty, "\(report.unlowerable)")
     let box = pChild(pChild(pChild(pRoot, 0), 0), 0)
-    #expect(report.legacyBounds[box] == pBounds(100, 10, 20, 20), "legacy \(String(describing: report.legacyBounds[box]))")
-    #expect(report.loweredBounds[box] == pBounds(100, 10, 10, 10), "lowered \(String(describing: report.loweredBounds[box]))")
+    #expect(report.bounds[box] == pBounds(100, 10, 10, 10), "lowered \(String(describing: report.bounds[box]))")
 }
 
 /// **1.3** (`LR-CJ` item 1; probe Q3). An auto-width `Text` with only a leading
@@ -228,17 +236,20 @@ private struct PresentingPair: Component {
 ///
 /// Mutation that must redden it: **M1f** the padding's leading edge forced to 0
 /// (lowered x 0, the legacy width).
+///
+/// **Renamed at stage 9** from
+/// `anAbsoluteTextWrapsAtTheWindowMinusItsInsetWhereTheLegacyEngineWrapsAtTheWindow`
+/// (`LR-FE` item 6); its legacy literal ((150, 0) 196×32) went with the engine.
 @MainActor
-@Test func anAbsoluteTextWrapsAtTheWindowMinusItsInsetWhereTheLegacyEngineWrapsAtTheWindow() throws {
+@Test func anAbsoluteTextWrapsAtTheWindowMinusItsInset() throws {
     let sentence = "The quick brown fox jumps over the lazy dog and it goes on"
     try #require(sentence.count == 58)
-    let report = LayoutDifferential.compare(width: 200, height: 200) {
+    let report = LayoutDifferential.report(width: 200, height: 200) {
         Box { Deferred { Text(sentence).position(.absolute).inset(insets(left: dim(150))) } }
     }
     #expect(report.unlowerable.isEmpty, "\(report.unlowerable)")
     let text = pChild(pChild(pChild(pRoot, 0), 0), 0)
-    let legacy = try #require(report.legacyBounds[text]), lowered = try #require(report.loweredBounds[text])
-    #expect(legacy == pBounds(150, 0, 196, 32), "legacy \(legacy)")
+    let lowered = try #require(report.bounds[text])
     #expect(lowered.origin == Point(x: px(150), y: px(0)), "lowered \(lowered)")
     #expect(lowered.size.width.value <= 50 && lowered.size.height.value > 32, "lowered \(lowered)")
 }
@@ -254,7 +265,10 @@ private struct PresentingPair: Component {
 /// is how a layer receives the placeholder directly — that component with
 /// `.padding(4)` (the wrap op, `OM-D`), with `.frame(width: 50, height: 50)` (a
 /// one-node frame layer), and a two-member one with the same `.frame` (the
-/// per-member row, `LR-BH`). Each: no report and every observation equal.
+/// per-member row, `LR-BH`). Each: no report, and — until stage 9, every
+/// observation equal to the legacy engine's; since then literals — the absolute
+/// box's hitbox at its window rect (5, 5) 10×10 in every arm, and the column's
+/// third child at y 22.
 ///
 /// Red-before: every arm reports `[box.position, box.inset]`.
 ///
@@ -277,25 +291,25 @@ private struct PresentingPair: Component {
     func presented() -> Deferred<Box<EmptyGroup>> {
         Deferred { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssHeight(px(10)) }
     }
-    let column = LayoutDifferential.compare(width: 200, height: 100) {
+    let column = LayoutDifferential.report(width: 200, height: 100) {
         Column(gap: px(12)) {
             Box().cssWidth(px(10)).cssHeight(px(10)).background(.surface)
             presented()
             Box().cssWidth(px(11)).cssHeight(px(10)).background(.surface)
         }
     }
-    expectAgreement(column, "gapped column")
+    expectNothingReported(column, "gapped column")
     let third = pChild(pChild(pRoot, 0), 2)
-    #expect(column.legacyBounds[third]?.origin.y == px(22) && column.loweredBounds[third]?.origin.y == px(22),
-            "the column's third child: \(String(describing: column.legacyBounds[third])) / \(String(describing: column.loweredBounds[third]))")
-    let stack = LayoutDifferential.compare(width: 200, height: 100) {
+    #expect(column.bounds[third]?.origin.y == px(22),
+            "the column's third child: \(String(describing: column.bounds[third]))")
+    let stack = LayoutDifferential.report(width: 200, height: 100) {
         Stack {
             Box().cssWidth(px(10)).cssHeight(px(10)).background(.surface)
             presented()
         }
     }
-    expectAgreement(stack, "Stack")
-    let scroll = LayoutDifferential.compare(width: 200, height: 100) {
+    expectNothingReported(stack, "Stack")
+    let scroll = LayoutDifferential.report(width: 200, height: 100) {
         Box {
             ScrollView(.vertical) {
                 presented()
@@ -304,26 +318,34 @@ private struct PresentingPair: Component {
         }
         .cssWidth(px(80)).cssHeight(px(60))
     }
-    expectAgreement(scroll, "ScrollView content")
-    let wrap = LayoutDifferential.compare(width: 200, height: 100) {
+    expectNothingReported(scroll, "ScrollView content")
+    let wrap = LayoutDifferential.report(width: 200, height: 100) {
         Box { PresentingSolo().padding(px(4)) }
     }
-    expectAgreement(wrap, "Component .padding (the wrap op)")
-    let oneNodeFrame = LayoutDifferential.compare(width: 200, height: 100) {
+    expectNothingReported(wrap, "Component .padding (the wrap op)")
+    let oneNodeFrame = LayoutDifferential.report(width: 200, height: 100) {
         Box { PresentingSolo().frame(width: px(50), height: px(50)) }
     }
-    expectAgreement(oneNodeFrame, "one-node .frame layer")
-    let twoMemberFrame = LayoutDifferential.compare(width: 200, height: 100) {
+    expectNothingReported(oneNodeFrame, "one-node .frame layer")
+    let twoMemberFrame = LayoutDifferential.report(width: 200, height: 100) {
         Box { PresentingPair().frame(width: px(50), height: px(50)) }
     }
-    expectAgreement(twoMemberFrame, "two-member .frame layer")
-    // Non-vacuity: every arm's absolute box really was laid out against the window.
+    expectNothingReported(twoMemberFrame, "two-member .frame layer")
+    // Every arm's absolute box really was laid out against the window: its hitbox
+    // (the one `onClick` in each tree) is there — a literal since stage 9, where
+    // the comparison carried it for the last four arms.
+    for (name, report) in [("gapped column", column), ("Stack", stack), ("ScrollView content", scroll),
+                           ("Component .padding", wrap), ("one-node .frame", oneNodeFrame),
+                           ("two-member .frame", twoMemberFrame)] {
+        #expect(report.frame.hitboxes.contains { $0.bounds == pBounds(5, 5, 10, 10) },
+                "\(name): hitboxes \(report.frame.hitboxes.map(\.bounds))")
+    }
     for (name, report, deferred) in [
         ("gapped column", column, pChild(pChild(pRoot, 0), 1)),
         ("Stack", stack, pChild(pChild(pRoot, 0), 1)),
     ] {
-        #expect(report.loweredBounds[pChild(deferred, 0)] == pBounds(5, 5, 10, 10),
-                "\(name): \(String(describing: report.loweredBounds[pChild(deferred, 0)]))")
+        #expect(report.bounds[pChild(deferred, 0)] == pBounds(5, 5, 10, 10),
+                "\(name): \(String(describing: report.bounds[pChild(deferred, 0)]))")
     }
 }
 
@@ -331,68 +353,60 @@ private struct PresentingPair: Component {
 
 /// **1.5** (`LR-CL`, `LR-CK`, `LR-CJ` item 3; `LR-CP` item 2). A plain `Frame`
 /// under the proposal authority with diagnostics, the tree **as the root**; each
-/// arm's report exactly. The containing block is the window by construction, and
-/// every tree whose legacy containing block is not reports:
+/// arm's report exactly. The containing block is the window by construction.
 ///
-/// - a bordered root, a root declaring width 100 in a 200 window, a root
-///   `.frame(maxWidth: 100)` and a root `.frame(minWidth: 300)` →
-///   `deferred.containingBlock` (the last two measured at (85, 85) and (285, 85)
-///   in the legacy engine against (185, 85) for `.frame(maxWidth: 300)`, the
-///   separating arm, which reports nothing);
-/// - a `Deferred` root → `deferred.root`;
-/// - a presentation inside a top/left-5 presentation → `deferred.nested`; inside
-///   an `inset(0)` one → nothing (its padding box is the window);
+/// **Stage 9** (`LR-FF`, `LR-FG` item 4, `LR-FH` item 1): the seven arms whose
+/// legacy containing block was not the window — a bordered root, a root declaring
+/// width 100 in a 200 window, a `Deferred` root, a presentation inside a
+/// top/left-5 presentation, a root `.frame(maxWidth: 100)`, a root
+/// `.frame(minWidth: 300)`, and a presentation inside a **bordered** `inset(0)`
+/// one — reported `deferred.containingBlock`, `deferred.root` or
+/// `deferred.nested`; lane 3 deletes those reports with the legacy engine that
+/// defined them, and its N3.1 (`PresentationContainingBlockTests`) pins the same
+/// seven trees at the window rect with nothing reported. They are removed here,
+/// not re-valued. **Added**: divergence 11's proposal fact (the one
+/// `AbsoluteOverlayTests.anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt`
+/// held until lane 2 retires it) — an absolute box inside a `ScrollView` with no
+/// `Deferred` is reported at its consumer, `[box.position, box.inset]`. Eighteen
+/// arms become twelve. The remaining arms:
+///
+/// - a root declaring width 200, an auto root, a root `.frame(maxWidth: 300)` →
+///   nothing (the last was the separating arm of the removed clamped-frame arms);
+/// - a presentation inside an `inset(0)` one → nothing (its padding box is the
+///   window);
 /// - inside a `.relative` ancestor → the ancestor's own `box.position`;
 /// - an absolute box in a column with no `Deferred` → `[box.position, box.inset]`
 ///   at the consumer; an absolute root → the `.unconsumed` pair;
 /// - `minWidth` on an absolute box's `auto` axis → `box.minSize.absolute`;
 ///   `maxHeight` on one → `box.maxSize.absolute`; a percentage `minWidth` on a
 ///   declared axis → `box.minSize.percent` (lane 1's corrections, `LR-CQ`);
+/// - an absolute box inside a `ScrollView`, no `Deferred` → `[box.position,
+///   box.inset]` (divergence 11's proposal fact, stage 9);
 /// - `Component().width(70)` over a `Deferred`-absolute member → `deferred.amended`;
-/// - a presentation inside a **bordered** `inset(0)` presentation →
-///   `deferred.nested` (its padding box is the window inset by the border;
-///   `LR-CQ`);
 /// - and every `<field>.absolute` the frame reports is owned by **stage 10**
 ///   since stage 8 (`LR-CQ`; `LR-EZ` item 3 — it read stage 8 until then).
 ///
 /// Red-before: every `Deferred` arm reads `[box.position, box.inset]`; the
 /// absolute-root arm reads `[box.position, box.inset]`.
 ///
-/// Mutations that must redden it: **M1i** the containing-block check deleted
-/// (border, width-100 arms); **M1j** the nested check deleted; **M1k**
-/// `coversWindow` always false (the `inset(0)` arm reads `[deferred.nested]`);
-/// **M1l** `planLegacyItems`' `position` entry deleted (the column arm reads
-/// `[box.inset]`); **M1p** the check's `minSize`/`maxSize` clause deleted (the two
-/// clamped-frame arms read `[]`). Lane 1's corrections (`LR-CQ`) add **M1q**
-/// `owningStage` for `.absolute` → "2" (the stage-8 assertion); **M1r** the
-/// `maxSize.absolute` report deleted (the `maxHeight` arm reads `[]`, and the
+/// Mutations that must redden it: **M1k** `coversWindow` always false (the
+/// `inset(0)` arm reads `[deferred.nested]`, until lane 3 deletes the nested
+/// check); **M1l** `planLegacyItems`' `position` entry deleted (the column and
+/// `ScrollView` arms read `[box.inset]`). Lane 1's corrections (`LR-CQ`) add
+/// **M1q** `owningStage` for `.absolute` → "2" (the stage-8 assertion); **M1r**
+/// the `maxSize.absolute` report deleted (the `maxHeight` arm reads `[]`, and the
 /// owning-stage `#require`); **M1s** the `minSize.percent` report deleted (the
-/// percentage arm reads `[]`); **M1t** `presentationCoversWindow` ignoring the
-/// border (the bordered `inset(0)` arm reads `[]`).
+/// percentage arm reads `[]`). M1i, M1j, M1p and M1t targeted the removed arms'
+/// checks (stage 9).
 @MainActor
 @Test func aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName() throws {
     func presented() -> Deferred<Box<EmptyGroup>> {
         Deferred { absBox(insets(right: dim(5), bottom: dim(5))).cssWidth(px(10)).cssHeight(px(10)) }
     }
-    var bordered = Style()
-    bordered.border = Edges(all: .pixels(px(4)))
     typealias Arm = (name: String, got: [String], expected: [String])
     var arms: [Arm] = []
-    arms.append(("bordered root", rootDiagnostics { Box(style: bordered) { presented() } },
-                 ["deferred.containingBlock"]))
-    arms.append(("root width 100 in 200", rootDiagnostics { Box { presented() }.cssWidth(px(100)) },
-                 ["deferred.containingBlock"]))
     arms.append(("root width 200", rootDiagnostics { Box { presented() }.cssWidth(px(200)) }, []))
     arms.append(("auto root", rootDiagnostics { Box { presented() } }, []))
-    arms.append(("Deferred root", rootDiagnostics { presented() }, ["deferred.root"]))
-    arms.append(("inside a top/left-5 presentation", rootDiagnostics {
-        Box {
-            Deferred {
-                Box { presented() }.background(.surface).position(.absolute)
-                    .inset(insets(top: dim(5), left: dim(5)))
-            }
-        }
-    }, ["deferred.nested"]))
     arms.append(("inside an inset(0) presentation", rootDiagnostics {
         Box { Deferred { Box { presented() }.background(.surface).position(.absolute).inset(px(0)) } }
     }, []))
@@ -401,6 +415,19 @@ private struct PresentingPair: Component {
     }, ["box.position"]))
     arms.append(("absolute in a column, no Deferred", rootDiagnostics {
         Column { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssHeight(px(10)) }
+    }, ["box.position", "box.inset"]))
+    // Stage 9: divergence 11's proposal fact (`AbsoluteOverlayTests`' retired
+    // `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt`): an absolute
+    // box in a `ScrollView` with no `Deferred` is reported at its consumer, the
+    // scroller's lowered content node — site `box`, the box's own.
+    arms.append(("absolute in a ScrollView, no Deferred", rootDiagnostics {
+        Box {
+            ScrollView(.vertical) {
+                Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
+                absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(22)).cssHeight(px(20))
+            }
+        }
+        .cssWidth(px(60)).cssHeight(px(60))
     }, ["box.position", "box.inset"]))
     arms.append(("absolute root", rootDiagnostics {
         absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssHeight(px(10))
@@ -411,16 +438,11 @@ private struct PresentingPair: Component {
     arms.append(("Component amend over a presentation member", rootDiagnostics {
         Box { PresentingSolo().width(px(70)) }
     }, ["deferred.amended"]))
-    arms.append(("root .frame(maxWidth: 100)", rootDiagnostics {
-        Box { presented() }.frame(maxWidth: px(100))
-    }, ["deferred.containingBlock"]))
-    arms.append(("root .frame(minWidth: 300)", rootDiagnostics {
-        Box { presented() }.frame(minWidth: px(300))
-    }, ["deferred.containingBlock"]))
     arms.append(("root .frame(maxWidth: 300) (the separating arm)", rootDiagnostics {
         Box { presented() }.frame(maxWidth: px(300))
     }, []))
-    // Lane 1 corrections (`LR-CQ`): four claims the source made that no arm saw.
+    // Lane 1 corrections (`LR-CQ`): four claims the source made that no arm saw
+    // (the fourth, the bordered `inset(0)` presentation, removed at stage 9).
     arms.append(("maxHeight on an auto axis", rootDiagnostics {
         Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssMaxHeight(px(50)) } }
     }, ["box.maxSize.absolute"]))
@@ -434,16 +456,7 @@ private struct PresentingPair: Component {
             }
         }
     }, ["box.minSize.percent"]))
-    var borderedCover = Style()
-    borderedCover.border = Edges(all: .pixels(px(3)))
-    arms.append(("inside a bordered inset(0) presentation", rootDiagnostics {
-        Box {
-            Deferred {
-                Box(style: borderedCover) { presented() }.background(.surface).position(.absolute).inset(px(0))
-            }
-        }
-    }, ["deferred.nested"]))
-    try #require(arms.count == 18)
+    try #require(arms.count == 12)
     for arm in arms {
         #expect(arm.got == arm.expected, "\(arm.name): \(arm.got)")
     }
@@ -460,35 +473,6 @@ private struct PresentingPair: Component {
     for field in absoluteFields {
         #expect(field.owningStage == "10", "\(field) is owned by stage \(field.owningStage)")
     }
-}
-
-/// **1.6** (`LR-CL`; exit test). In a production frame — diagnostics off — a
-/// presentation whose containing block is not the window traps, naming its field
-/// and **stage 9**, the stage that deletes the legacy authority and with it the
-/// answer the report protects.
-///
-/// Red-before: the child traps on `box.position … stage 2`.
-///
-/// Mutation that must redden it: **M1m** `owningStage` for `.deferred` → "5".
-@Test func aPresentationTrapsAProductionProposalFrameNamingItsField() async throws {
-    let child = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var bordered = Style()
-            bordered.border = Edges(all: .pixels(Pixels(4)))
-            var root = Box(style: bordered) {
-                Deferred {
-                    Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)).position(.absolute)
-                        .inset(Edges(top: .length(.pixels(Pixels(5))), right: .auto, bottom: .auto,
-                                     left: .length(.pixels(Pixels(5)))))
-                }
-            }
-            Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
-        }
-    }
-    let stderr = String(decoding: child?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("MetalUI: deferred.containingBlock has no proposal lowering (plan task 7, stage 9)"),
-            "aborted, but not at the containing-block check:\n\(stderr)")
 }
 
 // MARK: - 1.7 Presentations are laid out before the root (`LR-CM`)
@@ -508,7 +492,7 @@ private struct PresentingPair: Component {
     func frame<E: Element>(_ make: () -> E) -> Frame {
         var root = make()
         let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
-                          layoutAuthority: .proposal, reportsUnlowerableFields: true, recordsElementBounds: true)
+                          reportsUnlowerableFields: true, recordsElementBounds: true)
         frame.render(&root)
         return frame
     }
@@ -545,7 +529,7 @@ private struct PresentingPair: Component {
 
 /// A2's old spelling, the deprecated own-box size (class D, `LR-EW`).
 private struct FramedAbsoluteOldSpelling: DeprecatedSpelling {
-    @available(*, deprecated, message: "spells the absolute box with the deprecated sizing modifiers on purpose: A0, the control of aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities (stage 8, LR-EW class D)")
+    @available(*, deprecated, message: "spells the absolute box with the deprecated sizing modifiers on purpose: A0, the control of aFramedAbsoluteBoxIsAPresentationRoot (stage 8, LR-EW class D)")
     func spelled() -> Box<EmptyGroup> {
         Box().width(px(20)).height(px(20)).background(.accent).onClick {}
             .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
@@ -563,37 +547,30 @@ private struct PlainPair: Component {
 /// **N1.2** (`LR-EV` items 1–2; record §50 §3, A0/A1). A1 —
 /// `Box().frame(width: 20, height: 20).background(.accent).onClick {}
 /// .position(.absolute).inset(top 10, left 30)` inside a `Deferred` — lays out at
-/// (30, 10) 20×20 with its hitbox there, under **both** authorities, and the
-/// proposal frame reports nothing; A0, the deprecated own-box spelling, reads the
-/// same (its control).
+/// (30, 10) 20×20 with its hitbox there (under **both** authorities until stage
+/// 9), and the frame reports nothing; A0, the deprecated own-box spelling, reads
+/// the same (its control).
 ///
 /// Red before (`85217e3`'s source): the proposal arm lays the box out at 0×0 and
 /// reports `modifierLayer.style` (record §50 §3).
 ///
 /// Mutation that must redden it: **M1a** (the frame layer's `style` comparison
 /// restored to the exact one — no absolute exemption) → this test and N1.4.
+///
+/// **Renamed at stage 9** from `aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities() throws {
+@Test func aFramedAbsoluteBoxIsAPresentationRoot() throws {
     let expected = pBounds(30, 10, 20, 20)
     let box = pChild(pChild(pChild(pRoot, 0), 0), 0)
     func check<E: Element>(_ name: String, _ make: @escaping @MainActor () -> E) {
-        let report = LayoutDifferential.compare(width: 200, height: 200) {
+        let report = LayoutDifferential.report(width: 200, height: 200) {
             Box { Deferred { make() } }.alignItems(.flexStart)
         }
-        expectAgreement(report, name)
-        #expect(report.legacyBounds[box] == expected, "\(name): legacy \(String(describing: report.legacyBounds[box]))")
-        #expect(report.loweredBounds[box] == expected, "\(name): lowered \(String(describing: report.loweredBounds[box]))")
-        for authority in [LayoutAuthority.legacy, .proposal] {
-            let frame = LayoutDifferential.render(authority: authority, width: 200, height: 200) {
-                Box { Deferred { make() } }.alignItems(.flexStart)
-            }
-            let hits = frame.hitboxes.filter { $0.id == box }
-            #expect(hits.count == 1 && hits.first?.bounds == expected,
-                    "\(name), \(authority): hitboxes \(hits.map(\.bounds))")
-            if authority == .proposal {
-                #expect(frame.unlowerableFields.isEmpty, "\(name): \(frame.unlowerableFields)")
-            }
-        }
+        expectNothingReported(report, name)
+        #expect(report.bounds[box] == expected, "\(name): lowered \(String(describing: report.bounds[box]))")
+        let hits = report.frame.hitboxes.filter { $0.id == box }
+        #expect(hits.count == 1 && hits.first?.bounds == expected, "\(name): hitboxes \(hits.map(\.bounds))")
     }
     check("A1, .frame before .position") {
         Box().frame(width: px(20), height: px(20)).background(.accent).onClick {}
@@ -620,7 +597,7 @@ private struct PlainPair: Component {
 @Test func aFramesOwnBoundsOnAnAbsoluteAutoAxisAnswerAsSwiftUIsFrameDoes() throws {
     let box = pChild(pChild(pChild(pRoot, 0), 0), 0)
     func arm<E: Element>(_ name: String, _ make: @escaping @MainActor () -> E) -> (Bounds<Pixels>?, [String]) {
-        let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) {
+        let frame = LayoutDifferential.render(width: 200, height: 200) {
             Box { Deferred { make() } }.alignItems(.flexStart)
         }
         return (frame.elementBounds[box], frame.unlowerableFields.map(\.description))

@@ -10,7 +10,9 @@ import MetalUIText
 // overlay, and `ModifiedElement`'s layers — `.padding` through the container
 // lowering, `.frame` onto one native frame read from the layer's animated `Style`
 // plus its `FrameSpec` — under the proposal layout authority, compared with the
-// legacy engine through the differential harness (`LayoutDifferential.swift`).
+// legacy engine through the differential harness (`LayoutDifferential.swift`)
+// until stage 9, which deleted the legacy engine: each test now asserts the one
+// frame by literal (ruling `LR-FE` item 2; record §51, lane 1).
 //
 // **Red before**: on lane 3's tree a `Stack` reports `stack.noLowering` and every
 // layer `modifierLayer.noLowering` (record §18, lane 4), and `.frame(idealWidth:)`
@@ -61,28 +63,24 @@ private struct NoNodes: Component {
     var content: some ElementGroup { EmptyGroup() }
 }
 
-/// Every whole-frame observation agrees and nothing was reported.
+/// Nothing was reported. (Until stage 9 this was `expectFullAgreement`, which
+/// also required every element, the scene, the hitboxes, the accessibility
+/// records and the state slots to agree with the legacy engine's; that
+/// comparison is the deleted concept, `LR-FE` item 2.)
 @MainActor
-private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
-                                 sourceLocation: SourceLocation = #_sourceLocation) {
+private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String,
+                                   sourceLocation: SourceLocation = #_sourceLocation) {
     #expect(r.unlowerable.isEmpty, "\(arm): \(r.unlowerable)", sourceLocation: sourceLocation)
-    #expect(r.disagreeing.isEmpty, "\(arm): \(r.disagreeing)", sourceLocation: sourceLocation)
-    #expect(r.legacyOnly.isEmpty && r.loweredOnly.isEmpty,
-            "\(arm): legacyOnly \(r.legacyOnly) loweredOnly \(r.loweredOnly)", sourceLocation: sourceLocation)
-    #expect(r.scenesEqual, "\(arm): scenes", sourceLocation: sourceLocation)
-    #expect(r.hitboxesEqual, "\(arm): hitboxes", sourceLocation: sourceLocation)
-    #expect(r.accessibilityEqual, "\(arm): accessibility", sourceLocation: sourceLocation)
-    #expect(r.stateSlotsEqual, "\(arm): state slots", sourceLocation: sourceLocation)
 }
 
 private func lowered(_ r: LayoutDifferential.Report, _ ids: [GlobalElementID]) -> [Bounds<Pixels>?] {
-    ids.map { r.loweredBounds[$0] }
+    ids.map { r.bounds[$0] }
 }
 
 /// The proposal frame's diagnostics for `make()` inside a 100×100 harness root.
 @MainActor
 private func report<C: ElementGroup>(@ElementBuilder _ make: @MainActor () -> C) -> [UnlowerableField] {
-    LayoutDifferential.render(authority: .proposal, width: 100, height: 100, make).unlowerableFields
+    LayoutDifferential.render(width: 100, height: 100, make).unlowerableFields
 }
 
 // MARK: - 4.1, 4.2 — Stack
@@ -94,9 +92,9 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
     (.bottomLeading, 0, 1), (.bottom, 0.5, 1), (.bottomTrailing, 1, 1),
 ]
 
-/// **4.1.** A lowered `Stack` places fixed children at all nine alignments as the
-/// legacy stack does (ruling LR-G: for fixed children the fit-content offer and the
-/// proposal agree). Children a 20×10 and b 10×30; horizontal factor h, vertical v:
+/// **4.1.** A lowered `Stack` places fixed children at all nine alignments (ruling
+/// LR-G: for fixed children the legacy stack's fit-content offer and the proposal
+/// agreed, which the comparison held until stage 9). Children a 20×10 and b 10×30; horizontal factor h, vertical v:
 ///
 /// - **unsized**: the stack is the union, 20×30; a at (0, 20v), b at (10h, 0);
 /// - **sized 100×60 with `Style.padding`** top 4, right 6, bottom 8, left 10 (the
@@ -105,7 +103,7 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
 /// Further arms:
 /// - **container fields a stack does not read** — `flexDirection(.column)`, a gap,
 ///   `justifyContent(.spaceBetween)`, `flexWrap`, `alignContent` on a sized
-///   `.bottomTrailing` stack — report nothing and agree;
+///   `.bottomTrailing` stack — report nothing and place a at (80, 50), b at (90, 30);
 /// - **reported** (the report is exactly this): a `Stack` with
 ///   `.alignItems(.baseline)` → `[alignItems.baseline]`; with `.margin(2)` →
 ///   `[margin.unconsumed]` (an item field its parent reads since stage 2, and the
@@ -117,16 +115,20 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
 ///
 /// Mutation that must redden it: **M4a**, the overlay's horizontal and vertical
 /// factors swapped.
+///
+/// **Renamed at stage 9** from
+/// `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes() throws {
+@Test func aLoweredStackPlacesFixedChildrenAtAllNineAlignments() throws {
     let a = child(containerID, 0), b = child(containerID, 1)
     var arms = 0
     for (alignment, h, v) in stackAlignments {
-        let unsized = LayoutDifferential.compare(width: 200, height: 200) {
+        let unsized = LayoutDifferential.report(width: 200, height: 200) {
             Stack(alignment: alignment) { fixed(20, 10); fixed(10, 30) }
         }
         try #require(unsized.elements == 4, "unsized \(alignment): \(unsized.elements)")
-        expectFullAgreement(unsized, "unsized \(alignment)")
+        expectNothingReported(unsized, "unsized \(alignment)")
         #expect(lowered(unsized, [containerID, a, b])
                 == [bounds(0, 0, 20, 30), bounds(0, 20 * v, 20, 10), bounds(10 * h, 0, 10, 30)],
                 "unsized \(alignment)")
@@ -135,9 +137,9 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
         stack.style.padding = Edges(top: .pixels(px(4)), right: .pixels(px(6)),
                                     bottom: .pixels(px(8)), left: .pixels(px(10)))
         let padded = stack
-        let sized = LayoutDifferential.compare(width: 200, height: 200) { padded.background(.accent) }
+        let sized = LayoutDifferential.report(width: 200, height: 200) { padded.background(.accent) }
         try #require(sized.elements == 4, "sized \(alignment): \(sized.elements)")
-        expectFullAgreement(sized, "sized \(alignment)")
+        expectNothingReported(sized, "sized \(alignment)")
         #expect(lowered(sized, [containerID, a, b])
                 == [bounds(0, 0, 100, 60), bounds(10 + 64 * h, 4 + 38 * v, 20, 10),
                     bounds(10 + 74 * h, 4 + 18 * v, 10, 30)],
@@ -152,9 +154,9 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
         .flexWrap(.wrap).alignContent(.center)
     ignoring.style.flexDirection = .column
     let ignored = ignoring
-    let ignoredReport = LayoutDifferential.compare(width: 200, height: 200) { ignored }
+    let ignoredReport = LayoutDifferential.report(width: 200, height: 200) { ignored }
     try #require(ignoredReport.elements == 4)
-    expectFullAgreement(ignoredReport, "container fields a stack does not read")
+    expectNothingReported(ignoredReport, "container fields a stack does not read")
     #expect(lowered(ignoredReport, [a, b]) == [bounds(80, 50, 20, 10), bounds(90, 30, 10, 30)])
 
     let reported: [(String, [UnlowerableField], [UnlowerableField])] = [
@@ -172,44 +174,44 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
     }
 }
 
-/// **4.2.** A lowered `Stack` **offers its proposal** where the legacy stack offers
-/// fit-content (ruling LR-G, divergence 53; stack-algorithms probe A5: a greedy
-/// child of a `ZStack` at 100×80 fills 100×80). `Column { Stack { Text(long) } }`
-/// sized 60 wide in the harness root:
+/// **4.2.** A lowered `Stack` **offers its proposal** (ruling LR-G, divergence 53;
+/// stack-algorithms probe A5: a greedy child of a `ZStack` at 100×80 fills 100×80).
+/// `Column { Stack { Text(long) } }` sized 60 wide in the harness root: the
+/// column's frame proposes 60, the overlay proposes 60 to the text, which answers
+/// the shaper's widest line wrapped at 60 (`LR-F`), computed here from a fresh
+/// `ShapingCache`, and that wrap's total height.
 ///
-/// - legacy: the stack is a column item, fit-content against 60 → 60, and the text
-///   inside it fit-content against 60 → **60**;
-/// - lowered: the column's frame proposes 60, the overlay proposes 60 to the text,
-///   which answers the shaper's widest line wrapped at 60 (`LR-F`), computed here
-///   from a fresh `ShapingCache`.
-///
-/// The disagreement is a `try #require`. The report is empty.
+/// Until stage 9 the legacy stack offered fit-content (the text **60** wide) and
+/// the disagreement was a `try #require`; the separating arm is now the `try
+/// #require` that the widest line is narrower than 60. The report is empty.
 ///
 /// Mutation that must redden it: **M4b**, each lowered stack child wrapped in a
 /// native `fixedSize` (the text is measured unwrapped, one long line).
+///
+/// **Renamed at stage 9** from
+/// `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent` (`LR-FE`
+/// item 6): the collapsed test no longer asserts the legacy half.
 @MainActor
-@Test func aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent() throws {
-    let r = LayoutDifferential.compare(width: 200, height: 300) {
+@Test func aLoweredStackOffersItsChildItsProposal() throws {
+    let r = LayoutDifferential.report(width: 200, height: 300) {
         Column { Stack { Text(longString) } }.cssWidth(px(60))
     }
     // root, column, stack, text
     try #require(r.elements == 4)
     #expect(r.unlowerable.isEmpty, "\(r.unlowerable)")
     let text = child(child(containerID, 0), 0)
-    let legacy = try #require(r.legacyBounds[text])
-    let loweredText = try #require(r.loweredBounds[text])
+    let loweredText = try #require(r.bounds[text])
     let cache = ShapingCache()
-    let widest = cache.shaped(longString, font: cache.resolveFont(family: nil, size: 13),
-                              wrappingAt: 60).widestLine
-    #expect(legacy.size.width == px(60))
-    #expect(loweredText.size.width == Pixels(Float(widest.rounded())))
-    #expect(legacy.size.height == loweredText.size.height)
-    try #require(legacy.size.width != loweredText.size.width)
+    let shaped = cache.shaped(longString, font: cache.resolveFont(family: nil, size: 13),
+                              wrappingAt: 60)
+    try #require(Float(shaped.widestLine.rounded()) < 60, "the widest line must be narrower than 60: \(shaped.widestLine)")
+    #expect(loweredText.size.width == Pixels(Float(shaped.widestLine.rounded())))
+    #expect(loweredText.size.height == Pixels(Float(shaped.totalHeight.rounded())))
 }
 
 // MARK: - 4.3–4.5 — padding and frame layers
 
-/// **4.3.** A lowered `.padding` layer agrees with the legacy wrapper (a padding
+/// **4.3.** A lowered `.padding` layer insets its content by each edge (a padding
 /// layer is a one-child container: `LR-E`'s single-child stretch with no declared
 /// cross size, so nothing is reported).
 ///
@@ -218,29 +220,33 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
 /// - asymmetric edges top 2, right 4, bottom 6, left 8 over the box: layer 32×18,
 ///   the box at (8, 2);
 /// - `Text("Count 3").padding(4)` and the same asymmetric edges over it, with a
-///   background: agreement, glyphs included, the text at (4, 4) and (8, 2).
+///   background: the text at (4, 4) and (8, 2), drawing its six glyphs (compared
+///   with the legacy wrapper's until stage 9, a literal since).
 ///
 /// Mutation that must redden it: **M4c**, the lowered padding's top and bottom
 /// insets swapped (the asymmetric arms' content moves to y 6).
+///
+/// **Renamed at stage 9** from `aLoweredPaddingLayerAgreesWithTheLegacyWrapper`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredPaddingLayerAgreesWithTheLegacyWrapper() throws {
+@Test func aLoweredPaddingLayerInsetsItsContentByEachEdge() throws {
     let inner = child(containerID, 0)
-    let chain = LayoutDifferential.compare(width: 200, height: 200) {
+    let chain = LayoutDifferential.report(width: 200, height: 200) {
         fixed(20, 10).background(.accent).padding(px(4)).background(.surface)
             .padding(px(8)).background(.surfaceSecondary)
     }
     try #require(chain.elements == 4)
-    expectFullAgreement(chain, "padding(4).padding(8)")
+    expectNothingReported(chain, "padding(4).padding(8)")
     #expect(lowered(chain, [containerID, inner, child(inner, 0)])
             == [bounds(0, 0, 44, 34), bounds(8, 8, 28, 18), bounds(12, 12, 20, 10)])
 
     let edges = Edges<Length>(top: .pixels(px(2)), right: .pixels(px(4)),
                               bottom: .pixels(px(6)), left: .pixels(px(8)))
-    let asymmetric = LayoutDifferential.compare(width: 200, height: 200) {
+    let asymmetric = LayoutDifferential.report(width: 200, height: 200) {
         fixed(20, 10).padding(edges).background(.accent)
     }
     try #require(asymmetric.elements == 3)
-    expectFullAgreement(asymmetric, "asymmetric box")
+    expectNothingReported(asymmetric, "asymmetric box")
     #expect(lowered(asymmetric, [containerID, child(containerID, 0)])
             == [bounds(0, 0, 32, 18), bounds(8, 2, 20, 10)])
 
@@ -248,12 +254,11 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
     for (name, element, origin) in [("text padding(4)", Text("Count 3").padding(px(4)), (Float(4), Float(4))),
                                      ("text asymmetric", Text("Count 3").padding(edges), (Float(8), Float(2)))] {
         let decorated = element.background(.accent)
-        let legacy = LayoutDifferential.render(authority: .legacy, width: 200, height: 200) { decorated }
-        try #require(legacy.scene.glyphs.count >= 6, "\(name)")
-        let r = LayoutDifferential.compare(width: 200, height: 200) { decorated }
+        let r = LayoutDifferential.report(width: 200, height: 200) { decorated }
         try #require(r.elements == 3, "\(name)")
-        expectFullAgreement(r, name)
-        #expect(r.loweredBounds[child(containerID, 0)]?.origin
+        expectNothingReported(r, name)
+        #expect(r.frame.scene.glyphs.count == 6, "\(name)")
+        #expect(r.bounds[child(containerID, 0)]?.origin
                 == Point(x: px(origin.0), y: px(origin.1)), "\(name)")
         arms += 1
     }
@@ -266,26 +271,29 @@ private let frameAlignments: [(ProposalAlignment, Float, Float)] = [
     (.bottomLeading, 0, 1), (.bottom, 0.5, 1), (.bottomTrailing, 1, 1),
 ]
 
-/// **4.4.** A lowered fixed `.frame(width: 60, height: 40, alignment:)` agrees with
-/// the legacy frame layer (a one-cell stack over one node, ruling `CN-N`) at all
-/// nine alignments, over a child smaller than the frame (20×10: at (40h, 30v)) and
+/// **4.4.** A lowered fixed `.frame(width: 60, height: 40, alignment:)` places its
+/// child as the legacy frame layer did (a one-cell stack over one node, ruling
+/// `CN-N`; compared until stage 9) at all nine alignments, over a child smaller than the frame (20×10: at (40h, 30v)) and
 /// one larger (80×60: at (−20h, −20v), overflowing, probe arms A5/B9). A frame over
 /// **no** node (`NoNodes().frame(width: 40, height: 40)`, a component with no
-/// node) is 40×40 on both sides.
+/// node) is 40×40.
 ///
 /// Mutation that must redden it: **M4d**, the lowered frame's alignment forced
 /// `.center`.
+///
+/// **Renamed at stage 9** from
+/// `aLoweredFixedFrameLayerAgreesWithTheLegacyFrameOverAFixedChild` (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredFixedFrameLayerAgreesWithTheLegacyFrameOverAFixedChild() throws {
+@Test func aLoweredFixedFrameLayerPlacesAFixedChildAtEachAlignment() throws {
     let content = child(containerID, 0)
     var arms = 0
     for (alignment, h, v) in frameAlignments {
         for (w, hgt, at) in [(Float(20), Float(10), (40 * h, 30 * v)), (Float(80), Float(60), (-20 * h, -20 * v))] {
-            let r = LayoutDifferential.compare(width: 200, height: 200) {
+            let r = LayoutDifferential.report(width: 200, height: 200) {
                 fixed(w, hgt).frame(width: px(60), height: px(40), alignment: alignment).background(.accent)
             }
             try #require(r.elements == 3, "\(alignment) \(w)")
-            expectFullAgreement(r, "\(alignment) \(w)×\(hgt)")
+            expectNothingReported(r, "\(alignment) \(w)×\(hgt)")
             #expect(lowered(r, [containerID, content])
                     == [bounds(0, 0, 60, 40), bounds(at.0, at.1, w, hgt)], "\(alignment) \(w)×\(hgt)")
             arms += 1
@@ -293,67 +301,55 @@ private let frameAlignments: [(ProposalAlignment, Float, Float)] = [
     }
     try #require(arms == 18)
 
-    let empty = LayoutDifferential.compare(width: 200, height: 200) {
+    let empty = LayoutDifferential.report(width: 200, height: 200) {
         NoNodes().frame(width: px(40), height: px(40)).background(.accent)
     }
     try #require(empty.elements == 2)
-    expectFullAgreement(empty, "frame over no node")
+    expectNothingReported(empty, "frame over no node")
     #expect(lowered(empty, [containerID]) == [bounds(0, 0, 40, 40)])
 }
 
-/// **4.5.** A lowered **flexible** frame takes SwiftUI's answer where the legacy
-/// frame clamps (ruling LR-H; `FR-E`, divergence 35; `FR-O`). Each inside a
-/// 100-wide `Column` (centred) in the harness root, over a 20×20 box:
+/// **4.5.** A lowered **flexible** frame takes SwiftUI's answer (ruling LR-H;
+/// `FR-E`, divergence 35; `FR-O`). Each inside a 100-wide `Column` (centred) in the
+/// harness root, over a 20×20 box:
 ///
-/// - `.frame(minWidth: 40, maxWidth: 80)`: legacy 40 wide at x 30 (a CSS clamp of
-///   the child's 20); lowered **80** at x 10 (frame probe D control: 80×20 at a
-///   100 proposal). The box is at x 40 on both sides;
-/// - `.frame(maxWidth: .infinity)` alone: legacy 20 at x 40 (a single infinite
-///   maximum is inert, `FR-O`); lowered **100** at x 0. The box at x 40 on both.
+/// - `.frame(minWidth: 40, maxWidth: 80)`: **80** at x 10 (frame probe D control:
+///   80×20 at a 100 proposal). The box is at x 40;
+/// - `.frame(maxWidth: .infinity)` alone: **100** at x 0. The box at x 40.
 ///
-/// Each disagreement is a `try #require`; the reports are empty.
+/// The reports are empty. Until stage 9 the legacy frame's clamp — 40 at x 30, and
+/// 20 at x 40 (a single infinite maximum is inert, `FR-O`) — was asserted beside
+/// these, each disagreement a `try #require`.
 ///
 /// Mutation that must redden it: **M4e**, the flexible frame lowered as a CSS clamp
 /// (a `fixedSize` child clamped to min/max: the lowered frame reads 40 and 20).
+///
+/// **Renamed at stage 9** from
+/// `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps() throws {
+@Test func aLoweredFlexibleFrameLayerTakesSwiftUIsAnswer() throws {
     let frameID = child(containerID, 0)
     let box = child(frameID, 0)
 
-    let bounded = LayoutDifferential.compare(width: 200, height: 200) {
+    let bounded = LayoutDifferential.report(width: 200, height: 200) {
         Column { fixed(20, 20).frame(minWidth: px(40), maxWidth: px(80)) }.cssWidth(px(100))
     }
     try #require(bounded.elements == 4)
     #expect(bounded.unlowerable.isEmpty, "\(bounded.unlowerable)")
-    try #require(bounded.legacyBounds[frameID] != bounded.loweredBounds[frameID])
-    #expect(bounded.legacyBounds[frameID] == bounds(30, 0, 40, 20))
-    #expect(bounded.loweredBounds[frameID] == bounds(10, 0, 80, 20))
-    #expect(bounded.legacyBounds[box] == bounds(40, 0, 20, 20))
-    #expect(bounded.loweredBounds[box] == bounds(40, 0, 20, 20))
+    #expect(bounded.bounds[frameID] == bounds(10, 0, 80, 20))
+    #expect(bounded.bounds[box] == bounds(40, 0, 20, 20))
 
-    let infinite = LayoutDifferential.compare(width: 200, height: 200) {
+    let infinite = LayoutDifferential.report(width: 200, height: 200) {
         Column { fixed(20, 20).frame(maxWidth: px(.infinity)) }.cssWidth(px(100))
     }
     try #require(infinite.elements == 4)
     #expect(infinite.unlowerable.isEmpty, "\(infinite.unlowerable)")
-    try #require(infinite.legacyBounds[frameID] != infinite.loweredBounds[frameID])
-    #expect(infinite.legacyBounds[frameID] == bounds(40, 0, 20, 20))
-    #expect(infinite.loweredBounds[frameID] == bounds(0, 0, 100, 20))
-    #expect(infinite.legacyBounds[box] == bounds(40, 0, 20, 20))
-    #expect(infinite.loweredBounds[box] == bounds(40, 0, 20, 20))
+    #expect(infinite.bounds[frameID] == bounds(0, 0, 100, 20))
+    #expect(infinite.bounds[box] == bounds(40, 0, 20, 20))
 }
 
 // MARK: - 4.6, 4.7 — ideal, animation
-
-@MainActor
-private func idealRow() -> some ElementGroup {
-    Row { fixed(20, 20).frame(idealWidth: px(80)) }
-}
-
-@MainActor
-private func idealColumn() -> some ElementGroup {
-    Column { fixed(20, 20).frame(idealHeight: px(80)) }
-}
 
 /// A custom layout that proposes nil×nil to its one subview, answers that
 /// subview's answer, and places it at its own origin at nil×nil.
@@ -367,9 +363,8 @@ private struct NilProposal: ProposalLayout {
     }
 }
 
-/// A root that measures and places its content at a **nil×nil** proposal under
-/// the proposal authority (a native `NilProposal` layout); it registers nothing
-/// under the legacy one, where only the ideal trap is exercised.
+/// A root that measures and places its content at a **nil×nil** proposal (a
+/// native `NilProposal` layout).
 @MainActor
 private struct NilProposalRoot<Content: ElementGroup>: Element {
     var content: Content
@@ -382,9 +377,7 @@ private struct NilProposalRoot<Content: ElementGroup>: Element {
                                 pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
-        let node = pass.lowersToProposal
-            ? pass.frame.requestNativeLayout(NilProposal(), children: children)
-            : pass.frame.requestNode(style: Style(), children: children)
+        let node = pass.frame.requestNativeLayout(NilProposal(), children: children)
         return (node, Layout(content: contentLayout))
     }
 
@@ -400,23 +393,25 @@ private struct NilProposalRoot<Content: ElementGroup>: Element {
     }
 }
 
-/// `make()` under a `NilProposalRoot`, under the proposal authority with
-/// diagnostics and the bounds log on.
+/// `make()` under a `NilProposalRoot`, with diagnostics and the bounds log on.
 @MainActor
 private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> C) -> Frame {
     var root = NilProposalRoot(content: make)
     let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)), scaleFactor: 1,
-                      layoutAuthority: .proposal, reportsUnlowerableFields: true,
+                      reportsUnlowerableFields: true,
                       recordsElementBounds: true)
     frame.render(&root)
     return frame
 }
 
-/// **4.6.** An ideal frame **lowers** under the proposal authority and **still
-/// traps** when laid out by the legacy engine (ruling LR-H, `FR-D`'s trap moved
-/// from construction to legacy registration).
+/// **4.6.** An ideal frame **lowers** (ruling LR-H). Until stage 9 it also still
+/// trapped when laid out by the legacy engine (`FR-D`'s trap moved from
+/// construction to legacy registration, `LR-H`); those two exit-test arms went
+/// with the legacy engine, and the test was **renamed** from
+/// `anIdealFrameLowersUnderTheProposalAuthorityAndStillTrapsUnderTheLegacyOne`
+/// (`LR-FE` item 6).
 ///
-/// - proposal arm, in a child process (on lane 3's tree construction traps, which
+/// - in a child process (on lane 3's tree construction traps, which
 ///   in-process would end the run): measured at a **nil** proposal (`NilProposal`,
 ///   a custom layout — nothing the stage-1 lowering registers proposes nil: a
 ///   lowered `Row` proposes its own finite proposal, where the frame answers its
@@ -425,14 +420,11 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
 ///   is 80×20), and `.frame(idealHeight: 80)` answers 20×80. A native root is
 ///   stored centred in the 200×200 window at its own answer (`CN-J`), so the frames
 ///   read (60, 90) 80×20 and (90, 60) 20×80, each with the box centred at (90, 90).
-///   The child prints both frame rects and both reports;
-/// - legacy arms (exit tests): rendering `Row { … .frame(idealWidth: 80) }` or its
-///   `Column`/`idealHeight` twin in the harness root under the legacy authority
-///   fails, and stderr names `idealWidth` / `idealHeight`.
+///   The child prints both frame rects and both reports.
 ///
 /// Mutation that must redden it: **M4f**, the ideal dropped from the lowering (the
 /// frames read 20×20).
-@Test func anIdealFrameLowersUnderTheProposalAuthorityAndStillTrapsUnderTheLegacyOne() async throws {
+@Test func anIdealFrameLowersAtANilProposal() async throws {
     let proposal = await #expect(processExitsWith: .success,
                                  observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
@@ -455,29 +447,13 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
         + "height \(String(describing: Optional(bounds(90, 60, 20, 80)))) "
         + "box \(String(describing: Optional(bounds(90, 90, 20, 20)))) report []\n"
     #expect(out.contains(expected), "stdout \(out)\nexpected \(expected)\nstderr \(err)")
-
-    let width = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            _ = LayoutDifferential.render(authority: .legacy, width: 200, height: 200) { idealRow() }
-        }
-    }
-    let widthErr = String(decoding: width?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(widthErr.contains("idealWidth has no legacy (CSS) lowering"), "\(widthErr)")
-
-    let height = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            _ = LayoutDifferential.render(authority: .legacy, width: 200, height: 200) { idealColumn() }
-        }
-    }
-    let heightErr = String(decoding: height?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(heightErr.contains("idealHeight has no legacy (CSS) lowering"), "\(heightErr)")
 }
 
 /// **4.7.** A frame layer lowers from its **animated** `Style` for what `Style`
 /// carries, and the check reads its **declared** style, so an animation never trips
 /// it (ruling LR-H). `fixed(10, 10).frame(width: 40)` animating to `.frame(width:
-/// 80)` under `withAnimation(.linear(duration: 1))`, derived by hand, under both
-/// authorities: the frame that starts the transaction reads the frame 40×10 with the
+/// 80)` under `withAnimation(.linear(duration: 1))`, derived by hand (and held
+/// under both authorities until stage 9): the frame that starts the transaction reads the frame 40×10 with the
 /// box at x 15; half-way, 60×10 with the box at x 25; the report is empty on every
 /// frame.
 ///
@@ -488,31 +464,25 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
 @MainActor
 @Test func aFrameLayerLowersFromItsAnimatedStyleForWhatStyleCarries() throws {
     let box = child(containerID, 0)
-    var arms = 0
-    for authority in [LayoutAuthority.legacy, .proposal] {
-        let table = StateTable()
-        func rects(width: Float, timestamp: Double, animating: Bool) -> [Bounds<Pixels>?] {
-            let element = fixed(10, 10).frame(width: px(width))
-            var root = DifferentialRoot(width: 200, height: 100) { element }
-            let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
-                              stateTable: table, timestamp: timestamp,
-                              transaction: animating ? .linear(duration: 1) : nil,
-                              layoutAuthority: authority,
-                              reportsUnlowerableFields: authority == .proposal,
-                              recordsElementBounds: true)
-            frame.render(&root)
-            #expect(frame.unlowerableFields.isEmpty, "\(authority) t \(timestamp): \(frame.unlowerableFields)")
-            return [containerID, box].map { frame.elementBounds[$0] }
-        }
-        #expect(rects(width: 40, timestamp: 0, animating: false)
-                == [bounds(0, 0, 40, 10), bounds(15, 0, 10, 10)], "\(authority) baseline")
-        #expect(rects(width: 80, timestamp: 0, animating: true)
-                == [bounds(0, 0, 40, 10), bounds(15, 0, 10, 10)], "\(authority) transaction start")
-        #expect(rects(width: 80, timestamp: 0.5, animating: false)
-                == [bounds(0, 0, 60, 10), bounds(25, 0, 10, 10)], "\(authority) half-way")
-        arms += 1
+    let table = StateTable()
+    func rects(width: Float, timestamp: Double, animating: Bool) -> [Bounds<Pixels>?] {
+        let element = fixed(10, 10).frame(width: px(width))
+        var root = DifferentialRoot(width: 200, height: 100) { element }
+        let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                          stateTable: table, timestamp: timestamp,
+                          transaction: animating ? .linear(duration: 1) : nil,
+                          reportsUnlowerableFields: true,
+                          recordsElementBounds: true)
+        frame.render(&root)
+        #expect(frame.unlowerableFields.isEmpty, "t \(timestamp): \(frame.unlowerableFields)")
+        return [containerID, box].map { frame.elementBounds[$0] }
     }
-    try #require(arms == 2)
+    #expect(rects(width: 40, timestamp: 0, animating: false)
+            == [bounds(0, 0, 40, 10), bounds(15, 0, 10, 10)], "baseline")
+    #expect(rects(width: 80, timestamp: 0, animating: true)
+            == [bounds(0, 0, 40, 10), bounds(15, 0, 10, 10)], "transaction start")
+    #expect(rects(width: 80, timestamp: 0.5, animating: false)
+            == [bounds(0, 0, 60, 10), bounds(25, 0, 10, 10)], "half-way")
 }
 
 // MARK: - 4.8, 4.9 — what a frame layer reports
@@ -523,8 +493,8 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
 /// `.frame(width: 40).width(60)`, `.frame(width: 40).minWidth(10)`,
 /// `.frame(maxWidth: 80).flexGrow(1)`, and on an **inner** layer
 /// `.frame(width: 40).alignItems(.flexEnd).padding(4)`. Control:
-/// `.frame(width: 40).background(.accent)` reports nothing and agrees (a
-/// `Decoration` is not `Style`).
+/// `.frame(width: 40).background(.accent)` reports nothing and lays out 40×10 with
+/// the box at x 15 (a `Decoration` is not `Style`).
 ///
 /// Mutation that must redden it: **M4h**, the comparison made against
 /// `frameSpec.style()` without `lowered(_:childCount:)` (the control, a one-node
@@ -544,11 +514,11 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
         #expect(entries == expected, "\(name): \(entries)")
     }
 
-    let control = LayoutDifferential.compare(width: 200, height: 200) {
+    let control = LayoutDifferential.report(width: 200, height: 200) {
         fixed(10, 10).frame(width: px(40)).background(.accent)
     }
     try #require(control.elements == 3)
-    expectFullAgreement(control, "background after frame")
+    expectNothingReported(control, "background after frame")
     #expect(lowered(control, [containerID, child(containerID, 0)])
             == [bounds(0, 0, 40, 10), bounds(15, 0, 10, 10)])
 }
@@ -584,8 +554,8 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
     for (name, entries, expected) in arms {
         #expect(entries == expected, "\(name): \(entries)")
     }
-    let shown = LayoutDifferential.compare(width: 200, height: 200) { fixed(10, 10).frame(width: px(40)) }
-    let hidden = LayoutDifferential.compare(width: 200, height: 200) { fixed(10, 10).frame(width: px(40)).hidden() }
+    let shown = LayoutDifferential.report(width: 200, height: 200) { fixed(10, 10).frame(width: px(40)) }
+    let hidden = LayoutDifferential.report(width: 200, height: 200) { fixed(10, 10).frame(width: px(40)).hidden() }
     try #require(hidden.unlowerable.isEmpty, "\(hidden.unlowerable)")
     let ids = [containerID, child(containerID, 0)]
     try #require(lowered(shown, ids) == [bounds(0, 0, 40, 10), bounds(15, 0, 10, 10)])
@@ -595,12 +565,12 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
 // MARK: - 4.10–4.12 — verifier round (animated Stack and frame bounds, frame over no node)
 
 /// Renders `make(end)` animating from `make(start)` under
-/// `withAnimation(.linear(duration: 1))` on one `StateTable`, under `authority`
-/// in a 200×100 harness root, and returns `ids`' bounds on the frame before the
+/// `withAnimation(.linear(duration: 1))` on one `StateTable` in a 200×100 harness
+/// root, and returns `ids`' bounds on the frame before the
 /// transaction, the frame that starts it (t = 0) and half-way (t = 0.5). Every
 /// frame's report must be empty.
 @MainActor
-private func animatedRects<E: ElementGroup>(_ authority: LayoutAuthority, _ ids: [GlobalElementID],
+private func animatedRects<E: ElementGroup>(_ ids: [GlobalElementID],
                                             start: E, end: E,
                                             sourceLocation: SourceLocation = #_sourceLocation)
     -> [[Bounds<Pixels>?]] {
@@ -610,11 +580,10 @@ private func animatedRects<E: ElementGroup>(_ authority: LayoutAuthority, _ ids:
         let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
                           stateTable: table, timestamp: timestamp,
                           transaction: animating ? .linear(duration: 1) : nil,
-                          layoutAuthority: authority,
-                          reportsUnlowerableFields: authority == .proposal,
+                          reportsUnlowerableFields: true,
                           recordsElementBounds: true)
         frame.render(&root)
-        #expect(frame.unlowerableFields.isEmpty, "\(authority) t \(timestamp): \(frame.unlowerableFields)",
+        #expect(frame.unlowerableFields.isEmpty, "t \(timestamp): \(frame.unlowerableFields)",
                 sourceLocation: sourceLocation)
         return ids.map { frame.elementBounds[$0] }
     }
@@ -628,7 +597,8 @@ private func animatedRects<E: ElementGroup>(_ authority: LayoutAuthority, _ ids:
 /// `paddedAndSized` call; 3.8 pins only the linear-stack branch's). A
 /// `.topLeading` `Stack` over one 10×10 box, height 20, animates width 40 → 120 and
 /// `Style.padding` 0 → 8 under `withAnimation(.linear(duration: 1))`. Derived by
-/// hand, under both authorities (padding inside the declared size, `LR-E`):
+/// hand (and held under both authorities until stage 9; padding inside the declared
+/// size, `LR-E`):
 ///
 /// - before and at the transaction's start: stack (0, 0) 40×20, box (0, 0);
 /// - half-way: width 80, padding 4 — stack (0, 0) 80×20, box (4, 4).
@@ -644,25 +614,20 @@ private func animatedRects<E: ElementGroup>(_ authority: LayoutAuthority, _ ids:
         return s
     }
     let box = child(containerID, 0)
-    var arms = 0
-    for authority in [LayoutAuthority.legacy, .proposal] {
-        let r = animatedRects(authority, [containerID, box],
-                              start: stack(width: 40, padding: 0), end: stack(width: 120, padding: 8))
-        try #require(r.count == 3)
-        #expect(r[0] == [bounds(0, 0, 40, 20), bounds(0, 0, 10, 10)], "\(authority) baseline")
-        #expect(r[1] == [bounds(0, 0, 40, 20), bounds(0, 0, 10, 10)], "\(authority) transaction start")
-        #expect(r[2] == [bounds(0, 0, 80, 20), bounds(4, 4, 10, 10)], "\(authority) half-way")
-        arms += 1
-    }
-    try #require(arms == 2)
+    let r = animatedRects([containerID, box],
+                          start: stack(width: 40, padding: 0), end: stack(width: 120, padding: 8))
+    try #require(r.count == 3)
+    #expect(r[0] == [bounds(0, 0, 40, 20), bounds(0, 0, 10, 10)], "baseline")
+    #expect(r[1] == [bounds(0, 0, 40, 20), bounds(0, 0, 10, 10)], "transaction start")
+    #expect(r[2] == [bounds(0, 0, 80, 20), bounds(4, 4, 10, 10)], "half-way")
 }
 
 /// **4.11.** A frame layer's **minima and finite maxima** lower from its animated
 /// `Style` (`minSize`, `maxSize`), per axis and per bound (4.7 pins only a fixed
 /// width). Each animates 40 → 80 under `withAnimation(.linear(duration: 1))` in the
 /// 200×100 harness root; derived by hand, the frame reads 40 before and at the
-/// transaction's start and 60 half-way on the animated axis, under both
-/// authorities:
+/// transaction's start and 60 half-way on the animated axis (under both
+/// authorities until stage 9):
 ///
 /// - `.frame(minWidth:)` over a 10×10 box: 40×10, 40×10, 60×10;
 /// - `.frame(minHeight:)` over a 10×10 box: 10×40, 10×40, 10×60;
@@ -689,38 +654,36 @@ private func animatedRects<E: ElementGroup>(_ authority: LayoutAuthority, _ ids:
     ]
     var ran = 0
     for (name, start, end, expected) in arms {
-        for authority in [LayoutAuthority.legacy, .proposal] {
-            let r = animatedRects(authority, [containerID], start: start, end: end)
-            try #require(r.count == 3)
-            #expect(r.map { $0[0] } == expected, "\(name) \(authority): \(r)")
-            ran += 1
-        }
+        let r = animatedRects([containerID], start: start, end: end)
+        try #require(r.count == 3)
+        #expect(r.map { $0[0] } == expected, "\(name): \(r)")
+        ran += 1
     }
-    try #require(ran == 8)
+    try #require(ran == 4)
 }
 
 /// **4.12.** A frame over **no** node that is not fixed on both axes shows the
 /// stand-in leaf's size (4.4's arm is fixed on both, where it cannot): ruling
 /// LR-Z's agreement "for a fixed or min-only frame". `NoNodes().frame(width: 40)`
-/// is 40×0 and `NoNodes().frame(minWidth: 40)` is 40×0 on both sides.
+/// is 40×0 and `NoNodes().frame(minWidth: 40)` is 40×0 (on both sides until
+/// stage 9).
 ///
 /// Mutation that must redden it: **V6**, the stand-in leaf answers 10×10 (the
 /// lowered frames read 40×10).
 @MainActor
 @Test func aFrameOverNoNodeFixedOnOneAxisOrMinOnlyIsZeroOnTheOther() throws {
     let arms: [(String, LayoutDifferential.Report)] = [
-        ("width only", LayoutDifferential.compare(width: 200, height: 200) {
+        ("width only", LayoutDifferential.report(width: 200, height: 200) {
             NoNodes().frame(width: px(40)).background(.accent)
         }),
-        ("minWidth only", LayoutDifferential.compare(width: 200, height: 200) {
+        ("minWidth only", LayoutDifferential.report(width: 200, height: 200) {
             NoNodes().frame(minWidth: px(40)).background(.accent)
         }),
     ]
     try #require(arms.count == 2)
     for (name, r) in arms {
         try #require(r.elements == 2, "\(name): \(r.elements)")
-        expectFullAgreement(r, name)
+        expectNothingReported(r, name)
         #expect(lowered(r, [containerID]) == [bounds(0, 0, 40, 0)], "\(name)")
-        #expect(r.legacyBounds[containerID] == bounds(0, 0, 40, 0), "\(name)")
     }
 }

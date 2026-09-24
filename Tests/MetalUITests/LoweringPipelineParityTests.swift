@@ -9,12 +9,12 @@ import MetalUIPlatform
 @testable import MetalUIDemoContent
 
 // Plan task 7, stage 1, lane 5 (`docs/superpowers/specs/2026-09-17-engine-replacement-design.md`
-// §6 lane 5; rulings LR-K, LR-Q, LR-AA): what happens AFTER layout is the same
-// under both layout authorities — click dispatch, focus, the keymap, the
-// accessibility tree, `@State` slots and animation, each driven through a real
-// `Window` per authority (`WindowPair`, `LayoutDifferential.swift`) — and the
-// lowering's own cost: its native work on a branching tree, and the native depth
-// guard's boundary under lowering.
+// §6 lane 5; rulings LR-K, LR-Q, LR-AA): what happens AFTER layout — click
+// dispatch, focus, the keymap, the accessibility tree, `@State` slots and
+// animation, driven through a real `Window` (until stage 9 one per authority, a
+// `WindowPair`, compared; since then one, against literals: `LR-FE` item 4,
+// record §51 lane 1) — and the lowering's own cost: its native work on a
+// branching tree, and the native depth guard's boundary under lowering.
 //
 // **Red before.** 5.4–5.6 did not compile on lane 4's tree (`Window` had no
 // element bounds log); 5.7's literals were derived by hand before the first run;
@@ -72,122 +72,97 @@ private func count(in window: Window) -> Int? {
     window.stateTable.peek(child(counterElementID, 0, "$state0"), as: Int.self)
 }
 
-/// Every whole-frame observation of a window pair agrees.
-@MainActor
-private func expectWindowAgreement(_ r: LayoutDifferential.Report, _ step: String,
-                                   sourceLocation: SourceLocation = #_sourceLocation) {
-    #expect(r.disagreeing.isEmpty, "\(step): \(r.disagreeing)", sourceLocation: sourceLocation)
-    #expect(r.legacyOnly.isEmpty && r.loweredOnly.isEmpty,
-            "\(step): legacyOnly \(r.legacyOnly) loweredOnly \(r.loweredOnly)", sourceLocation: sourceLocation)
-    #expect(r.scenesEqual, "\(step): scenes", sourceLocation: sourceLocation)
-    #expect(r.hitboxesEqual, "\(step): hitboxes", sourceLocation: sourceLocation)
-    #expect(r.accessibilityEqual, "\(step): accessibility", sourceLocation: sourceLocation)
-    #expect(r.stateSlotsEqual, "\(step): state slots", sourceLocation: sourceLocation)
-}
-
 // MARK: - 5.4 — clicks, focus and keys
 
-/// **5.4.** Through a real `Window` per authority, the counter — the demo's
-/// `CounterPanel()` in a 400-wide column inside `DifferentialRoot` (400×400) —
-/// dispatches clicks, focus and a keymap action to the same elements:
+/// **5.4.** Through a real `Window`, the counter — the demo's `CounterPanel()` in
+/// a 400-wide column inside `DifferentialRoot` (400×400) — dispatches clicks,
+/// focus and a keymap action to the right elements:
 ///
-/// 1. the first frame: 9 elements (root, column, counter, three boxes, three
-///    texts), all agreeing, the chrome at (0, 0) 260×60 and "+" at (212, 12) 36×36;
-/// 2. "+" clicked twice at its centre (230, 30): count 2 under both;
-/// 3. `window.focus(counter)`: the counter is focused under both (its
-///    `focusBackground` paints — the scenes still agree);
+/// 1. the first frame: 12 elements since stage 8 (root, column, counter, three
+///    `.frame` layers, three boxes, three texts), the chrome at (0, 0) 260×60 and
+///    "+" at (212, 12) 36×36, and exactly the two buttons' hitboxes;
+/// 2. "+" clicked twice at its centre (230, 30): count 2;
+/// 3. `window.focus(counter)`: the counter is focused;
 /// 4. "=" (bound to the library's `Increment` in context `"Counter"`, as
-///    `runDemo` binds it): count 3 under both, and the readout's glyphs agree.
+///    `runDemo` binds it): count 3, the readout drawing its eight glyphs
+///    (`-`, `Count 3` less its space, `+`).
 ///
-/// After every step: element bounds, the finalized scene, hitboxes, the state
-/// table's ids — and nothing trapped, which a production frame would have if the
-/// tree did not lower.
+/// And nothing trapped, which a production frame would have if the tree did not
+/// lower. Until stage 9 each step also compared the legacy window's element
+/// bounds, scene, hitboxes and state ids with this one's (`WindowPair`); the
+/// literals above are what that comparison carried (`LR-FE` items 2 and 4).
 ///
 /// Mutations that must redden it: **M5d**, lowered stack spacing + 50 (the chrome
 /// is 360 wide, "+" at x 312, and the click at 230 lands on the readout: count 0);
 /// **M1n** (stage 2, lane 1), the chrome's alignment frame aliased as its rect
 /// (the chrome's bounds widen to the column's 400).
+///
+/// **Renamed at stage 9** from `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements() throws {
+@Test func aLoweredWindowDispatchesClicksFocusAndKeys() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let pair = try WindowPair(device: device, size: 400) { counterColumn() }
-    pair.both { window, _ in
-        window.keymap = Keymap { KeyBinding("=", Increment(), context: "Counter") }
-        window.drawFrameIfNeeded()
-    }
-    let first = pair.report()
+    let (window, platform) = try makeLoweredWindow(device: device, size: 400) { counterColumn() }
+    window.keymap = Keymap { KeyBinding("=", Increment(), context: "Counter") }
+    window.drawFrameIfNeeded()
     // 12 since stage 8 (`LR-EZ`): the counter's three squares each gained a
     // `.frame` layer, one identity level apiece (`LR-ES`'s R7) — 9 + 3.
-    try #require(first.elements == 12, "\(first.elements)")
-    expectWindowAgreement(first, "first frame")
-    #expect(pair.lowered.window.lastElementBounds[counterElementID] == bounds(0, 0, 260, 60))
-    #expect(pair.lowered.window.lastElementBounds[child(counterElementID, 2)] == bounds(212, 12, 36, 36))
+    try #require(window.lastElementBounds.count == 12, "\(window.lastElementBounds.count)")
+    #expect(window.lastElementBounds[counterElementID] == bounds(0, 0, 260, 60))
+    #expect(window.lastElementBounds[child(counterElementID, 2)] == bounds(212, 12, 36, 36))
+    #expect(window.lastHitboxes.map(\.bounds) == [bounds(12, 12, 36, 36), bounds(212, 12, 36, 36)],
+            "\(window.lastHitboxes.map(\.bounds))")
 
-    pair.both { window, platform in
-        click(platform, at: pt(230, 30))
-        window.drawFrameIfNeeded()
-        click(platform, at: pt(230, 30))
-        window.drawFrameIfNeeded()
-    }
-    #expect(count(in: pair.legacy.window) == 2)
-    #expect(count(in: pair.lowered.window) == 2)
-    expectWindowAgreement(pair.report(), "two clicks")
+    click(platform, at: pt(230, 30))
+    window.drawFrameIfNeeded()
+    click(platform, at: pt(230, 30))
+    window.drawFrameIfNeeded()
+    #expect(count(in: window) == 2)
 
-    pair.both { window, _ in
-        window.focus(counterElementID)
-        window.drawFrameIfNeeded()
-    }
-    #expect(pair.legacy.window.focusedElement == counterElementID)
-    #expect(pair.lowered.window.focusedElement == counterElementID)
-    expectWindowAgreement(pair.report(), "focused")
+    window.focus(counterElementID)
+    window.drawFrameIfNeeded()
+    #expect(window.focusedElement == counterElementID)
 
-    pair.both { window, platform in
-        #expect(platform.simulateInput(keyDown("=")), "the keymap claims '='")
-        window.drawFrameIfNeeded()
-    }
-    #expect(count(in: pair.legacy.window) == 3)
-    #expect(count(in: pair.lowered.window) == 3)
-    expectWindowAgreement(pair.report(), "Increment")
+    #expect(platform.simulateInput(keyDown("=")), "the keymap claims '='")
+    window.drawFrameIfNeeded()
+    #expect(count(in: window) == 3)
+    #expect(window.lastScene.glyphs.count == 8, "\(window.lastScene.glyphs.count)")
 }
 
 // MARK: - 5.5 — the accessibility tree
 
-/// **5.5.** The same root publishes the same accessibility tree under both
-/// authorities: activated (`.activate`), drawn, then after a click on "+" and a
-/// focus move — every tree each window published, compared in order
-/// (`AccessibilityTree` is `Equatable`: nodes, geometry, hierarchy, focus). The
-/// tree is not empty: it holds the "Decrement" and "Increment" buttons with their
-/// frames at (12, 12) and (212, 12).
-///
-/// The pair records 9 elements (a `try #require`, stage 2 lane 1).
+/// **5.5.** The root publishes its accessibility tree: activated (`.activate`),
+/// drawn, then after a click on "+" and a focus move. The tree is not empty: it
+/// holds the "Decrement" and "Increment" buttons with their frames at (12, 12)
+/// and (212, 12), at least two trees were published, and the window records 12
+/// elements (a `try #require`, stage 2 lane 1; 12 since stage 8). Until stage 9
+/// every tree was compared, in order, with the legacy window's (`WindowPair`).
 ///
 /// Mutations that must redden it: **M5d** (the buttons' geometry moves); **M1n**
 /// (the counter's accessibility frame widens to the column's 400).
+///
+/// **Renamed at stage 9** from `aLoweredWindowPublishesTheSameAccessibilityTree`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredWindowPublishesTheSameAccessibilityTree() throws {
+@Test func aLoweredWindowPublishesItsAccessibilityTree() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let pair = try WindowPair(device: device, size: 400) { counterColumn() }
-    pair.both { window, platform in
-        #expect(platform.simulateAccessibilityRequest(.activate))
-        window.drawFrameIfNeeded()
-        click(platform, at: pt(230, 30))
-        window.drawFrameIfNeeded()
-        window.focus(counterElementID)
-        window.drawFrameIfNeeded()
-    }
-    let legacyTrees = pair.legacy.platform.publishedAccessibilityTrees
-    try #require(legacyTrees.count >= 2, "\(legacyTrees.count)")
-    try #require(pair.lowered.platform.publishedAccessibilityTrees.count == legacyTrees.count)
-    let last = try #require(pair.lowered.platform.publishedAccessibilityTrees.last)
+    let (window, platform) = try makeLoweredWindow(device: device, size: 400) { counterColumn() }
+    #expect(platform.simulateAccessibilityRequest(.activate))
+    window.drawFrameIfNeeded()
+    click(platform, at: pt(230, 30))
+    window.drawFrameIfNeeded()
+    window.focus(counterElementID)
+    window.drawFrameIfNeeded()
+    let trees = platform.publishedAccessibilityTrees
+    try #require(trees.count >= 2, "\(trees.count)")
+    let last = try #require(trees.last)
     let frames = last.nodes.compactMap { id, node -> Bounds<Pixels>? in
         guard node.label == "Increment" || node.label == "Decrement" else { return nil }
         return last.geometry[id]?.frame
     }
     #expect(Set(frames.map { "\($0)" }) == Set([bounds(12, 12, 36, 36), bounds(212, 12, 36, 36)].map { "\($0)" }))
-    let report = pair.report()
     // 12 since stage 8 (`LR-EZ`), as in 5.4 above.
-    try #require(report.elements == 12, "\(report.elements)")
-    expectWindowAgreement(report, "accessibility")
+    try #require(window.lastElementBounds.count == 12, "\(window.lastElementBounds.count)")
 }
 
 // MARK: - 5.6 — state slots and animation
@@ -197,42 +172,43 @@ private final class WidthModel {
     var wide = false
 }
 
-/// **5.6.** The same root mints the same `StateTable` ids — `CounterPanel()`'s (in
+/// **5.6.** The root mints its `StateTable` ids — `CounterPanel()`'s (in
 /// `counterColumn()`, stage 2 lane 1) `$state0` (written by a click on "+"; an unwritten count had no entry when this
 /// was first run), `$focus` and `$anim` slots, and the "+" button's `$ax` slot
 /// (its declared label; a synthesized node is a record, never a slot, `AB-U`, so
 /// the unlabelled counter has none — also found by the first run) — and animates
-/// the same widths under both authorities.
+/// its widths (under both authorities until stage 9, whose windows' ids were
+/// compared).
 ///
 /// A `.flexStart` column in `DifferentialRoot` (400×400) over a `Box` whose width
 /// animates 196 → 320 and a 20×10 box under a `.frame(width:height: 20)` layer
 /// whose width does the same, one `withAnimation(.linear(duration: 1))` driven
 /// through the display link: at t = 100 (before), t = 100 (the frame that starts
-/// the transaction) and t = 100.5, both widths read **196, 196, 258** under both
-/// authorities (the prototype measured the `Box`, record §18 P1).
+/// the transaction) and t = 100.5, both widths read **196, 196, 258** (the
+/// prototype measured the `Box`, record §18 P1).
 ///
 /// Mutation that must redden it: **M5e**, `Box` hands `lowerLegacyNode` the style
 /// captured before `animated(…)` (the lowered box reads 320 at the transaction's
 /// start).
+///
+/// **Renamed at stage 9** from `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths() throws {
+@Test func aLoweredTreeMintsItsStateSlotsAndAnimatesItsWidths() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let counter = try WindowPair(device: device, size: 400) { counterColumn() }
-    counter.both { window, platform in
-        #expect(platform.simulateAccessibilityRequest(.activate))
-        window.drawFrameIfNeeded()
-        click(platform, at: pt(230, 30))
-        window.drawFrameIfNeeded()
-        window.focus(counterElementID)
-        window.drawFrameIfNeeded()
-    }
-    let ids = counter.lowered.window.stateTable.ids
+    let (counter, counterPlatform) = try makeLoweredWindow(device: device, size: 400) { counterColumn() }
+    #expect(counterPlatform.simulateAccessibilityRequest(.activate))
+    counter.drawFrameIfNeeded()
+    click(counterPlatform, at: pt(230, 30))
+    counter.drawFrameIfNeeded()
+    counter.focus(counterElementID)
+    counter.drawFrameIfNeeded()
+    let ids = counter.stateTable.ids
     let plus = child(counterElementID, 2)
     for (owner, slot) in [(counterElementID, "$state0"), (counterElementID, "$focus"),
                           (counterElementID, "$anim"), (plus, "$ax")] {
         #expect(ids.contains { $0.parent == owner && $0.component == .named(ElementID(slot)) }, "slot \(slot)")
     }
-    #expect(counter.legacy.window.stateTable.ids == ids)
 
     func animatedColumn(_ width: Float) -> some ElementGroup {
         Column {
@@ -241,36 +217,29 @@ private final class WidthModel {
         }
         .alignItems(.flexStart)
     }
-    // `WindowPair`'s pre-flight, for both ends of the animation: a report here
-    // would otherwise trap inside the window below and end the run.
+    // The pre-flight `makeLoweredWindow` runs, for both ends of the animation: a
+    // report here would otherwise trap inside the window below and end the run.
     for width: Float in [196, 320] {
-        let preflight = LayoutDifferential.compare(width: 400, height: 400) { animatedColumn(width) }
+        let preflight = LayoutDifferential.report(width: 400, height: 400) { animatedColumn(width) }
         try #require(preflight.unlowerable.isEmpty, "\(width): \(preflight.unlowerable)")
     }
     let column = child(rootID, 0)
-    var widths: [LayoutAuthority: [[Float]]] = [:]
-    for authority in [LayoutAuthority.legacy, .proposal] {
-        let model = WidthModel()
-        let (window, platform) = try makeFakeWindow(device: device, size: 400, startsDisplayLink: true) {
-            DifferentialRoot(width: 400, height: 400) { animatedColumn(model.wide ? 320 : 196) }
-        }
-        window.layoutAuthority = authority
-        window.recordsElementBounds = true
-        func read() -> [Float] {
-            [child(column, 0), child(column, 1)].map { window.lastElementBounds[$0]?.size.width.value ?? -1 }
-        }
-        platform.simulateTick(timestamp: 100)
-        var series = [read()]
-        withAnimation(.linear(duration: 1)) { model.wide = true }
-        platform.simulateTick(timestamp: 100)
-        series.append(read())
-        platform.simulateTick(timestamp: 100.5)
-        series.append(read())
-        widths[authority] = series
+    let model = WidthModel()
+    let (window, platform) = try makeFakeWindow(device: device, size: 400, startsDisplayLink: true) {
+        DifferentialRoot(width: 400, height: 400) { animatedColumn(model.wide ? 320 : 196) }
     }
-    let expected: [[Float]] = [[196, 196], [196, 196], [258, 258]]
-    #expect(widths[.legacy] == expected, "legacy \(String(describing: widths[.legacy]))")
-    #expect(widths[.proposal] == expected, "proposal \(String(describing: widths[.proposal]))")
+    window.recordsElementBounds = true
+    func read() -> [Float] {
+        [child(column, 0), child(column, 1)].map { window.lastElementBounds[$0]?.size.width.value ?? -1 }
+    }
+    platform.simulateTick(timestamp: 100)
+    var series = [read()]
+    withAnimation(.linear(duration: 1)) { model.wide = true }
+    platform.simulateTick(timestamp: 100)
+    series.append(read())
+    platform.simulateTick(timestamp: 100.5)
+    series.append(read())
+    #expect(series == [[196, 196], [196, 196], [258, 258]], "\(series)")
 }
 
 // MARK: - 5.7 — native work on a branching tree
@@ -330,7 +299,7 @@ private final class WidthModel {
 /// native `padding(0)` (the node count and every figure move).
 @MainActor
 @Test func aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork() throws {
-    let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 100) {
+    let frame = LayoutDifferential.render(width: 200, height: 100) {
         Column {
             Row { Box().cssWidth(px(10)).cssHeight(px(20)); Box().cssWidth(px(30)).cssHeight(px(10)) }
             Row { Box().cssWidth(px(20)).cssHeight(px(10)); Box { Box().cssWidth(px(10)).cssHeight(px(10)) }.padding(px(4)) }
@@ -400,8 +369,7 @@ private func nestedPaddedBoxes(_ n: Int) -> Box<AnyElement> {
                                observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
             var root = nestedPaddedBoxes(24)
-            let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
-                              layoutAuthority: .proposal)
+            let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1)
             frame.render(&root)
             let line = "LANE5-5.8 nodes=\(frame.tree.nodeCount) deepest=\(frame.tree.lastNativeLayoutDeepestLevel)"
                 + " limit=\(NativeLayoutRun.maxDepth)\n"
@@ -422,8 +390,7 @@ private func nestedPaddedBoxes(_ n: Int) -> Box<AnyElement> {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             var root = nestedPaddedBoxes(25)
-            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1).render(&root)
         }
     }
     let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
@@ -489,8 +456,7 @@ private func itemChain(containerInnermost: Bool) -> some Element {
                                observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
             var root = itemChain(containerInnermost: false)
-            let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
-                              layoutAuthority: .proposal)
+            let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1)
             frame.render(&root)
             FileHandle.standardOutput.write(Data(("LANE2-2.14 nodes=\(frame.tree.nodeCount)"
                 + " deepest=\(frame.tree.lastNativeLayoutDeepestLevel) limit=\(NativeLayoutRun.maxDepth)\n").utf8))
@@ -510,8 +476,7 @@ private func itemChain(containerInnermost: Bool) -> some Element {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             var root = itemChain(containerInnermost: true)
-            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1).render(&root)
         }
     }
     let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)

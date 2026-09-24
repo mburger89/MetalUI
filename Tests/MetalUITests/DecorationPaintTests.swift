@@ -66,12 +66,11 @@ private func pixel(_ platform: FakePlatformWindow, _ x: Int, _ y: Int, side: Int
 
 /// Renders `make` in a fresh `side`x`side` fake window and returns it.
 @MainActor
-private func render<E: Element>(side: Int = 64, authority: LayoutAuthority = Frame.defaultLayoutAuthority,
+private func render<E: Element>(side: Int = 64,
                                 _ make: @escaping @MainActor () -> E) throws
     -> (Window, FakePlatformWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
-    let (window, platform) = try makeFakeWindow(device: device, size: side,
-                                                layoutAuthority: authority, content: make)
+    let (window, platform) = try makeFakeWindow(device: device, size: side, content: make)
     window.drawFrameIfNeeded()
     return (window, platform)
 }
@@ -481,7 +480,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     // Stage 6b (`LR-DG`, R-centre): the 40x40 root is centred in the 100x100
     // window at (100 - 40) / 2 = 30, so the hover point is (50, 50) where the
     // legacy top-left root read (20, 20); (80, 80) is off it on both.
-    let (window, platform) = try render(side: 100, authority: .proposal) { BorderSubject.box() }
+    let (window, platform) = try render(side: 100) { BorderSubject.box() }
     let theme = window.theme
 
     @MainActor func expectBorder(_ token: ColorToken, _ state: String) throws {
@@ -535,7 +534,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
         // declares both axes): each root is centred in the 100x100 window — the
         // 40x40 subjects at 30..70, `modifiedInner`'s 56x56 chain at 22..78 with
         // its bordered inner layer at 30..70 — so (50, 50) is inside every one.
-        let (window, platform) = try render(side: 100, authority: .proposal) { make() }
+        let (window, platform) = try render(side: 100) { make() }
         let theme = window.theme
 
         @MainActor func borderToken(_ state: String) throws -> MUIRect {
@@ -1035,18 +1034,17 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 /// portal's alpha is half" would also hold for a portal whose own token happened
 /// to be semi-transparent.
 ///
-/// **Under both authorities** (plan task 7 stage 5 lane 3, spec 3.7, `LR-CO`).
-/// The portal here is **in-flow** — it already lowers to the legacy answer, so no
-/// presentation root is involved; the presentation-shaped twin is
-/// `aPresentationInsideAFadedSubtreeIsStillFadedUnderBothAuthorities`
+/// **Under both authorities** (plan task 7 stage 5 lane 3, spec 3.7, `LR-CO`) until
+/// stage 9 collapsed it (record §51, lane 1). The portal here is **in-flow** — it
+/// already lowered to the legacy answer, so no presentation root is involved; the
+/// presentation-shaped twin is `aPresentationInsideAFadedSubtreeIsStillFaded`
 /// (`PresentationWindowTests`). The window's root is the row itself, so under the
 /// proposal authority it is centred at its answer (`CN-J`); only the alpha is read.
 /// Pre-flighted: the same content's differential report is required empty before
 /// a proposal window opens (`LR-BX`). Mutation **M3a** (the opacity stack reset
 /// by `pass.deferred`) must redden both arms.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aDeferredPortalInsideAFadedSubtreeIsStillFaded(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aDeferredPortalInsideAFadedSubtreeIsStillFaded() throws {
     @MainActor func portalAlpha(faded: Bool) throws -> Float {
         @MainActor func tree() -> some Element {
             inRow {
@@ -1059,9 +1057,9 @@ func aDeferredPortalInsideAFadedSubtreeIsStillFaded(_ authority: LayoutAuthority
                 .opacity(faded ? 0.5 : 1)
             }
         }
-        let preflight = LayoutDifferential.compare(width: 64, height: 64) { tree() }
+        let preflight = LayoutDifferential.report(width: 64, height: 64) { tree() }
         try #require(preflight.unlowerable.isEmpty, "\(preflight.unlowerable)")
-        let (window, _) = try render(authority: authority) { tree() }
+        let (window, _) = try render { tree() }
         return try rect(window.lastScene, 20, 20).background.a
     }
 

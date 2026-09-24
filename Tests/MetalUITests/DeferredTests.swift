@@ -12,21 +12,22 @@ private func sized(_ w: Float, _ h: Float) -> Style {
     return s
 }
 
-/// A frame under `authority`, with diagnostics on under the proposal one so a
-/// field with no lowering is a report the test reads rather than a trap that
-/// ends the run (`LR-BX`).
+/// A frame with diagnostics on, so a field with no lowering is a report the test
+/// reads rather than a trap that ends the run (`LR-BX`). (Built under a chosen
+/// layout authority until stage 9.)
 @MainActor
-private func authorityFrame(_ w: Float, _ h: Float, _ authority: LayoutAuthority,
+private func authorityFrame(_ w: Float, _ h: Float,
                             table: StateTable = StateTable()) -> Frame {
     Frame(contentSize: Size(width: px(w), height: px(h)), scaleFactor: 1,
           stateTable: table, theme: Theme.forAppearance(.light),
-          layoutAuthority: authority, reportsUnlowerableFields: authority == .proposal)
+          reportsUnlowerableFields: true)
 }
 
 /// Lays `element` out inside a window-sized, cross-stretching **row** `Box` over
 /// `table` — the host a scroller that must really scroll needs (`LR-CO`, corrected
-/// by stage 5 lane 2's `LR-CR`). `DifferentialRoot`'s legacy stack offers its
-/// child fit-content, so a viewport under it hugs its content and never scrolls.
+/// by stage 5 lane 2's `LR-CR`). `DifferentialRoot`'s legacy stack offered its
+/// child fit-content (until stage 9), so a viewport under it hugged its content
+/// and never scrolled.
 ///
 /// **A row, not the column the design named** (`ListTests`' `hostStyle`):
 /// measured, a legacy `ScrollView` that is a column host's direct child keeps its
@@ -40,7 +41,7 @@ private func authorityFrame(_ w: Float, _ h: Float, _ authority: LayoutAuthority
 /// "masked to the viewport" and "masked to the window" are different rects.
 @MainActor
 private func renderInRowHost<E: Element>(_ element: E, _ w: Float, _ h: Float,
-                                            _ authority: LayoutAuthority, table: StateTable,
+                                            table: StateTable,
                                             paddingTop: Float = 0) -> Frame {
     var host = Style()
     host.flexDirection = .row
@@ -48,7 +49,7 @@ private func renderInRowHost<E: Element>(_ element: E, _ w: Float, _ h: Float,
     host.size = sized(w, h).size
     host.padding = Edges(top: .pixels(px(paddingTop)), right: .pixels(px(0)),
                          bottom: .pixels(px(0)), left: .pixels(px(0)))
-    let frame = authorityFrame(w, h, authority, table: table)
+    let frame = authorityFrame(w, h, table: table)
     var root = Box(style: host, content: element)
     frame.render(&root)
     return frame
@@ -272,10 +273,9 @@ private func renderInRowHost<E: Element>(_ element: E, _ w: Float, _ h: Float,
 /// Every legacy literal here is the one it was unhosted — measured unchanged.
 /// The proposal frame runs with diagnostics on and `try #require`s an empty
 /// report before anything is read (`LR-BX`).
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aNamedChildUnderDeferredResolvesTheSameAsUnderABox(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
-    let frameA = LayoutDifferential.render(authority: authority, width: 100, height: 50) {
+@Test @MainActor
+func aNamedChildUnderDeferredResolvesTheSameAsUnderABox() throws {
+    let frameA = LayoutDifferential.render(width: 100, height: 50) {
         Row {
             Deferred {
                 ScrollView(.vertical, elementID: ElementID("list")) {
@@ -287,7 +287,7 @@ func aNamedChildUnderDeferredResolvesTheSameAsUnderABox(_ authority: LayoutAutho
     try #require(frameA.unlowerableFields.isEmpty, "\(frameA.unlowerableFields)")
     let idA = try #require(frameA.scrollRegions.first).id
 
-    let frameB = LayoutDifferential.render(authority: authority, width: 100, height: 50) {
+    let frameB = LayoutDifferential.render(width: 100, height: 50) {
         Row {
             Box {
                 ScrollView(.vertical, elementID: ElementID("list")) {
@@ -352,10 +352,9 @@ func aNamedChildUnderDeferredResolvesTheSameAsUnderABox(_ authority: LayoutAutho
 /// Every legacy literal here is the one it was unhosted — measured unchanged.
 /// The proposal frame runs with diagnostics on and `try #require`s an empty
 /// report before anything is read (`LR-BX`).
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aDeferredElementHoistsItsChildAboveASiblingDeclaredAfterIt(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
-    let frame = LayoutDifferential.render(authority: authority, width: 200, height: 200) {
+@Test @MainActor
+func aDeferredElementHoistsItsChildAboveASiblingDeclaredAfterIt() throws {
+    let frame = LayoutDifferential.render(width: 200, height: 200) {
         Row {
             Deferred {
                 Box(style: sized(30, 30)).background(.accent)
@@ -414,10 +413,9 @@ func aDeferredElementHoistsItsChildAboveASiblingDeclaredAfterIt(_ authority: Lay
 /// Measured red before hosting (stage 5 lane 2's red-first commit): under
 /// `.proposal` as the frame's root the inner region read x 155, width 145, and the
 /// outer x 125 — the root centred, not the hoist broken.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
-    let frame = LayoutDifferential.render(authority: authority, width: 300, height: 300) {
+@Test @MainActor
+func aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting() throws {
+    let frame = LayoutDifferential.render(width: 300, height: 300) {
         Column {
             ScrollView(.horizontal, elementID: ElementID("outer")) {
                 Box(style: sized(30, 20))
@@ -474,9 +472,8 @@ func aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting(_ authority: 
 /// Every legacy literal here is the one it was unhosted — measured unchanged.
 /// The proposal frame runs with diagnostics on and `try #require`s an empty
 /// report before anything is read (`LR-BX`).
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll() throws {
     func makeTree() -> some Element {
         ScrollView(.vertical, elementID: ElementID("outer")) {
             Box(style: sized(20, 300))                        // filler: forces real overflow
@@ -489,7 +486,7 @@ func aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll(_ author
 
     let stateTable = StateTable()
 
-    let frame1 = renderInRowHost(makeTree(), 100, 60, authority, table: stateTable)
+    let frame1 = renderInRowHost(makeTree(), 100, 60, table: stateTable)
     try #require(frame1.unlowerableFields.isEmpty, "\(frame1.unlowerableFields)")
     let scene1 = frame1.finalizedScene()
     let ordinaryRaw = try #require(scene1.rects.first { $0.bounds.size.width == 21 })
@@ -498,7 +495,7 @@ func aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll(_ author
     let outerID = try #require(frame1.scrollRegions.first).id
     stateTable.withState(outerID, initial: ScrollState()) { $0.offset = 40 }
 
-    let frame2 = renderInRowHost(makeTree(), 100, 60, authority, table: stateTable)
+    let frame2 = renderInRowHost(makeTree(), 100, 60, table: stateTable)
     try #require(frame2.unlowerableFields.isEmpty, "\(frame2.unlowerableFields)")
     let scene2 = frame2.finalizedScene()
     let ordinaryScrolled = try #require(scene2.rects.first { $0.bounds.size.width == 21 })
@@ -536,11 +533,12 @@ func aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll(_ author
 ///
 /// Pre-flighted under diagnostics: the proposal frame's report must be empty
 /// before anything is read (`LR-BX`).
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities(
-    _ authority: LayoutAuthority
-) throws {
-    AuthorityCoverage.record(#function, authority)
+///
+/// **Renamed at stage 9** from
+/// `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities`
+/// (`LR-FE` item 6), its authority argument gone with the registry scenario.
+@Test @MainActor
+func aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScroll() throws {
     func makeTree() -> some Element {
         ScrollView(.vertical, elementID: ElementID("list")) {
             Deferred {
@@ -587,10 +585,10 @@ func aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthoritie
                 "\(label): the card's hitbox wins at the centre")
     }
 
-    let first = renderInRowHost(makeTree(), 200, 100, authority, table: table, paddingTop: 30)
+    let first = renderInRowHost(makeTree(), 200, 100, table: table, paddingTop: 30)
     try check(first, markerY: 30, "unscrolled")
     let listID = try #require(first.scrollRegions.first).id
     table.withState(listID, initial: ScrollState()) { $0.offset = 40 }
-    let second = renderInRowHost(makeTree(), 200, 100, authority, table: table, paddingTop: 30)
+    let second = renderInRowHost(makeTree(), 200, 100, table: table, paddingTop: 30)
     try check(second, markerY: -10, "scrolled 40")
 }

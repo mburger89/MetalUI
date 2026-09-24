@@ -14,6 +14,11 @@ import MetalUIText
 // its fixed frame where CSS floors the border box, and `margin` as native padding
 // outside the item's wrappers.
 //
+// **Stage 9** (record §51, lane 1; ruling `LR-FE`): the legacy engine is deleted,
+// so each divergence pin keeps its lowered literals and loses its legacy half
+// (the tables keep the legacy column as the record of the CSS answer), and the
+// agreement each "all agreeing" arm ran is gone.
+//
 // **Red before**: every test here was run on lane 3's tree (`51c4628`), where
 // `Style.border` reports `box.border`, a padded `Text` reports `text.padding.text`, a
 // floored size reports `box.padding.floor` and a margin reports `margin` at the
@@ -111,32 +116,32 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
                            bottom: .pixels(px(4)), left: .pixels(px(5)))
         $0.border = borderEdges
     }
-    let container = LayoutDifferential.compare(width: 300, height: 200) {
+    let container = LayoutDifferential.report(width: 300, height: 200) {
         Box(style: sized) { fixed(10, 10) }
     }
     try #require(container.elements == 3)
-    expectCorpusAgreement(container, "sized container with padding and border")
-    #expect(container.loweredBounds[containerID] == bounds(0, 0, 60, 50))
-    #expect(container.loweredBounds[child(containerID, 0)] == bounds(9, 3, 10, 10))
+    expectCorpusNothingReported(container, "sized container with padding and border")
+    #expect(container.bounds[containerID] == bounds(0, 0, 60, 50))
+    #expect(container.bounds[child(containerID, 0)] == bounds(9, 3, 10, 10))
 
-    let borderOnly = LayoutDifferential.compare(width: 300, height: 200) {
+    let borderOnly = LayoutDifferential.report(width: 300, height: 200) {
         Box(style: style { $0.border = borderEdges })
     }
     try #require(borderOnly.elements == 2)
-    expectCorpusAgreement(borderOnly, "border alone")
-    #expect(borderOnly.loweredBounds[containerID] == bounds(0, 0, 6, 4))
+    expectCorpusNothingReported(borderOnly, "border alone")
+    #expect(borderOnly.bounds[containerID] == bounds(0, 0, 6, 4))
 
-    let withPadding = LayoutDifferential.compare(width: 300, height: 200) {
+    let withPadding = LayoutDifferential.report(width: 300, height: 200) {
         Box(style: style {
             $0.border = borderEdges
             $0.padding = Edges(all: .pixels(px(2)))
         })
     }
     try #require(withPadding.elements == 2)
-    expectCorpusAgreement(withPadding, "border and padding")
-    #expect(withPadding.loweredBounds[containerID] == bounds(0, 0, 10, 8))
+    expectCorpusNothingReported(withPadding, "border and padding")
+    #expect(withPadding.bounds[containerID] == bounds(0, 0, 10, 8))
 
-    let stretched = LayoutDifferential.compare(width: 300, height: 200) {
+    let stretched = LayoutDifferential.report(width: 300, height: 200) {
         Row {
             Box(style: style { $0.border = borderEdges }).cssWidth(px(20)).background(.accent)
             fixed(20, 10)
@@ -144,15 +149,15 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
         .alignItems(.stretch).cssHeight(px(60))
     }
     try #require(stretched.elements == 4)
-    expectCorpusAgreement(stretched, "bordered box stretched")
-    #expect(stretched.loweredBounds[containerID] == bounds(0, 0, 40, 60))
-    #expect(stretched.loweredBounds[child(containerID, 0)] == bounds(0, 0, 20, 60))
+    expectCorpusNothingReported(stretched, "bordered box stretched")
+    #expect(stretched.bounds[containerID] == bounds(0, 0, 40, 60))
+    #expect(stretched.bounds[child(containerID, 0)] == bounds(0, 0, 20, 60))
 }
 
 // MARK: - 4.2 — Style padding on a Text
 
-/// **4.2 — divergence pin** (`LR-AH` as amended; stage-2 probe P6). `Style.padding` on
-/// a `Text` is inert in the legacy engine (a content-sized leaf ignores its box model,
+/// **4.2 — divergence pin until stage 9** (`LR-AH` as amended; stage-2 probe P6).
+/// `Style.padding` on a `Text` was inert in the legacy engine (a content-sized leaf ignores its box model,
 /// CLAUDE.md's inert table) and lowers to native padding around the **text leaf**,
 /// SwiftUI's answer: `Text("alpha").padding(10)` is 53×36 with the glyphs at (10, 10).
 ///
@@ -176,8 +181,15 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 /// Mutations that must redden it: **M4b**, glyphs painted at the element node's
 /// origin (the translation reads (0, 0)); **M4b′**, glyphs wrapped at the element's
 /// aliased width (the stretched arm reads 2 lines and a glyph past 130).
+///
+/// **Stage 9**: the legacy half goes (text 33×16, column 33×26, sibling (0, 16),
+/// stretched text 140×32), and the glyph translation's reference — "its legacy
+/// twin", which ignored the padding — is re-spelled as the **same text with no
+/// padding** in the same column, lowered: the same sprites at the column origin,
+/// which is what the legacy text drew. **Renamed** from
+/// `paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt` (`LR-FE` item 6).
 @MainActor
-@Test func paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt() throws {
+@Test func paddingOnALoweredTextPadsItsLeaf() throws {
     let padded = style { $0.padding = Edges(all: .pixels(px(10))) }
 
     // Arm 1 — plain.
@@ -187,31 +199,28 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
     let paddedHeight = alphaHeight + 20
     try #require(paddedWidth == 53 && paddedHeight == 36, "\(paddedWidth)x\(paddedHeight)")
 
-    let plain = LayoutDifferential.compare(width: 300, height: 200) {
+    let plain = LayoutDifferential.report(width: 300, height: 200) {
         Column { styled("alpha", padded); fixed(20, 10) }.alignItems(.flexStart)
     }
     try #require(plain.elements == 4)
     #expect(plain.unlowerable.isEmpty, "\(plain.unlowerable)")
     let text = child(containerID, 0), sibling = child(containerID, 1)
-    try #require(plain.legacyBounds[text] != plain.loweredBounds[text])
-    #expect(plain.legacyBounds[text] == bounds(0, 0, 33, 16))
-    #expect(plain.legacyBounds[containerID] == bounds(0, 0, 33, 26))
-    #expect(plain.legacyBounds[sibling] == bounds(0, 16, 20, 10))
-    #expect(plain.loweredBounds[text] == bounds(0, 0, paddedWidth, paddedHeight))
-    #expect(plain.loweredBounds[containerID] == bounds(0, 0, paddedWidth, paddedHeight + 10))
-    #expect(plain.loweredBounds[sibling] == bounds(0, paddedHeight, 20, 10))
+    #expect(plain.bounds[text] == bounds(0, 0, paddedWidth, paddedHeight))
+    #expect(plain.bounds[containerID] == bounds(0, 0, paddedWidth, paddedHeight + 10))
+    #expect(plain.bounds[sibling] == bounds(0, paddedHeight, 20, 10))
 
-    // The glyphs themselves: identical sprites, translated by the leading padding.
-    @MainActor func glyphOrigins(_ authority: LayoutAuthority) -> [(Float, Float)] {
-        LayoutDifferential.render(authority: authority, width: 300, height: 200) {
-            Column { styled("alpha", padded); fixed(20, 10) }.alignItems(.flexStart)
+    // The glyphs themselves: identical sprites, translated by the leading padding
+    // from the same text drawn with no padding.
+    @MainActor func glyphOrigins(_ s: Style) -> [(Float, Float)] {
+        LayoutDifferential.render(width: 300, height: 200) {
+            Column { styled("alpha", s); fixed(20, 10) }.alignItems(.flexStart)
         }.scene.glyphs.map { ($0.bounds.origin.x, $0.bounds.origin.y) }
     }
-    let legacyGlyphs = glyphOrigins(.legacy), loweredGlyphs = glyphOrigins(.proposal)
-    try #require(legacyGlyphs.count == 5, "\(legacyGlyphs)")
-    try #require(loweredGlyphs.count == legacyGlyphs.count, "\(loweredGlyphs)")
-    #expect(loweredGlyphs.map { ($0.0 - 10, $0.1 - 10) }.elementsEqual(legacyGlyphs, by: ==),
-            "legacy \(legacyGlyphs) lowered \(loweredGlyphs)")
+    let unpaddedGlyphs = glyphOrigins(Style()), loweredGlyphs = glyphOrigins(padded)
+    try #require(unpaddedGlyphs.count == 5, "\(unpaddedGlyphs)")
+    try #require(loweredGlyphs.count == unpaddedGlyphs.count, "\(loweredGlyphs)")
+    #expect(loweredGlyphs.map { ($0.0 - 10, $0.1 - 10) }.elementsEqual(unpaddedGlyphs, by: ==),
+            "unpadded \(unpaddedGlyphs) padded \(loweredGlyphs)")
 
     // Arm 2 — stretched: the leaf, not the element, decides the wrap width.
     let atLeaf = textShaping(longString, wrappingAt: 120)
@@ -220,17 +229,16 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
                  "leaf \(atLeaf.lines.count) element \(atElement.lines.count)")
     let stretchedHeight = Float(atLeaf.totalHeight) + 20
 
-    let stretched = LayoutDifferential.compare(width: 300, height: 200) {
+    let stretched = LayoutDifferential.report(width: 300, height: 200) {
         Column { styled(longString, padded); fixed(20, 10) }.alignItems(.stretch).cssWidth(px(140))
     }
     try #require(stretched.elements == 4)
     #expect(stretched.unlowerable.isEmpty, "\(stretched.unlowerable)")
-    #expect(stretched.legacyBounds[text] == bounds(0, 0, 140, 32))
-    #expect(stretched.loweredBounds[text] == bounds(0, 0, 140, stretchedHeight))
-    #expect(stretched.loweredBounds[containerID] == bounds(0, 0, 140, stretchedHeight + 10))
-    #expect(stretched.loweredBounds[sibling] == bounds(0, stretchedHeight, 20, 10))
+    #expect(stretched.bounds[text] == bounds(0, 0, 140, stretchedHeight))
+    #expect(stretched.bounds[containerID] == bounds(0, 0, 140, stretchedHeight + 10))
+    #expect(stretched.bounds[sibling] == bounds(0, stretchedHeight, 20, 10))
 
-    let stretchedGlyphs = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
+    let stretchedGlyphs = LayoutDifferential.render(width: 300, height: 200) {
         Column { styled(longString, padded); fixed(20, 10) }.alignItems(.stretch).cssWidth(px(140))
     }.scene.glyphs
     let rightEdge = stretchedGlyphs.map { $0.bounds.origin.x + $0.bounds.size.width }.max() ?? 0
@@ -240,7 +248,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 
 // MARK: - 4.3 — a declared size below the padding sum
 
-/// **4.3 — divergence pin** (`LR-AH` as amended; stage-2 probe P1, P7, P8). CSS floors
+/// **4.3 — divergence pin until stage 9** (`LR-AH` as amended; stage-2 probe P1, P7, P8). CSS floors
 /// a border box at its padding + border sum (`BM-4`): a 10×10 box padded 12 is **24×24**
 /// with a zero-high content box. SwiftUI's fixed frame wins instead and the padding
 /// overflows it, placed by the frame's own alignment (P1 `.topLeading`, P7 `.leading`,
@@ -265,8 +273,12 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 /// Mutations that must redden it: **M4c**, the lowered frame given
 /// `max(size, padding sum)` (all three read 24×24); **M4c′**, the frame aligned
 /// `.topLeading` whatever the container (the `Row` and `Column` arms).
+///
+/// **Stage 9**: the legacy column (24×24, and the legacy child rects) goes with the
+/// legacy engine; **renamed** from
+/// `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox` (`LR-FE` item 6).
 @MainActor
-@Test func aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox() throws {
+@Test func aDeclaredSizeBelowThePaddingKeepsItsFixedFrame() throws {
     let floored = style {
         $0.size = Size(width: .length(.pixels(px(10))), height: .length(.pixels(px(10))))
         $0.padding = Edges(all: .pixels(px(12)))
@@ -278,10 +290,10 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
         return s
     }
     enum Kind: String, CaseIterable { case box, row, column }
-    let expected: [Kind: (legacyChild: Bounds<Pixels>, loweredChild: Bounds<Pixels>)] = [
-        .box: (bounds(12, 12, 10, 10), bounds(12, 12, 10, 10)),
-        .row: (bounds(12, 7, 10, 10), bounds(12, 0, 10, 10)),
-        .column: (bounds(7, 12, 10, 10), bounds(0, 12, 10, 10)),
+    let expected: [Kind: Bounds<Pixels>] = [
+        .box: bounds(12, 12, 10, 10),
+        .row: bounds(12, 0, 10, 10),
+        .column: bounds(0, 12, 10, 10),
     ]
     for kind in Kind.allCases {
         // Built outside the builder closure: a builder `switch` adds an id level
@@ -298,14 +310,11 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
             column.style = merged(column.style)
             element = AnyElement(column)
         }
-        let r = LayoutDifferential.compare(width: 300, height: 200) { element }
+        let r = LayoutDifferential.report(width: 300, height: 200) { element }
         try #require(r.elements == 3, "\(kind): \(r.elements)")
         #expect(r.unlowerable.isEmpty, "\(kind): \(r.unlowerable)")
-        try #require(r.legacyBounds[containerID] != r.loweredBounds[containerID], "\(kind)")
-        #expect(r.legacyBounds[containerID] == bounds(0, 0, 24, 24), "\(kind)")
-        #expect(r.loweredBounds[containerID] == bounds(0, 0, 10, 10), "\(kind)")
-        #expect(r.legacyBounds[child(containerID, 0)] == expected[kind]!.legacyChild, "\(kind)")
-        #expect(r.loweredBounds[child(containerID, 0)] == expected[kind]!.loweredChild, "\(kind)")
+        #expect(r.bounds[containerID] == bounds(0, 0, 10, 10), "\(kind)")
+        #expect(r.bounds[child(containerID, 0)] == expected[kind]!, "\(kind)")
     }
 }
 
@@ -342,48 +351,48 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 @Test func aMarginLowersAsPaddingOutsideTheItem() throws {
     let a = child(containerID, 0), b = child(containerID, 1)
 
-    let row = LayoutDifferential.compare(width: 300, height: 200) {
+    let row = LayoutDifferential.report(width: 300, height: 200) {
         MetalUI.Row { fixed(20, 10).margin(marginEdges); fixed(20, 10) }
     }
     try #require(row.elements == 4)
-    expectCorpusAgreement(row, "row, px margins")
-    #expect([row.loweredBounds[containerID], row.loweredBounds[a], row.loweredBounds[b]]
+    expectCorpusNothingReported(row, "row, px margins")
+    #expect([row.bounds[containerID], row.bounds[a], row.bounds[b]]
             == [bounds(0, 0, 48, 16), bounds(5, 2, 20, 10), bounds(28, 3, 20, 10)])
 
-    let column = LayoutDifferential.compare(width: 300, height: 200) {
+    let column = LayoutDifferential.report(width: 300, height: 200) {
         Column { fixed(20, 10).margin(marginEdges); fixed(20, 10) }
     }
     try #require(column.elements == 4)
-    expectCorpusAgreement(column, "column, px margins")
-    #expect([column.loweredBounds[containerID], column.loweredBounds[a], column.loweredBounds[b]]
+    expectCorpusNothingReported(column, "column, px margins")
+    #expect([column.bounds[containerID], column.bounds[a], column.bounds[b]]
             == [bounds(0, 0, 28, 26), bounds(5, 2, 20, 10), bounds(4, 16, 20, 10)])
 
     let rem = Edges<Length>(top: .rems(Rems(0.25)), right: .rems(Rems(0.5)),
                             bottom: .rems(Rems(0.75)), left: .rems(Rems(1)))
-    let remRow = LayoutDifferential.compare(width: 300, height: 200) {
+    let remRow = LayoutDifferential.report(width: 300, height: 200) {
         MetalUI.Row { fixed(20, 10).margin(rem); fixed(20, 10) }
     }
     try #require(remRow.elements == 4)
-    expectCorpusAgreement(remRow, "row, rem margins")
-    #expect([remRow.loweredBounds[containerID], remRow.loweredBounds[a], remRow.loweredBounds[b]]
+    expectCorpusNothingReported(remRow, "row, rem margins")
+    #expect([remRow.bounds[containerID], remRow.bounds[a], remRow.bounds[b]]
             == [bounds(0, 0, 64, 26), bounds(16, 4, 20, 10), bounds(44, 8, 20, 10)])
 
-    let stack = LayoutDifferential.compare(width: 300, height: 200) {
+    let stack = LayoutDifferential.report(width: 300, height: 200) {
         Stack { fixed(20, 10).margin(marginEdges); fixed(30, 20) }
     }
     try #require(stack.elements == 4)
-    expectCorpusAgreement(stack, "stack ignores the margin")
-    #expect([stack.loweredBounds[containerID], stack.loweredBounds[a]]
+    expectCorpusNothingReported(stack, "stack ignores the margin")
+    #expect([stack.bounds[containerID], stack.bounds[a]]
             == [bounds(0, 0, 30, 20), bounds(5, 5, 20, 10)])
 
-    let frameLayer = LayoutDifferential.compare(width: 300, height: 200) {
+    let frameLayer = LayoutDifferential.report(width: 300, height: 200) {
         fixed(20, 10).margin(marginEdges).frame(width: px(80), height: px(60))
     }
     try #require(frameLayer.elements == 3)
-    expectCorpusAgreement(frameLayer, "frame layer ignores the margin")
-    #expect(frameLayer.loweredBounds[child(containerID, 0)] == bounds(30, 25, 20, 10))
+    expectCorpusNothingReported(frameLayer, "frame layer ignores the margin")
+    #expect(frameLayer.bounds[child(containerID, 0)] == bounds(30, 25, 20, 10))
 
-    let stretched = LayoutDifferential.compare(width: 300, height: 200) {
+    let stretched = LayoutDifferential.report(width: 300, height: 200) {
         MetalUI.Row {
             Box().cssWidth(px(20)).margin(marginEdges).background(.accent)
             fixed(20, 10)
@@ -391,11 +400,11 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
         .alignItems(.stretch).cssHeight(px(60))
     }
     try #require(stretched.elements == 4)
-    expectCorpusAgreement(stretched, "stretched item with cross margins")
-    #expect([stretched.loweredBounds[containerID], stretched.loweredBounds[a], stretched.loweredBounds[b]]
+    expectCorpusNothingReported(stretched, "stretched item with cross margins")
+    #expect([stretched.bounds[containerID], stretched.bounds[a], stretched.bounds[b]]
             == [bounds(0, 0, 48, 60), bounds(5, 2, 20, 54), bounds(28, 0, 20, 10)])
 
-    let grown = LayoutDifferential.compare(width: 300, height: 200) {
+    let grown = LayoutDifferential.report(width: 300, height: 200) {
         MetalUI.Row {
             Box().cssHeight(px(10)).flexGrow(1).margin(marginEdges).background(.accent)
             fixed(20, 10)
@@ -403,8 +412,8 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
         .cssWidth(px(200))
     }
     try #require(grown.elements == 4)
-    expectCorpusAgreement(grown, "grown item with main margins")
-    #expect([grown.loweredBounds[containerID], grown.loweredBounds[a], grown.loweredBounds[b]]
+    expectCorpusNothingReported(grown, "grown item with main margins")
+    #expect([grown.bounds[containerID], grown.bounds[a], grown.bounds[b]]
             == [bounds(0, 0, 200, 16), bounds(5, 2, 172, 10), bounds(180, 3, 20, 10)])
 }
 
@@ -415,7 +424,8 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 /// a 20 the CSS margin box is −10 and the sibling sits at −10, where the kernel's
 /// padding response clamps at 0 per axis (`SA-K` item 3, probe N1) and the sibling
 /// sits at 0. N1's placement is the lowered answer: the pad answers 0×0 at (0, 10) and
-/// the child at the pad's origin + its (negative) leading inset, (−15, −5).
+/// the child at the pad's origin + its (negative) leading inset, (−15, −5). (Stage 9
+/// deleted the legacy half of the −15 arm: 10×20, the box at −15, the sibling at −10.)
 ///
 /// Mutation that must redden it: **M4f**, negative margins clamped at registration
 /// (the −8 arm's first box reads x 0).
@@ -423,25 +433,22 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 @Test func aNegativeMarginOverlapsItsSibling() throws {
     let a = child(containerID, 0), b = child(containerID, 1)
 
-    let overlapping = LayoutDifferential.compare(width: 300, height: 200) {
+    let overlapping = LayoutDifferential.report(width: 300, height: 200) {
         MetalUI.Row { fixed(20, 20).margin(px(-8)); fixed(20, 20) }
     }
     try #require(overlapping.elements == 4)
-    expectCorpusAgreement(overlapping, "margin -8")
-    #expect([overlapping.loweredBounds[containerID], overlapping.loweredBounds[a],
-             overlapping.loweredBounds[b]]
+    expectCorpusNothingReported(overlapping, "margin -8")
+    #expect([overlapping.bounds[containerID], overlapping.bounds[a],
+             overlapping.bounds[b]]
             == [bounds(0, 0, 24, 20), bounds(-8, 0, 20, 20), bounds(4, 0, 20, 20)])
 
-    let clamped = LayoutDifferential.compare(width: 300, height: 200) {
+    let clamped = LayoutDifferential.report(width: 300, height: 200) {
         MetalUI.Row { fixed(20, 20).margin(px(-15)); fixed(20, 20) }
     }
     try #require(clamped.elements == 4)
     #expect(clamped.unlowerable.isEmpty, "\(clamped.unlowerable)")
-    try #require(clamped.legacyBounds[b] != clamped.loweredBounds[b])
-    #expect([clamped.legacyBounds[containerID], clamped.legacyBounds[a], clamped.legacyBounds[b]]
-            == [bounds(0, 0, 10, 20), bounds(-15, 0, 20, 20), bounds(-10, 0, 20, 20)])
-    #expect([clamped.loweredBounds[containerID], clamped.loweredBounds[a],
-             clamped.loweredBounds[b]]
+    #expect([clamped.bounds[containerID], clamped.bounds[a],
+             clamped.bounds[b]]
             == [bounds(0, 0, 20, 20), bounds(-15, -5, 20, 20), bounds(0, 0, 20, 20)])
 }
 
@@ -464,22 +471,22 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 @MainActor
 @Test func anAutoMarginLowersAsZero() throws {
     let autoMargin = style { $0.margin = Edges(all: .auto) }
-    let r = LayoutDifferential.compare(width: 300, height: 200) {
+    let r = LayoutDifferential.report(width: 300, height: 200) {
         MetalUI.Row { Box(style: autoMargin).cssWidth(px(20)).cssHeight(px(10)); fixed(20, 10) }
     }
     try #require(r.elements == 4)
-    expectCorpusAgreement(r, "auto margin")
-    #expect([r.loweredBounds[containerID], r.loweredBounds[child(containerID, 0)],
-             r.loweredBounds[child(containerID, 1)]]
+    expectCorpusNothingReported(r, "auto margin")
+    #expect([r.bounds[containerID], r.bounds[child(containerID, 0)],
+             r.bounds[child(containerID, 1)]]
             == [bounds(0, 0, 40, 10), bounds(0, 0, 20, 10), bounds(20, 0, 20, 10)])
 
     // Unconsumed, under the harness root: nothing is reported, where a px margin
     // reports `margin.unconsumed`.
-    let unconsumed = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
+    let unconsumed = LayoutDifferential.render(width: 300, height: 200) {
         Box(style: autoMargin).cssWidth(px(20)).cssHeight(px(10))
     }.unlowerableFields
     #expect(unconsumed.isEmpty, "auto margin under the root: \(unconsumed)")
-    let control = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
+    let control = LayoutDifferential.render(width: 300, height: 200) {
         Box(style: style { $0.margin = Edges(all: .length(.pixels(px(3)))) })
             .cssWidth(px(20)).cssHeight(px(10))
     }.unlowerableFields
@@ -506,7 +513,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
     typealias Arm = (name: String, report: [UnlowerableField])
     @MainActor func inRow(_ name: String, _ edit: (inout Style) -> Void) -> Arm {
         let s = style(edit)
-        return (name, LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
+        return (name, LayoutDifferential.render(width: 300, height: 200) {
             MetalUI.Row { Box(style: s) }
         }.unlowerableFields)
     }
@@ -522,7 +529,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
     var gapRow = MetalUI.Row { fixed(10, 10); fixed(10, 10) }
     gapRow.style.gap = Axes(both: .percent(0.1))
     arms.append(("gap.percent",
-                 LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
+                 LayoutDifferential.render(width: 300, height: 200) {
                      gapRow
                  }.unlowerableFields))
     try #require(arms.count == 8)
@@ -583,8 +590,7 @@ private func marginItemChain(deeperInnermost: Bool) -> some Element {
                                observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
             var root = marginItemChain(deeperInnermost: false)
-            let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
-                              layoutAuthority: .proposal)
+            let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1)
             frame.render(&root)
             FileHandle.standardOutput.write(Data(("LANE4-4.8 nodes=\(frame.tree.nodeCount)"
                 + " deepest=\(frame.tree.lastNativeLayoutDeepestLevel) limit=\(NativeLayoutRun.maxDepth)\n").utf8))
@@ -604,8 +610,7 @@ private func marginItemChain(deeperInnermost: Bool) -> some Element {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             var root = marginItemChain(deeperInnermost: true)
-            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1).render(&root)
         }
     }
     let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
@@ -623,7 +628,8 @@ private func marginItemChain(deeperInnermost: Bool) -> some Element {
 ///
 /// A margin going 0 → 40 under `withAnimation(.linear(duration: 1))` puts the first
 /// child at x 0 on the frame that starts the transaction and at x 20 half-way, under
-/// the proposal authority exactly as under the legacy one. Without the arm, reading
+/// the proposal authority exactly as under the legacy one (until stage 9 deleted
+/// it). Without the arm, reading
 /// the declared style there passes the whole suite (the verifier's V4n), while a
 /// declared read would snap a margin to its target on the frame the change is
 /// declared — the failure `LR-AS` exists to prevent.
@@ -634,24 +640,21 @@ private func marginItemChain(deeperInnermost: Bool) -> some Element {
 @MainActor
 @Test func aLoweredMarginRegistersItsAnimatedValue() throws {
     let a = child(containerID, 0)
-    for authority in [LayoutAuthority.legacy, .proposal] {
-        let table = StateTable()
-        func xAt(_ margin: Float, timestamp: Double, animating: Bool) -> Pixels? {
-            var root = DifferentialRoot(width: 200, height: 100) {
-                MetalUI.Row { fixed(20, 10).margin(px(margin)); fixed(20, 10) }
-            }
-            let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
-                              stateTable: table, timestamp: timestamp,
-                              transaction: animating ? .linear(duration: 1) : nil,
-                              layoutAuthority: authority,
-                              reportsUnlowerableFields: authority == .proposal,
-                              recordsElementBounds: true)
-            frame.render(&root)
-            #expect(frame.unlowerableFields.isEmpty, "\(authority): \(frame.unlowerableFields)")
-            return frame.elementBounds[a]?.origin.x
+    let table = StateTable()
+    func xAt(_ margin: Float, timestamp: Double, animating: Bool) -> Pixels? {
+        var root = DifferentialRoot(width: 200, height: 100) {
+            MetalUI.Row { fixed(20, 10).margin(px(margin)); fixed(20, 10) }
         }
-        #expect(xAt(0, timestamp: 0, animating: false) == px(0), "\(authority) baseline")
-        #expect(xAt(40, timestamp: 0, animating: true) == px(0), "\(authority) transaction start")
-        #expect(xAt(40, timestamp: 0.5, animating: false) == px(20), "\(authority) half-way")
+        let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                          stateTable: table, timestamp: timestamp,
+                          transaction: animating ? .linear(duration: 1) : nil,
+                          reportsUnlowerableFields: true,
+                          recordsElementBounds: true)
+        frame.render(&root)
+        #expect(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
+        return frame.elementBounds[a]?.origin.x
     }
+    #expect(xAt(0, timestamp: 0, animating: false) == px(0), "baseline")
+    #expect(xAt(40, timestamp: 0, animating: true) == px(0), "transaction start")
+    #expect(xAt(40, timestamp: 0.5, animating: false) == px(20), "half-way")
 }

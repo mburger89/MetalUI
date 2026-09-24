@@ -44,16 +44,14 @@ private final class SizeLog {
 /// receives. Optionally declares its own size, which is what makes it either a
 /// content-sized child (no declared axis) or an oversized one.
 ///
-/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
-/// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
-/// its one R test passes `.proposal`; under the legacy one it registers through
-/// `Frame`'s internal legacy registrar, and its fourteen P tests pass `.legacy`.
-/// The file's `render` helper takes the authority as a **required** argument,
-/// so every call names its own.
+/// **A Dual fixture from stage 6a to stage 9** (record §38, spec §5 lane 3): it
+/// is `declaredSizeNativeLeaf` (`ElementLayoutTests`); its legacy branch, through
+/// `Frame`'s internal legacy registrar, went with the legacy authority at stage 9
+/// (record §51, lane 1), and with it `render`'s authority argument and the two
+/// loops over both authorities.
 ///
-/// **Stage 7b** (record §49 §6.2) the file's twelve legacy-pinned tests and
-/// added N2.3 and N2.4 on the proposal side; the legacy branch stays for the
-/// kept loop over both authorities (`chainedLegacyFramesAgreeWithSwiftUIsOrderingRules`).
+/// **Stage 7b** (record §49 §6.2) retired the file's twelve legacy-pinned tests
+/// and added N2.3 and N2.4 on the proposal side.
 private struct Mark: StyledElement {
     var name: String
     var log: SizeLog
@@ -72,9 +70,7 @@ private struct Mark: StyledElement {
     }
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.lowersToProposal
-            ? declaredSizeNativeLeaf(style, pass)
-            : pass.frame.requestNode(style: style, children: []), ())
+        (declaredSizeNativeLeaf(style, pass), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -120,12 +116,11 @@ private struct Rect: Equatable, CustomStringConvertible {
 /// The bounds a `Mark` named `name` received, from one rendered frame whose
 /// root is `make`'s element.
 @MainActor
-private func render<Root: Element>(authority: LayoutAuthority, width: Float = 300, height: Float = 200,
+private func render<Root: Element>(width: Float = 300, height: Float = 200,
                                    _ make: (SizeLog) -> Root) throws -> SizeLog {
     let log = SizeLog()
     var root = make(log)
-    Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
-          layoutAuthority: authority).render(&root)
+    Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1).render(&root)
     return log
 }
 
@@ -150,7 +145,7 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
 /// offset plus (120, 80).
 @Test @MainActor func aLegacyFramePlacesItsChildAtEachOfTheNineAlignments() throws {
     func origin(_ alignment: ProposalAlignment) throws -> Origin {
-        let log = try render(authority: .proposal) { log in
+        let log = try render() { log in
             Mark("leaf", log: log, width: 20, height: 20)
                 .frame(width: px(60), height: px(40), alignment: alignment)
         }
@@ -173,72 +168,12 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
     #expect(try origin(.bottomTrailing) == Origin(160, 100))
 }
 
-// MARK: - 2.4 an ideal dimension traps (ruling FR-D)
+// MARK: - 2.4 an ideal dimension traps (ruling FR-D) — retired at stage 9
 
-/// **`idealWidth`/`idealHeight` TRAP on the legacy path** (ruling `FR-D`): the
-/// CSS engine has no unspecified proposal for an ideal to answer, and `Style`
-/// has no field that carries a caller's preferred size. An accepted-and-ignored
-/// parameter is the declared-but-inert shape CLAUDE.md keeps a table of, so the
-/// parameters stay in the signature — a port between paths is a type change and
-/// nothing else — and laying the frame out traps with a message naming the
-/// proposal path.
-///
-/// **Amended by plan task 7, stage 1, lane 4 (ruling `LR-H`)**: the trap moved
-/// from the overload (construction) to the frame layer's **legacy registration**,
-/// because under the proposal layout authority the same layer lowers onto the
-/// kernel frame, whose ideal is SwiftUI's (spec 4.6). So each closure below
-/// **renders** its value under the legacy authority; the message check is
-/// unchanged. The old construction-only spelling exits successfully since lane 4,
-/// which is the amendment's evidence (record §18, lane 4).
-///
-/// **Two positive controls**, and the second is the overload split's
-/// (critic finding 5): the same flexible overload with min/max only must render
-/// successfully, and `.frame(idealWidth:)` on a **proposal** element must render
-/// successfully too — if the legacy overload ever won there, a working SwiftUI
-/// idiom would become this trap.
-///
-/// Mutations: delete the legacy registration's check (both failure arms redden);
-/// make the legacy overload win on a proposal element (the proposal control
-/// reddens).
-@Test func anIdealDimensionOnTheLegacyFrameTraps() async throws {
-    let width = await #expect(processExitsWith: .failure,
-                              observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            _ = LayoutDifferential.render(authority: .legacy, width: 200, height: 200) {
-                Text("ideal").frame(idealWidth: Pixels(80))
-            }
-        }
-    }
-    let widthError = String(decoding: width?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(widthError.contains("idealWidth"),
-            "the trap must name the parameter that caused it: \(widthError)")
-
-    await #expect(processExitsWith: .failure) {
-        await MainActor.run {
-            _ = LayoutDifferential.render(authority: .legacy, width: 200, height: 200) {
-                Text("ideal").frame(idealHeight: Pixels(80))
-            }
-        }
-    }
-
-    await #expect(processExitsWith: .success) {
-        await MainActor.run {
-            _ = LayoutDifferential.render(authority: .legacy, width: 200, height: 200) {
-                Text("bounded").frame(minWidth: Pixels(40), maxWidth: Pixels(80))
-            }
-        }
-    }
-
-    await #expect(processExitsWith: .success) {
-        await MainActor.run {
-            // A proposal root, not the harness root: a legacy `Stack` over a native
-            // node is `SA-G`'s trap, whatever the frame does.
-            var root = Rectangle().frame(idealWidth: Pixels(80))
-            Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)), scaleFactor: 1,
-                  layoutAuthority: .legacy).render(&root)
-        }
-    }
-}
+// `anIdealDimensionOnTheLegacyFrameTraps` pinned `LR-H`'s trap at the frame
+// layer's **legacy** registration; the legacy engine and its registration are
+// gone, so the trap is (record §51, lane 1 row 18, D). The ideal's proposal-side
+// answer is `anIdealFrameLowersAtANilProposal` (`LoweringStackAndLayerTests`).
 
 // MARK: - 2.5 chained frames (the probe's E arms)
 
@@ -263,43 +198,41 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
 /// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
 /// by stage 6b (`LR-DG`, R-fill): every root declares the 300×200 frame's
 /// extent on its two auto axes — what `CS-I` gave the legacy root, now spelled
-/// — so the literals hold on both authorities, and the test reads both
-/// (`render`'s authority is a required argument, record §38 §17).
+/// — so the literals held on both authorities, and the test read both until
+/// stage 9 deleted the legacy one (record §51, lane 1).
 @Test @MainActor func chainedLegacyFramesAgreeWithSwiftUIsOrderingRules() throws {
-    for authority in [LayoutAuthority.legacy, .proposal] {
-        let innerWide = try render(authority: authority) { log in
-            Row {
-                Mark("leaf", log: log, width: 20, height: 20).frame(width: px(100)).frame(width: px(50))
-                Mark("sibling", log: log, width: 5, height: 5)
-            }.alignItems(.flexStart).frame(width: px(300), height: px(200), alignment: .topLeading)
-        }
-        let outerWide = try render(authority: authority) { log in
-            Row {
-                Mark("leaf", log: log, width: 20, height: 20).frame(width: px(50)).frame(width: px(100))
-                Mark("sibling", log: log, width: 5, height: 5)
-            }.alignItems(.flexStart).frame(width: px(300), height: px(200), alignment: .topLeading)
-        }
-        let innerLeafX = Origin(try #require(innerWide.bounds["leaf"])).x
-        let outerLeafX = Origin(try #require(outerWide.bounds["leaf"])).x
-        try #require(innerLeafX != outerLeafX,
-                     "the instrument cannot see chain order: \(innerLeafX) and \(outerLeafX)")
-
-        #expect(Origin(try #require(innerWide.bounds["sibling"])).x == 50, "E1's outer width, \(authority)")
-        #expect(innerLeafX == 15, "E1's leaf, \(authority)")
-        #expect(Origin(try #require(outerWide.bounds["sibling"])).x == 100, "E2's outer width, \(authority)")
-        #expect(outerLeafX == 40, "E2's leaf, \(authority)")
-
-        let aligned = try render(authority: authority) { log in
-            Row {
-                Mark("leaf", log: log, width: 20, height: 20)
-                    .frame(width: px(60), height: px(40))
-                    .frame(width: px(120), height: px(100), alignment: .topLeading)
-                Mark("sibling", log: log, width: 5, height: 5)
-            }.alignItems(.flexStart).frame(width: px(300), height: px(200), alignment: .topLeading)
-        }
-        #expect(Origin(try #require(aligned.bounds["sibling"])).x == 120, "E6's outer width, \(authority)")
-        #expect(Origin(try #require(aligned.bounds["leaf"])) == Origin(20, 10), "E6's leaf, \(authority)")
+    let innerWide = try render() { log in
+        Row {
+            Mark("leaf", log: log, width: 20, height: 20).frame(width: px(100)).frame(width: px(50))
+            Mark("sibling", log: log, width: 5, height: 5)
+        }.alignItems(.flexStart).frame(width: px(300), height: px(200), alignment: .topLeading)
     }
+    let outerWide = try render() { log in
+        Row {
+            Mark("leaf", log: log, width: 20, height: 20).frame(width: px(50)).frame(width: px(100))
+            Mark("sibling", log: log, width: 5, height: 5)
+        }.alignItems(.flexStart).frame(width: px(300), height: px(200), alignment: .topLeading)
+    }
+    let innerLeafX = Origin(try #require(innerWide.bounds["leaf"])).x
+    let outerLeafX = Origin(try #require(outerWide.bounds["leaf"])).x
+    try #require(innerLeafX != outerLeafX,
+                 "the instrument cannot see chain order: \(innerLeafX) and \(outerLeafX)")
+
+    #expect(Origin(try #require(innerWide.bounds["sibling"])).x == 50, "E1's outer width")
+    #expect(innerLeafX == 15, "E1's leaf")
+    #expect(Origin(try #require(outerWide.bounds["sibling"])).x == 100, "E2's outer width")
+    #expect(outerLeafX == 40, "E2's leaf")
+
+    let aligned = try render() { log in
+        Row {
+            Mark("leaf", log: log, width: 20, height: 20)
+                .frame(width: px(60), height: px(40))
+                .frame(width: px(120), height: px(100), alignment: .topLeading)
+            Mark("sibling", log: log, width: 5, height: 5)
+        }.alignItems(.flexStart).frame(width: px(300), height: px(200), alignment: .topLeading)
+    }
+    #expect(Origin(try #require(aligned.bounds["sibling"])).x == 120, "E6's outer width")
+    #expect(Origin(try #require(aligned.bounds["leaf"])) == Origin(20, 10), "E6's leaf")
 }
 
 // MARK: - 2.6 a frame's width reaches a measured leaf
@@ -319,29 +252,27 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
 /// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
 /// by stage 6b (`LR-DG`, R-fill): every root declares the 300×200 frame's
 /// extent on its two auto axes — what `CS-I` gave the legacy root, now spelled
-/// — so the literals hold on both authorities, and the test reads both
-/// (`render`'s authority is a required argument, record §38 §17).
+/// — so the literals held on both authorities, and the test read both until
+/// stage 9 deleted the legacy one (record §51, lane 1).
 @Test @MainActor func aLegacyFrameProposesItsWidthToAMeasuredLeaf() throws {
-    for authority in [LayoutAuthority.legacy, .proposal] {
-        let framed = try render(authority: authority) { log in
-            Column {
-                Text("alpha bravo charlie delta").font(size: 12).frame(width: px(60))
-                Mark("marker", log: log, width: 5, height: 5)
-            }.frame(width: px(300), height: px(200), alignment: .top)
-        }
-        let bare = try render(authority: authority) { log in
-            Column {
-                Text("alpha bravo charlie delta").font(size: 12)
-                Mark("marker", log: log, width: 5, height: 5)
-            }.frame(width: px(300), height: px(200), alignment: .top)
-        }
-        let framedY = Origin(try #require(framed.bounds["marker"])).y
-        let bareY = Origin(try #require(bare.bounds["marker"])).y
-        try #require(framedY != bareY, "the frame's width never reached the leaf: \(framedY), \(bareY)")
-
-        #expect(framedY == 60, "four wrapped 15pt lines: \(framedY), \(authority)")
-        #expect(bareY == 15, "one unwrapped line: \(bareY), \(authority)")
+    let framed = try render() { log in
+        Column {
+            Text("alpha bravo charlie delta").font(size: 12).frame(width: px(60))
+            Mark("marker", log: log, width: 5, height: 5)
+        }.frame(width: px(300), height: px(200), alignment: .top)
     }
+    let bare = try render() { log in
+        Column {
+            Text("alpha bravo charlie delta").font(size: 12)
+            Mark("marker", log: log, width: 5, height: 5)
+        }.frame(width: px(300), height: px(200), alignment: .top)
+    }
+    let framedY = Origin(try #require(framed.bounds["marker"])).y
+    let bareY = Origin(try #require(bare.bounds["marker"])).y
+    try #require(framedY != bareY, "the frame's width never reached the leaf: \(framedY), \(bareY)")
+
+    #expect(framedY == 60, "four wrapped 15pt lines: \(framedY)")
+    #expect(bareY == 15, "one unwrapped line: \(bareY)")
 }
 
 // MARK: - 2.7 a frame around a `List` (stage 7b's N2.3, record §49 §4 row 197)
@@ -381,10 +312,10 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
                 .compactMap { $0.hasPrefix("row-") ? Int($0.dropFirst(4)) : nil }
                 .sorted()
         }
-        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&root)
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&root)
         let cold = built()
         log.bounds.removeAll()
-        Frame(contentSize: size, scaleFactor: 1, stateTable: table, layoutAuthority: .proposal).render(&root)
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&root)
         return (cold, built())
     }
 
@@ -448,7 +379,7 @@ private func render<Root: Element>(authority: LayoutAuthority, width: Float = 30
         -> (region: Rect, content: Rect, offset: Double) {
         var preflight = make(SizeLog())
         let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
-                                layoutAuthority: .proposal, reportsUnlowerableFields: true)
+                                reportsUnlowerableFields: true)
         diagnostics.render(&preflight)
         try #require(diagnostics.unlowerableFields.isEmpty,
                      "the pre-flight reported \(diagnostics.unlowerableFields.map(\.description))")
@@ -553,7 +484,7 @@ private struct GrowingBoxOldSpelling: DeprecatedSpelling {
             body(log)
         }.alignItems(.stretch)
         let frame = Frame(contentSize: Size(width: px(400), height: px(300)), scaleFactor: 1,
-                          layoutAuthority: .proposal, reportsUnlowerableFields: true)
+                          reportsUnlowerableFields: true)
         frame.render(&root)
         #expect(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
         let rects = frame.finalizedScene().rects.map {

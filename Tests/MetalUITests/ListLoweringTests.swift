@@ -25,6 +25,12 @@ import MetalUICore
 // `WindowedRowsLayout`'s own answer, so they do not COMPILE at lane 1's HEAD
 // and cannot be a red-before (`LR-BX`); they arrive with their subject and
 // their evidence is the lane's mutations, named in the commit message.
+//
+// **Stage 9** (record §51, lane 1; ruling `LR-FE`): the legacy authority is
+// deleted, so each test renders one side, keeps its literals (lane 1's legacy
+// oracle values, which the lowered side equalled), loses its agreement checks,
+// and gains a literal where only the agreement carried a named observation (2.1's
+// B4, 2.8's identity).
 
 private func lpx(_ v: Float) -> Pixels { Pixels(v) }
 
@@ -61,8 +67,10 @@ private func lColumn(width: Float) -> Style {
     return style
 }
 
-/// A fixed-size leaf spelled **through the lowering** on both authorities —
-/// P3's re-spelling (`LR-BW`, record §27 §2.5), not `ProbeLeaf`'s.
+/// A fixed-size leaf spelled **through the lowering** — P3's re-spelling (`LR-BW`,
+/// record §27 §2.5), not `ProbeLeaf`'s. (It registered a legacy leaf under the
+/// legacy authority until stage 9; its site moved from `.customElement`, which
+/// lane 3 deletes, to `.box`, which reports nothing for a default style either.)
 ///
 /// The difference is the whole of `LR-BW`: `ProbeLeaf` registers a native leaf
 /// **directly** under the proposal authority, so it records no `LoweredItem`,
@@ -79,13 +87,10 @@ private struct LoweredProbeLeaf: Element {
     mutating func requestLayout(_ id: GlobalElementID,
                                 pass: inout LayoutPass) -> (LayoutNodeID, Void) {
         let w = Double(width), h = Double(height)
-        if pass.lowersToProposal {
-            let node = pass.lowerLegacyLeaf(Style(), declared: Style(), site: .customElement) {
-                pass.frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: w, height: h)) }
-            }
-            return (node, ())
+        let node = pass.lowerLegacyLeaf(Style(), declared: Style(), site: .box) {
+            pass.frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: w, height: h)) }
         }
-        return (pass.frame.requestLeaf(style: Style()) { _, _ in SizeD(width: w, height: h) }, ())
+        return (node, ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -95,51 +100,34 @@ private struct LoweredProbeLeaf: Element {
                         layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-/// Every whole-frame observation agrees and nothing was reported — the same
-/// roll call `LoweringScrollTests.lane2ExpectAgreement` makes, repeated here
-/// because that one is `private` to its own file.
+/// Nothing was reported. (Until stage 9 this was `lExpectAgreement`, which also
+/// required every observation to agree with the legacy engine's; that comparison
+/// is the deleted concept, `LR-FE` item 2.)
 @MainActor
-private func lExpectAgreement(_ r: LayoutDifferential.Report, _ arm: String,
-                              sourceLocation: SourceLocation = #_sourceLocation) {
+private func lExpectNothingReported(_ r: LayoutDifferential.Report, _ arm: String,
+                                    sourceLocation: SourceLocation = #_sourceLocation) {
     #expect(r.unlowerable.isEmpty, "\(arm): \(r.unlowerable)", sourceLocation: sourceLocation)
-    #expect(r.disagreeing.isEmpty, "\(arm): \(r.disagreeing)", sourceLocation: sourceLocation)
-    #expect(r.legacyOnly.isEmpty && r.loweredOnly.isEmpty,
-            "\(arm): legacyOnly \(r.legacyOnly.count) loweredOnly \(r.loweredOnly.count)",
-            sourceLocation: sourceLocation)
-    #expect(r.scenesEqual, "\(arm): scenes", sourceLocation: sourceLocation)
-    #expect(r.hitboxesEqual, "\(arm): hitboxes", sourceLocation: sourceLocation)
-    #expect(r.accessibilityEqual, "\(arm): accessibility", sourceLocation: sourceLocation)
-    #expect(r.stateSlotsEqual, "\(arm): state slots", sourceLocation: sourceLocation)
 }
 
-/// Both sides of one arm, each rendered over its **own** `StateTable` seeded
-/// with `offset` at `scrollerID`, each over `frames` frames.
-///
-/// `LayoutDifferential.compare` cannot do this: it takes `frames:` but
-/// deliberately not `stateTable:` (`LR-CC` item 1 — one shared table would make
-/// `stateSlotsEqual` compare a set with itself). A scrolled arm needs a stored
-/// offset before frame 1, so it builds its two sides by hand and hands them to
-/// `report(legacy:lowered:)`, which is what `compare` does anyway.
+/// One arm rendered over its own `StateTable` seeded with `offset` at
+/// `scrollerID`, over `frames` frames. (Until stage 9 it rendered both sides,
+/// each over its own table, and compared them.)
 ///
 /// **Two frames is not a detail** (`LR-BY`): `ScrollContext.viewportExtent` is
 /// written only by `ScrollChrome.resolvedOffset`'s `PrepaintPass` overload, so
 /// on frame 1 it is 0 and `List.visibleRange` declines to window. Frame 2 is
 /// the first frame with a bounded window.
 @MainActor
-private func lSeededSides<Content: ElementGroup>(
+private func lSeeded<Content: ElementGroup>(
     width: Float, height: Float, frames: Int, offset: Double,
     scrollerID: GlobalElementID,
     @ElementBuilder _ make: @MainActor () -> Content
-) -> (report: LayoutDifferential.Report, legacy: Frame, lowered: Frame) {
-    func side(_ authority: LayoutAuthority) -> Frame {
-        let table = StateTable()
-        table.withState(scrollerID, initial: ScrollState()) { $0.offset = offset }
-        return LayoutDifferential.render(authority: authority, width: width, height: height,
-                                         stateTable: table, frames: frames, make)
-    }
-    let legacy = side(.legacy)
-    let lowered = side(.proposal)
-    return (LayoutDifferential.report(legacy: legacy, lowered: lowered), legacy, lowered)
+) -> (report: LayoutDifferential.Report, lowered: Frame) {
+    let table = StateTable()
+    table.withState(scrollerID, initial: ScrollState()) { $0.offset = offset }
+    let lowered = LayoutDifferential.render(width: width, height: height,
+                                            stateTable: table, frames: frames, make)
+    return (LayoutDifferential.report(lowered), lowered)
 }
 
 /// The realized rows' logical indices, from the accessibility records a bounded
@@ -152,12 +140,12 @@ private func lRealizedIndices(_ frame: Frame) -> [Int] {
 }
 
 /// The anti-vacuity check every windowed arm owes before it asserts anything
-/// (`LR-BY`): a bounded window and a **non-empty** row-record set on **both**
-/// sides, and a window that is a strict subset of the logical count.
+/// (`LR-BY`): a bounded window and a **non-empty** row-record set (on both sides
+/// until stage 9), and a window that is a strict subset of the logical count.
 @MainActor
-private func lRequireBoundedWindow(_ legacy: Frame, _ lowered: Frame, count: Int, _ arm: String,
+private func lRequireBoundedWindow(_ lowered: Frame, count: Int, _ arm: String,
                                    sourceLocation: SourceLocation = #_sourceLocation) throws {
-    for (name, frame) in [("legacy", legacy), ("lowered", lowered)] {
+    for (name, frame) in [("lowered", lowered)] {
         let tables = frame.axEmissions.filter { $0.declared.logicalCount != nil }
         try #require(tables.count == 1, "\(arm) \(name): exactly one AXTable record",
                      sourceLocation: sourceLocation)
@@ -176,8 +164,8 @@ private func lRequireBoundedWindow(_ legacy: Frame, _ lowered: Frame, count: Int
 
 /// The one host shape in which a `List` inside the differential harness reaches
 /// a **bounded** window, found by measurement in lane 1 (record §27 §6.7) and
-/// re-used here: `DifferentialRoot`'s legacy arm is a `display: .stack` that
-/// offers its children fit-content, so a bare `ScrollView { List }` takes its
+/// re-used here: `DifferentialRoot`'s legacy arm (until stage 9) was a
+/// `display: .stack` that offered its children fit-content, so a bare `ScrollView { List }` takes its
 /// content's full extent as its viewport and windows nothing. The demo's own
 /// spelling — `.flexGrow(1).flexBasis(0).minHeight(0)` inside a container with
 /// a declared height — is what bounds the viewport.
@@ -204,7 +192,7 @@ private let lHostGrow = lChild(lHostColumn, 0)
 private let lHostScroller = lChild(lHostGrow, 0)
 private let lHostList = lChild(lHostScroller, 0)
 
-// MARK: - 2.1 Every windowed shape agrees with the legacy engine
+// MARK: - 2.1 Every windowed shape
 
 /// **Test 2.1** (`LR-BQ`, `LR-BR`). Five arms through the differential harness
 /// in which the windowed proposal `List` and the legacy spacer-plus-rows `Box`
@@ -251,64 +239,82 @@ private let lHostList = lChild(lHostScroller, 0)
 /// It is not reddened by **M2e** either (the windowed node's
 /// `recordLoweredItem` dropped) — see 2.7, where the same finding is written up
 /// with the proof that nothing can observe it.
+///
+/// **Stage 9** (`LR-FE` item 2): one side, against the literals above; the
+/// agreement — element rects, scenes, hitboxes, accessibility and state ids — is
+/// the deleted concept. **B4**, whose only literal was that agreement, gains its
+/// own, derived by hand before the run: the padding layer puts the 80-wide list
+/// at (10, 10) 80×200 inside a 100×220 layer, row *i* at (10, 10 + 10·i) 80×10 and its content at
+/// (10, 10 + 10·i) 0×10, and the window at a stored offset of 50 is B3's 3…16 —
+/// `List.visibleRange` reads the scroller's offset and extent, not the list's
+/// position inside the content. **Renamed** from
+/// `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape` (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape() throws {
+@Test func aLoweredListLaysOutEveryWindowedShape() throws {
     // B1 — unwindowed, no scroller.
-    let b1 = LayoutDifferential.compare(width: 200, height: 200) {
+    let b1 = LayoutDifferential.report(width: 200, height: 200) {
         Box(style: lColumn(width: 100)) {
             List(lItems(6), rowHeight: lpx(10)) { _ in Box() }
         }
     }
-    lExpectAgreement(b1, "B1")
+    lExpectNothingReported(b1, "B1")
     let b1List = lChild(lChild(lRoot, 0), 0)
-    #expect(b1.legacyBounds[b1List] == lBounds(0, 0, 100, 60), "B1 list: \(String(describing: b1.legacyBounds[b1List]))")
+    #expect(b1.bounds[b1List] == lBounds(0, 0, 100, 60), "B1 list: \(String(describing: b1.bounds[b1List]))")
     for index in 0..<6 {
         let row = lNamed(b1List, "item-\(index)")
-        #expect(b1.loweredBounds[row] == lBounds(0, Float(index) * 10, 100, 10),
-                "B1 row \(index): \(String(describing: b1.loweredBounds[row]))")
-        #expect(b1.loweredBounds[lChild(row, 0)] == lBounds(0, Float(index) * 10, 0, 10),
-                "B1 row \(index) content: \(String(describing: b1.loweredBounds[lChild(row, 0)]))")
+        #expect(b1.bounds[row] == lBounds(0, Float(index) * 10, 100, 10),
+                "B1 row \(index): \(String(describing: b1.bounds[row]))")
+        #expect(b1.bounds[lChild(row, 0)] == lBounds(0, Float(index) * 10, 0, 10),
+                "B1 row \(index) content: \(String(describing: b1.bounds[lChild(row, 0)]))")
     }
 
     // B2 — a bounded window at firstIndex 0.
-    let b2 = lSeededSides(width: 100, height: 100, frames: 2, offset: 0, scrollerID: lHostScroller) {
+    let b2 = lSeeded(width: 100, height: 100, frames: 2, offset: 0, scrollerID: lHostScroller) {
         lScrolledHost { List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.cssWidth(lpx(100)) }
     }
-    try lRequireBoundedWindow(b2.legacy, b2.lowered, count: 20, "B2")
-    #expect(lRealizedIndices(b2.legacy) == Array(0...11), "B2 legacy window: \(lRealizedIndices(b2.legacy))")
+    try lRequireBoundedWindow(b2.lowered, count: 20, "B2")
     #expect(lRealizedIndices(b2.lowered) == Array(0...11), "B2 lowered window: \(lRealizedIndices(b2.lowered))")
-    lExpectAgreement(b2.report, "B2")
-    #expect(b2.report.loweredBounds[lHostList] == lBounds(0, 0, 100, 200),
-            "B2 list: \(String(describing: b2.report.loweredBounds[lHostList]))")
+    lExpectNothingReported(b2.report, "B2")
+    #expect(b2.report.bounds[lHostList] == lBounds(0, 0, 100, 200),
+            "B2 list: \(String(describing: b2.report.bounds[lHostList]))")
 
     // B3 — the same, scrolled to 50, so firstIndex is 3.
-    let b3 = lSeededSides(width: 100, height: 100, frames: 2, offset: 50, scrollerID: lHostScroller) {
+    let b3 = lSeeded(width: 100, height: 100, frames: 2, offset: 50, scrollerID: lHostScroller) {
         lScrolledHost { List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.cssWidth(lpx(100)) }
     }
-    try lRequireBoundedWindow(b3.legacy, b3.lowered, count: 20, "B3")
-    #expect(lRealizedIndices(b3.legacy) == Array(3...16), "B3 legacy window: \(lRealizedIndices(b3.legacy))")
+    try lRequireBoundedWindow(b3.lowered, count: 20, "B3")
     #expect(lRealizedIndices(b3.lowered) == Array(3...16), "B3 lowered window: \(lRealizedIndices(b3.lowered))")
-    lExpectAgreement(b3.report, "B3")
-    #expect(b3.report.loweredBounds[lHostList] == lBounds(0, 0, 100, 200),
-            "B3 list: \(String(describing: b3.report.loweredBounds[lHostList]))")
+    lExpectNothingReported(b3.report, "B3")
+    #expect(b3.report.bounds[lHostList] == lBounds(0, 0, 100, 200),
+            "B3 list: \(String(describing: b3.report.bounds[lHostList]))")
     for index in 3...16 {
         let row = lNamed(lHostList, "item-\(index)")
-        #expect(b3.report.loweredBounds[row] == lBounds(0, Float(index) * 10, 100, 10),
-                "B3 row \(index): \(String(describing: b3.report.loweredBounds[row]))")
-        #expect(b3.report.loweredBounds[lChild(row, 0)] == lBounds(0, Float(index) * 10, 0, 10),
-                "B3 row \(index) content: \(String(describing: b3.report.loweredBounds[lChild(row, 0)]))")
+        #expect(b3.report.bounds[row] == lBounds(0, Float(index) * 10, 100, 10),
+                "B3 row \(index): \(String(describing: b3.report.bounds[row]))")
+        #expect(b3.report.bounds[lChild(row, 0)] == lBounds(0, Float(index) * 10, 0, 10),
+                "B3 row \(index) content: \(String(describing: b3.report.bounds[lChild(row, 0)]))")
     }
 
     // B4 — the same, with a padding layer above the list and a narrower row.
-    let b4 = lSeededSides(width: 100, height: 100, frames: 2, offset: 50, scrollerID: lHostScroller) {
+    let b4 = lSeeded(width: 100, height: 100, frames: 2, offset: 50, scrollerID: lHostScroller) {
         lScrolledHost {
             List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.cssWidth(lpx(80)).padding(lpx(10))
         }
     }
-    try lRequireBoundedWindow(b4.legacy, b4.lowered, count: 20, "B4")
-    #expect(lRealizedIndices(b4.legacy) == lRealizedIndices(b4.lowered),
-            "B4 windows: \(lRealizedIndices(b4.legacy)) vs \(lRealizedIndices(b4.lowered))")
-    lExpectAgreement(b4.report, "B4")
+    try lRequireBoundedWindow(b4.lowered, count: 20, "B4")
+    #expect(lRealizedIndices(b4.lowered) == Array(3...16), "B4 window: \(lRealizedIndices(b4.lowered))")
+    lExpectNothingReported(b4.report, "B4")
+    // The padding layer takes the list's slot; the list is its member 0.
+    let b4Layer = lHostList, b4List = lChild(b4Layer, 0)
+    #expect(b4.report.bounds[b4Layer] == lBounds(0, 0, 100, 220), "B4 layer: \(String(describing: b4.report.bounds[b4Layer]))")
+    #expect(b4.report.bounds[b4List] == lBounds(10, 10, 80, 200), "B4 list: \(String(describing: b4.report.bounds[b4List]))")
+    for index in 3...16 {
+        let row = lNamed(b4List, "item-\(index)")
+        #expect(b4.report.bounds[row] == lBounds(10, 10 + Float(index) * 10, 80, 10),
+                "B4 row \(index): \(String(describing: b4.report.bounds[row]))")
+        #expect(b4.report.bounds[lChild(row, 0)] == lBounds(10, 10 + Float(index) * 10, 0, 10),
+                "B4 row \(index) content: \(String(describing: b4.report.bounds[lChild(row, 0)]))")
+    }
 
     // B6 — ONE row, and the `List` declaring no width of its own. The arm
     // exists because `planLegacyItems`' single-child stretch elision (`LR-AC`)
@@ -318,29 +324,29 @@ private let lHostList = lChild(lHostScroller, 0)
     // proposal. Without `loweredNode`'s planning-parent correction (`LR-CD`)
     // this row reads 0 wide against the legacy engine's 100. Six rows hide it,
     // which is why five of the six arms above cannot see it.
-    let b6 = LayoutDifferential.compare(width: 200, height: 200) {
+    let b6 = LayoutDifferential.report(width: 200, height: 200) {
         Box(style: lColumn(width: 100)) {
             List(lItems(1), rowHeight: lpx(10)) { _ in Box() }
         }
     }
-    lExpectAgreement(b6, "B6")
+    lExpectNothingReported(b6, "B6")
     let b6Row = lNamed(lChild(lChild(lRoot, 0), 0), "item-0")
-    #expect(b6.loweredBounds[b6Row] == lBounds(0, 0, 100, 10),
-            "B6 row: \(String(describing: b6.loweredBounds[b6Row]))")
+    #expect(b6.bounds[b6Row] == lBounds(0, 0, 100, 10),
+            "B6 row: \(String(describing: b6.bounds[b6Row]))")
 
     // B5 — P3's tall row: 60pt of content in a 28pt row, floored at 28 on both
     // sides, with each row still at `index × rowHeight`.
-    let b5 = LayoutDifferential.compare(width: 200, height: 200) {
+    let b5 = LayoutDifferential.report(width: 200, height: 200) {
         Box(style: lColumn(width: 100)) {
             List(lItems(3), rowHeight: lpx(28)) { _ in LoweredProbeLeaf(width: 0, height: 60) }
         }
     }
-    lExpectAgreement(b5, "B5")
+    lExpectNothingReported(b5, "B5")
     let b5List = lChild(lChild(lRoot, 0), 0)
     for index in 0..<3 {
         let row = lNamed(b5List, "item-\(index)")
-        #expect(b5.loweredBounds[row] == lBounds(0, Float(index) * 28, 100, 28),
-                "B5 row \(index): \(String(describing: b5.loweredBounds[row]))")
+        #expect(b5.bounds[row] == lBounds(0, Float(index) * 28, 100, 28),
+                "B5 row \(index): \(String(describing: b5.bounds[row]))")
     }
 }
 
@@ -351,9 +357,8 @@ private let lHostList = lChild(lHostScroller, 0)
 /// the leading spacer buys on the legacy path and that `WindowedRowsLayout`
 /// buys directly on this one.
 ///
-/// Read from `Frame.elementBounds` on the lowered side alone, so it fails even
-/// if the legacy side were to move with it — 2.1 is the arm that compares the
-/// two.
+/// Read from `Frame.elementBounds` on the lowered side alone (the only side
+/// since stage 9).
 ///
 /// Mutation that must redden it: **M2a** (`firstIndex` ignored: every row slides
 /// up by 30).
@@ -361,7 +366,7 @@ private let lHostList = lChild(lHostScroller, 0)
 @Test func aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight() throws {
     let table = StateTable()
     table.withState(lHostScroller, initial: ScrollState()) { $0.offset = 50 }
-    let frame = LayoutDifferential.render(authority: .proposal, width: 100, height: 100,
+    let frame = LayoutDifferential.render(width: 100, height: 100,
                                           stateTable: table, frames: 2) {
         lScrolledHost { List(lItems(20), rowHeight: lpx(10)) { _ in Box() }.cssWidth(lpx(100)) }
     }
@@ -423,7 +428,7 @@ private let lHostList = lChild(lHostScroller, 0)
 ///   anything can see it today.
 @MainActor
 @Test func theListSiteReportsNothingAndItsRowsItemFieldsAreLowered() throws {
-    let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) {
+    let frame = LayoutDifferential.render(width: 200, height: 200) {
         Box(style: lColumn(width: 100)) {
             List(lItems(6), rowHeight: lpx(10)) { _ in Box() }
         }
@@ -436,38 +441,64 @@ private let lHostList = lChild(lHostScroller, 0)
             "the lowered side must build its rows, or an empty report says nothing")
 }
 
-// MARK: - 2.8 Row identity is the legacy one
+// MARK: - 2.8 Row identity
 
 /// **Test 2.8** (`TB-` rulings, §4.1 row 1). The windowed layout introduces no
 /// identity level: `ListRows` is a GROUP, and the outer `Box` still reuses the
 /// `List`'s own id, so a row's `GlobalElementID` is
-/// `child(of: listID, name: String(describing: datum.id))` on both authorities
-/// and the two `StateTable` id sets are **equal**.
+/// `child(of: listID, name: String(describing: datum.id))`.
 ///
-/// The set equality is the strong half — it catches an extra level, a missing
-/// level and a renamed slot at once. `rowID(4)` is asserted separately because
-/// a mutation that emptied both tables would satisfy set equality alone.
+/// **Until stage 9** the strong half was the two authorities' `StateTable` id
+/// sets being **equal** — which caught an extra level, a missing level and a
+/// renamed slot at once. **Since then** (`LR-FE` item 2) it is a literal on the
+/// one table, derived by hand before the run: every `StateTable` entry under the
+/// list sits, one level below the list, at a **named** row id `item-0`…`item-5`
+/// or at a `$`-named slot of the list's own — so a positional level introduced
+/// between the `List` and its rows fails it — and all six rows own an entry and
+/// record bounds. `rowID(4)` is asserted separately, as before, because a
+/// mutation that emptied the table would satisfy the "every entry" half alone.
 ///
 /// Mutation that must redden it: **M2a** is not it — the ids do not depend on
 /// placement. A level introduced between the `List` and its rows is what this
 /// pins, which is why `ListRows` is a group and the spec says so.
+///
+/// **Renamed at stage 9** from `aLoweredListsRowIdentitiesAreTheLegacyOnes`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func aLoweredListsRowIdentitiesAreTheLegacyOnes() throws {
-    func side(_ authority: LayoutAuthority) -> Frame {
-        LayoutDifferential.render(authority: authority, width: 200, height: 200) {
-            Box(style: lColumn(width: 100)) {
-                List(lItems(6), rowHeight: lpx(10)) { _ in Box() }
-            }
+@Test func aLoweredListsRowsAreNamedDirectlyUnderTheList() throws {
+    let lowered = LayoutDifferential.render(width: 200, height: 200) {
+        Box(style: lColumn(width: 100)) {
+            List(lItems(6), rowHeight: lpx(10)) { _ in Box() }
         }
     }
-    let legacy = side(.legacy), lowered = side(.proposal)
     try #require(lowered.unlowerableFields.isEmpty, "\(lowered.unlowerableFields)")
-    let legacyOnlySlots = legacy.stateTable.ids.subtracting(lowered.stateTable.ids)
-    let loweredOnlySlots = lowered.stateTable.ids.subtracting(legacy.stateTable.ids)
-    #expect(legacy.stateTable.ids == lowered.stateTable.ids,
-            "legacy only: \(legacyOnlySlots); lowered only: \(loweredOnlySlots)")
 
     let listID = lChild(lChild(lRoot, 0), 0)
+    let rowNames = Set((0..<6).map { ElementID("item-\($0)") })
+    // The level directly below the list for each entry under it.
+    func levelBelow(_ id: GlobalElementID, _ ancestor: GlobalElementID) -> GlobalElementID? {
+        var cursor: GlobalElementID? = id
+        while let current = cursor {
+            if current.parent == ancestor { return current }
+            cursor = current.parent
+        }
+        return nil
+    }
+    let underList = lowered.stateTable.ids.compactMap { levelBelow($0, listID) }
+    try #require(!underList.isEmpty, "the list's rows must own StateTable entries")
+    for level in underList {
+        let ok: Bool
+        switch level.component {
+        case .named(let name): ok = rowNames.contains(name) || name.name.hasPrefix("$")
+        default: ok = false
+        }
+        #expect(ok, "an entry under the list at an unexpected level: \(level)")
+    }
+    for index in 0..<6 {
+        let row = lNamed(listID, "item-\(index)")
+        #expect(underList.contains(row), "row \(index) must own a StateTable entry under \(row)")
+        #expect(lowered.elementBounds[row] != nil, "row \(index)'s bounds")
+    }
     let rowID = lNamed(listID, "item-4")
     func descends(_ id: GlobalElementID, from ancestor: GlobalElementID) -> Bool {
         var cursor: GlobalElementID? = id
@@ -477,11 +508,8 @@ private let lHostList = lChild(lHostScroller, 0)
         }
         return false
     }
-    for (name, frame) in [("legacy", legacy), ("lowered", lowered)] {
-        #expect(frame.stateTable.ids.contains(where: { descends($0, from: rowID) }),
-                "\(name): row 4 must own at least one StateTable entry under \(rowID)")
-        #expect(frame.elementBounds[rowID] != nil, "\(name): row 4's bounds")
-    }
+    #expect(lowered.stateTable.ids.contains(where: { descends($0, from: rowID) }),
+            "row 4 must own at least one StateTable entry under \(rowID)")
 }
 
 // MARK: - The kernel fixture the layout's own tests measure on
@@ -718,7 +746,7 @@ private func lKernelWindow(widths: [Float], rowHeight: Double, logicalCount: Int
     // in the logical count, not in a window's size.
     var totals: [Int: Int] = [:]
     for n in [4, 8, 12] {
-        let frame = LayoutDifferential.render(authority: .proposal, width: 200, height: 200) {
+        let frame = LayoutDifferential.render(width: 200, height: 200) {
             Box {
                 ScrollView(.horizontal) {
                     List(lItems(n), rowHeight: lpx(10)) { _ in Box() }
@@ -753,28 +781,30 @@ private func lKernelWindow(widths: [Float], rowHeight: Double, logicalCount: Int
 /// arithmetic is `0 × logicalCount` and `bounds.y + index × 0`, neither of
 /// which can produce a NaN from a finite `bounds`.
 ///
-/// Both authorities, through the differential, because "does not trap" is only
-/// half of it: the legacy engine sizes every row and the whole list to zero and
-/// the lowered one must agree.
+/// Both authorities, through the differential until stage 9, because "does not
+/// trap" is only half of it: the legacy engine sized every row and the whole list
+/// to zero and the lowered one had to agree. Since then the rows are a literal,
+/// derived by hand before the run from B1's shape: each row stretched to the
+/// column's 100 and 0 tall, at y 0 (`index × 0`).
 ///
 /// **Arrives with its subject.**
 @MainActor
 @Test func aZeroRowHeightLowersWithoutTrappingOrProducingNaN() throws {
-    let report = LayoutDifferential.compare(width: 200, height: 200) {
+    let report = LayoutDifferential.report(width: 200, height: 200) {
         Box(style: lColumn(width: 100)) {
             List(lItems(5), rowHeight: lpx(0)) { _ in Box() }
         }
     }
-    lExpectAgreement(report, "zero rowHeight")
+    lExpectNothingReported(report, "zero rowHeight")
     let listID = lChild(lChild(lRoot, 0), 0)
     for index in 0..<5 {
-        let row = try #require(report.loweredBounds[lNamed(listID, "item-\(index)")],
+        let row = try #require(report.bounds[lNamed(listID, "item-\(index)")],
                                "row \(index) must be built — five rows, no window")
-        #expect(row.size.height == lpx(0), "row \(index): \(row)")
+        #expect(row == lBounds(0, 0, 100, 0), "row \(index): \(row)")
         for value in [row.origin.x.value, row.origin.y.value, row.size.width.value, row.size.height.value] {
             #expect(value.isFinite, "row \(index) rect is not finite: \(row)")
         }
     }
-    #expect(report.loweredBounds[listID]?.size.height == lpx(0),
-            "\(String(describing: report.loweredBounds[listID]))")
+    #expect(report.bounds[listID]?.size.height == lpx(0),
+            "\(String(describing: report.bounds[listID]))")
 }

@@ -83,8 +83,15 @@ enum AuthorityCoverage {
     /// actor, so a main-actor-isolated one does not compile.
     nonisolated static let authorities: [LayoutAuthority] = LayoutAuthority.allCases
 
-    /// The 87 scenario names, written out by hand before the first run (practices
+    /// The 38 scenario names, written out by hand before the first run (practices
     /// shape 13: a count a later loop indexes on is a literal, not a derivation).
+    ///
+    /// **87 − 49 since stage 9's lane 1** (record §51, `LR-FH` item 1): the five
+    /// files that also use the differential harness — `ScrollRoutingTests` (16),
+    /// `ListTests` (21), `DeferredTests` (5), `PresentationWindowTests` (6) and
+    /// `DecorationPaintTests` (1) — collapsed their scenarios to the one
+    /// authority, and their names left this set. Lane 2 collapses the other 38
+    /// and deletes this registry with the roll call.
     ///
     /// **82 + 5 since stage 6b's lane 1** (`LR-DH`): the five AV tests —
     /// `AccessibilityDefaultsTests`' `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`
@@ -145,23 +152,6 @@ enum AuthorityCoverage {
     /// never reads: the two cases would run the identical assertions and one of
     /// them could never fail differently from the other (`LR-BN`).
     static let expected: Set<String> = [
-        // ScrollRoutingTests (16)
-        "aWheelEventInsideARegionScrollsIt",
-        "aWheelEventOutsideEveryRegionScrollsNothing",
-        "theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove",
-        "momentumDeltasScrollLikeDirectOnes",
-        "aNestedRegionClippedOutOfViewByItsParentDoesNotReceiveWheelEvents",
-        "aHorizontalScrollViewMovesOnDeltaXNotDeltaY",
-        "scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind",
-        "aDeferredScrollViewTakesTheWheelFromAnOverlappingSiblingBeneathIt",
-        "withinOneLayerTheLastRegisteredRegionStillWins",
-        "scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout",
-        "rawOffsetPublishedDuringRequestLayoutCanExceedTheClampedRange",
-        "nestedScrollViewsInnermostWinsAndPoppingRestoresTheOuterContext",
-        "aSiblingAfterAScrollViewSeesNoScrollContext",
-        "anOpaqueDeferredScrimSwallowsAWheelEventInsteadOfScrollingTheListBeneath",
-        "aNonOpaqueDeferredScrimLetsTheWheelReachTheListBeneath",
-        "aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints",
         // ScrollIndicatorTests (14)
         "theIndicatorIsTheLastPrimitiveInTheScene",
         "contentThatFitsDrawsNoIndicator",
@@ -182,27 +172,6 @@ enum AuthorityCoverage {
         "aScrollViewOfTextDoesNotShrinkItsContentToTheViewport",
         "aScrollViewsCornerRadiusReachesEveryPrimitiveItClips",
         "aScrollViewWithNoCornerRadiusClipsSquare",
-        // ListTests (20) — stage 4, lane 3 (`LR-BW`, `LR-CB`)
-        "aListSizesItselfToCountTimesRowHeight",
-        "aRowKeepsItsIdentityWhenItsPositionChanges",
-        "aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent",
-        "paddingOnAListDoesNotShrinkItsRowsBelowRowHeight",
-        "distinctRowsGetDistinctIdentities",
-        "anEmptyListHasZeroHeightAndTrapsNothing",
-        "aWidthModifierOnAListReachesItsLayoutNode",
-        "aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan",
-        "aWindowedListStillReportsItsFullContentHeight",
-        "aWindowedRowSitsAtItsAbsoluteOffsetNotTheWindowsTop",
-        "aZeroRowHeightDoesNotTrapOnceAScrollContextIsPresent",
-        "aPresentContextWithZeroViewportExtentBuildsEveryRow",
-        "anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing",
-        "aScrolledListsSpacerDoesNotShrinkUnderPadding",
-        "aFractionalOffsetRoundsFirstDownAndLastUp",
-        "aVerticalListInsideAHorizontalScrollViewBuildsEveryRow",
-        "aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows",
-        "theListsSpacerIsANodeNotAnElement",
-        "aListInTheDifferentialHarnessReachesABoundedWindow",
-        "aListsSceneAndHitboxesAreUnchangedByTheGroup",
         // AXNodeTests (3) — stage 4, lane 4 (`LR-BU`)
         "aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount",
         "aVirtualizedListsLogicalCountIsTheFullDataCountEvenWhenEveryRowFits",
@@ -222,29 +191,10 @@ enum AuthorityCoverage {
         // MeasurePerformanceTests (2) — stage 4, lane 5 (`LR-CG`)
         "aListsWorkIsTheSameFor160RowsAsFor40",
         "theResidentEntrySetStaysBoundedWhileScrolling10kRows",
-        // DeferredTests (5) — stage 5, lane 2 (`LR-CN`, `LR-CO`): the four
-        // element-level scenarios, hosted, and the demo-shaped scrim (2.5)
-        "aNamedChildUnderDeferredResolvesTheSameAsUnderABox",
-        "aDeferredElementHoistsItsChildAboveASiblingDeclaredAfterIt",
-        "aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting",
-        "aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll",
-        "aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities",
         // AbsoluteOverlayTests (1) — stage 5, lane 2 (divergence 11, `LR-CN`)
         "anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt",
-        // ListTests (1) — stage 5, lane 2 (`LR-CN`): the scenario stage 4 kept
-        // legacy-only on a claim record §29 §2.3 refutes
-        "aListInsideADeferredIgnoresTheEscapedScrollersOffset",
-        // PresentationWindowTests (6) — stage 5, lane 3 (`LR-CO`): the
-        // must-not-move set through real windows
-        "theDemoModalDismissesOnAScrimClickAndSwallowsTheWheelUnderBothAuthorities",
-        "aPresentationInsideAFadedSubtreeIsStillFadedUnderBothAuthorities",
-        "aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities",
-        "aPresentationsAccessibilityRecordAndFocusMatchUnderBothAuthorities",
-        "anAnimatedInsetInterpolatesItsValueUnderBothAuthorities",
-        "nestedPresentationsLandOnOneLayerUnderBothAuthorities",
-        // DecorationPaintTests (1), EnvironmentTests (1) — stage 5, lane 3: the
-        // two existing in-flow pins, parameterised
-        "aDeferredPortalInsideAFadedSubtreeIsStillFaded",
+        // EnvironmentTests (1) — stage 5, lane 3: an existing in-flow pin,
+        // parameterised
         "aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope",
         // AccessibilityDefaultsTests (1), AccessibilityTreeTests (4) — stage 6b,
         // lane 1 (`LR-DH`): the five AV tests, `hidden()` now lowered
@@ -280,7 +230,7 @@ enum AuthorityCoverage {
                        sourceLocation: SourceLocation = #_sourceLocation) {
         let name = String(function.prefix { $0 != "(" })
         #expect(expected.contains(name),
-                "\(name) records coverage but is not in AuthorityCoverage.expected — add it there (and re-derive the 87)",
+                "\(name) records coverage but is not in AuthorityCoverage.expected — add it there (and re-derive the 38)",
                 sourceLocation: sourceLocation)
         seen[name, default: []].insert(authority)
         guard !verifiedWholeSet, Set(seen.keys) == expected else { return }

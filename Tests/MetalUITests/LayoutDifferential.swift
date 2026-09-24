@@ -7,29 +7,24 @@ import MetalUIPlatform
 import Metal
 @testable import MetalUI
 
-// Test support for plan task 7's differential harness
+// Test support for plan task 7's lowering tests
 // (`docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §5.2, ruling
-// LR-D). A tree is rendered twice — under the legacy layout authority, then under
-// the proposal authority with diagnostics on — inside `DifferentialRoot`, and the
-// two frames are compared element by element (`Frame.elementBounds`) and
-// observation by observation (scene bytes as emitted and as finalized, hitboxes, accessibility records with
-// their geometry, `StateTable` ids).
-//
-// `compareInWindows` (lane 5) is the same comparison through a real `Window` per
-// authority, `DifferentialRoot` as the window's root content.
+// LR-D). **Single-authority since stage 9** (ruling `LR-FE` item 5): until then
+// a tree was rendered twice — under the legacy layout authority, then under the
+// proposal authority — and the two frames were compared element by element and
+// observation by observation. The legacy authority and its CSS engine are gone,
+// so a tree is rendered once, inside `DifferentialRoot`, with diagnostics on and
+// element bounds recorded, and a test asserts the one frame's answers by
+// hand-derived literal. The name is kept so the record's citations still resolve.
 
-/// The harness root: a top-leading, fixed-size root on both sides (ruling LR-D).
+/// The harness root: a top-leading, fixed-size root (ruling LR-D) — a native
+/// `.topLeading` overlay of the content inside a native fixed `width`×`height`
+/// frame aligned `.topLeading`.
 ///
-/// - legacy authority: one `display: .stack` node sized `width`×`height`, aligned
-///   `.topLeading` (what `Stack(alignment: .topLeading) { … }.width(W).height(H)`
-///   registers);
-/// - proposal authority: a native `.topLeading` overlay of the content inside a
-///   native fixed `width`×`height` frame aligned `.topLeading`.
-///
-/// **Its own divergence** (spec §5.3): the legacy `Stack` offers a child
-/// fit-content, the overlay offers `width`×`height` (divergence 53), so a wrapping
-/// or greedy child placed directly under this root disagrees because of the root.
-/// Put such content in a container of its own.
+/// **It offers its content `width`×`height`** (the overlay's proposal), so a
+/// wrapping or greedy child placed directly under it fills that offer. Until
+/// stage 9 the legacy side offered fit-content (divergence 53), which is why the
+/// older tests put such content in a container of its own.
 @MainActor
 struct DifferentialRoot<Content: ElementGroup>: Element {
     var width: Float
@@ -51,21 +46,12 @@ struct DifferentialRoot<Content: ElementGroup>: Element {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
                                                                    pass: &pass)
-        if pass.lowersToProposal {
-            let overlay = pass.frame.requestNativeOverlay(children: children,
-                                                          alignment: .topLeading)
-            let node = pass.frame.requestNativeFrame(child: overlay,
-                                                     width: Double(width), height: Double(height),
-                                                     alignment: .topLeading)
-            return (node, Layout(content: contentLayout))
-        }
-        var style = Style()
-        style.display = .stack
-        style.alignItems = Alignment.topLeading.blockAxis
-        style.justifyItems = Alignment.topLeading.inlineAxis
-        style.size = Size(width: .length(.pixels(Pixels(width))),
-                          height: .length(.pixels(Pixels(height))))
-        return (pass.frame.requestNode(style: style, children: children), Layout(content: contentLayout))
+        let overlay = pass.frame.requestNativeOverlay(children: children,
+                                                      alignment: .topLeading)
+        let node = pass.frame.requestNativeFrame(child: overlay,
+                                                 width: Double(width), height: Double(height),
+                                                 alignment: .topLeading)
+        return (node, Layout(content: contentLayout))
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -80,44 +66,21 @@ struct DifferentialRoot<Content: ElementGroup>: Element {
     }
 }
 
-/// A fixed-size leaf that registers a legacy leaf under the legacy authority and a
-/// native leaf under the proposal authority, answering `width`×`height` on both —
-/// except for the knobs, each of which makes the two authorities disagree on
-/// purpose so a harness test has an arm that can fail:
-///
-/// - `proposalWidthOffset`: added to the width under the proposal authority only;
-/// - `clickable`: an `onClick` and an accessibility label, registered in `prepaint`;
-/// - `mintsProbeStateUnder`: a `$probe` state entry minted only under that authority;
-/// - `onLayout`: called with `pass.lowersToProposal` during layout;
-/// - `paintsOnRaisedLayerUnder`: its fill is emitted inside `Frame.pushLayer()`
-///   only under that authority, so the emitted rect bytes are identical and only
-///   the finalized paint order (layer sorts first) differs.
-///
-/// It paints a fill over its bounds, so its rect reaches the scene.
+/// A fixed-size native leaf answering `width`×`height`, painting a fill over its
+/// bounds so its rect reaches the scene; `clickable` adds an `onClick` and an
+/// accessibility label, registered in `prepaint`. (Its stage-1 knobs, each of
+/// which made the two authorities disagree on purpose, retired with the
+/// comparison at stage 9, `LR-FE` item 5.)
 @MainActor
 struct ProbeLeaf: Element {
     var width: Float
     var height: Float
-    var proposalWidthOffset: Float = 0
     var clickable = false
-    var mintsProbeStateUnder: LayoutAuthority? = nil
-    var onLayout: (@MainActor (Bool) -> Void)? = nil
-    var paintsOnRaisedLayerUnder: LayoutAuthority? = nil
 
     mutating func requestLayout(_ id: GlobalElementID,
                                 pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        onLayout?(pass.lowersToProposal)
-        let authority: LayoutAuthority = pass.lowersToProposal ? .proposal : .legacy
-        if mintsProbeStateUnder == authority {
-            pass.withState(GlobalElementID.child(of: id, at: 0, name: ElementID("$probe")), initial: 0) { _ in }
-        }
-        let h = Double(height)
-        if pass.lowersToProposal {
-            let w = Double(width + proposalWidthOffset)
-            return (pass.frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: w, height: h)) }, ())
-        }
-        let w = Double(width)
-        return (pass.frame.requestLeaf(style: Style()) { _, _ in SizeD(width: w, height: h) }, ())
+        let w = Double(width), h = Double(height)
+        return (pass.frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: w, height: h)) }, ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -131,44 +94,27 @@ struct ProbeLeaf: Element {
 
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                         layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {
-        let raised = paintsOnRaisedLayerUnder == pass.frame.layoutAuthority
-        if raised { pass.frame.pushLayer() }
         pass.fill(bounds, color: Hsla(h: 0.6, s: 0.5, l: 0.5))
-        if raised { pass.frame.popLayer() }
     }
 }
 
-/// Renders `DifferentialRoot { make() }` under each authority and compares.
+/// Renders `DifferentialRoot { make() }` once, with diagnostics on and element
+/// bounds recorded.
 @MainActor
 enum LayoutDifferential {
     struct Report {
-        /// Ids recorded under either authority (their union).
+        /// Ids the frame recorded (`Frame.elementBounds`).
         var elements: Int
-        var agreeing: [GlobalElementID]
-        var disagreeing: [(id: GlobalElementID, legacy: Bounds<Pixels>, lowered: Bounds<Pixels>)]
-        var legacyOnly: [GlobalElementID]
-        var loweredOnly: [GlobalElementID]
-        /// The proposal frame's diagnostics, in registration order.
+        /// The frame's diagnostics, in registration order.
         var unlowerable: [UnlowerableField]
-        /// The scene, byte for byte, twice: as emitted (`Frame.scene`: rects and
-        /// glyphs in emission order, each carrying its clip) and as the GPU receives
-        /// it (`Frame.finalizedScene()`: rects, glyphs and `drawList`, after the
-        /// `(layer, order, sequence)` sort) — so paint order, clip, layer and the
-        /// rect/glyph interleave are all compared. The `drawList` clause is not
-        /// separately pinned: no harness arm emits glyphs.
-        var scenesEqual: Bool
-        /// Id, bounds, layer and opacity of every hitbox, in order.
-        var hitboxesEqual: Bool
-        /// Id, declared node, text and geometry of every accessibility record, in order.
-        var accessibilityEqual: Bool
-        /// The two `StateTable`s' ids.
-        var stateSlotsEqual: Bool
-        /// Each side's element bounds, for literal assertions.
-        var legacyBounds: [GlobalElementID: Bounds<Pixels>]
-        var loweredBounds: [GlobalElementID: Bounds<Pixels>]
+        /// Each element's recorded rect, for literal assertions.
+        var bounds: [GlobalElementID: Bounds<Pixels>]
+        /// The frame itself, for a test that asserts its scene, hitboxes,
+        /// accessibility records or state table by literal.
+        var frame: Frame
     }
 
-    /// The frame one side renders, kept for a test that needs more than the report.
+    /// The frame a tree renders, kept for a test that needs more than the report.
     ///
     /// **`frames` and `stateTable` exist because one frame cannot window a
     /// `List`** (ruling `LR-BY`, plan task 7 stage 4 lane 1, critic round 1
@@ -178,25 +124,20 @@ enum LayoutDifferential {
     /// first frame it is 0, `List.visibleRange` takes its
     /// `context.viewportExtent > 0` guard and returns `0..<count`, and
     /// `windowIsBounded` is false, which sends `List.prepaint` down the branch
-    /// that publishes the table and **no rows**. Every `List` arm of every
-    /// differential test was therefore comparing an unwindowed list, and its
-    /// `accessibilityEqual` was comparing one record with one record and
-    /// passing vacuously.
+    /// that publishes the table and **no rows**.
     ///
-    /// `frames > 1` renders that many frames of ONE side over one
-    /// `StateTable` — the same object a real `Window` threads across its
-    /// frames — and returns the last. **An arm that relies on this owes a
-    /// `try #require` that the window really is bounded and the row-record set
-    /// really is non-empty**, on both sides, before it asserts anything; the
-    /// anti-vacuity check is part of the arm, not a review note. Pinned by
+    /// `frames > 1` renders that many frames over one `StateTable` — the same
+    /// object a real `Window` threads across its frames — and returns the last.
+    /// **An arm that relies on this owes a `try #require` that the window
+    /// really is bounded and the row-record set really is non-empty** before it
+    /// asserts anything. Pinned by
     /// `aListInTheDifferentialHarnessReachesABoundedWindow` (`ListTests.swift`),
     /// whose mutation M1f forces `frames` back to 1.
-    static func render<Content: ElementGroup>(authority: LayoutAuthority,
-                                              width: Float, height: Float, scaleFactor: Float = 1,
+    static func render<Content: ElementGroup>(width: Float, height: Float, scaleFactor: Float = 1,
                                               stateTable: StateTable? = nil,
                                               frames: Int = 1,
                                               @ElementBuilder _ make: @MainActor () -> Content) -> Frame {
-        precondition(frames >= 1, "a side renders at least one frame")
+        precondition(frames >= 1, "a tree renders at least one frame")
         let table = stateTable ?? StateTable()
         var last: Frame?
         for _ in 0..<frames {
@@ -205,8 +146,7 @@ enum LayoutDifferential {
                               scaleFactor: scaleFactor,
                               stateTable: table,
                               collectsAccessibility: true,
-                              layoutAuthority: authority,
-                              reportsUnlowerableFields: authority == .proposal,
+                              reportsUnlowerableFields: true,
                               recordsElementBounds: true)
             frame.render(&root)
             last = frame
@@ -214,164 +154,96 @@ enum LayoutDifferential {
         return last!
     }
 
-    /// **`compare` grows `frames:` and deliberately does NOT grow
-    /// `stateTable:`.** `LR-BY` says it "grows the same two"; it cannot. The
-    /// report's `stateSlotsEqual` is `legacy.stateTable.ids ==
-    /// lowered.stateTable.ids`, so handing both sides one table would make that
-    /// field compare a set with itself and pass for every tree — the exact
-    /// vacuity the `frames:` parameter exists to remove. Each side therefore
-    /// gets its own fresh `StateTable`, threaded through its own `frames`
-    /// frames (`LR-CC`).
-    static func compare<Content: ElementGroup>(width: Float, height: Float, scaleFactor: Float = 1,
-                                               frames: Int = 1,
-                                               @ElementBuilder _ make: @MainActor () -> Content) -> Report {
-        let legacy = render(authority: .legacy, width: width, height: height,
-                            scaleFactor: scaleFactor, frames: frames, make)
-        let lowered = render(authority: .proposal, width: width, height: height,
-                             scaleFactor: scaleFactor, frames: frames, make)
-        return report(legacy: legacy, lowered: lowered)
+    /// `render`, summarized: the recorded element count, the diagnostics and the
+    /// element bounds (stage 9's single-authority replacement for `compare`,
+    /// `LR-FE` item 5).
+    static func report<Content: ElementGroup>(width: Float, height: Float, scaleFactor: Float = 1,
+                                              frames: Int = 1,
+                                              @ElementBuilder _ make: @MainActor () -> Content) -> Report {
+        report(render(width: width, height: height, scaleFactor: scaleFactor, frames: frames, make))
     }
 
-    static func report(legacy: Frame, lowered: Frame) -> Report {
-        let a = legacy.elementBounds, b = lowered.elementBounds
-        let ids: [GlobalElementID] = Set(a.keys).union(b.keys).sorted { (x: GlobalElementID, y: GlobalElementID) in "\(x)" < "\(y)" }
-        var agreeing: [GlobalElementID] = []
-        var disagreeing: [(id: GlobalElementID, legacy: Bounds<Pixels>, lowered: Bounds<Pixels>)] = []
-        var legacyOnly: [GlobalElementID] = [], loweredOnly: [GlobalElementID] = []
-        for id in ids {
-            switch (a[id], b[id]) {
-            case let (x?, y?):
-                if x == y { agreeing.append(id) } else { disagreeing.append((id, x, y)) }
-            case (_?, nil): legacyOnly.append(id)
-            case (nil, _?): loweredOnly.append(id)
-            case (nil, nil): break
-            }
-        }
-        func bytes<T>(_ xs: [T]) -> [UInt8] { xs.withUnsafeBytes { Array($0) } }
-        let finalA = legacy.finalizedScene(), finalB = lowered.finalizedScene()
-        let scenesEqual = bytes(legacy.scene.rects) == bytes(lowered.scene.rects)
-            && bytes(legacy.scene.glyphs) == bytes(lowered.scene.glyphs)
-            && bytes(finalA.rects) == bytes(finalB.rects)
-            && bytes(finalA.glyphs) == bytes(finalB.glyphs)
-            && finalA.drawList == finalB.drawList
-        func hitboxKey(_ frame: Frame) -> [String] {
-            frame.hitboxes.map { "\($0.id)|\($0.bounds)|\($0.layer)|\($0.opaque)" }
-        }
-        func axKey(_ frame: Frame) -> [String] {
-            frame.axEmissions.map {
-                "\($0.id)|\($0.declared)|\(String(describing: $0.text))|\($0.geometry)"
-            }
-        }
-        return Report(elements: ids.count, agreeing: agreeing, disagreeing: disagreeing,
-                      legacyOnly: legacyOnly, loweredOnly: loweredOnly,
-                      unlowerable: lowered.unlowerableFields,
-                      scenesEqual: scenesEqual,
-                      hitboxesEqual: hitboxKey(legacy) == hitboxKey(lowered),
-                      accessibilityEqual: axKey(legacy) == axKey(lowered),
-                      stateSlotsEqual: legacy.stateTable.ids == lowered.stateTable.ids,
-                      legacyBounds: a, loweredBounds: b)
+    static func report(_ frame: Frame) -> Report {
+        Report(elements: frame.elementBounds.count, unlowerable: frame.unlowerableFields,
+               bounds: frame.elementBounds, frame: frame)
     }
 }
 
-/// Two real `Window`s over `FakePlatformWindow`s — one per layout authority — each
-/// showing `DifferentialRoot(size × size) { make() }`, for plan task 7's lane 5
-/// (spec 5.4–5.6): what a frame registers is compared as `compare` does, and what
-/// a window does with it afterwards — click dispatch through `Window.lastHitboxes`,
-/// focus, the keymap, the published accessibility tree, `@State` and animation —
-/// is driven identically on both.
+/// A real `Window` over a `FakePlatformWindow` showing `DifferentialRoot(size ×
+/// size) { make() }`, recording element bounds — stage 9's one window where a
+/// `WindowPair` opened two, one per layout authority (`LR-FE` item 4).
 ///
 /// **Square, and the root the window's size**, because the fake surface is square
-/// and a native root is centred at its answer (`CN-J`) where the legacy root sits
-/// at the origin: a root the window's own size is at (0, 0) under both.
+/// and a native root is centred at its answer (`CN-J`): a root the window's own
+/// size is at (0, 0).
 ///
-/// **No diagnostics.** A `Window` builds production frames, so under the proposal
-/// authority anything unlowerable **traps** rather than reports. **So the init
-/// first renders the same content through `LayoutDifferential.compare`, with
-/// diagnostics, and requires an empty report**: without that pre-flight a mutant
-/// that makes the tree report (lane 5's re-run of M4h) trapped inside a window
-/// test and ended the whole run with no summary line (practices shape 13, record
-/// §18 lane 5). A tree whose report changes between frames (an animation's end
-/// state) needs its own pre-flight per state.
+/// **No diagnostics.** A `Window` builds production frames, so anything
+/// unlowerable **traps** rather than reports. **So it first renders the same
+/// content through `LayoutDifferential.render`, with diagnostics, and requires
+/// an empty report**: without that pre-flight a mutant that makes the tree report
+/// (lane 5's re-run of M4h) trapped inside a window test and ended the whole run
+/// with no summary line (practices shape 13, record §18 lane 5). A tree whose
+/// report changes between frames (an animation's end state) needs its own
+/// pre-flight per state.
 @MainActor
-struct WindowPair {
-    let legacy: (window: Window, platform: FakePlatformWindow)
-    let lowered: (window: Window, platform: FakePlatformWindow)
+func makeLoweredWindow<Content: ElementGroup>(device: any MTLDevice, size: Int,
+                                              startsDisplayLink: Bool = false,
+                                              @ElementBuilder _ make: @escaping @MainActor () -> Content)
+    throws -> (window: Window, platform: FakePlatformWindow) {
+    let preflight = LayoutDifferential.render(width: Float(size), height: Float(size), make)
+    try #require(preflight.unlowerableFields.isEmpty,
+                 "this tree would trap in a production window: \(preflight.unlowerableFields)")
+    let (window, platform) = try makeFakeWindow(device: device, size: size,
+                                                startsDisplayLink: startsDisplayLink) {
+        DifferentialRoot(width: Float(size), height: Float(size), content: make)
+    }
+    window.recordsElementBounds = true
+    return (window, platform)
+}
 
-    init<Content: ElementGroup>(device: any MTLDevice, size: Int,
-                                startsDisplayLink: Bool = false,
-                                @ElementBuilder _ make: @escaping @MainActor () -> Content) throws {
-        func open(_ authority: LayoutAuthority) throws -> (window: Window, platform: FakePlatformWindow) {
-            let (window, platform) = try makeFakeWindow(device: device, size: size,
-                                                        startsDisplayLink: startsDisplayLink) {
-                DifferentialRoot(width: Float(size), height: Float(size), content: make)
-            }
-            window.layoutAuthority = authority
-            window.recordsElementBounds = true
-            return (window, platform)
-        }
-        let preflight = LayoutDifferential.compare(width: Float(size), height: Float(size), make)
-        try #require(preflight.unlowerable.isEmpty,
-                     "this tree would trap in a proposal-authority window: \(preflight.unlowerable)")
-        legacy = try open(.legacy)
-        lowered = try open(.proposal)
+@MainActor
+extension LayoutDifferential.Report {
+    /// Each hitbox's rect by owner (`Frame.hitboxes`, a later registration by
+    /// the same owner winning), for a literal where a test's doc names hitboxes
+    /// (stage 9, `LR-FE` item 2: what the two-engine `hitboxesEqual` carried).
+    var hitboxRects: [GlobalElementID: Bounds<Pixels>] {
+        Dictionary(frame.hitboxes.map { ($0.id, $0.bounds) }, uniquingKeysWith: { _, last in last })
     }
 
-    /// Runs `step` on the legacy window, then on the lowered one.
-    func both(_ step: @MainActor (Window, FakePlatformWindow) throws -> Void) rethrows {
-        try step(legacy.window, legacy.platform)
-        try step(lowered.window, lowered.platform)
-    }
-
-    /// The two windows' last frames compared, as `LayoutDifferential.report` compares
-    /// two frames: element bounds (`Window.lastElementBounds`), the finalized scene
-    /// (`Window.lastScene`: rects, glyphs and draw list), `Window.lastHitboxes`,
-    /// every accessibility tree each window has published (in order, geometry
-    /// included), and the `StateTable` ids. `unlowerable` is always empty: a
-    /// window's frames trap instead of reporting.
-    func report() -> LayoutDifferential.Report {
-        let a = legacy.window.lastElementBounds, b = lowered.window.lastElementBounds
-        let ids = Set(a.keys).union(b.keys).sorted { (x: GlobalElementID, y: GlobalElementID) in "\(x)" < "\(y)" }
-        var agreeing: [GlobalElementID] = []
-        var disagreeing: [(id: GlobalElementID, legacy: Bounds<Pixels>, lowered: Bounds<Pixels>)] = []
-        var legacyOnly: [GlobalElementID] = [], loweredOnly: [GlobalElementID] = []
-        for id in ids {
-            switch (a[id], b[id]) {
-            case let (x?, y?):
-                if x == y { agreeing.append(id) } else { disagreeing.append((id, x, y)) }
-            case (_?, nil): legacyOnly.append(id)
-            case (nil, _?): loweredOnly.append(id)
-            case (nil, nil): break
-            }
-        }
-        func bytes<T>(_ xs: [T]) -> [UInt8] { xs.withUnsafeBytes { Array($0) } }
-        let sa = legacy.window.lastScene, sb = lowered.window.lastScene
-        let scenesEqual = bytes(sa.rects) == bytes(sb.rects) && bytes(sa.glyphs) == bytes(sb.glyphs)
-            && sa.drawList == sb.drawList
-        func hitboxKey(_ window: Window) -> [String] {
-            window.lastHitboxes.map { "\($0.id)|\($0.bounds)|\($0.layer)|\($0.opaque)" }
-        }
-        return LayoutDifferential.Report(
-            elements: ids.count, agreeing: agreeing, disagreeing: disagreeing,
-            legacyOnly: legacyOnly, loweredOnly: loweredOnly, unlowerable: [],
-            scenesEqual: scenesEqual,
-            hitboxesEqual: hitboxKey(legacy.window) == hitboxKey(lowered.window),
-            accessibilityEqual: legacy.platform.publishedAccessibilityTrees
-                == lowered.platform.publishedAccessibilityTrees,
-            stateSlotsEqual: legacy.window.stateTable.ids == lowered.window.stateTable.ids,
-            legacyBounds: a, loweredBounds: b)
+    /// Each accessibility record's unclipped frame by element
+    /// (`Frame.axEmissions`, a later record by the same element winning), for a
+    /// literal where a test's doc names accessibility (what `accessibilityEqual`
+    /// carried).
+    var accessibilityFrames: [GlobalElementID: Bounds<Pixels>] {
+        Dictionary(frame.axEmissions.map { ($0.id, $0.geometry.frame) }, uniquingKeysWith: { _, last in last })
     }
 }
 
-extension LayoutDifferential {
-    /// Opens a `WindowPair`, runs `drive` on each window, and compares their last
-    /// frames (spec §5.2's `compareInWindows`; square, see `WindowPair`).
-    static func compareInWindows<Content: ElementGroup>(
-        device: any MTLDevice, size: Int,
-        @ElementBuilder _ make: @escaping @MainActor () -> Content,
-        drive: @MainActor (Window, FakePlatformWindow) throws -> Void
-    ) throws -> Report {
-        let pair = try WindowPair(device: device, size: size, make)
-        try pair.both(drive)
-        return pair.report()
+@MainActor
+extension LayoutDifferential.Report {
+    /// Every emitted scene rect's bounds, in emission order (`Frame.scene.rects`),
+    /// in the frame's scaled pixels — what `scenesEqual` compared byte for byte.
+    var sceneRects: [Bounds<Pixels>] {
+        frame.scene.rects.map {
+            Bounds(origin: Point(x: Pixels($0.bounds.origin.x), y: Pixels($0.bounds.origin.y)),
+                   size: Size(width: Pixels($0.bounds.size.width), height: Pixels($0.bounds.size.height)))
+        }
+    }
+
+    /// The string of each text accessibility record, by element.
+    var accessibilityTexts: [GlobalElementID: String] {
+        Dictionary(frame.axEmissions.compactMap { e in e.text.map { (e.id, $0) } },
+                   uniquingKeysWith: { _, last in last })
+    }
+}
+
+@MainActor
+extension LayoutDifferential.Report {
+    /// How many distinct text rows the scene's glyphs fall in, counting from
+    /// `top` in rows `lineHeight` tall (13pt text: 16) — a glyph's row is the one
+    /// its centre falls in. For a literal on where a text wraps, which the
+    /// two-engine `scenesEqual` carried until stage 9.
+    func glyphRowCount(top: Float, lineHeight: Float = 16) -> Int {
+        Set(frame.scene.glyphs.map { Int((($0.bounds.origin.y + $0.bounds.size.height / 2) - top) / lineHeight) }).count
     }
 }
