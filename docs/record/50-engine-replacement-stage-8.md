@@ -1025,3 +1025,106 @@ was done):
 9. The CLAUDE.md guard sentences called N3.1 "guard 3.2" and counted its
    control arm as a guard.
 
+
+## 14. 2026-09-24 — Windows stack budget (hotfix after the merge, `fix/windows-demo-stack`)
+
+**The failure.** With stage 8 on `master` (`b9a5d7f`), both Windows x64 jobs
+crashed with `*** Program crashed: Stack overflow ***` while building
+`demoContent()`: the Swift workflow's "Root package (Windows x64)" in
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`, on a Swift Testing worker
+thread (run 36047875721), and the SDL workflow's `DemoCapture.exe`, on its
+main thread (run 36047875558). The backtrace is only ten frames deep:
+`renderDemoFrame` → `demoContent()` → `Column.init` → closure #1 → `Row.init`
+→ closure #2 → `Column.init` → closure #2 in closure #2, whose frame 0 is its
+own stack probe (`DemoContent.swift:541`). Linux and macOS passed (8 MB main
+threads); Windows gives every thread 1 MB by default. `85217e3` passed
+Windows.
+
+**The mechanism, measured.** Not depth: frame size. At `-Onone` a
+non-generic function or builder closure reserves one stack slot per
+temporary on entry — every child value, every partial `Pair` of
+`buildPartialBlock`, every intermediate of a modifier chain — and the demo's
+tree value is 35 040 bytes (`MemoryLayout.size(ofValue: demoContent())`; a
+`ModifiedElement` layer adds 688, a `Box` is 616, a `Text` 657). Static frames
+(`sub sp` in the arm64 debug object's prologues), macOS arm64:
+
+| frame | `85217e3` | `b9a5d7f` |
+|---|---|---|
+| `demoContent()` | 99 680 | 138 208 |
+| closure #1 in `demoContent()` | 128 624 | 185 760 |
+| closure #2 in closure #1 | 176 688 | 248 272 |
+| closure #2 in closure #2 in closure #1 (the crash frame) | 185 296 | 247 648 |
+| sum through the crash frame | 590 288 | 819 888 |
+
+Stage 8's `.frame` re-spelling added a `ModifiedElement` layer where the
+own-box sizing modifier added none, so every subtree value, and every frame
+holding copies of it, grew. **Smallest thread stack that builds
+`demoContent()`**, bisected in 16 KB steps with an exit test per size (a
+scratch harness, not committed), macOS arm64 debug:
+
+| shape | smallest passing stack |
+|---|---|
+| `85217e3` | 896 KB |
+| `b9a5d7f` | 1200 KB |
+| sections moved into non-generic functions that call each other | 1136 KB |
+| the same, each function building its children into `let`s first | 1008 KB |
+| **as landed**: children built as arguments, composing functions generic | **528 KB** |
+
+The two intermediate rows are why the task's suggested fix — split the
+closures into helper functions — was not enough by itself: a caller's frame
+still holds its children's values and its modifier chain's copies, and nested
+calls keep every level's frame live at once. What landed builds every section
+by its own function **as an argument** (`demoRoot(header: demoHeader(), body:
+demoBody(sidebar: demoSidebar(), mainPane: demoMainPane(heroStack:
+demoHeroStack(), scrollBox: demoScrollBox())))`), so a child's frame is gone
+before its parent composes, and the three composing functions are generic over
+their children (`some Element` parameters), so their temporaries are sized at
+run time: static frames 432 (`demoRoot`), 288 (`demoBody`) and 560
+(`demoMainPane`) bytes, `demoContent()` 72 016. The two halves cannot be
+measured apart — a non-generic composing function would have to name opaque
+types. `nativeLayoutPreviewContent()` plus `textInputDemoContent()` need
+80 KB together.
+
+**Unchanged, measured.** Elements, layers and identity levels are the same —
+the builders see the same values in the same positions:
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` green with `Expected.swift`
+unedited (and in a `swift:6.4-noble` aarch64 container);
+`docs/probes/demo-pixels/compare.sh <scratch> b9a5d7f HEAD` reads 0 differing
+and "scene identical" in all fourteen images (two of the script's controls
+read other than its header's recorded values — default vs modal 1 031 003
+against 1 030 498, default vs animation 454 895 against 210 027 — the same at
+`b9a5d7f`, and the values record §48 already carries as current, `LR-DZ`); `Backends/SDL` 21 + 19 on macOS, and
+`DemoCapture` against freshly recorded fixtures: scene byte-for-byte, 0 px.
+
+**The guard.** `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift`,
+which runs on all three platforms: `everyProductionTreeBuildsOnAOneMegabyteThread`
+builds `demoContent()`, `nativeLayoutPreviewContent()` and
+`textInputDemoContent()` on a `Thread` with `stackSize = 1 << 20`, inside an
+exit test so that an overflow fails the test rather than the run. **Red before
+the fix**: `.signal(SIGBUS)` on macOS arm64 at `b9a5d7f`, `.signal(SIGSEGV)`
+in the container; the mutation (the fix reverted alone, the new test kept)
+reddens it on both. Its control, `aThreadTooSmallForTheDemoFailsTheSameHarness`,
+expects the same harness to fail at 256 KB and checks both sizes read back
+from `Thread.stackSize`. **The first control was 64 KB and passed on Linux**:
+swift-corelibs Foundation keeps its 8 MB default for that request (read back
+8 388 608; a recursion on the thread reached 8184 KB), while it keeps 128 KB
+and up — a control that cannot fail on one platform was caught only by running
+it there. Only the build runs on the small thread: rendering reaches `Text`'s
+and `ProposalText`'s unguarded `MainActor.assumeIsolated`, which traps off the
+main thread on Apple platforms and Linux (the isolation is stripped with an
+`unsafeBitCast` for the build, which checks nothing at run time). Rendering on
+a 1 MB thread is therefore pinned only by Windows CI, where
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` renders on the worker thread and
+`DemoCapture.exe` on its main thread.
+
+**Not done, with reasons.** No linker `/STACK` for the Windows executables:
+it would help `DemoCapture.exe`'s main thread but not an app built on the
+framework, and the demo now fits with room. The framework-level cause — a
+35 KB value for a demo-sized tree, and debug frames that are multiples of it
+— is a hazard for any Windows app that composes a large tree in one builder;
+not addressed here (element storage is the framework's allocation-pinned hot
+path).
+
+**Counts.** 1454 tests (`Test run with 1454 tests in 3 suites passed`,
+unfiltered, native, after `swift package clean`; FR-J line present; 0
+`error:`), **1454 = 1452 + 2**; 0 `warning:` under the default build system.
