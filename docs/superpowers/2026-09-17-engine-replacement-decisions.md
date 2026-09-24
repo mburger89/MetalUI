@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FC`** (stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FH`** (stage 9's design took `LR-FC`…`LR-FG`, appended at the end; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -8782,3 +8782,307 @@ per-test K (22 sites: `ThemeTests` 6, `ScrollViewTests` 10, `EnvironmentTests`
 same five crashers in the same order when un-skipped). Record §50 §11.4 and
 §11.6 carry the measurement.
 
+
+---
+
+## LR-FC — stage 9: what the engine deletion deletes, what it keeps, and three places it departs from row 9's wording
+
+**Evidence.** Record §51 §2–§3, measured at `b9a5d7f` on `feat/engine-stage-9`
+(baseline `Test run with 1452 tests in 3 suites passed`). A scratch commit that
+deleted the seven engine files and `MeasureFunction.swift`'s legacy half built
+`MetalUILayout` with errors in **`LayoutTree.swift` alone** (its `newNode`/
+`newLeaf`/`style`/`setStyle`/`measure` and the `styles`/`measures` rows); with
+those stripped, `MetalUILayout` compiled and `MetalUI` failed in `Frame.swift`,
+`Passes.swift` and `Text.swift`; with `LayoutAuthority.legacy`, the four
+`Frame`/`LayoutPass` registrars, `Frame.style`/`setStyle` and
+`LayoutPass.lowersToProposal` removed too, the visible set was eleven files —
+`Box`, `Component`, `Deferred`, `Frame`, `ListRows`, `ModifiedElement`,
+`Passes`, `ScrollView`, `Stack`, `Text`, `TextField`. Nothing in
+`Backends/SDL`, `Tests/PortableTests`, `Experiments` or a compiled probe names
+a deleted symbol except `docs/probes/demo-pixels/ZZDemoPixels.swift` (the
+fourteen-image harness, which renders its chrome pair under both authorities).
+`resolveLength`/`resolveDimension`/`resolveEdges`/`resolveMargin`/`clamp`/
+`ResolvedEdges` have **no caller outside the engine files** (the lowering
+resolves px/rem through its own private `resolvedLength`/`resolvedDimension`,
+`LegacyLowering.swift:793`/`:803`); every function in `Alignment.swift` is a
+flex function (`MainAxisOffsets`, `distributeMainAxis`, `resolvedAlignment`,
+`crossAxisOffset`, `distributeLines`, `lineStretchAmount`, `lineContentSize`)
+— the alignment *enums* live in `Style.swift`.
+
+**The ruling.**
+
+1. **Deleted, `Sources/MetalUILayout`:** `FlexEngine.swift`,
+   `ResolveFlexibleLengths.swift`, `FlexBaseSize.swift`, `FlexLines.swift`,
+   `LayoutContext.swift`, **the whole of** `Alignment.swift` and **the whole
+   of** `Resolve.swift` (departure 1: row 9 says "flex half" and "percentage
+   half"; neither file has another half with a caller, and a kept function no
+   test or caller reaches is exactly what `LR-EQ` found unpinned);
+   `MeasureFunction.swift`'s `MeasureFunction`, `AvailableSpace`,
+   `AvailableSpaceSize` and `OptionalSizeD` (the file keeps `SizeD`, which the
+   kernel uses); `LayoutTree`'s `newNode(style:children:)`,
+   `newLeaf(style:measure:)`, `style(_:)`, `setStyle(_:_:)`, `measure(_:)`,
+   `isNativeLayoutNode(_:)` (always true once no legacy node can be minted), the
+   `styles` and `measures` storage rows and `appendNode`'s `style:` parameter
+   (the placeholder `Style.default` rows). `nodeCount` counts `childLists`.
+   `beginLayout`'s message stops naming `computeLayout`.
+2. **Deleted, `Sources/MetalUI`:** the `LayoutAuthority` enum **whole**,
+   `Frame.layoutAuthority`, `Frame.init`'s `layoutAuthority:` parameter,
+   `Frame.defaultLayoutAuthority`, `Window.layoutAuthority` (departure 2: row 9
+   says "`LayoutAuthority.legacy`, `Frame.layoutAuthority` branches"; a
+   one-case enum is not a choice, and keeping its property keeps a spelling
+   every test would still pass for nothing); `LayoutPass.lowersToProposal`;
+   `Frame.requestNode`/`requestLeaf` and their backstop
+   `unguardedLegacyRegistration`; the public deprecated
+   `LayoutPass.requestNode`/`requestLeaf`; `Frame.style`/`setStyle` and
+   `LayoutPass.style`/`setStyle`; `Frame.legacyRootLayoutCounter` and
+   `LegacyRootLayoutCounter`; `computeRootLayout`'s legacy branch (a root that
+   is not native is unreachable, so the method lays out presentations, then the
+   native root); `textMeasure` (all three overloads); `LoweringSite.customElement`;
+   every site's legacy branch (`Box`, `Stack`, `Text`, `TextField`,
+   `ModifiedElement` ×2, `ScrollView`, `Component`'s amend via `setStyle`,
+   `ListRows`' raw spacer and `ListRows.GroupLayout.spacer`, `Deferred`'s
+   authority guard, `LoweringState`'s authority guard); `Frame.isHidden`'s
+   `style(node).display == .none` clause (the proposal path's `hiddenNodes` is
+   the one source).
+3. **Deleted, the kernel's unreachable legacy-node checks** (departure 3: not in
+   row 9): once `appendNode` is reached only by native registrars, the four
+   `SA-G` preconditions that name a legacy node — `nativeNode(_:)`'s "native
+   layout subtree contains a legacy node", the two grid-mark checks and
+   `newNativeGrid`'s child check — cannot fire and no test can pin them.
+   `nativeNode(_:)` keeps its unwrap as a `preconditionFailure` whose message
+   says the node has no kernel case; the three others are deleted. **No other
+   kernel line changes**: `NativeLayoutRun.maxDepth` (72), `SA-L`, the depth
+   tests, `roundLayout`, `measuredWidth`, the `isLayingOut` flag (now guarding
+   one engine) and every native registrar stay.
+4. **Kept, and why.** `Style` and every CSS field (stage 10);
+   `StyledElement.style`; `LegacyLowering.swift`, now the legacy elements' only
+   path, under its present name (a rename is not a deletion and would move
+   every citation for nothing); `UnlowerableField`, `Frame.noteUnlowerable`,
+   `reportsUnlowerableFields` and every `Style`-field report (they are the
+   proposal authority's own reports, owned by stage 10 — `LR-ER` item 4);
+   `ModifiedElement`/`ModifiedContent` separate (stage 11);
+   `Tests/MetalUITests/CSSSizing.swift` (stage 10); `DifferentialRoot` (the
+   test harness's fixed top-leading root, now single-authority).
+
+**What it costs if wrong.** Departure 1: a caller of `resolveLength` outside
+this repository breaks — it is public API of `MetalUILayout`, but nothing in
+the repository, `Backends/SDL` or `Tests/PortableTests` calls it, and plan task
+7's text is "delete the CSS layout paths". Departure 2: none observable —
+production has run `.proposal` since 6b and no public spelling ever existed
+(`LR-DF`). Departure 3: a future legacy node minted by a new private path would
+hit the unwrap's message instead of an `SA-G` one; there is no such path.
+
+## LR-FD — stage 9: tokenizer min-content is deleted from production; the portable content sizes stay as library API with their oracle
+
+**Evidence.** `TextSystem.minContentWidth(_:font:)` has one production caller,
+`textMeasure`'s `.minContent` branch (`Text.swift:94`), reached only through the
+legacy `requestLeaf` closure; `LR-DQ` item 9 measured that a lowered `Text`
+takes no min-content probe (a pin unpinned from `.legacy` read `0 <= 40`).
+`Shaper.unbreakableRuns(of:)`, `unbreakableRunsReusingTokenizer`,
+`Shaper.runCallCounter`/`RunCallCounter` (`UnbreakableRuns.swift`) and
+`ShapingCache.minContentWidth`/`minContent`/`minContentCount` serve only that
+requirement. The portable side (`PortableText.unbreakableRuns`,
+`minContentWidth`, `maxContentWidth`, `ContentSizes.swift`, `LB-N`) is public
+API of the `MetalUIPortableText` library product, pinned byte-for-byte on Linux
+and Windows by `Tests/PortableTests`' `PortableTextDeterminismTests`, and its
+oracle `ContentSizeOracleTests` compares it against `Shaper.unbreakableRuns`
+(the `LB-L` 4 418-class-pair agreement).
+
+**The ruling.**
+
+1. Deleted: the `TextSystem.minContentWidth` requirement and both witnesses
+   (`CoreTextTextSystem`, `PortableTextSystem`); `UnbreakableRuns.swift` whole
+   (`Shaper.unbreakableRuns`, the reusing variant, `RunCallCounter`,
+   `runCallCounter`); `ShapingCache.minContentWidth`, its `minContent`
+   storage, its sweep arm and `minContentCount`. `TX-F`'s production rule dies
+   with them; `TX-K` (max-content, `measure(wrappingAt: nil)`) is untouched.
+2. Kept: `PortableText`'s three content-size functions — a library API outside
+   plan task 7's engine, with a CI pin in a separate package; deleting it would
+   edit `Tests/PortableTests` for no engine reason. Re-owned out of task 7: if
+   it is ever deleted, that is a text-library decision.
+3. **The oracle keeps its reference.** `ContentSizeOracleTests`' Apple arm
+   stops calling `Shaper.unbreakableRuns` and calls a test-local copy of the
+   same `CFStringTokenizer` walk, moved **verbatim** from
+   `UnbreakableRuns.swift` into the oracle's file before the source is
+   deleted, so `LB-L`'s agreement stays measured against the tokenizer it was
+   ruled against. Its gated `measureContentSizeDifferences` likewise.
+4. The tests whose subject is the deleted production code retire with rows
+   (spec §6 lane 2): `UnbreakableRunsTests` (2), `TokenizerReuseTests` (2), the
+   tokenizer/min-content tests of `ShapingCacheTests`, `TextMeasureTests`' four
+   `textMeasure` tests, `MeasurePerformanceTests`' two stage-9 tokenizer pins
+   (`LR-DQ` item 2). `TextHardLineBreakTests`' one test is re-spelled onto
+   `TextSystem.measure(_:font:wrappingAt: nil)` (TX-K, the same fact).
+
+**What it costs if wrong.** A future element wanting CSS min-content has to
+restore a tokenizer — but SwiftUI has no min-content concept for `Text`, and the
+proposal path answers below-word proposals by `LR-AU`'s clamp, not a
+min-content probe. The oracle's copy could drift from a tokenizer nobody ships;
+it is a reference, and the portable side is what ships.
+
+## LR-FE — stage 9: one authority — the parameterised scenarios collapse, the differential tests keep their literals, and the harness becomes single-authority
+
+**Evidence.** The stage-9 reach instrument
+(`docs/probes/stage-9-legacy-reach-instrument.patch`: a marker in
+`computeLayout`, in `LayoutTree.newNode` and in `Frame.init` for a `.legacy`
+frame; one unfiltered run, `Test run with 1452 tests in 3 suites passed`,
+reverted) reads **206 tests** in-process: **200** construct a `.legacy` frame,
+register CSS nodes and run the CSS engine (record §49 §2's census A, 199, plus
+stage 8's N1.2), and **6** only mint `LayoutTree.newNode` ids
+(`LayoutTreeTests`). Exit-test children are not seen. The static reference
+census (`docs/probes/stage-9-legacy-reference-census.tsv`: every `@Test` block
+naming a symbol row 9 deletes) lists **371** tests in 71 files. Of the 94 tests
+that call `LayoutDifferential.compare` or build a `WindowPair`, a
+literal-assertion heuristic finds 15 with no hand-derived rect literal (record
+§51 §2.3); the other 79 already assert the proposal side's rects by value next
+to the agreement check. The roll call (`everyParameterisedScenarioRanUnderBothLayoutAuthorities`)
+requires **87** scenarios across fifteen files under both authorities.
+
+**The ruling.**
+
+1. **Parameterised scenarios collapse.** Every `@Test(arguments:
+   AuthorityCoverage.authorities)` scenario loses its argument and runs once,
+   under the one authority; its `.legacy`-only branches go and its
+   `AuthorityCoverage.record` call goes. A parameterised test counts as one
+   test, so **no count moves** for these 87. `AuthorityCoverage.swift` and
+   `ZZAuthorityRollCall.swift` are deleted; the roll call retires (R row: its
+   subject is "both authorities"; nothing replaces it, stage 10's symbol check
+   is what shows the second authority is gone). CLAUDE.md's two roll-call CI
+   hazards retire with it (Record phase).
+2. **A differential test keeps its literals and loses the agreement.** A test
+   that compared the two engines becomes a single-authority assertion of the
+   same fact: its hand-derived literal assertions on the lowered side stay
+   verbatim; its agreement assertions (`expectFullAgreement`, `disagreeing`,
+   `legacyOnly`/`loweredOnly`, `scenesEqual`, `hitboxesEqual`,
+   `accessibilityEqual`, `stateSlotsEqual`) go, as the deleted concept "two
+   engines agree". **Where the test's name or doc names an observation that
+   only the agreement carried** (an element, a scene, a hitbox, an
+   accessibility record, a state slot), the lane writes a literal for it,
+   **derived by hand before the run**, and confirms it in a scratch run at the
+   lane's base against the legacy arm (which still exists there); the record
+   carries the scratch reading. **The site-coverage rule** (spec §6 lane 1):
+   five lowering mutations run at the lane's base and head; every test a
+   mutation reddens at base must still redden at head unless it is retired
+   with a row — a dropout gets a literal, not a pass.
+3. **Rejected: a frozen legacy snapshot** (dump every legacy `Report` side as
+   Swift literals keyed by test). It would keep whole-tree agreement exactly,
+   but it is a golden under another name — stage 7a retired the goldens so no
+   answer rests on a recorded engine's output — and its entries would be
+   element-id strings no reader can derive.
+4. **Windows.** A `WindowPair` becomes one `Window`; a test that asserted the
+   two windows agree keeps its per-window assertions.
+5. **The harness.** `LayoutDifferential` keeps `render(width:height:…)`
+   without an authority (always diagnostics on, element bounds recorded),
+   `Report` keeps only the lowered side's fields; `compare`,
+   `report(legacy:lowered:)`, `WindowPair` and the legacy branches of
+   `DifferentialRoot` and `ProbeLeaf` (`mintsProbeStateUnder`,
+   `paintsOnRaisedLayerUnder` become booleans or go) are deleted. The
+   harness's own self-tests of the comparison
+   (`theDifferentialHarnessSeesAOnePointDisagreementAtExactlyThatElement`,
+   `theDifferentialHarnessComparesPaintHitboxesAccessibilityAndState`) retire.
+6. **Names.** A test whose name states the legacy engine's answer or two
+   authorities (`…WhereTheLegacyRowShrinksItsChildren`, `…AgreesWithTheLegacy…`,
+   `…UnderBothAuthorities`, `…AndTrapsUnderTheLegacyOne`) is **renamed** to the
+   fact it still asserts, as a T row recording old → new (count-neutral; `LR-CB`'s
+   precedent: a name that lies sends the next reader wrong). "Legacy" naming a
+   legacy **element** (`aLegacyFramePlacesItsChildAtEachOfTheNineAlignments`)
+   is not renamed: the element survives.
+
+**What it costs if wrong.** Item 2: agreement on an element no literal names is
+lost — the demo's byte-for-byte pin (`theDemoFrameMatchesTheValuesRecordedOnMacOS`),
+the fourteen images and the site-coverage rule's mutations are what still see
+such an element move. Item 1: none — the roll call only ever measured the
+second authority's presence.
+
+## LR-FF — stage 9: every stage-9-owned item, disposed by name
+
+**Evidence.** Record §51 §3 (the containing-block measurement): with
+`reportPresentationContainingBlock` and `deferred.nested` removed in a scratch
+build, all seven `LR-CL` arms of `PresentationLoweringTests` 1.5 that reported
+(bordered root, a root of width 100 in 200, a `Deferred` root, a presentation
+inside a top/left-5 one, a root `.frame(maxWidth: 100)`, a root
+`.frame(minWidth: 300)`, a presentation inside a bordered `inset(0)` one) lay
+the presented box out at the window rect **(185, 85) 10×10** — its
+right/bottom-5 insets against the 200×100 window — with an empty report, as the
+auto root already did. With `deferred.amended` removed as well, a
+`Component().width(70)` over a presentation member **silently keeps the member
+at (5, 5) 10×10**: the amend is dropped, where the legacy amend overwrote the
+box's own width (70).
+
+**The ruling.**
+
+| item | owner until now | disposition |
+|---|---|---|
+| `NativeBoundaryIntegrationTests`' three N9 pins (`aProposalElementInsideALegacyContainerTrapsAtRegistration`, `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`, `aPaddingModifierOnAProposalComponentTraps`) and its fourth, 6a's N9 (`aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`) | 9 (`LR-DQ` item 2, record §38 §4) | retire (R): each pins an `SA-G` trap on a legacy node, and no legacy node can be minted |
+| `ProposalNodeIDTests.anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` | 9 (record §49 census A) | retire (R), same reason |
+| `MeasurePerformanceTests`' two tokenizer pins | 9 (`LR-DQ` item 2) | retire (R), `LR-FD` |
+| `deferred.containingBlock`, `.nested`, `.root` | 9 (`LR-CL`) | **deleted with the answer they protected**: a presentation's containing block is the window, whatever surrounds it (measured above). New test N3.1 pins the seven arms at the window rect; `aPresentationTrapsAProductionProposalFrameNamingItsField` (1.6) retires (R, replaced by N3.1); 1.5 loses its seven `deferred.*`-reporting arms |
+| `deferred.amended` | 9 (`LR-CK`) | **re-owned to stage 11**, report kept: deleting it drops the amend silently (measured above), and what `Component.width` means over a presentation member is `Component.width`/`frame`'s question, which `LR-ER` item 2 and `LR-EY` item 3 already gave stage 11. `owningStage` for `.deferred` reads "11"; the case keeps only this entry |
+| custom elements (`.customElement`, owning stage "9", `LR-CW`) | 9 | the public registrars and the site are **deleted**; the six trap tests retire (R): `aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority`, `aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`, and the four `aLegacySpelled…AbortsAProductionProposalFrame` (`AXNodeTests`, `ListTests`, `MeasurePerformanceTests`, `TombstoneTests`); `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` loses its two `customElement` arms (T); guard `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` is re-spelled to read their absence (T) |
+| divergence **11** (legacy-only since stage 5) | 9 | **retires** (57 → 56 live). `AbsoluteOverlayTests.anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt` retires (R: its name and its `.legacy` arm are the divergence); its `.proposal` fact (an absolute box outside a `Deferred` reports `position`/`inset`, owner 10) moves as one arm into 1.5 ("absolute in a `ScrollView`, no `Deferred`") |
+| record §05's "three rows now legacy-authority only" (`margin: .auto`, `Style.border` on a container, `Style.padding` on a leaf) and the `ListRows.GroupLayout.spacer` row | 9 | the rows are **deleted** (Record phase): with one authority each is lowered, not inert, and the spacer field is deleted |
+| record §05's untested `FlexBaseSize` figures (50/50, 83/17, 125/75) and `FlexBaseSize.swift:53`/`:128`'s comments | 9 (record §49 §5.1) | gone with the file |
+| `FlexEngine.swift:107`'s unpinned precondition and `computeLayout`'s `isLayingOut` bracket (`LR-EP`, `LR-EQ`) | 9 | gone with the file; the flag guards one engine, and CLAUDE.md's "do not split it" is re-worded (Record phase) |
+| `LR-H`'s ideal trap under the legacy authority | 9 (spec §4.1 note) | gone with the authority; `anIdealDimensionOnTheLegacyFrameTraps` retires (R); `anIdealFrameLowersUnderTheProposalAuthorityAndStillTrapsUnderTheLegacyOne` keeps its proposal arm and is renamed (T) |
+| `Frame`'s backstop (`LR-C`) | 9 | gone with the registrars; `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` retires (R) |
+| `noProductionFrameReachesTheLegacyEngine` (6b's exit test) | 9 (row 9) | retires (R) with the branch and counter it read; stage 10's `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` replaces it |
+| `aFrameAndAWindowDefaultToTheProposalAuthority`, `aWindowBuildsEveryFrameUnderItsLayoutAuthority` | 6b/1 | retire (R): there is no authority to default or to pass |
+| `theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore` | 6b | retires (R): the legacy hidden path is gone |
+| every other test "under both authorities" | — | `LR-FE` |
+
+**What it costs if wrong.** The containing-block row: a tree with a bordered or
+non-window-sized root and a modal now lays out where it trapped since 6b —
+additive (a trap becoming an answer), and the answer is `LR-CL`'s stated
+construction, measured. The amended row: one more report carried into stage
+11; the alternative ships a silent drop.
+
+## LR-FG — stage 9: three lanes, the accounting, the mutation plan, the demo harness
+
+**Evidence.** Record §51 §2 (lane sizing): the Sources deletion touches
+fourteen `MetalUI`/`MetalUILayout`/text files and is mechanical once no test
+names a deleted symbol; the test work is 71 files, of which the 38 that share
+`LayoutDifferential.swift` or `AuthorityCoverage.swift` cannot be split across
+lanes without one lane editing a file another owns.
+
+**The ruling.**
+
+1. **Lane 1 — the two-authority tests and their harness** (every
+   `AuthorityCoverage` contributor, every `LayoutDifferential`/`WindowPair`
+   user, the two harness files, the roll call): `LR-FE`, plus the
+   `LR-FF` rows whose tests live in those files. No `Sources/` line.
+2. **Lane 2 — every other test that names a deleted symbol**: `layoutAuthority:`
+   arguments dropped, legacy branches of test elements dropped, the N9 and
+   root-switch rows, the `MetalUILayoutTests` re-spellings, `LR-FD`'s test side
+   (the oracle's local reference first). No `Sources/` line.
+3. **Lane 3 — the deletion**: every `Sources/` change of `LR-FC`/`LR-FD`/`LR-FF`,
+   the seven engine files deleted **last**, after lanes 1–2 left no reference;
+   `Fakes.swift`'s `layoutAuthority:` parameter; the three re-spelled guards;
+   N3.1 in a new file; the demo harness revision; `swift package clean`; both
+   build systems; `Backends/SDL`; a Linux container build.
+4. **Tests whose subject lane 3 deletes are retired by the lane that owns
+   their file**, before lane 3. Between that lane and lane 3 the doomed code
+   (the custom-element trap, `deferred.containingBlock`/`.nested`/`.root`, the
+   tokenizer, `textMeasure`) is unpinned; lane 3 deletes it. This is the
+   "every reference gone first" order, not a coverage gap in the result.
+5. **Accounting**: before − removed + added = after, per lane and for the
+   stage, every removed `@Test` a row in 7a/7b's format (R: replaced by a
+   named test; D: a deleted concept named; T: kept, changed — collapsed,
+   renamed or re-spelled). The design's count (spec §6): lane 1 −18, lane 2
+   −25, lane 3 +1 → **1452 − 43 + 1 = 1410**; a lane that finds a different
+   disposition re-derives the figure in its record, never silently.
+6. **Guards stay 79**: `aPlainImportCannotChooseTheLayoutAuthority`,
+   `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` and
+   `layoutPassStyleAccessorsAreNotPublic` are re-spelled to read the deleted
+   symbol's **absence** ("has no member"), each mutated red once by restoring
+   an internal declaration of that name (the diagnostic becomes
+   "inaccessible", or the fixture compiles).
+7. **The demo harness** (`docs/probes/demo-pixels/`) gains a stage-9 copy of
+   `ZZDemoPixels.swift` that renders both chrome images under the one
+   authority, chosen by `compare.sh` when the exported commit's `Fakes.swift`
+   has no `layoutAuthority:` parameter. The chrome pair's `[0]` control still
+   reads 0; `b9a5d7f`'s `chrome-legacy` against the head's must read 0
+   (it was equal to `chrome-proposal` at base).
+
+**What it costs if wrong.** Item 4: a lane-3 regression in a doomed branch is
+invisible for one lane — the branch is deleted in the same lane. Item 5: a
+miscount is caught by the summary line, which the lanes read, not the design's
+figure.

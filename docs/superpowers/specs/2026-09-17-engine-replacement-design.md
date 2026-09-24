@@ -84,8 +84,8 @@ guards 78 unmoved. Divergence 4 retires (58 → 57 live); nothing of 8–11 is
 pre-empted — `FlexEngine`, `computeLayout`, the legacy authority, the legacy
 lowering and every test using the legacy authority as the *other* arm of a
 comparison (the 199 of record §49 §2's census section A) all stay for stage 9.
-**Stage 8 (the sizing vocabulary) has landed on its branch, not yet merged**
-(Record phase and branch check, 2026-09-24): `feat/engine-stage-8` from
+**Stage 8 (the sizing vocabulary) is merged** (`master` at `b9a5d7f`, after its
+Record phase and branch check, 2026-09-24): `feat/engine-stage-8` from
 `85217e3`, record §50, spec
 [`2026-09-24-engine-stage-8-design.md`](2026-09-24-engine-stage-8-design.md).
 It meets §4.1 row 8's exit — 0 `warning:` on both build systems with the eight
@@ -99,6 +99,10 @@ their `Style` write through the test target's `CSSSizing.swift` rather than
 task 7 for plan task 15 (`LR-EY` item 2). The row's figures (demo 10/13/1,
 tests 557/519/13) were re-counted as 25 and 1667 (record §50 §2). Suite 1452,
 guards 79, goldens 0; nothing of 9–11 pre-empted.
+**Stage 9 (engine deletion) is designed** (2026-09-24): `feat/engine-stage-9`
+from `b9a5d7f`, record §51, spec
+[`2026-09-24-engine-stage-9-design.md`](2026-09-24-engine-stage-9-design.md),
+rulings `LR-FC`…`LR-FG`.
 §4.1's
 table below is still the plan of record for the remaining stages; the **live** per-stage status is the
 stage list under task 7 in

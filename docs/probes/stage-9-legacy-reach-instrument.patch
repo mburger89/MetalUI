@@ -1,0 +1,36 @@
+diff --git a/Sources/MetalUI/Frame.swift b/Sources/MetalUI/Frame.swift
+index 2a7bf99..ece70b9 100644
+--- a/Sources/MetalUI/Frame.swift
++++ b/Sources/MetalUI/Frame.swift
+@@ -1521,6 +1521,7 @@ public final class Frame {
+         self.transaction = transaction
+         self.collectsAccessibility = collectsAccessibility
+         self.layoutAuthority = layoutAuthority
++        if layoutAuthority == .legacy { print("S9MARK-LEGACYFRAME") }
+         self.reportsUnlowerableFields = reportsUnlowerableFields
+         self.recordsElementBounds = recordsElementBounds
+     }
+diff --git a/Sources/MetalUILayout/FlexEngine.swift b/Sources/MetalUILayout/FlexEngine.swift
+index 0aa4aa4..aaa7949 100644
+--- a/Sources/MetalUILayout/FlexEngine.swift
++++ b/Sources/MetalUILayout/FlexEngine.swift
+@@ -105,6 +105,7 @@ public func computeLayout(
+     // trap instead (ruling SA-I).
+     precondition(!tree.isNativeLayoutNode(root),
+                  "computeLayout called on a native root — use computeNativeLayout (SA-G)")
++    print("S9MARK-ENGINE")
+     let ctx = LayoutContext(rootFontSize: rootFontSize)
+     tree.beginLayout()
+     defer { tree.endLayout() }
+diff --git a/Sources/MetalUILayout/LayoutTree.swift b/Sources/MetalUILayout/LayoutTree.swift
+index 6a60249..10bf950 100644
+--- a/Sources/MetalUILayout/LayoutTree.swift
++++ b/Sources/MetalUILayout/LayoutTree.swift
+@@ -176,6 +176,7 @@ public final class LayoutTree {
+     /// (`Frame.computeRootLayout`). Native registrars do not come through here:
+     /// they append their placeholder `Style.default` row through `appendNode`.
+     public func newNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
++        print("S9MARK-NEWNODE")
+         for child in children {
+             precondition(nativeNodes[slot(child)] == nil,
+                          "legacy layout node given a native child — a proposal subtree cannot sit under a CSS container (SA-G)")
