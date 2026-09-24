@@ -685,3 +685,181 @@ under M1f and M1j/M1j (all sizes), as a sibling of the demo's gap and shrink.
 **Deferrals.** None of lane 1's rows. Handed on: the listed test-file
 comments (Record phase; lanes 2 and 3 for their own files), the portable
 figure, and the counts 1450 / 1445 for lanes 2 and 3 (`LR-EM` item 2).
+
+### 6.2 Lane 2 — frames, components, containers, modifier chains (2026-09-24, PDT)
+
+**Commits.** `1448c8e` — N2.1–N2.4 and the T row: N2.1
+`aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`
+(`ModifiedElementTests`, beside `observe`), N2.2
+`aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`
+(`ModifierCompositionProofTests`, beside its `observe`; `BoxWithoutAnimated`
+made Dual), N2.3 `aFramedListBuildsTheRowsTheUnframedListBuildsUnderTheProposalAuthority`
+and N2.4 `aScrollViewInsideAFrameKeepsItsViewportAndWheelUnderTheProposalAuthority`
+(`FrameSizingTests`), and `legacyModifierChainsInferOneConcreteType` trimmed
+(row 229); `983ca74` — the removal of rows 195–231's 36 R/D/N tests, with every
+helper only they used; the commit after it — `Sources/` and test-file comment
+re-points (comment lines only), `LR-EN`, the spec's amendments and this
+section.
+
+**R confirmation.** All twenty R rows' replacements exist and were read
+against the retired test's body — the `Lowering*` suites
+(`LoweringStackAndLayerTests`, `LoweringComponentTests`, `LoweringItemTests`,
+`LoweringBoxModelTests`, `LoweringContainerTests`, `LoweringDistributionTests`,
+`LoweringScrollTests`), 7a's golden-replacement arms, `NativeLayoutTests`,
+`OuterModifierMatrixTests.legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes`
+and `FrameSizingTests.chainedLegacyFramesAgreeWithSwiftUIsOrderingRules`. None
+failed. Two readings worth recording: row 216's content-sized body (G10/G11,
+`SoloText().padding(20)` 53×56) has no proposal arm of its own — the fact
+(`.padding` wraps each member) is C3/C3a's, on a fixed-size pair; and row 226's
+proposal half (`HStack`/`VStack` default 8) is pinned by
+`aStackWithoutSpacingPutsEightBetweenViewsAndNothingBesideASpacer` (kept in
+`ContainerIntegrationTests`), `aSpacerDefaultsToEightAndAnswersZeroOnItsStacksCrossAxis`
+being the `Spacer`'s own minimum.
+
+**The N tests, written green, first run** (at the tree that became `1448c8e`,
+filtered to the four, then the full suite): N2.3 and N2.4 passed on their
+hand-derived literals. N2.1 and N2.2 read every disagreeing oracle disagreeing
+and every observation agreeing **except the node count** —
+`ModifiedElementTests.swift:621:9: Expectation failed: chain.nodeCount ==
+oracle.nodeCount` (generic: nodes 7 vs 8; flat: nodes 7 vs 8) and
+`ModifierCompositionProofTests.swift:861:5: … chain.nodeCount →  7, oracle.nodeCount
+→ 8`. The frame layer lowers to one native frame, the oracle's
+`Box(style: frameStyle(…))` to an overlay inside a fixed frame; the comparison
+and its disagreeing `#require` are dropped (`LR-EN` item 1). Then **`Test run
+with 1486 tests in 3 suites passed`** (1482 + 4), `FR-J no-argument frame:
+succeeded=true`.
+
+- **N2.3's literal**, derived from `List.visibleRange` before the run: the
+  lowered viewport fills its proposal on the scrolling axis (600), offset 0,
+  `rowHeight` 40, `overscan` 2 → `⌊0/40⌋ − 2 … ⌈600/40⌉ + 2` clamped into
+  `0..<40` → rows **0…16**. The control is the cold frame, which builds all
+  forty (`MP-I`).
+- **N2.4's literals**, derived by hand (the doc comment carries the
+  arithmetic): A region (75, 50) 80×100, c (75, 50) 80×400, offset **37**; F
+  the same; H (85, 70) 80×100, c (85, 70), 37; G (65, 80) 100×40, c (65, 80)
+  400×40, 37. A scrolls where the legacy frame's viewport hugged its content
+  and did not, so the retired A-vs-F control is replaced by a 50pt content
+  that fits (`LR-EN` item 5). Each arm's diagnostics pre-flight read an empty
+  report.
+
+**Red-before (N tests and the T row), on `1448c8e`**, full unfiltered suite,
+restored from a copy, `git status --short` empty after each:
+
+- **M2.1** — `ModifiedElement._wrap` (chain receiver): `copy.inner.append(copy.outermost)` deleted (replace, not append): 70 issues. Reddened: `aChainsOuterLayerScopesContainTheLayersInsideIt`, `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`, `aGenericWrapOverAChainIsIdenticalToTheFlatChain`, `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`, `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`, `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`, `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`, `aLayerAddedAtRunTimeKeepsTheOutermostAccessibilityNodeAndRepublishesTheWrappedOne`, `aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten`, `aLoweredPaddingLayerAgreesWithTheLegacyWrapper`, `aModifierChainIsIdenticalToHandBuiltNestedBoxes`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`, `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot`, `aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes`, `aSizingModifierWrittenAfterAFrameIsReportedOnTheFrameLayer`, `addingALayerAtRunTimeResetsTheWrappedElementsState`, `anIDAfterAChainsLastWrapperNamesTheOutermostLayer`, `chainedFramesRemainConcreteAndNestTheirLayoutNodes`, `chainedLegacyFramesAgreeWithSwiftUIsOrderingRules`, `chainedPaddingCreatesNestedWrappers`, `decorationSubstitutionReachesTheElementOnBoxAndStack`, `everyBackgroundPaintingSiteAnimatesItsColour`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `everyDecorationPaintingSiteDrawsItsBorder`, `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain`, `everyHandlerRegisteringSiteHonoursAllowsHitTesting`, `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`, `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, `everyRegisteringSiteAnimatesItsStyle`, `hiddenAfterASingleChildLegacyFrameStillHidesTheElement`, `legacyModifierChainsInferOneConcreteType`, `legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes`, `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, `onClickIsLiveOnEveryConformerThatCanRegisterOne`, `stateSurvivesFramesUnderALegacyModifierChain`, `theElementBoundsLogRecordsTheRootEveryGroupMemberAndEveryInnerModifierLayer`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement` (41).
+- **M2.2** — `ModifiedElement.paintLayer`: an inner layer at recursion depth `d` paints layer `inner.count − 1 − d`'s decoration at that layer's bounds and id (inner fills innermost-first): 6 issues. Reddened: `aGenericWrapOverAChainIsIdenticalToTheFlatChain`, `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aModifierChainIsIdenticalToHandBuiltNestedBoxes`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority` (4).
+- **M2.3** — `List.visibleRange`: `return first..<last` → `return 0..<count` (windowing off): 65 issues. Reddened: `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`, `aFractionalOffsetRoundsFirstDownAndLastUp`, `aFramedListBuildsTheRowsTheUnframedListBuildsUnderTheProposalAuthority`, `aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan`, `aListInTheDifferentialHarnessReachesABoundedWindow`, `aListInsideADeferredIgnoresTheEscapedScrollersOffset`, `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`, `aListRowsStateSurvivesABoundedExcursionButNotALongerOne`, `aListsSceneAndHitboxesAreUnchangedByTheGroup`, `aListsWorkIsTheSameFor160RowsAsFor40`, `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `aScrolledListsSpacerDoesNotShrinkUnderPadding`, `aVerticalListInsideAHorizontalScrollViewBuildsEveryRow`, `aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount`, `aWindowedListStillReportsItsFullContentHeight`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `anOffScreenListRowsModelReadIsNotTracked`, `anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, `theListsSpacerIsANodeNotAnElement`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows` (24).
+- **M2.4** — `ScrollChrome.clamp(offset:content:viewport:)` returns 0: 82 issues. Reddened: `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`, `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities`, `aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll`, `aDisabledScrollViewStillScrollsOnTheWheel`, `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask`, `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`, `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame`, `aProposalScrollViewClampsAStoredOffsetPastTheEndAndWritesItBack`, `aProposalScrollViewClampsAnOffsetPastItsContentEndOnPrepaint`, `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent`, `aScrollRegionInsideAllowsHitTestingFalseIsStillRegistered`, `aScrollViewInsideAFrameKeepsItsViewportAndWheelUnderTheProposalAuthority`, `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel`, `aStoredOffsetPastTheEndIsClampedWhenItIsRead`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`, `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt`, `rawOffsetPublishedDuringRequestLayoutCanExceedTheClampedRange`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind`, `theHorizontalIndicatorLiesAlongTheBottomOfItsViewport`, `theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt`, `theIndicatorIsTheLastPrimitiveInTheScene`, `theOffsetClampsToTheScrollableRange`, `theThumbReachesTheEndOfItsTrackAtMaximumOffset`, `theTwoScrollElementsShareOneChromeImplementation`, `twoProposalScrollViewsInOneOverlayKeepSeparateOffsets` (27).
+- **T (both halves)** — `ModifiedElement.style`: getter and setter both on `inner[0]` when `inner` is non-empty: 7 issues. Reddened: `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `everyDecorationPaintingSiteDrawsItsBorder`, `hiddenAfterASingleChildLegacyFrameStillHidesTheElement` (5).
+- **T (setter only)** — `ModifiedElement.style`: setter on `inner[0]` when `inner` is non-empty, getter on `outermost`: 9 issues. Reddened: `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `everyDecorationPaintingSiteDrawsItsBorder`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`, `hiddenAfterASingleChildLegacyFrameStillHidesTheElement`, `legacyModifierChainsInferOneConcreteType` (7).
+
+N2.1's red line under M2.1: `ModifiedElementTests.swift:529:9: Expectation
+failed: flatValue.layerCount == 3 && genericValue.layerCount == 3` (the
+`#require` before any observation). N2.2's: `ModifierCompositionProofTests.swift:865:5:
+Expectation failed: chain.leafID == oracle.leafID`, then `:867` (hitboxes),
+`:868` (rects). Under M2.2: `ModifiedElementTests.swift:630:9: Expectation
+failed: chain.rects == oracle.rects` (generic and flat) and
+`ModifierCompositionProofTests.swift:868:5: … chain.rects == oracle.rects`.
+Under M2.3: `FrameSizingTests.swift:565:5: Expectation failed: bare.warm ==
+window` and `:566:5 … framed.warm == window`. Under M2.4:
+`FrameSizingTests.swift:1503:9: Expectation failed: a.offset != fits.offset`
+(the control `#require`). The T row under the setter-only spelling:
+`ModifiedElementTests.swift:316:5: Expectation failed: leafChain.style.size.width
+== .length(.pixels(70))`; the both-halves spelling leaves it green (`LR-EN`
+item 3). M2.3 ran 515 s (the 10 000-row `List` tests build every row).
+
+**The removal.** `983ca74`: `FrameSizingTests` 12, `ComponentTests` 13,
+`ElementLayoutTests` 6, `ContainerIntegrationTests` 3, `ModifiedElementTests` 1,
+`ModifierCompositionProofTests` 1 — **36**. Helpers whose only callers were
+retired tests went with them (grep of every top-level declaration in the six
+files): `widthInRow`, `nodeCount`, `TwoMarks`, `GrowingPair`, `StretchingPair`,
+`DeprecatedPercentSpellings` and its three wrappers, `insets` (`FrameSizingTests`);
+`TwoAutoLeaves`, `SoloText`, `SoloLeaf`, `PairLeaves`, `outerFootprint`
+(`ComponentTests`); `Fixture`, which held the last `computeLayout(` call
+(`ElementLayoutTests`); `LegacyMark`, `gap` (`ContainerIntegrationTests`).
+Each Dual fixture's legacy branch stays (spec §6). `swift build --build-system
+native --build-tests` 0 `error:`, one `warning:` (SwiftPM's deprecation
+notice); **`Test run with 1450 tests in 3 suites passed`**, `FR-J no-argument
+frame: succeeded=true`. **1482 + 4 − 36 = 1450**, `LR-EM` item 2's figure.
+
+**Removal check by script** (record §49 §4 rows 195–231 read by script): for
+each of the 36 R/D/N rows the name existed in its file at `41344e5` and no
+`func <name>(` remains there; the T row exists and its seven kept
+`#expect`/`#require` lines are byte-identical to `41344e5`, the one dropped
+line being `#expect(frame.tree.nodeCount == 4, …)`; every surviving `@Test`
+body in the six files other than the T row and the four N tests equals its
+`41344e5` text (`grep -cE '^\s*@Test'`: `ComponentTests` 26 → 13,
+`ContainerIntegrationTests` 25 → 22, `ElementLayoutTests` 18 → 12,
+`FrameSizingTests` 16 → 6 with N2.3/N2.4, `ModifiedElementTests` 7 → 7 and
+`ModifierCompositionProofTests` 11 → 11, one retired and one N each). **`grep -rn "computeLayout(" Tests --include='*.swift'`** (`.build`
+excluded) **prints nothing** — exit criterion 2 holds from this lane on.
+
+**Family mutations**, each on the committed removal (`983ca74`), the file
+copied to the scratchpad, edited, full unfiltered `swift test --build-system
+native --no-parallel`, restored from the copy, `git status --short` empty after
+every one. Every required replacement reddened; the full reddened set of each
+is listed (issue counts are the summary line's):
+
+| id | F | spelling applied | issues | required replacement | every test reddened |
+|---|---|---|---|---|---|
+| M2a | F10 | `LayoutTree.placeNative`, `.frame` case: both `* alignment.horizontalFactor` / `* alignment.verticalFactor` → `* 0` | 1385 | `aLoweredFixedFrameLayerAgreesWithTheLegacyFrameOverAFixedChild` | `aBackgroundBeforeOrAfterALegacyFrameFillsTheBoxItWasWrittenOnAsSwiftUIDoes`, `aCellWhoseSlotEqualsItsAnswerIsPlacedAtTheProposalItWasMeasuredAt`, `aClickNeedsTheTargetEnabledAtPressAndAtRelease`, `aComponentAmendsFrameIsCentredOnlyOnTheAxisItDeclares`, `aComponentInsideAComponentFlattensThroughBothLevels`, `aComponentsContentFlattensIntoItsParent`, `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`, `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`, `aDefaultSpacerAndAGreedyFrameThroughTheElementAPI`, `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities`, `aDisabledClickTargetPassesTheClickToWhatIsUnderIt`, `aDisabledTargetIsNeitherHoveredNorPressed`, `aFiniteProposalServesGroupsWithSharesAndCommits`, `aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI`, `aFocusRingAndHoverBorderDrawOnTheLayerTheyAreWrittenOnAroundAFrame`, `aFrameLayerLowersFromItsAnimatedStyleForWhatStyleCarries`, `aFrameLayersClipAndBorderBoundTheChildTheFrameCannotShrink`, `aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem`, `aFrameOverOneMemberIsUnchanged`, `aFrameOverSeveralMembersStillPlansEachMembersItemFields`, `aGrowingChildTakesTheRemainingMainSpace`, `aGrownReverseContainerPlacesFromTheMainEndOfItsItemFrame`, `aGrownUnsizedSpaceDistributionContainerIsReported`, `aHiddenClickTargetPassesTheClickToWhatIsUnderIt`, `aHiddenElementInsideAnyElementIsHiddenUnderTheProposalAuthority`, `aHiddenFrameLayerLowersAsIfShown`, `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`, `aHoveredBoxPaintsItsHoverBackground`, `aLabelledClickTargetOnAFrameLayerPublishesTheFrameBoxWhileItsHitRegionIsInset`, `aLegacyFramePlacesItsChildAtEachOfTheNineAlignments`, `aLoweredContainerPaddingSitsInsideItsDeclaredSize`, `aLoweredFixedFrameLayerAgreesWithTheLegacyFrameOverAFixedChild`, `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`, `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`, `aLoweredScrollViewFillsItsProposalOnTheScrollingAxisWhereTheLegacyViewportHugs`, `aLoweredSizedContainerPlacesItsContentByJustifyContentAndAlignItems`, `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes`, `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`, `aLoweredWindowPublishesTheSameAccessibilityTree`, `aMarginLowersAsPaddingOutsideTheItem`, `aMouseMovedEventMakesTheBoxUnderItHoveredOnTheNextFrame`, `aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum`, `aNativeFrameForwardsAnOptionalAxisAndAdoptsThatChildResponse`, `aNativeFramePlacesItsChildAtTheRequestedAlignment`, `aNativeFrameProposesItsFixedAxesAndCentresTheChildResponse`, `aNativeFrameUsesIdealDimensionsOnlyForUnspecifiedAxes`, `aNativeFrameWithInfiniteMaximumExpandsToItsFiniteProposal`, `aNativeNodeRegisteredTwiceTraps`, `aNestedHandlerWinsOverItsContainingStackToo`, `aNestedTextEmitsItsDeclaredAXNodeAtItsAbsoluteBounds`, `aNilAxisFrameLayerUnderAStretchingContainerIsStretched`, `aPresentationPlaceholderIsDroppedByEveryLoweredContainer`, `aPresentationsAccessibilityRecordAndFocusMatchUnderBothAuthorities`, `aReverseContainerOverflowsTowardItsMainStart`, `aReverseContainerPlacesItsChildrenFromTheMainEnd`, `aReverseDirectionPacksItemsFromTheMainEnd`, `aScrollViewInsideAFrameKeepsItsViewportAndWheelUnderTheProposalAuthority`, `aSizingModifierWrittenAfterAFrameIsReportedOnTheFrameLayer`, `aStackCentresOnTheCrossAxisWhereABoxStretches`, `aStackHugsItsLargestChildInsideARowAndAroundOne`, `aStackPlacesAFixedChildAtItsAlignment`, `aStretchedChildFillsTheLineOnItsCrossAxis`, `aStretchedContainersContentSitsByItsOwnAlignment`, `aStretchedUnsizedSpaceDistributionContainerIsReported`, `aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling`, `activeSurvivesAFrameBoundary`, `alignItemsAndAlignSelfPlaceEachItemOnTheCrossAxis`, `alignSelfPlacesOneChildOnTheCrossAxisOfADefiniteContainer`, `anAlignSelfInsideAOneChildWrapperFillsTheWrapperWhereCSSIgnoresIt`, `anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned`, `anExplicitAnyElementIsStillAcceptedAsAChild`, `anIdealFrameLowersUnderTheProposalAuthorityAndStillTrapsUnderTheLegacyOne`, `anInfiniteProposalIsAnsweredWithInfinity`, `builderFixedSizeWithholdsOnlyItsSelectedAxisFromTheChildProposal`, `chainedComponentAmendsComposeTheSameWayUnderBothAuthorities`, `chainedLegacyFramesAgreeWithSwiftUIsOrderingRules`, `chainedNativeFramesPreserveTheirDeclarationOrder`, `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter`, `childrenAreRegisteredAndLaidOutInSourceOrder`, `clippedAlsoClipsTheHitboxesInsideIt`, `columnStacksOnTheAxisRowDoesNot`, `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`, `focusOutranksHoverWhenAnElementIsBoth`, `gapIsPerAxisAndTheRowReadsTheHorizontalOne`, `gridAndGridRowLayOutAsTheProbeReadsThroughTheElementAPI`, `justifyContentDistributesADeclaredMainSizesFreeSpace`, `marginsOffsetEachItemOutsideItsBorderBox`, `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, `nativeClipMasksOverflowingContentToItsOuterFrame`, `nativeCompositionUsesColumnFrameAndPaddingProposals`, `nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder`, `overlayAndBackgroundContentIsPlacedAtThePrimarysSize`, `proposalLayoutFrameUsesTheTypedProposalWrapper`, `theCentringDefaultOfRowAndColumnStretchesNothing`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheelUnderBothAuthorities`, `theGateReadsTheEnvironmentValueNotTheModifier`, `theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (102) |
+| M2b | F10 (D) | `lowerLegacyLayer`'s `framed`: `maxWidth:`/`maxHeight:` → `nil` (the greedy maximum dropped: the frame clamps as the legacy one) | 12 | `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps` | `aFrameLayerLowersItsMinimaAndFiniteMaximaFromItsAnimatedStyle`, `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`, `aRealAppKitResizeDirtiesTheWindowAndTheNextFrameReflows`, `resizingTheWindowDirtiesItAndTheNextFrameLaysOutAtTheNewSize`, `theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm` (5) |
+| M2c′ | F11 | `loweredComponentFrame`: `let framed = frame.requestNativeFrame(child: child, …)` → `let framed = child` (no frame per member; the design spelling traps, `LR-EN` item 2) | 20 | `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt` | `aComponentAmendsFrameIsCentredOnlyOnTheAxisItDeclares`, `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`, `anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned`, `chainedComponentAmendsComposeTheSameWayUnderBothAuthorities`, `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, `theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities` (6) |
+| M2d | F11 | `StyledComponent.requestGroupLayout`: under `.proposal` the per-member `.wrap` skipped and every wrap applied once around the whole body (`lowerLegacyNode(style, …, children: body, site: .component)`) | 5 | `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer` | `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer`, `theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities` (2) |
+| M2e | F12 | `lowerShownLegacyNode`: `spacing: arrangement.spacing` → `spacing: isRow ? nil : arrangement.spacing` | 356 | `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault` | `aComponentAmendsFrameIsCentredOnlyOnTheAxisItDeclares`, `aComponentInsideAComponentFlattensThroughBothLevels`, `aComponentsContentFlattensIntoItsParent`, `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer`, `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`, `aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding`, `aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting`, `aGridInsideALoweredContainerIsNeverStretchedWhereItsRecordedSiblingIs`, `aGridsColumnWidthReachesAGrowingChildInsideALoweredCell`, `aGrowFactorSumBelowOneStillFillsTheLine`, `aGrowInsideAOneChildPaddingFillsTheWrapperWhereCSSLeavesItUngrown`, `aGrowingChildTakesTheRemainingMainSpace`, `aGrownReverseContainerPlacesFromTheMainEndOfItsItemFrame`, `aGrownUnsizedSpaceDistributionContainerIsReported`, `aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork`, `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap`, `aLoweredContainerPaddingSitsInsideItsDeclaredSize`, `aLoweredContainerSpacesItsChildrenByTheGapOnItsMainAxis`, `aLoweredHorizontalScrollViewIsBoundedByItsParentWhereTheLegacyOneOverflows`, `aLoweredRowAndColumnAgreeWithTheLegacyContainersOverFixedChildren`, `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault`, `aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren`, `aLoweredSizedContainerPlacesItsContentByJustifyContentAndAlignItems`, `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`, `aLoweredWindowPublishesTheSameAccessibilityTree`, `aMarginLowersAsPaddingOutsideTheItem`, `aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere`, `aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent`, `aNegativeMarginOverlapsItsSibling`, `aNestedTextEmitsItsDeclaredAXNodeAtItsAbsoluteBounds`, `aNilAxisFrameLayerUnderAStretchingContainerIsStretched`, `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight`, `aReverseContainerOverflowsTowardItsMainStart`, `aReverseContainerPlacesItsChildrenFromTheMainEnd`, `aReverseDirectionPacksItemsFromTheMainEnd`, `aScrollViewInsideAFrameKeepsItsViewportAndWheelUnderTheProposalAuthority`, `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport`, `aStackHugsItsLargestChildInsideARowAndAroundOne`, `aStretchedChildFillsTheLineOnItsCrossAxis`, `aStretchedContainersContentSitsByItsOwnAlignment`, `aStretchedItemIsClampedByItsOwnMinimumAndMaximum`, `aStretchedUnsizedSpaceDistributionContainerIsReported`, `aStyleBorderLowersAsInsetsInsideTheDeclaredSize`, `aZeroBasisGrowerTakesItsShareDownToItsContent`, `aZeroShrinkKeepsItsNaturalMainSizeAndOverflows`, `alignItemsAndAlignSelfPlaceEachItemOnTheCrossAxis`, `anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues`, `anAutoMarginLowersAsZero`, `anEmptyLoweredStackOrContainerAnswersZeroOnItsAutoAxes`, `anExplicitAnyElementIsStillAcceptedAsAChild`, `autoMainSizesSumTheirContentAndAGrowerIsFlooredByIt`, `chainedComponentAmendsComposeTheSameWayUnderBothAuthorities`, `chainedLegacyFramesAgreeWithSwiftUIsOrderingRules`, `childrenAreRegisteredAndLaidOutInSourceOrder`, `columnStacksOnTheAxisRowDoesNot`, `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`, `equalGrowersShareTheLineAndAMaximumCapsItsGrower`, `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`, `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, `fixedItemsPackFromTheMainStartAtTheirOwnSizesAndGap`, `gapIsPerAxisAndTheRowReadsTheHorizontalOne`, `growingSiblingsShareTheSurplusEquallyWhereCSSAddsItToTheirBases`, `legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes`, `marginsOffsetEachItemOutsideItsBorderBox`, `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, `paddingAndBorderInsetTheContentBoxEdgeByEdge`, `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder`, `spaceAroundAndSpaceEvenlyLowerToSpacersWhileTheyFit`, `theCentringDefaultOfRowAndColumnStretchesNothing`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`, `theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`, `theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`, `unequalGrowWeightsAreReportedOnTheParent` (76) |
+| M2f | F12 | `planLegacyItems`: `let childFactor = d.alignSelf.map(alignmentFactor) ?? parentFactor` → `let childFactor = parentFactor` | 35 | `alignSelfPlacesOneChildOnTheCrossAxisOfADefiniteContainer` | `aLoweredItemChainWithFourWrappersPerLevelAtTheNativeDepthLimitLaysOut`, `aLoweredItemChainWithFourWrappersPerLevelOnePastTheNativeDepthLimitTraps`, `aLoweredItemChainWithThreeWrappersPerLevelAtTheNativeDepthLimitLaysOut`, `aLoweredItemChainWithThreeWrappersPerLevelOnePastTheNativeDepthLimitTraps`, `aLoweredScrollViewAgreesWithTheLegacyEngineOnEveryBoundedShape`, `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths`, `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`, `aLoweredWindowPublishesTheSameAccessibilityTree`, `alignItemsAndAlignSelfPlaceEachItemOnTheCrossAxis`, `alignSelfPlacesOneChildOnTheCrossAxisOfADefiniteContainer`, `anAlignSelfInsideAOneChildWrapperFillsTheWrapperWhereCSSIgnoresIt`, `anAlignSelfWrapperFillsAnIndefiniteContainerWhereCSSHugs`, `marginsOffsetEachItemOutsideItsBorderBox` (13) |
+| M2g (M2.1) | F13 | M2.1 again, after the removal | 56 | N2.1 | `aChainsOuterLayerScopesContainTheLayersInsideIt`, `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`, `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`, `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`, `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`, `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`, `aLayerAddedAtRunTimeKeepsTheOutermostAccessibilityNodeAndRepublishesTheWrappedOne`, `aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten`, `aLoweredPaddingLayerAgreesWithTheLegacyWrapper`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`, `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot`, `aSizingModifierWrittenAfterAFrameIsReportedOnTheFrameLayer`, `addingALayerAtRunTimeResetsTheWrappedElementsState`, `anIDAfterAChainsLastWrapperNamesTheOutermostLayer`, `chainedLegacyFramesAgreeWithSwiftUIsOrderingRules`, `decorationSubstitutionReachesTheElementOnBoxAndStack`, `everyBackgroundPaintingSiteAnimatesItsColour`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `everyDecorationPaintingSiteDrawsItsBorder`, `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain`, `everyHandlerRegisteringSiteHonoursAllowsHitTesting`, `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`, `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, `everyRegisteringSiteAnimatesItsStyle`, `legacyModifierChainsInferOneConcreteType`, `legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes`, `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, `onClickIsLiveOnEveryConformerThatCanRegisterOne`, `stateSurvivesFramesUnderALegacyModifierChain`, `theElementBoundsLogRecordsTheRootEveryGroupMemberAndEveryInnerModifierLayer`, `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement` (35) |
+| M2g (M2.2) | F13 | M2.2 again, after the removal | 3 | N2.1, N2.2 | `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority` (2) |
+
+Notes on the table:
+
+- **M2c** as the spec spelled it traps (`LR-EN` item 2); **M2c′** is F11's
+  amend sample.
+- **M2e** reddens N2.4 too: its `Row` of a pad and a frame gains the platform
+  default's 8 between them.
+- **M2g (M2.2)**: after the removal only N2.1 and N2.2 see the inner fills'
+  order — the retired twins were its only other pins (`LR-EN` item 4).
+- The design's M2c spelling was measured with a **filtered** run only, to show
+  the trap (`LayoutTree.swift:636: Precondition failed: setStyle on a native
+  layout node — the proposal engine never reads Style (SA-G)`); it is not
+  counted as a mutation result.
+
+**Comments** (`LR-EN` item 6; `LR-EG`). Re-pointed, comment lines only:
+`ModifiedElement.swift` (the MC-B oracle names → N2.1/N2.2; `lowered(_:childCount:)`'s
+two pins; `_wrap`'s pin → N2.1), `Box.swift` (three: the sizing-modifier and
+fraction pins, retired), `Units.swift` (the fraction pin), `Component.swift`
+(four: order → 4.4, node count → 4.2, divergence 48 → 4.1's legacy arm,
+chained padding → retired). `git diff 41344e5 -- Sources | grep -E '^[-+]' |
+grep -vE '^(\+\+\+|---)' | grep -vE '^[-+]\s*//'` prints nothing. Lane 2's own
+test files: the Dual fixtures' docs, the `FrameSizingTests`/`ComponentTests`/
+`ElementLayoutTests` headers, `ElementLayoutTests`' historical EP-8 table (marked
+historical, not re-measured) and `ModifiedElementTests`' two `malloc_logger`
+notes (the collision with the deleted `FreezeLoopAllocationTests` is gone; this
+file is now the suite's only `malloc_logger` installer, grep). Listed, not
+edited (not lane 2's files): `AnimationTests` 1007–1011, `FrameDecorationInteractionTests`
+379, `OuterModifierMatrixTests` 854 (lane 3), `LoweringComponentTests` 120,
+`LoweringCorpusTests` 170 — for the Record phase.
+
+**Portable CI figure.** Unchanged: every lane-2 file is in `MetalUITests`,
+which Linux and Windows CI do not run; **200 + 22 + 3** stands (`LR-EM` item 5).
+
+**Suite, build systems, guards.** At this section's tree: native build 0
+`error:`, one `warning:` (SwiftPM's deprecation notice); **`Test run with 1450
+tests in 3 suites passed`**, `FR-J no-argument frame: succeeded=true`; default
+build system `swift build --build-tests` 0 `error:`, 0 `warning:`. Guards 78
+(no guard file touched), gated nine (none retired was gated),
+`AuthorityCoverage.expected` 82 (no retired or new test records coverage).
+`Tests/PortableTests`, `Backends/`, `Tests/MetalUICrossPlatformTests` and
+`Package.swift` untouched (`git diff --stat 41344e5` over them is empty).
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 41344e5 983ca74`:
+**0 differing and scene identical in all fourteen images**. Controls at
+`41344e5`: light vs dark 1048576; default vs modal 1031003; default vs
+animation 454895; f0 vs f3 0; preview light vs dark 1048576; chrome legacy vs
+proposal 0; distinct 544 / 216; prod default vs modal 491221, distinct
+`prod-default-light` 529; indicator rects 0 — §6.1's values.
+`DemoFrameDeterminismTests` unedited; its `theDemoFrameMatchesTheValuesRecordedOnMacOS` reddened under M2a and M2e only, as a
+sibling of the frame's alignment and the row's spacing.
+
+**Deferrals.** None of lane 2's rows. Handed on: the listed test-file
+comments (Record phase; lane 3 for its own files); the count **1445** for lane
+3 (`LR-EM` item 2); the census re-run (exit criterion 3) at the stage's close.

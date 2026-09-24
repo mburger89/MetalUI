@@ -274,7 +274,8 @@ extension Component {
 /// "current node": an amend writes the current node, a wrap replaces it. That
 /// is what makes `.padding(4).width(70)` (the padded box is 70 wide) and
 /// `.width(70).padding(4)` (the member is 70 wide, then padded to 78) differ —
-/// `aModifierOnAComponentAppliesInTheOrderItIsWritten`. Keeping an amend set
+/// `theOrderOfAComponentsDistributingModifiersIsObservableUnderBothAuthorities`
+/// (stage 7b retired the legacy-only original, record §49 §4 row 218). Keeping an amend set
 /// beside a wrap set would collapse those two into one answer.
 ///
 /// **The amend's payload is a `Size<Dimension>`, not a closure, since stage 3
@@ -318,8 +319,9 @@ enum ComponentModifierOp {
 /// overwrites whatever the member declared — see below. So this type
 /// contributes **no node of the component's own** and **one node per member
 /// per `.padding`**: a modified component is exactly as layout-transparent as
-/// a bare one (`aModifierOnAComponentDistributesToEachTopLevelChild` counts
-/// the nodes).
+/// a bare one (`aModifierOnAComponentDistributesToEachTopLevelChild` counted
+/// the nodes until stage 7b retired it, record §49 §4 row 207;
+/// `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer` counts the ids).
 ///
 /// **It mints no identity of its own.** `requestGroupLayout` forwards the
 /// `parent` and `cursor` it was given straight through to `component`
@@ -342,7 +344,9 @@ enum ComponentModifierOp {
 /// *through* the component and obliterates whatever the component's author
 /// wrote on that same field. **Measured** on a component whose author declared
 /// `.width(30)` on child `a` and `.width(50)` on child `b`, rendered in a
-/// 300x40 `Row` (`aComponentsWidthStillOverwritesItsMembersDeclaredWidth`):
+/// 300x40 `Row` (`aComponentsWidthStillOverwritesItsMembersDeclaredWidth`,
+/// retired by stage 7b, record §49 §4 row 219; divergence 48's pin is now the
+/// legacy arm of `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`):
 ///
 /// ```
 /// bare          a: 30.0   b: 50.0
@@ -560,7 +564,8 @@ extension Component {
 /// (`OM-E`). Two `width`s on one member still resolve as `StyledElement.modifying`
 /// does — the later assignment lands on top, a plain `=` — while two
 /// `padding`s are two wrappers and ACCUMULATE
-/// (`chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`). An earlier
+/// (`chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`, retired by
+/// stage 7b, record §49 §4 row 215). An earlier
 /// version of this comment said "not accumulation — `.padding(4).padding(4)`
 /// leaves a component padded by 4", which was true of the amend it described
 /// and is inverted by `OM-D` on probe evidence (G4, E1–E3).

@@ -55,8 +55,9 @@ public enum Length: Hashable, Sendable {
     /// in the layout fixtures passes `0.5`, `0.25`, `0.10`.
     ///
     /// **`MetalUI`'s `width(fraction:)`/`height(fraction:)`/`flexBasis(fraction:)`
-    /// forward their argument to this case untouched**, pinned by
-    /// `aFractionSizeResolvesAgainstItsContainingBlock`. Their old `percent:`
+    /// forward their argument to this case untouched**, pinned on the legacy
+    /// authority by `aFractionSizeResolvesAgainstItsContainingBlock` until stage
+    /// 7b retired it (record §49 §4 row 203). Their old `percent:`
     /// names, fractions wearing a percentage's name (`width(percent: 50)` means
     /// 5000%, ruling `FR-T`), are deprecated renames (ruling `CN-O`,
     /// `docs/superpowers/2026-09-16-containers-decisions.md`).

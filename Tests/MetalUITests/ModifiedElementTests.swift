@@ -722,8 +722,10 @@ nonisolated(unsafe) private let countingLogger: MallocLogger = { type, a1, a2, a
 }
 
 /// `FreezeLoopAllocationTests.swift`'s counter, copied (the two test targets
-/// cannot share a private helper): heap allocations `body` makes on the calling
-/// thread, through libmalloc's `malloc_logger` hook.
+/// could not share a private helper): heap allocations `body` makes on the
+/// calling thread, through libmalloc's `malloc_logger` hook. Stage 7b's lane 1
+/// deleted that file (record §49 §4), so this is now the suite's only copy and
+/// its only `malloc_logger` installer.
 private func countAllocations(_ body: () -> Void) throws -> Int {
     let symbol = try #require(
         dlsym(UnsafeMutableRawPointer(bitPattern: -2), "malloc_logger"),
@@ -829,8 +831,9 @@ private func chainAllocations(_ build: (Int, GlobalElementID, inout LayoutPass) 
 /// three-layer arms (3 000 and 5 000 over nested) and not the one-layer arm,
 /// whose `inner` is empty.
 ///
-/// **A hazard this adds, measured:** this file and
-/// `FreezeLoopAllocationTests.swift` each install libmalloc's process-wide
+/// **A hazard this added, measured — gone since stage 7b deleted
+/// `FreezeLoopAllocationTests.swift` (record §49 §4), the other installer:**
+/// this file and `FreezeLoopAllocationTests.swift` each installed libmalloc's process-wide
 /// `malloc_logger` hook. Run CONCURRENTLY — `swift test` without
 /// `--no-parallel`, filtered to the two — the freeze-loop test's calibration
 /// `#require` failed once. The whole suite passed in parallel mode once as

@@ -788,10 +788,13 @@ extension StyledElement {
     // A modifier here overwrites a field of the receiver's `Style` and returns
     // `Self`. `.frame(...)` wraps the receiver in a new outer layer of a
     // `ModifiedElement` and returns that. The difference is observable, and
-    // `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt`
-    // (`Tests/MetalUITests/FrameSizingTests.swift`) pins it: each of the eight
-    // leaves `LayoutTree.nodeCount` exactly where the unmodified element leaves
-    // it, and `.frame(width:)` adds one. Three consequences a caller meets:
+    // `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt` pinned
+    // it on the legacy tree until stage 7b retired it (record §49 §4 row 204):
+    // each of the eight left `LayoutTree.nodeCount` exactly where the
+    // unmodified element left it, and `.frame(width:)` added one. The type-level
+    // half is `legacyModifierChainsInferOneConcreteType`'s
+    // (`Tests/MetalUITests/ModifiedElementTests.swift`). Three consequences a
+    // caller meets:
     //
     // - `Box(decoration:).width(36)` paints a 36pt-wide decorated box;
     //   `Box(decoration:).frame(width: 36)` paints the decoration at the
@@ -836,9 +839,10 @@ extension StyledElement {
     /// counterpart at all, which is why this one is kept as an explicit
     /// MetalUI divergence with a test (`FR-H`); its nearest,
     /// `containerRelativeFrame`, resolves against a named container rather
-    /// than a containing block. Pinned by
-    /// `aFractionSizeResolvesAgainstItsContainingBlock`
-    /// (`Tests/MetalUITests/FrameSizingTests.swift`).
+    /// than a containing block. Pinned on the legacy authority by
+    /// `aFractionSizeResolvesAgainstItsContainingBlock` until stage 7b retired
+    /// it (record §49 §4 row 203); under the proposal authority a fraction is
+    /// reported by name (`percentagesStillReportByNameWithTheirOwner`).
     ///
     /// **Renamed from `width(percent:)`** (ruling `CN-O`), whose label said
     /// percentage while `Length.percent` is `f * parent` in `resolveLength`, so
@@ -899,9 +903,10 @@ extension StyledElement {
     /// | `.frame(minHeight: 0)`, `flexGrow`/`flexBasis` on the inner box | **400** |
     ///
     /// The layer's `minSize` is the *layer's* minimum; the element inside keeps
-    /// its own automatic one. Pinned by
-    /// `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt`. That
-    /// one live caller is why these four clamps are kept rather than migrated.
+    /// its own automatic one. Pinned on the legacy authority by
+    /// `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt` until
+    /// stage 7b retired it (record §49 §4 row 204). That one live caller is why
+    /// these four clamps are kept rather than migrated.
     public func minHeight(_ points: Pixels) -> Self {
         modifying { $0.minSize.height = .length(.pixels(points)) }
     }

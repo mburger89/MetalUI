@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-EN`** (stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL` and its lane 1 `LR-EM`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-EO`** (stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM` and its lane 2 `LR-EN`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -7936,3 +7936,72 @@ suite** (record §49 §6.1).
 **What it costs if wrong.** Row 71 kept as R would have deleted the only pin of
 a clamp every padded element reaches, with nothing reddening; M1j kept as
 spelled would record F7's D sample as a mutation that cannot redden it.
+
+## LR-EN — stage 7b lane 2: the MC-B oracles carry no node count, M2c and the T mutation re-spelled
+
+**Findings, each measured** (record §49 §6.2; mutations on the committed tree,
+full unfiltered suite, restored from a copy, `git status --short` empty after
+each).
+
+1. **N2.1 and N2.2 compare every observation of MC-B's oracle but the node
+   count.** Written as the retired tests' chains and oracles under
+   `.proposal`, their first run (at the tree that became `1448c8e`) read every
+   disagreeing oracle disagreeing and every agreeing observation agreeing
+   **except** `chain.nodeCount == oracle.nodeCount`: **7 against 8** in both
+   (`ModifiedElementTests.swift:621`, twice — generic and flat;
+   `ModifierCompositionProofTests.swift:861`). The cause is read off the
+   lowering, not guessed: the chain's `.frame(width: 60, height: 40)` layer
+   lowers to **one** native frame, while the oracle's
+   `Box(style: frameStyle(width: 60, height: 40))` — a hand spelling of the
+   *legacy* frame's CSS lowering, a one-cell `display: .stack` (`CN-N`) —
+   lowers through `lowerShownLegacyNode`'s stack branch to an **overlay
+   inside a fixed frame**, two nodes. One layer = one node is the legacy
+   tree's shape (CSS-structure), the fact the T row
+   (`legacyModifierChainsInferOneConcreteType`) drops for the same reason. The
+   node-count comparison and its disagreeing `layerFewer.nodeCount`
+   `#require` are **not carried**; the test is kept (the spec's rule: drop the
+   oracle, not the test). `BoxWithoutAnimated` (N2.2's equal-count `$anim`
+   oracle) is made **Dual** — it lowers through `lowerLegacyNode` at site
+   `box` under the proposal authority, still without `animated` — and reads
+   `[true, false, true]` there as on the legacy authority.
+2. **M2c cannot be applied as spelled** ("`loweredComponentFrame` writes the
+   amend onto the member's style"): under the proposal authority the member
+   is a native node, and the legacy amend (`pass.setStyle`) on it traps —
+   measured, the amend branch forced to the legacy spelling, a filtered run of
+   `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`:
+   `LayoutTree.swift:636: Precondition failed: setStyle on a native layout
+   node — the proposal engine never reads Style (SA-G)`. The sample is
+   **M2c′**: `loweredComponentFrame` registers no frame (the member is
+   returned unframed), which reddens the required test and five others.
+3. **The T row's red-before as spelled leaves the test green.** "A
+   `Self`-returning modifier after a wrapper configures the innermost layer",
+   spelled on both halves of `ModifiedElement.style` (getter and setter both
+   `inner[0]`), reddens five tests but not
+   `legacyModifierChainsInferOneConcreteType`: the test reads
+   `leafChain.style` through the same accessor the mutant writes, so write and
+   read agree. The **setter-only** spelling (the getter left on `outermost`)
+   reddens it at its kept line `leafChain.style.size.width == .length(.pixels(70))`.
+4. **Where the N tests redden.** M2.1 reddens N2.1 at its layer-count
+   `#require`, before any observation is compared; M2.4 reddens N2.4 at its
+   control `#require` (both offsets read 0). After the removal, M2.2 (re-run
+   as M2g) reddens **only N2.1 and N2.2** — the inner fills' order has no other
+   pin in the suite; before it, the two retired twins reddened with them.
+5. **N2.4's control is new.** The retired test required its unscrolled arm A
+   and its scrolling arm F to disagree; under the proposal authority A
+   scrolls too (the lowered viewport fills its proposal on the scrolling axis,
+   `LR-BC`), so the control is a 50pt-tall content that fits its viewport and
+   cannot scroll. All four arms' hand-derived literals held on the first run.
+6. **Comments.** `Sources/` comments naming a retired lane-2 test as a present
+   pin are re-pointed, comment lines only (`LR-EG`): `ModifiedElement.swift`
+   (four), `Box.swift` (three), `Units.swift` (one), `Component.swift` (four).
+   Test-file comments in files lane 2 does not own are listed for their owners
+   and the Record phase: `AnimationTests` 1007–1011, `FrameDecorationInteractionTests`
+   379, `OuterModifierMatrixTests` 854 (lane 3's files), `LoweringComponentTests`
+   120, `LoweringCorpusTests` 170.
+7. **The portable figure does not move**: every lane-2 file is in the
+   macOS-only `MetalUITests`, so CLAUDE.md's **200 + 22 + 3** (`LR-EM` item 5)
+   stands.
+
+**What it costs if wrong.** Keeping the node count would have failed N2.1 and
+N2.2 on a CSS-structure fact and tempted a re-spelled oracle that no longer
+hand-spells anything; M2c as spelled would have recorded a trap as a sample.

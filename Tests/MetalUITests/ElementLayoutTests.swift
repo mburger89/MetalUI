@@ -349,6 +349,9 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 ///   layer" is a comment rather than a checked property.
 ///
 /// **Measured, `--no-parallel`, 361 tests, one mutation at a time.**
+/// (A historical table: `aNestedLayoutMatchesTheEngineRunDirectly`,
+/// `paddingEdgesAreNotTransposed` and `marginEdgesAreNotTransposed` were retired
+/// by stage 7b, record §49 §4 rows 221, 222 and 225; not re-measured.)
 ///
 /// - Deleting `style.alignItems = .center` from **`Column.init`** reddens
 ///   **three** tests, 6 issues: this one, `columnStacksOnTheAxisRowDoesNot` and

@@ -241,6 +241,10 @@ lane's.
 typed value may stay as a compile-time assertion. **Red-before:** the kept
 `leafChain.style.size.width` line reddens under "a `Self`-returning modifier
 written after a wrapper configures the innermost layer" (`MC-C`).
+**Amended by lane 2 (`LR-EN` item 3):** spelled on both halves of
+`ModifiedElement.style` the mutant leaves the test green (the test reads
+through the accessor it writes); the red-before is the **setter-only**
+spelling.
 
 **N2.1 `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`**
 (`ModifiedElementTests`, beside `observe`): the retired test's chains and
@@ -250,6 +254,11 @@ with the flat chain **before** the agreeing comparisons are read. An oracle
 that does not lower (a report) is a finding: drop that oracle with a note, not
 the test. **Red-before, M2.1:** `_wrap` replacing the outermost layer instead
 of appending one.
+**Amended by lane 2 (`LR-EN` item 1):** N2.1 and N2.2 carry **no node-count
+comparison** — the oracle's `frameStyle` `Box` lowers to an overlay inside a
+fixed frame where the frame layer lowers to one native frame (8 nodes against
+7), a CSS-structure fact; every other observation and every disagreeing oracle
+is carried, `BoxWithoutAnimated` made Dual.
 
 **N2.2 `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`**
 (`ModifierCompositionProofTests`): the same for MC-B's oracle. **M2.2:**
@@ -278,7 +287,7 @@ returns 0.
 |---|---|---|---|
 | M2a | F10 | the native frame places its child at the origin whatever its alignment | `aLoweredFixedFrameLayerAgreesWithTheLegacyFrameOverAFixedChild` |
 | M2b | F10 (D pin) | the lowered flexible frame clamped as the legacy one (greedy maximum dropped) | `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps` |
-| M2c | F11 | `loweredComponentFrame` writes the amend onto the member's style instead of a frame per member | `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt` |
+| M2c | F11 | `loweredComponentFrame` writes the amend onto the member's style instead of a frame per member — **cannot, measured** (`LR-EN` item 2: `setStyle` on the native member traps, `SA-G`); the sample is **M2c′**, `loweredComponentFrame` registering no frame | `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt` |
 | M2d | F11 | a component's `.padding` lowered around the whole body instead of per member | `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer` |
 | M2e | F12 | a lowered `Row` hands its stack `nil` spacing (the platform default) | `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault` |
 | M2f | F12 | the lowered `alignSelf` wrapper ignored (the container's alignment used) | `alignSelfPlacesOneChildOnTheCrossAxisOfADefiniteContainer` |

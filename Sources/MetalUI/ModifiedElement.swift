@@ -19,10 +19,12 @@ import MetalUILayout
 // registration and one background fill, in the order nested `Box`es produce
 // them. The oracle is hand-built nested `Box`es, compared observation by
 // observation with a disagreeing oracle each (ruling MC-B):
-// `aModifierChainIsIdenticalToHandBuiltNestedBoxes`
+// `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`
 // (`ModifierCompositionProofTests.swift`) and
-// `aGenericWrapOverAChainIsIdenticalToTheFlatChain`
-// (`ModifiedElementTests.swift`).
+// `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`
+// (`ModifiedElementTests.swift`) — stage 7b's N2.2 and N2.1, which replaced the
+// legacy-authority originals (record §49 §4 rows 230–231) and compare every
+// observation but the node count (`LR-EN`).
 //
 // **What the oracle does NOT compare** is anything `Element`'s group defaults
 // (`requestGroupLayout`/`prepaintGroup`/`paintGroup`) do per ELEMENT: a nested
@@ -75,8 +77,9 @@ public struct ModifierLayer {
     /// both written by `FrameSpec.style()`'s one `switch` over the nine
     /// alignments, and offers its child fit-content, so the child keeps its own
     /// size and overflows the frame centred on the alignment
-    /// (`aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes`, probe arms
-    /// `A5`/`B9`). The flex fields the row lowering wrote stay and are ignored
+    /// (probe arms `A5`/`B9`; its legacy pin was retired by stage 7b, record §49
+    /// §4 row 198, the lowered frame's overflow being
+    /// `aLoweredFixedFrameLayerAgreesWithTheLegacyFrameOverAFixedChild`). The flex fields the row lowering wrote stay and are ignored
     /// by a stack; item fields the layer carries in ITS parent (`flexGrow`,
     /// `alignSelf`, `minSize`, `position`) are untouched.
     ///
@@ -91,8 +94,10 @@ public struct ModifierLayer {
     /// undid `hidden()` for layout and for accessibility (the branch checker's
     /// regression, record §17). `display` is the only field this method writes,
     /// so it is the only one a caller's modifier could lose here. Pinned by
-    /// `hiddenAfterASingleChildLegacyFrameStillHidesTheElement` and
-    /// `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`.
+    /// `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient` (its
+    /// layout twin, `hiddenAfterASingleChildLegacyFrameStillHidesTheElement`,
+    /// was retired by stage 7b with `display: none` taking no space — record §49
+    /// §4 row 200).
     func lowered(_ style: Style, childCount: Int) -> Style {
         guard isFrame, childCount == 1, style.display != .none else { return style }
         var style = style
@@ -173,7 +178,7 @@ public struct ModifiedElement<Content: ElementGroup>: Element, StyledElement {
     /// in, keeping its values and its name. This is the `_wrap` witness that
     /// makes a chain APPEND rather than nest — through the requirement, so a
     /// `.padding` in generic code over a chain appends too
-    /// (`aGenericWrapOverAChainIsIdenticalToTheFlatChain`).
+    /// (`aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`).
     public func _wrap(_ layer: ModifierLayer) -> ModifiedElement<Content> {
         var copy = self
         copy.inner.append(copy.outermost)
