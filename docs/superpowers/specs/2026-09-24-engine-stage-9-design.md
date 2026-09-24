@@ -1,9 +1,9 @@
 # Engine replacement, stage 9 — engine deletion (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 9, §8. Rulings `LR-FC`…`LR-FG` in
+§4.1 row 9, §8. Rulings `LR-FC`…`LR-FH` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
-(next unused `LR-FH`).
+(next unused `LR-FI`; `LR-FH` is the critic round's).
 Record: `docs/record/51-engine-replacement-stage-9.md` (§1 baseline, §2 the
 entry measurement, §3 the containing-block measurement).
 Instruments: `docs/probes/stage-9-legacy-reach-instrument.patch` (the runtime
@@ -17,7 +17,7 @@ new SwiftUI claim (record §51 §3).
 Branch `feat/engine-stage-9` from `b9a5d7f`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-9`.
 
-**Status, 2026-09-24 (PDT): design.** No `Sources/` or `Tests/` file changed
+**Status, 2026-09-24 (PDT): design, critic round 1 applied (`LR-FH`).** No `Sources/` or `Tests/` file changed
 in a commit; every scratch patch was applied, built, run and restored with
 `git checkout`, `git status --short` showing only this design's files after.
 
@@ -110,6 +110,7 @@ Record §51 §2 has the method and the figures.
 | `LR-FE` | one authority: the 87 parameterised scenarios collapse; a differential test keeps its literals and loses its agreement assertions, with a literal added where only the agreement carried a named observation and a base-vs-head mutation check; frozen legacy snapshots rejected; the harness single-authority; renames of names that state a legacy answer |
 | `LR-FF` | every stage-9-owned item disposed by name (§5) |
 | `LR-FG` | three lanes, their order, the accounting (1452 − 43 + 1 = 1410), the guards (79, three re-spelled to read absence), the demo harness revision |
+| `LR-FH` | critic round 1: the lanes re-cut by harness (lane 1 the differential harness and its users, lane 2 the scenario registry's other contributors plus every other test), the site-coverage check re-run at every lane's head, the R/D labels corrected, M3a's arm count, one unprobed SwiftUI sentence struck; the containing-block and `deferred.amended` dispositions and the plan's deferred status fix upheld |
 
 ## 4. API and files
 
@@ -159,21 +160,31 @@ deleted by the lane that removes their last caller: `AuthorityCoverage.swift`,
 
 **Files per lane** — disjoint:
 
-- **Lane 1**: `Tests/MetalUITests/` `LayoutDifferential.swift`,
-  `AuthorityCoverage.swift`, `ZZAuthorityRollCall.swift`,
-  `ScrollRoutingTests`, `ScrollIndicatorTests`, `ScrollViewTests`, `ListTests`,
-  `AXNodeTests`, `AccessibilityDefaultsTests`, `AccessibilityTreeTests`,
-  `FocusTests`, `TombstoneTests`, `MeasurePerformanceTests`, `DeferredTests`,
-  `AbsoluteOverlayTests`, `PresentationWindowTests`, `DecorationPaintTests`,
-  `EnvironmentTests`, `LoweringItemTests`, `LoweringStackAndLayerTests`,
-  `LoweringDistributionTests`, `LoweringComponentTests`,
-  `LoweringContainerTests`, `LoweringBoxModelTests`, `LoweringLeafTests`,
-  `LoweringScrollTests`, `LoweringPipelineParityTests`, `LoweringCorpusTests`,
-  `LayoutAuthorityTests`, `PresentationLoweringTests`, `ListLoweringTests`,
+- **Lane 1** (`LR-FH` item 1): `Tests/MetalUITests/` `LayoutDifferential.swift`
+  and every file that calls `LayoutDifferential.compare`/`render(authority:)`
+  or builds a `WindowPair` — `LayoutAuthorityTests`, `LoweringItemTests`,
+  `LoweringStackAndLayerTests`, `LoweringDistributionTests`,
+  `LoweringComponentTests`, `LoweringContainerTests`, `LoweringBoxModelTests`,
+  `LoweringLeafTests`, `LoweringScrollTests`, `LoweringPipelineParityTests`,
+  `LoweringCorpusTests`, `PresentationLoweringTests`, `ListLoweringTests`,
   `HiddenLoweringTests`, `RootFieldLoweringTests`,
   `GridLoweringInteractionTests`, `GoldenReplacementStackTests`,
-  `GoldenReplacementSupport`, `FrameSizingTests` — **38 files**.
-- **Lane 2**: `Tests/MetalUITests/` `NativeBoundaryIntegrationTests`,
+  `GoldenReplacementSupport`, `FrameSizingTests`, and the five that also
+  contribute scenarios to the registry — `ScrollRoutingTests`, `ListTests`,
+  `DeferredTests`, `PresentationWindowTests`, `DecorationPaintTests` (their
+  49 scenarios collapse here too) — plus the registry's two literals only:
+  `AuthorityCoverage.expected` loses those 49 names and
+  `ZZAuthorityRollCall`'s count `#require` moves **87 → 38** with its
+  hand-derived sum re-written (both files still compile and the roll call
+  stays green for the 38 lane 2 owns) — **25 files** plus the two literal
+  edits, ~17k lines (the old lane 1 was 38 files, 25k lines, 617 edit sites).
+  `AnimationTests` uses only `DifferentialRoot`, which lane 1 keeps.
+- **Lane 2**: the ten remaining registry contributors — `ScrollIndicatorTests`,
+  `ScrollViewTests`, `AXNodeTests`, `AccessibilityDefaultsTests`,
+  `AccessibilityTreeTests`, `FocusTests`, `TombstoneTests`,
+  `MeasurePerformanceTests`, `AbsoluteOverlayTests`, `EnvironmentTests` (38
+  scenarios) — then `AuthorityCoverage.swift` and `ZZAuthorityRollCall.swift`
+  deleted; and `Tests/MetalUITests/` `NativeBoundaryIntegrationTests`,
   `RootSwitchTests`, `ProposalNodeIDTests`, `TextSystemSeamTests`,
   `TextFieldTests`, `TextMeasureTests`, `TextHardLineBreakTests`,
   `IdentityTests`, `InputDispatchTests`, `HitRegionTests`, `HitboxTests`,
@@ -188,7 +199,7 @@ deleted by the lane that removes their last caller: `AuthorityCoverage.swift`,
   `UnbreakableRunsTests`; `Tests/MetalUIPortableTextTests/ContentSizeOracleTests`;
   and any other test file the static census names that lane 1 does not own
   (the lane re-runs the census grep at its base and lists additions in its
-  record).
+  record). The critic's grep at `caa331a` found none outside the two lists.
 - **Lane 3**: every `Sources/` file; `Tests/MetalUITests/Fakes.swift`;
   `LayoutAuthorityCompileGuards.swift`, `ErasureCompileGuards.swift`;
   `Tests/MetalUITests/PresentationContainingBlockTests.swift` (new);
@@ -204,15 +215,15 @@ deleted by the lane that removes their last caller: `AuthorityCoverage.swift`,
 
 | item | disposition |
 |---|---|
-| 3 N9 pins + 6a's N9 (`NativeBoundaryIntegrationTests`), `ProposalNodeIDTests`' N9 | R (no legacy node can be minted) — lane 2 |
-| 2 tokenizer pins (`MeasurePerformanceTests`) | R (`LR-FD`) — lane 1 |
+| 3 N9 pins + 6a's N9 (`NativeBoundaryIntegrationTests`), `ProposalNodeIDTests`' N9 | D (no legacy node can be minted) — lane 2 |
+| 2 tokenizer pins (`MeasurePerformanceTests`) | D (`LR-FD`) — lane 2 |
 | `deferred.containingBlock`/`.nested`/`.root` | deleted; N3.1 pins the window answer; 1.6 R — lanes 1 and 3 |
 | `deferred.amended` | kept, owner 11 — lane 3 |
-| custom elements | registrars and site deleted; six trap tests R; one diagnostics arm pair T; one guard re-spelled — lanes 1 and 3 |
-| divergence 11 | retires; its test R, its proposal fact an arm of 1.5 — lane 1 |
+| custom elements | registrars and site deleted; six trap tests R (three lane 1, three lane 2); one diagnostics arm pair T; one guard re-spelled — lanes 1, 2 and 3 |
+| divergence 11 | retires; its test R (lane 2), its proposal fact an arm of 1.5 (lane 1) |
 | §05's legacy-authority-only rows, the spacer row, the `FlexBaseSize` figures | deleted/gone (Record phase) |
 | `FlexEngine.swift:107`, `computeLayout`'s bracket (`LR-EQ`) | gone with the file |
-| `LR-H`'s legacy ideal trap, `Frame`'s backstop, 6b's exit test, the default-authority tests, the legacy hidden path | R each (§6) |
+| `LR-H`'s legacy ideal trap, `Frame`'s backstop, 6b's exit test, the default-authority tests, the legacy hidden path | D each (§6; no replacement test exists) |
 | every "under both authorities" test | `LR-FE` |
 
 ## 6. Lanes, and every test by name
@@ -226,12 +237,16 @@ a row (R: replaced by a named test; D: a deleted concept named; T: kept and
 changed — collapsed, renamed, re-spelled) in the lane's record section;
 before − removed + added = after is read off the summary line.
 
-### Lane 1 — the two-authority tests and their harness (`LR-FE`)
+### Lane 1 — the differential harness and its users (`LR-FE`, `LR-FH` item 1)
 
 Steps: (1) **before any edit**, run the site-coverage mutations Ma–Me at the
-lane's base and record every reddened test name (with issue counts); (2)
-collapse the 87 parameterised scenarios (drop `arguments:`, the authority
-parameter, `.legacy` branches, `AuthorityCoverage.record`); (3) collapse each
+lane's base (`b9a5d7f`) and record every reddened test name (with issue
+counts) — this base set is the stage's, read again by lanes 2 and 3; (2)
+collapse the 49 parameterised scenarios of the five registry contributors
+this lane owns (drop `arguments:`, the authority parameter, `.legacy`
+branches, `AuthorityCoverage.record`), and remove those 49 names from
+`AuthorityCoverage.expected` and move the roll call's count `#require` to 38
+(literal and sum re-written); (3) collapse each
 differential test by `LR-FE` item 2 — literals kept verbatim, agreement
 assertions deleted, a literal added **derived by hand before the run** where
 the test's name or doc names an observation only the agreement carried, each
@@ -241,11 +256,13 @@ move every test element off `site: .customElement` (onto `.box`; a test that
 reads a `customElement.*` report is one of the retired trap tests) and off
 `pass.frame.requestNode`/`requestLeaf`/`pass.lowersToProposal`/
 `layoutAuthority:`; (7) rewrite `LayoutDifferential.swift` single-authority
-(`LR-FE` item 5) and delete `AuthorityCoverage.swift` and
-`ZZAuthorityRollCall.swift`; (8) renames by `LR-FE` item 6, each a T row
+(`LR-FE` item 5); (8) renames by `LR-FE` item 6, each a T row
 old → new; (9) re-run Ma–Me at the head: **every test reddened at base still
-reddens at head, or is a row of this lane** — a dropout gets a literal and the
-mutation is re-run.
+reddens at head, or is a row of this lane or a test lane 2 still owns
+unchanged** — a dropout gets a literal and the mutation is re-run. Lanes 2
+and 3 repeat step (9) at their heads against the same base set (`LR-FH`
+item 2): lane 2 collapses scenarios Md and Me reach, and lane 3 edits the
+file every mutation is applied to.
 
 **Site-coverage mutations** (each on `Sources/MetalUI/LegacyLowering.swift`
 unless named; the base run is what makes them instruments):
@@ -260,11 +277,11 @@ unless named; the base run is what makes them instruments):
 - **Me**: `lowerPresentation` drops the inset padding (the content sits at the
   window's corner).
 
-**Retirements** (18 rows):
+**Retirements** (11 rows; the design's rows 1, 9, 11–15 moved to lane 2 with
+their files, `LR-FH` item 1 — numbers kept so citations still resolve):
 
 | # | test (file) | row | replacement / concept |
 |---|---|---|---|
-| 1 | `everyParameterisedScenarioRanUnderBothLayoutAuthorities` (`ZZAuthorityRollCall`) | D | "both authorities ran"; stage 10's symbol check shows the second is gone |
 | 2 | `theDifferentialHarnessSeesAOnePointDisagreementAtExactlyThatElement` (`LayoutAuthorityTests`) | D | the two-engine comparison |
 | 3 | `theDifferentialHarnessComparesPaintHitboxesAccessibilityAndState` (`LayoutAuthorityTests`) | D | the two-engine comparison |
 | 4 | `aFrameAndAWindowDefaultToTheProposalAuthority` (`LayoutAuthorityTests`) | D | an authority default |
@@ -272,13 +289,7 @@ unless named; the base run is what makes them instruments):
 | 6 | `aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority` (`LayoutAuthorityTests`) | R | lane 3's re-spelled guard G6a (the registrars are absent) |
 | 7 | `aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne` (`LayoutAuthorityTests`) | R | G6a |
 | 8 | `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` (`LayoutAuthorityTests`) | D | `Frame`'s legacy backstop |
-| 9 | `aLegacySpelledAXListRowAbortsAProductionProposalFrame` (`AXNodeTests`) | R | G6a |
 | 10 | `aLegacySpelledListRowAbortsAProductionProposalFrame` (`ListTests`) | R | G6a |
-| 11 | `aLegacySpelledStatefulListRowAbortsAProductionProposalFrame` (`MeasurePerformanceTests`) | R | G6a |
-| 12 | `aLegacySpelledExcursionRowAbortsAProductionProposalFrame` (`TombstoneTests`) | R | G6a |
-| 13 | `aColdFrameCreatesAtMostOneLineBreakTokenizer` (`MeasurePerformanceTests`) | D | tokenizer min-content (`LR-FD`) |
-| 14 | `aWarmFrameTokenizesEachDistinctStringAtMostOnce` (`MeasurePerformanceTests`) | D | tokenizer min-content |
-| 15 | `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt` (`AbsoluteOverlayTests`) | R | 1.5's new arm "absolute in a `ScrollView`, no `Deferred`" (divergence 11 retires) |
 | 16 | `theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore` (`HiddenLoweringTests`) | D | the legacy hidden path |
 | 17 | `aPresentationTrapsAProductionProposalFrameNamingItsField` (`PresentationLoweringTests`) | R | N3.1 |
 | 18 | `anIdealDimensionOnTheLegacyFrameTraps` (`FrameSizingTests`) | D | `LR-H`'s legacy ideal trap |
@@ -286,14 +297,14 @@ unless named; the base run is what makes them instruments):
 **T rows the design names** (the lane adds the rest): 1.5
 `aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName` loses its
 seven `deferred.containingBlock`/`.nested`/`.root` arms (their reports die in
-lane 3 — `LR-FG` item 4) and gains the `ScrollView` arm; its arm-count
+lane 3 — `LR-FG` item 4) and gains the `ScrollView` arm (the fact of lane 2's
+row 15, added here **before** lane 2 retires that test); its arm-count
 `#require` moves 18 → 12; the `deferred.amended` arm stays.
 `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` loses its two
 `customElement` arms. `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`
 (and `LoweringCorpusTests`' other two) keep "lowers with no diagnostic" and
 their element counts; element-by-element agreement is the deleted concept.
-`aListsWorkIsTheSameFor100kRowsAsFor500` (gated) collapses like its 160/40
-twin. Renames the design expects (`LR-FE` item 6), among them:
+Renames the design expects (`LR-FE` item 6), among them:
 `aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren`,
 `aLoweredRowAndColumnAgreeWithTheLegacyContainersOverFixedChildren`,
 `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth`,
@@ -312,11 +323,16 @@ a true statement of the proposal answer's difference from CSS (for example
 only if the collapsed test no longer asserts the legacy half; the record says
 which.
 
-**Lane 1's count: 1452 − 18 = 1434.**
+**Lane 1's count: 1452 − 11 = 1441.**
 
-### Lane 2 — every other test that names a deleted symbol
+### Lane 2 — the registry's other contributors, and every other test that names a deleted symbol
 
-Steps: (1) re-run the static census grep at the lane's base; every hit
+Steps: (0) collapse the ten remaining registry contributors' 38 scenarios
+as lane 1's step (2) does (`aListsWorkIsTheSameFor100kRowsAsFor500`, gated,
+collapses like its 160/40 twin), then delete `AuthorityCoverage.swift` and
+`ZZAuthorityRollCall.swift`; retire lane 1's old rows 1, 9, 11–15 (below);
+move every test element in these files off `site: .customElement`; (1)
+re-run the static census grep at the lane's base; every hit
 outside lane 1's and lane 3's files is this lane's; (2) delete every
 `layoutAuthority:` argument (all `.proposal` or defaulted — a `.legacy` one is
 a row) and every test element's legacy branch (`lowersToProposal`,
@@ -336,13 +352,13 @@ adoption (T), and retire the legacy-node tests; (5) the retirements below;
 proves the instrument counts), the lane writes a proposal-side control that
 separates, runs it red once, and records it.
 
-**Retirements** (25 rows):
+**Retirements** (32 rows: the design's 25 plus lane 1's old rows 1, 9, 11–15):
 
 | # | test (file) | row | replacement / concept |
 |---|---|---|---|
 | 1–4 | `aProposalElementInsideALegacyContainerTrapsAtRegistration`, `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`, `aPaddingModifierOnAProposalComponentTraps`, `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer` (`NativeBoundaryIntegrationTests`) | D | `SA-G`'s mixed tree (no legacy node can exist) |
 | 5 | `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` (`ProposalNodeIDTests`) | D | a legacy registration |
-| 6 | `noProductionFrameReachesTheLegacyEngine` (`RootSwitchTests`) | R | stage 10's `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` (row 9's own wording) |
+| 6 | `noProductionFrameReachesTheLegacyEngine` (`RootSwitchTests`) | D | the legacy root-layout counter and the branch it counted (`LR-FH` item 3: stage 10's `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`, row 9's own wording, does not exist yet, so it is handed on, not cited as a replacement) |
 | 7–10 | `theThreeSizingModesAnswerWithCoreTextsOwnNumbers`, `minContentIsTheLongestRunNotTheWidestCharacter`, `anExplicitKnownSizeWinsOverTheMeasuredOne`, `aZeroAvailableExtentMeasuresRatherThanTraps` (`TextMeasureTests`) | D | `textMeasure` and the CSS known/available pair |
 | 11–12 | `unbreakableRunsAreLineBreakOpportunitiesNotWordBoundaries`, `runsAreTrimmedOfTrailingWhitespaceAndBlankOnesAreDropped` (`UnbreakableRunsTests`, file deleted) | R | `ContentSizeOracleTests`' `everyClassPairBreaksAsCoreTextDoes` and `maxContentIsTheWidestHardLineAndRunsCarryNoTrailingSpace` (the portable side, measured against the moved reference) |
 | 13–14 | `aMinContentMissReusesOneTokenizerRatherThanCreatingOnePerString`, `theReusedTokenizerAnswersExactlyAsAFreshOneDoes` (`TokenizerReuseTests`, file deleted) | D | tokenizer min-content |
@@ -350,6 +366,13 @@ separates, runs it red once, and records it.
 | 18 | `leavesCarryAMeasureFunctionAndBranchesDoNot` (`LayoutTreeTests`) | D | the CSS `MeasureFunction` |
 | 19–24 | `aNativeNodeRegisteredUnderALegacyNodeTraps`, `aLegacyNodeRegisteredUnderANativeStackTraps`, `aLegacyNodeRegisteredUnderACustomLayoutTraps`, `aStyleWrittenOntoANativeNodeTraps`, `setStyleOnALegacyNodeDuringNativeLayoutTraps`, `registeringALegacyLeafDuringNativeLayoutTraps` (`NativeBoundaryTrapTests`) | D | `SA-G`'s legacy half, `setStyle`, `newLeaf`; the native halves stay pinned by `registeringANativeNodeDuringNativeLayoutTraps` and `computeNativeLayoutReenteredFromAMeasureClosureTraps` |
 | 25 | `aLegacyNodeUnderAGridOrCarryingAGridMarkTraps` (`NativeGridTrapTests`) | D | a legacy node under a grid (all three arms) |
+| L1-1 | `everyParameterisedScenarioRanUnderBothLayoutAuthorities` (`ZZAuthorityRollCall`, file deleted) | D | "both authorities ran" |
+| L1-9 | `aLegacySpelledAXListRowAbortsAProductionProposalFrame` (`AXNodeTests`) | R | G6a |
+| L1-11 | `aLegacySpelledStatefulListRowAbortsAProductionProposalFrame` (`MeasurePerformanceTests`) | R | G6a |
+| L1-12 | `aLegacySpelledExcursionRowAbortsAProductionProposalFrame` (`TombstoneTests`) | R | G6a |
+| L1-13 | `aColdFrameCreatesAtMostOneLineBreakTokenizer` (`MeasurePerformanceTests`) | D | tokenizer min-content (`LR-FD`) |
+| L1-14 | `aWarmFrameTokenizesEachDistinctStringAtMostOnce` (`MeasurePerformanceTests`) | D | tokenizer min-content |
+| L1-15 | `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt` (`AbsoluteOverlayTests`) | R | 1.5's arm "absolute in a `ScrollView`, no `Deferred`", added by lane 1 (divergence 11 retires) |
 
 **T rows the design names**: `ShapingCacheTests`' `aMinContentHitReStampsSoItSurvivesASweepingLoad`
 and `anEntrySurvivesExactlyTwoUntouchedSweptFrames` re-spelled onto the
@@ -375,7 +398,7 @@ moved reference drops its trailing-whitespace trim → `ContentSizeOracleTests`'
 run-comparison tests redden; **M2c** `appendNode`'s `SA-I` precondition
 deleted → `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns` reddens.
 
-**Lane 2's count: 1434 − 25 = 1409.**
+**Lane 2's count: 1441 − 32 = 1409.**
 
 ### Lane 3 — the deletion (`LR-FC`, `LR-FD`, `LR-FF`)
 
@@ -400,14 +423,17 @@ engine, `computeLayout`, `requestNode`, a deleted test or "until stage 9" —
 grep, and list the survivors with reasons in the record); (9) the three guards
 re-spelled; (10) `swift package clean`, both build systems, the suite;
 (11) `ZZDemoPixels-stage9.swift` and `compare.sh`'s switch, then the
-fourteen-image comparison; (12) `Backends/SDL` and a Linux container build (§7).
+fourteen-image comparison; (12) `Backends/SDL` and a Linux container build (§7);
+(13) the site-coverage re-run.
 
 | test (file) | asserts | red before | mutation that must redden it |
 |---|---|---|---|
-| **N3.1** `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt` (`PresentationContainingBlockTests`, new) | the seven arms of record §51 §3 (bordered root; root width 100 in 200; a `Deferred` root; inside a top/left-5 presentation; root `.frame(maxWidth: 100)`; root `.frame(minWidth: 300)`; inside a bordered `inset(0)` presentation), each a plain `Frame` 200×100 with diagnostics, the tree as root: the presented box's hitbox is **(185, 85) 10×10** and the report is **empty**; arm count `#require`d == 7; plus the amended arm: `Box { PresentingSolo().width(70) }` reports exactly `["deferred.amended"]` and that field's `owningStage == "11"` | each of the seven reports its `deferred.*` field; the amended owner reads "9" | **M3a**: restore the `reportPresentationContainingBlock(root:)` call → the four root arms red; **M3b**: restore the `nested` report → the two nested arms red; **M3c**: `.deferred`'s `owningStage` back to "9" → the amended arm red |
+| **N3.1** `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt` (`PresentationContainingBlockTests`, new) | the seven arms of record §51 §3 (bordered root; root width 100 in 200; a `Deferred` root; inside a top/left-5 presentation; root `.frame(maxWidth: 100)`; root `.frame(minWidth: 300)`; inside a bordered `inset(0)` presentation), each a plain `Frame` 200×100 with diagnostics, the tree as root: the presented box's hitbox is **(185, 85) 10×10** and the report is **empty**; arm count `#require`d == 7; plus the amended arm: `Box { PresentingSolo().width(70) }` reports exactly `["deferred.amended"]` and that field's `owningStage == "11"` | each of the seven reports its `deferred.*` field; the amended owner reads "9" | **M3a**: restore the `reportPresentationContainingBlock(root:)` call → the five root arms red (four `deferred.containingBlock`, one `deferred.root` — the function raises both, `LR-FH` item 5); **M3b**: restore the `nested` report → the two nested arms red; **M3c**: `.deferred`'s `owningStage` back to "9" → the amended arm red |
 | **G1** `aPlainImportCannotChooseTheLayoutAuthority` (`LayoutAuthorityCompileGuards`) — **T** | the `window.layoutAuthority = .proposal` fixture fails with `has no member 'layoutAuthority'`; the control compiles; `#require` they disagree | the message reads `inaccessible due to 'internal' protection level` | **M3d**: an internal `var layoutAuthority = 0` on `Window` → the message is the access one, G1 red |
 | **G6a** `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` (`LayoutAuthorityCompileGuards`) — **T**, renamed `aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles` | the legacy fixture fails, naming `requestLeaf` and `requestNode` as members `LayoutPass` does not have; the native control compiles with no deprecation | the fixture compiles with two deprecations | **M3e**: restore the public deprecated `requestNode` (body `fatalError()`) → the fixture's `requestNode` error vanishes, G6a red |
 | **G5** `layoutPassStyleAccessorsAreNotPublic` (`ErasureCompileGuards`) — **T** | the fixture fails with `has no member 'style'` (tightened from `contains("style")`, which a deleted accessor would pass for nothing) | the message is the access one | **M3f**: an internal `func style(_:)` restored on `LayoutPass` → red |
+
+Step (13), after (12): re-run Ma–Me at the head against lane 1's base set (`LR-FH` item 2).
 
 Also mutated once each (no new test; the named existing tests must redden):
 **M3g** `Frame.isHidden` returns `false` → the accessibility-suppression tests
@@ -477,7 +503,7 @@ added or removed; `typecheckFile`'s helper count unchanged).
    `PortableReplay` and `DemoCapture` green unedited; `Tests/PortableTests`
    builds; the Linux container's three test targets pass.
 5. N3.1, G1, G6a, G5 green; every named mutation reddened what §6 names; lane
-   1's site-coverage sets held (head ⊇ base − retired).
+   1's site-coverage base set held at every lane's head (head ⊇ base − retired, `LR-FH` item 2).
 6. Every removed `@Test` has a row; 1452 − 43 + 1 = 1410 (or the re-derived
    equation).
 

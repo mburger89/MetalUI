@@ -2,7 +2,7 @@
 
 Plan task 7, stage 9 (`docs/superpowers/specs/2026-09-17-engine-replacement-design.md`
 §4.1 row 9, §8). Spec `docs/superpowers/specs/2026-09-24-engine-stage-9-design.md`;
-rulings `LR-FC`…`LR-FG` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`.
+rulings `LR-FC`…`LR-FH` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`.
 Branch `feat/engine-stage-9` from `b9a5d7f` (`master`, stage 8 merged), worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-9`.
 
@@ -176,3 +176,32 @@ keeps the report and re-owns it to stage 11.
 
 Everything was reverted (`git checkout Sources`, the scratch test removed;
 `git status --short` showed only this design's files).
+
+## 4. Critic round 1 (design, 2026-09-24)
+
+Read against `caa331a`; ruling `LR-FH`, with amended paragraphs on `LR-FD`,
+`LR-FF` and `LR-FG`. No `Sources/` or `Tests/` file changed.
+
+- **Lane sizing, measured**: the old lane 1's 38 files are 24 985 lines with
+  617 sites matching `compare(`/`WindowPair`/`AuthorityCoverage`/`.legacy`;
+  the old lane 2's 35 files carry 252 sites of a deleted symbol. The
+  `AuthorityCoverage` users and the differential-harness users overlap in five
+  test files (49 of the 87 scenarios). Re-cut by harness: lane 1 −11 → 1441,
+  lane 2 −32 → 1409, lane 3 +1 → 1410.
+- **Labels**: twelve retirements the design marked R have no replacement test
+  and are D (`LR-FF`'s amended paragraph lists them); the stage total is
+  unchanged.
+- **M3a**: `reportPresentationContainingBlock(root:)` raises `deferred.root`
+  as well as `deferred.containingBlock` (`Frame.swift:1833`), so restoring its
+  call reddens five of N3.1's arms, not four.
+- **SwiftUI**: one unprobed sentence (`LR-FD`'s "SwiftUI has no min-content
+  concept for `Text`") struck; nothing else in the three documents claims
+  SwiftUI behaviour, so no probe was re-run.
+- **Coverage grep**: every test or probe file naming a deleted symbol is in a
+  lane's list, or is `Fakes.swift`/the two guard files (lane 3),
+  `Expected.swift` (comment), `ZZDemoPixels.swift` (lane 3's copy),
+  `PortableTextDeterminismTests` (kept `PortableText` API) or the standalone
+  modifier-composition kits.
+- **Upheld**: the containing-block reports' deletion, `deferred.amended`'s
+  re-ownership to 11, the plan's stale sentence waiting for the Record phase,
+  lane 3 unsplit — reasons in `LR-FH` item 7.

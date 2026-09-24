@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FH`** (stage 9's design took `LR-FC`…`LR-FG`, appended at the end; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FI`** (stage 9's design took `LR-FC`…`LR-FG` and its critic round 1 `LR-FH`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -8914,10 +8914,15 @@ oracle `ContentSizeOracleTests` compares it against `Shaper.unbreakableRuns`
    `TextSystem.measure(_:font:wrappingAt: nil)` (TX-K, the same fact).
 
 **What it costs if wrong.** A future element wanting CSS min-content has to
-restore a tokenizer — but SwiftUI has no min-content concept for `Text`, and the
-proposal path answers below-word proposals by `LR-AU`'s clamp, not a
-min-content probe. The oracle's copy could drift from a tokenizer nobody ships;
+restore a tokenizer — the proposal path answers below-word proposals by
+`LR-AU`'s clamp, not a min-content probe (`LR-DQ` item 9 measured a lowered
+`Text` taking none). The oracle's copy could drift from a tokenizer nobody ships;
 it is a reference, and the portable side is what ships.
+
+**Amended, stage-9 critic round 1 (`LR-FH` item 6).** "What it costs if wrong"
+said "SwiftUI has no min-content concept for `Text`" — a SwiftUI claim no probe
+in `docs/probes/` carries. It is struck; the ruling never rested on it, and the
+sentence now cites the measured fact (`LR-DQ` item 9) instead.
 
 ## LR-FE — stage 9: one authority — the parameterised scenarios collapse, the differential tests keep their literals, and the harness becomes single-authority
 
@@ -9035,6 +9040,21 @@ additive (a trap becoming an answer), and the answer is `LR-CL`'s stated
 construction, measured. The amended row: one more report carried into stage
 11; the alternative ships a silent drop.
 
+**Amended, stage-9 critic round 1 (`LR-FH` items 3–4).** The table's
+"retire (R)" meant "retire", not 7a/7b's R ("replaced by a named test"). Rows
+with no existing replacement are **D**: the four N9 pins and
+`anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` (concept: a legacy
+node in a native tree), the two tokenizer pins (tokenizer min-content),
+`anIdealDimensionOnTheLegacyFrameTraps`, `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop`,
+`aFrameAndAWindowDefaultToTheProposalAuthority`,
+`aWindowBuildsEveryFrameUnderItsLayoutAuthority`,
+`theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore`, and
+`noProductionFrameReachesTheLegacyEngine` (stage 10's symbol check is handed
+on, not cited: it does not exist yet). R stays for the rows whose replacement
+exists by the end of this stage: the six custom-element trap tests (G6a),
+1.6 (N3.1), the divergence-11 test (1.5's new arm). Spec §5–§6 carry the
+corrected labels; the count is unchanged.
+
 ## LR-FG — stage 9: three lanes, the accounting, the mutation plan, the demo harness
 
 **Evidence.** Record §51 §2 (lane sizing): the Sources deletion touches
@@ -9086,3 +9106,91 @@ lanes without one lane editing a file another owns.
 invisible for one lane — the branch is deleted in the same lane. Item 5: a
 miscount is caught by the summary line, which the lanes read, not the design's
 figure.
+
+**Amended, stage-9 critic round 1 (`LR-FH` item 1).** Items 1–2 are re-cut
+by harness; item 5's per-lane figures move to lane 1 −11, lane 2 −32, lane 3
++1 (the stage total, 1452 − 43 + 1 = 1410, is unchanged). The evidence's "the
+38 … cannot be split across lanes without one lane editing a file another
+owns" is withdrawn — see `LR-FH` item 1.
+
+## LR-FH — stage 9 critic round 1: the lanes re-cut by harness, the site-coverage check at every head, the labels, and what was upheld
+
+**Evidence.** Read at `caa331a` (the design commit), in the worktree. Line and
+edit-site counts over the old lane 1's 38 files: **24 985 lines, 617 sites**
+matching `compare(`/`WindowPair`/`AuthorityCoverage`/`.legacy`
+(`LoweringItemTests` alone 1 536 lines, 82 sites); the old lane 2's 35 files
+carry **252** sites of a deleted symbol. The files that use
+`AuthorityCoverage` and the files that use `LayoutDifferential.compare`/
+`render(authority:)`/`WindowPair` overlap in exactly five test files
+(`ScrollRoutingTests` 16 scenarios, `ListTests` 21, `DeferredTests` 5,
+`PresentationWindowTests` 6, `DecorationPaintTests` 1 = 49 of the registry's
+87); no file that uses only `AuthorityCoverage` uses the differential harness,
+and `AnimationTests`' one hit is `DifferentialRoot` (kept). The registry's
+`record` checks names against `expected`, and the roll call `#require`s the
+literal count, so shrinking both literals together keeps it green.
+`Frame.reportPresentationContainingBlock(root:)` (`Frame.swift:1833`) raises
+**both** `deferred.root` (a placeholder root) and `deferred.containingBlock`.
+A grep of every test and probe file for every deleted symbol lists no file
+outside the two lanes' lists but `Fakes.swift`, the two guard files (lane 3),
+`Expected.swift` (comment), `ZZDemoPixels.swift` (lane 3's copy),
+`PortableTextDeterminismTests` (`PortableText`'s kept API) and the
+standalone `modifier-composition-skeletons` kits (not built against the
+package). `grep SwiftUI` over the design's three documents finds one claim,
+in `LR-FD`.
+
+**The ruling.**
+
+1. **The lanes are re-cut by harness, not by "any two-authority test".**
+   Lane 1 owns `LayoutDifferential.swift` and every file that calls it or
+   builds a `WindowPair` (25 files, ~17k lines), including the five that also
+   contribute scenarios: it collapses their 49 scenarios, removes those names
+   from `AuthorityCoverage.expected` and moves the roll call's count to 38.
+   Lane 2 owns the ten other contributors (38 scenarios), deletes the registry
+   and the roll call, and keeps the design's lane-2 files. The old retirement
+   rows 1, 9, 11–15 move with their files to lane 2 (numbers kept as `L1-n`);
+   row 15's fact enters 1.5 in lane 1 before lane 2 retires the test. The
+   design's claim that the 38 files could not be split without two lanes
+   editing one file is withdrawn: lanes run in order on one branch, and the
+   only shared file lane 1 touches, `AuthorityCoverage.swift`, it touches in
+   two literals that lane 2 then deletes. Counts: 1452 − 11 = 1441,
+   1441 − 32 = 1409, 1409 + 1 = 1410.
+2. **The site-coverage check runs at every lane's head**, against the base set
+   lane 1 records at `b9a5d7f`: lane 2 collapses scenarios Md and Me reach
+   (`ScrollIndicatorTests`, `AccessibilityDefaultsTests`), and lane 3 edits
+   `LegacyLowering.swift`, `ListRows.swift` and `Frame.swift` — the files
+   every mutation is applied to — so a head reading only after lane 1 would
+   miss both.
+3. **R means "replaced by a test that exists by the stage's end".**
+   `noProductionFrameReachesTheLegacyEngine` is D, its replacement handed to
+   stage 10.
+4. `LR-FF`'s "retire (R)" rows with no replacement are D (amended paragraph
+   there); spec §5's two R labels likewise.
+5. **M3a reddens five arms**, not four: restoring the call brings back four
+   `deferred.containingBlock` reports and the `Deferred`-root arm's
+   `deferred.root`.
+6. **One unprobed SwiftUI sentence struck** (`LR-FD`, amended paragraph). No
+   other SwiftUI claim is made; none is re-run.
+7. **Upheld, with reasons.**
+   - *The containing-block reports are deleted, not kept.* Their condition is
+     defined by the legacy engine ("the root's declared style is the one the
+     legacy engine would register", `Frame.swift:1827`) and `LR-CL` itself
+     names stage 9 as their end; with no legacy engine the condition has no
+     meaning, and record §51 §3 measured every arm at the window answer the
+     auto-root control reads. The one production consequence is a trap
+     becoming that answer on trees the demo does not build.
+   - *`deferred.amended` is kept and re-owned to 11*, departing from
+     `LR-CL`'s "(with `deferred.amended`)": deleting it ships a measured
+     silent drop, and `LR-ER` item 2 gives `Component.width`'s reconciliation
+     to stage 11. Keeping one report pre-empts nothing of 10–11.
+   - *The plan's stale stage-8 sentence waits for the Record phase.* The
+     stage's instructions both ask for it and forbid editing the plan before
+     the Record phase; the parent spec's sentence is fixed now, the plan's is
+     §9's first Record-phase item.
+   - *Lane 3 is not split.* Its `Sources/` work is fourteen files, mechanical
+     once lanes 1–2 leave no reference, and its build order (deletion last)
+     is one sequence.
+
+**What it costs if wrong.** Item 1: lane 1's edit to the registry's literals
+is one commit lane 2 reverses by deletion; if lane 1 miscounts, the roll call
+names the missing scenario. Item 2: three more rounds of five full-suite runs
+(about eight minutes each).
