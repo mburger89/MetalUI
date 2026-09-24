@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FB`** (stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ` and lane 1's review round `LR-FA`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FC`** (stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -8699,4 +8699,61 @@ reddens exactly that test, full unfiltered suite.
 **What it costs if wrong.** Without it a framed absolute root lowers to a
 non-legacy answer in production instead of trapping by name; widening it to
 the frame's own bounds would report fields the frame already lowers.
+
+---
+
+## LR-FB — stage 8 lane 3: the site-coverage check falls back per test, and most of class F went K
+
+**Evidence.** Record §50 §11. Spec §6 lane 3 step 3: after the F conversion,
+"each reddened set after ⊇ before, else **the file** whose tests dropped out
+reverts to K". Ms1 (`Box.prepaint` passes empty `Handlers`) reddened 129 tests
+before; after the first green conversion, 81 — **48 missing, none added**,
+every one a test whose `Box` carried its own handler, focusability, key
+context, action or accessibility node, which `LR-ES` R2 had moved onto the
+frame layer, so the test still passed while pinning `ModifiedElement`'s
+registration instead of `Box`'s. They sat in seven files (`AccessibilityTreeTests`
+17, `InputDispatchTests` 11, `FocusTests` 10, `KeymapTests` 5,
+`AccessibilityDefaultsTests` 2, `AccessibilityEndToEndTests` 2,
+`TrackInteractionTests` 1). Before any run, reading had already sent the
+site-enumerating tests (`onClickIsLiveOnEveryConformerThatCanRegisterOne`,
+`onKeyIsLiveOnEveryConformerThatCanRegisterOne`, …), two custom elements that
+measure their own `style.size` (`ComponentTests`' `Leaf`,
+`ElementGroupTrapTests`' `StateProbe`) and three K1 subjects to K; the first
+full run sent eleven more, whose legacy arm or asserted structural id moved
+(a legacy frame layer over one node is a one-cell stack its child overflows,
+so a framed scroller's viewport is not the frame's height on `.legacy`).
+`LR-EW` already allows "a lane may move a test from F to K with a recorded
+reason".
+
+**The ruling.**
+
+1. **The fallback is per test, not per file.** A test that drops out of an
+   Ms set takes K for its own sites and the helpers only it reaches; its
+   file's other F sites stay F. The file-level wording of spec §6 step 3 is
+   amended. The criterion is unchanged — the after set must contain the before
+   set — and it held **with equality** for all three mutations (129, 3, 5).
+2. **The outcome is recorded as measured: F 151 sites, K 274, in the 22 F
+   files** (the design's table read 425 F, 0 K). The stage's `css*` sites are
+   therefore lane 2's 1115 plus these 274 plus lane 1's, all stage 10's. Every
+   K line equals its `85217e3` line modulo the `css` prefix, checked
+   mechanically; no assertion was edited, no test renamed or retired (R stays
+   empty).
+3. **What the F sites that remain are**: tests whose sized element carries no
+   handler, focus, key or accessibility of its own, or carries a paint-only
+   decoration whose site no Ms mutation pins (`ObservationTests`,
+   `ScrollViewTests`, `EnvironmentTests`, the `AccessibilityDefaultsTests`
+   combination arms, most of `KeymapTests`' and `FocusTests`' windows'
+   fixed-size neighbours). `Box`'s own **background** paint (lane 2's M2b) is
+   not one of spec §6's Ms mutations; the F conversions that move a `Box`'s
+   `background` onto the frame layer (`ObservationTests`, `ScrollViewTests`,
+   `EnvironmentTests`' `theSpaceKeyBindingSwapsTheThemeThroughTheFakePlatform`)
+   were judged by K2's rule — none of those tests is about `Box.paint` — and
+   `aContainerPaintsItsBackgroundBeneathItsChildren`, which is, went K.
+
+**What it costs if wrong.** Per file would have K'd 84 more sites (the
+seven files' remaining F sites) that no Ms mutation distinguishes, costing stage 10 that many more re-spellings and
+nothing in coverage. Per test is only as good as the three Ms mutations: a
+site that none of them pins (a `Box`'s own background, `Text`'s own handlers)
+could still have moved unseen, which is why rule 3 names the background case
+and records its judgement rather than claiming a measurement.
 

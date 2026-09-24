@@ -572,3 +572,182 @@ Identical sets base vs head for both: K reaches the same code.
 hit-testing/accessibility/hover instrument and `Backends/SDL` were not re-run.
 
 **10.7 Deferred.** Nothing.
+
+
+## 11. Lane 3 — class F, class D, the deprecation (`LR-FB`)
+
+Commits: `e62cfd9` (red first: N3.1 and T3.1), `39adea3` (the eight
+deprecations, the 22 F files, `ModifierTests` to D, `Box.swift`'s Size section
+and `Component.swift`'s comments), then this record and `LR-FB`.
+
+**11.1 The census, re-taken** with the real attributes in `Box.swift` (spec §4's
+messages) on lane 2's head (`1604674`) plus the red commit: **433 sites in 23
+files** — the 22 F files' 425 and `ModifierTests`' 8 — the same per-file counts
+as spec §5.2's table; 0 in `Sources/MetalUIDemoContent`, the 28 K files, the
+lane-1 files and `CSSSizing.swift`'s witness. The converter was re-written to
+start runs only at those compiler-reported positions
+(`docs/probes/stage-8-sizing-converter.py` matches every `.width(` including
+`Component.width`, which is not deprecated; the census-driven variant lived in
+the session scratchpad and is described here rather than committed).
+
+**11.2 Site coverage before** (step 1, on `1604674`, full unfiltered suite,
+each mutation applied by script to the committed tree, restored from a copy,
+`git status --short` empty after):
+
+| mutation | spelling | reddened |
+|---|---|---|
+| Ms1 | `Box.swift` `prepaint`: `pass.registerAndScope(handlers, …)` → `pass.registerAndScope(Handlers(), …)` | `1451 tests … failed … with 236 issues`, **129 tests** (below) |
+| Ms2 | `Text.swift` `paint`: `var decoration = decoration; decoration.background = nil; decoration.hoverBackground = nil; decoration.focusBackground = nil` before `paintDecoration` | `1451 … 3 issues`: `everyBackgroundPaintingSiteAnimatesItsColour`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus` |
+| Ms3 | `Stack.swift` `paint`: the same line before `paintDecoration` | `1451 … 7 issues`: `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities`, `everyBackgroundPaintingSiteAnimatesItsColour`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `nestedPresentationsLandOnOneLayerUnderBothAuthorities` |
+
+Ms1's 129: `aBoundActionReachesAnElementHandlerAlongTheFocusChain`, `aBoundActionRunsBeforeARawOnKeyHandler`, `aBoxWithADeclaredAXNodeEmitsItAtItsOwnResolvedBounds`, `aCallerDeclaredAXNodeOnAListSurvivesLogicalCountBeingAdded`, `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `aClickInsideTheBoundsRunsTheHandler`, `aClickNeedsTheTargetEnabledAtPressAndAtRelease`, `aClickOutsideTheBoundsDoesNotRunTheHandler`, `aClickTargetInsideAScrollViewSwallowsTheWheel`, `aClientDoesNotChangeStateRetention`, `aContentShapeInsetShrinksTheHitRegionAndChangesNoLayout`, `aContentShapeMovesNeitherTheAccessibilityFrameNorTheFocusRegistration`, `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBoxUnderTheProposalAuthority`, `aContentShapeWithoutAClickHandlerRegistersNothing`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScrollUnderBothAuthorities`, `aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel`, `aDisabledAncestorsRawKeyHandlerDoesNotSeeAKey`, `aDisabledClickTargetPassesTheClickToWhatIsUnderIt`, `aDisabledElementCannotAcquireFocus`, `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`, `aDisabledElementsActionHandlerDoesNotClaimAKeymapAction`, `aDisabledElementsAXNodeCarriesTheDisabledTrait`, `aDisabledPaneContributesNoKeyContext`, `aDisabledScopeReachesIntoDeferredContent`, `aDisabledTargetIsNeitherHoveredNorPressed`, `aDispatchedClickDoesNotAlsoReachTheWindowsRawHandler`, `aFocusableElementNeedsNoHandlerAndAHandlerNeedsNoFocusability`, `aFocusableRowInsideAScrollViewDoesNotSwallowTheWheel`, `aFocusedElementThatBecomesDisabledLosesFocusAtOnce`, `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`, `aFocusRingAndHoverBorderDrawOnTheLayerTheyAreWrittenOnAroundAFrame`, `aFocusRingOutranksAHoverBorderAndABorder`, `aFramedAbsoluteBoxIsAPresentationRootUnderBothAuthorities`, `aFrameThatDoesNotCollectRecordsNothingAndSynthesisWritesNoRetentionSlot`, `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aHandlerRegisteredOnFrameNRunsForAnEventBeforeFrameNPlusOne`, `aHandlerThatClaimsTheEventStopsTheWalk`, `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aHiddenClickTargetPassesTheClickToWhatIsUnderIt`, `aHiddenElementInsideAnyElementIsHiddenUnderTheProposalAuthority`, `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`, `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`, `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`, `aHiddenRootPublishesNothing`, `aHoverBackgroundNeverPaintsUnderAllowsHitTestingFalse`, `aHoveredBoxPaintsItsHoverBackground`, `aKeyContextIsContributedByANonFocusableAncestor`, `aKeyContextRegistersNoPointerHitbox`, `aKeyEventDispatchesToTheFocusedElement`, `aKeyEventWithNothingFocusedReachesTheWindow`, `aKeyUpIsNotDispatchedToTheFocusChain`, `aLabelledClickTargetOnAFrameLayerPublishesTheFrameBoxWhileItsHitRegionIsInset`, `aLabelledListIsStillATable`, `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`, `aLayerAddedAtRunTimeKeepsTheOutermostAccessibilityNodeAndRepublishesTheWrappedOne`, `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`, `aListInTheDifferentialHarnessReachesABoundedWindow`, `aListsSceneAndHitboxesAreUnchangedByTheGroup`, `allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKeepsTheKeyboardOnes`, `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape`, `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`, `anActionBubblesPastAnElementThatDoesNotHandleIt`, `anActivationRequestDirtiesACleanWindowAndItsNextFramePublishes`, `anAnimationWithAClientActivePostsNothingAndTouchesNoElement`, `anAppsKeymapBindingWinsOverEditingAndUnclaimedKeysBubble`, `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor`, `anElementThatStopsBeingFocusableLosesFocus`, `aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire`, `aNestedHandlerWinsOverItsContainingStackToo`, `anIDAfterAChainsLastWrapperNamesTheOutermostLayer`, `anIncrementRequestRunsTheAdjustmentHandler`, `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame`, `aNodesParentIsItsNearestEmittingAncestor`, `anUnchangedFrameIsNotRepublished`, `anUnhandledActionFallsThroughToTheRawKeyBubble`, `anUnhandledKeyEventBubblesToItsAncestorsInnermostFirst`, `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot`, `aPressIsRefusedWhereHitTestingIsDisabled`, `aPressOnOneElementReleasedOnAnotherIsNotAClick`, `aPressReleasedOverSomethingCoveringItIsNotAClick`, `aPressRequestRunsOnClickThroughTheLastFramesHitboxes`, `aPressThatLeavesTheElementAndReturnsStillClicks`, `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `aTwoStrokeSequenceDispatchesThroughTheWindow`, `aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling`, `aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount`, `aVirtualizedListsLogicalCountIsTheFullDataCountEvenWhenEveryRowFits`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`, `childrenFollowDeclarationOrderWhereIDsAloneCannot`, `clippedAlsoClipsTheHitboxesInsideIt`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`, `declaredRolesLabelsValuesAndTraitsReachThePublishedNode`, `eachLiveHandlerAloneMakesAnUndeclaredElementRecord`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain`, `everyHandlerRegisteringSiteHonoursAllowsHitTesting`, `everyHandlerRegisteringSiteStillPublishesItsAccessibilityPayload`, `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `focusabilityAndKeyHandlingRegisterNoPointerHitbox`, `focusBackgroundPaintsOnlyWhileFocusIsHeld`, `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`, `focusOutranksHoverWhenAnElementIsBoth`, `focusSurvivesAFrameInWhichTheFocusedElementIsRebuilt`, `focusSurvivesAndDispatchesInsideADeferredSubtree`, `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`, `hoverAndFocusFadeThroughTheSameEffectiveColourPath`, `hoveringOneClickTargetDoesNotHoverItsSibling`, `metalUIsDefaultHitRegionIsTheElementsWholeFrame`, `movingFocusAndClaimingAKeyBothRedrawTheWindow`, `onClickIsLiveOnEveryConformerThatCanRegisterOne`, `onKeyIsLiveOnEveryConformerThatCanRegisterOne`, `onlyABoxWithAHandlerRegistersAHitbox`, `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor`, `publishedFocusIsTheWindowsFocusAndAFocusRequestMovesIt`, `reEnablingRestoresClicksButNotFocus`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, `synthesizedNodesCostNothingWhileNoClientIsActive`, `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, `theGateReadsTheEnvironmentValueNotTheModifier`, `theHandlerReceivesTheEventThatArrived`, `theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows`, `theTopmostOfTwoOverlappingHandlersRuns`.
+
+**11.3 Red first** (unfiltered, `e62cfd9`): `Test run with 1452 tests in 3
+suites failed … with 14 issues`. N3.1 `FrameSizingCompileGuards.swift:214`
+`lines.count == 8` (0) and `:232` ×11 (no message names its replacement); its
+control arm green (count 0). T3.1 `ContainerCompileGuards.swift:137`
+`deprecations(control) == 2` (0) and `:139` (neither fraction's deprecation).
+No other test red.
+
+**11.4 The conversion, and why most of it went K** (`LR-FB`). The census-driven
+converter applied R1 and R3 to all 425 sites (190 frames); by hand: R2 —
+`ObservationTests`' nine `Box().background(.surface)` receivers and
+`ScrollViewTests`' five `Box(decoration: Decoration(background: .surface))`
+(→ `Box().frame(…).background(.surface)`, S2); R3 — the `Row` roots `.leading`
+(`AccessibilityDefaultsTests`' `combine`, `InputDispatchTests`' vanishing-`if`
+root), the padded and unpadded `Column` roots of
+`spriteDestinationsAreThePenPositionPlusTheRasterizersBearings` `.topLeading`
+(its oracle puts the text at the padding, the content's placement; `.top`
+reddened it at `:313`/`:344`), and the centring `Box` of
+`aCentredShrinkWrappedLabelNeverWrapsAtAnyValue` to the default `.center` with
+its `alignItems(.center)`/`justifyContent(.center)` dropped; helper types —
+`declared(_:_:)` generalised from `Box<C>` to any `StyledElement` in
+`AccessibilityTreeTests` and `AccessibilityEndToEndTests` (it only sets
+`handlers.axNode`), `EnvironmentTests`' `surfaceBox`, `tree()` and the E15
+`Leaf` typealias to `ModifiedElement<Box<EmptyGroup>>`. Then K per test, for
+four reasons, in this order:
+
+1. **By reading, before any run** (K1/K2 of spec §5.2):
+   `onClickIsLiveOnEveryConformerThatCanRegisterOne`,
+   `onKeyIsLiveOnEveryConformerThatCanRegisterOne`,
+   `aNestedHandlerWinsOverItsContainingStackToo`,
+   `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`
+   (each enumerates registration sites — `Stack`'s, `Text`'s, a bare `Box`'s —
+   that R2 would move onto a `ModifiedElement` layer),
+   `aContainerPaintsItsBackgroundBeneathItsChildren` (its subject is
+   `Box.paint`'s container order; R2 would move the background onto the frame
+   layer); `ComponentTests`' `Leaf` (7 lines) and `ElementGroupTrapTests`'
+   `StateProbe` (4 lines, `twoSiblingsWithTheSameIDShareOneStateEntry`,
+   `twoSiblingsWithDifferentIDsDoNotShareState`) — custom elements whose
+   measure reads their own `style.size`, the latter also asserting a structural
+   path with `.id()` before the sizing; `legacySpelledScrolledListRoot` (K1: the
+   root `minSize` fold is its subject) and `aWidthModifierOnAListReachesItsLayoutNode`
+   (K1: its name); `paintWrapsAtTheWidthLayoutMeasuredAtNotTheRoundedBox` (its
+   instrument is `tree.children(root)[0]`, which a frame root would silently
+   re-point from the `Text` to the `Row`).
+2. **An assertion moved** (first full run, 11 tests red): the four
+   `AccessibilityDefaultsTests` `List` tests on `.legacy`
+   (`combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`,
+   `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`,
+   `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`,
+   `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`: a legacy
+   frame layer over one node is a one-cell stack its child overflows, so the
+   scroller's viewport is no longer 200) — `scrolledList`'s box and the
+   bounded-window test's own box went K, and so did the control arm of
+   `aRootMinHeightOnTheScrollerFixtureNoLongerAbortsAProductionProposalFrame`,
+   which must stay "the same tree without that one modifier";
+   `aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting` (both
+   authorities; `alignItems(.stretch)` moved before the frame is R4's spelling,
+   and neither the legacy outer width 50 nor the proposal inner width 150
+   survived it); `aListInTheDifferentialHarnessReachesABoundedWindow` and
+   `aListsSceneAndHitboxesAreUnchangedByTheGroup` (`.legacy`, the same
+   overflow; with them `ListTests` is wholly K); `activeSurvivesAFrameBoundary`
+   and `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` (each
+   **asserts** a structural id, R7). `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`
+   was red on a locator path, re-derived by R7, and then went K under reason 3;
+   `spriteDestinations…` was re-spelled by R3 (above) and stayed F.
+3. **The site-coverage check** (Ms1 after the first green run: 81 tests, 48 of
+   the 129 missing, none added — every one a test whose `Box` carried its own
+   handler, focusability, key context, action or accessibility node, which R2
+   had moved onto the frame layer): `aBoundActionReachesAnElementHandlerAlongTheFocusChain`, `aBoundActionRunsBeforeARawOnKeyHandler`, `aClickInsideTheBoundsRunsTheHandler`, `aClickOutsideTheBoundsDoesNotRunTheHandler`, `aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel`, `aDispatchedClickDoesNotAlsoReachTheWindowsRawHandler`, `aFrameThatDoesNotCollectRecordsNothingAndSynthesisWritesNoRetentionSlot`, `aHandlerRegisteredOnFrameNRunsForAnEventBeforeFrameNPlusOne`, `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`, `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`, `aHiddenRootPublishesNothing`, `aKeyContextRegistersNoPointerHitbox`, `aKeyEventDispatchesToTheFocusedElement`, `aKeyEventWithNothingFocusedReachesTheWindow`, `aKeyUpIsNotDispatchedToTheFocusChain`, `aLayerAddedAtRunTimeKeepsTheOutermostAccessibilityNodeAndRepublishesTheWrappedOne`, `anActivationRequestDirtiesACleanWindowAndItsNextFramePublishes`, `anAnimationWithAClientActivePostsNothingAndTouchesNoElement`, `anElementThatStopsBeingFocusableLosesFocus`, `aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire`, `anIncrementRequestRunsTheAdjustmentHandler`, `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame`, `aNodesParentIsItsNearestEmittingAncestor`, `anUnchangedFrameIsNotRepublished`, `anUnhandledActionFallsThroughToTheRawKeyBubble`, `aPressIsRefusedWhereHitTestingIsDisabled`, `aPressOnOneElementReleasedOnAnotherIsNotAClick`, `aPressReleasedOverSomethingCoveringItIsNotAClick`, `aPressRequestRunsOnClickThroughTheLastFramesHitboxes`, `aPressThatLeavesTheElementAndReturnsStillClicks`, `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick`, `aTwoStrokeSequenceDispatchesThroughTheWindow`, `aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling`, `childrenFollowDeclarationOrderWhereIDsAloneCannot`, `declaredRolesLabelsValuesAndTraitsReachThePublishedNode`, `eachLiveHandlerAloneMakesAnUndeclaredElementRecord`, `focusabilityAndKeyHandlingRegisterNoPointerHitbox`, `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`, `focusSurvivesAFrameInWhichTheFocusedElementIsRebuilt`, `focusSurvivesAndDispatchesInsideADeferredSubtree`, `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`, `movingFocusAndClaimingAKeyBothRedrawTheWindow`, `onlyABoxWithAHandlerRegistersAHitbox`, `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor`, `publishedFocusIsTheWindowsFocusAndAFocusRequestMovesIt`, `theHandlerReceivesTheEventThatArrived`, `theTopmostOfTwoOverlappingHandlersRuns` — `AccessibilityTreeTests` 17,
+   `InputDispatchTests` 11, `FocusTests` 10, `KeymapTests` 5,
+   `AccessibilityDefaultsTests` 2, `AccessibilityEndToEndTests` 2,
+   `TrackInteractionTests` 1. Their bodies went K (46 tests had sites in the
+   body; the R7 re-derivations in two of them were reverted with the K); the
+   second Ms1 run still missed `anUnchangedFrameIsNotRepublished` and
+   `aLayerAddedAtRunTimeKeepsTheOutermostAccessibilityNodeAndRepublishesTheWrappedOne`,
+   whose boxes are in helpers (`PressToRename`, `labelledChain`), which then
+   went K.
+4. No test took R: nothing was retired.
+
+**Result: F 151 sites, K 274, in the 22 files** (per file, F/K:
+`AccessibilityDefaultsTests` 52/15, `AccessibilityEndToEndTests` 2/6,
+`AccessibilityTreeTests` 8/86, `ComponentTests` 6/14, `DeferredTests` 0/2,
+`ElementGroupTrapTests` 0/8, `EnvironmentTests` 12/0, `FocusTests` 10/38,
+`FrameLoopTests` 2/0, `GlyphEmitterTests` 6/2, `HitboxTests` 2/2,
+`InputDispatchTests` 2/66, `KeymapTests` 10/10, `ListTests` 0/4,
+`ObservationTests` 17/0, `ProposalNodeIDTests` 0/2, `ScrollViewTests` 10/0,
+`StateTests` 2/0, `TextMeasureTests` 1/0, `TextSystemSeamTests` 1/0,
+`ThemeTests` 8/3, `TrackInteractionTests` 0/16). The design expected 425/0.
+**Every K line equals its `85217e3` line** once each `.cssX(` is mapped back to
+`.x(` (checked mechanically over all 22 files: the only non-`.frame` new-side
+lines left are the two `declared` signatures, `surfaceBox`'s and `Leaf`'s
+types, one re-broken `Box()` line in `ObservationTests` and one comment in
+`ScrollViewTests`). No assertion edited; no test renamed.
+
+**11.5 Class D.** `ModifierTests.everyPublicModifierWritesItsOwnFieldAndOnlyThatField`'s
+eight Size rows moved verbatim into `DeprecatedSizingCases`, a
+`DeprecatedSpelling` whose witness carries `@available(*, deprecated, …)`,
+spliced back at their place (`[…] + oldSpelling(DeprecatedSizingCases()) +
+[…]`); `cases.count == 47` unchanged.
+
+**11.6 Site coverage after** (on the lane's working tree once the F files were
+final — before the D move, `Box.swift`'s comments and `Component.swift`'s,
+which touch no F file and no `Sources/` code line — with the eight
+deprecations in): Ms1 `1452 tests … failed … with 229 issues`, Ms2 `… 3
+issues`, Ms3 `… 7 issues`; **each reddened set is identical to its before set**
+(⊇ holds with equality; 129, 3, 5 tests).
+
+**11.7 Mutations of the new and changed guard** (committed `39adea3`, full
+unfiltered suite, restored from a copy, `git status --short` empty after):
+
+| mutation | spelling | reddened |
+|---|---|---|
+| M3a | `width(_:)`'s `@available` deleted | `theSizingModifiersAreDeprecatedTowardFrame` only (`:214` count 7, `:232` once) |
+| M3b | `width(fraction:)`'s `@available` deleted | `thePercentSizingModifiersAreDeprecatedRenamesOfFraction` (`:137` control reads 1, `:139`) and `theSizingModifiersAreDeprecatedTowardFrame` (count 7, `:232` twice) |
+
+**11.8 Counts.** After `swift package clean`: `swift build --build-system
+native --build-tests` — 0 `error:`, the one `warning:` SwiftPM's notice;
+`swift build --build-tests` (default build system) — 0 `error:`, 0 `warning:`.
+Unfiltered `swift test --build-system native --no-parallel`: **`Test run with
+1452 tests in 3 suites passed`**, the log carrying `FR-J no-argument frame:
+succeeded=true` and `N3.1 sizing deprecations: succeeded=true count=8`. Guards
+**79** (`FrameSizingCompileGuards` 2 → 3; `git grep -c canTypecheck` 81 hits
+less `Typecheck.swift`'s declaration and `UnitSafetyTests`' comment). Before −
+removed + added = after: 1451 − 0 + 1 = 1452 (the stage: 1445 − 0 + 7). The
+portable CI suites (`MetalUICoreTests`, `MetalUILayoutTests`,
+`MetalUICrossPlatformTests`) are untouched.
+
+**11.9 What must not move.** `docs/probes/demo-pixels/compare.sh <scratch>
+85217e3 39adea3`: controls as in §8.5 (1048576, 1031003, 454895, 0, 1048576,
+0, 544, 216, 491221, 529, 0), then **all fourteen images `differing=0 scene
+identical`**. `DemoFrameDeterminismTests` green unedited. `Backends/SDL`, its
+`.build` removed, `PKG_CONFIG_PATH=$PWD/.accesskit swift build --build-tests`
+with the deprecation in: **0 lines containing `deprecated`** (the only
+`warning:`s are the SDL3 dylib's macOS-version linker notices and the `sdl`
+pkg-config rpath notice, present before this stage); `swift test` 21 + 19
+passed; fixtures recorded from `85217e3`'s archive (`Experiments/SDLGPU`,
+`swift run --build-system native Replay --portable --record`: frames 0–5 at 0
+px, draw-order mutation detected), then the head's `PortableReplay … --expect
+6` PASS (every frame 0 px, max Δ0) and `DemoCapture` "byte-for-byte macOS's:
+true", PASS. `git grep` finds no call of the eight in `Backends`,
+`Tests/PortableTests`, `Tests/MetalUICrossPlatformTests` or `Experiments`, and
+in `Sources/MetalUIDemoContent` only comment lines (exit criterion 3). No
+`Sources/` file changed but `Box.swift` (attributes, comments) and
+`Component.swift` (comment lines only), so the hit-testing/accessibility/hover
+instrument was not re-run.
+
+**11.10 Deferred, with owners.** The Record phase: CLAUDE.md/AGENTS.md
+(spec §9's list), and the F/K figures above in place of the design's
+425/0. Stage 10: the 274 new K sites join lane 2's 1115 (1389 `css*` sites in
+the F and K files, plus lane 1's).
