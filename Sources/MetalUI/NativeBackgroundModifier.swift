@@ -33,7 +33,10 @@ import MetalUILayout
 /// multi-member `Component`) traps naming its count — divergence 73: SwiftUI
 /// attaches one background per member of a `Group` (probe G3/G4), MetalUI keeps
 /// a modifier one layer (`MC-A`, `ID-I` item 3). Pinned by
-/// `LegacyBackgroundTests`.
+/// `LegacyBackgroundTests`: both sides' lowering by
+/// `aLegacyBackgroundLowersBothSidesAsAFrameLayerDoes` (dropping either call
+/// reports `box.flexGrow.unconsumed` or `box.margin.unconsumed`; `ID-Q` item
+/// 6), the side id by B3.2, the count trap by B3.3.
 public struct BackgroundModifier<Content: ElementGroup, Background: ElementGroup>: Element {
     public var content: Content
     public var background: Background

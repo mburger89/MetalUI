@@ -155,7 +155,7 @@ private final class ClickLog {
 
 /// **B3.4 — a legacy background consumes its primary's and its background's
 /// records as a frame layer does, and drops a background-side presentation's
-/// placeholder** (ruling `ID-J`, `ID-Q` item 5). The background copy of
+/// placeholder** (ruling `ID-J`, `ID-Q` item 6). The background copy of
 /// `aLegacyOverlayConsumesItsPrimarysAndOverlaysRecordsAsAFrameLayerDoes` and
 /// `anOverlaySideDeferredPresentsAgainstTheWindowAndLeavesNoPlaceholder`: B3.1–
 /// B3.3 use only fixed-size leaves with no item field, over which

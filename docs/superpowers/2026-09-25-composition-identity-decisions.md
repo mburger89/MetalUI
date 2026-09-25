@@ -752,6 +752,21 @@ instruments redden; item 4 is a count; item 6 is comments.
    unconditional `extension BackgroundModifier: ProposalElement {}` is replaced
    by a comment, as `OverlayModifier`'s was by `LR-FX` — the conformance moves
    beside the type, conditional on both sides.
+6. **Both sides' lowering is pinned** (the lane-3 fix round, verifier V5/V6).
+   `ID-J`'s "both sides through `lowerAttachmentChildren`" was pinned by no
+   test: B3.1–B3.3 use fixed-size leaves with no item field, over which the
+   lowering does nothing, so `let primary = contentNodes` (V5) and `let
+   secondary = backgroundNodes` (V6) each left all 1482 green — the overlay's
+   recipe copied, and the copy unpinned. B3.4
+   `aLegacyBackgroundLowersBothSidesAsAFrameLayerDoes` is the background copy of
+   the overlay's two pins (`aLegacyOverlayConsumesItsPrimarysAndOverlaysRecordsAsAFrameLayerDoes`,
+   `anOverlaySideDeferredPresentsAgainstTheWindowAndLeavesNoPlaceholder`): a
+   growing primary and a margined background in a `Row` under diagnostics, and a
+   background-side `Deferred`. Re-run from `3af2ad2`: **V5** reddens B3.4 alone
+   (report `[box.flexGrow.unconsumed]`), **V6** B3.4 alone (report
+   `[box.margin.unconsumed]`, 8 nodes for 7). Suite 1482 → **1483**. Since stage
+   6b an unconsumed record traps in production, so either regression would have
+   crashed `Box().flexGrow(1).background { … }` inside a `Row` on a green suite.
 
 **Evidence.** Record §55 §7.
 

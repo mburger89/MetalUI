@@ -576,6 +576,9 @@ declaration and `UnitSafetyTests`' comment; `canTypecheck(module` 83 → 86).
 `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` and
 `theDemoFrameMatchesTheValuesRecordedOnMacOS` green in that run. No test was
 removed or renamed (no retirement row); the T row keeps its name and subject.
+**The fix round adds B3.4** (`ID-Q` item 6, §7.4's V5/V6): **1483 = 1482 + 1**,
+`Test run with 1483 tests in 3 suites passed after 83.430 seconds` at
+`3af2ad2`; guards unmoved (88).
 
 **Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> e3cb3e9 1f65b62`:
 controls as lanes 1–2 read them (light/dark 1048576, default vs modal 1031003,
@@ -620,6 +623,16 @@ after each.
 | M3j | `.background(alignment:content:)` | declared on `ProposalElementGroup` again (`LegacyBackgroundTests.swift` set aside) | G3.3, T `backgroundCannotBeCalledOnAComponent` — 2 (1479 tests) |
 | M3k | `lowerShownLegacyFrameLayer` | the row at `alignment: .center` | N3.1 alone |
 | MT | `Component` | `background(_: ColorToken) -> Self` declared | T `backgroundCannotBeCalledOnAComponent` alone (2) |
+| V5 | `BackgroundModifier.attach` | `let primary = contentNodes` (no lowering) | at `c3c9bc9`: **none** (1482 passed; the verifier's run); after B3.4 (`3af2ad2`): B3.4 alone (1, report `[box.flexGrow.unconsumed]`) |
+| V6 | `BackgroundModifier.attach` | `let secondary = backgroundNodes` (no lowering) | at `c3c9bc9`: **none** (1482 passed); after B3.4: B3.4 alone (2, report `[box.margin.unconsumed]`, `nodeCount` 8 for 7) |
+
+**V5 and V6 are the fix round's** (`ID-Q` item 6): `ID-J`'s central claim, both
+sides through `lowerAttachmentChildren`, was pinned by nothing — B3.1–B3.3 use
+fixed-size leaves with no item field, which the lowering leaves alone. B3.4
+(`aLegacyBackgroundLowersBothSidesAsAFrameLayerDoes`) copies the overlay's two
+pins onto the background; each mutant was a whole unfiltered run from the
+committed `3af2ad2`, the file restored from a copy, `git status --short` empty
+after; the unmutated tree read `Test run with 1483 tests in 3 suites passed`.
 
 **M3e′ is the one guard mutation whose red was read from the guard's fixtures,
 not from the running guard.** Under it the test target stops building
@@ -646,4 +659,4 @@ exit 0 (`ID-Q` item 1).
   paragraph (`.id()` via `IdentifiedGroup`; `.background { }` offered, the token
   one not), the grid bullet ("no built-in proposal element has `.id()`"), the
   vocabulary list (`.id(_:)`, `IdentifiedGroup`, the legacy `.background { }`),
-  counts (1482) and guards (88, `ExplicitIdentityCompileGuards` 3).
+  counts (1483 after the fix round's B3.4) and guards (88, `ExplicitIdentityCompileGuards` 3).
