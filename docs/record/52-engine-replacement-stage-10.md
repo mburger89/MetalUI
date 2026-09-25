@@ -194,3 +194,71 @@ R1–R4 rejected). No `Sources/`/`Tests/` file touched.
 - **The golden-count spelling** (F6): `git ls-files 'Tests/*.json'` and
   `find Tests -name "*.json"` both read 0 at `8095fd9`; the reason for the
   former is in spec §8.
+
+## 4. Lane 1 — tests off the deleted fields; reports made permanent (2026-09-24)
+
+Commits `51c288a` (red first: N1.1, T1.1–T1.16, D1.1/D1.2 retired, the
+`CSSSizing.swift` doc comment) and `84ad1e6` (`UnlowerableField.owningStage:
+String` → `owner: String?`, `LayoutAuthority.swift` only). Ruling `LR-FS`.
+
+### 4.1 Red first
+
+The red commit carried a scratch `owner` forwarding to the old
+`owningStage`, so the tree built. **`Test run with 1410 tests in 3 suites
+failed after 76.899 seconds with 644 issues.`** Five tests failed:
+
+| test | issues | first failure line |
+|---|---|---|
+| N1.1 `everyReportNamesALiveOwnerOrIsRefusedByName` | 639 | `LayoutAuthorityTests.swift:344:9: Expectation failed: field.owner == owner` (and `:349:13` `message.contains("(\(owner))")`) |
+| T1.1 `anAbsoluteBoxOutsideADeferredTrapsAProductionProposalFrame` | 1 | `AbsoluteOverlayTests.swift:49:5: Expectation failed: stderr.contains("MetalUI: box.position has no proposal lowering and is refused by name "…` — the child printed `(plan task 7, stage 10)` |
+| T1.2 `aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName` | 2 | `PresentationLoweringTests.swift:477:9: Expectation failed: field.owner == nil` |
+| T1.3 `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable` | 1 | `LoweringScrollTests.swift:1015:5: Expectation failed: UnlowerableField(site: .scrollView, field: "flexGrow.weights").owner == nil` |
+| T1.4 `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt` | 1 | `PresentationContainingBlockTests.swift:133:9: Expectation failed: field.owner == "plan task 7, stage 11"` |
+
+T1.5–T1.16 were green at the red commit, as designed: each is a re-spelling
+that compiles and passes against the old `Style` (spec §6 lane 1).
+
+### 4.2 Green
+
+`swift build --build-system native --build-tests` at `84ad1e6`: 0 `error:`,
+the one `warning:` SwiftPM's deprecation notice. Unfiltered
+`swift test --build-system native --no-parallel`: **`Test run with 1410
+tests in 3 suites passed after 81.065 seconds.`**, the log carrying
+`FR-J no-argument frame: succeeded=` (guards ran). **1411 − 3 + 2 = 1410**:
+removed D1.1 `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs`, D1.2
+`aStyleBorderLowersAsInsetsInsideTheDeclaredSize` and T1.16's old name
+`allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`; added
+N1.1 and `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`.
+Guards 79 (no guard file touched). Every retained T row's literals are
+unchanged (the border folds are `padding + border` edge by edge, the
+lowering's own inset).
+
+### 4.3 Mutations
+
+Each applied by a script to the committed tree, built, run unfiltered,
+restored from a copy; `git status --short` empty after each. Every mutant
+built with 0 `error:`.
+
+| id | mutation (file) | suite | reddened |
+|---|---|---|---|
+| M1a | `UnlowerableField.owner`'s `nil` arm returns `"plan task 7, stage 10"` for a field prefixed `position`/`inset` (`LayoutAuthority.swift`) | 97 issues | N1.1 (96), T1.1 (1) — as predicted |
+| M1b | `paddedAndSized`'s inset `resolvedLength(padding) + resolvedLength(border)` → `resolvedLength(border)` (`LegacyLowering.swift`) | 236 issues, 50 tests | T1.13 `paddingAndBorderInsetTheContentBoxEdgeByEdge` (10), T1.15 `aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding` (2); **not T1.14** (refuted prediction, `LR-FS` item 1), not T1.4 (`LR-FR` F4). All fifty: `aChainsOuterLayerScopesContainTheLayersInsideIt`, `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer`, `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`, `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, `aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding`, `aDeclaredSizeBelowThePaddingKeepsItsFixedFrame`, `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScroll`, `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aGrowInsideAOneChildPaddingFillsTheWrapper`, `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`, `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`, `aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten`, `aLoweredBoxPaddingSitsInsideItsDeclaredSize`, `aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork`, `aLoweredChainAtTheNativeDepthLimitLaysOut`, `aLoweredChainOneLevelPastTheNativeDepthLimitTraps`, `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap`, `aLoweredContainerPaddingSitsInsideItsDeclaredSize`, `aLoweredItemChainWithThreeWrappersPerLevelAtTheNativeDepthLimitLaysOut`, `aLoweredItemChainWithThreeWrappersPerLevelOnePastTheNativeDepthLimitTraps`, `aLoweredListLaysOutEveryWindowedShape`, `aLoweredPaddingLayerInsetsItsContentByEachEdge`, `aLoweredStackLaysOutItsAnimatedWidthAndPadding`, `aLoweredStackPlacesFixedChildrenAtAllNineAlignments`, `aLoweredWindowDispatchesClicksFocusAndKeys`, `aLoweredWindowPublishesItsAccessibilityTree`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`, `aModifierChainRegistersAndPaintsOuterLayersFirst`, `anAlignSelfInsideAOneChildWrapperFillsTheWrapper`, `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`, `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot`, `aScrolledListsSpacerDoesNotShrinkUnderPadding`, `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`, `everyDecorationPaintingSiteDrawsItsBorder`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `everyProductionRootsDeepestNativeLevelIsMeasured`, `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, `legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes`, `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, `paddingAndBorderInsetTheContentBoxEdgeByEdge`, `paddingOnAListDoesNotShrinkItsRowsBelowRowHeight`, `paddingOnALoweredTextPadsItsLeaf`, `spriteDestinationsAreThePenPositionPlusTheRasterizersBearings`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theElementBoundsLogRecordsTheRootEveryGroupMemberAndEveryInnerModifierLayer`, `theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt`, `theOrderOfAComponentsDistributingModifiersIsObservable`, `theStageOneCorpusLowersWithNoDiagnostic`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` |
+| M1b′ | the stretched axis's `lo` floored at the item's padding + border (stage 9's M2f on the folded fixture; `LegacyLowering.swift`, `planLegacyItems`) | 2 issues | T1.14 `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder` (2) only |
+| M1c | `fields + legacyLeafDiagnostics(declared, site:)` → `legacyLeafDiagnostics(…) + fields` (`LegacyLowering.swift`) | 3 issues | T1.9 (3) — as predicted |
+| M1d | the leaf `inset` row deleted from `legacyLeafDiagnostics` (`LegacyLowering.swift`) | 9 issues | T1.5 (6, one per `inset` arm), T1.6 (2), T1.9 (1); **not N1.1** (refuted prediction, `LR-FS` item 2 — N1.1 is a static table) |
+
+**Site coverage** (stage 9 `LR-FH` item 2): M1d reddening T1.5 once per
+`inset` arm shows each of the six re-spelled site arms (`box`, `stack`,
+`text`, `textField`, both `modifierLayer` registrars) still reaches its
+site; the `scrollView`, `List` and two `Component` arms are untouched.
+
+### 4.4 The demo
+
+`docs/probes/demo-pixels/compare.sh <scratch>/pix 8095fd9 84ad1e6` (the
+stage-9 harness copy for both, since neither `Fakes.swift` declares a
+`layoutAuthority:` parameter): controls light vs dark 1048576, default vs
+modal 1031003, default vs animation 454895, f0 vs f3 0, preview light vs dark
+1048576, chrome pair 0, distinct 544 / 216, prod default vs modal 491221,
+distinct prod-default-light 529, indicator rects 0 — the stage-9 corrected
+values. **All fourteen images 0 differing, every scene identical.**
+

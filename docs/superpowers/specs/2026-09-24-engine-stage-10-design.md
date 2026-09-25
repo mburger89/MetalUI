@@ -1,9 +1,9 @@
 # Engine replacement, stage 10 — `Style`'s CSS fields and the closing check (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 10, `LR-P`, §8. Rulings `LR-FM`…`LR-FR` in
+§4.1 row 10, `LR-P`, §8. Rulings `LR-FM`…`LR-FS` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
-(next unused `LR-FS`; `LR-FR` is critic round 1's).
+(next unused `LR-FT`; `LR-FR` is critic round 1's, `LR-FS` lane 1's).
 Record: `docs/record/52-engine-replacement-stage-10.md` (§1 baseline, §2 the
 entry measurement).
 Instrument: `docs/probes/stage-10-legacy-symbols.txt` (every mangled name the
@@ -345,10 +345,19 @@ re-spelling below compiles and passes against the old `Style`.
   T1.4** (`LR-FR` F4): its arms assert the presentation's hitbox
   `cbBounds(185, 85, 10, 10)` whatever the root's surroundings, so no inset
   mutation can redden it — that insensitivity is its subject.
+  **Amended, lane 1 (`LR-FS` item 1): measured, M1b reddens T1.13 and T1.15
+  but not T1.14** — T1.14's boxes have no content, so an inset moves no rect
+  it asserts; its subject is the floor. **M1b′** (the stretched axis's
+  `lo` floored at the item's padding + border, stage 9's M2f re-run on the
+  folded fixture) reddens T1.14 alone.
 - **M1c** (**V2**, re-run on the re-spelled fixture) `legacyLeafDiagnostics(…)
   + fields`: reddens T1.9.
 - **M1d** the leaf `inset` row deleted from `legacyLeafDiagnostics`: reddens
-  T1.5 (every site's arm) and N1.1.
+  T1.5 (every site's arm) and N1.1. **Amended, lane 1 (`LR-FS` item 2):
+  measured, M1d reddens T1.5 (all six `inset` arms), T1.6 and T1.9, and
+  not N1.1** — N1.1 is a static `(site, field)` table checking each entry's
+  `owner` and trap text; it never runs the lowering, so deleting a report row
+  cannot reach it. M1a is N1.1's instrument.
 - The site-coverage rule (stage 9 `LR-FH` item 2) at the head: every test that
   exercised a lowering site at `8095fd9` still does, less the two D rows.
 
