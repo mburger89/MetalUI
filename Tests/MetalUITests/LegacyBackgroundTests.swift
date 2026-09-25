@@ -106,9 +106,12 @@ private final class ClickLog {
 /// so what the flip still changes is the primary's node count; the path is
 /// what pins `MC-P` here.
 ///
+/// A second arm puts a proposal background under a `VStack`, so the typed entry
+/// is pinned too (`ID-Q` item 2).
+///
 /// Red before: does not compile. Mutation **M3h** (the background side numbered
-/// under `id` at the cursor after the primary) moves the counter to
-/// `root/1`.
+/// under `id` at the cursor after the primary, untyped entry) moves the counter
+/// to `root/1`; **M3h′** (the same in the typed entry) reddens the second arm.
 @Test @MainActor func aLegacyBackgroundsContentKeepsItsStateWhenThePrimaryChangesShape() throws {
     let table = StateTable()
     let reads = ConditionalReads()
@@ -128,6 +131,20 @@ private final class ClickLog {
         seen.append(reads.values["bg"])
     }
     #expect(seen == [1, 2, 3], "the background's own count through the flip: \(seen)")
+
+    // The TYPED entry (`requestProposalLayout`, a proposal parent): the same
+    // `-1` side under a `VStack`. Added by lane 3's mutation run (`ID-Q` item 2):
+    // M3h′ — the typed copy of M3h — reddened nothing, because every other
+    // background in the suite is a window root or under a legacy parent, which
+    // take the untyped entry.
+    let typedReads = ConditionalReads()
+    var typed = VStack {
+        Rectangle(width: px(40), height: px(40)).background { ProposalConditionalCounter("pbg", typedReads) }
+    }
+    Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1).render(&typed)
+    let modifier = child(rootID, 0)
+    #expect(typedReads.ids["pbg"] == child(GlobalElementID.child(of: modifier, at: -1, name: nil), 0),
+            "typed entry: \(String(describing: typedReads.ids["pbg"]))")
 }
 
 // MARK: - B3.3: the named trap (divergence 73)
