@@ -313,6 +313,101 @@ private final class Shown {
     #expect(window.stateTable.peek(stateSlot, as: Int.self) == nil, "the element's own `@State` is reset")
 }
 
+@MainActor
+private final class CurrentName {
+    var value = "a"
+}
+
+/// **C2.13 — focus outlives a reset until its element returns: a rename and an
+/// `if`** (record §55 §10.6; `ID-R` item 9, the verifier's Note A). A focused
+/// element is taken away for TWO frames — its `Box`'s name changed `a` → `b`,
+/// or its `if` gone false — then brought back (`b` → `a`, the `if` true):
+///
+/// - while away, `window.focusedElement` stays on the id nothing produces (the
+///   `$focus` slot is exempt from both resets, so `resolveFocus` still finds it
+///   on the second frame) and the `$ax` entry is present;
+/// - on return, focus is on the element again, whose `@State` restarted (1).
+///
+/// **A known difference, not numbered** (`ID-R` item 9): SwiftUI drops focus
+/// when the identity goes away — unprobed here; owner plan task 12 (focus).
+/// This pins today's retention so that task sees it move.
+///
+/// Why two frames: since `ID-R` item 8 the resets run in `sweep()`, AFTER the
+/// frame's `resolveFocus`, so an exemption dropped (mutation **MRk′**) deletes
+/// `$focus` only at the first absent frame's end and focus clears on the
+/// second — C2.8, which reads one absent frame, no longer sees it on focus.
+@MainActor
+@Test func focusOutlivesARenameAndAnIfUntilItsElementReturns() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+
+    // The rename arm.
+    do {
+        let reads = ConditionalReads()
+        let name = CurrentName()
+        let (window, platform) = try makeFakeWindow(device: device, size: 100) {
+            Row { Box { FocusableCounter(reads: reads) }.id(name.value) }
+        }
+        platform.simulateAccessibilityRequest(.activate)
+        window.drawFrameIfNeeded()
+        let id = try #require(reads.ids["f"], "rename: the element was laid out")
+        window.focus(id)
+        window.setNeedsRedraw()
+        window.drawFrameIfNeeded()
+        let axSlot = GlobalElementID.child(of: id, at: 0, name: ElementID("$ax"))
+        try #require(window.focusedElement == id, "rename, set up: the confirming frame took focus")
+        try #require((reads.values["f"] ?? 0) >= 2, "rename, set up: the counter ran twice")
+
+        name.value = "b"
+        for frame in 1...2 {
+            window.setNeedsRedraw()
+            window.drawFrameIfNeeded()
+            #expect(window.focusedElement == id, "rename, away frame \(frame): focus stays on `a`'s id")
+            #expect(window.stateTable.peek(axSlot, as: AXNode.self) != nil, "rename, away frame \(frame): `$ax` kept")
+        }
+        try #require(reads.ids["f"] != id, "rename: `b`'s element is a different id")
+
+        name.value = "a"
+        window.setNeedsRedraw()
+        window.drawFrameIfNeeded()
+        #expect(reads.ids["f"] == id && reads.values["f"] == 1, "rename: `a` returns fresh: \(reads.values)")
+        #expect(window.focusedElement == id, "rename: focus is on the returned element")
+    }
+
+    // The `if` arm (C2.8's tree, one more absent frame).
+    do {
+        let reads = ConditionalReads()
+        let shown = Shown()
+        let (window, platform) = try makeFakeWindow(device: device, size: 100) {
+            Box {
+                if shown.value { FocusableCounter(reads: reads) }
+            }
+            .id("root")
+        }
+        platform.simulateAccessibilityRequest(.activate)
+        window.drawFrameIfNeeded()
+        let id = try #require(reads.ids["f"], "if: the element was laid out")
+        window.focus(id)
+        window.setNeedsRedraw()
+        window.drawFrameIfNeeded()
+        let axSlot = GlobalElementID.child(of: id, at: 0, name: ElementID("$ax"))
+        try #require(window.focusedElement == id, "if, set up: the confirming frame took focus")
+
+        shown.value = false
+        for frame in 1...2 {
+            window.setNeedsRedraw()
+            window.drawFrameIfNeeded()
+            #expect(window.focusedElement == id, "if, away frame \(frame): focus stays on the absent id")
+            #expect(window.stateTable.peek(axSlot, as: AXNode.self) != nil, "if, away frame \(frame): `$ax` kept")
+        }
+
+        shown.value = true
+        window.setNeedsRedraw()
+        window.drawFrameIfNeeded()
+        #expect(reads.values["f"] == 1, "if: the element returns fresh: \(reads.values)")
+        #expect(window.focusedElement == id, "if: focus is on the returned element")
+    }
+}
+
 /// **C2.9 — a reset scans the table only on a transition.** An `if` true for 3
 /// frames, false for 3, true for 3: `StateTable.subtreeResetScans` reads exactly
 /// **1** — the produced → absent frame, never the steady absent ones.
