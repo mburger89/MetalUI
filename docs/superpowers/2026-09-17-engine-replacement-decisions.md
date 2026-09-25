@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FV`** (stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-GA`** (stage 11's design took `LR-FV`…`LR-FZ`, appended at the end; stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -10041,3 +10041,244 @@ name the changed docs cite.
    `ModifiedElement`/`ModifiedContent` files are untouched.
 
 **What it costs if wrong.** Nothing in `Sources/` rests on this ruling.
+
+
+---
+
+## LR-FV — stage 11: ONE flat `ModifiedContent<Content, Modifier>`, the second parameter a vocabulary; `ModifiedElement` a typealias; every id path unchanged
+
+**The question.** Parent spec §4.1 row 11 and outer-modifiers spec §9: unify
+`ModifiedElement` (legacy, flat since `MC-A`, `StyledElement`) and
+`ModifiedContent` (proposal, one nested value per modifier, `ProposalElement`)
+now that one engine remains. Which survives, with what generic shape, without
+moving an id path (`MC-A`/`MC-C`/`MC-P`) or a state-retention test?
+
+**Evidence.** The skeleton probe `docs/probes/stage-11-unified-modifier-skeleton/`
+(record §54 §2): MetalUI's protocol shapes as a separate module, Swift 6 mode.
+It compiles; the legacy chain infers `ModifiedContent<Box, ModifierLayer>`, the
+proposal chain `ModifiedContent<Rect, LayoutModifier>`, a legacy wrapper after a
+proposal chain `ModifiedContent<Rect, ModifierLayer>` with the proposal layer
+absorbed; `.background(token)` resolves on each without ambiguity; every
+layer's id is `.child(of: outer, at: 0)` and the content numbers from 0 under
+the innermost, reading exactly the ids nested `ModifiedContent`s (and
+`ModifiedElement<ModifiedContent<X>>`) produce; six negatives are rejected as
+predicted, and `extension ModifiedElement` over the typealias still compiles.
+Baseline sizes and the stack budget: record §54 §1.
+
+**The ruling.**
+
+1. **`ModifiedContent` survives and takes SwiftUI's second generic parameter**,
+   `ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind>`. The
+   parameter is the chain's vocabulary — `ModifierLayer` (legacy) or
+   `LayoutModifier` (proposal) — and both chains are flat: outermost layer
+   inline, the rest in an array, innermost first (`MC-K`'s storage), plus a
+   `prefix: [LayoutModifier]` for proposal layers a legacy wrapper absorbed.
+   `public typealias ModifiedElement<Content> = ModifiedContent<Content,
+   ModifierLayer>`, **undeprecated** (its fate is task 15's, with the other
+   spelling-only decisions).
+2. **Conformances by vocabulary**: `StyledElement where Modifier ==
+   ModifierLayer`; `ProposalElementGroup, ProposalElement where Content:
+   ProposalElementGroup, Modifier == LayoutModifier`. So no chain has two
+   candidates for `.background(token)`, `.opacity`, `.border` or
+   `.allowsHitTesting`.
+3. **Identity** — every id path byte-identical: legacy chains run
+   `ModifiedElement`'s code; a proposal layer's id is `.child(of: outer, at: 0,
+   name: nil)`, which is what entering a nested `ModifiedContent` as a group
+   member at cursor 0 produced; the absorbed prefix sits innermost, where
+   `ModifiedElement<ModifiedContent<X>>` put it. The state-retention and
+   identity tests spec §3.3 lists stay **unedited**.
+4. **`LayerBase == Content` for both vocabularies**, and `ProposalElementGroup`
+   gains `ProposalBase`/`_wrapLayout` (defaulted), `MC-A`'s design mirrored, so
+   every proposal modifier keeps one overload and appends.
+5. **One layer recursion** (`ModifiedElement`'s, moved), each layer's work
+   dispatched to its kind through `ModifierLayerKind`'s underscored
+   requirements; a proposal layer never calls `registerHandlers` and never
+   animates, as today; the `MC-B` per-layer mirrors now run for proposal layers
+   too, which got them from `Element`'s group defaults at every nested level.
+6. **Typed/untyped entry**: the untyped `requestLayout` registers the content
+   through `requestGroupLayout`, the conditional `requestProposalLayout`
+   through `requestProposalGroupLayout`, both into one shared body.
+7. **`OverlayModifier` stays its own two-subtree type** (`LR-FX`), and so do
+   `BackgroundModifier` and `OnTapModifier`.
+8. **Public breaks, each with its spelling** (spec §3.4): one-argument
+   `ModifiedContent<C>` → `ModifiedContent<C, LayoutModifier>` (or the
+   deprecated `NativeModifiedContent<C>`, retargeted); a nested proposal-chain
+   annotation → the flat type; `ModifiedContent.content` is the base content;
+   `String(describing:)` of a legacy chain type prints `ModifiedContent<X,
+   ModifierLayer>`; a legacy chain rejected by a proposal container is reported
+   as a same-type failure rather than by `ProposalElementGroup`.
+
+**Reasoning.** *Why flat for proposal too, when SwiftUI nests*: plan task 3
+asked for a type that does not grow, `MC-A` delivered it for legacy chains, and
+a unified type with two shapes would keep two implementations — the thing this
+row removes. *Why not SwiftUI's nesting for both*: a run-time layer count in one
+type is load-bearing (`growableChain(_:adding:)`, `labelledChain(adding:)`), and
+nesting would force the state tests this stage must not edit. *Why a second
+parameter at all*: a one-parameter flat type is `StyledElement` and
+conditionally `ProposalElement`, and its decoration calls go ambiguous on every
+proposal chain; choosing by base content moves `Rectangle().padding(Pixels(8))
+.background(x)` from one id level to two. *Why `LayerBase == Content` and not
+per vocabulary*: an associated type has one witness per conformance; absorbing
+the proposal layers keeps it one.
+
+**What it costs if wrong.** If the real overload set costs more solver work
+than the skeleton's, `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget`
+reddens in lane 1 before anything else lands, and the fallback is keeping the
+proposal chain nested (`ProposalBase = Self`) with everything else intact — a
+one-line change that gives up flatness on that path only. If an id moved
+despite item 3, an unedited state test reddens; a lane that must edit one
+stops.
+
+---
+
+## LR-FW — stage 11: whatever is written after `.opacity` is outside it, on both paths; divergence 45 retires, 46 stays
+
+**The question.** G4 (divergence 45, `OM-N`) and `OM-AA` a: on the legacy path
+`.opacity(0.5).background(x)` fades the fill, where SwiftUI and MetalUI's own
+proposal path do not.
+
+**Evidence.** `swiftui-border-clip-paint.swift`, re-run 2026-09-24 byte for byte
+(G3 faded, G4 full) and extended with group H, run in both forms (record §54
+§1): H1 `border.opacity` faded, H2 `opacity.border` the full colour B2 reads,
+H3 a background between two opacities faded once. H1/H2 is the separating
+pair. At `47c0d98` the legacy path fades the fill and the border in every
+order (`opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot` pins the
+fill; nothing pins the border — H2's MetalUI twin was unrecorded).
+
+**The ruling.**
+
+1. `Decoration` records the write order: `backgroundFollowsOpacity` and
+   `borderFollowsOpacity`, internal, default `false`. The three background
+   modifiers set the first, every border modifier the second, `.opacity`
+   clears both.
+2. `paintDecoration` emits a following fill before opening the opacity scope
+   and a following border after closing it; emission order is unchanged.
+3. Divergence **45 retires**, border twin included; `OM-AA` a is closed — both
+   paths answer G3, G4, H1, H2, H3 alike, asserted through a legacy and a
+   proposal `ModifiedContent` (spec N2.1).
+4. Divergence **46** is **kept**: two `.opacity` writes on one element still
+   replace (`OM-AH`); H3's legacy fill agrees with SwiftUI, its content does
+   not.
+
+**Reasoning.** A new layer for `.opacity` would add an id level to every chain
+that writes it and move `@State` (`MC-C`); recording order costs two bits and
+moves nothing else. SwiftUI's rule (H) is positional, so the fill and the
+border both follow it; one flag for both would get H1-with-G4 wrong.
+
+**What it costs if wrong.** A caller who wrote `.opacity(0.5).background(x)`
+meaning to fade the panel sees an opaque fill — SwiftUI's answer, and the
+spelling that fades it is `.background(x).opacity(0.5)`. No demo site writes
+that order (spec §8), so no pixel moves.
+
+---
+
+## LR-FX — stage 11: the legacy `.overlay` is `OverlayModifier` generalized, lowered like a frame layer's child
+
+**The question.** `CN-Q` and outer-modifiers §9 hand legacy `.overlay` to the
+unification, reasoning that a flat `ModifiedElement` cannot hold a second
+subtree and "a second needs a second generic parameter".
+
+**Evidence.** The skeleton (`LR-FV`): an overlay cannot be a vocabulary of the
+flat type — `LayerBase` has one witness, and a legacy wrapper after an overlay
+would have to return `ModifiedContent<Content, ModifierLayer>`, dropping the
+overlay's subtree — and erasing the subtree makes its `@State` inert, which is
+the overlay-primary-shape probe's whole answer. `OverlayModifier<Content,
+Overlay>` already has the second parameter; generalized, it works over legacy
+content and still enters an `HStack` over proposal content. The
+overlay-primary-shape probe re-ran byte for byte (P1–P5 kept, A/B/Q controls).
+
+**The ruling.**
+
+1. `OverlayModifier<Content: ElementGroup, Overlay: ElementGroup>`, proposal
+   conformances conditional on both sides; one `.overlay(alignment:content:)`,
+   on `ElementGroup`.
+2. Identity: `MC-P` unchanged.
+3. Both sides' nodes pass through `lowerAttachmentChildren`: consumed and
+   planned at `parentKind: .stack`, `parentSite: .modifierLayer` (unreachable
+   in a report from a `.stack` plan, `LR-BM`), as a frame layer's single-node
+   arm (`LR-AZ`); a record-less proposal node is registered unwrapped.
+4. A presentation is dropped on either side; a presentation **primary** leaves
+   zero primary nodes and traps by the existing precondition's message.
+5. The exit's "overlay-primary-shape probe through the unified type" is met by
+   the probe's arms run over legacy primaries, a legacy `ModifiedContent`
+   primary and a proposal `ModifiedContent` primary (spec N1.3).
+6. A legacy `.background { content }` is **not** added (task 8).
+
+**Reasoning.** Generalizing the type that has the parameter is the smallest
+change that gives the answer; one overload keeps the solver where it is. The
+`.stack` planning is the rule a frame layer, a component amend and a `Stack`
+already follow for a child's flex fields — an overlay attachment is a
+one-primary stack. A trap for a portal primary is a named answer where the
+alternative is an overlay proposed 0×0 at an in-flow point nobody sees.
+
+**What it costs if wrong.** A primary's `flexGrow` is dropped under
+`.overlay` — the frame layer's known drop (`LR-AZ`, a rect disagreement, never a
+trap); the spelling that grows is the grow on a wrapper outside the overlay.
+
+---
+
+## LR-FY — stage 11: `deferred.amended`, `Component.width`, the multi-member absolute frame, and the exit citation
+
+**Evidence.** Record §54 §3–§4, two scratch measurements (reverted): a legacy
+`.frame(width: 70)` layer over a presenting `Component` reports nothing and
+leaves the presented hitbox at (5, 5) 10×10; `.width(70)` on the same
+component reports `deferred.amended` with the hitbox at the same (5, 5) 10×10.
+With `legacyFrameLayerDiagnostics`' `&& childCount <= 1` removed, a two-member
+`Component`'s `.frame(width: 20, height: 20).position(.absolute).inset(top: 10,
+left: 30)` in a `Deferred` reports nothing and places its members at (35, 15)
+and (55, 15) — `LR-BH`'s row, presented at the insets.
+
+**The ruling.**
+
+1. **`deferred.amended` is deleted**: an amend over a presentation member
+   answers as the `.frame` layer does (the placeholder handed on and dropped,
+   `LR-CK`; the window is the containing block whatever surrounds it, `N3.1`).
+   `UnlowerableField.owner` loses its stage-11 branch; `LoweringSite.deferred`
+   stays, as the placeholder record's site (`Deferred.swift:117`).
+2. **`Component.width`/`height` and `StyledComponent.width`/`height` stay,
+   undeprecated, reconciled by ruling**: `.width` is one frame per member
+   (`LR-BG`, SwiftUI's G7/G8), `.frame` one layer over the members' row
+   (`LR-BH`). A `.frame` that distributes per member is SwiftUI's `Group`
+   semantics, plan task 8's (`CN-Q`); it would add id levels and move members.
+3. **The one-node condition on the absolute-frame exemption is deleted**
+   (`LR-EV` as amended by `LR-EY` item 3): a multi-member absolute frame in a
+   `Deferred` is a presentation root whose element is `LR-BH`'s row.
+4. **The exit citation**: G3/G4 are `swiftui-border-clip-paint.swift`'s arms;
+   `swiftui-outer-modifier-order.swift` has no G group. Row 11 and `LR-V` are
+   read as border-clip-paint G3/G4 (and H) plus overlay-primary-shape; the
+   Record phase corrects the parent row, and both probe headers say so.
+
+**Reasoning.** Items 1 and 3 turn reports into the answers two existing
+rulings already compose to, each measured; neither adds a lowering concept.
+Item 2 is the only reconciliation that moves nothing, and `Group` distribution
+has an owner whose subject it is.
+
+**What it costs if wrong.** Item 1: an amend over a portal is silent — as a
+`.frame` over one has been since stage 5. Item 3: a presented component row
+sits at its insets with its members centred in their frames; a caller wanting
+one frame around both wraps them in a `Box`.
+
+---
+
+## LR-FZ — stage 11: two lanes, in order; the accounting; the demo; task 7's close
+
+**The ruling.**
+
+1. **Two lanes, run in order**, files disjoint (spec §7): lane 1 the unified
+   type and the legacy overlay (`LR-FV`, `LR-FX`); lane 2 the opacity order and
+   the owned lowering items (`LR-FW`, `LR-FY`), after lane 1 because its exit
+   test annotates lane 1's type. Opus for both.
+2. **Accounting**: 1426 → **1437** (+8, +3; one rename; nothing retired);
+   guards 82 → **84** (G1.1, G1.2, each mutated red once); goldens 0.
+3. **Demo**: 0 differing pixels in all fourteen images against `47c0d98`;
+   `Expected.swift` unmoved; `Backends/SDL` 0 px. Any difference is a finding.
+4. **Stack budget**: `MemoryLayout` sizes and the smallest-stack bisection
+   re-taken after lane 2 and recorded beside record §54 §1's.
+5. **Task 7 is ticked only on the adversarial check** of spec §9: every §4.1
+   row's exit criterion confirmed on the branch, a retired exit test by its
+   replacement. The Record phase writes task 7's closing summary in the plan
+   and CLAUDE.md.
+
+**What it costs if wrong.** Two lanes where three were allowed: lane 1 is the
+larger, and its failure modes (solver work, an id) redden early and loudly.
+

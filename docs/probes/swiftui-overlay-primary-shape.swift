@@ -45,6 +45,11 @@
 //   P5 ZStack{if Probe c; Color}.overlay (c: present/ABSENT/NEW expected): g0[c=[9] n=1 o=[10] n=1] g1[c=[] n=0 o=[10] n=1] g2[c=[11] n=1 o=[10] n=1]
 //   Q overlay's own if/else flips (o: NEW at g1 and g2 expected): g0[o=[12] n=1] g1[o=[13] n=1] g2[o=[14] n=1]
 //
+// RE-RUN 2026-09-24 (plan task 7 stage 11, its exit criterion, ruling LR-FX),
+// script form under /usr/bin/swift, macOS 27.0 (26A428), Apple Swift 6.4
+// (swiftlang-6.4.0.33.1): the eight output lines below reproduced byte for
+// byte, controls A, B, P5 and Q included; exit 0, stderr empty.
+//
 // The critic's own run (script form, same machine) printed A, B and P1-P4
 // with the same serials, without the `n=` counts, before P5 and Q were added.
 //

@@ -43,6 +43,15 @@
 // Script form under /usr/bin/swift (Apple Swift 6.4, swiftlang-6.4.0.33.1) and
 // compiled form under `xcrun swiftc` (the same 6.4): byte-identical stdout,
 // exit 0 both, compiled stderr empty, run stderr empty.
+// RE-RUN AND EXTENDED 2026-09-24 (plan task 7 stage 11, ruling LR-FW), macOS
+// 27.0 (26A428), Apple Swift 6.4 (swiftlang-6.4.0.33.1): every one of the
+// twenty-six lines below reproduced byte for byte, controls included, BEFORE
+// group H was added; then group H (three arms) was added between G and F and the
+// whole file re-run in both forms — script and compiled stdout byte-identical
+// (`cmp`), exit 0, stderr empty, the twenty-six earlier lines unchanged. H
+// asks whether G3/G4's order rule holds for a BORDER, and for a background
+// written between two opacities. Its separating arm is H1 vs H2 (faded vs the
+// full border colour B2 reads); H3 reads G3's single fade, not G2's double one.
 //
 //   --- controls
 //     K0 red 40x40 (control)                  : corner(1,1)=rgb(1.00,0.15,0.00) in(3,3)=rgb(1.00,0.15,0.00) arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
@@ -67,6 +76,10 @@
 //     G2 red.opacity(0.5).opacity(0.5)      : corner(1,1)=rgb(1.00,0.80,0.80) in(3,3)=rgb(1.00,0.80,0.80) arc(5,5)=rgb(1.00,0.80,0.80) arc(7,7)=rgb(1.00,0.80,0.80) in(6,6)=rgb(1.00,0.80,0.80) topmid(20,1)=rgb(1.00,0.80,0.80) centre(20,20)=rgb(1.00,0.80,0.80)
 //     G3 clear.background(red).opacity(0.5) : corner(1,1)=rgb(1.00,0.58,0.58) in(3,3)=rgb(1.00,0.58,0.58) arc(5,5)=rgb(1.00,0.58,0.58) arc(7,7)=rgb(1.00,0.58,0.58) in(6,6)=rgb(1.00,0.58,0.58) topmid(20,1)=rgb(1.00,0.58,0.58) centre(20,20)=rgb(1.00,0.58,0.58)
 //     G4 clear.opacity(0.5).background(red) : corner(1,1)=rgb(1.00,0.15,0.00) in(3,3)=rgb(1.00,0.15,0.00) arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//   --- H: opacity x border order, and a background between two opacities
+//     H1 clear.border(blue,4).opacity(0.5)  : corner(1,1)=rgb(0.57,0.59,1.00) in(3,3)=rgb(0.57,0.59,1.00) arc(5,5)=white arc(7,7)=white in(6,6)=white topmid(20,1)=rgb(0.57,0.59,1.00) centre(20,20)=white
+//     H2 clear.opacity(0.5).border(blue,4)  : corner(1,1)=rgb(0.02,0.20,1.00) in(3,3)=rgb(0.02,0.20,1.00) arc(5,5)=white arc(7,7)=white in(6,6)=white topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=white
+//     H3 clear.opacity(.5).background(red).opacity(.5): corner(1,1)=rgb(1.00,0.58,0.58) in(3,3)=rgb(1.00,0.58,0.58) arc(5,5)=rgb(1.00,0.58,0.58) arc(7,7)=rgb(1.00,0.58,0.58) in(6,6)=rgb(1.00,0.58,0.58) topmid(20,1)=rgb(1.00,0.58,0.58) centre(20,20)=rgb(1.00,0.58,0.58)
 //   --- F: padding x background x corner radius
 //     F1 red20.padding(8).background(blue).cornerRadius(12): corner(1,1)=white in(3,3)=white arc(5,5)=rgb(0.02,0.20,1.00) arc(7,7)=rgb(0.02,0.20,1.00) in(6,6)=rgb(0.02,0.20,1.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
 //     F2 red20.padding(8).cornerRadius(12).background(blue): corner(1,1)=rgb(0.02,0.20,1.00) in(3,3)=rgb(0.02,0.20,1.00) arc(5,5)=rgb(0.02,0.20,1.00) arc(7,7)=rgb(0.02,0.20,1.00) in(6,6)=rgb(0.02,0.20,1.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
@@ -100,6 +113,13 @@
 // - G1/G2: opacity MULTIPLIES — 0.58 after one 0.5, 0.80 after two.
 // - G3 vs G4: opacity fades a background declared BEFORE it (G3) and does NOT
 //   reach one declared AFTER it (G4 reads the full fill).
+// - H1 vs H2: the same for a BORDER — faded when declared before `.opacity`
+//   (rgb(0.57,0.59,1.00) at the corner and top edge), the full border colour
+//   B2 reads when declared after it. H3: a background declared between two
+//   opacities is faded ONCE (G3's rgb(1.00,0.58,0.58), not G2's 0.80) — only the
+//   opacity written after it reaches it. Together: whatever a view declares
+//   after an `.opacity` is outside it, fill and border alike (stage 11,
+//   LR-FW).
 // - F1/F2: the background covers the padding in both orders; only the rounding
 //   differs.
 
@@ -224,6 +244,16 @@ let points = [("corner(1,1)", (1, 1)), ("in(3,3)", (3, 3)),
         Color.clear.frame(width: 40, height: 40).background(red).opacity(0.5))
     arm("G4 clear.opacity(0.5).background(red) ",
         Color.clear.frame(width: 40, height: 40).opacity(0.5).background(red))
+
+    // H (stage 11, plan task 7): does the G3/G4 order rule hold for a BORDER,
+    // and for a background between two opacities? B2 is the unfaded border.
+    print("--- H: opacity x border order, and a background between two opacities")
+    arm("H1 clear.border(blue,4).opacity(0.5)  ",
+        Color.clear.frame(width: 40, height: 40).border(blue, width: 4).opacity(0.5))
+    arm("H2 clear.opacity(0.5).border(blue,4)  ",
+        Color.clear.frame(width: 40, height: 40).opacity(0.5).border(blue, width: 4))
+    arm("H3 clear.opacity(.5).background(red).opacity(.5)",
+        Color.clear.frame(width: 40, height: 40).opacity(0.5).background(red).opacity(0.5))
 
     print("--- F: padding x background x corner radius")
     arm("F1 red20.padding(8).background(blue).cornerRadius(12)",

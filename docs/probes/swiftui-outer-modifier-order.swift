@@ -30,6 +30,16 @@
 // (Apple Swift 6.4, swiftlang-6.4.0.33.1) and compiled form under `xcrun swiftc`
 // (the same 6.4): byte-identical stdout, exit 0 both, compiled stderr empty.
 //
+// RE-RUN 2026-09-24 (plan task 7 stage 11, ruling LR-FW), script form under
+// /usr/bin/swift, macOS 27.0 (26A428), Apple Swift 6.4 (swiftlang-6.4.0.33.1):
+// every line below reproduced byte for byte, controls C0-C2 and L1 included;
+// exit 0, stderr empty. **This probe has no G arms**: the engine-replacement
+// spec's §4.1 row 11 and `LR-V` cite "the outer-modifier-order probe's G3/G4
+// arms", which are `swiftui-border-clip-paint.swift`'s (`OM-N`'s evidence);
+// stage 11's rulings correct the citation. What this probe contributes to
+// stage 11 is A1/A2/B1/B2's "a background covers the box as it stood where it
+// was written", which the unified type keeps on both paths.
+//
 //   --- controls
 //     C0 bare leaf                     : outer 20x20 leaf (0, 0) 20x20 bg none
 //     C1 .padding(8)                   : outer 36x36 leaf (8, 8) 20x20 bg none
