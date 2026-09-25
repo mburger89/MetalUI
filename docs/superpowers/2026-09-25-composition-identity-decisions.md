@@ -2,7 +2,7 @@
 
 Rulings for [`specs/2026-09-25-composition-identity-design.md`](specs/2026-09-25-composition-identity-design.md),
 on `feat/composition-identity` from `e3cb3e9`. Ids are **lettered**,
-`ID-A`…`ID-L`; next unused is **`ID-M`**. A bare `ID-3` is a typo, not a
+`ID-A`…`ID-M`; next unused is **`ID-N`**. A bare `ID-3` is a typo, not a
 citation. **A round that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-25: designed; no lane has run.** Baseline measured in this
@@ -16,14 +16,18 @@ succeeded=true`). Measurements in `docs/record/55-composition-identity.md`
 
 - `docs/probes/swiftui-composition-identity.swift` (**new**, this design): arms
   A0/A1 (controls), V1–V10 (conditional content), X1–X8 (explicit identity),
-  S0–S4 (one value placed twice, erasure), G1–G7 (modifiers on a `Group`,
-  state), L0–L7 (modifiers on a `Group`, layout). Script form and compiled form
-  byte-identical, exit 0, stderr empty, macOS 27.0 (26A428), Apple Swift 6.4.
-  Output in its header.
-- `docs/probes/swiftui-modifier-identity.swift` (MC-A/MC-C/MC-E's, not re-run:
-  none of its arms is relied on for a claim this design changes).
-- `docs/probes/swiftui-component-distribution.swift` (OM-D/OM-E/OM-F's G0–G16,
-  not re-run; cited for the `Component` rows it already settles).
+  S0–S6 (one value placed twice, erasure; S5/S6 added by the critic round,
+  `ID-M`), G1–G7 (modifiers on a `Group`, state), L0–L10 (modifiers on a
+  `Group`, layout; L8–L10 added by the critic round). Script form and compiled
+  form byte-identical, exit 0, stderr empty, macOS 27.0 (26A428), Apple Swift
+  6.4. Output in its header; revision 2 re-ran every earlier arm byte-identical.
+- `docs/probes/swiftui-modifier-identity.swift` (MC-A/MC-C/MC-E's; arms C,
+  D1, D2, E, F cited). **Re-run by the critic round** (`ID-M`) in both forms:
+  byte-identical to each other, exit 0, stderr empty, every output line present
+  in its recorded header.
+- `docs/probes/swiftui-component-distribution.swift` (OM-D/OM-E/OM-F's G0–G16;
+  cited for the `Component` rows it already settles). **Re-run by the critic
+  round** the same way, with the same result.
 - Eight scratch measurements of MetalUI (one throwaway test file), run and deleted (record §55
   §2): the current answers for an appearing `if`, an `if` true/false/true, an
   if/else flipped back, a shrinking `for` loop, `@State` inside `AnyElement`, a
@@ -162,7 +166,13 @@ and the accessibility suites pin and this task must not move.
 `@State`, scroll offset, text selection or `$anim` baseline; a returning
 element's first frame snaps rather than animating from where it left off (an
 insertion is SwiftUI's transition, not an animation). Keep a value that must
-survive a toggle in data or above the `if`.
+survive a toggle in data or above the `if`. **`TextField` and `TextEditor` are
+named here because they are on the must-not-move list** (`ID-M` item 4): their
+`TextEditState` (selection, marked text, horizontal scroll) lives in the table
+under the field's own id, so a field inside an `if` that goes false and returns
+comes back with a fresh `TextEditState()` (caret at 0, no composition, scroll
+0) — while `$focus` is exempt, so a focused field keeps focus through the
+excursion. Pinned by lane 2's C2.12.
 
 **Cost if wrong.** A wrong exemption list moves focus or accessibility (both
 pinned; lane 2 runs their suites unfiltered). A missed transition leaves the old
@@ -236,7 +246,12 @@ occurrence — is **divergence 71**, pinned by the existing
 invokes the closure directly, which is exactly that path).
 
 **Evidence.** Probe S1 (one `Counter` value placed twice: reads 0, 0, 1, 1 —
-separate storage; shared would read a 2) and S4 (two serials). MetalUI today:
+separate storage; shared would read a 2) and S4 (two serials). **Divergence
+71's SwiftUI half is probe S5** (critic round, `ID-M` item 2): closures
+capturing one value's `@State`, stored from `.onAppear` and called directly
+afterwards — outside any SwiftUI dispatch — each write their **own**
+occurrence (`call 0: x 1, call 1: x 1`; last-bound would read 2 on call 1),
+S6 its two-value control. MetalUI today:
 `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt` (occurrence 0 clicked
 once reads 1, occurrence 1 reads 102). `StateTable.aliasedStateBoxes` still
 counts the shape.
@@ -324,8 +339,12 @@ So, each **kept** with its reason:
    (`LR-BH`): in a horizontal parent this equals SwiftUI (probe L3: 140×10), in
    a vertical one it does not (L1/L2: SwiftUI stacks the framed members, 70×20;
    MetalUI rows them, 140×10 — scratch). The row's cross-axis alignment is the
-   frame's own (`LR-BP`), where SwiftUI's members take the parent's; lane 3 pins
-   it (N3.1, `M5g`'s mutation). **Owner: none** — the per-member answer is
+   frame's own (`LR-BP`), where SwiftUI's members take the parent's — probe L8
+   (critic round): under `.frame(width: 70, alignment: .top)` in an `HStack`
+   the 30×10 member of a 30×10/50×30 pair sits at minY **10**, the parent's
+   centre, as with no frame at all (L9); L10 (`HStack(alignment: .top)`, minY
+   0) shows the instrument can see a top-aligned member. MetalUI's row puts it
+   at 0. Lane 3 pins MetalUI's answer (N3.1, `M5g`'s mutation). **Owner: none** — the per-member answer is
    available as `.width`/`.height` (one frame per member, `LR-BG`) and inside
    the component's body.
 2. **A `.frame` over zero members** (an empty `Component`) is a 0×0-content
@@ -340,9 +359,15 @@ So, each **kept** with its reason:
 5. **The builder wrappers' 0/2+ traps** (`ProposalFrame { if … }`, `Padding`,
    `FixedSize`, `Background`, `OnTapModifier`; `CN-Q`) stay: SwiftUI has no
    builder frame, and each traps with a named message.
-6. **`Component`'s `background`/`onClick`/`focusable` are not offered** (`LR-V`,
-   pinned by `decorationBackedModifiersAreNotOfferedOnAComponent`): a compile
-   error, not a wrong answer; declare them on the members.
+6. **`Component`'s decoration-backed `background(_ token:)`/`onClick`/`focusable`
+   are not offered** (`LR-V`, pinned by
+   `decorationBackedModifiersAreNotOfferedOnAComponent` and the guard
+   `backgroundCannotBeCalledOnAComponent`): a compile error, not a wrong
+   answer; declare them on the members. **The content-taking
+   `.background(alignment:content:)` IS offered on a `Component` once `ID-J`
+   lands**, exactly as `.overlay { }` already is (both on `ElementGroup`): a
+   one-member component attaches, a multi-member one traps (item 3,
+   divergence 73). Amended by `ID-M` item 1.
 7. **`OnTapModifier` and `BackgroundModifier` stay separate types** (record §54
    §10.3): no behaviour depends on unifying them.
 
@@ -376,6 +401,22 @@ zero or several nodes traps naming its count (divergence 73). The
 **Evidence.** `swiftui-modifier-identity.swift` F (a background's view has its
 own state, kept across an update); `LR-FX` item 6 ("a legacy `.background {
 content }` is **not** added (task 8)"); record §54 §8.5 and §10.3.
+
+**Also, measured by the critic round** (`ID-M` item 1): because the one
+overload is on `ElementGroup`, a `Component` gains `.background { }` (as it
+has `.overlay { }`), and the existing guard `backgroundCannotBeCalledOnAComponent`
+(fixture `Leafless().background(.accent)`, reason check
+`messages.contains("background")`) **turns red**: with the new overload in
+scope `swiftc` answers `missing argument label 'alignment:' in call` and
+`missing argument for parameter 'content' in call`, neither naming
+`background` (reproduced with the overload declared in a fixture over the
+`e3cb3e9` modules). Lane 3 re-spells it (a **T** row, same subject): fixture
+`Leafless().background(ColorToken.accent)`, reason check `contains("ColorToken")`
+— measured, the diagnostic is `cannot convert value of type 'ColorToken' to
+expected argument type 'ProposalAlignment'` — and mutates it red once by
+declaring a `background(_: ColorToken)` on `Component` (it then compiles).
+The same emulation showed `let b: Box<EmptyGroup> = Box().background(.accent)`
+still resolving to the token overload (no diagnostic).
 
 **Cost if wrong.** A second overload that changes resolution for a proposal
 chain (guard G3.3 holds the proposal spelling's inferred type).
@@ -431,3 +472,84 @@ half is state SwiftUI's modifiers do not have.
 | divergence 20 (`MC-C`) | kept, `ID-K` |
 | proposal `.id()` (modifier-composition carried table → task 12) | taken here, `ID-G`; focus/AX on proposal elements stay task 12's |
 | grid rows' own identity level (`GR-O`: "if task 8 decides rows should be identity-transparent") | kept: V7/V8 show SwiftUI keeps a vanishing row's neighbour, which `ID-B` gives without making rows transparent |
+
+---
+
+## ID-M — the critic round: five amendments, three findings rejected
+
+**Ruling.** The critic-and-revise pass over `4a660e7` (the design commit)
+amends the design as follows; each item is applied in the spec, record §55 and
+the rulings above in the commit that appends this ruling.
+
+1. **`ID-J` makes `.background { }` compile on a `Component`, and reddens a
+   guard the design did not list.** Measured (the new overload declared in a
+   fixture over the `e3cb3e9` modules, `swiftc -typecheck`): the guard
+   `backgroundCannotBeCalledOnAComponent` stops matching its reason, because
+   the diagnostic no longer names `background`. Disposition: lane 3 re-spells
+   it (**T**, same subject, `ColorToken` fixture and reason; mutation: a token
+   overload on `Component`), and `ID-I` item 6 now says which background is not
+   offered (the token one) and which is (the content one, trapping on several
+   members like `.overlay`). No test count moves.
+2. **Divergence 71's SwiftUI column had no probe arm.** The audit row read
+   "its own occurrence" for a write outside input dispatch with nothing
+   cited. Probe arms **S5** (one value placed twice, closures called directly
+   afterwards: each call moves only its own occurrence) and **S6** (two values,
+   control) added and run in both forms, byte-identical; every earlier arm
+   re-ran byte-identical. 71 is kept, now with evidence and a reason: SwiftUI
+   re-points a copy's `@State` at each placement's storage, which MetalUI's
+   `Mirror`-seeded class box cannot do for a copy it cannot write
+   (`State.swift`'s note); dispatch-time resolution (`ID-F`) covers every
+   input path, and the remedy for a timer or task is two values. Owner: none
+   (design).
+3. **Divergence 56's row-alignment sub-row cited L4, which prints a size, not a
+   position.** Probe arms **L8** (per-member frame with `.top` in an
+   `HStack`: the short member at minY 10, the parent's centre), **L9** (no
+   frame, the same 10) and **L10** (`HStack(alignment: .top)`, 0 — the
+   instrument can see top) added and run. N3.1 now pins a probe-backed
+   divergence (MetalUI 0 vs SwiftUI 10), kept under `ID-I` item 1.
+4. **`ID-C` changes `TextField`/`TextEditor` behaviour, which is on the
+   must-not-move list, without naming it.** Their `TextEditState` is keyed by
+   the field's own id, so the reset reaches it while `$focus` keeps focus.
+   Ruled (not widened: an exemption for `TextEditState` would be a
+   field-specific retention SwiftUI does not have — SwiftUI drops focus too),
+   named in `ID-C`'s migration note and pinned by lane 2's **C2.12**
+   `aFocusedTextFieldInsideAToggledIfKeepsFocusAndStartsItsEditStateFresh`:
+   a focused field with a selection and marked text, its `if` false for one
+   frame — `setTextInputArea(nil)` is called while it is absent (the
+   `e3cb3e9` behaviour, unchanged), focus is retained, and on return its
+   state equals `TextEditState()` and the input area is the fresh caret's.
+   Mutation M2f (no exemption) reddens its focus half; M2d (no reset) its
+   state half. Lane 2 adds 11 tests, not 10.
+5. **A "matches" row with no pin**: "an `.id` written inside a modifier still
+   resets" (probe X7) named no MetalUI test. Lane 3 adds **E3.9**
+   `anIDWrittenInsideAModifierStillResetsWhenItChanges` (`Box().id("a\(n)")
+   .padding(Pixels(4))`: constant keeps, changed resets); M3d reddens it. Lane 3
+   adds 16 tests, not 15. The G7 row (a modified group past a vanishing `if`)
+   gains an arm in C2.1: a two-member `Component` with `.padding` as the
+   trailing sibling, both members keeping their own state.
+
+Also recorded for the Record phase: record §04's listed pins for divergence
+48 (`aComponentsWidthStillOverwritesItsMembersDeclaredWidth`) and 56
+(`aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`) **do not exist in
+`Tests/` at `e3cb3e9`** (grep, one hit each expected, zero found); the live
+pins are `aComponentsWidthFramesEachMember` and
+`aFrameOverAMultiMemberComponentFramesEachMember`, and the Record phase's §04
+section names them.
+
+**Considered and rejected** (the task template asks for these as `LR-`
+rulings; `LR-` is task 7's closed ledger, so they are recorded here under this
+task's prefix):
+
+- *`ID-F` is a new feature, not task 8.* Rejected: divergence 19 is the
+  "reused-value aliasing difference" the task text names, and the
+  modifier-composition carried table sent it here.
+- *`ID-J` and `ID-G` are features.* Rejected: `LR-FX` item 6 addressed the
+  legacy `.background { }` to task 8, and the grids record addressed `.id()`
+  on built-in proposal elements to task 8 ("cannot be spelled until task 8").
+- *Lane 2 is too large to run as one.* Rejected: its three rulings share
+  `ElementGroup.swift` and `ProposalElementGroup.swift` (both copies of every
+  group), so splitting would put two lanes on one file; the lane's mutations
+  already name the copy each is applied to.
+
+**Accounting after this ruling:** 1444 → 1452 (lane 1) → 1463 (lane 2) →
+**1479** (lane 3); guards 84 → 84 → 85 → **88**.

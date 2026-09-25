@@ -41,7 +41,9 @@
 // state" from "adopted the vanished/sibling view's state" by printing the
 // other view's serial beside it.
 //
-// RECORDED 2026-09-25 by the plan task 8 design session, macOS 27.0 (26A428).
+// RECORDED 2026-09-25 by the plan task 8 design session, macOS 27.0 (26A428);
+// revision 2 (the critic round, same day, same toolchain) added S5/S6 and
+// L8-L10 and re-ran every earlier arm byte-identical.
 // Script form under /usr/bin/swift and compiled form under `xcrun swiftc` (both
 // Apple Swift 6.4, swiftlang-6.4.0.33.1) printed byte-identical stdout, exit
 // status 0, stderr empty (0 lines) in both:
@@ -75,6 +77,8 @@
 //   S2 Counter inside AnyView: x 0+1
 //   S3 AnyView of the same type, input changes: e 47 / 47
 //   S4 one P VALUE placed twice (serials): v 48+49 / 48+49
+//   S5 one Stash VALUE placed twice, closures called outside dispatch: closures 2, call 0: x 1, call 1: x 1
+//   S6 two DIFFERENT Stash values (control for S5): closures 2, call 0: x none y 1, call 1: x 1 y none
 //   --- modifiers on a Group / multi-view custom view (state)
 //   G1 Group{a;b}.overlay{o} as the ROOT: a 50 / 50, b 51 / 51, o 52 / 52
 //   G2 Group{a;b}.background{k} as the ROOT: a 53 / 53, b 54 / 54, k 55 / 55
@@ -92,6 +96,9 @@
 //   L5 VStack{ 30x10; Group{ if false {..} }.frame(width: 70) }: 30x10
 //   L6 VStack{ 30x10; EmptyView().frame(width: 70) } (control): 30x10
 //   L7 VStack{ Two().padding(5) }: 60x40
+//   L8 HStack{ TallPair().frame(width: 70, alignment: .top) }: 140x30, short minY 10, tall minY 0
+//   L9 HStack{ TallPair() } (control): 80x30, short minY 10, tall minY 0
+//   L10 HStack(alignment: .top){ TallPair() } (control: top is visible): 80x30, short minY 0, tall minY 0
 //
 // WHAT IT SHOWS, arm by arm (controls first):
 //   A0/A1 the instrument sees retention (A0) and re-creation (A1).
@@ -135,6 +142,18 @@
 //   L5/L6 a `.frame` over an EMPTY group, like one over `EmptyView`, adds
 //         nothing to its parent (30x10 = the sibling alone).
 //   L7    `.padding(5)` per member: 60x40.
+//   S5/S6 (revision 2, the critic round) a closure capturing `@State`, stored
+//         from `.onAppear` and called DIRECTLY afterwards — outside any
+//         SwiftUI dispatch — writes its OWN occurrence's storage: each call
+//         re-renders exactly one body reading 1. Last-bound storage (MetalUI's
+//         divergence 71) would read 2 on call 1; shared storage "1+1". S6 (two
+//         different values) is the control: each call moves exactly one name.
+//   L8-L10 (revision 2) `.frame(width: 70, alignment: .top)` per member of a
+//         30x10 / 50x30 pair in an HStack: the short member sits at minY 10 —
+//         the PARENT's centre alignment, not the frame's `.top` (a member's
+//         frame is as tall as the member). L9 (no frame) reads the same 10;
+//         L10 (`HStack(alignment: .top)`) reads 0, so the instrument can see
+//         a top-aligned member.
 
 import AppKit
 import SwiftUI
@@ -170,6 +189,45 @@ struct Counter: View {
     var body: some View {
         let _ = MainActor.assumeIsolated { counts[name, default: []].append(n) }
         return Color.blue.frame(width: 10, height: 10).onAppear { n += 1 }
+    }
+}
+
+/// Arm S5/S6: registers a closure capturing its `@State` from `.onAppear`;
+/// the probe later calls the closures DIRECTLY, outside any SwiftUI
+/// dispatch (the shape of a MetalUI closure run by a timer or a task).
+@MainActor var stashed: [() -> Void] = []
+
+struct Stash: View {
+    let name: String
+    @State private var n = 0
+    var body: some View {
+        let _ = MainActor.assumeIsolated { counts[name, default: []].append(n) }
+        return Color.blue.frame(width: 10, height: 10)
+            .onAppear { MainActor.assumeIsolated { stashed.append { n += 1 } } }
+    }
+}
+
+/// Arm L8/L9: members of different heights, each recording its own minY in
+/// the enclosing stack's coordinate space from a `GeometryReader` body.
+@MainActor var minYs: [String: Int] = [:]
+
+struct Tagged: View {
+    let name: String
+    let width: CGFloat
+    let height: CGFloat
+    var body: some View {
+        Color.gray.frame(width: width, height: height).background(GeometryReader { g in
+            let _ = MainActor.assumeIsolated { minYs[name] = Int(g.frame(in: .named("stack")).minY) }
+            Color.clear
+        })
+    }
+}
+
+/// The `Component` analogue with members 30x10 and 50x30.
+struct TallPair: View {
+    var body: some View {
+        Tagged(name: "short", width: 30, height: 10)
+        Tagged(name: "tall", width: 50, height: 30)
     }
 }
 
@@ -227,6 +285,45 @@ func show(_ xs: [Int]?) -> String {
     }
     let fit = host.fittingSize
     print(label, "\(Int(fit.width))x\(Int(fit.height))")
+}
+
+/// Hosts `make()`, lets `.onAppear` run, then calls `stashed[0]` and
+/// `stashed[1]` in turn, printing the body reads each call caused.
+@MainActor func stashArm<V: View>(_ label: String, names: [String], _ make: () -> V) {
+    counts = [:]
+    stashed = []
+    let host = NSHostingView(rootView: make())
+    host.frame = CGRect(x: 0, y: 0, width: 400, height: 200)
+    host.layoutSubtreeIfNeeded()
+    for _ in 0..<5 {
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        host.layoutSubtreeIfNeeded()
+    }
+    var parts: [String] = ["closures \(stashed.count)"]
+    for index in 0..<min(2, stashed.count) {
+        counts = [:]
+        stashed[index]()
+        for _ in 0..<5 {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+            host.layoutSubtreeIfNeeded()
+        }
+        parts.append("call \(index): " + names.map { "\($0) \(show(counts[$0]))" }.joined(separator: " "))
+    }
+    print(label, parts.joined(separator: ", "))
+}
+
+@MainActor func positionArm<V: View>(_ label: String, @ViewBuilder _ content: () -> V) {
+    minYs = [:]
+    let host = NSHostingView(rootView: HStack(spacing: 0) { content() }
+        .coordinateSpace(name: "stack").fixedSize())
+    host.frame = CGRect(x: 0, y: 0, width: 400, height: 200)
+    host.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+    host.layoutSubtreeIfNeeded()
+    let fit = host.fittingSize
+    print(label, "\(Int(fit.width))x\(Int(fit.height)),",
+          "short minY \(minYs["short"].map(String.init) ?? "none"),",
+          "tall minY \(minYs["tall"].map(String.init) ?? "none")")
 }
 
 @MainActor func run() {
@@ -310,6 +407,14 @@ func show(_ xs: [Int]?) -> String {
         return HStack { p; p }
     }
 
+    stashArm("S5 one Stash VALUE placed twice, closures called outside dispatch:", names: ["x"]) {
+        let s = Stash(name: "x")
+        return HStack { s; s }
+    }
+    stashArm("S6 two DIFFERENT Stash values (control for S5):", names: ["x", "y"]) {
+        HStack { Stash(name: "x"); Stash(name: "y") }
+    }
+
     print("--- modifiers on a Group / multi-view custom view (state)")
     arm("G1 Group{a;b}.overlay{o} as the ROOT:", names: ["a", "b", "o"]) { g in
         Group { P("a", g); P("b", g) }.overlay { P("o", g) }
@@ -354,6 +459,13 @@ func show(_ xs: [Int]?) -> String {
         EmptyView().frame(width: 70)
     }
     layoutArm("L7 VStack{ Two().padding(5) }:", vertical: true) { Two().padding(5) }
+    positionArm("L8 HStack{ TallPair().frame(width: 70, alignment: .top) }:") {
+        TallPair().frame(width: 70, alignment: .top)
+    }
+    positionArm("L9 HStack{ TallPair() } (control):") { TallPair() }
+    positionArm("L10 HStack(alignment: .top){ TallPair() } (control: top is visible):") {
+        HStack(alignment: .top, spacing: 0) { TallPair() }
+    }
 }
 
 MainActor.assumeIsolated { run() }

@@ -2,7 +2,7 @@
 
 Branch `feat/composition-identity` from `e3cb3e9`. Spec
 `docs/superpowers/specs/2026-09-25-composition-identity-design.md`; rulings
-`ID-A`…`ID-L` in `docs/superpowers/2026-09-25-composition-identity-decisions.md`;
+`ID-A`…`ID-M` in `docs/superpowers/2026-09-25-composition-identity-decisions.md`;
 probe `docs/probes/swiftui-composition-identity.swift` (new). This section is
 the design phase's; each lane appends its own.
 
@@ -109,6 +109,52 @@ frame, and a presentation (`Deferred`) lowering through the frame layer; the
 demo calls none. This is `ID-I`'s evidence that distributing `.frame` would
 change the layer every one of those chains configures.
 
+### 2.5 The critic round (`ID-M`)
+
+Run on `4a660e7` by the critic-and-reviser agent, same day, same machine and
+toolchain.
+
+- **Probes re-run.** `swiftui-composition-identity.swift` in both forms:
+  byte-identical to each other and to its recorded header, exit 0, stderr 0
+  lines. Then revision 2 (arms S5/S6, L8–L10 added; nothing else changed): both
+  forms byte-identical, exit 0, stderr empty, every earlier line unchanged
+  (a `diff` against the first run shows only the five added lines). The new
+  lines:
+
+  ```
+  S5 one Stash VALUE placed twice, closures called outside dispatch: closures 2, call 0: x 1, call 1: x 1
+  S6 two DIFFERENT Stash values (control for S5): closures 2, call 0: x none y 1, call 1: x 1 y none
+  L8 HStack{ TallPair().frame(width: 70, alignment: .top) }: 140x30, short minY 10, tall minY 0
+  L9 HStack{ TallPair() } (control): 80x30, short minY 10, tall minY 0
+  L10 HStack(alignment: .top){ TallPair() } (control: top is visible): 80x30, short minY 0, tall minY 0
+  ```
+
+  `swiftui-component-distribution.swift` and `swiftui-modifier-identity.swift`
+  (cited, previously "not re-run") re-run in both forms: byte-identical, exit
+  0, stderr empty, every output line found in its recorded header.
+- **`ID-J` against an existing guard**, measured by declaring the planned
+  `ElementGroup.background(alignment:content:)` inside a fixture and
+  type-checking it against this worktree's `e3cb3e9` modules (the
+  `Typecheck.swift` helper's flags): `Leafless().background(.accent)` goes from
+  `value of type 'Leafless' has no member 'background'` to `missing argument
+  label 'alignment:' in call` + `missing argument for parameter 'content' in
+  call` — `backgroundCannotBeCalledOnAComponent`'s reason check would fail.
+  `Leafless().background(ColorToken.accent)` gives `cannot convert value of
+  type 'ColorToken' to expected argument type 'ProposalAlignment'` (the
+  re-spelling). `let b: Box<EmptyGroup> = Box().background(.accent)` still
+  type-checks. Scratch files only, under the session scratchpad; no `Sources/`
+  or `Tests/` file was touched.
+- **Citations checked.** Every test the spec and rulings name exists exactly
+  once under `Tests/`, except record §04's listed pins for 48 and 56
+  (`aComponentsWidthStillOverwritesItsMembersDeclaredWidth`,
+  `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`), which exist
+  nowhere; the live pins are named in `ID-M`. Divergence labels 71–74 are
+  unused (record §04's highest is 70). `StateTable.sweep()` runs once per
+  `Frame.render` (`Frame.swift`), so §3.2's swap is per frame.
+- **Amendments**: `ID-M` items 1–5 (the guard, 71's arm, 56's alignment arm,
+  `TextField`'s reset, the `.id`-inside-a-modifier pin). Accounting now
+  1444 → 1452 → 1463 → 1479, guards 84 → 84 → 85 → 88.
+
 ## 3. The audit
 
 Verdicts: **M** matches SwiftUI and is pinned; **F** fixed to SwiftUI's answer
@@ -129,11 +175,11 @@ by this task (lane); **K** kept, a numbered divergence with a reason.
 | a constant `.id` | keeps (X1) | keeps (`reorderingANamedListCarriesEachItemsState`, `anAnonymousElementHoldsStateAcrossFrames`) | **M** | — |
 | a changed `.id` | resets (A1, X8) | resets — **unpinned** | **M**, pin E3.8 | lane 3 |
 | `.id` on a stack / grid / group | resets its content (X4–X6) | not spellable | **F** `ID-G` | lane 3 |
-| `.id` written inside a modifier | still resets (X7) | legacy `.id` names the element under the layer; `.id()` must be outermost for index stability | **M** (reset); outermost rule kept for `for` loops | — |
+| `.id` written inside a modifier | still resets (X7) | legacy `.id` names the element under the layer; `.id()` must be outermost for index stability — reset **unpinned** | **M** (reset), pin E3.9; outermost rule kept for `for` loops | lane 3 |
 | two siblings with the same `.id` | distinct (X2) | shared (`twoSiblingsWithTheSameIDShareOneStateEntry`) | **K** divergence 72, `ID-H` | — |
 | one element value placed twice: reads per phase | separate (S1, S4) | separate (`oneElementValuePlacedTwiceDoesNotShareItsState`) | **M** | — |
 | one value placed twice: a handler's write | its own occurrence (S1) | the last-bound occurrence (`aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt`; divergence 19) | **F** `ID-F`, 19 retires | lane 1 |
-| one value placed twice: a write outside input dispatch | its own occurrence | the last-bound occurrence | **K** divergence 71 | — |
+| one value placed twice: a write outside input dispatch | its own occurrence (S5; S6 control) | the last-bound occurrence | **K** divergence 71 | — |
 | `@State` through erasure | works, kept (S2, S3) | inert (scratch S2; record §05 row) | **F** `ID-E` | lane 1 |
 | `@Environment` through erasure | works | inert (`anEnvironmentPropertyInsideAnyElementIsInertAndReadsTheDefault`) | **F** `ID-E` | lane 1 |
 | a custom view / `Component` is layout-transparent | G0 = G1 (component-distribution) | `aComponentsContentFlattensIntoItsParent` | **M** | — |
@@ -141,7 +187,7 @@ by this task (lane); **K** kept, a numbered divergence with a reason.
 | `.padding` on a multi-member `Component` | per member (G2, G3, L7) | per member (`aComponentsPaddingLowersAsAnOrdinaryOneChildContainer`, `OM-D`) | **M** | — |
 | `.width`/`.height` on a `Component` | per member, framed (G7, G8) | per member (`aComponentsWidthFramesEachMember`) | **M**, divergence 48 retires | — |
 | `.frame` on a multi-member `Component` | per member; the parent stacks them (L1–L4) | one layer over a row (`aFrameOverAMultiMemberComponentFramesEachMember`, scratch L1) | **K** divergence 56, amended | none (`ID-I`) |
-| the row's cross-axis alignment | the parent's (L4 per member) | the frame's own — **unpinned** (`M5g` green) | **K** (56), pin N3.1 | lane 3 |
+| the row's cross-axis alignment | the parent's: minY 10 under `.top` (L8; L9 no frame 10, L10 top-aligned stack 0) | the frame's own — **unpinned** (`M5g` green) | **K** (56), pin N3.1 | lane 3 |
 | `.frame` over zero members | adds nothing (L5; `EmptyView` control L6) | a 0-content frame occupying its parent (scratch L5) | **K** (56) | none |
 | `.overlay`/`.background { }` on a multi-member primary | one instance per member (G3, G4) | traps naming the count (N1.7) | **K** divergence 73 | none (`ID-I`) |
 | an overlay's / background's content identity | its own state (modifier-identity E/F) | its own (`theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities`) | **M** | — |
@@ -150,7 +196,8 @@ by this task (lane); **K** kept, a numbered divergence with a reason.
 | builder wrappers over 0/2+ nodes | no such API | trap | **K** (`CN-Q`) | none |
 | `Component` `background`/`onClick`/`focusable` | per member (G9) | not offered (`decorationBackedModifiersAreNotOfferedOnAComponent`) | **K** | none |
 | a modifier's value change / count change | keeps / resets (modifier-identity C, D1, D2) | keeps / resets the content (`addingAModifierDoesNotResetAComponentsState`, `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`) | **M**; the layer's own state is divergence 20, **K** | — |
-| `.onTapGesture` on a `Group` past a vanishing `if` | members keep (G7) | covered by `ID-B` | **F** | lane 2 |
+| `.onTapGesture` on a `Group` past a vanishing `if` | members keep (G7) | covered by `ID-B`; C2.1's second arm (a padded two-member `Component`) | **F** | lane 2 |
+| a focused `TextField` inside a toggled `if` | (the field is new; SwiftUI drops focus) | edit state and focus retained | **F** for the edit state (`ID-C`), focus kept (`TB-J`); pin C2.12 (`ID-M` item 4) | lane 2 |
 
 ## 4. The divergence table after this task (planned)
 

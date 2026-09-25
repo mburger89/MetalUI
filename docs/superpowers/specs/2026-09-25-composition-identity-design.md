@@ -7,13 +7,14 @@ modifier placement against SwiftUI custom-view behaviour. Preserve MetalUI's
 structural identity model where it matches, and close or document the currently
 known state-retention and reused-value aliasing differences."* Branch
 `feat/composition-identity` from `e3cb3e9` (task 7 closed: one engine, one
-modifier type). Rulings `ID-A`…`ID-L` in
+modifier type). Rulings `ID-A`…`ID-M` in
 [`../2026-09-25-composition-identity-decisions.md`](../2026-09-25-composition-identity-decisions.md);
 measurements and **the audit table** in `docs/record/55-composition-identity.md`
 (record §55 §3); SwiftUI evidence in `docs/probes/swiftui-composition-identity.swift`
-(new, arms A, V, X, S, G, L; output in its header).
+(new, arms A, V, X, S, G, L; revision 2 from the critic round, `ID-M`; output in
+its header).
 
-**Status, 2026-09-25: DESIGNED.** No lane has run. In the design phase no
+**Status, 2026-09-25: DESIGNED, critic round applied (`ID-M`).** No lane has run. In the design phase no
 `Sources/` or `Tests/` file changed in a commit; one throwaway test file and
 one scratch implementation were applied, run and reverted (record §55 §2), and
 `git status --short` showed only this design's documents and the probe
@@ -194,7 +195,7 @@ first. One `.background(alignment:content:)` on `ElementGroup` replaces the
 | builder wrappers over 0/2+ nodes trap | their existing exit tests (`CN-Q`) | `ID-I` 5 |
 | `Component` `background`/`onClick`/`focusable` not offered | `decorationBackedModifiersAreNotOfferedOnAComponent` | `ID-I` 6 |
 | a layer added at run time is adopted by the new outermost layer (20) | `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer` | `ID-K` |
-| a write outside input dispatch reaches the last-bound occurrence (71) | `aClosureRunOutsideInputDispatchWritesTheLastBoundOccurrence` (renamed, lane 2) | `ID-F` |
+| a write outside input dispatch reaches the last-bound occurrence (71; SwiftUI: its own, probe S5) | `aClosureRunOutsideInputDispatchWritesTheLastBoundOccurrence` (renamed, lane 2) | `ID-F` |
 | a `for` loop's dropped element keeps its state (74) | C2.4b | `ID-C` |
 
 ## 5. Lanes
@@ -261,7 +262,7 @@ mutated on its own ("a copy of a pinned implementation is unpinned").
 
 | test | red before | mutation that must redden it |
 |---|---|---|
-| **C2.1** `anElementAfterAVanishingIfKeepsItsOwnState` (**R** from `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`) — `Row { if flag { C }; C }` true → false: trailing at `root/1` reads 2; the `if` content's entry (`root/0/0`) is gone (§3.2) | trailing at `root/0` reads 2 (adoption) | **M2a** untyped `OptionalGroup` advances the cursor only when `wrapped != nil` |
+| **C2.1** `anElementAfterAVanishingIfKeepsItsOwnState` (**R** from `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`) — `Row { if flag { C }; C }` true → false: trailing at `root/1` reads 2; the `if` content's entry (`root/0/0`) is gone (§3.2); a second arm (`ID-M` item 5, probe G7) makes the trailing sibling a two-member `Component` with `.padding(Pixels(4))` and reads both members' own counts | trailing at `root/0` reads 2 (adoption) | **M2a** untyped `OptionalGroup` advances the cursor only when `wrapped != nil` |
 | **C2.2** `anElementAfterAnAppearingIfKeepsItsOwnState` — false → true: trailing `root/1` reads 2, the new content `root/0/0` reads 1 | the content reads 2, the trailing 1 | **M2a** |
 | **C2.3** `aTwoMemberIfTakesOneSlotAndNumbersItsMembersInside` — `Row { if flag { C; C }; C }` across flips: members at `root/0/0`, `root/0/1`; trailing `root/1` reads the frame count | trailing adopts | **M2b** untyped: reserve the slot but number the members with the outer cursor (no nesting) |
 | **C2.4** `aShrinkingForLoopLeavesTheTrailingSiblingsStateAlone` — `Row { for _ in 0..<n { C }; C }`, n 2 → 1: trailing `root/1` reads 2; **C2.4b** (same test, divergence 74's pin) n 2 → 1 → 2: iteration `root/0/1` reads 2 (retained) | trailing adopts (record §55 §2.2 V6) | **M2c** untyped `ArrayGroup` reserves no slot |
@@ -272,6 +273,7 @@ mutated on its own ("a copy of a pinned implementation is unpinned").
 | **C2.9** `aResetScansTheTableOnlyOnATransition` — an `if` true for 3 frames, false for 3, true for 3: `subtreeResetScans` reads exactly 1 | does not compile (no counter) | **M2g** `noteAbsent` scans whenever absent (counter 3) |
 | **C2.10** `aConditionalInAWindowedListRowIsNotResetByAnExcursion` — a `List` row whose content holds `if true { stateful }`, scrolled out for 2 generations and back (above the 256 threshold, as `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` does): its state survives | green (pin) | **M2h** `sweep()` resets every previously produced slot not produced this frame |
 | **C2.11** `anIfElseInsideAProposalStackTakesItsBranchIdentity` — `HStack { if flag { probe } else { probe }; probe }`: branches at `root/0/0` / `root/1/0`, trailing `root/2`; a flip resets the branch and keeps the trailing probe | does not compile | **M2i** the typed `EitherGroup` copy numbers both branches at `branchIndex` |
+| **C2.12** `aFocusedTextFieldInsideAToggledIfKeepsFocusAndStartsItsEditStateFresh` (`ID-M` item 4) — through a real `Window` (`makeFakeWindow`), a `TextField` inside `if flag`, focused, with a selection and marked text; `flag` false for one frame then true: while absent `setTextInputArea(nil)` is recorded (the `e3cb3e9` behaviour); `window.focusedElement` is the field's id throughout; on return its `TextEditState` equals `TextEditState()` and the recorded input area is the fresh caret's | red on the state half (the old selection and marked text come back) | **M2d** reddens the state half; **M2f** the focus half |
 | **G2.1** `anIfElseAndASwitchCompileInEveryProposalContainer` (`typecheckFile`) — if/else and a three-case `switch` inside `HStack`, `VStack`, `ZStack`, `Grid`, `GridRow`, and a proposal `.overlay` content, compile; control: `HStack { if f { Box() } else { Box() } }` does not (`#require`d to disagree) | the positive does not compile | delete the conformance |
 
 **T** (body change, same subject, new literal — reason in the lane's record
@@ -307,7 +309,11 @@ removes the tombstones they count). **R** (renamed, retirement row owed):
   **`aClosureRunOutsideInputDispatchWritesTheLastBoundOccurrence`** — divergence
   71's pin, assertions unchanged, doc rewritten (lane 1's `ID-F` landed).
 
-**Lane 2 adds 10 tests** (9 + guard G2.1; 1452 → 1462), guards 84 → 85.
+Tests that exercise the reset drive frames through `Frame.render` (whose
+`stateTable.sweep()` swaps the produced sets) or a `Window`; a layout-only
+frame never swaps them and so never resets.
+
+**Lane 2 adds 11 tests** (10 + guard G2.1; 1452 → 1463), guards 84 → 85.
 
 ### Lane 3 — explicit identity and the legacy background (`ID-G`, `ID-J`, pins)
 
@@ -315,7 +321,8 @@ removes the tombstones they count). **R** (renamed, retirement row owed):
 `NativeBackgroundModifier.swift`. Tests: new
 `Tests/MetalUITests/ExplicitIdentityTests.swift`,
 `ExplicitIdentityCompileGuards.swift`, `LegacyBackgroundTests.swift`; one new
-test in `LoweringComponentTests.swift`.
+test in `LoweringComponentTests.swift`; the one re-spelled guard in
+`ErasureCompileGuards.swift` (`ID-M` item 1).
 
 | test | red before | mutation that must redden it |
 |---|---|---|
@@ -327,6 +334,7 @@ test in `LoweringComponentTests.swift`.
 | **E3.6** `aNamedProposalItemKeepsItsStateThroughALoopReorder` — `HStack { for item in items { probe.id(item) } }`, items reordered: each keeps its count | does not compile | **M3a** |
 | **E3.7** `twoSiblingGroupsWithTheSameIDShareOneIdentity` — divergence 72 on the new API | does not compile | **M3a** (shares nothing — the pin's shared count reads 1, 1) |
 | **E3.8** `changingAnElementsIDResetsItsState` — `Box`-based probe `.id("a\(n)")` (the existing `StyledElement.id`): constant keeps, changed resets | green (pin; record §55 §3) | **M3d** `GlobalElementID.child(of:at:name:)` ignores `name` for the component (reddens many; name this one among them) |
+| **E3.9** `anIDWrittenInsideAModifierStillResetsWhenItChanges` (`ID-M` item 5, probe X7) — `Box`-based probe `.id("a\(n)").padding(Pixels(4))`: constant keeps, changed resets | green (pin) | **M3d** (name this one among those it reddens) |
 | **G3.1** `anIDOnAStyledElementStillReturnsItsOwnType` (`typecheckFile`) — `let b: Box<EmptyGroup> = Box().id("x")` and a legacy chain `.padding(Pixels(4)).id("x")` keeping `ModifiedContent<…, ModifierLayer>` compile; control `let g: IdentifiedGroup<Box<EmptyGroup>> = Box().id("x")` does not (`#require`d disagreement) | the control's type does not exist, so the disagreement is not measurable — the guard fails its `#require` | **M3e** a second `id(_:) -> IdentifiedGroup<Self>` on `StyledElement` (ambiguity) |
 | **G3.2** `anIDOnAProposalGroupEntersAProposalContainer` (`typecheckFile`) — `HStack { Rectangle(…).id("x") }`, `Grid { GridRow { … }.id("r") }`, `VStack { SomeProposalComponent().id("c") }` compile; control `HStack { Box().padding(Pixels(4)).id("x") }` does not | does not compile | **M3f** delete `IdentifiedGroup`'s conditional `ProposalElementGroup` conformance |
 | **B3.1** `aLegacyBackgroundSitsBehindItsPrimaryAtThePrimarysSize` — `Box().cssWidth(px(40)).cssHeight(px(20)).background(alignment: .topLeading) { Box().cssWidth(px(10)).cssHeight(px(10)) }`: background rect (0, 0, 10, 10) inside the primary's (0, 0, 40, 20); the scene paints the background first; a click at (5, 5) with both clickable reaches the primary | does not compile | **M3g** paint the background after the primary |
@@ -335,15 +343,28 @@ test in `LoweringComponentTests.swift`.
 | **G3.3** `theLegacyBackgroundKeepsTheTokenOverloadAndTheProposalSpelling` (`typecheckFile`) — `Box().background(.accent)` still infers the `Box`/chain type; `HStack { Rectangle(…).background { Rectangle(…) } }` compiles and infers `BackgroundModifier<Rectangle, Rectangle>`; control `HStack { Box().background { Box() } }` does not | does not compile (the legacy spelling) | **M3j** restore the `ProposalElementGroup`-only constraint on the `Content` parameter |
 | **N3.1** `aMultiMemberFrameRowAlignsItsMembersByTheFramesOwnAlignment` (`LoweringComponentTests`) — a pair 30×10 and 50×30 under `.frame(width: 70, alignment: .top)` in a 300×60 `Box`: the short member at y 0, not 10 (divergence 56's `LR-BP` sub-row) | green (pin) | **M3k** `alignment: .center` on the row in `lowerShownLegacyFrameLayer` (stage 3's `M5g`, green until now) |
 
-**Lane 3 adds 15 tests** (12 + guards G3.1–G3.3; 1462 → **1477**), guards 85 →
+**T** (`ID-M` item 1, measured): `backgroundCannotBeCalledOnAComponent`
+(`ErasureCompileGuards.swift`) — with `ID-J`'s overload on `ElementGroup` its
+fixture `Leafless().background(.accent)` is still rejected but with
+`missing argument label 'alignment:'`/`missing argument for parameter
+'content'`, so `messages.contains("background")` fails. Re-spelled: fixture
+`Leafless().background(ColorToken.accent)`, reason `contains("ColorToken")`
+(the measured diagnostic: `cannot convert value of type 'ColorToken' to
+expected argument type 'ProposalAlignment'`); mutated red once by declaring
+`background(_: ColorToken)` on `Component`. Its doc says the content
+`.background { }` is offered, as `.overlay { }` is. `ErasureCompileGuards.swift`
+joins lane 3's files for this one edit.
+
+**Lane 3 adds 16 tests** (13 + guards G3.1–G3.3; 1463 → **1479**), guards 85 →
 **88**.
 
 ## 6. Accounting, pixels, gates
 
-- **Suite: 1444 → 1452 → 1462 → 1477.** Guards 84 → 84 → 85 → 88. No goldens.
-  Every removed or renamed `@Test` has a retirement row in its lane's record
-  section (`goldensUnchanged`): the R rows above, five in lane 2, one in lane
-  1; no test is deleted outright.
+- **Suite: 1444 → 1452 → 1463 → 1479** (`ID-M`). Guards 84 → 84 → 85 → 88.
+  No goldens. Every removed or renamed `@Test` has a retirement row in its
+  lane's record section (`goldensUnchanged`): the R rows above, seven in lane
+  2 (C2.1, C2.5a, C2.5b and the four listed after its table), one in lane 1;
+  no test is deleted outright.
 - **Pixels.** 0 px against `e3cb3e9` in all fourteen offscreen images after
   every lane (`docs/probes/demo-pixels/compare.sh <workdir> e3cb3e9 <HEAD>`).
   **Lane 2 moves the demo's ids** — the modal sits behind an `if`, and the
@@ -377,7 +398,12 @@ test in `LoweringComponentTests.swift`.
 ## 7. For the Record phase
 
 - Record §04: retire 18, 19, 48, 69; add 71–74; amend 56 (record §55 §4);
-  live count stays 55.
+  live count stays 55. **Name the live pins** (`ID-M`): 48's listed pin
+  `aComponentsWidthStillOverwritesItsMembersDeclaredWidth` and 56's
+  `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren` do not exist at
+  `e3cb3e9`; the live ones are `aComponentsWidthFramesEachMember` and
+  `aFrameOverAMultiMemberComponentFramesEachMember` (plus N3.1 for 56's
+  alignment sub-row).
 - Record §05: delete the "`@State` inside an `AnyElement`" row (and the
   `@Environment` sentence with it).
 - `CLAUDE.md`/`AGENTS.md`: the "Identity is structural" bullets (a vanishing
