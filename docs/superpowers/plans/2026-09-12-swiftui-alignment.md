@@ -885,6 +885,54 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   removed, and whether `Box(style:)`'s public `style:` parameter
   (inert outside the package since narrowing, `LR-FR` F5) is deprecated or
   removed, stay for **plan task 15** (closeout).
+  *Progress 2026-09-25 on `feat/engine-stage-11` (from `47c0d98`, stage 10's
+  tip), stage 11 of 14 — **task 7's last stage**.* Spec
+  `specs/2026-09-25-engine-stage-11-design.md`; rulings `LR-FV`…`LR-GG` in
+  `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages
+  1–10; `LR-GA` the design critic round); probes re-run byte for byte
+  (`swiftui-outer-modifier-order.swift`, `swiftui-overlay-primary-shape.swift`)
+  and extended (`swiftui-border-clip-paint.swift` gains group H); record
+  `docs/record/54-engine-replacement-stage-11.md`. **`ModifiedElement` and
+  `ModifiedContent` are unified** into one flat `ModifiedContent<Content,
+  Modifier>`, the second parameter a per-vocabulary witness
+  (`ModifierLayerKind`), with `ModifiedElement` now a typealias for its
+  legacy arm and one shared layer recursion (`innermostID`, `wrapLayers`,
+  `prepaintLayerBody`, `paintLayer`) walking both vocabularies — every id
+  path, hit-testing, accessibility, animation and focus rule measured
+  unchanged (`LR-FV`). **The legacy `.overlay` is `OverlayModifier<Content,
+  Overlay>` generalized over `ElementGroup`**, both sides lowered like a
+  frame layer's child through a new `AttachmentLowering.swift`, the `-1`
+  overlay numbering unmoved (`LR-FX`). **Divergence 45 retires**: the
+  write-order bug behind it (`.opacity`/`.background`/`.opacity` sharing one
+  `Decoration` with the order lost) is fixed on both paths by
+  `Decoration.escapesOpacity`, one member per slot, so whatever is written
+  after `.opacity` is outside its scope everywhere, SwiftUI's own answer
+  (`LR-FW`). `deferred.amended` now lowers exactly as a `.frame` layer
+  already did, with no report, and `Component.width`/`height` versus
+  `.frame` is reconciled by ruling with no API change — different
+  modifiers, both stay undeprecated (`LR-FY`). Three lanes, each red first,
+  all verified `ok`, two fix rounds (lane 2's report path, its parent
+  style and its overlay-side presentation drop; lane 3's escaped-fill/border
+  emission order, `N2.5`). Suite **1444** (1426 + 18: lane 1 +4, lane 2 +9,
+  lane 3 +5), guards **84** (82 + 2, `UnifiedModifiedContentCompileGuards`),
+  0 goldens; 0 px against `47c0d98` in all fourteen offscreen images,
+  independently re-taken by the Record phase along with the suite, guard and
+  golden counts, `Backends/SDL` (21 + 19), `Tests/PortableTests`
+  (18 + 6 + 5) and a `swift:6.4-noble` container (**22 + 188 + 10**).
+  **Not done, re-owned rather than left for a later stage of this task**:
+  `.frame` on a multi-member `Component` distributing per member and a
+  `Group`-style overlay on a multi-member primary go to **plan task 8**
+  (`Group` semantics), with divergence 56's remainder; divergence 54 (a
+  lowered `ScrollView`'s cross axis) goes to **plan task 10** alone;
+  deprecating or removing the `ModifiedElement` typealias joins divergence
+  52 at **plan task 15** (closeout). **Task 7's own three clauses now hold
+  on this branch**: no production layout request passes through the legacy
+  engine (stage 9 deleted it), the CSS layout paths and dead `Style` fields
+  are gone (stages 9–10), and the two modifier vocabularies are unified
+  (this stage). The checkbox above is moved only once the adversarial
+  branch check confirms every row of `2026-09-17-engine-replacement-design.md`
+  §4.1 (rows 1–11 plus G) on this branch, reading the test or grep rather
+  than a record's claim (spec §9); that check has not yet run.
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

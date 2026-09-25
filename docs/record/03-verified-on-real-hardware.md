@@ -1450,3 +1450,23 @@ differing and scene identical in all fourteen**, every control at its `2cc763d`
 value (`LR-DZ`). The stage-6b looks above (the real-window capture and the four
 named demo-layout changes) are **still open and still owed**; this stage neither
 closes nor adds to them.
+
+## 2026-09-25: no look added at engine replacement stage 11
+
+Record §54 §7.6, §8.4, §9.4, §10.2. **Nothing a human needs to see changed.**
+The stage unifies `ModifiedElement`/`ModifiedContent`, generalizes the legacy
+`.overlay`, and fixes divergence 45's write-order bug (`.opacity` reaching a
+background or border written after it) on both paths — a paint-order
+correctness fix, not a new visible feature, and no demo site writes a legacy
+`.opacity` before a `.background` or `.border` (the demo's own two `.opacity`
+calls are on proposal chains, already SwiftUI-shaped, so the fix touches
+nothing the demo paints). The fourteen-image offscreen comparison against
+`47c0d98` (`docs/probes/demo-pixels/compare.sh`) reads **0 differing and
+scene identical in all fourteen**, taken independently at each lane's own
+head and again by the Record phase at `774e775` — four readings in all, all
+zero. No real-window capture was taken or attempted this stage (none of the
+three lanes' verdicts or the Record phase's own close mention
+`appkit-screen-lock-state.swift` or `capture.sh`); none was owed, since 0 px
+means nothing a real window would show differs either. The stage-6b looks
+above (the real-window capture and the four named demo-layout changes) are
+**still open and still owed**; this stage neither closes nor adds to them.

@@ -472,3 +472,27 @@ touch it. `UnlowerableField` sites `.list` and `.component` are unaffected.
 `LayoutAuthority.proposal` in production was already not a row here (deleted
 at stage 6b, its symbol deleted at stage 9); unaffected by this stage.
 
+## 2026-09-25: one row deleted at engine replacement stage 11
+
+Record §54; rulings `LR-FV`…`LR-GG`. **One row deleted, none added or
+edited.** `deferred.amended` (`UnlowerableField` site `.deferred`, field
+`"amended"`, added at stage 5 as a report and given a live owner
+`"plan task 7, stage 11"` at stage 10) is **deleted, not merely reassigned**:
+`loweredComponentFrame`'s `isPresentation` branch now returns the node
+without a report at all (`LR-FY` §6.1). Measured before the change (record
+§54 §3): a legacy `.frame` **layer** over a presentation member already
+handed the placeholder on and dropped it silently, at hitbox (5, 5) 10×10; a
+`Component`'s `.width` amend over the same member reported `deferred.amended`
+and landed at the identical rect. The amend now answers exactly as the frame
+layer already did — the report had nothing left to say once its answer
+matched the unreported path bit for bit. `UnlowerableField.owner` loses its
+`"plan task 7, stage 11"` branch with it, so `grep -n "plan task 7"
+Sources/MetalUI/LayoutAuthority.swift` now hits only the permanent-refusal
+trap message's ruling citation (`"…LR-FO"`), not an owner string — the last
+live `owner` this file's table pointed at task 7 is gone. `LoweringSite
+.deferred` itself **stays**: it is still the site of the presentation
+placeholder's own `LoweredItem` (`Deferred.swift:117`), unrelated to the
+deleted report. Nothing else in the table's shape changes: the
+`.list`/`.component` site-reporter rows and the test-observables row are
+unaffected by a report at a different site being deleted.
+

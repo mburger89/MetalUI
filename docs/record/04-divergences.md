@@ -1331,3 +1331,43 @@ the re-read and wrote this section:
 **What it costs if wrong.** A reader following 54 by the table's name finds no
 such test; the name above is the fix. A reader expecting a stage-10 section
 because record §53 §6.4 promised one found none until this one.
+
+## 2026-09-25: 45 retired; 54 and 56's remainder re-owned (plan task 7 stage 11, modifier unification)
+
+Record §54; rulings `LR-FV`…`LR-GG` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **The table
+moves from fifty-six to fifty-five live; 45 joins the never-reused list.**
+
+- **45 retires** (a legacy `.opacity(0.5).background(x)` left the fill
+  faded, where SwiftUI leaves it outside the scope, `OM-N`/`OM-AA` a). The
+  write-order bug — `.opacity` and `.background` are fields of one
+  `Decoration` whose write order was lost — is fixed on both paths by
+  `Decoration.escapesOpacity` (one member per slot, inserted by a write only
+  while `opacity < 1`, emptied by `.opacity`), and `paintDecoration` now
+  emits an escaped fill before its opacity scope opens and an escaped border
+  after it closes (`LR-FW`). The old pin,
+  `opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot`, is renamed
+  `aBackgroundOrBorderWrittenAfterOpacityEscapesIt` and now asserts the fix
+  rather than the bug (T2.1, record §54 §9.1); its H2 arm (the border's own
+  divergence) retires with it, so the row's citation moving to "G3/G4, H1/H2,
+  now retired" is one row's worth of two SwiftUI arms, not two divergences.
+  `theOpacityOrderAnswersTheSameOnBothPathsThroughTheUnifiedType`
+  (`OpacityOrderTests`, N2.1) is the new cross-path pin `OM-AA` a's clause
+  asked for. Divergence 46 (a second `.opacity` replaces the first,
+  `OM-AH`) is untouched — `OM-AH`'s reasons stand, and no row of this stage
+  hands it here.
+- **54's remainder re-owned.** Spec §6.5 (`LR-GA` item 5) hands it from
+  "stage 11 / task 10's" (record §04's 2026-09-22 section) to **plan task 10
+  alone**: the fix is a scrolling answer that moves every legacy
+  `ScrollView`'s cross axis, not a modifier question, so stage 11 disposes
+  of nothing here. Its pins are unedited by this stage.
+- **56's remainder re-owned.** A `.frame` on a multi-member `Component`
+  stays one flex item in its parent (`TB-M`), where SwiftUI's `Group` makes
+  each framed member its own. Spec §6.2 reconciles `Component.width`/`height`
+  versus `.frame` by ruling with no API change, but making `.frame` itself
+  distribute per member is `Group` semantics — **re-owned to plan task 8**
+  (`CN-Q`), not closed here.
+
+**What it costs if wrong.** A reader who still expects 45 to be pinned wrong
+on purpose will find its test now asserting the opposite fact and conclude a
+regression where there is a fix; the renamed test name is the tell.

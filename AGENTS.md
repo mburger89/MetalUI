@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-FV`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-GG`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -124,6 +124,27 @@ milestones append their record to `docs/record/` and put only the rule here.
   (`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`, three plain-import
   guards, a recorded grep); **no new SwiftUI probe** — the stage claims no
   new SwiftUI behaviour),
+  7 stage 11 `LR-FV`…`LR-GG` (§54, spec
+  `specs/2026-09-25-engine-stage-11-design.md`, same decisions doc —
+  **task 7's last stage**: `ModifiedElement`/`ModifiedContent` unified into
+  one flat `ModifiedContent<Content, Modifier>`, the second parameter a
+  per-vocabulary witness (`ModifierLayerKind`), with `ModifiedElement` now a
+  typealias for its legacy arm; the legacy `.overlay` generalized from
+  `OverlayModifier<Content, Overlay>` over `ElementGroup` (both vocabularies,
+  lowered like a frame layer's child through `AttachmentLowering.swift`); the
+  write-order bug behind divergence 45 fixed on both paths
+  (`Decoration.escapesOpacity`, one member per slot) so whatever is written
+  after `.opacity` is outside it everywhere, retiring the divergence;
+  `deferred.amended` now lowers exactly as a `.frame` layer already did
+  (no report); `Component.width`/`height` and `.frame` reconciled by ruling,
+  no API change; probes re-run byte for byte
+  (`swiftui-outer-modifier-order.swift`, `swiftui-overlay-primary-shape.swift`)
+  and extended (`swiftui-border-clip-paint.swift` group H); every id path,
+  hit-testing, accessibility, animation and focus rule **unchanged** (measured,
+  not merely asserted). **No production layout request passes through the
+  legacy engine (stage 9), the CSS layout paths and dead `Style` fields are
+  gone (stages 9–10), and the two modifier vocabularies are unified (this
+  stage) — task 7's own three clauses all hold on this branch.**),
   7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
@@ -187,7 +208,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   **§53 (stage 10) was written as §52** on `feat/engine-stage-10` from
   `8095fd9` and renumbered 52→53 at its merge, because `master` had already
   published §52 (`TextEditor`, `TI-H`, PR #29, `0843866`; record §53's
-  header). Master's own §52 citations are the text editor's.
+  header). Master's own §52 citations are the text editor's. **§54 (stage
+  11) needed no renumbering**: written directly on `feat/engine-stage-11`
+  from `47c0d98` (stage 10's own merge tip), with no other line publishing a
+  §54 first.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -205,6 +229,39 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-25, `feat/engine-stage-11` — plan task 7 stage 11,
+  modifier unification, from `47c0d98`, not yet merged with `master`): 1444
+  tests, 0 goldens, 84 typecheck guards**, 0 `error:` on both build systems,
+  the one `warning:` SwiftPM's deprecation notice under native (0 under the
+  default one, `swift build --build-tests`), taken after `swift package
+  clean` with `swift build --build-system native --build-tests` then
+  unfiltered `swift test --build-system native --no-parallel` (**one summary
+  line**, `Test run with 1444 tests in 3 suites passed`; eleven gated tests
+  skipped, unchanged; the guards ran — the log carries `FR-J no-argument
+  frame: succeeded=`). **1444 = 1426 + 18**: lane 1 +4 (`N1.1`, `N1.2`,
+  `G1.1`, `G1.2`), lane 2 +9 (`N1.3`–`N1.7`, its fix round's `N1.8`–`N1.11`),
+  lane 3 +5 (`N2.1`–`N2.4`, its fix round's `N2.5`); no test retired. Guards
+  **84 = 82 + 2** (`UnifiedModifiedContentCompileGuards`). `ModifiedElement`/
+  `ModifiedContent` are now one flat `ModifiedContent<Content, Modifier>`,
+  the second parameter a per-vocabulary witness (`ModifierLayerKind`);
+  `ModifiedElement` is a typealias for its legacy arm. The legacy `.overlay`
+  is `OverlayModifier<Content, Overlay>` generalized over `ElementGroup`,
+  lowered like a frame layer's child. **Divergence 45 retires**
+  (`Decoration.escapesOpacity`, one member per slot, fixes the write-order
+  bug on both paths — whatever is written after `.opacity` is outside it
+  everywhere); `deferred.amended` now lowers exactly as a `.frame` layer
+  already did, with no report. **0 px against `47c0d98` in all fourteen
+  offscreen images**, scene identical, independently re-taken by this Record
+  phase; `Backends/SDL` 21 + 19; `Tests/PortableTests` 18 + 6 + 5; a
+  `swift:6.4-noble` aarch64 container builds with 0 `error:`/`warning:` and
+  runs **22 + 188 + 10**. **This closes task 7**: no production layout
+  request passes through the legacy engine (stage 9), the CSS layout paths
+  and dead `Style` fields are gone (stages 9–10), and the two modifier
+  vocabularies are unified (this stage) — task 7's own three clauses all hold
+  on this branch, pending the adversarial branch check before the plan's
+  checkbox moves. History: record §54 (§1–§6 design, skeleton probe, three
+  scratch measurements and critic round; §7 lane 1, §8 lane 2, §9 lane 3, §10
+  the Record phase's independent close).
 - **Counts (2026-09-24, `feat/engine-stage-10` — plan task 7 stage 10 —
   merged with `master` at `0843866`, PR #29, `TextEditor`): 1426 tests, 0
   goldens, 82 typecheck guards**, 0 `error:` on both build systems, the one
@@ -764,20 +821,25 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   fixture, ever (TX-B).
 - **Guards:** `grep -c canTypecheck` per file across `PhaseSeparationTests`,
   `ErasureCompileGuards`, `ElementGroupTrapTests`, `ProposalLayoutCompileGuards`,
-  `ModifiedElementCompileGuards`, `ProposalNodeIDCompileGuards`,
+  `ModifiedElementCompileGuards`, `UnifiedModifiedContentCompileGuards`
+  (stage 11, new), `ProposalNodeIDCompileGuards`,
   `EnvironmentCompileGuards`, `FrameSizingCompileGuards`,
   `DecorationCompileGuards`, `ContainerCompileGuards`,
   `LayoutAuthorityCompileGuards`, `GridCompileGuards`,
   `UnitSafetyTests` (one hit is a comment),
   `AXNodeTests`, `SceneBoundaryCompileGuards`, `StyleSurfaceCompileGuards`
-  (stage 10, new); `Typecheck.swift` holds only
-  the declaration. Two helpers, 40 and 42 (39 before stage 10's three; 38
+  (stage 10); `Typecheck.swift` holds only
+  the declaration. Two helpers, 40 and 44 (42 before stage 11's two; 39
+  before stage 10's three; 38
   before stage 8's N3.1, 37
   before stage 6a's): `typecheck(_:importing:)` wraps the fixture in a
   function (Swift 5, nothing `public`/file-scope compiles);
   `typecheckFile(_:importing:)` is whole-file
   Swift 6 — the six/two/six of `ProposalLayout`/`ModifiedElement`/
-  `ProposalNodeID`, **three** `FrameSizing` (stage 8's N3.1 the
+  `ProposalNodeID`, **two** `UnifiedModifiedContentCompileGuards` (stage 11,
+  both whole-file: `aProposalModifierChainInfersOneFlatModifiedContent`,
+  `anExternalModifierLayerKindCannotBuildAModifiedContent`), **three**
+  `FrameSizing` (stage 8's N3.1 the
   third), three `Decoration`, four `Container`,
   four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary`,
   **three** `StyleSurfaceCompileGuards` (stage 10, all three plain-import
@@ -1006,9 +1068,18 @@ header in the same change.
   **`.id()` must be the outermost modifier.** Changing layer COUNT resets the
   wrapped element's `@State`/focus/`$anim`/AX node; changing VALUES does not.
   A decoration/handler written after a wrapper configures the outermost layer
-  (`.padding(8).background` fills the padded box, `OM-C`).
+  (`.padding(8).background` fills the padded box, `OM-C`). **Since stage 11,
+  `ModifiedElement` is a typealias for the unified `ModifiedContent<Content,
+  Modifier>`**, and the same recursion (one shared `innermostID`, `wrapLayers`,
+  `prepaintLayerBody`, `paintLayer`) walks a proposal chain's `LayoutModifier`
+  layers too — every id path above is unchanged and now measured on both
+  vocabularies, byte-identical to before unification (`LR-FV`).
 - An `.overlay`'s primary numbers under the modifier's id, the overlay under
-  `.child(of: id, at: -1)` (`MC-P`); nothing else may mean `-1`.
+  `.child(of: id, at: -1)` (`MC-P`); nothing else may mean `-1`. **Since
+  stage 11 the legacy `.overlay` is `OverlayModifier<Content, Overlay>`
+  generalized over `ElementGroup`** (both vocabularies), with the primary and
+  overlay sides each lowered like a frame layer's child
+  (`AttachmentLowering.swift`); the `-1` numbering is unmoved (`LR-FX`).
 - `GlobalElementID.cachedHash` and `==` are safe alone, unsafe together; do not
   simplify `==`'s chain walk on a green suite.
 - Prefer SwiftUI's answer where SwiftUI and CSS differ above the engine (EP-5).
@@ -1064,8 +1135,13 @@ node can itself be a `Deferred`'s presentation content, discharging the two
 state is re-derived, one asserted as a value keeps its site (R7); an animated
 size interpolates as before, nothing snaps (R8). `Component.width`/`height`
 and `StyledComponent.width`/`height` are **not** deprecated — they neither
-write an element's own box nor return `Self` — reconciliation is stage 11's
-(`LR-ER` item 2). **There is no automatic minimum
+write an element's own box nor return `Self`. **Reconciled at stage 11 by
+ruling, with no API change** (`LR-FY` §6.2): `.width`/`.height` are one
+native frame per member (`LR-BG`, SwiftUI's `Group` shape), `.frame` is one
+layer over the members' row (`LR-BH`); they are different modifiers, both
+stay undeprecated with their doc comments saying so, and making `.frame`
+distribute per member (SwiftUI's `Group` answer) is plan task 8's, not a
+sizing-vocabulary question. **There is no automatic minimum
 to cancel** (`LR-ET`, amending `FR-G`): a greedy frame's lower bound is its
 content unless it declares one, SwiftUI's rule (probe
 `swiftui-engine-stage-8.swift` F), so a growing box that must answer below its
@@ -1127,10 +1203,12 @@ on a `Style`-written box: a `.frame` written before `.position(.absolute)`
 over at most one node answers SwiftUI's frame bounds and never reports,
 `LR-EV`) are **permanent refusals since stage 10** (`LR-FO` item 2:
 `owner: nil`, no lowering will ever answer them — the kernel's only absolute
-layout is a presentation's), and a
-`Component`'s amend over a presentation member (`deferred.amended`, owner
-**stage 11**, `LR-FF`) each **report by name** rather than lower to a
-different answer.
+layout is a presentation's) each **report by name** rather than lower to a
+different answer. **A `Component`'s amend over a presentation member no
+longer reports, since stage 11** (`deferred.amended` deleted, `LR-FY` §6.1):
+it answers exactly as a legacy `.frame` **layer** over the same member
+already did — the placeholder handed on and dropped, the presentation's
+containing block the window whatever surrounds it.
 
 **`Component`** is layout-transparent and identity-opaque: no layout node, one
 cursor index, `@State` under its own id. Its `.padding` wraps each top-level
@@ -1622,7 +1700,10 @@ out through the propose/measure/place kernel. Detail: §19
   `Grid(alignment:horizontalSpacing:verticalSpacing:)` and `GridRow(alignment:)`
   with the four cell modifiers `.gridCellColumns(_:)`, `.gridCellAnchor(_:)`,
   `.gridColumnAlignment(_:)` and `.gridCellUnsizedAxes(_:)`. Modifiers
-  on `ProposalElementGroup` return `ModifiedContent`. `Native…` types and
+  on `ProposalElementGroup` return `ModifiedContent<ProposalBase,
+  LayoutModifier>` — the unified type's proposal arm since stage 11
+  (`LR-FV`), the same struct a legacy `.padding`/`.frame` chain returns with
+  `Modifier == ModifierLayer`. `Native…` types and
   `native…` methods are deprecated aliases (except the two `nativeFrame`
   overloads — deprecating them breaks the 0-warning baseline); the kernel's
   `requestNative*`/`newNative*`/`computeNativeLayout` are primary API — 13
@@ -1732,8 +1813,8 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**56 live**, stable labels; retired labels never
-  reused: 3, 4, 5–8, 11, 12, 15, 17, 36, 37, 40, 59) — record §04 is current (its
+- **Known divergences** (**55 live**, stable labels; retired labels never
+  reused: 3, 4, 5–8, 11, 12, 15, 17, 36, 37, 40, 45, 59) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
   its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
   adding a number, its first 2026-09-23 section likewise amends **13, 14 and
@@ -1788,7 +1869,20 @@ expected, measured facts:
   substance (record §04's 2026-09-24 stage-10 section, added by the branch
   check, `LR-FU`, which also names 54's live pin,
   `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem` — the
-  table's name retired at 7b).
+  table's name retired at 7b). **Stage 11 retires 45** (56 → 55 live; 45
+  joins the never-reused list): the write-order bug behind it
+  (`.opacity`/`.background`/`.opacity` sharing one `Decoration` with the
+  order lost, `OM-H`/`OM-N`) is fixed on both paths by
+  `Decoration.escapesOpacity`, so a fill or border written after `.opacity`
+  is outside its scope everywhere — SwiftUI's own answer — and the row that
+  pinned it wrong on purpose is renamed to pin the fix instead
+  (`aBackgroundOrBorderWrittenAfterOpacityEscapesIt`, `LR-FW`, record §04's
+  2026-09-25 stage-11 section). Divergence **54** (a lowered `ScrollView`
+  takes its cross axis from its parent) is re-owned from "stage 11 / task
+  10's" to **plan task 10 alone**, and **56**'s remainder (a `.frame` on a
+  multi-member `Component` stays one flex item, `TB-M`) to **plan task 8**
+  (`Group` semantics) — neither is a modifier question, so stage 11 disposes
+  of neither by closing it (`LR-GA` item 5).
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
   `hidden()` on
   drawing/focusable subtrees, `AnyElement`'s `@State`, `PaintPass.isActive`,
@@ -1832,6 +1926,11 @@ expected, measured facts:
   `StyledElement.margin(_:)`'s `Length` parameter. **A row is added**:
   `Box`'s public `style:` initialiser parameter, inert outside the
   package now that every field it could set is `package` (`LR-FR` F5).
+  **Stage 11 deletes `deferred.amended`'s row**: a `Component`'s amend over a
+  presentation member no longer reports at all — it lowers exactly as a
+  legacy `.frame` layer over the same member already did — so the report
+  mechanism has nothing left to answer here, not merely nothing new to say
+  (`LR-FY` §6.1, record §05's 2026-09-25 stage-11 section).
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
@@ -1887,7 +1986,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **82** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **84** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a
