@@ -5,7 +5,7 @@ import MetalUICore
 // their only reader, and the layout kernel, `MetalUILayout`, declares no CSS
 // vocabulary at all. Until stage 9 a CSS engine read these types in the
 // kernel; that engine, its WebKit fixtures and every `positionStackItems`
-// citation are history (records §51, §52).
+// citation are history (records §51, §53).
 //
 // Stage 10 also deleted the fields no lowering read to produce a layout —
 // `aspectRatio`, `overflow`, `flexWrap`, `alignContent`, `border` — with

@@ -20,6 +20,8 @@ enum LoweringSite: String, Sendable {
     case text
     /// `TextField` (roadmap item 14): a leaf, lowered as `text` is.
     case textField
+    /// `TextEditor` (ruling TI-H): a leaf, lowered as `text` is.
+    case textEditor
     case modifierLayer
     case scrollView
     case list

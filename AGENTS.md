@@ -47,7 +47,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
-  its spec), `TI-` (next `TI-H`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
+  its spec), `TI-` (next `TI-I`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
   spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
@@ -116,7 +116,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   legacy `.frame`) keeps working through the lowering, now its only path;
   **no new SwiftUI probe** — the stage claims no new SwiftUI behaviour
   (`LR-FH` item 4)),
-  7 stage 10 `LR-FM`…`LR-FU` (§52, spec
+  7 stage 10 `LR-FM`…`LR-FU` (§53, spec
   `specs/2026-09-24-engine-stage-10-design.md`, same decisions doc — `Style`'s
   CSS fields resolved field by field (deleted, narrowed to `package`, or
   moved into `MetalUI`), every inherited `Style`-field report made a
@@ -184,6 +184,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   `2cc763d` and renumbered 42→48 at its merge, because `master` had already
   published §42–§47 (font fallback through text undo, `6e01d9e`; record
   §48's header).
+  **§53 (stage 10) was written as §52** on `feat/engine-stage-10` from
+  `8095fd9` and renumbered 52→53 at its merge, because `master` had already
+  published §52 (`TextEditor`, `TI-H`, PR #29, `0843866`; record §53's
+  header). Master's own §52 citations are the text editor's.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -201,7 +205,39 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
-- **Counts (2026-09-24, `feat/engine-stage-10` — plan task 7 stage 10,
+- **Counts (2026-09-24, `feat/engine-stage-10` — plan task 7 stage 10 —
+  merged with `master` at `0843866`, PR #29, `TextEditor`): 1426 tests, 0
+  goldens, 82 typecheck guards**, 0 `error:` on both build systems, the one
+  `warning:` SwiftPM's deprecation notice under native (0 under the default
+  one, `swift build --build-tests`), taken after `swift package clean` with
+  `swift build --build-system native --build-tests` then unfiltered `swift
+  test --build-system native --no-parallel` (**one summary line**, `Test run
+  with 1426 tests in 3 suites passed`; eleven gated tests skipped; the guards
+  ran — the log carries `FR-J no-argument frame: succeeded=`). **1426 = 1423
+  − 1411 + 1414**: master's 1423 (its `TextEditor` 12 over the shared
+  stage-9 base 1411) plus stage 10's net +3; no test was added or removed by
+  the merge. **Three merge edits beyond the conflict markers**: `TextEditor`
+  is a ninth leaf/recording site, so `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s
+  `TextEditor` arm is re-spelled from `.position(.relative)` (a spelling
+  stage 10 deleted) to `.inset(px(1))`, reporting `textEditor.inset`, and
+  `everyReportNamesALiveOwnerOrIsRefusedByName`'s table gains `.textEditor`
+  in its leaf sites (**218 → 242** entries: +4 leaf, +11 item, +9
+  unconsumed, every one a permanent refusal by name — `owner` decides by
+  site `deferred` and the baseline prefixes, never by leaf site, so
+  `LayoutAuthority.swift` needed no arm for it); and the text-input demo's
+  `TextEditor` `.height(Pixels(160))` (deprecated since stage 8, `LR-ES`, and
+  a `warning:` on both build systems on the merged tree) becomes
+  `.frame(height: Pixels(160))` — its rects, glyphs and hitboxes read
+  identical to the `.height` spelling through a real `Window` (136 lines, the
+  editor's 352×160 box among them). `Expected.swift` unedited;
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` and
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green. **0 px against `0843866` in all fourteen offscreen images**, scene
+  identical (`docs/probes/demo-pixels/compare.sh`, controls non-zero).
+  `Backends/SDL` 21 + 19 on macOS; a `swift:6.4-noble` aarch64 container
+  builds with 0 `error:`/`warning:` and runs **22 + 188 + 10** (the closing
+  check and the demo frame green off Apple). Record §53's header.
+- **Stage 10's counts before the merge (2026-09-24, `feat/engine-stage-10` — plan task 7 stage 10,
   `Style`'s CSS fields and the closing check, from `8095fd9`, stage 9's tip,
   not yet merged with `master`): 1414 tests, 0 goldens, 82 typecheck
   guards**, 0 `error:` on both build systems, the one `warning:` SwiftPM's
@@ -238,7 +274,7 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   identical, independently re-taken by the Record phase along with the
   suite, guard and golden counts, `Backends/SDL` (21 + 19), `Tests/PortableTests`
   (18 + 6 + 5), a `swift:6.4-noble` container (**22 + 188 + 10**, unmoved
-  from stage 9) and the recorded greps (record §52 §6). **The Windows stack
+  from stage 9) and the recorded greps (record §53 §6). **The Windows stack
   budget improves, measured**: `MemoryLayout<Style>.size` 226 → 178, the
   smallest thread building every production tree on macOS arm64 debug 528 →
   484 KB. **Not done, owners already assigned**:
@@ -248,8 +284,13 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   deprecated sizing modifiers and the `fraction:` spellings, and whether
   `Box`'s public `style:` parameter (inert outside the package
   since narrowing) is deprecated or removed, stay for **plan task 15**
-  (closeout). History: record §52 (§1–§3 baseline and critic round, §4 lane
+  (closeout). History: record §53 (§1–§3 baseline and critic round, §4 lane
   1, §5 lane 2, §6 the Record phase's independent close).
+- **Master's counts before stage 10 met it (2026-09-24, `feat/text-editor` — `TI-H` — merged with `master`
+  at `8095fd9`): 1423 tests, 0 goldens, 79 typecheck guards**, 0 `error:`,
+  the same one `warning:` under native, taken the same way; **1423 = 1411 +
+  12** (`TextEditingTests` +4, `TextEditorTests` +7, `TextSystemSeamTests`
+  +1); record §52.
 - **Stage 9's counts, merged with `master` (2026-09-24, `feat/engine-stage-9`
   merged with `master` at
   `1895e4a`, PR #30 — the Windows demo-stack fix): 1411 tests, 0 goldens, 79
@@ -791,7 +832,7 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   stage-9 head, record §51 §7.6 and §9); **stage 10 moves four from
   `MetalUILayoutTests` to `MetalUICrossPlatformTests` and adds one there**
   (`StyleTests.swift`'s `git mv`, `LegacyEngineSymbolTests`' `N2.1`), giving
-  188 + 22 + 10 (record §52 §5.6, independently re-taken record §52 §6.2 item
+  188 + 22 + 10 (record §53 §5.6, independently re-taken record §53 §6.2 item
   6), the last pinning the demo's
   whole frame byte-for-byte against
   macOS (`XP-C`). Inside `MetalUI`, CoreText stays behind `#if
@@ -1187,7 +1228,13 @@ field's `TextEditState.history`**: ⌘Z / ⌘⇧Z on Apple, ctrl-Z / ctrl-Y /
 ctrl-shift-Z elsewhere; typing and single deletes coalesce, and a caret move
 ends the group. The history is valid only for the text its last edit
 produced — a caller that changes the text itself drops it, rather than an
-undo replaying over a text it never saw.
+undo replaying over a text it never saw. **`TextEditor` (`TI-H`)** is the multi-line field: it
+draws line by line from `TextSystem.lineRanges`, and its caret, presses and
+up/down all read the same `TextLineModel`, so a caret at a wrap sits at the
+next line's start. Up and down keep a remembered column (`goalX`), and return
+inserts `\n`. Its vertical scroll follows the caret unless the wheel moved
+it (`revealsCaret`). The wheel over an editor is routed in
+`Window.applyScroll`, ahead of the opaque-hitbox stop.
 
 **Text.** `Text` and `ProposalText` measure and draw **only through
 `Frame.textSystem`** (`TS-A`): a `TextSystem` chosen once per app
@@ -1479,7 +1526,7 @@ out through the propose/measure/place kernel. Detail: §19
   Stage 10 pre-empts nothing of 11:
   `ModifiedElement`/`ModifiedContent` stay separate, legacy `.overlay` and
   `.opacity` G4 are untouched, and `deferred.amended` stays stage 11's.
-  Record §52.
+  Record §53.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -1898,4 +1945,4 @@ expected, measured facts:
     where `dlsym` resolves each mangled name against the test process, and
     does not exist on Windows, which has neither C library.
     `root-windows` CI never runs it; its absence there is by design, not a
-    skip to investigate. Record §52 §6.2 item 6.
+    skip to investigate. Record §53 §6.2 item 6.

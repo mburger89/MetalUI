@@ -14,7 +14,7 @@ import MetalUIText
 // its fixed frame where CSS floors the border box, and `margin` as native padding
 // outside the item's wrappers.
 //
-// **Stage 10** (record §52, lane 1): `Style.border` is deleted (`LR-FM` item 1), so
+// **Stage 10** (record §53, lane 1): `Style.border` is deleted (`LR-FM` item 1), so
 // 4.1 is retired (row D1.2, see its MARK) and 4.7 loses its `border.percent` arm.
 //
 // **Stage 9** (record §51, lane 1; ruling `LR-FE`): the legacy engine is deleted,
@@ -92,7 +92,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 // MARK: - 4.1 — Style.border (retired at stage 10)
 
 // **4.1** `aStyleBorderLowersAsInsetsInsideTheDeclaredSize` (`LR-AH`) is
-// **retired** at stage 10 (record §52, lane 1, row D1.2): `Style.border` — CSS
+// **retired** at stage 10 (record §53, lane 1, row D1.2): `Style.border` — CSS
 // border widths with no production writer since `Box.swift`'s `border(_:width:)`
 // family writes `Decoration.border` — is deleted (`LR-FM` item 1, lane 2). The
 // inset arithmetic it pinned is `paddedAndSized`'s padding insets, pinned by

@@ -106,7 +106,7 @@ private let positiveControls: [String] = [
 /// deleted `AvailableSpace`, so no source can re-export them: those rows record
 /// the deletion rather than trip on a regression.
 ///
-/// Mutations (record §52 §5): M2a (`flexWrap` re-added to the moved `Style`),
+/// Mutations (record §53 §5): M2a (`flexWrap` re-added to the moved `Style`),
 /// M2c (`Style` moved back to `MetalUILayout`), M2d (the resolver always
 /// false), M2f (`LayoutPass.requestNode(style:children:)` re-added), M2g
 /// (`LayoutAuthority` re-added).

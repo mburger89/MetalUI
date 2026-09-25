@@ -39,6 +39,13 @@ public protocol TextSystem: AnyObject, Sendable {
     /// its line's own offsets).
     func caretOffsets(_ string: String, font: FontKey) -> [Double]
 
+    /// The display lines `measure` and `placeGlyphs` break `string` into at
+    /// `width` (ruling TI-H), as UTF-16 ranges into `string`, each with its
+    /// trailing whitespace and hard break — `CTLineGetStringRange`'s ranges.
+    /// `nil` is one line per hard break; a trailing hard break opens no empty
+    /// line; an empty string is one empty line.
+    func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?) -> [Range<Int>]
+
     /// The coverage for `key` — a key this system placed.
     func rasterize(_ key: GlyphKey) -> GlyphImage
 

@@ -133,7 +133,7 @@ import MetalUICore
 /// padded container does so again inside it. **M1e** (`paddedAndSized`:
 /// `inset(_:_:)` returns the padding only) reddens all three arms.
 ///
-/// **Stage 10** (record §52, lane 1, row T1.13): `Style.border` is deleted
+/// **Stage 10** (record §53, lane 1, row T1.13): `Style.border` is deleted
 /// (`LR-FM` item 1), so each golden's border is folded into its padding edge by
 /// edge — `paddedAndSized` inset every edge by `padding + border`, so every
 /// literal is unchanged. The name keeps "border" as the goldens' own record.

@@ -322,3 +322,84 @@ private struct Session {
     let commandY = m.press("y", .command)
     #expect(commandY == false)
 }
+
+// MARK: - Multi-line (TI-H)
+
+/// A line model with every grapheme 10 points wide: `lines` are the lines'
+/// grapheme ranges, `hard` which of them end in a hard break.
+private func model(_ ranges: [Range<Int>], hard: Set<Int> = []) -> TextLineModel {
+    TextLineModel(lines: ranges.enumerated().map { index, range in
+        .init(range: range, offsets: (0...range.count).map { Double($0) * 10 }, endsInHardBreak: hard.contains(index))
+    })
+}
+
+@Test func aLineModelPutsAWrapBoundaryOnTheNextLineAndAHardBreakOnItsOwn() {
+    // "abc def" wrapped after "abc ", then "ghi" after a hard break:
+    // text "abc def\nghi", lines 0..<4 (wrapped), 4..<7 (hard), 8..<11.
+    let m = model([0..<4, 4..<7, 8..<11], hard: [1])
+    #expect(m.lineIndex(of: 3) == 0 && m.lineIndex(of: 4) == 1, "the wrap boundary is the next line's start")
+    #expect(m.lineIndex(of: 7) == 1, "the boundary before a hard break stays on its line")
+    #expect(m.lineIndex(of: 8) == 2 && m.lineIndex(of: 11) == 2)
+    #expect(m.x(of: 6) == 20 && m.x(of: 4) == 0)
+    #expect(m.visibleEnd(ofLine: 0) == 3, "a wrapped line's end is before its trailing space")
+    #expect(m.visibleEnd(ofLine: 1) == 7 && m.visibleEnd(ofLine: 2) == 11)
+    #expect(m.boundary(inLine: 0, nearest: 99) == 3 && m.boundary(inLine: 2, nearest: 14) == 9)
+}
+
+@Test func upAndDownKeepTheirColumnAcrossAShortLine() {
+    // "abcdef\nab\nabcdef": lines 0..<6, 7..<9, 10..<16.
+    let text = "abcdef\nab\nabcdef"
+    let lines = model([0..<6, 7..<9, 10..<16], hard: [0, 1])
+    var state = TextEditState()
+    state.anchor = 5; state.head = 5
+    func press(_ name: String, _ mods: Modifiers = []) {
+        state = TextEditing.key(key(name, mods), text: text, state: state, clipboard: { nil }, platform: .mac,
+                                lines: lines).state
+    }
+    press(down)
+    #expect(state.head == 9, "the short line's end")
+    press(down)
+    #expect(state.head == 15, "back to column 5 on the long line, not column 2")
+    press(up); press(up)
+    #expect(state.head == 5)
+    press(up)
+    #expect(state.head == 0, "up from the first line goes to the start")
+    press(down, .shift); press(down, .shift)
+    #expect(state.anchor == 0 && state.head == 10, "shift extends")
+    press(TextEditing.rightArrow)
+    press(down)
+    #expect(state.head == 11 || state.head == 16, "a horizontal move forgets the column")
+}
+
+@Test func lineKeysWorkOnTheDisplayLine() {
+    let text = "abcdef\nab\nabcdef"
+    let lines = model([0..<6, 7..<9, 10..<16], hard: [0, 1])
+    func run(_ name: String, _ mods: Modifiers, from caret: Int, platform: TextEditing.Platform = .mac)
+        -> TextEditing.KeyOutcome {
+        var state = TextEditState()
+        state.anchor = caret; state.head = caret
+        return TextEditing.key(key(name, mods), text: text, state: state, clipboard: { nil }, platform: platform,
+                               lines: lines)
+    }
+    #expect(run(left, .command, from: 12).state.head == 10)
+    #expect(run(right, .command, from: 12).state.head == 16)
+    #expect(run(home, [], from: 8, platform: .other).state.head == 7)
+    #expect(run(end, [], from: 8, platform: .other).state.head == 9)
+    #expect(run(up, .command, from: 12).state.head == 0 && run(down, .command, from: 3).state.head == 16)
+    let deleted = run(back, .command, from: 13)
+    #expect(deleted.text == "abcdef\nab\ndef" && deleted.state.head == 10, "⌘delete deletes to the line's start")
+    let returned = run("\r", [], from: 8)
+    #expect(returned.text == "abcdef\na\nb\nabcdef" && returned.state.head == 9 && !returned.submitted,
+            "return inserts a line break in a multi-line field")
+}
+
+@Test func aMultiLineFieldKeepsLineBreaksAndASingleLineOneFlattensThem() {
+    var (text, _) = TextEditing.insert("a\r\nb\u{2028}c", text: "", state: TextEditState(), multiline: true)
+    #expect(text == "a\nb\nc")
+    (text, _) = TextEditing.insert("a\nb", text: "", state: TextEditState())
+    #expect(text == "a b")
+    let lines = model([0..<0])
+    let pasted = TextEditing.key(key("v", .command), text: "", state: TextEditState(),
+                                 clipboard: { "x\r\ny" }, platform: .mac, lines: lines)
+    #expect(pasted.text == "x\ny")
+}

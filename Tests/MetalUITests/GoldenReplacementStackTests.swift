@@ -223,7 +223,7 @@ import MetalUICore
 /// **M2f** (`planLegacyItems.axis`, the stretched axis of a non-frame-layer item:
 /// `lo` = the item's padding + border on that axis) reddens both boxes (120×140).
 ///
-/// **Stage 10** (record §52, lane 1, row T1.14): `Style.border` is deleted
+/// **Stage 10** (record §53, lane 1, row T1.14): `Style.border` is deleted
 /// (`LR-FM` item 1), so each 10 border is folded into the padding edge by edge
 /// (60/50/60/50 + 10 = 70/60/70/60) — the lowering inset every edge by
 /// `padding + border`, so the literals are unchanged.
@@ -260,7 +260,7 @@ import MetalUICore
 /// border sum) reddens `sizing_over_constrained_grows` (box 120×140) and
 /// `sizing_specified_suggestion_is_used_value` (a 120).
 ///
-/// **Stage 10** (record §52, lane 1, row T1.15): `Style.border` is deleted
+/// **Stage 10** (record §53, lane 1, row T1.15): `Style.border` is deleted
 /// (`LR-FM` item 1), so the two 10 borders are folded into their paddings edge by
 /// edge — the lowering inset every edge by `padding + border`, so the literals are
 /// unchanged.
@@ -302,7 +302,7 @@ import MetalUICore
 // MARK: - 2.8, wrap-reverse's report (LR-DY) — retired at stage 10
 
 // **D, reported** `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs` (`LR-DY`)
-// is **retired** at stage 10 (record §52, lane 1, row D1.1). Its deleted concept,
+// is **retired** at stage 10 (record §53, lane 1, row D1.1). Its deleted concept,
 // **wrap** (`flex-wrap`/`align-content`; a SwiftUI stack lays out one line, 7a
 // probe W1, W2 vs W0), is now unspellable: `Style.flexWrap`/`alignContent`,
 // `FlexWrap`, `AlignContent` and the `flexWrap(_:)`/`alignContent(_:)` modifiers

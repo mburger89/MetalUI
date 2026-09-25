@@ -182,7 +182,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// cannot edit this file, and its N3.1 carries the same tree's new answer, the
 /// window rect with nothing reported). Eleven arms become nine.
 ///
-/// **Stage 10** (record §52, lane 1; `LR-FM` item 1 deletes `Position.relative`
+/// **Stage 10** (record §53, lane 1; `LR-FM` item 1 deletes `Position.relative`
 /// in lane 2): every `.position(.relative)` arm is re-spelled as `.inset(px(1))`
 /// on the same static element, expecting `<site>.inset` — an inset on a
 /// non-absolute box is a leaf row every site runs (`legacyLeafDiagnostics`), and
@@ -208,6 +208,8 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     // Roadmap item 14: `TextField` is its own site, lowered as `text` is.
     arms.append(("TextField", diagnostics { TextField("a", text: "", onChange: { _ in }).inset(px(1)) },
                  [field(.textField, "inset")]))
+    arms.append(("TextEditor", diagnostics { TextEditor(text: "", onChange: { _ in }).inset(px(1)) },
+                 [field(.textEditor, "inset")]))
     arms.append(("ModifiedElement, outermost registrar", diagnostics { Box().padding(px(4)).inset(px(1)) },
                  [field(.modifierLayer, "inset")]))
     // The inner layer declares a percentage width, the outermost `inset`, so the
@@ -253,7 +255,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     #expect(amendOut.contains("AMEND-ENTRIES []\n"),
             "Component amend: stdout \(amendOut)\nstderr \(amendErr)")
     arms.append(("Component wrap", diagnostics { ProposalProbeComponent().padding(px(4)) }, []))
-    try #require(arms.count == 9)
+    try #require(arms.count == 10)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }
@@ -279,7 +281,9 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 ///   `stack`, `scrollView` (its content), `modifierLayer` (an unframed layer),
 ///   `component` (a `.padding` wrap);
 /// - **leaf rows** (`legacyLeafDiagnostics`: `size.percent`, `padding.percent`,
-///   `position`, `inset`) at those and at `text` and `textField`;
+///   `position`, `inset`) at those and at `text`, `textField` and `textEditor`
+///   (`TI-H`, merged from `master` after the table was taken: a leaf lowered as
+///   `textField` is, through `lowerLegacyLeaf` at site `textEditor`);
 /// - **item rows** (`planLegacyItems`, raised at the child's `item.site`: a
 ///   negative `flexGrow`/`flexShrink`, a length `flexBasis`,
 ///   `alignSelf.baseline`, `minSize.percent`, `maxSize.percent`, a non-greedy
@@ -295,9 +299,11 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// - `modifierLayer.style` (`legacyFrameLayerDiagnostics`) and
 ///   `deferred.amended` (`loweredComponentFrame`).
 ///
-/// **218** distinct entries (10 container, 28 leaf, 90 item — 88 at the eight
+/// **242** distinct entries (10 container, 32 leaf, 101 item — 99 at the nine
 /// recording sites plus `position`/`inset` at `list` — 6 weights, 10
-/// presentation, 72 unconsumed, 2 singletons), derived before the run.
+/// presentation, 81 unconsumed, 2 singletons), derived before the run. Stage 10
+/// took it as 218 over eight recording sites; `master`'s `TextEditor` (`TI-H`)
+/// adds the ninth, +4 leaf, +11 item and +9 unconsumed rows (the merge).
 ///
 /// Red before: `owner` did not exist (build); with a scratch `owner` forwarding
 /// to the old `owningStage`, every permanent row read a stage number. Mutation
@@ -311,7 +317,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s).
 @Test func everyReportNamesALiveOwnerOrIsRefusedByName() throws {
     let containerSites: [LoweringSite] = [.box, .stack, .scrollView, .modifierLayer, .component]
-    let leafSites: [LoweringSite] = containerSites + [.text, .textField]
+    let leafSites: [LoweringSite] = containerSites + [.text, .textField, .textEditor]
     let recordingSites: [LoweringSite] = leafSites + [.list]
     let parentSites: [LoweringSite] = [.box, .stack, .scrollView, .modifierLayer, .component, .list]
     let presentedSites: [LoweringSite] = [.box, .stack, .text, .modifierLayer, .component]
@@ -337,7 +343,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
          "position", "inset"].map { "\($0).unconsumed" }, at: recordingSites, owner: nil)
     add(["style"], at: [.modifierLayer], owner: nil)
     add(["amended"], at: [.deferred], owner: stage11)
-    try #require(expected.count == 218, "the table holds \(expected.count) entries")
+    try #require(expected.count == 242, "the table holds \(expected.count) entries")
 
     let permanent = "and is refused by name (plan task 7, LR-FO)"
     for (field, owner) in expected.sorted(by: { $0.key.description < $1.key.description }) {

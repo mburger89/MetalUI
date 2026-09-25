@@ -334,7 +334,7 @@ stage finds nothing, which is retirement, not a broken instrument.
 
 ## 2026-09-24: one item added at engine replacement stage 10
 
-Record §52; rulings `LR-FM`…`LR-FT`. **New item: the closing check is
+Record §53; rulings `LR-FM`…`LR-FT`. **New item: the closing check is
 compiled out on Windows.** `Tests/MetalUICrossPlatformTests/LegacyEngineSymbolTests.swift`
 (`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`, `N2.1`) is gated
 `#if canImport(Darwin) || canImport(Glibc)` — it runs on macOS and Linux,
@@ -343,6 +343,6 @@ not exist on Windows at all, which has neither C library. `root-windows` CI
 therefore never runs this test and its absence there is by design, not a
 skip to investigate; a reader who greps a Windows CI log for its name and
 finds nothing has not found a regression. Confirmed independently in this
-stage's Record phase (record §52 §6.2 item 6) on a `swift:6.4-noble` (Linux
+stage's Record phase (record §53 §6.2 item 6) on a `swift:6.4-noble` (Linux
 aarch64) container, where the test does compile and pass, and by reading the
 `#if` line itself.

@@ -136,7 +136,7 @@ every surviving one to `package`** — `aspectRatio`, `overflow`, `border` and
 mechanical closing check lands: `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
 (a `dlsym` check that the deleted engine's mangled names no longer resolve in
 the test process), three plain-import guards and a recorded grep (record
-§52). Every legacy element (`Box`, `Row`, `Column`, `Stack`, `ScrollView`,
+§53). Every legacy element (`Box`, `Row`, `Column`, `Stack`, `ScrollView`,
 `List`, legacy `.frame`) keeps working, through the lowering that is now its
 only path, and keeps its CSS-derived spelling even though `Style` itself is
 no longer public API.

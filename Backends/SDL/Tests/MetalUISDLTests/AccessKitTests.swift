@@ -67,6 +67,8 @@ private func sampleTree() -> AccessibilityTree {
     #expect(snapshot.focus == 5)
     // Every role MetalUI has maps somewhere.
     #expect(AccessKitSnapshot.role(.staticText) == .label)
+    #expect(AccessKitSnapshot.role(.textField) == .textInput)
+    #expect(AccessKitSnapshot.role(.textArea) == .multilineTextInput)
 }
 
 /// A node keeps its number while it lives; a vanished one is forgotten and

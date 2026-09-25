@@ -401,7 +401,7 @@ rather than its inertness.
 
 ## 2026-09-24: three rows deleted, one narrowed, one added at engine replacement stage 10
 
-Record §52; rulings `LR-FM`…`LR-FT`. Stage 10 deletes `Style`'s CSS fields
+Record §53; rulings `LR-FM`…`LR-FT`. Stage 10 deletes `Style`'s CSS fields
 that no lowering reads (`aspectRatio`, `overflow`), the one no production
 code writes (`border`), and `Position.relative`, and narrows every surviving
 stored field — including `margin` — to `package`.
@@ -432,7 +432,7 @@ stored field — including `margin` — to `package`.
   arithmetic is **deleted with the field**: `paddedAndSized`'s insets are
   `resolvedLength(padding)` alone since lane 2 (`LegacyLowering.swift`), and
   `T1.13`–`T1.15` carry the old border widths folded into `padding`, which is
-  what `M1b`/`M1b′` pin (record §52 §4.3). Until the branch check (`LR-FU`)
+  what `M1b`/`M1b′` pin (record §53 §4.3). Until the branch check (`LR-FU`)
   this bullet said the fold "survives unaffected … a border that can only ever
   be `.zero`" — refuted by the source: nothing folds a border any more.
 - **`Position.relative`'s offset row is gone** — the case itself is deleted

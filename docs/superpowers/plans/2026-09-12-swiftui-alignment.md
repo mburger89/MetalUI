@@ -842,7 +842,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages
   1–9; `LR-FR` the design critic round); no new SwiftUI probe — the stage
   claims no new SwiftUI behaviour; record
-  `docs/record/52-engine-replacement-stage-10.md`. **`Style`'s CSS fields are
+  `docs/record/53-engine-replacement-stage-10.md`. **`Style`'s CSS fields are
   resolved field by field, not deleted as a block** (`LR-FM`): `aspectRatio`,
   `overflow` (read by nothing), `border` (`Box(style:)` its only writer) and
   `Position.relative` (read only to be reported) are deleted with the enums
@@ -873,7 +873,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   thread building every production tree 528 → 484 KB). `Backends/SDL`
   21 + 19; `Tests/PortableTests` 18 + 6 + 5; the Linux container's three CI
   targets pass **22 + 188 + 10**, `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
-  green off Apple. An independent Record-phase re-check (record §52 §6)
+  green off Apple. An independent Record-phase re-check (record §53 §6)
   re-took every one of these measurements from a fresh scratch copy and
   closed two minor doc-comment findings the lane 1 verifier left open, both
   Tests-only. **No divergence number moves** (9, 10 and 54 re-read for the

@@ -32,6 +32,8 @@ public enum AccessibilityRole: Equatable, Sendable {
     case group, button, staticText, image, table, row
     /// An editable line of text (ruling TI-C).
     case textField
+    /// Editable multi-line text (ruling TI-H).
+    case textArea
 }
 
 /// What a client may ask a node to do. **Derived from live handlers, never from

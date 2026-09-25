@@ -425,7 +425,7 @@ private let lHostList = lChild(lHostScroller, 0)
 ///   kept for `LR-AB`'s uniform convention (every lowered site records the node
 ///   it returns) and for the `<field>.unconsumed` reachability
 ///   `UnlowerableField.owningStage`'s `.list` comment claimed until stage 10
-///   deleted that per-site switch for `owner` (record §52), not because
+///   deleted that per-site switch for `owner` (record §53), not because
 ///   anything can see it today.
 @MainActor
 @Test func theListSiteReportsNothingAndItsRowsItemFieldsAreLowered() throws {

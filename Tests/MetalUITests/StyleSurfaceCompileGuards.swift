@@ -14,7 +14,7 @@ import MetalUITestSupport
 // **The guards skip silently when `.build/<triple>/debug/Modules` is absent**
 // (CLAUDE.md, CI section); `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
 // (`MetalUICrossPlatformTests`) is the half of the closing check that cannot
-// skip. Each guard was run red once (record §52 §5).
+// skip. Each guard was run red once (record §53 §5).
 
 private let skipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUI not found — guard skipped"
@@ -32,7 +32,7 @@ private let skipReason: Comment =
 /// neighbour `Position`.
 ///
 /// Mutations that must redden it: **M2b** (`Style.flexGrow` made `public`) and
-/// **V3** (`Display` and `Style.padding` made `public`; record §52 §5).
+/// **V3** (`Display` and `Style.padding` made `public`; record §53 §5).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func aPlainImportCannotWriteAStyleField() throws {
     let fields = [

@@ -4,7 +4,7 @@ Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-rep
 §4.1 row 10, `LR-P`, §8. Rulings `LR-FM`…`LR-FU` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
 (next unused `LR-FV`; `LR-FR` is critic round 1's, `LR-FS` lane 1's, `LR-FT` lane 2's, `LR-FU` the adversarial branch check's).
-Record: `docs/record/52-engine-replacement-stage-10.md` (§1 baseline, §2 the
+Record: `docs/record/53-engine-replacement-stage-10.md` (§1 baseline, §2 the
 entry measurement).
 Instrument: `docs/probes/stage-10-legacy-symbols.txt` (every mangled name the
 closing check resolves, each with the command that printed it, and the
@@ -18,12 +18,12 @@ Branch `feat/engine-stage-10` from `8095fd9`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-10`.
 
 **Status, 2026-09-24 (PDT): DELIVERED.** Critic round 1 applied (`LR-FR`,
-F1–F6); lane 1 landed (`51c288a` red, `84ad1e6` green; record §52 §4, `LR-FS`);
+F1–F6); lane 1 landed (`51c288a` red, `84ad1e6` green; record §53 §4, `LR-FS`);
 lane 2 landed (`79cca7e` red, `133f634` green, a fix round widening guard G1;
-record §52 §5, `LR-FT`) — **`Test run with 1414 tests in 3 suites passed`**,
+record §53 §5, `LR-FT`) — **`Test run with 1414 tests in 3 suites passed`**,
 82 guards, 0 goldens, 0 `warning:` besides SwiftPM's notice on both build
 systems, the fourteen-image comparison against `8095fd9` reading 0 differing.
-**The Record phase (record §52 §6) independently re-checked all nine exit
+**The Record phase (record §53 §6) independently re-checked all nine exit
 criteria of spec §8 at `6dde69e`** (a clean `swift package clean` rebuild, the
 suite, the guard and golden counts, the pixel comparison from a fresh scratch
 copy, `Backends/SDL`, `Tests/PortableTests`, a `swift:6.4-noble` Docker
@@ -96,9 +96,9 @@ secondary-thread default).
 
 ## 2. The entry measurement
 
-Record §52 §2 has the commands and the raw lists; in short:
+Record §53 §2 has the commands and the raw lists; in short:
 
-- **The field inventory** (§52 §2.1): every `Style` field's readers and
+- **The field inventory** (§53 §2.1): every `Style` field's readers and
   writers in `Sources`, `Tests`, `Backends/SDL`, `Tests/PortableTests`,
   `Experiments`, `docs/probes`. `MetalUILayout` reads **no** `Style` field
   since stage 9; `MetalUI` reads every field except `aspectRatio` (0 readers)
@@ -110,7 +110,7 @@ Record §52 §2 has the commands and the raw lists; in short:
   `Tests/PortableTests` and `Experiments` name no `Style` member; the
   `docs/probes/modifier-composition-skeletons/*.swift` files declare their own
   `Style` and are not compiled against `MetalUI`.
-- **The deletion, in scratch** (§52 §2.2): the four fields, the three enums,
+- **The deletion, in scratch** (§53 §2.2): the four fields, the three enums,
   `Position.relative` and the two modifiers → **7 errors in 2 `Sources` files**
   (`LegacyLowering.swift` 5, `ScrollView.swift` 2), then with those patched
   **40 test errors in 10 files** (`StyleTests.swift` 5 and 35 in nine
@@ -118,21 +118,21 @@ Record §52 §2 has the commands and the raw lists; in short:
   (`AnimatedStyle.swift` 9, `LegacyLowering.swift` 5), then **29 test errors
   in 8 files** (`StyleTests.swift` 1 and 28 in seven). The union is §6's
   lane-1 file list.
-- **The narrowing, in scratch** (§52 §2.3): every `public var` in `Style` →
+- **The narrowing, in scratch** (§53 §2.3): every `public var` in `Style` →
   `package var`: **0 errors**; unfiltered suite `1411 tests in 3 suites
   passed`, FR-J line present (the guards ran). A plain-import fixture
   `var s = Style(); s.flexGrow = 1` fails with **"'flexGrow' is inaccessible
   due to 'package' protection level"**; the package accessor is still an
   exported symbol (`T _$s13MetalUILayout5StyleV8flexGrowSfvg`).
-- **The move, in scratch** (§52 §2.4): `git mv` of `Style.swift` into
+- **The move, in scratch** (§53 §2.4): `git mv` of `Style.swift` into
   `Sources/MetalUI/` → 17 errors, all in `Tests/MetalUILayoutTests/StyleTests.swift`;
   with that file moved to `Tests/MetalUICrossPlatformTests/` and its import
   changed, 0 errors and `1411 tests in 3 suites passed`.
-- **`dlsym` in the test process** (§52 §2.5, the instrument file's block E):
+- **`dlsym` in the test process** (§53 §2.5, the instrument file's block E):
   on macOS under both build systems and in a `swift:6.4-noble` container, a
   `Style` accessor, `LayoutPass.requestNativeLeaf` and `Frame.requestNativeLeaf`
   resolve and stage 9's `computeLayout` does not.
-- **Size** (§52 §2.6): `MemoryLayout<Style>.size` **226 → 210** with the four
+- **Size** (§53 §2.6): `MemoryLayout<Style>.size` **226 → 210** with the four
   fields and `.relative` gone, **→ 178** with `border` gone too (a standalone
   `swiftc -Onone` build of `MetalUICore`'s sources plus each `Style.swift`
   variant): 48 bytes off every `Style` a tree value carries.
@@ -560,5 +560,5 @@ Guards 79 → **82**. Portable targets: `MetalUICoreTests` 22,
   `Style.border` on a container, and `Position.relative` offset rows; the
   `margin: .auto` row becomes package-only; **add** a row for the public
   `style:` parameter of `Box`'s three initialisers, inert outside the package,
-  `LR-FR` F5), record README (§52), the parent
+  `LR-FR` F5), record README (§53), the parent
   spec's §4.1 row 10 status, the plan's task 7 note.

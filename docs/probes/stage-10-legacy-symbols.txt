@@ -56,7 +56,7 @@ $s7MetalUI13StyledElementPAAE12alignContentyx0A8UILayout05AlignF0OF
 # C. What a regression that re-adds a deleted field to the MOVED `Style` would
 #    export (so the absent list sees it too). The border name was printed from
 #    the scratch move (`git mv Sources/MetalUILayout/Style.swift Sources/MetalUI/`,
-#    record §52 §2.3), `nm -gU .build/arm64-apple-macosx/debug/MetalUI.build/Style.swift.o`:
+#    record §53 §2.3), `nm -gU .build/arm64-apple-macosx/debug/MetalUI.build/Style.swift.o`:
 #
 $s7MetalUI5StyleV6border0A6UICore5EdgesVyAE6LengthOGvg
 #
@@ -111,7 +111,7 @@ $s7MetalUI10LayoutPassV17requestNativeLeaf7measureAA14ProposalNodeIDV0A8UILayout
 $s7MetalUI5FrameC17requestNativeLeaf7measure0A8UILayout12LayoutNodeIDVAF0I11MeasurementVAF12ProposedSizeVYbc_tF
 #
 # A `package` stored property keeps an exported accessor: with every `Style`
-# field narrowed to `package` in scratch (record §52 §2.2),
+# field narrowed to `package` in scratch (record §53 §2.2),
 # `nm -gU .build/arm64-apple-macosx/debug/MetalUILayout.build/Style.swift.o`
 # still printed `T _$s13MetalUILayout5StyleV8flexGrowSfvg` and `…vs`.
 #
@@ -139,7 +139,7 @@ $s7MetalUI5FrameC17requestNativeLeaf7measure0A8UILayout12LayoutNodeIDVAF0I11Meas
 #   (LR-FP item 4).
 #
 # ---------------------------------------------------------------------------
-# F. Lane 2's confirmations on the real build (record §52 §5, LR-FT item 4),
+# F. Lane 2's confirmations on the real build (record §53 §5, LR-FT item 4),
 #    2026-09-24, `nm -gU .build/arm64-apple-macosx/debug/MetalUIPackageTests.xctest/Contents/MacOS/MetalUIPackageTests`
 #    on each mutant, after `swift package clean`:
 #

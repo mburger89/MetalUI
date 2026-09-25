@@ -9507,7 +9507,7 @@ outside the item frame, …), and the demo leans on that (`flexGrow` ×11,
 covers would move production pixels, which stage 10's exit (0 px against 9)
 forbids.
 
-**Evidence.** Record §52 §2.1 (every field's readers and production writers),
+**Evidence.** Record §53 §2.1 (every field's readers and production writers),
 §2.2 (the deletion by the compiler: 7 + 40 errors for four fields, the three
 enums, `.relative` and two modifiers; 14 + 29 for `border`), §2.3 (the
 narrowing: 0 errors, 1411 passed), §2.4 (the move: 17 errors, all in one test
@@ -9536,7 +9536,7 @@ file; 1411 passed once it moved).
    (a public protocol cannot have a narrower requirement, and every conformer
    and every modifier body needs it), and what an external caller can do with
    the value narrows to nothing. Every test compiles unchanged: tests are in
-   the package (record §52 §2.3, 1411 passed with the narrowing).
+   the package (record §53 §2.3, 1411 passed with the narrowing).
 3. **`Style` moves from `MetalUILayout` to `MetalUI`.** Since stage 9 the
    kernel reads no `Style` (its placeholder rows and `setStyle` are gone);
    `MetalUI` is its only reader. After the move the layout kernel declares no
@@ -9676,7 +9676,7 @@ And every trap message names a plan-task-7 stage as owner — after stage 10,
    container-field writes still have no one-to-one modifier (`LR-ER` item 6:
    `Box(style:)` with `flexDirection = .column` stretches where `Column`
    centres, EP-8). A write of a **deleted** field is moved off it or retired —
-   the compiler's list, record §52 §2.2, is spec §6's lane 1. LR-ER item 6's
+   the compiler's list, record §53 §2.2, is spec §6's lane 1. LR-ER item 6's
    premise ("stage 10 deletes the fields and must touch every writer once")
    holds only for the deleted fields.
 6. **`CSSSizing.swift` stays.** Its helpers write `Style.size`/`minSize`/
@@ -9706,7 +9706,7 @@ what the lowering's own sites feed it.
 predecessor (`noProductionFrameReachesTheLegacyEngine`) and handed the check
 here. What exactly it resolves, how it cannot skip, and what it does off Apple.
 
-**Evidence.** Record §52 §2.5 and `docs/probes/stage-10-legacy-symbols.txt`:
+**Evidence.** Record §53 §2.5 and `docs/probes/stage-10-legacy-symbols.txt`:
 the names, each printed by `nm -gU` from the commit that still had it
 (`b9a5d7f` for stage 9's, `8095fd9` for stage 10's), and `dlsym(RTLD_DEFAULT,
 …)` resolving a present name and not a deleted one in the test process on
@@ -9772,7 +9772,7 @@ executable built with exported symbols is the measurement to take.
 **The ruling.**
 
 1. **Two lanes, in order.** Lane 1 moves every test off a deleted field or
-   retires it (the compiler's list, record §52 §2.2), and makes the reports
+   retires it (the compiler's list, record §53 §2.2), and makes the reports
    permanent (`LR-FO` item 3; its one `Sources` file, `LayoutAuthority.swift`).
    Lane 2 deletes, narrows, moves and lands the closing check — a red-first
    commit (N2.1, G1–G3) and then the deletion (stage 9's N3.1 precedent). No
@@ -9806,7 +9806,7 @@ merged state carries unpinned code.
 ## LR-FR — stage 10 critic round 1: the closing check's names after the move, the missing restore-a-symbol mutation, and `Box(style:)` made inert
 
 **The round.** 2026-09-24 (PDT), one agent, critic and reviser, over
-`07e7c49` (spec, `LR-FM`…`LR-FQ`, record §52 §1–§2, the instrument file). No
+`07e7c49` (spec, `LR-FM`…`LR-FQ`, record §53 §1–§2, the instrument file). No
 `Sources/` or `Tests/` file touched; every measurement below was taken in the
 scratchpad. Findings applied (F1–F6) and rejected (R1–R4).
 
@@ -9901,7 +9901,7 @@ additive (`LR-FM`'s cost paragraph).
 **Lane 1**, 2026-09-24 (PDT), commits `51c288a` (red first) and `84ad1e6`
 (`UnlowerableField.owner`). Mutations taken in the worktree, each built and
 run unfiltered and restored from a copy, `git status --short` empty after
-each (record §52 §4).
+each (record §53 §4).
 
 1. **M1b does not redden T1.14.** Dropping the padding from
    `paddedAndSized`'s `inset(_:_:)` reddened
@@ -9938,7 +9938,7 @@ replaced by the measured sets.
 **Lane 2**, 2026-09-24 (PDT), commits `79cca7e` (red first: N2.1, G1–G3) and
 `133f634` (the deletion, the narrowing, the move), then one doc-comment
 commit. Mutations taken in the worktree, each built and run unfiltered and
-restored from a copy, `git status --short` empty after each (record §52 §5).
+restored from a copy, `git status --short` empty after each (record §53 §5).
 
 1. **The design held.** The deletion needed no `Sources/` change beyond spec
    §6's list (seven errors in `AnimatedStyle.swift`, `LegacyLowering.swift`,
@@ -9980,7 +9980,7 @@ readings.
 
 ## LR-FU — stage 10's adversarial branch check: the stage stands; seven doc defects, two of them claimed edits that never landed
 
-**Context.** The adversarial branch check of `8095fd9..92ae50b` (record §52
+**Context.** The adversarial branch check of `8095fd9..92ae50b` (record §53
 §7) re-took every exit criterion of spec §8 from a clean build, ran two
 mutations of its own design, took the offscreen comparison and — the screen
 being unlocked — a real-window capture, and resolved every ruling id and test
@@ -10016,11 +10016,11 @@ name the changed docs cite.
    **positive control** names the deleted `overflow` accessor — it is in the
    absent list; (c) record §05 said no caller loses behaviour from
    `Style.border`'s deletion — an external writer loses its inset and migrates
-   to `.padding` (`LR-FN`); (d) record §52 §6.4 said record §04 was updated
+   to `.padding` (`LR-FN`); (d) record §53 §6.4 said record §04 was updated
    (no commit touched it — the stage-10 section is written now, and names
    divergence 54's live pin, stale in the table since 7b) and named
    `08-ci.md` for `08-when-ci-lands.md`; (e) "`Box`'s/`Stack`'s public
-   `style:` parameter" in CLAUDE.md, record §05, §52, the plan and spec §9 —
+   `style:` parameter" in CLAUDE.md, record §05, §53, the plan and spec §9 —
    `Stack` has no `style:` initialiser (only `Box`'s three `init(style:…)`;
    every conformer's `public var style` is equally opaque), so `LR-FR` F5's
    "251 `Box(style:`/`Stack(style:` sites" counts no `Stack(style:` site;

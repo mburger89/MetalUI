@@ -1201,7 +1201,7 @@ import MetalUIRender
 
 /// **All 24 animatable fields, in one table — because the suite pins three.**
 ///
-/// **Stage 10** (record §52, lane 1, row T1.16; renamed from
+/// **Stage 10** (record §53, lane 1, row T1.16; renamed from
 /// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`):
 /// `Style.border` is deleted (`LR-FM` item 1, lane 2), and its four animated
 /// edges with it, so the four `border.*` keys leave this test's table,

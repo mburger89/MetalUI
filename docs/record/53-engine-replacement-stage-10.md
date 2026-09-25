@@ -1,10 +1,36 @@
-# §52 — Engine replacement, stage 10: `Style`'s CSS fields and the closing check
+# §53 — Engine replacement, stage 10: `Style`'s CSS fields and the closing check
 
 Spec `docs/superpowers/specs/2026-09-24-engine-stage-10-design.md`; rulings
 `LR-FM`…`LR-FQ` in `docs/superpowers/2026-09-17-engine-replacement-decisions.md`;
 instrument `docs/probes/stage-10-legacy-symbols.txt`. Branch
 `feat/engine-stage-10` from `8095fd9`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-10`.
+
+**Renumbered from §52 to §53 at merge with `master` (2026-09-24):** PR #29
+(`0843866` — `TextEditor`, multi-line editing, `TI-H`) was pushed first and
+keeps §52 (`docs/record/52-text-editor.md`), so every `§52` this track wrote
+was repointed to `§53` and the file renamed
+(`docs/record/52-engine-replacement-stage-10.md` →
+`53-engine-replacement-stage-10.md`); the precedent is record §23 §8 and the
+§25, §27, §29, §38, §41 and §48 headers. Master's own `§52` citations (the
+text editor's, in `CLAUDE.md`'s counts and
+`docs/superpowers/specs/2026-09-23-text-input-design.md`) were left alone.
+`TextEditor` is a ninth leaf and recording site (`LoweringSite.textEditor`,
+lowered through `lowerLegacyLeaf` as `textField` is), so the merge re-spelled
+its `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` arm off the deleted
+`Position.relative` (`.inset(px(1))`, reporting `textEditor.inset`) and added
+it to N1.1's table (218 → 242 entries, every new one a permanent refusal —
+`owner` never reads a leaf site). None of PR #29's other code wrote a field or
+spelling this stage deleted or narrowed; its demo's deprecated
+`.height(Pixels(160))` became `.frame(height: Pixels(160))`, rects, glyphs and
+hitboxes identical. Counts re-taken on the merged tree after `swift package
+clean`: **1426 / 0 / 82, `Test run with 1426 tests in 3 suites passed` (1423
+− 1411 + 1414)**; eleven gated tests skipped; 0 `error:`, 0 `warning:` under
+the default build system. The fourteen offscreen
+images read 0 px against `0843866`, scene identical; `Backends/SDL` 21 + 19;
+`swift:6.4-noble` (aarch64) 0 `error:`/`warning:`, `MetalUICoreTests` 22,
+`MetalUILayoutTests` 188, `MetalUICrossPlatformTests` 10, the closing check
+and `theDemoFrameMatchesTheValuesRecordedOnMacOS` green.
 
 ## 1. Baseline at `8095fd9` (2026-09-24, PDT)
 
@@ -596,7 +622,7 @@ All nine hold.
 ### 6.4 Docs updated to match this close
 
 `CLAUDE.md`/`AGENTS.md` (counts — 1414 / 0 / 82; the `LR-` next letter already
-at `LR-FU` in the decisions doc's own header; the record map gaining §52; the
+at `LR-FU` in the decisions doc's own header; the record map gaining §53; the
 "Eight constraints" bullet on percentage/`AP-D` resolution rewritten now that
 `Style.border` and `Position.relative` no longer exist to word it against; the
 "Legacy `.frame`" paragraph's `Style.border`/`flexWrap`/`alignContent`
@@ -613,7 +639,7 @@ touched the file — and was made by the branch check, §7), `docs/record/05-dec
 deleted with their fields; the `margin: .auto` row narrowed to
 package-visible-only; a row **added** for `Box`'s public `style:`
 initialiser parameter, inert outside the package since narrowing, `LR-FR` F5),
-`docs/record/08-when-ci-lands.md` (N2.1's Windows gate; the file name corrected by the branch check, §7), `docs/record/README.md` (§52
+`docs/record/08-when-ci-lands.md` (N2.1's Windows gate; the file name corrected by the branch check, §7), `docs/record/README.md` (§53
 indexed), the parent spec's §4.1 row 10 status marked done, the plan's task 7
 note (dated, not ticked — stages 11–14 remain), and this repository's
 top-level `README.md`.
