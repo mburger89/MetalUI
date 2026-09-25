@@ -2,10 +2,12 @@
 
 Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-data-and-scrolling-design.md),
 on `feat/data-and-scrolling` from `e7bc2e7`. Ids are **lettered**,
-`DD-A`…`DD-J`; next unused is **`DD-K`**. A bare `DD-3` is a typo, not a
+`DD-A`…`DD-M`; next unused is **`DD-N`**. A bare `DD-3` is a typo, not a
 citation. **A round that appends a ruling moves this line in the same commit.**
 
-**Status, 2026-09-25: DESIGNED.** Plan task 10 is split in two by the
+**Status, 2026-09-25: DESIGNED, then CRITICISED AND REVISED** (the critic
+round appended `DD-K`…`DD-M` and amended `DD-A`, `DD-B`, `DD-D`, `DD-F` and
+`DD-G` in place, each amendment marked "critic round"). Plan task 10 is split in two by the
 workflow that runs it: **part 1** (this doc) is `ForEach` and identified data,
 a SwiftUI `Binding`, the `List`/`ScrollView` limitations that blank a layout,
 and scroll position, indicators and programmatic scrolling; **part 2** (the
@@ -23,6 +25,15 @@ part 1.
   visibility), and K2 (a typecheck: no `for` in a view builder). Script form and
   compiled form byte-identical (58 lines), exit 0, stderr empty, macOS 27.0
   (26A428), Apple Swift 6.4, screen locked. Output in its header.
+- `docs/probes/swiftui-scrollviewreader-scope.swift` (**new**, the critic
+  round): arms S0–S2 (a proxy's reach: S2, the key only under ANOTHER reader,
+  moves nothing), S3–S5 (`scrollTo` compares keys by value, not description)
+  and S6–S7 (two `ForEach` ids equal in description, different in value, are
+  two elements). Script and compiled forms byte-identical (11 lines), exit 0,
+  stderr empty, screen locked. Output in its header.
+- **The critic round re-ran `swiftui-data-and-scrolling.swift`'s compiled
+  form**: 58 lines, byte-identical to its header (`diff` empty), exit 0, stderr
+  empty, screen locked.
 - `docs/probes/swiftui-composition-identity.swift` — V6 and V10, which F9 and
   F2/F3 re-run with ids and agree with.
 - The SDK's own interfaces (`SwiftUICore.swiftmodule`/`SwiftUI.swiftmodule`,
@@ -91,8 +102,21 @@ in the spec's §2 audit table with its disposition; in summary:
    `ScrollViewReader.swift` and `UnitPoint.swift` (new).
 
 Lanes run one at a time in the order 1, 2, 3: lane 3's `scrollTo` test of a
-two-view `ForEach` item (3.12) needs lane 1's `ForEach`. Lanes 1 and 2 share no
-file; lane 3 touches neither's.
+two-view `ForEach` item (3.10) needs lane 1's `ForEach`.
+
+**Amended by the critic round (`DD-M` item 1):** lane 3 as designed carried
+fifteen tests, two guards, three new public types and nine source files, while
+lane 2 carried ten tests over five small files. **`DD-F` (the `List` origin,
+the follow-up frame and the `ScrollerFrame` stack it needs — tests 3.1–3.5,
+their ids kept) moves to lane 2**, which therefore also owns `List.swift`,
+`ScrollView.swift`, `ProposalScrollView.swift`, `Passes.swift` and
+`Frame.swift`'s scroller stack. Lane 3 then **edits** `List.swift` (the
+pending-request scan), `Frame.swift` (the request match and resolution),
+`ScrollView.swift` (the two enum cases) and lane 1's `ForEach.swift` (typed keys
+while a request is pending, `DD-K`) on top of lane 2's commit. The lanes
+are sequential, so the overlap costs no merge; a red during lane 3 is
+attributed by commit (`git stash`/checkout lane 2's head and re-run), which is
+what "disjoint" bought. Lanes 1 and 2 still share no file.
 
 **What it costs if wrong.** A lane that needs another's file serialises the
 two and a verifier cannot attribute a red to one lane; the spec lists every
@@ -141,11 +165,15 @@ file so the overlap is checkable before a lane starts.
    (F10). An element of two members is one scope (F8). The scope is **noted**
    like every named id (`StateTable.noteNamed(_:at:)`, `ID-R` item 3 — a new
    minting site, so a new copy with its own pin).
-4. **Keys**: compared by the real `ID` value (a `Set<ID>` per frame), described
-   into the name with `String(describing:)` as `List`'s rows already are. Two
-   distinct keys that describe the same string share one identity — the
-   collision `List`'s doc already names; the dedupe below never drops them.
-5. **A later element whose id already appeared this frame is not produced**
+4. **Keys** are described into the name with `String(describing:)` as
+   `List`'s rows already are. **Superseded in part by `DD-L` (critic round):**
+   the design said two distinct keys that describe the same string "share one
+   identity" and that the dedupe "never drops them" — which put two members at
+   one `GlobalElementID`, the aliasing `ID-F` exists to repair, and answered a
+   SwiftUI question (S6: SwiftUI evaluates both) without an arm. `DD-L` rules
+   the dedupe on the name as well as the value.
+5. **A later element whose id (by value, or by minted name — `DD-L`) already
+   appeared this frame is not produced**
    (probe F7: with two elements sharing an id, the second's content is never
    evaluated). SwiftUI's own documentation calls duplicate ids undefined; the
    probe is what it does, and producing both would put two members at one id —
@@ -273,6 +301,13 @@ lane's work counter, not by wall clock.
    `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding` (a
    retirement row). `Binding("m", ToggleModal())` now fails to typecheck
    (guard G2.1) — the source break `EV-N` announced a task ahead.
+7. **(Critic round.) A binding write is a `@State` write** — `$state`'s
+   setter is `State.wrappedValue`'s, so it dirties the window and fires
+   `onWrite`. `@State`'s rule carries over unchanged: **write through a binding
+   from input, never from a phase** (a phase-time write keeps the display link
+   awake). `TextField`/`TextEditor`'s binding initialisers write from the edit
+   dispatch, which is input. No new mechanism; stated so a reviewer does not
+   read `Binding` as a second, unguarded path.
 
 **Evidence.** B1–B6; the SDK interface; `EV-N`.
 
@@ -318,7 +353,14 @@ initialisers build the same element (test 2.10 compares the scenes).
    is unmoved), and `visibleRange` windows the rows that intersect
    `[offset − origin, offset − origin + viewport)` within `[0, count × rowHeight)`.
    With no stored origin (the list's first frame) it windows as today (origin
-   0). Probe L2 is the answer being matched: the rows on screen (0…3 at offset
+   0). **(Critic round.) This is a phase-time `StateTable` write, and
+   deliberately not a "write from a phase" in `@State`'s sense**: `withState`
+   raises no `isDirty` and fires no `onWrite` (the `AnimatedStyle` ruling H
+   precedent, and `ScrollChrome.resolvedOffset`'s own prepaint write-back), so
+   it cannot keep the display link awake; the only redraw a list asks for is
+   item 3's explicit, self-limiting `requestAnotherFrame()`. The origin must
+   **never** be written through `StateTable.write` — lane 2's test 3.4 is the
+   pin that an unbounded frame asks for nothing. Probe L2 is the answer being matched: the rows on screen (0…3 at offset
    300 below a 300 header), which SwiftUI's lazy stack realises and MetalUI's
    `List` — its analogue inside a `ScrollView`, not SwiftUI's self-scrolling
    `List` (L0/L1, part 2) — did not (DD14: 8…16).
@@ -380,10 +422,12 @@ indicator fade — `Frame`'s doc that "nothing raises both" it and
    `ScrollViewProxy` has **no public initialiser** (guard G3.2), as SwiftUI's.
    A reader takes **one slot with an identity level of its own** (`DD-B`'s
    shape), so its content numbers from 0 under it and a proxy's reach is its
-   subtree.
+   subtree. **(Critic round.)** The design asserted the reach without an arm;
+   probe S0–S2 now measures it: with the key only under another reader, a
+   proxy moves nothing (S2).
 2. **Semantics, each from an arm.** The target is **the first element recorded
    at or under a name equal to `String(describing: id)`** within the reader's
-   subtree — a `.id`'d element (T13) or a `ForEach` element's **first** member
+   subtree (keys compared by value, `DD-K`) — a `.id`'d element (T13) or a `ForEach` element's **first** member
    (T12/T12b: 330, not the whole element's 340). With an anchor, the target
    lands at `minY − anchor.y × (viewport − height)` on a vertical scroller
    (`x`/`width` on a horizontal one): `.top` 300, `.center` 265, `.bottom` 230,
@@ -400,14 +444,13 @@ indicator fade — `Frame`'s doc that "nothing raises both" it and
    at the four element-bounds sites) matches a pending key against the id's
    own component and its ancestors up to the reader's scope, taking the first
    match and the innermost `ScrollerFrame` (`DD-F` item 2) at that moment;
-   `List.prepaint` resolves a key among its data. After prepaint the frame
+   `List.prepaint` resolves a key among its data (by value, `DD-K`). After prepaint the frame
    writes each resolved scroller's `ScrollState.offset` (`withState`, as
    `applyScroll` does) and calls `requestAnotherFrame()`; unresolved requests
    are dropped. The request is visible one frame after it is made — the frame
    that resolves it paints the old offset.
-4. **Keys are compared by description**, as `ForEach`'s and `List`'s: `.id`
-   takes a `String` (`ID-G`), so `scrollTo(10)` reaches `.id("10")`. A
-   `Hashable` `.id` overload is additive later; owner none.
+4. ~~Keys are compared by description~~ — **superseded by `DD-K` (critic
+   round)**: SwiftUI compares by value (S3–S5), and so does MetalUI.
 5. **Not in this run**: `scrollPosition(id:)` — the two-way binding reports
    nothing for a platform scroll (P2) and its set path scrolls the least
    distance (P1, the nil-anchor rule already delivered); it needs lane 2's
@@ -428,8 +471,7 @@ show the binding form's report half doing nothing offscreen.
 
 **What it costs if wrong.** A caller who expects the scroll in the same frame
 sees it one frame later (not observable at 60 Hz, and SwiftUI's is also
-asynchronous). A description collision (`.id("10")` beside a different element
-whose id describes as `10`) scrolls to whichever is recorded first.
+asynchronous). (The design's description-collision cost is gone with `DD-K`.)
 
 ---
 
@@ -498,3 +540,113 @@ MetalUI's differs until the look is taken; the fix is moving
 | a layout-time `ScrollContext` from `ProposalScrollView` | no windowed proposal element (`DD-I` 1) | the lazy stacks (`GR-L`'s G2); unscheduled |
 | a `Hashable` `.id(_:)` overload | additive; description keys work | none |
 | `.visible` vs `.automatic` under the "always show scroll bars" setting | unmeasured, no setting read | none |
+
+---
+
+## DD-K — `scrollTo` compares keys by value, as SwiftUI does (critic round)
+
+**Ruling.** A `scrollTo(id)` request carries `AnyHashable(id)`. It matches:
+
+- a **`ForEach` element scope** whose key `AnyHashable(key) == request`;
+- a **`List` row** (realised or not) whose `AnyHashable(datum.id) == request`;
+- any other **named** component (`.id(_:)`, which takes a `String`, `ID-G`)
+  when `request == AnyHashable(name)` — so `scrollTo("x")` reaches `.id("x")`
+  and `scrollTo(10)` does **not** reach `.id("10")`.
+
+**Mechanism.** While the frame has a pending request (and only then — a
+`Frame` flag read once per group), `ForEach` notes each element scope's typed
+key and `List` each realised row's datum id in a per-frame
+`[GlobalElementID: AnyHashable]`; `recordElementBounds`' ancestor walk looks an
+id up there first and falls back to the `String` name. With no request pending
+nothing is noted, so steady frames pay one flag read per loop (lane 1's test
+1.15's counters must not move).
+
+**Evidence.** S3 (`.id("10")` reached by `"10"`, 250; not by `10`, 0), S4
+(`.id(10)` not reached by `"10"`, reached by `10`), S5 (a `ForEach` key `0`
+reached by `0`, not by `"0"`). The design's description rule (`DD-G` item 4)
+answered this without an arm and would have been a divergence.
+
+**Test.** Lane 3's 3.16, `scrollToComparesKeysByValue` (S3–S5's three shapes).
+**Mutation M3p**: match by `String(describing:)` — reddens 3.16's negative arms.
+
+**What it costs if wrong.** Nothing measured; a caller who relied on
+description matching never existed (the API is new). A `.id` taking any
+`Hashable` stays additive (owner none).
+
+---
+
+## DD-L — a `ForEach` id colliding in description with an earlier one is not produced; divergence 79 (critic round)
+
+**Ruling.** A `ForEach` element is **not produced** when its id's **value** or
+its **minted name** (`String(describing: key)`) already appeared in this
+`ForEach` this frame. SwiftUI evaluates both elements of ids equal in
+description but different in value (S6: `AnyHashable(1)`, `AnyHashable("1")`),
+and MetalUI cannot give them two identities: `ElementID` is a `String` (`ID-G`),
+and producing both would put two members at one `GlobalElementID` — the
+aliasing `ID-F` repairs for one element placed twice, and which here would be
+silent. **Divergence 79, added** (pinned wrong on purpose): *a `ForEach` whose
+ids collide in description produces only the first of them; SwiftUI produces
+both.* The `List` rows already carry the same collision (its type doc) and are
+not changed here.
+
+**Evidence.** S6/S7 (`docs/probes/swiftui-scrollviewreader-scope.swift`); F7
+for equal values.
+
+**Test.** Lane 1's 1.16,
+`aForEachWhoseIDsCollideInDescriptionProducesOnlyTheFirst` (divergence 79's
+pin): ids `AnyHashable(1)`, `AnyHashable("1")` → one node, the first element's
+content. **Mutation M1l**: the name half of the dedupe removed — 1.16 reddens
+(two nodes, or `ID-F`'s aliasing counter moves); 1.8 stays green (equal values
+are still caught by the value half), which is what makes the two halves
+separately pinned.
+
+**What it costs if wrong.** A caller with such ids loses the second element
+where SwiftUI shows it; the fix (type-qualified names) changes every `ForEach`
+id path and so needs its own migration note — not taken now.
+
+---
+
+## DD-M — the critic round: fixes, and the attacks rejected
+
+**Fixed** (each amended in place above or in the spec):
+
+1. **Lane balance** — `DD-F` moved to lane 2 (`DD-A` amendment). Counts in the
+   spec §6 re-derived.
+2. **Two SwiftUI claims without an arm** — a proxy's reach (`DD-G` item 1,
+   now S0–S2) and description-colliding `ForEach` ids (`DD-B` item 4, now S6,
+   `DD-L`). **One claim contradicted by its arm's neighbour**: key matching by
+   description (`DD-G` item 4) — S3–S5 show SwiftUI compares by value; `DD-K`.
+3. **A mis-cited arm** — the spec's test 3.9 asserted 4500 for a `List` "(T15)",
+   but T15 reads **3610** (SwiftUI's `List` rows are not 30 tall). The 4500 is
+   T10's rule applied to MetalUI's uniform `rowHeight`; T15 is evidence only
+   that an unrealised `List` row is reachable. Re-cited.
+4. **Phase-time writes stated** — `DD-D` item 7 (a binding write is a
+   `@State` write: input only) and `DD-F` item 1 (the origin through
+   `withState`, never `write`).
+5. **Test 3.13's scope arm could not separate** — both readers held the key,
+   so a first-match-anywhere implementation that happened to find A's first
+   passed. It gains S2's arm (the key only under reader B; A's proxy moves
+   nothing), and mutation M3m is re-aimed at that arm.
+
+**Rejected, with reasons** (the workflow brief says to record a rejection as
+an "`LR-`" ruling; `LR-` is the engine track's prefix in another doc this
+branch may not edit, so they are recorded here under `DD-`):
+
+- *"Wheel under `.disabled` must be probed now."* The lock probe read
+  `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` again at the critic
+  round; W0's positive control cannot pass while locked. `DD-I` 3 stands (kept,
+  human look owed).
+- *"`.visible`/`.never` are inert synonyms (`EP-5`)."* They are SwiftUI's
+  spellings with SwiftUI's measured macOS behaviour (I1–I5), not stored-but-
+  unread state; `DD-H` stands.
+- *"The alias deletion breaks a caller."* Grep over `Sources`, `Tests`,
+  `Backends` and `Experiments` finds the alias, its doc line and its one guard
+  only; nothing else spells `Binding(` for a key.
+- *"`ForEach`/`ScrollViewReader` regress the one-megabyte-thread budget."* No
+  production tree uses either (no demo source changes, spec §5), so
+  `everyProductionTreeBuildsOnAOneMegabyteThread` measures nothing new; the
+  lanes still run it.
+- *"Part-2 creep."* `ScrollViewReader` is programmatic scrolling (part 1's
+  text); `scrollPosition(id:)`, `ForEach(Binding)`, selection and controls are
+  all in `DD-J`. No change.
+
