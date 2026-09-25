@@ -128,16 +128,44 @@ public final class Window {
     /// the display link awake, `@State`'s rule. Pinned as a stated cost by
     /// `theWindowsEnvironmentReachesTheFrameAndASetRepaints`.
     ///
-    /// **Two fields are not taken from here.** The frame re-stamps `theme`
-    /// from `theme` above and `pixelLength` from the surface's scale factor, so
-    /// `window.environment.theme = .dark` — which compiles inside this module —
-    /// changes nothing (`Frame.rootEnvironment`).
+    /// **Three fields are not taken from here** (ruling EV-AB; two before
+    /// it). The frame re-stamps `theme` from `theme` above and `displayScale`
+    /// from the scale the frame is drawn at (`WindowRenderer.beginFrame()`'s,
+    /// ruling EV-AA; `pixelLength` derives from it), and this window stamps
+    /// `controlActiveState` from `controlActiveState` below, over this value, at
+    /// every draw. So `window.environment.theme = .dark` (which compiles inside
+    /// this module), `window.environment.displayScale = 3` and
+    /// `window.environment.controlActiveState = .key` (which compile anywhere)
+    /// change nothing at the root (`Frame.rootEnvironment`,
+    /// `aScopeWriteOfControlActiveStateWinsBelowItAndTheWindowsEnvironmentDoesNot`).
+    /// A scope below the root can write all three but `theme`, as in SwiftUI.
     ///
     /// **Starts at `EnvironmentValues()` with `Locale.current` stamped over its
     /// bare locale** (ruling EV-Y): a bare value holds `Locale(identifier: "")`,
     /// as SwiftUI's does, and a window stamps the user's, as a SwiftUI host does.
     public var environment = EnvironmentValues.windowDefault() {
         didSet { setNeedsRedraw() }
+    }
+
+    /// The platform window's key state (ruling EV-AB), the root source of
+    /// every frame's `controlActiveState`: read from
+    /// `PlatformWindow.controlActiveState` at construction and updated through
+    /// `PlatformWindow.onControlActiveStateChange`, and stamped over
+    /// `environment` at every draw.
+    ///
+    /// **Guarded, unlike `environment`**: a change repaints and a report of the
+    /// state the window already has does not — the platform can report a key
+    /// or activation change that leaves this window's state where it was (an
+    /// application activation with the window already key), and a window that
+    /// repainted for each would wake the display for nothing, `theme`'s reason.
+    /// Kept here rather than in `environment` for exactly that: `environment`'s
+    /// writes cannot be guarded (EV-H). Pinned by
+    /// `theWindowStampsItsPlatformsControlActiveStateAndAChangeRepaints`.
+    public private(set) var controlActiveState: ControlActiveState {
+        didSet {
+            guard controlActiveState != oldValue else { return }
+            setNeedsRedraw()
+        }
     }
 
     /// Whether every frame this window builds records its element bounds
@@ -472,6 +500,7 @@ public final class Window {
         #endif
         self.platformWindow = platformWindow
         self.theme = Theme.forAppearance(platformWindow.appearance)
+        self.controlActiveState = platformWindow.controlActiveState
         self.renderRoot = { frame in
             var root = content()
             frame.render(&root)
@@ -485,6 +514,10 @@ public final class Window {
         // would be a retain cycle.
         stateTable.onWrite = { [weak self] in self?.setNeedsRedraw() }
 
+        // Also the backing-scale path (ruling EV-AA): both platforms report a
+        // move between displays through `onResize`, and the next frame's
+        // `displayScale` is the drawable's scale that `beginFrame()` returns.
+        // Pinned by `aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame`.
         platformWindow.onResize = { [weak self] _, _ in self?.setNeedsRedraw() }
         platformWindow.onAccessibilityRequest = { [weak self] request in
             self?.handleAccessibilityRequest(request) ?? false
@@ -494,6 +527,11 @@ public final class Window {
             // window dirty — §7.9's "swap the active theme and mark §4.4's
             // dirty flag".
             self?.theme = Theme.forAppearance(appearance)
+        }
+        platformWindow.onControlActiveStateChange = { [weak self] state in
+            // Assigning drives `controlActiveState`'s guarded `didSet`, which
+            // is what marks the window dirty (ruling EV-AB).
+            self?.controlActiveState = state
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
@@ -914,7 +952,12 @@ public final class Window {
                           transaction: transaction,
                           collectsAccessibility: accessibility.isActive,
                           recordsElementBounds: recordsElementBounds)
-        frame.rootEnvironment = environment
+        // The window's key state is stamped OVER `environment` (ruling EV-AB):
+        // `environment.controlActiveState` is not the root's source, as its
+        // `theme` and `displayScale` are not (the frame re-stamps those two).
+        var rootEnvironment = environment
+        rootEnvironment.controlActiveState = controlActiveState
+        frame.rootEnvironment = rootEnvironment
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three

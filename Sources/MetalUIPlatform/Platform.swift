@@ -27,6 +27,22 @@ public protocol PlatformWindow: AnyObject {
     /// that agreement the platform's obligation rather than the caller's
     /// assumption.
     var onAppearanceChange: ((Appearance) -> Void)? { get set }
+
+    /// The window's key state (ruling EV-AB): `.key` while it receives
+    /// keyboard input, `.active` while its application (on SDL: another of the
+    /// platform's windows) does, `.inactive` otherwise. Read at window
+    /// construction and re-read on every `onControlActiveStateChange`; `Window`
+    /// stamps it over its root environment's `controlActiveState`.
+    ///
+    /// **No default implementation, for either requirement** (EV-AB, AB-R's
+    /// reason): a conformer that forgets one fails to compile rather than
+    /// compiling into a window whose controls never learn it lost key. Pinned
+    /// by `aPlatformWindowWithoutTheControlActiveStatePairDoesNotCompile`.
+    var controlActiveState: ControlActiveState { get }
+    /// Fired with the new value when the key state changes — a passed value,
+    /// for `onAppearanceChange`'s reason.
+    var onControlActiveStateChange: ((ControlActiveState) -> Void)? { get set }
+
     var onClose: (() -> Void)? { get set }
 
     /// Fired by the platform when an accessibility client asks for something
