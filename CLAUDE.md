@@ -6,8 +6,9 @@ idiomatic Swift. **macOS with AppKit and Metal by default; the framework also
 builds on Linux and Windows** (`XP-A`), drawing through `Backends/SDL`
 (`App(platform:textSystem:)`, `XP-B`) with the portable text system — see
 `plans/2026-09-23-cross-platform-roadmap.md` for what is left. No UIKit, no
-`.touch` input: the spec's iOS target is unmet. `PlatformWindow`'s `onAccessibilityRequest` and
-`publishAccessibilityTree(_:)` have no default implementations (`AB-R`).
+`.touch` input: the spec's iOS target is unmet. `PlatformWindow`'s `onAccessibilityRequest`,
+`publishAccessibilityTree(_:)`, `controlActiveState` and
+`onControlActiveStateChange` have no default implementations (`AB-R`, `EV-AB`).
 
 **This file is rules only.** The full pre-2026-09-21 version (120 KB: every
 test name, divergence row, inert row, human-verification row, performance
@@ -34,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   assigned); lettered: `CS-`, `SI-`, `TX-`, `CL-`, `ST-`, `AP-`, `MP-`, `IN-`,
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
-  (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
+  (next `EV-AG`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
   `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-GH`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
@@ -58,7 +59,10 @@ milestones append their record to `docs/record/` and put only the rule here.
 - **SwiftUI-alignment plan:** `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`.
   Its 2026-09-12 kernel/modifier specs describe types never built; **the
   source is the authority**. Per task: spec in `specs/`, decisions doc, record
-  file — task 2 `SA-` (§09), 3 `MC-` (§10), 9 `EV-` (§11), 12 `AB-` (§12),
+  file — task 2 `SA-` (§09), 3 `MC-` (§10), 9 `EV-` (§11; task 9's closing
+  half — `displayScale`, `controlActiveState`, `controlSize` — `EV-AA`…`EV-AF`,
+  §56, spec `specs/2026-09-25-environment-control-state-design.md`), 12 `AB-`
+  (§12),
   3/9/12 integration (§13), 4 `FR-` (§14), 5 `OM-` (§15), 4/5 integration
   (§16), 6 `CN-` (§17), 7 stage 1 of 14 `LR-` (§18, spec
   `specs/2026-09-17-engine-replacement-design.md`), 7 stage 2 `LR-AB`…`LR-BA`
@@ -236,6 +240,39 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-25, `feat/environment-control-state` — plan task 9's
+  closing half, from `e732d98`): 1506 tests, 0 goldens, 90 typecheck guards**,
+  0 `error:` on both build systems, the one `warning:` SwiftPM's deprecation
+  notice under native (0 under the default one), taken after `swift package
+  clean` with `swift build --build-system native --build-tests` then
+  unfiltered `swift test --build-system native --no-parallel` (**one summary
+  line**, `Test run with 1506 tests in 3 suites passed after 85.157 seconds`;
+  eleven gated tests skipped, unchanged; the guards ran — the log carries
+  `FR-J no-argument frame: succeeded=` and both new `EV-AB` guard lines).
+  **1506 = 1490 + 16**: lane 1's 8 (`displayScale`, derived `pixelLength`,
+  `controlActiveState`, `controlSize`, `EV-AA`…`EV-AC`; E13 extended, E19
+  renamed, not added), lane 2's 3 (`AppKitControlStateTests`; three more are
+  in `Backends/SDL`, not this count), lane 3's 3 tests + 2 guards (the
+  `PlatformWindow` pair and `Window`'s stamp, `EV-AB`;
+  `ControlStateCompileGuards`). Guards **90 = 88 + 2**
+  (`ControlStateCompileGuards`, new, both whole-file `typecheckFile`
+  fixtures). **One retained test renamed, none deleted** (`goldensUnchanged`):
+  E19 `aWholeValueWriteCannotResetTheThemeOrThePixelLength` →
+  `aWholeValueWriteResetsTheDisplayScaleButNotTheTheme` (`EV-AA`). **Divergence
+  24 retires** (a scoped `displayScale` write and a `\.self` reset now agree
+  with SwiftUI, S3 refuting the old withholding reason); **76 and 77 are
+  added** (`controlSize` and layout rounding reach no built-in SwiftUI-shaped
+  behaviour, `EV-AC`, `EV-AD`) — live count **55 → 56**. **0 px against
+  `e732d98` in all fourteen offscreen images**, scene identical, independently
+  re-taken by this Record phase; `Backends/SDL` 21 + 22 on macOS, 21 + 21 in a
+  `swift:6.4-noble` aarch64 container. **Plan task 9 is ticked**: both halves
+  of the 2026-09-15 progress note (control state, scale) have landed; their
+  built-in consumers stay distributed to tasks 10, 11, 12 and 14 (`EV-AE`).
+  **The real-window capture is still owed**, and this task adds two more
+  looks to it — the probe's key/active mapping arms and a `displayScale`
+  change from moving the window between displays — screen locked at every
+  check across all three lanes and the Record phase's own close. History:
+  record §56.
 - **Counts (2026-09-25, `feat/composition-identity-closeout` — the sweep's
   cost, `ID-R` items 8–9): 1490 tests, 0 goldens, 88 typecheck guards**, 0
   `error:` on both build systems, the one `warning:` SwiftPM's deprecation
@@ -894,10 +931,12 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `LayoutAuthorityCompileGuards`, `GridCompileGuards`,
   `UnitSafetyTests` (one hit is a comment),
   `AXNodeTests`, `SceneBoundaryCompileGuards`, `StyleSurfaceCompileGuards`
-  (stage 10), `ConditionalIdentityCompileGuards` and
-  `ExplicitIdentityCompileGuards` (plan task 8, new); `Typecheck.swift` holds
+  (stage 10), `ConditionalIdentityCompileGuards`,
+  `ExplicitIdentityCompileGuards` (plan task 8) and
+  `ControlStateCompileGuards` (plan task 9, new); `Typecheck.swift` holds
   only
-  the declaration. Two helpers, 40 and 48 (44 before task 8's four; 42 before
+  the declaration. Two helpers, 40 and 50 (48 before task 9's two; 44 before
+  task 8's four; 42 before
   stage 11's two; 39
   before stage 10's three; 38
   before stage 8's N3.1, 37
@@ -915,9 +954,11 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `typecheckFile` guards: `aPlainImportCannotWriteAStyleField`,
   `theDeletedStyleSpellingsDoNotCompile`, `theLayoutKernelDeclaresNoStyle`),
   **one** `ConditionalIdentityCompileGuards` (plan task 8, `G2.1`,
-  `anIfElseAndASwitchCompileInEveryProposalContainer`) and **three**
+  `anIfElseAndASwitchCompileInEveryProposalContainer`), **three**
   `ExplicitIdentityCompileGuards` (plan task 8, `G3.1`–`G3.3`, all
-  whole-file) and seven of
+  whole-file) and **two** `ControlStateCompileGuards` (plan task 9, `T3.4`
+  plain-import `import MetalUIPlatform`, `T3.5` plain-import `import MetalUI`,
+  both whole-file) and seven of
   `EnvironmentCompileGuards`'. A guard about what an external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
@@ -1403,14 +1444,27 @@ identity-transparent; nearest writer wins; transforms run once per frame in
 layout and are re-pushed (`EV-V`). Readable in every phase except `theme`
 (`PaintPass` only). `@Environment` binds like `@State`; unbound it silently
 reads defaults. `Window.environment` writes always dirty — write from input.
-`theme`/`pixelLength` are re-stamped each frame. **A modifier written after a
+Only `theme` is re-stamped over a scope's write each frame; `displayScale`,
+`controlActiveState` and `controlSize` are not (`EV-U`'s `pixelLength` half is
+withdrawn by `EV-AA`). **A modifier written after a
 scope sits outside it** (`EV-X`). `.disabled(d)` is
 `transformEnvironment(\.isEnabled) { $0 = $0 && !d }` (`EV-D`); the one gate
 is in `Frame.registerHandlers`' **5-argument** implementation. Disabled: no
 hitbox, nothing in the focus registry, still published to AX as disabled.
 Scroll regions are outside the gate. A new handler-registering site gains an
 arm in the D2 guard. `Binding` is a deprecated alias of `KeyBinding`, deleted
-by task 10.
+by task 10. **`displayScale`** is `public var`, 1 in a bare value;
+`pixelLength` is now derived (`displayScale == 0 ? 1 : 1 / displayScale`),
+never stored; `Frame` stamps the root's `displayScale` from its own
+`scaleFactor` (`EV-AA`) — a scope can write it, and a write changes only the
+number, never the scale `Frame.fill` draws at (S3, `EV-AA`). **`controlActiveState`**
+(`key`/`active`/`inactive`, `MetalUICore`) comes from `PlatformWindow`'s
+defaultless `controlActiveState`/`onControlActiveStateChange` pair, stamped
+by `Window` over its own guarded copy at draw, before `Window.environment`
+(`EV-AB`) — so `Window.environment`'s `controlActiveState`, like its `theme`
+and `displayScale`, is **not** the root's source (three fields, not two).
+**`controlSize`** (SwiftUI's five sizes) is carried and scoped
+(`.controlSize(_:)`) with no built-in reader (`EV-AC`, divergence 76).
 
 **Accessibility (`AB-`).** Nothing recorded until a client activates the
 window (sticky). Synthesized nodes are records (`Frame.axEmissions`), never
@@ -1964,8 +2018,8 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**55 live**, stable labels; retired labels never
-  reused: 3, 4, 5–8, 11, 12, 15, 17, 18, 19, 36, 37, 40, 45, 48, 59, 69) — record §04 is current (its
+- **Known divergences** (**56 live**, stable labels; retired labels never
+  reused: 3, 4, 5–8, 11, 12, 15, 17, 18, 19, 24, 36, 37, 40, 45, 48, 59, 69) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
   its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
   adding a number, its first 2026-09-23 section likewise amends **13, 14 and
@@ -2057,11 +2111,27 @@ expected, measured facts:
   clause with a pin rather than a fix. **Task 8's closeout adds no row**
   (`ID-R`, record §04's closeout section): a name that returns after a
   detour now starts fresh, SwiftUI's answer, so label 75 stays unused.
+  **Plan task 9's closing half retires 24 and adds 76 and 77** (55 → 56 live;
+  record §04's 2026-09-25 task-9 section): 24 (no `displayScale`; no scope
+  could change `pixelLength`; a `\.self` reset kept it) retires under `EV-AA`
+  — `displayScale` is now `public var`, `pixelLength` derives from it, a scope
+  write moves both, and a `\.self` reset reads 1 and 1, with S3 showing that a
+  write changing only the *number* (not the scale `Frame.fill` draws at) is
+  SwiftUI's own behaviour, not the MetalUI-only hazard the old ruling named.
+  **Added**: 76 (`controlSize` is carried and scoped but reaches no built-in
+  measurement, where SwiftUI's `Text`, `TextField` and `Button` all read it,
+  kept, owners plan tasks 11 and 10, `EV-AC`), 77 (layout rounds every stored
+  rectangle to whole points, not the `displayScale` pixel grid SwiftUI rounds
+  to, found by probe S4, kept, owner plan task 11, `EV-AD`). **`controlActiveState`
+  gets no row**: its AppKit/SDL mapping is stated as MetalUI's own choice, not
+  a measured SwiftUI fact — the probe's C1–C3/C5 arms never ran (screen
+  locked), so there is nothing yet to diverge *from* (`EV-AB`).
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
   `hidden()` on
   drawing/focusable subtrees, `PaintPass.isActive`,
   `onInput`'s `-> Bool`, colour glyphs, baselines,
-  `locale`/`layoutDirection`/`dynamicTypeSize`, one axis each of
+  `locale`/`layoutDirection`/`dynamicTypeSize`, `controlActiveState`,
+  `controlSize`, `displayScale`, one axis each of
   `markNativeGridRow`/`markNativeGridCell`'s alignment, a grid mark outside a
   grid, …) — §19 "Declared but inert", record §05, whose 2026-09-21 section
   carries the stage 2 and grids changes, whose 2026-09-22 one carries stage
@@ -2108,7 +2178,16 @@ expected, measured facts:
   deletes the `@State`-inside-`AnyElement` row** (`ID-E`, record §05's
   2026-09-25 task-8 section): `AnyElementBox` now binds its concrete element
   before every phase, so the row is fixed rather than merely reassigned —
-  the same shape as `deferred.amended` above, not a narrowing.
+  the same shape as `deferred.amended` above, not a narrowing. **Plan task
+  9's closing half adds three rows, deletes none** (record §05's 2026-09-25
+  task-9 section): `controlActiveState` (owner plan task 12, with the
+  disabled look), `controlSize` (owner plan task 11 for `Text`'s default
+  font, plan task 10 for `TextField`/`Button` and the other common
+  controls — divergence 76) and `displayScale` (**no owner named**: it exists
+  for an author to read, as `pixelLength` always has, not for a framework
+  consumer — `Frame.fill` still scales by the frame's own `scaleFactor`, never
+  by `environmentTop.displayScale`, and `roundLayout` still rounds to whole
+  points regardless, divergence 77).
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
@@ -2162,7 +2241,16 @@ expected, measured facts:
   differing in all fourteen offscreen images) and neither reopens or closes
   the five looks above. Plan task 8's own lock probe ran six times across its
   lanes and Record phase, and a seventh time at its branch check, and read locked every time — the same
-  still-owed capture, not a new one.
+  still-owed capture, not a new one. **Plan task 9's closing half adds no
+  look but adds two more to the still-owed capture** (record §03's 2026-09-25
+  section): `displayScale`, `controlActiveState` and `controlSize` reach no
+  built-in element, so 0 px against `e732d98` in all fourteen offscreen
+  images at every lane and again at the Record phase's close — but the task's
+  own probe could not run its C1–C3/C5 arms (the screen was locked at every
+  check), so **the key/active mapping against SwiftUI, and a `displayScale`
+  change from moving the window between displays**, are now owed alongside
+  the still-open real-window capture, neither reachable without an unlocked
+  screen and, for the second, two displays of different scale.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;
   re-measure before reasoning from them. **`MP-I`'s 100 000-row cold frame
@@ -2171,7 +2259,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **88** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **90** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a
