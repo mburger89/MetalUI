@@ -17,12 +17,24 @@ rect — is `paddedAndSized`'s own code (`LegacyLowering.swift:582–588` at
 Branch `feat/engine-stage-10` from `8095fd9`, worktree
 `/Users/maxburger/Developer/worktrees/MetalUI/stage-10`.
 
-**Status, 2026-09-24 (PDT): designed.** In the design phase no `Sources/` or
-`Tests/` file changed in a commit; every scratch patch was applied, built, run
-and restored with `git checkout`/`git reset --hard` (and a `swift package
-clean` after the scratch move of `Style` across modules — without it a filtered
-run died with SIGSEGV, the CLAUDE.md hazard), `git status --short` showing only
-this design's files after.
+**Status, 2026-09-24 (PDT): DELIVERED.** Critic round 1 applied (`LR-FR`,
+F1–F6); lane 1 landed (`51c288a` red, `84ad1e6` green; record §52 §4, `LR-FS`);
+lane 2 landed (`79cca7e` red, `133f634` green, a fix round widening guard G1;
+record §52 §5, `LR-FT`) — **`Test run with 1414 tests in 3 suites passed`**,
+82 guards, 0 goldens, 0 `warning:` besides SwiftPM's notice on both build
+systems, the fourteen-image comparison against `8095fd9` reading 0 differing.
+**The Record phase (record §52 §6) independently re-checked all nine exit
+criteria of spec §8 at `6dde69e`** (a clean `swift package clean` rebuild, the
+suite, the guard and golden counts, the pixel comparison from a fresh scratch
+copy, `Backends/SDL`, `Tests/PortableTests`, a `swift:6.4-noble` Docker
+container, the recorded greps, and the five closing tests read directly from
+the log) and closed the lane 1 verdict's two minor doc-comment findings
+first — every measurement reads the same as the lanes' own. In the design
+phase no `Sources/` or `Tests/` file changed in a commit; every scratch patch
+was applied, built, run and restored with `git checkout`/`git reset --hard`
+(and a `swift package clean` after the scratch move of `Style` across
+modules — without it a filtered run died with SIGSEGV, the CLAUDE.md hazard),
+`git status --short` showing only this design's files after.
 
 **What this stage is.** Row 10 was written when the lowering was expected to
 read no CSS field by now. It does: stage 2 gave `flexGrow`, stretch,

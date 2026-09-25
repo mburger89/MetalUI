@@ -445,3 +445,174 @@ every scene identical.**
   stage 10 deleted both fields, `LR-FN`"), so the grep's hit there is a
   history comment like the rest.
 - `grep -rn 'Style' Sources/MetalUILayout`: the three history comments of §5.2.
+
+## 6. The stage's close (Record phase, 2026-09-24, PDT)
+
+Spec §8's exit criteria, re-checked independently at `6dde69e` (the docs
+commit ahead of lane 2's `d69af7b`, after two doc-comment fixes below) — not
+by re-reading the lanes' own claims.
+
+### 6.1 Two verifier findings closed first
+
+The lane 1 verdict's two minor issues were fixed before the close, both
+doc-comment only (`6dde69e`), neither touching a `Sources/` line or a test
+assertion, so neither moves a number in §4 or §5:
+
+1. `ListLoweringTests.swift`'s comment on the `.list` site's unconsumed
+   record ("kept … for the `<field>.unconsumed` reachability
+   `UnlowerableField.owningStage`'s `.list` comment claims") named a
+   per-site switch that no longer exists — lane 2 deleted `owningStage` and
+   its `.list` arm along with every other stored-`Style`-field switch (§5.2).
+   Reworded as history.
+2. `AnimationTests.swift`'s Stage 10 doc comment on
+   `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` claimed
+   the three non-animatable colour fields "still arm" the key-set assertion's
+   `unexpected` half once `aspectRatio`'s arm is deleted. No mutation in
+   either lane's table shows this, and the neighbouring
+   `allAnimatableDecoration` doc comment already says the opposite — both of
+   its call sites leave the colours at `Decoration()`'s `nil`, so nothing
+   arms that half today. Softened to an explicit unmeasured claim rather than
+   asserted as fact, pointing at the `allAnimatableDecoration` comment for
+   the reason.
+
+Both are Tests-only comment edits; neither was in lane 1's or lane 2's file
+list (`ListLoweringTests.swift` belongs to neither lane's row list, and the
+`AnimationTests.swift` claim was never backed by a lane 1 mutation), so the
+Record phase is where the spec's "handed wherever it applies" leaves them.
+
+### 6.2 Independent re-verification
+
+1. **`swift package clean`, then a clean rebuild**: `swift build
+   --build-system native --build-tests` → `Build complete!`, 0 `error:`, the
+   one `warning:` SwiftPM's own deprecation notice; `swift build
+   --build-tests` (default build system) → `Build complete!`, 0 `error:`, 0
+   `warning:`.
+2. Unfiltered `swift test --build-system native --no-parallel` →
+   **`Test run with 1414 tests in 3 suites passed after 81.164 seconds.`**,
+   the log carrying `FR-J no-argument frame: succeeded=` (guards ran).
+   **82 guards** (`grep -c canTypecheck` per file, summed across
+   `Tests/MetalUICoreTests/UnitSafetyTests.swift` (3) and sixteen files under
+   `Tests/MetalUITests` — `PhaseSeparationTests` 19, `ErasureCompileGuards`
+   10, `EnvironmentCompileGuards` 8, `ProposalNodeIDCompileGuards` 6,
+   `ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5,
+   `ContainerCompileGuards` 4, `GridCompileGuards` 4, `StyleSurfaceCompileGuards`
+   3, `AXNodeTests` 3, `DecorationCompileGuards` 3, `FrameSizingCompileGuards`
+   3, `ModifiedElementCompileGuards` 2, `SceneBoundaryCompileGuards` 2,
+   `LayoutAuthorityCompileGuards` 2 — plus `Tests/MetalUITestSupport/Typecheck.swift`'s
+   own declaration (1): 84 total, less the declaration and `UnitSafetyTests`'
+   one comment-line hit = **82**, matching lane 2's figure exactly.
+   `FrameSizingCompileGuards` reads 3, one more than CLAUDE.md's stale
+   pre-stage-9 table (2) — unmoved by this stage; the file's own history
+   attributes the third to stage 8, not to this one, and no lane's mutation
+   table names it, so this Record phase leaves the attribution alone and
+   only corrects CLAUDE.md's copy of the number (§7). **0 goldens**
+   (`git ls-files 'Tests/*.json' | wc -l` reads 0; `find Tests -name "*.json"
+   | wc -l` reads 45, all under `Tests/PortableTests/.build/`, 0 with
+   `-not -path '*/.build/*'`). **Eleven** gated tests skipped, unchanged.
+3. **The fourteen-image comparison against `8095fd9`**, re-taken independently
+   with `docs/probes/demo-pixels/compare.sh` from a fresh scratch directory at
+   `6dde69e`: the five pairwise controls and two distinct-value counts read
+   the stage-9-corrected values exactly (`1048576`, `1031003`, `454895`, `0`,
+   `1048576`, `0`, `544`/`216`, `491221`, `529`, `0` indicator rects — record
+   §51 §5.6's table) and **all fourteen images read `differing=0`, scene
+   identical**, matching both lanes' own runs (§4.4, §5.5).
+   `DemoFrameDeterminismTests` and `DemoStackBudgetTests` are unedited and
+   green in the 1414.
+4. **`Backends/SDL`** (`python3 Backends/SDL/scripts/fetch-accesskit.py`
+   already run; `PKG_CONFIG_PATH=$PWD/.accesskit swift build --build-tests`
+   then `swift test`): 0 `error:`; **`Test run with 21 tests` and `19 tests`
+   passed** (`ReplayFixtureTests`, `MetalUISDLTests`), re-run independently at
+   `6dde69e` — unmoved from lane 2's `133f634` reading, as expected (the
+   diff between the two heads touches only `Tests/MetalUITests` doc
+   comments, none of them under `Backends/SDL`).
+5. **`Tests/PortableTests`**: `swift build --build-tests` 0 `error:`/`warning:`;
+   `swift test` → **18 + 6 + 5 passed**, re-run independently at `6dde69e`.
+6. **`swift:6.4-noble`** (Docker, aarch64), re-run independently over
+   `git archive HEAD` at `6dde69e` rather than re-read lane 2's `133f634`
+   measurement: `swift build --build-tests` → `Build complete!`, 0
+   `error:`/`warning:`; `swift test --skip-build --filter
+   'MetalUICoreTests|MetalUILayoutTests|MetalUICrossPlatformTests'` →
+   **22 + 188 + 10 passed**, `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+   green off Apple (`#if canImport(Darwin) || canImport(Glibc)` compiles the
+   `dlsym` half in; Windows has neither, so the closing check is compiled out
+   there, as spec §9 hands to the CI-hazards note). Windows itself was not
+   run locally (no Windows host in this environment); its build is
+   `root-windows` CI's job, unchanged by this stage beyond the same
+   `canImport` gate.
+7. **The recorded grep** (spec §8 item 1, re-run at `6dde69e` rather than
+   `133f634`): all three patterns print only what §5.7 already named —
+   `FlexEngine`/`requestNode(style` history comments, the proposal
+   `.aspectRatio(_:)` family (a SwiftUI modifier, not the deleted `Style`
+   field), G2's and N2.1's own fixtures and names, and history comments
+   naming the deleted vocabulary on purpose (full listing above, §5.7); the
+   two spellings of the golden count (`git ls-files` vs `find`) still read
+   0 vs 45/0 for the reason `LR-FR` F6 gives. `grep -rn 'Style'
+   Sources/MetalUILayout` still prints only the three history comments.
+8. **N1.1, N2.1, G1, G2, G3 confirmed green independently**, read directly
+   from this phase's own suite log rather than the lanes' reports:
+   `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+   `everyReportNamesALiveOwnerOrIsRefusedByName`,
+   `aPlainImportCannotWriteAStyleField`, `theDeletedStyleSpellingsDoNotCompile`
+   and `theLayoutKernelDeclaresNoStyle` each show `passed` at `6dde69e`.
+9. **Every removed `@Test` has a row.** §4.2 and §5.2 already give the
+   equation (**1411 − 3 + 2 + 4 = 1414**: lane 1 removes `D1.1`
+   `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs`, `D1.2`
+   `aStyleBorderLowersAsInsetsInsideTheDeclaredSize` and the old name of
+   T1.16, adds `N1.1` `everyReportNamesALiveOwnerOrIsRefusedByName` and the
+   new name of T1.16,
+   `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`; lane 2
+   adds `N2.1` `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`, `G1`
+   `aPlainImportCannotWriteAStyleField`, `G2`
+   `theDeletedStyleSpellingsDoNotCompile` and `G3`
+   `theLayoutKernelDeclaresNoStyle`, and removes none). This Record phase
+   spot-checked the equation two ways rather than re-deriving the whole
+   corpus: the grep for the three `G` names above and one for the two `N`
+   names both hit exactly once, each at its declaration, in the tree at
+   `6dde69e`; and no `Sources/` or `Tests/` diff between `84ad1e6` (lane 1's
+   close) and `6dde69e` touches a `@Test` attribute or a `func` line outside
+   `StyleSurfaceCompileGuards.swift`'s fix-round widening (§5.3), which adds
+   no new test.
+
+All nine hold.
+
+### 6.3 Not done, owners already assigned (spec §9)
+
+- **To stage 11** (unchanged by this stage, confirmed by the fourteen-image
+  comparison reading 0 everywhere): `ModifiedElement`/`ModifiedContent`
+  unification, legacy `.overlay`, `.opacity` G4, `deferred.amended` with
+  `Component.width` over a presentation member.
+- **To plan task 15** (closeout): divergence 52; whether the eight deprecated
+  sizing modifiers and the `fraction:` spellings are removed (`LR-FN` item 5);
+  whether `Box(style:)`/`Stack`'s public `style:` parameter, inert outside the
+  package after this stage, is deprecated or removed (`LR-FR` F5); whether any
+  permanent refusal of `LR-FO` item 1 becomes a compile error by narrowing its
+  modifier's parameter type.
+- **`NativeLayoutRun.maxDepth` (72), `SA-L` and the depth tests are
+  untouched** — the kernel itself is unchanged by this stage (`Style` never
+  reached it since stage 9 deleted `LayoutTree`'s placeholder rows), confirmed
+  by the fourteen-image comparison and by `SA-L`'s own tests being outside
+  every lane's reddened set.
+
+### 6.4 Docs updated to match this close
+
+`CLAUDE.md`/`AGENTS.md` (counts — 1414 / 0 / 82; the `LR-` next letter already
+at `LR-FU` in the decisions doc's own header; the record map gaining §52; the
+"Eight constraints" bullet on percentage/`AP-D` resolution rewritten now that
+`Style.border` and `Position.relative` no longer exist to word it against; the
+"Legacy `.frame`" paragraph's `Style.border`/`flexWrap`/`alignContent`
+mentions removed; the "Sizing modifiers" and `StyledElement` paragraphs
+checked against the narrowed, package-only `Style`; the "Two engines"/kernel
+bullets checked for a stray CSS-field mention; a stage-10 bullet added under
+"SwiftUI alignment"; the CI hazards note gaining N2.1's Windows `canImport`
+gate; "not yet merged" language checked for staleness now stages 7b–9 are
+ancestors), `docs/record/04-divergences.md` (no divergence number moves per
+spec §9 — 9, 10 and 54 re-read for the permanent-refusal wording, unchanged in
+substance), `docs/record/05-declared-but-inert.md` (the `Style.aspectRatio`/
+`overflow`, `Style.border` on a container, and `Position.relative` offset rows
+deleted with their fields; the `margin: .auto` row narrowed to
+package-visible-only; a row **added** for `Box`'s/`Stack`'s public `style:`
+initialiser parameter, inert outside the package since narrowing, `LR-FR` F5),
+`docs/record/08-ci.md` (N2.1's Windows gate), `docs/record/README.md` (§52
+indexed), the parent spec's §4.1 row 10 status marked done, the plan's task 7
+note (dated, not ticked — stages 11–14 remain), and this repository's
+top-level `README.md`.
