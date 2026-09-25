@@ -86,6 +86,11 @@ struct ListRows<Row: Element>: ElementGroup {
         rowNodes.reserveCapacity(rows.count)
         var layouts: [SingleElementLayout<Box<Row>>] = []
         layouts.reserveCapacity(rows.count)
+        // `ID-R`: the rows' names are a WINDOW over the data — a row whose name
+        // leaves a position because the window moved has not gone away, and
+        // keeps `TB-AH`'s bounded retention. Only the rows' own names are
+        // exempt; a name inside a row's content is noted as anywhere else.
+        if let parent { pass.frame.stateTable.noteWindowedParent(parent) }
         for index in rows.indices {
             let (built, rowLayout) = rows[index].requestGroupLayout(under: parent,
                                                                     at: &cursor, pass: &pass)

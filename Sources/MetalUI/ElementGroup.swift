@@ -642,6 +642,7 @@ extension AnyElement: ElementGroup {
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], GroupLayout) {
         let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
+        pass.frame.stateTable.noteNamed(id, at: cursor)  // `ID-R`, the copy of `enteringGroupMember`'s
         cursor += 1
         let node = requestLayout(id, pass: &pass)
         return ([node], GroupLayout(id: id, node: node))

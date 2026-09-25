@@ -102,6 +102,7 @@ extension Component {
         // whether that is a `.named` component or a `.positional` one — the
         // name-replaces-position rule lives in the constructor, not here.
         let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
+        pass.frame.stateTable.noteNamed(id, at: cursor)  // `ID-R`
 
         // Binds the COMPONENT's own `@State`. Nothing else does this for a
         // component: `Element`'s default `requestGroupLayout` is not reached,

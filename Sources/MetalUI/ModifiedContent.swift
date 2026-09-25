@@ -192,11 +192,15 @@ public struct ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind
     }
 
     /// The id the content numbers under: the outermost layer's `id`, then one
-    /// `.child(at: 0)` level per inner layer, named by that layer.
-    private func innermostID(_ id: GlobalElementID) -> GlobalElementID {
+    /// `.child(at: 0)` level per inner layer, named by that layer. Layout-only
+    /// (both entries), so it notes each named inner layer at its position
+    /// (`ID-R`: an `.id` written inside a wrapper that changes departs its old
+    /// name).
+    private func innermostID(_ id: GlobalElementID, table: StateTable) -> GlobalElementID {
         var innermostID = id
         for k in inner.indices.reversed() {
             innermostID = GlobalElementID.child(of: innermostID, at: 0, name: inner[k]._elementID)
+            table.noteNamed(innermostID, at: 0)
         }
         for _ in prefix.indices {
             innermostID = GlobalElementID.child(of: innermostID, at: 0, name: nil)
@@ -208,7 +212,7 @@ public struct ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind
     /// registered through `requestGroupLayout`, then `wrapLayers`.
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
-        let innermostID = innermostID(id)
+        let innermostID = innermostID(id, table: pass.frame.stateTable)
         // The content's own index space starts at 0 under the innermost layer,
         // as it does under a `Box`.
         var cursor = 0
@@ -484,7 +488,7 @@ extension ModifiedContent: ProposalElementGroup, ProposalElement
     /// `requestProposalGroupLayout`, then the shared `wrapLayers`.
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
-        let innermostID = innermostID(id)
+        let innermostID = innermostID(id, table: pass.frame.stateTable)
         var cursor = 0
         let (children, contentLayout) = content.requestProposalGroupLayout(under: innermostID,
                                                                            at: &cursor, pass: &pass)

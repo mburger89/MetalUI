@@ -36,8 +36,9 @@ public struct IdentifiedGroupLayout<ContentLayout> {
 ///
 /// Two siblings with the same name share one identity (divergence 72, `ID-H`,
 /// pinned on this API by `twoSiblingGroupsWithTheSameIDShareOneIdentity`).
-/// What a group that goes back to a name it used earlier reads is neither probed
-/// nor pinned (record §55 §7.5).
+/// A group that goes back to a name it left starts that name fresh, as SwiftUI
+/// does (probe X9–X11; ruling `ID-R`, `StateTable.noteNamed`; pinned by
+/// `anIDThatReturnsToAnEarlierNameStartsFresh`).
 public struct IdentifiedGroup<Content: ElementGroup>: ElementGroup {
     public var content: Content
     public var name: ElementID
@@ -48,9 +49,12 @@ public struct IdentifiedGroup<Content: ElementGroup>: ElementGroup {
     }
 
     /// The id this group's content numbers under: one index of the parent's
-    /// cursor, named. Advances the cursor by exactly one.
-    func slot(under parent: GlobalElementID?, at cursor: inout Int) -> GlobalElementID {
+    /// cursor, named. Advances the cursor by exactly one, and notes the name at
+    /// its position so a name the group leaves is reset (`ID-R`).
+    func slot(under parent: GlobalElementID?, at cursor: inout Int,
+              table: StateTable) -> GlobalElementID {
         let id = GlobalElementID.child(of: parent, at: cursor, name: name)
+        table.noteNamed(id, at: cursor)
         cursor += 1
         return id
     }
@@ -59,7 +63,7 @@ public struct IdentifiedGroup<Content: ElementGroup>: ElementGroup {
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], IdentifiedGroupLayout<Content.GroupLayout>) {
-        let id = slot(under: parent, at: &cursor)
+        let id = slot(under: parent, at: &cursor, table: pass.frame.stateTable)
         var inner = 0
         let (nodes, layout) = content.requestGroupLayout(under: id, at: &inner, pass: &pass)
         return (nodes, IdentifiedGroupLayout(content: layout))
@@ -86,7 +90,7 @@ extension IdentifiedGroup: ProposalElementGroup where Content: ProposalElementGr
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], IdentifiedGroupLayout<Content.GroupLayout>) {
-        let id = slot(under: parent, at: &cursor)
+        let id = slot(under: parent, at: &cursor, table: pass.frame.stateTable)
         var inner = 0
         let (nodes, layout) = content.requestProposalGroupLayout(under: id, at: &inner, pass: &pass)
         return (nodes, IdentifiedGroupLayout(content: layout))

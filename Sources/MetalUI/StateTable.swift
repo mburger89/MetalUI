@@ -192,13 +192,90 @@ final class StateTable {
     /// lifetime is the window's (focus retention, the accessibility node's
     /// republish; `TB-J`, `AB-U`), not the element's. **Only an evaluated
     /// conditional calls this**: a subtree nothing evaluates (a `List` row out of
-    /// the window) keeps `TB-AH`'s retention, and `sweep()` never resets.
+    /// the window) keeps `TB-AH`'s retention, and `sweep()` never resets a
+    /// conditional slot (it resets only a departed NAME, `noteNamed`).
     func noteAbsent(_ slot: GlobalElementID) {
         // `remove`, not `contains`: a second note in the same frame (a slot
         // evaluated twice before a sweep) finds nothing and scans nothing.
         guard previouslyProducedSlots.remove(slot) != nil else { return }
         subtreeResetScans += 1
-        for id in storage.keys where Self.descends(id, from: slot) && !Self.isWindowRetained(id) {
+        resetEntries(under: slot, includingRoot: false)
+    }
+
+    // MARK: A name that returns (the closeout, ruling `ID-R`)
+
+    /// One structural position a name can sit at: the parent's id and the
+    /// cursor index the named element consumed there (the index a name
+    /// replaces, `GlobalElementID.child(of:at:name:)`). A plain value, so
+    /// keying on it allocates nothing once the tables are warm.
+    struct NamedPosition: Hashable {
+        let parent: GlobalElementID?
+        let index: Int
+    }
+
+    /// Which name each position held in the frame being built, and in the last
+    /// COMPLETED frame (swapped by `sweep()`, as `producedSlots` is).
+    private var namedPositions: [NamedPosition: GlobalElementID] = [:]
+    private var previousNamedPositions: [NamedPosition: GlobalElementID] = [:]
+
+    /// Every named id the frame being built produced, anywhere.
+    private var producedNames: Set<GlobalElementID> = []
+
+    /// Names an evaluated position held last frame and replaced this frame —
+    /// the candidates `sweep()` resets unless they were produced elsewhere.
+    private var departedNames: [GlobalElementID] = []
+
+    /// Parents whose named children are a WINDOW over their data, not the
+    /// data (a `List`'s rows, `ListRows`): a row's name leaving a position
+    /// because the window moved is not the row going away (`TB-AH`).
+    private var windowedParents: Set<GlobalElementID> = []
+
+    /// How many names `sweep()` reset (a test observable; nothing in production
+    /// reads it).
+    private(set) var departedNameResets = 0
+
+    /// `id` was just minted at cursor `index` under its parent. A no-op unless
+    /// its component is `.named` — an unnamed id IS its position, so it cannot
+    /// be replaced by a different one there.
+    ///
+    /// **When the position held a DIFFERENT name in the last completed frame,
+    /// that name departs**, and `sweep()` resets it (every entry at it or
+    /// under it, except `$focus`/`$ax`) **unless the frame produced it
+    /// somewhere else** — a name that moved to a sibling's position (a swap, a
+    /// loop reorder) keeps its state. So `.id(n)` over a, b, a starts the
+    /// returning a fresh, as SwiftUI's does (probe X9–X11; ruling `ID-R`).
+    /// Only an EVALUATED position replaces a name: a position nothing
+    /// evaluates (an `if` that went false — its own `noteAbsent` resets it; a
+    /// loop that shrank, divergence 74; anything under an element no longer
+    /// produced) departs nothing here, and a `List`'s rows are exempt
+    /// (`noteWindowedParent`).
+    func noteNamed(_ id: GlobalElementID, at index: Int) {
+        guard case .named = id.component else { return }
+        if let parent = id.parent, windowedParents.contains(parent) { return }
+        producedNames.insert(id)
+        let position = NamedPosition(parent: id.parent, index: index)
+        if let previous = previousNamedPositions[position], previous != id {
+            departedNames.append(previous)
+        }
+        namedPositions[position] = id
+    }
+
+    /// `parent`'s named children this frame are a window over its data (a
+    /// `List`'s rows): `noteNamed` ignores them, so a row scrolled out keeps
+    /// `TB-AH`'s bounded retention.
+    func noteWindowedParent(_ parent: GlobalElementID) {
+        windowedParents.insert(parent)
+    }
+
+    /// Deletes every entry under `root` — and at `root` itself when
+    /// `includingRoot` — except the window-owned retention slots. The one
+    /// deletion both resets share: `noteAbsent` passes `false` (a conditional
+    /// slot holds no entry of its own), a departed name `true` (a renamed
+    /// element's own id carries entries too: `ScrollView`'s offset, an
+    /// element's `withState(id, …)`).
+    private func resetEntries(under root: GlobalElementID, includingRoot: Bool) {
+        for id in storage.keys
+        where ((includingRoot && id == root) || Self.descends(id, from: root)) && !Self.isWindowRetained(id) {
             storage.removeValue(forKey: id)
             marked.remove(id)
         }
@@ -594,6 +671,18 @@ final class StateTable {
     /// either of those changes later and something will, silently, unless
     /// this line is still here to catch it.
     func sweep() {
+        // `ID-R`: a name an evaluated position replaced, and that this frame
+        // produced nowhere, is reset before the next frame can return to it.
+        for name in departedNames where !producedNames.contains(name) {
+            departedNameResets += 1
+            resetEntries(under: name, includingRoot: true)
+        }
+        departedNames.removeAll(keepingCapacity: true)
+        swap(&namedPositions, &previousNamedPositions)
+        namedPositions.removeAll(keepingCapacity: true)
+        producedNames.removeAll(keepingCapacity: true)
+        windowedParents.removeAll(keepingCapacity: true)
+
         generation += 1
         for id in storage.keys {
             let isMarked = marked.contains(id)

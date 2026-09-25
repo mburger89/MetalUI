@@ -1892,6 +1892,7 @@ public final class Frame {
         // into a frame an identity for its children to hang from. A named root
         // takes `.named` instead — the constructor decides, here as everywhere.
         let rootID = GlobalElementID.child(of: nil, at: 0, name: element.elementID)
+        stateTable.noteNamed(rootID, at: 0)  // `ID-R`: a renamed root departs its old name
 
         // `Frame.render` calls the root's `requestLayout` directly rather than
         // through `ElementGroup`'s default `requestGroupLayout` — that method
