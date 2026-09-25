@@ -171,22 +171,36 @@ final class StateTable {
     /// produced to evaluated-and-absent, never the steady absent state.
     private var previouslyProducedSlots: Set<GlobalElementID> = []
 
-    /// How many times `noteAbsent` scanned the table: once per produced → absent
+    /// How many subtree resets `noteAbsent` queued: once per produced → absent
     /// transition, never per absent frame. A work counter (spec C2.9); nothing in
-    /// production reads it.
+    /// production reads it. The table itself is walked once per sweep for all of
+    /// them together (`lastResetScanWork`, `ID-R` item 8).
     private(set) var subtreeResetScans = 0
 
+    /// Slots `noteAbsent` found on their produced → absent transition this frame:
+    /// every entry strictly under one is deleted by `sweep()`'s one pass.
+    private var absentSlots: Set<GlobalElementID> = []
+
     /// A conditional slot produced its content this frame.
+    ///
+    /// A slot this frame already noted absent (evaluated twice before a sweep,
+    /// absent first) is reset NOW, before its content writes, so the content
+    /// starts fresh exactly as the immediate reset left it before `ID-R` item 8
+    /// moved the resets into `sweep()`.
     func noteProduced(_ slot: GlobalElementID) {
         producedSlots.insert(slot)
+        if absentSlots.remove(slot) != nil {
+            resetScanWork += storage.count
+            removeEntries { Self.descends($0, from: slot) }
+        }
     }
 
     /// A conditional slot was EVALUATED and produced nothing this frame — an
     /// `if` whose condition is false, the branch of an `if`/`else` not taken.
     ///
     /// **Resets only on the transition**: when the last completed frame produced
-    /// `slot`, every entry whose id has `slot` as a proper ancestor is deleted,
-    /// so content that returns starts fresh (SwiftUI's lifetime rule, probe
+    /// `slot`, every entry whose id has `slot` as a proper ancestor is deleted
+    /// (by this frame's `sweep()`, in its one pass over the table), so content that returns starts fresh (SwiftUI's lifetime rule, probe
     /// V5/V9; ruling `ID-C`). **Two retention slots are exempt** — an entry whose
     /// own component is `.named("$focus")` or `.named("$ax")` — because their
     /// lifetime is the window's (focus retention, the accessibility node's
@@ -199,7 +213,7 @@ final class StateTable {
         // evaluated twice before a sweep) finds nothing and scans nothing.
         guard previouslyProducedSlots.remove(slot) != nil else { return }
         subtreeResetScans += 1
-        resetEntries(under: slot, includingRoot: false)
+        absentSlots.insert(slot)
     }
 
     // MARK: A name that returns (the closeout, ruling `ID-R`)
@@ -274,19 +288,50 @@ final class StateTable {
         windowedParents.insert(parent)
     }
 
-    /// Deletes every entry under `root` — and at `root` itself when
-    /// `includingRoot` — except the window-owned retention slots. The one
-    /// deletion both resets share: `noteAbsent` passes `false` (a conditional
-    /// slot holds no entry of its own), a departed name `true` (a renamed
-    /// element's own id carries entries too: `ScrollView`'s offset, an
-    /// element's `withState(id, …)`).
-    private func resetEntries(under root: GlobalElementID, includingRoot: Bool) {
+    /// The departed names `sweep()` resets this frame (filled from
+    /// `departedNames` minus the names produced elsewhere).
+    private var departedRoots: Set<GlobalElementID> = []
+
+    /// Keys one reset pass collected, removed after the walk — never while
+    /// iterating `storage.keys`, which would copy the whole table. Kept between
+    /// sweeps so a warm pass allocates nothing.
+    private var doomedKeys: [GlobalElementID] = []
+
+    /// The one deletion both resets share, run ONCE per sweep for every reset
+    /// the frame queued (`ID-R` item 8): an entry goes when its id is a departed
+    /// name, or has a departed name or an absent slot as a PROPER ancestor —
+    /// `noteAbsent`'s slot holds no entry of its own, while a renamed element's
+    /// own id carries entries too (`ScrollView`'s offset, an element's
+    /// `withState(id, …)`) — except the window-owned retention slots. Cost: one
+    /// visit per table entry plus its ancestor walk, however many names departed;
+    /// the per-name scan it replaced cost (departures × table).
+    private func resetQueuedEntries() {
+        guard !departedRoots.isEmpty || !absentSlots.isEmpty else { return }
         resetScanWork += storage.count
-        for id in storage.keys
-        where ((includingRoot && id == root) || Self.descends(id, from: root)) && !Self.isWindowRetained(id) {
+        removeEntries { id in
+            if departedRoots.contains(id) { return true }
+            var cursor = id.parent
+            while let ancestor = cursor {
+                if departedRoots.contains(ancestor) || absentSlots.contains(ancestor) { return true }
+                cursor = ancestor.parent
+            }
+            return false
+        }
+        departedRoots.removeAll(keepingCapacity: true)
+        absentSlots.removeAll(keepingCapacity: true)
+    }
+
+    /// Deletes every entry `doomed` selects, except `$focus`/`$ax`: collected in
+    /// one walk of the keys, then removed.
+    private func removeEntries(where doomed: (GlobalElementID) -> Bool) {
+        for id in storage.keys where !Self.isWindowRetained(id) && doomed(id) {
+            doomedKeys.append(id)
+        }
+        for id in doomedKeys {
             storage.removeValue(forKey: id)
             marked.remove(id)
         }
+        doomedKeys.removeAll(keepingCapacity: true)
     }
 
     /// Whether `slot` is a PROPER ancestor of `id`.
@@ -681,10 +726,12 @@ final class StateTable {
     func sweep() {
         // `ID-R`: a name an evaluated position replaced, and that this frame
         // produced nowhere, is reset before the next frame can return to it.
+        // Both resets — these names and `noteAbsent`'s slots — share one pass.
         for name in departedNames where !producedNames.contains(name) {
             departedNameResets += 1
-            resetEntries(under: name, includingRoot: true)
+            departedRoots.insert(name)
         }
+        resetQueuedEntries()
         departedNames.removeAll(keepingCapacity: true)
         lastResetScanWork = resetScanWork
         resetScanWork = 0
