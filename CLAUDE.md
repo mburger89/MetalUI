@@ -236,6 +236,14 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-25, `feat/composition-identity-closeout` — the sweep's
+  cost, `ID-R` items 8–9): 1490 tests, 0 goldens, 88 typecheck guards**, 0
+  `error:` on both build systems, the one `warning:` SwiftPM's deprecation
+  notice under native (0 under the default one), taken after `swift package
+  clean` the same way (`Test run with 1490 tests in 3 suites passed`).
+  **1490 = 1488 + 2**: E3.13 `theResetsScanTheTableOncePerSweep` and C2.13
+  `focusOutlivesARenameAndAnIfUntilItsElementReturns`. No guard, no golden;
+  0 px against `89a8337` in all fourteen. History: record §55 §10.6.
 - **Counts (2026-09-25, `feat/composition-identity-closeout` — plan task 8's
   closeout, from `89a8337`): 1488 tests, 0 goldens, 88 typecheck guards**, 0
   `error:` on both build systems, the one `warning:` SwiftPM's deprecation
@@ -1163,7 +1171,17 @@ header in the same change.
   `List`'s rows are exempt** (`noteWindowedParent`; a row out of its window
   is not evaluated, `TB-AH`). **A new site that mints a named id owes a
   `noteNamed` call and an arm in `everyNamingSiteStartsAReturningNameFresh`**
-  — a site without one keeps a departed name's state silently.
+  — a site without one keeps a departed name's state silently. **Both resets
+  (a departed name, `ID-C`'s absent slot) are queued and run in ONE pass over
+  the table per `sweep()`** (`ID-R` item 8; `StateTable.lastResetScanWork`,
+  pinned by E3.13 `theResetsScanTheTableOncePerSweep`): a per-name or
+  per-slot scan costs (departures × table) — 3 002 000 entries a frame for
+  1000 renamed rows — and the resets now run after the frame's
+  `resolveFocus`, so an exemption test reads a SECOND away frame (C2.13).
+  **Focus outlives both resets** (`$focus` is exempt): after `a` → `b` focus
+  stays on `a`'s unproduced id and returns with `a`, where SwiftUI drops it —
+  a known, unnumbered, unprobed difference owned by plan task 12 (`ID-R` item
+  9).
 - `.padding(_:)` and every legacy `.frame(...)` return one flat
   `ModifiedElement<LayerBase>` (`MC-A`); each modifier is one layer = one node
   = one id level; outermost layer takes the parent's slot, inner layers are

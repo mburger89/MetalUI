@@ -810,7 +810,8 @@ after the branch check left one audit row open (record §55 §9.3).
    **departs**; `sweep()` resets each departed name **that the frame produced
    nowhere** — every entry at the name's id and under it, except `$focus`/`$ax`
    (the one deletion, `resetEntries(under:includingRoot:)`, shared with
-   `ID-C`'s `noteAbsent`, which passes `includingRoot: false`). The id itself is
+   `ID-C`'s `noteAbsent`, which passes `includingRoot: false` — **replaced by
+   item 8's one pass**, `resetQueuedEntries`; the rule is unchanged). The id itself is
    included because an element can hold state at its own id (`ScrollView`'s
    offset, an element's `withState(id, …)`). A name that moves to a sibling's
    position (a swap, a loop reorder) is produced elsewhere and keeps its state.
@@ -851,8 +852,44 @@ after the branch check left one audit row open (record §55 §9.3).
    §9.4's code-comment finding): the legacy arm and divergence 48 went at stage
    9 and plan task 8.
 
+8. **Amended (the independent verifier's finding): the resets cost one pass
+   over the table per sweep, not one per departure.** As first landed,
+   `resetEntries` walked every key with an ancestor walk once per departed name
+   and once per `noteAbsent` transition — and removed keys while iterating
+   `storage.keys`, copying the table. Measured with `StateTable.lastResetScanWork`
+   (entries visited by the resets, per sweep): 1000 named `Box` rows all renamed
+   every frame (table 2 001) visited **3 002 000** entries a frame (0 at
+   `89a8337`, which had no rename reset). Now `noteAbsent` queues its slot and
+   `sweep()` queues each departed name produced nowhere; `resetQueuedEntries`
+   walks the keys ONCE, an entry going when it is a queued name or has one — or
+   a queued absent slot — as a proper ancestor, `$focus`/`$ax` exempt; keys are
+   collected, then removed. The same 1000 rows: **4 001**. Two consequences,
+   both measured: `ID-C`'s reset now runs at the frame's end rather than at the
+   `if`'s evaluation (a slot noted absent and then produced in the same frame is
+   reset at the produce, as before); and because that is after the frame's
+   `resolveFocus`, the `$focus` exemption dropped no longer clears focus on the
+   first away frame, only on the second — C2.8 and C2.12's focus halves and
+   `focusOnAnElementThatStopsBeingProduced…` no longer see it, so C2.13 reads
+   two away frames. Pinned by **E3.13** `theResetsScanTheTableOncePerSweep`
+   (red at `1c417c1`, the old algorithm with the counter: 1 500 500 / 1 505 000
+   / 500 500 against ≤ 2 000 / 20 000 / 1 000).
+9. **Amended (the verifier's Note A): focus outlives the rename reset, as it
+   outlives `ID-C`'s.** After `a` → `b`, `window.focusedElement` stays on `a`'s
+   no-longer-produced id (the `$focus` slot is exempt, so `resolveFocus` keeps
+   finding it) and focus returns with `a`, whose `@State` restarts. SwiftUI
+   drops focus when the identity goes away. **A known difference, not a
+   numbered divergence (75 stays unused)**: it is `ID-C`'s `$focus` retention
+   (C2.8, C2.12; record §55 §3's "focus kept (`TB-J`)" row), which was never
+   numbered either, and SwiftUI's side is **unprobed** — no probe arm observes
+   focus across an identity change (it needs a key window), and a numbered row
+   needs a probe arm (`SA-N`'s rule). **Owner: plan task 12** (interaction,
+   focus and accessibility), which probes it and numbers or fixes both resets'
+   retention together. Pinned as today's behaviour by **C2.13**
+   `focusOutlivesARenameAndAnIfUntilItsElementReturns` (two away frames, then
+   the return, on a rename and on an `if`).
+
 **Evidence.** Record §55 §10 (red before, mutations MRa–MRk, B2, B2e, MSw, the
-suite, pixels).
+suite, pixels); items 8 and 9, record §55 §10.6.
 
 **Cost if wrong.** Item 1 is a behaviour change: code that relied on a name
 getting its state back after a detour through another name now starts it

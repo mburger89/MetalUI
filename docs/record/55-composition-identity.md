@@ -1023,3 +1023,115 @@ both resets share, so the four tests above pin it for both.
 `ID-R`), the generation clause is pinned on both copies (O1.11, O1.12), and
 4.1's comment is history. No divergence is added (75 stays unused); record
 §04's task-8 section gains a closeout note. **Plan task 8's box is ticked.**
+
+### 10.6 The sweep's cost — one pass, not one per departure (`ID-R` items 8–9)
+
+An independent verifier of §10 found that `ID-R`'s sweep cost (departed names
+× table): `resetEntries` walked every key of `storage` with an ancestor walk,
+once per departed name — and once per `noteAbsent` transition, which shares it
+— removing keys while iterating `storage.keys` (a copy-on-write copy of the
+table). Commits `1c417c1` (counter and red test), `9ca92ba` (the fix),
+`98d33a1` (C2.13, Note A), then this section.
+
+**The counter.** `StateTable.lastResetScanWork`: the table entries the resets
+visited during the last completed frame (added `storage.count` per scan), in
+`LayoutTree.lastNativeLayoutWork`'s shape. Nothing in production reads it.
+
+**Numbers, before (`1c417c1`: the per-name algorithm with the counter) and
+after (`9ca92ba`)**, each the renaming frame's figure; the table's count after
+the sweep is identical before and after in every row:
+
+| tree | table | before | after |
+|---|---|---|---|
+| 1000 named `Box { counter }` rows in a `Column`, every name replaced each frame (the verifier's shape) | 2 001 | **3 002 000** (the verifier's own figure) | **4 001** |
+| 100 named `Column`s × 100 named `Box { counter }`, 0 / 1 / 10 / 100 outer names replaced | 20 101 | 0 / 20 302 / 212 065 / 3 025 150 | 0 / 20 302 / 22 111 / 40 201 |
+| E3.13 A: 1000 named proposal counters in a `VStack`, all replaced | 1 000 | 1 500 500 | **2 000** |
+| E3.13 B: 100 named `VStack`s × 100 named counters, 0 / 1 / 10 / 100 replaced | 10 000 | 0 / 10 100 / 105 500 / 1 505 000 | 0 / 10 100 / 11 000 / 20 000 |
+| E3.13 C: 1000 `VStack { if flag { counter } }` all gone false (`noteAbsent`) | 1 000 | 500 500 | **1 000** |
+
+(The verifier's 100×100 table read 10 101 with an unnamed child per `Box`; the
+shape here holds two entries per leaf. At 1 rename both algorithms scan once.)
+The one pass visits every entry at the sweep once: the last frame's entries
+plus the renamed subtrees' new ones.
+
+**The fix** (`StateTable.swift`): `noteAbsent` queues its slot in
+`absentSlots` (still counting `subtreeResetScans` once per transition, C2.9);
+`sweep()` queues each departed name produced nowhere in `departedRoots` and
+calls `resetQueuedEntries`, which walks `storage.keys` once — an entry goes
+when it is a queued name, or has a queued name or absent slot as a proper
+ancestor, and is not `$focus`/`$ax` — collecting keys into a reused array and
+removing them after the walk. A slot noted absent and then produced in the
+same frame is reset at `noteProduced`, before its content writes, as the
+immediate reset left it. The produced-elsewhere and windowed-parent rules are
+untouched.
+
+**Test.** **E3.13** `theResetsScanTheTableOncePerSweep`
+(`ExplicitIdentityTests.swift`), bounds derived before the run (A ≤ 2 000, B
+≤ 20 000 at 100 renames and 0 at none, C ≤ 1 000), each arm also requiring the
+table's count after the sweep (1 000, 10 000, 0) so a pass that deletes
+nothing cannot pass. **Red at `1c417c1`**: 3 issues — A 1 500 500, B 1 505 000,
+C 500 500.
+
+**Behaviour.** Every `ID-R`/`ID-C` test green unedited on the fix (E3.10–E3.12,
+C2.x, `aResetKeepsTheFocusAndAccessibilityRetentionSlots`, both `List`
+excursion tests, O1.11/O1.12): `Test run with 1489 tests in 3 suites passed`
+at `9ca92ba`. **One timing moved, measured**: `ID-C`'s reset now happens at the
+frame's end, after `resolveFocus`, not at the `if`'s evaluation. Outside the
+frame build nothing can tell (input reads the table after the sweep; inside it
+nothing under an absent slot is produced, and `$focus`/`$ax` are exempt) —
+but the exemption's *mutant* can: see MRk′.
+
+**Mutations** (whole suite unfiltered, from `9ca92ba` — MRk′b from `98d33a1` —
+exact-string substitution in `StateTable.swift`, restored from a copy,
+`git status --short Sources` empty after each):
+
+| id | site and spelling | reddened (issues) |
+|---|---|---|
+| MRb (re-run) | `sweep()`: `for name in departedNames {` (produced-anywhere dropped) | E3.11 (1), `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot` (2), `reorderingANamedListCarriesEachItemsState` (3) — **§10.3's set** |
+| MRc (re-run) | `noteWindowedParent`: `_ = parent` | `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` (1), `aConditionalInAWindowedListRowIsNotResetByAnExcursion` (1) — **§10.3's set** |
+| MRl-n | `sweep()`: `departedRoots.insert(name); resetQueuedEntries()` (a pass per departed name again) | E3.13 alone (2: A and B) |
+| MRl-a | `noteAbsent`: `absentSlots.insert(slot); resetQueuedEntries()` (a pass per absent slot, mid-frame, again) | E3.13 alone (1: C) |
+| MRj′ | `resetQueuedEntries`: `if false && departedRoots.contains(id)` (the departed id itself kept; §10.3's MRj on the new code) | E3.10 (1) — MRj's set |
+| MRk′ | `removeEntries`: `where doomed(id)` (the `$focus`/`$ax` exemption dropped; §10.3's MRk on the new code) | at `9ca92ba`: `aResetKeepsTheFocusAndAccessibilityRetentionSlots` (1, its `$ax` peek), `aFocusRequestWhileDisabledLeavesNoRetentionSlot` (1) — **narrower than MRk's four** |
+| MRk′b | the same, with C2.13 | `aResetKeepsTheFocusAndAccessibilityRetentionSlots` (1), **C2.13** `focusOutlivesARenameAndAnIfUntilItsElementReturns` (8), `aFocusRequestWhileDisabledLeavesNoRetentionSlot` (1) |
+
+**MRk′ is the finding the fix's own mutation run produced.** With the reset at
+the frame's end, dropping the exemption deletes `$focus` only after that
+frame's `resolveFocus`, so focus survives the first away frame and clears on
+the second. C2.8 and C2.12 read one away frame, and
+`focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow` likewise, so
+their focus halves no longer see the exemption; C2.8's `$ax` half still does.
+**C2.13** re-pins it — a rename and an `if`, two away frames each, then the
+return — and it also pins the rename reset's exemption, which §10.3 said
+nothing asserted.
+
+**Note A (`ID-R` item 9).** After `a` → `b`, `window.focusedElement` stays on
+`a`'s unproduced id and focus returns with `a` (fresh `@State`); SwiftUI drops
+focus when the identity goes away. Recorded as a known difference, **not**
+divergence 75: it is `ID-C`'s `$focus` retention (§3's "focus kept (`TB-J`)"
+row, C2.8, C2.12), never numbered either, and SwiftUI's side is unprobed (no
+arm observes focus across an identity change; it needs a key window). Owner
+**plan task 12**. C2.13 pins today's behaviour; record §04's closeout section
+carries the amendment. C2.13 is green on `1c417c1`'s algorithm too — it pins
+behaviour the fix did not change.
+
+**Gates** (at `98d33a1`'s sources, the docs uncommitted):
+
+- `swift package clean`, `swift build --build-system native --build-tests`:
+  `Build complete!`, 0 `error:`, the one `warning:` SwiftPM's deprecation
+  notice. Unfiltered `swift test --build-system native --no-parallel`:
+  **`Test run with 1490 tests in 3 suites passed after 84.974 seconds`**; the
+  log carries `FR-J no-argument frame: succeeded=true deprecations=2`,
+  `CONDITIONAL GUARD G2.1 positive: succeeded=true` and `EXPLICIT IDENTITY
+  GUARD G3.1 positive: succeeded=true`; eleven gated tests skipped. **1490 =
+  1488 + 2** (E3.13, C2.13). Guards 88, goldens 0, unmoved.
+- `swift build --build-tests` (default build system): 0 `error:`, 0
+  `warning:`.
+- Pixels: `docs/probes/demo-pixels/compare.sh <scratch> 89a8337 HEAD` (HEAD
+  `98d33a1`): controls at their recorded values (light/dark 1 048 576, default
+  vs modal 1 031 003, default vs animation 454 895, f0 vs f3 0, preview
+  1 048 576, chrome pair 0, distinct 544/216/529, prod default vs modal
+  491 221, indicator rects 0) and **all fourteen `differing=0`, scene
+  identical**.
+- Not re-run: the 100k `List` test, `Backends/SDL`, the Linux container (one
+  file changed, `StateTable.swift`, portable, no API).

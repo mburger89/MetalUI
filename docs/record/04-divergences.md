@@ -1532,3 +1532,12 @@ two `List` excursion tests).
 **What it costs if wrong.** A reader looking for divergence 75 finds nothing —
 by design; the row this section's predecessor named is closed here, not
 numbered.
+
+**Amended the same day (`ID-R` item 9, the verifier's Note A; record §55
+§10.6): still no row.** After `a` → `b`, focus stays on `a`'s no-longer-produced
+id and returns with `a` (fresh `@State`); SwiftUI drops focus when the identity
+goes away. It is the same `$focus`-exempt retention as `ID-C`'s `if` reset
+(C2.8, C2.12), which was never numbered, and SwiftUI's side is unprobed (no arm
+observes focus across an identity change), so it is recorded as a known
+difference, **owner plan task 12**, pinned as today's behaviour by
+`focusOutlivesARenameAndAnIfUntilItsElementReturns` (C2.13) — not given label 75.
