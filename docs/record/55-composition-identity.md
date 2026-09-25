@@ -300,6 +300,48 @@ Three predictions in the spec were wrong and are corrected by `ID-N` item 4
 (M1a not O1.5; M1g also O1.6; M1j also O1.8), and two test spellings by item 2
 (O1.3's press arm, O1.4's clicks).
 
+### 5.6 Review round (`ID-O`)
+
+The lane's reviewer returned one major and two minors; all three fixed.
+Commits: red tests, then the fix (`3ffcc91`), then this subsection with
+`ID-O`.
+
+- **Major — V10 was unpinned.** Mutation V10 in
+  `Sources/MetalUI/EnvironmentProperty.swift`, `box.occurrences =
+  [(previous, last)]` → `_ = last; box.occurrences = []`, left the whole suite
+  green at 1452. New O1.9 (`aComponentsEnvironmentKeepsTheFirstOccurrencesSnapshot`,
+  a `Component` value holding `@Environment` placed twice under 7 and 9) is
+  green at the test commit and **V10, re-run from that committed tree, whole
+  suite unfiltered, reddens O1.9 alone** (`[9, 9]`; the run's only other red
+  was O1.10, red at that commit without any mutation). `git status --short`
+  empty after the restore.
+- **Minor — an owner leaking into a frame build.** O1.10
+  (`aFrameBuiltInsideADispatchedHandlerReadsEachOccurrencesBinding`) renders
+  one `Element` value placed twice under 7 and 9 inside
+  `StateDispatch.dispatching(to: occurrence 0)`: **red at the test commit**
+  (`[7, 7]`, `Test run with 1454 tests in 3 suites failed … with 1 issue`),
+  green once `Frame.render` wraps its build in
+  `StateDispatch.outsideDispatch`. Reverting that wrap is the test commit's
+  sources, so the red run is its mutation.
+- **Minor — two stale comments** (`Component.swift`'s `requestGroupLayout`
+  note and `ComponentTests.swift`'s `stateInsideAComponentsContentIsAlsoSeeded`
+  doc) called `AnyElement`'s unbound `@State` "the live defect"; reworded to
+  say forwarding to `requestLayout` would skip `StateBinder.bind`, the shape
+  `AnyElement` had before `ID-E`.
+
+**After.** `swift build --build-system native --build-tests` and `swift build
+--build-tests`: 0 `error:`, the only `warning:` SwiftPM's deprecation notice.
+`swift test --build-system native --no-parallel` → **`Test run with 1454 tests
+in 3 suites passed after 81.073 seconds`**, guards ran. **1454 = 1452 + 2**
+(O1.9, O1.10). No test deleted or changed its answer. `compare.sh <scratch>
+e3cb3e9 3ffcc91`: controls as in §5.3, **all fourteen images differing=0,
+scene identical**. `Expected.swift` unedited.
+
+| id | mutation | reddened (issues) |
+|---|---|---|
+| V10 | `Environment` bind drops the previous occurrence's snapshot | O1.9 (`[9, 9]`) — 1 |
+| V11 | `Frame.render` without `outsideDispatch` (the test commit's sources) | O1.10 (`[7, 7]`) — 1 |
+
 ### 5.5 Deferred
 
 - `ElementGroup.swift`'s `extension AnyElement: ElementGroup` comment still

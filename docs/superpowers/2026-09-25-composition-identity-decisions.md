@@ -2,7 +2,7 @@
 
 Rulings for [`specs/2026-09-25-composition-identity-design.md`](specs/2026-09-25-composition-identity-design.md),
 on `feat/composition-identity` from `e3cb3e9`. Ids are **lettered**,
-`ID-A`…`ID-N`; next unused is **`ID-O`**. A bare `ID-3` is a typo, not a
+`ID-A`…`ID-O`; next unused is **`ID-P`**. A bare `ID-3` is a typo, not a
 citation. **A round that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-25: designed; no lane has run.** Baseline measured in this
@@ -589,3 +589,39 @@ each from a committed tree, whole suite.
 and what their instruments redden. Item 1 is one more wrapped call, no other
 behaviour moves (the whole suite and the fourteen offscreen images read
 unchanged).
+
+---
+
+## ID-O — lane 1's review round: the first occurrence's environment pinned, a frame build outside dispatch
+
+**Ruling.**
+
+1. **A `Component`'s `@Environment` keeps the first occurrence's snapshot, and
+   that is pinned.** `Environment`'s bind records the previous occurrence when
+   a second element id binds in one generation (`box.occurrences =
+   [(previous, last)]`). O1.5's `Element` cannot see that line — its prepaint
+   and paint re-bind re-add occurrence 0 — but a `Component` binds only in
+   layout (`ID-N` item 2), so for a `Component` the first occurrence's
+   snapshot exists only through it. New test O1.9,
+   `aComponentsEnvironmentKeepsTheFirstOccurrencesSnapshot`: one
+   `Component` value holding `@Environment`, placed twice under scopes 7 and 9,
+   each inner box clicked, reads `[7, 9]`. Mutation **V10** (`_ = last;
+   box.occurrences = []`) reddens it alone, reading `[9, 9]`; before this
+   ruling V10 reddened nothing in the whole suite.
+2. **A frame build is outside dispatch.** `Frame.render` runs its build inside
+   the new `StateDispatch.outsideDispatch`, which clears the owner and restores
+   it after, so every phase of a frame reads its own bind even when a frame is
+   built synchronously inside a dispatched handler. No production path does
+   that today (`drawFrameIfNeeded` is called from the run loop and the display
+   link), so nothing observable in production moves; the reviewer's finding
+   was that the assumption was undocumented and that, with an owner left set
+   (mutation V8), per-phase reads of an aliased box resolved to the owner's
+   occurrence. Pinned by O1.10,
+   `aFrameBuiltInsideADispatchedHandlerReadsEachOccurrencesBinding`: red at
+   the test commit (`[7, 7]`), green after.
+
+**Evidence.** Record §55 §5.6.
+
+**Cost if wrong.** Item 1 is a test. Item 2 adds one save/restore of a static
+per frame; the whole suite and all fourteen offscreen images read unchanged.
+
