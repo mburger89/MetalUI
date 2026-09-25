@@ -234,7 +234,7 @@ private func readings<Root: Element>(tapping tapped: String, primary: String?,
 ///   `ModifiedContent` primary under a legacy overlay;
 /// - **L5** `members { if flag { EmptyComponent() }; p }` — a legacy **group**
 ///   primary, the probe's P2 and MC-E's counterexample: one node either way,
-///   two indices or one. *Added by lane 2* (`LR-GC` item 2): L1–L4 are single
+///   two indices or one. *Added by lane 2* (`LR-GC` item 3): L1–L4 are single
 ///   elements, which consume one index whatever their shape, so only a group
 ///   primary can move a threaded cursor (M1c′).
 ///
@@ -476,4 +476,137 @@ private func readings<Root: Element>(tapping tapped: String, primary: String?,
     }
     let expected: [[Float]] = [[80, 65, 40, 30, 0.5], [95, 75, 10, 10, 0.5]]
     #expect(rects == expected, "rects \(rects)")
+}
+
+// MARK: - N1.8–N1.11: the attachment lowering's report path, its parent style, its presentation drop
+
+/// **N1.8 — each side of a legacy overlay reports its unlowerable fields by
+/// name** (ruling `LR-GD` item 1; `lowerAttachmentChildren`'s item 2). In a
+/// 100×100 `Box`, an absolute 10×10 `Box` — outside any `Deferred` — overlaid by
+/// a `Box` whose width is `auto` with a px `maxWidth` of 50 and a height of 10.
+/// Under diagnostics the report names both, primary side first, each at the
+/// child's own site: `box.position` (an absolute box outside a `Deferred` is a
+/// permanent refusal, `LR-FO`) and `box.maxSize` (a maximum on an `auto` axis,
+/// which is not greedy, `LR-AB`). Derived before the run from the plan's
+/// rules at `parentKind: .stack`, which drop only the flex item fields.
+///
+/// The report block in `lowerAttachmentChildren` is a third copy of the
+/// `dropLast` / `unlowerable(last)` pattern (`LegacyLowering.swift`,
+/// `ListRows.swift`), so it is pinned here on its own. Mutation (record §54
+/// §8.3): **V5** the `guard fields.isEmpty` inverted to `if false, !fields.isEmpty`
+/// (the report reads `[]`).
+@Test @MainActor func eachSideOfALegacyOverlayReportsItsUnlowerableFieldsByName() {
+    var absolute = sized(10, 10)
+    absolute.position = .absolute
+    var capped = Style()
+    capped.size = Size(width: .auto, height: dim(10))
+    capped.maxSize = Size(width: dim(50), height: .auto)
+    var root = Box(style: sized(100, 100)) {
+        Box(style: absolute).overlay { Box(style: capped) }
+    }
+    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
+                      reportsUnlowerableFields: true)
+    frame.render(&root)
+    #expect(frame.unlowerableFields.map(\.description) == ["box.position", "box.maxSize"],
+            "report: \(frame.unlowerableFields)")
+}
+
+/// **N1.9 (exit) — a production frame traps on an overlay side's unlowerable
+/// field** (ruling `LR-GD` item 1). N1.8's overlay side alone — a 10×10 primary
+/// overlaid by the `auto`-width, `maxWidth: 50` box — in a production frame
+/// (diagnostics off): the child aborts naming `box.maxSize`, where the
+/// alternative is the side laid out in flow as though the maximum were not
+/// there. Mutation (record §54 §8.3): **V5** (the child exits 0).
+@Test func aProductionFrameTrapsOnAnOverlaySidesUnlowerableField() async {
+    let child = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            var capped = Style()
+            capped.size = Size(width: .auto, height: dim(10))
+            capped.maxSize = Size(width: dim(50), height: .auto)
+            var root = Box(style: sized(100, 100)) {
+                Box(style: sized(10, 10)).overlay { Box(style: capped) }
+            }
+            Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1).render(&root)
+        }
+    }
+    let stderr = String(decoding: child?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("MetalUI: box.maxSize has no proposal lowering"),
+            "aborted, but not naming box.maxSize:\n\(stderr)")
+}
+
+/// **N1.10 — a multi-view legacy overlay stretches none of its views**
+/// (ruling `LR-GC` item 5(a), pinned by `LR-GD` item 2). A 40×30 `Box`
+/// overlaid `.topLeading` by two views: `a`, 10 wide with an `auto` height,
+/// and `b`, an `auto` width and 10 tall. `lowerAttachmentChildren` plans them
+/// against a `.center`/`.center` parent, so neither is stretched on its `auto`
+/// axis: `a` is 10×0 and `b` 0×10. The overlay's views form one stack whose
+/// size is their union, 10×10, aligned `.topLeading` in the primary at (0, 0),
+/// each view centred in the union: `a` at (0, 5), `b` at (5, 0) — relative to
+/// the primary's origin, so the enclosing `Box`'s placement of the primary does
+/// not enter the literals. Derived before the run. A stretching (default)
+/// parent style would make `a` 10×30 and `b` 40×10, a 40×30 union.
+///
+/// Mutation (record §54 §8.3): **V2** `parent.justifyItems = .center` and
+/// `parent.alignItems = .center` deleted (both rects move; no report either
+/// way).
+@Test @MainActor func aMultiViewLegacyOverlayStretchesNoneOfItsViews() throws {
+    var tall = Style()
+    tall.size = Size(width: dim(10), height: .auto)
+    var wide = Style()
+    wide.size = Size(width: .auto, height: dim(10))
+    var root = Box(style: sized(100, 100)) {
+        Box(style: sized(40, 30)).overlay(alignment: .topLeading) {
+            Box(style: tall)
+            Box(style: wide)
+        }
+    }
+    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
+                      reportsUnlowerableFields: true, recordsElementBounds: true)
+    frame.render(&root)
+    #expect(frame.unlowerableFields.isEmpty, "report: \(frame.unlowerableFields)")
+    let overlayModifier = child(rootID, 0)
+    let overlaySide = GlobalElementID.child(of: overlayModifier, at: -1, name: nil)
+    let primary = try #require(frame.elementBounds[child(overlayModifier, 0)])
+    func relative(_ id: GlobalElementID) -> [Float]? {
+        frame.elementBounds[id].map {
+            [$0.origin.x.value - primary.origin.x.value, $0.origin.y.value - primary.origin.y.value,
+             $0.size.width.value, $0.size.height.value]
+        }
+    }
+    #expect(relative(child(overlaySide, 0)) == [0, 5, 10, 0],
+            "a \(String(describing: relative(child(overlaySide, 0))))")
+    #expect(relative(child(overlaySide, 1)) == [5, 0, 0, 10],
+            "b \(String(describing: relative(child(overlaySide, 1))))")
+}
+
+/// **N1.11 — an overlay-side `Deferred` presents against the window and leaves
+/// no placeholder in the overlay** (ruling `LR-GD` item 3; replaces the spec's
+/// undefined `N3.1` citation in §5). A 40×30 `Box` root overlaid by a
+/// `Deferred` over an absolute 10×10 box inset (5, 5), in a 200×100 frame. The
+/// presented box reads (5, 5) 10×10 — the window's corner, not the primary's
+/// (the primary is centred, `CN-J`, at (80, 35)). The node count is **7**:
+/// measured at `0e4e853` and taken as the literal, not derived (the lane-2
+/// verifier's 9 was the same overlay inside an enclosing `Box`) — its content
+/// is the placeholder's absence, which the mutant turns into **8** (one 0×0
+/// leaf in the overlay stack). The rect is unchanged under the mutant; only
+/// the count sees the drop.
+///
+/// Mutation (record §54 §8.3): **V4** the overlay side skips
+/// `droppingPresentations` while the primary still drops.
+@Test @MainActor func anOverlaySideDeferredPresentsAgainstTheWindowAndLeavesNoPlaceholder() {
+    var absolute = sized(10, 10)
+    absolute.position = .absolute
+    absolute.inset = Edges(top: dim(5), right: .auto, bottom: .auto, left: dim(5))
+    var root = Box(style: sized(40, 30)).overlay { Deferred { Box(style: absolute) } }
+    let frame = Frame(contentSize: Size(width: px(200), height: px(100)), scaleFactor: 1,
+                      reportsUnlowerableFields: true, recordsElementBounds: true)
+    frame.render(&root)
+    #expect(frame.unlowerableFields.isEmpty, "report: \(frame.unlowerableFields)")
+    let deferred = child(GlobalElementID.child(of: rootID, at: -1, name: nil), 0)
+    let presented = child(deferred, 0)
+    #expect(frame.elementBounds[presented] == bounds(5, 5, 10, 10),
+            "presented \(String(describing: frame.elementBounds[presented]))")
+    #expect(frame.elementBounds[child(rootID, 0)] == bounds(80, 35, 40, 30),
+            "primary \(String(describing: frame.elementBounds[child(rootID, 0)]))")
+    #expect(frame.tree.nodeCount == 7, "nodes \(frame.tree.nodeCount)")
 }

@@ -712,7 +712,7 @@ private struct AtOrigin: ProposalLayout {
 ///   a `ProposalLayoutContainer`, a `ProposalScrollView` — reports exactly
 ///   `[box.flexGrow.unconsumed]`;
 /// - the `.overlay` primary and overlay slots **consume** the record and report
-///   nothing, since stage 11 (`LR-FX` item 3, `LR-GC` item 3): both sides pass
+///   nothing, since stage 11 (`LR-FX` item 3, `LR-GC` item 2): both sides pass
 ///   through `lowerAttachmentChildren`, planned at `.stack`, which drops the grow
 ///   as a frame layer does (`LR-AZ`). Until then each read
 ///   `[box.flexGrow.unconsumed]`;
@@ -756,7 +756,7 @@ private struct AtOrigin: ProposalLayout {
     arms.append(("ProposalFrame", report { ProposalFrame(width: px(50), height: px(50)) { LegacyUnderProposal(grow()) } },
                  unconsumed))
     arms.append(("padding ModifiedContent", report { LegacyUnderProposal(grow()).padding(Edges(all: px(4))) }, unconsumed))
-    // Stage 11 (`LR-FX` item 3, `LR-GC` item 3): an overlay attachment consumes
+    // Stage 11 (`LR-FX` item 3, `LR-GC` item 2): an overlay attachment consumes
     // both sides' records through `lowerAttachmentChildren`, planned at `.stack`,
     // which drops a `flexGrow` as a frame layer does (`LR-AZ`) — so these two
     // arms read `[]` where they read `[box.flexGrow.unconsumed]` until then.
