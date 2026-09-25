@@ -195,11 +195,13 @@ public final class Frame {
     /// `Frame` built without a window (every test) keeps `EnvironmentValues()`,
     /// whose locale is the root locale `Locale(identifier: "")` (ruling EV-Y).
     ///
-    /// **The setter re-stamps two fields** (rulings EV-H, EV-U): `theme`
-    /// from the `theme:` this frame was built with, and `pixelLength` from its
-    /// scale factor. `Window.theme` stays the root theme's only source, and no
-    /// value can lie about the device, so `window.environment.theme = .dark` —
-    /// which compiles inside the module — changes nothing.
+    /// **The setter re-stamps two fields** (rulings EV-H, EV-U, EV-AA):
+    /// `theme` from the `theme:` this frame was built with, and `displayScale`
+    /// from its scale factor. `Window.theme` stays the root theme's only
+    /// source, and the root's scale is the drawable's, so
+    /// `window.environment.theme = .dark` and
+    /// `window.environment.displayScale = 3` — which compile — change nothing
+    /// at the root. A scope below the root may write `displayScale` (EV-AA).
     ///
     /// **It also resets the top, so it traps while `render` runs** (ruling
     /// EV-Z). From inside a phase it would replace every open scope's values
@@ -215,18 +217,19 @@ public final class Frame {
                          "Frame.rootEnvironment set during render: it would replace every open scope's values (ruling EV-Z)")
             var values = newValue
             values.theme = rootTheme
-            values.pixelLength = Self.pixelLength(forScaleFactor: scaleFactor)
+            values.displayScale = Self.displayScale(forScaleFactor: scaleFactor)
             storedRootEnvironment = values
             environmentTop = values
         }
     }
 
-    /// One device pixel in points, or 1 when the surface has not reported a
-    /// usable scale — a 0 or NaN from a backend still configuring itself would
-    /// otherwise hand every reader an infinity.
-    private static func pixelLength(forScaleFactor scale: Float) -> Double {
+    /// The root's `displayScale`: the surface's scale factor, or 1 when it has
+    /// not reported a usable one — a 0 or NaN from a backend still configuring
+    /// itself would otherwise hand every reader a nonsense scale (ruling EV-AA;
+    /// the guard that protected `pixelLength` before it was derived).
+    private static func displayScale(forScaleFactor scale: Float) -> Double {
         guard scale.isFinite, scale > 0 else { return 1 }
-        return 1 / Double(scale)
+        return Double(scale)
     }
 
     /// A writer's values: `write` applied to a copy of the **current top**, so
@@ -234,11 +237,13 @@ public final class Frame {
     /// (ruling EV-A). Called once per scope per frame, by
     /// `EnvironmentScope.requestGroupLayout` only (ruling EV-V).
     ///
-    /// **A `.transform` cannot change `theme` or `pixelLength`**: both are put
-    /// back from the top it copied, after the transform runs, because
+    /// **A `.transform` cannot change `theme`**: it is put back from the top
+    /// it copied, after the transform runs, because
     /// `.environment(\.self, EnvironmentValues())` compiles outside the module
-    /// and would otherwise reset them (ruling EV-U). `.theme` is the one write
-    /// that sets a theme.
+    /// and would otherwise reset it (ruling EV-U). `.theme` is the one write
+    /// that sets a theme. **`displayScale` is not re-stamped** (ruling EV-AA,
+    /// which withdrew `EV-U`'s `pixelLength` half): a scope may write it, and a
+    /// `\.self` reset reads 1, as in SwiftUI.
     func scopedValues(applying write: EnvironmentWrite) -> EnvironmentValues {
         environmentTransformCount += 1
         var values = environmentTop
@@ -246,7 +251,6 @@ public final class Frame {
         case .transform(let transform):
             transform(&values)
             values.theme = environmentTop.theme
-            values.pixelLength = environmentTop.pixelLength
         case .theme(let theme):
             values.theme = theme
         }
@@ -1509,7 +1513,7 @@ public final class Frame {
         self.rootTheme = theme
         var root = EnvironmentValues()
         root.theme = theme
-        root.pixelLength = Self.pixelLength(forScaleFactor: scaleFactor)
+        root.displayScale = Self.displayScale(forScaleFactor: scaleFactor)
         self.storedRootEnvironment = root
         self.environmentTop = root
         self.timestamp = timestamp

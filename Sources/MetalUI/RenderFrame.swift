@@ -9,6 +9,11 @@ import MetalUITextSystem
 /// `atlas` receives the glyph coverage the scene samples; pass the same atlas
 /// to the renderer. The frame is the first a fresh window draws: no pointer,
 /// no focus, no animation in flight.
+///
+/// The root environment's `displayScale` is `scaleFactor` (1 unless finite and
+/// positive) and its `controlActiveState` is the bare `.key` — the
+/// `ImageRenderer` analogue of probe `swiftui-environment-control-state.swift`
+/// S1 and V0 (rulings EV-AA, EV-AB).
 @MainActor
 public func renderFrame<Root: Element>(_ content: () -> Root, size: Size<Pixels>, scaleFactor: Float,
                                        textSystem: any TextSystem, atlas: GlyphAtlas,

@@ -27,35 +27,42 @@ public protocol EnvironmentKey {
 /// cannot compare an old and a new value, and every write to it dirties the
 /// window (ruling EV-H).
 ///
-/// **Two fields are not the caller's to write, and access control alone does
-/// not stop it** (ruling EV-U). `pixelLength` is `public internal(set)` and
-/// `theme` is `internal`, so neither has a writable key path outside the
-/// module — but `\.self` does, and `.environment(\.self, EnvironmentValues())`
-/// would reset both. `Frame.scopedValues(applying:)` and
-/// `Frame.rootEnvironment` re-stamp them after every write instead. The two
-/// halves are different claims:
+/// **One field is not the caller's to write, and access control alone does
+/// not stop it** (rulings EV-U, EV-AA). `theme` is `internal`, so it has no
+/// writable key path outside the module — but `\.self` does, and
+/// `.environment(\.self, EnvironmentValues())` would reset it.
+/// `Frame.scopedValues(applying:)` and `Frame.rootEnvironment` re-stamp it
+/// after every write instead: **`theme` is MetalUI's own key.** SwiftUI has
+/// none; `.theme(_:)` is its only writer by design (ruling EV-G), and the
+/// re-stamp is what makes that true.
 ///
-/// - **`theme` is MetalUI's own key.** SwiftUI has none; `.theme(_:)` is its
-///   only writer by design (ruling EV-G), and the re-stamp is what makes that
-///   true.
-/// - **`pixelLength` is SwiftUI's key, and keeping it is a DIVERGENCE.** In
-///   SwiftUI a `\.self` reset in a 2x window reads `pixelLength` 1 (probe
-///   `swiftui-environment-pixel-length.swift` X2). Here it keeps the device's
-///   value, because there is no `displayScale` for a reset value to agree with
-///   (rulings EV-J, EV-U).
+/// **`displayScale` is the caller's to write, as in SwiftUI** (ruling EV-AA,
+/// which withdrew `EV-U`'s `pixelLength` half and retired divergence 24). A
+/// `\.self` reset in a 2x window reads `displayScale` 1 and `pixelLength` 1,
+/// SwiftUI's answer (probe `swiftui-environment-pixel-length.swift` X2).
+///
+/// **Three fields of `Window.environment` are not the root's source**: the
+/// frame stamps `theme` (from `Window.theme`) and `displayScale` (from its
+/// `scaleFactor`), and the window stamps `controlActiveState` (from its
+/// platform window) over whatever `Window.environment` holds. A scope below
+/// the root may still write `displayScale` and `controlActiveState`.
 public struct EnvironmentValues {
     /// Every field at SwiftUI's **bare** default (ruling EV-Y): enabled,
     /// left-to-right, the root locale `Locale(identifier: "")`, `.large`, a
-    /// `pixelLength` of 1, the light theme, and every custom key at its
-    /// `defaultValue` — what a bare SwiftUI `EnvironmentValues()` holds
-    /// (probe `swiftui-environment-pixel-length.swift` V0, V2).
+    /// `displayScale` of 1 (so a `pixelLength` of 1), `.key`, `.regular`, the
+    /// light theme, and every custom key at its `defaultValue` — what a bare
+    /// SwiftUI `EnvironmentValues()` holds (probe
+    /// `swiftui-environment-pixel-length.swift` V0, V2; probe
+    /// `swiftui-environment-control-state.swift` V0).
     ///
     /// **Not a window's defaults.** A hosted SwiftUI view reads the user's
-    /// locale and the display's scale (scoping probe C, pixel-length probe X0)
-    /// because its host stamps them over the bare value. Here too: a `Window`
-    /// stamps `Locale.current` into its `environment`, and a `Frame` stamps
-    /// `pixelLength` and the theme. A `Frame` built without a window keeps the
-    /// root locale.
+    /// locale, the display's scale and the window's key state (scoping probe C,
+    /// pixel-length probe X0, control-state probe S0 and C0) because its host
+    /// stamps them over the bare value. Here too: a `Window` stamps
+    /// `Locale.current` into its `environment` and its platform's
+    /// `controlActiveState` into the root, and a `Frame` stamps `displayScale`
+    /// and the theme. A `Frame` built without a window keeps the root locale
+    /// and `.key`.
     public init() {
         locale = Locale(identifier: "")
     }
@@ -99,18 +106,64 @@ public struct EnvironmentValues {
     /// `dynamicTypeSizeChangesNoTextMeasurementUnderTheProposalAuthority`).
     public var dynamicTypeSize: DynamicTypeSize = .large
 
-    /// One device pixel, in points: `1 / scaleFactor` of the frame's surface.
+    /// Points to device pixels for the display this content is drawn on —
+    /// SwiftUI's `displayScale` (ruling EV-AA). **Public and writable**, as in
+    /// SwiftUI; 1 in a bare value (probe `swiftui-environment-control-state.swift`
+    /// V0).
     ///
-    /// **Read-only from outside the module, and re-stamped after every write,
-    /// so no scope can change it — a DIVERGENCE** (rulings EV-J, EV-U). SwiftUI's
-    /// `pixelLength` is get-only too, but it is derived from a writable
-    /// `displayScale`: `.environment(\.displayScale, 3)` on a 2x display reads
-    /// 1/3 (probe `swiftui-environment-pixel-length.swift` X1), and a `\.self`
-    /// reset reads 1 (X2). Here there is deliberately no `displayScale`:
-    /// `PaintPass.fill` takes points and scales once, and a value in this unit
-    /// draws a hairline correctly as written. **No internal reader**; it exists
-    /// for element authors.
-    public internal(set) var pixelLength: Double = 1
+    /// **At the root it is the frame's `scaleFactor`** — the drawable's, from
+    /// `WindowRenderer.beginFrame()`, or `renderFrame(scaleFactor:)`'s — so it
+    /// follows a window onto a display with another backing scale on the next
+    /// frame (probe S0: a hosted view reads `backingScaleFactor`; S1: an
+    /// `ImageRenderer`'s content reads the renderer's scale). A scale that is not
+    /// finite and positive stamps 1. `Window.environment.displayScale` is not
+    /// the root's source: the frame re-stamps it.
+    ///
+    /// **A scope can write it** (S2), and `pixelLength` follows; a `\.self`
+    /// reset reads 1 (X2). **A write changes the number, not the scale drawing
+    /// uses** — SwiftUI's behaviour too (S3): `PaintPass.fill` takes points and
+    /// scales by the frame's factor, never by this value, so pre-scaling a rect
+    /// by it double-scales on a Retina display, exactly as in SwiftUI.
+    ///
+    /// **Layout does not snap to it — divergence 77** (ruling EV-AD): layout
+    /// rounds to whole points at every scale, where SwiftUI rounds to this
+    /// value's pixel grid (S4). **No built-in reader**; it exists for element
+    /// authors.
+    public var displayScale: Double = 1
+
+    /// One device pixel, in points: SwiftUI's function of `displayScale`,
+    /// verbatim — `1 / displayScale`, **except 0 → 1** (probe
+    /// `swiftui-environment-control-state.swift` V1: −1 → −1, NaN → NaN,
+    /// ∞ → 0; SwiftUI rejects no write, and nothing internal reads this, so no
+    /// stored rect can go non-finite through it).
+    ///
+    /// **Get-only, derived** (ruling EV-AA): write `displayScale` to change it.
+    /// A value in this unit draws a hairline correctly through `PaintPass.fill`,
+    /// which takes points. **No internal reader**; it exists for element
+    /// authors.
+    public var pixelLength: Double {
+        displayScale == 0 ? 1 : 1 / displayScale
+    }
+
+    /// Whether the window is key, active or inactive — SwiftUI's
+    /// `controlActiveState` (ruling EV-AB). `.key` in a bare value (probe
+    /// `swiftui-environment-control-state.swift` V0), so a windowless `Frame` and
+    /// `renderFrame` read `.key`; a `Window` stamps its platform window's state
+    /// into the root at draw, and `Window.environment.controlActiveState` is not
+    /// the root's source. A scope can write it (C4). **No built-in consumer**:
+    /// MetalUI's controls do not dim in an inactive window (owner plan task 12).
+    public var controlActiveState: ControlActiveState = .key
+
+    /// The size controls below should take — SwiftUI's `controlSize` (ruling
+    /// EV-AC). `.regular` in a bare value (V0); written by `.controlSize(_:)` or
+    /// `.environment(\.controlSize, _)`, nearest writer winning (Z1).
+    ///
+    /// **Carried, with no built-in reader — divergence 76, pinned wrong on
+    /// purpose** by `controlSizeReachesNoBuiltInMeasurement`. SwiftUI's `Text`
+    /// default font, `TextField` and `Button` follow it on macOS (Z2, Z3);
+    /// MetalUI's measure nothing differently. Owners: plan task 11 (`Text`'s
+    /// default font), plan task 10 (`TextField` and the common controls).
+    public var controlSize: ControlSize = .regular
 
     /// The theme tokens resolve against. **Internal, and paint-only**: the only
     /// public reader is `PaintPass.theme`, and the only public writer is
@@ -140,4 +193,12 @@ public enum DynamicTypeSize: Sendable, Hashable, CaseIterable, Comparable {
 
     /// Whether this is one of the five accessibility sizes.
     public var isAccessibilitySize: Bool { self >= .accessibility1 }
+}
+
+/// SwiftUI's five control sizes (ruling EV-AC).
+///
+/// Carried in `EnvironmentValues.controlSize`; no built-in element reads it
+/// (divergence 76).
+public enum ControlSize: Sendable, Hashable, CaseIterable {
+    case mini, small, regular, large, extraLarge
 }

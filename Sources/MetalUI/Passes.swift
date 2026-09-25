@@ -579,6 +579,16 @@ public struct PaintPass {
     /// double-scales them on any Retina display. `cornerRadii` is scaled with
     /// them, for the same reason.
     ///
+    /// **`pass.environment.displayScale` does reveal the scale now, as a
+    /// writable value** (ruling EV-AA), exactly as SwiftUI's does, and with
+    /// SwiftUI's hazard: this method scales by the **frame's** factor, never by
+    /// the environment's, so a scope that writes `displayScale` changes the
+    /// number an author reads and not the scale drawing uses (probe
+    /// `swiftui-environment-control-state.swift` S3; pinned by
+    /// `aDisplayScaleWriteChangesTheNumberNotTheScaleDrawingUses`). Draw in
+    /// points — a `pixelLength`-wide rect is one device pixel at the frame's
+    /// own scale — and never pre-scale by it. `pass.frame` stays unreachable.
+    ///
     /// **The active clip/translate stack is applied here too, for the same
     /// reason.** `bounds` is offset by `clipped(to:offsetBy:)`'s accumulated
     /// translation and the emitted rect's mask is the intersected clip, both
