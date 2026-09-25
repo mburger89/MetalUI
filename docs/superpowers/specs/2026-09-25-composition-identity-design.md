@@ -7,7 +7,7 @@ modifier placement against SwiftUI custom-view behaviour. Preserve MetalUI's
 structural identity model where it matches, and close or document the currently
 known state-retention and reused-value aliasing differences."* Branch
 `feat/composition-identity` from `e3cb3e9` (task 7 closed: one engine, one
-modifier type). Rulings `ID-A`…`ID-M` in
+modifier type). Rulings `ID-A`…`ID-N` in
 [`../2026-09-25-composition-identity-decisions.md`](../2026-09-25-composition-identity-decisions.md);
 measurements and **the audit table** in `docs/record/55-composition-identity.md`
 (record §55 §3); SwiftUI evidence in `docs/probes/swiftui-composition-identity.swift`
@@ -150,8 +150,8 @@ it; otherwise `slotID` as today. `Environment.Box` does the same with its
 `BindableEnvironment.bind` gains the id, `StateReflection.swift`). The dispatch sites wrap the handler
 call: `Window`'s click (`hit.id`), `dispatchKey` (each chain `id` whose handler
 runs), `dispatchAction` (its target id), `WindowAccessibility`'s press and
-adjust (`id`), and the text-input path's call into a field's edit callback (the
-field's id). No other behaviour of any site moves.
+adjust (`id`), and the text-input path's calls into a field's edit and submit
+callbacks (the field's id; submit added by `ID-N` item 1). No other behaviour of any site moves.
 
 ### 3.6 `.id(_:)` on every element group (`ID-G`)
 
@@ -229,10 +229,10 @@ lane — that is divergence 71's pin, and lane 1 confirms it in its record.
 |---|---|---|
 | **O1.1** `aClickWritesTheStateOfTheOccurrenceThatWasClicked` — through a real `Window` (`makeFakeWindow`), `let p = ClickCounter(); Row { p; p }` (`@State count`, `onClick { count += 1 }`), click occurrence 0: counts `[1, 0]`; then occurrence 1: `[1, 1]`; `table.aliasedStateBoxes > 0` still | `[0, 1]` after the first click | **M1a** `resolvedSlot` returns `slotID` always; **M1b** the click site does not set the owner |
 | **O1.2** `aKeyHandlerWritesTheStateOfTheOccurrenceThatHandledIt` — the value focusable with an `onKey` writing its `@State`, placed twice, occurrence 0 focused, a key: only occurrence 0 moves | occurrence 1 moves | **M1c** `dispatchKey` sets no owner |
-| **O1.3** `anActionAndAnAccessibilityPressAndAdjustEachWriteTheirOwnOccurrence` — three arms: a `Keymap` action to focused occurrence 0; an AX press on occurrence 1; an AX increment on occurrence 0 | the last-bound occurrence moves in each arm | **M1d** `dispatchAction`, **M1e** the press, **M1f** the adjust — each without its owner; each reddens its own arm only |
-| **O1.4** `aComponentPlacedTwiceWritesTheOccurrenceWhoseInnerHandlerRan` — a `Component` value with `@State`, its body a `Box().onClick { n += 1 }`, placed twice; click occurrence 1's inner box | occurrence 0's stays, 1's moves — red: the reverse | **M1g** match `owner == slot.parent` exactly (no ancestor walk) — reddens O1.4 alone |
+| **O1.3** `anActionAndAnAccessibilityPressAndAdjustEachWriteTheirOwnOccurrence` — three arms, each its own `@State`: a `Keymap` action to focused occurrence 0; an AX press on occurrence 0 (was 1: the last-bound occurrence cannot redden, `ID-N` item 2); an AX increment on occurrence 0 | the last-bound occurrence moves in each arm | **M1d** `dispatchAction`, **M1e** the press, **M1f** the adjust — each without its owner; each reddens its own arm only |
+| **O1.4** `aComponentPlacedTwiceWritesTheOccurrenceWhoseInnerHandlerRan` — a `Component` value with `@State`, its body a `Box().onClick { n += 1 }`, placed twice; click occurrence 0's inner box, then occurrence 1's: `[1, 0]`, `[1, 1]` (`ID-N` item 2) | `[0, 1]`, `[0, 2]` | **M1g** match `owner == slot.parent` exactly (no ancestor walk) — reddens O1.4 and O1.6 (`ID-N` item 4) |
 | **O1.5** `aDispatchedHandlerReadsItsOwnOccurrencesEnvironment` — one value under two `.environment` scopes (7 and 9), each click records the handler's read: `[7, 9]` | `[9, 9]` | **M1h** `Environment.Box` resolution ignores the owner |
-| **O1.6** `aTextFieldEditWritesTheOccurrenceThatWasEdited` — a `Component` value holding `@State text` with `TextField(text:onChange:)` writing it, placed twice; type into occurrence 0 | occurrence 1's text changes | **M1i** the text-input site sets no owner |
+| **O1.6** `aTextFieldEditWritesTheOccurrenceThatWasEdited` — a `Component` value holding `@State text` with `TextField(text:onChange:)` writing it and `@State submits` written by `.onSubmit`, placed twice; type into occurrence 0, then return | occurrence 1's text and submit count change | **M1i** the edit site sets no owner (edit arm); **M1l** the submit site sets no owner (submit arm, `ID-N` item 1) |
 | **O1.7** `stateInsideAnAnyElementPersistsAcrossFrames` — `Row { AnyElement(leaf) }`, `@State n += 1` in layout, three frames: slot reads 3 | slot `nil` (record §55 §2.2) | **M1j** drop the bind in `AnyElementBox.requestLayout` |
 | **O1.8** `stateInsideAnAnyElementIsReboundForPrepaintAndPaint` — one `AnyElement` value placed twice, each occurrence stamping a distinct number in layout and reading it in prepaint and paint: `[1, 2]`, `[1, 2]` | initial values | **M1k** drop the prepaint and paint re-binds (layout-only: `[2, 2]`) |
 

@@ -207,3 +207,103 @@ sibling names share one identity), **73** (per-member attachments trap), **74**
 (a `for` loop's dropped element keeps its state); amend **56** (the vertical
 parent, the zero-member frame, the row's alignment; owner none). Live count
 55 → 55. The Record phase writes record §04's section and CLAUDE.md's bullet.
+
+## 5. Lane 1 — occurrences and erasure (`ID-E`, `ID-F`)
+
+Commits `11a5433` (red tests), `8f325ed` (implementation), then this section
+with `ID-N`. `swift package clean` first (new stored properties on
+`State.Box`/`Environment.Box`).
+
+### 5.1 What landed
+
+- New `Sources/MetalUI/StateDispatch.swift`: `StateDispatch.owner`,
+  `dispatching(to:_:)` (saves and restores the previous owner) and
+  `resolve(among:)` (walk from the owner up, nearest match first).
+- `State.Box.occurrences` (every slot bound in one generation, set when a
+  second different slot binds — the moment `noteAliasedStateBox()` fires,
+  which still counts — cleared on a later generation's first bind) and
+  `resolvedSlot`, read by `wrappedValue`'s get and set.
+- `Environment.Box`: `boundID`, `boundGeneration`, one snapshot per element id
+  when aliased, `resolvedValues`; `BindableEnvironment.bind` takes the element
+  id and the table's generation (`StateReflection.swift`, both paths).
+- `AnyElementBox` binds its element in `requestLayout`, `prepaint`, `paint`.
+- Dispatch sites: `Window.dispatchClick`, `dispatchKey`, `dispatchAction`,
+  the accessibility press and adjust, `Window.applyEdit` (edit) and
+  `dispatchTextKey` (submit, `ID-N` item 1). The risk-4 grep of every handler
+  call in `Sources/MetalUI` found no other element-owned call
+  (`Box.onAction`'s and `accessibilityAdjustableAction`'s wrappers run inside
+  an enumerated site; `Window.onAction`/`onInput` have no element).
+
+### 5.2 Red before (`11a5433` against `e3cb3e9`'s sources)
+
+`Test run with 1452 tests in 3 suites failed … with 15 issues`, all in the
+nine lane-1 tests:
+
+| test | line | read |
+|---|---|---|
+| O1.1 | `counts == [1, 0]`, then `[1, 1]` | `[0, 1]`, then `[0, 2]` |
+| O1.2 | `[1, 0]` | `[0, 1]` |
+| O1.3 action / press / adjust | `[1, 0]` each | `[0, 1]` each |
+| O1.4 | `[1, 0]`, then `[1, 1]` | `[0, 1]`, then `[0, 2]` |
+| O1.5 | `reads == [7, 9]` | `[9, 9]` |
+| O1.6 edit / submit | `["a", ""]` / `[1, 0]` | `["", "a"]` / `[0, 1]` |
+| O1.7 | slot `== 3` | `nil` |
+| O1.8 | prepaint and paint `[1, 2]` | `[0, 0]`, `[0, 0]` |
+| E8 renamed | `[[5], [5], [5]]` | `[[0], [0], [0]]` |
+
+### 5.3 After
+
+`swift build --build-system native --build-tests` and `swift build
+--build-tests`: 0 `error:`, the only `warning:` SwiftPM's deprecation notice.
+`swift test --build-system native --no-parallel` → **`Test run with 1452 tests
+in 3 suites passed after 81.063 seconds`**, guards ran (`FR-J no-argument
+frame: succeeded=true`). **1452 = 1444 + 8** (O1.1–O1.8); E8 renamed, not
+added. `IdentityTests.swift` unedited, and
+`aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt` green at 1 / 102 —
+divergence 71's pin holds (a direct call has no owner); SwiftUI's half is probe
+S5.
+
+**Retirement row.** `anEnvironmentPropertyInsideAnyElementIsInertAndReadsTheDefault`
+(`EnvironmentTests.swift`, E8, pinned inert `[[0], [0], [0]]`) →
+**`anEnvironmentPropertyInsideAnyElementReadsItsScope`**, asserting the scope's
+`[[5], [5], [5]]`; its answer changed by ruling (`ID-E`), reddened by M1j. No
+other retained test changed its answer; no test deleted.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> e3cb3e9 8f325ed`:
+controls as recorded (light/dark 1048576, prod default vs modal 491221, f0 vs
+f3 0, chrome pair 0, distinct 544/216/529, indicator rects 0), and **all
+fourteen images differing=0, scene identical**. `Expected.swift` unedited.
+The real-window capture is lane 2's and the Record phase's (spec §6), not
+taken here.
+
+### 5.4 Mutations
+
+Each from the committed `8f325ed`, the file copied and restored, whole suite
+unfiltered, `git status --short` empty after each.
+
+| id | mutation | reddened (issues) |
+|---|---|---|
+| M1a | `resolvedSlot` returns `slotID` first | O1.1, O1.2, O1.3 (all three arms), O1.4, O1.6 (both arms) — 10 |
+| M1b | click site without owner | O1.1, O1.4, O1.5 — 5 |
+| M1c | `dispatchKey` without owner | O1.2 — 1 |
+| M1d | `dispatchAction` without owner | O1.3 action arm — 1 |
+| M1e | AX press without owner | O1.3 press arm — 1 |
+| M1f | AX adjust without owner (`do { }`) | O1.3 adjust arm — 1 |
+| M1g | `resolve` stops at the owner (no ancestor walk) | O1.4, O1.6 (both arms) — 4 |
+| M1h | `Environment.Box` ignores the owner (`owner == nil` guard) | O1.5 — 1 |
+| M1i | edit callback without owner | O1.6 edit arm — 1 |
+| M1l | submit callback without owner (`ID-N`) | O1.6 submit arm — 1 |
+| M1j | no bind in `AnyElementBox.requestLayout` | E8 renamed, O1.7 (`nil`), O1.8 (`[0, 0]`) — 4 |
+| M1k | no bind in `AnyElementBox.prepaint`/`paint` (both lines) | O1.8 (`[2, 2]`) — 2 |
+
+Three predictions in the spec were wrong and are corrected by `ID-N` item 4
+(M1a not O1.5; M1g also O1.6; M1j also O1.8), and two test spellings by item 2
+(O1.3's press arm, O1.4's clicks).
+
+### 5.5 Deferred
+
+- `ElementGroup.swift`'s `extension AnyElement: ElementGroup` comment still
+  says `@State` inside an `AnyElement` is inert — lane 2's file (spec §3.4).
+- The Record phase: record §05's `AnyElement` inert row, divergence 19's
+  retirement and 71's addition, CLAUDE.md's "Inert inside `AnyElement`" and
+  divergence 19 sentences.

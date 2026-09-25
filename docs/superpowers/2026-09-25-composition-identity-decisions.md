@@ -2,7 +2,7 @@
 
 Rulings for [`specs/2026-09-25-composition-identity-design.md`](specs/2026-09-25-composition-identity-design.md),
 on `feat/composition-identity` from `e3cb3e9`. Ids are **lettered**,
-`ID-A`…`ID-M`; next unused is **`ID-N`**. A bare `ID-3` is a typo, not a
+`ID-A`…`ID-N`; next unused is **`ID-O`**. A bare `ID-3` is a typo, not a
 citation. **A round that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-25: designed; no lane has run.** Baseline measured in this
@@ -553,3 +553,39 @@ task's prefix):
 
 **Accounting after this ruling:** 1444 → 1452 (lane 1) → 1463 (lane 2) →
 **1479** (lane 3); guards 84 → 84 → 85 → **88**.
+
+---
+
+## ID-N — lane 1's amendments: the submit site, three test spellings, two mutation predictions
+
+**Ruling.**
+
+1. **A text field's submit callback is a dispatch site** beside its edit
+   callback: `Window.dispatchTextKey` runs `onSubmit` under
+   `StateDispatch.dispatching(to: id)`, as `applyEdit` runs `onChange`. `ID-F`
+   enumerated "a text field's edit callback" only; risk 4 of the spec asked the
+   lane to grep every other handler call before closing, and `onSubmit` is the
+   one it found (the others — `Box.onAction`'s and
+   `accessibilityAdjustableAction`'s wrappers — run inside an enumerated site;
+   `Window.onAction`/`onInput` are window-level and have no element). Pinned by
+   O1.6's submit arm under a new mutation **M1l**.
+2. **Every arm targets the NOT-last-bound occurrence.** An arm aimed at the
+   occurrence that bound last is green before the fix and cannot be reddened
+   by its site's mutation. So O1.3's press arm presses occurrence **0** (the
+   spec said 1), and O1.4 clicks occurrence 0 first, then 1 (the spec's single
+   click on occurrence 1 read `[0, 1]` either way — the `Component` binds only
+   in layout, so occurrence 1 is last-bound; red is `[0, 1]` then `[0, 2]`).
+3. **O1.6 has two arms** (edit, submit), each with its own `@State`.
+4. **M1g reddens O1.4 and O1.6**, not O1.4 alone: the field's state is its
+   `Component`'s, an ancestor of the field, the same shape as O1.4. **M1a
+   reddens O1.1–O1.4 and O1.6, not O1.5** (the environment resolves through
+   its own box, M1h's). **M1j also reddens O1.8** (an unbound layout stamps
+   nothing: `[0, 0]`) and the renamed E8.
+
+**Evidence.** Record §55 §5 (lane 1): the red run and the twelve mutations,
+each from a committed tree, whole suite.
+
+**Cost if wrong.** None to behaviour; items 2–4 are how the tests are spelled
+and what their instruments redden. Item 1 is one more wrapped call, no other
+behaviour moves (the whole suite and the fourteen offscreen images read
+unchanged).
