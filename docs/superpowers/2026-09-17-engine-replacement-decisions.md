@@ -9481,5 +9481,13 @@ commit:
    "The legacy path lowers to CSS" (`FrameLayer.swift`). Both are rewritten as
    history; comment-only, rebuilt and the suite re-run (record §51 §9.4).
 
+A second pass, after the first was interrupted before committing (record §51
+§9.6), re-took the suite (1409, passed), ran two lowering mutations of its own
+(M-FL4, the `minSize` fold, 3 tests; M-FL5, the alignment frame's factor, 5
+tests) and the fourteen images (0), and fixed two more: record §51 §8 item 1
+named `MeasureFunction.swift` among the seven deleted files in place of
+`Alignment.swift` (item 6), and two `LegacyLowering.swift` comments described
+deleted engine files in the present tense (item 7).
+
 **What it costs if wrong.** A reader taking `CLAUDE.md`'s prefix line at its
 word would have appended a second `LR-FC`; nothing else observable.

@@ -987,3 +987,34 @@ build 0 `error:`, suite re-run (§9.5).
 ### 9.5 Verdict
 
 **Merge.** No code defect found.
+
+### 9.6 Re-taken after the interruption
+
+The first checker was interrupted after writing §9.1–§9.5 and before
+committing; its diff was triaged (every `Sources/` hunk a comment, kept) and
+committed as `5c3d313`. A second pass then re-took the check from a clean
+tree: `swift package clean`, native `--build-tests` 0 `error:` (the one
+`warning:` SwiftPM's notice), unfiltered native suite **`Test run with 1409
+tests in 3 suites passed after 76.839 seconds.`**, `FR-J no-argument frame:
+succeeded=true`; default build system `swift build --build-tests` 0 `error:`,
+0 `warning:`; guards 79; `cmp CLAUDE.md AGENTS.md` equal. Two mutations of
+its own on `Sources/MetalUI/LegacyLowering.swift`, each run to completion,
+reverted with `git checkout`, `git status --short` empty after each:
+
+| id | mutation | result | tests reddened |
+|---|---|---|---|
+| M-FL4 | `paddedAndSized`'s `folded`: the `minSize` floor line deleted | 1409, **6 issues** | `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, `aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent`, `aRootsMinimumAndMaximumFoldIntoItsDeclaredSize` |
+| M-FL5 | `planLegacyItems`' wrapping: the alignment frame's factor replaced by 0 on both axes | 1409, **5 issues** | `alignItemsAndAlignSelfPlaceEachItemOnTheCrossAxis`, `alignSelfPlacesOneChildOnTheCrossAxisOfADefiniteContainer`, `aLoweredScrollViewLaysOutEveryBoundedShape`, `anAlignSelfInsideAOneChildWrapperFillsTheWrapper`, `marginsOffsetEachItemOutsideItsBorderBox` |
+
+Neither reddens `theDemoFrameMatchesTheValuesRecordedOnMacOS`: the demo
+declares no folded minimum and no non-stretch `alignSelf` the pin reads. The
+fourteen-image comparison `b9a5d7f` → `17b1b75` (this pass's head before the
+record edit): controls as in §9.3, **all fourteen `differing=0`, scene
+identical**.
+
+Two further doc defects, fixed in `17b1b75`: §8 item 1 listed
+`MeasureFunction.swift` among the seven deleted engine files in place of
+`Alignment.swift` (`MeasureFunction.swift` stays, holding `SizeD`); and two
+`LegacyLowering.swift` comments described `FlexEngine.swift`'s `contentBox`
+and `Alignment.swift`'s `distributeMainAxis` in the present tense. Verdict
+unchanged: **merge**.
