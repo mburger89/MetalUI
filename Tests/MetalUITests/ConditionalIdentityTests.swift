@@ -416,6 +416,33 @@ private struct ConditionalItem: Identifiable {
     #expect(reads.values["t"] == 3, "the trailing probe keeps counting: \(reads.values)")
 }
 
+/// **C2.13 — content an `if` removes inside a PROPOSAL container is reset when
+/// it returns** (`ID-C`, spec §3.2: both `OptionalGroup` copies note produced
+/// and absent). `HStack { if flag { c }; t }` true, false, true: `c` sits at
+/// `root/0/0` and reads **1** on its return; `t` stays at `root/1` and counts
+/// every frame (3).
+///
+/// C2.6 pins the untyped copy's reset and C2.5a/C2.5b only the typed copy's
+/// slot, so without this test the typed copy's `noteAbsent` was unpinned.
+/// Mutation **N1** (typed `OptionalGroup`: `noteAbsent(slot)` replaced with
+/// `_ = slot`) reddens this, `c` reading 2.
+@MainActor
+@Test func contentAnIfInsideAProposalContainerRemovesIsResetWhenItReturns() {
+    let reads = ConditionalReads()
+    let table = StateTable()
+    for flag in [true, false, true] {
+        var tree = HStack(spacing: Pixels(0)) {
+            if flag { ProposalConditionalCounter("c", reads) }
+            ProposalConditionalCounter("t", reads)
+        }
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
+    }
+    #expect(reads.ids["c"] == child(child(root, 0), 0), "\(String(describing: reads.ids["c"]))")
+    #expect(reads.ids["t"] == child(root, 1), "\(String(describing: reads.ids["t"]))")
+    #expect(reads.values["c"] == 1, "the returning content starts fresh: \(reads.values)")
+    #expect(reads.values["t"] == 3, "the trailing probe keeps counting: \(reads.values)")
+}
+
 // MARK: - C2.12: a focused `TextField` inside a toggled `if` (`ID-M` item 4)
 
 @MainActor
