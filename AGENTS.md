@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-FC`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-FM`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -252,7 +252,8 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `noProductionFrameReachesTheLegacyEngine`; `deferred.amended` (`LR-FF`)
   stays for **stage 11**, with `Component.width` over a presentation member;
   `ModifiedElement`/`ModifiedContent` are not unified (stage 11). History:
-  record §51 (§1–§4 design and critic round, §5 lane 1, §6 lane 2, §7 lane 3).
+  record §51 (§1–§4 design and critic round, §5 lane 1, §6 lane 2, §7 lane 3,
+  §8 the close, §9 the adversarial branch check, `LR-FL`).
 - **Stage 8's counts (2026-09-24, `feat/engine-stage-8` from `85217e3`,
   plan task 7 stage 8 — merged with `master` at `b9a5d7f`): 1452 tests, 0 goldens,
   79 typecheck guards**, 0 `error:` on both build systems, the one `warning:`
@@ -677,8 +678,8 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
   and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
   appended on macOS in the manifest — and run `MetalUILayoutTests`,
-  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**200 + 22 + 3**,
-  measured in `swift:6.4-noble` after stage 7b; the WebKit goldens' 96
+  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**192 + 22 + 3**
+  since stage 9; **200 + 22 + 3** measured in `swift:6.4-noble` after stage 7b; the WebKit goldens' 96
   consumer tests and the two ungated corpus tests
   (`everyFixtureFileIsListedInTheCorpus`, `goldenFileRoundTripsThroughJSON`)
   were portable and counted in `MetalUILayoutTests`' figure, so retiring them
@@ -691,7 +692,9 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   (`freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine`), plus one
   replacement (N1.2) — every other stage-7b replacement lands in
   `MetalUITests`, which Linux and Windows CI do not run (record §49 §6.1,
-  `LR-EM` item 5)), the last pinning the demo's
+  `LR-EM` item 5); **stage 9 drops it again, 200 to 192**, lane 2's eight
+  `MetalUILayoutTests` retirements, measured in `swift:6.4-noble` at the
+  stage-9 head, record §51 §7.6 and §9), the last pinning the demo's
   whole frame byte-for-byte against
   macOS (`XP-C`). Inside `MetalUI`, CoreText stays behind `#if
   canImport(MetalUIText)`; off Apple a `Frame`/`Window` without a text system

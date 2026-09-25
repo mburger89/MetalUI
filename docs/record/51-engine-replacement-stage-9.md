@@ -895,3 +895,92 @@ re-read on the one authority, 18 confirmed untouched), `docs/record/05-declared-
 its stage-7b/stage-8 "not yet merged" sentences, the plan's task 7 note
 (dated, not ticked — stages 10–14 remain), and this repository's top-level
 `README.md`.
+
+## 9. The adversarial branch check (2026-09-24, PDT)
+
+Ruling `LR-FL`. Re-taken from a clean tree at `fde300d`; the check touched
+no test and no line of production behaviour.
+
+### 9.1 The suite, the count, the build systems
+
+`swift package clean`, `swift build --build-system native --build-tests`
+(0 `error:`; one `warning:`, SwiftPM's deprecation notice), unfiltered
+`swift test --build-system native --no-parallel`: **`Test run with 1409 tests
+in 3 suites passed after 77.150 seconds.`** The log carries `FR-J no-argument
+frame: succeeded=true`; the eleven gated tests skipped (`measure` twice,
+`measureBidiDifferences`, `measureContentSizeDifferences`,
+`measureFallbackDifferences`, `measureLineEmissionDifferences`,
+`measurePatchedFaceMetrics`, `measureWrapDifferences`, `recordDemoFrames`,
+`theMeasuredDifferences`, `aListsWorkIsTheSameFor100kRowsAsFor500`). Default
+build system: `swift build --build-tests` 0 `error:`, 0 `warning:`. Guards
+79 (`grep -c canTypecheck` per file: 19, 10, 8, 6, 6, 5, 4, 4, 3, 3, 3, 3, 2,
+2, 2, plus `Typecheck.swift`'s declaration; `UnitSafetyTests`' three include
+the comment). Goldens 0. `cmp CLAUDE.md AGENTS.md` equal.
+
+**The count, independently.** A parser over `git show <rev>:<file>` for every
+`Tests/**/*.swift` outside `PortableTests` (comments and `"""` strings
+stripped, each `@Test` paired with the next `func`) reads **1452** at
+`b9a5d7f` and **1409** at the head — the suite's own figures — and a
+byte-order (`LC_ALL=C`) `comm` of the two name sets reads **93 gone, 50
+new**, the Record phase's figures. Under the shell's default locale the same
+`comm` reads 95/52, reporting `aGrowingChildTakesTheRemainingMainSpace` and
+`aGrowerOnAHuggingContainersMainAxisFillsItsProposal` as both gone and new:
+an unsorted-input artefact of the instrument, not a move.
+
+### 9.2 Three mutations
+
+Each from the committed tree, `Frame.swift` restored from a copy,
+`git status --short` empty after each, full unfiltered suite.
+
+| id | mutation (`Sources/MetalUI/Frame.swift`) | result | tests reddened |
+|---|---|---|---|
+| M-FL1 | `computeRootLayout`: each presentation laid out `in: LayoutRect(x: 0, y: 0, width: width / 2, height: height)` | 1409, **11 issues** | `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt` (N3.1) |
+| M-FL2 | `disablingHitTestingIfHidden`: body is `return body()` | 1409, **6 issues** | `aHiddenClickTargetPassesTheClickToWhatIsUnderIt`, `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`, `aHiddenTextIsHiddenUnderTheProposalAuthority` |
+| M-FL3 | `bounds(of:)`: `tree.layout(node)` for `tree.layout(lowering.alias(node))` | 1409, **291 issues, 63 tests** | below |
+
+M-FL1: the window-as-containing-block claim (`LR-FF`) rests on exactly two
+tests; `PresentationWindowTests` and the demo-frame pin (modal off) do not see
+a halved containing block. Pinned, narrowly — not a defect.
+
+M-FL3's 63: `aClickTargetInsideAScrollViewSwallowsTheWheel`, `aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding`, `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, `aDeferredAbsoluteBoxResolvesItsInsetsAgainstTheWindowAndLeavesTheFlow`, `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScroll`, `aDeferredScrollViewNestedInAnotherEscapesItsClipForHitTesting`, `aFrameOverSeveralMembersStillPlansEachMembersItemFields`, `aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum`, `aGridInsideALoweredContainerIsNeverStretchedWhereItsRecordedSiblingIs`, `aGridsColumnWidthReachesAGrowingChildInsideALoweredCell`, `aGrowerOnAHuggingContainersMainAxisFillsItsProposal`, `aGrowFactorSumBelowOneStillFillsTheLine`, `aGrowingChildTakesTheRemainingMainSpace`, `aGrowInsideAOneChildPaddingFillsTheWrapper`, `aGrownReverseContainerPlacesFromTheMainEndOfItsItemFrame`, `aGrownUnsizedSpaceDistributionContainerIsReported`, `alignItemsAndAlignSelfPlaceEachItemOnTheCrossAxis`, `aListsSceneAndHitboxesAreUnchangedByTheGroup`, `aLoweredListLaysOutEveryWindowedShape`, `aLoweredScrollViewFillsItsProposalOnTheScrollingAxis`, `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`, `aMarginLowersAsPaddingOutsideTheItem`, `aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere`, `aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent`, `anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBox`, `anAmendedComponentsMemberItemFieldsAreConsumedAndPlanned`, `anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues`, `aNilAxisFrameLayerUnderAStretchingContainerIsStretched`, `aPresentationPublishesItsAccessibilityRecordAndTakesFocus`, `aReverseDirectionPacksItemsFromTheMainEnd`, `aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent`, `aSpacerBesideAGrowingChildTakesNothing`, `aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields`, `aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork`, `aStretchedChildFillsTheLineOnItsCrossAxis`, `aStretchedContainersContentSitsByItsOwnAlignment`, `aStretchedItemInsideAHuggingItemFillsItsProposal`, `aStretchedItemIsClampedByItsOwnMinimumAndMaximum`, `aStretchedSingleChildContainerDoesNotStretchItsChild`, `aStretchedStackChildFillsOnlyItsAutoAxesWithinItsOwnBounds`, `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder`, `aStretchedUnsizedSpaceDistributionContainerIsReported`, `aStyleBorderLowersAsInsetsInsideTheDeclaredSize`, `autoMainSizesSumTheirContentAndAGrowerIsFlooredByIt`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`, `aZeroBasisGrowerTakesItsShareDownToItsContent`, `aZeroRowHeightLowersWithoutTrappingOrProducingNaN`, `aZeroShrinkKeepsItsNaturalMainSizeAndOverflows`, `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`, `equalGrowersShareTheLineAndAMaximumCapsItsGrower`, `everyContainerFieldEitherLowersOrIsReportedByName`, `growingSiblingsShareTheSurplusEqually`, `marginsOffsetEachItemOutsideItsBorderBox`, `nestedPresentationsLandOnOneLayer`, `paddingAndBorderInsetTheContentBoxEdgeByEdge`, `paddingOnAListDoesNotShrinkItsRowsBelowRowHeight`, `paddingOnALoweredTextPadsItsLeaf`, `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder`, `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel`, `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`, `unequalGrowWeightsAreReportedOnTheParent`.
+
+### 9.3 Pixels, the lock, off the root package
+
+`docs/probes/demo-pixels/compare.sh <scratch> b9a5d7f HEAD`: controls at
+`b9a5d7f` 1048576 / 1031003 / 454895 / 0 / 1048576 / 0 / 544 / 216 / 491221 /
+529 / 0 (the header's stage-9-corrected values); **`b9a5d7f` → `fde300d`: all
+fourteen images `differing=0`, scene identical.** Real window: not taken —
+`swift docs/probes/appkit-screen-lock-state.swift` at 18:04 PDT printed
+`CGSSessionScreenIsLocked = 1` and `displayAsleep main: 1`.
+
+`Backends/SDL` with `PKG_CONFIG_PATH=$PWD/.accesskit`: `swift build
+--build-tests` complete (the only `warning:` the `-rpath` flag notice),
+`swift test` 21 + 19 passed. `swift:6.4-noble` (OrbStack) over `git archive
+HEAD`: `swift build --build-tests` 0 `error:`; `swift test --skip-build
+--filter 'MetalUICoreTests|MetalUILayoutTests|MetalUICrossPlatformTests'`
+**192 + 3 + 22 passed**.
+
+Deletions: `git ls-files Sources/MetalUILayout` lists `LayoutTree`,
+`MeasureFunction` (`SizeD` only), `NativeGrid`, `NativeLayoutRun`,
+`ProposalLayout`, `ProposalSpacing`, `ProposedSize`, `Rounding`, `Style`;
+imports `MetalUICore` alone. No code line names a deleted symbol except the
+two `LayoutAuthorityCompileGuards` fixtures that spell them to prove they no
+longer compile. `Style.swift` is unchanged in the range — every CSS field
+stays for stage 10. `NativeLayoutRun.maxDepth` is 72. Plan task 7 is
+unticked, its stage-9 note dated and "task still open", consistent with §4.1
+rows 10–11 (nothing of them pre-empted).
+
+### 9.4 Doc defects, fixed
+
+`LR-FL` items 1–5: `CLAUDE.md`'s `LR-` next letter (it read `LR-FC`;
+§8's "already at `LR-FL`" described an edit that had not landed — now
+`LR-FM`); the `LR-FC`…`LR-FL` ranges, true once `LR-FL` exists (the stage
+spec's header widened from `…LR-FH`); the manifest rule's portable CI figure
+(200 → 192 since stage 9); the parent spec's stage 6a and 6b "not yet merged";
+two present-tense legacy comments (`ElementGroup.swift`'s `paintGroup`,
+`FrameLayer.swift`'s legacy `.frame` doc). After the comment edits: native
+build 0 `error:`, suite re-run (§9.5).
+
+### 9.5 Verdict
+
+**Merge.** No code defect found.

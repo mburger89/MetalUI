@@ -134,9 +134,9 @@ extension ElementGroup {
     /// names, order and defaults, so a call site ports between the two engines
     /// by changing nothing but the element type.
     ///
-    /// **What it does and does not reach.** The legacy path lowers to CSS, and
-    /// SwiftUI's answers that one CSS node cannot reach are rulings with tests
-    /// (the first and third pin MetalUI's number wrong on purpose; plan task 6
+    /// **What it did and did not reach, until stage 9.** The legacy path lowered
+    /// to CSS, and SwiftUI's answers that one CSS node could not reach were rulings with tests
+    /// (the first and third pinned MetalUI's number wrong on purpose; plan task 6
     /// deferred both to task 7, `CN-Q`):
     ///
     /// - a **finite** maximum clamps but never grows into the proposal

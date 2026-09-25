@@ -1,9 +1,9 @@
 # Engine replacement, stage 9 — engine deletion (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 9, §8. Rulings `LR-FC`…`LR-FH` in
+§4.1 row 9, §8. Rulings `LR-FC`…`LR-FL` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
-(next unused `LR-FL`; `LR-FH` is the critic round's, `LR-FI` lane 1's, `LR-FJ` lane 2's, `LR-FK` lane 3's).
+(next unused `LR-FM`; `LR-FH` is the critic round's, `LR-FI` lane 1's, `LR-FJ` lane 2's, `LR-FK` lane 3's, `LR-FL` the adversarial branch check's).
 Record: `docs/record/51-engine-replacement-stage-9.md` (§1 baseline, §2 the
 entry measurement, §3 the containing-block measurement).
 Instruments: `docs/probes/stage-9-legacy-reach-instrument.patch` (the runtime

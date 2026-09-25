@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FL`** (stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ` and its lane 3 `LR-FK`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FM`** (stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -9391,3 +9391,95 @@ section); the fourteen-image comparison `b9a5d7f` → `35f1ffb`; `Backends/SDL`,
 to keep a message or an order; the suite and the fourteen images read it.
 Item 2: a reader expecting an `AXNodeTests` pin for hidden suppression finds
 none; the six named tests are the pin. Item 3: none.
+
+## LR-FL — stage 9's adversarial branch check: the stage stands; five doc defects, one of them a claimed edit that never landed
+
+**Evidence.** The branch check (record §51 §9) re-took the stage from a clean
+tree at `fde300d`: `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`, the one `warning:` SwiftPM's deprecation notice),
+unfiltered `swift test --build-system native --no-parallel` — **`Test run with
+1409 tests in 3 suites passed`**, the guards ran (`FR-J no-argument frame:
+succeeded=true`), eleven gated tests skipped; `swift build --build-tests` under
+the default build system 0 `error:`, 0 `warning:`. An independent parse of every
+`@Test` function (comments and multi-line strings stripped, `PortableTests`
+excluded) reads 1452 at `b9a5d7f` and 1409 at the head, **93 gone and 50 new**
+under a byte-order `comm` — the Record phase's figures (a locale-ordered `comm`
+reports 95/52, two spurious pairs; the instrument, not the stage). Three
+mutations of the check's own, each from a committed tree, restored from a copy,
+`git status --short` clean after each, full unfiltered suite:
+
+- **M-FL1** `Frame.computeRootLayout` lays every presentation out in a
+  half-width window (`in: LayoutRect(… width: width / 2 …)`): 11 issues, two
+  tests — `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` and
+  N3.1 `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`. The claim
+  "a presentation's containing block is the window" (`LR-FF`) is pinned, and
+  by exactly those two; `PresentationWindowTests` and
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` (modal off) do not see it.
+- **M-FL2** `Frame.disablingHitTestingIfHidden` returns `body()` always: 6
+  issues, three tests — `aHiddenClickTargetPassesTheClickToWhatIsUnderIt`,
+  `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`,
+  `aHiddenTextIsHiddenUnderTheProposalAuthority`. Hidden hit testing, the one
+  hidden path left after `theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore`
+  retired, is pinned.
+- **M-FL3** `Frame.bounds(of:)` reads `tree.layout(node)` instead of
+  `tree.layout(lowering.alias(node))`: 291 issues, 63 tests, among them
+  `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`,
+  `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder`,
+  `aListsSceneAndHitboxesAreUnchangedByTheGroup`,
+  `aPresentationPublishesItsAccessibilityRecordAndTakesFocus`,
+  `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel`,
+  `anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues` and
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` (the full list is record §51
+  §9.2). Identity, hit testing, accessibility, animation and the scrim all read
+  element rects through the one alias the lowering — now the only path —
+  maintains.
+
+The fourteen-image offscreen comparison, re-taken (`compare.sh`, `b9a5d7f` →
+`fde300d`): **0 differing, scene identical, all fourteen**, controls at the
+header's stage-9-corrected values (1048576, 1031003, 454895, 0, 1048576, 0,
+544, 216, 491221, 529, 0). The real-window capture was **not** taken:
+`appkit-screen-lock-state.swift` printed `CGSSessionScreenIsLocked = 1` and
+`displayAsleep main: 1` at 18:04 PDT. `Backends/SDL`
+(`PKG_CONFIG_PATH=$PWD/.accesskit`): builds, 21 + 19 passed. A
+`swift:6.4-noble` container over `git archive HEAD`: `swift build
+--build-tests` 0 `error:`, the portable filter **192 + 3 + 22** passed. The
+seven engine files and `UnbreakableRuns.swift` are absent from `git ls-files`;
+`MetalUILayout` imports `MetalUICore` alone; no code line (comments excluded)
+names `computeLayout(`, `requestNode(`, `requestLeaf(`, `layoutAuthority`,
+`legacyRootLayoutCounter`, `AvailableSpace`, `OptionalSizeD`, `LayoutContext`,
+`FlexEngine`, `reportPresentationContainingBlock` or `customElement` outside the
+two guards whose fixtures spell them to prove they no longer compile;
+`PortableText.unbreakableRuns` stays as library API (`LR-FD`). `Style`'s CSS
+fields are all present (`Style.swift` unchanged in the range); guards 79 (80
+`canTypecheck` hits less the declaration and `UnitSafetyTests`' comment); 0
+goldens; `cmp CLAUDE.md AGENTS.md` equal; every `LR-` id cited in a changed doc
+resolves to a heading (with this one), and every other ruling id cited there
+resolves; every test name cited in the record and the stage spec that is absent
+from the code is described there as retired, deleted or stage 10's.
+
+**The ruling.** The stage stands: merge. Five doc defects, fixed in the check's
+commit:
+
+1. **`CLAUDE.md`'s prefix line read `LR-` (next `LR-FC`)** — two stages stale —
+   although record §51 §8 lists "the `LR-` next letter already at `LR-FL`"
+   among the Record phase's edits. The edit never landed; the line now reads
+   `LR-FM`. (§8's sentence is kept as written, with this ruling as its
+   erratum.)
+2. **Every "`LR-FC`…`LR-FL`" range** (`CLAUDE.md`, records §04 and §05, the
+   plan, the parent spec) cited a ruling that did not exist: `LR-FL` was the
+   next unused letter. This ruling is `LR-FL`, so the ranges are now true; the
+   next unused letter moves to `LR-FM`, and the stage spec's header range
+   (`LR-FC`…`LR-FH`) is widened to `LR-FL`.
+3. **`CLAUDE.md`'s manifest rule still read portable CI 200 + 22 + 3**,
+   "measured after stage 7b", while its own stage-9 counts bullet read 192.
+   It now reads 192 since stage 9, re-measured in the container above.
+4. **The parent spec called stages 6a and 6b "not yet merged"**; both are
+   ancestors of `b9a5d7f`. Corrected in place, the old wording quoted.
+5. **Two `Sources/` comments described the legacy path in the present tense**:
+   `Element.paintGroup`'s "the legacy path keeps painting a `display: none`
+   subtree exactly as before" (`ElementGroup.swift`) and the legacy `.frame`'s
+   "The legacy path lowers to CSS" (`FrameLayer.swift`). Both are rewritten as
+   history; comment-only, rebuilt and the suite re-run (record §51 §9.4).
+
+**What it costs if wrong.** A reader taking `CLAUDE.md`'s prefix line at its
+word would have appended a second `LR-FC`; nothing else observable.

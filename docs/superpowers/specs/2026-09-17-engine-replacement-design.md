@@ -32,15 +32,17 @@ merged with `master` at `42b9ab4`** (record §29, spec
 [`2026-09-23-engine-stage-5-design.md`](2026-09-23-engine-stage-5-design.md)):
 it matches §4.1 row 5's wording, and its own two proposal-only answers
 (`LR-CJ`) are noted there rather than as a departure from this table. **Stage
-6a (the public custom-element registrars deprecated) is complete on its
-branch, not yet merged** (Record phase and branch checker, 2026-09-23): `feat/engine-stage-6a`, record §38, spec
+6a (the public custom-element registrars deprecated) is merged** (an
+ancestor of `b9a5d7f`; it read "complete on its branch, not yet merged" until
+stage 9's branch check, `LR-FL`) (Record phase and branch checker, 2026-09-23): `feat/engine-stage-6a`, record §38, spec
 [`2026-09-23-engine-stage-6a-design.md`](2026-09-23-engine-stage-6a-design.md).
 It matches §4.1 row 6a's wording — `LayoutPass.requestNode`/`requestLeaf`
 deprecated with every in-repo caller moved in the same change, and the
 flipped-default classification table recorded as its entry measurement
 (153 reds, handed to stage 6b's root-placement ruling and stage 7b's CSS
-retirements). **Stage 6b (the root switch) has landed, complete on its
-branch, not yet merged** (Record phase, 2026-09-23): `feat/engine-stage-6b`,
+retirements). **Stage 6b (the root switch) has landed and is merged** (an
+ancestor of `b9a5d7f`; "not yet merged" until stage 9's branch check,
+`LR-FL`) (Record phase, 2026-09-23): `feat/engine-stage-6b`,
 record §41, spec
 [`2026-09-23-engine-stage-6b-design.md`](2026-09-23-engine-stage-6b-design.md).
 It matches §4.1 row 6b's wording — `Window`'s default authority is

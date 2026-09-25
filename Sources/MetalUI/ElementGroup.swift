@@ -171,8 +171,9 @@ extension Element {
                                     prepaint: inout PrepaintState,
                                     pass: inout PaintPass) {
         // A lowered `hidden()` paints nothing, and nothing inside it paints (stage 6b,
-        // ruling `LR-DH` item 2; probe V1). **`hiddenNodes` only**: the legacy path
-        // keeps painting a `display: none` subtree exactly as before (1.6).
+        // ruling `LR-DH` item 2; probe V1). **`hiddenNodes` only**: until stage 9
+        // the legacy path kept painting a `display: none` subtree as before (1.6);
+        // that path is deleted (`LR-FC`), so every hidden node is in `hiddenNodes`.
         guard !pass.frame.hiddenNodes.contains(layout.node) else { return }
         // Same reason as `prepaintGroup` above — paint is a third phase and the
         // box is still whatever the last `bind` left it.
