@@ -783,3 +783,115 @@ claim that the engine runs; the file keeps its name (`LR-FC` item 4).
 - **Record phase**: the parent spec's "Stage 9 … is designed" sentence;
   CLAUDE.md's counts (1409; portable CI 192 + 22 + 3), the rules spec §9
   lists, and `compare.sh`'s stage-9 selector.
+
+## 8. The stage's close (Record phase, 2026-09-24, PDT)
+
+Spec §8's exit criteria, re-checked at `f778ca7` (lane 3's head; independently,
+not by re-reading the lanes' own claims):
+
+1. **The engine files and deleted symbols are gone.** `git ls-files
+   Sources/MetalUILayout` lists none of the seven files
+   (`FlexEngine.swift`, `ResolveFlexibleLengths.swift`, `FlexBaseSize.swift`,
+   `FlexLines.swift`, `LayoutContext.swift`, `Resolve.swift`,
+   `MeasureFunction.swift`). `grep -h '^import'
+   Sources/MetalUILayout/*.swift | sort -u` reads `import MetalUICore` alone.
+   The spec §8 item-1 grep (`LayoutAuthority|layoutAuthority|lowersToProposal|
+   computeLayout\(|requestNode\(|requestLeaf\(|textMeasure|
+   legacyRootLayoutCounter|unbreakableRuns|minContentWidth|AvailableSpace|
+   MeasureFunction\b|customElement`) over `Sources`, `Tests/MetalUITests`,
+   `Tests/MetalUILayoutTests`, `Tests/MetalUITextTests` prints only what
+   §7.7 already named with a reason: `ProposalMeasureFunction` (no leading
+   boundary on the pattern), `PortableText.unbreakableRuns`/`minContentWidth`
+   (kept API, `LR-FD` item 2), history comments in `LayoutAuthority.swift`,
+   `Passes.swift`, `Frame.swift`, `Text.swift`, `MeasureFunction.swift`,
+   `ShapingCache.swift`, `ContentSizes.swift` and `Fakes.swift`, and the two
+   re-spelled guards' fixtures and docs, which name the deleted symbols on
+   purpose.
+2. **After `swift package clean`**: `swift build --build-system native
+   --build-tests` → `Build complete!`, 0 `error:`, the one `warning:`
+   SwiftPM's own deprecation-of-the-flag notice; `swift build --build-tests`
+   (default build system) → `Build complete!`, 0 `error:`, 0 `warning:`.
+3. Unfiltered `swift test --build-system native --no-parallel` →
+   **`Test run with 1409 tests in 3 suites passed after 76.778 seconds`**,
+   the log carrying `FR-J no-argument frame: succeeded=` (guards ran).
+   **79 guards** (`grep -c canTypecheck` per file sums to 80, less
+   `Typecheck.swift`'s own declaration and `UnitSafetyTests`' comment-line hit
+   = 79 — every file's count unmoved from stage 8's baseline except
+   `LayoutAuthorityCompileGuards` and `ErasureCompileGuards`, whose guards are
+   re-spelled, not added or removed). **0 goldens** (`find
+   Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0). **Eleven**
+   gated tests skipped, unchanged (neither retired tokenizer pin was gated;
+   `aListsWorkIsTheSameFor100kRowsAsFor500` and
+   `measureContentSizeDifferences` collapse and stay gated).
+4. **The fourteen-image comparison against `b9a5d7f`**: read 0 differing,
+   scene identical, at lane 2's `9786c37` (independently re-taken from a
+   scratch copy) and again at lane 3's `f778ca7` (§7.5); `git diff --stat
+   9786c37 f778ca7 -- Sources/` touches only doc comments and the pixel
+   harness/`compare.sh` themselves, so the result stands at this head without
+   a further re-run. `DemoFrameDeterminismTests` is unedited and green (in
+   the 1409). `Backends/SDL` (`PKG_CONFIG_PATH=.accesskit`): 21 + 19 passed,
+   fixtures re-recorded, `PortableReplay --expect 6` and `DemoCapture` PASS
+   unedited (§7.6, lane 3). `Tests/PortableTests` builds, 18 + 6 + 5 passed.
+   The Linux container's three test targets (`MetalUICoreTests`,
+   `MetalUILayoutTests`, `MetalUICrossPlatformTests`) pass 192 + 22 + 3
+   (§7.6). This Record phase did not re-run `Backends/SDL` or the Linux
+   container itself — it re-reads lane 3's own §7.6 measurement, taken at the
+   same commit this phase closes.
+5. **N3.1, G1 (`aPlainImportCannotChooseTheLayoutAuthority`), G6a
+   (`aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles`) and G5
+   (`layoutPassStyleAccessorsAreNotPublic`) are green** in the 1409; each
+   named mutation (§7.3's table) reddened exactly what it names. Lane 1's
+   site-coverage base set held at every lane's head with **equality**, not
+   only `⊇` (§5.5, §6.6, §7.4: Ma 20/96, Mb 56/264, Mc 7/24, Md 9/81 identical
+   at every head; Me's issue count moves only with a named retirement or a
+   named addition — 106 → 62 (L1-15 retires) → 61 (Mc's indicator clip prints
+   as `NAME()` post-collapse) → 68 (N3.1 adds 7) — never losing a test
+   outside a named row).
+6. **Every removed `@Test` has a row.** Re-derived independently by diffing
+   `@Test` function names between `b9a5d7f` and `f778ca7` across every
+   `Tests/` file (a script over every `func` following an `@Test` attribute,
+   not by re-reading the lanes' own counts): **93 names gone, 50 new**. The
+   two sets are disjoint by construction, and they split cleanly:
+   `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt` (N3.1) is the
+   **only** new name with no old counterpart, and the other **49** new names
+   are exactly the renamed-to spellings of 49 of the 93 gone names (lane 1's
+   §5.3 list and lane 2's two renames in §6.2, checked pair by pair against
+   the diff's two sets). The remaining **44** gone names have no new
+   counterpart at all — they are pure retirements, and each has exactly one
+   row: lane 1's 11 (§5.2's table, numbered 2–18) plus lane 2's 33 (§6.1's
+   table, numbered 1–26 plus L1-1/9/11–15), 11 + 33 = 44. **93 = 44 + 49; 50 =
+   49 + 1; 1452 − 93 + 50 = 1409.**
+
+All six hold. **Class totals** (measured by name-set diff, `f778ca7` against
+`b9a5d7f`): retired **44**, renamed **49**, added **1** (N3.1); no test's
+assertion changed without also changing its name or appearing in a mutation
+table above (checked: every T row in §5.3/§6.2/§7.2 either re-spells an
+existing name or is listed as a body change with its reason).
+
+**Not done, owners already assigned above** (§7.8, spec §9): `Style`'s CSS
+fields, every `Style`-field report this stage inherited, and `CSSSizing.swift`
+stay for **stage 10**, which also adds
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` in place of the retired
+`noProductionFrameReachesTheLegacyEngine`; `deferred.amended` (`LR-FF`) stays
+for **stage 11**, with `Component.width` over a presentation member;
+`ModifiedElement`/`ModifiedContent` are not unified (stage 11, per the spec's
+explicit non-pre-emption note). `NativeLayoutRun.maxDepth` (72), `SA-L` and
+the depth tests are untouched — the kernel itself is unchanged by this stage,
+confirmed by the fourteen-image comparison reading 0 everywhere and by
+`SA-L`'s own tests being outside every lane's reddened set.
+
+Docs updated to match this close: `CLAUDE.md`/`AGENTS.md` (counts, the `LR-`
+next letter already at `LR-FL`, the record map gaining §51, the "Two
+engines"/"Layout authority"/"One authority per root"/"one `isLayingOut` flag
+guards both engines" bullets rewritten for one engine, the `Text` paragraph's
+`TX-F` min-content rule marked deleted, the `List`/`Deferred` paragraphs'
+"under both authorities" sentences collapsed to one path, the roll-call CI
+hazards retired, "not yet merged" corrected for stages 7b and 8 now that both
+are ancestors of this branch's own base), `docs/record/04-divergences.md`
+(divergence 11 retired, 4's loose end closed, 9/10/13/14/48/52/53/55/56
+re-read on the one authority, 18 confirmed untouched), `docs/record/05-declared-but-inert.md`
+(`LayoutAuthority.allCases` and `ListRows.GroupLayout.spacer` rows deleted),
+`docs/record/README.md` (§51 indexed), the parent spec's §4.1 row 9 status and
+its stage-7b/stage-8 "not yet merged" sentences, the plan's task 7 note
+(dated, not ticked — stages 10–14 remain), and this repository's top-level
+`README.md`.

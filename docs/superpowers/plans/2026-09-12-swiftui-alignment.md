@@ -784,6 +784,58 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   spacing) moves from stage 10 to plan task 15 (closeout), because both
   stages' exit is "0 px against the prior stage" and a public default under
   every default-gap caller's pixels cannot satisfy both.
+  *Progress 2026-09-24 on `feat/engine-stage-9` (from `b9a5d7f`, `master`'s
+  tip after the stage-8 merge), stage 9 of 14, task still open.* Spec
+  `specs/2026-09-24-engine-stage-9-design.md`; rulings `LR-FC`…`LR-FL` in
+  `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages
+  1–8; `LR-FH` the design critic round); no new SwiftUI probe — the stage
+  claims no new SwiftUI behaviour (`LR-FH` item 4); record
+  `docs/record/51-engine-replacement-stage-9.md`. **The CSS engine is
+  deleted**: the seven engine files (`FlexEngine.swift`,
+  `ResolveFlexibleLengths.swift`, `FlexBaseSize.swift`, `FlexLines.swift`,
+  `Alignment.swift`'s flex half, `LayoutContext.swift`, `Resolve.swift`'s
+  percentage half), the legacy `MeasureFunction`/`textMeasure`/tokenizer
+  min-content, the legacy registrars (`LayoutPass.requestNode`/`requestLeaf`,
+  deprecated at stage 6a, and the internal `Frame.requestNode`/`requestLeaf`)
+  and the layout authority itself (`LayoutAuthority.legacy`,
+  `Frame.layoutAuthority`, `computeRootLayout`'s legacy branch,
+  `Frame.legacyRootLayoutCounter`) are all gone — `git ls-files
+  Sources/MetalUILayout` lists none of the seven files, `MetalUILayout`
+  imports only `MetalUICore`. **Every legacy element keeps working, through
+  the lowering, now its only path** (`Box`, `Row`, `Column`, `Stack`,
+  `ScrollView`, `List`, legacy `.frame`). Three lanes, each red first, all
+  verified `ok`: lane 1 (`LR-FI`) collapses the two-engine differential
+  harness (`LayoutDifferential`, `DifferentialRoot`) to one authority and its
+  27 users, retiring 11 rows; lane 2 (`LR-FJ`) collapses the
+  `AuthorityCoverage` registry's other ten contributors and retires every
+  other test naming a deleted symbol, 33 rows (one more than designed); lane
+  3 (`LR-FK`) does the deletion itself, red-first behind N3.1 (a
+  presentation's containing block is the window whatever surrounds it,
+  closing the `deferred.containingBlock`/`.nested`/`.root` reports stage 5
+  left open — `deferred.amended` survives, re-owned to stage 11, `LR-FF`).
+  Suite **1409** (1452 − 93 + 50: 44 retired rows — 11 lane 1's, 33 lane
+  2's — 49 renames, 1 added), 0 goldens, guards **79 unmoved** (two
+  re-spelled: the layout-authority guard now reads "has no member
+  'layoutAuthority'", the legacy-registrar guard now reads "no longer
+  compiles" rather than "is warned toward the native ones"). 0 `error:`, 0
+  `warning:` on both build systems; 0 px against `b9a5d7f` in all fourteen
+  offscreen images, `DemoFrameDeterminismTests` unedited;
+  `Backends/SDL` 21 + 19, `PortableReplay`/`DemoCapture` unedited;
+  `Tests/PortableTests` 18 + 6 + 5; the Linux container's three CI targets
+  pass **192 + 22 + 3** (down from 200 + 22 + 3, lane 2's eight
+  `MetalUILayoutTests` retirements). **Divergence 11 retires** (57 → 56
+  live): it was legacy-authority only since stage 5, and the legacy engine it
+  describes is gone; divergence 4's loose end (its behaviour stayed
+  exercised, unnamed, by `AuthorityCoverage`'s `.legacy` arms after 7b's
+  retirement) closes with the registry's own deletion. **Not done, owners
+  already assigned:** `Style`'s CSS fields, `CSSSizing.swift` and every
+  `Style`-field report this stage inherited stay for **stage 10**, which also
+  gets `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` in place of the
+  retired `noProductionFrameReachesTheLegacyEngine`; `deferred.amended`
+  stays for **stage 11**, with `Component.width` over a presentation member;
+  `ModifiedElement`/`ModifiedContent` are not unified (stage 11). Divergences
+  9, 10, 13, 14, 48, 52, 53, 55 and 56 keep their fact, re-read on the one
+  remaining authority; 18 is untouched.
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

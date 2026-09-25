@@ -1184,3 +1184,108 @@ defaults, 55 about `flexShrink` compression, 9 about absolute-box placement,
 `LR-EY` item 2): `Row`/`Column` default spacing leaves plan task 7 for **plan
 task 15** (closeout), because every remaining stage of task 7 exits at 0 px
 against its predecessor and closing 52 moves every default-gap caller's pixels.
+
+## 2026-09-24: 11 retired; 4's loose end closes; 9, 10, 13, 14, 48, 52, 53, 55 and 56 re-read on the one authority; 18 untouched (plan task 7 stage 9)
+
+Record §51; rulings `LR-FC`…`LR-FL` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`. Stage 9 deletes
+the CSS engine, the layout authority and the legacy registrars (spec
+`specs/2026-09-24-engine-stage-9-design.md` §8); the frame goes 57 → **56
+live**.
+
+- **11 retires** (56 live; joins the never-reused list, alongside 3, 4, 5–8,
+  12, 15, 17, 36, 37, 40, 59). Divergence 11 was already **legacy-only** since
+  stage 5 (an absolute box inside a `ScrollView` is still clipped and scrolled
+  by it under the CSS engine; the escape is `Deferred`) — it retires now
+  because the legacy engine it describes is gone.
+  `AbsoluteOverlayTests.anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt`
+  is deleted (record §51 §6.1, row L1-15); a comment in its place names the
+  row and its replacements. **This is a genuine retirement, not "no pin
+  left"**: unlike divergence 4, 11's own definition names the legacy engine's
+  behaviour as its subject, so once that engine is gone there is nothing left
+  to observe, named or not. The proposal-side fact it sat beside —
+  `[box.position, box.inset]` reported at the consumer for an absolute box in
+  a `ScrollView` with no `Deferred` — survives as its own thing, now the only
+  answer: `PresentationLoweringTests.aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName`'s
+  "absolute in a `ScrollView`, no `Deferred`" arm (was item 1.5's seventh row);
+  the `Deferred` escape half that always existed beside it is
+  `DeferredTests.aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScroll`
+  and the portal mask tests, unaffected by this stage.
+- **4's loose end closes.** 4 retired at 7b as a row (no CSS-engine-subject
+  test named `CS-I` any more), but its behaviour stayed exercised, unnamed, by
+  the `.legacy` arm of roughly thirty `AuthorityCoverage`-parameterised tests
+  until "stage 9 deletes the legacy authority and those arms with it" (7b's
+  own wording). Stage 9 does exactly that: `AuthorityCoverage` and every
+  `.legacy` arm it drove are deleted (lanes 1 and 2, record §51 §5.2, §6.1).
+  No new number moves — 4 was already retired — but the CSS engine's hugging
+  behaviour is now gone from the suite in every sense, named or not.
+- **9** (an all-`auto`-inset absolute box sits at its containing block's
+  origin, not CSS's static position). **Survives, on the one authority.**
+  Its subject was never the split between two engines, only the placement
+  rule the lowering reproduces — collapsing the differential harness to one
+  authority (`LR-FI` item 1) does not touch it.
+  `PresentationLoweringTests.aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`'s
+  "no insets, after an in-flow sibling (divergence 9)" arm keeps its literal
+  (`pBounds(0, 0, 30, 20)`), asserted once now rather than against a second
+  engine.
+- **10** (`Deferred` escapes every ancestor clip regardless of containing
+  block; no way to ask for CSS's answer). **Unchanged, on the one authority.**
+  `PresentationWindowTests`' must-not-move set and `DeferredTests`' hoisted
+  scenarios (both collapsed to a single assertion by lane 1, record §51
+  §5.2/§5.3) still exercise the same escape through the lowering, the only
+  path there has ever practically been in production since stage 6b and now
+  the only one that exists at all.
+- **13** (a `List`'s window is computed against a one-frame-stale viewport
+  extent) and **14** (a `List` windows against its scroller's origin, so a
+  `List` with a flow sibling above it renders blank). **Both survive,
+  unchanged, now pinned once instead of twice.** `ListTests`' 21
+  `AuthorityCoverage`-parameterised scenarios, 14's pin
+  (`aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`) among
+  them, are collapsed to their single, `.proposal`-shaped assertion (lane 1,
+  record §51 §5.2); the fact each divergence names is exactly what that
+  single assertion still gets wrong. `MP-L`'s blocker (`requestLayout` has no
+  position) is unaffected.
+- **18** (a `@State` behind a removed `if` is retained, not reset). **Not
+  touched by this stage.** 18 was never about the layout authority — its
+  stage-4 amendment was the legacy windowing spacer's own structural change,
+  unrelated to the engine deletion — and nothing in stage 9's diff moves
+  `demoLikeRows(_:)`'s formula or the crossing row.
+- **48, 52, 53, 55 and 56 keep their fact; each loses the "both engines in
+  one differential body" shape 7b gave it, collapsed to that body's single
+  surviving answer by lane 1's rule** (literals kept, agreement assertions
+  deleted, `LR-FI` item 1). None of the five is *about* the authority split,
+  so none is touched in substance — only the pin's name, in three of five
+  cases (checked by grep against this file's table and record §51 §5.3's
+  rename list):
+  - **48**: `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`
+    → **renamed** `LoweringComponentTests.aComponentsWidthFramesEachMember`
+    (record §51 §5.3); the `Component.width`-overwrites-each-member fact is
+    the same assertion, now against the lowering's own answer alone.
+  - **52**: `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault`
+    (`LoweringDistributionTests.swift`) keeps its name — it is one of the base
+    site-coverage set's own tests (probe file `## base`/`## head`), not a
+    collapsed registry scenario — plus
+    `ContainerIntegrationTests.aStackWithoutSpacingPutsEightBetweenViewsAndNothingBesideASpacer`
+    for the `HStack`/`VStack` half, also untouched.
+  - **53**: `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent`
+    → **renamed** `LoweringStackAndLayerTests.aLoweredStackOffersItsChildItsProposal`
+    (record §51 §5.3, which notes "the collapsed test no longer asserts the
+    legacy half"): the lowered `Stack`'s fit-content answer is now this
+    test's whole subject; the `ZStack`-offers-its-proposal side of the
+    contrast is carried by `swiftui-stack-algorithms.swift`'s A5 (SwiftUI
+    evidence, unaffected by this stage) rather than by a second answer in the
+    same test body.
+  - **55**: `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight`
+    (`LoweringItemTests.swift`) keeps its name, its `legacyA`/lowered pair
+    collapsed to the lowered answer alone (the fact — `flexShrink`
+    compression weighted by base size — is unaffected).
+  - **56**: `aFrameOverAMultiMemberComponentFramesEachMemberWhereTheLegacyLayerSqueezesThem`
+    → **renamed** `LoweringComponentTests.aFrameOverAMultiMemberComponentFramesEachMember`
+    (record §51 §5.3); unchanged in substance, per stage 8's note that this
+    pin already stood outside that stage's own retirement scope.
+
+**What it costs if wrong.** A reader following 48, 52, 53 or 56 by the name
+7b's or earlier sections give would find no such test at this commit; the
+renames above are the fix. 11's row looks orphaned without this section's
+note that it is a genuine retirement, not another "no pin left" correction
+like 4's.

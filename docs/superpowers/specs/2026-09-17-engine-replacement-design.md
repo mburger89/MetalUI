@@ -59,8 +59,8 @@ Tests/MetalUILayoutTests -name "*.json"`, not `find Tests`, because
 `Tests/PortableTests/.build/` holds JSON build artifacts — it reads 0, and every
 one of the 97 goldens has a row naming its native replacement arm (44) or its
 deleted CSS-only concept (53). Suite 1616, 0 px. **Stage 7b (the non-golden
-CSS-engine tests retired) has landed on its branch, not yet merged**
-(Record phase, 2026-09-24): `feat/engine-stage-7b` from `41344e5`, record
+CSS-engine tests retired) is merged** (`master` at `85217e3`, Record phase,
+2026-09-24): `feat/engine-stage-7b` from `41344e5`, record
 §49, spec
 [`2026-09-23-engine-stage-7b-design.md`](2026-09-23-engine-stage-7b-design.md).
 It meets §4.1 row 7b's exit: `grep -rn "computeLayout(" Tests` is empty, and
@@ -99,10 +99,32 @@ their `Style` write through the test target's `CSSSizing.swift` rather than
 task 7 for plan task 15 (`LR-EY` item 2). The row's figures (demo 10/13/1,
 tests 557/519/13) were re-counted as 25 and 1667 (record §50 §2). Suite 1452,
 guards 79, goldens 0; nothing of 9–11 pre-empted.
-**Stage 9 (engine deletion) is designed** (2026-09-24): `feat/engine-stage-9`
-from `b9a5d7f`, record §51, spec
+**Stage 9 (engine deletion) has landed on its branch, not yet merged**
+(2026-09-24): `feat/engine-stage-9` from `b9a5d7f`, record §51, spec
 [`2026-09-24-engine-stage-9-design.md`](2026-09-24-engine-stage-9-design.md),
-rulings `LR-FC`…`LR-FG`.
+rulings `LR-FC`…`LR-FL`. It meets §4.1 row 9's exit: the seven CSS-engine
+files, `UnbreakableRuns.swift`, the legacy registrars
+(`LayoutPass.requestNode`/`requestLeaf`, deprecated at stage 6a, and the
+internal `Frame.requestNode`/`requestLeaf`) and the layout authority itself
+(`LayoutAuthority.legacy`, `Frame.layoutAuthority`, `computeRootLayout`'s
+legacy branch, `Frame.legacyRootLayoutCounter`) are deleted — `git ls-files
+Sources/MetalUILayout` lists none of the seven files, `MetalUILayout` imports
+only `MetalUICore` — while every legacy element (`Box`, `Row`, `Column`,
+`Stack`, `ScrollView`, `List`, legacy `.frame`) keeps working through the
+lowering, now its only path. Three lanes, each red first, all verified `ok`:
+lane 1 (`LR-FI`) collapses the two-engine differential harness to one
+authority; lane 2 (`LR-FJ`) collapses the `AuthorityCoverage` registry's
+other contributors and retires every other deleted-symbol test; lane 3
+(`LR-FK`) does the deletion itself, behind N3.1 (a presentation's containing
+block is the window whatever surrounds it, closing the four `deferred.*`
+reports stage 5 left open — `.containingBlock`/`.nested`/`.root` deleted,
+`.amended` re-owned to stage 11, `LR-FF`). Suite **1409** (1452 − 93 + 50: 44
+retired, 49 renamed, 1 added), guards 79, goldens 0; 0 px against `b9a5d7f`
+in all fourteen offscreen images; divergence 11 retires (57 → 56 live) and
+4's unnamed `.legacy`-arm exercise, left open at 7b, closes with it. Stage 9
+pre-empts nothing of 10–11: `Style`'s CSS fields, `CSSSizing.swift` and every
+`Style`-field report this stage inherited stay for stage 10, and
+`ModifiedElement`/`ModifiedContent` are not unified (stage 11).
 §4.1's
 table below is still the plan of record for the remaining stages; the **live** per-stage status is the
 stage list under task 7 in

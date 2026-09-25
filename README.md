@@ -3,10 +3,12 @@
 A GPU-accelerated UI framework for Swift, architecturally modeled on
 [gpui](https://github.com/zed-industries/zed) but written as idiomatic Swift.
 Immediate-mode element tree, CoreText shaping with a glyph atlas, and a Metal
-renderer that draws the whole window as instanced quads. Layout is mid-migration:
-a CSS-flexbox engine once verified against WebKit still lays out every legacy
-element, and a SwiftUI-style proposal-layout path, with its own elements, is
-being built beside it.
+renderer that draws the whole window as instanced quads. Layout runs on a
+single SwiftUI-style propose/measure/place kernel. A CSS-flexbox engine once
+verified against WebKit used to lay out every legacy-spelled element; plan
+task 7's stage 9 deleted it whole (record §51) — those elements keep their
+CSS-derived API and spelling, but now reach the kernel only by lowering onto
+it.
 
 > **Status: experimental.** This is a working framework with a real demo app,
 > not a shipping product. The API moves, the milestones below list what is
@@ -20,21 +22,26 @@ SwiftUI is the design authority; CSS was the substrate. The current work
 CSS-derived layout model with SwiftUI's: a parent **proposes** a size, the
 child **measures** its answer, the parent **places** it. The aim is
 behavioural alignment, not source compatibility with SwiftUI. The CSS engine
-stays as migration evidence until each port is proven; its WebKit goldens were
-retired by plan task 7's stage 7a, each with a named native replacement or a
-named deleted CSS-only concept (record §48).
+stood as migration evidence until each port was proven: its WebKit goldens
+were retired at plan task 7's stage 7a, each with a named native replacement
+or a named deleted CSS-only concept (record §48); its remaining non-golden
+tests retired at stage 7b (record §49); and the engine's own files — the
+seven-file flex solver, the legacy registrars and the layout-authority switch
+itself — were deleted at stage 9 (record §51).
 
-**This is in progress, not delivered.** Today the two engines sit side by
-side, and which one runs is decided by the window's **root** element
-(`Frame.computeRootLayout`, `Sources/MetalUI/Frame.swift`):
+**This is in progress, not delivered.** There is now **one engine**, not
+two: production has run the proposal engine by default since plan task 7's
+stage 6b, and since stage 9 there is no other engine to opt into — not even
+`.legacy` as a test convenience, which no longer exists.
 
-- **Legacy (CSS-derived):** `Box`, `Row`, `Column`, `Stack`, `ScrollView`,
-  `List`, `Deferred`, `Text`, and their modifiers. **Production has run the
-  proposal engine by default since plan task 7's stage 6b** — every legacy
-  element still lowers through it unless a `Frame`/`Window` is built with an
-  explicit `.legacy` authority (a test convenience); the milestone demo is no
-  exception.
-- **Proposal layout (new):** `HStack`, `VStack`, `ZStack`, `Spacer`,
+- **Legacy-spelled (CSS-derived vocabulary, lowered onto the one kernel):**
+  `Box`, `Row`, `Column`, `Stack`, `ScrollView`, `List`, `Deferred`, `Text`,
+  and their modifiers. Every one lowers through `LegacyLowering.swift`
+  (`Sources/MetalUI/LegacyLowering.swift`) — the framework's only layout path
+  — built from the **animated** style and checked against the declared one;
+  a field with no lowering still traps naming `<site>.<field>`. The milestone
+  demo uses this vocabulary throughout.
+- **Proposal layout (native):** `HStack`, `VStack`, `ZStack`, `Spacer`,
   `Rectangle`, `Color`, `ProposalScrollView`, `Text(…).proposalLayout()`, the
   single-child wrappers `ProposalFrame`, `Padding`, `Background` and
   `FixedSize`, plus typed modifiers on `ProposalElementGroup`: `.frame` (fixed
@@ -43,12 +50,14 @@ side, and which one runs is decided by the window's **root** element
   `.background(alignment:content:)`, `.aspectRatio`, `.layoutPriority`. Since
   plan task 6 its stacks, `Spacer`, default spacing, `ZStack`, overlay content,
   root placement and scroll axes follow SwiftUI's probed algorithms
-  (`docs/probes/swiftui-stack-algorithms.swift`); the legacy containers keep
-  their CSS ones. The algorithms live in `MetalUILayout`
-  (`LayoutTree.computeNativeLayout`) as a closed set: `NativeNode` is a private
-  enum. A custom element can register a leaf or any built-in node kind through
-  the eleven public `LayoutPass.requestNative*` methods, but it cannot add a
-  new container algorithm.
+  (`docs/probes/swiftui-stack-algorithms.swift`); the legacy-spelled
+  containers keep their own distinct defaults (`Row`/`Column` gap 0 vs
+  `HStack`/`VStack` 8, `Stack` fit-content vs `ZStack`'s proposal) even though
+  both spellings now share the one kernel underneath. The algorithms live in
+  `MetalUILayout` (`LayoutTree.computeNativeLayout`) as a closed set:
+  `NativeNode` is a private enum. A custom element can register a leaf or any
+  built-in node kind through the eleven public `LayoutPass.requestNative*`
+  methods, but it cannot add a new container algorithm.
 
 Limits of the proposal path, as of 2026-09-16:
 
@@ -113,22 +122,24 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-8` (2026-09-24 — plan task 7 stage 8, the sizing
-vocabulary deprecated toward `.frame`, not yet merged with `master`) the
-suite reports **1452 tests** (1445 + 7), in one
-summary line over three suites. That total includes **79** `swiftc -typecheck`
-guards and no goldens: stage 7a retired all 97 (record §48), stage 7b
-retired the CSS engine's remaining non-golden tests (record §49), and stage 8
-deprecates the eight `StyledElement` sizing modifiers (`width`, `height`,
-`min*`, `max*`, `width(fraction:)`, `height(fraction:)`) toward `.frame` in
-the same change, converting every in-repo caller (record §50) — no test is
-retired for this stage. `FlexEngine` and the legacy layout
-authority are unchanged; only the sizing modifiers' own spelling moves.
+On `feat/engine-stage-9` (2026-09-24 — plan task 7 stage 9, engine deletion,
+not yet merged with `master`) the suite reports **1409 tests** (1452 − 93 +
+50: 44 retired, 49 renamed, 1 added), in one summary line over three suites.
+That total includes **79** `swiftc -typecheck` guards and no goldens: stage
+7a retired all 97 (record §48), stage 7b retired the CSS engine's remaining
+non-golden tests (record §49), stage 8 deprecated the eight `StyledElement`
+sizing modifiers toward `.frame` (record §50), and **stage 9 deletes the CSS
+engine, the legacy registrars and the layout authority itself** — `FlexEngine`
+and its supporting files, `LayoutPass.requestNode`/`requestLeaf`,
+`Frame.layoutAuthority` and `Frame.legacyRootLayoutCounter` are all gone
+(record §51). Every legacy element (`Box`, `Row`, `Column`, `Stack`,
+`ScrollView`, `List`, legacy `.frame`) keeps working, through the lowering
+that is now its only path.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them. **Production has run the
 proposal (SwiftUI-alignment) layout engine by default since plan task 7's
-stage 6b** — `Frame.defaultLayoutAuthority` is `.proposal`.
+stage 6b** — it is now, since stage 9, the only layout engine there is.
 
 ## What it looks like
 
@@ -389,8 +400,9 @@ transforms, and text colour animation.
     [stage 6b](docs/superpowers/specs/2026-09-23-engine-stage-6b-design.md)
     [stage 7a](docs/superpowers/specs/2026-09-23-engine-stage-7a-design.md)
     [stage 7b](docs/superpowers/specs/2026-09-23-engine-stage-7b-design.md)
-    and [stage 8](docs/superpowers/specs/2026-09-24-engine-stage-8-design.md)
-    specs (plan task 7, stages 1, 2, G, 3, 4, 5, 6a, 6b, 7a, 7b and 8 of 14
+    [stage 8](docs/superpowers/specs/2026-09-24-engine-stage-8-design.md) and
+    [stage 9](docs/superpowers/specs/2026-09-24-engine-stage-9-design.md)
+    specs (plan task 7, stages 1, 2, G, 3, 4, 5, 6a, 6b, 7a, 7b, 8 and 9 of 14
     landed —
     legacy elements lower onto the kernel, with SwiftUI's flex-item
     semantics, scrolling, `Component` distribution, a windowed `List` and
@@ -400,8 +412,9 @@ transforms, and text colour animation.
     stage 6b's root switch, `Frame.defaultLayoutAuthority = .proposal`; the
     97 WebKit goldens are retired — stage 7a; the CSS engine's remaining
     non-golden tests are retired — stage 7b; the eight `StyledElement` sizing
-    modifiers are deprecated toward `.frame` — stage 8, not yet merged with
-    `master`)
+    modifiers are deprecated toward `.frame` — stage 8; **the CSS engine, the
+    legacy registrars and the layout authority itself are deleted** — stage 9,
+    not yet merged with `master`)
   - [grids spec](docs/superpowers/specs/2026-09-17-grids-design.md)
     (plan task 7 stage G, delivered: SwiftUI's `Grid` and `GridRow` on the
     proposal path as a kernel node; lazy grids are proposed as stage G2)
