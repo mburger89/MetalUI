@@ -4,10 +4,9 @@ Branch `feat/environment-control-state` from `e732d98`. Spec
 `docs/superpowers/specs/2026-09-25-environment-control-state-design.md`;
 rulings `EV-AA`…`EV-AF` appended to
 `docs/superpowers/2026-09-15-environment-decisions.md`; probe
-`docs/probes/swiftui-environment-control-state.swift`. **This file is lanes 1–3's
-first draft**, written so its measurements are not lost before the Record
-phase; the Record phase owns its final shape (design-phase section, divergence
-and inert rows, counts).
+`docs/probes/swiftui-environment-control-state.swift`. §1–§3 are lanes 1–3's
+own sections, written so their measurements were not lost before the Record
+phase; §4 is the Record phase's independent close.
 
 ## 1. Lane 1 — the values
 
@@ -338,3 +337,194 @@ indicator rects 0; **all fourteen images `differing=0`, scene identical**.
 `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`, `displayActive main:
 0`. The probe's C arms were not re-run; `EV-AB`'s key/active mapping stays
 MetalUI's choice, owed that re-run.
+
+## 4. The task's close (Record phase, 2026-09-25, PDT)
+
+All three lane verdicts read `ok: true` (mutation tables above), so no
+fix/re-verify round was owed (Practices: "Re-verify only on a finding"). Every
+reading below was re-taken independently at `fb92808` (lane 3's own commit,
+the branch tip), not copied from any lane's own claim.
+
+### 4.1 Suite, guards, goldens
+
+`swift package clean`, then `swift build --build-system native --build-tests`
+and `swift build --build-tests` (default): both `Build complete!`, 0 `error:`
+on either, the only `warning:` SwiftPM's own deprecation notice under native
+(0 under the default). Unfiltered `swift test --build-system native
+--no-parallel` → **`Test run with 1506 tests in 3 suites passed after 85.157
+seconds`**, the log carrying `FR-J no-argument frame: succeeded=true
+deprecations=2` (guards ran) and both new guard lines, `EV-AB pair required:
+without succeeded=false …` and `EV-AB window state: read succeeded=true …
+write succeeded=false …`. **Eleven** gated tests skipped, unchanged from
+`e732d98` (ten `() skipped` lines plus the FreeType oracle's
+`measure(file:)`, which prints without the empty parenthesis pattern).
+**1506 = 1490 + 16**: lane 1's 8 (T1.1–T1.8; E13 extended and E19 renamed, not
+added), lane 2's 3 (T2.4–T2.6, `AppKitControlStateTests`; T2.1–T2.3 are in
+`Backends/SDL`, not the root count), lane 3's 3 tests + 2 guards
+(T3.1–T3.3, `ControlStateCompileGuards`'s T3.4/T3.5).
+
+`find Tests/MetalUILayoutTests -name "*.json" | wc -l` reads **0** (stage 7a;
+unmoved — no `Sources/MetalUILayout` file is touched by this task). Guards:
+`grep -c canTypecheck` per file across the nineteen files CLAUDE.md's "Guards"
+bullet now names, plus `ControlStateCompileGuards` (new, T3.4/T3.5), sums to
+**91** raw hits; less `UnitSafetyTests`' one comment-line hit gives **90 = 88
++ 2**, matching lane 3's §3.4 figure exactly. Both `ControlStateCompileGuards`
+tests typecheck a whole-file `typecheckFile` fixture under a plain
+`import MetalUIPlatform`/`import MetalUI` (T3.4 sees `MetalUIPlatform` under
+`#filePath`'s layout, as the spec asked lane 3 to check), so the "two
+helpers" split moves 40/48 → **40/50**.
+
+**Retirement accounting (`goldensUnchanged`).** No test was deleted. **One**
+retirement row (§1.3): E19 `aWholeValueWriteCannotResetTheThemeOrThePixelLength`
+is renamed `aWholeValueWriteResetsTheDisplayScaleButNotTheTheme`, its theme
+half kept and its `pixelLength == 0.5` half flipped to `displayScale == 1`/
+`pixelLength == 1` (`EV-AA`). Spot-checked: a grep for the old name in
+`Tests/` returns zero hits; a grep for the new name returns exactly one, at
+its declaration. E13 (`theFramesRootEnvironmentCarriesItsThemeAndScale`) kept
+every assertion and gained three — a retained test that changed its answer by
+gaining rows is not a retirement. No other retained test's answer moved.
+
+### 4.2 Must-not-move greens
+
+All read `passed` in the 1506-test run above:
+`theSevenRetentionSlotsAreMutuallyDistinct`,
+`everyProductionTreeBuildsOnAOneMegabyteThread`,
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`. `StateTable`, `MC-A`/`MC-C`/
+`MC-P` numbering, `.id()` outermost, hit testing, accessibility, animation,
+focus, the scrim, `List` windowing and `TB-AH`, `Deferred`, `TextField`/
+`TextEditor` are untouched by any lane's diff (no lane's file list names any
+of their sources).
+
+### 4.3 Pixels
+
+`docs/probes/demo-pixels/compare.sh <scratch> e732d98 HEAD` (`HEAD` = `fb92808`,
+a fresh scratch directory independent of every lane's own run): every control
+at its recorded `e732d98` value (light vs dark 1 048 576, default vs modal
+1 031 003, default vs animation 454 895, f0 vs f3 0, preview 1 048 576, chrome
+pair 0, distinct 544/216, prod default vs modal 491 221, distinct
+`prod-default-light` 529, indicator rects 0 in all twelve) and **all fourteen
+images read `differing=0`, scene identical**, matching all three lanes' own
+readings (§1.7, §2.4, §3.4). `Expected.swift`
+(`DemoFrameDeterminismTests`) is unedited by any lane — no built-in element
+reads `displayScale`, `controlActiveState` or `controlSize`, and the demo
+sets none of them.
+
+### 4.4 The probe, re-run
+
+`docs/probes/swiftui-environment-control-state.swift` compiled
+(`/usr/bin/swiftc … && OS_ACTIVITY_DT_MODE=1 …`) and filtered the same way as
+its header: **49 lines, byte-identical to the header** (a `diff` against the
+header, modulo the header's `// ` comment prefix and its extra two-space
+indent, is empty) — V, S, C and Z alike. The lock probe (below) still reads
+locked, so C1–C3/C5 still did not run; `EV-AB`'s mapping stays MetalUI's own
+choice, unmeasured against SwiftUI's, exactly as every lane found it.
+
+### 4.5 Elsewhere
+
+- **`MetalUILayout` imports only `MetalUICore`**: anchored grep over
+  `Sources/MetalUILayout/*.swift`'s `import` lines, no other hit — this task
+  touches no file under `Sources/MetalUILayout`.
+- **`Backends/SDL`** (`.accesskit` already fetched;
+  `PKG_CONFIG_PATH=$PWD/.accesskit swift build --build-tests` then `swift
+  test --no-parallel`): `Build complete!`, 0 `error:`, the only `warning:`
+  the pre-existing SDL dylib deployment-target linker note (unrelated to this
+  task): **`Test run with 21 tests` and `22 tests` passed**
+  (`ReplayFixtureTests`, `MetalUISDLTests`), matching lane 2's and lane 3's own
+  readings (§2.4, §3.4) exactly.
+- **`swift:6.4-noble`** (Docker, aarch64, the `metalui-portable-ax` image),
+  re-run independently over `git archive HEAD` (`fb92808`) rather than
+  re-read any lane's own measurement: `swift build --build-tests
+  --scratch-path /tmp/b` → `Build complete!`, 0 `error:`; `swift test
+  --skip-build --scratch-path /tmp/b --filter
+  'MetalUISDLTests|ReplayFixtureTests'` → **21 and 21 passed**
+  (`ReplayFixtureTests`, `MetalUISDLTests`), the three new focus/scale tests
+  (`focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive`,
+  `focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne`,
+  `aScaleOrPixelSizeChangeReachesOnResize`) passing by name — pushed focus
+  events and raw window events reach the platform on Linux too, matching lane
+  2's and lane 3's readings (**21** on Linux against **22** on macOS, the gap
+  being the one macOS-only `NSAccessibility` test the manifest already
+  documents). Windows itself was not run locally (no Windows host in this
+  environment); `root-windows` CI confirms it on push, unchanged by a task
+  that touches only files already portable (`MetalUICore`, `MetalUIPlatform`,
+  `Backends/SDL`).
+
+### 4.6 Real window — still owed
+
+`xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate
+&& /tmp/lockstate`, run once more this phase: `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`, `displayActive main: 0` — the screen was locked
+throughout, as it was at all three lanes' own checks (§1.7, §2.4, §3.4).
+`docs/probes/window-capture/capture.sh` was not run, and the probe's C arms
+were not re-run. **This is not owed as a new debt**: it is the same
+screen-locked condition every recent record section has been waiting on since
+2026-09-23 (stage 6b), on the same machine, across every task since (record
+§03's most recent sections) — this task adds two owed looks of its own to
+that list, both requiring an unlocked screen and neither reachable any other
+way:
+
+- **The key/active mapping** (`EV-AB`): whether AppKit's `isKeyWindow` →
+  `.key`, else `NSApp.isActive` → `.active`, else `.inactive` (and SDL's
+  focus-based equivalent) agrees with SwiftUI's own mapping — the probe's C1
+  (a window made key in an active app must read `key`), C2/C2′ (switching key
+  windows), C3/C3′ (hiding/unhiding the app) and C5 (a non-activating panel)
+  arms, all unmeasured because no window has become key or the app active in
+  a locked session (§2 of the spec).
+- **A `displayScale` change from moving the window between displays**: pinned
+  today only through the fakes (`simulateBackingScaleChange`, T3.3) and a
+  synthetic raw-event push (T2.3); no lane's suite drags a real window across
+  two displays of different backing scale.
+
+### 4.7 Not done, owners already assigned
+
+- **`controlActiveState` has no built-in consumer** (no MetalUI control dims
+  in an inactive window): owner **plan task 12**, with the disabled look
+  (`EV-AB`, `EV-Q`).
+- **`controlSize` reaches no built-in measurement (divergence 76)**: a
+  `Text`'s default font is owner **plan task 11** ("font metrics … dynamic
+  type response"); `TextField`/`TextEditor`/`Button` and the other common
+  controls are owner **plan task 10** ("common controls"). Both wait on
+  `controlSizeReachesNoBuiltInMeasurement` (T1.7) as their pin (`EV-AC`).
+- **Layout rounds to whole points, not the `displayScale` pixel grid
+  (divergence 77)**: owner **plan task 11** (rendering-facing semantics,
+  `EV-AD`). Moving it moves every fractional layout's pixels, the demo's
+  images and `Expected.swift` — out of scope here by design.
+- **SDL's drawable scale is pixel density, not the system's content/UI
+  scale** (at 150% on Windows/X11 `displayScale` reads 1 while the system
+  scale is 1.5): owner **plan task 14** (platform completeness), named as a
+  platform limit rather than a defect (`EV-AA` amended by `EV-AF` finding 7).
+- **The real-window capture and the probe's C1–C3/C5 arms**: owed to a human
+  with an unlocked screen (§4.6). No owner beyond "whoever next has an
+  unlocked session on this machine" — the same shape as stage 6b's and task
+  8's still-open real-window debt.
+- **`EV-Q`'s other rows are unaffected**: following the system's layout
+  direction/locale and locale changes while running stay **plan task 14**; a
+  `locale` consumer stays unowned; every row not naming `displayScale`,
+  `controlActiveState` or `controlSize` is untouched by this task (`EV-AE`).
+
+### 4.8 Docs updated to match this close
+
+`docs/superpowers/specs/2026-09-25-environment-control-state-design.md`'s
+Status line gains a Record-phase close paragraph (DELIVERED); `CLAUDE.md`/
+`AGENTS.md` gain: the `EV-` prefix line's next-unused letter (`EV-AG`, already
+moved by lane 3 in the decisions doc itself), the intro sentence's
+`PlatformWindow` no-default pair, a new "Counts" bullet, the "Guards" bullet's
+new file and helper split, the rewritten "Environment (`EV-`)" paragraph
+(`displayScale` writable and derived `pixelLength`, `controlActiveState` from
+the platform pair stamped by `Window`, `controlSize` carried, three
+`Window.environment` fields not the root's source), the Known-divergences
+bullet (24 retires, 76 and 77 add, 55 → 56 live), the Declared-but-inert
+bullet (`controlActiveState`, `controlSize`, `displayScale` rows with their
+owners) and the Human-verification bullet (the two new owed looks, §4.6);
+record §04 gets a new dated section (24 retires, 76/77 add); record §05 gets
+a new dated section (three rows added, none deleted); record §03 gets a new
+dated section (no new look shown — 0 px — but two new looks owed, distinct
+from stage 6b's); `docs/record/README.md` gains this file's row; the plan's
+task 9 entry gets a dated progress note and its checkbox moves — both
+clauses of the 2026-09-15 progress note (control state, scale) have landed,
+per `EV-AE`'s own test; the accessibility-bridge decisions doc's and spec's
+stale "task 9" citations (written when the interaction work was numbered
+task 9) are re-pointed to task 12 or task 10 as `EV-AE`/`EV-AF` disposed them;
+the root README gets the divergence count and the task 9 summary line
+corrected.
