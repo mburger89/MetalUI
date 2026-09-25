@@ -588,24 +588,22 @@ private struct NativeClickCounter: ProposalElement {
     #expect(log.paint == [1, 2])
 }
 
-/// **E8. PINNED INERT ON PURPOSE** (ruling EV-M). An `@Environment` inside
-/// `AnyElement` is never bound — `Mirror` cannot see through the box, as for
-/// `@State` — so it reads the key's default, 0, under a scope writing 5.
+/// **E8.** An `@Environment` inside `AnyElement` is bound (plan task 8, ruling
+/// ID-E): `AnyElementBox` binds its concrete element in layout, prepaint and
+/// paint, so it reads the scope's 5 in every phase. Until task 8 this test was
+/// `anEnvironmentPropertyInsideAnyElementIsInertAndReadsTheDefault`, pinned
+/// inert at `[[0], [0], [0]]` (record §55, lane 1's retirement row).
 ///
-/// **This is one case of the general rule: an `@Environment` that was never
-/// bound returns the key's default silently**, with no diagnostic, and builds
-/// a fresh `EnvironmentValues()` on every access — whose locale is
+/// **An `@Environment` that was never bound still returns the key's default
+/// silently** (a value built outside any frame), and builds a fresh
+/// `EnvironmentValues()` on every access — whose locale is
 /// `Locale(identifier: "")`, not the window's `Locale.current` (ruling EV-Y).
-/// Legitimate unbound reads — a handler reading an erased element after the
-/// frame, a value built outside any frame — look identical to a forgotten
-/// bind, which is why no diagnostic was designed. It flips when `AnyElement`
-/// binding lands (plan task 8).
 @MainActor
-@Test func anEnvironmentPropertyInsideAnyElementIsInertAndReadsTheDefault() {
+@Test func anEnvironmentPropertyInsideAnyElementReadsItsScope() {
     let log = PropertyLog()
     var root = Row { AnyElement(PropertyRecorder(log: log)).environment(\.probe, 5) }
     frame().render(&root)
-    #expect([log.layout, log.prepaint, log.paint] == [[0], [0], [0]])
+    #expect([log.layout, log.prepaint, log.paint] == [[5], [5], [5]])
 }
 
 private struct EnvComponent: Component {
