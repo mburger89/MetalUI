@@ -500,3 +500,89 @@ private struct EnvironmentPainter: Element {
     #expect(log.reads == [7, 9], "the owner leaking into the build reads [7, 7]")
     #expect(StateDispatch.owner == nil, "control: the owner is restored after dispatch")
 }
+
+// MARK: - O1.11–O1.12: a later generation forgets the earlier one's occurrences (the closeout)
+
+/// A leaf with one `@State` counter, written by the test through the shared box
+/// (the way a captured handler writes it), and one `@Environment` read.
+private struct GenerationProbe: Element {
+    @State var count = 0
+    @Environment(\.occurrenceProbe) var probe
+    var elementID: ElementID? { nil }
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                  pass: inout PrepaintPass) {}
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+               prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+@MainActor
+private func generationFrame(_ table: StateTable) -> Frame {
+    Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)), scaleFactor: 1, stateTable: table)
+}
+
+/// **O1.11 — a `@State` box forgets the previous generation's occurrences**
+/// (`ID-F`'s clause "cleared by the first bind of a later generation",
+/// `State.bind`'s `box.occurrences = nil`; record §55 §9.2's mutation B2, which
+/// reddened nothing at `da2d820`). One value placed twice in frame 1 — `Row { p;
+/// Box { p } }`, occurrences at `root/0/0` and `root/0/1/0` — then ONCE in frame
+/// 2, as `Row { Box { p } }` at `root/0/0/0`. A write dispatched to frame 2's
+/// only occurrence must land on its own slot.
+///
+/// Red under **B2** (the clearing branch left empty): the box still holds frame
+/// 1's two occurrences, the owner's ancestor walk meets the stale `root/0/0`
+/// first, and the write lands on that dead slot — own slot `nil`, stale slot 1.
+@MainActor
+@Test func aStateBoxForgetsTheOccurrencesOfAnEarlierGeneration() throws {
+    let table = StateTable()
+    let p = GenerationProbe()
+    let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let row0 = GlobalElementID.child(of: root, at: 0, name: nil)
+    let stale = row0                                            // frame 1's first occurrence
+    let own = GlobalElementID.child(of: row0, at: 0, name: nil) // frame 2's only occurrence
+
+    var first = Row { p; Box { p } }
+    generationFrame(table).render(&first)
+    try #require(table.aliasedStateBoxes > 0, "control: frame 1 places the value twice")
+
+    var second = Row { Box { p } }
+    generationFrame(table).render(&second)
+    StateDispatch.dispatching(to: own) { p.count += 1 }
+
+    #expect(table.peek(slot(own, 0), as: Int.self) == 1, "the write lands on frame 2's own occurrence")
+    #expect(table.peek(slot(stale, 0), as: Int.self) == nil, "and not on frame 1's dead slot")
+}
+
+/// **O1.12 — an `@Environment` box forgets the previous generation's
+/// occurrences** (`Environment.bind`'s copy of the same clause). Frame 1 places
+/// one value under scopes 7 and 9 — `Row { p(7); Box { p(9) } }` — frame 2 once,
+/// under 5, as `Row { Box { p(5) } }`. Read during dispatch to frame 2's
+/// occurrence, the environment is 5.
+///
+/// Red under **B2e** (`Environment.bind`'s clearing branch left empty): the stale
+/// occurrence at `root/0/0` resolves first and the read is frame 1's 7.
+@MainActor
+@Test func anEnvironmentBoxForgetsTheOccurrencesOfAnEarlierGeneration() throws {
+    let table = StateTable()
+    let p = GenerationProbe()
+    let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let own = GlobalElementID.child(of: GlobalElementID.child(of: root, at: 0, name: nil), at: 0, name: nil)
+
+    var first = Row {
+        p.environment(\.occurrenceProbe, 7)
+        Box { p.environment(\.occurrenceProbe, 9) }
+    }
+    generationFrame(table).render(&first)
+    try #require(StateDispatch.dispatching(to: GlobalElementID.child(of: root, at: 0, name: nil)) { p.probe } == 7,
+                 "control: frame 1 recorded both occurrences, and dispatch picks the first")
+
+    var second = Row { Box { p.environment(\.occurrenceProbe, 5) } }
+    generationFrame(table).render(&second)
+    #expect(StateDispatch.dispatching(to: own) { p.probe } == 5,
+            "frame 2's only occurrence reads its own scope, not frame 1's")
+}

@@ -279,3 +279,129 @@ private func item(_ label: String, _ reads: ConditionalReads) -> IdentifiedGroup
     }
     #expect(changed.values["p"] == 1, "changed: \(String(describing: changed.values["p"]))")
 }
+
+// MARK: - E3.10: a name that returns (the closeout, ruling `ID-R`)
+
+/// **E3.10 — an `.id` that goes a → b → a starts the returning name fresh**
+/// (probe X9–X11, revision 3: SwiftUI's returning name reads a new serial, and
+/// X10's constant name keeps one; ruling `ID-R`, record §55 §10). Four frames,
+/// names a, a, b, a, one table, five spellings: an element's own `.id` on a
+/// `Box` in a `Row` and at the ROOT (`Frame.render`'s root id), an
+/// `IdentifiedGroup` under a `VStack` (the typed entry) and under a `Row` (the
+/// untyped one), and a named leaf that keeps its count at its own id (the
+/// reset includes the departed id, not only what is under it). Each returning probe reads **1**, not the 3 of the old count
+/// (2) plus the returning frame. The control (a, a, a, a) keeps counting to 4 in
+/// every spelling, so the 1 is the rename's doing and not a fresh table.
+///
+/// Red before (`89a8337`'s sources): every changed arm reads 3 — a departed
+/// name's entries are unmarked, not deleted, and `TB-AH`'s reap only runs past
+/// `sweepThreshold`, so a name back within the bound found them (record §55
+/// §9.3). Mutation **MRa** (`StateTable.noteNamed` records nothing) reddens it.
+@MainActor
+@Test func anIDThatReturnsToAnEarlierNameStartsFresh() {
+    let changed = ["a", "a", "b", "a"]
+    let constant = ["a", "a", "a", "a"]
+
+    for (steps, expected) in [(changed, 1), (constant, 4)] {
+        let box = render(steps) { n, reads in Row { Box { ConditionalCounter("p", reads) }.id(n) } }
+        #expect(box.values["p"] == expected, "Box in a Row over \(steps): \(String(describing: box.values["p"]))")
+
+        let rootBox = render(steps) { n, reads in Box { ConditionalCounter("p", reads) }.id(n) }
+        #expect(rootBox.values["p"] == expected, "root Box over \(steps): \(String(describing: rootBox.values["p"]))")
+
+        let typed = render(steps) { n, reads in
+            VStack { HStack { ProposalConditionalCounter("p", reads) }.id(n) }
+        }
+        #expect(typed.values["p"] == expected, "IdentifiedGroup in a VStack over \(steps): \(String(describing: typed.values["p"]))")
+
+        let untyped = render(steps) { n, reads in
+            Row { HStack { ProposalConditionalCounter("p", reads) }.id(n) }
+        }
+        #expect(untyped.values["p"] == expected, "IdentifiedGroup in a Row over \(steps): \(String(describing: untyped.values["p"]))")
+
+        // The named element keeps its count at its OWN id, not under it — the
+        // reset includes the departed id itself.
+        let own = render(steps) { n, reads in Row { NamedCounter(name: n, reads: reads) } }
+        #expect(own.values["p"] == expected, "a counter at its own named id over \(steps): \(String(describing: own.values["p"]))")
+    }
+}
+
+/// `ConditionalCounter` with a name of its own: it counts under `withState(id,
+/// …)` at its OWN (named) id, the way `ScrollView` keeps its offset.
+private struct NamedCounter: Element {
+    let name: String
+    let reads: ConditionalReads
+    var elementID: ElementID? { ElementID(name) }
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        var value = 0
+        pass.withState(id, initial: 0) { $0 += 1; value = $0 }
+        reads.values["p"] = value
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }.layoutNodeID, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                  pass: inout PrepaintPass) {}
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+               prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **E3.11 — a name that leaves one position for a sibling's keeps its state**
+/// (the rename reset's other half, ruling `ID-R`: a name is reset only when it
+/// is produced NOWHERE in the frame that dropped it). Two named `Box`es in a
+/// `Row` swap names each frame — `[x, y]`, `[y, x]`, `[x, y]` — so both
+/// positions change name every frame and neither name vanishes: `x` and `y`
+/// each read 3. The control for E3.10's reset: resetting by position alone
+/// (mutation **MRb**, the produced-anywhere check dropped) reads 1 and 1.
+///
+/// Green before (pin).
+@MainActor
+@Test func aNameThatMovesToASiblingsPositionKeepsItsState() {
+    let reads = render([["x", "y"], ["y", "x"], ["x", "y"]]) { names, reads in
+        Row {
+            Box { ConditionalCounter(names[0], reads) }.id(names[0])
+            Box { ConditionalCounter(names[1], reads) }.id(names[1])
+        }
+    }
+    #expect([reads.values["x"], reads.values["y"]] == [3, 3], "each name keeps its own count: \(reads.values)")
+}
+
+/// A `Component` that declares its own name, over one counter.
+private struct NamedCounterComponent: Component {
+    let name: String
+    let reads: ConditionalReads
+    var elementID: ElementID? { ElementID(name) }
+    var content: some ElementGroup { ConditionalCounter("p", reads) }
+}
+
+/// **E3.12 — every other naming site departs its old name too** (ruling
+/// `ID-R`: `StateTable.noteNamed` is called at each site that mints a named id,
+/// and each call is a copy — Practices, "a copy of a pinned implementation is
+/// unpinned"). Names a, a, b, a against one table, three spellings E3.10 does
+/// not reach: an erased element (`AnyElement`'s own group entry, a copy of
+/// `enteringGroupMember`), a `Component` that declares its `elementID` (its
+/// untyped group entry), and a name written INSIDE a wrapper (`Box { p }.id(n)
+/// .padding(4)`: the named `Box` is an inner layer, `ModifiedContent`'s
+/// `innermostID`). Each returning probe reads 1; the constant control reads 4.
+///
+/// Red before: every changed arm reads 3. Mutations **MRd** (`AnyElement`'s
+/// note deleted), **MRe** (the untyped `Component` note deleted) and **MRf**
+/// (`innermostID`'s note deleted) each redden their own arm alone.
+@MainActor
+@Test func everyNamingSiteStartsAReturningNameFresh() {
+    for (steps, expected) in [(["a", "a", "b", "a"], 1), (["a", "a", "a", "a"], 4)] {
+        let erased = render(steps) { n, reads in
+            Row { AnyElement(Box { ConditionalCounter("p", reads) }.id(n)) }
+        }
+        #expect(erased.values["p"] == expected, "AnyElement over \(steps): \(String(describing: erased.values["p"]))")
+
+        let component = render(steps) { n, reads in Row { NamedCounterComponent(name: n, reads: reads) } }
+        #expect(component.values["p"] == expected, "named Component over \(steps): \(String(describing: component.values["p"]))")
+
+        let inner = render(steps) { n, reads in
+            Row { Box { ConditionalCounter("p", reads) }.id(n).padding(Pixels(4)) }
+        }
+        #expect(inner.values["p"] == expected, "inner-layer name over \(steps): \(String(describing: inner.values["p"]))")
+    }
+}
