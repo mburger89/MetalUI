@@ -6,7 +6,7 @@ scoped environment values, add a disabled control state, and clear the keymap's
 `Binding` name for task 10.
 
 Prefixed **`EV-`** and **lettered** (`EV-A`, `EV-B`, …). **A bare `EV-3` is a
-typo, not a citation.** The next unused letter is `EV-AA`.
+typo, not a citation.** The next unused letter is `EV-AF`.
 
 Read alongside:
 
@@ -21,6 +21,9 @@ Read alongside:
   - `docs/probes/swiftui-environment-api-shape.swift` (compile-only);
   - `docs/probes/swiftui-disabled-ancestor-and-order.swift` (arms N, O);
   - `docs/probes/swiftui-environment-pixel-length.swift` (arms V, X).
+- Task 9's closing rulings, `EV-AA`…`EV-AE` (2026-09-25, at the end of this
+  file): `docs/superpowers/specs/2026-09-25-environment-control-state-design.md`
+  and `docs/probes/swiftui-environment-control-state.swift` (arms V, S, C, Z).
 
 ## How to read the letters
 
@@ -45,6 +48,9 @@ applies or rejects each. The rulings below are already amended.
 - **`EV-S`** — what a SwiftUI claim in this track may and may not rest on.
 - **`EV-W`** — collisions with the two parallel tracks, and how each is kept
   loud.
+- **`EV-AA`…`EV-AE`** — task 9's closing half (2026-09-25): `displayScale`,
+  `controlActiveState`, `controlSize`, the rounding divergence, and the
+  `EV-Q` disposition.
 
 **Every ruling ends with a "Mutations" line reading _owed by lane N_.** The lane
 that implements a ruling replaces that line with the mutations it ran and the
@@ -2014,3 +2020,225 @@ written and run in this pass (record 11, "Third design pass").
 | 10 | `$disabled` is a new reserved id suffix with no distinctness pin | **Applied by removal.** Finding 1's fix registers no hitbox, so no derived id is minted and no suffix is reserved; the CLAUDE.md reserved-name sentence is withdrawn from the owed list. `theSevenRetentionSlotsAreMutuallyDistinct` needs no extension from this track |
 | 11 | An internal `rootEnvironment` write during render silently discards open scopes | **Applied** (`EV-Z`): an `isRendering` precondition in the setter, pinned by a `.failure` exit test with one arm per phase and a `.success` exit test that writes before and between renders of a scoped tree |
 
+
+---
+
+## Task 9 closing rulings (2026-09-25, `feat/environment-control-state` from `e732d98`)
+
+The unfinished half of plan task 9: "control state" apart from the enabled
+state, and "scale". Spec
+`docs/superpowers/specs/2026-09-25-environment-control-state-design.md` (three
+lanes, every test and mutation); record `docs/record/56-environment-control-state.md`.
+Evidence: `docs/probes/swiftui-environment-control-state.swift` (arms V, S, C,
+Z; macOS 27.0, one 2x display, **screen locked**; compiled and interpreted
+output byte-identical), and a re-run of `swiftui-environment-pixel-length.swift`
+whose V and X lines are byte-identical to its 2026-09-15 header. Every ruling
+below ends with a Mutations line **owed by** the lane the spec names.
+
+## EV-AA — `displayScale` is exposed and writable; `pixelLength` is derived from it; divergence 24 retires
+
+**What.** `EnvironmentValues.displayScale: Double` is `public var`, 1 in a bare
+value. `pixelLength` becomes a get-only computed property,
+`displayScale == 0 ? 1 : 1 / displayScale`. `Frame` stamps the root's
+`displayScale` from its `scaleFactor` — the drawable's, from
+`WindowRenderer.beginFrame()` — in `init` and in the `rootEnvironment` setter,
+using the existing "1 unless finite and positive" guard (moved from
+`pixelLength`). `Frame.scopedValues` **no longer** re-stamps anything but
+`theme`: a scope may write `displayScale`, and a `\.self` reset resets it to 1
+and `pixelLength` with it. `Window.environment.displayScale` is not the root's
+source (the frame re-stamps it), as `theme` is not. No new `PlatformWindow`
+requirement: a backing-scale change already fires `onResize` on AppKit
+(`viewDidChangeBackingProperties` → `syncSurfaceGeometry`) and on SDL
+(`DISPLAY_SCALE_CHANGED`/`PIXEL_SIZE_CHANGED` → `MUI_EVENT_RESIZE`), which
+dirties the window, and the next frame is built at the new drawable's scale.
+
+**Why.**
+
+- S0 and S1: SwiftUI's value is the **host's rendering scale** — a hosted
+  view reads `backingScaleFactor`, an `ImageRenderer`'s content reads the
+  renderer's scale, and changing that scale re-evaluates the content with the
+  new value on the next render. MetalUI's equivalent of "the host's rendering
+  scale" is the frame's `scaleFactor`, which is exactly what `PaintPass.fill`
+  multiplies by; stamping from it keeps number and drawing in step for any
+  unscoped reader, and `renderFrame(scaleFactor:)` is the `ImageRenderer`
+  analogue.
+- S2, X1: a scope can write it and `pixelLength` follows. X2: a `\.self` reset
+  reads 1 and 1. V1: the derivation is `1 / displayScale` with a 0 case, and
+  SwiftUI rejects no write (so neither do we, `SA-K`'s rule: nothing internal
+  reads `pixelLength`, so no stored rect can go non-finite through it).
+- **S3 refutes the reason `EV-J` and `EV-U` gave for withholding it.** Both
+  said a writable scale would, here, "change only the number" while `PaintPass`
+  kept scaling by the device, and implied SwiftUI's write changes the scale
+  rendering uses. Measured: at renderer scale 2 a `pixelLength`-wide hairline
+  is 1 device pixel with no write and **2** under `displayScale = 1`. SwiftUI's
+  write changes the number and not the drawing scale — MetalUI's behaviour
+  under this ruling. The double-scaling hazard `PaintPass`'s doc names
+  (pre-scaling by a scale that `fill` applies again) is SwiftUI's too, with the
+  same API; the doc is amended to say so, and `pass.frame` stays unreachable.
+
+**Divergence 24 retires**: every clause of it (no `displayScale`; no scope
+changes `pixelLength`; a `\.self` reset keeps it) becomes aligned. The label
+joins the retired list.
+
+**The retained test that changes its answer.** E19,
+`aWholeValueWriteCannotResetTheThemeOrThePixelLength`, is renamed
+`aWholeValueWriteResetsTheDisplayScaleButNotTheTheme`: its theme half stands
+(`theme` is MetalUI's own key, `EV-U`'s first half), its `pixelLength == 0.5`
+half becomes `displayScale == 1` and `pixelLength == 1`. `EV-J`'s "Cost if
+wrong" named this flip in advance. Record §56 carries the rename row.
+
+**Superseded text.** `EV-J`'s "`displayScale` is NOT exposed" and its "Why no
+`displayScale`" paragraph; `EV-U`'s `pixelLength` half and its "In SwiftUI the
+reset changes the scale rendering uses as well" sentence (refuted by S3);
+`EV-Q`'s `displayScale` row. They stay in place as history; this ruling is the
+current one.
+
+**Rejected: read-only `displayScale`, re-stamped like `pixelLength` today.** It
+would expose the number and keep divergence 24's two behavioural clauses — the
+design would diverge from X1/X2/S2 for a hazard S3 shows SwiftUI shares.
+
+**Cost if wrong.** An author who writes `displayScale` expecting a subtree to
+be *drawn* at another scale gets only the number, as in SwiftUI (S3). If a
+later SwiftUI changes S3's answer, T1.4 is the pin that faces it.
+
+**Mutations:** owed by lane 1 (M1.1–M1.4, M1.9, M1.10, MG1, MG3, MG6a).
+
+## EV-AB — `controlActiveState` comes from the platform window, through a new `PlatformWindow` pair; a scope can write it
+
+**What.** `ControlActiveState` (`key`, `active`, `inactive`) lives in
+`MetalUICore`. `EnvironmentValues.controlActiveState` is `public var`, `.key`
+in a bare value — so a windowless `Frame` and `renderFrame` read `.key`.
+`PlatformWindow` gains `var controlActiveState: ControlActiveState { get }` and
+`var onControlActiveStateChange: ((ControlActiveState) -> Void)? { get set }`,
+**with no default implementation**. `Window` holds `public private(set) var
+controlActiveState`, read from the platform at construction, set by the
+callback, `didSet` guarded by `!=` and then `setNeedsRedraw()`, and stamped over
+`Window.environment` into the root at draw. Scopes may write it; nothing
+re-stamps it after a scoped write.
+
+**Mapping — MetalUI's choice, not a SwiftUI claim (`EV-S`).** AppKit:
+`isKeyWindow` → `.key`, else `NSApp.isActive` → `.active`, else `.inactive`,
+re-read on `windowDidBecomeKey`/`windowDidResignKey` and on
+`NSApplication.didBecomeActive`/`didResignActive`, the callback fired only on a
+change. SDL: this window has keyboard focus → `.key`; another window of the same
+`SDLPlatform` has it → `.active`; none → `.inactive`, tracked from
+`SDL_EVENT_WINDOW_FOCUS_GAINED`/`LOST` (two `MUI_EVENT_*` kinds appended, none
+renumbered).
+
+**Why.**
+
+- C0: in an inactive app a hosted SwiftUI reader reads `inactive` while a bare
+  value holds `key` (V0), so SwiftUI's host stamps the value from window/app
+  state — a platform seam, not a constant. C4: a scope write is read below it.
+- **A requirement pair, not a default**, for `AB-R`'s reason: a default of
+  `.key` would be a lie for every window of an inactive app, and a conformer
+  that forgot the pair would compile into a window whose readers never learn.
+  The pair mirrors `appearance`/`onAppearanceChange` (a live getter plus a
+  callback carrying the value).
+- **The window's guarded copy, not `Window.environment`**: that property
+  dirties on every write, a no-op included (`EV-H`), and a platform reports
+  many activations that change nothing for a window. The enum is `Equatable`,
+  so the copy can guard, as `theme` does.
+
+**What the probe could not tell.** C1–C3 and C5 did not run: the screen was
+locked, the app never became active and no window — a non-activating panel
+included — became key, so C1's control (`key`) never moved. SwiftUI's mapping
+of key/main/app-active onto the three cases, and when a reader sees a key
+change, are **unmeasured**. The lanes re-run the C arms when the lock probe
+reads unlocked, and if SwiftUI's mapping differs, amend this ruling and T3.5 to
+the measured one.
+
+**No built-in consumer.** MetalUI's controls do not change in an inactive
+window. SwiftUI's look there is unprobed; owner plan task 12, with the disabled
+look (`EV-Q`). An inert row owed to the Record phase.
+
+**Cost if wrong.** A reader sees `.active` or `.inactive` where SwiftUI would
+say otherwise in some window arrangement; no built-in element reads it, so no
+pixel moves. A new `PlatformWindow` conformer outside this repo stops compiling
+until it implements the pair — the point of having no default.
+
+**Mutations:** owed by lanes 1 (M1.8), 2 (M2.1–M2.4) and 3 (M3.1–M3.9, MG7,
+MG8).
+
+## EV-AC — `controlSize` is carried with SwiftUI's five sizes and no built-in reader (divergence 76)
+
+**What.** `ControlSize` (`mini`, `small`, `regular`, `large`, `extraLarge`) in
+`MetalUI`; `EnvironmentValues.controlSize`, `.regular` in a bare value;
+`.controlSize(_:)` on `ElementGroup`, returning an `EnvironmentScope` like
+`.dynamicTypeSize(_:)`. No built-in element reads it.
+
+**Why carried.** V0 and Z0: default `regular`; Z1: both spellings write it and
+the nearest writer wins — MetalUI's scope mechanism as it stands.
+
+**Why no reader: divergence 76, pinned wrong on purpose.** SwiftUI's built-ins
+**do** read it on macOS: a `Text`'s default font shrinks under `.mini` and
+`.small` (Z2: 53×11 and 63×14 against 72×16; an explicit font does not, Z2e/f),
+a `TextField` is 19/21/24 pt tall and a `Button` 30×13…55×36 across the sizes
+(Z3). Aligning is not cheap here: `Text` stores `fontSize = 13` with no
+"default font" state (`Text.swift:81`), so following Z2's default-only rule
+needs a change to the text model, and `TextField`/`TextEditor` take their
+height from their font. That is text and control work, not environment work.
+Owners: **plan task 11** for `Text`'s default font ("font metrics … dynamic
+type response"); **plan task 10** for `TextField` and the common controls.
+`controlSizeReachesNoBuiltInMeasurement` (T1.7) is the pin those changes flip.
+
+**Label 75 is skipped.** Record §04's task 8 closeout says "label 75 stays
+unused" and tells a reader looking for 75 that the row was closed, not
+numbered; giving 75 a different meaning now would make that note wrong.
+
+**Cost if wrong.** A port of SwiftUI code that shrinks a toolbar with
+`.controlSize(.small)` lays out at regular size here. The pin names where.
+
+**Mutations:** owed by lane 1 (M1.6, M1.7, MG6b).
+
+## EV-AD — layout rounds to whole points, not to the `displayScale` pixel grid (divergence 77, found by S4)
+
+**What.** No change. Recorded as divergence 77 and pinned wrong on purpose by
+`layoutRoundsToWholePointsWhateverTheDisplayScale` (T1.5).
+
+**Why a divergence.** S4: SwiftUI rounds each view's absolute position to the
+`displayScale` pixel grid, and a scoped write changes the grid (62.65 → 63 /
+62.5 / 62.667 at 1 / 2 / 3). MetalUI's `roundLayout` rounds every stored rect
+to whole points at every scale (`Rounding.swift`), so a `displayScale` write
+changes no MetalUI layout, and at 2x MetalUI's grid is twice as coarse as
+SwiftUI's.
+
+**Why not here.** Rounding to device pixels moves every fractional layout's
+pixels: the fourteen demo images, `Expected.swift`'s pinned frame (Linux and
+Windows CI re-confirm it), and every test with a derived fractional literal.
+That is a rendering-semantics change with its own blast radius. Owner: **plan
+task 11** (rendering-facing semantics).
+
+**Cost if wrong.** Content at 2x sits up to half a point from where SwiftUI
+places it; an author who writes `displayScale` to change snapping sees no
+change. T1.5 flips in the change that implements this.
+
+**Mutations:** owed by lane 1 (M1.5).
+
+## EV-AE — plan task 9 closes; which `EV-Q` items move and which stay
+
+**What.** With `EV-AA` (scale) and `EV-AB`/`EV-AC` (control state), both
+clauses of the progress note land, and the plan's task 9 box is ticked in the
+Record phase — not before every lane is verified.
+
+`EV-Q`'s rows:
+
+| row | disposition |
+|---|---|
+| `displayScale`, and a `pixelLength` a scope can change | **done** (`EV-AA`) |
+| `controlActiveState`, `controlSize` | **values done** (`EV-AB`, `EV-AC`); the consumers stay: an inactive-window look with **task 12**, `Text`'s default font with **task 11**, `TextField`/controls with **task 10** (divergence 76) |
+| Following the system's layout direction and locale, and locale changes while running | **stays**, task 14. The new pair is the precedent such a requirement would follow |
+| A consumer for `locale` | stays, none named |
+| Every other row | unchanged |
+
+**Items addressed to "task 9" in other decisions docs.** The accessibility
+bridge's rulings (`AB-H`, its deferred-work table, the panel's "non-button
+click absorber") name "task 9's `Button`". `Button` is a common control, which
+the plan's current numbering gives to **task 10** ("common controls"); none is
+delivered here, and the Record phase re-points those notes to task 10.
+
+**Cost if wrong.** If a reviewer reads "control state" as including the
+consumers, the box is ticked early; the progress note and this table say
+exactly which half landed.
+
+**Mutations:** none (a disposition, no behaviour).
