@@ -2,15 +2,19 @@
 
 **Milestone:** SwiftUI alignment plan task 12, **accessibility-bridge half only**
 (`plans/2026-09-12-swiftui-alignment.md`). Gesture composition, button
-semantics, disabled behaviour and content shapes wait for task 9 and are not
-here.
+semantics, disabled behaviour and content shapes wait for task 12's own
+interaction half and are not here. (*Re-pointed 2026-09-25, `EV-AE`/`EV-AF`:
+this doc was written when the interaction work was numbered task 9 — the
+plan's task 9 is "Expand the environment and control-state model", closed by
+`EV-AA`…`EV-AF`, record §56, and owns none of this.*)
 
 **Status (2026-09-15): lanes 1, 2 and 3 implemented and verified (lane 2 and
 lane 3 each by two independent verifier rounds; the track ends at `531b6fc`
 plus the record's closing commit, 1141 tests, 97 goldens unchanged). Open: the
 human VoiceOver look (script in the record), ten unpinned lane-2 rules the
 second verifier found (record), and the merge contract's joint work below. Plan
-task 12 is not complete: its interaction half waits for task 9, and the bridge
+task 12 is not complete: its interaction half is still its own to do (see the
+re-pointing note above), and the bridge
 is not yet validated with VoiceOver.** Written
 against `f64e58a` on `feat/ax-bridge`, revised after one critic round, and
 revised again after a second critic round that followed lane 1. Lane 1's
