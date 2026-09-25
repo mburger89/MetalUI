@@ -99,6 +99,17 @@
 //   L8 HStack{ TallPair().frame(width: 70, alignment: .top) }: 140x30, short minY 10, tall minY 0
 //   L9 HStack{ TallPair() } (control): 80x30, short minY 10, tall minY 0
 //   L10 HStack(alignment: .top){ TallPair() } (control: top is visible): 80x30, short minY 0, tall minY 0
+//   --- explicit identity, a name that returns (revision 3)
+//   X9 .id a, b, a (3 generations): p 72 / 73 / 74
+//   X10 .id a, a, a (3 generations, control for X9): p 75 / 75 / 75
+//   X11 HStack .id a, b, a (3 generations): in 76 / 77 / 78
+//
+// REVISION 3 (2026-09-25, plan task 8's adversarial branch check, same
+// machine and toolchain): arms X9-X11 appended at the END of `run()` so no
+// earlier serial moves. Both forms again byte-identical to each other, exit 0,
+// stderr empty, and every line above X9 byte-identical to revision 2's
+// recorded output (a `diff` of the first 51 lines against this header is
+// empty).
 //
 // WHAT IT SHOWS, arm by arm (controls first):
 //   A0/A1 the instrument sees retention (A0) and re-creation (A1).
@@ -148,6 +159,11 @@
 //         re-renders exactly one body reading 1. Last-bound storage (MetalUI's
 //         divergence 71) would read 2 on call 1; shared storage "1+1". S6 (two
 //         different values) is the control: each call moves exactly one name.
+//   X9-X11 (revision 3) a name that RETURNS gets NEW state: `.id("a")` ->
+//         `"b"` -> `"a"` gives three serials on a leaf (X9) and on an
+//         `HStack`'s child (X11); X10 (the name held at "a") keeps one serial,
+//         so the instrument sees retention. SwiftUI does not remember a
+//         departed name's state for its return.
 //   L8-L10 (revision 2) `.frame(width: 70, alignment: .top)` per member of a
 //         30x10 / 50x30 pair in an HStack: the short member sits at minY 10 —
 //         the PARENT's centre alignment, not the frame's `.top` (a member's
@@ -465,6 +481,17 @@ func show(_ xs: [Int]?) -> String {
     positionArm("L9 HStack{ TallPair() } (control):") { TallPair() }
     positionArm("L10 HStack(alignment: .top){ TallPair() } (control: top is visible):") {
         HStack(alignment: .top, spacing: 0) { TallPair() }
+    }
+
+    print("--- explicit identity, a name that returns (revision 3)")
+    arm("X9 .id a, b, a (3 generations):", names: ["p"], generations: 3) { g in
+        HStack { P("p", g).id(["a", "b", "a"][g]) }
+    }
+    arm("X10 .id a, a, a (3 generations, control for X9):", names: ["p"], generations: 3) { g in
+        HStack { P("p", g).id("a") }
+    }
+    arm("X11 HStack .id a, b, a (3 generations):", names: ["in"], generations: 3) { g in
+        HStack { HStack { P("in", g) }.id(["a", "b", "a"][g]) }
     }
 }
 

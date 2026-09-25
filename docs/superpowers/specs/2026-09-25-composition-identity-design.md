@@ -26,7 +26,11 @@ reason and an owner. Final count on this branch: **1483 tests, 0 goldens, 88
 typecheck guards**; 0 px against `e3cb3e9` in all fourteen offscreen images.
 **Still owed, to a human with an unlocked screen**: the real-window capture
 (§6, record §55 §8.5) — the screen was locked at every check across all three
-lanes, the critic round and the Record phase's own close.
+lanes, the critic round and the Record phase's own close. **Branch check, 2026-09-25 (record §55 §9)**: every
+reading above re-taken and unmoved; one audit row is **open** — a `.id` that
+changes and returns to an earlier name gets its old state back in MetalUI and
+new state in SwiftUI (probe revision 3, X9–X11) — owed a ruling, and if kept a
+number (75) and a pin; the plan's task 8 box is un-ticked until then.
 
 ## Contents
 

@@ -176,6 +176,7 @@ by this task (lane); **K** kept, a numbered divergence with a reason.
 | a changed `.id` | resets (A1, X8) | resets — **unpinned** | **M**, pin E3.8 | lane 3 |
 | `.id` on a stack / grid / group | resets its content (X4–X6) | not spellable | **F** `ID-G` | lane 3 |
 | `.id` written inside a modifier | still resets (X7) | legacy `.id` names the element under the layer; `.id()` must be outermost for index stability — reset **unpinned** | **M** (reset), pin E3.9; outermost rule kept for `for` loops | lane 3 |
+| a name that changes and then **returns** (`.id` a → b → a) | new state (X9, X11; X10 control keeps) — probe revision 3, branch check | its **old** state back within `TB-AH`'s bound (§9.3; unpinned) | **open** — owes a ruling and, if kept, divergence 75 and a pin | unassigned (§9) |
 | two siblings with the same `.id` | distinct (X2) | shared (`twoSiblingsWithTheSameIDShareOneStateEntry`) | **K** divergence 72, `ID-H` | — |
 | one element value placed twice: reads per phase | separate (S1, S4) | separate (`oneElementValuePlacedTwiceDoesNotShareItsState`) | **M** | — |
 | one value placed twice: a handler's write | its own occurrence (S1) | the last-bound occurrence (`aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt`; divergence 19) | **F** `ID-F`, 19 retires | lane 1 |
@@ -802,3 +803,99 @@ debt); record §README.md gains this file's row; the plan's task 8 entry gets
 a dated progress note and its checkbox moves, since every row of §3's audit
 table above is disposed as **M**, **F** or **K** with an owner, matching the
 task text's own three-way instruction exactly.
+
+## 9. Adversarial branch check (`e3cb3e9..da2d820`, 2026-09-25, PDT)
+
+One agent, after the Record phase, on the committed tree; every reading below
+was re-taken here, none copied from §8.
+
+### 9.1 Suite, guards, build systems, gates
+
+- `swift package clean`, `swift build --build-system native --build-tests`
+  (0 `error:`, the only `warning:` SwiftPM's deprecation notice), then
+  unfiltered `swift test --build-system native --no-parallel`: **`Test run
+  with 1483 tests in 3 suites passed after 84.357 seconds`**; the log carries
+  `FR-J no-argument frame: succeeded=true`. `swift build --build-tests` under
+  the default build system: 0 `error:`, 0 `warning:`.
+- Guards: `grep -c canTypecheck` per file — `MetalUITests` 86 (the two new
+  files 1 and 3) plus `UnitSafetyTests` 2 = **88**; at `e3cb3e9` 82 + 2 = 84.
+  No goldens exist.
+- Green in that run: `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`. `MetalUILayout`'s
+  `import` lines: `MetalUICore` only. `cmp CLAUDE.md AGENTS.md` clean.
+- **Removed `@Test`s: nine**, each with its retirement row (§5.3's
+  `anEnvironmentPropertyInsideAnyElementIsInertAndReadsTheDefault`; §6.3's
+  eight, the animation row included). Every other test name the changed docs
+  cite resolves to exactly one `func` under `Tests/`, except the retired
+  names, which are cited only as retired or in pre-task history rows.
+  Every `ID-` id cited resolves (`ID-A`…`ID-Q`; `ID-R` only as "next").
+- Pixels: `docs/probes/demo-pixels/compare.sh <scratch> e3cb3e9 da2d820` —
+  **all fourteen images `differing=0`, scene identical**, the controls
+  non-zero.
+- `Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit swift test`): **21 + 19
+  passed**. `swift:6.4-noble` (Docker, aarch64) over `git archive da2d820`:
+  `Build complete!`, then **188 + 10 + 22 passed**.
+- Lock probe (the seventh reading): `CGSSessionScreenIsLocked = 1`,
+  `displayAsleep main: 1`, `displayActive main: 0` — `capture.sh` not run; the
+  real-window capture stays owed.
+
+### 9.2 Two mutations of this check's own design
+
+Each from the committed tree, restored from a copy, whole suite unfiltered,
+`git status --short` clean after.
+
+| id | mutation (spelling) | result |
+|---|---|---|
+| **B1** | `StateTable.isWindowRetained`: `id.component == focusRetentionName \|\| id.component == axRetentionName` → `id.component == focusRetentionName` (the `$ax` exemption alone dropped; lane 2's M2f dropped both) | `1483 tests … failed … with 1 issue`: **`aResetKeepsTheFocusAndAccessibilityRetentionSlots`** only (its `$ax` peek). No accessibility end-to-end test reddens, so the exemption's observable purpose (AX node identity across a toggle) is pinned by the table read, not by a VoiceOver-shaped assertion. |
+| **B2** | `State.bind`: `if box.boundGeneration != table.generation { box.occurrences = nil }` → the branch left empty (occurrences kept across generations; `ID-F`'s "cleared on the first bind of a later generation") | **`1483 tests … passed`** — reddens nothing. **The mutant differs**, proven by a throwaway test (deleted, never committed): one leaf value placed as `Row { p; Box { p } }` for one frame, then as `Row { Box { p } }`; a write dispatched to the second frame's occurrence lands on its own slot on the original (reads 1) and on the **stale** first-frame occurrence's slot under the mutant (own slot `nil`, stale slot 1). **Finding (test coverage, low)**: the clearing clause is unpinned; `Environment.Box`'s copy of it (`EnvironmentProperty.swift`, `box.occurrences = nil`) was not mutated here and is presumably the same. |
+
+### 9.3 A name that returns — the audit's one open row
+
+§7.5 left "a group that returns to a name it used earlier" unprobed. Probe
+revision 3 (arms X9–X11, appended at the end of `run()`; both forms
+byte-identical, exit 0, stderr empty; the 51 earlier lines unchanged):
+
+```
+X9 .id a, b, a (3 generations): p 72 / 73 / 74
+X10 .id a, a, a (3 generations, control for X9): p 75 / 75 / 75
+X11 HStack .id a, b, a (3 generations): in 76 / 77 / 78
+```
+
+SwiftUI gives the returning name **new** state. MetalUI, one throwaway test
+through `Frame.render` against one `StateTable` (deleted): `Row { Box { probe
+}.id(n) }` over names a, a, b, a reads **3** (the old count, 2, plus the
+returning frame), control a, a, a, a reads 4, and `VStack { HStack { probe
+}.id(n) }` (`IdentifiedGroup`) over a, a, b, a reads **3** too. A departed
+name's entries are unmarked, not deleted, and `sweep()` reaps them only past
+`TB-AH`'s bound, so a name that returns within it finds them. This is a
+state-retention difference the task text asks to be closed or documented; it
+is not in record §04's table, has no ruling and no pin. **The plan's task 8
+box is therefore un-ticked** with a dated progress note; record §04's task-8
+section names it for the next round (next unused label 75).
+
+### 9.4 Doc defects fixed by this check
+
+- Record §04's task-8 section: 48's bullet said the width "overwrites" each
+  member "where SwiftUI does the same" (SwiftUI frames each member); 71's
+  said SwiftUI "has no analogue" (S5: its own occurrence); 73's named a
+  token form that does not exist on a multi-member primary; 56's described
+  only the alignment sub-row and read L8 as a top-aligned parent. Each
+  re-worded, with a corrections paragraph at the section's end.
+- `CLAUDE.md`/`AGENTS.md`: the `Component` paragraph's and the divergence
+  bullet's "overwrite" (the retired CSS answer) → "frame each member"; the
+  grid bullet's "untaken cell/row" wording → an `if` around a cell or row;
+  the animation "Snaps" list gains an element returning inside an `if`
+  (`ID-P` item 1's ruled change, which the file did not state); the explicit
+  identity bullet gains §9.3's open row; the lock-probe count.
+- The plan's task 8 entry: box un-ticked, progress note appended.
+- Not fixed (code comments, not docs): `LoweringComponentTests`' doc comment
+  on `aComponentsWidthFramesEachMember` still describes a "legacy authority"
+  arm and divergence 48 as live.
+
+### 9.5 Verdict
+
+**Merge: yes** — no code defect found; identity, hit testing, accessibility
+and animation move only where a ruling names the change (`ID-B`, `ID-C`,
+`ID-F`, `ID-P` item 1), each with its test. **Task 8: not closed** until §9.3
+is ruled and pinned.

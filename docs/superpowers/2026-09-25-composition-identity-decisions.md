@@ -15,7 +15,12 @@ measured in this worktree at `e3cb3e9`: `swift build --build-system native
 guards ran (`FR-J no-argument frame: succeeded=true`). Final, at `ea95cc4`:
 **1483 tests, 0 goldens, 88 typecheck guards**, 0 px against `e3cb3e9` in all
 fourteen offscreen images; the real-window capture is still owed (screen
-locked at every check, record §55 §8.5). Measurements in
+locked at every check, record §55 §8.5). **Branch check, 2026-09-25 (record §55 §9)**: every
+reading above re-taken and unmoved; one audit row is **open** — a `.id` that
+changes and returns to an earlier name gets its old state back in MetalUI and
+new state in SwiftUI (probe revision 3, X9–X11) — owed a ruling, and if kept a
+number (75) and a pin; the plan's task 8 box is un-ticked until then.
+Measurements in
 `docs/record/55-composition-identity.md` (record §55); the audit table is its
 §3.
 

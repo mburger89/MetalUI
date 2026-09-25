@@ -1503,3 +1503,8 @@ not an assumption carried forward silently. The stage-6b looks (the
 real-window capture and the four named demo-layout changes) are **still open
 and still owed**; this task neither closes nor adds to them, and adds no new
 look of its own.
+
+**Addendum, 2026-09-25 (plan task 8's adversarial branch check, record §55
+§9.1).** A seventh lock-probe reading, on `da2d820`: `CGSSessionScreenIsLocked
+= 1`, `displayAsleep main: 1`, `displayActive main: 0`. `capture.sh` not run;
+the offscreen fourteen re-taken, all `differing=0`. Nothing above changes.

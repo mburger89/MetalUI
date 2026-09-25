@@ -1140,6 +1140,10 @@ header in the same change.
   own `id(_:) -> Self` is untouched and still wins for `Box`/`Stack`/`Text`/
   `ModifiedElement` (more specific); a changed name resets exactly as the
   legacy spelling does, and `.id()` must still be the outermost modifier.
+  **A name that changes and then RETURNS gets its old state back** (within
+  `TB-AH`'s sweep bound) on both spellings, where SwiftUI gives it new state
+  (probe X9–X11, revision 3) — found by task 8's branch check, not yet ruled,
+  numbered or pinned (record §55 §9.3).
 - `.padding(_:)` and every legacy `.frame(...)` return one flat
   `ModifiedElement<LayerBase>` (`MC-A`); each modifier is one layer = one node
   = one id level; outermost layer takes the parent's slot, inner layers are
@@ -1296,8 +1300,9 @@ containing block the window whatever surrounds it.
 
 **`Component`** is layout-transparent and identity-opaque: no layout node, one
 cursor index, `@State` under its own id. Its `.padding` wraps each top-level
-node (`OM-D`); `.width`/`.height` **overwrite** each member, SwiftUI's own
-answer (`ID-K`, divergence 48 retired); `.frame` wraps the body in one layer,
+node (`OM-D`); `.width`/`.height` **frame** each member (one frame per
+member, `LR-BG`), SwiftUI's own answer (`ID-K`, divergence 48 retired —
+overwriting was the CSS engine's); `.frame` wraps the body in one layer,
 one flex item in its parent rather than SwiftUI's per-member `Group`
 distribution — kept, divergence 56 (`ID-I`). **`.id(_:)` now works** via
 `IdentifiedGroup` (plan task 8, `ID-G`; `var elementID` is still how a
@@ -1459,7 +1464,9 @@ render; **not** `wantsAnotherFrame` — never raise both. **Snaps:** any
 `Dimension`/`Length` case change (incl. anything touching `.auto` — declare a
 real baseline), the five paint-only `Decoration` fields, a caller's modifier
 on a `Component`, everything on the proposal path (`Grid` and `GridRow`
-included). **An animated flex-item field snaps its STRUCTURE** (`LR-AS`): the
+included), and an element returning inside an `if` (its `$anim` baseline is
+reset with the rest of the removed content, `ID-C`/`ID-P` item 1; inside a
+`for` loop it still resumes, divergence 74). **An animated flex-item field snaps its STRUCTURE** (`LR-AS`): the
 lowering reads which wrappers exist from the *declared* style and only their
 values from the animated one, so a grow that appears or vanishes mid-flight
 jumps and two equal declared factors stay equal mid-flight
@@ -1783,9 +1790,10 @@ out through the propose/measure/place kernel. Detail: §19
     each boundary**, not one number for the grid (`GR-D`); a given value is
     used verbatim on every gap of that axis, negative included.
   - **A vanishing cell or row's state no longer hands on to the next one**
-    (plan task 8, `ID-B`; divergence 69 retired): a `GridRow`'s untaken cell
-    and `Grid`'s untaken row each take one structural slot, exactly as an
-    `if`'s does, so there is no "next one" left to adopt it. `.id(_:)` is now
+    (plan task 8, `ID-B`; divergence 69 retired): an `if` around a cell in a
+    `GridRow`, or around a row in a `Grid`, takes one structural slot whether
+    or not it produces content, so the cell or row after it keeps its index
+    and there is no "next one" left to adopt the vanished state. `.id(_:)` is now
     spellable on a `Grid`/`GridRow` too, via `IdentifiedGroup` (`ID-G`),
     closing the remedy this row used to say could not be spelled until
     task 8.
@@ -1995,7 +2003,8 @@ expected, measured facts:
   match SwiftUI (probes V1, V5, V7–V9); 19 (a handler writing one value
   placed twice writes the last-bound occurrence) retires under `ID-F`'s
   `StateDispatch`, which resolves the occurrence actually dispatching; 48 (a
-  `Component`'s width overwrites its members', already SwiftUI's answer
+  `Component`'s width overwrote its members' under the CSS engine; framing
+  each member is SwiftUI's answer and the proposal path's
   since stage 3) retires by `ID-K`'s bookkeeping alone, no code change.
   **Added**: 71 (a write from *outside* input dispatch — a phase, a raw
   closure — still reaches the last-bound occurrence, `ID-F`'s deliberate
@@ -2111,8 +2120,8 @@ expected, measured facts:
   7b, 8, 9 and 10 recorded no §03 section, so this file makes no claim about
   them): plan task 8 and stage 11 each touch no pixel the demo paints (0
   differing in all fourteen offscreen images) and neither reopens or closes
-  the five looks above. Plan task 8's own lock probe ran six times (once per
-  lane, twice more by its Record phase) and read locked every time — the same
+  the five looks above. Plan task 8's own lock probe ran six times across its
+  lanes and Record phase, and a seventh time at its branch check, and read locked every time — the same
   still-owed capture, not a new one.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;

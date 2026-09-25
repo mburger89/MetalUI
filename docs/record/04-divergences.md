@@ -1418,16 +1418,19 @@ moves from fifty-five to fifty-five live**: four retire, four are added.
   (`OccurrenceIdentityTests.swift`). **Divergence 71 is added for what
   `ID-F` deliberately leaves alone**: a write from **outside** input dispatch
   (a phase, or a raw closure call with no `StateDispatch.dispatching`
-  wrapper) still reaches the *last-bound* occurrence — SwiftUI has no
-  analogue (probe S5, with S6 as its two-different-values control) — pinned
+  wrapper) still reaches the *last-bound* occurrence, where SwiftUI writes
+  each occurrence's own storage there too (probe S5, with S6 as its
+  two-different-values control; *corrected 2026-09-25 by the branch check,
+  record §55 §9 — this bullet first said "SwiftUI has no analogue"*) — pinned
   by the renamed test itself (1 / 102) and by
   `aComponentsEnvironmentKeepsTheFirstOccurrencesSnapshot`/
   `aFrameBuiltInsideADispatchedHandlerReadsEachOccurrencesBinding` (lane 1's
   review round, `ID-O`).
-- **48 retires** (a `Component`'s `.width`/`.height` overwrites each member's
-  own declared width, where a custom view's SwiftUI modifier does the same —
-  this was already agreement, not a divergence, kept on the books past its
-  own fix). `ID-K` retires it explicitly as this task's to count: the fact
+- **48 retires** (a `Component`'s `.width`/`.height` overwrote each member's
+  own declared width — the CSS engine's answer — where SwiftUI frames each
+  member, probe component-distribution G7/G8; the proposal path has framed
+  each member since stage 3, so this was already agreement, kept on the books
+  past its own fix). `ID-K` retires it explicitly as this task's to count: the fact
   (`aComponentsWidthFramesEachMember`) has been SwiftUI's answer since plan
   task 7 stage 3 (`LR-BG`) and needed only this audit's bookkeeping to close.
 - **69 retires** (a vanishing grid cell or row hands its state to the next
@@ -1449,8 +1452,8 @@ moves from fifty-five to fifty-five live**: four retire, four are added.
   the name by position would reset every named loop item on reorder. Pinned
   by `twoSiblingsWithTheSameIDShareOneStateEntry` and, for element groups,
   lane 3's E3.7.
-- **73 is added** (kept, `ID-I` item 3): `.overlay`/`.background { }` (both
-  the token and content-taking forms) on a primary of zero or several nodes
+- **73 is added** (kept, `ID-I` item 3): the content-taking `.overlay { }`
+  and `.background { }` on a primary of zero or several nodes
   **traps**, naming the count, where SwiftUI attaches one instance **per
   member**, each with its own state (probe G3–G6). A modifier layer is one
   node and one identity level (`MC-A`); distributing per member is available
@@ -1466,14 +1469,24 @@ moves from fifty-five to fifty-five live**: four retire, four are added.
   way an `if` going false does, so `ID-C`'s reset rule does not reach it, and
   data identity (a `ForEach`-style keyed loop) is where a scoped answer
   belongs — plan task 10's, not this task's, to fix.
-- **56's alignment sub-row is pinned**, not amended in fact (`ID-I` item 1,
-  §55 §7.5's deferral closed): probe L8 (critic round) shows SwiftUI's framed
-  member taking the **parent's** cross-axis alignment (a top-aligned
-  `HStack`'s framed member sits at the parent's top), where MetalUI's row
-  puts it at the **frame's own** alignment. New test `N3.1`
-  (`LoweringComponentTests.swift`) pins MetalUI's kept answer; the row's fact
-  and its "owner: none" are unchanged (`TB-M`, re-owned to this task by
-  record §54 §10.3 and closed here with no fix).
+- **56 is amended, kept, owner none** (`ID-I` items 1–2): a `.frame` on a
+  multi-member `Component` is one layer over a row of per-member frames. In a
+  horizontal parent that equals SwiftUI (probe L3, 140×10); in a vertical one
+  SwiftUI stacks the framed members (L1/L2, 70×20) where MetalUI rows them;
+  over **zero** members MetalUI's frame still occupies its parent (70×0)
+  where SwiftUI's adds nothing (L5, `EmptyView` control L6). **The row's
+  cross-axis alignment** is the frame's own in MetalUI, the **parent's** in
+  SwiftUI: probe L8 — `.frame(width: 70, alignment: .top)` in a
+  centre-aligned `HStack` leaves the short member at minY **10**, the
+  parent's centre, as with no frame (L9), while L10 (`HStack(alignment:
+  .top)`, minY 0) shows the instrument can see a top-aligned member;
+  MetalUI's row puts it at 0. New test `N3.1`
+  (`aMultiMemberFrameRowAlignsItsMembersByTheFramesOwnAlignment`,
+  `LoweringComponentTests.swift`) pins MetalUI's kept answer (`TB-M`,
+  re-owned to this task by record §54 §10.3 and closed here with no fix).
+  *Corrected 2026-09-25 by the branch check (record §55 §9): this bullet
+  first described only the alignment sub-row, and misread L8 as a
+  top-aligned parent.*
 
 **What it costs if wrong.** A reader following 18, 19, 48 or 69 by an older
 section's name finds no such test, or a test that now asserts the opposite of
@@ -1481,3 +1494,18 @@ what the row used to describe; the renamed/new names above are the fix. A
 reader who does not know 71 exists might read `O1.1`–`O1.8`'s green run as
 "19 unfixed" — it fixes only the dispatched half; 71 is the two-values
 control (S5/S6) that shows the residual case is real, not a leftover bug.
+
+**Corrections by the branch check (2026-09-25, record §55 §9).** Four bullets
+above were re-worded against the probe header and the tests: 48 had said the
+width "overwrites" each member "where a custom view's SwiftUI modifier does
+the same" (SwiftUI frames each member; overwriting was the CSS engine's
+answer); 71 had said SwiftUI "has no analogue" (probe S5: SwiftUI writes each
+occurrence's own storage outside dispatch too); 73 had named "both the token
+and content-taking forms" (no token `.overlay` exists, and the token
+`.background(_:)` is not offered on a multi-member `Component`); 56 had
+described only the alignment sub-row. **One state-retention difference is
+not in this table yet**: a group or element whose `.id` changes and then
+**returns** to an earlier name gets its old state back within `TB-AH`'s
+bound, where SwiftUI gives it new state (probe X9–X11, revision 3; MetalUI
+measured by a throwaway test at `da2d820`, record §55 §9.3). It owes a ruling
+(fix or keep) and, if kept, a number (next unused label **75**) and a pin.

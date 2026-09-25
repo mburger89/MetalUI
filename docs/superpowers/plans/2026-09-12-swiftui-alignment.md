@@ -940,7 +940,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   task 8) and named divergence 35's live pin; verdict merge. The checkbox is
   the Record phase's to move.
 
-- [x] **8. Audit composition and identity.**
+- [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and
   modifier placement against SwiftUI custom-view behaviour. Preserve MetalUI's
   structural identity model where it matches, and close or document the
@@ -981,9 +981,9 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   against `e3cb3e9` in all fourteen offscreen images, independently re-taken
   by the Record phase along with the suite, guard and golden counts,
   `Backends/SDL` (21 + 19) and a `swift:6.4-noble` container (188 + 10 +
-  22). **The checkbox is ticked**: every row of record §55 §3 is disposed as
-  the lanes left it, matching this task's own three-way instruction (match
-  and pin, fix, or keep and document) exactly. **Still owed, to a human with
+  22). *The Record phase ticked the checkbox; the branch check (2026-09-25,
+  record §55 §9) un-ticked it* — see the progress note at the end of this
+  entry. **Still owed, to a human with
   an unlocked screen**: the real-window capture (the screen was locked at
   every check across all three lanes and the Record phase's own close,
   record §55 §8.5; record §03's 2026-09-25 section) — a distinct, unrelated
@@ -991,6 +991,22 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   neither closes nor adds to. **A `.id()` returning to a name it used
   earlier** is neither probed nor pinned by either framework; owner: none
   named (record §55 §7.5) — a probe arm and a test if it matters.
+  *Progress note, 2026-09-25 (adversarial branch check, record §55 §9):
+  one clause is open, so the box stays unticked.* The item above is now
+  probed and is a state-retention difference: SwiftUI gives a returning name
+  **new** state (probe `swiftui-composition-identity.swift` revision 3, X9 on
+  a leaf and X11 on an `HStack`'s child, three serials; X10, the name held,
+  one serial), while MetalUI gives it its **old** state back within `TB-AH`'s
+  bound (a throwaway test at `da2d820`: `.id` a, a, b, a reads **3** on a
+  `Box` and on an `IdentifiedGroup` over an `HStack`, against 1 for a fresh
+  state; the a, a, a, a control reads 4). The task's text — "close or
+  document the currently known state-retention … differences" — leaves it
+  owed: **a ruling (fix to SwiftUI's answer, e.g. an `ID-C`-style reset of a
+  departed name, or keep with a reason) and, if kept, a divergence number
+  (next unused 75) and a pinning test**. Everything else the audit table
+  lists is closed as the Record phase says, re-measured by the branch check
+  (1483 tests, 88 guards, 0 px in all fourteen images, `Backends/SDL` 21 +
+  19, `swift:6.4-noble` 188 + 10 + 22).
 
 - [ ] **9. Expand the environment and control-state model.**
   Evolve `Theme` into scoped environment values: enabled state, layout
