@@ -793,7 +793,10 @@ not by re-reading the lanes' own claims):
    Sources/MetalUILayout` lists none of the seven files
    (`FlexEngine.swift`, `ResolveFlexibleLengths.swift`, `FlexBaseSize.swift`,
    `FlexLines.swift`, `LayoutContext.swift`, `Resolve.swift`,
-   `MeasureFunction.swift`). `grep -h '^import'
+   `Alignment.swift`; `MeasureFunction.swift` stays, holding `SizeD` alone —
+   its legacy half deleted — and `Sources/MetalUIText/UnbreakableRuns.swift`
+   is gone too. This sentence listed `MeasureFunction.swift` among the seven in
+   place of `Alignment.swift` until the branch check, §9.4). `grep -h '^import'
    Sources/MetalUILayout/*.swift | sort -u` reads `import MetalUICore` alone.
    The spec §8 item-1 grep (`LayoutAuthority|layoutAuthority|lowersToProposal|
    computeLayout\(|requestNode\(|requestLeaf\(|textMeasure|

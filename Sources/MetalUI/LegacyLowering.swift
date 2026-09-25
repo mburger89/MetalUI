@@ -562,7 +562,8 @@ extension LayoutPass {
     ///
     /// **Border is padding** (stage 2, lane 4, ruling LR-AH): CSS's border box puts
     /// `border` inside the declared size exactly where `padding` sits, and the legacy
-    /// engine shrinks its content box by both (`FlexEngine.swift`'s `contentBox`).
+    /// engine shrank its content box by both (`FlexEngine.swift`'s `contentBox`,
+    /// deleted at stage 9, `LR-FC`).
     /// SwiftUI has no layout border, so native padding is the spelling for the sum.
     ///
     /// **A declared size below that sum keeps its frame** (lane 4, `LR-AH` as
@@ -652,8 +653,9 @@ extension LayoutPass {
     ///
     /// Overflowing, every spacer collapses to its minimum and the line packs from
     /// the main start (J9) — which is also what `Alignment.swift`'s
-    /// `distributeMainAxis` does, since it clamps its free space at 0 for all three
-    /// distributions (lane 5's measurement, `LR-BA` item 1).
+    /// `distributeMainAxis` did, since it clamped its free space at 0 for all three
+    /// distributions (lane 5's measurement, `LR-BA` item 1; that file was deleted
+    /// with the CSS engine at stage 9, `LR-FC`).
     ///
     /// **A reverse direction reverses the node list** — the spacer pattern with it,
     /// which is symmetric — and mirrors the main factor. The children's group order,
