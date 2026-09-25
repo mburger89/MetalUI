@@ -2522,9 +2522,14 @@ final class AnimationDriveModel {
             "and nothing is left interpolating, so the link is free to idle")
 }
 
-/// **An animating element that vanishes and returns: inside an `if` it comes
-/// back fresh and snaps; inside a `for` loop it resumes** (plan task 8, ruling
-/// `ID-C`; `ID-P` records this row, which the design did not list).
+/// **An animating element that vanishes and returns comes back fresh and snaps,
+/// inside an `if` and inside a `for` loop alike** (plan task 8, ruling `ID-C`;
+/// `ID-P` records this row, which the design did not list; the loop arm
+/// inverted by plan task 10, ruling `DD-C`, recorded by `DD-N`).
+///
+/// **Renamed again, from `aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop`**
+/// (plan task 10, lane 1): its second arm pinned divergence 74's tombstone
+/// resumption (175), which `DD-C` retires.
 ///
 /// **Renamed from `anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting`**,
 /// which pinned the animation spec's §6 "free consequence of `StateTable`
@@ -2537,12 +2542,16 @@ final class AnimationDriveModel {
 /// rather than animating from where it left off"), SwiftUI's lifetime rule
 /// (probe V5: a returning view's state is new).
 ///
-/// **The tombstone resumption still exists where nothing resets**: an element a
-/// `for` loop stops producing keeps its entries (divergence 74, owner plan task
-/// 10), so the second arm — the same subject inside `for _ in 0..<(show ? 1 :
-/// 0)` — still reads 175. A restart from the vanish-time value would read 125
-/// there, a restart from the declared baseline 100.
-@MainActor @Test func aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop() throws {
+/// **The loop arm resets too, since `DD-C`**: an element a `for` loop stops
+/// producing is reset like one an `if` removes (the loop notes its slot, and the
+/// sweep resets a named iteration it produced nowhere), so the second arm — the
+/// same subject, `.id("subject")`, inside `for _ in 0..<(show ? 1 : 0)` — snaps
+/// to 200 as well. Until `DD-C` it read **175** (divergence 74: the loop kept
+/// the `$anim` entry and the element resumed its original trajectory); a restart
+/// from the vanish-time value would read 125, from the declared baseline 100.
+/// Mutation **M1h** (lane 1: the sweep's named-children half of the loop rule
+/// removed) reads 175 here again.
+@MainActor @Test func aReturningAnimatingElementSnapsInsideAnIfAndInsideALoop() throws {
     /// Drives the shared excursion and returns the width on the return frame.
     func excursion(_ model: AnimationDriveModel, _ window: Window,
                    _ platformWindow: FakePlatformWindow) throws -> Float? {
@@ -2572,7 +2581,7 @@ final class AnimationDriveModel {
             return frame snaps to the declared width; got \(String(describing: fresh))
             """)
 
-    // Arm 2: the same subject inside a `for` loop — retained, so it resumes.
+    // Arm 2: the same subject inside a `for` loop — reset since `DD-C`, so it snaps.
     let loopModel = AnimationDriveModel()
     let (loopWindow, loopPlatform) = try makeFakeWindowOnDefaultDevice(size: 300, startsDisplayLink: true) {
         Column {
@@ -2584,9 +2593,9 @@ final class AnimationDriveModel {
         }
     }
     let resumed = try excursion(loopModel, loopWindow, loopPlatform)
-    #expect(resumed == 175, """
-            a loop's dropped element keeps its entries (divergence 74), so it resumes on the \
-            ORIGINAL trajectory (elapsed 0.75 of the animation started at t = 100); got \
+    #expect(resumed == 200, """
+            a loop's dropped element is reset (DD-C), so its `$anim` baseline is gone and the \
+            return frame snaps to the declared width (175 is divergence 74's resumption); got \
             \(String(describing: resumed))
             """)
 }

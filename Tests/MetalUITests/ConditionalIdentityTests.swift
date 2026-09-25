@@ -168,13 +168,16 @@ private func render<Root: Element, Step>(_ steps: [Step], table: StateTable = St
 /// reads 11 — with equal steps adoption and ownership both read 2 (measured at
 /// the red run: the first spelling was green before the fix).
 ///
-/// **C2.4b (divergence 74's pin)**: n 2 → 1 → 2 — the loop's second iteration,
-/// `root/0/1`, reads **2**: an element a `for` loop stops producing keeps its
-/// state and gets it back when the loop grows again (`ArrayGroup` does not
-/// reset, `ID-C`). SwiftUI's `ForEach` resets it (probe V10); owner plan task 10.
+/// **C2.4b — inverted by plan task 10 (ruling `DD-C`), retiring divergence
+/// 74**: n 2 → 1 → 2 — the loop's second iteration, `root/0/1`, reads **1**: an
+/// element a `for` loop stops producing is reset and starts fresh when the loop
+/// grows again, as SwiftUI's `ForEach` over a range does (probe F3, V10). Until
+/// `DD-C` it read **2** (the dropped iteration's entries were retained and handed
+/// back — divergence 74, pinned here), measured at lane 1's red run.
 ///
 /// Mutation **M2c** (untyped `ArrayGroup` reserves no slot: members threaded
-/// through the outer cursor as before) reddens this.
+/// through the outer cursor as before) reddens this; so does **M1g** (lane 1:
+/// the untyped `ArrayGroup`'s `noteLoop` call removed — the arm reads 2 again).
 @MainActor
 @Test func aShrinkingForLoopLeavesTheTrailingSiblingsStateAlone() {
     let reads = ConditionalReads()
@@ -195,8 +198,8 @@ private func render<Root: Element, Step>(_ steps: [Step], table: StateTable = St
         }
     }
     let loop = child(root, 0)
-    #expect(regrown.peek(child(loop, 1), as: Int.self) == 2,
-            "divergence 74: the dropped iteration's state is retained and handed back")
+    #expect(regrown.peek(child(loop, 1), as: Int.self) == 1,
+            "DD-C: the dropped iteration was reset and starts fresh (2 is divergence 74's retention)")
     #expect(regrown.peek(child(loop, 0), as: Int.self) == 3)
     #expect(regrown.peek(child(root, 1), as: Int.self) == 3)
 }
