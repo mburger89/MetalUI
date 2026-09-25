@@ -574,6 +574,13 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
+            // Tab and shift-Tab move focus (ruling TI-J) — last of the key
+            // stages, so a keymap binding, a field and a raw `onKey` all see
+            // the key first.
+            if self.dispatchFocusTraversal(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             let handled = self.onInput?(event) ?? false
             self.setNeedsRedraw()
             return handled
@@ -1467,6 +1474,41 @@ public final class Window {
         default:
             return false
         }
+    }
+
+    /// Tab to the next focusable element in tree order, shift-Tab (or AppKit's
+    /// backtab character) to the previous, wrapping; with nothing focused,
+    /// the first or the last (ruling TI-J). Tabbing into a text field selects
+    /// its text, as AppKit's fields do. A Tab with command, control or option
+    /// is not traversal and falls through.
+    private func dispatchFocusTraversal(_ event: InputEvent) -> Bool {
+        guard case .keyDown(let key) = event,
+              key.modifiers.isDisjoint(with: [.command, .control, .option]) else { return false }
+        let backward: Bool
+        switch key.charactersIgnoringModifiers {
+        case "\t": backward = key.modifiers.contains(.shift)
+        case "\u{19}": backward = true
+        default: return false
+        }
+        let order = lastFocusRegistry.tabOrder
+        guard let first = order.first, let last = order.last else { return false }
+        let next: GlobalElementID
+        if let current = focusedElement, let index = order.firstIndex(of: current) {
+            next = order[(index + (backward ? order.count - 1 : 1)) % order.count]
+        } else {
+            next = backward ? last : first
+        }
+        focus(next)
+        if let target = lastFocusRegistry.textTarget(for: next) {
+            var state = editState(next)
+            state.anchor = 0
+            state.head = currentText(next, target).count
+            state.composition = .none
+            state.revealsCaret = true
+            state.history.openGroup = nil
+            setEditState(next, state)
+        }
+        return true
     }
 
     /// The focused field's editing keys (TI-D's table).

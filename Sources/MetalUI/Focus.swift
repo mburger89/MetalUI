@@ -60,6 +60,9 @@ struct FocusRegistry {
     /// order is not the focus chain.
     private var contexts: [GlobalElementID: KeyContext] = [:]
     private var textTargets: [GlobalElementID: TextInputTarget] = [:]
+    /// Focusable elements in registration order — the tree's order, which is
+    /// the Tab order (ruling TI-J).
+    private(set) var tabOrder: [GlobalElementID] = []
 
     /// Records whatever `handlers` asked for on the keyboard side, and nothing
     /// at all when it asked for neither.
@@ -85,7 +88,7 @@ struct FocusRegistry {
     /// see.
     mutating func register(_ handlers: Handlers, id: GlobalElementID) {
         guard handlers.isKeyTarget else { return }
-        if handlers.isFocusable { focusable.insert(id) }
+        if handlers.isFocusable, focusable.insert(id).inserted { tabOrder.append(id) }
         if let onKey = handlers.onKey { keyHandlers[id] = onKey }
         if !handlers.actions.isEmpty { actionHandlers[id] = handlers.actions }
         if let context = handlers.keyContext { contexts[id] = context }

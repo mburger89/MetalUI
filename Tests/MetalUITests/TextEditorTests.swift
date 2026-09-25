@@ -199,3 +199,33 @@ private func caret(_ platform: FakePlatformWindow) throws -> Bounds<Pixels> {
     #expect(abs(Double(content.size.height.value) - 3 * u.lineHeight) < 0.01,
             "three lines tall: \(content.size.height.value) vs \(3 * u.lineHeight)")
 }
+
+/// TI-I through a real `Window`: the editor hands the page keys its visible
+/// height. On a Mac Page Down scrolls a page and leaves the caret; elsewhere
+/// it moves the caret a page and scrolls to it.
+@Test @MainActor func pageDownPagesTheEditor() throws {
+    let notes = Notes((1...40).map { "line \($0)" }.joined(separator: "\n"))
+    let (window, platform) = try editorWindow(notes, size: 120)
+    window.drawFrameIfNeeded()
+    var (bounds, t) = try target(window)
+    let lines = try #require(t.lines)
+    #expect(lines.visibleHeight == Double(bounds.size.height.value) && lines.lineHeight == t.lineHeight)
+    // At the left edge: "l" is narrower than 2 points' offset from it.
+    platform.simulateInput(down(bounds.origin.x.value, bounds.origin.y.value + 2))
+    platform.simulateInput(up(bounds.origin.x.value, bounds.origin.y.value + 2))
+    window.drawFrameIfNeeded()
+    let caretBefore = try caret(platform)
+    platform.simulateInput(key(TextEditing.pageDown))
+    window.drawFrameIfNeeded()
+    (bounds, t) = try target(window)
+    let scrolled = Double(bounds.origin.y.value) - t.originY
+    if TextEditing.platform == .mac {
+        #expect(abs(scrolled - lines.pageHeight) < 0.01, "scrolled a page: \(scrolled)")
+        platform.simulateInput(.textInput("x"))
+        #expect(notes.text.hasPrefix("xline 1\n"), "the caret stayed at the start: \(notes.text.prefix(30).debugDescription)")
+    } else {
+        #expect(try caret(platform).origin.y.value > caretBefore.origin.y.value)
+        platform.simulateInput(.textInput("x"))
+        #expect(notes.text.contains("\nxline \(1 + lines.linesPerPage)\n"))
+    }
+}

@@ -2,8 +2,9 @@
 
 **Status: implemented** on `feat/text-input` (record §45); roadmap item 14 of
 `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:** `TI-`
-(`TI-A`…`TI-H`, next `TI-I`; rulings here; `TI-G` added by
-`feat/text-undo`, record §47; `TI-H` by `feat/text-editor`, record §52). The user chose a full
+(`TI-A`…`TI-J`, next `TI-K`; rulings here; `TI-G` added by
+`feat/text-undo`, record §47; `TI-H` by `feat/text-editor`, record §52;
+`TI-I` and `TI-J` by `feat/text-page`, record §53). The user chose a full
 `TextField`: caret, selection, editing keys, IME composition and the
 clipboard, on AppKit and on SDL3.
 
@@ -210,6 +211,37 @@ height. Its lines are drawn from the top whatever height it gets.
   over that edit's reveal.
 - **Accessibility:** a new role, `.textArea` — AppKit's `.textArea`,
   AccessKit's `MULTILINE_TEXT_INPUT`. The lowering site is `textEditor`.
+
+### TI-I — Page Up and Page Down in a `TextEditor`
+
+A page is the editor's visible height less one line, so a line of context
+stays in view (never less than one line). The key follows the platform:
+- **On a Mac** the page keys scroll a page and leave the caret, as
+  NSTextView's do. They clamp to the content, and do not reveal the caret.
+- **Elsewhere** they move the caret a page of lines at its remembered column,
+  as Windows' and GTK's edit controls do; shift extends the selection. Past
+  the first or last line the caret goes to the text's start or end.
+
+`TextField` does not claim them. The editor hands the engine its line height
+and visible height on `TextLineModel`.
+
+### TI-J — Tab moves focus
+
+Tab moves focus to the next focusable element — every element registered
+focusable, fields, editors and `.focusable()` elements alike — in tree
+(registration) order, wrapping. Shift-Tab, or AppKit's backtab character
+(`U+0019`), moves to the previous one. With nothing focused, Tab goes to the
+first element and shift-Tab to the last. Disabled elements are not
+registered, so they are skipped.
+
+- **It is the last key stage.** The `Keymap`, the focused field and the raw
+  `onKey` bubble all see Tab first, so an app's binding for Tab wins.
+- A Tab with command, control or option is not traversal (the system owns
+  ⌘Tab).
+- Neither `TextField` nor `TextEditor` claims Tab: an editor does not insert
+  one.
+- Tabbing into a text field or editor selects its whole text, as AppKit's
+  fields do.
 
 ## Not in scope
 
