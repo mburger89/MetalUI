@@ -4,7 +4,7 @@ Plan task 7, stage 11: the last row of
 [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 (`LR-V`, §8). Branch `feat/engine-stage-11` from `47c0d98`. Rulings
 `LR-FV`…`LR-FZ` (critic round 1: `LR-GA`, which amends this spec in place —
-each amended passage says so) in
+each amended passage says so; lane 1: `LR-GB`, likewise) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md);
 measurements in `docs/record/54-engine-replacement-stage-11.md`.
 
@@ -117,8 +117,16 @@ types"), so the proposal chain stops nesting too:
 |---|---|---|
 | `Box().padding(4).frame(width: 60)` | `ModifiedElement<Box<EmptyGroup>>` | `ModifiedContent<Box<EmptyGroup>, ModifierLayer>` (= `ModifiedElement<Box<EmptyGroup>>`) |
 | `Rectangle().padding(e).frame(width: 60)` | `ModifiedContent<ModifiedContent<Rectangle>>` | `ModifiedContent<Rectangle, LayoutModifier>` |
-| `Rectangle().padding(e).padding(Pixels(8))` | `ModifiedElement<ModifiedContent<Rectangle>>` | `ModifiedContent<Rectangle, ModifierLayer>`, `prefix == [.padding(e)]` |
-| `Rectangle().padding(Pixels(8))` | `ModifiedElement<Rectangle>` | `ModifiedContent<Rectangle, ModifierLayer>` |
+| `legacyFrame(Rectangle().padding(e))`, `legacyFrame` a generic `<T: ElementGroup>` `t.frame(width:height:)` | `ModifiedElement<ModifiedContent<Rectangle>>` | `ModifiedContent<Rectangle, ModifierLayer>`, `prefix == [.padding(e)]` |
+| `legacyFrame(Rectangle())` | `ModifiedElement<Rectangle>` | `ModifiedContent<Rectangle, ModifierLayer>` |
+
+*Amended, stage-11 lane 1 (`LR-GB` item 1).* The design's rows 3 and 4 read
+`Rectangle().padding(e).padding(Pixels(8))` and `Rectangle().padding(Pixels(8))`,
+which **never compiled**: the legacy `.padding` is declared on `StyledElement`,
+which neither a `Rectangle` nor a proposal chain is. A legacy wrapper reaches a
+proposal element or chain only through generic code over `ElementGroup` (a
+concrete receiver resolves the proposal `.frame`), so that is the spelling
+here, and the absorbed `prefix` is that path's.
 | `Rectangle().overlay { … }` | `OverlayModifier<Rectangle, …>` | unchanged |
 
 **Why not the other two shapes** (skeleton probe
@@ -506,8 +514,8 @@ overload set, before anything else; if it reddens, `LR-FV`'s fallback, recorded.
 
 | test | red before (at `47c0d98`) | mutation that must redden it |
 |---|---|---|
-| **N1.1** `aProposalChainIsOneFlatModifiedContentWithTheNestedChainsIdentities` — `Rectangle(…)`-probe `.padding(e).frame(w).background(t)` vs the same built with three nested explicit `ModifiedContent(content:modifier:)` inits, compared on every `elementBounds` key and rect, `tree.nodeCount`, `lastNativeLayoutWork` and the scene's rects; disagreeing oracle: the chain with its middle layer removed (the `#require`d disagreement); plus `type(of:) == ModifiedContent<…, LayoutModifier>.self` | does not compile (two-argument type); semantically the chain nests | **M1a** delete `typealias ProposalBase = Content` (chains nest; the type assertion); **M1b** a `LayoutModifier` inner layer's id `at: 1`; **M1i** skip `recordElementBounds` for an inner proposal layer |
-| **N1.2** `aLegacyWrapperAfterAProposalChainAbsorbsItAsItsInnermostLayers` — `Rectangle().padding(e).padding(Pixels(8)).background(.accent)`: type `ModifiedContent<Rectangle, ModifierLayer>`, id literals `root`, `.child(root, 0)`, content `.child(.child(root, 0), 0)`, the fill at the padded box, node count literal derived at `47c0d98` | does not compile | **M1d** `LayoutModifier._legacyStack` drops the prefix (node count, rect); **M1d′** absorbed layers placed outermost (rect) |
+| **N1.1** `aProposalChainIsOneFlatModifiedContentWithTheNestedChainsIdentities` — `Rectangle(…)`-probe `.padding(e).frame(w).background(t)` vs the same built with three nested explicit `ModifiedContent(content:modifier:)` inits, compared on every `elementBounds` key and rect, `tree.nodeCount`, `lastNativeLayoutWork` and the scene's rects; disagreeing oracle: the chain with its middle layer removed (the `#require`d disagreement); plus `type(of:) == ModifiedContent<…, LayoutModifier>.self` | does not compile (two-argument type); semantically the chain nests | **M1a** delete `typealias ProposalBase = Content` **and the appending `_wrapLayout` witness** (chains nest; the type assertion) — *amended, lane 1 (`LR-GB` item 2)*: the typealias alone is re-inferred from the witness and the mutant is the implementation; **M1b** a `LayoutModifier` inner layer's id `at: 1`; **M1i** skip `recordElementBounds` for an inner proposal layer |
+| **N1.2** `aLegacyWrapperAfterAProposalChainAbsorbsItAsItsInnermostLayers` — *amended, lane 1 (`LR-GB` item 1)*: `legacyFrame(leaf().padding(e)).background(.accent)`, `legacyFrame` a generic legacy `.frame(width: 40, height: 30)` (the design's `.padding(Pixels(8))` spelling never compiled on a proposal chain): type `ModifiedContent<Rectangle, ModifierLayer>`, id literals `root`, `.child(root, 0)`, content `.child(.child(root, 0), 0)`, the fill at the frame layer's box, bounds/node/work literals derived at `47c0d98`; **arm 2** adds `.padding(Pixels(8))` so a prefix, an inner legacy layer and an outermost one coexist | does not compile | **M1d** `LayoutModifier._legacyStack` drops the prefix (node count, rect); **M1d′** the prefix walked after the inner legacy layers in `wrapLayers` (arm 2's rects) |
 | **G1.1** `aProposalModifierChainInfersOneFlatModifiedContent` (`typecheckFile`) — `let c: ModifiedContent<Leaf, LayoutModifier> = Leaf().padding(e).frame(width: w).background(.accent)` compiles; the nested annotation is rejected; `#require`d to disagree | the positive does not compile | **M1a** |
 | **G1.2** `anExternalModifierLayerKindCannotBuildAModifiedContent` (`typecheckFile`) — an external conformer compiles; building a `ModifiedContent` over it does not | the conformer does not compile (no protocol) | **M1h** the memberwise init made `public` |
 

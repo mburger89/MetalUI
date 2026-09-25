@@ -172,3 +172,155 @@ controls A, B, P5, Q included.
 
 **Accounting as amended:** 1426 → **1439** tests, guards 82 → 84, goldens 0,
 no test retired.
+
+## 7. Lane 1 — the unified `ModifiedContent<Content, Modifier>` (2026-09-25)
+
+Commits `273bbd8` (red first: N1.1, N1.2, G1.1, G1.2) and `82c5ef9` (the
+type). Ruling `LR-GB`, which corrects two spec errors this lane found (N1.2's
+spelling, M1a's spelling).
+
+**What was built** (spec §3, `LR-FV`, as ruled). There is a new
+`Sources/MetalUI/ModifiedContent.swift`. It holds the flat struct (`content`,
+`outermost`, `inner`, `prefix`) and `ModifierLayerKind` with its five
+underscored requirements. It holds the one layer recursion, which is
+`ModifiedElement`'s moved: `innermostID`, the shared `wrapLayers`,
+`prepaintLayer`/`prepaintLayerBody` and `paintLayer`, walking *prefix, inner,
+outermost*. The `MC-B` per-layer mirrors now run for proposal layers too. The
+file also holds `ModifierLayer`'s arm (lowered → `animated` → `lowerLegacyLayer`;
+`registerAndScope`; `paintDecoration`) and `LayoutModifier`'s arm
+(`nativeWrapperNode`; the hit-testing/clip scope; the opacity/fill/clip/border
+paint, all moved verbatim). It declares the conditional `StyledElement` and
+`ProposalElementGroup`/`ProposalElement` conformances and `typealias
+ModifiedElement`. `ModifiedElement.swift` keeps `ModifierLayer`, `_wrap`'s
+default and the fixed `frame`. In `NativeModifiedContent.swift` every proposal
+modifier returns `ModifiedContent<ProposalBase, LayoutModifier>` through
+`_wrapLayout`, and `NativeModifiedContent` is retargeted. In
+`ProposalElementGroup.swift` the protocol gains `ProposalBase`/`_wrapLayout`
+and its default, and the unconditional `extension ModifiedContent:
+ProposalElement {}` is gone. The doc lines in `ElementGroup.swift` and
+`DecorationScope.swift` name the new home.
+
+### 7.1 Red first
+
+At `273bbd8` the implementation was absent (the four source files as at
+`47c0d98`). N1.1 and N1.2 **do not compile**, which is their red, so that
+commit's test target does not build by design:
+
+    UnifiedModifiedContentTests.swift:88:32: error: generic type 'ModifiedContent' specialized with too many type parameters (got 2, but expected 1)
+    UnifiedModifiedContentTests.swift:90:19: error: value of type 'ModifiedContent<ModifiedContent<ModifiedContent<Rectangle>>>' has no member 'layerCount'
+    UnifiedModifiedContentTests.swift:138:32: error: generic type 'ModifiedContent' specialized with too many type parameters (got 2, but expected 1)
+    UnifiedModifiedContentTests.swift:140:19: error: value of type 'ModifiedElement<ModifiedContent<Rectangle>>' has no member 'prefix'
+
+With that file set aside, the two guards ran and failed:
+
+| test | first failure line |
+|---|---|
+| G1.1 `aProposalModifierChainInfersOneFlatModifiedContent` | `UnifiedModifiedContentCompileGuards.swift:73:9: Expectation failed: flat.succeeded != nested.succeeded`. Both fixtures fail with `generic type 'ModifiedContent' specialized with too many type parameters (got 2, but expected 1)` |
+| G1.2 `anExternalModifierLayerKindCannotBuildAModifiedContent` | `UnifiedModifiedContentCompileGuards.swift:141:9: Expectation failed: conformer.succeeded != memberwise.succeeded && …`. All three fail with `cannot find type 'ModifierLayerKind' in scope` |
+
+**Literals from `47c0d98`**, a scratch test, deleted. The nested chain
+`ZStack { leaf().padding(e).frame(width: 60).background(.accent) }` has 4 nodes,
+work 2/2/7 and five recorded bounds. N1.2's generic spelling inferred
+`ModifiedElement<ModifiedContent<Rectangle>>`, with 3 nodes, work 1/2/3, bounds
+root (80, 65) 40×30, `.child(root, 0)` (86, 71) 28×18 and content (90, 75)
+20×10, and a fill at (80, 65) 40×30. Arm 2 has 5 nodes, work 1/4/5, bounds
+(72, 57) 56×46, (80, 65) 40×30, (86, 71) 28×18 and (90, 75) 20×10, and the fill
+at (80, 65) 40×30.
+
+### 7.2 The budget guard first
+
+Once the type compiled, and before the suite ran,
+`aTwentyFourModifierChainTypechecksWithinASolverWorkBudget` and
+`aNestedModifiedElementCannotBeSpelled` passed. The first printed `MC-A solver
+budget 1000: positive succeeded=true messages=[]; negative succeeded=false
+messages=[the compiler is unable to type-check this expression in reasonable
+time; …]`. **No fallback.** `ModifiedElementCompileGuards.swift` is untouched:
+`extension ModifiedElement` over the typealias still exhausts the budget, as
+the skeleton predicted. The positive fixture was binary-searched against each
+commit's own `MetalUI` module (the demo-pixel harness's exported builds) at
+**186** scopes for `47c0d98` and **214** for `82c5ef9` (`LR-GB` item 5).
+
+### 7.3 Green
+
+After `swift package clean`: `swift build --build-system native
+--build-tests` gave 0 `error:`, with SwiftPM's deprecation notice the only
+`warning:`. `swift build --build-tests` under the default build system
+(`--scratch-path` in the scratchpad) gave 0 `error:` and 0 `warning:`. The
+unfiltered `swift test --build-system native --no-parallel` read **`Test run
+with 1430 tests in 3 suites passed after 80.725 seconds.`**, and the log
+carries `FR-J no-argument frame: succeeded=` (the guards ran). **1430 = 1426 +
+4** (N1.1, N1.2, G1.1, G1.2). Guards 82 → **84**. No test was retired, and no
+retained test changed its answer. The T rows are annotation and type-name
+changes only: `legacyModifierChainsInferOneConcreteType` (the names now print
+`ModifiedContent<…, ModifierLayer>`),
+`nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder` and
+`proposalLayoutFrameUsesTheTypedProposalWrapper` (annotations),
+`everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` (four
+pins gain `, LayoutModifier`) and
+`proposalTextSelectsProposalModifiersWithoutMakingLegacyTextAmbiguous` (its
+return type). **Every state-retention and identity test spec §3.3 names ran
+unedited and green.** `Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit`)
+builds and tests, 21 + 19 passed. Docker is not available on this machine, so
+the container check was not run.
+
+### 7.4 Mutations
+
+Each mutation was applied by a script to the committed tree (`82c5ef9`), built,
+run through the whole suite unfiltered, and restored from a copy, with `git
+status --short` empty after each. M1a and M1h change a public declaration, so
+each was run after `swift package clean`. So was M1b, the first body mutation
+after M1a (`LR-GB` item 3).
+
+| id | mutation (spelling, branch) | suite | reddened |
+|---|---|---|---|
+| M1a (as spelled by the spec) | `typealias ProposalBase = Content` deleted | 1430 passed | **nothing: a broken instrument.** `ProposalBase` is re-inferred from `_wrapLayout`'s return type, so the mutant is the implementation (`LR-GB` item 2) |
+| M1a | the typealias **and** the appending `_wrapLayout` witness deleted, clean build | test target does not compile | `NativeLayoutIntegrationTests.swift:655: cannot assign value of type 'ModifiedContent<ModifiedContent<NativeProbeLeaf, LayoutModifier>, LayoutModifier>' to type 'ModifiedContent<NativeProbeLeaf, LayoutModifier>'` (T row `nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder`) |
+| M1a (runtime) | the same, with that one annotation relaxed to `var root = stored` | 4 issues | N1.1 `aProposalChainIsOneFlatModifiedContentWithTheNestedChainsIdentities` (2: the type assertion `:88`, the layer count `:90`); G1.1 `aProposalModifierChainInfersOneFlatModifiedContent` (2: the flat fixture fails `:75`, the nested one compiles `:76`) |
+| M1b | `innermostID`'s inner-layer component `at: Modifier.self == LayoutModifier.self ? 1 : 0` | 3 issues | N1.1 (1, `flat.bounds == nested.bounds`); `stateSurvivesFramesUnderAProposalModifierChain` (2, `ModifierCompositionProofTests.swift:800–801`, the padding and frame components read `.positional(1)`) |
+| M1i | `recordElementBounds` skipped in `prepaintLayerBody`'s `inside()` when the next layer is a proposal one (`Modifier == LayoutModifier` or a prefix layer) | 3 issues | N1.1 (1, bounds); N1.2 `aLegacyWrapperAfterAProposalChainAbsorbsItAsItsInnermostLayers` (2: arm 1's and arm 2's bounds) |
+| M1d | `LayoutModifier._legacyStack` returns `([], [])` (the prefix dropped) | 5 issues | N1.2 (5: the prefix count, arm 1's bounds and node/work, arm 2's bounds and node/work) |
+| M1d′ | `wrapLayers` walks `inner` before `prefix` (the absorbed layers above the inner legacy ones) | 2 issues | N1.2 arm 2 only (bounds `:159`, rects `:164`). Arm 1, with no inner legacy layer, is the identity, which is why arm 2 exists |
+| M1h | the memberwise `init(content:outermost:inner:prefix:)` made `public`, clean build | 1 issue | G1.2 `anExternalModifierLayerKindCannotBuildAModifiedContent` (`:141` `#require`: the memberwise fixture compiles, `memberwise succeeded=true`) |
+
+**Each new guard was mutated red once**: G1.1 by M1a, and G1.2 by M1h.
+
+### 7.5 Value sizes and the stack budget (after lane 1)
+
+Taken with a scratch test in `MetalUICrossPlatformTests` (debug, macOS arm64),
+deleted afterwards:
+
+| type / value | `47c0d98` (§1) | `82c5ef9` |
+|---|---|---|
+| `Decoration` | 77 | 77 |
+| `Handlers` | 320 | 320 |
+| `ModifierLayer` | 662 | 662 |
+| `LayoutModifier` | 46 | 46 |
+| `ModifiedElement<Box<EmptyGroup>>` | 1272 | **1280** (the empty `prefix`) |
+| `Box<EmptyGroup>` | 600 | 600 |
+| a one-layer proposal chain over `Rectangle` | 62 | **80**, for any length (two nested levels were 110) |
+| `OverlayModifier<Rectangle, Rectangle>` | 23 | 23 |
+| `demoContent()` | 33 912 | **34 064** (+152, +0.45 %) |
+| `nativeLayoutPreviewContent()` | 935 | **801** |
+| `textInputDemoContent()` | 5 312 | 5 328 |
+
+**Stack.** One exit test per size ran `buildEveryProductionTree(onAThreadOf:)`
+at 480, 496, 512, 516, 520, 524, 528, 532, 536, 540, 544 and 560 KB. It got
+`.signal(SIGBUS)` at 480, 496 and 512, and success at 516 and above. So the
+smallest stack is **> 512 and ≤ 516 KB**: inside the design's `(512, 528]`, and
+under the 544 KB block (spec §8). `everyProductionTreeBuildsOnAOneMegabyteThread`
+is green in the suite.
+
+### 7.6 The demo
+
+`docs/probes/demo-pixels/compare.sh <scratch>/pix 47c0d98 82c5ef9`. The
+controls at `47c0d98` read the stage-9 corrected values: light vs dark
+1048576, default vs modal 1031003, default vs animation 454895, f0 vs f3 0,
+preview light vs dark 1048576, chrome pair 0, distinct 544 / 216, prod default
+vs modal 491221, distinct prod-default-light 529, indicator rects 0. **All
+fourteen images read 0 differing, and every scene is identical.**
+
+### 7.7 Deferred from lane 1
+
+Nothing is deferred from lane 1. The overlay's widening (`OverlayModifier` over
+`ElementGroup`, the `.overlay` moved to `ElementGroup`) is lane 2's, and it
+touches no file of this lane.

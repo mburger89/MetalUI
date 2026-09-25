@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-GB`** (stage 11's design took `LR-FV`…`LR-FZ` and its critic round 1 `LR-GA`, appended at the end; stage-11 rulings amended by that round carry a paragraph headed **Amended, stage-11 critic round 1**; stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-GC`** (stage 11's design took `LR-FV`…`LR-FZ`, its critic round 1 `LR-GA` and its lane 1 `LR-GB`, appended at the end; stage-11 rulings amended by that round carry a paragraph headed **Amended, stage-11 critic round 1**; stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -10391,3 +10391,97 @@ legacy `.opacity` before a decoration: its two `.opacity` calls, at
 field write, compare as different decorations. They also paint differently,
 so the inequality is correct. Item 5's re-ownings leave 54 and 56 live after
 task 7. Each one names its task, and neither is a modifier question.
+
+---
+
+## LR-GB — stage 11, lane 1: the unified type as built; N1.2's spelling corrected; M1a re-spelled; the budget and the stack re-taken
+
+**The lane.** Commits `273bbd8` (red first) and `82c5ef9` (the type). Record
+§54 §7 has the red lines, the mutation table, the sizes, the bisection and the
+demo comparison. `LR-FV` holds **as ruled**: one flat `ModifiedContent<Content,
+Modifier>`, `ModifiedElement` a typealias, `ProposalBase`/`_wrapLayout`, every id
+path unchanged. Every state-retention and identity test that spec §3.3 lists
+stayed green **unedited**. The budget guard
+(`aTwentyFourModifierChainTypechecksWithinASolverWorkBudget`) was run first
+against the real overload set and stayed green at its literal 1000, with its
+negative still "unable to type-check". So `LR-FV`'s fallback (a nested proposal
+chain) was **not** taken.
+
+1. **N1.2's spelling was wrong in the spec, and is corrected.** Spec §3.1's
+   third row, `Rectangle().padding(e).padding(Pixels(8))`, "type at
+   `47c0d98`: `ModifiedElement<ModifiedContent<Rectangle>>`", **never
+   compiled**. The legacy `.padding(_: Pixels)`/`.padding(_: Edges<Length>)` are
+   declared on `StyledElement` (`Box.swift`'s `extension StyledElement`), and a
+   proposal chain is not a `StyledElement`, at `47c0d98` or now. Measured:
+   `cannot convert value of type 'Pixels' to expected argument type
+   'Edges<Pixels>'` at `47c0d98`. The only legacy wrappers on `ElementGroup`
+   are the two `.frame` overloads. On a concrete proposal receiver the proposal
+   `.frame` is more specialized and wins. So **a legacy wrapper reaches a
+   proposal chain only in generic code** (`func f<T: ElementGroup>(_ t: T) {
+   t.frame(…) }`, dispatched through `_wrap`), or through a direct `_wrap` call.
+   The absorbed `prefix` exists for exactly that path. It is what lets
+   `LayerBase == Content` have one witness (`LR-FV` item 4), and it keeps that
+   path's ids. N1.2 is re-spelled
+   `legacyFrame(leaf().padding(e)).background(.accent)`, where `legacyFrame` is
+   a generic `<T: ElementGroup>` `.frame(width: 40, height: 30)`. The literals
+   were taken at `47c0d98` from the same spelling, which there inferred
+   `ModifiedElement<ModifiedContent<Rectangle>>`. N1.2 gains **arm 2**,
+   `… .background(.accent).padding(Pixels(8))`, which holds a prefix, an inner
+   legacy layer and an outermost one. Arm 2 is what separates mutation M1d′.
+   With no inner legacy layer, "the prefix walked after the inner layers" is
+   the identity. Spec §3.1, §3.4 and §7 are amended in place.
+2. **M1a as spelled was a broken instrument, and is re-spelled.** Deleting
+   `typealias ProposalBase = Content` alone built and left the whole suite
+   green (1430 passed): associated-type inference reads `ProposalBase =
+   Content` back off the `_wrapLayout` witness's return type. The mutant is
+   identical to the implementation. **M1a is therefore the typealias AND the
+   appending `_wrapLayout` witness, deleted together**, so that the defaulted
+   `ProposalBase == Self` extension applies and chains nest. After a `swift
+   package clean`, that mutant fails to **compile** the test target at
+   `NativeLayoutIntegrationTests.swift:655`
+   (`nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder`'s flat
+   annotation, one of this lane's T rows). With that one annotation relaxed to
+   `var root = stored`, it reddens N1.1 (the type assertion, the layer count)
+   and G1.1 (the flat annotation fails, the nested one compiles).
+3. **An incremental build does not see an associated-type change.** The first
+   run of M1a's re-spelling, built incrementally over the green tree, compiled
+   the test target that the clean build rejects. It then ran a stale mixture,
+   in which `everyProductionTreeBuildsOnAOneMegabyteThread` exited on
+   `SIGSEGV` and the run truncated with no summary line. That is CLAUDE.md's
+   "`swift package clean` when the impossible happens", and it is now measured
+   for a conformance's associated type. Every mutation of this lane that
+   touches a public declaration (M1a, M1h) was run after `swift package
+   clean`. So was the first body mutation after each of them, and so was the
+   final green.
+4. **Two spellings the spec left open.** (a) `elementID`: the unconditional
+   `Element` witness is a **get-only** `elementID` reading
+   `outermost._elementID`. The settable one `StyledElement` needs is declared
+   again in the `Modifier == ModifierLayer` extension. So a proposal chain
+   gains no settable `elementID`. Both compile, and the constrained one wins at
+   a legacy call site. (b) `LayoutModifier`'s private `nativeWrapperNode` is
+   `@MainActor`, because `LayoutModifier` is a `Sendable` enum and not
+   main-actor isolated. The registrars it calls are.
+5. **Solver work, re-measured** against each commit's own module, with the
+   guard's positive fixture binary-searched on `-solver-scope-threshold`:
+   **186** at `47c0d98` (the figure `MC-A` recorded) and **214** at
+   `82c5ef9`. That is +28 (+15 %), still 4.7× under the guard's 1000.
+6. **Value sizes and the stack**, re-taken as spec §8 requires.
+   `ModifiedElement<Box<EmptyGroup>>` 1272 → 1280 (the empty `prefix`).
+   `ModifiedContent<Rectangle, LayoutModifier>` is 80 for any chain length,
+   against 62/110 for one or two nested levels. `demoContent()` 33 912 →
+   **34 064** (+0.45 %). `nativeLayoutPreviewContent()` 935 → **801**.
+   `textInputDemoContent()` 5 312 → 5 328. The smallest stack that builds every
+   production tree is **> 512 and ≤ 516 KB** (4 KB steps at 512–544). That is
+   inside the design's `(512, 528]` and under the 544 KB block, and
+   `everyProductionTreeBuildsOnAOneMegabyteThread` is green.
+
+**Reasoning.** Items 1 and 2 are spec errors of the "a confident claim that
+was not measured" shape. The table row was written from the skeleton, whose
+`ElementGroup` declared `padding(_: Pixels)`, while MetalUI declares it on
+`StyledElement`. The mutation was named for a declaration that inference
+supplies. Each is corrected where it was stated.
+
+**What it costs if wrong.** If generic code over proposal chains is rarer than
+assumed, the prefix is machinery for a rare path. It still costs one empty
+array (8 bytes) per legacy chain, and the absorbing path stays pinned by N1.2
+and by M1d/M1d′.
