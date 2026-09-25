@@ -19,24 +19,44 @@ import MetalUITestSupport
 private let skipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUI not found — guard skipped"
 
-/// **G1.** Outside the package a `Style` field cannot be written: every
-/// surviving stored field is `package` (`LR-FM` item 2), so an element's layout
-/// is spelled only through its modifiers. The control writes the same field
-/// through `.flexGrow(_:)`.
+/// **G1.** Outside the package `Style`'s fields and its two narrowed enums
+/// cannot be named: each of the **17** surviving stored fields is `package`
+/// (`LR-FM` item 2, `LR-FN`'s table), and so are `Display` and `JustifyItems`,
+/// so an element's layout is spelled only through its modifiers. One fixture
+/// reads every field and names both enums; the guard requires one message
+/// **per name** (19: `'<field>' is inaccessible due to 'package' protection
+/// level` for each field, `cannot find type '<Enum>' in scope` for each enum —
+/// swiftc hides a `package` type from a plain import entirely), so widening any
+/// one of them back to `public` drops its message and reddens this test. The
+/// control writes `flexGrow` through `.flexGrow(_:)` and names the public
+/// neighbour `Position`.
 ///
-/// Mutation that must redden it (**M2b**): `Style.flexGrow` made `public`.
+/// Mutations that must redden it: **M2b** (`Style.flexGrow` made `public`) and
+/// **V3** (`Display` and `Style.padding` made `public`; record §52 §5).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func aPlainImportCannotWriteAStyleField() throws {
+    let fields = [
+        "display", "position", "inset", "size", "minSize", "maxSize", "margin",
+        "padding", "flexDirection", "gap", "justifyContent", "alignItems",
+        "justifyItems", "flexGrow", "flexShrink", "flexBasis", "alignSelf",
+    ]
+    let types = ["Display", "JustifyItems"]
+    try #require(fields.count == 17)
+    try #require(types.count == 2)
+    let reads = fields.map { "    _ = s.\($0)" }.joined(separator: "\n")
+    let names = types.map { "    let _: \($0)? = nil" }.joined(separator: "\n")
     let write = try typecheckFile("""
         public func write() {
             var s = Style()
             s.flexGrow = 1
-            _ = s
+        \(reads)
+        \(names)
         }
         """, importing: "MetalUI")
     let control = try typecheckFile("""
         @MainActor public func control() {
             _ = Box().flexGrow(1)
+            let _: Position? = nil
         }
         """, importing: "MetalUI")
     print("STYLE-SURFACE GUARD G1 write: succeeded=\(write.succeeded)\n\(write.messages)")
@@ -45,8 +65,16 @@ func aPlainImportCannotWriteAStyleField() throws {
                  "the write and the control must disagree, or the instrument cannot fail:\n\(write.output)\n\(control.output)")
     #expect(control.succeeded, "the control must compile:\n\(control.output)")
     #expect(!write.succeeded, "an external module must not write a Style field:\n\(write.output)")
-    #expect(write.messages.contains("'flexGrow' is inaccessible due to 'package' protection level"),
-            "rejected, but not by access:\n\(write.output)")
+    for name in fields {
+        #expect(write.messages.contains("'\(name)' is inaccessible due to 'package' protection level"),
+                "`Style.\(name)` is not rejected by access — widened back to public?\n\(write.output)")
+    }
+    // A `package` type is not visible to a plain import at all, so swiftc
+    // says it cannot find it (measured) rather than naming the access level.
+    for name in types {
+        #expect(write.messages.contains("cannot find type '\(name)' in scope"),
+                "`\(name)` is nameable from outside the package — widened back to public?\n\(write.output)")
+    }
 }
 
 /// **G2.** Every spelling stage 10 deleted fails to compile, each with its own
