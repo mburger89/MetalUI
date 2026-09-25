@@ -611,6 +611,13 @@ inversion (`fillEscapes` negated), M2g′ on `planLegacyItems`' outside-a-`Defer
 report (`&& item.kind != .frameLayer`), M2h as `case .opacity: inside()`; record
 §54 §9.3 has every reddened test.
 
+*Amended, stage-11 lane 3's fix round (`LR-GF`).* **N2.5**
+`anEscapedFillPaintsUnderTheContentAndAnEscapedBorderOverIt` added: a 20×20 child
+inside the G4 and H2 subjects (legacy element, legacy layer, proposal); the
+escaped fill's rect precedes the child's and the escaped border's follows it.
+Mutations **V3** (escaped fill moved after the scope) and **V4** (escaped border
+moved before it) redden it; record §54 §9.7.
+
 Body changes (T): `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`
 (its amended arm leaves, to N2.2), `everyReportNamesALiveOwnerOrIsRefusedByName`
 (the `deferred`/stage-11 row leaves),
@@ -628,7 +635,7 @@ lanes.
 ## 8. Accounting, pixels, stack budget, gates
 
 - **Suite: 1426 → 1439** (*amended, critic round 1*): +4 lane 1 (N1.1, N1.2,
-  G1.1, G1.2); +5 lane 2 (N1.3–N1.7), *+4 more by lane 2's fix round (N1.8–N1.11, `LR-GD`), so 1426 → 1443*; +4 lane 3 (N2.1–N2.4; *measured 1443 at `40e48bd`, `LR-GE`*); T2.1 is a rename;
+  G1.1, G1.2); +5 lane 2 (N1.3–N1.7), *+4 more by lane 2's fix round (N1.8–N1.11, `LR-GD`), so 1426 → 1443*; +4 lane 3 (N2.1–N2.4; *measured 1443 at `40e48bd`, `LR-GE`*), *+1 by lane 3's fix round (N2.5, `LR-GF`), so 1444*; T2.1 is a rename;
   no test retired. **Guards 82 → 84.** Goldens 0. `goldensUnchanged`: no
   `@Test` is removed, so no retirement row is owed; the T rows above are the
   only retained tests whose bodies change, and only

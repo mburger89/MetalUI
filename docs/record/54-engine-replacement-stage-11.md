@@ -589,3 +589,30 @@ an owner — so spec §9.1's `grep -n "plan task 7" Sources` hits it (and many
 comments) and must be read, not counted. The mid-animation snap when a hover or
 focus change moves the winning slot across the scope is owed to record §05's
 snap list (spec §4).
+
+### 9.7 Lane 3's fix round — the escape's emission order (N2.5)
+
+Ruling `LR-GF`, commit `d86cb4e`. The verifier found that no test pinned where
+an escaped fill or border sits relative to the element's content: its **V3**
+(the escaped-fill block moved after the opacity scope) left 1443 green, and a
+scratch test showed the mutant paints an opaque 40×40 background over a faded
+20×20 child. **N2.5** `anEscapedFillPaintsUnderTheContentAndAnEscapedBorderOverIt`
+(`OpacityOrderTests`) puts a child in the G4 and H2 subjects on three shapes
+(legacy `Box { child }`, legacy padding layer, proposal `Rectangle` padding
+layer) and asserts fill index < child index < border index, after set-up
+requires that the fill/border escaped and the child did not.
+
+Mutations applied by `mut.py` (scratchpad) to `d86cb4e`, built, whole suite
+unfiltered, restored from a copy, `git status --short` empty after each:
+
+| id | mutation | suite | reddened |
+|---|---|---|---|
+| V3 | `if fillEscapes` block moved after `opacity(…) { … }` | 1444, 2 issues | N2.5 (`OpacityOrderTests.swift:325` ×2, the two legacy G4 shapes) |
+| V4 | `if borderEscapes` block moved before `opacity(…) { … }` | 1444, 3 issues | N2.5 (`:333` ×2, the two legacy H2 shapes); `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembersUnderTheProposalAuthority` (`FrameDecorationInteractionTests.swift:449`) |
+
+Suite at `d86cb4e`: `swift build --build-system native --build-tests` 0
+`error:`, one `warning:` (SwiftPM's notice); `swift test --build-system native
+--no-parallel` unfiltered **`Test run with 1444 tests in 3 suites passed`**,
+`FR-J no-argument frame: succeeded=true`; `swift build --build-tests` 0
+`error:`, 0 `warning:`. T2.1's doc comment now spells M2e as the source
+inversion (`LR-GE` item 3).
