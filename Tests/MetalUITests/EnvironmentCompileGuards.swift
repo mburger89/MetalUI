@@ -81,6 +81,11 @@ private let probeKeySource = """
 ///
 /// The positive half of G1−: without it, G1− could pass against a module whose
 /// passes had no `environment` at all.
+///
+/// Task 9's closing lane 1 added `displayScale`, `controlActiveState` and
+/// `controlSize` (rulings EV-AA, EV-AB, EV-AC); **MG1** (`displayScale` made
+/// `internal`) reddens it. It reads only, so it cannot tell a public setter
+/// from an internal one — G6 is the write half (MG6a).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func environmentValuesAreReadableInEveryPhase() throws {
     let result = try typecheckFile(probeKeySource + """
@@ -92,6 +97,9 @@ func environmentValuesAreReadableInEveryPhase() throws {
             let _: String = e.locale.identifier
             let _: DynamicTypeSize = e.dynamicTypeSize
             let _: Double = e.pixelLength
+            let _: Double = e.displayScale
+            let _: ControlActiveState = e.controlActiveState
+            let _: ControlSize = e.controlSize
             let _: Int = e.probe
             let _: Int = e[ProbeKey.self]
         }
@@ -108,6 +116,9 @@ func environmentValuesAreReadableInEveryPhase() throws {
             @Environment(\\.isEnabled) var isEnabled
             @Environment(\\.probe) var probe
             @Environment(\\.pixelLength) var pixelLength
+            @Environment(\\.displayScale) var displayScale
+            @Environment(\\.controlActiveState) var controlActiveState
+            @Environment(\\.controlSize) var controlSize
         }
         """, importing: "MetalUI")
     #expect(result.succeeded,
@@ -166,16 +177,21 @@ func environmentValuesCannotBeWrittenThroughAPass() throws {
 }
 
 /// **G3 — `pixelLength` has no writable key path outside the module, and a
-/// whole-value write still compiles** (rulings EV-J, EV-U).
+/// whole-value write still compiles** (rulings EV-J, EV-U, EV-AA).
 ///
 /// - **Negative**: `.environment(\.pixelLength, 1.0)` fails, because the
-///   field's key path is a `KeyPath`, not a `WritableKeyPath`.
+///   field's key path is a `KeyPath`, not a `WritableKeyPath`. Since `EV-AA`
+///   `pixelLength` is a get-only computed property derived from
+///   `displayScale` (SwiftUI's shape), not a `public internal(set)` stored
+///   one; the diagnostic still names `WritableKeyPath` (measured on lane 1's
+///   build). **MG3** (a public setter) reddens this half.
 /// - **Positive premise**: `.environment(\.self, EnvironmentValues())`
-///   compiles. The compiler cannot close that route, which is why the frame
-///   re-stamps `pixelLength` and `theme` after every write and
-///   `aWholeValueWriteCannotResetTheThemeOrThePixelLength` exists. If this half
-///   ever fails, the premise of EV-U has changed and the ruling should be
-///   re-read, not this assertion deleted.
+///   compiles. Since `EV-AA` the premise is **aligned with SwiftUI**, not
+///   re-stamped: the reset lands for `displayScale` (and so `pixelLength`),
+///   reading 1 and 1 as pixel-length probe X2 does in SwiftUI, while `theme` is
+///   still re-stamped (`aWholeValueWriteResetsTheDisplayScaleButNotTheTheme`).
+///   If this half ever fails, the premise of EV-U's theme half has changed and
+///   the ruling should be re-read, not this assertion deleted.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func pixelLengthIsNotWritableFromOutsideButAWholeValueWriteCompiles() throws {
     let negative = try typecheckFile("""
@@ -249,6 +265,11 @@ func aProposalContainerRejectsAScopeOverLegacyContent() throws {
 /// assignment on `Window.environment` and on a local `EnvironmentValues`.
 /// Lane 3 added `.disabled(_:)` to the chain (ruling EV-D): the gate reads the
 /// value, but the modifier is how a caller outside the module writes it.
+/// Task 9's closing lane 1 added the writes of `displayScale`,
+/// `controlActiveState` and `controlSize`, `.controlSize(_:)`, and both new
+/// enums' `allCases` (rulings EV-AA…EV-AC); **MG6a** (`displayScale`
+/// `public internal(set)`) reddens this guard and not G1+, and **MG6b**
+/// (`.controlSize(_:)` internal) reddens it too.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func theEnvironmentsPublicWritersCompileFromOutsideTheModule() throws {
     // `Locale` is Foundation's, and an external module names it only by
@@ -268,6 +289,10 @@ func theEnvironmentsPublicWritersCompileFromOutsideTheModule() throws {
                 .dynamicTypeSize(.xLarge)
                 .theme(.dark)
                 .disabled(true)
+                .environment(\\.displayScale, 3)
+                .environment(\\.controlActiveState, .inactive)
+                .environment(\\.controlSize, .mini)
+                .controlSize(.small)
         }
 
         @MainActor
@@ -280,8 +305,13 @@ func theEnvironmentsPublicWritersCompileFromOutsideTheModule() throws {
             e.locale = Locale(identifier: "de_DE")
             e.dynamicTypeSize = .accessibility2
             e[ProbeKey.self] = 3
+            e.displayScale = 3
+            e.controlActiveState = .active
+            e.controlSize = .large
             w.environment = e
             _ = DynamicTypeSize.accessibility2.isAccessibilitySize
+            _ = ControlSize.allCases
+            _ = ControlActiveState.allCases
         }
         """, importing: "MetalUI")
     #expect(result.succeeded,

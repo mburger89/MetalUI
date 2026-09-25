@@ -738,10 +738,14 @@ func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope() throw
 }
 
 /// **E13.** The frame's root environment carries its theme and scale, and an
-/// in-module overwrite of the root is re-stamped (ruling EV-H).
+/// in-module overwrite of the root is re-stamped (rulings EV-H, EV-AA).
 ///
 /// The scale-2 arm is what discriminates: the fake surface is scale 1, where
-/// `1 / scale` and `scale` agree.
+/// `1 / scale` and `scale` agree. Since `EV-AA` the root's `displayScale` is
+/// stamped from the frame's `scaleFactor` and `pixelLength` derives from it;
+/// the overwrite arm writes back a scale-1 snapshot and still reads 2 — the
+/// `rootEnvironment` setter re-stamps `displayScale` (M1.9 drops that and the
+/// arm reads 1).
 @MainActor
 @Test func theFramesRootEnvironmentCarriesItsThemeAndScale() throws {
     let log = EnvLog()
@@ -749,12 +753,14 @@ func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope() throw
     var root = Row { surfaceBox(10); EnvRecorder(label: "px", log: log) }
     retina.render(&root)
     #expect(hsla(try #require(retina.finalizedScene().rects.first).background) == Theme.dark.surface)
+    #expect(log.paint["px"]?.displayScale == 2)
     #expect(log.paint["px"]?.pixelLength == 0.5)
 
     let captureLog = EnvLog()
     var plain = Row { EnvRecorder(label: "px", log: captureLog) }
     frame(scale: 1).render(&plain)
     let captured = try #require(captureLog.paint["px"])
+    #expect(captured.displayScale == 1)
     #expect(captured.pixelLength == 1)
 
     let overwritten = frame(scale: 2, theme: .dark)
@@ -762,6 +768,7 @@ func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope() throw
     var again = Row { surfaceBox(10); EnvRecorder(label: "px", log: log) }
     overwritten.render(&again)
     #expect(hsla(try #require(overwritten.finalizedScene().rects.first).background) == Theme.dark.surface)
+    #expect(log.paint["px"]?.displayScale == 2, "the rootEnvironment setter re-stamps displayScale (EV-AA)")
     #expect(log.paint["px"]?.pixelLength == 0.5)
 }
 
@@ -822,13 +829,23 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
     #expect(after == darkRef)
 }
 
-/// **E19.** A whole-value write cannot reset the theme or the pixel length
-/// (ruling EV-U). `.environment(\.self, EnvironmentValues())` compiles outside
-/// the module (guard G3's positive half), and so does writing back a captured
-/// snapshot; both are re-stamped. **The control**: the same write does land —
-/// it resets `probe` from 3 to 0, while a sibling under 3 alone reads 3.
+/// **E19′.** A whole-value write resets the display scale but not the theme
+/// (rulings EV-U's theme half, EV-AA). Renamed from
+/// `aWholeValueWriteCannotResetTheThemeOrThePixelLength` by `EV-AA`: its theme
+/// half stands (`theme` is MetalUI's own key, re-stamped after every
+/// `.transform`), and its `pixelLength == 0.5` half **flipped** to
+/// `displayScale == 1`, `pixelLength == 1` — SwiftUI's answer (pixel-length
+/// probe X2: a `\.self` reset in a 2x window reads 1 and 1). Record §56 carries
+/// the rename row.
+///
+/// `.environment(\.self, EnvironmentValues())` compiles outside the module
+/// (guard G3's positive half), and so does writing back a captured scale-1
+/// snapshot; both land for `displayScale` and are re-stamped for `theme`.
+/// **The control**: the same write does land — it resets `probe` from 3 to 0,
+/// while a sibling under 3 alone reads 3 — and that unscoped sibling keeps the
+/// frame's `displayScale` 2.
 @MainActor
-@Test func aWholeValueWriteCannotResetTheThemeOrThePixelLength() throws {
+@Test func aWholeValueWriteResetsTheDisplayScaleButNotTheTheme() throws {
     let captureLog = EnvLog()
     var plain = Row { EnvRecorder(label: "c", log: captureLog) }
     frame(scale: 1).render(&plain)
@@ -845,9 +862,11 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
     }
     resetFrame.render(&reset)
     #expect(hsla(try #require(resetFrame.finalizedScene().rects.first).background) == Theme.dark.surface)
-    #expect(resetLog.paint["r"]?.pixelLength == 0.5)
+    #expect(resetLog.paint["r"]?.displayScale == 1)
+    #expect(resetLog.paint["r"]?.pixelLength == 1)
     #expect(resetLog.paint["r"]?.probe == 0, "the \\.self write did not land")
     #expect(resetLog.paint["control"]?.probe == 3)
+    #expect(resetLog.paint["control"]?.displayScale == 2)
 
     let restoreLog = EnvLog()
     let restoreFrame = frame(scale: 2)
@@ -859,7 +878,8 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
     }
     restoreFrame.render(&restore)
     #expect(hsla(try #require(restoreFrame.finalizedScene().rects.first).background) == Theme.dark.surface)
-    #expect(restoreLog.paint["r"]?.pixelLength == 0.5)
+    #expect(restoreLog.paint["r"]?.displayScale == 1)
+    #expect(restoreLog.paint["r"]?.pixelLength == 1)
     #expect(restoreLog.paint["r"]?.probe == 0, "the captured snapshot was not written back")
 }
 
