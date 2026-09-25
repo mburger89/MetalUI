@@ -364,6 +364,13 @@ joins lane 3's files for this one edit.
 
 **Lane 3 adds 16 tests** (13 + guards G3.1–G3.3; 1463 → **1479**; 1465 → **1481** after `ID-O`, `ID-P` item 4; 1466 → **1482** after `ID-P` item 7), guards 85 →
 **88**.
+**Amended by `ID-Q`**: G3.1's control binds `Box().id("x")` without context
+and then asks for `IdentifiedGroup` (the row's spelling compiles, measured), its
+positive gains a `Rectangle` line (red before is then measurable), and M3e is
+M3e′ (`@_disfavoredOverload` on `StyledElement.id`; the ambiguous spelling stops
+`MetalUI` building); M3b splits into M3b (untyped) and M3b′ (typed); B3.2 gains
+a typed-entry arm because M3h′ reddened nothing. Lane 3 closed at **1482**,
+guards **88**.
 
 ## 6. Accounting, pixels, gates
 

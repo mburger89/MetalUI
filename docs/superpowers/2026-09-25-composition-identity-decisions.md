@@ -2,7 +2,7 @@
 
 Rulings for [`specs/2026-09-25-composition-identity-design.md`](specs/2026-09-25-composition-identity-design.md),
 on `feat/composition-identity` from `e3cb3e9`. Ids are **lettered**,
-`ID-A`…`ID-P`; next unused is **`ID-Q`**. A bare `ID-3` is a typo, not a
+`ID-A`…`ID-Q`; next unused is **`ID-R`**. A bare `ID-3` is a typo, not a
 citation. **A round that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-25: designed; no lane has run.** Baseline measured in this
@@ -697,3 +697,64 @@ per frame; the whole suite and all fourteen offscreen images read unchanged.
 
 **Cost if wrong.** Items 1–3 and 5 are how tests are spelled and what their
 instruments redden; item 4 is a count; item 6 is comments.
+
+---
+
+## ID-Q — lane 3's amendments: G3.1's control and mutation re-spelled, the typed background entry pinned, predictions
+
+**Ruling.**
+
+1. **G3.1's control and its mutation, re-spelled — both measured.** The spec's
+   control `let g: IdentifiedGroup<Box<EmptyGroup>> = Box().id("x")`
+   **compiles** against the lane-3 module (`swiftc -typecheck`, exit 0): the
+   annotation is type context, and the solver takes the one overload that
+   satisfies it, so that control could never disagree with the positive. The
+   control binds the call with no context first (`let b = Box().id("x")`) and
+   then asks for `IdentifiedGroup<Box<EmptyGroup>>` (rejected: `cannot convert
+   value of type 'Box<EmptyGroup>'`); the positives bind the same way, so the
+   overload is chosen by ranking alone. The positive gains `Rectangle().id("x")`
+   as an `IdentifiedGroup<Rectangle>`, which makes the guard red before `ID-G`
+   (both arms rejected, the `#require` fails) where the spec said red-before was
+   not measurable. The spec's **M3e** (a second, ambiguous `id` on
+   `StyledElement`) stops `MetalUI` itself building (`List.swift:424: ambiguous
+   use of 'id'`), so the guard would read a stale module; **M3e′** is
+   `@_disfavoredOverload` on `StyledElement.id` (so `ElementGroup.id` takes a
+   `Box`'s call) with `List`'s row box naming itself through `elementID` so the
+   module builds. Under M3e′ the test target does not build (four files, then
+   seven more through their helpers), so the guard's two fixtures were
+   typechecked directly against the mutant module with the guard's own
+   arguments: positive exit 1 (`cannot convert value of type
+   'IdentifiedGroup<Box<EmptyGroup>>' to specified type 'Box<EmptyGroup>'`, and
+   the chain's), control exit 0 — each of the guard's `#expect`s fails. This is
+   the one new guard whose red was read from its fixtures rather than from the
+   running guard; record §55 §7.4.
+2. **The typed `BackgroundModifier` entry is pinned.** M3h′ — M3h's edit in
+   `requestProposalLayout` — left all 1482 green: every background in the suite
+   was a window root or under a legacy parent, which take the untyped entry
+   ("a copy of a pinned implementation is unpinned"). B3.2 gains a second arm
+   (`VStack { Rectangle().background { counter } }`, the counter at
+   `.child(.child(root/0, -1), 0)`); re-run, M3h′ reddens B3.2 alone. No test
+   count moves.
+3. **Test spellings.** E3.1's expected path omitted the `HStack`'s own level at
+   the red commit (the probe is at `root/named(g1)/0/0`), corrected in the
+   implementation commit. The T row `backgroundCannotBeCalledOnAComponent` is
+   **red before** as re-spelled (`value of type 'Leafless' has no member
+   'background'` does not contain `ColorToken`) and green after — the spec
+   listed only its after.
+4. **Mutation predictions**, as measured (record §55 §7.4): M3a reddens E3.4
+   too (its path); the spec's M3b is split by entry — **M3b** (untyped)
+   reddens E3.1, E3.3, E3.4, **M3b′** (typed, added) E3.1, E3.2, E3.6, E3.7;
+   M3g also reddens the proposal `aBackgroundIsProposedThePrimarysSizeAlignedAndPaintedBeneath`
+   (one `paint` serves both entries); M3h also reddens B3.1 and
+   `aBackgroundsContentKeepsItsStateWhenThePrimaryChangesShape`; M3j also
+   reddens the T row; M3d reddens 97 tests, E3.8 and E3.9 among them.
+5. **One line outside lane 3's files**: `ProposalElementGroup.swift`'s
+   unconditional `extension BackgroundModifier: ProposalElement {}` is replaced
+   by a comment, as `OverlayModifier`'s was by `LR-FX` — the conformance moves
+   beside the type, conditional on both sides.
+
+**Evidence.** Record §55 §7.
+
+**Cost if wrong.** Items 1–4 are how tests are spelled and what their
+instruments redden; item 5 is where a conformance is declared.
+

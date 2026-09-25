@@ -509,3 +509,141 @@ now reddens too.
   74; CLAUDE.md's "Identity is structural" bullets, the grid bullet and the
   demo/`ScrollView` notes; record §05's `AnyElement` row (its source comment is
   rewritten here).
+
+## 7. Lane 3 — explicit identity and the legacy background (`ID-G`, `ID-J`, pins)
+
+Commits `77f6ae1` (red tests), `1f65b62` (implementation), `52fd4b6` (B3.2's
+typed arm, `ID-Q` item 2), then this section with `ID-Q`. Baseline `e7c8162`,
+**1466** tests, guards 85. `swift package clean` before the implementation build
+(`BackgroundModifier`'s public generic constraints changed).
+
+### 7.1 What landed
+
+- `Sources/MetalUI/ExplicitIdentity.swift` (new): `IdentifiedGroup<Content:
+  ElementGroup>` and `ElementGroup.id(_:)`. One cursor index, component
+  `.named(name)` (`slot(under:at:)`, shared by both entries), content numbered
+  from 0 under it with a fresh cursor, nodes returned unchanged; `prepaint`/
+  `paint` forward. `IdentifiedGroup: ProposalElementGroup where Content:
+  ProposalElementGroup`, its typed entry a copy of the content line.
+  `StyledElement.id(_:) -> Self` untouched and still chosen for every
+  `StyledElement`.
+- `NativeBackgroundModifier.swift`: `BackgroundModifier<Content: ElementGroup,
+  Background: ElementGroup>` on `OverlayModifier`'s `LR-FX` shape — untyped
+  `requestLayout`, typed `requestProposalLayout` in a conformance conditional on
+  both sides, shared `backgroundSide(of:)` (`MC-P`'s `-1`) and `attach`
+  (`lowerAttachmentChildren` on both sides, then
+  `requestSecondaryContentAttachment` naming `"background"`); background
+  prepainted and painted first. One `.background(alignment:content:)` on
+  `ElementGroup` replaces the `ProposalElementGroup` one; the token overloads
+  are untouched. `ProposalElementGroup.swift`: the unconditional
+  `extension BackgroundModifier: ProposalElement {}` replaced by a comment
+  (`ID-Q` item 5).
+- Tests: `ExplicitIdentityTests.swift` (E3.1–E3.9),
+  `ExplicitIdentityCompileGuards.swift` (G3.1–G3.3), `LegacyBackgroundTests.swift`
+  (B3.1–B3.3), N3.1 in `LoweringComponentTests.swift`; the T row
+  `backgroundCannotBeCalledOnAComponent` re-spelled (fixture
+  `Leafless().background(ColorToken.accent)`, reason `contains("ColorToken")`).
+
+### 7.2 Red before (`77f6ae1` against `e7c8162`'s sources)
+
+The test target does not build: E3.1–E3.7 (`value of type 'HStack<…>' / 'Grid<…>'
+/ 'GridRow<…>' / 'StatefulPair' / 'some ElementGroup' has no member 'id'`,
+`cannot find type 'IdentifiedGroup' in scope`) and B3.1–B3.3 (`type
+'Box<EmptyGroup>' does not conform to protocol 'ProposalElementGroup'`, `type
+'ColorToken' has no member 'topLeading'`, `value of type 'TwoMembers' has no
+member 'background'`). With those compiled out (uncommitted), **`Test run with
+1472 tests in 3 suites failed … with 4 issues`**:
+
+| test | failing line |
+|---|---|
+| G3.1 | `positive.succeeded != control.succeeded` (both rejected: `'Rectangle' has no member 'id'`, `cannot find type 'IdentifiedGroup'`) |
+| G3.2 | the same (`'Rectangle' has no member 'id'`) |
+| G3.3 | the same (`'ColorToken' has no member 'topLeading'`, `'Pair' has no member 'background'`) |
+| T `backgroundCannotBeCalledOnAComponent` | `messages.contains("ColorToken")` (`'Leafless' has no member 'background'`) |
+| E3.8, E3.9, N3.1 | green (pins) |
+
+### 7.3 After
+
+Both build systems: 0 `error:`, the only `warning:` SwiftPM's deprecation
+notice. `swift test --build-system native --no-parallel` → **`Test run with 1482
+tests in 3 suites passed after 83.478 seconds`**, guards ran (`FR-J no-argument
+frame: succeeded=true`; `EXPLICIT IDENTITY GUARD G3.1/G3.2/G3.3 positive:
+succeeded=true`, each control `succeeded=false`). **1482 = 1466 + 16** (E3.1–E3.9,
+B3.1–B3.3, N3.1, G3.1–G3.3); guards **88** (`canTypecheck` hits 90 less the
+declaration and `UnitSafetyTests`' comment; `canTypecheck(module` 83 → 86).
+`theSevenRetentionSlotsAreMutuallyDistinct`,
+`everyProductionTreeBuildsOnAOneMegabyteThread`,
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` and
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` green in that run. No test was
+removed or renamed (no retirement row); the T row keeps its name and subject.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> e3cb3e9 1f65b62`:
+controls as lanes 1–2 read them (light/dark 1048576, default vs modal 1031003,
+default vs animation 454895, f0 vs f3 0, chrome pair 0, distinct 544/216/529,
+prod default vs modal 491221, indicator rects 0), **all fourteen images
+differing=0, scene identical**. Later commits change tests and comments only.
+`Expected.swift` unedited.
+
+**Elsewhere.** `MetalUILayout` imports only `MetalUICore` (anchored grep, no
+other hit). `Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit`): `Build
+complete!`, 0 `error:` (only the pre-existing SDL dylib deployment-target linker
+notes), 21 + 19 passed. `swift:6.4-noble` (Docker, aarch64) over `git archive
+52fd4b6`: `swift build --build-tests` → `Build complete!`, 0 `error:`/`warning:`;
+`swift test --skip-build --filter
+'MetalUICoreTests|MetalUILayoutTests|MetalUICrossPlatformTests'` → 188 + 10 + 22
+passed, `theDemoFrameMatchesTheValuesRecordedOnMacOS` and
+`everyProductionTreeBuildsOnAOneMegabyteThread` green.
+
+**Real window.** Lock probe: `CGSSessionScreenIsLocked = 1`, `displayAsleep
+main: 1` — locked; `capture.sh` not run. Owed to the Record phase (with lane
+2's).
+
+### 7.4 Mutations
+
+Each from a committed tree (`1f65b62`; M3h′'s re-run and M3e′ from `52fd4b6`),
+the file copied and restored, whole suite unfiltered, `git status --short` empty
+after each.
+
+| id | site | mutation | reddened (issues) |
+|---|---|---|---|
+| M3a | `IdentifiedGroup.slot` (both entries) | `name: nil` (positional) | E3.1 (4), E3.2 (2), E3.3, E3.4 (2), E3.6 (2), E3.7 (2) — 13 |
+| M3b | untyped entry | content under `parent` with the outer cursor | E3.1 (2, `Row` arm), E3.3, E3.4 (3) — 6 |
+| M3b′ | typed entry | the same edit | E3.1 (2, `VStack` arm), E3.2 (2), E3.6 (2), E3.7 (2) — 8 |
+| M3c | typed entry | content under an extra one-child `ZStack` | E3.5 alone (node count) |
+| M3d | `GlobalElementID.child(of:at:name:)` | name ignored | 97 tests, 308 issues, E3.8 and E3.9 among them (and E3.1–E3.3, E3.6, E3.7, `twoSiblingsWithTheSameIDShareOneStateEntry`, `theSevenRetentionSlotsAreMutuallyDistinct`, the `List` and animation suites) |
+| M3e′ | `StyledElement.id` | `@_disfavoredOverload` (+ `List`'s row box via `elementID`) | test target does not build; G3.1's fixtures against the mutant module: positive exit 1, control exit 0 (`ID-Q` item 1) |
+| M3f | `IdentifiedGroup` | conditional conformance deleted (`ExplicitIdentityTests.swift` set aside: it no longer compiles) | G3.2 alone (1473 tests) |
+| M3g | `BackgroundModifier.paint` | background painted after the primary | B3.1, `aBackgroundIsProposedThePrimarysSizeAlignedAndPaintedBeneath` — 2 |
+| M3h | untyped entry | background side under `id` at the primary's cursor | B3.1, B3.2 (3), `aBackgroundsContentKeepsItsStateWhenThePrimaryChangesShape` (3) — 7 |
+| M3h′ | typed entry | the same edit | at `1f65b62`: **none** (1482 passed); after B3.2's typed arm (`52fd4b6`): B3.2 alone (1) |
+| M3i | `BackgroundModifier.attach` | primary `prefix(1)` | B3.3 alone (2; the child exits 0) |
+| M3j | `.background(alignment:content:)` | declared on `ProposalElementGroup` again (`LegacyBackgroundTests.swift` set aside) | G3.3, T `backgroundCannotBeCalledOnAComponent` — 2 (1479 tests) |
+| M3k | `lowerShownLegacyFrameLayer` | the row at `alignment: .center` | N3.1 alone |
+| MT | `Component` | `background(_: ColorToken) -> Self` declared | T `backgroundCannotBeCalledOnAComponent` alone (2) |
+
+**M3e′ is the one guard mutation whose red was read from the guard's fixtures,
+not from the running guard.** Under it the test target stops building
+(`AXEmitSiteTests`, `ElementGroupTrapTests`, `ElementLayoutTests`,
+`HitRegionTests`; with those set aside, seven more through their helpers), so
+the positive and the control were typechecked with the guard's own arguments
+(`-swift-version 6 -I <Modules>` plus the C module maps) against the mutant's
+built `MetalUI`: positive `cannot convert value of type
+'IdentifiedGroup<Box<EmptyGroup>>' to specified type 'Box<EmptyGroup>'` (and the
+chain's), control exit 0 — the guard's `#expect(positive.succeeded)` and
+`#expect(!control.succeeded)` both fail. The same instrument against the
+lane-3 module: positive exit 0, control exit 1, and the spec's control spelling
+exit 0 (`ID-Q` item 1).
+
+### 7.5 Deferred
+
+- The real-window capture (locked screen), to the Record phase.
+- **A group that returns to a name it used earlier** (`.id("a")` → `"b"` →
+  `"a"`): neither SwiftUI's answer nor MetalUI's is probed or pinned; the spec
+  asks only for a changed name to reset (E3.1–E3.3, E3.8, E3.9). Owner: none
+  named; a probe arm and a test if it matters.
+- Record phase: record §04 retires 48 and amends 56 (N3.1 pins its alignment
+  sub-row) and adds 73 (B3.3 and N1.7 its pins); CLAUDE.md's "Component"
+  paragraph (`.id()` via `IdentifiedGroup`; `.background { }` offered, the token
+  one not), the grid bullet ("no built-in proposal element has `.id()`"), the
+  vocabulary list (`.id(_:)`, `IdentifiedGroup`, the legacy `.background { }`),
+  counts (1482) and guards (88, `ExplicitIdentityCompileGuards` 3).

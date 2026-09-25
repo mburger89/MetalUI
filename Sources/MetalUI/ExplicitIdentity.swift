@@ -36,9 +36,8 @@ public struct IdentifiedGroupLayout<ContentLayout> {
 ///
 /// Two siblings with the same name share one identity (divergence 72, `ID-H`,
 /// pinned on this API by `twoSiblingGroupsWithTheSameIDShareOneIdentity`).
-/// A frame that goes back to a name it used before finds that name's entries
-/// still in the table until the sweep reaps them — the same as an element's own
-/// `.id`.
+/// What a group that goes back to a name it used earlier reads is neither probed
+/// nor pinned (record §55 §7.5).
 public struct IdentifiedGroup<Content: ElementGroup>: ElementGroup {
     public var content: Content
     public var name: ElementID

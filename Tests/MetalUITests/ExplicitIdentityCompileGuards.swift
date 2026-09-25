@@ -23,14 +23,22 @@ private let skipReason: Comment =
 /// Control: the same unconstrained `Box().id("x")` bound to
 /// `IdentifiedGroup<Box<EmptyGroup>>` must be rejected; the two arms are
 /// `#require`d to disagree, so a fixture broken for another reason cannot pass.
+/// **Not** the spec's `let g: IdentifiedGroup<Box<EmptyGroup>> = Box().id("x")`:
+/// measured, that compiles — the annotation is type context, and the solver
+/// takes the one overload that satisfies it — so it could not disagree with
+/// anything (`ID-Q` item 1).
 ///
 /// The positive's third line, a `Rectangle` (no `StyledElement`) taking
 /// `IdentifiedGroup`, makes the positive depend on `ID-G` too.
 ///
 /// Red before: both arms rejected, so the `#require` fails (`value of type
 /// 'Rectangle' has no member 'id'`, `cannot find type 'IdentifiedGroup' in
-/// scope`). Mutation **M3e** (a second `id(_:) -> IdentifiedGroup<Self>` on
-/// `StyledElement`) makes the positive ambiguous.
+/// scope`). Mutation **M3e′** (`@_disfavoredOverload` on `StyledElement.id`, so
+/// `ElementGroup.id` takes a `Box`'s call; `List.swift`'s row box names itself
+/// through `elementID` so the module still builds) rejects the positive and
+/// admits the control. The spec's M3e — a second, ambiguous `id` on
+/// `StyledElement` — stops `MetalUI` itself building (`List.swift:424: ambiguous
+/// use of 'id'`), so the guard would read a stale module (`ID-Q` item 1).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func anIDOnAStyledElementStillReturnsItsOwnType() throws {
     let positive = try typecheckFile("""
