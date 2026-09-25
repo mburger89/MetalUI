@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FM`** (stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FR`** (stage 10's design took `LR-FM`…`LR-FQ`, appended at the end; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -9491,3 +9491,302 @@ deleted engine files in the present tense (item 7).
 
 **What it costs if wrong.** A reader taking `CLAUDE.md`'s prefix line at its
 word would have appended a second `LR-FC`; nothing else observable.
+
+---
+
+## LR-FM — stage 10: which `Style` fields are "CSS fields", the rest narrowed to the package, and `Style` out of the kernel
+
+**The question.** Row 10 (parent spec §4.1) says "`Style`'s CSS fields
+deleted; `StyledElement.style` narrowed to what paint/animation read". The
+row was written (stage 1, `LR-L`) when the lowering was expected to stop
+reading CSS fields by now. Stage 2 instead gave most of them a SwiftUI-backed
+lowering (`LR-AB`…`LR-BA`: grow → a greedy frame shared equally, stretch → a
+greedy cross-axis frame aliased as the element's rect, `margin` → padding
+outside the item frame, …), and the demo leans on that (`flexGrow` ×11,
+`alignItems` ×15 in `DemoContent.swift`). Deleting every field the word "CSS"
+covers would move production pixels, which stage 10's exit (0 px against 9)
+forbids.
+
+**Evidence.** Record §52 §2.1 (every field's readers and production writers),
+§2.2 (the deletion by the compiler: 7 + 40 errors for four fields, the three
+enums, `.relative` and two modifiers; 14 + 29 for `border`), §2.3 (the
+narrowing: 0 errors, 1411 passed), §2.4 (the move: 17 errors, all in one test
+file; 1411 passed once it moved).
+
+**The ruling.**
+
+1. **A field is deleted when no lowering reads it to produce a layout, or no
+   production code writes it.** That is `aspectRatio` (read by nothing),
+   `overflow` (read by nothing; one inert write), `flexWrap` and `alignContent`
+   (read only to be reported — no lowering exists, parent spec §8 lists both as
+   deleted concepts), `border` (read by `paddedAndSized` and animated, but
+   written by no production path: `Box.swift`'s `border(_:width:)` family
+   writes `Decoration.border`, and `Box(style:)` was its only public writer),
+   and the case `Position.relative` (read only to be reported since stage 9
+   made the window the only containing block, `LR-FF`). The enums `FlexWrap`,
+   `AlignContent` and `Overflow` go with them; `LR-FN` rules the public
+   modifiers.
+2. **Every other stored field stays, and becomes `package`**, as do the enums
+   `Display` and `JustifyItems`, which then have no public writer. Their
+   meaning is the lowering's answer (each with its ruling), not CSS's. Outside
+   the package `Style` is an opaque value — `init()`, `default` and `==` stay
+   public — so an element's layout is spelled only through its modifiers,
+   each with a lowering. **This is how row 10's "`StyledElement.style`
+   narrowed" is realised**: the requirement stays `var style: Style { get set }`
+   (a public protocol cannot have a narrower requirement, and every conformer
+   and every modifier body needs it), and what an external caller can do with
+   the value narrows to nothing. Every test compiles unchanged: tests are in
+   the package (record §52 §2.3, 1411 passed with the narrowing).
+3. **`Style` moves from `MetalUILayout` to `MetalUI`.** Since stage 9 the
+   kernel reads no `Style` (its placeholder rows and `setStyle` are gone);
+   `MetalUI` is its only reader. After the move the layout kernel declares no
+   CSS vocabulary; `MetalUI` re-exports `MetalUILayout`, so no app's imports
+   change. `StyleTests.swift` moves to `MetalUICrossPlatformTests` (the only
+   portable test target that sees `MetalUI`), keeping its four tests on Linux
+   and Windows CI.
+4. **Departures from row 10's wording, recorded**: (a) most CSS-named fields
+   survive (item 2's reason); (b) `StyledElement.style` is narrowed by access,
+   not to a field list "paint/animation read" — paint reads `Decoration`, not
+   `Style`, so the literal reading would leave nothing but animation's fields,
+   which are the lowering's too; (c) `LR-P` item 0 listed `Style.flexGrow`'s
+   getter among symbols that must be absent — it is present (package) in
+   `MetalUI` and absent from `MetalUILayout`, and the closing check uses both
+   facts (`LR-FP`).
+
+**What it costs if wrong.** If a later stage wants a field public again,
+`package` → `public` is additive. If a caller outside the package wrote
+`Style` fields, it breaks at compile time with the access message (none exists
+in this repository: `Backends/SDL`, `Tests/PortableTests`, `Experiments` name
+no `Style` member). If `Style.border` is wanted back, its lowering was
+`padding + border` insets and its animation four `Length` keys — both
+recoverable from `8095fd9`.
+
+---
+
+## LR-FN — stage 10: every public API change, with its migration
+
+**The question.** Removing public API is breaking; the stage task says each
+public modifier whose only meaning was a deleted field is deprecated or
+removed per a ruling, with the migration spelling.
+
+**The ruling.**
+
+1. **Removed, not deprecated**: `StyledElement.flexWrap(_:)` with `FlexWrap`,
+   `StyledElement.alignContent(_:)` with `AlignContent`, and
+   `Position.relative`. Each has been a **production trap** since stage 6b
+   (reported `flexWrap`, `alignContent`, `position`; production frames never
+   report, they trap), so no working caller exists to warn: removal turns a
+   run-time trap into a compile error. A deprecated modifier with its field
+   gone would compile and do nothing — the declared-but-inert shape CLAUDE.md's
+   table exists to keep out (and `Box.swift`'s own `StyledElement` doc: "a
+   modifier for an inert property is worse than no modifier"). Migrations:
+   `flexWrap` — none, delete the call (lay rows out explicitly, or use `Grid`);
+   `alignContent` — none, delete the call (it placed wrapped lines);
+   `.position(.relative)` — delete it (the window is the only containing block,
+   `LR-FF`).
+2. **Removed**: `Overflow`, `Style.overflow`, `Style.aspectRatio` (no public
+   modifier ever wrote them — CLAUDE.md's inert rows; `.clipped()` clips,
+   `ScrollView` scrolls, the proposal `.aspectRatio(_:)` is a different API and
+   untouched), and `Style.border` (migration: `.padding(_:)` for the inset —
+   the lowering added the border to the padding — and `.border(_:width:)` to
+   paint, which `Style.border` never did).
+3. **Narrowed to `package`**: every other `Style` stored field, `Display`,
+   `JustifyItems` (`LR-FM` item 2). Migration per field: `display` →
+   `Stack`/`hidden()`; `position`/`inset` → `.position(_:)`/`.inset(_:)`;
+   `size`/`minSize`/`maxSize` → `.frame(…)` (`LR-ES`); `margin` →
+   `.margin(_:)`; `padding` → `.padding(_:)` (a layer: `MC-A`, one more
+   identity level); `flexDirection` → `Row`/`Column`/`Box.flexDirection(_:)`;
+   `gap` → `.gap(_:)`; `justifyContent`/`alignItems`/`alignSelf`/`flexGrow`/
+   `flexShrink`/`flexBasis` → their modifiers; `justifyItems` →
+   `Stack(alignment:)`/`.frame(alignment:)`.
+4. **Moved**: `Style` to `MetalUI` (`LR-FM` item 3). `Box(style:…)`,
+   `Stack`'s initialiser and every `public var style` keep their spelling;
+   `Style()` is the one value an external caller can pass.
+5. **Unchanged**: the eight sizing modifiers stage 8 deprecated (`LR-EU`),
+   `width(fraction:)`/`height(fraction:)` and their `percent:` renames,
+   `flexBasis(fraction:)`/`flexBasis(percent:)`, `margin(_:)`'s `Length`
+   parameter. Their fields survive, so the task's clause ("only meaning was a
+   deleted field") does not reach them; a `fraction:` spelling's nonzero value
+   traps by name (`LR-FO` item 1), as it has since 6b. Removing deprecated API
+   is a release decision, handed to plan task 15.
+
+**What it costs if wrong.** Item 1 is the only removal of a spelling that
+compiled at `8095fd9` and had a writer; if an external caller existed it now
+fails to compile instead of trapping at run time. Item 5 leaves spellings that
+trap in production reachable until task 15.
+
+---
+
+## LR-FO — stage 10: every inherited `Style`-field report becomes a permanent refusal; the §29 items; `Style()` writes, `CSSSizing.swift` and `LegacyLowering` kept
+
+**The question.** Stage 8 (`LR-ER` item 4) left seven report families to "die
+with their field at stage 10"; stage 5 (record §29 §15) left an absolute box
+outside a `Deferred`, `Position.relative`, `inset` on a static box and the
+public spelling of a presentation's insets to stage 10; stage 8 re-owned
+`…absolute` here (`LR-EZ` item 3); 7a named `flexGrow.weights`' field stage
+10's. `LR-FM` keeps most of those fields, so most reports cannot die with them.
+And every trap message names a plan-task-7 stage as owner — after stage 10,
+"(plan task 7, stage 2)" names a finished stage as if it still owed work.
+
+**The ruling.**
+
+1. **Permanent refusals**: percentages (`size`, `padding`, `margin`, `minSize`,
+   `maxSize`, `gap`, a percent `flexBasis`), a non-greedy `maxSize`, a length
+   `flexBasis`, a floored `space-*` (`justifyContent.<case>` on an unsized
+   grown container), a root's auto-axis min/max and margin (their
+   `.unconsumed` forms), `…absolute` on a `Style`-written box, `LR-AQ`'s
+   `…unconsumed` item fields, unequal grow weights (`flexGrow.weights`, 7a
+   probe G0/G1: SwiftUI shares a surplus equally), a negative `flexGrow` or
+   `flexShrink`. Each keeps its report and its production trap, now as a
+   by-name refusal of a value the kernel has no answer for, not as work owed.
+   Where the value is still publicly spellable (the `fraction:` modifiers, a
+   deprecated sizing modifier, `margin(Edges<Length>)` with a percentage,
+   `flexBasis(_:)` with a nonzero length, unequal `flexGrow`s), the trap is
+   what a caller meets.
+2. **The §29 items**: an absolute box outside a `Deferred` (`position`/`inset`
+   at the consumer, `LR-CK`) and `inset` on a static box are **permanent
+   refusals** (item 1's footing: no lowering exists, and the only absolute
+   layout the kernel has is a presentation's, `LR-CH`); `…absolute` likewise;
+   `Position.relative` is **deleted** (`LR-FM` item 1).
+3. **The owner, and the message.** `UnlowerableField.owningStage: String`
+   becomes `owner: String?` — `"plan task 7, stage 11"` for site `deferred`
+   (`deferred.amended`, `LR-FF`), `"plan task 11"` for a field with the prefix
+   `alignItems.baseline` or `alignSelf.baseline` (baselines, parent spec §8),
+   `nil` otherwise. The trap message keeps its prefix `"MetalUI: <site>.<field>
+   has no proposal lowering"` (which every `stderr` assertion reads) and then
+   reads `(<owner>)` or `and is refused by name (plan task 7, LR-FO)`. Three
+   tests read the old owner (`AbsoluteOverlayTests`' exit test,
+   `PresentationLoweringTests`' `"10"`, `LoweringScrollTests`' `"3"`) plus
+   `PresentationContainingBlockTests`' `"11"`; each is a T row in lane 1, and
+   N1.1 pins the scheme over every field the lowering raises.
+4. **The public spelling of a presentation's insets stays**
+   `Deferred { … .position(.absolute).inset(…) }` — the demo's own spelling,
+   lowered and pinned since stage 5. A presentation modifier would be new API
+   with its own identity and animation questions (`inset` animates); nothing in
+   task 7 needs it.
+5. **`Style()` writes in tests** (`LR-ER` item 6's clause, re-owned here): a
+   write of a **surviving** field stays — it is the in-package spelling of that
+   field (every test is in the package, `@testable` or not), and the
+   container-field writes still have no one-to-one modifier (`LR-ER` item 6:
+   `Box(style:)` with `flexDirection = .column` stretches where `Column`
+   centres, EP-8). A write of a **deleted** field is moved off it or retired —
+   the compiler's list, record §52 §2.2, is spec §6's lane 1. LR-ER item 6's
+   premise ("stage 10 deletes the fields and must touch every writer once")
+   holds only for the deleted fields.
+6. **`CSSSizing.swift` stays.** Its helpers write `Style.size`/`minSize`/
+   `maxSize`, which survive; they are class K's spelling (`LR-EW`), chosen
+   because `.frame` would wrap the element in a layer and change the subject
+   (record §50 §5), and that reason stands. Its doc's "they die with
+   `Style.size`/`minSize`/`maxSize` at stage 10" is corrected in lane 1.
+   `theCSSSizingHelpersWriteWhatTheDeprecatedModifiersWrite` is unchanged (the
+   deprecated modifiers survive, `LR-FN` item 5).
+7. **`LegacyLowering`'s name stays** (`LR-FC` item 4's reason): every record
+   and ruling cites it, and its header already says it is the only path since
+   stage 9. Renaming is cosmetic churn with no behaviour.
+
+**What it costs if wrong.** If a later task lowers one of item 1's values
+(a percentage against a proposal, say), its report is deleted then and its
+owner question does not arise. If a reader wants the old stage numbers, they
+are in this doc's earlier rulings and in git; the message no longer carries
+them. Item 5 leaves `Box(style:)` writes throughout the tests, which a reader
+of the public API cannot write — they test the lowering's inputs, which is
+what the lowering's own sites feed it.
+
+---
+
+## LR-FP — stage 10: the closing check — `dlsym` on macOS and Linux, three guards, the grep
+
+**The question.** `LR-P` designed the check; stage 9 deleted its runtime
+predecessor (`noProductionFrameReachesTheLegacyEngine`) and handed the check
+here. What exactly it resolves, how it cannot skip, and what it does off Apple.
+
+**Evidence.** Record §52 §2.5 and `docs/probes/stage-10-legacy-symbols.txt`:
+the names, each printed by `nm -gU` from the commit that still had it
+(`b9a5d7f` for stage 9's, `8095fd9` for stage 10's), and `dlsym(RTLD_DEFAULT,
+…)` resolving a present name and not a deleted one in the test process on
+macOS (both build systems) and Linux (`swift:6.4-noble`).
+
+**The ruling.**
+
+1. **`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`** lives in
+   `Tests/MetalUICrossPlatformTests/LegacyEngineSymbolTests.swift`, the one
+   portable target that links `MetalUI`, so Linux CI runs it. It resolves 22
+   names that must be absent — stage 9's seven (`computeLayout`, both
+   `requestNode`/`requestLeaf` pairs on `LayoutPass` and `Frame`,
+   `LayoutAuthority`'s metadata accessor, `legacyRootLayoutCounter`), stage
+   10's eleven as they existed in `MetalUILayout` (the five deleted fields'
+   getters, `flexGrow`'s getter in the kernel module, the three deleted
+   enums' metadata accessors, the two removed modifiers), and four names a
+   regression re-adding a deleted field to the moved `Style` would export —
+   and five positive controls that must resolve (`MetalUI`'s
+   `Style.flexGrow` getter, `StyledElement.flexGrow(_:)`,
+   `LayoutTree.computeNativeLayout(root:proposal:in:)`, and both
+   `requestNativeLeaf`s).
+2. **It cannot skip**: no `.enabled(if:)`, no early return; the positive
+   controls are `try #require`d first, so a broken instrument (a stripped
+   binary, a wrong handle) reads red, not green. The names are literals in the
+   test with a comment naming the instrument file, whose blocks carry the
+   commands.
+3. **What it cannot see** (`LR-P` item 0 said so): a renamed entry point. The
+   guards and the grep cover that.
+4. **Windows: compiled out** (`#if canImport(Darwin) || canImport(Glibc)`
+   around the file), by `PC-B`'s rule for a test that needs a platform API
+   (compiled out per declaration, not skipped). Windows has no `dlsym`;
+   `GetProcAddress` sees only symbols an executable exports, which Swift does
+   not do by default for an executable, and no Windows host was available to
+   measure it. The names are platform-independent (Swift's mangling, the
+   same source), so Windows would add no information macOS and Linux lack.
+   `MetalUICrossPlatformTests` therefore reads one fewer test on Windows (9
+   against 10).
+5. **Three plain-import guards** (`typecheckFile`, `SA-P`), in
+   `Tests/MetalUITests/StyleSurfaceCompileGuards.swift`: G1 a `Style` field
+   cannot be written from outside the package (the access message; the
+   modifier control compiles); G2 every deleted spelling fails with its own
+   message (the kept spellings compile); G3 `MetalUILayout.Style` does not
+   exist (the `MetalUI` spelling compiles). They skip where the guards always
+   skip (CLAUDE.md's CI section); the `dlsym` test is the half that cannot.
+   `LR-P` item 1's four guards: `computeLayout`/`requestNode`/`requestLeaf`
+   were re-spelled by stage 9 (`LayoutAuthorityCompileGuards`); `Style().flexGrow
+   = 1` is G1, failing by access rather than absence (`LR-FM` item 4 (c)).
+6. **The grep** (`LR-P` item 3, widened): spec §8 item 1's four commands,
+   recorded with their output in the stage's record.
+
+**What it costs if wrong.** If Linux CI's test executable stops exporting
+symbols, the positive controls fail there — loudly, which is the point. If a
+Windows path to the same check is wanted later, `GetProcAddress` over an
+executable built with exported symbols is the measurement to take.
+
+---
+
+## LR-FQ — stage 10: two lanes, the deletion last; the accounting and the mutation plan
+
+**The ruling.**
+
+1. **Two lanes, in order.** Lane 1 moves every test off a deleted field or
+   retires it (the compiler's list, record §52 §2.2), and makes the reports
+   permanent (`LR-FO` item 3; its one `Sources` file, `LayoutAuthority.swift`).
+   Lane 2 deletes, narrows, moves and lands the closing check — a red-first
+   commit (N2.1, G1–G3) and then the deletion (stage 9's N3.1 precedent). No
+   file is in both lanes (spec §4.4). A third lane would split lane 1's test
+   files, which the two families (the four fields and `border`) share
+   (`LoweringContainerTests`, `LoweringLeafTests`,
+   `GoldenReplacementStackTests`, `AnimationTests`), so it would not be
+   disjoint.
+2. **The accounting**: lane 1 removes 3 names (D1.1, D1.2, the old name of
+   T1.16) and adds 2 (N1.1, T1.16's new name): 1411 − 3 + 2 = **1410**. Lane 2
+   adds 4 (N2.1, G1–G3): **1414**. Guards 79 → **82**. Portable targets 22 +
+   188 + 10 (Windows 22 + 188 + 9).
+3. **The mutations** (spec §6): M1a–M1d in lane 1; M2a–M2e in lane 2, each
+   from a committed tree, restored from a copy, full unfiltered suite, every
+   reddened test named; M2a also prints the instrument file's three predicted
+   names.
+4. **The demo**: `compare.sh <scratch> 8095fd9 <head>` 0 differing in all
+   fourteen images at both heads; `DemoFrameDeterminismTests` and
+   `DemoStackBudgetTests` green unedited; `MemoryLayout<Style>.size` and the
+   demo's value size recorded at lane 2's head (226 and 34 808 before; 178
+   predicted for `Style`).
+
+**What it costs if wrong.** Between lane 1's head and lane 2's, the deleted
+fields' report lines and `border`'s lowering are live but unpinned (lane 1
+retired or re-spelled the tests that read them); lane 2 deletes them, so no
+merged state carries unpinned code.

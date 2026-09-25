@@ -1,0 +1,107 @@
+# Stage 10 (plan task 7) — the mangled names the closing check resolves
+#
+# Instrument for `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+# (spec docs/superpowers/specs/2026-09-24-engine-stage-10-design.md §6, lane 2,
+# test N2.1; ruling LR-FP). Every name below was printed by the command above
+# its block, on macOS 27.0 arm64, Apple Swift 6.4, debug builds, 2026-09-24.
+# Swift's mangling is platform-independent: the Linux run (block E) resolved
+# the same strings.
+#
+# ---------------------------------------------------------------------------
+# A. Deleted by stage 9 — captured at b9a5d7f (the commit before stage 9's
+#    deletion), from a `git archive`, never a worktree:
+#
+#   git archive b9a5d7f | tar -x -C $SCRATCH/b9
+#   cp -R Sources/MetalUIShaderTypes/include $SCRATCH/b9/Sources/MetalUIShaderTypes/   # the untracked symlink
+#   cd $SCRATCH/b9 && swift build --build-system native --target MetalUI
+#   nm -gU .build/debug/MetalUI.build/*.o .build/debug/MetalUILayout.build/*.o \
+#     | grep -E '5FrameC11request(Node|Leaf)5style|10LayoutPassV11request(Node|Leaf)5style|15LayoutAuthorityOMa|legacyRootLayoutCounter.*vgZ|13computeLayout_'
+#
+$s13MetalUILayout13computeLayout_4root9available0E8FontSizeyAA0D4TreeC_AA0D6NodeIDVAA014AvailableSpaceH0VSdtF
+$s7MetalUI10LayoutPassV11requestNode5style8children0A8UILayout0cF2IDVAG5StyleV_SayAIGtF
+$s7MetalUI10LayoutPassV11requestLeaf5style7measure0A8UILayout0C6NodeIDVAG5StyleV_AG5SizeDVAG08OptionalM1DV_AG014AvailableSpaceM0VtYbctF
+$s7MetalUI5FrameC11requestNode5style8children0A8UILayout06LayoutE2IDVAG5StyleV_SayAIGtF
+$s7MetalUI5FrameC11requestLeaf5style7measure0A8UILayout12LayoutNodeIDVAG5StyleV_AG5SizeDVAG08OptionalM1DV_AG014AvailableSpaceM0VtYbctF
+$s7MetalUI15LayoutAuthorityOMa
+$s7MetalUI5FrameC23legacyRootLayoutCounterAC06LegacyefG0CSgvgZ
+#
+# The computeLayout name is byte-identical to the one record §18 measured at
+# c2290fc (critic round 1, finding 17).
+#
+# ---------------------------------------------------------------------------
+# B. Deleted, or moved out of the kernel, by stage 10 — captured at 8095fd9
+#    from the unfiltered suite's own test binary:
+#
+#   swift build --build-system native --build-tests
+#   nm -gU .build/arm64-apple-macosx/debug/MetalUIPackageTests.xctest/Contents/MacOS/MetalUIPackageTests \
+#     | grep -E '13MetalUILayout5StyleV(6border|8flexGrow|8flexWrap|12alignContent|11aspectRatio|8overflow).*vg$|13MetalUILayout(8FlexWrap|12AlignContent|8Overflow)OMa$|13StyledElementPAAE(8flexWrap|12alignContent)'
+#
+$s13MetalUILayout5StyleV8flexGrowSfvg
+$s13MetalUILayout5StyleV8flexWrapAA04FlexE0Ovg
+$s13MetalUILayout5StyleV12alignContentAA05AlignE0OSgvg
+$s13MetalUILayout5StyleV11aspectRatioSfSgvg
+$s13MetalUILayout5StyleV8overflow0A6UICore4AxesVyAA8OverflowOGvg
+$s13MetalUILayout5StyleV6border0A6UICore5EdgesVyAE6LengthOGvg
+$s13MetalUILayout8FlexWrapOMa
+$s13MetalUILayout12AlignContentOMa
+$s13MetalUILayout8OverflowOMa
+$s7MetalUI13StyledElementPAAE8flexWrapyx0A8UILayout04FlexF0OF
+$s7MetalUI13StyledElementPAAE12alignContentyx0A8UILayout05AlignF0OF
+#
+# `$s13MetalUILayout5StyleV8flexGrowSfvg` is absent after stage 10 because
+# `Style` MOVES to `MetalUI` (LR-FM item 3), not because `flexGrow` is deleted:
+# its MetalUI-module twin is a positive control (block D).
+#
+# ---------------------------------------------------------------------------
+# C. What a regression that re-adds a deleted field to the MOVED `Style` would
+#    export (so the absent list sees it too). The border name was printed from
+#    the scratch move (`git mv Sources/MetalUILayout/Style.swift Sources/MetalUI/`,
+#    record §52 §2.3), `nm -gU .build/arm64-apple-macosx/debug/MetalUI.build/Style.swift.o`:
+#
+$s7MetalUI5StyleV6border0A6UICore5EdgesVyAE6LengthOGvg
+#
+#    PREDICTED, not printed (lane 2 prints each from its mutant M2a and
+#    corrects this file if one differs):
+#
+$s7MetalUI5StyleV8flexWrapAA04FlexE0Ovg
+$s7MetalUI5StyleV12alignContentAA05AlignE0OSgvg
+$s7MetalUI5StyleV11aspectRatioSfSgvg
+#
+# ---------------------------------------------------------------------------
+# D. Positive controls — must resolve, or the instrument is broken. The first
+#    was printed from the scratch move's object (as C); the rest from 8095fd9's
+#    test binary (as B):
+#
+$s7MetalUI5StyleV8flexGrowSfvg
+$s7MetalUI13StyledElementPAAE8flexGrowyxSfF
+$s13MetalUILayout10LayoutTreeC013computeNativeC04root8proposal2inAA0C11MeasurementVAA0C6NodeIDV_AA12ProposedSizeVAA0C4RectVtF
+$s7MetalUI10LayoutPassV17requestNativeLeaf7measureAA14ProposalNodeIDV0A8UILayout0C11MeasurementVAH12ProposedSizeVYbc_tF
+$s7MetalUI5FrameC17requestNativeLeaf7measure0A8UILayout12LayoutNodeIDVAF0I11MeasurementVAF12ProposedSizeVYbc_tF
+#
+# A `package` stored property keeps an exported accessor: with every `Style`
+# field narrowed to `package` in scratch (record §52 §2.2),
+# `nm -gU .build/arm64-apple-macosx/debug/MetalUILayout.build/Style.swift.o`
+# still printed `T _$s13MetalUILayout5StyleV8flexGrowSfvg` and `…vs`.
+#
+# ---------------------------------------------------------------------------
+# E. The measurement that the instrument works in the test process
+#    (scratch test `scratchDlsym`, in Tests/MetalUICrossPlatformTests, deleted
+#    after; handle RTLD_DEFAULT = UnsafeMutableRawPointer(bitPattern: -2) on
+#    Darwin, nil on Glibc), at 8095fd9:
+#
+#   macOS, `swift test --build-system native --skip-build --filter scratchDlsym`
+#   and the same under the default build system — identical:
+#     $s13MetalUILayout5StyleV8flexGrowSfvg true
+#     $s13MetalUILayout5StyleV8flexWrapAA04FlexE0Ovg true
+#     $s7MetalUI10LayoutPassV17requestNativeLeaf7measure… true
+#     $s7MetalUI5FrameC17requestNativeLeaf7measure… true
+#     $s13MetalUILayout13computeLayout_4root9available… false
+#
+#   Linux, `swift:6.4-noble` (OrbStack, aarch64) over `git archive HEAD` plus
+#   the scratch file: `swift build --build-tests`, then
+#   `swift test --skip-build --filter scratchDlsym` — the same five lines,
+#   `✔ Test scratchDlsym() passed`. SwiftPM's Linux test executable exports
+#   its symbols to dlsym(RTLD_DEFAULT).
+#
+#   Windows: not measured (no Windows host). The test is compiled out there
+#   (LR-FP item 4).
