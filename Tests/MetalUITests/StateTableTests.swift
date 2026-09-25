@@ -240,8 +240,12 @@ struct CountingElement: Element {
 /// two `IdentityTests` cases the same sensitivity, incidentally.**
 /// `flippingAnEitherBranchResetsTheBranchesState` and
 /// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`
-/// (`IdentityTests.swift`) also added an `isLive` assertion on an abandoned
-/// branch's entry when Task 1 inverted them, and that assertion happens to be
+/// (`IdentityTests.swift`; the latter renamed
+/// `anElementAfterAVanishingIfKeepsItsOwnState` by `ID-B`, and since `ID-C`
+/// deletes the abandoned entry it asserts `peek == nil` rather than `isLive`,
+/// so what follows about it is history) also added an `isLive` assertion on an
+/// abandoned branch's entry when Task 1 inverted them, and that assertion
+/// happened to be
 /// sensitive to the same one-frame liveness lag this test exists to pin —
 /// moving `sweep()` reddens all three, not one. Neither of the two is a
 /// second ordering guard: what each test is actually *for* (branch state

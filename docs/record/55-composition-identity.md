@@ -385,8 +385,10 @@ type 'StateTable' has no member 'subtreeResetScans'` (C2.9) and `:399: generic
 struct 'HStack' requires that 'EitherGroup<ProposalConditionalCounter,
 ProposalConditionalCounter>' conform to 'ProposalElementGroup'` (C2.11). With
 those two compiled out (uncommitted), `Test run with 1463 tests in 3 suites
-failed … with 60 issues`, every one in a lane-2 test; G2.1 printed `positive:
-succeeded=false`, `control: succeeded=false`.
+failed … with 61 issues`, every one in a lane-2 test; G2.1 printed `positive:
+succeeded=false`, `control: succeeded=false`. (This read "60 issues", as did
+`4fe5881`'s message; lane 2's review re-ran it at 61 — 25 tests, each count
+as the table below — and 61 is also the sum of the table's lines.)
 
 | test | failing line(s) |
 |---|---|
@@ -427,6 +429,17 @@ G2.1); guards **85** (`canTypecheck(module` grep 82 → 83 at `a2cd063` → `HEA
 `theSevenRetentionSlotsAreMutuallyDistinct` and
 `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green in that run.
 `StateTableTests.swift` unedited (no count literal moved).
+
+**After lane 2's review round (`ID-P` item 7).** C2.13
+`contentAnIfInsideAProposalContainerRemovesIsResetWhenItReturns` added (the
+typed `OptionalGroup` copy's reset, which no test pinned — N1 below), and stale
+test names in comments renamed or marked as predating `ID-B`
+(`ElementLayoutTests`, `StateTableTests` — comment only, no literal —
+`ComponentTests`, `IdentityTests`). Both build systems: 0 `error:`, the only
+`warning:` SwiftPM's deprecation notice. **`Test run with 1466 tests in 3
+suites passed after 81.683 seconds`**, guards ran (`FR-J no-argument frame:
+succeeded=true`, `CONDITIONAL GUARD G2.1 positive: succeeded=true`). **1466 =
+1454 + 12**; guards 85. No `Sources/` line moved, so the pixel run above stands.
 
 **Retirement rows (eight, `goldensUnchanged`).** Each renamed test's answer
 changed by ruling; none deleted:
@@ -477,6 +490,7 @@ unfiltered, `git status --short` empty after each. Copy named per row.
 | M2i | typed `EitherGroup` | both branches at `branchIndex` | C2.11 alone |
 | G2.1 | typed `EitherGroup` | conformance deleted (C2.11 compiled out, uncommitted) | G2.1 alone (`positive: succeeded=false`; 1464 tests) |
 | Mp | `Window.dispatchClick` | `hit.id === pressed` | `aPressHeldAcrossARebuild…` (arm 2), `aClickNeedsTheTargetEnabledAtPressAndAtRelease` — 2 |
+| N1 | typed `OptionalGroup` | `noteAbsent(slot)` replaced with `_ = slot` (review round, from the C2.13 commit) | before C2.13: **none** (`1465 tests … passed`); after: C2.13 alone (1 issue, `c == 1` read 2) |
 | Mo | `OverlayModifier`, both entries | overlay side threaded through the primary's cursor (`MC-E`) | `aLegacyOverlayKeeps…` (6), `anOverlaysIdentity…` (3) among 8 tests, 17 issues (`ID-P` item 3) |
 
 M2a′'s three extra tests and M2f's `aFocusRequestWhileDisabled…` were not in

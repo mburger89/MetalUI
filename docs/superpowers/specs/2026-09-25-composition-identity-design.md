@@ -318,7 +318,9 @@ frame never swaps them and so never resets.
 an eighth retirement row (`anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting`
 → `aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop`); C2.4's
 iterations count in steps of 10; mutation M2c′ (the typed `ArrayGroup`) added;
-M2a′ also reddens three typed-primary overlay/background tests.
+M2a′ also reddens three typed-primary overlay/background tests. **Amended
+again by `ID-P` item 7**: C2.13 (the typed `OptionalGroup` copy's reset,
+mutation N1) makes lane 2 **1454 → 1466**.
 
 ### Lane 3 — explicit identity and the legacy background (`ID-G`, `ID-J`, pins)
 
@@ -360,12 +362,12 @@ expected argument type 'ProposalAlignment'`); mutated red once by declaring
 `.background { }` is offered, as `.overlay { }` is. `ErasureCompileGuards.swift`
 joins lane 3's files for this one edit.
 
-**Lane 3 adds 16 tests** (13 + guards G3.1–G3.3; 1463 → **1479**; 1465 → **1481** after `ID-O`, `ID-P` item 4), guards 85 →
+**Lane 3 adds 16 tests** (13 + guards G3.1–G3.3; 1463 → **1479**; 1465 → **1481** after `ID-O`, `ID-P` item 4; 1466 → **1482** after `ID-P` item 7), guards 85 →
 **88**.
 
 ## 6. Accounting, pixels, gates
 
-- **Suite: 1444 → 1452 → 1463 → 1479** (`ID-M`); **1444 → 1454 → 1465 → 1481** after `ID-O`'s two lane-1 tests (`ID-P` item 4). Guards 84 → 84 → 85 → 88.
+- **Suite: 1444 → 1452 → 1463 → 1479** (`ID-M`); **1444 → 1454 → 1465 → 1481** after `ID-O`'s two lane-1 tests (`ID-P` item 4); **1444 → 1454 → 1466 → 1482** after C2.13 (`ID-P` item 7). Guards 84 → 84 → 85 → 88.
   No goldens. Every removed or renamed `@Test` has a retirement row in its
   lane's record section (`goldensUnchanged`): the R rows above, seven in lane
   2 (C2.1, C2.5a, C2.5b and the four listed after its table) — **eight** with

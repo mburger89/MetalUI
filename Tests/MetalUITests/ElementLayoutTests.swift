@@ -452,7 +452,11 @@ private func pathID(_ names: String...) -> GlobalElementID {
 /// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`,
 /// `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`). **This comment said
 /// "eight" until Task 4 re-ran it**: the count was taken before the fix commit
-/// that added the last two, which is ruling SI-H.
+/// that added the last two, which is ruling SI-H. **The "ten" and this list
+/// were taken before `ID-B`** (task 8 lane 2), not re-run since: the last two
+/// were renamed `anElementAfterAVanishingIfKeepsItsOwnState` and
+/// `namingEitherSideOfAVanishingIfLeavesTheTrailingSiblingsStateAlone` when
+/// `ID-B` ended adoption, and their assertions changed with it.
 ///
 /// **Two things a first draft of this paragraph predicted and measurement
 /// falsified**, which is why it is worth reading rather than trusting: it named

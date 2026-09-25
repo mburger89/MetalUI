@@ -56,7 +56,11 @@ import MetalUICore
 /// `theIndexSpaceIsFlatRatherThanNested`,
 /// `reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem`,
 /// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState` and
-/// `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`. The other four are not
+/// `namingTheLaterSiblingIsWhatSurvivesAVanishingIf` (names and count as of
+/// that measurement, before `ID-B` renamed the last two
+/// `anElementAfterAVanishingIfKeepsItsOwnState` and
+/// `namingEitherSideOfAVanishingIfLeavesTheTrailingSiblingsStateAlone`; not
+/// re-run since). The other four are not
 /// redundant with it: they see the collapse at three children, across two
 /// frames, and — the last two — through a vanishing `if`. **This comment said
 /// "three" until Task 4 re-ran it** — the count was taken before the fix commit
@@ -114,7 +118,9 @@ import MetalUICore
 /// (`StateTableTests.swift`), `aContainerGivesItsChildrenPathsBuiltFromItsOwn`
 /// (`ElementLayoutTests.swift`), `twoSiblingsWithTheSameIDShareOneStateEntry`
 /// (`ElementGroupTrapTests.swift`) and
-/// `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`. This comment said "five"
+/// `namingTheLaterSiblingIsWhatSurvivesAVanishingIf` (renamed
+/// `namingEitherSideOfAVanishingIfLeavesTheTrailingSiblingsStateAlone` by
+/// `ID-B`; the count predates it and was not re-run). This comment said "five"
 /// until Task 4 re-ran it, missing the last — the count was taken before the fix
 /// commit that added it (ruling SI-H). This is the only one of the six that
 /// shows the *consequence* — a moved item's state resetting — rather than the

@@ -361,9 +361,11 @@ private struct Wrapper: Component {
 }
 
 /// Spec §6 assertion 5, both halves in one test, because the ASYMMETRY is the
-/// evidence — the pattern `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`
-/// already uses. A named component keeps its own count through a swap; an
-/// unnamed one's count follows the position.
+/// evidence — the pattern
+/// `namingEitherSideOfAVanishingIfLeavesTheTrailingSiblingsStateAlone`
+/// (`namingTheLaterSiblingIsWhatSurvivesAVanishingIf` before `ID-B`) already
+/// uses. A named component keeps its own count through a swap; an unnamed
+/// one's count follows the position.
 @MainActor
 @Test func aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot() {
     let size = Size<Pixels>(width: px(100), height: px(100))

@@ -665,6 +665,7 @@ per frame; the whole suite and all fourteen offscreen images read unchanged.
    because the flip no longer exists.
 4. **Accounting.** Lane 1's review round (`ID-O`) added O1.9 and O1.10, so lane
    2 runs **1454 → 1465**, not 1452 → 1463; lane 3 then runs 1465 → **1481**.
+   **Superseded by item 7**: lane 2 closes at **1466**, lane 3 1466 → **1482**.
    Guards 84 → 85 → 88 unchanged.
 5. **Mutation predictions.** **M2a′** (typed `OptionalGroup`) reddens C2.5a and
    C2.5b **and three typed-primary overlay/background tests**
@@ -679,6 +680,18 @@ per frame; the whole suite and all fourteen offscreen images read unchanged.
    handed to the trailing sibling), `Window.swift` (`dispatchClick`'s doc and
    its pin's name), `State.swift` (divergence 71's pin, renamed) and
    `Frame.swift` (a renamed test in the sweep-ordering note). No statement moves.
+7. **Lane 2's review round: the typed `OptionalGroup` copy's reset gets its own
+   test.** No test pinned the typed copy's `noteAbsent` — mutation **N1**
+   (`noteAbsent(slot)` replaced with `_ = slot` in `ProposalElementGroup.swift`)
+   left all 1465 green, the "a copy of a pinned implementation is unpinned"
+   hazard (C2.5a/C2.5b pin only its slot, C2.11 the typed `EitherGroup`). C2.13
+   `contentAnIfInsideAProposalContainerRemovesIsResetWhenItReturns` adds it and
+   N1 reddens it alone. Lane 2 therefore runs **1454 → 1466** (1466 = 1454 +
+   12), and lane 3 **1466 → 1482**; guards unchanged. Stale test names in
+   comments (`ElementLayoutTests`, `StateTableTests`, `ComponentTests`,
+   `IdentityTests`) are renamed or marked as predating `ID-B`; record §55 §6.2's
+   red-run issue count is corrected 60 → **61** (re-run, and the sum of its own
+   per-test lines).
 
 **Evidence.** Record §55 §6.
 
