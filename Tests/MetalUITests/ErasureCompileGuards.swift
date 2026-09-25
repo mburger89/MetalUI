@@ -218,6 +218,19 @@ func aCopyableElementCanBeStoredInAnArray() throws {
 /// `padding`/`width`/`height` do, and are deliberately not declared in the
 /// `Component` extension at all. A regression that adds one makes this
 /// *compile*, which no runtime test could see.
+///
+/// **The TOKEN background, since plan task 8** (ruling `ID-J`; `ID-I` item 6 as
+/// amended by `ID-M` item 1): the content-taking `.background(alignment:content:)`
+/// is declared on `ElementGroup`, so a `Component` IS offered `.background { }`,
+/// exactly as it is offered `.overlay { }` (a one-member component attaches, a
+/// multi-member one traps naming its count, divergence 73). What stays
+/// unoffered is `background(_ token: ColorToken)`. With the content overload in
+/// scope the old fixture `Leafless().background(.accent)` was still rejected,
+/// but as `missing argument label 'alignment:'`, which does not name
+/// `background` — so the fixture spells the token's type and the reason check
+/// reads it: `cannot convert value of type 'ColorToken' to expected argument
+/// type 'ProposalAlignment'` (T row, record §55 lane 3). Mutated red once: a
+/// `background(_: ColorToken)` declared on `Component` makes the fixture compile.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func backgroundCannotBeCalledOnAComponent() throws {
     let result = try typecheck("""
@@ -226,12 +239,12 @@ func backgroundCannotBeCalledOnAComponent() throws {
             var content: some ElementGroup { EmptyGroup() }
         }
         @MainActor func probe() {
-            _ = Leafless().background(.accent)
+            _ = Leafless().background(ColorToken.accent)
         }
         """, importing: "MetalUI")
     #expect(!result.succeeded,
-            "`.background()` type-checks on a Component — it must stay Decoration-backed and undistributable:\n\(result.output)")
-    #expect(result.messages.contains("background"),
+            "`.background(_: ColorToken)` type-checks on a Component — it must stay Decoration-backed and undistributable:\n\(result.output)")
+    #expect(result.messages.contains("ColorToken"),
             "rejected, but not for the reason this test is about:\n\(result.output)")
 }
 
