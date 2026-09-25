@@ -470,7 +470,7 @@ private struct EnvironmentPainter: Element {
 
 /// **O1.10.** A frame built while input dispatch names an owner still reads
 /// each occurrence's own per-phase binding: `Frame.render` suspends the
-/// dispatch owner for the build (ID-F item 6). Without the suspension,
+/// dispatch owner for the build (ID-O item 2). Without the suspension,
 /// occurrence 1's paint resolves to the owner's occurrence and reads
 /// `[7, 7]`.
 @MainActor

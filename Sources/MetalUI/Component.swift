@@ -195,10 +195,10 @@ extension Component {
         var innerCursor = 0
         // `requestGroupLayout`, never `requestLayout` — this is what reaches
         // `StateBinder.bind` for every element inside `content`. Calling
-        // `requestLayout` directly is the live `AnyElement` defect in
-        // CLAUDE.md's declared-but-inert table: `@State` returns its initial
-        // value forever, with NO diagnostic, because nothing ever seeds its
-        // box.
+        // `requestLayout` directly would skip that bind — the shape
+        // `AnyElement` had before plan task 8's ID-E: `@State` returns its
+        // initial value forever, with NO diagnostic, because nothing ever
+        // seeds its box.
         // MUTATION (Task 2 Step 4, second mutation — RE-TAKEN fix round 2
         // against the full 806-test file): calling this recursive step
         // TWICE on `materialized` (discarding the first call, resetting

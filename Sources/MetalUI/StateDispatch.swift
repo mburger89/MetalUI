@@ -24,6 +24,10 @@ import MetalUICore
 /// **Outside dispatch the owner is `nil`**, and an aliased box reads and writes
 /// its last-bound slot, as before — divergence 71 (a timer, a task or a direct
 /// call; SwiftUI keeps each occurrence's own storage there too, probe S5).
+///
+/// **A frame build is outside dispatch too.** `Frame.render` clears the owner
+/// for the build (`outsideDispatch`), so the binds of layout, prepaint and
+/// paint are what a phase reads even when a handler renders synchronously.
 @MainActor
 enum StateDispatch {
     /// The element whose handler is running, or `nil` outside input dispatch.
@@ -34,6 +38,20 @@ enum StateDispatch {
     static func dispatching<R>(to id: GlobalElementID, _ body: () throws -> R) rethrows -> R {
         let previous = owner
         owner = id
+        defer { owner = previous }
+        return try body()
+    }
+
+    /// Runs `body` with no owner, restoring the previous one after.
+    /// `Frame.render` builds every frame inside this, so a frame built while a
+    /// handler runs — no production path does today; `drawFrameIfNeeded` is
+    /// called from the run loop and the display link — still reads each
+    /// occurrence's own per-phase binding, never the dispatching owner's
+    /// (ID-O item 2; pinned by
+    /// `aFrameBuiltInsideADispatchedHandlerReadsEachOccurrencesBinding`).
+    static func outsideDispatch<R>(_ body: () throws -> R) rethrows -> R {
+        let previous = owner
+        owner = nil
         defer { owner = previous }
         return try body()
     }

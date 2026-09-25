@@ -1879,6 +1879,12 @@ public final class Frame {
     /// one contributes its own positional component instead of stopping the
     /// path. See `ElementGroup.swift` for the cursor that supplies the index.
     func render<E: Element>(_ element: inout E) {
+        // A build reads each phase's own bind, never a dispatching owner's
+        // occurrence (ID-O item 2, `StateDispatch.outsideDispatch`).
+        StateDispatch.outsideDispatch { renderOutsideDispatch(&element) }
+    }
+
+    private func renderOutsideDispatch<E: Element>(_ element: inout E) {
         isRendering = true
         // The root is the only id with no parent, and the only one this file
         // builds. `at: 0` is not inert: an unnamed root element takes

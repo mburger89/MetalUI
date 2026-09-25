@@ -435,9 +435,9 @@ private struct Wrapper: Component {
 
 /// Spec §4.2's load-bearing line: the content is reached through
 /// `requestGroupLayout`, which is what calls `StateBinder.bind` for every
-/// element inside it. Forwarding to `requestLayout` instead is the live
-/// `AnyElement` defect — `@State` returns its initial value forever, with no
-/// diagnostic.
+/// element inside it. Forwarding to `requestLayout` instead would skip
+/// `StateBinder.bind` — the shape `AnyElement` had before plan task 8's ID-E —
+/// and `@State` would return its initial value forever, with no diagnostic.
 ///
 /// **This and `aComponentsOwnStateSurvivesAcrossFrames` must be reddened by
 /// DIFFERENT mutations**, or one of the two is proving less than it claims.
