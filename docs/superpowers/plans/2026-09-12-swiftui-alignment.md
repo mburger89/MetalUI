@@ -1022,13 +1022,13 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   guards**; 0 px against `89a8337` in all fourteen images. The real-window
   capture is still owed to a human (§55 §8.5), as before.
 
-- [ ] **9. Expand the environment and control-state model.**
+- [x] **9. Expand the environment and control-state model.**
   Evolve `Theme` into scoped environment values: enabled state, layout
   direction, locale, dynamic type/scale, control state and platform metrics.
   Add read/write environment modifiers with nearest-ancestor precedence; do
   not recreate a CSS cascade. Resolve the existing `Binding` naming collision
   before introducing SwiftUI-like bindings.
-  *Progress 2026-09-15, still open* (`feat/environment`, rulings `EV-A`…`EV-Z`,
+  *Progress 2026-09-15* (`feat/environment`, rulings `EV-A`…`EV-Z`,
   record §11; integrated, record §13). Delivered: `EnvironmentScope` with
   nearest-writer precedence and no cascade (`.environment`,
   `.transformEnvironment`, `.theme`, `.dynamicTypeSize`), `@Environment`,
@@ -1036,12 +1036,39 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `Frame.registerHandlers`, reaching accessibility); layout direction (carried,
   no container mirrors, `EV-K`); locale (carried, no consumer); dynamic type
   (`dynamicTypeSize`); platform metrics (`pixelLength`); and the `Binding`
-  collision resolved as `KeyBinding` with a deprecated alias. **Not delivered:
-  "control state" apart from enabled state** (`controlActiveState`,
-  `controlSize` are `EV-Q` items for task 12) **and "scale"** (`displayScale`
-  is not exposed, `EV-J`, divergence 24). The release-window capture is untaken.
-  Tick when control state and scale land, or when this text is amended to drop
-  them.
+  collision resolved as `KeyBinding` with a deprecated alias. **Not delivered
+  at that point: "control state" apart from enabled state** (`controlActiveState`,
+  `controlSize` were `EV-Q` items for task 12) **and "scale"** (`displayScale`
+  was not exposed, `EV-J`, divergence 24). The release-window capture was
+  untaken.
+  *Progress 2026-09-25 — closed* (`feat/environment-control-state` from
+  `e732d98`, rulings `EV-AA`…`EV-AF`, record §56). **Both remaining clauses
+  land**: `displayScale` is exposed and writable, with `pixelLength` derived
+  from it and no longer re-stamped (`EV-AA`, divergence 24 retires —
+  refuted by SwiftUI's own measured behaviour, S3); `controlActiveState`
+  (`key`/`active`/`inactive`) comes from a new, defaultless `PlatformWindow`
+  pair implemented by `AppKitWindow` and `SDLWindow`, stamped by `Window` over
+  its own guarded copy at draw (`EV-AB`); `controlSize` (SwiftUI's five sizes)
+  is carried and scoped (`EV-AC`). **Their built-in *consumers* are not
+  delivered here and stay distributed as `EV-Q` always had them**
+  (`EV-AE`): an inactive-window look for `controlActiveState` (task 12);
+  `Text`'s default font (task 11) and `TextField`/`Button`/the other common
+  controls (task 10) for `controlSize` (divergence 76, added); layout
+  rounding to the `displayScale` pixel grid (task 11, divergence 77, added,
+  found by probe S4); SDL following the system's UI scale rather than pixel
+  density (task 14). Three lanes, each red first, all verified `ok`, no fix
+  round; an independent Record-phase re-check re-took the suite, guard and
+  golden counts (**1506 / 0 / 90**), the fourteen-image pixel comparison
+  (0 px against `e732d98`), the probe (byte-identical to its header),
+  `Backends/SDL` on macOS (21 + 22) and independently in a `swift:6.4-noble`
+  container (21 + 21) — all unmoved from the lanes' own readings. **Still
+  owed, to a human with an unlocked screen**: the real-window capture, the
+  probe's C1–C3/C5 key/active-mapping arms, and a `displayScale` change from
+  moving the window between displays (record §56 §4.6, record §03's
+  2026-09-25 section). **Ticked**: both clauses of the 2026-09-15 progress
+  note have landed; nothing named in this task's own text (enabled state,
+  layout direction, locale, dynamic type/scale, control state, platform
+  metrics, the `Binding` rename) remains undelivered.
 
 - [ ] **10. Align data-driven controls and scrolling.**
   Define `ForEach`/identified-data semantics, bindings, common controls and
@@ -1074,8 +1101,17 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   task 9's `.disabled` gate. **Open:** the VoiceOver script (record §12), which
   nobody has run; gesture composition, button semantics, content shapes and the
   rest of the interaction half; focus retention on disable (divergence 21), raw
-  keys on a disabled ancestor (22) and a disabled look are unowned;
-  `controlActiveState`/`controlSize` (`EV-Q`).
+  keys on a disabled ancestor (22) and a disabled look are unowned.
+  *Note 2026-09-25 (task 9's closing half, `EV-AE`):* `controlActiveState` and
+  `controlSize` themselves are now delivered by task 9 (`EV-AB`, `EV-AC`,
+  record §56) — this task's own remainder is their **consumers**, not the
+  values: an inactive-window look for `controlActiveState` (with the disabled
+  look above), and, per `EV-AE`'s table, the accessibility-bridge doc's and
+  spec's several "task 9" citations for button semantics, the panel's
+  non-button click absorber, `AB-H`'s press question (divergence 28),
+  `accessibilityElement(children:)`, disabled behaviour and content shapes are
+  this task's (task 12), not task 9's or task 10's — re-pointed where cited
+  (a `Button` control's own existence is task 10's).
 
 - [ ] **13. Complete transaction and animation semantics.**
   Make modifier wrappers participate in transactions at their correct phase,
