@@ -50,7 +50,7 @@
 /// **Outside dispatch it is still the last-bound slot — divergence 71.** A
 /// closure called directly, from a timer or a task, has no owner; SwiftUI
 /// writes each occurrence's own storage there too (probe S5). Pinned by
-/// `IdentityTests`' `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt`
+/// `IdentityTests`' `aClosureRunOutsideInputDispatchWritesTheLastBoundOccurrence`
 /// (occurrence 0's handler called directly reads 1 / 102), and still counted by
 /// `StateTable.aliasedStateBoxes`. **So a value placed twice is safe for
 /// input handlers; for anything else, build two values.**

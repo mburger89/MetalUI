@@ -264,94 +264,47 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
 /// An `if` with no `else`: the group is there or it is not, and when it is not
 /// it contributes no nodes.
 ///
-/// **A branch that flips between frames is a different subtree, not the same one
-/// resized.** Any state its elements held keyed on a `GlobalElementID` that is
-/// no longer produced stops being **live** after the frame it disappears in
-/// (§4.3), and is eventually reaped.
+/// **One structural slot, content numbered inside it** (plan task 8, ruling
+/// `ID-B`). The group takes exactly one cursor index whether or not it has
+/// content, and its content numbers from 0 under a slot id `.positional(index)`
+/// of its own — the shape `EitherGroup`'s taken branch has had since `SI-F`. So
+/// every sibling after an `if` keeps one index whatever the condition, and an
+/// element after a vanishing `if` keeps its own state (probe V1). Until `ID-B`
+/// the group consumed no index when absent and the trailing sibling ADOPTED the
+/// vanished element's entry (`SI-G`, which rested on a claim about SwiftUI no
+/// probe had run; divergence 69 inside a grid). Pinned by
+/// `anElementAfterAVanishingIfKeepsItsOwnState`, C2.2 and C2.3
+/// (`ConditionalIdentityTests.swift`).
 ///
-/// **Read the next paragraph before assuming a removed branch's `@State` is
-/// gone. In an ordinary tree it is NOT, and it is not bounded either —
-/// CLAUDE.md's divergence 18.**
-///
-/// **This doc said "is swept" until 2026-09-01, and its first correction then
-/// under-stated the replacement — both are recorded rather than smoothed
-/// over.** `StateTable.sweep()` no longer deletes an unmarked entry: it keeps
-/// the value and clears `isLive`. The **reap** that would discard it runs only
-/// on a sweep where `storage.count` exceeds `StateTable.sweepThreshold`
-/// (**256**), and only for entries unmarked for more than
-/// `StateTable.staleAfterGenerations` (**2**) generations.
-///
-/// **The gate comes first, so state it first.** While `storage.count` stays at
-/// or below 256, **nothing is ever reaped, and a removed branch's `@State`
-/// survives indefinitely**. (**"which is the demo and most applications" was
-/// struck 2026-09-10**: since the animation milestone every registering element
-/// mints a `$anim` entry on first sight, unconditionally, so the demo's 500-row
-/// list alone puts the table at 1006. Measured on `demoLikeRows(_:)`, whose rows
-/// declare no `@State`: `storage.count == 2n + 6`, crossing at **126 rows**
-/// (`2n + 7` and 125 until plan task 7's stage 4 lane 1 demoted `List`'s
-/// windowing spacer from an element to a node, ruling `LR-BS`; re-measured by
-/// rendering 124 through 127 and watching whether an excursion was reaped).
-/// A tree stays under the gate now only if it is genuinely small.) The gate
-/// counts *entries*, not live ones, and tombstones are entries: an app that
-/// churns conditional subtrees crosses it without ever holding 257 live
-/// elements at once (`theColdFrameSpikeIsReapedRatherThanRetainedForever`
-/// reaps with 19 live). Measured through a real `Window`:
-/// a counter behind an `if` reads 1, 2, 3, is removed for **500 frames**, and
-/// comes back reading **4**, with the table sitting at one entry throughout.
-/// **This disagrees with SwiftUI**, which destroys a view's `@State` when the
-/// view leaves the tree, and SwiftUI is this project's design authority where
-/// it and CSS differ (ruling EP-5) — so it is a recorded divergence rather than
-/// an implementation detail. Only *above* the threshold does
-/// `staleAfterGenerations` bind, and two generations is that ceiling rather
-/// than the common case: the first correction of this comment led with "within
-/// two frames" and relegated the unbounded case to a subordinate clause, which
-/// is the reading a whole-branch review flagged.
-///
-/// **Nothing pins the element-level sub-threshold behaviour.**
-/// `aStaleEntryIsRetainedForeverWhileStorageStaysAtOrBelowSweepThreshold` pins
-/// the raw table, and both excursion tests insert 260 ballast ids to force the
-/// gate open, so no test in the suite asserts what a caller actually sees here.
-///
-/// **Nothing about the identity rule below changes** — a flipped branch is
-/// still a different subtree and the cursor still shifts every later sibling —
-/// only how long the abandoned entry survives.
+/// **Content an evaluated `if` removes is reset** (ruling `ID-C`). The group
+/// notes its slot produced or absent in the `StateTable`; on the frame after one
+/// that produced it, an absent slot deletes every entry below it except the
+/// window-owned `$focus`/`$ax` retention slots, so content that returns starts
+/// fresh (probe V5; divergence 18 retired for conditionals). A subtree nothing
+/// evaluates — a `List` row out of the window — is never noted absent and keeps
+/// `TB-AH`'s bounded retention. See `StateTable.noteAbsent`.
 public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
     public var wrapped: Wrapped?
 
     public init(_ wrapped: Wrapped?) { self.wrapped = wrapped }
 
-    /// Forwards the cursor when the group is present and consumes nothing when
-    /// it is absent, so an `if` that goes false **shifts every later sibling's
-    /// index down by however many elements the branch held**.
-    ///
-    /// **The later sibling does not reset — it ADOPTS the vanished element's
-    /// state entry**, and the difference matters because every reader's
-    /// intuition says "reset". This comment claimed the reset for one commit and
-    /// was corrected by measurement, the same way `EitherGroup`'s branch
-    /// collision above was. On `Row { if flag { C() }; C() }` across a flip the
-    /// trailing element lands on the vanished element's `.positional(0)` and
-    /// reads **2**, not 1. Pinned as deliberate by
-    /// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`.
-    ///
-    /// It is deliberate because it is SwiftUI's behaviour for an unkeyed `if`
-    /// (ruling EP-5), and because the alternative — a positional slot reserved
-    /// for an absent branch — makes the index space depend on branch *width*,
-    /// which is the thing `EitherGroup`'s `+= 2` above buys precisely because
-    /// there the width is bounded at two and here it is not.
-    ///
-    /// **The remedy is naming the LATER SIBLINGS, not the conditional content**,
-    /// and that distinction is measured rather than assumed
-    /// (`namingTheLaterSiblingIsWhatSurvivesAVanishingIf`). A name replaces a
-    /// position, so a named sibling leaves the shifting space entirely and keeps
-    /// its state across the flip. Naming the *conditional content* only stops
-    /// the adoption — the trailing sibling still moves from index 1 to index 0
-    /// and still starts from scratch there.
+    /// Reserves one index, then registers the content under that slot with a
+    /// fresh inner cursor — or notes the slot absent (`ID-C`). **The typed copy
+    /// in `ProposalElementGroup.swift` is a separate implementation, pinned on
+    /// its own** (C2.5a/C2.5b; mutation M2a′ there, M2a here).
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], Wrapped.GroupLayout?) {
-        guard var inner = wrapped else { return ([], nil) }
-        let (nodes, layout) = inner.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+        let slot = GlobalElementID(component: .positional(cursor), parent: parent)
+        cursor += 1
+        guard var inner = wrapped else {
+            pass.frame.stateTable.noteAbsent(slot)
+            return ([], nil)
+        }
+        pass.frame.stateTable.noteProduced(slot)
+        var innerCursor = 0
+        let (nodes, layout) = inner.requestGroupLayout(under: slot, at: &innerCursor, pass: &pass)
         wrapped = inner
         return (nodes, layout)
     }
@@ -461,22 +414,32 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
     ///
     /// This is the same rule the phase-mismatch trap below already applies: a
     /// flipped branch is a different subtree, not the same one rebuilt.
+    ///
+    /// **Since plan task 8 the flip also RESETS** (ruling `ID-C`): the taken
+    /// branch's id is noted produced and the untaken one's absent, so a branch
+    /// flipped away and back starts fresh (probe V9) instead of finding its
+    /// tombstone. The typed copy (`ProposalElementGroup.swift`, ruling `ID-D`)
+    /// numbers and notes identically and is pinned on its own (C2.11, M2i).
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass) -> ([LayoutNodeID], Layout) {
         let branchIndex = cursor
         cursor += 2
+        let firstBranch = GlobalElementID(component: .positional(branchIndex), parent: parent)
+        let secondBranch = GlobalElementID(component: .positional(branchIndex + 1), parent: parent)
         switch self {
         case .first(var group):
+            pass.frame.stateTable.noteProduced(firstBranch)
+            pass.frame.stateTable.noteAbsent(secondBranch)
             var inner = 0
-            let branch = GlobalElementID(component: .positional(branchIndex), parent: parent)
-            let (nodes, layout) = group.requestGroupLayout(under: branch, at: &inner, pass: &pass)
+            let (nodes, layout) = group.requestGroupLayout(under: firstBranch, at: &inner, pass: &pass)
             self = .first(group)
             return (nodes, .first(layout))
         case .second(var group):
+            pass.frame.stateTable.noteProduced(secondBranch)
+            pass.frame.stateTable.noteAbsent(firstBranch)
             var inner = 0
-            let branch = GlobalElementID(component: .positional(branchIndex + 1), parent: parent)
-            let (nodes, layout) = group.requestGroupLayout(under: branch, at: &inner, pass: &pass)
+            let (nodes, layout) = group.requestGroupLayout(under: secondBranch, at: &inner, pass: &pass)
             self = .second(group)
             return (nodes, .second(layout))
         }
@@ -562,21 +525,32 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
 
     public init(_ groups: [Group]) { self.groups = groups }
 
-    /// Forwards the one cursor per member, so a `for` loop's items sit in the
-    /// container's flat space alongside its other children rather than in a
-    /// space of their own. An item that carries `.id()` therefore keeps its
-    /// state through a reorder — the name replaces the index outright — while an
-    /// unnamed item's identity *is* its position and does not travel with it.
+    /// **One structural slot for the whole loop** (plan task 8, ruling `ID-B`):
+    /// the loop takes one index of the container's space and threads ONE inner
+    /// cursor across all its members under that slot, so the siblings after a
+    /// loop keep their indices however many items it has (probe V6). An item
+    /// that carries `.id()` keeps its state through a reorder — the name
+    /// replaces its position WITHIN the loop, the `ForEach` analogue — while an
+    /// unnamed item's identity *is* its position in the loop. Until `ID-B` the
+    /// items sat directly in the container's flat space.
+    ///
+    /// **A loop does not reset** (`ID-C`): an item it stops producing keeps its
+    /// entries and gets them back if the loop grows again — divergence 74,
+    /// owner plan task 10 (`ForEach`), pinned by C2.4b. The typed copy is pinned
+    /// on its own (`aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot`).
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], [Group.GroupLayout]) {
+        let slot = GlobalElementID(component: .positional(cursor), parent: parent)
+        cursor += 1
+        var innerCursor = 0
         var nodes: [LayoutNodeID] = []
         var layouts: [Group.GroupLayout] = []
         layouts.reserveCapacity(groups.count)
         for index in groups.indices {
-            let (childNodes, childLayout) = groups[index].requestGroupLayout(under: parent,
-                                                                            at: &cursor,
+            let (childNodes, childLayout) = groups[index].requestGroupLayout(under: slot,
+                                                                            at: &innerCursor,
                                                                             pass: &pass)
             nodes.append(contentsOf: childNodes)
             layouts.append(childLayout)
@@ -640,23 +614,16 @@ extension AnyElement: ElementGroup {
     /// Identical to `Element`'s default for the CURSOR: an erased element is
     /// still one element and therefore one index.
     ///
-    /// **No longer identical for `@State`, and this paragraph used to claim
-    /// it was.** `Element`'s default `requestGroupLayout` (`ElementGroup.swift`
-    /// above) seeds every `@State` the element declares through
-    /// `StateBinder.bind`, right after computing `id` — since lane 3 of the
-    /// modifier-composition track, inside the shared helper
-    /// `GlobalElementID.enteringGroupMember` (`GroupMember.swift`, ruling MC-H),
-    /// which this default deliberately does not call. This one never gained
-    /// that line: `Mirror(reflecting: anyElement)` sees only the boxed `any
-    /// ElementObject`, not the erased element's own stored properties, so
-    /// there is nothing here `StateBinder` could reflect even if the call
-    /// were added. `@State` inside an `AnyElement` therefore returns its
-    /// initial value forever, silently — see the declared-but-inert table in
-    /// `CLAUDE.md`. Closing this needs a hook on `ElementObject` or
-    /// reflection inside `AnyElementBox` itself, which is a design decision
-    /// and not this comment's job; `AnyElement`'s own callers are all in the
-    /// test suite today (nothing in `ElementBuilder` produces one), which is
-    /// the only reason nothing in production has hit it yet.
+    /// **Not `enteringGroupMember`, and `@State` still binds.** `Element`'s
+    /// default seeds every `@State` through `StateBinder.bind` inside the shared
+    /// helper `GlobalElementID.enteringGroupMember` (`GroupMember.swift`, ruling
+    /// MC-H); this entry cannot call it on `self`, because `Mirror(reflecting:
+    /// anyElement)` sees only the boxed `any ElementObject`. Since plan task 8
+    /// (ruling `ID-E`) the box binds instead: `AnyElementBox.requestLayout`,
+    /// `.prepaint` and `.paint` each call `StateBinder.bind` on the erased
+    /// element before forwarding, so `@State` and `@Environment` inside an
+    /// `AnyElement` bind as they do anywhere else. Until then they were inert —
+    /// this paragraph said so, and CLAUDE.md's declared-but-inert table listed it.
     ///
     /// **A second copy of the cursor advance, and it was unguarded until
     /// `twoErasedSiblingsDoNotShareOneStateEntry`.** "Identical to `Element`'s

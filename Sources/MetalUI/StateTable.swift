@@ -159,6 +159,69 @@ final class StateTable {
 
     func noteAliasedStateBox() { aliasedStateBoxes += 1 }
 
+    // MARK: Evaluated removal (plan task 8, ruling `ID-C`)
+
+    /// Every conditional slot noted produced by the frame being built: an
+    /// `OptionalGroup`'s own slot while it has content, an `EitherGroup`'s taken
+    /// branch id. Swapped into `previouslyProducedSlots` by `sweep()`.
+    private var producedSlots: Set<GlobalElementID> = []
+
+    /// `producedSlots` as the last COMPLETED frame (`Frame.render`'s sweep) left
+    /// it. `noteAbsent` resets a slot only when it is here — the transition from
+    /// produced to evaluated-and-absent, never the steady absent state.
+    private var previouslyProducedSlots: Set<GlobalElementID> = []
+
+    /// How many times `noteAbsent` scanned the table: once per produced → absent
+    /// transition, never per absent frame. A work counter (spec C2.9); nothing in
+    /// production reads it.
+    private(set) var subtreeResetScans = 0
+
+    /// A conditional slot produced its content this frame.
+    func noteProduced(_ slot: GlobalElementID) {
+        producedSlots.insert(slot)
+    }
+
+    /// A conditional slot was EVALUATED and produced nothing this frame — an
+    /// `if` whose condition is false, the branch of an `if`/`else` not taken.
+    ///
+    /// **Resets only on the transition**: when the last completed frame produced
+    /// `slot`, every entry whose id has `slot` as a proper ancestor is deleted,
+    /// so content that returns starts fresh (SwiftUI's lifetime rule, probe
+    /// V5/V9; ruling `ID-C`). **Two retention slots are exempt** — an entry whose
+    /// own component is `.named("$focus")` or `.named("$ax")` — because their
+    /// lifetime is the window's (focus retention, the accessibility node's
+    /// republish; `TB-J`, `AB-U`), not the element's. **Only an evaluated
+    /// conditional calls this**: a subtree nothing evaluates (a `List` row out of
+    /// the window) keeps `TB-AH`'s retention, and `sweep()` never resets.
+    func noteAbsent(_ slot: GlobalElementID) {
+        // `remove`, not `contains`: a second note in the same frame (a slot
+        // evaluated twice before a sweep) finds nothing and scans nothing.
+        guard previouslyProducedSlots.remove(slot) != nil else { return }
+        subtreeResetScans += 1
+        for id in storage.keys where Self.descends(id, from: slot) && !Self.isWindowRetained(id) {
+            storage.removeValue(forKey: id)
+            marked.remove(id)
+        }
+    }
+
+    /// Whether `slot` is a PROPER ancestor of `id`.
+    private static func descends(_ id: GlobalElementID, from slot: GlobalElementID) -> Bool {
+        var cursor = id.parent
+        while let ancestor = cursor {
+            if ancestor == slot { return true }
+            cursor = ancestor.parent
+        }
+        return false
+    }
+
+    private static let focusRetentionName = PathComponent.named(ElementID("$focus"))
+    private static let axRetentionName = PathComponent.named(ElementID("$ax"))
+
+    /// `$focus` and `$ax`: the window-owned retention slots `noteAbsent` keeps.
+    private static func isWindowRetained(_ id: GlobalElementID) -> Bool {
+        id.component == focusRetentionName || id.component == axRetentionName
+    }
+
     /// An entry survives being unmarked for this many generations before
     /// `sweep()` will reap it — same shape and same value as
     /// `ShapingCache.staleAfterGenerations` (`Sources/MetalUIText/ShapingCache.swift:141`),
@@ -540,6 +603,10 @@ final class StateTable {
             }
         }
         marked.removeAll(keepingCapacity: true)
+        // `ID-C`: this frame's produced conditional slots become the set the next
+        // frame's `noteAbsent` compares against. A swap, so no allocation once warm.
+        swap(&producedSlots, &previouslyProducedSlots)
+        producedSlots.removeAll(keepingCapacity: true)
 
         if storage.count > Self.sweepThreshold {
             for (id, entry) in storage

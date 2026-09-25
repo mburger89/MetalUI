@@ -877,21 +877,15 @@ private func demoScrollBox() -> some Element {
             // dimmed further: see `showModal`'s own comment for why
             // the demo must be un-scrimmed by default.
             //
-            // **Gated on `showModal`, and the `if` has a caveat
-            // worth reading before adding state below it.** A
-            // vanishing `if` does not reset its trailing siblings'
-            // identity — it makes them ADOPT the vanished
-            // element's slot, because the cursor that assigns
-            // `.positional(_:)` components advances one place
-            // differently on the two frames. The `List` below
-            // hold no cross-frame state, so today this is
-            // invisible; the `ScrollView`'s own offset is keyed on
-            // the `ScrollView` node, which sits OUTSIDE this
-            // builder and does not move. If a stateful element
-            // ever lands after this `if`, the remedy is to name
-            // the *trailing sibling* with `.id(_:)` — naming the
-            // conditional content is the half that does not work
-            // (CLAUDE.md's identity bullet).
+            // **Gated on `showModal`.** The `if` takes one
+            // structural slot whether or not the modal is shown
+            // (plan task 8, ruling `ID-B`), so the `List` below
+            // keeps one index across the toggle rather than
+            // sliding into the modal's slot, and the modal's own
+            // elements start fresh on each opening (`ID-C` resets
+            // what an evaluated `if` removes). Before `ID-B` the
+            // `List` adopted the modal's slot while it was hidden;
+            // it holds no cross-frame state, so nothing showed.
             if demoModel.showModal {
                 demoModal()
             }

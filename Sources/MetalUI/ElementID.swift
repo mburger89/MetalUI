@@ -39,7 +39,9 @@ public enum PathComponent: Hashable, Sendable {
 /// overflow the stack at teardown. The mechanism that keeps it theoretical is
 /// `NativeLayoutRun.maxDepth` (72 native levels; the CSS engine's
 /// `LayoutContext.maxDepth`, 64, until stage 9): identity depth is
-/// element-container nesting plus one level per enclosing `if`/`else`, and the
+/// element-container nesting plus one level per enclosing `if` (with or without
+/// `else`) and per enclosing `for` loop (plan task 8, ruling `ID-B`: each takes
+/// one slot and numbers its content inside it), and the
 /// kernel traps on the nesting long before a release chain matters. Worth knowing because
 /// "one allocation per child regardless of depth" says nothing about the other
 /// end.

@@ -1991,7 +1991,10 @@ public final class Frame {
         // assumed after a review caught the stale claim.** Moving this call
         // to right after `StateBinder.bind` above reddens 3, not 1:
         // the pin above, plus `flippingAnEitherBranchResetsTheBranchesState`
-        // and `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`
+        // and `anElementAfterAVanishingIfAdoptsTheVanishedElementsState` (renamed
+        // `anElementAfterAVanishingIfKeepsItsOwnState` by plan task 8, whose
+        // `ID-C` deletes the entries these `isLive` lines read — re-measure
+        // before relying on this count)
         // (`IdentityTests.swift`). Both are two-frame `IdentityTests` cases
         // whose tombstones-milestone inversion added an `isLive` assertion on
         // an abandoned branch's entry — the same one-frame liveness lag this

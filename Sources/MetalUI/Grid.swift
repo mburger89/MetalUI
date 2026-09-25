@@ -68,13 +68,14 @@ extension LayoutPass {
 /// ``GridRow`` inside it takes one of those indices and numbers its cells under
 /// itself — so a cell's id is (grid, row, cell) and removing a cell from one row
 /// does not renumber another row's (ruling GR-J). **Inside a row, and between
-/// rows, the framework's universal trailing-sibling rule still applies**: a
-/// vanishing `if` hands the removed cell's `@State`, focus and `onTap` to the
-/// next cell, because `OptionalGroup` advances no cursor. No built-in proposal
-/// element has `.id()`, so the documented remedy cannot be spelled here yet
-/// (divergence `GR-O` 9, ruling GR-AF; pinned wrong on purpose by
-/// `removingACellFromARowHandsItsStateToTheNextCell` and
-/// `removingAWholeGridRowHandsItsStateToTheNextRow`).
+/// rows, a vanishing `if` moves nothing** (plan task 8, ruling `ID-B`): an `if`
+/// takes one slot whether or not it has content, so the next cell or row keeps
+/// its own `@State`, focus and `onTap` (probe V7/V8). Until `ID-B` the removed
+/// cell's state went to the next cell — divergence `GR-O` 9 / record §04's 69,
+/// ruling GR-AF, retired — and the remedy (`.id()` on the trailing sibling)
+/// could not be spelled on a proposal element. Pinned by
+/// `removingACellFromARowLeavesTheNextCellsStateAlone` and
+/// `removingAWholeGridRowLeavesTheNextRowsStateAlone`.
 ///
 /// **Spacing** (ruling GR-D): `nil`, the default, is the largest platform-default
 /// pair spacing meeting at each boundary — not one number for the whole grid; a

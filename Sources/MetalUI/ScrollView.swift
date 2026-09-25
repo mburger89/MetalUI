@@ -123,13 +123,12 @@ public struct ScrollContext: Sendable, Equatable {
 /// (`ScrollViewTests.swift`) still pins the answer; the measurements are in
 /// this doc's git history (before `LR-FC`).
 ///
-/// **Scroll position is `StateTable` state, so it inherits §4.3's adoption
-/// rule**: a `ScrollView` inside a vanishing `if` hands its offset to the
-/// trailing sibling, not to a fresh zero — a list silently inheriting another
-/// list's scroll position is a confusing thing to meet cold. The remedy is the
-/// counter-intuitive one CLAUDE.md records — name the **trailing sibling**, not
-/// the conditional content, to keep this element's offset from drifting onto
-/// whatever renders after it vanishes.
+/// **Scroll position is `StateTable` state, so it follows the conditional
+/// rules** (plan task 8): a `ScrollView` inside an `if` that goes false and
+/// comes back returns at offset 0 (`ID-C` resets content an evaluated
+/// conditional removes), and no trailing sibling inherits its offset (`ID-B`:
+/// an `if` takes one slot whether or not it has content). Until then the offset
+/// was handed to the trailing sibling and naming that sibling was the remedy.
 public struct ScrollView<Content: ElementGroup>: Element {
     public var axis: ScrollAxis
     public var elementID: ElementID?

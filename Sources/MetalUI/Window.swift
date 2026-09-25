@@ -1271,25 +1271,18 @@ public final class Window {
     /// and falls through unchanged, which is every event in every window that
     /// has no `onClick` in it.
     ///
-    /// **Comparing by `GlobalElementID` inherits the vanishing-`if` adoption,
-    /// so a click here can run the WRONG element's handler.** Identity is
-    /// structural (CLAUDE.md's identity bullet): drop a conditional sibling
-    /// between the `mouseDown` and the `mouseUp` and the **trailing** sibling
-    /// takes over the vacated `.positional(_:)` — and slides into the vacated
-    /// screen position with it, so the same release point is now over it. The
-    /// guard above then passes on two different elements and runs the trailing
-    /// one's `onClick`. Measured, not reasoned; and it is that element's own
-    /// closure, because the handler rides on `Hitbox.handlers`, which the
-    /// rebuild replaced.
-    ///
-    /// **Emergent rather than a defect in this function, and the differential
-    /// is what says so**: naming the trailing sibling replaces its position,
-    /// nothing is adopted, and the identical release correctly clicks nothing —
-    /// with not one line here behaving differently. Fixing it would mean giving
-    /// dispatch a second notion of sameness that disagrees with the one
-    /// `StateTable`, focus and hover all share, which is a change to identity
-    /// and not to clicks. Both halves pinned by
-    /// `aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling`.
+    /// **Comparing by `GlobalElementID` — structural `==`, not `===` — is what
+    /// lets a press survive a rebuild.** Every frame mints new id objects, so a
+    /// release after a redraw finds its target only through `==` walking the
+    /// chain. Since plan task 8 (`ID-B`) a conditional sibling vanishing between
+    /// `mouseDown` and `mouseUp` moves no other element's id: a pressed element
+    /// that vanished clicks nothing, even when another element has slid under
+    /// the pointer, and a pressed element that survived clicks itself at its new
+    /// place. Until `ID-B` the trailing sibling took the vacated `.positional(_:)`
+    /// and the release ran ITS `onClick` — identity's behaviour, not this
+    /// function's, which is unchanged. Both arms pinned by
+    /// `aPressHeldAcrossARebuildClicksItsOwnTargetAndAVanishedTargetClicksNothing`,
+    /// whose second arm is what `hit.id === pressed` reddens.
     private func dispatchClick(_ event: InputEvent,
                                pressedBefore pressed: GlobalElementID?) -> Bool {
         guard case .mouseUp(let mouse) = event, let pressed else { return false }
