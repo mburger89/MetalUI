@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-GD`** (stage 11's design took `LR-FV`…`LR-FZ`, its critic round 1 `LR-GA`, its lane 1 `LR-GB` and its lane 2 `LR-GC`, appended at the end; stage-11 rulings amended by that round carry a paragraph headed **Amended, stage-11 critic round 1**; stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-GE`** (stage 11's design took `LR-FV`…`LR-FZ`, its critic round 1 `LR-GA`, its lane 1 `LR-GB`, its lane 2 `LR-GC` and lane 2's fix round `LR-GD`, appended at the end; stage-11 rulings amended by that round carry a paragraph headed **Amended, stage-11 critic round 1**; stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -10572,3 +10572,46 @@ and the proposal overlay mints exactly its `47c0d98` nodes (N1.6). Suite **1435*
 should grow (CSS's answer), the drop is a rect disagreement, never a trap, and
 the growing spelling is the grow on a wrapper outside the overlay (`LR-FX`).
 If the name kept in item 1 misleads, it is a doc-comment fix.
+
+## LR-GD — stage 11, lane 2's fix round: the attachment lowering's report path, parent style and overlay-side drop pinned; two citations corrected
+
+**The round.** Commit `58a4f5c`; record §54 §8.1 and §8.3 carry the lines and
+the mutation table. The lane's verifier applied three mutations to
+`lowerAttachmentChildren` that left the whole suite green, each with a
+scratch test proving the mutant differs. Each gets a pin, green on arrival (a
+pin of built behaviour, not new behaviour) and reddened by its mutation in a
+full unfiltered run.
+
+1. **The report block is pinned on both sides and in production.** The
+   `dropLast` / `unlowerable(last)` block is a third copy of the pattern in
+   `LegacyLowering.swift` and `ListRows.swift`, and a copy of a pinned
+   implementation is unpinned. N1.8 (diagnostics): an absolute primary
+   outside a `Deferred` and an overlay view with a px `maxWidth` on an `auto`
+   width report `["box.position", "box.maxSize"]`, primary side first. N1.9
+   (exit): the overlay side alone traps a production frame naming
+   `box.maxSize`. V5 (the block skipped) reddens both.
+2. **`LR-GC` item 5(a)'s `.center`/`.center` parent style is pinned.** N1.10:
+   a `.topLeading` overlay of a 10×`auto` and an `auto`×10 view on a 40×30
+   primary reads (0, 5) 10×0 and (5, 0) 0×10 relative to the primary (the
+   views' union, 10×10, placed top-leading, each view centred in it). Derived
+   before the run. V2 (a default, stretching parent) reddens it.
+3. **The overlay side's presentation drop is pinned by a node count, the only
+   reading it moves.** The spec cited an undefined `N3.1` twice. §5's
+   citation now names N1.11 (a `Deferred` overlay presents at the window's
+   (5, 5), and the tree has 7 nodes; with the drop skipped on the overlay side,
+   V4, it has 8 and the rect is unchanged). §6.1's citation, about
+   `deferred.amended`, now names N2.2's hitboxes, which is lane 3's pin of the
+   same containing-block claim.
+4. **Two doc comments cited the wrong `LR-GC` items.** L5 (N1.3) is item 3;
+   1.13's overlay arms are item 2. Both files are corrected.
+5. **L5's red lines are recorded** as the verifier re-took them at `131fe16`
+   (`:310:26`, `:311:13`, `:313:10`), replacing record §54 §8.1's "not
+   re-taken".
+
+**Accounting.** Suite 1435 → **1439** (+4, N1.8–N1.11); the design's 1426 →
+1439 becomes 1426 → 1443 once lane 3 adds its four. No test was retired and no
+retained test changed. Guards stay at 84. No source line changed.
+
+**What it costs if wrong.** N1.11's 7 is a measured literal. A later change
+that adds a node to a `Deferred` overlay's tree for another reason reddens it,
+and the test's doc says what the count stands for.

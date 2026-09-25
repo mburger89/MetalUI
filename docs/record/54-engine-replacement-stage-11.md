@@ -365,8 +365,12 @@ design. The build's error lines, one per test body:
 N1.3's other arms fail the same way (L2 `:284`, controls `:319`–`:343`). The
 lines were taken from a build one helper-rename before the commit: the file's
 `group` builder helper clashed at the call site (`value of type 'group' has no
-member 'overlay'`) and was renamed `members` before `131fe16`. L5's own line was
-not re-taken after the rename. N1.6 is a must-not-move pin with no red by
+member 'overlay'`) and was renamed `members` before `131fe16`. L5's own lines
+were re-taken at `131fe16` by the lane's verifier (and recorded by the fix
+round, `LR-GD` item 5):
+
+    LegacyOverlayTests.swift:310:26: error: referencing instance method 'overlay(alignment:content:)' on 'OptionalGroup' requires that 'EmptyComponent' conform to 'ProposalElementGroup'   (N1.3, L5)
+    LegacyOverlayTests.swift:311:13 and :313:10   (N1.3, L5: the same failure's follow-on lines) N1.6 is a must-not-move pin with no red by
 design. Its literals — **5 nodes, work 3/4/8, six recorded bounds, rects (80,
 65) 40×30 and (95, 75) 10×10 at alpha 0.5** — were taken at `47c0d98` by a
 scratch test in the demo-pixel harness's export of that commit (`src-47c0d98`),
@@ -429,6 +433,23 @@ through the whole suite unfiltered, and restored from a copy of
 | M1f | the primary lowered with `dropsPresentations: false` (a parameter added in the mutant; the overlay side still drops) | 2 issues | N1.5 (2: expected `.failure`, got `EXIT_SUCCESS`; the stderr line absent) |
 | M1g | `lowerAttachmentChildren` wraps every record-less child in `requestNativeFrame(child:alignment: .center)` | 4 issues | N1.6 (node count `:470`, work `:472`); `anEmptyOverlayOrBackgroundLeavesThePrimaryAlone` (`nodeCount == 1`); `everyProductionRootsDeepestNativeLevelIsMeasured` (the demo's overlay adds a level) |
 | M1j | `requestSecondaryContentAttachment`'s precondition relaxed to `primary.count >= 1` | 2 issues | N1.7 `aLegacyOverlayOnATwoMemberComponentTrapsNamingItsPrimaryCount` (2: the child exits 0; the stderr line absent) |
+
+*Fix round (`LR-GD`, commit `58a4f5c`).* The lane's verifier found three
+mutations of `lowerAttachmentChildren` that reddened nothing (V2, V4, V5). Four
+pins were added, N1.8–N1.11, and each mutation was re-applied to `58a4f5c`, run
+through the whole suite unfiltered (1439 tests), and restored from a copy;
+`git status --short` showed no source change after each.
+
+| id | mutation (spelling, branch) | suite | reddened |
+|---|---|---|---|
+| V5 | `guard fields.isEmpty else {` → `if false, !fields.isEmpty {` (the report block skipped; both sides) | 3 issues | N1.8 `eachSideOfALegacyOverlayReportsItsUnlowerableFieldsByName` (`:510`, the report reads `[]`); N1.9 `aProductionFrameTrapsOnAnOverlaySidesUnlowerableField` (2: the child exits 0; the stderr line absent) |
+| V2 | `parent.justifyItems = .center` and `parent.alignItems = .center` deleted (a default, stretching parent) | 2 issues | N1.10 `aMultiViewLegacyOverlayStretchesNoneOfItsViews` (`:576`, `:578`: both views' rects) |
+| V4 | `lowerAttachmentChildren` gains `dropsPresentations: Bool = true` in the mutant only; `attach` passes `false` for the **overlay side**, the primary still drops | 1 issue | N1.11 `anOverlaySideDeferredPresentsAgainstTheWindowAndLeavesNoPlaceholder` (`:611`, nodes 8 against 7; the presented rect unchanged, as predicted) |
+
+With N1.8–N1.11 the suite reads **`Test run with 1439 tests in 3 suites
+passed`** (1435 + 4), guards still 84, the log carrying `FR-J no-argument
+frame: succeeded=`. N1.11's count literal (7) was measured, not derived; the
+verifier's 9 was the same overlay inside an enclosing `Box`.
 
 Every new test is reddened by at least one of its named mutations. No new
 typecheck guard was added in this lane, so none is owed a red.

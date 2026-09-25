@@ -393,7 +393,7 @@ live" is stale and the Record phase corrects it.
   called with the lowered nodes.
 - **Presentations**: an overlay-side `Deferred` is dropped
   (`droppingPresentations`) as every lowered container drops it — it presents
-  against the window (`N3.1`); a **primary** that is a presentation is dropped
+  against the window (N1.11, *amended by lane 2's fix round, `LR-GD` item 3*: a node-count pin, the only reading the drop moves); a **primary** that is a presentation is dropped
   too, leaving zero primary nodes, and the existing precondition traps naming
   the count (N1.5). An overlay has nothing to be proposed from a portal's
   placeholder; a trap by name is the answer, not a 0×0 overlay at an in-flow
@@ -424,7 +424,7 @@ presented box's hitbox at **(5, 5) 10×10**; `Box { SSolo().width(70) }`
 reports `deferred.amended` with the hitbox at the same (5, 5) 10×10. The amend
 therefore answers **as the `.frame` layer already does**: the placeholder is
 handed on and dropped (`LR-CK`), the presentation's containing block is the
-window whatever surrounds it (`N3.1`). `loweredComponentFrame`'s
+window whatever surrounds it (N2.2's hitboxes; *amended by lane 2's fix round, `LR-GD` item 3*: the citation read `N3.1`, which no lane defined). `loweredComponentFrame`'s
 `isPresentation` branch returns the node without a report; the `amended`
 entry is deleted, `UnlowerableField.owner` loses its `"plan task 7, stage
 11"` branch (so every owner reads `"plan task 11"` or `nil`), and
@@ -572,6 +572,16 @@ Rectangle() } }`, message naming `ProposalElementGroup`.
 primary and slot arms read `[]` where they read `[box.flexGrow.unconsumed]`
 (item 3: the attachment consumes both sides).
 
+*Amended, stage-11 lane 2's fix round (`LR-GD`): four pins the lane's verifier
+found missing, each green on arrival and reddened by the mutation named.*
+
+| test | red before | mutation that must redden it |
+|---|---|---|
+| **N1.8** `eachSideOfALegacyOverlayReportsItsUnlowerableFieldsByName` — an absolute primary outside a `Deferred` and an overlay view with a px `maxWidth` on an `auto` width, under diagnostics: `["box.position", "box.maxSize"]` | green (a pin) | **V5** the report block skipped (`if false, !fields.isEmpty`) |
+| **N1.9** (exit) `aProductionFrameTrapsOnAnOverlaySidesUnlowerableField` — the overlay side alone in a production frame: stderr names `box.maxSize` | green (a pin) | **V5** (the child exits 0) |
+| **N1.10** `aMultiViewLegacyOverlayStretchesNoneOfItsViews` — `.topLeading` overlay of a 10×`auto` and an `auto`×10 view on a 40×30 primary: (0, 5) 10×0 and (5, 0) 0×10 relative to the primary | green (a pin) | **V2** the `.center`/`.center` parent style deleted |
+| **N1.11** `anOverlaySideDeferredPresentsAgainstTheWindowAndLeavesNoPlaceholder` — presented box (5, 5) 10×10, primary (80, 35) 40×30, 7 nodes | green (a pin) | **V4** the overlay side skips `droppingPresentations` (8 nodes) |
+
 ### Lane 3 — opacity order and the owned lowering items (Opus)
 
 **Files.** `Box.swift` (`Decoration.escapesOpacity`; the background, border and
@@ -609,7 +619,7 @@ lanes.
 ## 8. Accounting, pixels, stack budget, gates
 
 - **Suite: 1426 → 1439** (*amended, critic round 1*): +4 lane 1 (N1.1, N1.2,
-  G1.1, G1.2); +5 lane 2 (N1.3–N1.7); +4 lane 3 (N2.1–N2.4); T2.1 is a rename;
+  G1.1, G1.2); +5 lane 2 (N1.3–N1.7), *+4 more by lane 2's fix round (N1.8–N1.11, `LR-GD`), so 1426 → 1443*; +4 lane 3 (N2.1–N2.4); T2.1 is a rename;
   no test retired. **Guards 82 → 84.** Goldens 0. `goldensUnchanged`: no
   `@Test` is removed, so no retirement row is owed; the T rows above are the
   only retained tests whose bodies change, and only
