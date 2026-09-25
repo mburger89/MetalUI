@@ -136,20 +136,20 @@ func everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload() throws 
     let result = try typecheckFile(bothLeavesSource + """
         @MainActor public func probe() {
             let fixed = ProposalLeaf().frame(width: Pixels(10))
-            let pinnedFixed: ModifiedContent<ProposalLeaf> = fixed
+            let pinnedFixed: ModifiedContent<ProposalLeaf, LayoutModifier> = fixed
             _ = pinnedFixed
 
             let flexible = ProposalLeaf().frame(minWidth: Pixels(10), idealWidth: Pixels(20),
                                                 maxWidth: Pixels(30))
-            let pinnedFlexible: ModifiedContent<ProposalLeaf> = flexible
+            let pinnedFlexible: ModifiedContent<ProposalLeaf, LayoutModifier> = flexible
             _ = pinnedFlexible
 
             let ideal = ProposalLeaf().frame(idealWidth: Pixels(20))
-            let pinnedIdeal: ModifiedContent<ProposalLeaf> = ideal
+            let pinnedIdeal: ModifiedContent<ProposalLeaf, LayoutModifier> = ideal
             _ = pinnedIdeal
 
             let aligned = ProposalLeaf().frame(alignment: .topLeading)
-            let pinnedAligned: ModifiedContent<ProposalLeaf> = aligned
+            let pinnedAligned: ModifiedContent<ProposalLeaf, LayoutModifier> = aligned
             _ = pinnedAligned
 
             let legacyFixed = LegacyLeaf().frame(width: Pixels(10))

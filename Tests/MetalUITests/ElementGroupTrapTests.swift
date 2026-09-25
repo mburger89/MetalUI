@@ -145,7 +145,7 @@ func proposalLayoutConstructorsRequireProposalContent() throws {
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func proposalTextSelectsProposalModifiersWithoutMakingLegacyTextAmbiguous() throws {
     let result = try typecheck("""
-        @MainActor func probe() -> ModifiedContent<ProposalText> {
+        @MainActor func probe() -> ModifiedContent<ProposalText, LayoutModifier> {
             Text("proposal").proposalLayout().background(.accent)
         }
         """, importing: "MetalUI")

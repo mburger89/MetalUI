@@ -28,6 +28,29 @@ public protocol ProposalElementGroup: ElementGroup {
     mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
                                              at cursor: inout Int,
                                              pass: inout LayoutPass) -> ([ProposalNodeID], GroupLayout)
+
+    /// The type a proposal modifier (`.padding(_: Edges<Pixels>)`, `.frame`,
+    /// `.background`, …) wraps: `Self` for every conformer but a proposal
+    /// `ModifiedContent`, whose layers wrap its content, so a chain stays ONE
+    /// `ModifiedContent<Base, LayoutModifier>` however long it grows (plan task
+    /// 7, stage 11, ruling `LR-FV` item 4 — `ElementGroup.LayerBase`, ruling
+    /// MC-A, mirrored).
+    associatedtype ProposalBase: ProposalElementGroup = Self
+
+    /// Framework entry point for every proposal modifier: adds one outer layer.
+    /// **Not for conformers to implement.** A conformer that declares
+    /// `ProposalBase` and forwards this to another value compiles, and its
+    /// modifiers then silently drop the receiver — `MC-A`'s `_wrap` hole,
+    /// mirrored; no access-control spelling closes it.
+    func _wrapLayout(_ modifier: LayoutModifier) -> ModifiedContent<ProposalBase, LayoutModifier>
+}
+
+extension ProposalElementGroup where ProposalBase == Self {
+    /// Every conformer but a proposal `ModifiedContent`: the first proposal
+    /// modifier wraps.
+    public func _wrapLayout(_ modifier: LayoutModifier) -> ModifiedContent<Self, LayoutModifier> {
+        ModifiedContent(content: self, modifier: modifier)
+    }
 }
 
 // MARK: - The builder's products, on the typed entry
@@ -108,7 +131,8 @@ extension FixedSize: ProposalElement {}
 extension Spacer: ProposalElement {}
 extension Rectangle: ProposalElement {}
 extension Color: ProposalElement {}
-extension ModifiedContent: ProposalElement {}
+// `ModifiedContent` is a `ProposalElement` only over the proposal vocabulary,
+// declared with it in `ModifiedContent.swift` (ruling `LR-FV` item 2).
 extension OnTapModifier: ProposalElement {}
 extension OverlayModifier: ProposalElement {}
 extension BackgroundModifier: ProposalElement {}

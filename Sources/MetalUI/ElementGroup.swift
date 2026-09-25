@@ -83,9 +83,12 @@ public protocol ElementGroup {
                              pass: inout PaintPass)
 
     /// The type a legacy wrapper modifier (`.padding`, `.frame`) wraps: `Self`
-    /// for every conformer but `ModifiedElement`, whose layers wrap its content,
-    /// so a chain stays ONE `ModifiedElement<Base>` however long it grows
-    /// (ruling MC-A, `ModifiedElement.swift`).
+    /// for every conformer but `ModifiedContent` (`ModifiedElement`), whose
+    /// layers wrap its content, so a chain stays ONE `ModifiedElement<Base>`
+    /// however long it grows (ruling MC-A). **One witness for both
+    /// vocabularies** since stage 11 (ruling `LR-FV` item 4): a legacy wrapper
+    /// over a proposal chain absorbs its layers as the new chain's innermost
+    /// `prefix` (`ModifiedContent.swift`).
     associatedtype LayerBase: ElementGroup = Self
 
     /// Framework entry point for `.padding`/`.frame`: adds one outer layer.
@@ -149,16 +152,16 @@ extension Element {
         // doc names, applied to accessibility ONLY — focus, hitboxes and paint
         // keep their inert-table behaviour. The style is read only while collecting.
         // The check is `Frame.suppressingAccessibilityIfHidden`, shared with
-        // `ModifiedElement`'s inner layers.
+        // `ModifiedContent`'s inner layers.
         // The element bounds log (plan task 7, ruling LR-D), for a frame built to
-        // record it; `ModifiedElement.prepaintLayer` mirrors this per inner layer
+        // record it; `ModifiedContent.prepaintLayer` mirrors this per inner layer
         // (ruling MC-B) and `Frame.render` records the root.
         //
         // Since stage 6b (ruling `LR-DH`) a node a lowered `hidden()` put in
         // `Frame.hiddenNodes` also prepaints under the pointer-disable scope, so it
         // and everything inside it register no pointer hitbox (probe V3) — and
         // accessibility reads `isHidden`, which covers both paths. Mirrored per inner
-        // layer by `ModifiedElement.prepaintLayer` and in `AnyElement`'s entry below.
+        // layer by `ModifiedContent.prepaintLayer` and in `AnyElement`'s entry below.
         pass.frame.recordElementBounds(layout.id, pass.bounds(of: layout.node))
         return pass.frame.suppressingAccessibilityIfHidden(layout.node) {
             pass.frame.disablingHitTestingIfHidden(layout.node) {

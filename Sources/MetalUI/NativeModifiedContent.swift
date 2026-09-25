@@ -30,137 +30,21 @@ public enum LayoutModifier: Sendable {
     case allowsHitTesting(Bool)
 }
 
-/// A typed proposal-layout modifier wrapper, analogous to SwiftUI's `ModifiedContent`.
-///
-/// Each value owns one content subtree and one layout modifier. Chaining keeps
-/// that structure concrete—`ModifiedContent<ModifiedContent<T>>`
-/// rather than silently introducing `AnyElement`—so identity and phase order
-/// remain observable and predictable.
-public struct ModifiedContent<Content: ProposalElementGroup>: Element {
-    public var content: Content
-    public var modifier: LayoutModifier
-
-    public init(content: Content, modifier: LayoutModifier) {
-        self.content = content
-        self.modifier = modifier
-    }
-
-    public struct Layout {
-        var node: LayoutNodeID
-        var content: Content.GroupLayout
-    }
-
-    public mutating func requestProposalLayout(_ id: GlobalElementID,
-                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
-        var cursor = 0
-        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
-                                                                           pass: &pass)
-        let node = nativeWrapperNode(for: children, pass: &pass)
-        return (node, Layout(node: node.layoutNodeID, content: contentLayout))
-    }
-
-    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Layout,
-                                  pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        if case let .allowsHitTesting(enabled) = modifier {
-            var result: Content.GroupPrepaint?
-            pass.allowsHitTesting(enabled) {
-                result = content.prepaintGroup(layout: &layout.content, pass: &pass)
-            }
-            return result!
-        }
-        if case let .clip(cornerRadius) = modifier {
-            var result: Content.GroupPrepaint?
-            pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
-                         cornerRadii: Corners(all: cornerRadius)) {
-                result = content.prepaintGroup(layout: &layout.content, pass: &pass)
-            }
-            return result!
-        }
-        return content.prepaintGroup(layout: &layout.content, pass: &pass)
-    }
-
-    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Layout, prepaint: inout Content.GroupPrepaint,
-                               pass: inout PaintPass) {
-        if case let .opacity(value) = modifier {
-            pass.opacity(value) {
-                content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
-            }
-            return
-        }
-        if case let .background(token) = modifier {
-            pass.fill(bounds, color: pass.theme[token], cornerRadii: Corners(all: Pixels(0)))
-        }
-        if case let .clip(cornerRadius) = modifier {
-            pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
-                         cornerRadii: Corners(all: cornerRadius)) {
-                content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
-            }
-        } else {
-            content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
-        }
-        if case let .border(token, width, cornerRadius) = modifier {
-            pass.fill(bounds, color: .transparent, cornerRadii: Corners(all: cornerRadius),
-                      borderColor: pass.theme[token], borderWidths: Edges(all: width))
-        }
-    }
-
-    private func nativeWrapperNode(for children: [ProposalNodeID], pass: inout LayoutPass) -> ProposalNodeID {
-        precondition(children.count == 1,
-                     "a native outer modifier must wrap exactly one native layout node")
-        let child = children[0]
-        switch modifier {
-        case let .frame(width, height, alignment):
-            return pass.requestNativeFrame(
-                child: child,
-                width: width.map { Double($0.value) }, height: height.map { Double($0.value) },
-                alignment: alignment
-            )
-        case let .flexibleFrame(minWidth, idealWidth, maxWidth, minHeight, idealHeight, maxHeight, alignment):
-            return pass.requestNativeFrame(
-                child: child,
-                minWidth: minWidth.map { Double($0.value) }, idealWidth: idealWidth.map { Double($0.value) },
-                maxWidth: maxWidth.map { Double($0.value) },
-                minHeight: minHeight.map { Double($0.value) }, idealHeight: idealHeight.map { Double($0.value) },
-                maxHeight: maxHeight.map { Double($0.value) }, alignment: alignment
-            )
-        case let .padding(insets):
-            return pass.requestNativePadding(
-                child: child,
-                insets: Edges(top: Double(insets.top.value), right: Double(insets.right.value),
-                              bottom: Double(insets.bottom.value), left: Double(insets.left.value))
-            )
-        case let .fixedSize(horizontal, vertical):
-            return pass.requestNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
-        case let .aspectRatio(ratio, contentMode):
-            return pass.requestNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
-        case let .layoutPriority(priority):
-            return pass.requestNativeLayoutPriority(child: child, priority: priority)
-        case .background:
-            // A background has no independent layout footprint. Returning the
-            // content node lets the wrapper observe its resolved bounds during
-            // paint while preserving modifier nesting in the element tree.
-            return child
-        case .clip:
-            return child
-        case .border:
-            return child
-        case .opacity:
-            return child
-        case .allowsHitTesting:
-            return child
-        }
-    }
-}
-
+/// **The wrapper these modifiers build is `ModifiedContent<Content,
+/// LayoutModifier>`** (`ModifiedContent.swift`), ONE flat chain since stage 11
+/// (ruling `LR-FV`): every modifier below goes through
+/// `ProposalElementGroup._wrapLayout(_:)`, which appends a layer to a chain
+/// rather than nesting it — `Rectangle().padding(e).frame(width: w)` is
+/// `ModifiedContent<Rectangle, LayoutModifier>`, where until stage 11 it was
+/// `ModifiedContent<ModifiedContent<Rectangle>>`. Each modifier is still one
+/// layer = one identity level, so every id path is unchanged.
 extension ProposalElementGroup {
     /// Applies a native SwiftUI-style fixed outer frame. The same as
     /// `frame(width:height:alignment:)`; split from the flexible spelling for
     /// the same reason (ruling SA-K item 6).
     public func nativeFrame(width: Pixels? = nil, height: Pixels? = nil,
-                            alignment: ProposalAlignment = .center) -> ModifiedContent<Self> {
-        ModifiedContent(content: self, modifier: .frame(width: width, height: height, alignment: alignment))
+                            alignment: ProposalAlignment = .center) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.frame(width: width, height: height, alignment: alignment))
     }
 
     /// Applies a native SwiftUI-style flexible outer frame. The same as
@@ -168,96 +52,94 @@ extension ProposalElementGroup {
     public func nativeFrame(minWidth: Pixels? = nil, idealWidth: Pixels? = nil,
                             maxWidth: Pixels? = nil, minHeight: Pixels? = nil,
                             idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
-                            alignment: ProposalAlignment = .center) -> ModifiedContent<Self> {
-        ModifiedContent(
-            content: self,
-            modifier: .flexibleFrame(minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
-                                     minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
-                                     alignment: alignment)
+                            alignment: ProposalAlignment = .center) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(
+            .flexibleFrame(minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
+                           minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
+                           alignment: alignment)
         )
     }
 
     /// Applies proposal-layout outer padding.
-    public func padding(_ insets: Edges<Pixels>) -> ModifiedContent<Self> {
-        ModifiedContent(content: self, modifier: .padding(insets))
+    public func padding(_ insets: Edges<Pixels>) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.padding(insets))
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "padding")
-    public func nativePadding(_ insets: Edges<Pixels>) -> ModifiedContent<Self> {
+    public func nativePadding(_ insets: Edges<Pixels>) -> ModifiedContent<ProposalBase, LayoutModifier> {
         padding(insets)
     }
 
     /// Requests proposal-layout fixed-size behaviour on either axis.
     public func fixedSize(horizontal: Bool = true, vertical: Bool = true)
-        -> ModifiedContent<Self> {
-        ModifiedContent(content: self, modifier: .fixedSize(horizontal: horizontal, vertical: vertical))
+        -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.fixedSize(horizontal: horizontal, vertical: vertical))
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "fixedSize")
     public func nativeFixedSize(horizontal: Bool = true, vertical: Bool = true)
-        -> ModifiedContent<Self> {
+        -> ModifiedContent<ProposalBase, LayoutModifier> {
         fixedSize(horizontal: horizontal, vertical: vertical)
     }
 
     /// Paints a semantic token behind this native subtree without changing its
     /// proposal, measurement, or placement.
-    public func background(_ token: ColorToken) -> ModifiedContent<Self> {
-        ModifiedContent(content: self, modifier: .background(token))
+    public func background(_ token: ColorToken) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.background(token))
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "background")
-    public func nativeBackground(_ token: ColorToken) -> ModifiedContent<Self> {
+    public func nativeBackground(_ token: ColorToken) -> ModifiedContent<ProposalBase, LayoutModifier> {
         background(token)
     }
 
     /// Clips this native subtree to its resolved bounds.
-    public func clip(cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<Self> {
-        ModifiedContent(content: self, modifier: .clip(cornerRadius: cornerRadius))
+    public func clip(cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.clip(cornerRadius: cornerRadius))
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "clip")
-    public func nativeClip(cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<Self> {
+    public func nativeClip(cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<ProposalBase, LayoutModifier> {
         clip(cornerRadius: cornerRadius)
     }
 
     /// Draws a border over this native subtree without changing its layout.
     public func border(_ token: ColorToken, width: Pixels,
-                       cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<Self> {
-        ModifiedContent(content: self,
-                              modifier: .border(token, width: width, cornerRadius: cornerRadius))
+                       cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.border(token, width: width, cornerRadius: cornerRadius))
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "border")
     public func nativeBorder(_ token: ColorToken, width: Pixels,
-                             cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<Self> {
+                             cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<ProposalBase, LayoutModifier> {
         border(token, width: width, cornerRadius: cornerRadius)
     }
 
     /// Applies paint-only opacity to this proposal-layout subtree.
-    public func opacity(_ value: Float) -> ModifiedContent<Self> {
-        ModifiedContent(content: self, modifier: .opacity(value))
+    public func opacity(_ value: Float) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.opacity(value))
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "opacity")
-    public func nativeOpacity(_ value: Float) -> ModifiedContent<Self> {
+    public func nativeOpacity(_ value: Float) -> ModifiedContent<ProposalBase, LayoutModifier> {
         opacity(value)
     }
 
     /// Controls whether pointer hit testing enters this proposal-layout subtree.
     /// Keyboard focus and key handlers remain available when it is disabled.
-    public func allowsHitTesting(_ enabled: Bool) -> ModifiedContent<Self> {
-        ModifiedContent(content: self, modifier: .allowsHitTesting(enabled))
+    public func allowsHitTesting(_ enabled: Bool) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.allowsHitTesting(enabled))
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "allowsHitTesting")
-    public func nativeAllowsHitTesting(_ enabled: Bool) -> ModifiedContent<Self> {
+    public func nativeAllowsHitTesting(_ enabled: Bool) -> ModifiedContent<ProposalBase, LayoutModifier> {
         allowsHitTesting(enabled)
     }
 
@@ -287,8 +169,8 @@ extension ProposalElementGroup {
     /// The kernel validates each dimension when the frame registers (ruling
     /// SA-J): a negative, NaN or infinite fixed dimension traps.
     public func frame(width: Pixels? = nil, height: Pixels? = nil,
-                      alignment: ProposalAlignment = .center) -> ModifiedContent<Self> {
-        ModifiedContent(content: self, modifier: .frame(width: width, height: height, alignment: alignment))
+                      alignment: ProposalAlignment = .center) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.frame(width: width, height: height, alignment: alignment))
     }
 
     /// Applies SwiftUI-style flexible proposal-layout frame constraints.
@@ -300,12 +182,11 @@ extension ProposalElementGroup {
     public func frame(minWidth: Pixels? = nil, idealWidth: Pixels? = nil,
                       maxWidth: Pixels? = nil, minHeight: Pixels? = nil,
                       idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
-                      alignment: ProposalAlignment = .center) -> ModifiedContent<Self> {
-        ModifiedContent(
-            content: self,
-            modifier: .flexibleFrame(minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
-                                     minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
-                                     alignment: alignment)
+                      alignment: ProposalAlignment = .center) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(
+            .flexibleFrame(minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
+                           minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
+                           alignment: alignment)
         )
     }
 
@@ -339,10 +220,10 @@ extension ProposalElementGroup {
     /// disagree (ruling SA-K item 4): the ratio must be finite and non-zero; a
     /// negative ratio is accepted, as SwiftUI accepts it (P8).
     public func aspectRatio(_ ratio: Double,
-                            contentMode: AspectRatioContentMode = .fit) -> ModifiedContent<Self> {
+                            contentMode: AspectRatioContentMode = .fit) -> ModifiedContent<ProposalBase, LayoutModifier> {
         precondition(ratio.isFinite && ratio != 0,
                      "aspect ratio must be finite and non-zero (SA-J), got \(ratio)")
-        return ModifiedContent(content: self, modifier: .aspectRatio(ratio, contentMode: contentMode))
+        return _wrapLayout(.aspectRatio(ratio, contentMode: contentMode))
     }
 
     /// Prioritizes this subtree when a native `HStack` or `VStack` must divide
@@ -351,9 +232,9 @@ extension ProposalElementGroup {
     /// **The kernel's rule, checked at construction** (ruling SA-K item 4): NaN
     /// traps, as SwiftUI hangs on it (P7); ±∞ is accepted and orders like any
     /// finite priority.
-    public func layoutPriority(_ value: Double) -> ModifiedContent<Self> {
+    public func layoutPriority(_ value: Double) -> ModifiedContent<ProposalBase, LayoutModifier> {
         precondition(!value.isNaN, "layout priority must not be NaN (SA-J)")
-        return ModifiedContent(content: self, modifier: .layoutPriority(value))
+        return _wrapLayout(.layoutPriority(value))
     }
 }
 
@@ -361,6 +242,9 @@ extension ProposalElementGroup {
 @available(*, deprecated, renamed: "LayoutModifier")
 public typealias NativeLayoutModifier = LayoutModifier
 
-/// Temporary source-compatible name for ``ModifiedContent``.
+/// Temporary source-compatible name for ``ModifiedContent`` over the proposal
+/// vocabulary, retargeted by stage 11 (ruling `LR-FV` item 8): the
+/// one-argument spelling `ModifiedContent<C>` became
+/// `ModifiedContent<C, LayoutModifier>`, and this alias spells that.
 @available(*, deprecated, renamed: "ModifiedContent")
-public typealias NativeModifiedContent<Content: ProposalElementGroup> = ModifiedContent<Content>
+public typealias NativeModifiedContent<Content: ProposalElementGroup> = ModifiedContent<Content, LayoutModifier>

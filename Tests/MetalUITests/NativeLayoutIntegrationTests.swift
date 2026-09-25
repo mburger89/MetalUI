@@ -646,10 +646,12 @@ private struct NativeProposalProbe: ProposalElement {
 @MainActor
 @Test func nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder() {
     let probe = NativeLayoutProbe()
-    let stored: ModifiedContent<NativeProbeLeaf> = NativeProbeLeaf(
+    let stored: ModifiedContent<NativeProbeLeaf, LayoutModifier> = NativeProbeLeaf(
         size: SizeD(width: 20, height: 10), probe: probe, name: "trailing"
     ).nativeFrame(width: Pixels(40), height: Pixels(30), alignment: .bottomTrailing)
-    var root: ModifiedContent<ModifiedContent<NativeProbeLeaf>> = stored
+    // One flat chain since stage 11 (ruling `LR-FV`): the padding appends a
+    // layer, where it nested a second `ModifiedContent` until then.
+    var root: ModifiedContent<NativeProbeLeaf, LayoutModifier> = stored
         .padding(Edges(all: Pixels(5)))
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
 
@@ -672,7 +674,7 @@ private struct NativeProposalProbe: ProposalElement {
 @MainActor
 @Test func proposalLayoutFrameUsesTheTypedProposalWrapper() {
     let probe = NativeLayoutProbe()
-    let stored: ModifiedContent<NativeProbeLeaf> = NativeProbeLeaf(
+    let stored: ModifiedContent<NativeProbeLeaf, LayoutModifier> = NativeProbeLeaf(
         size: SizeD(width: 20, height: 10), probe: probe, name: "trailing"
     ).frame(width: Pixels(40), height: Pixels(30), alignment: .bottomTrailing)
     var root = ZStack { stored }

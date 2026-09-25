@@ -73,7 +73,7 @@ func aProposalModifierChainInfersOneFlatModifiedContent() throws {
     try #require(flat.succeeded != nested.succeeded,
                  "the flat and nested annotations must disagree:\nflat:\n\(flat.output)\nnested:\n\(nested.output)")
     #expect(flat.succeeded, "the flat annotation must compile:\n\(flat.output)")
-    #expect(!nested.succeeded && nested.messages.contains("cannot convert value of type"),
+    #expect(!nested.succeeded && nested.messages.contains("cannot assign value of type"),
             "the nested annotation must be rejected for its type:\n\(nested.output)")
 }
 
@@ -142,8 +142,12 @@ func anExternalModifierLayerKindCannotBuildAModifiedContent() throws {
                  && conformer.succeeded != publicInit.succeeded,
                  "the conformer and the two builds must disagree:\nconformer:\n\(conformer.output)")
     #expect(conformer.succeeded, "an external conformer must compile:\n\(conformer.output)")
-    #expect(!memberwise.succeeded && memberwise.messages.contains("inaccessible"),
-            "the memberwise initializer must be inaccessible:\n\(memberwise.output)")
-    #expect(!publicInit.succeeded,
+    // An internal initializer is not a candidate outside the module, so the
+    // call resolves against the public `init(content:modifier:)` and fails on
+    // its arity.
+    #expect(!memberwise.succeeded && memberwise.messages.contains("extra arguments"),
+            "the memberwise initializer must be invisible:\n\(memberwise.output)")
+    #expect(!publicInit.succeeded
+            && publicInit.messages.contains("to type 'ModifiedContent<Leaf, ExternalKind>'"),
             "the public initializer must not build a chain over an external vocabulary:\n\(publicInit.output)")
 }
