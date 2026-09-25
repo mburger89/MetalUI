@@ -147,3 +147,28 @@ showed only this design's probe edit. `LR-FY` item 3.
 Committed: the spec, `LR-FV`…`LR-FZ` (the decisions doc's next unused moves to
 `LR-GA` in the same commit), this record, the skeleton probe, the probe
 headers. No `Sources/` or `Tests/` file changed.
+
+## 6. Critic round 1 (2026-09-24)
+
+Ruling `LR-GA`; the spec was amended in place, and each amended passage says so.
+
+**Probe re-runs** (script form, `/usr/bin/swift` 6.4, exit 0, empty stderr):
+`swiftui-border-clip-paint.swift`'s G3, G4, H1, H2, H3 lines are each found
+verbatim in its header (`grep -F`). All eleven stdout lines of
+`swiftui-overlay-primary-shape.swift` are also found verbatim in its header,
+controls A, B, P5, Q included.
+
+**Findings, each read in the source at `47c0d98`, all applied:**
+
+| # | finding | evidence | disposition |
+|---|---|---|---|
+| 1 | one fill bit for three slots: `.background(red).opacity(0.5).hoverBackground(blue)` paints the unhovered red opaque | `Box.swift:723/741/758` write three slots; `AnimatedColor.swift:357` paints the winner | six-member `escapesOpacity`; the winning slot decides; N2.4, M2i |
+| 2 | an unconditional flag breaks `Decoration` equality for identical paint | `ModifierTests.swift:416`; `Decoration: Hashable` (`Box.swift:211`) | inserted only while `opacity < 1`; N2.4's equality arm; M2j |
+| 3 | a two-member legacy primary under `.overlay` traps unruled | `NativeBackgroundModifier.swift:91` | ruled; exit test N1.7; `Group` overlay → task 8 |
+| 4 | `aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName` expects `deferred.amended`, and is not in the T list | `PresentationLoweringTests.swift:440–442` | T row added; N2.3 gains the out-of-`Deferred` control (M2g′) |
+| 5 | divergence 54 ("stage 11 / task 10's") and 56's `TB-M` remainder ("stage 11") are missing from §2 | record §04, the 2026-09-22 section | re-owned: 54 → task 10, 56's remainder → task 8 (spec §6.5) |
+| 6 | the task-7 tick checked only the §4.1 rows, and row 8 cited a record; the live divergence count is stale | plan task 7's paragraph and `CN-Q`; record §04's stage-9 section reads 56 live | spec §9.1; row 8 now reads the branch; 56 → 55 |
+| 7 | lane 1 was two lanes' work, and the stack budget had no threshold | spec §7 as designed | three lanes; bisection after lane 1 and lane 3; above 544 KB blocks |
+
+**Accounting as amended:** 1426 → **1439** tests, guards 82 → 84, goldens 0,
+no test retired.

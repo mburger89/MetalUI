@@ -3,7 +3,8 @@
 Plan task 7, stage 11: the last row of
 [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 (`LR-V`, §8). Branch `feat/engine-stage-11` from `47c0d98`. Rulings
-`LR-FV`…`LR-FZ` in
+`LR-FV`…`LR-FZ` (critic round 1: `LR-GA`, which amends this spec in place —
+each amended passage says so) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md);
 measurements in `docs/record/54-engine-replacement-stage-11.md`.
 
@@ -67,6 +68,9 @@ and the source, found by `grep -rn -i "stage 11\|task 7's unification"` over
 | 6 | `Component.width`/`height` and `StyledComponent.width`/`height` reconciled with `.frame` | `LR-ER` item 2, `LR-EY` item 3; `Component.swift:495, 509, 535` | §6.2, `LR-FY` |
 | 7 | a multi-member `Component`'s absolute `.frame` in a `Deferred` reports `modifierLayer.style` "owner stage 11, with `Component.frame`" | `LegacyLowering.swift:411`, `PresentationLoweringTests.swift:640` | §6.3, `LR-FY` |
 | 8 | the parent row's exit cites "the outer-modifier-order probe's G3/G4 arms", which that probe does not have | §4.1 row 11, `LR-V` | §6.4, `LR-FY` |
+| 9 | divergence **54** (a `ScrollView` takes its cross axis from its parent): "it is stage 11 / task 10's" | record §04, 2026-09-22 section (`LR-BC`) | §6.5, `LR-GA` item 5 — **added by critic round 1** (the design's grep did not cover record §04) |
+| 10 | divergence **56**'s remainder: "framed members staying one flex item is `TB-M`'s, stage 11" | record §04, 2026-09-22 section (`LR-BH`) | §6.5, `LR-GA` item 5 — **added by critic round 1** |
+| 11 | every live divergence, inert row or plan clause still naming **task 7** (any stage) as its owner | task 7 closes here; plan task 7's paragraph (`CN-Q`'s hand-off list: 35, 52–56, legacy `ideal`, the greedy maxima, a frame over a multi-member `Component`) | §9.1, `LR-GA` item 6 — **added by critic round 1** |
 
 Divergence **46** (a second `.opacity` on one legacy element replaces the
 first, `OM-AH`) is **not** stage 11's — no row hands it here, and `OM-AH`
@@ -309,19 +313,40 @@ border twin of divergence 45, found by group H.
 **The fix — the write order, recorded, not a new layer** (a new layer would
 add an id level and move every chain that writes both):
 
-- `Decoration` gains two internal stored `Bool`s, `backgroundFollowsOpacity`
-  and `borderFollowsOpacity`, default `false`.
-- `.background(_:)`, `.hoverBackground(_:)` and `.focusBackground(_:)` set
-  `backgroundFollowsOpacity = true`; `.border`, `.hoverBorder` and
-  `.focusBorder` (every overload) set `borderFollowsOpacity = true`;
-  `.opacity(_:)` sets both `false`. (The three background spellings resolve
-  into the one fill, `focus ?? hover ?? plain`, so the flag is the fill's; a
-  direct write of a public field records no order and stays inside, today's
-  answer.)
-- `paintDecoration`, when `opacity < 1`: a following fill is emitted **before**
-  the scope opens, a following border **after** it closes; everything else is
-  inside, as today. **Emission order is unchanged** (fill, content, border), so
-  only the alpha of the escaped emission changes.
+*Amended, stage-11 critic round 1 (`LR-GA` items 1–2).* The design's two
+`Bool`s — one for the fill, one for the border — were **one bit for three
+slots each**, and leaked: `.background(red).opacity(0.5).hoverBackground(blue)`
+would set the fill's flag through the hover write, so the **unhovered** red —
+written before the opacity, faded at `47c0d98` and in SwiftUI's G3 — escaped
+the scope and painted opaque. And a flag set unconditionally makes
+`Box().background(x).decoration != Decoration(background: x)`, which reddens
+`ModifierTests`' one-field table (`got.decoration == expectedDecoration`; its
+`effect` closures write the public field) — a retained test the design did not
+list. The fix as amended:
+
+- `Decoration` gains one internal stored `OptionSet`, `escapesOpacity`
+  (`UInt8`), with **six** members — `plainFill`, `hoverFill`, `focusFill`,
+  `plainBorder`, `hoverBorder`, `focusBorder` — default empty. Internal, so no
+  public spelling; `Hashable` stays synthesized.
+- Each of the six modifiers (`.background`, `.hoverBackground`,
+  `.focusBackground`, every `.border`/`.hoverBorder`/`.focusBorder` overload)
+  inserts **its own** member, **and only when the decoration's `opacity < 1` at
+  the time of the write** — a write with no opacity before it records nothing,
+  so decorations built without an opacity still compare equal and the
+  one-field table stays green unedited. `.opacity(_:)` (through `setOpacity`)
+  empties the set. A direct write of a public field records nothing and stays
+  inside — today's answer.
+- `paintDecoration`, when `opacity < 1`: it resolves **which slot won** each
+  of the fill and the border (`focus ?? hover ?? plain`, the same pointer and
+  focus state `animatedBackground`/`resolvedBorder` read — one resolver that
+  returns the slot beside the colour, not a second copy of the precedence),
+  emits the fill **before** the scope opens iff the winning fill slot is in
+  `escapesOpacity`, and the border **after** it closes iff the winning border
+  slot is; everything else is inside, as today. **Emission order is
+  unchanged** (fill, content, border), so only the alpha of the escaped
+  emission changes. A hover or focus change mid-animation that moves the
+  winning slot across the scope snaps that emission's alpha (the colour still
+  interpolates) — the Record phase adds it to record §05's snap list.
 - Divergence 46 is untouched: two `.opacity` writes still replace (H3's legacy
   fill reads 0.5, SwiftUI's single fade; the content reads 0.5 where SwiftUI's
   reads 0.25 — `OM-AH`, still recorded).
@@ -329,8 +354,11 @@ add an id level and move every chain that writes both):
 **Both paths** then answer G3, G4, H1, H2 and H3 the same (`OM-AA` a closed),
 which N2.1 asserts through a `ModifiedContent<…, ModifierLayer>` and a
 `ModifiedContent<…, LayoutModifier>` chain — the exit criterion's "through the
-unified type". **Divergence 45 retires** (Record phase: record §04; 58 → 57
-live per CLAUDE.md's count, which the Record phase re-counts).
+unified type" (H3 compares the **fill** only; its content differs by
+divergence 46). **Divergence 45 retires** (Record phase: record §04).
+*Amended, critic round 1:* the live count is **56 → 55** — record §04's
+stage-9 section reads 56 live and stage 10 changed no row; CLAUDE.md's "58
+live" is stale and the Record phase corrects it.
 
 ## 5. The legacy `.overlay` (`LR-FX`)
 
@@ -362,6 +390,12 @@ live per CLAUDE.md's count, which the Record phase re-counts).
   the count (N1.5). An overlay has nothing to be proposed from a portal's
   placeholder; a trap by name is the answer, not a 0×0 overlay at an in-flow
   point.
+- **A primary of two or more nodes** — a multi-member `Component` — traps by
+  the same precondition (`requires one primary node, got 2`), pinned by exit
+  test **N1.7** (*added by critic round 1*, `LR-GA` item 3). SwiftUI
+  distributes a `Group`'s overlay per member; that is `Group` semantics, plan
+  task 8's with §6.2's `.frame` (§10). The trap is the named answer until
+  then — the one the proposal path already gives a multi-node primary.
 - Paint and prepaint: unchanged (primary, then overlay).
 - **Not here**: a legacy `.background { content }` (§10).
 
@@ -403,6 +437,13 @@ row of per-member 20×20 frames, laid out as the presentation's element at the
 insets — the same relative shape as the in-flow row (members 20 apart). The
 condition is deleted; the row is the presentation root.
 
+*Amended, critic round 1:* N2.3 also carries the **out-of-`Deferred`
+control** — the same two-member absolute frame in a `Column` — which must
+still report `modifierLayer.position`, `modifierLayer.inset` (removing the
+one-node condition must not widen the exemption beyond a `Deferred`), and
+mutation **M2g′** (the `Deferred` check dropped with the node count) must
+redden it.
+
 ### 6.4 The exit citation
 
 G3/G4 are `swiftui-border-clip-paint.swift`'s arms; `swiftui-outer-modifier-order.swift`
@@ -411,44 +452,62 @@ G3/G4 (plus group H) and overlay-primary-shape P1–P5/A/B/Q**, through the
 unified type. The probe headers and this ruling say so; the parent row is
 corrected by the Record phase.
 
+### 6.5 Divergences 54 and 56's remainder (*added by critic round 1*, `LR-GA` item 5)
+
+Neither is a modifier question, and neither is closed here:
+
+- **54** (a lowered `ScrollView` takes its cross axis from its parent, where
+  `ProposalScrollView` takes its content's, because only the `ScrollView`
+  records a `LoweredItem`). Record §04 handed it "stage 11 / task 10's". The
+  fix moves a scroll viewport's answer in every legacy `ScrollView` of the
+  demo — a scrolling question, not a modifier one. **Re-owned to plan task 10
+  alone** ("Align data-driven controls and scrolling"); its pins
+  (`divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`,
+  `aLoweredScrollViewFillsItsProposalOnTheScrollingAxis`) are unedited.
+- **56's remainder** (a `.frame` on a multi-member `Component` stays **one**
+  flex item in its parent, `TB-M`; SwiftUI's `Group` makes each framed member
+  its own). This is exactly §6.2's per-member `.frame` distribution —
+  **re-owned to plan task 8** with it (`CN-Q`, `Group` semantics).
+
 ## 7. Lanes
 
-Two lanes, **run in order** (lane 2's exit test annotates the lane-1 type);
-the files are disjoint. Each lane: commit, build under both build systems, run
-the whole suite unfiltered, read the summary line; `swift package clean`
+*Amended, stage-11 critic round 1 (`LR-GA` item 7):* **three lanes, run in
+order**, where the design had two. The design's lane 1 carried the unified type
+**and** the legacy overlay — ten source files, six test files and eight new
+tests, the largest lane of the stage, with its two riskiest failure modes (the
+solver budget, an id path) in the same agent as a new lowering helper. The
+overlay's files (`NativeOverlayModifier.swift`, `NativeBackgroundModifier.swift`,
+`AttachmentLowering.swift`) are disjoint from the unified type's, so the
+overlay is its own lane, after the type lands. Each lane: `swift package clean`
 first (public generic arity, `OverlayModifier`'s constraints and `Decoration`'s
-stored properties all cross module boundaries).
+stored properties all cross module boundaries), commit, build under both build
+systems, run the whole suite unfiltered, read the summary line.
 
-### Lane 1 — the unified type and the legacy overlay (Opus)
+### Lane 1 — the unified type (Opus)
 
 **Files.** New `Sources/MetalUI/ModifiedContent.swift` (the struct,
 `ModifierLayerKind`, the recursion, the conditional conformances,
-`typealias ModifiedElement`) and `Sources/MetalUI/AttachmentLowering.swift`;
-`ModifiedElement.swift` (keeps `ModifierLayer`, gains its `ModifierLayerKind`
-arm, keeps the fixed `frame` overload and `_wrap`'s default, `FR-S`);
-`NativeModifiedContent.swift` (`LayoutModifier`'s arm; proposal modifiers
-through `_wrapLayout`; `NativeModifiedContent` retargeted);
-`ProposalElementGroup.swift` (`ProposalBase`, `_wrapLayout` and its default;
-the unconditional `ModifiedContent: ProposalElement` line deleted);
-`NativeOverlayModifier.swift`, `NativeBackgroundModifier.swift` (the attachment
-helper's input); doc lines in `ElementGroup.swift`, `DecorationScope.swift`,
+`typealias ModifiedElement`); `ModifiedElement.swift` (keeps `ModifierLayer`,
+gains its `ModifierLayerKind` arm, keeps the fixed `frame` overload and
+`_wrap`'s default, `FR-S`); `NativeModifiedContent.swift` (`LayoutModifier`'s
+arm; proposal modifiers through `_wrapLayout`; `NativeModifiedContent`
+retargeted); `ProposalElementGroup.swift` (`ProposalBase`, `_wrapLayout` and
+its default; the unconditional `ModifiedContent: ProposalElement` line
+deleted); doc lines in `ElementGroup.swift`, `DecorationScope.swift`,
 `Element.swift`, `ProposalNodeID.swift`. Tests: new
 `Tests/MetalUITests/UnifiedModifiedContentTests.swift` and
 `UnifiedModifiedContentCompileGuards.swift`; body changes in
 `ModifiedElementTests.swift`, `NativeLayoutIntegrationTests.swift`,
-`FrameSizingCompileGuards.swift`, `ElementGroupTrapTests.swift` (and
-`ModifiedElementCompileGuards.swift` only under §3.6's condition). **Not**
-`Box.swift`, `AnimatedColor.swift`, `LegacyLowering.swift`,
-`LayoutAuthority.swift`, `Component.swift` (lane 2's).
+`FrameSizingCompileGuards.swift`, `ElementGroupTrapTests.swift`
+(`proposalTextSelects…` only) and `ModifiedElementCompileGuards.swift` only
+under §3.6's condition. **First act**: the budget guard
+(`aTwentyFourModifierChainTypechecksWithinASolverWorkBudget`) against the real
+overload set, before anything else; if it reddens, `LR-FV`'s fallback, recorded.
 
 | test | red before (at `47c0d98`) | mutation that must redden it |
 |---|---|---|
 | **N1.1** `aProposalChainIsOneFlatModifiedContentWithTheNestedChainsIdentities` — `Rectangle(…)`-probe `.padding(e).frame(w).background(t)` vs the same built with three nested explicit `ModifiedContent(content:modifier:)` inits, compared on every `elementBounds` key and rect, `tree.nodeCount`, `lastNativeLayoutWork` and the scene's rects; disagreeing oracle: the chain with its middle layer removed (the `#require`d disagreement); plus `type(of:) == ModifiedContent<…, LayoutModifier>.self` | does not compile (two-argument type); semantically the chain nests | **M1a** delete `typealias ProposalBase = Content` (chains nest; the type assertion); **M1b** a `LayoutModifier` inner layer's id `at: 1`; **M1i** skip `recordElementBounds` for an inner proposal layer |
 | **N1.2** `aLegacyWrapperAfterAProposalChainAbsorbsItAsItsInnermostLayers` — `Rectangle().padding(e).padding(Pixels(8)).background(.accent)`: type `ModifiedContent<Rectangle, ModifierLayer>`, id literals `root`, `.child(root, 0)`, content `.child(.child(root, 0), 0)`, the fill at the padded box, node count literal derived at `47c0d98` | does not compile | **M1d** `LayoutModifier._legacyStack` drops the prefix (node count, rect); **M1d′** absorbed layers placed outermost (rect) |
-| **N1.3** (exit) `aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape` — the overlay-primary-shape arms with `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`'s instrument (taps into the overlay's own `@State`, read after each flip): L1 `Box { if flag { Box() }; Box() }`, L2 `Box { if flag { EmptyComponent() }; Box() }`, L3 L1 `.padding(Pixels(2))` (a legacy `ModifiedContent`), L4 `ZStack { if flag { Rectangle() }; Rectangle() }.padding(e)` (a proposal `ModifiedContent`) — each keeps its taps through false→true; controls A (no flip, kept), B (`Box { tally }.id("g\(g)")`, reset every generation), P5 (a stateful probe inside the primary's conditional: present, absent, new) and Q (the overlay's own `if/else`, reset) | does not compile (legacy primaries) | **M1c** overlay side under `.child(of: id, at: 0)`; **M1c′** one cursor threaded through primary and overlay |
-| **N1.4** `aLegacyOverlayConsumesItsPrimarysAndOverlaysRecordsAsAFrameLayerDoes` — in a `Row`, a `Box` primary declaring `flexGrow(1)` and an overlay `Box` declaring `margin`, under diagnostics: the report is empty, the grow and the margin are dropped (rect literals), the overlay is placed by `alignment` over the primary's rect | does not compile | **M1e** skip consuming the primary (report `…unconsumed`); **M1e′** skip consuming the overlay side |
-| **N1.5** (exit test) `anOverlayOnAPresentationTrapsNamingItsPrimaryCount` — a production frame over `Deferred { … }.overlay { Box() }` exits with failure, stderr containing `requires one primary node, got 0` | does not compile | **M1f** the primary not passed through `droppingPresentations` |
-| **N1.6** `aProposalOverlayRegistersExactlyTheNodesItDidBeforeUnification` — `ZStack { Rectangle(…).padding(e).overlay { Rectangle(…) }.opacity(0.5) }`: `tree.nodeCount` and `lastNativeLayoutWork` equal literals taken at `47c0d98` before the change (a must-not-move pin, green on both sides by design, stated in its doc) | — | **M1g** `lowerAttachmentChildren` wraps a record-less child in a frame |
 | **G1.1** `aProposalModifierChainInfersOneFlatModifiedContent` (`typecheckFile`) — `let c: ModifiedContent<Leaf, LayoutModifier> = Leaf().padding(e).frame(width: w).background(.accent)` compiles; the nested annotation is rejected; `#require`d to disagree | the positive does not compile | **M1a** |
 | **G1.2** `anExternalModifierLayerKindCannotBuildAModifiedContent` (`typecheckFile`) — an external conformer compiles; building a `ModifiedContent` over it does not | the conformer does not compile (no protocol) | **M1h** the memberwise init made `public` |
 
@@ -458,48 +517,79 @@ Body changes (T), each with its reason in the lane's record section:
 `nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder` and
 `proposalLayoutFrameUsesTheTypedProposalWrapper` (annotations),
 `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload`,
-`proposalLayoutConstructorsRequireProposalContent`,
 `proposalTextSelectsProposalModifiersWithoutMakingLegacyTextAmbiguous`. None
-changes its answer except the overlay arm of
-`proposalLayoutConstructorsRequireProposalContent`, whose change is this
-lane's subject.
+changes its answer. Lane 1 also re-takes §1's value sizes and the
+smallest-stack bisection (the recursion is its change) and records them.
 
-### Lane 2 — opacity order and the owned lowering items (Opus)
+### Lane 2 — the legacy overlay (Opus)
 
-**Files.** `Box.swift` (`Decoration`'s two fields; the background, border and
+**Files.** New `Sources/MetalUI/AttachmentLowering.swift`;
+`NativeOverlayModifier.swift` (constraints widened, the one `.overlay` moved to
+`ElementGroup`, `nativeOverlay` kept), `NativeBackgroundModifier.swift` (the
+attachment helper's input). Tests: new `Tests/MetalUITests/LegacyOverlayTests.swift`;
+body change in `ElementGroupTrapTests.swift`
+(`proposalLayoutConstructorsRequireProposalContent`'s overlay arm). **Not** any
+lane-1 file.
+
+| test | red before (at `47c0d98`) | mutation that must redden it |
+|---|---|---|
+| **N1.3** (exit) `aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape` — the overlay-primary-shape arms with `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`'s instrument (taps into the overlay's own `@State`, read after each flip): L1 `Box { if flag { Box() }; Box() }`, L2 `Box { if flag { EmptyComponent() }; Box() }`, L3 L1 `.padding(Pixels(2))` (a legacy `ModifiedContent`), L4 `ZStack { if flag { Rectangle() }; Rectangle() }.padding(e)` (a proposal `ModifiedContent`) — each keeps its taps through false→true; controls A (no flip, kept), B (`Box { tally }.id("g\(g)")`, reset every generation), P5 (a stateful probe inside the primary's conditional: present, absent, new) and Q (the overlay's own `if/else`, reset) | does not compile (legacy primaries) | **M1c** overlay side under `.child(of: id, at: 0)`; **M1c′** one cursor threaded through primary and overlay |
+| **N1.4** `aLegacyOverlayConsumesItsPrimarysAndOverlaysRecordsAsAFrameLayerDoes` — in a `Row`, a `Box` primary declaring `flexGrow(1)` and an overlay `Box` declaring `margin`, under diagnostics: the report is empty, the grow and the margin are dropped (rect literals), the overlay is placed by `alignment` over the primary's rect | does not compile | **M1e** skip consuming the primary (report `…unconsumed`); **M1e′** skip consuming the overlay side |
+| **N1.5** (exit test) `anOverlayOnAPresentationTrapsNamingItsPrimaryCount` — a production frame over `Deferred { … }.overlay { Box() }` exits with failure, stderr containing `requires one primary node, got 0` | does not compile | **M1f** the primary not passed through `droppingPresentations` |
+| **N1.6** `aProposalOverlayRegistersExactlyTheNodesItDidBeforeUnification` — `ZStack { Rectangle(…).padding(e).overlay { Rectangle(…) }.opacity(0.5) }`: `tree.nodeCount` and `lastNativeLayoutWork` equal literals taken at `47c0d98` before the change (a must-not-move pin, green on both sides by design, stated in its doc) | — | **M1g** `lowerAttachmentChildren` wraps a record-less child in a frame |
+| **N1.7** (exit test, *critic round 1*) `aLegacyOverlayOnATwoMemberComponentTrapsNamingItsPrimaryCount` — a production frame over `Box { TwoMembers().overlay { Box() } }` exits with failure, stderr containing `requires one primary node, got 2` | does not compile | **M1j** the precondition relaxed to `primary.count >= 1` (the child exits 0) |
+
+Body change (T): `proposalLayoutConstructorsRequireProposalContent` —
+`OverlayModifier(content: Text("legacy")) { Rectangle() }` moves from the
+negatives to the positives, and the negative `HStack { Text("legacy").overlay
+{ Rectangle() } }` (message naming `ProposalElementGroup`) replaces it. Its
+answer changes, as ruled (`LR-FX`).
+
+### Lane 3 — opacity order and the owned lowering items (Opus)
+
+**Files.** `Box.swift` (`Decoration.escapesOpacity`; the background, border and
 opacity modifiers; doc mentions of `ModifiedElement`'s recursion),
-`AnimatedColor.swift` (`paintDecoration`), `LegacyLowering.swift`
-(`loweredComponentFrame`'s presentation branch, the one-node condition, their
-docs), `LayoutAuthority.swift` (`owner`, the `.deferred` doc), `Component.swift`
-(docs, §6.2). Tests: `DecorationPaintTests.swift`, new
-`Tests/MetalUITests/OpacityOrderTests.swift`,
+`AnimatedColor.swift` (`paintDecoration`, the slot-returning resolver),
+`LegacyLowering.swift` (`loweredComponentFrame`'s presentation branch, the
+one-node condition, their docs), `LayoutAuthority.swift` (`owner`, the
+`.deferred` doc), `Component.swift` (docs, §6.2). Tests:
+`DecorationPaintTests.swift`, new `Tests/MetalUITests/OpacityOrderTests.swift`,
 `PresentationContainingBlockTests.swift`, `PresentationLoweringTests.swift`,
 `LayoutAuthorityTests.swift`.
 
 | test | red before | mutation that must redden it |
 |---|---|---|
-| **T2.1** `opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot` → renamed `aBackgroundOrBorderWrittenAfterOpacityEscapesIt` — arms G3, G4, H1, H2, H3 on a bare `Box`, emitted alphas against the opaque control; `#require` G3 ≠ G4 and H1 ≠ H2 | G4 reads `0.5 × a` (faded), H2's border faded | **M2a** `.background` stops setting the flag; **M2b** `paintDecoration` ignores it; **M2c** `.opacity` stops clearing the flags (H3); **M2d** the border flag ignored (H2); **M2e** the flag inverted (G3; also `opacityMultipliesAndFadesTheElementsOwnBackground`) |
-| **N2.1** (exit) `theOpacityOrderAnswersTheSameOnBothPathsThroughTheUnifiedType` — G3, G4, H1, H2, H3 as annotated `ModifiedContent<Box<EmptyGroup>, ModifierLayer>` chains (`.padding(Pixels(2))` first) and `ModifiedContent<Rectangle, LayoutModifier>` chains (`.padding(e)` first); per arm the two paths' alphas are equal, and per path the order arms disagree | does not compile; semantically the legacy G4 and H2 arms disagree with the proposal ones | **M2a**, **M2d**; **M2h** `LayoutModifier`'s `.opacity` arm paints its content outside the scope (proposal G3) |
+| **T2.1** `opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot` → renamed `aBackgroundOrBorderWrittenAfterOpacityEscapesIt` — arms G3, G4, H1, H2, H3 on a bare `Box`, emitted alphas against the opaque control; `#require` G3 ≠ G4 and H1 ≠ H2 | G4 reads `0.5 × a` (faded), H2's border faded | **M2a** `.background` stops inserting its member; **M2b** `paintDecoration` ignores the set; **M2c** `.opacity` stops emptying it (H3); **M2d** the border members ignored (H2); **M2e** the test inverted (G3; also `opacityMultipliesAndFadesTheElementsOwnBackground`) |
+| **N2.1** (exit) `theOpacityOrderAnswersTheSameOnBothPathsThroughTheUnifiedType` — G3, G4, H1, H2, H3 as annotated `ModifiedContent<Box<EmptyGroup>, ModifierLayer>` chains (`.padding(Pixels(2))` first) and `ModifiedContent<Rectangle, LayoutModifier>` chains (`.padding(e)` first); per arm the two paths' alphas are equal (H3: the fill), and per path the order arms disagree | does not compile; semantically the legacy G4 and H2 arms disagree with the proposal ones | **M2a**, **M2d**; **M2h** `LayoutModifier`'s `.opacity` arm paints its content outside the scope (proposal G3) |
 | **N2.2** `aComponentAmendOverAPresentationMemberAnswersAsAFrameLayerDoes` — `.width(70)`, `.height(70)` and a `StyledComponent`'s `.width(70)` over a presenting member vs the same `Deferred` under `.frame(width: 70)`: empty reports, hitboxes (5, 5) 10×10 | reports `["deferred.amended"]` | **M2f** the report restored |
-| **N2.3** `aTwoMemberAbsoluteFrameInADeferredIsARowOfPerMemberFramesAgainstTheWindow` — empty report, hitboxes (35, 15) and (55, 15) 10×10 | reports `["modifierLayer.style"]`, hitboxes 0×0 at (0, 0) | **M2g** `&& childCount <= 1` restored |
+| **N2.3** `aTwoMemberAbsoluteFrameInADeferredIsARowOfPerMemberFramesAgainstTheWindow` — empty report, hitboxes (35, 15) and (55, 15) 10×10; **control** (*critic round 1*): the same frame in a `Column`, no `Deferred`, still reports `["modifierLayer.position", "modifierLayer.inset"]` | reports `["modifierLayer.style"]`, hitboxes 0×0 at (0, 0) | **M2g** `&& childCount <= 1` restored; **M2g′** the exemption's `Deferred` check dropped with it (the control) |
+| **N2.4** (*critic round 1*) `aHoverOrFocusFillWrittenAfterOpacityEscapesOnlyWhileItIsTheResolvedOne` — `Box().background(red).opacity(0.5).hoverBackground(blue).onClick {}`: unhovered, the red fill reads `0.5 × a` (inside, G3); hovered, the blue reads `a` (outside, G4); the border twin `Box().border(red, 2).opacity(0.5).focusBorder(blue, 2).focusable()`: unfocused faded, focused full; and `Box().background(x).decoration == Decoration(background: x)` (no opacity, nothing recorded) | the hovered/focused arms are faded at `47c0d98` | **M2i** one member for all three fill slots (the design's `Bool`; the unhovered arm escapes); **M2j** the `opacity < 1` condition dropped (the equality arm, and `ModifierTests`' one-field table) |
 
 Body changes (T): `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`
 (its amended arm leaves, to N2.2), `everyReportNamesALiveOwnerOrIsRefusedByName`
-(the `deferred`/stage-11 row leaves), and
+(the `deferred`/stage-11 row leaves),
 `aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred`
-(arm 3 leaves, to N2.3; its doc's M1h line updated).
+(arm 3 leaves, to N2.3; its doc's M1h line updated), and — *missed by the
+design, added by critic round 1* —
+`PresentationLoweringTests.aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName`
+(its "Component amend over a presentation member" arm expects
+`["deferred.amended"]`; the arm leaves, to N2.2). **`ModifierTests`' one-field
+table must stay green unedited** (the `opacity < 1` condition exists for it).
 
-Lane 2 also measures the value sizes and the stack budget (§8) after both
+Lane 3 re-takes the value sizes and the stack budget (§8) after all three
 lanes.
 
 ## 8. Accounting, pixels, stack budget, gates
 
-- **Suite: 1426 → 1437** (+8 lane 1: N1.1–N1.6, G1.1, G1.2; +3 lane 2: N2.1–N2.3;
-  T2.1 is a rename; no test retired). **Guards 82 → 84.** Goldens 0.
-  `goldensUnchanged`: no `@Test` is removed, so no retirement row is owed; the
-  T rows above are the only retained tests whose bodies change, and only
-  `proposalLayoutConstructorsRequireProposalContent`'s overlay arm and the
-  renamed T2.1 change an answer, both as ruled.
+- **Suite: 1426 → 1439** (*amended, critic round 1*): +4 lane 1 (N1.1, N1.2,
+  G1.1, G1.2); +5 lane 2 (N1.3–N1.7); +4 lane 3 (N2.1–N2.4); T2.1 is a rename;
+  no test retired. **Guards 82 → 84.** Goldens 0. `goldensUnchanged`: no
+  `@Test` is removed, so no retirement row is owed; the T rows above are the
+  only retained tests whose bodies change, and only
+  `proposalLayoutConstructorsRequireProposalContent`'s overlay arm, the three
+  arms that leave to N2.2/N2.3, and the renamed T2.1 change an answer, all as
+  ruled. A lane that must edit any other retained test has found a defect and
+  stops.
 - **Pixels: 0 differing in all fourteen images** against `47c0d98`
   (`docs/probes/demo-pixels/compare.sh`). No demo site writes a legacy
   `.opacity` before a `.background` or `.border` (the demo's two `.opacity`
@@ -508,9 +598,15 @@ lanes.
   named change. `Expected.swift` (`theDemoFrameMatchesTheValuesRecordedOnMacOS`)
   must not move; `Backends/SDL`'s `PortableReplay` and `DemoCapture` must read
   0 px.
-- **Stack budget**: re-take §1's sizes and the smallest-stack bisection (16 KB
-  steps, then 4 KB) after lane 2; `everyProductionTreeBuildsOnAOneMegabyteThread`
-  green. Record before/after.
+- **Stack budget** (*amended, critic round 1*): re-take §1's sizes and the
+  smallest-stack bisection (16 KB steps, then 4 KB) after lane 1 and again
+  after lane 3; `everyProductionTreeBuildsOnAOneMegabyteThread` green (it also
+  runs in Linux and Windows CI, `MetalUICrossPlatformTests`). **A smallest
+  stack above 544 KB (one 16 KB step over `(512, 528]`) is a finding that
+  blocks the lane**, not a number to record: the recursion's per-layer
+  dispatch through `ModifierLayerKind` can add frames per layer, and Windows'
+  debug frames are larger than macOS's, so macOS headroom is the only early
+  signal.
 - **Gates**: 0 `error:`, 0 `warning:` beyond SwiftPM's notice under **both**
   build systems (`swift build --build-tests` too); `MetalUILayout` imports only
   `MetalUICore` (no file of it changes); `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
@@ -520,7 +616,8 @@ lanes.
   `MetalUILayoutTests`, `MetalUICrossPlatformTests`.
 - **Mutations**: commit first; restore from a copy; the full unfiltered suite
   per mutation; `git status --short` after each; name every test reddened, and
-  which spelling and branch the mutation was applied to.
+  which spelling and branch the mutation was applied to. Each new guard (G1.1,
+  G1.2) is mutated red once.
 
 ## 9. Task 7's close: what the Record phase must check
 
@@ -541,10 +638,29 @@ names the replacement and confirms it:
 | 6b | `noProductionFrameReachesTheLegacyEngine` | retired at stage 9, replaced by 10's `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` — confirm it passes and cannot skip |
 | 7a | `find Tests -name "*.json" \| wc -l` = 0 (excluding `.build`) | 0 at `47c0d98` |
 | 7b | retirement table; `grep -rn "computeLayout(" Tests` empty | 0 hits at `47c0d98` |
-| 8 | 0 `warning:`, demo 0 px against 6b | records §50 |
+| 8 | 0 `warning:`, demo 0 px against 6b | *amended, critic round 1* — not "records §50" (a record's claim is not evidence here): 0 `warning:` under both build systems **at the branch head**, and the sizing vocabulary on `.frame` read in the source (`grep` the eight deprecated sizing modifiers' `@available`); the pixel half is carried by this stage's own fourteen-image 0 px against `47c0d98`, whose own 0 px against 6b the stage-8/9/10 comparisons chain — name each link's record and commit |
 | 9 | suite green with the engine files gone | `git ls-files Sources/MetalUILayout` |
 | 10 | `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` + guards + grep | green |
-| 11 | this stage's N1.3 and N2.1 | green, and their mutations recorded |
+| 11 | this stage's N1.3 and N2.1 | green, and their mutations recorded; the three probes' headers carry this stage's re-run |
+
+### 9.1 Beyond the §4.1 table (*added by critic round 1*, `LR-GA` item 6)
+
+The §4.1 rows are the parent spec's; the plan's own task-7 paragraph and the
+hand-offs made **to task 7** by other tasks are not in them, and a tick that
+checks only the rows can leave a task-7 owner dangling. The adversarial check
+also confirms, reading source or record §04/§05 at the branch head:
+
+| clause | what to confirm |
+|---|---|
+| plan: "No production layout request may pass through the legacy engine" | the engine files are gone (`git ls-files Sources/MetalUILayout`) and `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` passes |
+| plan: "delete the CSS layout paths and dead `Style` fields" | stage 10's narrowed `Style` (the three `StyleSurfaceCompileGuards`) |
+| plan: "replace browser-fixture goldens" | 0 JSON under `Tests` outside `.build` |
+| `CN-Q`'s hand-off list (divergences 35, 52–56; legacy `ideal`; the greedy finite and single-axis infinite maxima; a frame over a multi-member `Component`) | each item's current disposition, by record §04 section and ruling: retired, answered (e.g. `LR-BH`), or re-owned to a named task other than 7 (52 → task 15 by `LR-ER`; 54 → task 10 and 56's remainder → task 8 by `LR-GA` item 5) |
+| every live divergence (record §04) and inert row (record §05) | **no** row's latest owner reads "task 7" or "stage N" of it; any that does is re-owned by an `LR-` ruling in the Record phase's commit, with its reason, before the tick |
+| `UnlowerableField.owner` | no owner string names task 7 (`grep -n "plan task 7" Sources`) |
+
+A clause the check cannot confirm leaves task 7 unticked, with the clause named
+in the plan's progress note.
 
 The Record phase also writes task 7's closing summary in the plan and in
 CLAUDE.md, retires divergence 45 (record §04), updates CLAUDE.md's
@@ -561,6 +677,9 @@ the parent row's G3/G4 citation.
 | `.frame` on a multi-member `Component` distributing per member (SwiftUI's `Group`) | `Group` semantics | plan task 8 (`CN-Q`) |
 | divergence 46 (two `.opacity` calls replace) | `OM-AH`'s reasons stand; no row hands it here | recorded, kept |
 | `OnTapModifier` and `BackgroundModifier` as layers | not the two types this row names | plan task 8 |
+| a `Group`-style overlay on a multi-member primary (N1.7 traps) | `Group` semantics (*critic round 1*) | plan task 8 |
+| divergence 54 (a lowered `ScrollView`'s cross axis) | a scrolling answer, moves every legacy `ScrollView`; handed "stage 11 / task 10's" (*critic round 1*) | plan task 10 |
+| divergence 56's remainder (`TB-M`: framed members one flex item) | `Group` semantics, with the `.frame` distribution above (*critic round 1*) | plan task 8 |
 
 ## 11. Risks
 
