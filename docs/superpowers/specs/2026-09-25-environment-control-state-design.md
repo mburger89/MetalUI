@@ -25,6 +25,13 @@ recompute-after-drain were specified, the unpinned scale paths got pins
 and `EV-AE`'s re-pointing of the accessibility doc's "task 9" items was
 corrected (task 12, not task 10, for the interaction items).
 
+**Lane 1 ran, 2026-09-25** (`7299051` red, `1f5c221` implementation): as
+designed, no spec change. 1498 tests in 3 suites passed after `swift package
+clean`, 88 guards; every lane-1 mutation reddened its named test (M1.7b added
+for T1.7's `TextField` arm); `MemoryLayout<EnvironmentValues>` 176 → 184; 0 px
+in all fourteen offscreen images; screen locked, so no real-window capture and
+no C-arm re-run. Detail: record §56 §1; the rulings' Mutations lines.
+
 ## Contents
 
 1. Baseline

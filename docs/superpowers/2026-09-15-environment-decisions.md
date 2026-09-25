@@ -2109,8 +2109,40 @@ design would diverge from X1/X2/S2 for a hazard S3 shows SwiftUI shares.
 be *drawn* at another scale gets only the number, as in SwiftUI (S3). If a
 later SwiftUI changes S3's answer, T1.4 is the pin that faces it.
 
-**Mutations:** owed by lane 1 (M1.1–M1.4, M1.9, M1.10, MG1, MG3, MG6a),
-lane 2 (M2.7, M2.12: the scale paths) and lane 3 (M3.5, M3.6).
+**Mutations:** lane 1 **ran** its set at `1f5c221` (each committed first,
+restored from a copy, full unfiltered suite of 1498, `git status --short` clean
+after each; record §56 carries the issue counts):
+M1.1 (`Frame.displayScale(forScaleFactor:)` returns 1 for every usable scale —
+applied to the shared helper, so both the `init` and the `rootEnvironment`
+stamp) reddened `theRootDisplayScaleIsTheFramesScaleFactorAndThePixelLengthFollows`,
+`aScopeCanWriteTheDisplayScaleAndThePixelLengthFollows`,
+`aDisplayScaleWriteChangesTheNumberNotTheScaleDrawingUses`,
+`theFramesRootEnvironmentCarriesItsThemeAndScale` and
+`aWholeValueWriteResetsTheDisplayScaleButNotTheTheme` (14 issues);
+M1.2 (`scopedValues` re-stamps `displayScale` after a transform) reddened
+`aScopeCanWriteTheDisplayScaleAndThePixelLengthFollows`,
+`aDisplayScaleWriteChangesTheNumberNotTheScaleDrawingUses` and
+`aWholeValueWriteResetsTheDisplayScaleButNotTheTheme` (9);
+M1.3a (`1 / displayScale`, no 0 case) and M1.3b (`displayScale <= 0 ? 1 : …`)
+each reddened `aPixelLengthIsSwiftUIsFunctionOfTheDisplayScale` alone (1 each);
+M1.4 (`Frame.fill`'s `bounds` scaled by `environmentTop.displayScale`; mask,
+radii and borders left on `scaleFactor`) reddened
+`aDisplayScaleWriteChangesTheNumberNotTheScaleDrawingUses` and
+`layoutRoundsToWholePointsWhateverTheDisplayScale` (2);
+M1.9 (the `rootEnvironment` setter stops re-stamping `displayScale`) reddened
+`theFramesRootEnvironmentCarriesItsThemeAndScale` alone (2);
+M1.10 (`scopedValues` stops re-stamping `theme`) reddened
+`aWholeValueWriteResetsTheDisplayScaleButNotTheTheme` alone (2);
+MG1 (`displayScale` internal) reddened `environmentValuesAreReadableInEveryPhase`
+and `theEnvironmentsPublicWritersCompileFromOutsideTheModule`;
+MG3 (`pixelLength` given a public setter) reddened
+`pixelLengthIsNotWritableFromOutsideButAWholeValueWriteCompiles` alone — so the
+negative half's message still names `WritableKeyPath` for a computed get-only
+property, as the spec asked lane 1 to verify;
+MG6a (`public internal(set) var displayScale`) reddened
+`theEnvironmentsPublicWritersCompileFromOutsideTheModule` alone (G1+ green: the
+pair separates read from write).
+Still owed: lane 2 (M2.7, M2.12: the scale paths) and lane 3 (M3.5, M3.6).
 
 ## EV-AB — `controlActiveState` comes from the platform window, through a new `PlatformWindow` pair; a scope can write it
 
@@ -2174,7 +2206,10 @@ say otherwise in some window arrangement; no built-in element reads it, so no
 pixel moves. A new `PlatformWindow` conformer outside this repo stops compiling
 until it implements the pair — the point of having no default.
 
-**Mutations:** owed by lanes 1 (M1.8), 2 (M2.1–M2.12: SDL and AppKit, since
+**Mutations:** lane 1 **ran** M1.8 at `1f5c221` (the bare default
+`.inactive`): reddened
+`controlActiveStateIsKeyInABareValueAndAWindowlessFrameAndAScopeCanWriteIt`
+alone (3 issues). Still owed: lanes 2 (M2.1–M2.12: SDL and AppKit, since
 `EV-AF` moved the AppKit conformer to lane 2) and 3 (M3.1–M3.6, MG7, MG8).
 
 ## EV-AC — `controlSize` is carried with SwiftUI's five sizes and no built-in reader (divergence 76)
@@ -2206,7 +2241,15 @@ numbered; giving 75 a different meaning now would make that note wrong.
 **Cost if wrong.** A port of SwiftUI code that shrinks a toolbar with
 `.controlSize(.small)` lays out at regular size here. The pin names where.
 
-**Mutations:** owed by lane 1 (M1.6, M1.7, MG6b).
+**Mutations:** lane 1 **ran** these at `1f5c221`: M1.6 (`.controlSize(_:)`
+writes `.regular`) reddened `controlSizeIsScopedByTheNearestWriter` alone (2
+issues); M1.7 (the lowered `Text` resolves its font at `fontSize * 0.7` under
+`.mini`, in `Text.requestLayout`) reddened
+`controlSizeReachesNoBuiltInMeasurement` alone (2); **M1.7b**, added by lane 1
+because M1.7 leaves the pin's `TextField` arm unmutated (the same shrink in
+`TextField.requestLayout`), reddened `controlSizeReachesNoBuiltInMeasurement`
+alone (1); MG6b (`.controlSize(_:)` internal) reddened
+`theEnvironmentsPublicWritersCompileFromOutsideTheModule` alone (1).
 
 ## EV-AD — layout rounds to whole points, not to the `displayScale` pixel grid (divergence 77, found by S4)
 
@@ -2230,7 +2273,11 @@ task 11** (rendering-facing semantics).
 places it; an author who writes `displayScale` to change snapping sees no
 change. T1.5 flips in the change that implements this.
 
-**Mutations:** owed by lane 1 (M1.5).
+**Mutations:** lane 1 **ran** M1.5 at `1f5c221` (`roundLayout` rounds all
+four edges to half points, `(v * 2).rounded() / 2`): 68 issues in 27 tests,
+`layoutRoundsToWholePointsWhateverTheDisplayScale` among them and
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` another; the full list, grouped
+by file, is record §56's.
 
 ## EV-AE — plan task 9 closes; which `EV-Q` items move and which stay
 
