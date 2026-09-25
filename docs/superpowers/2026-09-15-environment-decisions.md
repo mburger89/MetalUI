@@ -2142,7 +2142,14 @@ property, as the spec asked lane 1 to verify;
 MG6a (`public internal(set) var displayScale`) reddened
 `theEnvironmentsPublicWritersCompileFromOutsideTheModule` alone (G1+ green: the
 pair separates read from write).
-Still owed: lane 2 (M2.7, M2.12: the scale paths) and lane 3 (M3.5, M3.6).
+Lane 2 **ran** the scale paths at `8418d43` (each committed first, restored
+from a copy, `git status --short` clean after each): M2.7 (`translate` drops
+the `SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED` case) reddened
+`aScaleOrPixelSizeChangeReachesOnResize` alone (2 issues; the whole
+`Backends/SDL` suite, 21 + 22); M2.12 (`MetalHostView.viewDidChangeBackingProperties`
+stops calling `onGeometryChange`) reddened `aBackingPropertiesChangeReachesOnResize`
+alone (1 issue; the full unfiltered root suite of 1501). Still owed: lane 3
+(M3.5, M3.6).
 
 ## EV-AB — `controlActiveState` comes from the platform window, through a new `PlatformWindow` pair; a scope can write it
 
@@ -2209,8 +2216,38 @@ until it implements the pair — the point of having no default.
 **Mutations:** lane 1 **ran** M1.8 at `1f5c221` (the bare default
 `.inactive`): reddened
 `controlActiveStateIsKeyInABareValueAndAWindowlessFrameAndAScopeCanWriteIt`
-alone (3 issues). Still owed: lanes 2 (M2.1–M2.12: SDL and AppKit, since
-`EV-AF` moved the AppKit conformer to lane 2) and 3 (M3.1–M3.6, MG7, MG8).
+alone (3 issues). Lane 2 **ran** M2.1–M2.12 at `8418d43` (each committed
+first, restored from a copy, `git status --short` clean after each; SDL
+mutations against the whole `Backends/SDL` suite, 21 + 22 tests; AppKit ones
+against the full unfiltered root suite, 1501): M2.1 (another window focused
+maps to `.inactive`) reddened
+`focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive` and
+`focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` (5
+issues — the second through its `.active` `#require`); M2.2 (`FOCUS_LOST`
+ignored) reddened `focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive`
+alone (4); M2.3 (the callback without the change guard) reddened
+`focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive` and
+`focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` (3) —
+**at `e42dfdc` it reddened only the second (1 issue)**: every pump of T2.1
+changed both windows, so an unguarded callback wrote the same logs; T2.1
+gained an idle pump before its log check (`8418d43`) and the spec's claim
+now holds; M2.4 (`GAINED` without the ownership check) reddened
+`focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` alone
+(3); M2.5 (recompute after every event, not after the drain) reddened
+`focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive` alone (2: A's
+log gains the transient `inactive`); M2.6 (closing does not clear
+`focusedID`) reddened
+`focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` alone
+(1); M2.8 (both application-activation observers removed) reddened
+`theAppKitWindowReportsKeyChangesThroughItsCallback` alone (3: the
+`.inactive` arm, the repeat arm and the final log); M2.9 (the change guard
+dropped) the same test alone (2: the repeat arm and the final log); M2.10
+(`notificationCenter` defaults to a fresh `NotificationCenter()`) the same
+test alone (1: the wiring arm); M2.11 (application activity checked first,
+`!isApplicationActive → .inactive`) reddened
+`theAppKitMappingPutsKeyBeforeActiveBeforeInactive` alone (1: the key
+non-activating-panel row). M2.7 and M2.12 are under `EV-AA`. Still owed:
+lane 3 (M3.1–M3.6, MG7, MG8).
 
 ## EV-AC — `controlSize` is carried with SwiftUI's five sizes and no built-in reader (divergence 76)
 

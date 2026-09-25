@@ -4,7 +4,7 @@ Branch `feat/environment-control-state` from `e732d98`. Spec
 `docs/superpowers/specs/2026-09-25-environment-control-state-design.md`;
 rulings `EV-AA`…`EV-AF` appended to
 `docs/superpowers/2026-09-15-environment-decisions.md`; probe
-`docs/probes/swiftui-environment-control-state.swift`. **This file is lane 1's
+`docs/probes/swiftui-environment-control-state.swift`. **This file is lanes 1 and 2's
 first draft**, written so its measurements are not lost before the Record
 phase; the Record phase owns its final shape (design-phase section, lanes 2
 and 3, divergence and inert rows, counts).
@@ -127,3 +127,114 @@ images `differing=0`, scene identical**.
 **Real-window capture: not taken.** Lock probe at lane 1's end:
 `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`. The probe's C arms
 (`EV-AB`'s mapping) were not re-run for the same reason.
+
+## 2. Lane 2 — the platform windows: SDL and AppKit
+
+Commits: `cb1231f` (red tests), `e42dfdc` (implementation), `8418d43` (T2.1
+strengthened after M2.3, below).
+
+### 2.1 What landed
+
+- `Backends/SDL/Sources/SDLBridge`: `MUI_EVENT_FOCUS_GAINED`,
+  `MUI_EVENT_FOCUS_LOST` **appended** to the kind enum (no kind renumbers;
+  `ReplayFixtureTests` 21 green); `translate` and `mui_push_event` arms;
+  `mui_window_has_input_focus`; the test-only `mui_push_raw_window_event(sdl_type,
+  window_id)` (refuses a type outside `SDL_EVENT_WINDOW_FIRST…LAST`) with the
+  two SDL event types it needs exported as `mui_sdl_event_window_display_scale_changed`
+  and `mui_sdl_event_window_pixel_size_changed` — the test module does not
+  import SDL's headers, so it cannot name `SDL_EVENT_WINDOW_*` itself.
+- `SDLPlatform`: one `focusedID` — seeded from `SDL_WINDOW_INPUT_FOCUS` when a
+  window opens, set by an owned `GAINED`, cleared by `LOST` of that window and
+  by closing it; `controlActiveState(of:)` spells §4's rule; states published
+  once at the end of `pumpEvents()` (and after a window opens).
+  `SDLWindow.controlActiveState` reads the platform (weak) and
+  `onControlActiveStateChange` fires against a last-reported value.
+- `AppKitWindow`: `static controlActiveState(isKeyWindow:isApplicationActive:)`;
+  internal `keyStatus` (the live `isKeyWindow`/`NSApp.isActive` reads,
+  assigned in `init` over the `NSWindow` local, so it captures no `self`);
+  live `controlActiveState`; `onControlActiveStateChange`; selector observers
+  for the window's `didBecomeKey`/`didResignKey` (object: its `NSWindow`) and
+  the application's `didBecomeActive`/`didResignActive` on an internal
+  `notificationCenter` (default `.default`; re-registering on assignment); an
+  internal `refreshControlActiveState()` that re-reads and fires on a change,
+  updating the last value whether or not a callback is set. **The test primes
+  the last value through `refreshControlActiveState()`** with no callback set,
+  so neither arm posts an application notification on the default center.
+
+Neither conformer's pair is a `PlatformWindow` requirement yet (lane 3).
+
+### 2.2 Red
+
+Root, `swift build --build-system native --build-tests` at `cb1231f`: 16
+distinct `error:` lines, all in `AppKitControlStateTests.swift` —
+`value of type 'AppKitWindow' has no member 'notificationCenter'` / `'keyStatus'`
+/ `'refreshControlActiveState'` / `'controlActiveState'` /
+`'onControlActiveStateChange'`, and `type 'AppKitWindow' has no member
+'controlActiveState'` (T2.5). `Backends/SDL`, `swift build --build-tests`
+with `PKG_CONFIG_PATH=.accesskit`: 32 distinct `error:` lines in
+`SDLControlStateTests.swift` — `cannot find 'MUI_EVENT_FOCUS_GAINED'` /
+`'MUI_EVENT_FOCUS_LOST'` / `'mui_push_raw_window_event'` /
+`'mui_sdl_event_window_display_scale_changed'` /
+`'mui_sdl_event_window_pixel_size_changed'` in scope, `value of type
+'SDLWindow' has no member 'controlActiveState'` / `'onControlActiveStateChange'`.
+T2.3 and T2.6 pin pre-existing paths; their red is M2.7 and M2.12.
+
+### 2.3 Mutations
+
+Each committed first, applied by exact-string substitution to one site,
+restored from a copy, `git status --short` clean after each. SDL mutations ran
+the whole `Backends/SDL` suite (`ReplayFixtureTests` 21 passed each time, then
+`MetalUISDLTests` 22); AppKit ones a native build and the full unfiltered root
+suite (1501, one summary line each).
+
+| # | mutation | reddened | issues |
+|---|---|---|---|
+| M2.1 | `focusedID == id ? .key : .inactive` | `focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive`, `focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` | 5 |
+| M2.2 | the `FOCUS_LOST` arm `break`s | `focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive` | 4 |
+| M2.3 | `publishControlActiveStateIfChanged` without its guard | at `e42dfdc`: `focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` alone (1); at `8418d43`: that and `focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive` | 3 |
+| M2.4 | `GAINED` without `windows[id] != nil` | `focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` | 3 |
+| M2.5 | `publishControlActiveStates()` after every `dispatch` | `focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive` | 2 |
+| M2.6 | `MUI_EVENT_CLOSE` does not clear `focusedID` | `focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` | 1 |
+| M2.7 | `translate` drops `SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED` | `aScaleOrPixelSizeChangeReachesOnResize` | 2 |
+| M2.8 | both application-activation observers removed | `theAppKitWindowReportsKeyChangesThroughItsCallback` | 3 |
+| M2.9 | `refreshControlActiveState` without its guard | `theAppKitWindowReportsKeyChangesThroughItsCallback` | 2 |
+| M2.10 | `notificationCenter` defaults to `NotificationCenter()` | `theAppKitWindowReportsKeyChangesThroughItsCallback` (the wiring arm's line alone) | 1 |
+| M2.11 | `!isApplicationActive → .inactive` first | `theAppKitMappingPutsKeyBeforeActiveBeforeInactive` | 1 |
+| M2.12 | `viewDidChangeBackingProperties` stops calling `onGeometryChange` | `aBackingPropertiesChangeReachesOnResize` | 1 |
+
+**M2.3 was a broken instrument until `8418d43`.** The spec named T2.1's logs
+as its target, but every pump in T2.1 changes both windows' states, so an
+unguarded callback writes exactly the guarded logs; only T2.2's foreign-id pump
+(nothing changes, `calls == 0`) saw it. T2.1 gained one idle pump before the
+log check; the re-run reddens both tests. The other SDL mutations were re-run
+at `8418d43` with the same reddened sets.
+
+### 2.4 Exit
+
+Root: `swift build --build-system native --build-tests` then unfiltered
+`swift test --build-system native --no-parallel`: **`Test run with 1501 tests
+in 3 suites passed`** (1498 + 3), guards ran (`FR-J no-argument frame:
+succeeded=`), 88 guards (none added). 0 `error:`; the only `warning:` under
+native is SwiftPM's notice; the default build system's `swift build
+--build-tests` printed no `warning:` or `error:`. `MetalUILayout` imports only
+`MetalUICore`. `everyProductionTreeBuildsOnAOneMegabyteThread` and
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green in that run.
+
+`Backends/SDL` on macOS (`PKG_CONFIG_PATH=.accesskit swift test`):
+`ReplayFixtureTests` 21, `MetalUISDLTests` **22** (19 + 3). In a
+`swift:6.4-noble` container (`metalui-portable-ax`, `linux/Dockerfile`, SDL's
+offscreen driver, `--scratch-path` inside the container): 21 and **21** (18 +
+3), the three new tests passing by name — so pushed focus events and raw
+window events reach the platform on Linux too, and no window manager focused
+a hidden window. The linker's `built for newer version 26.0` notes about
+Homebrew's SDL3 and the `prohibited flag(s)` pkg-config note are
+pre-existing, not this lane's.
+
+**Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> e732d98 e42dfdc` —
+controls as lane 1 read them (1048576, 1031003, 454895, 0, 1048576, 0, 544 /
+216, 491221, 529, indicator rects 0); **all fourteen images `differing=0`,
+scene identical**. (`8418d43` changes only an SDL test.)
+
+**Real-window capture: not taken.** Lock probe at lane 2's end (13:54 PDT):
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`, `displayActive main:
+0`. The probe's C arms were not re-run.

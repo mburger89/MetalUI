@@ -32,6 +32,18 @@ for T1.7's `TextField` arm); `MemoryLayout<EnvironmentValues>` 176 → 184; 0 px
 in all fourteen offscreen images; screen locked, so no real-window capture and
 no C-arm re-run. Detail: record §56 §1; the rulings' Mutations lines.
 
+**Lane 2 ran, 2026-09-25** (`cb1231f` red, `e42dfdc` implementation,
+`8418d43` one test strengthened): as designed, with one test amendment and no
+ruling change. **T2.1 gained an idle pump before its log check**: at
+`e42dfdc`, M2.3 (no change guard) reddened only T2.2, because every pump of
+T2.1 changes both windows and an unguarded callback writes the same logs; with
+the idle pump it reddens T2.1 too, as the table claims. Root **1501 tests in 3
+suites passed**, 88 guards; `Backends/SDL` `MetalUISDLTests` 19 → 22 on macOS,
+18 → 21 in a `swift:6.4-noble` container (the three new tests passed there
+under SDL's offscreen driver); every M2.* reddened its named test; 0 px in all
+fourteen offscreen images; screen locked, so no capture and no C-arm re-run.
+Detail: record §56 §2.
+
 ## Contents
 
 1. Baseline
@@ -340,7 +352,7 @@ compiles against `e732d98`'s protocol. Build and test `Backends/SDL` with
 
 | # | test | asserts | red before | mutation |
 |---|---|---|---|---|
-| T2.1 | `focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive` | two hidden windows start `.inactive` (`try #require`: a hidden window has no focus); push `FOCUS_GAINED(A)` + pump → A `.key`, B `.active`; push `FOCUS_LOST(A)` **and** `FOCUS_GAINED(B)`, **one** pump → A `.active`, B `.key`; `FOCUS_LOST(B)` + pump → both `.inactive`; each window's callback log equals exactly A `[key, active, inactive]`, B `[active, key, inactive]` (no transient, no call for an unchanged state) | does not compile | **M2.1** "another window focused" maps to `.inactive` (the `.active` arms); **M2.2** `FOCUS_LOST` ignored (the last arm); **M2.3** the callback fires without the change guard (the logs); **M2.5** recompute per event instead of after the drain (A's log gains a transient `inactive`) |
+| T2.1 | `focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive` | two hidden windows start `.inactive` (`try #require`: a hidden window has no focus); push `FOCUS_GAINED(A)` + pump → A `.key`, B `.active`; push `FOCUS_LOST(A)` **and** `FOCUS_GAINED(B)`, **one** pump → A `.active`, B `.key`; `FOCUS_LOST(B)` + pump → both `.inactive`; one idle pump (added by lane 2, so M2.3 can redden this test); each window's callback log equals exactly A `[key, active, inactive]`, B `[active, key, inactive]` (no transient, no call for an unchanged state) | does not compile | **M2.1** "another window focused" maps to `.inactive` (the `.active` arms); **M2.2** `FOCUS_LOST` ignored (the last arm); **M2.3** the callback fires without the change guard (the logs); **M2.5** recompute per event instead of after the drain (A's log gains a transient `inactive`) |
 | T2.2 | `focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` | a `FOCUS_GAINED` for an id not in `windows` leaves both `.inactive` and fires nothing; then `FOCUS_GAINED(A)` (A key, B active) and A leaves `windows` the way the platform removes a closed window → B `.inactive` | does not compile | **M2.4** `GAINED` sets `focusedID` without the ownership check (both read `.active` — the spelling in §4 makes this red); **M2.6** removal does not clear `focusedID` (B stays `.active`) |
 | T2.3 | `aScaleOrPixelSizeChangeReachesOnResize` | `mui_push_raw_window_event` of `SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED`, then of `SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED`, each + pump → `onResize` fires once per push, carrying `scaleFactor` | green at `e732d98` apart from the helper (pins a pre-existing path, §4); its red is the mutation | **M2.7** `translate` drops the `DISPLAY_SCALE_CHANGED` case (first arm) |
 | T2.4 | `theAppKitWindowReportsKeyChangesThroughItsCallback` | a real `AppKitPlatform` window (scripted accessibility signal, as the platform tests build one), **a private `NotificationCenter`**, `keyStatus` scripted: `(true, true)` + `didBecomeKey` → callback `.key`; `(false, true)` + `didResignKey` → `.active`; `(false, false)` + `NSApplication.didResignActive` → `.inactive`; the same post again → no call; `controlActiveState` reads each live. **Production-wiring arm**: a second window on the default center, `keyStatus` `(true, true)`, posting only the window-scoped `NSWindow.didBecomeKeyNotification` (object: its own `NSWindow`) → `.key` | does not compile | **M2.8** the application-activation observer removed (the `.inactive` arm); **M2.9** the change guard dropped (the repeat arm); **M2.10** production observes a fresh `NotificationCenter()` instead of `.default` (the wiring arm) |
