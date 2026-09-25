@@ -402,3 +402,101 @@ private struct StampingLeaf: Element {
     #expect(log.prepaint == [1, 2], "an unbound box reads [0, 0]; a layout-only bind [2, 2]")
     #expect(log.paint == [1, 2])
 }
+
+// MARK: - O1.9: a Component's @Environment, the first occurrence's snapshot
+
+/// A `Component` whose `@Environment` value is read by its inner box's click.
+private struct EnvironmentComponent: Component {
+    @Environment(\.occurrenceProbe) var probe
+    let log: ReadLog
+    var content: some ElementGroup {
+        Box().cssWidth(Pixels(20)).cssHeight(Pixels(20)).onClick { log.reads.append(probe) }
+    }
+}
+
+/// **O1.9.** One `Component` value holding `@Environment`, placed twice under
+/// two scopes (7 and 9): a click on each occurrence's inner box reads its own
+/// scope. A `Component` binds only in layout (ID-N item 2), so nothing re-binds
+/// occurrence 0 after occurrence 1 — its snapshot exists only because the
+/// box records the previous occurrence when a second id binds (`Environment`'s
+/// `box.occurrences = [(previous, last)]`; mutation V10 drops it and reads
+/// `[9, 9]`). O1.5's `Element` cannot see that line: its prepaint and paint
+/// re-bind re-add occurrence 0.
+@MainActor
+@Test func aComponentsEnvironmentKeepsTheFirstOccurrencesSnapshot() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let log = ReadLog()
+    let (window, platform) = try makeFakeWindow(device: device, size: 200) {
+        let component = EnvironmentComponent(log: log)
+        return Row {
+            component.environment(\.occurrenceProbe, 7)
+            component.environment(\.occurrenceProbe, 9)
+        }
+    }
+    window.drawFrameIfNeeded()
+    let ids = try occurrenceIDs(window)
+    try clickCentre(of: ids[0], in: window, platform)
+    try clickCentre(of: ids[1], in: window, platform)
+    #expect(log.reads == [7, 9], "dropping the first occurrence's snapshot reads [9, 9]")
+}
+
+// MARK: - O1.10: a frame built inside a dispatched handler
+
+@MainActor
+private final class PaintLog {
+    var ids: [GlobalElementID] = []
+    var reads: [Int] = []
+}
+
+/// Records its id and its `@Environment` value in paint.
+private struct EnvironmentPainter: Element {
+    @Environment(\.occurrenceProbe) var probe
+    let log: PaintLog
+    var elementID: ElementID? { nil }
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 1, height: 1)) }.layoutNodeID, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                  pass: inout PrepaintPass) {}
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+               prepaint: inout Void, pass: inout PaintPass) {
+        log.ids.append(id)
+        log.reads.append(probe)
+    }
+}
+
+/// **O1.10.** A frame built while input dispatch names an owner still reads
+/// each occurrence's own per-phase binding: `Frame.render` suspends the
+/// dispatch owner for the build (ID-F item 6). Without the suspension,
+/// occurrence 1's paint resolves to the owner's occurrence and reads
+/// `[7, 7]`.
+@MainActor
+@Test func aFrameBuiltInsideADispatchedHandlerReadsEachOccurrencesBinding() throws {
+    let log = PaintLog()
+    let table = StateTable()
+    let painter = EnvironmentPainter(log: log)
+    func build() -> some Element {
+        Row {
+            painter.environment(\.occurrenceProbe, 7)
+            painter.environment(\.occurrenceProbe, 9)
+        }
+    }
+    func newFrame() -> Frame {
+        Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)), scaleFactor: 1, stateTable: table)
+    }
+    var first = build()
+    newFrame().render(&first)
+    try #require(log.reads == [7, 9], "control: outside dispatch each occurrence reads its scope")
+    try #require(log.ids.count == 2 && log.ids[0] != log.ids[1])
+    let owner = log.ids[0]
+
+    log.ids = []
+    log.reads = []
+    var second = build()
+    StateDispatch.dispatching(to: owner) { newFrame().render(&second) }
+    #expect(log.reads == [7, 9], "the owner leaking into the build reads [7, 7]")
+    #expect(StateDispatch.owner == nil, "control: the owner is restored after dispatch")
+}
