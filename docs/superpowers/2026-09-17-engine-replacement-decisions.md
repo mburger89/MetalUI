@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-GG`** (stage 11's design took `LR-FV`…`LR-FZ`, its critic round 1 `LR-GA`, its lane 1 `LR-GB`, its lane 2 `LR-GC`, lane 2's fix round `LR-GD`, its lane 3 `LR-GE` and lane 3's fix round `LR-GF`, appended at the end; stage-11 rulings amended by that round carry a paragraph headed **Amended, stage-11 critic round 1**; stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-GH`** (stage 11's design took `LR-FV`…`LR-FZ`, its critic round 1 `LR-GA`, its lane 1 `LR-GB`, its lane 2 `LR-GC`, lane 2's fix round `LR-GD`, its lane 3 `LR-GE`, lane 3's fix round `LR-GF` and its adversarial branch check `LR-GG`, appended at the end; stage-11 rulings amended by that round carry a paragraph headed **Amended, stage-11 critic round 1**; stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -10706,3 +10706,152 @@ inverted").
 **What it costs if wrong.** Without N2.5 an escaped fill painted over the
 element's content — an opaque background hiding its children — passes the
 whole suite.
+
+## LR-GG — stage 11's adversarial branch check: the stage stands; every §4.1 row holds; three stage-11 hand-offs in record §25 re-owned; divergence 35's pin named
+
+**Context.** The adversarial branch check of `47c0d98..ff942bd` (record §54
+§11) re-took the stage's gates from a clean build, re-ran the three SwiftUI
+probes, ran two mutations of its own design, took the offscreen comparison,
+built `Backends/SDL` and a `swift:6.4-noble` container, and read every row of
+the parent spec's §4.1 and every clause of this stage's spec §9.1 on the
+branch — test or grep, not a record's claim.
+
+**Ruling.**
+
+1. **The stage stands; no code defect.** After `swift package clean`:
+   `Test run with 1444 tests in 3 suites passed after 81.280 seconds.`, the
+   `FR-J no-argument frame: succeeded=` line present, eleven gated tests
+   skipped; 0 `error:` and only SwiftPM's deprecation notice under native, 0
+   `warning:` under the default build system (`swift build --build-tests`);
+   84 guards (`grep -c canTypecheck`: 82 across the sixteen
+   `Tests/MetalUITests` guard files, `UnifiedModifiedContentCompileGuards` 2
+   among them, plus `UnitSafetyTests`' 3 hits less its one comment); 0 JSON under `Tests` outside `.build`; `cmp CLAUDE.md
+   AGENTS.md` equal; every backticked test name of 25+ characters added by
+   the branch (78) resolves under `Tests`/`Sources`/`Backends/SDL`.
+   `MetalUILayout` imports only `MetalUICore`; `Expected.swift` unmoved. The
+   three probes re-run under `/usr/bin/swift` (Apple Swift 6.4), exit 0,
+   stderr empty, each byte-identical to its header's recorded lines
+   (`swiftui-border-clip-paint.swift` 30 lines incl. K0/K1 and G3/G4/H1–H3;
+   `swiftui-outer-modifier-order.swift` 32; `swiftui-overlay-primary-shape.swift`
+   A, B, P1–P5, Q). Offscreen `compare.sh 47c0d98 HEAD`: controls at their
+   stage-9-corrected values (1048576, 1031003, 454895, 0, 1048576, 0,
+   544/216, 491221, 529, 0 indicator rects), **all fourteen `differing=0`,
+   scene identical**. Real window: not taken — `appkit-screen-lock-state.swift`
+   printed `CGSSessionScreenIsLocked = 1` and `displayAsleep main: 1`.
+   `Backends/SDL` 21 + 19; `swift:6.4-noble` (aarch64, `git archive HEAD`)
+   0 `error:`/`warning:`, **22 + 188 + 10**, `theDemoFrameMatchesTheValuesRecordedOnMacOS`
+   and `everyProductionTreeBuildsOnAOneMegabyteThread` green. Merge verdict:
+   **merge**.
+2. **Mutation MA** — `innermostID`'s inner-layer component `name:
+   inner[k]._elementID` → `name: nil` (the only site; a legacy inner layer's
+   `.id(_:)` dropped from its path, layout and later phases alike): **1444,
+   10 issues**, reddening exactly
+   `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`
+   (`ModifiedElementTests.swift:479/481/483`, ×2 each),
+   `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`
+   (`ModifierCompositionProofTests.swift:685/687/689`) and
+   `theStageOneCorpusLowersWithNoDiagnostic` (`LoweringCorpusTests.swift:319`).
+   A named inner layer's id is pinned by both nested-`Box` oracles, not only
+   by `M1b`'s positional arm. **Mutation MB** — `prepaintLayer`'s
+   `disablingHitTestingIfHidden(node)` wrap removed for inner layers (the
+   `LR-DH` pointer mirror, `MC-B`/`LR-AA`, moved into the unified recursion):
+   **1444, 2 issues**, exactly `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`
+   (`HiddenLoweringTests.swift:227`, `:228`). Both restored from a copy;
+   `git status --short` empty after each.
+3. **Identity, hit testing, accessibility and animation unchanged, read on
+   the branch.** Green and in files the branch does not touch:
+   `stateSurvivesFramesUnderAProposalModifierChain`,
+   `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities`,
+   `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`,
+   `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`
+   (`ModifierCompositionProofTests`), `theSevenRetentionSlotsAreMutuallyDistinct`,
+   `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`,
+   `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`,
+   `everyBackgroundPaintingSiteAnimatesItsColour`,
+   `everyBackgroundPaintingSiteHonoursHoverAndFocus`. Green in
+   `ModifiedElementTests`, whose only edit is `name(_:)`'s printed type
+   (`ModifiedContent<X, ModifierLayer>`, one hunk at `:311`):
+   `addingALayerAtRunTimeResetsTheWrappedElementsState`,
+   `changingALayersValueKeepsTheWrappedElementsState`,
+   `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`. The only retained
+   test whose **answer** changed is `LoweringItemTests`' two overlay arms
+   (`[box.flexGrow.unconsumed]` → `[]`), ruled by `LR-FX` item 3 and
+   `LR-GC` item 2; the rest are type spellings and the moved overlay
+   boundary (`ElementGroupTrapTests`, `LR-FX` item 1). No `@Test` removed.
+4. **Every §4.1 row's exit criterion holds on the branch** (spec §9's table):
+   1 — `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`
+   retired with the two-engine harness (`LR-FE`, named in
+   `LoweringCorpusTests.swift:253`); `theStageOneCorpusLowersWithNoDiagnostic`
+   green (and live: MA reddens it). 2 —
+   `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` green, asserting
+   `report.unlowerable.isEmpty`. 3 — `ScrollRoutingTests`,
+   `ScrollIndicatorTests` present and green under the only authority. 4 —
+   `aListsWorkIsTheSameFor100kRowsAsFor500` run gated
+   (`METALUI_RUN_100K_LIST_TEST=1`): passed, 27.1 s. 5 — `DeferredTests`,
+   `AbsoluteOverlayTests` green. G — the `Grid*` suites green (`GridElementTests`,
+   `GridPipelineTests`, `GridRegistrarTests`, `GridTrapTests`,
+   `GridLoweringInteractionTests`, four `GridCompileGuards`). 6a — the
+   registrars deleted, the exit test's retirement row record §51 row 7
+   (`G6a`); 0 `warning:`. 6b/10 — `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+   green, no `.enabled(if:)` or early return (`LR-FP` item 2), green off Apple
+   too. 7a — 0 JSON. 7b — `grep -rn "computeLayout(" Tests` empty. 8 — 0
+   `warning:` at the head on both build systems; the ten sizing modifiers'
+   `@available(*, deprecated` in `Sources/MetalUI`; pixels chained 0 px
+   record §50 §8.5/§11.9 → §51 → §53 (and its `0843866` merge) → this
+   check's `47c0d98 → ff942bd`. 9 — `git ls-files Sources/MetalUILayout`
+   holds no CSS engine file (`LayoutTree`, `MeasureFunction` — now only
+   `SizeD` — `NativeGrid`, `NativeLayoutRun`, `ProposalLayout`,
+   `ProposalSpacing`, `ProposedSize`, `Rounding`). 11 —
+   `aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape` (N1.3)
+   and `theOpacityOrderAnswersTheSameOnBothPathsThroughTheUnifiedType` (N2.1)
+   green, their mutations in record §54 §8.3/§9.3, the three probe headers
+   carrying this stage's re-run (and re-run again here, item 1).
+5. **Spec §9.1's clauses hold, after two record-level dispositions this
+   ruling makes.** The plan's three clauses: engine files gone and the
+   symbol check green; `Style` narrowed (`StyleSurfaceCompileGuards` 3);
+   0 goldens. `UnlowerableField.owner` names no task-7 stage (`grep -n "plan
+   task 7" Sources` hits only `trapMessage`'s `LR-FO` citation, a ruling, not
+   an owner). `CN-Q`'s list: 35, 53, 55 answered in the only engine since 6b
+   (`LR-L`), 52 → task 15 (`LR-ER`), 54 → task 10 and 56's remainder → task 8
+   (`LR-GA` item 5), legacy `ideal` and the two maxima lowered since stage 1
+   (`LR-H`, 6b), the multi-member frame answered (`LR-BH`). **Two findings
+   the stage-11 inventory missed**, because spec §2's grep covered records
+   §29, §38, §41, §48–§53 but not §25 or this doc's stage-3 rulings:
+   (a) **three hand-offs addressed to stage 11 had no disposition** —
+   `LR-BJ`'s deferral table and record §25 §8.10 and its closing "Deferred,
+   each with an owner" table ("`ProposalScrollView` publishing a
+   `ScrollContext`" → "stage 11 / task 10"; "`ProposalScrollView`'s
+   animation" → "stage 11"), and `LR-BP` with record §25 §11.5/§11.10 ("the
+   per-member row's cross-axis `alignment: spec.alignment`", M5g green,
+   unprobed → "stage 11, with the siblings question `TB-M` owns"). **Re-owned
+   here**: the two `ProposalScrollView` items to **plan task 10** (scrolling
+   and data-driven controls; nothing reads a proposal `ScrollContext`,
+   `LR-BF`, and nothing in the engine's deletion needs one), and the
+   per-member row's alignment to **plan task 8** with divergence 56's
+   remainder, whose siblings question it is (`LR-GA` item 5's reasoning:
+   `Group` semantics, not a modifier question). No code changes; each item
+   stays exactly as recorded. (b) **Divergence 35's row names a deleted
+   pin**: `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`
+   was retired at 7b (record §49 row 196, "divergence 35's legacy side") and
+   no later record §04 section named what pins the row;
+   `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`
+   (`LoweringStackAndLayerTests`, green) is its live pin. Whether 35 (like
+   53 and 55, "SwiftUI's answer … already") should leave the live count is a
+   counting question, not a task-7 owner — **left to plan task 15**'s
+   closeout with the other count-only decisions; the live count stays 55.
+   Both written into record §04's and §54's stage-11 sections in this
+   ruling's commit.
+6. **Task 7's tick.** With items 4 and 5 every §4.1 row and every §9.1 clause
+   is confirmed on this branch, so the condition the plan's note sets for
+   moving the checkbox is met. The checkbox itself is left for the Record
+   phase that owns it (spec §9); the note now says the check has run and
+   names this ruling.
+7. **Doc defects fixed in this commit**: the decisions doc's and
+   `CLAUDE.md`/`AGENTS.md`'s next-unused `LR-` letter (`LR-GG` → `LR-GH`;
+   "`LR-FV`…`LR-GG`", cited in five places before this ruling existed, now
+   resolves); record §04 (item 5 b) and record §54 §11; the plan note
+   (item 6).
+
+**What it costs if wrong.** Nothing in `Sources/` rests on this ruling; a
+wrong re-owning in item 5 leaves a recorded gap at the named task instead of
+at a closed stage.

@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-GG`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-GH`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -258,10 +258,14 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   request passes through the legacy engine (stage 9), the CSS layout paths
   and dead `Style` fields are gone (stages 9–10), and the two modifier
   vocabularies are unified (this stage) — task 7's own three clauses all hold
-  on this branch, pending the adversarial branch check before the plan's
-  checkbox moves. History: record §54 (§1–§6 design, skeleton probe, three
-  scratch measurements and critic round; §7 lane 1, §8 lane 2, §9 lane 3, §10
-  the Record phase's independent close).
+  on this branch, and the adversarial branch check (`LR-GG`, record §54
+  §11) confirmed every row of the parent spec's §4.1 (1–11 and G) and every
+  clause of the stage spec's §9.1 on the branch, re-owning three stage-11
+  hand-offs the inventory missed (two `ProposalScrollView` items → plan task
+  10, the per-member row's alignment → plan task 8). History: record §54
+  (§1–§6 design, skeleton probe, three scratch measurements and critic round;
+  §7 lane 1, §8 lane 2, §9 lane 3, §10 the Record phase's independent close,
+  §11 the adversarial branch check).
 - **Counts (2026-09-24, `feat/engine-stage-10` — plan task 7 stage 10 —
   merged with `master` at `0843866`, PR #29, `TextEditor`): 1426 tests, 0
   goldens, 82 typecheck guards**, 0 `error:` on both build systems, the one

@@ -932,7 +932,13 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   (this stage). The checkbox above is moved only once the adversarial
   branch check confirms every row of `2026-09-17-engine-replacement-design.md`
   §4.1 (rows 1–11 plus G) on this branch, reading the test or grep rather
-  than a record's claim (spec §9); that check has not yet run.
+  than a record's claim (spec §9). **That check has run** (`LR-GG`, record
+  §54 §11, at `ff942bd`): every §4.1 row and every spec §9.1 clause holds on
+  the branch, after it re-owned three stage-11 hand-offs the stage's
+  inventory missed (`ProposalScrollView` publishing a `ScrollContext` and its
+  animation → plan task 10; the per-member row's cross-axis alignment → plan
+  task 8) and named divergence 35's live pin; verdict merge. The checkbox is
+  the Record phase's to move.
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

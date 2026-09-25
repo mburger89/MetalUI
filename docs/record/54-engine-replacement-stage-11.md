@@ -778,3 +778,65 @@ layout paths and dead `Style` fields are gone (stages 9–10), and
 plan's checkbox moves is the adversarial branch check's finding, reading
 each of §4.1's eleven-plus-G rows on this branch — not this Record phase's
 to declare (spec §9).
+
+## 11. The adversarial branch check (2026-09-25, `47c0d98..ff942bd`)
+
+Ruling `LR-GG`. Everything below was re-taken on the branch, not read from
+§7–§10.
+
+**Gates.** `swift package clean`, `swift build --build-system native
+--build-tests`, unfiltered `swift test --build-system native --no-parallel`:
+`Test run with 1444 tests in 3 suites passed after 81.280 seconds.`; the
+`FR-J no-argument frame: succeeded=` line present; eleven gated tests skipped.
+0 `error:`; the one `warning:` SwiftPM's deprecation notice; `swift build
+--build-tests` (default build system) 0 `warning:`/`error:`. Guards 84, goldens
+0, `cmp CLAUDE.md AGENTS.md` equal. 78 backticked test names added by the
+branch all resolve. `MetalUILayout` imports only `MetalUICore`;
+`Tests/MetalUICrossPlatformTests/Expected.swift` untouched.
+
+**Probes**, re-run under `/usr/bin/swift` (Apple Swift 6.4), exit 0, stderr
+empty, each byte-identical to its header: `swiftui-border-clip-paint.swift`
+(30 lines, K0/K1 controls, G3/G4, H1–H3), `swiftui-outer-modifier-order.swift`
+(32 lines), `swiftui-overlay-primary-shape.swift` (A, B, P1–P5, Q).
+
+**Mutations** (each committed-clean first, restored from a copy, full
+unfiltered suite, `git status --short` empty after):
+
+| id | mutation (spelling, site) | suite | reddened |
+|---|---|---|---|
+| MA | `innermostID`'s `name: inner[k]._elementID` → `name: nil` (its one site) | 1444, 10 issues | `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority` (`ModifiedElementTests.swift:479`, `:481`, `:483`, ×2 each); `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority` (`ModifierCompositionProofTests.swift:685`, `:687`, `:689`); `theStageOneCorpusLowersWithNoDiagnostic` (`LoweringCorpusTests.swift:319`) |
+| MB | `prepaintLayer`'s inner-layer `pass.frame.disablingHitTestingIfHidden(node) { … }` unwrapped to its body | 1444, 2 issues | `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer` (`HiddenLoweringTests.swift:227`, `:228`) |
+
+**Demo.** `docs/probes/demo-pixels/compare.sh <scratch> 47c0d98 HEAD`:
+controls 1048576, 1031003, 454895, 0, 1048576, 0, 544/216, 491221, 529, 0
+indicator rects (the stage-9-corrected values); all fourteen images
+`differing=0`, scene identical. Real window not taken:
+`appkit-screen-lock-state.swift` printed `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`.
+
+**Elsewhere.** `Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit swift test`)
+21 + 19 passed. `swift:6.4-noble` (aarch64, `git archive HEAD`): `swift build
+--build-tests` 0 `error:`/`warning:`; `swift test --skip-build --filter
+'MetalUICoreTests|MetalUILayoutTests|MetalUICrossPlatformTests'` 188 + 10 + 22
+passed, `theDemoFrameMatchesTheValuesRecordedOnMacOS` and
+`everyProductionTreeBuildsOnAOneMegabyteThread` among them. Gated
+`aListsWorkIsTheSameFor100kRowsAsFor500` (`METALUI_RUN_100K_LIST_TEST=1`)
+passed, 27.1 s.
+
+**§4.1, row by row** (spec §9's table; evidence in `LR-GG` item 4): 1, 2, 3,
+4, 5, G, 6a, 6b, 7a, 7b, 8, 9, 10 and 11 each hold on the branch. **§9.1**:
+every clause holds after `LR-GG` item 5's two dispositions:
+
+- **Re-owned** (hand-offs addressed to stage 11 that spec §2's grep did not
+  reach, because it covered records §29, §38, §41, §48–§53 and not §25):
+  `ProposalScrollView` publishing a `ScrollContext` and `ProposalScrollView`'s
+  animation (`LR-BJ`, record §25 §8.10) → **plan task 10**; the per-member
+  row's cross-axis `alignment: spec.alignment` (`LR-BP`, record §25
+  §11.5/§11.10, M5g green) → **plan task 8** with divergence 56's remainder.
+- **Divergence 35's pin named** (record §04, 2026-09-25 section): its listed
+  pin was retired at 7b (record §49 row 196);
+  `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps` is
+  its live pin; whether it leaves the live count is plan task 15's.
+
+**Verdict: merge.** No code defect. Task 7's checkbox condition (plan note,
+spec §9) is met; the tick is the Record phase's.

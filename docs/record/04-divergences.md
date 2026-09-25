@@ -1368,6 +1368,17 @@ moves from fifty-six to fifty-five live; 45 joins the never-reused list.**
   distribute per member is `Group` semantics — **re-owned to plan task 8**
   (`CN-Q`), not closed here.
 
+- **35's pin named** (the adversarial branch check, `LR-GG` item 5 b). The
+  row's listed pin, `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`,
+  was retired at 7b (record §49 row 196, "divergence 35's legacy side") and
+  no later section said what pins the row. Its live pin is
+  `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`
+  (`LoweringStackAndLayerTests`): the lowered flexible frame is greedy,
+  SwiftUI's answer, in the only engine since stage 9. Its owner is no longer
+  task 7 (`CN-Q`'s hand-off is answered, `LR-L`); whether it — like 53 and 55,
+  "SwiftUI's answer … already" — leaves the live count is a counting decision
+  left to **plan task 15**. The count stays fifty-five.
+
 **What it costs if wrong.** A reader who still expects 45 to be pinned wrong
 on purpose will find its test now asserting the opposite fact and conclude a
 regression where there is a fix; the renamed test name is the tell.
