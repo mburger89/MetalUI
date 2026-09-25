@@ -883,7 +883,12 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 /// Mutations that must redden it: **M2a** `.background` stops inserting its
 /// member (G4); **M2b** `paintDecoration` ignores the set (G4, H2); **M2c**
 /// `.opacity` stops emptying it (H3); **M2d** the border members ignored (H2);
-/// **M2e** the test's G3 expectation inverted.
+/// **M2e** a source inversion, `fillEscapes` negated in `paintDecoration`
+/// (`!escapes.contains($0.slot.fill)`, `LR-GE` item 3) — reddens this test's G3,
+/// G4 and H3 arms, and N2.1, N2.4 and three retained tests beside them (record
+/// §54 §9.3). The escaped fill's and border's emission ORDER relative to the
+/// content is pinned by N2.5 (`OpacityOrderTests`), not here: this subject is
+/// childless.
 @Test @MainActor func aBackgroundOrBorderWrittenAfterOpacityEscapesIt() throws {
     @MainActor func subject<E: Element>(_ make: @escaping @MainActor () -> E) throws -> MUIRect {
         let (window, _) = try render { inRow { make() } }

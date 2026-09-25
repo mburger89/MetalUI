@@ -221,3 +221,117 @@ private func ring<E: Element>(_ make: @escaping @MainActor () -> E) throws -> Fl
                               focusBorder: BorderStyle(.separator, width: px(2))),
             "a border written with no opacity before it records nothing")
 }
+
+// MARK: - N2.5
+
+/// **N2.5 — an escaped fill paints BEFORE the element's content and an escaped
+/// border AFTER it** (`LR-FW` as amended; lane 3's fix round, record §54 §9.3).
+///
+/// The escape changes only an alpha, never the emission order: `paintDecoration`
+/// emits an escaped fill before the opacity scope opens and an escaped border
+/// after it closes, so a G4 fill still sits under the content and an H2 border
+/// still sits over it. Every other opacity-order test uses a childless subject,
+/// which cannot see the order — an escaped fill painted after the scope, ON TOP
+/// of the content, left the whole suite green (mutation V3).
+///
+/// Three shapes, each with a 20×20 child inside a 40×40 subject:
+///
+/// - **legacy element**: `Box { child }.opacity(0.5).background(x)` /
+///   `.border(c, 4)` — the `Box`'s own decoration;
+/// - **legacy layer**, annotated `ModifiedContent<Box<EmptyGroup>, ModifierLayer>`:
+///   `child.padding(10).opacity(0.5).background(x)` — the padding layer's;
+/// - **proposal**, annotated `ModifiedContent<Rectangle, LayoutModifier>`: a
+///   20×20 `Rectangle` padded by 10, then the same two orders.
+///
+/// Per shape: the fill (G4) and border (H2) read the opaque token's alpha (they
+/// escaped), the child reads half its own (it did not), the fill's rect index
+/// is BELOW the child's and the border's ABOVE it. Rects are read off
+/// `scene.rects`, which is emission order within one pipeline (every primitive
+/// here is a rect).
+///
+/// Mutations that must redden it: **V3** the `if fillEscapes` block moved after
+/// the `opacity(…)` scope (legacy fill painted over the child); **V4** the `if
+/// borderEscapes` block moved before the scope (legacy border painted under
+/// the child). Record §54 §9.3 names what each reddened.
+@Test @MainActor func anEscapedFillPaintsUnderTheContentAndAnEscapedBorderOverIt() throws {
+    typealias Legacy = ModifiedContent<Box<EmptyGroup>, ModifierLayer>
+    typealias Proposal = ModifiedContent<Rectangle, LayoutModifier>
+
+    struct Reading { var subject: MUIRect; var subjectIndex: Int; var child: MUIRect; var childIndex: Int }
+
+    @MainActor func read<E: Element>(_ make: @escaping @MainActor () -> E) throws -> Reading {
+        let (window, _) = try render(make)
+        let rects = window.lastScene.rects
+        let subjects = rects.indices.filter {
+            rects[$0].bounds.size.width == 40 && rects[$0].bounds.size.height == 40
+        }
+        let children = rects.indices.filter {
+            rects[$0].bounds.size.width == 20 && rects[$0].bounds.size.height == 20
+        }
+        try #require(subjects.count == 1 && children.count == 1,
+                     why("expected one 40x40 and one 20x20 rect, got \(subjects.count) and "
+                         + "\(children.count) of \(rects.count)"))
+        let s = subjects[0], c = children[0]
+        return Reading(subject: rects[s], subjectIndex: s, child: rects[c], childIndex: c)
+    }
+
+    func child() -> Box<EmptyGroup> { Box().cssWidth(px(20)).cssHeight(px(20)).background(.separator) }
+    func layerBase() -> Legacy { child().padding(Pixels(10)) }
+    func proposalBase() -> Proposal { Rectangle(width: px(20), height: px(20)).padding(Edges(all: px(10))) }
+
+    let (probe, _) = try render { child() }
+    let theme = probe.theme
+    let opaqueChild = try sizedRect(probe.lastScene, 20, 20)
+    let (rectProbe, _) = try render { Rectangle(width: px(20), height: px(20)) }
+    let opaqueRectangle = try sizedRect(rectProbe.lastScene, 20, 20)
+    try #require(theme[.accent].a > 0 && opaqueChild.background.a > 0
+                     && opaqueRectangle.background.a > 0,
+                 "set up — visible tokens and visible children")
+    func opaqueChildAlpha(_ name: String) -> Float {
+        name == "proposal" ? opaqueRectangle.background.a : opaqueChild.background.a
+    }
+
+    let layerG4: Legacy = layerBase().opacity(0.5).background(.accent)
+    let layerH2: Legacy = layerBase().opacity(0.5).border(.accent, width: px(4))
+    let proposalG4: Proposal = proposalBase().opacity(0.5).background(.accent)
+    let proposalH2: Proposal = proposalBase().opacity(0.5).border(.accent, width: px(4))
+
+    let fills: [(String, Reading)] = [
+        ("legacy element", try read {
+            Box { child() }.cssWidth(px(40)).cssHeight(px(40))
+                .alignItems(.center).justifyContent(.center)
+                .opacity(0.5).background(.accent)
+        }),
+        ("legacy layer", try read { layerG4 }),
+        ("proposal", try read { proposalG4 }),
+    ]
+    let borders: [(String, Reading)] = [
+        ("legacy element", try read {
+            Box { child() }.cssWidth(px(40)).cssHeight(px(40))
+                .alignItems(.center).justifyContent(.center)
+                .opacity(0.5).border(.accent, width: px(4))
+        }),
+        ("legacy layer", try read { layerH2 }),
+        ("proposal", try read { proposalH2 }),
+    ]
+
+    for (name, r) in fills {
+        try #require(abs(r.subject.background.a - theme[.accent].a) < 0.001,
+                     why("\(name) G4: set up — the fill escaped: expected \(theme[.accent].a), "
+                         + "got \(r.subject.background.a)"))
+        try #require(abs(r.child.background.a - opaqueChildAlpha(name) * 0.5) < 0.001,
+                     why("\(name) G4: set up — the child is inside the scope: expected "
+                         + "\(opaqueChildAlpha(name) * 0.5), got \(r.child.background.a)"))
+        #expect(r.subjectIndex < r.childIndex,
+                why("\(name) G4: the escaped fill paints UNDER the content — fill at \(r.subjectIndex), "
+                    + "child at \(r.childIndex)"))
+    }
+    for (name, r) in borders {
+        try #require(abs(r.subject.borderColor.a - theme[.accent].a) < 0.001,
+                     why("\(name) H2: set up — the border escaped: expected \(theme[.accent].a), "
+                         + "got \(r.subject.borderColor.a)"))
+        #expect(r.subjectIndex > r.childIndex,
+                why("\(name) H2: the escaped border paints OVER the content — border at "
+                    + "\(r.subjectIndex), child at \(r.childIndex)"))
+    }
+}
