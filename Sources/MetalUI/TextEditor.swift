@@ -73,29 +73,16 @@ public struct TextEditor: Element, StyledElement {
         let system = pass.textSystem
         let key = system.resolveFont(family: fontFamily, size: fontSize)
         let text = self.text, placeholder = self.placeholder
-        if pass.lowersToProposal {
-            // Greedy on both axes, as SwiftUI's `TextEditor` is.
-            let node = pass.lowerLegacyLeaf(style, declared: style, site: .textEditor) {
-                pass.frame.requestNativeLeaf { proposal in
-                    MainActor.assumeIsolated {
-                        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil }
-                            ?? TextField.naturalWidth(text: text, placeholder: placeholder, font: key, system: system)
-                        let height = proposal.height.flatMap { $0.isFinite ? $0 : nil }
-                            ?? Self.contentHeight(text, width: width, font: key, system: system)
-                        return LayoutMeasurement(size: SizeD(width: width, height: height))
-                    }
+        // Greedy on both axes, as SwiftUI's `TextEditor` is.
+        let node = pass.lowerLegacyLeaf(style, declared: style, site: .textEditor) {
+            pass.frame.requestNativeLeaf { proposal in
+                MainActor.assumeIsolated {
+                    let width = proposal.width.flatMap { $0.isFinite ? $0 : nil }
+                        ?? TextField.naturalWidth(text: text, placeholder: placeholder, font: key, system: system)
+                    let height = proposal.height.flatMap { $0.isFinite ? $0 : nil }
+                        ?? Self.contentHeight(text, width: width, font: key, system: system)
+                    return LayoutMeasurement(size: SizeD(width: width, height: height))
                 }
-            }
-            return (node, Layout(node: node))
-        }
-        let node = pass.frame.requestLeaf(style: style) { known, available in
-            MainActor.assumeIsolated {
-                let offered: Double?
-                if case .definite(let width) = available.width { offered = width } else { offered = nil }
-                let width = known.width ?? offered
-                    ?? TextField.naturalWidth(text: text, placeholder: placeholder, font: key, system: system)
-                return SizeD(width: width,
-                             height: known.height ?? Self.contentHeight(text, width: width, font: key, system: system))
             }
         }
         return (node, Layout(node: node))

@@ -7,14 +7,14 @@ import MetalUIDemoContent
 
 // Plan task 7, stage 6b, lane 3 (`docs/superpowers/specs/2026-09-23-engine-stage-6b-design.md`
 // §8 tests 3.1–3.3; rulings LR-DF, LR-DG, LR-DK, LR-DL): the root switch seen
-// through a production `Window` — no production root reaches the CSS engine,
-// a hugging legacy root is centred (`CN-J`), and every production root's
-// deepest native level is read.
+// through a production `Window` — a hugging legacy root is centred (`CN-J`),
+// and every production root's deepest native level is read. (3.1, the exit
+// test `noProductionFrameReachesTheLegacyEngine`, retired at stage 9 with the
+// legacy root-layout branch and counter it read, `LR-FH` item 3; stage 10's
+// symbol check is handed its role.)
 //
-// **Every window here is a `makeFakeWindow` window at its DEFAULT authority**
-// unless the test names `.legacy` — the default is production's
-// (`Frame.defaultLayoutAuthority`, `LR-DF`), so these are production frames:
-// diagnostics off, an unlowerable field traps.
+// **Every window here is a production `makeFakeWindow` window**: diagnostics
+// off, an unlowerable field traps.
 //
 // `demoContent()`, `nativeLayoutPreviewContent()` and `demoModel` are imported
 // from `MetalUIDemoContent` with a plain import (`LR-S`): the demo the binary
@@ -35,10 +35,10 @@ private func listRoot() -> some Element {
             }
             .alignItems(.center)
             .flexGrow(1)
-            .height(Pixels(28))
+            .cssHeight(Pixels(28))
             .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
                            bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
-            .width(Pixels(420))
+            .cssWidth(Pixels(420))
         }
     }
 }
@@ -74,8 +74,7 @@ private let productionRoots: [ProductionRoot] = [
 /// `@MainActor` global, so its state is set here and put back before
 /// returning — a leak would silently change every test after this one.
 @MainActor
-private func draw(_ root: ProductionRoot, frames: Int,
-                  authority: LayoutAuthority? = nil) throws -> Window {
+private func draw(_ root: ProductionRoot, frames: Int) throws -> Window {
     let device = try #require(MTLCreateSystemDefaultDevice())
     demoModel.showModal = root.modal
     demoModel.animationDemoActive = root.animation
@@ -86,14 +85,11 @@ private func draw(_ root: ProductionRoot, frames: Int,
     let window: Window, platform: FakePlatformWindow
     switch root.content {
     case .demo:
-        (window, platform) = try makeFakeWindow(device: device, size: root.width,
-                                                layoutAuthority: authority) { demoContent() }
+        (window, platform) = try makeFakeWindow(device: device, size: root.width) { demoContent() }
     case .preview:
-        (window, platform) = try makeFakeWindow(device: device, size: root.width,
-                                                layoutAuthority: authority) { nativeLayoutPreviewContent() }
+        (window, platform) = try makeFakeWindow(device: device, size: root.width) { nativeLayoutPreviewContent() }
     case .list:
-        (window, platform) = try makeFakeWindow(device: device, size: root.width,
-                                                layoutAuthority: authority) { listRoot() }
+        (window, platform) = try makeFakeWindow(device: device, size: root.width) { listRoot() }
     }
     if let height = root.height {
         platform.simulateResize(to: Size(width: Pixels(Float(root.width)), height: Pixels(Float(height))))
@@ -105,78 +101,39 @@ private func draw(_ root: ProductionRoot, frames: Int,
     return window
 }
 
-// MARK: - 3.1 — the exit test
-
-/// **3.1, the stage's exit test** (parent spec §4.1 row 6b, `LR-DL`): no
-/// production frame reaches the legacy engine. Every root in
-/// `productionRoots` — `demoContent()` with the modal off and on and the
-/// animation on, at 1024² and 920×560, `nativeLayoutPreviewContent()`, and a
-/// `ScrollView { List }` root — is drawn three frames through a window at the
-/// default authority with `Frame.legacyRootLayoutCounter` bound: it reads 0.
-///
-/// **The positive control is in the same test**: the demo through a `.legacy`
-/// window bumps the counter exactly once per frame drawn, so a counter that
-/// cannot count cannot pass.
-///
-/// Red before: the counter declared and never bumped — the control read 0.
-/// Mutations that must redden it: **M3a** `Frame.defaultLayoutAuthority` back
-/// to `.legacy` (the production arms count); **M3b** the bump removed (the
-/// control reads 0).
-@MainActor
-@Test func noProductionFrameReachesTheLegacyEngine() throws {
-    let frames = 3
-    for root in productionRoots {
-        let counter = Frame.LegacyRootLayoutCounter()
-        let window = try Frame.$legacyRootLayoutCounter.withValue(counter) {
-            try draw(root, frames: frames)
-        }
-        #expect(window.layoutAuthority == .proposal, "\(root.name): not a production window")
-        #expect(counter.count == 0, "\(root.name): \(counter.count) frame(s) reached the legacy engine")
-    }
-
-    // The positive control: the same demo, a `.legacy` window.
-    for root in productionRoots where root.content == .demo {
-        let control = Frame.LegacyRootLayoutCounter()
-        _ = try Frame.$legacyRootLayoutCounter.withValue(control) {
-            try draw(root, frames: frames, authority: .legacy)
-        }
-        #expect(control.count == frames,
-                "\(root.name): a .legacy window must bump the counter once per frame (read \(control.count))")
-    }
-}
-
 // MARK: - 3.2 — root placement through a window
 
 /// **3.2** (`LR-DG`, `CN-J`): a hugging legacy root is centred in a production
 /// window. `Row { Box().width(58).height(20) }` in a 100×100 window: the box at
 /// (21, 40) 58×20, as SwiftUI places a 58×20 root in a 100×100 host (stack probe
-/// R1/R2, re-run 2026-09-23: `(21, 40) 58×20`). The same tree through a
-/// `.legacy` window is the CSS answer, divergence 4 (`CS-I`): the auto row
-/// fills the window, starts its main axis at 0 and centres its cross axis —
-/// the box at (0, 40). The two arms disagree, so neither is vacuous.
+/// R1/R2, re-run 2026-09-23: `(21, 40) 58×20`). The literal is derived from
+/// those probe arms — `((100 − 58) / 2, (100 − 20) / 2)` — not from another arm
+/// of this test, so the arm is not vacuous on its own: a root placed top-leading
+/// reads (0, 0), one placed at the window rect reads (0, 40).
+///
+/// **Stage 7b (record §49 row 245, `LR-EH`) removed this test's `.legacy` arm**,
+/// which read divergence 4's CSS answer (`CS-I`: the auto row fills the window,
+/// the box at (0, 40)) — the last pin of divergence 4 outside the CSS engine's
+/// own retired tests; divergence 4 retires with it.
 ///
 /// Green on arrival after the flip; its red is taken as **M2a** (the native
-/// root top-leading) and **M2b** (placed at the window rect), and its
-/// `.legacy` arm is the answer `aef88ce`'s production gave.
+/// root top-leading) and **M2b** (placed at the window rect).
 @MainActor
 @Test func aHuggingLegacyRootIsCentredInAProductionWindow() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let rootID = GlobalElementID.child(of: nil, at: 0, name: nil)
     let boxID = GlobalElementID.child(of: rootID, at: 0, name: nil)
-    func boxRect(_ authority: LayoutAuthority?) throws -> Bounds<Pixels>? {
-        let (window, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: authority) {
-            Row { Box().width(Pixels(58)).height(Pixels(20)) }
+    func boxRect() throws -> Bounds<Pixels>? {
+        let (window, _) = try makeFakeWindow(device: device, size: 100) {
+            Row { Box().cssWidth(Pixels(58)).cssHeight(Pixels(20)) }
         }
         window.recordsElementBounds = true
         window.drawFrameIfNeeded()
         return window.lastElementBounds[boxID]
     }
-    let production = try #require(try boxRect(nil))
+    let production = try #require(try boxRect())
     #expect(production == Bounds(origin: Point(x: Pixels(21), y: Pixels(40)),
                                  size: Size(width: Pixels(58), height: Pixels(20))))
-    let legacy = try #require(try boxRect(.legacy))
-    #expect(legacy == Bounds(origin: Point(x: Pixels(0), y: Pixels(40)),
-                             size: Size(width: Pixels(58), height: Pixels(20))))
 }
 
 // MARK: - 3.3 — every production root's depth
@@ -200,10 +157,13 @@ private func draw(_ root: ProductionRoot, frames: Int,
     // row spelling is why this `List` root reads 16 where the design's fixture,
     // without the declared height, read 15 (and this one, with the line
     // removed, reads 15 — measured). The window size and the demo's state move
-    // nothing.
+    // nothing. **29 again since stage 8** (`LR-EZ`, measured): the recipe drops
+    // the list row's `.alignItems(.center).flexGrow(1)` (`LR-ES`'s R4 — the
+    // frame's own `.center` does the centring), one lowered level fewer on the
+    // same deepest path.
     let expected: [String: Int] = [
-        "demo 1024": 30, "demo-modal 1024": 30, "demo-animation 1024": 30,
-        "demo 920x560": 30, "demo-modal 920x560": 30, "demo-animation 920x560": 30,
+        "demo 1024": 29, "demo-modal 1024": 29, "demo-animation 1024": 29,
+        "demo 920x560": 29, "demo-modal 920x560": 29, "demo-animation 920x560": 29,
         "preview 1024": 10, "list 920x560": 16,
     ]
     for root in productionRoots {

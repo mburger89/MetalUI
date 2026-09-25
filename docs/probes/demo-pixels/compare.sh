@@ -36,6 +36,17 @@
 # A rebuild that disagrees with one of these is a finding, and the quoted
 # number is what gets corrected — not the harness, silently.
 #
+# **Corrected at stage 9** (record §51 §5.6, lane 3): two of the numbers above
+# predate stage 6b's switch of the demo onto the proposal engine. From stage 6b
+# on (measured at `b9a5d7f` and at every stage-9 lane) the two read
+#   default vs modal (light)     1031003   (not 1030498)
+#   default vs animation (light)  454895   (not 210027)
+# and the stage-6b controls read prod default vs modal 491221, distinct
+# prod-default-light 529. The bracketed numbers the script prints below are
+# the pre-6b ones, kept so an old log still reads against its own header.
+# From stage 9 on the chrome pair is two renders under the one authority
+# (`ZZDemoPixels-stage9.swift`), chosen per commit below.
+#
 # WHAT THE TWELVE COVER, AND WHAT THEY DO NOT. `demoContent()` names no
 # proposal type (check with a grep; each stage re-checks), so **the ten legacy
 # and preview images cannot be moved by a kernel change** and a zero there
@@ -73,7 +84,15 @@ for c in "$@"; do
   [ -f img-$sha/prod-modal-light.bgra ] && continue
   rm -rf src-$sha && mkdir -p src-$sha
   git -C $REPO archive $c | tar -x -C src-$sha
-  cp $HERE/ZZDemoPixels.swift src-$sha/Tests/MetalUITests/ZZDemoPixels.swift
+  # Stage 9 (`LR-FG` item 7): a commit whose Fakes.swift has no
+  # `layoutAuthority: LayoutAuthority?` parameter (a declaration, not a comment
+  # naming it) has no layout authority to choose, so it gets
+  # the stage-9 copy, which renders the chrome pair twice under the one authority.
+  if grep -q 'layoutAuthority: LayoutAuthority' src-$sha/Tests/MetalUITests/Fakes.swift; then
+    cp $HERE/ZZDemoPixels.swift src-$sha/Tests/MetalUITests/ZZDemoPixels.swift
+  else
+    cp $HERE/ZZDemoPixels-stage9.swift src-$sha/Tests/MetalUITests/ZZDemoPixels.swift
+  fi
   mkdir -p img-$sha
   (cd src-$sha \
     && swift build --build-system native --build-tests > ../build-$sha.log 2>&1 \

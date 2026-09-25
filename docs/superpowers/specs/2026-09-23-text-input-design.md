@@ -3,7 +3,7 @@
 **Status: implemented** on `feat/text-input` (record §45); roadmap item 14 of
 `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:** `TI-`
 (`TI-A`…`TI-H`, next `TI-I`; rulings here; `TI-G` added by
-`feat/text-undo`, record §47; `TI-H` by `feat/text-editor`, record §48). The user chose a full
+`feat/text-undo`, record §47; `TI-H` by `feat/text-editor`, record §52). The user chose a full
 `TextField`: caret, selection, editing keys, IME composition and the
 clipboard, on AppKit and on SDL3.
 
@@ -180,9 +180,9 @@ as the text, and reach the caller through `onChange` like any edit.
 
 `TextEditor(_ placeholder:text:onChange:)` is `TextField`'s editing — caret,
 selection, input methods, the clipboard, undo — over wrapped lines. It is
-controlled, a `StyledElement`, and greedy on **both** axes under the proposal
-authority, as SwiftUI's is. Under the legacy one it sizes as content: its
-natural width, and its lines' height.
+controlled, a `StyledElement`, and greedy on **both** axes, as SwiftUI's is;
+offered no height (a vertical scroll's content), it answers its lines'
+height. Its lines are drawn from the top whatever height it gets.
 
 - **One line model.** `TextSystem.lineRanges(_:font:wrappingAt:)` gives the
   display lines `measure` and `placeGlyphs` wrap into, as UTF-16 ranges with

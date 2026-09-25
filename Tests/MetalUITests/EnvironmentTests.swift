@@ -67,8 +67,8 @@ private final class EnvLog {
 /// **A native 10×10 leaf since stage 6a** (record §38, disposition R), as is
 /// `PropertyRecorder` below: the tests reading them are about the environment,
 /// which reads no authority, so each test whose tree holds a legacy container
-/// runs under the proposal authority (`frame(authority: .proposal)`, or a
-/// window's `layoutAuthority: .proposal`). No assertion moved.
+/// ran under the proposal authority explicitly until stage 9 made it the only
+/// one. No assertion moved.
 private struct EnvRecorder: Element {
     let label: String
     let log: EnvLog
@@ -181,17 +181,16 @@ private struct NodeProbe<Inner: Element>: Element {
 
 @MainActor
 private func surfaceBox(_ width: Float) -> Box<EmptyGroup> {
-    Box().width(px(width)).height(px(10)).background(.surface)
+    Box().cssWidth(px(width)).cssHeight(px(10)).background(.surface)
 }
 
 private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
 
 @MainActor
 private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
-                   theme: Theme = .light, table: StateTable = StateTable(),
-                   authority: LayoutAuthority = Frame.defaultLayoutAuthority) -> Frame {
+                   theme: Theme = .light, table: StateTable = StateTable()) -> Frame {
     Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: scale,
-          stateTable: table, theme: theme, layoutAuthority: authority)
+          stateTable: table, theme: theme)
 }
 
 // MARK: - E1–E3: precedence and phases (EV-A, EV-L)
@@ -212,7 +211,7 @@ private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
             .environment(\.probe, 1)
         EnvRecorder(label: "A6", log: log)
     }
-    frame(authority: .proposal).render(&root)
+    frame().render(&root)
 
     let readings = ["A0", "A1", "A2", "A3", "A4", "A5", "A6"].map { log.paint[$0]?.probe }
     #expect(readings == [0, 1, 2, 1, 2, 1, 0])
@@ -231,7 +230,7 @@ private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
             .environment(\.probe, 5)
             .transformEnvironment(\.probe) { $0 += 100 }
     }
-    frame(authority: .proposal).render(&root)
+    frame().render(&root)
 
     #expect([log.paint["A7"]?.probe, log.paint["A8"]?.probe] == [110, 5])
 }
@@ -248,7 +247,7 @@ private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
             .environment(\.probe, 1)
         EnvRecorder(label: "outside", log: log)
     }
-    frame(authority: .proposal).render(&root)
+    frame().render(&root)
 
     #expect(log.probes("inner") == [2, 2, 2])
     #expect(log.probes("sibling") == [1, 1, 1])
@@ -269,7 +268,7 @@ private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
             .environment(\.probe, 1)
         EnvRecorder(label: "C", log: scopedLog)
     }, label: "row", log: scopedNodes)
-    let scopedFrame = frame(authority: .proposal)
+    let scopedFrame = frame()
     scopedFrame.render(&scoped)
 
     let bareLog = EnvLog()
@@ -278,7 +277,7 @@ private func frame(_ width: Float = 200, _ height: Float = 50, scale: Float = 1,
         Pair(EnvRecorder(label: "A", log: bareLog), EnvRecorder(label: "B", log: bareLog))
         EnvRecorder(label: "C", log: bareLog)
     }, label: "row", log: bareNodes)
-    frame(authority: .proposal).render(&bare)
+    frame().render(&bare)
 
     let row = try #require(scopedNodes.nodes["row"])
     #expect(scopedFrame.tree.children(row).count == 3)
@@ -297,22 +296,16 @@ private final class CounterLog {
 /// An `onClick` leaf whose `@State` counts its clicks, and records the count
 /// in paint.
 ///
-/// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §38, disposition P-6b): its one test reads a click at legacy
-/// coordinates, which the proposal root's centring moves (`CN-J`), so it is
-/// pinned to the legacy authority until stage 6b rules root placement.
+/// **A declared-size native leaf** (`declaredSizeNativeLeaf`). It registered
+/// through `Frame`'s internal legacy registrar from stage 6a (record §38,
+/// disposition P-6b) and was a Dual leaf from stage 6b (`LR-DI`) until stage 9
+/// deleted that registrar.
 private struct ClickCounter: Element {
     @State var n = 0
     let log: CounterLog
 
-    // A stage 6a Dual leaf since stage 6b (`LR-DI`, spec §5.2's P-6b rule):
-    // `declaredSizeNativeLeaf` under the proposal authority, `Frame`'s internal
-    // legacy registrar under the legacy one — so the one test using it runs at
-    // whatever authority its window has.
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.lowersToProposal
-            ? declaredSizeNativeLeaf(fixedStyle(20, 20), pass)
-            : pass.frame.requestNode(style: fixedStyle(20, 20), children: []), ())
+        (declaredSizeNativeLeaf(fixedStyle(20, 20), pass), ())
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -366,7 +359,7 @@ private func click(_ platform: FakePlatformWindow, at point: Point<Pixels>) {
     let log = CounterLog()
     let (window, platform) = try makeFakeWindow(device: device) {
         Row { ClickCounter(log: log).environment(\.probe, model.value) }
-            .width(px(64)).height(px(64))
+            .frame(width: px(64), height: px(64), alignment: .leading)
     }
     let centre = Point(x: px(10), y: px(32))
 
@@ -386,7 +379,7 @@ private func click(_ platform: FakePlatformWindow, at point: Point<Pixels>) {
     let disabledLog = CounterLog()
     let (disabledWindow, disabledPlatform) = try makeFakeWindow(device: device) {
         Row { ClickCounter(log: disabledLog).disabled(model.flag) }
-            .width(px(64)).height(px(64))
+            .frame(width: px(64), height: px(64), alignment: .leading)
     }
     disabledWindow.drawFrameIfNeeded()
     click(disabledPlatform, at: centre)
@@ -572,12 +565,12 @@ private struct NativeClickCounter: ProposalElement {
     let recorder = PropertyRecorder(log: log)
 
     var first = Row { recorder.environment(\.probe, 3) }
-    frame(authority: .proposal).render(&first)
+    frame().render(&first)
     #expect([log.layout, log.prepaint, log.paint] == [[3], [3], [3]])
 
     log.reset()
     var second = Row { recorder.environment(\.probe, 4) }
-    frame(authority: .proposal).render(&second)
+    frame().render(&second)
     #expect([log.layout, log.prepaint, log.paint] == [[4], [4], [4]])
 }
 
@@ -591,7 +584,7 @@ private struct NativeClickCounter: ProposalElement {
         recorder.environment(\.probe, 1)
         recorder.environment(\.probe, 2)
     }
-    frame(authority: .proposal).render(&root)
+    frame().render(&root)
     #expect(log.paint == [1, 2])
 }
 
@@ -611,14 +604,14 @@ private struct NativeClickCounter: ProposalElement {
 @Test func anEnvironmentPropertyInsideAnyElementIsInertAndReadsTheDefault() {
     let log = PropertyLog()
     var root = Row { AnyElement(PropertyRecorder(log: log)).environment(\.probe, 5) }
-    frame(authority: .proposal).render(&root)
+    frame().render(&root)
     #expect([log.layout, log.prepaint, log.paint] == [[0], [0], [0]])
 }
 
 private struct EnvComponent: Component {
     @Environment(\.probe) var probe
     var content: some ElementGroup {
-        Box().width(px(10)).height(px(10)).background(probe == 1 ? .accent : .surface)
+        Box().cssWidth(px(10)).cssHeight(px(10)).background(probe == 1 ? .accent : .surface)
     }
 }
 
@@ -708,20 +701,17 @@ private struct EnvComponent: Component {
 /// background (15pt and 16pt), and both read dark — so the arm is shown to
 /// tell inside the scope from outside it, not to read light everywhere.
 ///
-/// **Under both authorities** (plan task 7 stage 5 lane 3, spec 3.8, `LR-CO`): a
-/// plain `Frame`, so the proposal arm runs with diagnostics on and requires an
-/// empty report before anything is read (`LR-BX`). The `Deferred` is **in-flow**;
+/// **Under both authorities from plan task 7 stage 5 lane 3 to stage 9** (spec
+/// 3.8, `LR-CO`): a plain `Frame` with diagnostics on, requiring an empty report
+/// before anything is read (`LR-BX`). The `Deferred` is **in-flow**;
 /// the presentation-shaped twin is
-/// `aPresentationKeepsItsDeclaringScopesEnvironmentUnderBothAuthorities`
-/// (`PresentationWindowTests`). Colours only are read, so the proposal root's
+/// `aPresentationKeepsItsDeclaringScopesEnvironment` (`PresentationWindowTests`). Colours only are read, so the proposal root's
 /// centring (`CN-J`) does not reach an assertion.
 @MainActor
-@Test(arguments: AuthorityCoverage.authorities)
-func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test
+func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope() throws {
     let f = Frame(contentSize: Size(width: px(200), height: px(50)), scaleFactor: 1,
-                  stateTable: StateTable(), theme: .light,
-                  layoutAuthority: authority, reportsUnlowerableFields: authority == .proposal)
+                  stateTable: StateTable(), theme: .light, reportsUnlowerableFields: true)
     var root = Row {
         surfaceBox(10).theme(.dark)
         surfaceBox(11)
@@ -730,7 +720,7 @@ func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope(_ autho
         surfaceBox(15).frame(width: px(16), height: px(10)).background(.surface).theme(.dark)
     }
     f.render(&root)
-    try #require(f.unlowerableFields.isEmpty, "\(authority): \(f.unlowerableFields)")
+    try #require(f.unlowerableFields.isEmpty, "\(f.unlowerableFields)")
 
     let rects = f.finalizedScene().rects
     func colour(_ width: Float) throws -> Hsla {
@@ -757,7 +747,7 @@ func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope(_ autho
 @MainActor
 @Test func theFramesRootEnvironmentCarriesItsThemeAndScale() throws {
     let log = EnvLog()
-    let retina = frame(scale: 2, theme: .dark, authority: .proposal)
+    let retina = frame(scale: 2, theme: .dark)
     var root = Row { surfaceBox(10); EnvRecorder(label: "px", log: log) }
     retina.render(&root)
     #expect(hsla(try #require(retina.finalizedScene().rects.first).background) == Theme.dark.surface)
@@ -765,11 +755,11 @@ func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope(_ autho
 
     let captureLog = EnvLog()
     var plain = Row { EnvRecorder(label: "px", log: captureLog) }
-    frame(scale: 1, authority: .proposal).render(&plain)
+    frame(scale: 1).render(&plain)
     let captured = try #require(captureLog.paint["px"])
     #expect(captured.pixelLength == 1)
 
-    let overwritten = frame(scale: 2, theme: .dark, authority: .proposal)
+    let overwritten = frame(scale: 2, theme: .dark)
     overwritten.rootEnvironment = captured
     var again = Row { surfaceBox(10); EnvRecorder(label: "px", log: log) }
     overwritten.render(&again)
@@ -800,7 +790,7 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
     // Stage 6b (`LR-DG`, R-fill): the 64x64 window's extent declared on the
     // childless root's two auto axes — a proposal `Box()` with none answers
     // 0x0 and paints nothing at the centre; the legacy root filled them itself.
-    func tree() -> Box<EmptyGroup> { Box().background(.background).width(px(64)).height(px(64)) }
+    func tree() -> Box<EmptyGroup> { Box().background(.background).cssWidth(px(64)).cssHeight(px(64)) }
 
     let (lightWindow, lightPlatform) = try makeFakeWindow(device: device) { tree() }
     lightWindow.theme = .light
@@ -843,11 +833,11 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
 @Test func aWholeValueWriteCannotResetTheThemeOrThePixelLength() throws {
     let captureLog = EnvLog()
     var plain = Row { EnvRecorder(label: "c", log: captureLog) }
-    frame(scale: 1, authority: .proposal).render(&plain)
+    frame(scale: 1).render(&plain)
     let captured = try #require(captureLog.paint["c"])
 
     let resetLog = EnvLog()
-    let resetFrame = frame(scale: 2, authority: .proposal)
+    let resetFrame = frame(scale: 2)
     var reset = Row {
         Pair(surfaceBox(10), EnvRecorder(label: "r", log: resetLog))
             .environment(\.self, EnvironmentValues())
@@ -862,7 +852,7 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
     #expect(resetLog.paint["control"]?.probe == 3)
 
     let restoreLog = EnvLog()
-    let restoreFrame = frame(scale: 2, authority: .proposal)
+    let restoreFrame = frame(scale: 2)
     var restore = Row {
         Pair(surfaceBox(10), EnvRecorder(label: "r", log: restoreLog))
             .transformEnvironment(\.self) { $0 = captured }
@@ -886,7 +876,7 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
 @Test func theWindowsEnvironmentReachesTheFrameAndASetRepaints() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let log = EnvLog()
-    let (window, _) = try makeFakeWindow(device: device, layoutAuthority: .proposal) {
+    let (window, _) = try makeFakeWindow(device: device) {
         Row { EnvRecorder(label: "w", log: log) }
     }
 
@@ -935,7 +925,7 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
 
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let log = EnvLog()
-    let (window, _) = try makeFakeWindow(device: device, layoutAuthority: .proposal) {
+    let (window, _) = try makeFakeWindow(device: device) {
         Row {
             EnvRecorder(label: "window", log: log)
             EnvRecorder(label: "reset", log: log).environment(\.self, EnvironmentValues())
@@ -951,7 +941,7 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
     // A `Frame` built without a window roots at the bare locale...
     let windowless = EnvLog()
     var bare = Row { EnvRecorder(label: "w", log: windowless) }
-    frame(authority: .proposal).render(&bare)
+    frame().render(&bare)
     #expect(windowless.paint["w"]?.locale.identifier == "", "a windowless Frame roots at EnvironmentValues()")
     // ...and an `@Environment` that was never bound reads the bare default.
     let unbound = Environment(\.locale)
@@ -960,7 +950,7 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
 
 // MARK: - E15, E20: work counts (EV-O, EV-V)
 
-private typealias Leaf = Box<EmptyGroup>
+private typealias Leaf = ModifiedElement<Box<EmptyGroup>>
 private typealias Level3 = Box<ArrayGroup<Leaf>>
 private typealias Level2 = Box<ArrayGroup<Level3>>
 
@@ -969,16 +959,16 @@ private func branching(_ a: Int, _ b: Int, _ c: Int) -> ArrayGroup<Level2> {
     ArrayGroup((0..<a).map { _ in
         Box(content: ArrayGroup((0..<b).map { _ in
             Box(content: ArrayGroup((0..<c).map { _ in
-                Box().width(px(1)).height(px(1))
+                Box().frame(width: px(1), height: px(1))
             }))
         }))
     })
 }
 
 @MainActor
-private func counts<C: ElementGroup>(_ content: C, authority: LayoutAuthority = Frame.defaultLayoutAuthority)
+private func counts<C: ElementGroup>(_ content: C)
     throws -> (push: Int, snapshot: Int, transform: Int) {
-    let f = frame(400, 400, authority: authority)
+    let f = frame(400, 400)
     var root = Box(content: content)
     f.render(&root)
     return (f.environmentPushCount, f.environmentSnapshotCount, f.environmentTransformCount)
@@ -1015,7 +1005,7 @@ private func counts<C: ElementGroup>(_ content: C, authority: LayoutAuthority = 
 
         let log = PropertyLog()
         let read = try counts(Pair(branching(a, b, c), PropertyRecorder(log: log))
-                                 .environment(\.probe, 1), authority: .proposal)
+                                 .environment(\.probe, 1))
         #expect(read.push == 3, "tree \(a)x\(b)x\(c)")
         #expect(read.snapshot == 3, "tree \(a)x\(b)x\(c): one bind per phase")
         #expect(log.paint == [1], "tree \(a)x\(b)x\(c): the reader must see the scope")
@@ -1044,14 +1034,14 @@ private final class TransformCounter {
     }
 
     var first = tree()
-    let firstFrame = frame(authority: .proposal)
+    let firstFrame = frame()
     firstFrame.render(&first)
     #expect(counter.n == 1)
     #expect(log.probes("t") == [1, 1, 1])
     #expect(firstFrame.environmentTransformCount == 1)
 
     var second = tree()
-    let secondFrame = frame(authority: .proposal)
+    let secondFrame = frame()
     secondFrame.render(&second)
     #expect(counter.n == 2)
     #expect(log.probes("t") == [2, 2, 2])
@@ -1060,39 +1050,80 @@ private final class TransformCounter {
 
 // MARK: - E16, E17, E21: carried values with no built-in effect (EV-I, EV-K, EV-H)
 
+/// A `Text`'s measured size under the **proposal** authority, read off
+/// `Frame.elementBounds` (stage 7b, record §49 rows 236–237): `ideal` in a
+/// 4000-wide frame — wider than any string here at 26pt, so the leaf answers
+/// its one-line width, the answer it gives a nil width — and `broken` in a
+/// 20-wide frame, narrower than every word, so the leaf breaks and answers the
+/// proposal's width with its broken lines' height (`proposalTextMeasurement`,
+/// `LR-AU`). `content` wraps the `Text` in the environment write under test;
+/// an `EnvironmentScope` is identity-transparent, so the `Text` is the `Row`'s
+/// child 0 either way. Each frame reports rather than traps, and the report is
+/// required empty.
 @MainActor
-private func textMeasure<C: ElementGroup>(_ content: (NodeProbe<Text>) -> C, _ text: Text)
-    throws -> (min: SizeD, max: SizeD) {
-    let nodes = NodeLog()
-    // P-CSS, owner 7b (stage 6b, `LR-DI`): the two tests reading this helper
-    // read `tree.measure`, the CSS engine's measure function (CSS-style), which
-    // a lowered `Text` does not carry; pinned by argument, not by the helper's
-    // default, which stage 6b's flip moves.
-    let f = frame(400, 100, authority: .legacy)
-    var root = Row { content(NodeProbe(inner: text, label: "text", log: nodes)) }
-    f.render(&root)
-    let node = try #require(nodes.nodes["text"])
-    let measure = try #require(f.tree.measure(node))
-    let min = measure(.unspecified, AvailableSpaceSize(width: .minContent, height: .maxContent))
-    let max = measure(.unspecified, AvailableSpaceSize(width: .maxContent, height: .maxContent))
-    return (min, max)
+private func proposalTextMeasure<C: ElementGroup>(_ content: (Text) -> C, _ text: Text)
+    throws -> (ideal: Size<Pixels>, broken: Size<Pixels>) {
+    let rowID = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let textID = GlobalElementID.child(of: rowID, at: 0, name: nil)
+    func measured(width: Float) throws -> Size<Pixels> {
+        let f = Frame(contentSize: Size(width: px(width), height: px(1000)), scaleFactor: 1, reportsUnlowerableFields: true,
+                      recordsElementBounds: true)
+        var root = Row { content(text) }
+        f.render(&root)
+        try #require(f.unlowerableFields.isEmpty,
+                     "the text reported \(f.unlowerableFields.map(\.description))")
+        return try #require(f.elementBounds[textID], "the text recorded no bounds").size
+    }
+    return (try measured(width: 4000), try measured(width: 20))
 }
 
-/// **E16.** `dynamicTypeSize` changes no text measurement — probe G, where a
-/// SwiftUI `.body` text measures 120×16 at the default and at
-/// `accessibility5`. Aligned behaviour on macOS, not an inert API (ruling
-/// EV-I); pinned so a later "fix" has to face the probe. **Positive control**:
-/// a 26pt font measures differently.
+/// **E16 under the proposal authority** (stage 7b, record §49 row 236, N3.1):
+/// `dynamicTypeSize` changes no text measurement — probe G, where a SwiftUI
+/// `.body` text measures 120×16 at the default and at `accessibility5` (EV-I).
+/// The retired `dynamicTypeSizeChangesNoTextMeasurement` read the legacy
+/// leaf's CSS `MeasureFunction`; this reads the lowered leaf's answer at its
+/// ideal and at a broken width. **Positive control**: a 26pt font measures
+/// differently at both, `#require`d first.
+///
+/// Red-before (record §49 §6.3, M3.1): the lowered `Text`'s measurement scaled
+/// by 2 when `environment.dynamicTypeSize != .large`.
 @MainActor
-@Test func dynamicTypeSizeChangesNoTextMeasurement() throws {
+@Test func dynamicTypeSizeChangesNoTextMeasurementUnderTheProposalAuthority() throws {
     let text = Text("Hello, dynamic type")
-    let bare = try textMeasure({ $0 }, text)
-    let large = try textMeasure({ $0.dynamicTypeSize(.accessibility5) }, text)
-    let control = try textMeasure({ $0 }, text.font(size: 26))
+    let bare = try proposalTextMeasure({ $0 }, text)
+    let large = try proposalTextMeasure({ $0.dynamicTypeSize(.accessibility5) }, text)
+    let control = try proposalTextMeasure({ $0 }, text.font(size: 26))
 
-    try #require(control.max != bare.max, "the control font must measure differently")
-    #expect(large.max == bare.max)
-    #expect(large.min == bare.min)
+    try #require(control.ideal != bare.ideal && control.broken != bare.broken,
+                 "the control font must measure differently: \(control) vs \(bare)")
+    #expect(large.ideal == bare.ideal)
+    #expect(large.broken == bare.broken)
+}
+
+/// **E21 under the proposal authority** (stage 7b, record §49 row 237, N3.2).
+/// **PINNED INERT** (EV-H): a locale reaches no text measurement — `Text`'s
+/// tokenizer and typesetter never receive it. Not claimed as aligned: no probe
+/// measured SwiftUI text under a locale. Thai is the sample because its word
+/// breaks come from a dictionary, the one place a locale-aware breaker could
+/// plausibly move the broken answer. **Positive control**: a 26pt font
+/// measures differently at both widths, `#require`d first.
+///
+/// Red-before (record §49 §6.3, M3.2): the lowered `Text`'s measurement scaled
+/// by 2 when the environment's locale is `th_TH`.
+@MainActor
+@Test func aLocaleChangesNoTextMeasurementUnderTheProposalAuthority() throws {
+    let text = Text("กรุงเทพมหานคร อมรรัตนโกสินทร์")
+    let bare = try proposalTextMeasure({ $0 }, text)
+    let thai = try proposalTextMeasure({ $0.environment(\.locale, Locale(identifier: "th_TH")) }, text)
+    let english = try proposalTextMeasure({ $0.environment(\.locale, Locale(identifier: "en_US")) }, text)
+    let control = try proposalTextMeasure({ $0 }, text.font(size: 26))
+
+    try #require(control.ideal != bare.ideal && control.broken != bare.broken,
+                 "the control font must measure differently: \(control) vs \(bare)")
+    #expect(thai.ideal == bare.ideal)
+    #expect(thai.broken == bare.broken)
+    #expect(english.ideal == bare.ideal)
+    #expect(english.broken == bare.broken)
 }
 
 /// **E17. PINNED WRONG ON PURPOSE** (ruling EV-K). Under `.rightToLeft`
@@ -1118,25 +1149,4 @@ private func textMeasure<C: ElementGroup>(_ content: (NodeProbe<Text>) -> C, _ t
     let twenty = try #require(rects.first { $0.bounds.size.width == 20 })
     #expect(ten.bounds.origin.x == 0)
     #expect(twenty.bounds.origin.x == 10)
-}
-
-/// **E21. PINNED INERT** (ruling EV-H). A locale reaches no text measurement:
-/// `Text`'s tokenizer and typesetter never receive it. **Not claimed as
-/// aligned** — no probe measured SwiftUI text under a locale. Thai is the
-/// sample because its word breaks come from a dictionary, the one place a
-/// locale-aware tokenizer could plausibly move min-content. **Positive
-/// control**: a 26pt font measures differently.
-@MainActor
-@Test func aLocaleChangesNoTextMeasurement() throws {
-    let text = Text("กรุงเทพมหานคร อมรรัตนโกสินทร์")
-    let bare = try textMeasure({ $0 }, text)
-    let thai = try textMeasure({ $0.environment(\.locale, Locale(identifier: "th_TH")) }, text)
-    let english = try textMeasure({ $0.environment(\.locale, Locale(identifier: "en_US")) }, text)
-    let control = try textMeasure({ $0 }, text.font(size: 26))
-
-    try #require(control.max != bare.max, "the control font must measure differently")
-    #expect(thai.min == bare.min)
-    #expect(thai.max == bare.max)
-    #expect(english.min == bare.min)
-    #expect(english.max == bare.max)
 }

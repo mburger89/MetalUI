@@ -14,7 +14,7 @@ import MetalUIRender
     let window = try app.openWindow(title: "Loop",
                                     size: Size(width: Pixels(200), height: Pixels(200)),
                                     startsDisplayLink: false) {
-        Box().width(Pixels(10)).height(Pixels(10)).background(.accent)
+        Box().frame(width: Pixels(10), height: Pixels(10)).background(.accent)
     }
 
     // `openWindow` paints once eagerly, so the window is already clean and one

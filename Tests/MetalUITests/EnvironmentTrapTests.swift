@@ -61,8 +61,7 @@ private struct RootWriter: Element {
 
 @MainActor
 private func renderRootWriter(_ phase: WritePhase) {
-    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
-                      layoutAuthority: .proposal)
+    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1)
     var root = Row { RootWriter(phase: phase) }
     frame.render(&root)
 }
@@ -122,8 +121,7 @@ private struct ScopedReader: Element {
 
 @MainActor
 private func writeRenderWriteRender() {
-    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
-                      layoutAuthority: .proposal)
+    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1)
     let count = PaintCount()
 
     frame.rootEnvironment = EnvironmentValues()

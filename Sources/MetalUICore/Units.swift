@@ -51,12 +51,14 @@ public enum Length: Hashable, Sendable {
     case rems(Rems)
 
     /// A **fraction** of the containing block, not a percentage: `0.5` is half.
-    /// `resolveLength` is `f * parent`, and every call site in `Sources/` and
-    /// in the layout fixtures passes `0.5`, `0.25`, `0.10`.
+    /// It resolves to `f * parent` (the CSS engine's `resolveLength`, deleted at
+    /// stage 9, and the lowering's own reading; a lowered percentage reports by
+    /// name), and every call site in `Sources/` passes `0.5`, `0.25`, `0.10`.
     ///
     /// **`MetalUI`'s `width(fraction:)`/`height(fraction:)`/`flexBasis(fraction:)`
-    /// forward their argument to this case untouched**, pinned by
-    /// `aFractionSizeResolvesAgainstItsContainingBlock`. Their old `percent:`
+    /// forward their argument to this case untouched**, pinned on the legacy
+    /// authority by `aFractionSizeResolvesAgainstItsContainingBlock` until stage
+    /// 7b retired it (record §49 §4 row 203). Their old `percent:`
     /// names, fractions wearing a percentage's name (`width(percent: 50)` means
     /// 5000%, ruling `FR-T`), are deprecated renames (ruling `CN-O`,
     /// `docs/superpowers/2026-09-16-containers-decisions.md`).

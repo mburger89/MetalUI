@@ -14,11 +14,15 @@ import MetalUIRender
 //
 // Two things live here.
 //
-// 1. `everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays` — the
+// 1. `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority` — the
 //    spec's §3 matrix as a table. Each row names a modifier, the path it is
 //    written on, and the KINDS it is claimed to be; the test measures two arms
 //    that differ only by that modifier and asserts each claimed kind against
-//    its own mechanism-specific witness (ruling OM-X).
+//    its own mechanism-specific witness (ruling OM-X). Until stage 7b this was
+//    `everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays`, which
+//    read the legacy tree's node count under the legacy authority; it was
+//    retired for its proposal-authority re-spelling (record §49 row 244), whose
+//    `wraps` witness is a new modifier layer's element rect.
 // 2. Four order tests, each expectation taken from an arm of
 //    `docs/probes/swiftui-outer-modifier-order.swift`,
 //    `swiftui-border-clip-paint.swift` or `swiftui-content-shape-hit-region.swift`.
@@ -144,133 +148,22 @@ private func storageDiffers<A: StyledElement, B: StyledElement>(_ a: A, _ b: B) 
         || HandlerFingerprint(a.handlers) != HandlerFingerprint(b.handlers)
 }
 
-/// The five-tuple one arm produces, plus the rect and hit-region lists the
-/// deltas are computed from.
-private struct Observation: Equatable {
-    /// `LayoutTree.nodeCount` for the whole fixture.
-    var nodeCount: Int
-    /// The x of the 1x1 marker declared after the subject: the subject's outer
-    /// width, measured the way record §15's scratch arms measured it.
-    var outerWidth: Float
-    /// Every emitted rect but the marker's.
-    var rects: [String]
-    /// The same rects' SIZES alone, in the same order.
-    ///
-    /// **The `distributes` witness reads this and not `rects`, and the reason
-    /// was found by mutation.** A component's members sit in one flex line, so
-    /// growing member 0 pushes member 1 sideways: with the whole rect compared,
-    /// an amend that reached only the FIRST member still moved the second one's
-    /// string, and `StyledComponent.requestGroupLayout` amending
-    /// `nodes.prefix(1)` reddened nothing. A member's size is what the modifier
-    /// did to it; its position is what its siblings did to it.
-    var rectSizes: [String]
-    /// Every registered hit region.
-    var hitRegions: [String]
-    /// How many `onClick` closures a synthesized down/up pair at the row's
-    /// probe point actually ran.
-    var hitCountAtEdge: Int
-}
-
-/// Renders one arm and reads all five components off it.
-///
-/// **Through a real `Window` for four of the five, and through a directly built
-/// `Frame` for the node count.** `Window` does not retain its `Frame` (it keeps
-/// `lastScene`, `lastHitboxes` and `lastFocusRegistry` and lets the frame go),
-/// and `LayoutTree.nodeCount` is the only spelling of "did this modifier add a
-/// node" the repo has — `frame.tree.nodeCount`, the same idiom
-/// `ElementLayoutTests` and `ComponentTests` already use. So the same root is
-/// built a second time at the same content size and rendered through a bare
-/// `Frame`. The two renders see the same element values; nothing in the four
-/// window-side readings depends on the node count and vice versa.
-///
-/// The fixture is `Row { subject; marker }.alignItems(.flexStart)`. The
-/// `alignItems` is load-bearing: `Row` centres on the cross axis (EP-8), so
-/// without it a cross-axis size is the container's answer rather than the
-/// modifier's — record §15's A1 arm read a 200-tall fill for exactly that
-/// reason.
-@MainActor
-private func observe<Subject: ElementGroup>(
-    windowSize: Int = 200,
-    probe: Point<Pixels>,
-    interact: @MainActor (Window, FakePlatformWindow) -> Void = { _, _ in },
-    subject: @escaping @MainActor (ClickCounter) -> Subject
-) throws -> Observation {
-    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
-    let counter = ClickCounter()
-    // P-CSS, owner 7b (stage 6b, `LR-DI`): the matrix's only caller reads the
-    // legacy tree's node shape (CSS-structure), so both renders here — the
-    // window and the node-count `Frame` — stay on `.legacy`.
-    let (window, platform) = try makeFakeWindow(device: device, size: windowSize,
-                                                layoutAuthority: .legacy) {
-        Row {
-            subject(counter)
-            Box().width(px(1)).height(px(1)).background(.separator)
-        }.alignItems(.flexStart)
-    }
-    window.drawFrameIfNeeded()
-    interact(window, platform)
-    window.setNeedsRedraw()
-    window.drawFrameIfNeeded()
-
-    let scene = window.lastScene
-    let isMarker: (MUIRect) -> Bool = { $0.bounds.size.width == 1 && $0.bounds.size.height == 1 }
-    let marker = try #require(scene.rects.first(where: isMarker),
-                              "the 1x1 marker painted no rect — the fixture never reached paint")
-    let hitRegions = window.lastHitboxes.map(describe)
-
-    platform.simulateInput(.mouseDown(MouseEvent(position: probe)))
-    platform.simulateInput(.mouseUp(MouseEvent(position: probe)))
-
-    let sink = ClickCounter()
-    var tree = Row {
-        subject(sink)
-        Box().width(px(1)).height(px(1)).background(.separator)
-    }.alignItems(.flexStart)
-    let frame = Frame(contentSize: Size(width: px(Float(windowSize)), height: px(Float(windowSize))),
-                      scaleFactor: 1, layoutAuthority: .legacy)
-    frame.render(&tree)
-
-    let subjectRects = scene.rects.filter { !isMarker($0) }
-    return Observation(nodeCount: frame.tree.nodeCount,
-                       outerWidth: marker.bounds.origin.x,
-                       rects: subjectRects.map(describe),
-                       rectSizes: subjectRects.map { "\($0.bounds.size.width)x\($0.bounds.size.height)" },
-                       hitRegions: hitRegions,
-                       hitCountAtEdge: counter.count)
-}
-
 // MARK: - The matrix
 
 /// One cell of the spec's §3.1 table, as a claim the test can refute.
 private enum Kind: String, CaseIterable, Hashable {
-    /// Adds a layout node around the receiver.
+    /// Adds a modifier layer around the receiver (a new element rect, and a
+    /// bigger outer box); on a `Component`, one wrapper per member.
     case wraps
     /// Writes the receiver's own `Style`/`Decoration`/`Handlers`/`ElementID` —
     /// on a chain, the OUTERMOST layer's.
     case selfStorage
-    /// Changes what is emitted, and moves nothing the engine produced.
+    /// Changes what is emitted, and moves no rect the layout produced.
     case paintOnly
     /// Changes what is registered for hit testing, and emits nothing.
     case prepaintOnly
     /// Applied to each of a `Component`'s top-level nodes.
     case distributes
-}
-
-@MainActor
-private struct MatrixRow {
-    let name: String
-    let path: String
-    let kinds: Set<Kind>
-    /// What the row is here to say beyond its kinds — quoted in failures.
-    let note: String
-    /// How many top-level nodes a `.distributes` row's component has. `nil` for
-    /// every other row.
-    var memberCount: Int?
-    /// The two arms and, where the comparison is meaningful, whether their
-    /// outermost stored state differs. `nil` where it is not: a wrapping
-    /// modifier returns a different TYPE, so "did the receiver's own storage
-    /// change" is not a question about it.
-    let arms: @MainActor () throws -> (bare: Observation, declared: Observation, storage: Bool?)
 }
 
 /// A two-member component, for the `distributes` rows.
@@ -281,373 +174,477 @@ private struct MatrixRow {
 /// in `ComponentTests.swift` records having found the hard way.
 private struct TwoMembers: Component {
     var content: some ElementGroup {
-        Box().width(px(30)).height(px(10)).background(.accent)
-        Box().width(px(50)).height(px(20)).background(.surface)
+        Box().cssWidth(px(30)).cssHeight(px(10)).background(.accent)
+        Box().cssWidth(px(50)).cssHeight(px(20)).background(.surface)
     }
 }
 
-/// Every outer modifier the legacy path offers today is the kind the matrix
-/// says it is, and each kind is proved by its own mechanism.
+/// One arm of N3.5 (stage 7b, record §49 row 244), under the **proposal**
+/// authority: the observations the retired matrix read, with the legacy node
+/// count — the CSS tree's shape, which a lowering does not preserve (a lowered
+/// `.width` is a native frame, a lowered margin a native padding) — replaced by
+/// what the proposal authority's own element log shows.
+private struct ProposalObservation: Equatable {
+    /// `Frame.elementBounds`' entry count: one per element **and per modifier
+    /// layer** (each layer has its own id, `MC-C`). A wrap adds a layer and so an
+    /// entry; a `Self`-returning modifier writes the receiver's storage and adds
+    /// none. The native node count cannot say this: it moves with the lowering.
+    var elementCount: Int
+    /// Every recorded element rect, **without its id** and sorted, so `.id(_:)`
+    /// renaming every id beneath it moves nothing here (the hit regions'
+    /// reason, `describe(_: Hitbox)`). "The layout did not move" is this list
+    /// unchanged.
+    var layout: [String]
+    /// The x of the 1x1 marker declared after the subject: the subject's outer
+    /// width.
+    var outerWidth: Float
+    /// Every emitted rect but the marker's, in emission order.
+    var rects: [String]
+    /// The same rects' sizes and x origins, in emission order — the
+    /// `distributes` witness's inputs (a component's members each paint one).
+    var rectSizes: [String]
+    var rectXs: [Float]
+    var rectWidths: [Float]
+    /// Every registered hit region.
+    var hitRegions: [String]
+    /// How many `onClick` closures a down/up pair at the row's probe ran.
+    var hitCountAtEdge: Int
+}
+
+/// Renders one arm through a real `Window` at production's authority
+/// (`.proposal`) and reads a `ProposalObservation` off it.
 ///
-/// **The rows are the audit.** A modifier filed under the wrong kind is a
-/// documentation artefact wearing a test's name, so each kind has a witness
-/// that a *different* kind cannot satisfy, and each row also carries the
-/// NEGATIVE of the kinds it does not claim:
+/// The fixture is the retired matrix's `Row { subject; marker }.alignItems(.flexStart)`
+/// with the window's 200x200 extent declared on the row — stage 6b's R-fill
+/// (`LR-DG`): a proposal root is centred at its own answer (`CN-J`), so without
+/// it the probe points would sit off the subject. The row lays its children out
+/// from its leading, top corner, so the marker's x is the subject's outer width.
+/// The tree is first rendered in a `Frame` that reports rather than traps, and
+/// that report is required empty (a window test in a mode that traps pre-flights
+/// in a mode that reports).
+@MainActor
+private func observeUnderTheProposalAuthority<Subject: ElementGroup>(
+    probe: Point<Pixels>,
+    interact: @MainActor (Window, FakePlatformWindow) -> Void = { _, _ in },
+    subject: @escaping @MainActor (ClickCounter) -> Subject
+) throws -> ProposalObservation {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    var preflight = Row {
+        subject(ClickCounter())
+        Box().cssWidth(px(1)).cssHeight(px(1)).background(.separator)
+    }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
+    let diagnostics = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1, reportsUnlowerableFields: true)
+    diagnostics.render(&preflight)
+    try #require(diagnostics.unlowerableFields.isEmpty,
+                 "the pre-flight reported \(diagnostics.unlowerableFields.map(\.description))")
+
+    let counter = ClickCounter()
+    let (window, platform) = try makeFakeWindow(device: device, size: 200) {
+        Row {
+            subject(counter)
+            Box().cssWidth(px(1)).cssHeight(px(1)).background(.separator)
+        }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
+    }
+    window.recordsElementBounds = true
+    window.drawFrameIfNeeded()
+    interact(window, platform)
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+
+    let scene = window.lastScene
+    let isMarker: (MUIRect) -> Bool = { $0.bounds.size.width == 1 && $0.bounds.size.height == 1 }
+    let marker = try #require(scene.rects.first(where: isMarker),
+                              "the 1x1 marker painted no rect — the fixture never reached paint")
+    let hitRegions = window.lastHitboxes.map(describe)
+    let bounds = window.lastElementBounds
+
+    platform.simulateInput(.mouseDown(MouseEvent(position: probe)))
+    platform.simulateInput(.mouseUp(MouseEvent(position: probe)))
+
+    let subjectRects = scene.rects.filter { !isMarker($0) }
+    return ProposalObservation(
+        elementCount: bounds.count,
+        layout: bounds.values.map {
+            "[\($0.origin.x.value) \($0.origin.y.value) \($0.size.width.value)x\($0.size.height.value)]"
+        }.sorted(),
+        outerWidth: marker.bounds.origin.x,
+        rects: subjectRects.map(describe),
+        rectSizes: subjectRects.map { "\($0.bounds.size.width)x\($0.bounds.size.height)" },
+        rectXs: subjectRects.map { $0.bounds.origin.x },
+        rectWidths: subjectRects.map { $0.bounds.size.width },
+        hitRegions: hitRegions,
+        hitCountAtEdge: counter.count)
+}
+
+/// One row of N3.5: a modifier, the kinds it is claimed to be under the proposal
+/// authority, the outer widths derived by hand before the run, and its arms.
+@MainActor
+private struct ProposalMatrixRow {
+    let name: String
+    let path: String
+    let kinds: Set<Kind>
+    let note: String
+    var memberCount: Int?
+    /// The marker's x in the bare and the declared arm, derived before the run
+    /// (the test's doc comment carries the arithmetic).
+    let outer: (bare: Float, declared: Float)
+    /// A `distributes` row's declared-arm gaps (before the first member, between
+    /// each pair, before the marker), derived before the run.
+    var gaps: [Float]? = nil
+    let arms: @MainActor () throws -> (bare: ProposalObservation, declared: ProposalObservation, storage: Bool?)
+}
+
+/// **N3.5 — the matrix under the proposal authority** (stage 7b, record §49
+/// row 244; the retired `everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays`
+/// read the legacy tree's node count). The same rows, each kind proved by a
+/// witness a different kind cannot satisfy **under production's authority**:
 ///
 /// | kind | witness |
 /// |---|---|
-/// | `wraps` | `nodeDelta > 0` **and** `outerSizeDelta > 0` |
-/// | `selfStorage` | `nodeDelta == 0` **and** the outermost layer's stored state differs |
-/// | `paintOnly` | `nodeDelta == 0 && outerSizeDelta == 0` **and** the emitted rects differ |
-/// | `prepaintOnly` | the first three all zero **and** the hit regions or the click count move |
-/// | `distributes` | each of the component's `memberCount` members' own SIZE changed (an amend, `OM-AD`); with `wraps` also claimed, exactly one node per member and each member's own size UNCHANGED — a wrap per member (`OM-AM`, lane 4's `padding`) |
+/// | `wraps` | the outer width grows **and** a new modifier layer's element rect appears (`elementCount` + 1) — or, on a `Component`, the per-member witness below, since a component's wrappers carry no id of their own |
+/// | `selfStorage` | no new element rect **and** the outermost layer's stored state differs (`storageDiffers`, authority-free) |
+/// | `paintOnly` | no new element rect, the outer width **and every recorded element rect unchanged**, and the emitted rects differ |
+/// | `prepaintOnly` | layout and paint unchanged, and the hit regions or the click count move |
+/// | `distributes` | **each** member keeps its own size and **every** gap around every member opens — the leading gap before the first, each gap between two, the trailing gap before the marker — which one wrapper around the whole group (the interior gap stays 0) or a wrapper on only some members (an end gap stays 0) cannot satisfy |
 ///
-/// and, for every row: a row that does not claim `wraps` must add no node; a
-/// row that claims neither `paintOnly` nor `distributes` must emit **byte-
-/// identical** rects; a row that does not claim `prepaintOnly` must leave the
-/// hit regions and the click count exactly where they were.
+/// with the retired matrix's negatives (a row not claiming `wraps` adds no element
+/// rect; a row claiming neither `paintOnly` nor `distributes` emits byte-identical
+/// rects; a row not claiming `prepaintOnly` leaves the hit regions and the click
+/// count exactly where they were), and each row's outer widths **derived by hand
+/// before the run**. The row is 200x200 at (0, 0), its children from the leading,
+/// top corner:
 ///
-/// The last two negatives are what make the two `border(_:width:)` rows a
-/// finding rather than a formality. The sized-box subject carries a background
-/// in both arms, so "the rects differ" is a statement about a live rect's
-/// `borderWidths` and `borderColor` fields — not the vacuous truth it would be
-/// if a rect had simply appeared from nothing — and the content-sized one's
-/// `does not claim wraps` negative is what states that a paint-only border,
-/// unlike the deleted `borderWidth(_:)`, moves no layout at all.
-@Test @MainActor func everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays() throws {
-    let rows: [MatrixRow] = [
+/// - `padding(8)` on a 40x40 box: 40 → 56; `frame(60, 60)` on a 20x20 box: 20 → 60;
+/// - `width(40)` on a childless `Box().height(40)`: 0 → 40 (an empty lowered
+///   container answers 0 on an `auto` axis, N1.1); `margin(10)` on 20x20: 20 → 40
+///   (a native padding outside the item, `LR-AB`);
+/// - `hidden()` on 20x20: **20 → 20** — under the proposal authority `hidden()`
+///   keeps its space and paints nothing (`LR-DH`, stage-1 probe H1), where the
+///   legacy engine's `display: none` took none; the subject paints no rect in
+///   either arm, so the row is `selfStorage` alone, by its storage;
+/// - every other `Element` row, 40 → 40 (the clipped subject is 40x40, its child
+///   overflowing; the content-sized box `Box { 30x10 }` is 30 → 30, because
+///   `.border` is a paint-only `Decoration`, `OM-B`);
+/// - the `Component` rows, `TwoMembers` (30x10, 50x20) as two row children
+///   (`Component` is layout-transparent): 80 bare; `padding(20)` wraps each member
+///   (`OM-D`): 70 + 90 = **160**, members at x 20 and 90, gaps (20, 40, 20);
+///   `width(70)` frames each member (`LR-BG`, divergence 48's proposal answer):
+///   70 + 70 = **140**, members centred at 20 and 80, gaps (20, 30, 10).
+///
+/// **One kind changes from the retired matrix**: the `Component` `width(_:)` row
+/// was `distributes` alone there, an amend that overwrote each member's declared
+/// width (`OM-F`); under the proposal authority it is a native frame per member
+/// that keeps each member's width, so it claims `distributes` + `wraps` as the
+/// padding row does (`LR-EO`).
+///
+/// Red-before (record §49 §6.3): **M3.5** `.padding(_:)` made self-storing
+/// (writes `Style.padding` on the receiver, its wrapper layer empty) reddens the
+/// `padding(_:)` row; one mutation per other kind is recorded beside it.
+@Test @MainActor func everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority() throws {
+    let rows: [ProposalMatrixRow] = [
         // MARK: wraps
-        MatrixRow(name: "padding(_:)", path: "legacy Element", kinds: [.wraps],
-                  note: "one ModifierLayer per call (MC-A)",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in Box().width(px(40)).height(px(40)) },
-                       try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(40)).height(px(40)).padding(px(8))
-                       },
-                       nil)
-                  }),
-        MatrixRow(name: "frame(width:height:)", path: "legacy Element", kinds: [.wraps],
-                  note: "a centred ModifierLayer that does not overwrite the content's own size",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in Box().width(px(20)).height(px(20)) },
-                       try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(20)).height(px(20)).frame(width: px(60), height: px(60))
-                       },
-                       nil)
-                  }),
+        ProposalMatrixRow(name: "padding(_:)", path: "legacy Element", kinds: [.wraps],
+                          note: "one ModifierLayer per call (MC-A)", outer: (40, 56),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).padding(px(8))
+                               },
+                               nil)
+                          }),
+        ProposalMatrixRow(name: "frame(width:height:)", path: "legacy Element", kinds: [.wraps],
+                          note: "a centred ModifierLayer that does not overwrite the content's own size",
+                          outer: (20, 60),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(20)).cssHeight(px(20))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(20)).cssHeight(px(20)).frame(width: px(60), height: px(60))
+                               },
+                               nil)
+                          }),
 
-        // MARK: self, and the layout engine reads it
-        MatrixRow(name: "width(_:)", path: "legacy Element", kinds: [.selfStorage],
-                  note: "writes Style.size.width on the receiver's own node",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in Box().height(px(40)) },
-                       try observe(probe: pt(2, 2)) { _ in Box().height(px(40)).width(px(40)) },
-                       storageDiffers(Box().height(px(40)),
-                                      Box().height(px(40)).width(px(40))))
-                  }),
-        MatrixRow(name: "margin(_:)", path: "legacy Element", kinds: [.selfStorage],
-                  note: "writes Style.margin; outside the box, so the marker moves by twice it",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in Box().width(px(20)).height(px(20)) },
-                       try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(20)).height(px(20)).margin(px(10))
-                       },
-                       storageDiffers(Box().width(px(20)).height(px(20)),
-                                      Box().width(px(20)).height(px(20)).margin(px(10))))
-                  }),
-        MatrixRow(name: "hidden()", path: "legacy Element", kinds: [.selfStorage],
-                  note: "writes Style.display = .none — layout filters it and it adds NO node, "
-                      + "which is what separates it from `wraps` under this instrument",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in Box().width(px(20)).height(px(20)) },
-                       try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(20)).height(px(20)).hidden()
-                       },
-                       storageDiffers(Box().width(px(20)).height(px(20)),
-                                      Box().width(px(20)).height(px(20)).hidden()))
-                  }),
-        MatrixRow(name: "id(_:)", path: "legacy Element", kinds: [.selfStorage],
-                  note: "writes elementID and NOTHING the five-tuple can see — the row that "
-                      + "makes the storage witness necessary rather than decorative",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in Box().width(px(40)).height(px(40)) },
-                       try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(40)).height(px(40)).id("beacon")
-                       },
-                       storageDiffers(Box().width(px(40)).height(px(40)),
-                                      Box().width(px(40)).height(px(40)).id("beacon")))
-                  }),
-        MatrixRow(name: "focusable()", path: "legacy Element", kinds: [.selfStorage],
-                  note: "writes Handlers.isFocusable and registers NO pointer target — the "
-                      + "keyboard gate is separate from `onClick`'s and must stay so",
-                  arms: {
-                      (try observe(probe: pt(20, 20)) { _ in Box().width(px(40)).height(px(40)) },
-                       try observe(probe: pt(20, 20)) { _ in
-                           Box().width(px(40)).height(px(40)).focusable()
-                       },
-                       storageDiffers(Box().width(px(40)).height(px(40)),
-                                      Box().width(px(40)).height(px(40)).focusable()))
-                  }),
-
-        // MARK: what the inert one BECAME (lane 2, rulings OM-B and OM-M)
-        //
-        // These two rows replace `borderWidth(_:) on a sized box` and
-        // `borderWidth(_:) on a content-sized box`, which lane 1 measured as
-        // `selfStorage / node 0 / outer 0 / rects identical` and
-        // `selfStorage / node 0 / outer +8 / rects identical` — the standing
-        // inert row of CLAUDE.md's declared-but-inert table, and the API this
-        // audit existed to expose. `border(_:width:)` reads `selfStorage +
-        // paintOnly` on BOTH shapes: the emitted rect's `borderWidths` and
-        // `borderColor` move, and the content-sized box's **outer size no
-        // longer does**, which is the `OM-B` half of the finding (SwiftUI's
-        // `.border` is layout-neutral, probe arm L2) as opposed to the `OM-M`
-        // half (it paints at all).
-        MatrixRow(name: "border(_:width:) on a sized box", path: "legacy Element",
-                  kinds: [.selfStorage, .paintOnly],
-                  note: "the replacement for the deleted borderWidth(_:): it paints, and the "
-                      + "rect that moves is a LIVE one — the subject carries a background in "
-                      + "both arms, so `the rects differ` is about borderWidths and borderColor "
-                      + "rather than about a rect appearing from nothing",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(40)).height(px(40)).background(.accent)
-                       },
-                       try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(40)).height(px(40)).background(.accent)
-                               .border(.separator, width: px(4))
-                       },
-                       storageDiffers(Box().width(px(40)).height(px(40)).background(.accent),
-                                      Box().width(px(40)).height(px(40)).background(.accent)
-                                          .border(.separator, width: px(4))))
-                  }),
-        MatrixRow(name: "border(_:width:) on a content-sized box", path: "legacy Element",
-                  kinds: [.selfStorage, .paintOnly],
-                  note: "the other half: where borderWidth(_:) moved this same box by +8 and "
-                      + "still painted nothing, a paint-only border moves NOTHING and paints. "
-                      + "The `does not claim wraps` negative below is what states the first "
-                      + "half, and the paintOnly witness the second",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in
-                           Box { Box().width(px(30)).height(px(10)) }
-                       },
-                       try observe(probe: pt(2, 2)) { _ in
-                           Box { Box().width(px(30)).height(px(10)) }
-                               .border(.separator, width: px(4))
-                       },
-                       storageDiffers(Box { Box().width(px(30)).height(px(10)) },
-                                      Box { Box().width(px(30)).height(px(10)) }
-                                          .border(.separator, width: px(4))))
-                  }),
-        MatrixRow(name: "focusBorder(_:width:), genuinely focused", path: "legacy Element",
-                  kinds: [.selfStorage, .paintOnly],
-                  note: "THE FOCUS RING (OM-L). The subject is focused in both arms, so what "
-                      + "differs is the declaration and not the state — the shape "
-                      + "`hoverBackground(_:), genuinely hovered` above uses, one chain over",
-                  arms: {
-                      let focus: @MainActor (Window, FakePlatformWindow) -> Void = { window, _ in
-                          if let first = window.lastHitboxes.first { window.focus(first.id) }
-                      }
-                      return (try observe(probe: pt(2, 2), interact: focus) { counter in
-                                  Box().width(px(40)).height(px(40)).background(.surface)
-                                      .focusable().onClick { counter.bump() }
-                              },
-                              try observe(probe: pt(2, 2), interact: focus) { counter in
-                                  Box().width(px(40)).height(px(40)).background(.surface)
-                                      .focusBorder(.accent, width: px(2))
-                                      .focusable().onClick { counter.bump() }
-                              },
-                              storageDiffers(Box().width(px(40)).height(px(40)).background(.surface),
-                                             Box().width(px(40)).height(px(40)).background(.surface)
-                                                 .focusBorder(.accent, width: px(2))))
-                  }),
-        MatrixRow(name: "opacity(_:)", path: "legacy Element",
-                  kinds: [.selfStorage, .paintOnly],
-                  note: "a paint-phase SCOPE, not an emission: the subject's own fill fades "
-                      + "(OM-N), and no number the engine produced moves",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(40)).height(px(40)).background(.accent)
-                       },
-                       try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5)
-                       },
-                       storageDiffers(Box().width(px(40)).height(px(40)).background(.accent),
-                                      Box().width(px(40)).height(px(40)).background(.accent)
-                                          .opacity(0.5)))
-                  }),
-        MatrixRow(name: "clipped()", path: "legacy Element",
-                  kinds: [.selfStorage, .paintOnly],
-                  note: "also a scope. The CHILD's rect is what moves — its contentMask stops "
-                      + "being the whole surface — so the subject needs a child that overflows "
-                      + "it, with flexShrink(0) or the engine shrinks the child to fit and "
-                      + "nothing is clipped. Its PREPAINT half cannot be claimed here: this "
-                      + "instrument treats prepaint-only and paint-only as exclusive, and "
-                      + "`clippedAlsoClipsTheHitboxesInsideIt` pins it instead",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in
-                           Box { Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface) }
-                               .width(px(40)).height(px(40))
-                       },
-                       try observe(probe: pt(2, 2)) { _ in
-                           Box { Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface) }
-                               .width(px(40)).height(px(40)).clipped()
-                       },
-                       storageDiffers(Box().width(px(40)).height(px(40)),
-                                      Box().width(px(40)).height(px(40)).clipped()))
-                  }),
+        // MARK: self
+        ProposalMatrixRow(name: "width(_:)", path: "legacy Element", kinds: [.selfStorage],
+                          note: "writes Style.size.width on the receiver's own storage", outer: (0, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in Box().cssHeight(px(40)) },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssHeight(px(40)).cssWidth(px(40))
+                               },
+                               storageDiffers(Box().cssHeight(px(40)), Box().cssHeight(px(40)).cssWidth(px(40))))
+                          }),
+        ProposalMatrixRow(name: "margin(_:)", path: "legacy Element", kinds: [.selfStorage],
+                          note: "writes Style.margin; outside the box, so the marker moves by twice it",
+                          outer: (20, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(20)).cssHeight(px(20))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(20)).cssHeight(px(20)).margin(px(10))
+                               },
+                               storageDiffers(Box().cssWidth(px(20)).cssHeight(px(20)),
+                                              Box().cssWidth(px(20)).cssHeight(px(20)).margin(px(10))))
+                          }),
+        ProposalMatrixRow(name: "hidden()", path: "legacy Element", kinds: [.selfStorage],
+                          note: "writes Style.display = .none; under the proposal authority the box keeps "
+                              + "its space (LR-DH) and adds no layer",
+                          outer: (20, 20),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(20)).cssHeight(px(20))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(20)).cssHeight(px(20)).hidden()
+                               },
+                               storageDiffers(Box().cssWidth(px(20)).cssHeight(px(20)),
+                                              Box().cssWidth(px(20)).cssHeight(px(20)).hidden()))
+                          }),
+        ProposalMatrixRow(name: "id(_:)", path: "legacy Element", kinds: [.selfStorage],
+                          note: "writes elementID and nothing the observation can see", outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).id("beacon")
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).id("beacon")))
+                          }),
+        ProposalMatrixRow(name: "focusable()", path: "legacy Element", kinds: [.selfStorage],
+                          note: "writes Handlers.isFocusable and registers NO pointer target",
+                          outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).focusable()
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).focusable()))
+                          }),
 
         // MARK: self AND paint-only
-        MatrixRow(name: "background(_:)", path: "legacy Element",
-                  kinds: [.selfStorage, .paintOnly],
-                  note: "writes Decoration.background; emits one rect and moves no number",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in Box().width(px(40)).height(px(40)) },
-                       try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(40)).height(px(40)).background(.accent)
-                       },
-                       storageDiffers(Box().width(px(40)).height(px(40)),
-                                      Box().width(px(40)).height(px(40)).background(.accent)))
-                  }),
-        MatrixRow(name: "cornerRadius(_:)", path: "legacy Element",
-                  kinds: [.selfStorage, .paintOnly],
-                  note: "rounds the receiver's own fill. Both arms carry a background, so the "
-                      + "rect exists either way and only its radii move",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(40)).height(px(40)).background(.accent)
-                       },
-                       try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(40)).height(px(40)).background(.accent)
-                               .cornerRadius(px(12))
-                       },
-                       storageDiffers(Box().width(px(40)).height(px(40)).background(.accent),
-                                      Box().width(px(40)).height(px(40)).background(.accent)
-                                          .cornerRadius(px(12))))
-                  }),
-        MatrixRow(name: "hoverBackground(_:), genuinely hovered", path: "legacy Element",
-                  kinds: [.selfStorage, .paintOnly],
-                  note: "the pointer is over the subject in BOTH arms, so what differs is the "
-                      + "declaration and not the state",
-                  arms: {
-                      let hover: @MainActor (Window, FakePlatformWindow) -> Void = { _, platform in
-                          platform.simulateInput(.mouseMoved(MouseEvent(position: pt(20, 20))))
-                      }
-                      return (try observe(probe: pt(2, 2), interact: hover) { counter in
-                                  Box().width(px(40)).height(px(40)).background(.surface)
-                                      .onClick { counter.bump() }
-                              },
-                              try observe(probe: pt(2, 2), interact: hover) { counter in
-                                  Box().width(px(40)).height(px(40)).background(.surface)
-                                      .hoverBackground(.accent).onClick { counter.bump() }
-                              },
-                              storageDiffers(Box().width(px(40)).height(px(40)).background(.surface),
-                                             Box().width(px(40)).height(px(40)).background(.surface)
-                                                 .hoverBackground(.accent)))
-                  }),
-        MatrixRow(name: "focusBackground(_:), genuinely focused", path: "legacy Element",
-                  kinds: [.selfStorage, .paintOnly],
-                  note: "focus drawing has exactly ONE spelling today and it is a fill — the "
-                      + "hole lane 2 closes with `focusBorder`",
-                  arms: {
-                      let focus: @MainActor (Window, FakePlatformWindow) -> Void = { window, _ in
-                          if let first = window.lastHitboxes.first { window.focus(first.id) }
-                      }
-                      return (try observe(probe: pt(2, 2), interact: focus) { counter in
-                                  Box().width(px(40)).height(px(40)).background(.surface)
-                                      .focusable().onClick { counter.bump() }
-                              },
-                              try observe(probe: pt(2, 2), interact: focus) { counter in
-                                  Box().width(px(40)).height(px(40)).background(.surface)
-                                      .focusBackground(.separator)
-                                      .focusable().onClick { counter.bump() }
-                              },
-                              storageDiffers(Box().width(px(40)).height(px(40)).background(.surface),
-                                             Box().width(px(40)).height(px(40)).background(.surface)
-                                                 .focusBackground(.separator)))
-                  }),
+        ProposalMatrixRow(name: "border(_:width:) on a sized box", path: "legacy Element",
+                          kinds: [.selfStorage, .paintOnly],
+                          note: "paints on a LIVE rect: both arms carry a background", outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
+                                       .border(.separator, width: px(4))
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
+                                                  .border(.separator, width: px(4))))
+                          }),
+        ProposalMatrixRow(name: "border(_:width:) on a content-sized box", path: "legacy Element",
+                          kinds: [.selfStorage, .paintOnly],
+                          note: "a paint-only border moves NOTHING on a content-sized box (OM-B)",
+                          outer: (30, 30),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box { Box().cssWidth(px(30)).cssHeight(px(10)) }
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box { Box().cssWidth(px(30)).cssHeight(px(10)) }
+                                       .border(.separator, width: px(4))
+                               },
+                               storageDiffers(Box { Box().cssWidth(px(30)).cssHeight(px(10)) },
+                                              Box { Box().cssWidth(px(30)).cssHeight(px(10)) }
+                                                  .border(.separator, width: px(4))))
+                          }),
+        ProposalMatrixRow(name: "focusBorder(_:width:), genuinely focused", path: "legacy Element",
+                          kinds: [.selfStorage, .paintOnly],
+                          note: "the focus ring (OM-L); focused in both arms", outer: (40, 40),
+                          arms: {
+                              let focus: @MainActor (Window, FakePlatformWindow) -> Void = { window, _ in
+                                  if let first = window.lastHitboxes.first { window.focus(first.id) }
+                              }
+                              return (try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: focus) { counter in
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
+                                              .focusable().onClick { counter.bump() }
+                                      },
+                                      try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: focus) { counter in
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
+                                              .focusBorder(.accent, width: px(2))
+                                              .focusable().onClick { counter.bump() }
+                                      },
+                                      storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface),
+                                                     Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
+                                                         .focusBorder(.accent, width: px(2))))
+                          }),
+        ProposalMatrixRow(name: "opacity(_:)", path: "legacy Element", kinds: [.selfStorage, .paintOnly],
+                          note: "a paint-phase SCOPE (OM-N)", outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).opacity(0.5)
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
+                                                  .opacity(0.5)))
+                          }),
+        ProposalMatrixRow(name: "clipped()", path: "legacy Element", kinds: [.selfStorage, .paintOnly],
+                          note: "a scope: the overflowing CHILD's mask stops being the surface",
+                          outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box { Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface) }
+                                       .cssWidth(px(40)).cssHeight(px(40))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box { Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface) }
+                                       .cssWidth(px(40)).cssHeight(px(40)).clipped()
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).clipped()))
+                          }),
+        ProposalMatrixRow(name: "background(_:)", path: "legacy Element", kinds: [.selfStorage, .paintOnly],
+                          note: "writes Decoration.background; emits one rect", outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)))
+                          }),
+        ProposalMatrixRow(name: "cornerRadius(_:)", path: "legacy Element", kinds: [.selfStorage, .paintOnly],
+                          note: "rounds the receiver's own fill; only its radii move", outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
+                                       .cornerRadius(px(12))
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent)
+                                                  .cornerRadius(px(12))))
+                          }),
+        ProposalMatrixRow(name: "hoverBackground(_:), genuinely hovered", path: "legacy Element",
+                          kinds: [.selfStorage, .paintOnly],
+                          note: "hovered in BOTH arms", outer: (40, 40),
+                          arms: {
+                              let hover: @MainActor (Window, FakePlatformWindow) -> Void = { _, platform in
+                                  platform.simulateInput(.mouseMoved(MouseEvent(position: pt(20, 20))))
+                              }
+                              return (try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: hover) { counter in
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
+                                              .onClick { counter.bump() }
+                                      },
+                                      try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: hover) { counter in
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
+                                              .hoverBackground(.accent).onClick { counter.bump() }
+                                      },
+                                      storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface),
+                                                     Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
+                                                         .hoverBackground(.accent)))
+                          }),
+        ProposalMatrixRow(name: "focusBackground(_:), genuinely focused", path: "legacy Element",
+                          kinds: [.selfStorage, .paintOnly],
+                          note: "focused in BOTH arms", outer: (40, 40),
+                          arms: {
+                              let focus: @MainActor (Window, FakePlatformWindow) -> Void = { window, _ in
+                                  if let first = window.lastHitboxes.first { window.focus(first.id) }
+                              }
+                              return (try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: focus) { counter in
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
+                                              .focusable().onClick { counter.bump() }
+                                      },
+                                      try observeUnderTheProposalAuthority(probe: pt(2, 2), interact: focus) { counter in
+                                          Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
+                                              .focusBackground(.separator)
+                                              .focusable().onClick { counter.bump() }
+                                      },
+                                      storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface),
+                                                     Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface)
+                                                         .focusBackground(.separator)))
+                          }),
 
         // MARK: self AND prepaint-only
-        MatrixRow(name: "onClick(_:)", path: "legacy Element",
-                  kinds: [.selfStorage, .prepaintOnly],
-                  note: "the ONLY thing that makes an element an opaque pointer target; it "
-                      + "emits nothing and moves nothing",
-                  arms: {
-                      (try observe(probe: pt(20, 20)) { _ in Box().width(px(40)).height(px(40)) },
-                       try observe(probe: pt(20, 20)) { counter in
-                           Box().width(px(40)).height(px(40)).onClick { counter.bump() }
-                       },
-                       storageDiffers(Box().width(px(40)).height(px(40)),
-                                      Box().width(px(40)).height(px(40)).onClick { }))
-                  }),
-
-        // MARK: self AND prepaint-only (plan task 5, lane 3)
-        //
-        // Both arms carry an `onClick`, because neither modifier CREATES a hit
-        // region (`OM-AB`): the bare arm registers the 40x40 box and is hit at
-        // the (2, 2) probe, so the declared arm's zero is the modifier and not
-        // a fixture that never registered. `.contentShape(inset: 10)` leaves a
-        // (10, 10) 20x20 region the probe misses; `.allowsHitTesting(false)`
-        // leaves no region at all.
-        MatrixRow(name: "contentShape(inset:)", path: "legacy Element",
-                  kinds: [.selfStorage, .prepaintOnly],
-                  note: "insets the region an onClick registers (OM-J); configures, never "
-                      + "creates (OM-AB); moves no rect and no node (probe L7)",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { counter in
-                           Box().width(px(40)).height(px(40)).onClick { counter.bump() }
-                       },
-                       try observe(probe: pt(2, 2)) { counter in
-                           Box().width(px(40)).height(px(40)).onClick { counter.bump() }
-                               .contentShape(inset: px(10))
-                       },
-                       storageDiffers(Box().width(px(40)).height(px(40)).onClick { },
-                                      Box().width(px(40)).height(px(40)).onClick { }
-                                          .contentShape(inset: px(10))))
-                  }),
-        MatrixRow(name: "allowsHitTesting(_:)", path: "legacy Element",
-                  kinds: [.selfStorage, .prepaintOnly],
-                  note: "a scope over the receiver's OWN hitbox and its subtree's (OM-T, probe "
-                      + "N1); moves no rect and no node (probe L5)",
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { counter in
-                           Box().width(px(40)).height(px(40)).onClick { counter.bump() }
-                       },
-                       try observe(probe: pt(2, 2)) { counter in
-                           Box().width(px(40)).height(px(40)).onClick { counter.bump() }
-                               .allowsHitTesting(false)
-                       },
-                       storageDiffers(Box().width(px(40)).height(px(40)).onClick { },
-                                      Box().width(px(40)).height(px(40)).onClick { }
-                                          .allowsHitTesting(false)))
-                  }),
+        ProposalMatrixRow(name: "onClick(_:)", path: "legacy Element", kinds: [.selfStorage, .prepaintOnly],
+                          note: "the ONLY thing that makes an element an opaque pointer target",
+                          outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(20, 20)) { counter in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).onClick { counter.bump() }
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).onClick { }))
+                          }),
+        ProposalMatrixRow(name: "contentShape(inset:)", path: "legacy Element",
+                          kinds: [.selfStorage, .prepaintOnly],
+                          note: "insets the region an onClick registers (OM-J, OM-AB)", outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { counter in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).onClick { counter.bump() }
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { counter in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).onClick { counter.bump() }
+                                       .contentShape(inset: px(10))
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).onClick { },
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).onClick { }
+                                                  .contentShape(inset: px(10))))
+                          }),
+        ProposalMatrixRow(name: "allowsHitTesting(_:)", path: "legacy Element",
+                          kinds: [.selfStorage, .prepaintOnly],
+                          note: "a scope over the receiver's OWN hitbox (OM-T)", outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { counter in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).onClick { counter.bump() }
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { counter in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).onClick { counter.bump() }
+                                       .allowsHitTesting(false)
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).onClick { },
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).onClick { }
+                                                  .allowsHitTesting(false)))
+                          }),
 
         // MARK: distributes
-        MatrixRow(name: "padding(_:)", path: "legacy Component", kinds: [.distributes, .wraps],
-                  note: "a WRAP PER MEMBER (lane 4, OM-D): one node around each top-level "
-                      + "node, each member keeping its own size. Before lane 4 it was an amend "
-                      + "writing CSS border-box Style.padding onto each member — `distributes` "
-                      + "alone, whose witness was the member's own size changing (OM-AD); a "
-                      + "per-member wrap leaves that size unchanged by construction, so the "
-                      + "row claims both kinds and the witness branches (OM-AM)",
-                  memberCount: 2,
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in TwoMembers() },
-                       try observe(probe: pt(2, 2)) { _ in TwoMembers().padding(px(20)) },
-                       nil)
-                  }),
-        MatrixRow(name: "width(_:)", path: "legacy Component", kinds: [.distributes],
-                  note: "an amend that OVERWRITES each member's own declared width (OM-F); "
-                      + "SwiftUI's .frame wraps and keeps it. Frozen here, task 4's to change",
-                  memberCount: 2,
-                  arms: {
-                      (try observe(probe: pt(2, 2)) { _ in TwoMembers() },
-                       try observe(probe: pt(2, 2)) { _ in TwoMembers().width(px(70)) },
-                       nil)
-                  }),
+        ProposalMatrixRow(name: "padding(_:)", path: "legacy Component", kinds: [.distributes, .wraps],
+                          note: "a WRAP PER MEMBER (OM-D)", memberCount: 2, outer: (80, 160),
+                          gaps: [20, 40, 20],
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in TwoMembers() },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   TwoMembers().padding(px(20))
+                               },
+                               nil)
+                          }),
+        ProposalMatrixRow(name: "width(_:)", path: "legacy Component", kinds: [.distributes, .wraps],
+                          note: "a native FRAME PER MEMBER keeping each member's own width (LR-BG, "
+                              + "divergence 48's proposal answer); the legacy amend overwrote it",
+                          memberCount: 2, outer: (80, 140), gaps: [20, 30, 10],
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in TwoMembers() },
+                               try observeUnderTheProposalAuthority(probe: pt(2, 2)) { _ in
+                                   TwoMembers().width(px(70))
+                               },
+                               nil)
+                          }),
     ]
 
-    // The table must exercise every kind, or a kind's witness is unproven code
-    // and the matrix has a column nothing reads.
     let covered = Set(rows.flatMap(\.kinds))
     #expect(covered == Set(Kind.allCases),
             why("the matrix leaves \(Set(Kind.allCases).subtracting(covered).map(\.rawValue).sorted()) "
@@ -657,43 +654,46 @@ private struct TwoMembers: Component {
         let label = "\(row.name) on the \(row.path) path"
         let (bare, declared, storage) = try row.arms()
 
-        let nodeDelta = declared.nodeCount - bare.nodeCount
+        let elementDelta = declared.elementCount - bare.elementCount
         let outerSizeDelta = declared.outerWidth - bare.outerWidth
+        let layoutMoved = declared.layout != bare.layout
         let rectsMoved = declared.rects != bare.rects
         let hitRegionsMoved = declared.hitRegions != bare.hitRegions
         let hitCountDelta = declared.hitCountAtEdge - bare.hitCountAtEdge
 
-        // The instrument check, and it runs BEFORE any kind is derived (OM-X):
-        // two arms that agree everywhere are a broken fixture, and a row that
-        // classified one as "inert" would be the audit agreeing with itself.
         let reading = "bare \(bare) / declared \(declared) / storageDiffers \(String(describing: storage))"
         try #require(bare != declared || storage == true,
-                     why("\(label): BROKEN INSTRUMENT — the two arms measure identically in all five "
-                         + "components and in storage, so nothing here could classify anything. "
-                         + reading))
+                     why("\(label): BROKEN INSTRUMENT — the two arms observe identically and in "
+                         + "storage. " + reading))
+
+        #expect(bare.outerWidth == row.outer.bare && declared.outerWidth == row.outer.declared,
+                why("\(label): outer widths \(bare.outerWidth) → \(declared.outerWidth), derived "
+                    + "\(row.outer.bare) → \(row.outer.declared). " + reading))
 
         if row.kinds.contains(.wraps) {
-            #expect(nodeDelta > 0,
-                    "\(label) claims `wraps` and added no layout node. \(reading)")
             #expect(outerSizeDelta > 0,
                     "\(label) claims `wraps` and the container saw no bigger box. \(reading)")
+            if !row.kinds.contains(.distributes) {
+                #expect(elementDelta == 1,
+                        "\(label) claims `wraps` and added \(elementDelta) element rect(s), not one layer. \(reading)")
+            }
         } else {
-            #expect(nodeDelta == 0,
-                    "\(label) does not claim `wraps` and added \(nodeDelta) layout node(s). \(reading)")
+            #expect(elementDelta == 0,
+                    "\(label) does not claim `wraps` and added \(elementDelta) element rect(s). \(reading)")
         }
 
         if row.kinds.contains(.selfStorage) {
-            #expect(nodeDelta == 0,
-                    "\(label) claims `self` and added a layout node. \(reading)")
+            #expect(elementDelta == 0,
+                    "\(label) claims `self` and added a modifier layer. \(reading)")
             #expect(storage == true,
                     why("\(label) claims `self` and wrote nothing into the outermost layer's "
                         + "Style/Decoration/Handlers/elementID. \(reading)"))
         }
 
         if row.kinds.contains(.paintOnly) {
-            #expect(nodeDelta == 0 && outerSizeDelta == 0,
-                    why("\(label) claims `paint-only` and moved a number the engine produced "
-                        + "(node \(nodeDelta), outer \(outerSizeDelta)). \(reading)"))
+            #expect(elementDelta == 0 && outerSizeDelta == 0 && !layoutMoved,
+                    why("\(label) claims `paint-only` and moved the layout (elements \(elementDelta), "
+                        + "outer \(outerSizeDelta), rects moved \(layoutMoved)). \(reading)"))
             #expect(rectsMoved,
                     "\(label) claims `paint-only` and emitted byte-identical rects. \(reading)")
         } else if !row.kinds.contains(.distributes) {
@@ -702,7 +702,7 @@ private struct TwoMembers: Component {
         }
 
         if row.kinds.contains(.prepaintOnly) {
-            #expect(nodeDelta == 0 && outerSizeDelta == 0 && !rectsMoved,
+            #expect(!layoutMoved && outerSizeDelta == 0 && !rectsMoved,
                     "\(label) claims `prepaint-only` and moved layout or paint. \(reading)")
             #expect(hitRegionsMoved || hitCountDelta != 0,
                     why("\(label) claims `prepaint-only` and changed nothing about hit testing. "
@@ -715,38 +715,34 @@ private struct TwoMembers: Component {
 
         if row.kinds.contains(.distributes) {
             let members = try #require(row.memberCount,
-                                       why("\(label) claims `distributes` without saying how many "
-                                           + "top-level nodes its component has"))
+                                       why("\(label) claims `distributes` without a member count"))
             try #require(bare.rectSizes.count == members && declared.rectSizes.count == members,
                          why("\(label): set up — each member must paint exactly one rect, got "
                              + "\(bare.rectSizes.count) and \(declared.rectSizes.count). \(reading)"))
-            if row.kinds.contains(.wraps) {
-                // A wrap PER MEMBER (OM-AM): exactly one new node per member —
-                // one around the whole group reads 1, an amend 0 — and each
-                // member's OWN size unchanged, because what grew is its
-                // wrapper. The `wraps` witness above already required the
-                // container to see a bigger box.
-                #expect(nodeDelta == members,
-                        why("\(label) claims `distributes` + `wraps` and added \(nodeDelta) node(s) "
-                            + "for \(members) members — one wrapper per member, not one around "
-                            + "the group and not an amend. \(reading)"))
-                for (index, pair) in zip(bare.rectSizes, declared.rectSizes).enumerated() {
-                    #expect(pair.0 == pair.1,
-                            why("\(label) claims a wrap per member and member \(index)'s own size "
-                                + "moved (\(pair.0) → \(pair.1)) — that is an amend, not a wrap. "
-                                + reading))
-                }
-            } else {
-                #expect(nodeDelta == 0,
-                        why("\(label) claims `distributes` and the modified component gained a node of "
-                            + "its own — a Component is layout-transparent. \(reading)"))
-                for (index, pair) in zip(bare.rectSizes, declared.rectSizes).enumerated() {
-                    #expect(pair.0 != pair.1,
-                            why("\(label) claims `distributes` and member \(index) kept its size "
-                                + "(\(pair.0)) — the modifier reached some members and not all of "
-                                + "them. \(reading)"))
-                }
+            for (index, pair) in zip(bare.rectSizes, declared.rectSizes).enumerated() {
+                #expect(pair.0 == pair.1,
+                        why("\(label): member \(index)'s own size moved (\(pair.0) → \(pair.1)) — "
+                            + "an amend, not a wrapper per member. \(reading)"))
             }
+            // The gaps: before the first member, between each pair, before the marker.
+            func gaps(_ o: ProposalObservation) -> [Float] {
+                var result: [Float] = []
+                var edge: Float = 0
+                for (x, w) in zip(o.rectXs, o.rectWidths) {
+                    result.append(x - edge)
+                    edge = x + w
+                }
+                result.append(o.outerWidth - edge)
+                return result
+            }
+            #expect(gaps(bare).allSatisfy { $0 == 0 },
+                    "\(label): set up — the bare members pack with no gap, got \(gaps(bare)). \(reading)")
+            #expect(gaps(declared) == row.gaps,
+                    "\(label): gaps \(gaps(declared)), derived \(String(describing: row.gaps)). \(reading)")
+            #expect(gaps(declared).allSatisfy { $0 > 0 },
+                    why("\(label) claims `distributes` and a gap around a member stayed closed, "
+                        + "\(gaps(declared)) — one wrapper around the group, or some members only. "
+                        + reading))
         }
     }
 }
@@ -777,7 +773,7 @@ private struct TwoMembers: Component {
         let (window, _) = try makeFakeWindow(device: device, size: 200) {
             // Stage 6b (`LR-DG`, R-fill): the window's extent declared on the
             // row's two auto axes, so it sits at (0, 0) on both authorities.
-            Row { make() }.alignItems(.flexStart).width(px(200)).height(px(200))
+            Row { make() }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
         }
         window.drawFrameIfNeeded()
         let theme = window.theme
@@ -789,10 +785,10 @@ private struct TwoMembers: Component {
     }
 
     let paddedThenFilled = try accentRect {
-        Box().width(px(20)).height(px(20)).padding(px(8)).background(.accent)
+        Box().cssWidth(px(20)).cssHeight(px(20)).padding(px(8)).background(.accent)
     }
     let filledThenPadded = try accentRect {
-        Box().width(px(20)).height(px(20)).background(.accent).padding(px(8))
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.accent).padding(px(8))
     }
     // **Two-layer arms, and they are not decoration.** Both chains above are
     // ONE `ModifierLayer` (`inner` empty), so `ModifiedElement.paint`'s loop
@@ -806,10 +802,10 @@ private struct TwoMembers: Component {
     // `.padding(8).background.padding(4)` is probe arm A3 exactly: outer 44x44
     // with the INNER layer's fill at (4,4) 36x36.
     let twoLayersOutermostFilled = try accentRect {
-        Box().width(px(20)).height(px(20)).padding(px(4)).padding(px(4)).background(.accent)
+        Box().cssWidth(px(20)).cssHeight(px(20)).padding(px(4)).padding(px(4)).background(.accent)
     }
     let twoLayersInnerFilled = try accentRect {
-        Box().width(px(20)).height(px(20)).padding(px(8)).background(.accent).padding(px(4))
+        Box().cssWidth(px(20)).cssHeight(px(20)).padding(px(8)).background(.accent).padding(px(4))
     }
 
     try #require(describe(paddedThenFilled) != describe(filledThenPadded),
@@ -850,11 +846,13 @@ private struct TwoMembers: Component {
 /// `.padding(4)` alone puts the leaf at 4 and the outer box at 28 — numbers
 /// neither of the other two arms can produce.
 ///
-/// This is the `Element` half of a claim whose `Component` half is
+/// This is the `Element` half of a claim whose `Component` half was
 /// `chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`
-/// (`ComponentTests.swift`, lane 4) — which replaced
+/// (`ComponentTests.swift`, lane 4; it replaced
 /// `chainedPaddingReplacesRatherThanAccumulates`, the amend-era pin of the
-/// opposite answer.
+/// opposite answer) until stage 7b retired it (record §49 row 215); under the
+/// proposal authority that half is `aComponentsPaddingLowersAsAnOrdinaryOneChildContainer`
+/// and `theOrderOfAComponentsDistributingModifiersIsObservable`.
 @Test @MainActor func legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
 
@@ -866,8 +864,8 @@ private struct TwoMembers: Component {
             // row's two auto axes, so it sits at (0, 0) on both authorities.
             Row {
                 make()
-                Box().width(px(1)).height(px(1)).background(.separator)
-            }.alignItems(.flexStart).width(px(200)).height(px(200))
+                Box().cssWidth(px(1)).cssHeight(px(1)).background(.separator)
+            }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
         }
         window.drawFrameIfNeeded()
         let rects = window.lastScene.rects
@@ -879,13 +877,13 @@ private struct TwoMembers: Component {
     }
 
     let twice = try leafAndOuter {
-        Box().width(px(20)).height(px(20)).background(.accent).padding(px(4)).padding(px(4))
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.accent).padding(px(4)).padding(px(4))
     }
     let once = try leafAndOuter {
-        Box().width(px(20)).height(px(20)).background(.accent).padding(px(8))
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.accent).padding(px(8))
     }
     let single = try leafAndOuter {
-        Box().width(px(20)).height(px(20)).background(.accent).padding(px(4))
+        Box().cssWidth(px(20)).cssHeight(px(20)).background(.accent).padding(px(4))
     }
 
     // The control, first: a chain that REPLACED would read `single`'s numbers
@@ -937,7 +935,7 @@ private struct TwoMembers: Component {
         let (window, platform) = try makeFakeWindow(device: device, size: 200) {
             // Stage 6b (`LR-DG`, R-fill): the window's extent declared on the
             // row's two auto axes, so it sits at (0, 0) on both authorities.
-            Row { make(counter) }.alignItems(.flexStart).width(px(200)).height(px(200))
+            Row { make(counter) }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
         }
         window.drawFrameIfNeeded()
         platform.simulateInput(.mouseDown(MouseEvent(position: point)))
@@ -952,10 +950,10 @@ private struct TwoMembers: Component {
     let centre = pt(90, 90)
 
     let paddedThenClickable = { @MainActor (counter: ClickCounter) in
-        Box().width(px(20)).height(px(20)).padding(px(80)).onClick { counter.bump() }
+        Box().cssWidth(px(20)).cssHeight(px(20)).padding(px(80)).onClick { counter.bump() }
     }
     let clickableThenPadded = { @MainActor (counter: ClickCounter) in
-        Box().width(px(20)).height(px(20)).onClick { counter.bump() }.padding(px(80))
+        Box().cssWidth(px(20)).cssHeight(px(20)).onClick { counter.bump() }.padding(px(80))
     }
 
     // Both orders must be live at the centre, or an "edge 0" reading below
@@ -976,7 +974,7 @@ private struct TwoMembers: Component {
     // whose box is 100x100 at (40, 40) inside a 180x180 outer: (50, 50) is
     // inside it and the edge is not.
     let clickableInTheMiddle = { @MainActor (counter: ClickCounter) in
-        Box().width(px(20)).height(px(20)).padding(px(40)).onClick { counter.bump() }
+        Box().cssWidth(px(20)).cssHeight(px(20)).padding(px(40)).onClick { counter.bump() }
             .padding(px(40))
     }
     let middleLayerInside = try hits(at: pt(50, 50), clickableInTheMiddle)
@@ -1027,9 +1025,9 @@ private struct TwoMembers: Component {
     let (window, _) = try makeFakeWindow(device: device, size: 200) {
         Row {
             Box {
-                Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
+                Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface)
             }
-            .width(px(40)).height(px(40)).background(.accent).cornerRadius(px(12))
+            .cssWidth(px(40)).cssHeight(px(40)).background(.accent).cornerRadius(px(12))
         }.alignItems(.flexStart)
     }
     window.drawFrameIfNeeded()
@@ -1056,9 +1054,9 @@ private struct TwoMembers: Component {
     let (scroller, _) = try makeFakeWindow(device: device, size: 200) {
         Box {
             ScrollView(.vertical, elementID: ElementID("scroller")) {
-                Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
+                Box().cssWidth(px(60)).cssHeight(px(60)).flexShrink(0).background(.surface)
             }
-        }.width(px(40)).height(px(40))
+        }.cssWidth(px(40)).cssHeight(px(40))
     }
     scroller.drawFrameIfNeeded()
     let scrollerWant = scroller.theme[ColorToken.surface]

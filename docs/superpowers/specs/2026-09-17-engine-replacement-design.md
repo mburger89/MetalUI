@@ -32,15 +32,17 @@ merged with `master` at `42b9ab4`** (record §29, spec
 [`2026-09-23-engine-stage-5-design.md`](2026-09-23-engine-stage-5-design.md)):
 it matches §4.1 row 5's wording, and its own two proposal-only answers
 (`LR-CJ`) are noted there rather than as a departure from this table. **Stage
-6a (the public custom-element registrars deprecated) is complete on its
-branch, not yet merged** (Record phase and branch checker, 2026-09-23): `feat/engine-stage-6a`, record §38, spec
+6a (the public custom-element registrars deprecated) is merged** (an
+ancestor of `b9a5d7f`; it read "complete on its branch, not yet merged" until
+stage 9's branch check, `LR-FL`) (Record phase and branch checker, 2026-09-23): `feat/engine-stage-6a`, record §38, spec
 [`2026-09-23-engine-stage-6a-design.md`](2026-09-23-engine-stage-6a-design.md).
 It matches §4.1 row 6a's wording — `LayoutPass.requestNode`/`requestLeaf`
 deprecated with every in-repo caller moved in the same change, and the
 flipped-default classification table recorded as its entry measurement
 (153 reds, handed to stage 6b's root-placement ruling and stage 7b's CSS
-retirements). **Stage 6b (the root switch) has landed, complete on its
-branch, not yet merged** (Record phase, 2026-09-23): `feat/engine-stage-6b`,
+retirements). **Stage 6b (the root switch) has landed and is merged** (an
+ancestor of `b9a5d7f`; "not yet merged" until stage 9's branch check,
+`LR-FL`) (Record phase, 2026-09-23): `feat/engine-stage-6b`,
 record §41, spec
 [`2026-09-23-engine-stage-6b-design.md`](2026-09-23-engine-stage-6b-design.md).
 It matches §4.1 row 6b's wording — `Window`'s default authority is
@@ -50,7 +52,82 @@ becomes legacy-authority only), the native depth limit is re-bisected in
 release and re-measured on every production root (88 → 72), and
 `noProductionFrameReachesTheLegacyEngine` is green — with the real-window
 capture and the demo-layout human-verification rows owed to the human (the
-screen was locked at every check). §4.1's
+screen was locked at every check). **Stage 7a (the goldens retired) has
+landed on its branch** (Record phase, 2026-09-23): `feat/engine-stage-7a` from
+`2cc763d`, record §48, spec
+[`2026-09-23-engine-stage-7a-design.md`](2026-09-23-engine-stage-7a-design.md).
+It meets §4.1 row 7a's exit with one respelling: the check is `find
+Tests/MetalUILayoutTests -name "*.json"`, not `find Tests`, because
+`Tests/PortableTests/.build/` holds JSON build artifacts — it reads 0, and every
+one of the 97 goldens has a row naming its native replacement arm (44) or its
+deleted CSS-only concept (53). Suite 1616, 0 px. **Stage 7b (the non-golden
+CSS-engine tests retired) is merged** (`master` at `85217e3`, Record phase,
+2026-09-24): `feat/engine-stage-7b` from `41344e5`, record
+§49, spec
+[`2026-09-23-engine-stage-7b-design.md`](2026-09-23-engine-stage-7b-design.md).
+It meets §4.1 row 7b's exit: `grep -rn "computeLayout(" Tests` is empty, and
+the 245-row retirement table (record §49 §4) accounts for every `@Test`
+removed — 236 removed, 11 added, 1670 − 236 + 11 = **1445**. Every one of the
+named-up-front mappings in row 7b's own cell held: `LayoutContextTests`' depth
+guard → `NativeDepthGuardTests`; `StackLayoutTests` → native overlay tests and
+stage 1's 4.1; `AlignmentTests` → `NativeStackDistributionTests` for what
+stage 2 maps, a deleted concept for the rest; `LeafProbeShortcutTests`,
+`FreezeLoopTests`, `FreezeLoopAllocationTests`, `FlexBaseSizeTests`,
+`IntrinsicModeTests`, `MeasureCacheTests`, `MeasureNodeTests` → a deleted
+concept, `NativeLayoutWorkTests` the kernel's own work-count pin, and the
+freeze-loop CI hazard retired with `FreezeLoopAllocationTests.swift`;
+`AbsolutePositioningTests` → stage 5's replacement; `MeasurePerformanceTests`
+retires nothing (its rows were re-spelled by stage 4; record §49 §2). An
+independent re-check of all three lanes (record §49 §8) corrected the
+gated-test count (nine → **eleven**, this stage's own merged baseline) and
+divergence 4's retirement (the row retires; its behaviour stays exercised,
+unnamed, by roughly thirty `.legacy` arms until stage 9). 0 px, goldens 0,
+guards 78 unmoved. Divergence 4 retires (58 → 57 live); nothing of 8–11 is
+pre-empted — `FlexEngine`, `computeLayout`, the legacy authority, the legacy
+lowering and every test using the legacy authority as the *other* arm of a
+comparison (the 199 of record §49 §2's census section A) all stay for stage 9.
+**Stage 8 (the sizing vocabulary) is merged** (`master` at `b9a5d7f`, after its
+Record phase and branch check, 2026-09-24): `feat/engine-stage-8` from
+`85217e3`, record §50, spec
+[`2026-09-24-engine-stage-8-design.md`](2026-09-24-engine-stage-8-design.md).
+It meets §4.1 row 8's exit — 0 `warning:` on both build systems with the eight
+`StyledElement` sizing modifiers deprecated, and 0 px in all fourteen offscreen
+images against `85217e3` (the row's "against 6b" read as against the stage's
+own base, as every stage since has) — and departs from the row's wording in
+three ruled places: the conversion is by class, with ≈ 1411 test sites keeping
+their `Style` write through the test target's `CSSSizing.swift` rather than
+`.frame` (`LR-EW`, `LR-FB`); the row's `Style()` clause is re-owned to stage 10
+(`LR-ER` item 6: 232 lines, 50 files, no test deleted); and divergence 52 leaves
+task 7 for plan task 15 (`LR-EY` item 2). The row's figures (demo 10/13/1,
+tests 557/519/13) were re-counted as 25 and 1667 (record §50 §2). Suite 1452,
+guards 79, goldens 0; nothing of 9–11 pre-empted.
+**Stage 9 (engine deletion) has landed on its branch, not yet merged**
+(2026-09-24): `feat/engine-stage-9` from `b9a5d7f`, record §51, spec
+[`2026-09-24-engine-stage-9-design.md`](2026-09-24-engine-stage-9-design.md),
+rulings `LR-FC`…`LR-FL`. It meets §4.1 row 9's exit: the seven CSS-engine
+files, `UnbreakableRuns.swift`, the legacy registrars
+(`LayoutPass.requestNode`/`requestLeaf`, deprecated at stage 6a, and the
+internal `Frame.requestNode`/`requestLeaf`) and the layout authority itself
+(`LayoutAuthority.legacy`, `Frame.layoutAuthority`, `computeRootLayout`'s
+legacy branch, `Frame.legacyRootLayoutCounter`) are deleted — `git ls-files
+Sources/MetalUILayout` lists none of the seven files, `MetalUILayout` imports
+only `MetalUICore` — while every legacy element (`Box`, `Row`, `Column`,
+`Stack`, `ScrollView`, `List`, legacy `.frame`) keeps working through the
+lowering, now its only path. Three lanes, each red first, all verified `ok`:
+lane 1 (`LR-FI`) collapses the two-engine differential harness to one
+authority; lane 2 (`LR-FJ`) collapses the `AuthorityCoverage` registry's
+other contributors and retires every other deleted-symbol test; lane 3
+(`LR-FK`) does the deletion itself, behind N3.1 (a presentation's containing
+block is the window whatever surrounds it, closing the four `deferred.*`
+reports stage 5 left open — `.containingBlock`/`.nested`/`.root` deleted,
+`.amended` re-owned to stage 11, `LR-FF`). Suite **1409** (1452 − 93 + 50: 44
+retired, 49 renamed, 1 added), guards 79, goldens 0; 0 px against `b9a5d7f`
+in all fourteen offscreen images; divergence 11 retires (57 → 56 live) and
+4's unnamed `.legacy`-arm exercise, left open at 7b, closes with it. Stage 9
+pre-empts nothing of 10–11: `Style`'s CSS fields, `CSSSizing.swift` and every
+`Style`-field report this stage inherited stay for stage 10, and
+`ModifiedElement`/`ModifiedContent` are not unified (stage 11).
+§4.1's
 table below is still the plan of record for the remaining stages; the **live** per-stage status is the
 stage list under task 7 in
 `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, and task 7's box there

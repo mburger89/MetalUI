@@ -26,10 +26,9 @@ private func up(_ x: Float, _ y: Float) -> InputEvent {
 
 /// A `size`-point square window holding one editor in a `Box`.
 @MainActor
-private func editorWindow(_ notes: Notes, size: Int = 200, authority: LayoutAuthority? = nil)
-    throws -> (Window, FakePlatformWindow) {
+private func editorWindow(_ notes: Notes, size: Int = 200) throws -> (Window, FakePlatformWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    return try makeFakeWindow(device: device, size: size, layoutAuthority: authority) {
+    return try makeFakeWindow(device: device, size: size) {
         Box { TextEditor("Notes", text: notes.text) { notes.text = $0 } }
     }
 }
@@ -178,21 +177,25 @@ private func caret(_ platform: FakePlatformWindow) throws -> Bounds<Pixels> {
     #expect(Double(caret.bounds.origin.y) == t.originY + t.lineHeight)
 }
 
-/// Both authorities. The proposal engine offers the editor the window and it
-/// takes it; the legacy CSS engine sizes it as content — its natural width,
-/// stretched by `Box`, and its lines' height. `.legacy` is pinned on purpose
-/// as the second arm (owner: stage 9).
-@Test(arguments: [LayoutAuthority.proposal, .legacy])
-@MainActor func anEditorLaysOutUnderBothAuthorities(_ authority: LayoutAuthority) throws {
+/// Greedy on both axes, as SwiftUI's `TextEditor` is — its lines drawn from
+/// the top however tall it is — and, offered no height, its lines' height.
+/// (Until stage 9 this test also ran the CSS engine, which sized the editor as
+/// content and let `Box` stretch it; that engine is gone.)
+@Test @MainActor func anEditorTakesTheOfferedSizeAndItsContentHeightWhenOfferedNone() throws {
     let notes = Notes("a\nb\nc")
-    let (window, _) = try editorWindow(notes, authority: authority)
+    let (window, _) = try editorWindow(notes)
     window.drawFrameIfNeeded()
     let (bounds, t) = try target(window)
     #expect(t.lines?.lines.count == 3)
-    if authority == .proposal {
-        #expect(bounds.size.width.value == 200 && bounds.size.height.value == 200)
-    } else {
-        #expect(bounds.size.height.value == 200, "Box stretches it on the cross axis")
-        #expect(bounds.size.width.value < 60, "its natural width: the placeholder's")
+    #expect(bounds.size.width.value == 200 && bounds.size.height.value == 200)
+    #expect(t.originY == Double(bounds.origin.y.value), "lines start at the top, not centred")
+    // Offered no height (a vertical scroll's content), it answers its lines.
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (scrolled, _) = try makeFakeWindow(device: device, size: 200) {
+        ScrollView(.vertical) { TextEditor(text: notes.text) { notes.text = $0 } }
     }
+    scrolled.drawFrameIfNeeded()
+    let (content, u) = try target(scrolled)
+    #expect(abs(Double(content.size.height.value) - 3 * u.lineHeight) < 0.01,
+            "three lines tall: \(content.size.height.value) vs \(3 * u.lineHeight)")
 }

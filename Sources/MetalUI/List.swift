@@ -111,7 +111,8 @@ import MetalUILayout
 /// the sizing milestone never touched, which is why nothing prompted a
 /// re-read. Divergence 5 is retired and its label is never reused; both halves
 /// of §4.5 are implemented as of that milestone's Task 6 (ruling FS-3, pinned
-/// by `SizingFixtureTests`' two `sizing_specified_suggestion*` cases); and
+/// by `SizingFixtureTests`' two `sizing_specified_suggestion*` cases until
+/// stage 7a retired the goldens and 7b the file); and
 /// the automatic minimum is therefore `min(specified suggestion, content
 /// suggestion)`. A row declares `height: rowHeight` two lines below, so its
 /// specified suggestion **is** `rowHeight`, the `min` can never exceed
@@ -182,25 +183,11 @@ import MetalUILayout
 /// `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`, so the fix,
 /// when it comes, arrives as a red test rather than as a surprise.
 ///
-/// **A leading spacer places the window, rather than an absolute inset per
-/// row — chosen by reasoning about the two, not by measuring both; no
-/// absolute-positioned version of this type was built to benchmark against.**
-/// (Since stage 4's lane 1 the spacer is a bare legacy **node** registered by
-/// `ListRows`, not a `Box` element — see that type's doc for why. Everything
-/// this paragraph says about what the spacer DOES is unchanged.)
-/// The alternative — `.position(.absolute).inset(top:)` on each row — is
-/// available since the absolute-positioning milestone, and CLAUDE.md's
-/// divergence 11 even names this exact composition (an absolute box inside a
-/// `ScrollView` stays clipped and translated by it, which is what a windowed
-/// row wants). It was set aside because it pulls every row out of flow, so
-/// each row's position would have to be resolved against `List`'s own
-/// containing block instead of falling out of ordinary flex placement — and a
-/// spacer's height plus an ordinary flex column already places every built
-/// row at exactly `index * rowHeight` with no absolute math at all. The
-/// spacer costs one extra `Box` per frame, unconditionally, and buys not
-/// having to reason about containing blocks inside a list. If a future
-/// profile shows the spacer's flex participation costing more than an
-/// absolute row would, that is the comparison this paragraph never ran.
+/// **`ListRows`' `WindowedRowsLayout` places the window**: built row *i* at
+/// `(firstIndex + i) × rowHeight`, directly (`LR-BQ`, `LR-BR`). Until stage 9 the
+/// legacy authority used a leading spacer sized `firstIndex × rowHeight` and an
+/// ordinary flex column instead (a `Box` element until stage 4, a bare node
+/// after, `LR-BS`); it went with the legacy engine (`LR-FC`).
 ///
 /// **Stretches its rows on the cross axis, where `Column` would centre them**
 /// (ruling EP-8's split): the outer container is a raw `Box`, whose `Style`
@@ -258,7 +245,7 @@ where Data.Element: Identifiable {
     private static var overscan: Int { 2 }
 
     /// The rows this frame actually built — the outer `Box` over `ListRows`,
-    /// which holds the window spacer's node and each realized row — threaded
+    /// which holds each realized row — threaded
     /// from `requestLayout`
     /// through `prepaint` and `paint` the same way `Column`/`Row` thread their
     /// own `box` — seeded with an empty placeholder here rather than left
@@ -313,7 +300,7 @@ where Data.Element: Identifiable {
         self.style = style
 
         self.box = Box(style: style, decoration: decoration,
-                       content: ListRows(rows: [], spacerStyle: Style(),
+                       content: ListRows(rows: [],
                                          rowHeight: Double(rowHeight.value),
                                          logicalCount: data.count, firstIndex: 0,
                                          listStyle: style))
@@ -383,10 +370,9 @@ where Data.Element: Identifiable {
         // It read `noteUnlowerable(.list, "noLowering")` before any row was
         // built, because a `List` registers no node of its own and would
         // otherwise have lowered silently through the `Box` below. `ListRows`
-        // now registers a `WindowedRowsLayout` under the proposal authority —
-        // see that type's doc — and this type's own code is authority-blind
-        // again: the same window, the same row ids, the same handlers and the
-        // same accessibility records on both paths.
+        // now registers a `WindowedRowsLayout` — see that type's doc — and this
+        // type's own code has no layout branch: the window, the row ids, the
+        // handlers and the accessibility records are built here once.
 
         // Every row is wrapped in its own `Box` so its height can be pinned
         // independently of `Row`'s own type — `Row` need not be `StyledElement`
@@ -440,33 +426,12 @@ where Data.Element: Identifiable {
             return rowBox
         }
 
-        // Places the window: a bare legacy node sized to exactly the rows skipped,
-        // so the first built row lands at `window.lowerBound * rowHeight` —
-        // its true absolute offset — rather than at the top of whatever the
-        // window happens to be. `flexShrink = 0` is load-bearing here for the
-        // same reason it is on a row: padding on `List` can shrink its
-        // content box below the built children's combined height, and
-        // without this the SPACER — not a row, since rows carry their own
-        // pin — would absorb that deficit and pull every windowed row up by
-        // however much it lost. (No `minSize.height` override: this node is
-        // childless, so its automatic minimum is already 0 — nothing to
-        // remove, unlike a row, whose content can be taller than
-        // `rowHeight`.)
-        //
-        // **The style is built here and the NODE is registered by `ListRows`**
-        // (`LR-BS`, stage 4 lane 1). It was a `Box` element until then, which
-        // cost one `StateTable` entry per `List` per frame — `animated` mints a
-        // `$anim` slot on first sight of every registering element. **Under the
-        // proposal authority there is no spacer at all** (`LR-BQ`, lane 2):
-        // `WindowedRowsLayout` places row *i* at `(firstIndex + i) × rowHeight`
-        // directly, so the style below is built and then ignored on that path.
-        var spacerStyle = Style()
-        let spacerHeight = Pixels(rowHeight.value * Float(window.lowerBound))
-        spacerStyle.size.height = .length(.pixels(spacerHeight))
-        spacerStyle.flexShrink = 0
-
+        // The window is placed by `ListRows`' `WindowedRowsLayout`, which puts
+        // built row *i* at `(window.lowerBound + i) × rowHeight` directly
+        // (`LR-BQ`); until stage 9 a leading spacer node did it for the legacy
+        // flex column (`LR-FC`).
         var built = Box(style: style, decoration: decoration,
-                        content: ListRows(rows: rows, spacerStyle: spacerStyle,
+                        content: ListRows(rows: rows,
                                           rowHeight: Double(rowHeight.value),
                                           logicalCount: count,
                                           firstIndex: window.lowerBound,

@@ -10,7 +10,10 @@ import MetalUILayout
 // §6 lane 5; rulings LR-D, LR-E, LR-S, LR-AA): the stage-1 corpus — real trees,
 // most of them the demo's own shapes, lowered under the proposal layout authority
 // and compared with the legacy engine element by element through the differential
-// harness (`LayoutDifferential.swift`).
+// harness (`LayoutDifferential.swift`) until stage 9, which deleted the legacy
+// engine: the tests keep "lowers with no diagnostic", their element counts and
+// every lowered literal, and element-by-element agreement is the deleted concept
+// (ruling `LR-FE` item 2; record §51, lane 1).
 //
 // **Red before.** Lanes 2–4 did the lowering these trees need, so 5.1 and 5.3 were
 // run against lane 4's tree first and are characterization: every corpus tree
@@ -40,21 +43,16 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 /// A fixed-size childless `Box` (lowered since lane 2: a 0×0 leaf in a fixed frame).
 @MainActor
 private func fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
-    Box().width(px(w)).height(px(h))
+    Box().cssWidth(px(w)).cssHeight(px(h))
 }
 
-/// Every whole-frame observation agrees and nothing was reported.
+/// Nothing was reported. (Until stage 9 this was `expectCorpusAgreement`, which
+/// also required every element and whole-frame observation to agree with the
+/// legacy engine's; that comparison is the deleted concept, `LR-FE` item 2.)
 @MainActor
-func expectCorpusAgreement(_ r: LayoutDifferential.Report, _ arm: String,
-                           sourceLocation: SourceLocation = #_sourceLocation) {
+func expectCorpusNothingReported(_ r: LayoutDifferential.Report, _ arm: String,
+                                 sourceLocation: SourceLocation = #_sourceLocation) {
     #expect(r.unlowerable.isEmpty, "\(arm): \(r.unlowerable)", sourceLocation: sourceLocation)
-    #expect(r.disagreeing.isEmpty, "\(arm): \(r.disagreeing)", sourceLocation: sourceLocation)
-    #expect(r.legacyOnly.isEmpty && r.loweredOnly.isEmpty,
-            "\(arm): legacyOnly \(r.legacyOnly) loweredOnly \(r.loweredOnly)", sourceLocation: sourceLocation)
-    #expect(r.scenesEqual, "\(arm): scenes", sourceLocation: sourceLocation)
-    #expect(r.hitboxesEqual, "\(arm): hitboxes", sourceLocation: sourceLocation)
-    #expect(r.accessibilityEqual, "\(arm): accessibility", sourceLocation: sourceLocation)
-    #expect(r.stateSlotsEqual, "\(arm): state slots", sourceLocation: sourceLocation)
 }
 
 /// The stage-1 corpus: trees the lowering table covers, each spelled so nothing
@@ -94,19 +92,19 @@ enum StageOneCorpus {
     static func demoHeader() -> some ElementGroup {
         Row(gap: px(12)) {
             Box()
-                .width(px(40)).height(px(40))
+                .cssWidth(px(40)).cssHeight(px(40))
                 .background(.accent)
                 .cornerRadius(px(20))
             Box()
-                .width(px(200))
-                .height(px(12))
+                .cssWidth(px(200))
+                .cssHeight(px(12))
                 .background(.surfaceSecondary)
                 .cornerRadius(px(6))
         }
         .alignItems(.center)
         .padding(px(16))
         .alignItems(.center)
-        .height(px(72))
+        .cssHeight(px(72))
         .background(.surface)
         .cornerRadius(px(14))
     }
@@ -117,20 +115,20 @@ enum StageOneCorpus {
     static func stackCluster() -> some ElementGroup {
         Stack(alignment: .center) {
             Box()
-                .width(px(360))
-                .height(px(128))
+                .cssWidth(px(360))
+                .cssHeight(px(128))
                 .background(.accent)
                 .cornerRadius(px(12))
             Box()
-                .width(px(160))
-                .height(px(72))
+                .cssWidth(px(160))
+                .cssHeight(px(72))
                 .background(.surface)
                 .cornerRadius(px(10))
             Box(decoration: Decoration(background: .surfaceSecondary, cornerRadius: px(14))) {
                 Text("3").font(size: 13)
             }
-            .width(px(28))
-            .height(px(28))
+            .cssWidth(px(28))
+            .cssHeight(px(28))
             .alignItems(.center)
             .justifyContent(.center)
         }
@@ -167,8 +165,10 @@ enum StageOneCorpus {
         }
     }
 
-    /// `ModifierCompositionProofTests.aModifierChainIsIdenticalToHandBuiltNestedBoxes`'
-    /// chain, over a 20×10 `Box` instead of its `CountingLeaf` (a custom element,
+    /// The retired `ModifierCompositionProofTests.aModifierChainIsIdenticalToHandBuiltNestedBoxes`'s
+    /// chain (stage 7b's N2.2 gave it a proposal-authority twin,
+    /// `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`,
+    /// record §49 row 231), over a 20×10 `Box` instead of its `CountingLeaf` (a custom element,
     /// which reported `customElement.requestNode` until stage 6a made it a Dual
     /// native leaf under the proposal authority). Hand-derived: the
     /// box padded by 4 is 28×18; the frame layer 60×40 centres it at (16, 11); the
@@ -176,7 +176,7 @@ enum StageOneCorpus {
     /// frame layer (8, 8) 60×40, the `mid` layer (24, 19) 28×18, the box (28, 23).
     static func modifierChain() -> some ElementGroup {
         Row {
-            Box().width(px(20)).height(px(10))
+            Box().cssWidth(px(20)).cssHeight(px(10))
                 .background(.accent).onClick {}
                 .padding(px(4)).id("mid").background(.surfaceSecondary).cornerRadius(px(3))
                 .frame(width: px(60), height: px(40))
@@ -212,20 +212,20 @@ enum StageOneCorpus {
 
 /// The lowered rects of every recorded element except the harness root, sorted,
 /// for a literal comparison that does not depend on how a transparent group
-/// numbers its members (ids are compared by the harness itself).
+/// numbers its members.
 private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixels>] {
-    r.loweredBounds.filter { $0.key != rootID }.values.sorted {
+    r.bounds.filter { $0.key != rootID }.values.sorted {
         ($0.origin.y.value, $0.origin.x.value, $0.size.width.value, $0.size.height.value)
             < ($1.origin.y.value, $1.origin.x.value, $1.size.width.value, $1.size.height.value)
     }
 }
 
-// MARK: - 5.1 — the corpus agrees
+// MARK: - 5.1 — the corpus lowers
 
 /// **5.1 — stage 1's exit test.** Every corpus tree lowers with **no diagnostic**
-/// and agrees with the legacy engine **element by element** and in every
-/// whole-frame observation (scene as emitted and finalized, hitboxes,
-/// accessibility records with geometry, `StateTable` ids). Per tree, the element
+/// (and, until stage 9, agreed with the legacy engine **element by element** and in
+/// every whole-frame observation — the deleted concept, `LR-FE` item 2). Per tree,
+/// the element
 /// count is a `try #require` derived by hand: the harness root, plus each
 /// element that records bounds (every group member, every inner modifier layer):
 ///
@@ -248,89 +248,95 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
 /// Mutations that must redden it: **M5a**, the proposal-side harness root proposes
 /// nil×nil (the paragraph measures unwrapped); and one mutation re-run from each
 /// earlier lane (the record names them and what they reddened).
+///
+/// **Renamed at stage 9** from
+/// `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement` (`LR-FE`
+/// item 6).
 @MainActor
-@Test func theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement() throws {
+@Test func theStageOneCorpusLowersWithNoDiagnostic() throws {
     var trees = 0
 
-    let chrome = LayoutDifferential.compare(width: 400, height: 100) { StageOneCorpus.counterChrome() }
-    try #require(chrome.elements == 8)
-    expectCorpusAgreement(chrome, "counter chrome")
+    let chrome = LayoutDifferential.report(width: 400, height: 100) { StageOneCorpus.counterChrome() }
+    // 11 since stage 8 (`LR-EZ`): the demo's three squares each gained a `.frame`
+    // layer (`LR-ES`'s R1–R3), one identity level apiece (R7) — 8 + 3.
+    try #require(chrome.elements == 11)
+    expectCorpusNothingReported(chrome, "counter chrome")
     #expect([containerID, child(containerID, 0), child(containerID, 1), child(containerID, 2)]
-                .map { chrome.loweredBounds[$0] }
+                .map { chrome.bounds[$0] }
             == [bounds(0, 0, 260, 60), bounds(12, 12, 36, 36), bounds(60, 12, 140, 36),
                 bounds(212, 12, 36, 36)])
     trees += 1
 
-    let header = LayoutDifferential.compare(width: 600, height: 200) { StageOneCorpus.demoHeader() }
+    let header = LayoutDifferential.report(width: 600, height: 200) { StageOneCorpus.demoHeader() }
     try #require(header.elements == 5)
-    expectCorpusAgreement(header, "demo header")
+    expectCorpusNothingReported(header, "demo header")
     let row = child(containerID, 0)
-    #expect([containerID, row, child(row, 0), child(row, 1)].map { header.loweredBounds[$0] }
+    #expect([containerID, row, child(row, 0), child(row, 1)].map { header.bounds[$0] }
             == [bounds(0, 0, 284, 72), bounds(16, 16, 252, 40), bounds(16, 16, 40, 40),
                 bounds(68, 30, 200, 12)])
     trees += 1
 
-    let cluster = LayoutDifferential.compare(width: 600, height: 300) { StageOneCorpus.stackCluster() }
+    let cluster = LayoutDifferential.report(width: 600, height: 300) { StageOneCorpus.stackCluster() }
     try #require(cluster.elements == 6)
-    expectCorpusAgreement(cluster, "stack cluster")
+    expectCorpusNothingReported(cluster, "stack cluster")
     #expect([containerID, child(containerID, 0), child(containerID, 1), child(containerID, 2)]
-                .map { cluster.loweredBounds[$0] }
+                .map { cluster.bounds[$0] }
             == [bounds(0, 0, 360, 128), bounds(0, 0, 360, 128), bounds(100, 28, 160, 72),
                 bounds(166, 50, 28, 28)])
     trees += 1
 
-    let t5 = LayoutDifferential.compare(width: 400, height: 400) { StageOneCorpus.textColumn() }
+    let t5 = LayoutDifferential.report(width: 400, height: 400) { StageOneCorpus.textColumn() }
     try #require(t5.elements == 4)
-    expectCorpusAgreement(t5, "T5 text column")
+    expectCorpusNothingReported(t5, "T5 text column")
     // The paragraph wraps: taller than one 13pt line, and no wider than the root.
-    let paragraph = try #require(t5.loweredBounds[child(containerID, 1)])
+    let paragraph = try #require(t5.bounds[child(containerID, 1)])
     #expect(paragraph.size.height > px(32) && paragraph.size.width <= px(400), "T5 paragraph \(paragraph)")
     trees += 1
 
-    let t5b = LayoutDifferential.compare(width: 400, height: 400) { StageOneCorpus.paddedTextColumn() }
+    let t5b = LayoutDifferential.report(width: 400, height: 400) { StageOneCorpus.paddedTextColumn() }
     try #require(t5b.elements == 5)
-    expectCorpusAgreement(t5b, "T5b padded text column")
-    #expect(t5b.loweredBounds[child(containerID, 0)]?.origin == Point(x: px(10), y: px(10)))
+    expectCorpusNothingReported(t5b, "T5b padded text column")
+    #expect(t5b.bounds[child(containerID, 0)]?.origin == Point(x: px(10), y: px(10)))
     trees += 1
 
-    let t6 = LayoutDifferential.compare(width: 300, height: 200) { StageOneCorpus.paddedFrameOverText() }
+    let t6 = LayoutDifferential.report(width: 300, height: 200) { StageOneCorpus.paddedFrameOverText() }
     try #require(t6.elements == 5)
-    expectCorpusAgreement(t6, "T6 padded frame over text")
-    #expect(t6.loweredBounds[containerID] == bounds(0, 0, 100, 40))
+    expectCorpusNothingReported(t6, "T6 padded frame over text")
+    #expect(t6.bounds[containerID] == bounds(0, 0, 100, 40))
     trees += 1
 
-    let t7 = LayoutDifferential.compare(width: 600, height: 200) { StageOneCorpus.nestedRows() }
+    let t7 = LayoutDifferential.report(width: 600, height: 200) { StageOneCorpus.nestedRows() }
     try #require(t7.elements == 9)
-    expectCorpusAgreement(t7, "T7 nested rows")
+    expectCorpusNothingReported(t7, "T7 nested rows")
     trees += 1
 
-    let chain = LayoutDifferential.compare(width: 300, height: 200) { StageOneCorpus.modifierChain() }
+    let chain = LayoutDifferential.report(width: 300, height: 200) { StageOneCorpus.modifierChain() }
     try #require(chain.elements == 6)
-    expectCorpusAgreement(chain, "modifier chain")
+    expectCorpusNothingReported(chain, "modifier chain")
     let outer = child(containerID, 0)
     let frameLayer = child(outer, 0)
     let mid = child(frameLayer, 0, "mid")
-    #expect([containerID, outer, frameLayer, mid, child(mid, 0)].map { chain.loweredBounds[$0] }
+    #expect([containerID, outer, frameLayer, mid, child(mid, 0)].map { chain.bounds[$0] }
             == [bounds(0, 0, 76, 56), bounds(0, 0, 76, 56), bounds(8, 8, 60, 40),
                 bounds(24, 19, 28, 18), bounds(28, 23, 20, 10)])
     trees += 1
 
-    let withBranch = LayoutDifferential.compare(width: 300, height: 300) {
+    let withBranch = LayoutDifferential.report(width: 300, height: 300) {
         StageOneCorpus.transparentGroups(flag: true)
     }
     try #require(withBranch.elements == 11)
-    expectCorpusAgreement(withBranch, "transparent groups, flag true")
+    expectCorpusNothingReported(withBranch, "transparent groups, flag true")
     #expect(sortedLoweredRects(withBranch)
             == [bounds(0, 0, 10, 10), bounds(0, 0, 20, 72), bounds(0, 14, 10, 6), bounds(0, 24, 12, 6),
                 bounds(0, 34, 14, 6), bounds(0, 44, 20, 8), bounds(0, 56, 8, 8), bounds(0, 56, 16, 8),
                 bounds(10, 56, 6, 6), bounds(0, 68, 14, 4)])
     trees += 1
 
-    let withOptional = LayoutDifferential.compare(width: 300, height: 300) {
+    let withOptional = LayoutDifferential.report(width: 300, height: 300) {
         StageOneCorpus.transparentGroups(flag: false)
     }
     try #require(withOptional.elements == 12)
-    expectCorpusAgreement(withOptional, "transparent groups, flag false")
+    expectCorpusNothingReported(withOptional, "transparent groups, flag false")
     #expect(sortedLoweredRects(withOptional)
             == [bounds(0, 0, 12, 12), bounds(0, 0, 20, 94), bounds(0, 16, 16, 16), bounds(0, 36, 10, 6),
                 bounds(0, 46, 12, 6), bounds(0, 56, 14, 6), bounds(0, 66, 20, 8), bounds(0, 78, 8, 8),
@@ -342,10 +348,11 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
 
 // MARK: - 5.2 — the known disagreements, each with its probe arm
 
-/// **5.2.** Every disagreement stage 1 knows of on an otherwise lowerable tree is
-/// pinned **with its probe arm**, as literal rects on both sides and a
-/// `try #require` that the two sides differ (so a mutant making them agree cannot
-/// pass by accident):
+/// **5.2.** Every disagreement stage 1 knew of on an otherwise lowerable tree is
+/// pinned **with its probe arm**. Until stage 9 each was literal rects on both
+/// sides and a `try #require` that the two differed; since then each is the
+/// lowered literal with a separating `try #require` of its own where the arm has
+/// one (the widest wrapped line narrower than the 60 offered):
 ///
 /// - **text hug** — `Column { Text(long) }.width(60)` (scratch tree T8): the legacy
 ///   text fills the column's 60 (CSS fit-content); the lowered text answers its
@@ -366,81 +373,66 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
 ///
 /// Mutation that must redden it: **M5b**, a probe-backed branch reverted — M2f, the
 /// lowered text answers the proposed width (the first two arms agree).
+///
+/// **Renamed at stage 9** from `theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm`
+/// (`LR-FE` item 6).
 @MainActor
-@Test func theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm() throws {
+@Test func theStageOneCorpusPinsEachSwiftUIAnswerWithItsProbeArm() throws {
     let cache = ShapingCache()
-    let widest = Float(cache.shaped(longString, font: cache.resolveFont(family: nil, size: 13),
-                                    wrappingAt: 60).widestLine.rounded())
+    let shaped60 = cache.shaped(longString, font: cache.resolveFont(family: nil, size: 13), wrappingAt: 60)
+    let widest = Float(shaped60.widestLine.rounded())
+    let height60 = Float(shaped60.totalHeight.rounded())
+    try #require(widest < 60, "the widest line must be narrower than the 60 offered: \(widest)")
     var arms = 0
 
     // Text hug (T8; stage-1 probe T2/T7).
-    let hug = LayoutDifferential.compare(width: 300, height: 400) {
-        Column { Text(longString) }.width(px(60))
+    let hug = LayoutDifferential.report(width: 300, height: 400) {
+        Column { Text(longString) }.cssWidth(px(60))
     }
     try #require(hug.elements == 3)
     #expect(hug.unlowerable.isEmpty, "\(hug.unlowerable)")
     let hugText = child(containerID, 0)
-    let hugLegacy = try #require(hug.legacyBounds[hugText])
-    let hugLowered = try #require(hug.loweredBounds[hugText])
-    try #require(hugLegacy != hugLowered)
-    #expect(hug.legacyBounds[containerID] == bounds(0, 0, 60, hugLegacy.size.height.value))
-    #expect(hug.loweredBounds[containerID] == hug.legacyBounds[containerID])
-    #expect(hugLegacy == bounds(0, 0, 60, hugLegacy.size.height.value))
-    #expect(hugLowered == bounds((60 - widest) / 2, 0, widest, hugLegacy.size.height.value))
+    let hugLowered = try #require(hug.bounds[hugText])
+    #expect(hug.bounds[containerID] == bounds(0, 0, 60, height60))
+    #expect(hugLowered == bounds((60 - widest) / 2, 0, widest, height60))
     arms += 1
 
     // Stack fit-content (divergence 53; stack-algorithms A5).
-    let fit = LayoutDifferential.compare(width: 200, height: 300) {
-        Column { Stack { Text(longString) } }.width(px(60))
+    let fit = LayoutDifferential.report(width: 200, height: 300) {
+        Column { Stack { Text(longString) } }.cssWidth(px(60))
     }
     try #require(fit.elements == 4)
     #expect(fit.unlowerable.isEmpty, "\(fit.unlowerable)")
     let fitText = child(child(containerID, 0), 0)
-    let fitLegacy = try #require(fit.legacyBounds[fitText])
-    let fitLowered = try #require(fit.loweredBounds[fitText])
-    try #require(fitLegacy != fitLowered)
-    #expect(fitLegacy == bounds(0, 0, 60, fitLegacy.size.height.value))
-    #expect(fitLowered == bounds((60 - widest) / 2, 0, widest, fitLegacy.size.height.value))
+    let fitLowered = try #require(fit.bounds[fitText])
+    #expect(fitLowered == bounds((60 - widest) / 2, 0, widest, height60))
     arms += 1
 
     // Flexible frame (frame probe D control; FR-E, divergence 35).
     let frameID = child(containerID, 0)
-    let flexible = LayoutDifferential.compare(width: 200, height: 200) {
-        Column { fixed(20, 20).frame(minWidth: px(40), maxWidth: px(80)) }.width(px(100))
+    let flexible = LayoutDifferential.report(width: 200, height: 200) {
+        Column { fixed(20, 20).frame(minWidth: px(40), maxWidth: px(80)) }.cssWidth(px(100))
     }
     try #require(flexible.elements == 4)
     #expect(flexible.unlowerable.isEmpty, "\(flexible.unlowerable)")
-    try #require(flexible.legacyBounds[frameID] != flexible.loweredBounds[frameID])
-    #expect(flexible.legacyBounds[frameID] == bounds(30, 0, 40, 20))
-    #expect(flexible.loweredBounds[frameID] == bounds(10, 0, 80, 20))
-    #expect(flexible.legacyBounds[child(frameID, 0)] == bounds(40, 0, 20, 20))
-    #expect(flexible.loweredBounds[child(frameID, 0)] == bounds(40, 0, 20, 20))
+    #expect(flexible.bounds[frameID] == bounds(10, 0, 80, 20))
+    #expect(flexible.bounds[child(frameID, 0)] == bounds(40, 0, 20, 20))
     arms += 1
 
     // Row overflow (stack-algorithms G9, X13; divergence 55, LR-I).
-    let overflow = LayoutDifferential.compare(width: 200, height: 100) {
-        Row { fixed(80, 20); fixed(80, 20) }.width(px(100))
+    let overflow = LayoutDifferential.report(width: 200, height: 100) {
+        Row { fixed(80, 20); fixed(80, 20) }.cssWidth(px(100))
     }
     try #require(overflow.elements == 4)
     #expect(overflow.unlowerable.isEmpty, "\(overflow.unlowerable)")
     let a = child(containerID, 0), b = child(containerID, 1)
-    try #require(overflow.legacyBounds[a] != overflow.loweredBounds[a])
-    #expect([a, b].map { overflow.legacyBounds[$0] } == [bounds(0, 0, 50, 20), bounds(50, 0, 50, 20)])
-    #expect([a, b].map { overflow.loweredBounds[$0] } == [bounds(0, 0, 80, 20), bounds(80, 0, 80, 20)])
+    #expect([a, b].map { overflow.bounds[$0] } == [bounds(0, 0, 80, 20), bounds(80, 0, 80, 20)])
     arms += 1
 
     try #require(arms == 4)
 }
 
 // MARK: - 5.3 = stage 2's 2.15 — the whole demo's census, and every disagreement with its cause
-
-/// A text of width `width` centred in `extent` at absolute `x`, as the frame rounds
-/// it: cumulative edges (`Rounding.swift`), so x is `round(x₀)` and the width
-/// `round(x₀ + width) − round(x₀)`.
-private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x: Float, width: Float) {
-    let x0 = Double(x) + (Double(extent) - width) / 2
-    return (Float(x0.rounded()), Float((x0 + width).rounded() - x0.rounded()))
-}
 
 /// **2.15 — stage 2's exit test** (spec §7, ruling LR-AN as amended; stage 1's 5.3,
 /// rewritten in stage 2's lane 2). `demoContent()`, **imported from
@@ -466,97 +458,65 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
 /// (grow, stretch, `alignSelf`, the scroller box's zero basis and minimum, the
 /// `List` spacer's `flexShrink(0)` on a declared height).
 ///
-/// **2. Every disagreement, with its cause** (modal off: 2035 ids, 6 agreeing — the
-/// harness root, the header's layer, row, avatar and bar, the hairline — **2029**
-/// disagreeing, **0** legacy-only, 0 lowered-only; of the 2029, 29 are the chrome
-/// enumerated by literal below and 2 000 are the `List`'s 500 rows, four ids
-/// apiece, asserted by the formula in part **2b**). Rects no text
-/// reaches are literals; rects a text reaches are derived below from the shaping
-/// cache (`LR-F`): lowered text sizes from `proposalTextMeasurement` at the widths
-/// this test derives (648 for the main column, 168 for the sidebar), legacy ones from
-/// the same cache at 756 and 60 — and at `nil` for the legacy main column's
-/// intrinsic height, which CSS takes from its items' max-content contributions (the
-/// paragraph one line tall; which is why the legacy column is 278 tall and its
-/// paragraph overflows it).
+/// **Re-derived by stage 8's lane 1** (`LR-EZ`; record §50, lane 1). Stage 8
+/// converts the demo to `.frame` by the recipe (`LR-ES`), and production's
+/// answer — the proposal side, read by the fourteen-image comparison at 0 px
+/// against `85217e3` — does not move. **The legacy side does, and this census is
+/// the one test that reads it**: a `.frame` layer is the same kind of box on both
+/// engines, so the legacy engine now serves the sidebar its 196 (divergence 55's
+/// flex-shrink has nothing to shrink) and most of the tree agrees, while two
+/// legacy-frame answers `FR-E`/`FR-O` recorded and stage 7b retired the pins of
+/// (record §49 rows 195–206) now reach the demo. Each converted element also
+/// gained an identity level (R7): 2035 ids became **3053**. The census went
+/// from 6 agreeing / 2029 disagreeing to **3031 / 22**, and the 500 rows' 2 000
+/// disagreements (part 2b until this stage, with `rowCensus` and the sub-pixel
+/// bracket on the legacy sidebar's shrunk origin) all agree now and are gone.
 ///
-/// | cause | probe arm | isolating pin | rows (legacy → lowered) |
-/// |---|---|---|---|
-/// | **R** the harness root offers its proposal (divergence 53) and the demo's greedy column fills it | stack-algorithms A5; stage-2 X4, X18 | `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent`, 1.7, 2.10 | outer padding layer 920×439 → 920×560; outer column 888×407 → 888×528; body row 888×310 → 888×431; the sidebar's and main pane's layers' and the main column's heights; the scroller `Box`'s height 0 → 73 |
-/// | **55** a declared 196 sidebar is served first where CSS shrinks it to 88 | F5; stack-algorithms G9, G4r | 2.9 | sidebar layer 88 → 196 wide; its column, "Library" and the four bars 60 → 168 wide; main-pane layer x 116 → 224, 788 → 680 wide; main column 756 → 648; every main-pane descendant x + 108; "Text renders" 756 → 648 wide; the paragraph 756×48 → 648×64; the scroller `Box` y 439 → 455 |
-/// | **X9** a stretched single-child container does not stretch its child (`LR-AC`) | X9 | 1.3 | the sidebar column 282 → 160 tall |
-/// | **3** the lowered viewport fills its proposal (`LR-BC`) | stage-3 V1–V4; A7, A10, A11 | stage 3, lane 2 | the `ScrollView` 420×0 → 420×**73**, the 73 being cause **R**'s own 73 arriving one level deeper (the scroller `Box`'s new height) |
-/// | **4** the `List` lowers to a windowed `ProposalLayout` (`LR-BQ`, `LR-BR`) | — | stage 4 lanes 2–3, `ListLoweringTests` | the `List` 420×14000 → 420×14000, at the viewport's origin, and its 500 rows' 2 000 ids. **Both widths are now 420, where they were 0 on the lowered side until this stage**: the layout answers the widest realized row, so the viewport's non-scrolling axis — its content's answer (`CN-M`) — is no longer an empty content's 0 |
+/// **2. Every disagreement, with its cause** (modal off: 3053 ids, **3031**
+/// agreeing, **22** disagreeing, 0 legacy-only, 0 lowered-only), each asserted
+/// by literal below, and the 22 are the whole of the report's disagreements:
 ///
-/// **The `List`'s windowing spacer left this census in stage 4's lane 1**
-/// (`LR-BS`): it used to be a `Box` ELEMENT at `child(child(scroll, 0), 0)` and
-/// so recorded a `Frame.elementBounds` row of its own (420×0 → 0×0, the
-/// thirtieth disagreement); it is now a bare legacy node, which records none.
-/// The counts moved by exactly one in each place — 2036 → 2035 ids and 30 → 29
-/// disagreements, 2042 → 2041 and 36 → 35 with the modal on — and nothing else
-/// in the census moved, which is the measurement that says the demotion changed
-/// bookkeeping rather than geometry.
+/// | cause | rows (legacy → lowered) |
+/// |---|---|
+/// | **R** the harness root offers its proposal (divergence 53), unchanged | the lowered heights: outer layer 560, outer column 528, body 431, the sidebar's and main pane's layers 431, the main column 399, the scroller box 73 |
+/// | **O** `FR-O`: on the legacy engine a single-axis infinite maximum is inert (the frame's `Style` carries no row for it) where the lowering's frame is greedy | the header bar's outer frame 0 → 804 wide; the scroller box's greedy frame hugs the `List`'s 14 000 (`demoRowCount × rowHeight`) on the legacy side, so the scroller box, its greedy frame, its `Box` and the `ScrollView` read 420×14000 → 420×73 and every ancestor's legacy height carries the 14 000: main column 128 + 60 + 26 + 16 + 14000 + 4 × 12 = 14278, body 14310, outer column 14407, outer layer 14439 |
+/// | **53f** divergence 53 at a frame layer: the legacy frame is a one-cell stack (`CN-N`) that offers its child fit-content and centres it (`.center`, or `.top`'s horizontal centre); the lowered frame offers its proposal | the header's padding layer 84 wide (16 + the row's 40 + 12 + O's 0 bar + 16) centred in 888 at x 418 → 888 at 16, and so its row (52 → 856), the avatar's frame and the avatar's `Box` 402 pt right; the sidebar's padding layer 70 wide (14 + "Library"'s 42 + 14) centred in 196 at x 79 → 196 at 16, and so its column, "Library" and the four bars' frames 42 → 168 wide, 63 pt right |
 ///
-/// **Measured first against the prediction** (prototype P3 and scratch R2, record
-/// §21): identical in both modal states, every pair (record §21, lane 2).
+/// Every other rect agrees, including every text in the main pane (both sides
+/// now wrap the paragraph at 648) and all 3 000 row ids. Rects a text reaches are
+/// derived from the shaping cache (`LR-F`): the legacy main column from its items'
+/// max-content contributions, the lowered one from the root's 560.
 ///
-/// **2b. The 500 rows, four ids apiece, by formula** (stage 4, lane 5). Each row
-/// contributes the `List`'s own row `Box`, the demo row's `.padding` layer, the
-/// inner `Box` and its `Text`. One cause and its sub-pixel tail, and **no new
-/// cause** (two causes until stage 6b — see the X9 item):
+/// **3. Modal on**: 3060 ids, **3033** agreeing (the `Deferred` and the scrim
+/// `Stack` agree, 920×560 at the origin, as before), **27** disagreeing — the 22
+/// above and five of the modal's: the card's frame layer, its padding layer, its
+/// column and the column's two texts, by one cause, **C**, unchanged from stage
+/// 5: the legacy column's height is its items' max-content contributions (the
+/// paragraph one line tall), where the lowering measures the paragraph at the
+/// column's 320. The card is 40 taller than its column and centred in the window
+/// by the scrim `Stack`, so it sits (lowered − legacy) / 2 higher on the lowered
+/// side. (Four of the modal's ids disagreed before stage 8; the card's new
+/// `.frame` layer is the fifth.)
 ///
-/// - **55** puts every row 108pt right (240 against 132) and **55** again, through
-///   the taller wrapped paragraph above it, puts it 16pt lower
-///   (`loweredScrollerY` 455 against `legacyScrollerY` 439). Row *i* sits at
-///   `scrollerY + 28i` on both sides: `index × rowHeight`, which is what the
-///   windowed layout places against.
-/// - **X9 no longer reaches the rows** (stage 6b, lane 3, ruling `LR-DJ`). Until
-///   then it collapsed the inner `Box` from 28 to 16 tall on the lowered side — a
-///   stretched single-child container does not stretch its child (`LR-AC`) — so
-///   the `Text` sat at the row's top where the legacy one sat 6pt down
-///   (`(28 − 16) / 2`, the `.alignItems(.center)` the row declares). The demo row
-///   now declares `.height(Pixels(28))`, so the inner `Box` is 396×28 and its
-///   `Text` 6pt down on **both** sides; the inner `Box` and the `Text` still
-///   disagree, by 55 alone. Red before: the re-spelling alone, at
-///   `rowCensus`' inner-`Box` and lowered-`Text` assertions, 1 000 issues each.
-/// - **the sub-pixel tail of 55**, and it is why 42 of the 500 texts differ in
-///   WIDTH by one point. The lowered sidebar is served its declared 196 exactly,
-///   so every lowered row text starts at the integer x = 252 and cumulative-edge
-///   rounding gives `round(natural)`. The legacy sidebar is flex-shrunk (`SZ-L`)
-///   to a width a hair under 88, so the legacy text starts at `144 − d` and the
-///   same rounding gives `floor(natural)` for exactly those rows whose natural
-///   width has a fraction in `[0.5, 0.5 + d)`. The test solves for `d` from the
-///   500 rows and asserts the bracket: **`d ∈ (0.0615234375, 0.076171875]`**,
-///   measured, and the bracket being non-empty is the statement that ONE
-///   fractional origin explains all 500 — a row wrong for any other reason would
-///   empty it. 210 of the 500 have a fraction at or above 0.5 and only 42 floor,
-///   so this is not "the legacy engine floors".
+/// **Collapsed at stage 9** (record §51, lane 1; `LR-FE` item 2): the legacy
+/// engine is gone, so the census keeps its report, its id counts (3053 and 3060),
+/// the 22 rows' and the modal's five rows' **lowered** literals and the `Deferred`
+/// and scrim at 920×560, and loses the agreeing count, the legacy literals and the
+/// "nothing is left over" check — which read the legacy side, and whose job
+/// (catching an element no literal names moving) the demo's byte-for-byte pin
+/// `theDemoFrameMatchesTheValuesRecordedOnMacOS` and the fourteen images do now.
 ///
-/// **3. Modal on**: 2041 ids, **8** agreeing, **2033** disagreeing — the 29 chrome
-/// rows and the 2 000 row ids above (the `List` one index later, after the
-/// `Deferred`) plus four of the modal's six ids. **Re-derived by stage 5's lane
-/// 1**, which lowers the modal as a presentation root (it read 6 / 2035 with the
-/// six ids unlowered and asserted by id only): the `Deferred` and the scrim
-/// `Stack` now AGREE (920×560 at the origin); the card, its column and its two
-/// texts disagree by one cause, **C** — the legacy column's height is its items'
-/// max-content contributions (the paragraph one line tall), part 2's mechanism
-/// for the legacy main column, where the lowering measures the paragraph at 320 —
-/// asserted by literal from the shaping cache.
-/// **The modal no longer moves any lowered rect in the scroll subtree.** It did
-/// until this stage: with one child the single-child stretch elision (`LR-AC`)
-/// left the `List` unstretched and 0 wide, and adding the `Deferred` as a second
-/// child stretched both to 420. The `List` now measures 420 by itself — its
-/// widest realized row — so the two modal states agree and the override table
-/// that carried the difference is gone.
-///
-/// Mutations that must redden it: **M1a** (stretch not aliased), **M2a** (grow on the
-/// cross axis), **M1d** (the elision removed: the X9 row moves), **M2k** (cause R's
-/// rows move), **M1m′** (only if the demo reaches a `noLowering` site's records —
-/// recorded either way), **M5c′** (the `flexGrow.weights` check always reporting);
-/// and, from stage 3's lane 2, **M2a** (the viewport a plain native leaf: the 73
-/// collapses) and **M2d** (`flexShrink: 0` carried onto the lowered content style:
-/// `scrollView.flexShrink.unconsumed` joins the report); and, from stage 5's lane 1,
-/// **M1c** (W not aliased: the scrim `Stack` stops agreeing) and **M1d** (the
-/// placeholder's alias removed: the `Deferred` reads 0×0).
+/// Mutation that must redden it, re-run by stage 8's lane 1: **M-EZa** (the
+/// lowered frame layer's infinite maximum passed as `nil` — the greedy frame not
+/// greedy: cause O's lowered side collapses). Four of the mutations earlier stages
+/// named for the pre-stage-8 census were **re-run against this one by lane 1's
+/// review round** (record §50 §9): stage 5's M1c (the presentation's W alias
+/// deleted) and M1d (the placeholder's alias deleted) and stage 3's M2a (the
+/// viewport a plain native leaf) each still redden this test, among others;
+/// stage 3's M2d (`flexShrink: 0` on the declared scroll content) traps at
+/// `theDemoFrameMatchesTheValuesRecordedOnMacOS` and truncates the run, as it
+/// did at stage 3. Stage 2's M1a, M2a, M1d, M2k, M1m′ and M5c′ were not re-run;
+/// each is recorded where it was taken (record §21).
 @MainActor
 @Test func theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn() throws {
     func entry(_ site: LoweringSite, _ field: String) -> UnlowerableField {
@@ -564,26 +524,32 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
     }
     demoModel.animationDemoActive = false
     demoModel.showModal = false
-    let report = LayoutDifferential.compare(width: 920, height: 560) { demoContent() }
+    let report = LayoutDifferential.report(width: 920, height: 560) { demoContent() }
     #expect(report.unlowerable.isEmpty, "\(report.unlowerable)")
-    try #require(report.elements == 2035, "\(report.elements)")
-    #expect(report.agreeing.count == 6 && report.legacyOnly.isEmpty && report.loweredOnly.isEmpty,
-            "agreeing \(report.agreeing.count) legacyOnly \(report.legacyOnly.count) loweredOnly \(report.loweredOnly.count)")
+    // 3053 since stage 8 (`LR-EZ`): each converted element gained one identity
+    // level per `.frame` layer (`LR-ES`'s R7) — 2035 + 1018, where 1018 = 500
+    // list rows × 2 (the row's `.frame(height:)` and `.frame(width:)`, where the
+    // old spelling wrote both on the element and its padding layer) + 18 (the
+    // avatar 1, the bar 2, the header 1, the hairline 1, the sidebar's four rows
+    // 4 and its own width 1, the counter's three squares 3, the stack's three
+    // children 3, the scroller box 2).
+    try #require(report.elements == 3053, "\(report.elements)")
 
-    // Ids.
+    // Ids. Every `.frame` layer is an identity level (`LR-ES`'s R7): the frame
+    // takes the element's slot and the element moves one level down.
     let outerLayer = child(rootID, 0), outerColumn = child(outerLayer, 0)
-    let headerLayer = child(outerColumn, 0), headerRow = child(headerLayer, 0)
-    let hairline = child(outerColumn, 1), body = child(outerColumn, 2)
-    let sidebarLayer = child(body, 0), sidebar = child(sidebarLayer, 0)
+    let headerFrame = child(outerColumn, 0), headerPad = child(headerFrame, 0), headerRow = child(headerPad, 0)
+    let avatar = child(headerRow, 0), avatarBox = child(avatar, 0), bar = child(headerRow, 1)
+    let body = child(outerColumn, 2)
+    let sidebarFrame = child(body, 0), sidebarPad = child(sidebarFrame, 0), sidebar = child(sidebarPad, 0)
     let mainLayer = child(body, 1), main = child(mainLayer, 0)
-    let cluster = child(main, 0), badge = child(cluster, 2)
-    let counter = child(main, 1, "counter")
-    let scrollerBox = child(main, 4), scroll = child(scrollerBox, 0)
+    let scrollerFrame = child(main, 4), scrollerGreedy = child(scrollerFrame, 0)
+    let scrollerBox = child(scrollerGreedy, 0), scroll = child(scrollerBox, 0)
 
     // Text, from the shaping cache.
     let cache = ShapingCache()
     let f13 = cache.resolveFont(family: nil, size: 13), f22 = cache.resolveFont(family: nil, size: 22)
-    func legacyHeight(_ s: String, _ font: ResolvedFont, _ width: Double?) -> Float {
+    func shapedHeight(_ s: String, _ font: ResolvedFont, _ width: Double?) -> Float {
         Float(cache.shaped(s, font: font, wrappingAt: width).totalHeight.rounded())
     }
     func loweredHeight(_ s: String, _ font: ResolvedFont, _ width: Double) -> Float {
@@ -592,247 +558,89 @@ private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x:
     }
     func natural(_ s: String, _ font: ResolvedFont) -> Double { cache.shaped(s, font: font, wrappingAt: nil).widestLine }
 
-    // Legacy heights (CSS): the main column's intrinsic height is its items' max-content
-    // contributions — cluster 128, chrome 60, the two texts one line each, the scroller 0 —
-    // plus four gaps of 12; the body row is that column's padded height; the outer layer
-    // pads the header, the hairline and the body.
-    let legacyMain = 128 + 60 + legacyHeight("Text renders", f22, nil) + legacyHeight(demoParagraph, f13, nil) + 4 * 12
-    let legacyBody = 16 + legacyMain + 16
-    let legacyOuter = 16 + 72 + 12 + 1 + 12 + legacyBody + 16
-    let legacyRenders = legacyHeight("Text renders", f22, 756), legacyParagraph = legacyHeight(demoParagraph, f13, 756)
-    let legacyParagraphY = 129 + 128 + 12 + 60 + 12 + legacyRenders + 12
-    let legacyScrollerY = legacyParagraphY + legacyParagraph + 12
-    // Lowered: the root's 560 (cause R) and the 196 sidebar (cause 55).
+    // The main column wraps its texts at 648 (the sidebar is 196).
+    let renders = loweredHeight("Text renders", f22, 648), paragraph = loweredHeight(demoParagraph, f13, 648)
+    try #require(shapedHeight("Text renders", f22, 648) == renders && shapedHeight(demoParagraph, f13, 648) == paragraph)
+    let scrollerY = 129 + 128 + 12 + 60 + 12 + renders + 12 + paragraph + 12
+    // The root's 560 (cause R).
     let loweredBody: Float = 560 - 16 - 72 - 12 - 1 - 12 - 16
     let loweredMain = loweredBody - 32
-    let loweredRenders = loweredHeight("Text renders", f22, 648), loweredParagraph = loweredHeight(demoParagraph, f13, 648)
-    let loweredParagraphY = 129 + 128 + 12 + 60 + 12 + loweredRenders + 12
-    let loweredScrollerY = loweredParagraphY + loweredParagraph + 12
     let library = loweredHeight("Library", f13, 168)
-    try #require(legacyHeight("Library", f13, 60) == library)
+    let libraryWidth = Float(natural("Library", f13).rounded())
+    try #require(shapedHeight("Library", f13, nil) == library)
+    let sidebarHeight = library + 4 * 26 + 4 * 10
 
-    typealias Row = (id: GlobalElementID, legacy: Bounds<Pixels>, lowered: Bounds<Pixels>)
-    func shifted(_ id: GlobalElementID, _ b: Bounds<Pixels>) -> Row {
-        (id, b, Bounds(origin: Point(x: b.origin.x + px(108), y: b.origin.y), size: b.size))
-    }
-    func centredText(_ id: GlobalElementID, _ s: String, _ font: ResolvedFont, x: Float, y: Float,
-                     extent: Float, lineHeight: Float) -> Row {
-        let t = centredRounded(at: x, in: extent, width: natural(s, font))
-        return shifted(id, bounds(t.x, y + (extent - lineHeight) / 2, t.width, lineHeight))
-    }
+    // Stage 9 (`LR-FE` item 2): each row is the lowered literal the census always
+    // carried; its legacy half (the table above) went with the legacy engine.
+    typealias Row = (id: GlobalElementID, lowered: Bounds<Pixels>)
     var expected: [Row] = [
-        // R
-        (outerLayer, bounds(0, 0, 920, legacyOuter), bounds(0, 0, 920, 560)),
-        (outerColumn, bounds(16, 16, 888, legacyOuter - 32), bounds(16, 16, 888, 528)),
-        (body, bounds(16, 113, 888, legacyBody), bounds(16, 113, 888, loweredBody)),
-        // 55 (and R, X9)
-        (sidebarLayer, bounds(16, 113, 88, legacyBody), bounds(16, 113, 196, loweredBody)),
-        (sidebar, bounds(30, 127, 60, legacyBody - 28), bounds(30, 127, 168, library + 4 * 26 + 4 * 10)),
-        (child(sidebar, 0), bounds(30, 127, 60, library), bounds(30, 127, 168, library)),
+        // R and O
+        (outerLayer, bounds(0, 0, 920, 560)),
+        (outerColumn, bounds(16, 16, 888, 528)),
+        (body, bounds(16, 113, 888, loweredBody)),
+        (sidebarFrame, bounds(16, 113, 196, loweredBody)),
+        (mainLayer, bounds(224, 113, 680, loweredBody)),
+        (main, bounds(240, 129, 648, loweredMain)),
+        // 53f
+        (headerPad, bounds(16, 16, 888, 72)),
+        (headerRow, bounds(32, 32, 856, 40)),
+        (avatar, bounds(32, 32, 40, 40)),
+        (avatarBox, bounds(52, 52, 0, 0)),
+        (bar, bounds(84, 46, 804, 12)),
+        (sidebarPad, bounds(16, 113, 196, sidebarHeight + 28)),
+        (sidebar, bounds(30, 127, 168, sidebarHeight)),
+        (child(sidebar, 0), bounds(30, 127, 168, library)),
     ]
-    for bar in 1...4 {
-        let y = 127 + library + 10 + Float(bar - 1) * 36
-        expected.append((child(sidebar, bar), bounds(30, y, 60, 26), bounds(30, y, 168, 26)))
+    for row in 1...4 {
+        let y = 127 + library + 10 + Float(row - 1) * 36
+        expected.append((child(sidebar, row), bounds(30, y, 168, 26)))
     }
-    expected += [
-        (mainLayer, bounds(116, 113, 788, legacyBody), bounds(224, 113, 680, loweredBody)),
-        (main, bounds(132, 129, 756, legacyMain), bounds(240, 129, 648, loweredMain)),
-        shifted(cluster, bounds(132, 129, 360, 128)),
-        shifted(child(cluster, 0), bounds(132, 129, 360, 128)),
-        shifted(child(cluster, 1), bounds(232, 157, 160, 72)),
-        shifted(badge, bounds(298, 179, 28, 28)),
-        centredText(child(badge, 0), "3", f13, x: 298, y: 179, extent: 28, lineHeight: 16),
-        shifted(counter, bounds(132, 269, 260, 60)),
-        shifted(child(counter, 0), bounds(144, 281, 36, 36)),
-        centredText(child(child(counter, 0), 0), "-", f22, x: 144, y: 281, extent: 36, lineHeight: 26),
-        shifted(child(counter, 1), bounds(192, 281, 140, 36)),
-        shifted(child(child(counter, 1), 0), {
-            let t = centredRounded(at: 192, in: 140, width: natural("Count 0", f22))
-            return bounds(t.x, 286, t.width, 26)
-        }()),
-        shifted(child(counter, 2), bounds(344, 281, 36, 36)),
-        centredText(child(child(counter, 2), 0), "+", f22, x: 344, y: 281, extent: 36, lineHeight: 26),
-        (child(main, 2), bounds(132, 341, 756, legacyRenders), bounds(240, 341, 648, loweredRenders)),
-        (child(main, 3), bounds(132, legacyParagraphY, 756, legacyParagraph),
-         bounds(240, loweredParagraphY, 648, loweredParagraph)),
-        (scrollerBox, bounds(132, legacyScrollerY, 420, 0),
-         bounds(240, loweredScrollerY, 420, 129 + loweredMain - loweredScrollerY)),
-        // 3 (the lowered viewport, stage 3 lane 2) and 4 (the windowed `List`,
-        // stage 4 lane 2). The viewport takes the scroller `Box`'s own height and
-        // its subtree moves to its origin; **both widths are 420 since stage 4**,
-        // where they were 0 — the `List` answers its widest realized row, so the
-        // viewport's non-scrolling axis (`CN-M`) is no longer an empty content's 0.
-        (scroll, bounds(132, legacyScrollerY, 420, 0),
-         bounds(240, loweredScrollerY, 420, 129 + loweredMain - loweredScrollerY)),
-        (child(scroll, 0), bounds(132, legacyScrollerY, 420, 14000),
-         bounds(240, loweredScrollerY, 420, 14000)),
-    ]
-    try #require(expected.count == 29)
-    // The predictions the derivations must reproduce (P3, R2; record §21).
-    #expect([legacyOuter, legacyBody, legacyRenders, legacyParagraph, legacyScrollerY,
-             loweredRenders, loweredParagraph, loweredScrollerY, library] == [439, 310, 26, 48, 439, 26, 64, 455, 16])
+    // O (and R): the scroller.
+    for id in [scrollerFrame, scrollerGreedy, scrollerBox, scroll] {
+        expected.append((id, bounds(240, scrollerY, 420, 129 + loweredMain - scrollerY)))
+    }
+    try #require(expected.count == 22)
+    // The predictions the derivations must reproduce (record §50, lane 1).
+    #expect([renders, paragraph, scrollerY, library, libraryWidth] == [26, 64, 455, 16, 42])
 
-    let agreeingExpected: Set<GlobalElementID> = [rootID, headerLayer, headerRow, child(headerRow, 0),
-                                                  child(headerRow, 1), hairline]
-    #expect(Set(report.agreeing) == agreeingExpected)
-    let disagreeing = Dictionary(uniqueKeysWithValues: report.disagreeing.map { ($0.id, ($0.legacy, $0.lowered)) })
-    try #require(report.disagreeing.count == 2029, "\(report.disagreeing.count)")
     for row in expected {
-        let got = disagreeing[row.id]
-        #expect(got?.0 == row.legacy && got?.1 == row.lowered,
-                "\(row.id): expected \(row.legacy) → \(row.lowered), got \(String(describing: got))")
+        #expect(report.bounds[row.id] == row.lowered,
+                "\(row.id): expected \(row.lowered), got \(String(describing: report.bounds[row.id]))")
     }
-
-    // 2b. The 500 rows, four ids apiece. See part 2b of the doc comment: cause
-    // 55 (x + 108, y + 16) and 55's sub-pixel tail (42 of the 500 texts one
-    // point narrower on the legacy side); X9 left the rows at stage 6b (`LR-DJ`).
-    let rowIDs = try rowCensus(list: child(scroll, 0), pairs: disagreeing, cache: cache, f13: f13,
-                               legacyTop: legacyScrollerY, loweredTop: 455)
-    try #require(rowIDs.count == 2000, "\(rowIDs.count)")
-    // Nothing is left over: the 29 chrome rows and the 2 000 row ids are the
-    // whole of `disagreeing`, so no disagreement escapes a named cause.
-    let namedIDs = Set(expected.map(\.id)).union(rowIDs)
-    #expect(Set(disagreeing.keys) == namedIDs,
-            "unattributed: \(Set(disagreeing.keys).subtracting(namedIDs).count)")
 
     // 3. Modal on.
     demoModel.showModal = true
     defer { demoModel.showModal = false }
-    let modal = LayoutDifferential.compare(width: 920, height: 560) { demoContent() }
+    let modal = LayoutDifferential.report(width: 920, height: 560) { demoContent() }
     // Stage 5, lane 1 (`LR-CH`, `LR-CI`): the modal is a presentation root and
     // lowers, so the report that read `[stack.position, stack.inset]` is empty.
     #expect(modal.unlowerable.isEmpty, "\(modal.unlowerable)")
-    try #require(modal.elements == 2041, "\(modal.elements)")
-    let modalPairs = Dictionary(uniqueKeysWithValues: modal.disagreeing.map { ($0.id, ($0.legacy, $0.lowered)) })
-    let deferred = child(scroll, 0), stack = child(deferred, 0), card = child(stack, 0), column = child(card, 0)
-    // Stage 5, lane 1 (`LR-CH`, `LR-CI`, `LR-CM`): the modal is a presentation
-    // root laid out against the window. **The `Deferred` and its scrim `Stack`
-    // agree** — 920×560 at the origin on both sides: `inset(0)` with an `auto`
-    // size stretches the legacy box across its containing block (the harness
-    // root, the window) and lowers to a greedy W on both axes aliased as the
-    // element's rect, the `Deferred`'s placeholder aliased to the same.
-    #expect(Set(modal.agreeing) == agreeingExpected.union([deferred, stack]),
-            "\(Set(modal.agreeing).subtracting(agreeingExpected))")
-    try #require(modal.disagreeing.count == 2033, "\(modal.disagreeing.count)")
-    // **The card, its column and its two texts disagree, by one cause, cause C**:
-    // the legacy column's HEIGHT is its items' max-content contributions — the
-    // paragraph one line tall, measured at no width — the mechanism that makes the
-    // legacy main column 278 tall above (part 2), while the lowering measures the
-    // paragraph at the column's 320 (it wraps to two lines on both sides, so the
-    // text's own height is the same). The card is 40 taller than its column
-    // (padding 20) and centred in the window by the scrim `Stack`, so the whole
-    // card sits (lowered − legacy) / 2 higher on the lowered side.
+    try #require(modal.elements == 3060, "\(modal.elements)")
+    let deferred = child(scroll, 0), stack = child(deferred, 0)
+    let card = child(stack, 0), cardPad = child(card, 0), column = child(cardPad, 0)
+    // The `Deferred` and its scrim `Stack` — 920×560 at the origin (stage 5, lane
+    // 1; the agreement with the legacy engine that carried this until stage 9 is
+    // a literal since).
+    #expect(modal.bounds[deferred] == bounds(0, 0, 920, 560), "\(String(describing: modal.bounds[deferred]))")
+    #expect(modal.bounds[stack] == bounds(0, 0, 920, 560), "\(String(describing: modal.bounds[stack]))")
+    // **Cause C** (stage 5): the lowering measures the modal's paragraph at the
+    // column's 320 (two lines).
     let modalParagraph = "Declared inside the list, painted over it, and clipped by the window "
         + "rather than by the scroller."
-    let legacyColumn = legacyHeight("Modal", f22, nil) + 8 + legacyHeight(modalParagraph, f13, nil)
     let loweredColumn = loweredHeight("Modal", f22, 320) + 8 + loweredHeight(modalParagraph, f13, 320)
-    let paragraphHeight = legacyHeight(modalParagraph, f13, 320)
+    let paragraphHeight = shapedHeight(modalParagraph, f13, 320)
     try #require(loweredHeight(modalParagraph, f13, 320) == paragraphHeight)
-    #expect([legacyColumn, loweredColumn, paragraphHeight] == [50, 66, 32])
-    let legacyCardY = (560 - (legacyColumn + 40)) / 2, loweredCardY = (560 - (loweredColumn + 40)) / 2
+    #expect([loweredColumn, paragraphHeight] == [66, 32])
+    let loweredCardY = (560 - (loweredColumn + 40)) / 2
     let modalRows: [Row] = [
-        (card, bounds(280, legacyCardY, 360, legacyColumn + 40), bounds(280, loweredCardY, 360, loweredColumn + 40)),
-        (column, bounds(300, legacyCardY + 20, 320, legacyColumn), bounds(300, loweredCardY + 20, 320, loweredColumn)),
-        (child(column, 0), bounds(300, legacyCardY + 20, 320, 26), bounds(300, loweredCardY + 20, 320, 26)),
-        (child(column, 1), bounds(300, legacyCardY + 20 + 26 + 8, 320, paragraphHeight),
-         bounds(300, loweredCardY + 20 + 26 + 8, 320, paragraphHeight)),
+        (card, bounds(280, loweredCardY, 360, loweredColumn + 40)),
+        (cardPad, bounds(280, loweredCardY, 360, loweredColumn + 40)),
+        (column, bounds(300, loweredCardY + 20, 320, loweredColumn)),
+        (child(column, 0), bounds(300, loweredCardY + 20, 320, 26)),
+        (child(column, 1), bounds(300, loweredCardY + 20 + 26 + 8, 320, paragraphHeight)),
     ]
-    for row in modalRows {
-        let got = modalPairs[row.id]
-        #expect(got?.0 == row.legacy && got?.1 == row.lowered,
-                "modal \(row.id): expected \(row.legacy) → \(row.lowered), got \(String(describing: got))")
+    for row in modalRows + expected {
+        #expect(modal.bounds[row.id] == row.lowered,
+                "modal \(row.id): expected \(row.lowered), got \(String(describing: modal.bounds[row.id]))")
     }
-    // **No lowered rect in the scroll subtree moves with the modal on any more,
-    // and the override table that carried the difference is gone** (stage 4, lane
-    // 5). Until this stage the single-child stretch elision (`LR-AC`) left the
-    // `List` unstretched and 0 wide with one child, and the `Deferred` arriving as
-    // a second child stretched the `List` and the viewport to 420. The `List` now
-    // answers 420 by itself — its widest realized row — so both modal states read
-    // the same pair, and the `List`'s own rows are laid out identically.
-    for row in expected {
-        // The `List` sits one index later, after the `Deferred`.
-        let id = row.id == child(scroll, 0) ? child(scroll, 1) : row.id
-        let got = modalPairs[id]
-        #expect(got?.0 == row.legacy && got?.1 == row.lowered,
-                "modal \(id): expected \(row.legacy) → \(row.lowered), got \(String(describing: got))")
-    }
-    let modalRowIDs = try rowCensus(list: child(scroll, 1), pairs: modalPairs, cache: cache, f13: f13,
-                                    legacyTop: legacyScrollerY, loweredTop: 455)
-    let modalNamed = Set(expected.map { $0.id == child(scroll, 0) ? child(scroll, 1) : $0.id })
-        .union(modalRowIDs)
-        .union(modalRows.map(\.id))
-    #expect(Set(modalPairs.keys) == modalNamed,
-            "modal unattributed: \(Set(modalPairs.keys).subtracting(modalNamed).count)")
-}
-
-/// The demo `List`'s 500 rows, four ids apiece, asserted by formula against
-/// `pairs` — part **2b** of `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`'s
-/// doc comment, which is where the three causes and the sub-pixel tail are
-/// argued. Returns the 2 000 ids it covered, so the caller can assert that
-/// nothing in the report escapes a named cause.
-///
-/// **A row's four ids** are the `List`'s own row `Box` (named
-/// `String(describing: datum.id)` one level under the `List`), the demo row's
-/// `.padding` layer at `child(at: 0)` below it, the inner `Box` below that and
-/// its `Text`.
-@MainActor
-private func rowCensus(list: GlobalElementID,
-                       pairs: [GlobalElementID: (Bounds<Pixels>, Bounds<Pixels>)],
-                       cache: ShapingCache, f13: ResolvedFont,
-                       legacyTop: Float, loweredTop: Float) throws -> Set<GlobalElementID> {
-    var covered = Set<GlobalElementID>()
-    // The fractions that decide the sub-pixel tail, collected so the bracket on
-    // the legacy origin's deficit can be asserted afterwards.
-    var flooredFractions: [Double] = [], roundedFractionsAtOrAboveHalf: [Double] = []
-
-    for i in 0..<500 {
-        let rowBox = child(list, 0, "\(i)")
-        let layer = child(rowBox, 0), inner = child(layer, 0), text = child(inner, 0)
-        covered.formUnion([rowBox, layer, inner, text])
-        let ly = legacyTop + 28 * Float(i), py = loweredTop + 28 * Float(i)
-
-        // The row `Box` and the `.padding` layer: cause 55 twice over, nothing else.
-        for id in [rowBox, layer] {
-            let got = pairs[id]
-            #expect(got?.0 == bounds(132, ly, 420, 28) && got?.1 == bounds(240, py, 420, 28),
-                    "row \(i) wrapper \(id): \(String(describing: got))")
-        }
-        // The inner `Box`: 28 tall on both sides since its height is declared
-        // (`LR-DJ`); until stage 6b X9 collapsed the lowered one to its content's 16.
-        let innerGot = pairs[inner]
-        #expect(innerGot?.0 == bounds(144, ly, 396, 28) && innerGot?.1 == bounds(252, py, 396, 28),
-                "row \(i) inner: \(String(describing: innerGot))")
-
-        // The `Text`. Its x, y and height are exact on both sides; its WIDTH is
-        // `round(natural)` on the lowered side (an integer origin) and either that
-        // or `floor(natural)` on the legacy one (an origin `d` below the integer).
-        let natural = cache.shaped("Row \(i + 1) of 500 — a scrollable list item",
-                                   font: f13, wrappingAt: nil).widestLine
-        let fraction = natural - natural.rounded(.down)
-        let textGot = try #require(pairs[text], "row \(i) text")
-        #expect(textGot.0.origin == Point(x: px(144), y: px(ly + 6)) && textGot.0.size.height == px(16),
-                "row \(i) legacy text: \(textGot.0)")
-        #expect(textGot.1 == bounds(252, py + 6, Float(natural.rounded()), 16),
-                "row \(i) lowered text: \(textGot.1)")
-        if textGot.0.size.width == px(Float(natural.rounded(.down))), fraction >= 0.5 {
-            flooredFractions.append(fraction)
-        } else {
-            #expect(textGot.0.size.width == px(Float(natural.rounded())),
-                    "row \(i) legacy text width: \(textGot.0.size.width) for \(natural)")
-            if fraction >= 0.5 { roundedFractionsAtOrAboveHalf.append(fraction) }
-        }
-    }
-
-    // **One fractional legacy origin explains all 500.** `d` is the amount by
-    // which the flex-shrunk sidebar (`SZ-L`) leaves the legacy main pane short of
-    // the integer, and the rows that floor are exactly those whose natural width
-    // has a fraction in `[0.5, 0.5 + d)`. A row that floored for any other reason
-    // would push `lower` past `upper` and empty the bracket.
-    try #require(flooredFractions.count == 42, "\(flooredFractions.count)")
-    try #require(roundedFractionsAtOrAboveHalf.count == 168, "\(roundedFractionsAtOrAboveHalf.count)")
-    let lower = (flooredFractions.max() ?? 0) - 0.5
-    let upper = (roundedFractionsAtOrAboveHalf.min() ?? 0.5) - 0.5
-    #expect(lower < upper, "no single legacy origin explains the 500 rows: (\(lower), \(upper)]")
-    #expect(lower == 0.0615234375 && upper == 0.076171875, "d bracket moved: (\(lower), \(upper)]")
-    return covered
 }

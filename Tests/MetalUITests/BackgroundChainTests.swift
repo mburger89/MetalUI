@@ -76,17 +76,17 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
 /// coincidence.
 @MainActor private enum Subject {
     static func box() -> some Element {
-        Box().width(px(40)).height(px(40))
+        Box().cssWidth(px(40)).cssHeight(px(40))
             .background(.surface).hoverBackground(.accent).focusBackground(.separator)
             .focusable().onClick {}
     }
     static func stack() -> some Element {
-        Stack { Box() }.width(px(40)).height(px(40))
+        Stack { Box() }.cssWidth(px(40)).cssHeight(px(40))
             .background(.surface).hoverBackground(.accent).focusBackground(.separator)
             .focusable().onClick {}
     }
     static func text() -> some Element {
-        Text("hi").width(px(40)).height(px(40))
+        Text("hi").cssWidth(px(40)).cssHeight(px(40))
             .background(.surface).hoverBackground(.accent).focusBackground(.separator)
             .focusable().onClick {}
     }
@@ -98,20 +98,20 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
     /// one 40x40 rect are the inner layer's. The outermost layer is sized
     /// 56x56 so the root does not stretch it to the window.
     static func modifiedInner() -> some Element {
-        Box().width(px(30)).height(px(30))
+        Box().cssWidth(px(30)).cssHeight(px(30))
             .padding(Edges(all: .pixels(px(5))))
             .background(.surface).hoverBackground(.accent).focusBackground(.separator)
             .focusable().onClick {}
             .padding(Edges(all: .pixels(px(8))))
-            .width(px(56)).height(px(56))
+            .cssWidth(px(56)).cssHeight(px(56))
     }
     /// The same chain with the subject on the OUTERMOST layer (40x40 at the
     /// origin) and nothing declared on the inner one.
     static func modifiedOutermost() -> some Element {
-        Box().width(px(24)).height(px(24))
+        Box().cssWidth(px(24)).cssHeight(px(24))
             .padding(Edges(all: .pixels(px(4))))
             .padding(Edges(all: .pixels(px(4))))
-            .width(px(40)).height(px(40))
+            .cssWidth(px(40)).cssHeight(px(40))
             .background(.surface).hoverBackground(.accent).focusBackground(.separator)
             .focusable().onClick {}
     }
@@ -139,7 +139,6 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
         // its 40x40 inner layer at 30..70 — and (50, 50) is inside each where
         // the legacy top-left root read (20, 20); (80, 80) is off every one.
         let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
-                                                          layoutAuthority: .proposal,
                                                           content: make)
         let theme = window.theme
         func expectFill(_ token: ColorToken, _ state: String) throws {
@@ -212,7 +211,6 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
         // centred and (50, 50) is inside each subject.
         let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                           startsDisplayLink: true,
-                                                          layoutAuthority: .proposal,
                                                           content: make)
         let theme = window.theme
 

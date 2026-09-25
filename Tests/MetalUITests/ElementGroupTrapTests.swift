@@ -195,8 +195,7 @@ struct ContentSwapper<Content: ElementGroup>: Element {
 @MainActor
 private func renderSwapper<Content: ElementGroup>(_ content: Content,
                                                   replacedBy replacement: Content?) {
-    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
-                      layoutAuthority: .proposal)
+    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1)
     var element = ContentSwapper(content: content, replacement: replacement)
     frame.render(&element)
 }
@@ -415,20 +414,22 @@ struct StateProbe: Element, StyledElement {
 ///
 /// **Deliberately not a trap.** Aborting would turn a data bug into a crash in a
 /// shipping app — an `ArrayGroup` whose data genuinely holds duplicate keys is a
-/// wrong list, not a wrong program. The same reasoning as
-/// `anOverConstrainedBoxGrowsToFitItsPaddingAndBorder` (which carried this
-/// reasoning under its old name, `containerDoesNotGrowToFitOverconstrained…`,
-/// until the sizing milestone closed the divergence): name the other
+/// wrong list, not a wrong program. The same reasoning the retired
+/// `anOverConstrainedBoxGrowsToFitItsPaddingAndBorder` carried under its old
+/// name, `containerDoesNotGrowToFitOverconstrained…`, until the sizing
+/// milestone closed the divergence, and stage 7b retired in turn (its D-row
+/// replacement is `aDeclaredSizeBelowThePaddingKeepsItsFixedFrame`,
+/// record §49 row 70): name the other
 /// answer in the comment so the choice is a decision rather than a surprise.
 @MainActor
 @Test func twoSiblingsWithTheSameIDShareOneStateEntry() {
     let log = ElementLog()
     let table = StateTable()
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)),
-                      scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
+                      scaleFactor: 1, stateTable: table)
     var column = Column {
-        StateProbe("left", log: log).id("a").width(px(10)).height(px(10))
-        StateProbe("right", log: log).id("a").width(px(10)).height(px(10))
+        StateProbe("left", log: log).id("a").cssWidth(px(10)).cssHeight(px(10))
+        StateProbe("right", log: log).id("a").cssWidth(px(10)).cssHeight(px(10))
     }
     .id("root")
 
@@ -456,10 +457,10 @@ struct StateProbe: Element, StyledElement {
     let log = ElementLog()
     let table = StateTable()
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)),
-                      scaleFactor: 1, stateTable: table, layoutAuthority: .proposal)
+                      scaleFactor: 1, stateTable: table)
     var column = Column {
-        StateProbe("left", log: log).id("a").width(px(10)).height(px(10))
-        StateProbe("right", log: log).id("b").width(px(10)).height(px(10))
+        StateProbe("left", log: log).id("a").cssWidth(px(10)).cssHeight(px(10))
+        StateProbe("right", log: log).id("b").cssWidth(px(10)).cssHeight(px(10))
     }
     .id("root")
 

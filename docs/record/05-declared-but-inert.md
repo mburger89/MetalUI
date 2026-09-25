@@ -311,3 +311,91 @@ surface. Nothing else in the table's shape changes: `LayoutAuthority.allCases`
 (the test-observables row, added at stage 3) still has no production reader,
 and `UnlowerableField` site `.list`/`component` still has no site-level
 reporter — both unaffected by which authority is the default.
+
+## 2026-09-23: no row changed at engine replacement stage 7a
+
+Record §48; rulings `LR-DS`…`LR-EB`. **Checked and none added, edited or
+deleted.** Stage 7a deletes test files only (the goldens, their fixtures, the
+WebKit oracle and their consumers) and one doc comment in `Sources/`
+(`roundLayout`'s); nothing declared in `Sources/` gains or loses a reader. The
+test-only `assertMatchesGolden` is gone with its callers, and the one private
+test helper left with no caller (`FlexEngineTests`' `threeJustifiedChildren`)
+was deleted with them (`LR-EB`), so the removal leaves no stored-but-unread
+state of its own.
+
+## 2026-09-24: no row changed at engine replacement stage 7b, two evidence citations lost
+
+Record §49; rulings `LR-EC`…`LR-EP`. **No row added, edited or deleted.**
+Stage 7b's `Sources/` diff is comment lines only (checked, record §49 §6.1's
+`git diff … | grep -vE '^[-+]\s*//'` prints nothing over every lane), so no
+declared-but-inert property gains or loses a reader. One row's evidence is
+thinner, not wrong: the `Style.padding`/`.border`/`.margin` on a leaf row (the
+long cell above) cites `aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`
+and `aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`, both in
+`FlexBaseSizeTests`, one of the seventeen files stage 7b retired whole (no row
+in record §49 §4 names either — the file's tests are all CSS-engine-subject
+tests with no distinct native fact to hand to an N row, since the shrink
+weighting they measure is `FlexItem.mainEdges`' own internal accounting, not
+externally observable under the proposal engine). `Sources/MetalUILayout/FlexBaseSize.swift:53`
+and `:128` still name them in comments, listed and left for stage 9 (record
+§49 §5.1). **The figures (50/50, 83/17, 125/75) are no longer asserted by any
+test** — the underlying `Sources/` code is untouched (this stage moved no
+`Sources/` behaviour line), so the numbers still hold if re-measured, but
+nothing in the suite would catch a regression in them between now and
+stage 9, when `FlexBaseSize.swift` itself retires. Not a declared-but-inert
+row in the usual sense (the property is reachable, just untested) — noted here
+because this is the row those two names were cited from.
+
+## 2026-09-24: no row changed at engine replacement stage 8
+
+Record §50; rulings `LR-ER`…`LR-FB`. Stage 8 deprecates the eight
+`StyledElement` sizing modifiers and converts every in-repo caller, but adds
+no new always-inert API and removes none: `.width`/`.height`/`min*`/`max*`
+and `width(fraction:)`/`height(fraction:)` still write their field and are
+still read (deprecated, not inert — a call still lowers). The demo's own
+`.minHeight(Pixels(0))` (now `.frame(minHeight: Pixels(0), maxHeight:
+Pixels(.infinity), alignment: .topLeading)`, `LR-ET`'s spelling) reads as **inert in this
+one production site** since stage 6b (the scroller box holds a lowered
+`ScrollView`, whose viewport fills its proposal on the scrolling axis,
+`LR-BB`, so the box's content never floors it) — this is a fact about one
+call site's context, not a declared-but-globally-inert API, so it takes no
+row here; record §50 §3's O1/O2 measurements are where it is recorded.
+
+## 2026-09-24: two rows deleted at engine replacement stage 9
+
+Record §51; rulings `LR-FC`…`LR-FL`. **Two rows deleted, none added or
+edited.** Stage 9 deletes the layout authority and the legacy CSS engine, and
+with them the two test-observables gained at stages 3 and 4:
+
+- **`LayoutAuthority.allCases` is gone** — the enum itself is deleted
+  (`LayoutAuthority.swift` keeps its name but now holds only
+  `LoweringSite`/`UnlowerableField`, `LR-FC`). The `CaseIterable` conformance
+  existed only so `AuthorityCoverage.authorities` could be the single
+  `arguments:` list every parameterised scenario was declared over; that
+  registry is deleted in the same stage (lanes 1 and 2, record §51 §5.2,
+  §6.1), so the row and its reason for existing leave together.
+- **`ListRows.GroupLayout.spacer` is gone** — the field, and `ListRows.spacerStyle`
+  that built it, are deleted with the legacy `List` path they served
+  (`ListRows.swift`'s own comment: "it went with the legacy engine, and with
+  it `ListRows.spacerStyle` and `GroupLayout.spacer`"). It was `nil` under the
+  proposal authority already; now there is no other authority for it to be
+  non-nil under, so the always-unread field is gone rather than merely always
+  `nil`.
+
+The test-observables row now reads `Frame.scrollRegions` / `Window.lastScrollRegions`,
+`StateTable.isDirty`, `StateTable.writeCount`, `LayoutTree.lastNativeLayoutWork`
+and `NativeGridSolution`'s counter — the same five it carried before stage 3
+added the first of the two rows this stage removes. `UnlowerableField` sites
+`.list` and `.component` are unaffected (both lowering sites, and both cases,
+survive; still no site-level reporter for either, `LR-FJ` item 2 confirms
+`.list`'s trap is unmoved). `deferred.containingBlock`/`.nested`/`.root`,
+deleted this stage (`LR-FF`), were never a row here — stage 5's section
+already found them "diagnostics raised and read by the report mechanism
+itself, not stored-but-unread state" — so their deletion is not a retirement
+of this table's shape either; `deferred.amended` survives, re-owned to stage
+11, unaffected. `Style.overflow` is unaffected (`Style` itself stays until
+stage 10): still one write in `ScrollView`'s viewport style, still no reader.
+`LayoutAuthority.proposal` in production was already **not** a row here — it
+stopped being inert at stage 6b, and this stage deletes the symbol itself
+rather than its inertness.
+

@@ -61,15 +61,13 @@ private let rootID = GlobalElementID.child(of: nil, at: 0, name: listID)
 @MainActor
 private func fullyRendered<E: Element>(_ element: inout E, width: Float, height: Float,
                                        stateTable: StateTable = StateTable(),
-                                       timestamp: Double = 0,
-                                       authority: LayoutAuthority = Frame.defaultLayoutAuthority) -> (Frame, E.LayoutState) {
+                                       timestamp: Double = 0) -> (Frame, E.LayoutState) {
     // Plan task 7, stage 3, lane 3 (`LR-BI`): `reportsUnlowerableFields` is left
     // OFF on purpose, so this helper fails the way a production frame does — a
     // site with no lowering traps rather than reporting. Every fixture below was
     // measured to report nothing before the parameterisation (record §9).
     let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)),
-                      scaleFactor: 1, stateTable: stateTable, timestamp: timestamp,
-                      layoutAuthority: authority)
+                      scaleFactor: 1, stateTable: stateTable, timestamp: timestamp)
     let id = GlobalElementID.child(of: nil, at: 0, name: element.elementID)
     var layoutPass = LayoutPass(frame: frame)
     let (root, layoutState) = element.requestLayout(id, pass: &layoutPass)
@@ -113,9 +111,8 @@ private func scrolledState(offset: Double, lastScrollTime: Double) -> StateTable
 /// clip stack reorders emission, but only the wrong placement inherits the
 /// block's `-offset` translation and moves the thumb by exactly the scrolled
 /// amount, which is required mutation 1 (see the task report).
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func theIndicatorIsTheLastPrimitiveInTheScene(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func theIndicatorIsTheLastPrimitiveInTheScene() throws {
     let table = scrolledState(offset: 20, lastScrollTime: 0)
     var view = ScrollView(.vertical, elementID: listID) {
         Column {
@@ -123,8 +120,7 @@ func theIndicatorIsTheLastPrimitiveInTheScene(_ authority: LayoutAuthority) thro
             Text("Row five"); Text("Row six"); Text("Row seven"); Text("Row eight")
         }
     }
-    let (frame, layout) = fullyRendered(&view, width: 120, height: 100, stateTable: table,
-                                        authority: authority)
+    let (frame, layout) = fullyRendered(&view, width: 120, height: 100, stateTable: table)
     let scene = frame.finalizedScene()
 
     try #require(!scene.glyphs.isEmpty,
@@ -163,15 +159,13 @@ func theIndicatorIsTheLastPrimitiveInTheScene(_ authority: LayoutAuthority) thro
 /// against a default `ScrollState` — `lastScrollTime == -.infinity`, never
 /// scrolled — `guard alpha > 0` would return first and this would pass
 /// with the scrollable guard deleted.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func contentThatFitsDrawsNoIndicator(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func contentThatFitsDrawsNoIndicator() throws {
     var view = ScrollView(.vertical, elementID: listID) {
         Box(style: fixedSize(120, 40))
     }
     let (frame, _) = fullyRendered(&view, width: 120, height: 100,
-                                   stateTable: scrolledState(offset: 0, lastScrollTime: 0),
-                                   authority: authority)
+                                   stateTable: scrolledState(offset: 0, lastScrollTime: 0))
     #expect(frame.scene.rects.isEmpty,
             "content shorter than the viewport has nothing to scroll, so no thumb and no draw call for one")
 }
@@ -184,9 +178,8 @@ func contentThatFitsDrawsNoIndicator(_ authority: LayoutAuthority) throws {
 /// Two fixtures, chosen so the proportional answer and the 20pt floor give
 /// DIFFERENT numbers in each — a fixture where they coincide could not tell a
 /// working floor from a working proportion (or the reverse).
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func theThumbIsProportionalAndFlooredAtTwentyPoints(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func theThumbIsProportionalAndFlooredAtTwentyPoints() throws {
     // viewport 100, content 200 → 100 * (100/200) = 50, well clear of the
     // floor: this isolates the PROPORTION formula.
     do {
@@ -196,8 +189,7 @@ func theThumbIsProportionalAndFlooredAtTwentyPoints(_ authority: LayoutAuthority
         // A fresh scroll (age 0): a never-scrolled default state paints no
         // thumb at all, so there would be nothing here to measure.
         let (frame, _) = fullyRendered(&view, width: 120, height: 100,
-                                       stateTable: scrolledState(offset: 0, lastScrollTime: 0),
-                                       authority: authority)
+                                       stateTable: scrolledState(offset: 0, lastScrollTime: 0))
         let rect = try #require(frame.scene.rects.first)
         #expect(abs(Double(rect.bounds.size.height) - 50) < 0.05,
                 "100 * (100/200) = 50 — a bare proportional size, not the floor")
@@ -221,8 +213,7 @@ func theThumbIsProportionalAndFlooredAtTwentyPoints(_ authority: LayoutAuthority
         // A fresh scroll (age 0): a never-scrolled default state paints no
         // thumb at all, so there would be nothing here to measure.
         let (frame, _) = fullyRendered(&view, width: 120, height: 100,
-                                       stateTable: scrolledState(offset: 0, lastScrollTime: 0),
-                                       authority: authority)
+                                       stateTable: scrolledState(offset: 0, lastScrollTime: 0))
         let rect = try #require(frame.scene.rects.first)
         #expect(abs(Double(rect.bounds.size.height) - 20) < 0.05,
                 "100 * (100/1000) = 10 must be floored to 20, not left as a 10pt sliver")
@@ -238,9 +229,8 @@ func theThumbIsProportionalAndFlooredAtTwentyPoints(_ authority: LayoutAuthority
 /// starts flush with the top of the track, and at the maximum offset (100,
 /// for this fixture's 100pt of scrollable range) its FAR edge lands flush
 /// with the bottom — not merely "large" or "near the end".
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func theThumbReachesTheEndOfItsTrackAtMaximumOffset(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func theThumbReachesTheEndOfItsTrackAtMaximumOffset() throws {
     // viewport 100, content 200 → scrollable 100, thumb 50: clear of the
     // 20pt floor, so this isolates the position formula from it.
     do {
@@ -248,8 +238,7 @@ func theThumbReachesTheEndOfItsTrackAtMaximumOffset(_ authority: LayoutAuthority
             Box(style: fixedSize(120, 200))
         }
         let (frame, layout) = fullyRendered(&view, width: 120, height: 100,
-                                            stateTable: scrolledState(offset: 100, lastScrollTime: 0),
-                                            authority: authority)
+                                            stateTable: scrolledState(offset: 100, lastScrollTime: 0))
         let rect = try #require(frame.scene.rects.first)
         let trackBottom = Double(frame.bounds(of: layout.node).origin.y.value)
                          + Double(frame.bounds(of: layout.node).size.height.value)
@@ -263,8 +252,7 @@ func theThumbReachesTheEndOfItsTrackAtMaximumOffset(_ authority: LayoutAuthority
             Box(style: fixedSize(120, 200))
         }
         let (frame, layout) = fullyRendered(&view, width: 120, height: 100,
-                                            stateTable: scrolledState(offset: 0, lastScrollTime: 0),
-                                       authority: authority)
+                                            stateTable: scrolledState(offset: 0, lastScrollTime: 0))
         let rect = try #require(frame.scene.rects.first)
         #expect(abs(Double(rect.bounds.origin.y) - Double(frame.bounds(of: layout.node).origin.y.value)) < 0.01,
                 "at zero offset the thumb starts EXACTLY at the top of the track")
@@ -290,13 +278,11 @@ private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
 /// guarantee is a property of `Window.drawFrameIfNeeded` honouring
 /// `frame.wantsAnotherFrame` (Task 8) — a bare `Frame` has no "stays idle"
 /// concept to fail.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func theIndicatorRequestsFramesWhileFadingAndStopsWhenDone(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func theIndicatorRequestsFramesWhileFadingAndStopsWhenDone() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true,
-                                               layoutAuthority: authority) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
         ScrollView(.vertical, elementID: listID) {
             Box(style: columnStyle()) {
                 Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
@@ -397,13 +383,11 @@ private func wheel(at position: Point<Pixels>, deltaY: Float, timestamp: Double)
 /// link, which ticks again almost immediately." Under the reverted code this
 /// still reads `age = 11.05 - 5 = 6.05` (suppressed); under the fix it reads
 /// `age = 11.05 - 11 = 0.05` (visible).
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aScrollFollowingAnIdleThatPausedTheDisplayLinkStillShowsTheIndicator(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aScrollFollowingAnIdleThatPausedTheDisplayLinkStillShowsTheIndicator() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true,
-                                               layoutAuthority: authority) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
         ScrollView(.vertical, elementID: listID) {
             Box(style: columnStyle()) {
                 Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
@@ -455,13 +439,11 @@ func aScrollFollowingAnIdleThatPausedTheDisplayLinkStillShowsTheIndicator(_ auth
 /// read that keeps advancing with "now") would make `age` never grow and the
 /// fade would never complete, silently breaking the idle guarantee this same
 /// change touches.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func theIndicatorStillFadesAndTheWindowReturnsIdleAfterWakingFromAPausedLink(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func theIndicatorStillFadesAndTheWindowReturnsIdleAfterWakingFromAPausedLink() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true,
-                                               layoutAuthority: authority) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
         ScrollView(.vertical, elementID: listID) {
             Box(style: columnStyle()) {
                 Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
@@ -536,13 +518,11 @@ func theIndicatorStillFadesAndTheWindowReturnsIdleAfterWakingFromAPausedLink(_ a
 /// default (and its init's parameter default) set to `0`, must redden **both**
 /// arms: with `age == 0` on the pre-tick frame every scrollable scroller of
 /// either kind paints its thumb at full strength and asks for another frame.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true,
-                                               layoutAuthority: authority) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
         ScrollView(.vertical, elementID: listID) {
             Box(style: columnStyle()) {
                 Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
@@ -577,8 +557,7 @@ func aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame(_ au
     // the legacy arm has, and the rectangles paint, so "no indicator" here is
     // a rect COUNT rather than an empty scene.
     let (proposalWindow, proposalPlatformWindow) =
-        try makeFakeWindow(device: device, size: 120, startsDisplayLink: true,
-                           layoutAuthority: authority) {
+        try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
             ProposalScrollView(.vertical, elementID: listID) {
                 VStack(spacing: Pixels(0)) {
                     Rectangle(width: Pixels(120), height: Pixels(40), color: .accent)
@@ -628,16 +607,15 @@ func aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame(_ au
 /// The expectation is arithmetic named here rather than read back from the
 /// element: `Theme.light.scrollIndicator` is `.rgb(0x000000, alpha: 0.35)`, and
 /// the ramp at age 0.8 is `1 - (0.8 - 0.6) / 0.4 = 0.5`.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func theIndicatorFadesOnARampAndTakesItsColourFromTheScrollIndicatorToken(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func theIndicatorFadesOnARampAndTakesItsColourFromTheScrollIndicatorToken() throws {
     func alphaAtAge(_ age: Double) throws -> Double {
         var view = ScrollView(.vertical, elementID: listID) {
             Box(style: fixedSize(120, 200))
         }
         let (frame, _) = fullyRendered(&view, width: 120, height: 100,
                                        stateTable: scrolledState(offset: 20, lastScrollTime: 100),
-                                       timestamp: 100 + age, authority: authority)
+                                       timestamp: 100 + age)
         return Double(try #require(frame.scene.rects.first).background.a)
     }
 
@@ -652,8 +630,7 @@ func theIndicatorFadesOnARampAndTakesItsColourFromTheScrollIndicatorToken(_ auth
     var view = ScrollView(.vertical, elementID: listID) { Box(style: fixedSize(120, 200)) }
     let (frame, _) = fullyRendered(&view, width: 120, height: 100,
                                    stateTable: scrolledState(offset: 20, lastScrollTime: 100),
-                                   timestamp: 100.2,
-                                   authority: authority)
+                                   timestamp: 100.2)
     #expect(try #require(frame.scene.rects.first).background.l == 0,
             "Theme.light.scrollIndicator is 0x000000; textPrimary is 0x14181F and is not black")
 }
@@ -674,15 +651,13 @@ func theIndicatorFadesOnARampAndTakesItsColourFromTheScrollIndicatorToken(_ auth
 /// wide over 200 of content gives `thumb = max(20, 100 * (100/200)) = 50` and
 /// a scrollable range of 100; at offset 50 the travel is
 /// `(50/100) * (100 - 50) = 25`.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func theHorizontalIndicatorLiesAlongTheBottomOfItsViewport(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func theHorizontalIndicatorLiesAlongTheBottomOfItsViewport() throws {
     var view = ScrollView(.horizontal, elementID: listID) {
         Box(style: fixedWidth(200, 60))
     }
     let (frame, layout) = fullyRendered(&view, width: 100, height: 60,
-                                        stateTable: scrolledState(offset: 50, lastScrollTime: 0),
-                                        authority: authority)
+                                        stateTable: scrolledState(offset: 50, lastScrollTime: 0))
     let viewport = frame.bounds(of: layout.node)
     try #require(Double(frame.bounds(of: layout.contentNode).size.width.value) == 200,
                  "the fixture must overflow horizontally, or there is no thumb to measure")
@@ -765,9 +740,8 @@ private let nestedListID = GlobalElementID.child(of: nestedRootID, at: 0, name: 
 /// sits at y = 47 - sqrt(24² - 19²) = 32.34, while at offset 0 the thumb starts
 /// at y = 23. Roughly nine points of it are outside the rounded corner and must
 /// be masked away.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt() throws {
     func indicator(offset: Double) throws -> MUIRect {
         let table = StateTable()
         table.withState(nestedListID, initial: ScrollState()) {
@@ -780,8 +754,7 @@ func theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt(_ au
             }
             .cornerRadius(Pixels(24))
         }
-        let (frame, _) = fullyRendered(&root, width: 160, height: 140, stateTable: table,
-                                       authority: authority)
+        let (frame, _) = fullyRendered(&root, width: 160, height: 140, stateTable: table)
         let scene = frame.finalizedScene()
         try #require(scene.rects.count == 1,
                      "only the thumb paints here — the boxes carry no decoration")
@@ -830,17 +803,15 @@ func theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt(_ au
 /// the differential this rule needs: without that second test, this one
 /// would pass equally against a `ScrollView` that never painted an
 /// indicator at all, proving nothing about `.hidden` specifically.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func hiddenEmitsNoIndicatorRect(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func hiddenEmitsNoIndicatorRect() throws {
     var view = ScrollView(.vertical, elementID: listID) {
         Box(style: fixedSize(120, 200))
     }
     .scrollIndicators(.hidden)
     let (frame, _) = fullyRendered(&view, width: 120, height: 100,
                                    stateTable: scrolledState(offset: 20, lastScrollTime: 100),
-                                   timestamp: 100,
-                                   authority: authority)
+                                   timestamp: 100)
     #expect(frame.scene.rects.isEmpty,
             "content overflows and the fade has not elapsed (age 0), so an `.automatic` indicator would definitely paint here — `.hidden` must suppress it entirely")
 }
@@ -849,16 +820,14 @@ func hiddenEmitsNoIndicatorRect(_ authority: LayoutAuthority) throws {
 /// (the default) in place of `.hidden`, does paint the thumb. Without this,
 /// `hiddenEmitsNoIndicatorRect` could pass against a fixture that never
 /// draws an indicator regardless of the setting.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func automaticStillPaintsTheIndicatorInTheSameFixture(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func automaticStillPaintsTheIndicatorInTheSameFixture() throws {
     var view = ScrollView(.vertical, elementID: listID) {
         Box(style: fixedSize(120, 200))
     }
     let (frame, _) = fullyRendered(&view, width: 120, height: 100,
                                    stateTable: scrolledState(offset: 20, lastScrollTime: 100),
-                                   timestamp: 100,
-                                   authority: authority)
+                                   timestamp: 100)
     #expect(!frame.scene.rects.isEmpty,
             "the same fixture under `.automatic` (the default) must paint the thumb, or the test above proves nothing")
 }
@@ -874,13 +843,11 @@ func automaticStillPaintsTheIndicatorInTheSameFixture(_ authority: LayoutAuthori
 /// Driven through a real `Window`, matching
 /// `theIndicatorRequestsFramesWhileFadingAndStopsWhenDone` above — a bare
 /// `Frame` has no "stays idle" concept to fail.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true,
-                                               layoutAuthority: authority) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
         ScrollView(.vertical, elementID: listID) {
             Box(style: columnStyle()) {
                 Box(style: fixedHeight(40)); Box(style: fixedHeight(40))

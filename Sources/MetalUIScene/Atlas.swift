@@ -227,7 +227,7 @@ public final class GlyphAtlas {
     /// "not touched since."
     ///
     /// `precondition(!isBuildingFrame)` guards re-entry — the same shape as
-    /// `LayoutTree.beginLayout`'s guard against a nested `computeLayout` —
+    /// `LayoutTree.beginLayout`'s guard against a nested layout call —
     /// because a nested frame would advance `currentGeneration` out from under
     /// the outer one's in-flight slots.
     public func beginFrame() {

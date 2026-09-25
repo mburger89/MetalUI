@@ -6,14 +6,19 @@ import MetalUILayout
 @testable import MetalUI
 
 // Plan task 7, stage 1, lane 1 (`docs/superpowers/specs/2026-09-17-engine-replacement-design.md`
-// §6 lane 1; rulings LR-B, LR-C, LR-D): the per-frame layout authority, every legacy
-// registration site's own check, the element bounds log, and the differential
-// harness (`LayoutDifferential.swift`).
+// §6 lane 1; rulings LR-B, LR-C, LR-D): every legacy registration site's own
+// check, the element bounds log, and the harness root (`LayoutDifferential.swift`).
 //
 // **Red before**: every test here failed to compile before lane 1's
 // implementation (record §18, lane 1). The mutation each must redden is named in
 // its doc comment and in spec §6's lane-1 table; the record names what each
 // mutation actually reddened.
+//
+// **Stage 9** (record §51, rulings `LR-FE`, `LR-FF`): the layout authority is
+// deleted, so the tests of its default and of a window's authority, the custom
+// element's and the deprecated registrars' traps, `Frame`'s legacy backstop and
+// the harness's two-engine self-tests retired with it (rows 2–8); the file keeps
+// its name so the record's citations resolve.
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
 
@@ -27,57 +32,8 @@ private func child(_ parent: GlobalElementID, _ index: Int) -> GlobalElementID {
     GlobalElementID.child(of: parent, at: index, name: nil)
 }
 
-/// A custom element outside the stage-1 lowering table: it registers through the
-/// public legacy `requestNode`, which reports `customElement` (ruling LR-C).
-///
-/// **Spelled with the deprecated registrar on purpose since stage 6a** (record
-/// §38, disposition Dep, `LR-CV`): the public registrar is its subject, and a
-/// deprecated witness is not diagnosed at the call site.
-private struct CustomNodeElement: Element {
-    @available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: it is the subject of aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority and everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn, which read the customElement report (stage 6a, LR-CV)")
-    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.requestNode(style: Style(), children: []), ())
-    }
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                           pass: inout PrepaintPass) {}
-    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                        prepaint: inout Void, pass: inout PaintPass) {}
-}
-
-/// As `CustomNodeElement`, through the public legacy `requestLeaf`.
-private struct CustomLeafElement: Element {
-    @available(*, deprecated, message: "spelled with the deprecated legacy registrar on purpose: it is the subject of aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority and everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn, which read the customElement report (stage 6a, LR-CV)")
-    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.requestLeaf(style: Style()) { _, _ in SizeD(width: 10, height: 10) }, ())
-    }
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                           pass: inout PrepaintPass) {}
-    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                        prepaint: inout Void, pass: inout PaintPass) {}
-}
-
-/// A site that forgot its own check: it calls `Frame`'s internal legacy
-/// registrar directly, so under the proposal authority only `Frame`'s backstop
-/// stands between it and a legacy node (ruling LR-C). `leaf` picks
-/// `requestLeaf` over `requestNode`; `registered` receives the node it got back.
-private struct BackstopBypassElement: Element {
-    var leaf = false
-    var registered: (@MainActor (LayoutNodeID) -> Void)? = nil
-    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        let node = leaf
-            ? pass.frame.requestLeaf(style: Style()) { _, _ in SizeD(width: 10, height: 10) }
-            : pass.frame.requestNode(style: Style(), children: [])
-        registered?(node)
-        return (node, ())
-    }
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                           pass: inout PrepaintPass) {}
-    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                        prepaint: inout Void, pass: inout PaintPass) {}
-}
-
 /// A `Component` over proposal content, so its members register native nodes
-/// under either authority and a caller's `.width`/`.padding` reaches
+/// and a caller's `.width`/`.padding` reaches
 /// `StyledComponent`'s amend/wrap with nothing legacy inside it.
 private struct ProposalProbeComponent: Component, ProposalElementGroup {
     var content: some ProposalElementGroup { Rectangle(width: Pixels(10), height: Pixels(10)) }
@@ -87,266 +43,23 @@ private struct ProbeItem: Identifiable, Sendable { let id: Int }
 
 private func probeItems(_ n: Int) -> [ProbeItem] { (0..<n).map(ProbeItem.init) }
 
-/// Logs what `ProbeLeaf.onLayout` saw, one entry per frame built.
-@MainActor private final class AuthorityLog { var values: [Bool] = [] }
-
 private func field(_ site: LoweringSite, _ name: String) -> UnlowerableField {
     UnlowerableField(site: site, field: name)
 }
 
-/// The proposal frame's diagnostics for `make()` inside the harness root.
+/// The frame's diagnostics for `make()` inside the harness root.
 @MainActor
 private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () -> C) -> [UnlowerableField] {
-    LayoutDifferential.render(authority: .proposal, width: 100, height: 100, make).unlowerableFields
+    LayoutDifferential.render(width: 100, height: 100, make).unlowerableFields
 }
 
-// MARK: - 1.1, 1.2 — the authority
-
-/// **1.1.** Both defaults are `.proposal` (plan task 7, stage 6b, ruling
-/// `LR-DF`; stage 1's `.legacy` default, ruling LR-B, is what this test pinned
-/// until the switch, under the name `aFrameAndAWindowDefaultToTheLegacyAuthority`).
-/// One constant, `Frame.defaultLayoutAuthority`, is read by a bare `Frame` and by
-/// a `makeFakeWindow` window left at its default, and a frame built without
-/// diagnostics still traps rather than reports (`LR-DF` item 3; `Window` never
-/// passes `reportsUnlowerableFields`).
-///
-/// Red before: stage 6b lane 3's flip commit, with the stage-1 assertions
-/// (`frame.layoutAuthority == .legacy`, `window.layoutAuthority == .legacy`).
-/// Mutation that must redden it: **M3a**, `Frame.defaultLayoutAuthority` back to
-/// `.legacy` (record §41 §12 names what else it reddens).
-@MainActor
-@Test func aFrameAndAWindowDefaultToTheProposalAuthority() throws {
-    #expect(Frame.defaultLayoutAuthority == .proposal)
-    let frame = Frame(contentSize: Size(width: px(10), height: px(10)), scaleFactor: 1)
-    #expect(frame.layoutAuthority == .proposal)
-    #expect(frame.reportsUnlowerableFields == false)
-    #expect(frame.recordsElementBounds == false)
-    let device = try #require(MTLCreateSystemDefaultDevice())
-    let (window, _) = try makeFakeWindow(device: device) { ProbeLeaf(width: 10, height: 10) }
-    #expect(window.layoutAuthority == .proposal)
-}
-
-/// **1.2.** A `Window` builds each frame under its `layoutAuthority`, and a write
-/// marks the window dirty. A `ProbeLeaf` root logs `pass.lowersToProposal`.
-/// Since stage 6b the window starts at `.proposal`, so the writes run `.legacy`
-/// then `.proposal` (`LR-DF`); red before: the flip commit, with the stage-1
-/// order's `[false, true, false]`.
-///
-/// Mutation that must redden it: **M1b**, `Window` builds its `Frame` without
-/// passing the authority.
-@MainActor
-@Test func aWindowBuildsEveryFrameUnderItsLayoutAuthority() throws {
-    let log = AuthorityLog()
-    let device = try #require(MTLCreateSystemDefaultDevice())
-    let (window, _) = try makeFakeWindow(device: device) {
-        ProbeLeaf(width: 10, height: 10, onLayout: { log.values.append($0) })
-    }
-    window.drawFrameIfNeeded()
-    #expect(window.needsRedraw == false)
-    window.layoutAuthority = .legacy
-    #expect(window.needsRedraw == true, "a write to layoutAuthority must mark the window dirty")
-    window.drawFrameIfNeeded()
-    window.layoutAuthority = .proposal
-    window.drawFrameIfNeeded()
-    #expect(log.values == [true, false, true])
-}
-
-// MARK: - 1.3–1.5 — every site's own check
-
-/// **1.3** (exit test). A custom element's public legacy registrars trap under
-/// the proposal authority, naming `customElement` and the registrar (ruling LR-C).
-///
-/// Mutation that must redden it: **M1c**, the public forwarder's check removed
-/// (the message becomes the internal registrar's site-less one).
-@Test func aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority() async {
-    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var root = CustomNodeElement()
-            Frame(contentSize: Size(width: Pixels(50), height: Pixels(50)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
-        }
-    }
-    let nodeErr = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(nodeErr.contains("customElement.requestNode has no proposal lowering"),
-            "aborted, but not at the custom element's requestNode check:\n\(nodeErr)")
-
-    let leaf = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var root = CustomLeafElement()
-            Frame(contentSize: Size(width: Pixels(50), height: Pixels(50)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
-        }
-    }
-    let leafErr = String(decoding: leaf?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(leafErr.contains("customElement.requestLeaf has no proposal lowering"),
-            "aborted, but not at the custom element's requestLeaf check:\n\(leafErr)")
-}
-
-// MARK: - Stage 6a — the deprecated registrars (spec §8, rulings LR-CV, LR-CW, LR-CX)
-
-/// The nodes a `DeprecatedRegistrarRow` or `InternalRegistrarRow` registered, so
-/// the exit test can read their rects off the frame's tree.
-@MainActor private final class RegistrarLog {
-    var leaf: LayoutNodeID?
-    var node: LayoutNodeID?
-}
-
-/// The three registrations both stage 6a fixtures make: a 40×10 node, and a
-/// 200×100 root row aligned `flexStart` over the two children in registration
-/// order. The 30×20 leaf's measure is spelled at each call site.
-private func registrarNodeStyle() -> Style {
-    var style = Style()
-    style.size = Size(width: .length(.pixels(Pixels(40))), height: .length(.pixels(Pixels(10))))
-    return style
-}
-
-private func registrarRootStyle() -> Style {
-    var style = Style()
-    style.flexDirection = .row
-    style.alignItems = .flexStart
-    style.size = Size(width: .length(.pixels(Pixels(200))), height: .length(.pixels(Pixels(100))))
-    return style
-}
-
-/// **A custom element on the deprecated public registrars**, both of them, as a
-/// caller outside the package still spells one after stage 6a: a leaf through
-/// `requestLeaf`, a node and a root through `requestNode`. `leafFirst` picks
-/// which child registers first, so the trap half can name each registrar.
-private struct DeprecatedRegistrarRow: Element {
-    var leafFirst = true
-    var log: RegistrarLog?
-
-    @available(*, deprecated, message: "exercises the deprecated registrars on purpose: it is the subject of aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne (stage 6a, LR-CV)")
-    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        let children: [LayoutNodeID]
-        if leafFirst {
-            let leaf = pass.requestLeaf(style: Style()) { _, _ in SizeD(width: 30, height: 20) }
-            let node = pass.requestNode(style: registrarNodeStyle(), children: [])
-            log?.leaf = leaf
-            log?.node = node
-            children = [leaf, node]
-        } else {
-            let node = pass.requestNode(style: registrarNodeStyle(), children: [])
-            let leaf = pass.requestLeaf(style: Style()) { _, _ in SizeD(width: 30, height: 20) }
-            log?.leaf = leaf
-            log?.node = node
-            children = [node, leaf]
-        }
-        return (pass.requestNode(style: registrarRootStyle(), children: children), ())
-    }
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                           pass: inout PrepaintPass) {}
-    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                        prepaint: inout Void, pass: inout PaintPass) {}
-}
-
-/// `DeprecatedRegistrarRow`'s **oracle**: the same three registrations through
-/// `Frame`'s internal, undeprecated registrars — what the public pair forwards
-/// to under the legacy authority (`Passes.swift`).
-private struct InternalRegistrarRow: Element {
-    var log: RegistrarLog?
-
-    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        let leaf = pass.frame.requestLeaf(style: Style()) { _, _ in SizeD(width: 30, height: 20) }
-        let node = pass.frame.requestNode(style: registrarNodeStyle(), children: [])
-        log?.leaf = leaf
-        log?.node = node
-        return (pass.frame.requestNode(style: registrarRootStyle(), children: [leaf, node]), ())
-    }
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                           pass: inout PrepaintPass) {}
-    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                        prepaint: inout Void, pass: inout PaintPass) {}
-}
-
-/// **Stage 6a's exit test** (spec §8, `LR-CX`): the public `requestNode` and
-/// `requestLeaf`, deprecated, still lay out under the legacy authority exactly as
-/// `Frame`'s internal registrars do, and still trap under the proposal authority,
-/// naming the registrar and **stage 9** (`LR-CW`: a custom element is removed
-/// from the proposal authority, not lowered).
-///
-/// - **Legacy half.** A 200×100 `.legacy` frame over `DeprecatedRegistrarRow`
-///   and over its oracle `InternalRegistrarRow`: the two children's rects agree,
-///   and the `#require`s make the agreement non-vacuous (neither is 0×0, and they
-///   differ from each other). Hand-derived and confirmed by a run: the leaf at
-///   (0, 0) 30×20, the node after it at (30, 0) 40×10 — a `flexStart` row.
-/// - **Trap half.** Two child processes, each a **production** `.proposal`
-///   frame (no diagnostics): with the leaf registered first the process aborts
-///   naming `customElement.requestLeaf`, with the node first naming
-///   `customElement.requestNode`, both `(plan task 7, stage 9)`.
-///
-/// **Red before** (at lane 3's red-first commit): the trap half only — the
-/// message said `stage 6a` until `owningStage` moved. **The legacy half has no
-/// red-before**: it passes at `b3c29b9`, because the stage's change on the
-/// legacy path is the `@available` attribute, which only the plain-import guard
-/// `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` can see.
-///
-/// Mutations that must redden it (record §38 §10): **M3c**, the legacy
-/// `requestNode` forwarder registers `Style()` in place of `style` (legacy
-/// half); **M3d**, the legacy `requestLeaf` forwarder passes a 0×0 measure
-/// (legacy half); **M3e**, the proposal forwarder skips its report and calls
-/// `frame.requestNode` (trap half); **M3f**, `owningStage` for
-/// `.customElement` back to `"6a"` (trap half only).
-@Test func aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne() async throws {
-    typealias Rects = (leaf: LayoutRect, node: LayoutRect)
-    let (deprecated, oracle) = try await MainActor.run { () throws -> (Rects, Rects) in
-        @MainActor func rects(_ log: RegistrarLog, _ frame: Frame) throws -> Rects {
-            (frame.tree.layout(try #require(log.leaf)), frame.tree.layout(try #require(log.node)))
-        }
-        let deprecatedLog = RegistrarLog()
-        var deprecatedRoot = DeprecatedRegistrarRow(leafFirst: true, log: deprecatedLog)
-        let deprecatedFrame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
-                                    layoutAuthority: .legacy)
-        deprecatedFrame.render(&deprecatedRoot)
-
-        let oracleLog = RegistrarLog()
-        var oracleRoot = InternalRegistrarRow(log: oracleLog)
-        let oracleFrame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
-                                layoutAuthority: .legacy)
-        oracleFrame.render(&oracleRoot)
-        return (try rects(deprecatedLog, deprecatedFrame), try rects(oracleLog, oracleFrame))
-    }
-    try #require(oracle.leaf.width > 0 && oracle.leaf.height > 0 && oracle.node.width > 0 && oracle.node.height > 0,
-                 "the oracle's children must have a size, or equality is vacuous: \(oracle)")
-    try #require(oracle.leaf != oracle.node, "the oracle's two children must differ: \(oracle)")
-    #expect(deprecated.leaf == oracle.leaf,
-            "the deprecated requestLeaf must register what Frame.requestLeaf does: \(deprecated.leaf) vs \(oracle.leaf)")
-    #expect(deprecated.node == oracle.node,
-            "the deprecated requestNode must register what Frame.requestNode does: \(deprecated.node) vs \(oracle.node)")
-    #expect(oracle.leaf == LayoutRect(x: 0, y: 0, width: 30, height: 20), "oracle leaf \(oracle.leaf)")
-    #expect(oracle.node == LayoutRect(x: 30, y: 0, width: 40, height: 10), "oracle node \(oracle.node)")
-
-    let leaf = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var root = DeprecatedRegistrarRow(leafFirst: true)
-            Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
-        }
-    }
-    let leafErr = String(decoding: leaf?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(leafErr.contains("MetalUI: customElement.requestLeaf has no proposal lowering (plan task 7, stage 9)"),
-            "aborted, but not at the deprecated requestLeaf's stage 9 report:\n\(leafErr)")
-
-    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var root = DeprecatedRegistrarRow(leafFirst: false)
-            Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
-        }
-    }
-    let nodeErr = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(nodeErr.contains("MetalUI: customElement.requestNode has no proposal lowering (plan task 7, stage 9)"),
-            "aborted, but not at the deprecated requestNode's stage 9 report:\n\(nodeErr)")
-}
-
-
-/// **1.4** (exit test). A modified `Component` in a **production** proposal
-/// frame completes — `EXIT_SUCCESS` and an empty stderr — where before stage
+/// **1.4** (exit test). A modified `Component` in a **production** frame
+/// completes — `EXIT_SUCCESS` and an empty stderr — where before stage
 /// 3's lane 4 it aborted on `component.amend` (`LR-BO`). Both ops, in both
 /// orders, in one frame.
 ///
-/// **Why it is a child process.** `Frame(…, layoutAuthority: .proposal)`
-/// without `reportsUnlowerableFields` traps rather than reports, so a
+/// **Why it is a child process.** A `Frame` without `reportsUnlowerableFields`
+/// traps rather than reports, so a
 /// regression here ends the whole run with no summary line (spec §6). In a
 /// child it reddens this test by name instead.
 ///
@@ -370,11 +83,16 @@ private struct InternalRegistrarRow: Element {
 ///   `list.noLowering has no proposal lowering` and **not** to mention `box.`,
 ///   which pinned that the site's own check ran before the `Box` it builds.
 ///   `List` lowers now, so that abort cannot happen; its replacement is
-///   `aLoweredListAgreesWithTheLegacyEngineOnEveryWindowedShape` and
+///   `aLoweredListLaysOutEveryWindowedShape` and
 ///   `theListSiteReportsNothingAndItsRowsItemFieldsAreLowered` in
 ///   `ListLoweringTests.swift`. The general claim the arm carried — that a site
-///   that skips its own check is caught rather than lowering silently — is
-///   `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop`'s, below.
+///   that skips its own check is caught rather than lowering silently — was
+///   `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop`'s, retired at stage 9
+///   with the backstop (record §51, lane 1 row 8).
+///
+/// **Stage 9**: its absence check of `SA-G`'s `setStyle` message is dropped — lane
+/// 3 deletes that precondition with `LayoutTree.setStyle`, so the check could
+/// never fail; the `.success` exit is what sees any trap.
 @Test func aComponentAmendDoesNotTrapUnderTheProposalAuthority() async {
     let amend = await #expect(processExitsWith: .success,
                               observing: [\.standardOutputContent, \.standardErrorContent]) {
@@ -384,8 +102,7 @@ private struct InternalRegistrarRow: Element {
                 ProposalProbeComponent().padding(Pixels(4)).width(Pixels(70))
                 ProposalProbeComponent().width(Pixels(70)).padding(Pixels(4))
             }
-            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1).render(&root)
             FileHandle.standardOutput.write(Data("AMEND-BUILT\n".utf8))
         }
     }
@@ -394,9 +111,7 @@ private struct InternalRegistrarRow: Element {
     #expect(amendOut.contains("AMEND-BUILT\n"),
             "the production proposal frame did not finish:\nstdout \(amendOut)\nstderr \(amendErr)")
     #expect(!amendErr.contains("has no proposal lowering"),
-            "a component op still reports under the proposal authority:\n\(amendErr)")
-    #expect(!amendErr.contains("setStyle on a native layout node"),
-            "the amend reached SA-G's setStyle precondition:\n\(amendErr)")
+            "a component op still reports:\n\(amendErr)")
 }
 
 /// **1.5.** With diagnostics on, every legacy site reports `(site, field)` by
@@ -456,8 +171,16 @@ private struct InternalRegistrarRow: Element {
 /// trap message and for whatever field a later stage puts on it, and these two
 /// arms are what would notice a regression that made either op report again.
 /// The amend arm stays a **child process** for the reason above: in-process a
-/// regression that removed the branch entirely reaches `SA-G`'s `setStyle`
-/// precondition and ends the whole run with no summary line.
+/// regression that removed the branch entirely reached `SA-G`'s `setStyle`
+/// precondition and ended the whole run with no summary line.
+///
+/// **Stage 9** (record §51, lane 1; `LR-FF`): the two `customElement` arms go
+/// with the site and the public registrars (lane 3 deletes both; a plain-import
+/// caller of the registrars is pinned by the re-spelled guard G6a), and the
+/// `deferred` arm — a bordered root over a presentation, which reported
+/// `deferred.containingBlock` — goes with that report (`LR-FF`; `LR-FI`: lane 3
+/// cannot edit this file, and its N3.1 carries the same tree's new answer, the
+/// window rect with nothing reported). Eleven arms become nine.
 ///
 /// Mutations that must redden it: **M1e**, `ScrollView`'s record dropped;
 /// **M1e′**, `List`'s check moved after its `Box` is built (row boxes appear);
@@ -468,7 +191,7 @@ private struct InternalRegistrarRow: Element {
 @Test func everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn() async throws {
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
     var arms: [Arm] = []
-    arms.append(("Box", diagnostics { Box().width(px(10)).height(px(10)).position(.relative) },
+    arms.append(("Box", diagnostics { Box().cssWidth(px(10)).cssHeight(px(10)).position(.relative) },
                  [field(.box, "position")]))
     arms.append(("Stack", diagnostics { Stack { ProbeLeaf(width: 10, height: 10) }.position(.relative) },
                  [field(.stack, "position")]))
@@ -487,8 +210,8 @@ private struct InternalRegistrarRow: Element {
                  [field(.modifierLayer, "position"), field(.modifierLayer, "inset")]))
     arms.append(("ScrollView", diagnostics {
         ScrollView {
-            Box().width(px(10)).height(px(10)).flexGrow(1)
-            Box().width(px(10)).height(px(10)).flexGrow(2)
+            Box().cssWidth(px(10)).cssHeight(px(10)).flexGrow(1)
+            Box().cssWidth(px(10)).cssHeight(px(10)).flexGrow(2)
         }
     }, [field(.scrollView, "flexGrow.weights")]))
     // **An ABSENCE arm since stage 4's lane 2** (§4.2(d), `LR-BV` as amended),
@@ -512,7 +235,7 @@ private struct InternalRegistrarRow: Element {
     let amendChild = await #expect(processExitsWith: .success,
                                    observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {
-            let entries = LayoutDifferential.render(authority: .proposal, width: 100, height: 100) {
+            let entries = LayoutDifferential.render(width: 100, height: 100) {
                 ProposalProbeComponent().width(Pixels(70))
             }.unlowerableFields
             FileHandle.standardOutput.write(Data("AMEND-ENTRIES \(entries)\n".utf8))
@@ -523,90 +246,18 @@ private struct InternalRegistrarRow: Element {
     #expect(amendOut.contains("AMEND-ENTRIES []\n"),
             "Component amend: stdout \(amendOut)\nstderr \(amendErr)")
     arms.append(("Component wrap", diagnostics { ProposalProbeComponent().padding(px(4)) }, []))
-    arms.append(("custom requestNode", diagnostics { CustomNodeElement() },
-                 [field(.customElement, "requestNode")]))
-    arms.append(("custom requestLeaf", diagnostics { CustomLeafElement() },
-                 [field(.customElement, "requestLeaf")]))
-    try #require(arms.count == 12)
+    try #require(arms.count == 10)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
-    }
-    // **Stage 5, lane 1 (`LR-CL`): site `deferred`.** Its entries are raised in
-    // `Frame.computeRootLayout` against the ROOT's record, so this arm renders
-    // the tree as the frame's root rather than under the harness root (whose
-    // native node has no record and is the window by construction). Compared by
-    // description so the arm compiled before `LoweringSite.deferred` existed.
-    // Mutation that must redden it: **M1i**, the containing-block check deleted.
-    var bordered = Style()
-    bordered.border = Edges(all: .pixels(px(4)))
-    var presentationRoot = Box(style: bordered) {
-        Deferred {
-            Box().width(px(10)).height(px(10)).position(.absolute)
-                .inset(Edges(top: .length(.pixels(px(5))), right: .auto, bottom: .auto,
-                             left: .length(.pixels(px(5)))))
-        }
-    }
-    let presentationFrame = Frame(contentSize: Size(width: px(200), height: px(100)), scaleFactor: 1,
-                                  layoutAuthority: .proposal, reportsUnlowerableFields: true)
-    presentationFrame.render(&presentationRoot)
-    #expect(presentationFrame.unlowerableFields.map(\.description) == ["deferred.containingBlock"],
-            "Deferred (a bordered root over a presentation): \(presentationFrame.unlowerableFields)")
-}
-
-/// **1.5b** (exit test for the production half). `Frame`'s internal legacy
-/// registrars are a backstop under the proposal authority (ruling LR-C): a site
-/// that bypasses its own check and calls `Frame.requestNode`/`requestLeaf`
-/// directly traps with the site-less backstop message in production; under
-/// diagnostics it gets a native 0×0 leaf and records **nothing**, so
-/// `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` sees the missing entry.
-///
-/// Mutation that must redden it: **M1n**, the backstop guard removed from
-/// `Frame.requestNode` (the legacy node is registered; no trap, and the
-/// diagnostics arm's node is not native) — lane-1 verifier finding: that mutation
-/// left the suite green.
-@Test func aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop() async throws {
-    let node = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var root = BackstopBypassElement()
-            Frame(contentSize: Size(width: Pixels(50), height: Pixels(50)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
-        }
-    }
-    let nodeErr = String(decoding: node?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(nodeErr.contains("Frame.requestNode reached under the proposal layout authority"),
-            "aborted, but not at the requestNode backstop:\n\(nodeErr)")
-
-    let leaf = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var root = BackstopBypassElement(leaf: true)
-            Frame(contentSize: Size(width: Pixels(50), height: Pixels(50)), scaleFactor: 1,
-                  layoutAuthority: .proposal).render(&root)
-        }
-    }
-    let leafErr = String(decoding: leaf?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(leafErr.contains("Frame.requestLeaf reached under the proposal layout authority"),
-            "aborted, but not at the requestLeaf backstop:\n\(leafErr)")
-
-    try await MainActor.run {
-        for leaf in [false, true] {
-            var got: [LayoutNodeID] = []
-            var root = BackstopBypassElement(leaf: leaf, registered: { got.append($0) })
-            let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(50)), scaleFactor: 1,
-                              layoutAuthority: .proposal, reportsUnlowerableFields: true)
-            frame.render(&root)
-            try #require(got.count == 1)
-            #expect(frame.tree.isNativeLayoutNode(got[0]), "leaf: \(leaf)")
-            #expect(frame.unlowerableFields.isEmpty, "leaf: \(leaf): \(frame.unlowerableFields)")
-        }
     }
 }
 
 // MARK: - 1.6, 1.7 — the element bounds log
 
-/// **1.6.** Under the legacy authority the log holds the root (recorded by
+/// **1.6.** The log holds the root (recorded by
 /// `Frame.render`), every group member (`Element.prepaintGroup`) and every inner
 /// `ModifiedElement` layer (`prepaintLayer`), at the rects below, derived by hand:
-/// the root fills the 200×100 frame (divergence 4); a top-leading `Stack` places
+/// the root fills the 200×100 frame; a top-leading `Stack` places
 /// its children at (0, 0); `.padding(4).padding(8)` over a 30×40 `Box` is an
 /// outermost 8pt layer 54×64 at (0, 0), an inner 4pt layer 38×48 at (8, 8), and
 /// the `Box` at (12, 12).
@@ -616,13 +267,14 @@ private struct InternalRegistrarRow: Element {
 ///
 /// Stage 6b (`LR-DG`, R-fill): the root declares the 200×100 frame's extent on
 /// its two auto axes — what divergence 4 gave the legacy root, now spelled — so
-/// the rects above hold under both authorities.
+/// the rects above held under both authorities until stage 9 deleted the legacy
+/// one.
 @MainActor
 @Test func theElementBoundsLogRecordsTheRootEveryGroupMemberAndEveryInnerModifierLayer() throws {
     var root = Stack(alignment: .topLeading) {
-        Box().width(px(20)).height(px(10))
-        Box().width(px(30)).height(px(40)).padding(px(4)).padding(px(8))
-    }.width(px(200)).height(px(100))
+        Box().cssWidth(px(20)).cssHeight(px(10))
+        Box().cssWidth(px(30)).cssHeight(px(40)).padding(px(4)).padding(px(8))
+    }.cssWidth(px(200)).cssHeight(px(100))
     let frame = Frame(contentSize: Size(width: px(200), height: px(100)), scaleFactor: 1,
                       recordsElementBounds: true)
     frame.render(&root)
@@ -647,8 +299,8 @@ private struct InternalRegistrarRow: Element {
 @Test func theElementBoundsLogIsEmptyUnlessRequested() throws {
     func tree() -> Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>> {
         Stack(alignment: .topLeading) {
-            Box().width(px(20)).height(px(10))
-            Box().width(px(30)).height(px(40))
+            Box().cssWidth(px(20)).cssHeight(px(10))
+            Box().cssWidth(px(30)).cssHeight(px(40))
         }
     }
     var quiet = tree()
@@ -662,93 +314,18 @@ private struct InternalRegistrarRow: Element {
     #expect(quietFrame.elementBounds.isEmpty)
 }
 
-// MARK: - 1.8–1.10 — the differential harness
-
-/// **1.8.** Three `ProbeLeaf`s, the second answering one point wider under the
-/// proposal authority only: exactly that element disagrees, at exactly those
-/// rects, and the root and the other two agree.
-///
-/// Mutation that must redden it: **M1i**, `compare` renders the legacy authority twice.
-@MainActor
-@Test func theDifferentialHarnessSeesAOnePointDisagreementAtExactlyThatElement() throws {
-    let report = LayoutDifferential.compare(width: 100, height: 60) {
-        ProbeLeaf(width: 10, height: 10)
-        ProbeLeaf(width: 20, height: 20, proposalWidthOffset: 1)
-        ProbeLeaf(width: 30, height: 5)
-    }
-    try #require(report.elements == 4)
-    #expect(report.unlowerable.isEmpty)
-    #expect(report.legacyOnly.isEmpty && report.loweredOnly.isEmpty)
-    #expect(Set(report.agreeing) == [rootID, child(rootID, 0), child(rootID, 2)])
-    try #require(report.disagreeing.count == 1)
-    #expect(report.disagreeing[0].id == child(rootID, 1))
-    #expect(report.disagreeing[0].legacy == bounds(0, 0, 20, 20))
-    #expect(report.disagreeing[0].lowered == bounds(0, 0, 21, 20))
-}
-
-/// **1.9.** The four whole-frame comparisons, each shown able to read `false` by
-/// an arm that differs in exactly that observation:
-///
-/// - (a) a clickable, labelled leaf 5pt wider under the proposal authority: the
-///   scene, the hitboxes and the accessibility records (their geometry) differ;
-///   the state slots do not;
-/// - (b) the same leaf unoffset, minting a `$probe` state entry only under the
-///   proposal authority: only the state slots differ;
-/// - (c) unoffset, no extra entry: all four agree;
-/// - (d) two unoffset leaves, the first painted on a raised layer under the
-///   proposal authority only: the emitted rect bytes are identical, and only the
-///   finalized scene (the order the GPU receives) differs, so only the scenes
-///   differ (verifier finding, lane 1: the comparison read emission bytes only).
-///
-/// Mutations that must redden it: **M1j**, the hitbox comparison returns `true`
-/// (arm a); **M1l**, `stateSlotsEqual` returns `true` (arm b); **M1m**, the scene
-/// comparison reads emission bytes only (arm d).
-@MainActor
-@Test func theDifferentialHarnessComparesPaintHitboxesAccessibilityAndState() throws {
-    let a = LayoutDifferential.compare(width: 100, height: 60) {
-        ProbeLeaf(width: 20, height: 10, proposalWidthOffset: 5, clickable: true)
-    }
-    #expect(a.scenesEqual == false)
-    #expect(a.hitboxesEqual == false)
-    #expect(a.accessibilityEqual == false)
-    #expect(a.stateSlotsEqual == true)
-
-    let b = LayoutDifferential.compare(width: 100, height: 60) {
-        ProbeLeaf(width: 20, height: 10, clickable: true, mintsProbeStateUnder: .proposal)
-    }
-    #expect(b.scenesEqual == true)
-    #expect(b.hitboxesEqual == true)
-    #expect(b.accessibilityEqual == true)
-    #expect(b.stateSlotsEqual == false)
-
-    let c = LayoutDifferential.compare(width: 100, height: 60) {
-        ProbeLeaf(width: 20, height: 10, clickable: true)
-    }
-    #expect(c.scenesEqual == true)
-    #expect(c.hitboxesEqual == true)
-    #expect(c.accessibilityEqual == true)
-    #expect(c.stateSlotsEqual == true)
-    #expect(c.disagreeing.isEmpty)
-
-    let d = LayoutDifferential.compare(width: 100, height: 60) {
-        ProbeLeaf(width: 20, height: 10, paintsOnRaisedLayerUnder: .proposal)
-        ProbeLeaf(width: 30, height: 5)
-    }
-    #expect(d.scenesEqual == false)
-    #expect(d.hitboxesEqual == true)
-    #expect(d.accessibilityEqual == true)
-    #expect(d.stateSlotsEqual == true)
-    #expect(d.disagreeing.isEmpty)
-}
-
 /// **1.10.** `DifferentialRoot` sits at (0, 0) at its declared size and places
-/// fixed children top-leading at their own size under both authorities (spec
-/// §5.3: fixed children only, because the root's own offer differs, divergence 53).
+/// fixed children top-leading at their own size (spec §5.3).
 ///
-/// Mutation that must redden it: **M1k**, the proposal-side root aligned `.center`.
+/// Mutation that must redden it: **M1k**, the root's native frame aligned
+/// `.center`.
+///
+/// **Renamed at stage 9** from
+/// `theDifferentialRootPlacesItsContentTopLeadingAtItsSizeUnderBothAuthorities`
+/// (`LR-FE` item 6); its legacy-side assertion went with the legacy root.
 @MainActor
-@Test func theDifferentialRootPlacesItsContentTopLeadingAtItsSizeUnderBothAuthorities() throws {
-    let report = LayoutDifferential.compare(width: 120, height: 80) {
+@Test func theDifferentialRootPlacesItsContentTopLeadingAtItsSize() throws {
+    let report = LayoutDifferential.report(width: 120, height: 80) {
         ProbeLeaf(width: 30, height: 20)
         ProbeLeaf(width: 50, height: 10)
     }
@@ -758,7 +335,6 @@ private struct InternalRegistrarRow: Element {
         child(rootID, 0): bounds(0, 0, 30, 20),
         child(rootID, 1): bounds(0, 0, 50, 10),
     ]
-    #expect(report.legacyBounds == expected)
-    #expect(report.loweredBounds == expected)
+    #expect(report.bounds == expected)
     #expect(report.unlowerable.isEmpty)
 }

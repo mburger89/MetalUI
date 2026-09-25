@@ -50,7 +50,7 @@ public protocol ElementGroup {
 
     /// Registers every member's nodes, in order, and returns them flattened.
     ///
-    /// The order is the order the container will hand to `requestNode`, and is
+    /// The order is the order the container will hand to its registrar, and is
     /// therefore the flex order — so it must match source order.
     ///
     /// `cursor` is the container's **flat** child index, threaded rather than
@@ -171,8 +171,9 @@ extension Element {
                                     prepaint: inout PrepaintState,
                                     pass: inout PaintPass) {
         // A lowered `hidden()` paints nothing, and nothing inside it paints (stage 6b,
-        // ruling `LR-DH` item 2; probe V1). **`hiddenNodes` only**: the legacy path
-        // keeps painting a `display: none` subtree exactly as before (1.6).
+        // ruling `LR-DH` item 2; probe V1). **`hiddenNodes` only**: until stage 9
+        // the legacy path kept painting a `display: none` subtree as before (1.6);
+        // that path is deleted (`LR-FC`), so every hidden node is in `hiddenNodes`.
         guard !pass.frame.hiddenNodes.contains(layout.node) else { return }
         // Same reason as `prepaintGroup` above — paint is a third phase and the
         // box is still whatever the last `bind` left it.
@@ -682,14 +683,14 @@ extension AnyElement: ElementGroup {
         // `Element.prepaintGroup` records it: this group entry is a copy of that
         // default, and lane 1's log missed it, so the differential harness could
         // not see an erased element until lane 5's corpus put one in (record §18,
-        // lane 5; pinned by `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`).
+        // lane 5; pinned by `theStageOneCorpusLowersWithNoDiagnostic`).
         pass.frame.recordElementBounds(layout.id, pass.bounds(of: layout.node))
         // Stage 6b (ruling `LR-DH` item 4): `Element.prepaintGroup`'s hidden gates,
         // mirrored — accessibility suppressed and hitboxes under the pointer-disable
         // scope for a node in `Frame.hiddenNodes`. **`hiddenNodes` only, not
         // `isHidden`**: this entry never had the legacy `display: none` suppression
-        // (record §18), and adding it would be a legacy production change with pins
-        // of its own; the legacy path is deleted at stage 9.
+        // (record §18); since stage 9 deleted the legacy path, `isHidden` reads
+        // `hiddenNodes` alone and the two are the same set.
         guard pass.frame.hiddenNodes.contains(layout.node) else {
             prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
             return

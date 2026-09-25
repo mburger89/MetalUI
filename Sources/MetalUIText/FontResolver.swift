@@ -127,12 +127,12 @@ public enum FontResolver {
     }
 
     /// Counts calls to ``resolve(family:size:)`` made while the calling task
-    /// has a ``CallCounter`` bound to ``resolveCallCounter`` — the same
-    /// instrument, for the same reasons, as `Shaper.RunCallCounter`: a
+    /// has a ``CallCounter`` bound to ``resolveCallCounter`` — the instrument
+    /// `Shaper.RunCallCounter` was until stage 9 deleted it (`LR-FD`): a
     /// `@TaskLocal` rather than a static, because this function is called from
     /// nonisolated tests the runner schedules concurrently, and a shared
-    /// counter would describe two callers instead of one. See that type's doc
-    /// comment for the race that forced the shape.
+    /// counter would describe two callers instead of one (a race measured on
+    /// that counter; its doc is in `UnbreakableRuns.swift`'s git history).
     final class CallCounter: @unchecked Sendable {
         private let lock = NSLock()
         private var n = 0

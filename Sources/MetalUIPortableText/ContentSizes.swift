@@ -2,8 +2,10 @@ extension PortableText {
     /// `text` split after every UAX #14 break opportunity, trailing whitespace
     /// trimmed from each piece and empty pieces dropped — the runs a line
     /// breaker may not break inside. The portable counterpart of
-    /// `Shaper.unbreakableRuns(of:)` (TX-F), with libunibreak's opportunities
-    /// (``lineBreaks(in:)``) where that uses `CFStringTokenizer`'s.
+    /// `Shaper.unbreakableRuns(of:)` (TX-F; deleted from `MetalUIText` at stage
+    /// 9, `LR-FD`, and kept as `ContentSizeOracleTests`' reference), with
+    /// libunibreak's opportunities (``lineBreaks(in:)``) where that uses
+    /// `CFStringTokenizer`'s.
     ///
     /// An empty string yields no runs.
     public static func unbreakableRuns(of text: String) -> [String] {
@@ -21,7 +23,8 @@ extension PortableText {
 
     /// CSS's min-content width: the widest unbreakable run, each shaped on a
     /// line of its own (TX-F) — what `ShapingCache.minContentWidth(_:font:)`
-    /// answers on Apple platforms.
+    /// answered on Apple platforms until stage 9 (`LR-FD`). Library API; no
+    /// framework path calls it since.
     public static func minContentWidth(_ text: String, font: PortableFont) throws -> Double {
         try unbreakableRuns(of: text).reduce(0) { widest, run in
             max(widest, try maxContentWidth(run, font: font))

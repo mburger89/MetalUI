@@ -122,8 +122,7 @@ private struct TimestampRecorder: Element, StyledElement {
     // discarded window is deallocated immediately and `simulateTick` below
     // fires into a nil `self` — no render, no recorded timestamps, and a test
     // that fails fast for a reason unrelated to what it claims to check.
-    let (window, platformWindow) = try makeFakeWindow(device: device, startsDisplayLink: true,
-                                                      layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, startsDisplayLink: true) {
         Row {
             TimestampRecorder(elementID: ElementID("a"), seen: seen)
             TimestampRecorder(elementID: ElementID("b"), seen: seen)

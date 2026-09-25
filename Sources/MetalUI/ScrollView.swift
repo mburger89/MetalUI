@@ -108,51 +108,21 @@ public struct ScrollContext: Sendable, Equatable {
 /// writes into, the way `Column.init` writes `alignItems` without `Style`'s
 /// default moving (ruling EP-8).
 ///
-/// **Two layout nodes, and the reason is measured rather than assumed.** A
-/// viewport node takes the offered size; a content node inside it overflows.
-/// Five 40pt rows in a 200×100 viewport, probed against the real engine:
+/// **Two layout nodes**: a content node — stage 2's container lowering, so its
+/// children's stretch, grow, margins, gaps and `justifyContent` lower as under
+/// any other container — inside the kernel's scroll viewport, which answers its
+/// proposal on the scrolling axis and its content's answer on the other and
+/// places the content at its own answer (`CN-M`, `CN-F`, ruling `LR-BC`). See
+/// `loweredLayout(_:children:inner:pass:)`.
 ///
-/// | content node | height | overflows |
-/// |---|---|---|
-/// | `min-height: auto` (default), `flexShrink: 0` | 200 | yes |
-/// | `min-height: auto` (default), `flexShrink` default | 200 | yes |
-/// | `min-height: 0`, `flexShrink: 0` | 200 | yes |
-/// | `min-height: 0`, `flexShrink` default | **100** | **no** |
-///
-/// **CSS Sizing §4.5's automatic minimum is what overflows this content node**
-/// — `min-height: auto` floors it at its content size, divergence FS-3's
-/// mechanism — and rows one and two show `flexShrink` cannot be *substituted*
-/// for it: with the automatic minimum in place, both spellings overflow.
-///
-/// **Those four rows are true and the conclusion once drawn from them was
-/// not.** They were read as "`flexShrink` matters only in row four, row four
-/// is unreachable through this type, therefore `flexShrink: 0` is inert here",
-/// and the line was deleted on that argument. The rows cannot support it,
-/// because every one of them is measured on fixed-height `Box`es — content
-/// whose **min-content and max-content sizes are the same number**. That is
-/// exactly the corpus-uniformity hazard CLAUDE.md records about the 61
-/// empty-div fixtures, reproduced in a four-row probe.
-///
-/// **`flexShrink: 0` is load-bearing whenever the content's intrinsic sizes
-/// differ — which is any content holding text.** The automatic minimum floors
-/// this node at **min-content**; its flex base size is **max-content**. Where
-/// those differ, the freeze loop shrinks the node down from the base size
-/// towards the floor, and only `flexShrink = 0` stops it. Measured through
-/// this type:
-///
-/// | probe | line deleted | line present |
-/// |---|---|---|
-/// | `ScrollView(.horizontal) { Text(…); Text(…) }` in 200pt | content **200** == viewport: nothing to scroll, indicator suppressed | content **507.8** |
-/// | `ScrollView(.vertical) { 5 × Text(…) }` in 200×40 | content **80**: half the list unreachable | content **160** |
-///
-/// `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport`
-/// (`Tests/MetalUITests/ScrollViewTests.swift`) is the pin, with CoreText as
-/// its oracle; deleting the line reddens exactly it. The engine mechanism the
-/// four-row table *does* isolate — that `flexShrink: 0` also holds a node open
-/// once an explicit zero minimum has removed the automatic one — stays pinned
-/// independently of this type by
-/// `flexShrinkHoldsAContentNodeOpenOnceItsAutomaticMinimumIsRemoved`
-/// (`Tests/MetalUILayoutTests/ScrollLayoutTests.swift`).
+/// **History.** Until stage 9 (`LR-FC`) a legacy branch registered the same two
+/// nodes on the CSS flex engine, where the content node overflowed by CSS
+/// Sizing §4.5's automatic minimum and needed `flexShrink: 0` to stop the freeze
+/// loop shrinking text content from max-content towards min-content (measured:
+/// 507.8 against 200 in a 200-point horizontal viewport). The kernel viewport
+/// has no freeze loop; `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport`
+/// (`ScrollViewTests.swift`) still pins the answer; the measurements are in
+/// this doc's git history (before `LR-FC`).
 ///
 /// **Scroll position is `StateTable` state, so it inherits §4.3's adoption
 /// rule**: a `ScrollView` inside a vanishing `if` hands its offset to the
@@ -276,69 +246,18 @@ public struct ScrollView<Content: ElementGroup>: Element {
             content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         }
 
-        // The lowered branch (plan task 7, stage 3, ruling LR-BB): the same two
-        // nodes in the same order under the same ids, registered on the kernel.
-        // The content node goes through stage 2's container lowering whole, so
-        // its children's stretch, grow, margins, gaps and `justifyContent` are
-        // lowered exactly as they are under any other container; the viewport is
-        // the kernel's own scroll viewport, which answers its proposal on the
-        // scrolling axis and its content's answer on the other (`CN-M`, `CN-F`,
-        // ruling LR-BC). See `loweredLayout(_:children:inner:pass:)`.
-        if pass.lowersToProposal {
-            return loweredLayout(id, children: children, inner: inner, pass: &pass)
-        }
-
-        var contentStyle = Style()
-        contentStyle.flexDirection = axis == .vertical ? .column : .row
-        // **Load-bearing, and for content whose min-content and max-content
-        // widths DIFFER — i.e. anything with text in it.** The automatic
-        // minimum floors this node at its *min-content* size; its flex base
-        // size is *max-content*. Where those differ the freeze loop shrinks
-        // the node from the latter towards the former, and only
-        // `flexShrink = 0` stops it. Measured through this type: a
-        // horizontal `ScrollView` of two `Text`s in a 200pt viewport gives a
-        // content node of 200 (== viewport, nothing to scroll) without this
-        // line and 508 with it. See the type doc.
-        contentStyle.flexShrink = 0
-        // M4 spec 3 §5: `ScrollView` registers TWO nodes from one element id,
-        // so passing `id` itself to `animated(_:_:for:)` twice would collide
-        // both nodes' fields under the identical `$anim` retention slot
-        // (`animRetentionSlot(for:)` derives one slot per id, not per call).
-        // A named child id per node — on the same collision footing as
-        // `$state`, `$focus` and `$ax` — keeps them apart. Note the SHAPE:
-        // these two are id PREFIXES, not slots. `animated(...)` derives
-        // `animRetentionSlot(for:)` from whatever id it is handed, so the
-        // stored value ends up at `child(child(id, "$anim-content"),
-        // "$anim")` — a grandchild — and nothing is ever stored at
-        // `$anim-content` itself. `ScrollView` has no
-        // `Decoration` of its own (see `cornerRadius`'s doc above), so a
-        // fresh, discarded one is passed through and back. The two derived
-        // ids are shared functions (`AnimatedStyle.swift`), not inlined here
-        // — see that file's own doc for why a copy would leave a rename
-        // uncaught.
-        (contentStyle, _) = animated(contentStyle, Decoration(), for: scrollViewContentAnimID(for: id),
-                                     pass: &pass)
-        let contentNode = pass.frame.requestNode(style: contentStyle, children: children)
-
-        var viewportStyle = Style()
-        viewportStyle.flexDirection = axis == .vertical ? .column : .row
-        // Written for the model's sake. The engine reads `overflow` nowhere
-        // today — measured: removing this line moved no number in the layout
-        // probe — so it documents intent rather than driving behaviour. See
-        // CLAUDE.md's declared-but-inert table.
-        viewportStyle.overflow = Axes(both: .scroll)
-        (viewportStyle, _) = animated(viewportStyle, Decoration(), for: scrollViewViewportAnimID(for: id),
-                                      pass: &pass)
-        let node = pass.frame.requestNode(style: viewportStyle, children: [contentNode])
-
-        return (node, Layout(node: node, contentNode: contentNode, inner: inner))
+        // Plan task 7, stage 3, ruling LR-BB: two nodes in a fixed order under
+        // fixed ids, registered on the kernel — see
+        // `loweredLayout(_:children:inner:pass:)`.
+        return loweredLayout(id, children: children, inner: inner, pass: &pass)
     }
 
-    /// `requestLayout`'s proposal-authority branch (plan task 7, stage 3, ruling
-    /// `LR-BB`), split out only for length. `children` are the content's already
-    /// registered nodes and `inner` its group layout; both come from the shared
+    /// `requestLayout`'s registration (plan task 7, stage 3, ruling `LR-BB`),
+    /// split out only for length. `children` are the content's already
+    /// registered nodes and `inner` its group layout; both come from the
     /// `withScrollContext` build above, so the ids, the `@State` slots and the
-    /// published `ScrollContext` are the legacy branch's (`LR-BF`).
+    /// published `ScrollContext` are the ones the legacy branch had until stage
+    /// 9 (`LR-BF`).
     ///
     /// **The content node is stage 2's container lowering, entire.** It goes
     /// through `lowerLegacyNode` at site `scrollView` rather than straight to
@@ -352,9 +271,9 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// `scrollView.flexGrow.weights` (ruling `LR-BM`).
     ///
     /// **`flexShrink: 0` is deliberately NOT carried.** Under the legacy engine
-    /// that line stops the freeze loop shrinking the content node from its
-    /// max-content flex base towards its min-content floor (the type doc
-    /// measures it: 200 against 508). The kernel viewport has no freeze loop — it
+    /// (until stage 9) that line stopped the freeze loop shrinking the content
+    /// node from its max-content flex base towards its min-content floor (the
+    /// type doc's history: 200 against 508). The kernel viewport has no freeze loop — it
     /// measures its content with the scrolling axis unspecified and places it at
     /// its own answer — so the line has no counterpart here. It is not merely
     /// pointless: with the content record left unconsumed (below), carrying it
@@ -378,7 +297,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// declared `Style()` (this element has no modifier surface), the animated
     /// viewport style for its values, `kind: .leaf`, content alignment
     /// `.topLeading` — so a lowered container above it stretches or grows it
-    /// exactly as the legacy flex line did, through the item frame stage 2
+    /// exactly as the legacy flex line did until stage 9, through the item frame stage 2
     /// registers and the rect alias that reports it.
     private mutating func loweredLayout(_ id: GlobalElementID, children: [LayoutNodeID],
                                         inner: Content.GroupLayout,
@@ -397,8 +316,8 @@ public struct ScrollView<Content: ElementGroup>: Element {
 
         var viewportStyle = Style()
         viewportStyle.flexDirection = axis == .vertical ? .column : .row
-        // Inert here as it is under the legacy engine (CLAUDE.md's table): the
-        // kernel reads `overflow` nowhere, and the lowering does not carry it.
+        // Inert (CLAUDE.md's table): the kernel reads `overflow` nowhere, and
+        // the lowering does not carry it.
         viewportStyle.overflow = Axes(both: .scroll)
         (viewportStyle, _) = animated(viewportStyle, Decoration(), for: scrollViewViewportAnimID(for: id),
                                       pass: &pass)

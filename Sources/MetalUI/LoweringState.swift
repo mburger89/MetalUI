@@ -56,7 +56,7 @@ struct LoweredItem {
     var consumed = false
 }
 
-/// A frame's lowering state. **Empty under the legacy authority.**
+/// A frame's lowering state.
 struct LoweringState {
     /// Each lowered element's item record, by the node it returned.
     var items: [LayoutNodeID: LoweredItem] = [:]
@@ -70,13 +70,12 @@ struct LoweringState {
     /// box's; the glyphs belong at the LEAF's origin and wrap at the LEAF's measured
     /// width, or a stretched padded text would wrap at its item frame's width and
     /// overflow its trailing padding (critic round 1's finding 5). Empty when no
-    /// lowered `Text` carries a padding — and under the legacy authority.
+    /// lowered `Text` carries a padding.
     var textLeaves: [LayoutNodeID: LayoutNodeID] = [:]
     /// Every presentation registered this frame, in registration order (plan task
     /// 7, stage 5, rulings `LR-CH`, `LR-CM`): the placeholder its `Deferred`
     /// returned and the root of its own native run, which `Frame.computeRootLayout`
-    /// lays out against the window **before** the frame's root. Empty under the
-    /// legacy authority.
+    /// lays out against the window **before** the frame's root.
     var presentations: [(placeholder: LayoutNodeID, root: LayoutNodeID)] = []
 
     /// `children` without the presentation placeholders (ruling `LR-CK`): the
@@ -146,14 +145,31 @@ extension Frame {
     /// (`aRootsMinimumAndMaximumFoldIntoItsDeclaredSize`). A bound on an **auto** root
     /// axis, a percentage on either side, a margin and `.absolute` still report — and
     /// in production trap (`aRootFieldWithNoLoweringTrapsInAProductionWindow`). A
-    /// `.frame` layer's record is never reported: its fields are its own frame's
-    /// (`LoweredItem.Kind.frameLayer`).
+    /// `.frame` layer's record reports nothing of its own fields — they are its own
+    /// frame's (`LoweredItem.Kind.frameLayer`) — **except, since stage 8, `position`
+    /// and `inset` when its declared style is absolute** (ruling `LR-FA`): `LR-EV`
+    /// exempts those two from the layer's `modifierLayer.style` comparison, so
+    /// without this a framed absolute root would lower silently where the own-box
+    /// spelling reports (`aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred`,
+    /// arm 4).
     func reportUnconsumedLoweredItems(root: LayoutNodeID) {
-        guard layoutAuthority == .proposal else { return }
         for node in lowering.order {
             guard let item = lowering.items[node], !item.consumed,
-                  item.kind != .frameLayer, item.kind != .presentation else { continue }
+                  item.kind != .presentation else { continue }
             let d = item.declared
+            // Stage 8 (`LR-FA`): a `.frame` layer's own fields are its frame's and
+            // are never reported — but an absolute one no `Deferred` consumed (the
+            // root, in practice) reports `position` and `inset` exactly as the
+            // own-box spelling it replaces does, and nothing else.
+            if item.kind == .frameLayer {
+                guard d.position == .absolute else { continue }
+                var names = ["position"]
+                if d.inset != Edges(all: .auto) { names.append("inset") }
+                for name in names {
+                    noteUnlowerable(UnlowerableField(site: item.site, field: "\(name).unconsumed"))
+                }
+                continue
+            }
             var names: [String] = []
             if node != root {
                 if d.flexGrow != 0 { names.append("flexGrow") }

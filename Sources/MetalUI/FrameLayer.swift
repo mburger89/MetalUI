@@ -36,11 +36,10 @@ import MetalUILayout
 /// (practices shape 16 applies to narrowing an EXISTING public name).
 ///
 /// **`idealWidth`/`idealHeight` are carried and never lowered to CSS** (plan task
-/// 7, ruling `LR-H`, amending `FR-D`): ``style()`` does not read them. Under the
-/// proposal layout authority the frame layer lowers onto the kernel frame, which
-/// answers an ideal on an unspecified axis; under the legacy authority the layer's
-/// registration **traps** on either (``trapIfLaidOutByTheLegacyEngine()``), where
-/// the overload used to trap before building a spec.
+/// 7, ruling `LR-H`, amending `FR-D`): ``style()`` does not read them. The
+/// frame layer lowers onto the kernel frame, which answers an ideal on an unspecified axis. Until stage 9 the legacy authority's
+/// registration trapped on either (`FR-D`'s trap, moved there by `LR-H`); it went
+/// with the legacy engine (`LR-FF`).
 struct FrameSpec: Sendable, Hashable {
     var width: Pixels?
     var height: Pixels?
@@ -51,28 +50,6 @@ struct FrameSpec: Sendable, Hashable {
     var idealHeight: Pixels?
     var maxHeight: Pixels?
     var alignment: ProposalAlignment = .center
-
-    /// `FR-D`'s trap, at the one place a legacy frame layer reaches the CSS engine
-    /// (`ModifiedElement.requestLayout`'s legacy branch, ruling `LR-H`): an ideal
-    /// dimension answers an *unspecified* proposal, which the CSS engine never
-    /// has, and `Style` carries no such field. Not called under the proposal
-    /// authority, where the kernel frame reads the ideal.
-    func trapIfLaidOutByTheLegacyEngine() {
-        precondition(idealWidth == nil, """
-            idealWidth has no legacy (CSS) lowering (ruling FR-D): an ideal \
-            dimension is what a view answers when NOTHING is proposed, and the \
-            CSS engine lays every box out against a containing block. Use the \
-            proposal path's .frame(idealWidth:) on a ProposalElement, or \
-            declare a width.
-            """)
-        precondition(idealHeight == nil, """
-            idealHeight has no legacy (CSS) lowering (ruling FR-D): an ideal \
-            dimension is what a view answers when NOTHING is proposed, and the \
-            CSS engine lays every box out against a containing block. Use the \
-            proposal path's .frame(idealHeight:) on a ProposalElement, or \
-            declare a height.
-            """)
-    }
 
     /// The one place the CSS approximation of a SwiftUI frame lives (ruling
     /// FR-C), row by row with the measurement behind it. The layer is a flex
@@ -157,9 +134,9 @@ extension ElementGroup {
     /// names, order and defaults, so a call site ports between the two engines
     /// by changing nothing but the element type.
     ///
-    /// **What it does and does not reach.** The legacy path lowers to CSS, and
-    /// SwiftUI's answers that one CSS node cannot reach are rulings with tests
-    /// (the first and third pin MetalUI's number wrong on purpose; plan task 6
+    /// **What it did and did not reach, until stage 9.** The legacy path lowered
+    /// to CSS, and SwiftUI's answers that one CSS node could not reach were rulings with tests
+    /// (the first and third pinned MetalUI's number wrong on purpose; plan task 6
     /// deferred both to task 7, `CN-Q`):
     ///
     /// - a **finite** maximum clamps but never grows into the proposal
@@ -174,19 +151,17 @@ extension ElementGroup {
     /// - a **single** infinite maximum is present and inert, where both
     ///   infinite maximums fill (`FR-O`, test 2.9).
     ///
-    /// Those are the legacy engine's answers. Under the proposal layout authority
-    /// (plan task 7, ruling `LR-H`) the layer lowers onto the kernel frame, and the
-    /// finite maximum and the single infinite maximum answer as SwiftUI's do (spec
-    /// 4.5); no production root takes that authority before stage 6b.
+    /// Those were the legacy engine's answers (until stage 9). The layer lowers
+    /// onto the kernel frame (plan task 7, ruling `LR-H`), and the finite maximum
+    /// and the single infinite maximum answer as SwiftUI's do (spec 4.5).
     ///
     /// **`idealWidth`/`idealHeight`** build into the layer's `FrameSpec` (plan
-    /// task 7, ruling `LR-H`). Under the proposal layout authority the layer
-    /// lowers onto the kernel frame and the ideal answers an unspecified axis
-    /// (frame probe `C1`). Laid out by the legacy (CSS) engine, a non-`nil` ideal
-    /// **traps** at the layer's registration — an ideal answers an *unspecified*
-    /// proposal, which the CSS engine never has (ruling `FR-D`) — naming the
-    /// parameter and the way out. Until `LR-H` the trap fired here, at
-    /// construction.
+    /// task 7, ruling `LR-H`). The layer lowers onto the kernel frame and the
+    /// ideal answers an unspecified axis (frame probe `C1`). Laid out by the
+    /// legacy (CSS) engine, until stage 9, a non-`nil` ideal trapped at the
+    /// layer's registration — an ideal answers an *unspecified* proposal, which
+    /// the CSS engine never had (ruling `FR-D`); until `LR-H` the trap fired
+    /// here, at construction.
     ///
     /// The fixed overload, `frame(width:height:alignment:)`, is declared in
     /// `ModifiedElement.swift` and must stay the only one — see this file's

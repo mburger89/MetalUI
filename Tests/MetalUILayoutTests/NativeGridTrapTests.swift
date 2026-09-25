@@ -34,43 +34,9 @@ private func leaf(_ tree: LayoutTree) -> LayoutNodeID {
             "aborted, but not at the negative-columns check:\n\(stderrText(result))")
 }
 
-/// SA-G: a legacy child traps at the grid's own check, which names the child,
-/// before any other read of it — and so does a row or cell **mark** on a legacy
-/// node, at the mark, naming it (second critic round, finding 12; ruling
-/// GR-AD). Before the mark checks, arms b and c were accepted silently: the
-/// mark was written, and the lie surfaced either inside `newNativeGrid` with a
-/// different message or never, if the node reached no grid.
-///
-/// Mutations: (a) drop the grid's explicit child check (a later read still
-/// traps, with the generic "contains a legacy node", and the fragment fails);
-/// (b) drop `markNativeGridRow`'s native check (the child exits `.success`);
-/// (c) drop `markNativeGridCell`'s (the child exits `.success`).
-@Test func aLegacyNodeUnderAGridOrCarryingAGridMarkTraps() async {
-    // Arm a: the grid's own child check.
-    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        let tree = LayoutTree(generation: 0)
-        let legacy = tree.newNode(style: Style(), children: [])
-        _ = tree.newNativeGrid(children: [leaf(tree), legacy])
-    }
-    #expect(stderrText(result).contains("grid child 1 is a legacy node (SA-G)"),
-            "aborted, but not at the grid's legacy-child check:\n\(stderrText(result))")
-
-    // Arm b: a row mark on a legacy node, which reaches no grid at all.
-    let rowResult = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        let tree = LayoutTree(generation: 0)
-        tree.markNativeGridRow([tree.newNode(style: Style(), children: [])])
-    }
-    #expect(stderrText(rowResult).contains("a grid row mark written on a legacy node (SA-G)"),
-            "aborted, but not at the row mark's legacy check:\n\(stderrText(rowResult))")
-
-    // Arm c: a cell mark on a legacy node, which reaches no grid at all.
-    let cellResult = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        let tree = LayoutTree(generation: 0)
-        tree.markNativeGridCell(tree.newNode(style: Style(), children: []), columns: 2)
-    }
-    #expect(stderrText(cellResult).contains("a grid cell mark written on a legacy node (SA-G)"),
-            "aborted, but not at the cell mark's legacy check:\n\(stderrText(cellResult))")
-}
+// `aLegacyNodeUnderAGridOrCarryingAGridMarkTraps` (SA-G: a legacy child of a
+// grid, and a row or cell mark on a legacy node, trapped naming it; GR-AD)
+// retired at stage 9 with the legacy node it needed (`LR-FC`, record §51).
 
 /// GS10: SwiftUI answers nan for a nan spacing; the kernel traps at
 /// registration with the parameter named (GR-D, SA-J).

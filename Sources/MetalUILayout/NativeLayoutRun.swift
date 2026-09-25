@@ -2,8 +2,9 @@
 /// bookkeeping the subview proxies check against, the depth guard (ruling
 /// SA-L) and the work counters (ruling SA-M).
 ///
-/// **A `final class`, not a struct**, for the reason `LayoutContext` records:
-/// a struct copied per recursion level shares no cache.
+/// **A `final class`, not a struct**, for the reason the CSS engine's
+/// `LayoutContext` recorded (deleted at stage 9, `LR-FC`): a struct copied per
+/// recursion level shares no cache.
 ///
 /// **Its lifetime is one call.** `LayoutTree.computeNativeLayout` and
 /// `measureNativeLayout` each create one, mark it inactive on return and drop
@@ -52,8 +53,9 @@ final class NativeLayoutRun {
     var work = NativeLayoutWork()
 
     /// The deepest native recursion `enter` allows, in native NODES (ruling
-    /// SA-L). **Its own constant, not `LayoutContext.maxDepth`**: the engines'
-    /// per-level stack costs differ, and they count different units.
+    /// SA-L). **Its own constant, not the CSS engine's `LayoutContext.maxDepth`**
+    /// (64; deleted with that engine at stage 9): the engines' per-level stack
+    /// costs differed, and they counted different units.
     ///
     /// **Chosen by legacy's safety fraction, not legacy's number.** Legacy took
     /// 64 = 0.60 of its 107-level debug ceiling on a 1 MB thread. Native takes

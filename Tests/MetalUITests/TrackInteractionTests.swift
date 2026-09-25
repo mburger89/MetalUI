@@ -185,22 +185,22 @@ private struct Published {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
 
     try clickable("clickable", device: device) { d, counts in
-        Row { Box().width(px(40)).height(px(20)).onClick { counts.presses += 1 }.disabled(d) }
+        Row { Box().cssWidth(px(40)).cssHeight(px(20)).onClick { counts.presses += 1 }.disabled(d) }
     }
     try clickable("outer modifier layer", device: device) { d, counts in
-        Row { Box().width(px(40)).height(px(20)).padding(px(2)).onClick { counts.presses += 1 }.disabled(d) }
+        Row { Box().cssWidth(px(40)).cssHeight(px(20)).padding(px(2)).onClick { counts.presses += 1 }.disabled(d) }
     }
     try clickable("inner modifier layer", device: device) { d, counts in
         Row {
-            Box().width(px(40)).height(px(20)).padding(px(2)).onClick { counts.presses += 1 }
+            Box().cssWidth(px(40)).cssHeight(px(20)).padding(px(2)).onClick { counts.presses += 1 }
                 .padding(px(2)).disabled(d)
         }
     }
 
     // Focusable only.
     do {
-        let on = try publish("focusable", device: device) { Row { Box().width(px(40)).height(px(20)).focusable().disabled(false) } }
-        let off = try publish("focusable", device: device) { Row { Box().width(px(40)).height(px(20)).focusable().disabled(true) } }
+        let on = try publish("focusable", device: device) { Row { Box().cssWidth(px(40)).cssHeight(px(20)).focusable().disabled(false) } }
+        let off = try publish("focusable", device: device) { Row { Box().cssWidth(px(40)).cssHeight(px(20)).focusable().disabled(true) } }
         try #require(on.node.isEnabled && on.node.isFocusable, "focusable control: read \(on.node)")
         try #require(on.platform.simulateAccessibilityRequest(.focus(on.id)), "focusable control: the request is accepted")
         drawUntilClean(on.window)
@@ -218,13 +218,13 @@ private struct Published {
         let onCounts = Counts(), offCounts = Counts()
         let on = try publish("adjustable", device: device) {
             Row {
-                Box().width(px(40)).height(px(20))
+                Box().cssWidth(px(40)).cssHeight(px(20))
                     .onAction(AccessibilityAdjustment.self) { _ in onCounts.adjustments += 1 }.disabled(false)
             }
         }
         let off = try publish("adjustable", device: device) {
             Row {
-                Box().width(px(40)).height(px(20))
+                Box().cssWidth(px(40)).cssHeight(px(20))
                     .onAction(AccessibilityAdjustment.self) { _ in offCounts.adjustments += 1 }.disabled(true)
             }
         }
@@ -250,7 +250,7 @@ private final class LayerFlag {
 /// more `.padding` layer when `adding` — the same TYPE either way, so the
 /// change is a layer added at run time (ruling MC-C), not a structural `if`.
 @MainActor private func labelledChain(adding: Bool) -> ModifiedElement<Box<EmptyGroup>> {
-    var chain = Box().width(px(20)).height(px(20)).onClick {}.accessibilityLabel("leaf").padding(px(4))
+    var chain = Box().cssWidth(px(20)).cssHeight(px(20)).onClick {}.accessibilityLabel("leaf").padding(px(4))
     if adding { chain = chain.padding(px(4)) }
     return chain.onClick {}.accessibilityLabel("outer")
 }

@@ -288,7 +288,7 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
     // two auto axes, after its `.padding` (the legacy container rule), so the
     // padded root sits at (0, 0) on both authorities.
     var padded = Column { Text(word) }.padding(Pixels(Float(pad))).alignItems(.stretch)
-        .width(Pixels(400)).height(Pixels(600))
+        .frame(width: Pixels(400), height: Pixels(600), alignment: .topLeading)
     let (_, scene) = painted(&padded, width: 400)
     try #require(scene.glyphs.count == word.count)
 
@@ -337,7 +337,7 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
     // which the per-glyph loop above cannot see because it hands the emitter's
     // own origin to the oracle.
     var unpadded = Column { Text(word) }.alignItems(.stretch)
-        .width(Pixels(400)).height(Pixels(600))
+        .frame(width: Pixels(400), height: Pixels(600), alignment: .topLeading)
     let (_, flush) = painted(&unpadded, width: 400)
     try #require(flush.glyphs.count == scene.glyphs.count)
     for i in 0..<flush.glyphs.count {
@@ -772,7 +772,7 @@ private func lineClusterCount(_ scene: Scene, font: ResolvedFont, scaleFactor: D
 @Test func paintWrapsAtTheWidthLayoutMeasuredAtNotTheRoundedBox() {
     // Stage 6b (`LR-DG`, R-fill): the window's 900x600 declared on the row's
     // two auto axes — what `CS-I` gave the legacy root, now spelled.
-    var row = Row { Text(wrapDivergenceSample) }.width(Pixels(900)).height(Pixels(600))
+    var row = Row { Text(wrapDivergenceSample) }.cssWidth(Pixels(900)).cssHeight(Pixels(600))
     let (frame, root, scene) = renderedWithRoot(&row, width: 900)
     let child = frame.tree.children(root)[0]
     let box = frame.tree.layout(child)
@@ -814,10 +814,7 @@ private func lineClusterCount(_ scene: Scene, font: ResolvedFont, scaleFactor: D
         var readout = Box {
             Text("Count \(n)").font(size: 22)
         }
-        .width(Pixels(140))
-        .height(Pixels(36))
-        .alignItems(.center)
-        .justifyContent(.center)
+        .frame(width: Pixels(140), height: Pixels(36))
 
         let (_, _, scene) = renderedWithRoot(&readout, width: 900)
         let font22 = FontResolver.resolve(family: nil, size: 22)

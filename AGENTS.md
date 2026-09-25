@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-DS`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-FM`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -84,6 +84,38 @@ milestones append their record to `docs/record/` and put only the rule here.
   `swiftui-engine-replacement-stage2.swift`'s V0–V3), plus two new harnesses,
   `docs/probes/native-depth-ceiling/` (the release re-bisection) and
   `docs/probes/stage-6b-flip-instrument.patch`),
+  7 stage 7a `LR-DS`…`LR-EB` (§48, spec
+  `specs/2026-09-23-engine-stage-7a-design.md`, same decisions doc — the 97
+  WebKit goldens retired, each with a row in record §48 §4 naming its native
+  replacement arm or its deleted CSS-only concept; probe
+  `swiftui-engine-stage-7a.swift` arms W, G, S, A, B; instrument
+  `docs/probes/stage-7a-transcription-instrument.patch`),
+  7 stage 7b `LR-EC`…`LR-EQ` (§49, spec
+  `specs/2026-09-23-engine-stage-7b-design.md`, same decisions doc — the
+  non-golden CSS-engine tests of spec §2.6's files and the element tests
+  stages 6a/6b pinned `.legacy` with a 7b owner are retired, each with a row
+  in record §49 §4 naming its native replacement or its deleted CSS-only
+  concept; divergence 4 retires as a CSS-engine row (`LR-EH`, `LR-EP`); **no
+  new SwiftUI probe** — its claims are arms of five existing probes, re-run
+  2026-09-24 (`LR-EI`)),
+  7 stage 8 `LR-ER`…`LR-FB` (§50, spec
+  `specs/2026-09-24-engine-stage-8-design.md`, same decisions doc — the
+  eight `StyledElement` sizing modifiers deprecated toward `.frame` in the
+  same change (`FR-I`), every in-repo caller converted by class (F 129 sites
+  to `.frame`, K 296 plus lane 2's 1115 kept as `Style` writes through
+  `CSSSizing.swift`, D `ModifierTests`' eight rows into a deprecated
+  witness), `LR-EV`'s framed absolute box discharging the two `…absolute`
+  fields stage 5 left owned here; probe `swiftui-engine-stage-8.swift`
+  groups F, P, T),
+  7 stage 9 `LR-FC`…`LR-FL` (§51, spec
+  `specs/2026-09-24-engine-stage-9-design.md`, same decisions doc — the
+  CSS-engine files, the layout authority (`LayoutAuthority.legacy`,
+  `Frame.layoutAuthority`, `computeRootLayout`'s legacy branch,
+  `Frame.legacyRootLayoutCounter`) and the legacy registrars deleted; every
+  legacy element (`Box`, `Row`, `Column`, `Stack`, `ScrollView`, `List`,
+  legacy `.frame`) keeps working through the lowering, now its only path;
+  **no new SwiftUI probe** — the stage claims no new SwiftUI behaviour
+  (`LR-FH` item 4)),
   7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
@@ -140,6 +172,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   **§42 (font fallback) was written as §40**, renumbered 40→41 at the
   stage-6a merge and 41→42 when stage 6b reached `master` first; **§43
   (bidi) was written as §41** and moved with it, 41→42→43.
+  **§48 (stage 7a) was written as §42** on `feat/engine-stage-7a` from
+  `2cc763d` and renumbered 42→48 at its merge, because `master` had already
+  published §42–§47 (font fallback through text undo, `6e01d9e`; record
+  §48's header).
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -157,9 +193,240 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
-- **Counts (2026-09-23, `feat/text-editor` — `TI-H`): 1770 tests, 97
-  goldens, 78 typecheck guards**, 0 `error:`, 0 `warning:` on both build
-  systems, taken the same way; **1770 = 1758 + 12**; record §48.
+- **Counts (2026-09-24, `feat/text-editor` — `TI-H` — merged with `master`
+  at `8095fd9`): 1423 tests, 0 goldens, 79 typecheck guards**, 0 `error:`,
+  the same one `warning:` under native, taken the same way; **1423 = 1411 +
+  12** (`TextEditingTests` +4, `TextEditorTests` +7, `TextSystemSeamTests`
+  +1); record §52.
+- **Counts (2026-09-24, `feat/engine-stage-9` merged with `master` at
+  `1895e4a`, PR #30 — the Windows demo-stack fix): 1411 tests, 0 goldens, 79
+  typecheck guards**, 0 `error:` on both build systems, the one `warning:`
+  SwiftPM's deprecation notice under native (0 under the default one), taken
+  after `swift package clean` the same way as the paragraph below (`Test run
+  with 1411 tests in 3 suites passed`; eleven gated tests skipped; the FR-J
+  line present). **1411 = 1409 + 2**: stage 9's figure below plus
+  `DemoStackBudgetTests`' two (`everyProductionTreeBuildsOnAOneMegabyteThread`
+  and its 256 KB control, `aThreadTooSmallForTheDemoFailsTheSameHarness`),
+  both green over PR #30's per-section `demoContent()` with stage 9's one
+  comment re-spelled into it; `theDemoFrameMatchesTheValuesRecordedOnMacOS`
+  green with `Expected.swift` unedited; the fourteen offscreen images read 0
+  against `1895e4a`; `swift:6.4-noble` reads 192 + 22 + 5; record §51 §9.7.
+- **Stage 9's counts (2026-09-24, `feat/engine-stage-9` from `b9a5d7f`,
+  plan task 7 stage 9, before it met `master`'s `1895e4a`): 1409 tests, 0 goldens,
+  79 typecheck guards**, 0 `error:` on both build systems, the one `warning:`
+  SwiftPM's deprecation notice under native (0 under the default one), taken
+  after `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1409 tests in 3 suites
+  passed`; **eleven** gated tests skipped, unchanged; the guards ran — the log
+  carries `FR-J no-argument frame: succeeded=`). No goldens (`find
+  Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0, as at `b9a5d7f`).
+  **The CSS engine is deleted**: `FlexEngine.swift`, `ResolveFlexibleLengths.swift`,
+  `FlexBaseSize.swift`, `FlexLines.swift`, `Alignment.swift`'s flex half,
+  `LayoutContext.swift`, `Resolve.swift`'s percentage half, the legacy
+  `MeasureFunction`, `textMeasure`, tokenizer min-content, the legacy
+  registrars (`LayoutPass.requestNode`/`requestLeaf`, deprecated at stage 6a,
+  and the internal `Frame.requestNode`/`requestLeaf`) and the layout authority
+  itself (`LayoutAuthority.legacy`, `Frame.layoutAuthority`,
+  `computeRootLayout`'s legacy branch, `Frame.legacyRootLayoutCounter`) are
+  gone (`git ls-files Sources/MetalUILayout` lists none of the seven engine
+  files; `grep -h '^import' Sources/MetalUILayout/*.swift | sort -u` reads
+  `import MetalUICore` alone). **Every legacy element keeps working — through
+  the lowering, now its only path** (`Box`, `Row`, `Column`, `Stack`,
+  `ScrollView`, `List`, legacy `.frame`); `LegacyLowering.swift` keeps its
+  name and its comparisons with what "the legacy engine" used to answer, each
+  the reason a lowering reads as it does, not a claim that engine runs
+  (`LR-FC` item 4). `LayoutAuthority.swift` keeps its name too, holding only
+  the lowering's surviving diagnostic vocabulary, `LoweringSite` and
+  `UnlowerableField` (`Frame.noteUnlowerable`, `reportsUnlowerableFields`,
+  set only by tests) — a legacy site with no proposal lowering still traps
+  naming `<site>.<field>`, or reports under diagnostics; there is no more
+  authority to choose. **1409 = 1452 − 93 + 50**: three lanes, each red first
+  (`docs/probes/stage-9-legacy-reach-instrument.patch`,
+  `stage-9-legacy-reference-census.tsv`, `stage-9-site-coverage.txt`), all
+  verified `ok`. Lane 1 (`LayoutDifferential.swift` and its 27 users)
+  collapsed the two-engine differential harness to one authority and retired
+  11 rows → **1441**; lane 2 (the `AuthorityCoverage` registry's other ten
+  contributors and every other test naming a deleted symbol) retired 33 →
+  **1408** (one more than designed, `LR-FJ` item 1); lane 3 (the deletion
+  itself) added N3.1, a presentation's containing block is the window
+  whatever surrounds it → **1409**. Guards **79 unmoved**
+  (`LayoutAuthorityCompileGuards`' two re-spelled: `aPlainImportCannotChooseTheLayoutAuthority`,
+  `aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles`;
+  `ErasureCompileGuards`' `layoutPassStyleAccessorsAreNotPublic` re-spelled).
+  **0 px against `b9a5d7f` in all fourteen offscreen images**, scene
+  identical (`docs/probes/demo-pixels/ZZDemoPixels-stage9.swift`,
+  `compare.sh` selecting it by `Fakes.swift`'s declaration rather than a
+  comment naming it, `LR-FK` item 3); `DemoFrameDeterminismTests` unedited
+  and green. `Backends/SDL` (`PKG_CONFIG_PATH=.accesskit`): 21 + 19 passed,
+  its fixtures re-recorded, `PortableReplay`/`DemoCapture` PASS unedited;
+  `Tests/PortableTests` 18 + 6 + 5. **Portable CI drops 200 + 22 + 3 → 192 +
+  22 + 3** (lane 2's eight `MetalUILayoutTests` retirements). **Divergence 11
+  retires** (57 → 56 live): it was legacy-authority only, and the legacy
+  authority is gone. **Not done, owners already assigned**: `Style`'s CSS
+  fields, `CSSSizing.swift` and every `Style`-field report this stage
+  inherited stay for **stage 10**, which also gets
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` in place of the retired
+  `noProductionFrameReachesTheLegacyEngine`; `deferred.amended` (`LR-FF`)
+  stays for **stage 11**, with `Component.width` over a presentation member;
+  `ModifiedElement`/`ModifiedContent` are not unified (stage 11). History:
+  record §51 (§1–§4 design and critic round, §5 lane 1, §6 lane 2, §7 lane 3,
+  §8 the close, §9 the adversarial branch check, `LR-FL`).
+- **Counts (2026-09-24, `fix/windows-demo-stack` from `b9a5d7f`, stage 8
+  merged): 1454 tests**, 0 `error:`, 0 `warning:` under the default build
+  system, taken the same way as the paragraph below (`Test run with 1454
+  tests in 3 suites passed`; the FR-J line present). **1454 = 1452 + 2**:
+  `DemoStackBudgetTests`' two (the 1 MB-thread build of every production tree
+  and its 256 KB control); record §50 §14.
+- **Stage 8's counts (2026-09-24, `feat/engine-stage-8` from `85217e3`,
+  plan task 7 stage 8 — merged with `master` at `b9a5d7f`): 1452 tests, 0 goldens,
+  79 typecheck guards**, 0 `error:` on both build systems, the one `warning:`
+  SwiftPM's deprecation notice under native (0 under the default one), taken
+  after `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1452 tests in 3 suites
+  passed`; **eleven** gated tests skipped, unchanged by this stage; the guards
+  ran — the log carries `FR-J no-argument frame: succeeded=` and `N3.1 sizing
+  deprecations: succeeded=true count=8`). No goldens to move (`find
+  Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0, as at `85217e3`).
+  **1452 = 1445 + 7**, 0 removed: the seven are new tests — lane 1's
+  N1.1–N1.6 and lane 3's N3.1 (the `@Test` diff against `85217e3` adds exactly
+  these and removes none). Seven existing tests are **T rows**, literals
+  re-derived, not additions: `LR-EZ`'s six (the demo's element counts, its
+  deepest native level, the whole-demo census, the `…absolute` owning stage)
+  and G4's control arm (T3.1); `ModifierTests`' eight sizing rows moved into
+  `DeprecatedSizingCases`, a `DeprecatedSpelling` witness (class D), are the
+  same test relocated. Guards move **78 → 79**
+  (`FrameSizingCompileGuards` 2 → 3: N3.1, one guard whose control arm is a
+  second `typecheckFile` call in the same test; `typecheckFile`'s helper count
+  38 → 39). **The eight `StyledElement`
+  sizing modifiers are deprecated toward `.frame`** (`FR-I`, `LR-ER`; the
+  design first said "ten", `Box.swift` declares eight, `LR-EY` item 1): the
+  entry census read 1692 warnings (25 in the demo, 1667 in
+  `Tests/MetalUITests`, 0 in every other target). Every in-repo caller
+  converts in the same change, by class (`LR-EW`, `LR-FB`): **F, converted to
+  `.frame`** by the recipe (`LR-ES`) — measured at 129 of the 22 lane-3 files'
+  425 sites plus lane 1's 37 (`PresentationWindowTests` 24,
+  `FrameSizingTests` 13) and the demo's 25; **K, the `Style` write kept** through
+  `Tests/MetalUITests/CSSSizing.swift`'s eight one-line helpers (`.cssWidth(`
+  etc., exactly at the census's positions, same closure body, N1.1 pins it) —
+  1115 sites in 28 files (lane 2, `LR-EW`) plus 296 of lane 3's 425 (the
+  site-coverage check's per-test fallback, `LR-FB`: a test whose sized `Box`
+  carries its own handler, focus, key context, action, accessibility node or
+  own background paint stays K, or R2's move onto the frame layer would pin
+  `ModifiedElement`'s registration instead of the named site's); **D**,
+  `ModifierTests`' eight rows into `DeprecatedSizingCases`, a
+  `DeprecatedSpelling` witness reached through `oldSpelling(_:)`, which warns
+  nothing (`docs/probes/swift-deprecated-witness-silence.sh`, stage 6a's
+  precedent); **R (retired) is empty** — no test died for this stage. **A
+  framed box can now be an absolute presentation's content** (`LR-EV`: a
+  `.frame` layer over at most one node whose declared style is
+  `position: .absolute` reports neither `modifierLayer.style` nor
+  `modifierLayer.position`/`.inset` inside a `Deferred`, and answers SwiftUI's
+  frame bounds on an auto axis where the legacy engine ignores them — a
+  proposal-only answer, `LR-CJ`'s precedent), discharging the two `…absolute`
+  fields stage 5 left owned here (over several nodes it still reports,
+  owner stage 11). The demo is converted by
+  `docs/probes/stage-8-demo-recipe.patch`'s recipe (29 insertions, 41
+  deletions in `DemoContent.swift`) and reads **0 px against `85217e3` in all
+  fourteen images**, scene identical; the demo's hitboxes, accessibility tree
+  and hovered-scene comparison (`docs/probes/stage-8-demo-hit-ax-hover.swift`)
+  are byte-identical; `DemoFrameDeterminismTests` is unedited and green.
+  **Portable CI is untouched** (`MetalUICoreTests`, `MetalUILayoutTests`,
+  `MetalUICrossPlatformTests` stay **200 + 22 + 3**; no census site falls in
+  `Backends/SDL`, `Tests/PortableTests`, `Tests/MetalUICrossPlatformTests`,
+  `Experiments` or any `Sources/` target but the demo's comments). `git grep`
+  finds no call of the eight outside a `D`-class witness in any of those; a
+  `Backends/SDL` build with the deprecation in draws **0** deprecation
+  warnings, and its `PortableReplay`/`DemoCapture` pass unedited. **The
+  `Style()` writes in tests (232 lines, 50 files) and lane 2's/lane 3's ≈ 1411
+  `css*` sites are re-owned to stage 10** (`LR-ER` item 6, `LR-FB`), which
+  deletes the `Style` fields and touches every writer once rather than twice;
+  every `Style`-field report this stage inherited (percentages, a non-greedy
+  `maxSize`, a length `flexBasis`, a root's auto-axis min/max and margin, a
+  floored `space-*`, `…absolute` on a `Style`-written box) **stays reported**
+  and dies with its field at stage 10 (`LR-ER` item 4). Divergence 52
+  (`Row`/`Column` default spacing) moves from stage 10 to **plan task 15**
+  (closeout), because both stages' exit is "0 px against the prior stage" and
+  a public default under every default-gap caller's pixels cannot satisfy
+  both (`LR-EY`, amending the design's stage-10 assignment). History: record
+  §50 (§7 the design critic round, §8–§9 lane 1, §10 lane 2, §11 lane 3).
+- **Stage 7b's counts (2026-09-24, `feat/engine-stage-7b` from `41344e5`,
+  plan task 7 stage 7b — merged with `master` at `85217e3`): 1445 tests, 0 goldens,
+  78 typecheck guards**, 0 `error:` on both build systems, the one `warning:`
+  SwiftPM's deprecation notice under native (0 under the default one), taken after `swift package clean` with
+  `swift build --build-system native --build-tests` then unfiltered `swift
+  test --build-system native --no-parallel` (**one summary line**, `Test run
+  with 1445 tests in 3 suites passed after 86.235 seconds`; **eleven** gated
+  tests skipped — the same eleven named below, unchanged by this stage; the
+  guards ran — the log carries `FR-J no-argument frame: succeeded=`). No
+  goldens to move (`find Tests/MetalUILayoutTests -name "*.json" | wc -l`
+  reads 0, as at `41344e5`; none remained since stage 7a). **1445 = 1670 −
+  236 + 11**: 236 non-golden CSS-engine tests retired (190 the eighteen
+  engine files spec §2.6 left after stage 7a, plus `NativeBoundaryTrapTests`'
+  three `computeLayout(` callers; 36 frame/component/container/modifier-chain
+  tests; 10 text/style-reader/decoration/matrix/divergence-4 tests) and 11
+  new proposal-authority tests added (2 + 4 + 5) — every retired test's row
+  in record §49 §4 (245 rows) names either a native test that asserts the
+  same fact under the proposal engine, the CSS-only concept it dies with, or
+  the new test written first, red-before-green. `grep -rn "computeLayout("
+  Tests` is empty (the stage's exit criterion: no test calls the CSS engine's
+  entry any more).
+  **Divergence 4 retires as a CSS-engine row** (`LR-EH`, `LR-EP`): its two
+  D-row tests (`autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot`,
+  `anAutoRootWithNoOfferedExtentMeasuresItsContent`) and
+  `RootSwitchTests`' `.legacy` arm are gone, but `CS-I`'s behaviour (a
+  hugging legacy root fills the offered extent from (0, 0)) stayed exercised,
+  unnamed, by the `.legacy` arm of roughly thirty `AuthorityCoverage`-
+  parameterised tests until stage 9 deleted the legacy authority and those
+  arms with it — at 7b it was not yet "no pin left" (it is, since stage 9).
+  `Sources/` diff against `41344e5`
+  is comment-only (`git diff 41344e5 -- Sources | grep -E '^[-+]' | grep -vE
+  '^(\+\+\+|---)' | grep -vE '^[-+]\s*//'` prints nothing); **no `Sources/`
+  line of production behaviour moves**. The fourteen-image offscreen
+  comparison (`docs/probes/demo-pixels/compare.sh`) reads 0 differing pixels
+  and identical scenes against `41344e5`; `DemoFrameDeterminismTests` is
+  unedited and green. **Portable CI drops from 388 to 200** (record §49 §6.1,
+  `LR-EM` item 5): **200 = 388 − 189 + 1** — 190 of `MetalUILayoutTests`'
+  tests retired with the stage, one of them
+  (`freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine`) already
+  `#if canImport(Darwin)`-gated on Linux/Windows, plus one replacement
+  (N1.2); Linux and Windows CI now run **200 + 22 + 3** for
+  `MetalUILayoutTests` + `MetalUICoreTests` + `MetalUICrossPlatformTests`
+  (measured in `swift:6.4-noble`). Guards stay **78** (no guard file touched)
+  and goldens stay **0**. History: record §49 (its §8 is an independent
+  re-check of all three lanes, which corrected the gated count from a
+  carried-over "nine" to the measured **eleven** and restated divergence 4's
+  retirement as above; its §9, the adversarial branch check, re-read row 190
+  as D — `LR-EQ`, the legacy half of `SA-I`'s one flag, unpinned until stage 9
+  deleted it along with `computeLayout`).
+- **Counts (2026-09-24, `feat/engine-stage-7a` — plan task 7 stage 7a —
+  merged with `master` at `6e01d9e`, records §42–§47): 1670 tests, 0 goldens,
+  78 typecheck guards**, 0 `error:`, 0 `warning:` on both build systems,
+  taken after `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1670 tests in 3 suites
+  passed`; eleven gated tests skipped; the guards ran — the log carries `FR-J
+  no-argument frame: succeeded=`). **1670 = 1758 − 104 + 16**: `master`'s
+  `6e01d9e` (1758, its own figure below) less the 104 tests stage 7a removed
+  with the goldens (96 consumers, `GeneratorTests`' 5, `OracleTests`' 3) plus
+  its 16 replacements (record §48 §5.3, §6.3). No master-side test consumed a
+  golden, so none was lost at the merge. The fourteen offscreen images read 0
+  px against `6e01d9e`.
+- **Stage 7a's counts before the merge (2026-09-23, `feat/engine-stage-7a` from
+  `2cc763d`): 1616 tests, 0 goldens, 78 typecheck guards**, 0 `error:`, 0
+  `warning:` on both build systems, taken with `swift build --build-system
+  native --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1616 tests in 3 suites
+  passed`; nine gated tests skipped; the guards ran — the log carries `FR-J
+  no-argument frame: succeeded=`). **1616 = 1704 − 96 − 5 − 3 + 8 + 8**: the
+  96 golden-consuming tests, `GeneratorTests`' 5 and `OracleTests`' 3 removed
+  with the goldens, and the 8 + 8 replacement tests of `GoldenReplacementFlexTests`
+  and `GoldenReplacementStackTests` added (record §48 §5.3, §6.3). **The
+  goldens are gone**: `Golden/`, `Fixtures/`, `Oracle/` and the WebKit oracle
+  with them, so no test in the repository imports WebKit. The twelve-image
+  offscreen comparison (and the two `prod-*` images) read 0 px against
+  `2cc763d`.
 - **Counts (2026-09-23, `feat/text-undo` — `TI-G`): 1758 tests, 97 goldens,
   78 typecheck guards**, 0 `error:`, 0 `warning:` on both build systems,
   taken the same way; **1758 = 1752 + 6** (`TextEditingTests` +5,
@@ -239,7 +506,8 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   centred at its own answer); `NativeLayoutRun.maxDepth` moves 88 → 72,
   re-bisected in both debug and release for the first time (`LR-DK`); the
   demo's list row gains one declared height
-  (`.height(Pixels(28))`) so its labels stay centred under the switch, its
+  (`.height(Pixels(28))`, respelled `.frame(height: Pixels(28))` by stage 8's
+  deprecation) so its labels stay centred under the switch, its
   deepest native level moving 29 → 30; the fourteen-image offscreen
   comparison (`docs/probes/demo-pixels/compare.sh`) attributes every pixel
   delta to one of four named causes (a sidebar/panel width SwiftUI answers
@@ -363,8 +631,9 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Twelve** gated tests count toward the total while skipped —
-  `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`, the
+  **Eleven** gated tests count toward the total while skipped (twelve until
+  stage 7a removed `regenerateAllGoldens` with the goldens) —
+  `aListsWorkIsTheSameFor100kRowsAsFor500`, the
   FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
   (`METALUI_HARFBUZZ_MEASURE=1`) and the portable text oracle's
   `theMeasuredDifferences` (`METALUI_PORTABLE_ORACLE_MEASURE=1`) and the line
@@ -380,12 +649,18 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   the resolver oracle and the seam test fail together) — `--no-parallel`.
   The lone `warning:`
   under native is SwiftPM's deprecation notice.
-- **Goldens must not move** on a change outside `Sources/MetalUILayout/`
-  (`find Tests/MetalUILayoutTests -name "*.json" | wc -l` — not all of
-  `Tests/`, where `Tests/PortableTests/.build/` holds JSON build artifacts).
-  WebKit is the oracle for the CSS engine only. The proposal kernel shares `LayoutTree.swift` storage
-  (`newNode`, `reset`, `roundLayout`, the `SA-G`/`SA-I` preconditions), so a
-  proposal-path edit there can move a golden — run the fixtures. No text
+- **No goldens remain** (stage 7a, record §48):
+  `find Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0 — not `find
+  Tests`, where `Tests/PortableTests/.build/` holds JSON build artifacts. Each
+  of the 97 was retired with a row in record §48 §4: 44 by a native arm that
+  builds the golden's own tree and asserts its own boxes under the proposal
+  authority (`GoldenReplacementFlexTests`, `GoldenReplacementStackTests`,
+  through `goldenArm`), 53 with a named CSS-only concept and the native test
+  that pins what the proposal authority does instead. **Do not add a golden
+  or a WebKit fixture back**; a layout fact gets a native arm. The proposal
+  kernel shares `LayoutTree.swift` storage (`newNode`, `reset`, `roundLayout`,
+  the `SA-G`/`SA-I` preconditions), so a proposal-path edit there can move a
+  CSS-engine test or a lowering differential — run the whole suite. No text
   fixture, ever (TX-B).
 - **Guards:** `grep -c canTypecheck` per file across `PhaseSeparationTests`,
   `ErasureCompileGuards`, `ElementGroupTrapTests`, `ProposalLayoutCompileGuards`,
@@ -395,11 +670,13 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `LayoutAuthorityCompileGuards`, `GridCompileGuards`,
   `UnitSafetyTests` (one hit is a comment),
   `AXNodeTests`, `SceneBoundaryCompileGuards`; `Typecheck.swift` holds only
-  the declaration. Two helpers, 40 and 38 (37 before stage 6a's guard 3.2):
-  `typecheck(_:importing:)` wraps the fixture in a function (Swift 5, nothing
-  `public`/file-scope compiles); `typecheckFile(_:importing:)` is whole-file
+  the declaration. Two helpers, 40 and 39 (38 before stage 8's N3.1, 37
+  before stage 6a's): `typecheck(_:importing:)` wraps the fixture in a
+  function (Swift 5, nothing `public`/file-scope compiles);
+  `typecheckFile(_:importing:)` is whole-file
   Swift 6 — the six/two/six of `ProposalLayout`/`ModifiedElement`/
-  `ProposalNodeID`, two `FrameSizing`, three `Decoration`, four `Container`,
+  `ProposalNodeID`, **three** `FrameSizing` (stage 8's N3.1 the
+  third), three `Decoration`, four `Container`,
   four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary` and seven of
   `EnvironmentCompileGuards`'. A guard about what an external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
@@ -408,7 +685,7 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   does not move and the run passes. A worktree with its own `.build` at its
   root runs them (measured under `~/Developer/worktrees/`, record §28); grep
   the log for `FR-J no-argument frame: succeeded=` rather than assume.
-- **Adding an AppKit or WebKit test? Run the whole suite unfiltered** (shared
+- **Adding an AppKit test? Run the whole suite unfiltered** (shared
   process and run loop; `--filter` is a different program).
 - **`swift package clean` when the impossible happens**: SIGSEGV, a truncated
   run with no summary line, an expected value its source cannot produce, or
@@ -424,14 +701,35 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   **A new target goes in the list its imports allow**; Linux and Windows CI
   (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
   and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
-  appended on macOS in the manifest — and run `MetalUICoreTests`,
-  `MetalUILayoutTests` and `MetalUICrossPlatformTests` (486 + 22 + 3), the
-  last pinning the demo's whole frame byte-for-byte against macOS (`XP-C`).
-  Inside `MetalUI`, CoreText stays behind `#if canImport(MetalUIText)`; off
-  Apple a `Frame`/`Window` without a text system traps (`XP-B`). A test there
-  that needs WebKit or Darwin is compiled out by `#if canImport(…)` per
-  declaration (`PC-B`); typecheck guards read only this platform's `.build`
-  (`PC-C`) and skip off macOS.
+  appended on macOS in the manifest — and run `MetalUILayoutTests`,
+  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**192 + 22 + 5**
+  since stage 9 met PR #30, measured in `swift:6.4-noble` at the merge —
+  `DemoStackBudgetTests`' two join `MetalUICrossPlatformTests`; **192 + 22 +
+  3** at stage 9 alone; **200 + 22 + 3** measured in `swift:6.4-noble` after stage 7b; the WebKit goldens' 96
+  consumer tests and the two ungated corpus tests
+  (`everyFixtureFileIsListedInTheCorpus`, `goldenFileRoundTripsThroughJSON`)
+  were portable and counted in `MetalUILayoutTests`' figure, so retiring them
+  at stage 7a drops it from 486 to 388 (486 − 96 − 2) — the 8 + 8 native
+  replacements do not restore it, landing instead in `MetalUITests`, which
+  depends on `MetalUIAppKit` and is macOS-only; **stage 7b drops it again,
+  388 to 200** (388 − 189 + 1): 190 of `MetalUILayoutTests`' non-golden tests
+  retired with the CSS engine's own suites, one of them already
+  `#if canImport(Darwin)`-gated on this platform
+  (`freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine`), plus one
+  replacement (N1.2) — every other stage-7b replacement lands in
+  `MetalUITests`, which Linux and Windows CI do not run (record §49 §6.1,
+  `LR-EM` item 5); **stage 9 drops it again, 200 to 192**, lane 2's eight
+  `MetalUILayoutTests` retirements, measured in `swift:6.4-noble` at the
+  stage-9 head, record §51 §7.6 and §9), the last pinning the demo's
+  whole frame byte-for-byte against
+  macOS (`XP-C`). Inside `MetalUI`, CoreText stays behind `#if
+  canImport(MetalUIText)`; off Apple a `Frame`/`Window` without a text system
+  traps (`XP-B`). A test there that needs Darwin is compiled out by `#if
+  canImport(Darwin)` per declaration (`PC-B`; stage 7a's golden removal also
+  retired that rule's only WebKit example — `MetalUILayoutTests` needs no
+  `#if canImport(WebKit)` gate anywhere now, since nothing there imports
+  WebKit); typecheck guards read only this platform's `.build` (`PC-C`) and
+  skip off macOS.
 - **Targets:** twenty one-way-dependent (`MetalUICore`, `MetalUILayout`,
   `MetalUIScene`, `CFreeType`, `MetalUIFreeType`, `CHarfBuzz`, `CUnibreak`, `CSheenBidi`,
   `MetalUIHarfBuzz`, `MetalUITextSystem`, `MetalUIPortableText`, `MetalUIText`, `MetalUIShaderTypes`,
@@ -603,8 +901,9 @@ header in the same change.
 stretches (EP-8, set in inits) — a childless `Box` with no cross size paints
 nothing. **Modifier order decides which box a modifier reaches**: container
 modifiers (`.alignItems`, `.gap`, `.justifyContent`) and item modifiers
-(`.flexGrow`, `.alignSelf`, `.margin`) go **before** `.padding`; size,
-background and corner radius **after** it. All wrong orders compile. Chained
+(`.flexGrow`, `.alignSelf`, `.margin`) go **before** `.padding`; size (a
+`.frame`, since stage 8's deprecation), background and corner radius **after**
+it. All wrong orders compile. Chained
 `.padding` accumulates. They keep their CSS algorithms (`CN-A`, `CN-P`):
 `Row`/`Column` gap 0 vs `HStack`/`VStack` 8; `Stack` offers fit-content vs
 `ZStack` its proposal; porting `Row {}` → `HStack {}` changes behaviour
@@ -615,7 +914,9 @@ silently. `Stack` layers last-on-top; no `display: contents`, no z-index.
 by `size` + axis-named `minSize` (never `flexShrink = 0`, `FR-P`); fill only
 when BOTH maximums are infinite (`FR-O`). Over exactly one node it lowers to a
 one-cell `display: .stack` (`CN-N`) — the child overflows, and `.flexGrow`/
-`.alignSelf` on it do nothing (`width(fraction: 1)` fills); `lowered` must
+`.alignSelf` on it do nothing (`.frame(maxWidth: .infinity)` fills —
+`width(fraction: 1)`, the old remedy, is deprecated and traps, `LR-EY` item
+8); `lowered` must
 keep `display: .none`. Over 0 or ≥2 nodes it stays a flex row. `idealWidth`/
 `idealHeight` trap at legacy registration (`LR-H`). `.frame()` with no args is
 a deprecated no-op on both paths. **`ElementGroup` keeps exactly ONE fixed
@@ -625,9 +926,39 @@ lowering.
 
 **Sizing modifiers** (`width`, `height`, `min/max…`, `width(fraction:)`,
 `height(fraction:)`) write the element's own box and return `Self`; `.frame`
-wraps (`FR-F`). Not deprecated (`FR-I`). `.minHeight(0)` is the only way to
-cancel flex's automatic minimum (`FR-G`). `fraction: 0.5` is half; `percent:`
-is a deprecated rename that still takes a fraction (`CN-O`).
+wraps (`FR-F`). **Deprecated toward `.frame` since stage 8** (`FR-I`; the eight
+`StyledElement` sizing modifiers — the six sizes and clamps plus the two
+`fraction:` spellings — `LR-ER` item 1, `LR-EU`, with messages, not
+`renamed:`): every in-repo caller converted in
+the same change, `FR-I`'s one move, as stage 6a did for the public registrars
+(the branch gates on 0 `warning:`). The recipe (`LR-ES`): one frame per run of
+adjacent calls (R1); a decoration, handler, accessibility modifier, `hidden()`
+or `.id()` on the sized element moves **after** the frame, onto the outer layer
+(R2, `.id()` still outermost); a sized container's frame reproduces where its
+content sat via `alignment:` (R3); an item field between the frame and its
+nearest inner wrapper is the frame's child's record and is **dropped**, and
+one written after the frame reports `modifierLayer.style` (a production trap) —
+it is re-spelled in SwiftUI's vocabulary instead, e.g. `flexGrow(1)` on a fixed cross
+axis → `.frame(<cross>: v).frame(max<Main>: .infinity)` (R4); a fixed axis and
+a bound on the other axis are two frames, the flexible one inner, **both**
+aligned where the content sat (R5); an absolute box's size is a frame
+**before** `.position`/`.inset` (R6, `LR-EV` — a framed box over at most one
+node can itself be a `Deferred`'s presentation content, discharging the two
+`…absolute` fields stage 5 left here); a structural path used only to locate
+state is re-derived, one asserted as a value keeps its site (R7); an animated
+size interpolates as before, nothing snaps (R8). `Component.width`/`height`
+and `StyledComponent.width`/`height` are **not** deprecated — they neither
+write an element's own box nor return `Self` — reconciliation is stage 11's
+(`LR-ER` item 2). **There is no automatic minimum
+to cancel** (`LR-ET`, amending `FR-G`): a greedy frame's lower bound is its
+content unless it declares one, SwiftUI's rule (probe
+`swiftui-engine-stage-8.swift` F), so a growing box that must answer below its
+content is `.frame(minHeight: 0, maxHeight: .infinity)` — the minimum on the
+greedy frame itself, not a `.frame(minHeight: 0)` layer inside it (`FR-G`'s
+N9/N9b) — pinned by `aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum`.
+The demo's own FR-G caller has been inert since stage 6b (its box holds a
+lowered `ScrollView`, whose viewport fills its proposal, `LR-BB`). `fraction: 0.5` is half; `percent:` is a
+deprecated rename that still takes a fraction (`CN-O`).
 
 **`List`** is a windowed `Box`: needs `Identifiable` data, uniform `rowHeight`,
 an enclosing `ScrollView`, and being that scroller's **only**
@@ -636,22 +967,21 @@ row. Rows out of window >2 generations lose `@State` once the table exceeds
 256 entries (TB-AH) — keep durable values in data. Publishes an `AXTable` of
 realized rows only.
 
-**Under the proposal authority a `List` lowers** (stage 4, `LR-BQ`…`LR-CG`):
-its rows are a `ListRows` group whose realized rows are consumed, planned and
-wrapped by stage 2's item machinery and placed by a `WindowedRowsLayout` at
-`(firstIndex + i) × rowHeight`; the layout answers `rowHeight × logicalCount`
-on the height — **not** SwiftUI's greedy answer (probe K6): a `List` is
-virtualized and its content height is the point — and the proposal, or its
-widest realized row at a nil axis, on the width. There is **no site check and
-no `.list` site report left**. On the **legacy** path the leading spacer is now
-a bare node, not a `Box` element: it mints no `$anim` entry, records no
-`elementBounds` row and no longer animates, which is one fewer `StateTable` id
-per `List`. Everything else is unchanged and measured so under **both**
-authorities — row identity, `@State` and focus retention and their loss past
-the bound, the `AXTable` and its `AXIndex`es, the unbounded-window and
-one-more-frame rules, `MP-I`'s cold frame, wheel routing, hit testing and the
-disabled gate — and **divergences 13 and 14 survive**, their pins now running
-on both authorities.
+**A `List` lowers** (stage 4, `LR-BQ`…`LR-CG`; its only path since stage 9
+deleted the legacy CSS engine): its rows are a `ListRows` group whose realized
+rows are consumed, planned and wrapped by stage 2's item machinery and placed
+by a `WindowedRowsLayout` at `(firstIndex + i) × rowHeight`; the layout
+answers `rowHeight × logicalCount` on the height — **not** SwiftUI's greedy
+answer (probe K6): a `List` is virtualized and its content height is the
+point — and the proposal, or its widest realized row at a nil axis, on the
+width. There is **no site check and no `.list` site report left**. The
+leading spacer is a bare node, not a `Box` element: it mints no `$anim`
+entry, records no `elementBounds` row and does not animate, one fewer
+`StateTable` id per `List`. Row identity, `@State` and focus retention and
+their loss past the bound, the `AXTable` and its `AXIndex`es, the
+unbounded-window and one-more-frame rules, `MP-I`'s cold frame, wheel
+routing, hit testing and the disabled gate are all measured against this
+lowering (stage 9 collapsed the "both authorities" pins onto it alone); **divergences 13 and 14 survive**.
 
 **`Deferred`** is a portal: one child, no layout node, hoists to the root
 layer, resets clip and scroll offset (AP-I) but **not opacity** (`OM-AA`).
@@ -659,27 +989,30 @@ One element contributes one opacity scope (divergence 46). Absolute
 positioning is `.position(.absolute)` + `.inset(...)`. A tooltip needs the
 portal; a modal needs both.
 
-**Under the proposal authority a `Deferred` whose one content node is
-`.position(.absolute)` is a presentation root** (stage 5, `LR-CH`…`LR-CS`):
-the content lowers as element → greedy W on each stretched axis (aliased as
-the element's rect) → padding for the given insets → a window-sized frame
-aligned per axis, laid out in its own native run **before** the root in
-`computeRootLayout` — so `SA-M`'s work counters and `SA-L`'s depth still read
-the root's own run. The `Deferred` hands its parent a 0×0 placeholder aliased
-to the content's element rect, dropped by every lowered container. An
-**in-flow** `Deferred` is untouched — it already agrees with the legacy
-engine, measured. The declaring scope's environment, escape from every clip
-(divergence 10) and click-to-dismiss/wheel routing (`IN-W`) all still hold and
-are now pinned under **both** authorities (`PresentationWindowTests`). Every
-case where the legacy containing block is not the window
-(`deferred.containingBlock`/`.nested`/`.root`/`.amended`, owner stage 9), an
-absolute box **outside** a `Deferred` (`position`/`inset` at the consumer,
-owner stage 10), and `minSize`/`maxSize` on an absolute box's `auto` axis
-(`…absolute`, owner stage 8) each **report by name** rather than lower to a
-different answer. **Production runs `.proposal` since stage 6b**
-(`Frame.defaultLayoutAuthority`), so a `Deferred` over absolute content in the
-demo or any other production tree now takes this path by default, not only
-under a test's explicit authority.
+**A `Deferred` whose one content node is
+`.position(.absolute)` is a presentation root** (stage 5, `LR-CH`…`LR-CS`;
+unconditional since stage 9): the content lowers as element → greedy W on
+each stretched axis (aliased as the element's rect) → padding for the given
+insets → a window-sized frame aligned per axis, laid out in its own native
+run **before** the root in `Frame.computeRootLayout` — so `SA-M`'s work
+counters and `SA-L`'s depth still read the root's own run. The `Deferred`
+hands its parent a 0×0 placeholder aliased to the content's element rect,
+dropped by every lowered container. An **in-flow** `Deferred` is untouched.
+The declaring scope's environment, escape from every clip (divergence 10) and
+click-to-dismiss/wheel routing (`IN-W`) all still hold, pinned by
+`PresentationWindowTests`. **The containing block is always the window,
+whatever surrounds the presentation** — stage 9 deleted the
+`deferred.containingBlock`/`.nested`/`.root` reports along with the legacy
+engine whose containing block they protected (`LR-FF`;
+`aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`). An absolute
+box **outside** a `Deferred` (`position`/`inset` at the consumer, owner
+stage 10), `minSize`/`maxSize` on an absolute box's `auto` axis (`…absolute`,
+owner stage 10 since stage 8's `LR-EZ` item 3, and only on a `Style`-written
+box: a `.frame` written before `.position(.absolute)` over at most one node
+answers SwiftUI's frame bounds and never reports, `LR-EV`), and a
+`Component`'s amend over a presentation member (`deferred.amended`, owner
+**stage 11**, `LR-FF`) each **report by name** rather than lower to a
+different answer.
 
 **`Component`** is layout-transparent and identity-opaque: no layout node, one
 cursor index, `@State` under its own id. Its `.padding` wraps each top-level
@@ -797,9 +1130,15 @@ behaviour, pinned wrong on purpose). `FontKey` stores its hash; `==` uses it
 as early reject only; to force collisions under mutation make the **stored**
 hash constant. `FontResolver.resolve` traps on non-finite/non-positive sizes.
 `fonts` and `resolvedFonts` are never swept, deliberately — move both or
-neither. Min-content is `CFStringTokenizer`'s longest word (TX-F); the public
-`unbreakableRuns(of:)` must create a tokenizer per call; every path bumps
-`Shaper.runCallCounter`. Max-content is one line per hard break (TX-K). The
+neither. **`TX-F`'s min-content rule (`CFStringTokenizer`'s longest word, the
+public `unbreakableRuns(of:)` and `Shaper.runCallCounter`) is deleted at
+stage 9** along with the flex engine's shrink-to-fit query that was its only
+caller (`LR-FD`; `ShapingCache.swift`'s doc comment names it). `Text` and
+`ProposalText` size an unspecified (nil) width proposal through
+`proposalTextMeasurement` → `system.measure(_:font:wrappingAt: nil)` instead —
+a SwiftUI-shaped intrinsic one-line width, not a shrink-min-content query; the
+two concepts were never the same fact, and only the deleted one used the
+tokenizer. Max-content is one line per hard break (TX-K, unaffected). The
 glyph atlas is grow-only; `evictUnusedSince` has no caller and would strand
 pixels.
 
@@ -834,33 +1173,36 @@ sleep: drive `simulateTick(timestamp:)`.
 
 ## SwiftUI alignment — the proposal layout path
 
-A propose/measure/place engine sits beside the CSS engine. Detail: §19
-"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38, §41.
+The CSS engine is deleted (stage 9, `LR-FC`…`LR-FL`); every element lays
+out through the propose/measure/place kernel. Detail: §19
+"SwiftUI alignment", record §09, §17, §18, §21, §22, §25, §27, §29, §38, §41, §48, §51.
 
-- **Two engines, chosen by the window root alone**
-  (`tree.isNativeLayoutNode(root)`). A native root is placed centred at its own
-  answer (`CN-J`). The kernel is the private `NativeNode` enum in
+- **One engine.** The kernel is the private `NativeNode` enum in
   `LayoutTree.swift` (twelve cases + `custom(any ProposalLayout)`); a new case
-  must choose its zero-spacing edges.
-- **Layout authority (task 7, `LR-`):** `Frame.layoutAuthority`, internal
-  (no public spelling — `LR-DF` left it that way). **`.proposal` in
-  production since stage 6b** (`Frame.defaultLayoutAuthority`, `LR-DF`):
-  `Frame.init`'s default and `Window.layoutAuthority`'s initial value both
-  read it, so a frame or window built with no explicit authority is
-  production's own path, not a test convenience. Production frames never set
-  `reportsUnlowerableFields`, so an unlowerable field still traps rather than
-  reports. Under `.proposal` every legacy site
-  checks the authority itself and lowers (border-box: content → padding →
-  fixed frame, built from the **animated** style, checked against the
-  declared); unlowerable fields trap naming `<site>.<field>` or, with
-  `reportsUnlowerableFields`, report. **A new legacy registration site gains
-  its own check and an arm in `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`.**
-  A branch lowering from a style needs an animated arm. Differential harness:
-  `LayoutDifferential.compare` under `DifferentialRoot`; never a wrapping
-  `Text` or greedy child directly under the root; a window test under
-  `.proposal` pre-flights under diagnostics with `try #require` on an empty
-  report. The bounds log is recorded at four sites; a new group entry records
-  too.
+  must choose its zero-spacing edges. A root is placed centred at its own
+  answer (`CN-J`) — unconditional since stage 9 deleted the second engine
+  `CN-J` used to contrast with.
+- **The layout authority is deleted** (stage 9, `LR-FC`…`LR-FK`):
+  `Frame.layoutAuthority`, `Frame.defaultLayoutAuthority`,
+  `LayoutAuthority.legacy`/`.proposal` and every per-site authority check are
+  gone with the CSS engine they chose between. A legacy element (`Box`,
+  `Row`, `Column`, `Stack`, `ScrollView`, `List`, legacy `.frame`) always
+  lowers (border-box: content → padding → fixed frame, built from the
+  **animated** style, checked against the declared); an unlowerable field
+  still traps naming `<site>.<field>` or, with `reportsUnlowerableFields`
+  (`Frame`'s init parameter, set only by tests), reports. `LayoutAuthority.swift`
+  keeps its name and file but now holds only the lowering's surviving
+  diagnostic vocabulary, `LoweringSite` and `UnlowerableField`. **A new
+  legacy registration site gains its own check and an arm in
+  `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`.** A branch lowering
+  from a style needs an animated arm. Differential harness:
+  `LayoutDifferential.compare` under `DifferentialRoot` — single-authority
+  since stage 9 (a tree is rendered once, with diagnostics on and element
+  bounds recorded, and a test asserts its answers by hand-derived literal,
+  never against a second engine); never a wrapping `Text` or greedy child
+  directly under the root; a diagnostics-mode test pre-flights with
+  `try #require` on an empty report. The bounds log is recorded at four
+  sites; a new group entry records too.
 - **Stage 2 lowers the flex ITEM fields, by the parent** (`LR-AB`…`LR-BA`).
   Every lowered site records a `LoweredItem` and reports no item field itself;
   a lowered container consumes its children's records and wraps each, and **a
@@ -884,7 +1226,7 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   unsized container a parent grows, `baseline`, `hidden()`. **Structure reads
   the declared style, values the animated one** (`LR-AS`); a new read of
   `Style` in the lowering owes an animated arm, or it is unpinned. A `Stack`
-  and a `.frame` layer ignore a child's margin, as the legacy engine does. A
+  and a `.frame` layer ignore a child's margin, as the legacy engine did. A
   child with **no record** — a proposal element such as a `Grid` — gets an
   empty plan: it is never stretched, grown or margined (record §23, X2).
 - **Stage 3 lowers scrolling and `Component` distribution** (`LR-BB`…`LR-BP`).
@@ -905,31 +1247,32 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   `flexBasis`, `alignSelf` and `margin`; `.padding` lowers as an ordinary
   one-child container; a `.frame` layer over several member nodes is a row of
   per-member frames at spacing 0. Site `component` has **no reachable report**
-  left. **Both scroll suites run under both authorities** — 34 scenarios, a
-  roll call that names any scenario that stops participating, and a new one
-  owes an `AuthorityCoverage.record` call and a bump of the registry's
-  literal (stage 4 renamed the registry and absorbed these 34 into its own
-  count; 82 since stage 5).
+  left. **Both scroll suites ran under both authorities until stage 9** — 34
+  scenarios folded into the registry that stage 4 renamed and stage 5 grew to
+  82 (below); stage 9 deleted `AuthorityCoverage` along with the second
+  authority and collapsed every surviving scenario onto its single-authority
+  assertion (`LR-FI`, `LR-FJ`).
 - **Stage 4 lowers `List`** (`LR-BQ`…`LR-CG`). The behaviour is in the `List`
-  paragraph above. Two things a reader needs here: the exit criterion is now
-  **67 scenarios across ten files under both authorities** (82 across
-  fifteen since stage 5), and
-  `ScrollAuthorityCoverage` is **renamed `AuthorityCoverage`**, with
+  paragraph above. Two things a reader needs here: the exit criterion was
+  **67 scenarios across ten files under both authorities until stage 9**
+  (82 across fifteen since stage 5), and
+  `ScrollAuthorityCoverage` was **renamed `AuthorityCoverage`**, with
   `everyScrollScenarioRanUnderBothLayoutAuthorities` renamed
   `everyParameterisedScenarioRanUnderBothLayoutAuthorities` and moved to
-  `Tests/MetalUITests/ZZAuthorityRollCall.swift` so that it sorts after every
-  contributing file. A new parameterised scenario owes an
-  `AuthorityCoverage.record` call and a bump of the literal (82 since
-  stage 5, below).
+  `Tests/MetalUITests/ZZAuthorityRollCall.swift` so that it sorted after every
+  contributing file. **Both files are deleted since stage 9** (`LR-FI`),
+  which collapsed every one of the registry's scenarios onto a single
+  assertion instead of a roll call.
 - **Stage 5 makes `Deferred`'s absolute content a presentation root**
   (`LR-CH`…`LR-CS`). The behaviour is in the `Deferred` paragraph above. The
   exit criterion is now **82 scenarios across fifteen files under both
-  authorities** (`AuthorityCoverage.expected`), and presentations are laid out
-  in their own native runs, in registration order, **before** the root in
-  `Frame.computeRootLayout` — separate runs so a presentation's depth counts
-  from its own root and the root's `SA-M` work literal is untouched. A new
-  parameterised scenario owes an `AuthorityCoverage.record` call and a bump of
-  the 82.
+  authorities until stage 9** (`AuthorityCoverage.expected`), and
+  presentations are laid out in their own native runs, in registration order,
+  **before** the root in `Frame.computeRootLayout` — separate runs so a
+  presentation's depth counts from its own root and the root's `SA-M` work
+  literal is untouched. The `AuthorityCoverage` registry this exit criterion
+  used is deleted at stage 9 along with the second authority it tracked
+  (`LR-FI`).
 - **Stage 6a deprecates the public custom-element registrars**
   (`LayoutPass.requestNode`/`requestLeaf`, `LR-CT`…`LR-DE`) and moves every
   in-repo test caller off them in the same change — onto
@@ -938,10 +1281,14 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   `Frame.requestNode`/`requestLeaf` where the test is about a CSS answer or
   a root-placement question not yet ruled. The internal registrars stay
   undeprecated (every production site already called them, not the public
-  pair); a custom element that still calls the public pair under
-  `.proposal` traps naming **stage 9**, not stage 6a
-  (`UnlowerableField.owningStage` for `.customElement`). No production
-  behaviour moves. **The stage's entry measurement** — the default
+  pair); at the time, a custom element that still called the public pair
+  under `.proposal` trapped naming **stage 9**, not stage 6a
+  (`UnlowerableField.owningStage` for `.customElement`) — **stage 9 deleted
+  the public pair outright**, so a plain-import caller no longer compiles at
+  all (`aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles`, renamed
+  from `…IsWarnedTowardTheNativeOnes`), and `.customElement` is gone from
+  `UnlowerableField` with it (`LR-FF`). No production
+  behaviour moved at 6a. **The stage's entry measurement** — the default
   authority and eight test-helper `.legacy` defaults flipped together,
   diagnostics on — classified all 153 reds it produced and is recorded as
   stage 6b's (root placement, ~78 reds) and stage 7b's (43 CSS reds)
@@ -973,12 +1320,51 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   CSS, 1 RP+CSS-frame, the 2 neither-recipe rows) and 5 for 9 (3 N9, the 2
   tokenizer tests). `NativeLayoutRun.maxDepth` moves 88 →
   72, the first release re-bisection alongside debug (`LR-DK`, "Depth guard"
-  below); the demo's list row gains `.height(Pixels(28))` so its labels stay
+  below); the demo's list row gains `.height(Pixels(28))` (respelled
+  `.frame(height: Pixels(28))` by stage 8's deprecation) so its labels stay
   centred under the switch (`LR-DJ`), moving its deepest native level 29 → 30.
-  Exit test `noProductionFrameReachesTheLegacyEngine`: `demoContent()`,
-  `nativeLayoutPreviewContent()` (`MetalUIDemoContent`, `LR-S`) and a `List`,
-  each through a real `Window`, bump `Frame.legacyRootLayoutCounter` (a
-  `@TaskLocal`, main-actor only) zero times. Record §41.
+  Exit test `noProductionFrameReachesTheLegacyEngine` (`demoContent()`,
+  `nativeLayoutPreviewContent()` from `MetalUIDemoContent`, `LR-S`, and a
+  `List`, each through a real `Window`, bumping `Frame.legacyRootLayoutCounter`
+  zero times) is **retired at stage 9** along with the counter it read —
+  there is no longer a legacy engine to reach; stage 10 replaces it with
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`. Record §41.
+- **Stage 7a retires the 97 WebKit goldens** (`LR-DS`…`LR-EB`). Verdicts
+  (`LR-DS`): **R** (44) — the golden's own tree, transcribed field for field
+  into `Box(style:)` with each `data-id` on `.id(_:)`, reproduces its rounded
+  boxes exactly under the proposal authority with an empty report, and a new
+  arm named for the golden asserts them (`goldenArm` in
+  `Tests/MetalUITests/GoldenReplacementSupport.swift`: `try #require` on an
+  empty report and on each id naming exactly one element; tests 1.1–1.8,
+  2.1–2.4); **D** (53) — the concept is CSS-only and deleted with the golden:
+  wrap (30), percentages (7), length basis and weighted shrink (6), automatic
+  minimum (3), border-box floor (3), unequal grow weights (2), sub-one grow
+  sum (2); each row cites the report-by-name test or, for the seven shapes
+  that lay out silently with another answer, a pin of the golden's own tree at
+  the native answer (2.5–2.7), plus 2.8 for `wrap-reverse`'s report. **A
+  replacement arm is a lowering test**: one reddening is a lowering change, not
+  a golden drifting. `GeneratorTests`, `OracleTests`, `Fixtures/`, `Oracle/`,
+  `Golden/`, four all-consumer files and 96 consumer tests are gone; one
+  consumer, `theClampedAutomaticMinimumIsStillFlooredByPaddingAndBorderMatchesWebKit`,
+  survives trimmed for 7b. 7a pre-empts nothing of 7b: every other CSS-engine
+  test, `FlexEngine` and every `.legacy`-pinned test stay. Record §48.
+- **Stage 8 deprecates the sizing vocabulary** (`LR-ER`…`LR-FB`): the eight
+  `StyledElement` sizing modifiers carry `@available(*, deprecated, message:)`
+  toward `.frame` (the "Sizing modifiers" paragraph has the recipe), pinned by
+  the plain-import guard `theSizingModifiersAreDeprecatedTowardFrame` (N3.1).
+  **A test keeps a `Style` write only through `Tests/MetalUITests/CSSSizing.swift`**
+  (`cssWidth(_:)` …, the public modifier's closure body verbatim, pinned by
+  `theCSSSizingHelpersWriteWhatTheDeprecatedModifiersWrite`): class K, for a
+  test whose subject is a legacy field's lowering, a two-authority comparison
+  or a registration site's own handler/decoration/focus/accessibility
+  (`LR-EW`, `LR-FB` — R2's move onto a frame layer would silently re-point
+  such a pin at `ModifiedElement`). A new test that sizes a box writes
+  `.frame`; `css*` dies with the fields at stage 10. A framed absolute box is
+  a presentation root (`LR-EV`, one node only); unconsumed as the root it
+  reports `position`/`inset` `.unconsumed` (`LR-FA`). Stage 8 pre-empted
+  nothing of 9–11: at 8, no engine file, `Style` field, legacy registrar or
+  the legacy authority was deleted (stage 9 did); `Component.width`/`height`
+  stay undeprecated (stage 11). Record §50.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -991,17 +1377,24 @@ A propose/measure/place engine sits beside the CSS engine. Detail: §19
   at its own size in the union (`CN-E`); infinite proposal answered with ∞ by
   infinite-max frames, spacers, scroll axes (`CN-F`). Flexible frame is greedy
   (`FR-A`, `FR-M`; test is on the minimum's presence).
-- **One authority per root, no adapter** (`SA-G`): native-under-legacy,
-  legacy-under-native, a `Style` on a native node, `computeLayout` on a native
-  root all trap. `ProposalElementGroup` has one requirement returning
-  `[ProposalNodeID]`; `ProposalNodeID`'s init is internal (`MC-G`). One id
-  registered under two parents traps (`CN-L`). **A copy of a pinned entry is
-  unpinned**: the typed builder-group entries and `EnvironmentScope`'s are
-  line-for-line copies, each with its own pin; a new group gets its own.
-  Single-child proposal wrappers precondition exactly one node.
+- **One authority per root** (`SA-G`; its legacy half retired with the CSS
+  engine at stage 9 — `aNativeNodeRegisteredUnderALegacyNodeTraps` and the
+  five traps beside it, `LR-FJ` rows 19–24): a `Style` on a native node,
+  `computeLayout` on a native root and every legacy/native mixed-tree trap
+  are gone, because every element now lowers onto the one kernel and there
+  is nothing left to mix. What survives is proposal-only:
+  `ProposalElementGroup` has one requirement returning `[ProposalNodeID]`;
+  `ProposalNodeID`'s init is internal (`MC-G`). One id registered under two
+  parents traps (`CN-L`). **A copy of a pinned entry is unpinned**: the typed
+  builder-group entries and `EnvironmentScope`'s are line-for-line copies,
+  each with its own pin; a new group gets its own. Single-child proposal
+  wrappers precondition exactly one node.
 - **Invalidation** (`SA-H`, `SA-I`): the cache lives for one call; answers
-  assumed pure; `setLayout` traps during measurement; **one `isLayingOut` flag
-  guards both engines — do not split it.**
+  assumed pure; `setLayout` traps during measurement; **one `isLayingOut`
+  flag guards the layout run — do not split it.** It once bracketed two
+  engines; the CSS engine's bracket in `computeLayout`, unpinned since
+  stage 7b (`LR-EQ`), was deleted with `computeLayout` itself at stage 9 —
+  one engine, one bracket.
 - **Validation** (`SA-J`, `SA-K`): reject a parameter only if SwiftUI rejects
   it or it would make a node non-finite at a finite proposal. Measurements may
   be infinite, stored rects may not, nothing may be NaN. Relaxing a trap into a
@@ -1177,8 +1570,8 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**58 live**, stable labels; retired labels never
-  reused: 3, 5–8, 12, 15, 17, 36, 37, 40, 59) — record §04 is current (its
+- **Known divergences** (**56 live**, stable labels; retired labels never
+  reused: 3, 4, 5–8, 11, 12, 15, 17, 36, 37, 40, 59) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
   its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
   adding a number, its first 2026-09-23 section likewise amends **13, 14 and
@@ -1194,34 +1587,71 @@ expected, measured facts:
   its own answer, unchanged by the switch), and divergence 4 (the legacy
   engine's `CS-I`: a hugging root fills the offered extent from (0, 0))
   becomes **legacy-authority only**, pinned by its own CSS-engine tests,
-  retired with the legacy engine at 7b);
+  retired with the legacy engine at 7b; its 2026-09-23 (stage 7a) section
+  amends **55**'s pin, which read "covered by the CSS goldens" — the goldens
+  are retired, and the row is pinned by name on both sides without them; and
+  its 2026-09-24 (stage 7b) section **retires 4** (58 → 57 live; 4 joins the
+  never-reused list): its two CSS-engine tests
+  (`autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot`,
+  `anAutoRootWithNoOfferedExtentMeasuresItsContent`) and
+  `RootSwitchTests`' `.legacy` arm are gone, but `CS-I`'s behaviour (a
+  hugging legacy root fills the offered extent from (0, 0)) stays exercised,
+  unnamed, by the `.legacy` arm of roughly thirty
+  `AuthorityCoverage`-parameterised tests until stage 9 deletes the legacy
+  authority and those arms with it — **not** "retired with the legacy
+  engine" as the stage-6b section above anticipated; it retires here as a row
+  about the CSS engine, its behaviour outliving it unnamed (`LR-EH`, `LR-EP`,
+  record §49 §8); the same section also re-pins **9, 48, 52, 53 and 55**
+  without retiring or adding a number — each lost the single-authority
+  CSS-engine test that used to be its only pin, superseded by an
+  already-live differential test that carries both engines' answers in one
+  body (record §04's 2026-09-24 section names each pair)); and its
+  2026-09-24 (stage 9) section **retires 11** (57 → 56 live; 11 joins the
+  never-reused list) — it was legacy-only since stage 5, and the legacy
+  engine it describes is gone; its proposal-side fact
+  (`[box.position, box.inset]` reported at the consumer for an absolute box
+  in a `ScrollView` with no `Deferred`) survives as its own thing, now the
+  only answer. That section also closes 4's loose end (the unnamed
+  `.legacy`-arm exercise the 7b section flagged is gone with
+  `AuthorityCoverage` itself) and re-reads **9, 10, 13, 14, 48, 52, 53, 55 and
+  56** without retiring or adding a number: none of the nine is *about* the
+  authority split, so the single-authority collapse of their differential
+  pins (`LR-FI` item 1) leaves every fact unchanged — three of the nine gain a
+  renamed pin (record §04's 2026-09-24 stage-9 section names each);
+  **18** is untouched (it was never about the authority);
   §19 "Known divergences" is the frozen 48-row copy. Many are *pinned wrong on
   purpose*; a test named for one reddening may be a fix, not a bug.
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
-  `Style.aspectRatio`/`overflow`, `margin: .auto`, `Style.border` on a
-  container, `Position.relative` offset, `hidden()` on drawing/focusable
-  subtrees, `AnyElement`'s `@State`, `PaintPass.isActive`, `onInput`'s `->
-  Bool`, colour glyphs, baselines,
+  `Style.aspectRatio`/`overflow`, `Position.relative` offset, `hidden()` on
+  drawing/focusable subtrees, `AnyElement`'s `@State`, `PaintPass.isActive`,
+  `onInput`'s `-> Bool`, colour glyphs, baselines,
   `locale`/`layoutDirection`/`dynamicTypeSize`, one axis each of
   `markNativeGridRow`/`markNativeGridCell`'s alignment, a grid mark outside a
   grid, …) — §19 "Declared but inert", record §05, whose 2026-09-21 section
   carries the stage 2 and grids changes, whose 2026-09-22 one carries stage
   3's and whose first 2026-09-23 one carries stage 4's: `UnlowerableField` site
-  `.list` now has **no site-level reporter left** (the same shape as site
-  `component`), and the internal `ListRows.GroupLayout.spacer` is stored on
-  every frame of every legacy `List` and read by nothing. **Three of those rows
-  are legacy-authority only**: under `.proposal`, stage 2 lowers `margin: .auto`
-  to nothing explicitly, `Style.border` on a container to insets, and a
-  `Text`'s `Style.padding` around its leaf. `Style.overflow` is **not** one of
-  them: stage 3's lowering does not carry it either, and `loweredLayout` says
-  so in a comment. Implementing one: delete its row;
-  adding an unimplementable property: add one. **Stage 5's (second
+  `.list` has **no site-level reporter left** (the same shape as site
+  `component`). **`margin: .auto` and `Style.border` on a container are
+  removed from this list at stage 9**: they were "legacy-authority only" —
+  inert under the CSS engine, lowered (to nothing explicit, and to insets)
+  under the proposal one — and the CSS engine that made them inert anywhere
+  is gone, so they are always lowered now, never inert (record §05's
+  2026-09-24 stage-9 section). A `Text`'s `Style.padding` around its leaf was
+  the third such row and is likewise always lowered now. `Style.overflow` was
+  **not** one of them even before: the lowering never carried it either, and
+  `loweredLayout` says so in a comment — it stays in the list, unaffected.
+  **`ListRows.GroupLayout.spacer` is deleted, not merely inert**: it went with
+  the legacy `List` path it served (`ListRows.swift`'s own comment). Adding
+  an unimplementable property: add a row. **Stage 5's (second
   2026-09-23) section adds no row**: its new reports
   (`deferred.containingBlock`/`.nested`/`.root`/`.amended`, the two
   `…absolute` fields, `position`/`inset` moved to the consumer) are
   diagnostics read by the report mechanism itself, not stored-but-unread
-  state. **`LayoutAuthority.proposal` in production is no longer inert — its
-  row is deleted** (stage 6b, `LR-DF`: production now runs it by default); the
+  state; the first three of those reports are deleted at stage 9 with the
+  legacy engine whose containing block they protected, `deferred.amended`
+  survives (re-owned to stage 11). **`LayoutAuthority.proposal` in production
+  is no longer inert — its row is deleted** (stage 6b, `LR-DF`: production
+  now runs it by default); the
   entry above listed it until this stage.
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
@@ -1233,8 +1663,8 @@ expected, measured facts:
   stage's to own. Nothing
   in the suite sees paint order, portals, scroll direction, presentation, the
   display link or real hover; those are looks. Padded legacy container rule:
-  container modifiers and `.flexGrow(1)` before `.padding`; size, background,
-  corner radius after. **Four looks are open here**: the stage 2 / grids
+  container modifiers and `.flexGrow(1)` before `.padding`; size (a `.frame`
+  since stage 8), background, corner radius after. **Four looks are open here**: the stage 2 / grids
   release-window capture (the screen was locked; the offscreen half read nine
   of twelve images at 0 and attributed the three preview images to the grids
   track's four preview cells); the preview's grid itself, which nobody has
@@ -1278,35 +1708,29 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **78** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **79** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a
   guard that ran costs real `swiftc -typecheck` time, ~0.46 s each for the four
   `GridCompileGuards`, which is the only way to tell it from one that returned
-  true for free); the
-  freeze-loop allocation pin checks only half itself on Apple toolchains
-  (`FREEZE-ALLOC: strict per-pass bound NOT CHECKED`); `malloc_logger` tests
+  true for free); **retired with stage 7b's removal of
+  `FreezeLoopAllocationTests.swift`**: the freeze-loop allocation pin that
+  checked only half itself on Apple toolchains
+  (`FREEZE-ALLOC: strict per-pass bound NOT CHECKED`) — the surviving
+  `malloc_logger` installer is `ModifiedElementTests`' own copy, whose
+  hazard (two installers racing under a parallel run) is now moot with only
+  one left; `malloc_logger` tests still
   need `--no-parallel`; E24 hard-fails under the root locale; seven
-  `AnimationTests` hard-fail without a display device. Two more were added by
-  stage 3 (the first renamed and widened by stage 4, then widened again by
-  stage 5) and one by stage 4:
-  - `everyParameterisedScenarioRanUnderBothLayoutAuthorities` (stage 3's
-    `everyScrollScenario…`, renamed and moved to `ZZAuthorityRollCall.swift` by
-    stage 4) reads coverage accumulated by **fifteen** other files (ten at
-    stage 4; stage 5 adds `AbsoluteOverlayTests`, `DeferredTests`,
-    `DecorationPaintTests`, `EnvironmentTests` and `PresentationWindowTests`)
-    and so depends
-    on Swift Testing's **unspecified** cross-file order (measured on Swift 6.4
-    only). On a runner with a different order it is a spurious red, and
-    `swift test --filter everyParameterisedScenario` hard-fails. It always
-    names what it had not seen — read the names before debugging.
-  - **Three `AccessibilityDefaultsTests` scenarios call
-    `AuthorityCoverage.record` after `try #require(MTLCreateSystemDefaultDevice())`**,
-    where the other eight parameterised scenarios record first. On a
-    display-less runner they fail at the require *and* the roll call fails a
-    second time naming them as having recorded no coverage — the second
-    message points at the registry, not at the absent device.
+  `AnimationTests` hard-fail without a display device. **Two more, added by
+  stage 3 and widened through stage 5, are retired at stage 9** along with
+  `AuthorityCoverage` and `ZZAuthorityRollCall.swift` (`LR-FI`): the
+  cross-file-order roll-call hazard (`everyParameterisedScenarioRanUnderBothLayoutAuthorities`,
+  which depended on Swift Testing's unspecified cross-file order across
+  fifteen files) and the `AccessibilityDefaultsTests`-recording-after-`#require`
+  ordering hazard against that same registry. Neither registry nor roll call
+  exists to be spuriously red any more. Two hazards survive, unrelated to
+  either (the second added by PR #30, merged at stage 9's close):
   - A proposal-authority regression that reports an `…unconsumed` field now
     **traps in a `Window` test and truncates the run with no summary line**
     (the first such test is #1251). Read the last lines of the log, not the
@@ -1320,3 +1744,18 @@ expected, measured facts:
     with no explicit authority now runs `.proposal` by default, so a
     lowering site that receives a `LoweredItem` nobody consumes traps at
     runtime in the app, not only in a test that opted into diagnostics.
+  - **Windows threads have 1 MB stacks** (the main thread and Swift Testing's
+    workers; macOS's and Linux's main threads have 8 MB), and a debug builder
+    closure reserves a slot for every temporary it holds — the demo's tree
+    value is 35 KB, so its builder frames measured 138–248 KB each on macOS
+    arm64, and `demoContent()` needed a 1200 KB thread at `b9a5d7f` (stage
+    8's `.frame` layers; 896 KB at `85217e3`), overflowing both Windows jobs
+    while macOS and Linux passed. Since the fix it needs 528 KB: each section
+    is its own function, passed as an argument to a generic composing
+    function (the note after `demoContent()`). **A new demo section goes in
+    its own function the same way**, not inline in a composing builder. Guard:
+    `everyProductionTreeBuildsOnAOneMegabyteThread` (an exit test, all three
+    platforms; it builds, it cannot render off the main thread —
+    `assumeIsolated`). swift-corelibs Foundation silently ignores a
+    `Thread.stackSize` of 64 KB, so a small-stack control there needs 128 KB
+    or more. Record §50 §14.

@@ -175,3 +175,77 @@ func everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload() throws 
     #expect(result.succeeded,
             "every frame spelling must infer its own path's wrapper type:\n\(result.output)")
 }
+
+/// **N3.1 — the eight sizing modifiers are deprecated toward `.frame`** (plan
+/// task 7, stage 8; rulings `LR-EU`, `LR-ET`; spec
+/// `docs/superpowers/specs/2026-09-24-engine-stage-8-design.md` §4, §6 lane 3).
+///
+/// A plain `import MetalUI` fixture calls each of `width`, `height`,
+/// `minWidth`, `maxWidth`, `minHeight`, `maxHeight`, `width(fraction:)` and
+/// `height(fraction:)` once, on its own line, and must draw **exactly eight**
+/// deprecations; each modifier's diagnostic must name its replacement as the
+/// message spells it (`use .frame(width:)`, …; the two fractions "no SwiftUI
+/// counterpart"), and `minHeight`'s must also name `LR-ET`'s zero-minimum
+/// spelling. The control fixture spells the same sizes with `.frame` and must
+/// draw none — so a count read from both arms can disagree.
+///
+/// `message:`, not `renamed:` (`LR-EU` item 2): a `renamed:` fix-it would apply
+/// `LR-ES`'s R1 alone and silently skip R2–R6.
+///
+/// Red before lane 3: no modifier is deprecated (count 0). Mutation **M3a**
+/// (delete one `@available`) → 7, this test red.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func theSizingModifiersAreDeprecatedTowardFrame() throws {
+    let result = try typecheckFile("""
+        @MainActor public func probe() {
+            _ = Box().width(Pixels(1))
+            _ = Box().height(Pixels(2))
+            _ = Box().minWidth(Pixels(3))
+            _ = Box().maxWidth(Pixels(4))
+            _ = Box().minHeight(Pixels(5))
+            _ = Box().maxHeight(Pixels(6))
+            _ = Box().width(fraction: 0.5)
+            _ = Box().height(fraction: 0.5)
+        }
+        """, importing: "MetalUI")
+    let lines = result.messages.split(separator: "\n").filter { $0.contains("is deprecated") }
+    print("N3.1 sizing deprecations: succeeded=\(result.succeeded) count=\(lines.count) messages=[\(result.messages)]")
+    #expect(result.succeeded, "the deprecated spellings must still compile:\n\(result.output)")
+    #expect(lines.count == 8, "exactly one deprecation per sizing modifier:\n\(result.output)")
+
+    // (the declaration's name as the diagnostic quotes it, the replacement its message must name)
+    let expected: [(String, String)] = [
+        ("'width' is deprecated", "use .frame(width:), which wraps this element in a layer"),
+        ("'height' is deprecated", "use .frame(height:), which wraps this element in a layer"),
+        ("'minWidth' is deprecated", "use .frame(minWidth:), which wraps this element in a layer"),
+        ("'maxWidth' is deprecated", "use .frame(maxWidth:), which wraps this element in a layer"),
+        ("'minHeight' is deprecated", "use .frame(minHeight:), which wraps this element in a layer"),
+        ("'minHeight' is deprecated", ".frame(minHeight: 0, maxHeight: .infinity) (LR-ET)"),
+        ("'maxHeight' is deprecated", "use .frame(maxHeight:), which wraps this element in a layer"),
+        ("'width(fraction:)' is deprecated", "no SwiftUI counterpart"),
+        ("'width(fraction:)' is deprecated", "declare a length with .frame(width:)"),
+        ("'height(fraction:)' is deprecated", "no SwiftUI counterpart"),
+        ("'height(fraction:)' is deprecated", "declare a length with .frame(height:)"),
+    ]
+    try #require(expected.count == 11)
+    for (name, replacement) in expected {
+        #expect(lines.contains { $0.contains(name) && $0.contains(replacement) },
+                "\(name) must name \(replacement):\n\(result.output)")
+    }
+
+    let control = try typecheckFile("""
+        @MainActor public func probe() {
+            _ = Box().frame(width: Pixels(1))
+            _ = Box().frame(height: Pixels(2))
+            _ = Box().frame(minWidth: Pixels(3))
+            _ = Box().frame(maxWidth: Pixels(4))
+            _ = Box().frame(minHeight: Pixels(5))
+            _ = Box().frame(maxHeight: Pixels(6))
+            _ = Box().frame(minHeight: Pixels(0), maxHeight: Pixels(.infinity))
+        }
+        """, importing: "MetalUI")
+    let controlCount = control.messages.split(separator: "\n").filter { $0.contains("is deprecated") }.count
+    print("N3.1 control: succeeded=\(control.succeeded) count=\(controlCount) messages=[\(control.messages)]")
+    #expect(control.succeeded, "the .frame spellings must compile:\n\(control.output)")
+    #expect(controlCount == 0, "the .frame spellings are not deprecated:\n\(control.output)")
+}

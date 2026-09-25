@@ -37,9 +37,10 @@ public enum PathComponent: Hashable, Sendable {
 /// anything here.** Dropping the last reference to a leaf id releases its parent
 /// from `deinit`, which releases *its* parent, so a pathological depth would
 /// overflow the stack at teardown. The mechanism that keeps it theoretical is
-/// `LayoutContext.maxDepth` (64): identity depth is element-container nesting
-/// plus one level per enclosing `if`/`else`, and `computeLayout` traps on the
-/// container nesting long before a release chain matters. Worth knowing because
+/// `NativeLayoutRun.maxDepth` (72 native levels; the CSS engine's
+/// `LayoutContext.maxDepth`, 64, until stage 9): identity depth is
+/// element-container nesting plus one level per enclosing `if`/`else`, and the
+/// kernel traps on the nesting long before a release chain matters. Worth knowing because
 /// "one allocation per child regardless of depth" says nothing about the other
 /// end.
 ///

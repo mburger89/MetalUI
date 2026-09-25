@@ -140,19 +140,10 @@ public final class Window {
         didSet { setNeedsRedraw() }
     }
 
-    /// The layout authority every frame this window builds runs under (plan task
-    /// 7, ruling LR-B): `Frame.defaultLayoutAuthority`, `.proposal` since stage
-    /// 6b's switch (`LR-DF`). A write marks the window dirty, as `environment`'s
-    /// does, a no-op included. **Internal**, pinned by
-    /// `aPlainImportCannotChooseTheLayoutAuthority`.
-    var layoutAuthority: LayoutAuthority = Frame.defaultLayoutAuthority {
-        didSet { setNeedsRedraw() }
-    }
-
     /// Whether every frame this window builds records its element bounds
     /// (`Frame.recordsElementBounds`), read back through `lastElementBounds`.
-    /// **Test observability** for plan task 7's differential harness through a real
-    /// window (`WindowPair`, lane 5); no production reader. Off by default, so a
+    /// **Test observability** for plan task 7's lowering tests through a real
+    /// window (`makeLoweredWindow`); no production reader. Off by default, so a
     /// frame pays nothing.
     var recordsElementBounds = false
 
@@ -235,8 +226,7 @@ public final class Window {
     /// depth), captured alongside `lastScene` because the frame and its tree die
     /// at the end of `drawFrameIfNeeded`. **Test observability** for plan task
     /// 7, stage 6b (`LR-DK` item 2, test 3.3): every production root's depth is
-    /// read through a real window. 0 for a frame whose root is laid out by the
-    /// CSS engine (no native run).
+    /// read through a real window.
     private(set) var lastNativeLayoutDeepestLevel = 0
 
     /// The primitives the most recent frame handed to the renderer.
@@ -923,7 +913,6 @@ public final class Window {
                           focusedElement: focusHandedIn,
                           transaction: transaction,
                           collectsAccessibility: accessibility.isActive,
-                          layoutAuthority: layoutAuthority,
                           recordsElementBounds: recordsElementBounds)
         frame.rootEnvironment = environment
         withObservationTracking {

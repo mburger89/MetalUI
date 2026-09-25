@@ -114,6 +114,45 @@ private struct ModifierCase {
                             inout HandlerShape) -> Void
 }
 
+/// **Class D** (plan task 7, stage 8; `LR-EW`, spec §5.2): the eight sizing
+/// modifiers are deprecated (`LR-EU`), and they are this table's subject — each
+/// row pins the field its modifier writes. The rows are unchanged; they are
+/// built inside a deprecated protocol witness reached through its requirement
+/// (`oldSpelling(_:)`, `CSSSizing.swift`), which warns nothing
+/// (`docs/probes/swift-deprecated-witness-silence.sh`), and spliced back into
+/// the table at the place they stood.
+private struct DeprecatedSizingCases: DeprecatedSpelling {
+    @available(*, deprecated, message: "calls the deprecated sizing modifiers on purpose: they are the subject of everyPublicModifierWritesItsOwnFieldAndOnlyThatField's Size rows (stage 8, LR-EW class D)")
+    func spelled() -> [ModifierCase] {
+        [
+            ModifierCase(name: "width(_:)",
+                         apply: { $0.width(px(11)) },
+                         effect: { s, _, _, _ in s.size.width = .length(.pixels(px(11))) }),
+            ModifierCase(name: "height(_:)",
+                         apply: { $0.height(px(12)) },
+                         effect: { s, _, _, _ in s.size.height = .length(.pixels(px(12))) }),
+            ModifierCase(name: "width(fraction:)",
+                         apply: { $0.width(fraction: 13) },
+                         effect: { s, _, _, _ in s.size.width = .length(.percent(13)) }),
+            ModifierCase(name: "height(fraction:)",
+                         apply: { $0.height(fraction: 14) },
+                         effect: { s, _, _, _ in s.size.height = .length(.percent(14)) }),
+            ModifierCase(name: "minWidth(_:)",
+                         apply: { $0.minWidth(px(15)) },
+                         effect: { s, _, _, _ in s.minSize.width = .length(.pixels(px(15))) }),
+            ModifierCase(name: "minHeight(_:)",
+                         apply: { $0.minHeight(px(16)) },
+                         effect: { s, _, _, _ in s.minSize.height = .length(.pixels(px(16))) }),
+            ModifierCase(name: "maxWidth(_:)",
+                         apply: { $0.maxWidth(px(17)) },
+                         effect: { s, _, _, _ in s.maxSize.width = .length(.pixels(px(17))) }),
+            ModifierCase(name: "maxHeight(_:)",
+                         apply: { $0.maxHeight(px(18)) },
+                         effect: { s, _, _, _ in s.maxSize.height = .length(.pixels(px(18))) })
+        ]
+    }
+}
+
 /// Every direct-style modifier writes its own field, and only its own field.
 ///
 /// **Every value below is distinct, and none is a default.** Both halves are
@@ -166,32 +205,9 @@ private struct ModifierCase {
                      apply: { $0.focusBackground(.scrim) },
                      effect: { _, d, _, _ in d.focusBackground = .scrim }),
 
-        // MARK: Size
-        ModifierCase(name: "width(_:)",
-                     apply: { $0.width(px(11)) },
-                     effect: { s, _, _, _ in s.size.width = .length(.pixels(px(11))) }),
-        ModifierCase(name: "height(_:)",
-                     apply: { $0.height(px(12)) },
-                     effect: { s, _, _, _ in s.size.height = .length(.pixels(px(12))) }),
-        ModifierCase(name: "width(fraction:)",
-                     apply: { $0.width(fraction: 13) },
-                     effect: { s, _, _, _ in s.size.width = .length(.percent(13)) }),
-        ModifierCase(name: "height(fraction:)",
-                     apply: { $0.height(fraction: 14) },
-                     effect: { s, _, _, _ in s.size.height = .length(.percent(14)) }),
-        ModifierCase(name: "minWidth(_:)",
-                     apply: { $0.minWidth(px(15)) },
-                     effect: { s, _, _, _ in s.minSize.width = .length(.pixels(px(15))) }),
-        ModifierCase(name: "minHeight(_:)",
-                     apply: { $0.minHeight(px(16)) },
-                     effect: { s, _, _, _ in s.minSize.height = .length(.pixels(px(16))) }),
-        ModifierCase(name: "maxWidth(_:)",
-                     apply: { $0.maxWidth(px(17)) },
-                     effect: { s, _, _, _ in s.maxSize.width = .length(.pixels(px(17))) }),
-        ModifierCase(name: "maxHeight(_:)",
-                     apply: { $0.maxHeight(px(18)) },
-                     effect: { s, _, _, _ in s.maxSize.height = .length(.pixels(px(18))) }),
-
+        // MARK: Size — the eight deprecated sizing rows, unchanged, built in a
+        // class-D witness (`DeprecatedSizingCases`, below the table's type).
+    ] + oldSpelling(DeprecatedSizingCases()) + [
         // MARK: Box model
         // `padding` deliberately does not appear here: it is a SwiftUI-style
         // wrapper modifier now, not a direct write into its receiver's Style.

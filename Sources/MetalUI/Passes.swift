@@ -29,66 +29,11 @@ public struct LayoutPass {
     /// The space offered to the root, in logical points.
     public var contentSize: Size<Pixels> { frame.contentSize }
 
-    /// Whether this frame lowers legacy elements onto the proposal kernel
-    /// (`Frame.layoutAuthority`, plan task 7, ruling LR-B). A legacy site reads it
-    /// before registering; see `LayoutAuthority`.
-    var lowersToProposal: Bool { frame.layoutAuthority == .proposal }
-
-    /// Registers a node with `style` and already-registered `children`, and
-    /// returns its id. Children are registered before their parent, so an
-    /// element builds bottom-up.
-    ///
-    /// **A custom element's registrar.** No in-module element calls it (each
-    /// calls `Frame.requestNode` after its own authority check), so under the
-    /// proposal authority it reports `customElement.requestNode` — a trap in
-    /// production, a diagnostic under the differential harness (ruling LR-C).
-    ///
-    /// **Deprecated in stage 6a** (rulings `LR-R`, `LR-CX`), and every in-repo
-    /// caller moved in the same change, so the build stays at 0 `warning:`.
-    /// Production still runs the legacy authority, where this still registers
-    /// exactly `Frame.requestNode` (`aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`);
-    /// under the proposal authority it reports `customElement.requestNode`, owned
-    /// by stage 9, which deletes it (`LR-CW`). An external caller is warned
-    /// toward `requestNativeLeaf(measure:)` or a `ProposalLayout`
-    /// (`aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes`).
-    @available(*, deprecated, message: "a custom element registers through requestNativeLeaf(measure:) or a ProposalLayout; this legacy registrar traps under the proposal layout authority and is deleted by plan task 7's stage 9 (ruling LR-R)")
-    public func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
-        if lowersToProposal {
-            return frame.unlowerable(UnlowerableField(site: .customElement, field: "requestNode"))
-        }
-        return frame.requestNode(style: style, children: children)
-    }
-
-    /// Registers a **leaf**: a node with no children that answers for its own
-    /// size through `measure` (spec §3.1, §5.5).
-    ///
-    /// `measure` is `@Sendable` and non-isolated — the engine calls it from
-    /// wherever it is running — so what it may capture is decided by the
-    /// compiler and not by convention. `Text.requestLayout` is the worked
-    /// example: a `@MainActor` cache is capturable (a global-actor class is
-    /// implicitly `Sendable`), a `CTFont` is not, and the block must reduce to
-    /// a `SizeD` before it returns.
-    ///
-    /// Public because a leaf is how *anything* that is not a box gets a size —
-    /// spec §3.1 names text, images and embedded app content — and an element
-    /// outside this module has no other way to report one.
-    ///
-    /// Under the proposal authority it reports `customElement.requestLeaf`, as
-    /// `requestNode` above reports its own name (ruling LR-C).
-    ///
-    /// **Deprecated in stage 6a** with `requestNode` (rulings `LR-R`, `LR-CX`):
-    /// production still runs the legacy authority, where this still registers
-    /// exactly `Frame.requestLeaf`; under the proposal authority it reports
-    /// `customElement.requestLeaf`, owned by stage 9 (`LR-CW`). A leaf outside
-    /// this module now reports its size through `requestNativeLeaf(measure:)`.
-    @available(*, deprecated, message: "a custom element registers through requestNativeLeaf(measure:) or a ProposalLayout; this legacy registrar traps under the proposal layout authority and is deleted by plan task 7's stage 9 (ruling LR-R)")
-    public func requestLeaf(style: Style,
-                            measure: @escaping MeasureFunction) -> LayoutNodeID {
-        if lowersToProposal {
-            return frame.unlowerable(UnlowerableField(site: .customElement, field: "requestLeaf"))
-        }
-        return frame.requestLeaf(style: style, measure: measure)
-    }
+    // Stage 9 (`LR-FC`): the legacy registrars `requestNode(style:children:)`
+    // and `requestLeaf(style:measure:)` (deprecated since stage 6a, `LR-R`) and
+    // `lowersToProposal` are deleted with the legacy authority. A custom
+    // element registers through `requestNativeLeaf(measure:)` or a
+    // `ProposalLayout`.
 
     // MARK: Native registrars — typed (ruling MC-G)
     //
@@ -99,17 +44,14 @@ public struct LayoutPass {
     // `aProposalLayoutContainerOnlyAcceptsTypedChildren`). They wrap and unwrap
     // around `Frame`'s untyped registrars, which are unchanged and keep the
     // run-time traps of ruling SA-G as the backstop for what the type cannot see
-    // (`ProposalNodeID.swift`'s seven holes). Until lane 3 of the
+    // (`ProposalNodeID.swift`'s holes). Until lane 3 of the
     // modifier-composition track these took and returned `LayoutNodeID`.
 
     /// Registers a leaf measured by the native SwiftUI-style layout path.
     ///
-    /// The closure receives the parent's proposal rather than CSS known and
-    /// available spaces. A native node cannot contain a legacy child, and a
-    /// legacy node cannot contain a native one: both trap at registration
-    /// (ruling SA-G). The typed id makes the first a compile error for any child
-    /// a native registrar is handed (ruling MC-G); the traps stay for a legacy
-    /// node reached some other way.
+    /// The closure receives the parent's proposal. Since stage 9 every node is
+    /// native (`LR-FC`); the typed id (ruling MC-G) still makes a child that no
+    /// native registrar returned a compile error.
     public func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> ProposalNodeID {
         ProposalNodeID(frame.requestNativeLeaf(measure: measure))
     }
@@ -207,39 +149,6 @@ public struct LayoutPass {
     public func requestNativeLayout(_ layout: some ProposalLayout,
                                     children: [ProposalNodeID]) -> ProposalNodeID {
         ProposalNodeID(frame.requestNativeLayout(layout, children: children.map(\.layoutNodeID)))
-    }
-
-    /// Reads back a node's current `Style`, so a caller that registered a node
-    /// earlier in this same layout pass can amend rather than replace it.
-    /// `StyledComponent`'s only production caller (`Component.swift`).
-    ///
-    /// **`internal`, not `public`, and deliberately so — narrowed by the fix
-    /// wave.** This pair is a read-back-and-overwrite on a raw
-    /// `LayoutNodeID`, and a `LayoutNodeID` is not scoped to whoever minted it:
-    /// as `public` these two let *any* out-of-module element read and overwrite
-    /// the `Style` of any node it can name — a sibling's, a parent's — during
-    /// the request phase, with no signal to the node's owner. Nothing outside
-    /// `MetalUI` needs that: `StyledComponent` is in-module and amends only the
-    /// nodes its own component just returned, or the padding wrappers it has
-    /// just registered around them (`OM-E`'s ordered ops). Shipping public surface with one
-    /// in-module caller is what this repo's inert-API discipline refuses;
-    /// widening later is trivial and unshipping is not. Pinned by
-    /// `layoutPassStyleAccessorsAreNotPublic` (`ErasureCompileGuards.swift`), which
-    /// must use a **plain** import — `@testable` widens `internal` and cannot
-    /// demonstrate a narrowing at all (taxonomy shape 16, ruling `TB-N`).
-    func style(_ id: LayoutNodeID) -> Style {
-        frame.style(id)
-    }
-
-    /// Overwrites a node's `Style` in place. `LayoutTree.setStyle`'s only
-    /// production caller: registration derives nothing from style, so this is
-    /// sound at any point before `computeLayout` runs, which is exactly the
-    /// window this pass exists for. **`internal` for the reason stated at
-    /// `style(_:)` above**, which is this method's reason more than that one's:
-    /// the read is harmless on its own and the overwrite is what makes the pair
-    /// reach through a boundary.
-    func setStyle(_ id: LayoutNodeID, _ style: Style) {
-        frame.setStyle(id, style)
     }
 
     /// The window's shaping cache (spec §3.2).

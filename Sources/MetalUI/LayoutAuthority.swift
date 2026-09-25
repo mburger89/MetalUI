@@ -1,33 +1,11 @@
 import MetalUICore
 import MetalUILayout
 
-/// Which layout engine a frame's legacy elements register with (plan task 7,
-/// `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §3; rulings
-/// LR-A, LR-B).
-///
-/// - `.legacy` — every legacy element registers CSS nodes and the frame runs
-///   `FlexEngine`, exactly as before task 7. **The default, and the only
-///   authority production uses until stage 6b.**
-/// - `.proposal` — every legacy element lowers its (animated) `Style` onto kernel
-///   nodes, keeping its ids, `prepaint` and `paint`. A site with no lowering yet
-///   traps, naming itself and the field (`Frame.unlowerable(_:)`, ruling LR-C).
-///
-/// **It belongs to the frame, not to an element or an environment value** (LR-B):
-/// a tree that switched authority below its root would be ruling SA-G's mixed
-/// tree. `Window.layoutAuthority` passes it to every frame the window builds.
-///
-/// **Internal until stage 6b**, which decides whether any public spelling
-/// survives; pinned by the plain-import guard
-/// `aPlainImportCannotChooseTheLayoutAuthority`.
-///
-/// **`CaseIterable` for the tests** (plan task 7, stage 3, lane 3, ruling LR-BI):
-/// the two scroll suites and `ScrollViewTests` are parameterised over
-/// `allCases`, so "both authorities" is one list rather than a literal repeated
-/// at 34 declarations. Internal, like the enum.
-enum LayoutAuthority: Sendable, Equatable, CaseIterable {
-    case legacy
-    case proposal
-}
+// Stage 9 (`LR-FC`): the `LayoutAuthority` enum — `.legacy`, the CSS flex
+// engine, and `.proposal`, the lowering onto the kernel — is deleted with the
+// legacy engine. Every legacy element lowers; this file keeps the lowering's
+// diagnostic vocabulary, `LoweringSite` and `UnlowerableField`, under its old
+// name so that every citation of it stays true.
 
 /// A legacy registration site, as it names itself in a diagnostic.
 ///
@@ -48,13 +26,11 @@ enum LoweringSite: String, Sendable {
     case scrollView
     case list
     case component
-    case customElement
     /// A `Deferred` presentation root (plan task 7, stage 5, rulings `LR-CH`,
-    /// `LR-CL`): `containingBlock`, `nested` and `root`, raised against the
-    /// presentation's containing block, and `amended`, raised by a `Component`
-    /// amend over a presentation member (`LR-CK`). Every one exists to keep the
-    /// differential honest about a legacy containing block that is not the
-    /// window, and is deleted with the legacy authority (stage 9).
+    /// `LR-CK`): one entry, `amended`, raised by a `Component` amend over a
+    /// presentation member; owned by stage 11 (`LR-FF`). Stage 5's
+    /// `containingBlock`, `nested` and `root` entries went with the legacy
+    /// engine whose containing block they protected (stage 9, `LR-FF`).
     case deferred
 }
 
@@ -64,13 +40,14 @@ enum LoweringSite: String, Sendable {
 /// `field` is `"noLowering"` for a site that lowers nothing yet — in lane 1 every
 /// site; lanes 2–4 replace `box`, `stack`, `text` and `modifierLayer` with
 /// field-level names (`"flexGrow"`, `"alignItems.stretch"`, …).
-/// `customElement` reports `"requestNode"` or `"requestLeaf"` — the deprecated
-/// public registrars since stage 6a, owned by stage 9 (`LR-CW`).
+/// (`customElement`, which reported the deprecated public registrars from stage
+/// 6a, went with them at stage 9, `LR-FF`.)
 ///
 /// **`component` reports nothing at all since stage 3's lane 4** (`LR-BO`): it
 /// read `"amend"` or `"wrap"` until both ops were lowered, and neither lowering
 /// can raise an entry at its own site — an amend's frame is recorded
-/// `kind: .frameLayer`, which the unconsumed report skips, and both ops plan
+/// `kind: .frameLayer`, whose fields the unconsumed report skips (all but an
+/// absolute `position`/`inset`, stage 8's `LR-FA`), and both ops plan
 /// exactly one child, so neither can raise `flexGrow.weights`, the one entry
 /// `parentSite:` names (`LR-BM`).
 struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
@@ -90,9 +67,13 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
         // from the proposal authority rather than lowered, and belong to the stage
         // that deletes `Style.position`/`inset`; `minSize`/`maxSize` on an
         // absolute box's `auto` axis (`<field>.absolute`, `LR-CJ` item 3) to
-        // stage 8's min/max recipe.
+        // stage 10 since stage 8 (`LR-EV` item 4, `LR-EZ` item 3): stage 8's
+        // public spelling of a bounded absolute box is a `.frame` before
+        // `.position`, which never reports (`LR-EV` item 2), so the report is
+        // left only to a `Style`-written box and dies with `Style.minSize`/
+        // `maxSize` (`LR-ER` item 4). Until stage 8 it read "8".
         if field.hasPrefix("position") || field.hasPrefix("inset") { return "10" }
-        if field.hasSuffix(".absolute") { return "8" }
+        if field.hasSuffix(".absolute") { return "10" }
         switch site {
         // `textField` (roadmap item 14) is a leaf lowered as `text` is, so its
         // field-level entries are the same stage's.
@@ -119,17 +100,15 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
         // post-`LR-BO` position.
         case .list:
             return "4"
-        // Stage 6a (`LR-CW`): a custom element on the deprecated public
-        // registrars is **removed** from the proposal authority rather than
-        // lowered — its replacement is `requestNativeLeaf` or a
-        // `ProposalLayout` — and stage 9 deletes the pair (`LR-CK`'s precedent
-        // for `position`/`inset`).
-        case .customElement:
-            return "9"
-        // Stage 5 (`LR-CL`): every `deferred` entry protects a legacy containing
-        // block that is not the window, and goes with the legacy authority.
+        // Stage 9 (`LR-FF`): the one `deferred` entry left is `amended` — a
+        // `Component.width`/`frame` amend over a presentation member, which
+        // `LR-CK` reports rather than drop silently. What that amend means is
+        // `Component.width`'s question, stage 11's (`LR-ER` item 2, `LR-EY`
+        // item 3). The stage-5 `containingBlock`, `nested` and `root` entries
+        // protected a legacy containing block and went with the legacy engine;
+        // until stage 9 this arm read "9".
         case .deferred:
-            return "9"
+            return "11"
         }
     }
 

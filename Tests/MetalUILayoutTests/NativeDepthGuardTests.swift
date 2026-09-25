@@ -17,10 +17,13 @@ import MetalUICore
 //   (measurement only, through `measureNativeLayout`);
 // - `aPlacementOnlyChainOfCustomLayoutsDeeperThanTheLimitTraps`: `placeNative`'s
 //   alone (a chain whose measurement never recurses).
-// `LayoutContextTests` records the same shape-4 hazard for legacy `placeNode`.
+// The retired `LayoutContextTests` recorded the same shape-4 hazard for legacy
+// `placeNode` (stage 7b retired the whole file, record §49 §1).
 //
 // **Every layout runs on an explicitly-sized 4 MB `Thread`**, for the reason
-// `layingOutATreeDeeperThanTheLimitTraps` gives: `maxDepth` is a statement
+// this file's own `layingOutANativeTreeDeeperThanTheLimitTraps` (above) gives,
+// the same reason the retired legacy `layingOutATreeDeeperThanTheLimitTraps`
+// gave (record §49 row 8): `maxDepth` is a statement
 // about the stacks the framework runs on, and an exit-test task's own stack is
 // not one of them. `maxDepth + 1` = 89 levels at ≤ ≈6.8 KB each (debug, the
 // bisection table on `NativeLayoutRun.maxDepth`) is ≈0.6 MB, so 4 MB overflows

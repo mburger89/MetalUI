@@ -40,21 +40,16 @@ private struct Item: Identifiable { let id: Int }
 /// Renders `element` into a collecting `Frame` and builds the tree the way
 /// `Window.drawFrameIfNeeded` does.
 ///
-/// **`authority` since stage 4's lane 4** (`LR-BU`): the four `List` tests that
-/// go through this helper run under both. Every other caller takes the default
-/// `.legacy`, which is what production uses until stage 6b — this file's
-/// subject is the accessibility tree, not the engine, and an authority argument
-/// on a fixture with no `List` in it would be an argument two arms could not
-/// disagree about (`LR-BN`'s rule).
+/// (Took a layout authority from stage 4's lane 4, `LR-BU`, until stage 9, which
+/// deleted the legacy one.)
 @MainActor private func collect<E: Element>(_ element: E, stateTable: StateTable = StateTable(),
                                            width: Float = 300, height: Float = 300,
-                                           collects: Bool = true,
-                                           authority: LayoutAuthority = Frame.defaultLayoutAuthority)
+                                           collects: Bool = true)
     -> (Frame, AccessibilityTree) {
     var element = element
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
                       stateTable: stateTable, theme: Theme.forAppearance(.light),
-                      collectsAccessibility: collects, layoutAuthority: authority)
+                      collectsAccessibility: collects)
     frame.render(&element)
     let tree = AccessibilityTreeBuilder.build(emissions: frame.axEmissions,
                                               focused: frame.focusedElement,
@@ -97,10 +92,10 @@ private extension AccessibilityTree {
 /// dropped from `scrolledList` itself (stage 4, lane 4).
 @MainActor private func legacySpelledScrolledListRoot(_ count: Int, height: Float) -> some Element {
     let list = List((0..<count).map(Item.init), rowHeight: px(28)) { item in
-        Box { Text("Row \(item.id)") }.width(px(180)).height(px(28))
+        Box { Text("Row \(item.id)") }.frame(width: px(180), height: px(28), alignment: .topLeading)
     }
     return Box { ScrollView(.vertical) { list } }
-        .width(px(200)).height(px(height)).minHeight(px(0))
+        .cssWidth(px(200)).cssHeight(px(height)).cssMinHeight(px(0))
 }
 
 /// **The red this lane could not take in-process, and the measured reason
@@ -146,7 +141,7 @@ private extension AccessibilityTree {
             var element = legacySpelledScrolledListRoot(50, height: 200)
             Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
                   stateTable: StateTable(), theme: Theme.forAppearance(.light),
-                  collectsAccessibility: true, layoutAuthority: .proposal).render(&element)
+                  collectsAccessibility: true).render(&element)
         }
     }
 
@@ -156,12 +151,12 @@ private extension AccessibilityTree {
     await #expect(processExitsWith: .success) {
         await MainActor.run {
             let list = List((0..<50).map(Item.init), rowHeight: px(28)) { item in
-                Box { Text("Row \(item.id)") }.width(px(180)).height(px(28))
+                Box { Text("Row \(item.id)") }.frame(width: px(180), height: px(28), alignment: .topLeading)
             }
-            var element = Box { ScrollView(.vertical) { list } }.width(px(200)).height(px(200))
+            var element = Box { ScrollView(.vertical) { list } }.cssWidth(px(200)).cssHeight(px(200))
             Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
                   stateTable: StateTable(), theme: Theme.forAppearance(.light),
-                  collectsAccessibility: true, layoutAuthority: .proposal).render(&element)
+                  collectsAccessibility: true).render(&element)
         }
     }
 }
@@ -199,14 +194,14 @@ private extension AccessibilityTree {
         await MainActor.run {
             let box = Box {
                 List((0..<50).map(Item.init), rowHeight: px(28)) { _ in
-                    Box().width(px(20)).height(px(28))
+                    Box().frame(width: px(20), height: px(28))
                 }
             }
-            .width(px(40)).height(px(40))
+            .frame(width: px(40), height: px(40), alignment: .topLeading)
             var element = Column { box.hidden(); Text("shown") }
             Frame(contentSize: Size(width: px(300), height: px(300)), scaleFactor: 1,
                   stateTable: StateTable(), theme: Theme.forAppearance(.light),
-                  collectsAccessibility: true, layoutAuthority: .proposal).render(&element)
+                  collectsAccessibility: true).render(&element)
         }
     }
 
@@ -216,14 +211,14 @@ private extension AccessibilityTree {
         await MainActor.run {
             let box = Box {
                 List((0..<50).map(Item.init), rowHeight: px(28)) { _ in
-                    Box().width(px(20)).height(px(28))
+                    Box().frame(width: px(20), height: px(28))
                 }
             }
-            .width(px(40)).height(px(40))
+            .frame(width: px(40), height: px(40), alignment: .topLeading)
             var element = Column { box; Text("shown") }
             Frame(contentSize: Size(width: px(300), height: px(300)), scaleFactor: 1,
                   stateTable: StateTable(), theme: Theme.forAppearance(.light),
-                  collectsAccessibility: true, layoutAuthority: .proposal).render(&element)
+                  collectsAccessibility: true).render(&element)
         }
     }
 }
@@ -255,13 +250,13 @@ private extension AccessibilityTree {
                                      clickableRows: Bool = false,
                                      clickableList: Bool = false) -> some Element {
     var list = List((0..<count).map(Item.init), rowHeight: px(rowHeight)) { item in
-        let content = Box { Text("Row \(item.id)") }.width(px(180)).height(px(28))
+        let content = Box { Text("Row \(item.id)") }.frame(width: px(180), height: px(28), alignment: .topLeading)
         return clickableRows ? content.onClick {} : content
     }
     if let label { list = list.accessibilityLabel(label) }
     if clickableList { list = list.onClick {} }
     return Box { ScrollView(.vertical) { list } }
-        .width(px(200)).height(px(height))
+        .cssWidth(px(200)).cssHeight(px(height))
 }
 
 // MARK: - Bridge harness (the cost tests)
@@ -406,7 +401,7 @@ private extension AccessibilityTree {
     #expect(framed.rootNodes.first?.value == "X")
 
     // (5) R5
-    let (_, button) = collect(Row { Text("Go") }.width(px(40)).height(px(20)).onClick {}
+    let (_, button) = collect(Row { Text("Go") }.frame(width: px(40), height: px(20), alignment: .leading).onClick {}
         .padding(px(4)).accessibilityLabel("X"))
     try #require(button.nodes.count == 1, "arm 5: one button, no wrapper group, no text child")
     let pressable = try #require(button.rootNodes.first)
@@ -422,14 +417,14 @@ private extension AccessibilityTree {
     #expect(valued.rootNodes.map(\.value) == ["V", "V"], "the outer value wins")
 
     // (7) Divergence pins (C1, C5) and the no-child control (R6, R11).
-    let (_, focusable) = collect(Column { Text("A") }.width(px(40)).height(px(20)).focusable()
+    let (_, focusable) = collect(Column { Text("A") }.frame(width: px(40), height: px(20), alignment: .top).focusable()
         .accessibilityLabel("L"))
     let group = try #require(focusable.roots.first)
     #expect(focusable.nodes[group]?.role == .group && focusable.nodes[group]?.label == "L",
             "a focusable labelled container keeps its group (SwiftUI's arm C1 distributes)")
     #expect(focusable.childNodes(of: group).map(\.value) == ["A"])
 
-    let (_, adjustable) = collect(Column { Text("A") }.width(px(40)).height(px(20))
+    let (_, adjustable) = collect(Column { Text("A") }.frame(width: px(40), height: px(20), alignment: .top)
         .accessibilityAdjustableAction { _ in }.accessibilityLabel("L"))
     let adjustableGroup = try #require(adjustable.roots.first)
     #expect(adjustable.nodes[adjustableGroup]?.role == .group
@@ -437,7 +432,7 @@ private extension AccessibilityTree {
             "an adjustable labelled container keeps its group (SwiftUI's arms C5, C5i distribute)")
     #expect(adjustable.childNodes(of: adjustableGroup).map(\.value) == ["A"])
 
-    let (_, leaf) = collect(Column { Box().width(px(20)).height(px(0)).accessibilityLabel("L") })
+    let (_, leaf) = collect(Column { Box().frame(width: px(20), height: px(0)).accessibilityLabel("L") })
     let labelledLeaf = try #require(leaf.rootNodes.first)
     #expect(labelledLeaf.role == .group && labelledLeaf.label == "L" && labelledLeaf.children.isEmpty,
             "a labelled generic node with no child is not a distributor")
@@ -450,7 +445,7 @@ private extension AccessibilityTree {
 /// label and a value contributes that value (arms 6, C3, C4, C6, C7). An
 /// interactive descendant keeps the children (the divergence from arm R7).
 @Test @MainActor func aClickableContainerCombinesItsTextsIntoOneButtonLabel() throws {
-    let (_, plain) = collect(Row { Text("A"); Text("B") }.width(px(60)).height(px(20)).onClick {})
+    let (_, plain) = collect(Row { Text("A"); Text("B") }.frame(width: px(60), height: px(20), alignment: .leading).onClick {})
     try #require(plain.nodes.count == 1)
     let combined = try #require(plain.rootNodes.first)
     #expect(combined.role == .button)
@@ -458,8 +453,8 @@ private extension AccessibilityTree {
     #expect(combined.children.isEmpty)
 
     let (_, interactive) = collect(Row {
-        Text("A"); Text("B"); Box().width(px(10)).height(px(10)).focusable()
-    }.width(px(60)).height(px(20)).onClick {})
+        Text("A"); Text("B"); Box().frame(width: px(10), height: px(10)).focusable()
+    }.frame(width: px(60), height: px(20), alignment: .leading).onClick {})
     let kept = try #require(interactive.roots.first)
     #expect(interactive.nodes[kept]?.role == .button)
     #expect(interactive.nodes[kept]?.label == nil, "an interactive descendant stops the combination")
@@ -469,13 +464,13 @@ private extension AccessibilityTree {
     // mutant N60 counted focusability alone): the inner button keeps its own
     // node and the outer one its children.
     let (_, clickableChild) = collect(Row { Text("A"); Text("B").onClick {} }
-        .width(px(60)).height(px(20)).onClick {})
+        .frame(width: px(60), height: px(20), alignment: .leading).onClick {})
     let outer = try #require(clickableChild.roots.first)
     #expect(clickableChild.nodes[outer]?.label == nil, "a clickable descendant stops the combination")
     #expect(clickableChild.childNodes(of: outer).map(\.role) == [.staticText, .button])
 
     func combine<C: ElementGroup>(@ElementBuilder _ content: () -> C) throws -> AccessibilityNode {
-        let (_, tree) = collect(Row(content: content).width(px(60)).height(px(20)).onClick {})
+        let (_, tree) = collect(Row(content: content).frame(width: px(60), height: px(20), alignment: .leading).onClick {})
         try #require(tree.nodes.count == 1)
         return try #require(tree.rootNodes.first)
     }
@@ -496,14 +491,14 @@ private extension AccessibilityTree {
     // box beneath it still stops the fold.
     let (_, nested) = collect(Row {
         Column { Text("A"); Text("B") }.handling { $0.axNode.role = .container }
-    }.width(px(60)).height(px(20)).onClick {})
+    }.frame(width: px(60), height: px(20), alignment: .leading).onClick {})
     let deep = try #require(nested.rootNodes.first)
     #expect(deep.role == .button && deep.label == "A, B" && deep.children.isEmpty,
             "a grandchild text contributes to the label")
     let (_, nestedInteractive) = collect(Row {
-        Column { Text("A"); Box().width(px(10)).height(px(10)).focusable() }
+        Column { Text("A"); Box().frame(width: px(10), height: px(10)).focusable() }
             .handling { $0.axNode.role = .container }
-    }.width(px(60)).height(px(20)).onClick {})
+    }.frame(width: px(60), height: px(20), alignment: .leading).onClick {})
     let unfolded = try #require(nestedInteractive.rootNodes.first)
     #expect(unfolded.label == nil && unfolded.children.count == 1,
             "a focusable grandchild keeps the button's children")
@@ -514,9 +509,9 @@ private extension AccessibilityTree {
     // holding click targets that wrap texts. Each inner button folds its own
     // text, and a declared label wins over it.
     let (_, panelTree) = collect(Row {
-        Box { Text("-") }.width(px(20)).height(px(20)).onClick {}.accessibilityLabel("Decrement")
-        Box { Text("go") }.width(px(20)).height(px(20)).onClick {}
-    }.width(px(60)).height(px(20)).focusable())
+        Box { Text("-") }.frame(width: px(20), height: px(20), alignment: .topLeading).onClick {}.accessibilityLabel("Decrement")
+        Box { Text("go") }.frame(width: px(20), height: px(20), alignment: .topLeading).onClick {}
+    }.frame(width: px(60), height: px(20), alignment: .leading).focusable())
     let panelID = try #require(panelTree.roots.first)
     try #require(panelTree.roots.count == 1)
     #expect(panelTree.nodes[panelID]?.role == .group)
@@ -551,18 +546,15 @@ private extension AccessibilityTree {
 /// `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` rather
 /// than against `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`,
 /// which the design named and which cannot run under `.proposal` at all.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows() throws {
     func secondFrame<E: Element>(_ make: () -> E) throws -> AccessibilityTree {
         let stateTable = StateTable()
-        let (first, _) = collect(make(), stateTable: stateTable, width: 200, height: 200,
-                                 authority: authority)
+        let (first, _) = collect(make(), stateTable: stateTable, width: 200, height: 200)
         let scroller = try #require(first.scrollRegions.first).id
         try #require(stateTable.peek(scroller, as: ScrollState.self)?.viewportExtent == 200,
                      "control: the first frame measured a 200pt viewport")
-        return collect(make(), stateTable: stateTable, width: 200, height: 200,
-                       authority: authority).1
+        return collect(make(), stateTable: stateTable, width: 200, height: 200).1
     }
 
     let clickableRows = try secondFrame { scrolledList(50, height: 200, clickableRows: true) }
@@ -599,7 +591,7 @@ func combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows(_ authori
     let (_, tree) = collect(Row {
         Text("A")
         Deferred { Text("Tip") }
-    }.width(px(60)).height(px(20)).onClick {})
+    }.cssWidth(px(60)).cssHeight(px(20)).onClick {})
     try #require(tree.roots.count == 2)
     let button = tree.rootNodes[0], tip = tree.rootNodes[1]
     #expect(button.role == .button && button.label == "A")
@@ -635,22 +627,19 @@ func combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows(_ authori
 /// The window, by `List.visibleRange`'s arithmetic: a 200pt viewport at offset
 /// 1120 (28 × 40) over 28pt rows covers rows 40 through 47 (1320 / 28 = 47.1,
 /// rounded up to 48), widened by the 2-row overscan to **38..<50**.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+@Test @MainActor
+func aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices() throws {
     for label in [nil, "Contacts"] as [String?] {
         let stateTable = StateTable()
         let (first, _) = collect(scrolledList(500, height: 200, label: label),
-                                 stateTable: stateTable, width: 200, height: 200,
-                                 authority: authority)
+                                 stateTable: stateTable, width: 200, height: 200)
         let scroller = try #require(first.scrollRegions.first).id
         try #require(stateTable.peek(scroller, as: ScrollState.self)?.viewportExtent == 200,
                      "control: the first frame measured a 200pt viewport")
         stateTable.withState(scroller, initial: ScrollState()) { $0.offset = 28 * 40 }
 
         let (_, tree) = collect(scrolledList(500, height: 200, label: label),
-                                stateTable: stateTable, width: 200, height: 200,
-                                authority: authority)
+                                stateTable: stateTable, width: 200, height: 200)
         let (tableID, table) = try #require(tree.all(.table).first)
         #expect(tree.roots == [tableID])
         #expect(table.rowCount == 500)
@@ -691,14 +680,12 @@ func aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices(_ a
 /// Mutations **M4b** (`indexesRows` forced true) and **M4c**
 /// (`requestAccessibilityRetry()` removed) are both counted against this test on
 /// both authorities.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded(_ authority: LayoutAuthority) throws {
+@Test @MainActor
+func activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    AuthorityCoverage.record(#function, authority)
     let feed = BridgeFeed()
     defer { feed.nsWindow.close() }
-    let (window, platform) = try makeFakeWindow(device: device, size: 200,
-                                                layoutAuthority: authority) {
+    let (window, platform) = try makeFakeWindow(device: device, size: 200) {
         scrolledList(5000, height: 200)
     }
     #expect(platform.simulateAccessibilityRequest(.activate))
@@ -725,8 +712,7 @@ func activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded(_ autho
     #expect(feed.poster.count(.uiElementDestroyed) == 0)
 
     // Cap: a scroller that never measures a viewport retries once, not forever.
-    let (capped, cappedPlatform) = try makeFakeWindow(device: device, size: 200,
-                                                      layoutAuthority: authority) {
+    let (capped, cappedPlatform) = try makeFakeWindow(device: device, size: 200) {
         scrolledList(500, height: 0)
     }
     cappedPlatform.simulateAccessibilityRequest(.activate)
@@ -737,8 +723,7 @@ func activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded(_ autho
     #expect(!capped.needsRedraw, "cap arm: a second unbounded frame in a row does not ask again")
 
     // Inactive: nothing collects, so nothing retries.
-    let (idle, _) = try makeFakeWindow(device: device, size: 200,
-                                       layoutAuthority: authority) {
+    let (idle, _) = try makeFakeWindow(device: device, size: 200) {
         scrolledList(500, height: 200)
     }
     idle.drawFrameIfNeeded()
@@ -747,10 +732,9 @@ func activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded(_ autho
 
     // No scroll context: nothing the next frame learns could bound the window,
     // so the list never asks (surviving mutant N52 asked once).
-    let (unscrolled, unscrolledPlatform) = try makeFakeWindow(device: device, size: 200,
-                                                              layoutAuthority: authority) {
-        Box { List((0..<50).map(Item.init), rowHeight: px(28)) { _ in Box().width(px(20)).height(px(28)) } }
-            .width(px(200)).height(px(200))
+    let (unscrolled, unscrolledPlatform) = try makeFakeWindow(device: device, size: 200) {
+        Box { List((0..<50).map(Item.init), rowHeight: px(28)) { _ in Box().cssWidth(px(20)).cssHeight(px(28)) } }
+            .cssWidth(px(200)).cssHeight(px(200))
     }
     unscrolledPlatform.simulateAccessibilityRequest(.activate)
     unscrolled.drawFrameIfNeeded()
@@ -770,14 +754,12 @@ func activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded(_ autho
 /// scrolling list is where the window slides, so it is where the realized set —
 /// and therefore which rows are vended, destroyed and re-published — depends on
 /// what stage 4 replaced. `makeFakeWindow` builds PRODUCTION frames.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame(_ authority: LayoutAuthority) throws {
+@Test @MainActor
+func scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    AuthorityCoverage.record(#function, authority)
     let feed = BridgeFeed()
     defer { feed.nsWindow.close() }
-    let (window, platform) = try makeFakeWindow(device: device, size: 200,
-                                                layoutAuthority: authority) {
+    let (window, platform) = try makeFakeWindow(device: device, size: 200) {
         scrolledList(500, height: 200)
     }
     platform.simulateAccessibilityRequest(.activate)
@@ -824,7 +806,7 @@ func scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame(_ authority: L
     defer { feed.nsWindow.close() }
     let model = GrowModel()
     let (window, platform) = try makeFakeWindow(device: device, size: 200, startsDisplayLink: true) {
-        Column { Box().width(px(model.wide ? 120 : 40)).height(px(20)).accessibilityLabel("Grow") }
+        Column { Box().cssWidth(px(model.wide ? 120 : 40)).cssHeight(px(20)).accessibilityLabel("Grow") }
     }
     platform.simulateAccessibilityRequest(.activate)
     platform.simulateTick(timestamp: 100)
@@ -872,21 +854,18 @@ func scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame(_ authority: L
 /// disappearing with the client would show. `makeFakeWindow` builds PRODUCTION
 /// frames, and here `scrolledList` is a flex ITEM rather than the root, so its
 /// record is consumed either way.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aClientDoesNotChangeStateRetention(_ authority: LayoutAuthority) throws {
+@Test @MainActor
+func aClientDoesNotChangeStateRetention() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    AuthorityCoverage.record(#function, authority)
     func content() -> some Element {
         Row {
             Column { for i in 0..<130 { Text("t\(i)") } }
-            Column { for _ in 0..<10 { Box().width(px(10)).height(px(10)).onClick {} } }
+            Column { for _ in 0..<10 { Box().frame(width: px(10), height: px(10)).onClick {} } }
             scrolledList(200, height: 200)
         }
     }
-    let (active, activePlatform) = try makeFakeWindow(device: device, size: 300,
-                                                      layoutAuthority: authority) { content() }
-    let (idle, _) = try makeFakeWindow(device: device, size: 300,
-                                       layoutAuthority: authority) { content() }
+    let (active, activePlatform) = try makeFakeWindow(device: device, size: 300) { content() }
+    let (idle, _) = try makeFakeWindow(device: device, size: 300) { content() }
     activePlatform.simulateAccessibilityRequest(.activate)
     for _ in 0..<3 {
         active.setNeedsRedraw(); active.drawFrameIfNeeded()
@@ -908,7 +887,7 @@ func aClientDoesNotChangeStateRetention(_ authority: LayoutAuthority) throws {
     func content() -> some Element {
         Column {
             Text("T")
-            Box().width(px(40)).height(px(20)).onClick {}
+            Box().frame(width: px(40), height: px(20)).onClick {}
             scrolledList(500, height: 200)
         }
     }
@@ -965,28 +944,28 @@ func aClientDoesNotChangeStateRetention(_ authority: LayoutAuthority) throws {
 /// its shown control (inverted by stage 6b's lane 1); when a later stage lowers `display`, this test
 /// gains its `.proposal` arm and `AuthorityCoverage.expected` gains its name.
 ///
-/// **Both authorities since stage 6b's lane 1** (`LR-DH`): the finding above is
+/// **Both authorities from stage 6b's lane 1** (`LR-DH`): the finding above is
 /// closed — `hidden()` lowers as if shown under the proposal authority and joins
 /// `Frame.hiddenNodes`, which the outermost suppression scope reads — so this test
 /// gained its `.proposal` arm and `AuthorityCoverage.expected` its name, as the
-/// paragraph above said it would.
-@Test(arguments: AuthorityCoverage.authorities) @MainActor
-func aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame(_ authority: LayoutAuthority) throws {
-    AuthorityCoverage.record(#function, authority)
+/// paragraph above said it would. **One authority since stage 9**, which deleted
+/// the legacy one and the registry (`LR-FE`).
+@Test @MainActor
+func aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame() throws {
     func content(hidden: Bool) -> some Element {
         let box = Box {
-            List((0..<50).map(Item.init), rowHeight: px(28)) { _ in Box().width(px(20)).height(px(28)) }
+            List((0..<50).map(Item.init), rowHeight: px(28)) { _ in Box().frame(width: px(20), height: px(28)) }
         }
-        .width(px(40)).height(px(40))
+        .frame(width: px(40), height: px(40), alignment: .topLeading)
         return Column {
             hidden ? box.hidden() : box
             Text("shown")
         }
     }
-    let (_, shown) = collect(content(hidden: false), authority: authority)
+    let (_, shown) = collect(content(hidden: false))
     try #require(shown.all(.table).count == 1, "control: an unbounded list publishes its table")
 
-    let (_, hidden) = collect(content(hidden: true), authority: authority)
+    let (_, hidden) = collect(content(hidden: true))
     #expect(hidden.all(.table).isEmpty, "a hidden ancestor silences the list's own exception")
     #expect(hidden.rootNodes.map(\.value) == ["shown"])
 }

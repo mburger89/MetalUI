@@ -661,7 +661,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ActionLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().cssWidth(px(40)).cssHeight(px(40)).id("a")
             .focusable()
             .onAction(Increment.self) { _ in log.names.append("element") }
     }
@@ -681,7 +681,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
     let log = ActionLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box {
-            Box().width(px(20)).height(px(20)).id("leaf")
+            Box().frame(width: px(20), height: px(20)).id("leaf")
                 .focusable()
                 .onAction(Decrement.self) { _ in log.names.append("leaf-decrement") }
         }
@@ -708,7 +708,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ActionLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().cssWidth(px(40)).cssHeight(px(40)).id("a")
             .focusable()
             .onKey { _ in log.names.append("raw"); return true }
             .onAction(Increment.self) { _ in log.names.append("action") }
@@ -735,7 +735,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ActionLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().cssWidth(px(40)).cssHeight(px(40)).id("a")
             .focusable()
             .onKey { _ in log.names.append("raw"); return true }
     }
@@ -762,7 +762,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ActionLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().frame(width: px(40), height: px(40)).id("a")
     }
     window.keymap = Keymap([KeyBinding("cmd-i", Increment())])
     window.onAction = { action in
@@ -785,7 +785,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
     let log = ActionLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box {
-            Box().width(px(20)).height(px(20)).id("leaf")
+            Box().frame(width: px(20), height: px(20)).id("leaf")
                 .focusable()
                 .onAction(Increment.self) { _ in log.names.append("leaf") }
         }
@@ -808,7 +808,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
 @Test @MainActor func aKeyContextRegistersNoPointerHitbox() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, _) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a").keyContext("Editor")
+        Box().cssWidth(px(40)).cssHeight(px(40)).id("a").keyContext("Editor")
     }
     window.drawFrameIfNeeded()
     #expect(window.lastHitboxes.isEmpty,
@@ -833,7 +833,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ActionLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().frame(width: px(40), height: px(40)).id("a")
     }
     window.onAction = { action in
         log.names.append(action is Increment ? "increment" : "decrement")
@@ -863,7 +863,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ActionLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().frame(width: px(40), height: px(40)).id("a")
     }
     window.onAction = { action in
         log.names.append(action is Increment ? "increment" : "decrement")
@@ -893,7 +893,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ActionLog()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().width(px(40)).height(px(40)).id("a")
+        Box().cssWidth(px(40)).cssHeight(px(40)).id("a")
             .focusable()
             .onKey { _ in log.names.append("raw"); return true }
             .onAction(Increment.self) { _ in log.names.append("action") }

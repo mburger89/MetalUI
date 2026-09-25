@@ -88,7 +88,7 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
 
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
-        // Children first: `requestNode` takes already-registered ids, so a
+        // Children first: a registrar takes already-registered ids, so a
         // container builds bottom-up and the engine sees a complete subtree.
         //
         // The cursor starts at 0 here and nowhere else: it is this container's
@@ -104,13 +104,10 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
         // frame sees the substituted (possibly mid-transition) values.
         let declared = style
         (style, decoration) = animated(style, decoration, for: id, pass: &pass)
-        // The site's own authority check — see `Box.requestLayout`'s (ruling LR-C).
-        // Under the proposal authority a `Stack` lowers onto a native overlay with
-        // its nine-point alignment, inside native padding and a fixed frame (plan
-        // task 7, lane 4, ruling LR-G); the checks read `declared`.
-        let node = pass.lowersToProposal
-            ? pass.lowerLegacyNode(style, declared: declared, children: children, site: .stack)
-            : pass.frame.requestNode(style: style, children: children)
+        // A `Stack` lowers onto a native overlay with its nine-point alignment,
+        // inside native padding and a fixed frame (plan task 7, lane 4, ruling
+        // LR-G); the checks read `declared`.
+        let node = pass.lowerLegacyNode(style, declared: declared, children: children, site: .stack)
         return (node, Layout(node: node, content: contentLayout))
     }
 

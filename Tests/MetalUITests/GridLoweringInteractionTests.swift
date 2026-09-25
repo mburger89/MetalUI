@@ -45,7 +45,7 @@ private func child(_ parent: GlobalElementID, _ index: Int) -> GlobalElementID {
 /// A fixed-size childless `Box`.
 @MainActor
 private func fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
-    Box().width(px(w)).height(px(h))
+    Box().cssWidth(px(w)).cssHeight(px(h))
 }
 
 private func bounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixels> {
@@ -56,7 +56,7 @@ private func bounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pi
 @MainActor
 private func report<C: ElementGroup>(width: Float = 300, height: Float = 200,
                                      @ElementBuilder _ make: @MainActor () -> C) -> [UnlowerableField] {
-    LayoutDifferential.render(authority: .proposal, width: width, height: height, make).unlowerableFields
+    LayoutDifferential.render(width: width, height: height, make).unlowerableFields
 }
 
 /// A legacy element placed where a **proposal** container expects proposal content
@@ -141,12 +141,12 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
 /// the second the grower's.
 @MainActor
 @Test func aGridsColumnWidthReachesAGrowingChildInsideALoweredCell() throws {
-    let frame = LayoutDifferential.render(authority: .proposal, width: 120, height: 40) {
+    let frame = LayoutDifferential.render(width: 120, height: 40) {
         Grid(alignment: .topLeading, horizontalSpacing: px(10), verticalSpacing: px(10)) {
             GridRow {
                 LegacyUnderProposal(Row {
                     fixed(20, 10)
-                    Box().height(px(10)).flexGrow(1)
+                    Box().cssHeight(px(10)).flexGrow(1)
                 })
             }
             GridRow { LegacyUnderProposal(fixed(50, 12)) }
@@ -204,10 +204,10 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
 /// unrecorded child is stretched like a legacy one (the grid would become 40 tall).
 @MainActor
 @Test func aGridInsideALoweredContainerIsNeverStretchedWhereItsRecordedSiblingIs() throws {
-    let frame = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
+    let frame = LayoutDifferential.render(width: 300, height: 200) {
         Row {
             fixed(20, 10)
-            Box().width(px(15))
+            Box().cssWidth(px(15))
             Grid(alignment: .topLeading, horizontalSpacing: px(10), verticalSpacing: px(10)) {
                 GridRow {
                     Rectangle(width: px(30), height: px(10))
@@ -216,7 +216,7 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
             }
         }
         .alignItems(.stretch)
-        .height(px(40))
+        .cssHeight(px(40))
     }
     try #require(frame.unlowerableFields.isEmpty, "the tree must lower whole: \(frame.unlowerableFields)")
 
@@ -276,7 +276,7 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
 
     @MainActor
     func loweredFirst(_ string: String, offer: Float = 300) throws -> (legacy: Float, proposal: Float, grid: Float) {
-        try widths(LayoutDifferential.render(authority: .proposal, width: offer, height: 100) {
+        try widths(LayoutDifferential.render(width: offer, height: 100) {
             Grid(alignment: .topLeading, horizontalSpacing: px(10), verticalSpacing: px(10)) {
                 GridRow { LegacyUnderProposal(Text(string)) }
                 GridRow { Text(string).proposalLayout() }
@@ -286,7 +286,7 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
 
     @MainActor
     func proposalFirst(_ string: String) throws -> (legacy: Float, proposal: Float, grid: Float) {
-        try widths(LayoutDifferential.render(authority: .proposal, width: 300, height: 100) {
+        try widths(LayoutDifferential.render(width: 300, height: 100) {
             Grid(alignment: .topLeading, horizontalSpacing: px(10), verticalSpacing: px(10)) {
                 GridRow { Text(string).proposalLayout() }
                 GridRow { LegacyUnderProposal(Text(string)) }
@@ -367,6 +367,6 @@ private struct LegacyUnderProposal<Content: ElementGroup>: ProposalElementGroup 
             == [field("alignSelf.unconsumed")], "alignSelf")
     #expect(report { Grid { GridRow { LegacyUnderProposal(fixed(20, 10).margin(px(3))) } } }
             == [field("margin.unconsumed")], "margin")
-    #expect(report { Grid { GridRow { LegacyUnderProposal(fixed(20, 10).minWidth(px(5))) } } }
+    #expect(report { Grid { GridRow { LegacyUnderProposal(fixed(20, 10).cssMinWidth(px(5))) } } }
             == [field("minSize.unconsumed")], "minSize")
 }

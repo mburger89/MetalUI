@@ -97,11 +97,16 @@ private final class CompositionLog {
 /// `taps` is declared FIRST so its slot is `$state0` (the slot's ordinal is the
 /// property's `Mirror` index, `State.swift`).
 ///
-/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
+/// **A Dual fixture from stage 6a to stage 9** (record §38, spec §5 lane 3); its
+/// legacy branch went with the legacy authority at stage 9 (record §51, lane 2).
+/// What follows is its history: under the
 /// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
 /// its three R tests pass `.proposal`; under the legacy one it registers through
 /// `Frame`'s internal legacy registrar, and its two P tests pass `.legacy`.
 /// `observe` takes the authority as a required argument.
+///
+/// **Stage 7b** (record §49 §6.2) retired `aModifierChainIsIdenticalToHandBuiltNestedBoxes`
+/// and added N2.2 on the proposal branch.
 private struct CountingLeaf: StyledElement {
     @State var taps = 0
     var name: String
@@ -122,9 +127,7 @@ private struct CountingLeaf: StyledElement {
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
         log.layout[name, default: 0] += 1
         log.events.append("layout \(name)")
-        return (pass.lowersToProposal
-            ? declaredSizeNativeLeaf(style, pass)
-            : pass.frame.requestNode(style: style, children: []), ())
+        return (declaredSizeNativeLeaf(style, pass), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -431,13 +434,12 @@ private struct Observation: Equatable {
 }
 
 @MainActor
-private func observe<Root: Element>(authority: LayoutAuthority,
-                                    _ make: (CompositionLog) -> Root) throws -> Observation {
+private func observe<Root: Element>(_ make: (CompositionLog) -> Root) throws -> Observation {
     let log = CompositionLog()
     var root = make(log)
     let table = StateTable()
     let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
-                      stateTable: table, layoutAuthority: authority)
+                      stateTable: table)
     frame.render(&root)
     let leafID = try #require(log.ids["leaf"])
     let leafBounds = try #require(log.bounds["leaf"])
@@ -468,9 +470,11 @@ private func paddingStyle(_ points: Float) -> Style {
 /// changes `animLive`'s length; only this wrapper shows that the comparison sees
 /// ONE inner layer that skipped the helper, lane 2's likeliest bug.
 ///
-/// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §38, disposition P-CSS): its one test compares a chain with
-/// hand-built legacy boxes, and passes `.legacy` explicitly.
+/// **A Dual fixture from stage 7b to stage 9** (record §49 §6.2, N2.2; its legacy
+/// branch went with the legacy authority at stage 9, record §51): under the
+/// proposal authority it lowers through `lowerLegacyNode` at site `box`, as
+/// `Box` does, still without the `animated` call; under the legacy one it
+/// registers through `Frame`'s internal legacy registrar (stage 6a, P-CSS).
 private struct BoxWithoutAnimated<Content: ElementGroup>: StyledElement {
     var style: Style
     var decoration = Decoration()
@@ -492,7 +496,7 @@ private struct BoxWithoutAnimated<Content: ElementGroup>: StyledElement {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         // `Box.requestLayout` calls `animated(style, decoration, for: id, pass:)` here.
-        let node = pass.frame.requestNode(style: style, children: children)
+        let node = pass.lowerLegacyNode(style, declared: style, children: children, site: .box)
         return (node, Layout(node: node, content: contentLayout))
     }
 
@@ -535,59 +539,24 @@ private func frameStyle(width: Float, height: Float) -> Style {
 }
 
 /// **A modifier chain is observationally identical to hand-built nested
-/// `Box`es** — ruling MC-B's oracle, written before lane 2's `ModifiedElement`
-/// exists, so that lane 2 staying green is the migration proof.
+/// `Box`es under the proposal authority** — N2.2 of stage 7b (record §49 §4
+/// row 231, spec §6 lane 2): ruling MC-B's oracle, the retired
+/// `aModifierChainIsIdenticalToHandBuiltNestedBoxes`'s chain and nested `Box`es
+/// unchanged, rendered under `.proposal`, so the chain's layers go through the
+/// layer lowering and each oracle `Box` through `lowerLegacyNode` at site
+/// `box` (`BoxWithoutAnimated` too, made Dual for this test).
 ///
-/// The chain carries three layers around the leaf (padding 4 named `"mid"`, a
-/// 60×40 frame, padding 8), four backgrounds and three click handlers. **Two
-/// INNER layers fill** (padding 4 `.surfaceSecondary` r3, the frame `.surface`
-/// r5) and the outermost fills `.separator` r9, so the order of inner fills and
-/// each inner layer's own radius are both observable; `RectShape` compares all
-/// four corner radii (lane 2's verifier round: before it, with one inner fill
-/// and no radii, mutations N3 and N8 below left the whole suite green). The oracle is one
-/// `Box(style:decoration:content:)` per layer with the same style, and the
-/// layer's own `Self`-returning modifiers applied to that `Box`. **The oracle
-/// side never runs a modifier-wrapper's code** (`.padding`/`.frame`), so a
-/// mutation to the wrapper cannot move it (practices shape 12).
+/// **Every disagreeing oracle — paddings swapped, `.id` moved, a click
+/// dropped, a layer fewer, a layer that skips `animated` at an equal count,
+/// the radii exchanged, the inner fills reordered — is `try #require`d to
+/// disagree with the oracle before the chain is compared with it** (practices
+/// shape 15). **The retired test's node-count comparison is not carried**
+/// (`LR-EN`; the comment at the comparisons).
 ///
-/// **One disagreeing oracle per observation** (practices shape 15), each
-/// `try #require`d to differ from the oracle before the real comparison:
-///
-/// - rects: paddings 4 and 8 swapped;
-/// - the wrapped element's id and the hitbox ids: `.id("mid")` moved from the
-///   padding-4 layer (the one it follows in the chain, ruling MC-C) to the
-///   outermost padding-8 layer;
-/// - the hitbox list: the frame layer's `onClick` dropped;
-/// - `$anim` liveness and node count: the frame layer omitted;
-/// - `$anim` liveness at an EQUAL layer count: the frame layer built as a
-///   `BoxWithoutAnimated`, which must read `[true, false, true]` against the
-///   oracle's `[true, true, true]` (critic round 2, finding 6: the layer-fewer
-///   oracle differs only in length, so it never showed the comparison can see
-///   one dead slot);
-/// - corner radii: padding 4's radius and the outermost's exchanged, required
-///   to differ and to be EQUAL once radii are zeroed;
-/// - inner fill order: the oracle's rects with the two inner fills exchanged.
-///
-/// Green on arrival. Mutation (lane 1, on `FrameModifier` at `2571d4a`, record
-/// §10): `FrameModifier.prepaint` registering its handlers after its content.
-/// Lane 2's mutations of `ModifiedElement`, each reddening this test (record
-/// §10): `_wrap` replacing instead of appending; content under the outermost
-/// id; inner layers skipping `animated` or `registerHandlers`; inner layers
-/// taking the outermost id; `.id` on the wrong layer; layers registered
-/// innermost-first or after their contents; fills after the content; content
-/// painted once per inner layer; layer styles minted outermost-first; and,
-/// since the verifier round, the inner paint loop run innermost-first (N8) and
-/// an inner fill given the outermost layer's radius (N3), each 3 issues across
-/// this test and lane 2's test 2.
-///
-/// **What it cannot see:** a cursor offset beneath the named padding-4 layer.
-/// A name replaces the index, so `FrameModifier`'s content cursor starting at
-/// 1 leaves every id here unchanged and this test green; the unnamed chain in
-/// `stateSurvivesFramesUnderALegacyModifierChain` reddens (ruling MC-O item 6).
-///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
-@Test @MainActor func aModifierChainIsIdenticalToHandBuiltNestedBoxes() throws {
-    let chain = try observe(authority: .legacy) { log in
+/// Red-before (record §49 §6.2, M2.2): `ModifiedElement`'s inner paint loop
+/// run innermost-first (the retired test's N8).
+@Test @MainActor func aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority() throws {
+    let chain = try observe() { log in
         Row {
             CountingLeaf("leaf", log: log)
                 .background(.accent).onClick {}
@@ -598,7 +567,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
                 .background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let oracle = try observe(authority: .legacy) { log in
+    let oracle = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -609,7 +578,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let paddingsSwapped = try observe(authority: .legacy) { log in
+    let paddingsSwapped = try observe() { log in
         Row {
             Box(style: paddingStyle(4), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -620,7 +589,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let idMoved = try observe(authority: .legacy) { log in
+    let idMoved = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -631,7 +600,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}.id("mid")
         }
     }
-    let clickDropped = try observe(authority: .legacy) { log in
+    let clickDropped = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -642,7 +611,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let animSkipped = try observe(authority: .legacy) { log in
+    let animSkipped = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 BoxWithoutAnimated(style: frameStyle(width: 60, height: 40), content:
@@ -653,7 +622,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let layerFewer = try observe(authority: .legacy) { log in
+    let layerFewer = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: paddingStyle(4), content:
@@ -665,7 +634,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
 
     // The radii-swapped oracle: the padding-4 layer's radius and the outermost
     // layer's exchanged, every other declaration unchanged.
-    let radiiSwapped = try observe(authority: .legacy) { log in
+    let radiiSwapped = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -686,7 +655,14 @@ private func frameStyle(width: Float, height: Float) -> Style {
                  "the hitbox list comparison cannot fail")
     try #require(layerFewer.layerIDs != oracle.layerIDs && layerFewer.animLive != oracle.animLive,
                  "the $anim liveness comparison cannot fail")
-    try #require(layerFewer.nodeCount != oracle.nodeCount, "the node count comparison cannot fail")
+    // No node-count comparison under the proposal authority (record §49 §6.2,
+    // LR-EN): the frame layer lowers to ONE native frame, the oracle's
+    // `Box(style: frameStyle(...))` — a hand spelling of the LEGACY frame's
+    // CSS lowering, a one-cell `display: .stack` — to an overlay inside a fixed
+    // frame (`lowerShownLegacyNode`'s stack branch), so the two native trees
+    // differ by one node (7 against 8) by construction. One layer = one node is
+    // the legacy tree's shape (CSS-structure), as the T row of
+    // `legacyModifierChainsInferOneConcreteType` rules.
     try #require(animSkipped.layerIDs == oracle.layerIDs, "the equal-count oracle must keep every layer id")
     try #require(animSkipped.animLive == [true, false, true],
                  "a layer that skips animated() must read dead at its own depth; read \(animSkipped.animLive)")
@@ -710,7 +686,6 @@ private func frameStyle(width: Float, height: Float) -> Style {
     #expect(chain.leafBounds == oracle.leafBounds)
     #expect(chain.hitboxes == oracle.hitboxes, "hitboxes \(chain.hitboxes) vs \(oracle.hitboxes)")
     #expect(chain.rects == oracle.rects)
-    #expect(chain.nodeCount == oracle.nodeCount)
     #expect(chain.layerIDs == oracle.layerIDs)
     #expect(chain.animLive == oracle.animLive)
 }
@@ -731,7 +706,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
 @Test @MainActor func stateSurvivesFramesUnderALegacyModifierChain() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = CompositionLog()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
             CountingLeaf("leaf", log: log).padding(4).frame(width: 60, height: 40).padding(8)
         }
@@ -849,7 +824,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
     func counts<Root: Element>(_ make: (CompositionLog) -> Root) throws -> [Int] {
         let log = CompositionLog()
         var root = make(log)
-        Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1, layoutAuthority: .proposal).render(&root)
+        Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1).render(&root)
         let counts = log.counts("x")
         try #require(counts.count == 3)
         return counts
@@ -955,7 +930,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
 @Test @MainActor func aModifierChainRegistersAndPaintsOuterLayersFirst() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = CompositionLog()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row {
             CountingLeaf("leaf", log: log)
                 .background(.accent).onClick { log.events.append("inner") }
@@ -1111,23 +1086,24 @@ private struct Placement: Equatable, CustomStringConvertible {
 /// Pinned to the legacy authority by stage 6a (CE+RP, record §38 §4); unpinned
 /// by stage 6b (`LR-DG`, R-fill): the `Row` and `Column` roots declare the
 /// 200×200 frame's extent on their two auto axes — what `CS-I` gave the legacy
-/// root, now spelled — and the test reads both authorities.
+/// root, now spelled — and the test read both authorities until stage 9, which
+/// deleted the legacy one; the proposal iteration is kept (`LR-FE`).
 @Test @MainActor func modifierOrderChangesSizeAndPlacementAsSwiftUIDoes() throws {
-    for authority in [LayoutAuthority.legacy, .proposal] {
+    do {
         func place<Chain: Element>(_ chain: (CompositionLog) -> Chain) throws -> Placement {
             let size = Size(width: px(200), height: px(200))
             let rowLog = CompositionLog()
             var row = Row {
                 chain(rowLog)
                 CountingLeaf("probe", log: rowLog, width: 1, height: 1)
-            }.alignItems(.flexStart).width(px(200)).height(px(200))
-            Frame(contentSize: size, scaleFactor: 1, layoutAuthority: authority).render(&row)
+            }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
+            Frame(contentSize: size, scaleFactor: 1).render(&row)
             let columnLog = CompositionLog()
             var column = Column {
                 chain(columnLog)
                 CountingLeaf("probe", log: columnLog, width: 1, height: 1)
-            }.alignItems(.flexStart).width(px(200)).height(px(200))
-            Frame(contentSize: size, scaleFactor: 1, layoutAuthority: authority).render(&column)
+            }.alignItems(.flexStart).cssWidth(px(200)).cssHeight(px(200))
+            Frame(contentSize: size, scaleFactor: 1).render(&column)
             let leaf = try #require(rowLog.bounds["leaf"])
             return Placement(width: try #require(rowLog.bounds["probe"]).origin.x.value,
                              height: try #require(columnLog.bounds["probe"]).origin.y.value,
@@ -1145,13 +1121,13 @@ private struct Placement: Equatable, CustomStringConvertible {
         try #require(o1 != o2, "the instrument cannot see order: O1 \(o1), O2 \(o2)")
         try #require(o3 != o4, "the instrument cannot see order: O3 \(o3), O4 \(o4)")
 
-        #expect(k0 == Placement(width: 20, height: 20, x: 0, y: 0), "K0 \(k0), \(authority)")
-        #expect(k1 == Placement(width: 36, height: 36, x: 8, y: 8), "K1 \(k1), \(authority)")
-        #expect(k2 == Placement(width: 52, height: 52, x: 16, y: 16), "K2 \(k2), \(authority)")
-        #expect(o1 == Placement(width: 60, height: 60, x: 20, y: 20), "O1 \(o1), \(authority)")
-        #expect(o2 == Placement(width: 76, height: 76, x: 28, y: 28), "O2 \(o2), \(authority)")
-        #expect(o3 == Placement(width: 56, height: 56, x: 18, y: 18), "O3 \(o3), \(authority)")
-        #expect(o4 == Placement(width: 64, height: 64, x: 22, y: 22), "O4 \(o4), \(authority)")
+        #expect(k0 == Placement(width: 20, height: 20, x: 0, y: 0), "K0 \(k0)")
+        #expect(k1 == Placement(width: 36, height: 36, x: 8, y: 8), "K1 \(k1)")
+        #expect(k2 == Placement(width: 52, height: 52, x: 16, y: 16), "K2 \(k2)")
+        #expect(o1 == Placement(width: 60, height: 60, x: 20, y: 20), "O1 \(o1)")
+        #expect(o2 == Placement(width: 76, height: 76, x: 28, y: 28), "O2 \(o2)")
+        #expect(o3 == Placement(width: 56, height: 56, x: 18, y: 18), "O3 \(o3)")
+        #expect(o4 == Placement(width: 64, height: 64, x: 22, y: 22), "O4 \(o4)")
     }
 }
 

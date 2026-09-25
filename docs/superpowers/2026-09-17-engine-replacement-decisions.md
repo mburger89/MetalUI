@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-DS`** (stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FM`** (stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -7080,3 +7080,2414 @@ every module of this package, so a production reader could appear; none exists.
 Item 5: a vertical compression at a height between 560 and 1024 would not be
 seen; the two sizes bracket the demo's real window.
 
+
+---
+
+## LR-DS — stage 7a: a golden retires as R (its own tree reproduced natively) or D (its concept deleted); an R replacement is a new arm on the golden's own numbers
+
+**The question.** Spec §4.1 row 7a: each of the 97 goldens is retired "with a
+ruling naming the deterministic native test or probe arm that replaces it, or
+naming the CSS-only concept deleted with it". What counts as a native test that
+"replaces" a golden?
+
+**Evidence** (record §48 §2). Each fixture's CSS transcribed into `Box(style:)`
+trees, rendered under both authorities through `LayoutDifferential.render`
+(instrument `docs/probes/stage-7a-transcription-instrument.patch`). 74 trees
+transcribed; the legacy authority reproduces all 74 goldens exactly. The
+proposal authority reproduces **44** exactly with an empty report (43 whole
+trees and `stack_stretch_max` minus its percentage child), reports a field by
+name on 23, and lays out 7 silently with a different answer. The 23
+untranscribed trees each hold a `flex-wrap` box, reported by name wherever it
+sits (`LegacyLowering.swift:209`, pinned by
+`everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`).
+
+**The ruling.**
+
+1. **R** — the golden's tree under the proposal authority reproduces its
+   `rounded` boxes exactly with no report. Its replacement is a **new arm**,
+   labelled with the golden's name, that builds the golden's own tree and
+   asserts those boxes literally (spec §6 tests 1.1–1.8, 2.1–2.4; record §48
+   §5.1). A lowering test asserting the same rule on other geometry is cited as
+   corroboration, never as the replacement: the lowering suites assert
+   `space-around` on 20-wide children, not the golden's 40/70/50, and a rule
+   restated on other numbers is not "the same geometric fact". 44 goldens.
+2. **D** — the concept the golden pins is CSS-only and is deleted with it
+   (`LR-DU` names the seven). The row names the concept, its reason, and the
+   native test that pins what the proposal authority does with that shape
+   instead: a report-by-name test, or, for a shape that lays out silently, a
+   new pin of the golden's own tree at the native answer (`LR-DV`). 53 goldens.
+3. `stack_stretch_max` is **both**: its `h` and `w` children are R (the tree
+   minus `p`), its `p` (`max-width: 20%`, `max-height: 10%`) is D
+   (percentages).
+4. Absolute fixtures are transcribed with the absolute box in a `Deferred` and
+   the window sized to the fixture's `position: relative` root — stage 5's
+   only lowered containing block. The row says so; the five reproduce exactly.
+
+**What it costs if wrong.** If "same fact" were read as "same rule", 44 new
+arms duplicate rules the lowering suites already pin, at the cost of one lane;
+the reverse error — citing a rule test for a golden whose numbers the native
+engine does not actually reproduce — would retire a golden with no native
+witness, which is the failure the stage exists to prevent.
+
+---
+
+## LR-DT — the consumers go with their goldens (96 whole, one trimmed), the machinery with them; the 7b boundary; the count
+
+**The question.** Every golden has exactly one consumer `@Test` (record §48 §1).
+Deleting a golden breaks its consumer. Do the consumers go in 7a, and how is 7b
+(the non-golden CSS-engine tests, `LR-U`) not pre-empted?
+
+**Evidence.** 91 consumers assert nothing but `assertMatchesGolden`; five also
+restate the golden's own numbers as literals (each checked equal to the JSON);
+**one**, `theClampedAutomaticMinimumIsStillFlooredByPaddingAndBorderMatchesWebKit`,
+also asserts a second tree (`cMinZero: true`) that no golden describes.
+
+**The ruling.**
+
+1. A consumer whose every assertion is the golden comparison or a literal
+   restatement of the golden's numbers is **removed whole** with its golden:
+   96 tests. Spec §2.6 already counts them as 7a's ("295 − (golden-consuming)"
+   is 7b's share).
+2. A consumer that asserts anything else is **trimmed**: only `loadGolden` and
+   `assertMatchesGolden` are deleted and every `#expect` stays byte-identical.
+   One test; it stays for 7b, which retires it with the automatic-minimum
+   concept.
+3. The machinery goes: `GeneratorTests` (5, including the gated
+   `regenerateAllGoldens`), `OracleTests` (3), `Fixtures/`, `Oracle/`,
+   `Golden/`, `assertMatchesGolden`, and the target's `resources:` line.
+4. Nothing else in the five surviving consumer files moves; their private
+   helpers stay where a surviving test uses them.
+5. Count: **1704 − 96 − 5 − 3 + 8 + 8 = 1616**; gated tests five → four.
+
+**Amended, stage-7a critic round 1 (`LR-DY`).** Lane 2 adds test 2.8, so the
+last term is 8, not 7, and the exit count 1616, not 1615.
+
+**What it costs if wrong.** Removing the trimmed test whole would delete one
+legacy-engine fact (`min-width: 0` cancelling the automatic minimum) a stage
+early, with no row; keeping every consumer and inlining its golden as literals
+would leave 97 CSS answers in the suite under a new name, which is the golden
+corpus with the JSON removed and nothing retired.
+
+---
+
+## LR-DU — the seven deleted concepts, their reasons, and the SwiftUI evidence
+
+**The question.** For each D golden, what is deleted, why is it CSS-only, and
+what does the proposal authority do instead?
+
+**Evidence.** Record §48 §2 (the native answers) and §3 (probe
+`swiftui-engine-stage-7a.swift`, run 2026-09-23, exit 0, twice byte-identical,
+every group with a differing positive control).
+
+**The ruling.** The seven, with their golden counts:
+
+1. **Wrap** (30: 18 `flex_wrap_*`, 12 whose wrapping box is content —
+   TX-H's fit-content, min- vs max-content). `flexWrap`/`alignContent` are
+   reported by name (`everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`).
+   SwiftUI's stacks lay out one line: probe **W1/W2** put four 50-wide children
+   on one overflowing line where the VStack control **W0** stacks them.
+2. **Unequal grow weights** (2). `box.flexGrow.weights` reported
+   (`unequalGrowWeightsAreReportedOnTheParent`). SwiftUI shares a surplus
+   equally among equally flexible children (**G0**: 300/300) and its per-child
+   knob is a priority (**G1**: 0/600), neither 1:2.
+3. **Sub-one grow sum** (2, flex §9.7.4.b). Lowers silently as an equal greedy
+   share (133/134/133; capped, 50/350), which is **G0**'s rule; pinned by new
+   test 2.5.
+4. **Length `flex-basis` and weighted shrink** (6, §9.7.4.c). A length basis
+   reports `box.flexBasis` (`aZeroBasisGrowerTakesItsShareDownToItsContent`);
+   positive shrink lowers as compression whatever its weight
+   (`aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight`, divergence
+   55); a declared width is rigid (`theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt`;
+   the padded-weighting tree pinned by new test 2.7). SwiftUI: fixed frames are
+   not shrunk (**S1** against **S0**).
+5. **Automatic minimum** (3, §4.5's content and specified size suggestions). A
+   non-greedy maximum reports `box.maxSize`
+   (`theCentringDefaultOfRowAndColumnStretchesNothing`'s last arm,
+   `aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere`); a declared size
+   is kept whatever its content (new test 2.7). SwiftUI: **A1** against **A0**.
+6. **Border-box floor** (3, `BM-4`). A declared size below padding + border
+   keeps its frame (`aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`,
+   new test 2.7); a stretched stack child is not floored (new test 2.6).
+   SwiftUI: **B1** against **B0** — the frame answers its own size; where the
+   overflowing child sits is not claimed.
+7. **Percentages** (7, and `stack_stretch_max`'s `p`). Reported by name
+   (`percentagesStillReportByNameWithTheirOwner`), owned by stage 8's recipe
+   (`LR-AI`). **No SwiftUI claim is made here.**
+
+Margins, reversal, `justifyContent`, stretch, `display: .stack` and absolute
+insets against the window are **not** deleted concepts: their goldens are R.
+
+**What it costs if wrong.** A concept wrongly called CSS-only retires a golden
+whose fact production still needs; each is checked against the dump, where the
+proposal authority either reports it by name or answers differently. A SwiftUI
+claim without a probe arm is the tell `LR-X` warns about, which is why
+percentages carry none.
+
+---
+
+## LR-DV — the seven silent D shapes get native pins of the golden's own tree
+
+**The question.** Seven D trees lay out under the proposal authority with no
+report and an answer that differs from WebKit (record §48 §2's table). Deleting
+their goldens leaves those shapes unpinned natively: a later change could move
+them with nothing red.
+
+**The ruling.** Three new tests pin each tree at its measured native answer,
+the doc comment of each arm naming the golden, WebKit's answer and the concept:
+2.5 `aGrowFactorSumBelowOneStillFillsTheLine` (two trees), 2.6
+`aStretchedStackChildIsNotFlooredByItsPaddingAndBorder` (one), 2.7
+`aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding` (four). The 46
+reported D trees cite the existing report-by-name tests instead: a reported
+field lays out a 0×0 leaf and traps in production (`LR-DF`), so the report is
+what production sees.
+
+**What it costs if wrong.** A pinned native answer is a divergence written down
+as correct; that is the intent (each is a SwiftUI answer by `LR-DU`), and a later
+stage that lowers the concept moves the pin deliberately.
+
+---
+
+## LR-DW — the new tests are characterization; their red-before is a named mutation
+
+**The question.** Stage rules ask new tests to be red first. Every new test here
+pins behaviour the proposal authority already has.
+
+**The ruling.** Each new test is green on arrival (stage 2 lane 5's 5.8 is the
+precedent). Its red-before is the mutation spec §6 names for it, applied after
+the test is committed, the source restored from a copy, the **full unfiltered
+suite** run, and `git status --short` clean afterwards; the lane records every
+test and arm reddened, by name. The literals are written from the golden JSON
+(R) or record §48 §5.2 (D) **before** the test first runs. The shared helper is
+itself a mutation site (**MH**): with its missing-id `try #require` turned into
+`continue` and one arm's id misspelled, that arm must go green, and red again
+when the require is restored.
+
+**What it costs if wrong.** A test that no mutation reddens is a broken
+instrument or a finding (practices); the table makes each lane show one.
+
+---
+
+## LR-DX — three lanes, the removal last; `Sources/` untouched but one comment; 0 px
+
+**The ruling.**
+
+- **Lane 1** (Opus): `GoldenReplacementSupport.swift` (the shared `goldenArm`
+  helper) and `GoldenReplacementFlexTests.swift`, tests 1.1–1.8, 29 R arms,
+  mutations M1a–M1h and MH.
+- **Lane 2** (Opus): `GoldenReplacementStackTests.swift`, tests 2.1–2.8, 15 R
+  arms, 7 D-pin arms and 3 `wrap-reverse` report arms (2.8, `LR-DY`), mutations
+  M2a–M2h; reuses lane 1's helper.
+- **Lane 3** (Opus): verifies all 97 rows of record §48 §4 against the
+  committed tests before deleting anything, then removes the consumers, the
+  machinery and the `resources:` line, trims the one test, rewrites `roundLayout`'s doc comment
+  (`Rounding.swift`), whose caller list and corpus paragraphs describe the
+  deleted goldens, re-runs M1b,
+  M1f, M2d, M2g and M2h with the goldens gone, and takes the exit measurements.
+
+The lanes touch disjoint files and run in order. No `Sources/` code changes, so
+the demo's twelve-image comparison against `2cc763d` must read **0 px** in every
+image and `DemoFrameDeterminismTests` stays green and unedited.
+
+**What it costs if wrong.** Lane 3 deleting before a replacement exists would
+retire a golden with no witness; step 1's verification is the gate.
+
+---
+
+## LR-DY — stage 7a critic round 1: `wrap-reverse` gets its own report test; row 86 cited; what "deleted" means for fields a later stage still owns; two miscounts
+
+**Critic round 1 (2026-09-23, PDT).** The committed design (`3324ca7`) was
+attacked for unprobed SwiftUI claims, silent answer changes, replacements that do
+not exist or do not assert the golden's fact, concepts wrongly called CSS-only,
+7b pre-empted, the legacy engine deleted early, and mutations that cannot redden.
+
+**Checked and standing** (no change): the probe was re-run twice by
+`/usr/bin/swift docs/probes/swiftui-engine-stage-7a.swift` — exit 0, both runs
+byte-identical to each other and to the recorded OUTPUT block (all five groups,
+W0–B1); every mutation site the spec names exists in
+`Sources/MetalUI/LegacyLowering.swift` (`arrangeLegacyMainAxis`'s `var spacing =
+gap` and `nodes.reverse()`, `distributedLegacyItems`' `betweenCount`, the four
+`alignmentFactor` overloads, `paddedAndSized`, `planLegacyItems`' `if greedy`,
+`grownH`, `marginInsets`, `lowerPresentation`); all twelve existing tests the
+table cites exist by `func` name; `LR-DT`'s evidence re-read — the 24 `#expect`s
+in the six consumers that assert more than `assertMatchesGolden` are 5 × golden
+literals (each checked equal to the JSON's `rounded` boxes) plus the trimmed
+test's three `cMinZero` expectations; the four whole-file deletions hold only
+consumers (5/5, 15/15, 6/6, 4/4 `@Test`s to `loadGolden` calls); nothing outside
+`Tests/MetalUILayoutTests` references the machinery, and no CI workflow names it;
+no `Sources/` code changes, so identity, hit testing, accessibility and animation
+cannot move; the legacy engine and every `.legacy` test stay (7b, 9).
+
+**The defects, and what changed.**
+
+1. **The three `wrap-reverse` rows had no replacement asserting their fact.**
+   Rows 63–65 (`flex_wrap_reverse`, `flex_wrap_reverse_align_content_end`,
+   `flex_wrap_reverse_row_reverse`) cited
+   `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName`'s "wrap" arm,
+   which declares `.flexWrap(.wrap)` only (`LoweringContainerTests.swift`); no
+   test in `Tests/MetalUITests` lowers `.wrapReverse` (grep: its one hit is
+   `ModifierTests`' style-writing arm), and none of the three trees was
+   transcribed. Mutating `legacyContainerDiagnostics`' `!= .noWrap` to `== .wrap`
+   would stop reporting `wrap-reverse` and redden nothing once the goldens are
+   gone. **New test 2.8** `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs`
+   (spec §6, lane 2) pins the report on the three shapes, with mutation **M2h**
+   and lane 3 re-running it. Count **1616**.
+2. **Row 86 cited "the row above"**, which is row 85 (wrap). It now names
+   `theCentringDefaultOfRowAndColumnStretchesNothing` (last arm) and
+   `aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere` for the non-greedy
+   `box.maxSize` report.
+3. **"Deleted" overstated for fields a later stage still owns.** `LR-AO` hands a
+   non-greedy `maxSize` to stage 8, a non-zero `flexBasis` to stage 8/10, unequal
+   grow weights to stage 10 and percentages to stage 8's recipe (`LR-AI`); and
+   `LR-AP` measured that SwiftUI **can** size a child as a fraction of its parent
+   through a greedy `GeometryReader` (stage-2 probe C2), and
+   `containerRelativeFrame` as a fraction of its container (C1). So what a D row
+   deletes is **the golden's CSS answer** — flex §9.7's weighted
+   grow/shrink/basis arithmetic, §4.5's automatic minimum, `BM-4`'s floor, CSS's
+   percentage resolution against the containing block (width on every edge,
+   indefinite → auto) — not the field and not "fractions". The field keeps
+   reporting by name until its owner respells or deletes it, and **a stage that
+   later lowers one of these fields owes its own native test for the answer it
+   chooses**; it cannot cite a retired golden. The percentage rows of record §48 §4
+   (17–19, 40, 77, 82, 89, 90) already carry "owned by stage 8's recipe"; rows
+   23, 24, 27, 29, 31, 45, 47, 86 and 87 now name their field's owner too. No SwiftUI claim is added.
+4. **Record miscounts.** Record §48 §2.2 listed "18 `flex_wrap_*`" among the 23
+   untranscribed trees; it is **16** (`flex_wrap_uneven` and
+   `flex_wrap_min_vs_max_content` were transcribed — they are two of the seven
+   wrap-bearing trees measured). The probe header and record §3 said the output
+   is 15 lines; it is **17** (five group headers and twelve arms).
+
+**Rejected.**
+
+- *Transcribe the 23 wrap trees.* Rejected: the report is a property of the
+  wrapping box's declared `flexWrap`, not of its surroundings, and seven
+  transcribed trees already measured it in every position the 23 use (root,
+  column child, stack child, row child, capped child); the one thing the seven
+  did not cover — the `wrapReverse` value — is what 2.8 adds.
+- *Rename the trimmed `theClampedAutomaticMinimumIsStillFlooredByPaddingAndBorderMatchesWebKit`.*
+  Rejected: 7b retires it by name (`LR-U`), and a rename is a test change 7a has
+  no reason to make; its golden line goes, its six `#expect`s stay.
+- *Lanes too large.* Rejected: lane 1 is two new files and nine mutations, lane 2
+  one file and eight, lane 3 deletions only; the files are disjoint and the
+  order is forced by lane 3's gate.
+
+**What it costs if wrong.** Without 2.8 three rows would retire a golden on a test
+that cannot see their value — the failure `LR-DS` exists to prevent. Without item
+3 a later stage lowering `flexBasis` or `maxSize` could read 7a's D verdict as
+"nothing to test".
+
+## LR-DZ — stage 7a lane 1: the flex R arms land as designed; the pixel controls are `2cc763d`'s, not record §41's
+
+**Lane 1 (2026-09-23, PDT), record §48 §6.1.** Tests 1.1–1.8 (29 arms) and the
+`goldenArm` harness landed at `43a490a` exactly as spec §6 designs them, green
+on arrival (`LR-DW`); M1a–M1h each reddened exactly the arms the spec predicts,
+M1g's four "recorded, not required" arms included, and MH turned 1.1 green with
+the `try #require` gone and red again with it restored. No deviation in the
+tests or the harness.
+
+**The one correction.** Spec §7's pixel row and `LR-DX` ask for "every control
+as record §41 read it". Record §41 read the controls at `aef88ce`, the
+**pre-switch** base (§12.6, and its branch checker's `compare.sh aef88ce HEAD`);
+`compare.sh` prints them at its **first** commit, which for stage 7a is
+`2cc763d`, where production already runs the proposal engine. There three read
+differently — default vs modal **1031003** (1030498 at `aef88ce`), default vs
+animation **454895** (210027), prod default vs modal **491221** (491923) — and
+the rest as before. Measured, not assumed: `compare.sh aef88ce 2cc763d` on the
+same machine reads every `aef88ce` control at its bracketed value and all
+fourteen images at record §41 §12.6's numbers, so the harness reproduces §41 and
+the three are the switch's own image moves. **The ruling:** stage 7a's controls
+are the `2cc763d` values of record §48 §6.1 (light vs dark 1048576, 1031003,
+454895, f0 vs f3 0, preview 1048576, chrome 0, distinct 544 / 216, prod
+491221, distinct 529, indicator rects 0), and each lane's comparison
+`compare.sh <scratch> 2cc763d HEAD` must read them and 0 px in all fourteen
+images. The script's bracketed expectations are not edited (they document
+`aef88ce`, and `docs/probes/` scripts are not this stage's to respell).
+
+**Rejected.** *Treat the three as a harness fault and stop.* Rejected: the
+`aef88ce → 2cc763d` cross-check reproduces every number §41 recorded.
+
+**What it costs if wrong.** A later lane reading the bracketed values would
+report a false pixel regression at the base commit, or wave a real one through
+as "the known switch drift".
+
+## LR-EA — stage 7a lane 2: test 2.8's arms are the goldens' own trees, so `flex_wrap_reverse` reports `alignContent` too; M2c's extra arm
+
+**Lane 2 (2026-09-23, PDT), record §48 §6.2.** Tests 2.1–2.8 landed at `a4c9637`,
+green on arrival (`LR-DW`); M2a–M2h each reddened every arm the spec predicts;
+M2h left `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` green.
+
+**The correction.** Spec §6 designed 2.8's three arms as simplified trees (a
+two-child `Row` with `.flexWrap(.wrapReverse)`, the same plus
+`.alignContent(.flexEnd)`, a two-child `rowReverse` `Box`) and predicted
+`[box.flexWrap]` for `flex_wrap_reverse`. `LR-DS`'s own principle is that an arm
+replacing a golden builds **that golden's tree**, and the lane transcribed the
+three fixtures (`Tests/MetalUILayoutTests/Fixtures/flex_wrap_reverse*.html` at
+`2cc763d`) field for field as 2.1–2.7 do. `flex_wrap_reverse`'s fixture declares
+`align-content: flex-start` (its comment says why: so the unused cross space is
+measurable), which the simplified tree omitted. Measured under the proposal
+authority: `flex_wrap_reverse` → **`[box.flexWrap, box.alignContent]`**,
+`flex_wrap_reverse_align_content_end` → `[box.flexWrap, box.alignContent]`,
+`flex_wrap_reverse_row_reverse` (whose children carry margins) →
+`[box.flexWrap]` — no `margin.unconsumed`, because a reported container lays
+out a 0×0 leaf and never registers its children. The test asserts those three
+arrays exactly; spec §6's 2.8 row and record §48 §5.2's 2.8 row now read them.
+M2h still reddens all three arms: two drop `box.flexWrap` and keep
+`box.alignContent`, the third reads `[]`.
+
+**M2c's extra arm.** The overlay measuring its first child only also reddens
+2.2's `stack_stretch_max` (w 40×50, not 40×200): the root stack's overlay answers
+`h`'s 300×50 and `w` stretches only to that. Recorded, not required; the spec's
+M2c row names it.
+
+**Rejected.** *Keep the simplified trees.* Rejected: the retirement row claims
+the replacement asserts the golden's fact on the golden's tree; a tree without
+the fixture's `align-content` is a different shape, and the report it reads is
+not the one that tree gives.
+
+**What it costs if wrong.** Asserting `[box.flexWrap]` on the real tree would be
+red on arrival; asserting it on a simplified tree would leave `flex_wrap_reverse`
+retired on a shape it does not have.
+
+## LR-EB — stage 7a lane 3: the removal lands at 1616; the gated tests fall ten → nine, not five → four; one dead helper and the comments naming retired tests go with the consumers; the Sources hits stay listed
+
+**Lane 3 (2026-09-23, PDT), record §48 §6.3.** All 97 rows of record §48 §4
+were verified by script before anything was deleted: every R row's golden name
+occurs exactly once as a quoted arm label across
+`Tests/MetalUITests/GoldenReplacement*Tests.swift`, every consumer named in the
+table exists exactly once, and each of the 28 distinct test names cited by the D
+rows exists and is **not** among the tests removed. Then `Golden/`,
+`Fixtures/`, `Oracle/`, `GeneratorTests.swift`, `OracleTests.swift` and the four
+all-consumer files were deleted (204 paths), 66 consumer `@Test`s were removed
+from the five surviving files (with their doc comments and `@MainActor` lines),
+`theClampedAutomaticMinimumIsStillFlooredByPaddingAndBorderMatchesWebKit` lost
+its `loadGolden` line and its `assertMatchesGolden` call and nothing else,
+`assertMatchesGolden` and `Package.swift`'s `resources:` line went, and
+`roundLayout`'s doc comment was rewritten (`62be7cf`, `4ad1c79`). Suite **1616**
+= 1704 − 96 − 5 − 3 + 8 + 8, exactly as `LR-DT` computes it.
+
+**Correction 1 — the gated count.** Spec §8 and record §48 §5.3 said the gated
+tests fall "from five to four". At `2cc763d` **ten** gated tests skip (the
+branch's `CLAUDE.md` names them: `regenerateAllGoldens`, the 100k `List`, seven
+oracle measurements and `recordDemoFrames`); after the removal **nine** skip,
+read from the log by name. Where the design's five came from is not recorded;
+it is not this branch's figure. Spec §8 and §5.3 now read ten → nine.
+
+**Correction 2 — what the removal diff may touch.** Spec §7's row "lane 3's diff
+of the five surviving consumer files touches only removed consumers,
+`assertMatchesGolden` and the trimmed test's two golden lines" is widened by
+three things, none an assertion:
+
+1. **One dead helper.** `FlexEngineTests`' private `threeJustifiedChildren`
+   had exactly five callers, all golden consumers (the four row
+   `justify-content` goldens and `flex_column_justify_center`); it is deleted
+   with them. No other file-scope helper in the five files lost its last use
+   (checked by grep, comment lines excluded).
+2. **Comments that named a retired test in the present tense** are rewritten to
+   the past tense with a pointer at record §48: the file header of
+   `FlexEngineTests` (it described the goldens as load-bearing), the
+   `threeFixedChildren` doc, two doc comments in `FlexEngineTests`, one each in
+   `StackLayoutTests`, `BoxModelTests` and `AlignmentTests`, and the gating
+   sentence of `MeasurePerformanceTests`' 100k test (it cited
+   `GeneratorTests.swift`). `WrappingTests`' three `MARK` sections left with no
+   test under them are deleted.
+3. **What stays byte-identical, checked by script, not by reading**: every
+   surviving `@Test` body in the five files equals its `2cc763d` text, and the
+   trimmed test's six `#expect` lines hash identically at `2cc763d` and HEAD.
+
+**The references that stay (spec §6 lane 3 step 3).** `Sources/` keeps six
+comments naming a retired test or the oracle — `Style.swift:79`,
+`FlexEngine.swift:385`, `:1342`, `:1863`, `Alignment.swift:189`,
+`Box.swift:850` — because `LR-DX` allows one `Sources/` edit (the
+`roundLayout` block) and each describes a measurement that was taken; all six
+sit in CSS-engine code that 7b and 9 retire. `Tests/` keeps four historical
+mentions (`ElementLayoutTests.swift:538`, `FreezeLoopTests.swift:12`,
+`BoxModelTests.swift:225`, `:274`) that describe what a past mutation or
+fixture did, not what the suite pins now.
+
+**`roundLayout`'s doc comment is re-measured, not re-worded.** It had claimed
+the goldens detected a missing rounding pass. Measured in the full suite at
+1616: deleting `roundStoredRects(tree, root)` from `computeLayout` (MR1)
+reddens 28 tests, `computeLayoutRoundsEveryStoredRect` and
+`shrinkIsWeightedByBaseSize` among them; deleting `roundNativeStoredRects`'
+`roundLayout` call (MR2) reddens 57, among them
+`nativeLayoutRoundsStoredRectanglesAfterFractionalPlacement`,
+`flex_row_seven_equal`'s arm of
+`equalGrowersShareTheLineAndAMaximumCapsItsGrower` and
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`. The comment now says so and
+names the two callers (one per engine) plus `NativeGridTests`' use.
+
+**Rejected.** *Leave `threeJustifiedChildren` in place to keep the diff to the
+spec's letter.* Rejected: it is dead code whose only reason to exist was the
+deleted tests, and Swift does not warn about an unused private function, so
+nothing would ever flag it. *Rewrite the six `Sources/` comments.* Rejected:
+it would spend `LR-DX`'s `Sources/` budget on comments in code 7b and 9
+delete, and the `git diff 2cc763d -- Sources` check would no longer be one
+block.
+
+**What it costs if wrong.** A stale gated count would send the Record phase's
+`CLAUDE.md` edit to "four", and a later reader re-taking the count would find
+nine and suspect a lost test.
+
+---
+
+## LR-EC — stage 7b's scope: the CSS engine as a subject, not as the other arm of a comparison
+
+**The question.** `LR-U` gives 7b "the non-golden tests of §2.6's 24 files and
+the element-level tests 6a pinned to `.legacy`", with `grep -rn
+"computeLayout(" Tests` empty at the exit. At `41344e5` the legacy authority
+is reached by far more tests than those: which does 7b retire?
+
+**Evidence.** Record §49 §2: one `print` at `computeLayout`'s entry
+(`docs/probes/stage-7b-css-engine-instrument.patch`), one unfiltered run
+(1670 passed, 3 294 markers). **357** tests reach the CSS engine in-process:
+115 in §2.6's eighteen surviving files, 47 in the element files holding the 50
+pins with a 7b owner (46 pins plus `RootSwitchTests` 3.2's `.legacy` arm),
+and **195** others — every `AuthorityCoverage` scenario's `.legacy` arm, every
+`Lowering*`/`ListLowering`/`PresentationLowering`/`HiddenLowering`
+differential test, the harness's own tests, three loops over both authorities,
+N9 rows and 3.1's legacy half. The list is committed
+(`docs/probes/stage-7b-css-engine-census.txt`).
+
+**The ruling.**
+
+1. **7b retires every test whose subject is the CSS engine or a legacy-only
+   answer**: the 187 tests of §2.6's files other than `StyleTests` (`LR-EE`),
+   the 50 7b-owned pins (33 from 6a, 15 from 6b's `LR-DQ` item 2, `LR-DI`'s two
+   kept `P-CSS` pins), and `NativeBoundaryTrapTests`' three `computeLayout(`
+   callers (`LR-EF`); and trims `RootSwitchTests` 3.2's `.legacy` arm
+   (`LR-EH`).
+2. **The 195 are stage 9's.** Each uses the legacy authority as the *other
+   arm* of a comparison whose proposal arm is the pin; they die or are
+   re-spelled with the authority (`LR-EK`). Retiring them here would delete
+   the proposal arms that 7b's own R rows cite.
+3. **`MeasurePerformanceTests` retires nothing.** `LR-U`'s "17 494 legacy
+   nodes → a native work-count test" is already met: stage 4 re-spelled its
+   rows through the lowering (`LR-BW`) and pinned `demoLikeRowsWarmWork`'s
+   hand-derived 17 / 103 / 120 in `aListsWorkIsTheSameFor160RowsAsFor40`'s
+   proposal arm and the gated 100k twin (`LR-CG`, record §27 §10). Its two
+   `.legacy` pins are stage 9's (tokenizer min-content, `LR-DQ` item 9).
+4. **The exit census.** After 7b, the same instrument must print for exactly
+   census section A — the 195 — and nothing else.
+
+**What it costs if wrong.** Reading `LR-U` as "everything the legacy
+authority touches" would delete 195 tests whose proposal arms pin the facts
+7b's table relies on, leaving R rows pointing at nothing. Reading it narrower
+(only §2.6's files) would leave 50 `.legacy` pins with a 7b owner and no
+stage to retire them; stage 9 would have to separate CSS answers from
+comparisons again, the work record §38 §4 already did.
+
+
+**Amended, stage-7b critic round 1 (`LR-EL` finding 1).** Section A holds
+**199**, not 195, and section C **111**, not 115: `MeasurePerformanceTests`'
+four markers (`aListsWorkIsTheSameFor160RowsAsFor40`,
+`theResidentEntrySetStaysBoundedWhileScrolling10kRows` — both authorities —
+and the two tokenizer pins) were filed under C although item 3 keeps them, so
+item 4's "exactly section A" could never have held. Every "195" in this
+ruling reads 199; the census file, record §49 §2 and the spec are corrected.
+---
+
+## LR-ED — five verdicts, and how the count reconciles
+
+**The ruling.** Each row of record §49 §4 carries one verdict:
+
+- **R** — retired; a named test that exists at `41344e5` (checked by script:
+  every backticked name resolves to a `func` in `Tests/`) asserts the same
+  fact under the proposal engine. The owning lane reads the arm before
+  removing anything; an R it cannot confirm becomes N with a finding.
+- **D** — retired; the concept is CSS-only (named), and the row names the
+  native test pinning what the proposal authority does with that shape (a
+  report by name, or the native answer). A SwiftUI claim in a D row cites a
+  probe arm re-run 2026-09-24 (`LR-EI`); otherwise the row says "no SwiftUI
+  claim".
+- **N** — retired; its non-CSS fact (MC-B's structural identity, EV-H/EV-I's
+  inert environment values, OM-J's region, CO-U's side door, the modifier
+  matrix, a framed `List`'s windowing, a framed `ScrollView`'s wheel, an empty
+  container's zero) gets a new proposal-authority test first, each with a
+  named mutation that reddens it.
+- **T** — kept; a named CSS arm removed or a helper re-pointed, every kept
+  `#expect`/`#require` line byte-identical (script).
+- **K** — kept untouched, owner reassigned.
+
+**The count.** before − (R + D + N) + (new tests) = after: **1670 − 236 + 10
+= 1444**. T and K rows are accounted for but move nothing. Eleven N rows make
+ten tests (N1.1 answers two).
+
+**Why N and T rather than re-pinning a test to `.proposal` unchanged.** Stage
+6a's M3g flipped every lane-3 `.legacy` pin to `.proposal` and all 29 CSS pins
+went red (record §38 §10.5): their observations (node counts, rects, the Dual
+leaves' answers) *are* the legacy answer. A re-pinned test with changed
+literals is a new test and is named as one; a test whose non-CSS assertions
+survive untouched is trimmed and says which lines went.
+
+**What it costs if wrong.** An R row asserting a neighbouring fact rather than
+the same one would silently drop a pin; the lane's read-before-remove step and
+the per-family mutations (spec §6) are the check, and the row converts to N.
+
+---
+
+## LR-EE — `StyleTests` stays; `ResolveTests` goes
+
+**Evidence.** `Style` is the proposal lowering's input in production: every
+legacy element's declared and animated style is read by the lowering, and
+`Style.default` fills native nodes' placeholder rows
+(`everyNativeRegistrarAcceptsNativeChildrenWithoutTrapping` reads it).
+`Resolve.swift`'s `resolveLength`, `resolveDimension`, `resolveEdges`,
+`resolveMargin` and `clamp` have **no caller outside the CSS engine files**
+(grep of `Sources/`, 2026-09-24: comments only in `Units.swift`, `Box.swift`,
+`DemoContent.swift`).
+
+**The ruling.** `StyleTests`' four tests are **K**, owner stage 10 (which
+deletes `Style`'s CSS fields). `ResolveTests`' six are **D** (`Resolve.swift`,
+deleted at stage 9), with the lowering's own px/rem resolution pinned by
+`aLoweredFixedSizeBoxAgreesWithTheLegacyBoxInEveryObservation` and the "rem"
+arm of `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, its fold
+by `aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent` and
+`aRootsMinimumAndMaximumFoldIntoItsDeclaredSize`.
+
+**What it costs if wrong.** Retiring `StyleTests` would unpin defaults the
+production lowering branches on (`flexShrink` 1 is "compress"; 0 would make
+every item `fixedSize`); keeping `ResolveTests` would keep a pin on code
+nothing in production runs.
+
+
+**Amended, stage-7b critic round 1 (`LR-EL` finding 5).** "`Resolve.swift`,
+deleted at stage 9" over-reads the parent spec: §4.1 row 9 deletes
+`Resolve.swift`'s **percentage half**. The verdict stands on the narrower
+reason: every caller of `resolveLength`/`resolveDimension`/`resolveEdges`/
+`resolveMargin`/`clamp` is in `FlexEngine.swift` or `FlexBaseSize.swift`
+(grep, 2026-09-24), which row 9 deletes whole, so the px/rem half has no
+caller after stage 9 either and the lowering resolves px/rem itself (the pins
+named above). Whether stage 9 deletes the uncalled px/rem half or stage 10
+does with `Style`'s CSS fields is theirs; `ResolveTests` pins no production
+path in the meantime.
+---
+
+## LR-EF — `NativeBoundaryTrapTests`' three `computeLayout(` callers are retired
+
+**The question.** The exit grep is literal, and three kernel-file tests call
+`computeLayout(`: `computeLayoutRejectsANativeRoot` (`SA-G`'s legacy entry),
+`computeLayoutCalledFromANativeMeasureClosureTraps` (`SA-I`'s one flag) and
+`registeringANodeDuringLegacyLayoutTraps`.
+
+**The ruling.** All three are retired, none re-spelled to dodge the grep (a
+function reference to `computeLayout` would pass the grep and keep the test —
+the grep's purpose, not its letter, is that no test runs the CSS engine as a
+subject).
+
+- `registeringANodeDuringLegacyLayoutTraps` → **R**: the check is the shared
+  storage append's, pinned by `registeringALegacyLeafDuringNativeLayoutTraps`
+  and `registeringANativeNodeDuringNativeLayoutTraps`.
+- `computeLayoutCalledFromANativeMeasureClosureTraps` → **R**: one flag is
+  still visible from the legacy API during a native run
+  (`setStyleOnALegacyNodeDuringNativeLayoutTraps` — a split flag reddens it,
+  lane 1's M1b), and native re-entry by
+  `computeNativeLayoutReenteredFromAMeasureClosureTraps`.
+- `computeLayoutRejectsANativeRoot` → **D**: the CSS engine's own entry
+  precondition, which production cannot reach — `Frame.computeRootLayout`
+  branches on `isNativeLayoutNode(root)` before calling it, and
+  `noProductionFrameReachesTheLegacyEngine` counts zero legacy root layouts.
+  The rest of `SA-G` stays pinned.
+
+**What it costs if wrong.** `computeLayout`'s native-root precondition is
+unpinned from 7b to 9: deleting it would let a test-built `.legacy` frame lay
+a native root out as an empty flex box. No production path passes one, and
+stage 9 deletes the function.
+
+---
+
+## LR-EG — `Sources/`: no behaviour line; comments only where they would lie
+
+**Evidence.** Grep of `Sources/` for the 236 retired names (record §49 §6.1
+will list every hit): most sit in CSS-only files (`FlexEngine.swift`,
+`ResolveFlexibleLengths.swift`, `FlexBaseSize.swift`, `FlexLines.swift`,
+`Alignment.swift`, `LayoutContext.swift`); others in files that outlive stage
+9 (`Rounding.swift`, `Component.swift`, `ModifiedElement.swift`, `Box.swift`,
+`Units.swift`, `EnvironmentValues.swift`, `ScrollView.swift`). The candidate
+test-only hooks (`LayoutContext`'s `hits`/`misses`, read only by
+`MeasureCacheTests` and `LeafProbeShortcutTests`) live in a file stage 9
+deletes whole.
+
+**The ruling.** No declaration or statement under `Sources/` changes. A
+comment in a file that outlives stage 9 that names a retired test **as a
+present pin** is re-pointed to that row's replacement (comment lines only;
+checked by the diff grep in spec §4). Comments in CSS-only files are listed in
+the record and left, as `LR-EB` left six: they describe measurements taken on
+code 9 deletes. `LayoutContext`'s counters stay for stage 9.
+
+**What it costs if wrong.** A stale comment in shared code (`roundLayout`'s,
+which names `computeLayoutRoundsEveryStoredRect` and
+`shrinkIsWeightedByBaseSize` as what reddens) would send a later reader to a
+test that no longer exists — `LR-EB` re-measured that comment once already.
+
+---
+
+## LR-EH — divergence 4 retires with its last pins
+
+**Evidence.** Record §04's stage-6b section: divergence 4 (`CS-I`) is
+legacy-authority only, "pinned by its own CSS-engine tests
+(`anAutoRootWithNoOfferedExtentMeasuresItsContent` and the root-sizing tests
+in `MetalUILayoutTests`)" and retiring "with those CSS-engine tests at 7b
+(`LR-DG` item 2)". The census adds one more pin: `RootSwitchTests` 3.2's
+`.legacy` arm reads the CSS answer (0, 40).
+
+**The ruling.** `autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot` and
+`anAutoRootWithNoOfferedExtentMeasuresItsContent` are D rows (divergence 4);
+3.2 loses its `.legacy` arm (T) — its production literal (21, 40) is derived
+from stack-algorithms R1/R2, re-run 2026-09-24, not from the other arm, and
+6b's M2a still reddens it. The Record phase retires the label (58 → 57 live;
+4 joins the never-reused list).
+
+**What it costs if wrong.** A live divergence with no pin is a row nothing
+checks; a retired one still pinned is a test asserting a number the table says
+is gone. Retiring the tests and the row together avoids both.
+
+---
+
+## LR-EI — no new SwiftUI probe
+
+**Evidence.** Every SwiftUI claim in record §49 §4 is an arm of an existing
+probe: 7a's W/G/S/A/B, stage-1 H0–H2, stack-algorithms G9/A5/R1/R2,
+component-distribution G2/G7/G8, frame-semantics D4/D7. Each probe was re-run
+2026-09-24 under `/usr/bin/swift` (Apple Swift 6.4, macOS 27.0), exit 0, and
+every output line was found verbatim in its recorded header (17/17, 79/79,
+787/787, 25/25, 291/291; record §49 §3). Each cited group carries its own
+positive control (W0, G0, S0, A0, B0, H0/H2).
+
+**The ruling.** No probe is written. A D row that needs a SwiftUI fact outside
+those arms makes no SwiftUI claim instead.
+
+**What it costs if wrong.** A lane that finds itself needing a new claim adds a
+probe with a separating arm and a ruling; nothing in the design depends on one.
+
+---
+
+## LR-EJ — three lanes, in order, removal last
+
+**The ruling.** Lane 1: the eighteen engine files, `NativeBoundaryTrapTests`,
+N1.1 in `LoweringLeafTests` (−190, +1). Lane 2: `FrameSizingTests`,
+`ComponentTests`, `ElementLayoutTests`, `ContainerIntegrationTests`,
+`ModifiedElementTests`, `ModifierCompositionProofTests` (−36, +4, one T).
+Lane 3: `TextMeasureTests`, `EnvironmentTests`, `StackElementTests`,
+`AnimationTests`, `FrameDecorationInteractionTests`,
+`OuterModifierMatrixTests`, `RootSwitchTests` (−10, +5, four T) and the exit
+criteria. Disjoint files; run one at a time. Within a lane: confirm each R by
+reading, write and commit the N/T work green, remove, then take the family
+mutations (spec §6) on the committed tree so each replacement is shown to
+redden with its retired twin gone; name every reddened test. Nothing is
+removed before its replacements are confirmed and its N tests green (`LR-DX`'s
+rule).
+
+**Why three.** CLAUDE.md's budget: two or three lanes, split only where files
+are disjoint. Lane 1 is large but mechanical (one new test, twelve family
+mutations); lanes 2 and 3 carry the N tests that need derivation.
+
+**What it costs if wrong.** A removal before its replacement is confirmed is a
+window where a fact is unpinned; running the mutations only before removal
+would let a replacement "redden" because its retired twin did.
+
+---
+
+## LR-EK — a differential replacement keeps its proposal arm through stage 9
+
+**The ruling.** Many R rows cite a test that compares the two authorities
+(`LayoutDifferential.compare`, `AuthorityCoverage` scenarios, the
+both-authority loops). After 7b that test's **proposal arm is the only pin** of
+the retired test's fact. Stage 9, deleting the legacy authority, re-spells each
+such test as proposal-only (keeping its literals) rather than deleting it with
+its legacy arm; record §49 §4's replacement column is the list to check
+against.
+
+**What it costs if wrong.** Stage 9 deleting "the legacy comparison tests"
+wholesale would unpin 100-odd facts this stage moved onto them, and nothing
+would redden.
+
+---
+
+## LR-EL — stage 7b critic round 1
+
+**Method.** The committed design (`acca9ef`) re-read against the source and
+its own census, by script where a count was involved: every backticked name in
+record §49 §4's replacement column resolved against `func` declarations in
+`Tests/` (all resolve except the ten N names and 7a's snake_case golden-arm
+labels, each found in `GoldenReplacementFlexTests`/`GoldenReplacementStackTests`);
+every table row's test found in its file; every census B/C name matched to an
+R/D/N/T row and every A name to none; every test carrying `.legacy` in
+`Tests/` accounted for by the table, census A, an exit test, a known
+stage-9 pin or a registration-only test that never lays out (a scanner's
+remaining hits were doc comments naming `.legacy` above a proposal test). Two cited probes re-run byte for byte under `/usr/bin/swift`
+(Apple Swift 6.4): `swiftui-engine-stage-7a.swift` 17/17 lines verbatim in
+its header (W0/W1, S0/S1, A0/A1 read as cited), and
+`swiftui-component-distribution.swift` 25/25 (G2 `outer 120x26`, G7 `outer
+148x10`, G8 `outer 70x10`, as cited).
+
+**Findings applied.**
+
+1. **The exit census could not pass.** `MeasurePerformanceTests`' four
+   CSS-engine markers sat in census section C ("§2.6's files") though that file
+   is not a §2.6 file and `LR-EC` item 3 keeps every one of its tests; exit
+   criterion 3 requires the post-stage census to equal A exactly. Moved to A
+   (199); C reads 111; record §49 §2's "the other 76" reads 80 (some reach
+   `computeLayout` only in an exit child). `LR-EC` amended.
+2. **Spec §6's lane steps contradicted `LR-EJ` and the mutation tables'
+   header**: step 3 took the family mutations before step 4's removal while
+   the table header and `LR-EJ` say after. Re-ordered: remove, commit, then
+   mutate; the N tests' own red-before mutations may come first.
+3. **M1i predicted a green test red.** `nativeLayoutWorkIsPerCall` compares a
+   second call's `lastNativeLayoutWork` to the first's; with the cache never
+   hitting, both calls are equally uncached and still equal. Removed from the
+   must-redden column (only `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal`'s
+   `cacheHits == 51` literal is predicted). A mutation table naming a test that
+   cannot redden would have sent lane 1 looking for a broken instrument.
+4. **N3.4 read as a snapshot** ("the lane measures where the border and the
+   clip land and pins that"). Re-worded: literals derived from `LR-BH`'s
+   lowering before the run; a disagreement is a finding.
+5. **`LR-EE`'s "`Resolve.swift`, deleted at stage 9"** over-read row 9 (its
+   percentage half). `LR-EE` amended; verdict unchanged.
+
+**Attacks that found nothing** (recorded so a later round need not repeat
+them): no `Sources/` behaviour line and no deletion of `FlexEngine`, the
+legacy authority, `Frame.requestNode`/`requestLeaf` or the lowering is
+planned (stages 8–11 not pre-empted); no removed test is missing from the
+table (lane lists sum to 190 + 36 + 10 = 236; 1670 − 236 + 10 = 1444); every
+D row's SwiftUI claim cites a re-run arm or says "no SwiftUI claim", and no D
+concept (wrap, weighted shrink, length basis, the automatic minimum,
+`display: none`'s zero space, sub-one grow, the CSS measure cache, non-window
+containing blocks) has a SwiftUI spelling the probes show — percentages are
+not declared absent from SwiftUI, only owned by stage 8's per-site respelling
+(`LR-AI`, `LR-AP`); no N test runs under `.legacy`, so none adds to census A;
+no identity, hit-testing, accessibility or animation assertion outside a
+retired test moves (byte-level removal check, spec §6); the three lanes touch
+disjoint files.
+
+**Rejected.** Keeping `computeLayoutRejectsANativeRoot` alive by reaching
+`computeLayout` without the literal `computeLayout(` spelling (a function
+reference, or a `.legacy` `Frame` over a native root): the first dodges the
+grep's purpose (`LR-EF` already rules so), and the second cannot reach it —
+`Frame.computeRootLayout` branches on `isNativeLayoutNode(root)` first. The
+precondition stays unpinned 7b→9, as `LR-EF` records.
+
+**What it costs if wrong.** Finding 1 unfixed ends the stage at an exit
+criterion that cannot be met, or tempts lane 3 to retire four stage-9 tests to
+meet it; finding 3 unfixed spends a lane's time on a mutation "that reddens
+nothing".
+
+---
+
+## LR-EM — stage 7b lane 1: one R row fails its confirmation, M1j re-spelled, the portable figure
+
+**Findings, each measured on the committed tree with the full unfiltered
+suite** (record §49 §6.1).
+
+1. **Record §49 row 71 is N, not R.** `BoxModelTests.aShrunkContainerNeverHandsItsChildANegativeContentBox`
+   pinned the CSS engine's `contentBox` `max(0, …)`. Its native analogue is
+   `LayoutTree.paddingProposal`'s `max(0, proposal − insets)` per axis, which
+   every lowered padding and `Style.padding` reaches — and removing it left
+   **all 1670 tests green** at `41344e5`: none of the row's three named
+   replacements (`aFrameNeverAnswersANegativeSize`,
+   `negativePaddingIsAcceptedAndItsResponseClampsPerAxis`,
+   `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox`) offers a
+   child a proposal the insets exceed with a child that echoes it. New test
+   **N1.2 `aPaddingWiderThanItsProposalOffersItsChildZeroNeverANegativeSize`**
+   (`NativeLayoutTests.swift`, beside the kernel padding tests; a kernel fact,
+   so it runs on Linux and Windows too), literals derived before the run, a
+   positive control required to disagree first; the mutant reddens it and
+   nothing else. Every other R row of lane 1 was confirmed by reading its
+   replacement's arm, and each family by its mutation.
+2. **The counts move by +1.** Lane 1: 1670 + **2** − 190 = **1482** (spec §5's
+   1481). Stage: 1670 − 236 + **11** = **1445** (spec §8's 1444). Verdicts: R
+   111, D 113, N **12 rows, 11 new tests**, T 5, K 4 — still 245 rows.
+3. **M1j as spelled cannot redden its named D pin.** "A positive `flexShrink`
+   lowered as `fixedSize`" was run in two spellings — on an `auto` main axis
+   only (60 issues, 30 tests) and on every main size (68 issues, 36 tests) —
+   and **neither reddens `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight`**:
+   its two boxes declare their widths, so each lowers to a rigid fixed frame
+   and a `fixedSize` around it changes nothing. The mutation that sees the D
+   concept (weighted shrink dies) is the test's own: **M1j′**, a positive
+   shrink other than 1 reported → it reddens alone (2 issues). F7's D sample
+   is M1j′.
+4. **M1i hangs one exit child.** With the kernel cache never hitting,
+   `aChainOfMaxDepthNodesOfEveryKindSurvivesAOneMegabyteThread`'s child
+   re-measures a 72-level chain exponentially; it ran 30 minutes at 99% CPU
+   and was killed (recorded as reddened). M1i reddens
+   `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` on all of
+   its (1)–(3) — calls per proposal, `measureCalls`, `cacheHits`,
+   `cacheMisses` — not the `cacheHits` literal alone; `nativeLayoutWorkIsPerCall`
+   stays green, as `LR-EL` finding 3 predicted.
+5. **The portable CI figure** (Linux, `swift:6.4-noble`, `swift build
+   --build-tests` then `swift test --no-parallel`, 0 `error:`/`warning:`):
+   `MetalUILayoutTests` **200** = 388 − 189 + 1 (of the 190 removed, one
+   `FreezeLoopAllocationTests` case was already `#if canImport(Darwin)`; N1.2
+   adds one; N1.1 is in the macOS-only `MetalUITests`), `MetalUICoreTests`
+   22, `MetalUICrossPlatformTests` 3 — **200 + 22 + 3** for the Record phase.
+6. **Comments.** `Sources/` comments that stated a lane-1 test or file as a
+   present pin are re-pointed, comment lines only (`LR-EG`): `Rounding.swift`
+   (MR1 re-measured: 28 → **26**, exactly the two retired tests fewer),
+   `ScrollView.swift`, `Box.swift` (two: `ResolveTests`, `SizingFixtureTests`)
+   and `List.swift` (`SizingFixtureTests`) — the last three named a deleted
+   **file**, which record §49 §5.1's test-name grep could not see. CSS-only
+   files' comments naming a deleted file (`FlexEngine.swift` 386, 801, 1851,
+   1902) are listed, not edited. Test-file doc comments that name a retired
+   test or file are **not** edited by lane 1 (none of those files is lane 1's):
+   `NativeDepthGuardTests` 20, 23; `ScrollViewTests` 53–55 (a present pin);
+   `ElementGroupTrapTests` 419; `InputDispatchTests` 439; lane 3's
+   `TextMeasureTests` 318, 342–343; lane 2's `ModifiedElementTests` 723, 832,
+   840 (the `malloc_logger` collision hazard with the deleted
+   `FreezeLoopAllocationTests`, now one-sided). Handed to the Record phase.
+
+**What it costs if wrong.** Row 71 kept as R would have deleted the only pin of
+a clamp every padded element reaches, with nothing reddening; M1j kept as
+spelled would record F7's D sample as a mutation that cannot redden it.
+
+## LR-EN — stage 7b lane 2: the MC-B oracles carry no node count, M2c and the T mutation re-spelled
+
+**Findings, each measured** (record §49 §6.2; mutations on the committed tree,
+full unfiltered suite, restored from a copy, `git status --short` empty after
+each).
+
+1. **N2.1 and N2.2 compare every observation of MC-B's oracle but the node
+   count.** Written as the retired tests' chains and oracles under
+   `.proposal`, their first run (at the tree that became `1448c8e`) read every
+   disagreeing oracle disagreeing and every agreeing observation agreeing
+   **except** `chain.nodeCount == oracle.nodeCount`: **7 against 8** in both
+   (`ModifiedElementTests.swift:621`, twice — generic and flat;
+   `ModifierCompositionProofTests.swift:861`). The cause is read off the
+   lowering, not guessed: the chain's `.frame(width: 60, height: 40)` layer
+   lowers to **one** native frame, while the oracle's
+   `Box(style: frameStyle(width: 60, height: 40))` — a hand spelling of the
+   *legacy* frame's CSS lowering, a one-cell `display: .stack` (`CN-N`) —
+   lowers through `lowerShownLegacyNode`'s stack branch to an **overlay
+   inside a fixed frame**, two nodes. One layer = one node is the legacy
+   tree's shape (CSS-structure), the fact the T row
+   (`legacyModifierChainsInferOneConcreteType`) drops for the same reason. The
+   node-count comparison and its disagreeing `layerFewer.nodeCount`
+   `#require` are **not carried**; the test is kept (the spec's rule: drop the
+   oracle, not the test). `BoxWithoutAnimated` (N2.2's equal-count `$anim`
+   oracle) is made **Dual** — it lowers through `lowerLegacyNode` at site
+   `box` under the proposal authority, still without `animated` — and reads
+   `[true, false, true]` there as on the legacy authority.
+2. **M2c cannot be applied as spelled** ("`loweredComponentFrame` writes the
+   amend onto the member's style"): under the proposal authority the member
+   is a native node, and the legacy amend (`pass.setStyle`) on it traps —
+   measured, the amend branch forced to the legacy spelling, a filtered run of
+   `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt`:
+   `LayoutTree.swift:636: Precondition failed: setStyle on a native layout
+   node — the proposal engine never reads Style (SA-G)`. The sample is
+   **M2c′**: `loweredComponentFrame` registers no frame (the member is
+   returned unframed), which reddens the required test and five others.
+3. **The T row's red-before as spelled leaves the test green.** "A
+   `Self`-returning modifier after a wrapper configures the innermost layer",
+   spelled on both halves of `ModifiedElement.style` (getter and setter both
+   `inner[0]`), reddens five tests but not
+   `legacyModifierChainsInferOneConcreteType`: the test reads
+   `leafChain.style` through the same accessor the mutant writes, so write and
+   read agree. The **setter-only** spelling (the getter left on `outermost`)
+   reddens it at its kept line `leafChain.style.size.width == .length(.pixels(70))`.
+4. **Where the N tests redden.** M2.1 reddens N2.1 at its layer-count
+   `#require`, before any observation is compared; M2.4 reddens N2.4 at its
+   control `#require` (both offsets read 0). After the removal, M2.2 (re-run
+   as M2g) reddens **only N2.1 and N2.2** — the inner fills' order has no other
+   pin in the suite; before it, the two retired twins reddened with them.
+5. **N2.4's control is new.** The retired test required its unscrolled arm A
+   and its scrolling arm F to disagree; under the proposal authority A
+   scrolls too (the lowered viewport fills its proposal on the scrolling axis,
+   `LR-BC`), so the control is a 50pt-tall content that fits its viewport and
+   cannot scroll. All four arms' hand-derived literals held on the first run.
+6. **Comments.** `Sources/` comments naming a retired lane-2 test as a present
+   pin are re-pointed, comment lines only (`LR-EG`): `ModifiedElement.swift`
+   (four), `Box.swift` (three), `Units.swift` (one), `Component.swift` (four).
+   Test-file comments in files lane 2 does not own are listed for their owners
+   and the Record phase: `AnimationTests` 1007–1011, `FrameDecorationInteractionTests`
+   379, `OuterModifierMatrixTests` 854 (lane 3's files), `LoweringComponentTests`
+   120, `LoweringCorpusTests` 170.
+7. **The portable figure does not move**: every lane-2 file is in the
+   macOS-only `MetalUITests`, so CLAUDE.md's **200 + 22 + 3** (`LR-EM` item 5)
+   stands.
+
+**What it costs if wrong.** Keeping the node count would have failed N2.1 and
+N2.2 on a CSS-structure fact and tempted a re-spelled oracle that no longer
+hand-spells anything; M2c as spelled would have recorded a trap as a sample.
+
+## LR-EO — stage 7b lane 3: the matrix's witnesses under the proposal authority, the `Component` `width` row's kind, M3.5 and M3c re-spelled; the stage closes at 1445
+
+**Findings, each measured** (record §49 §6.3 and §7; mutations on the committed
+tree, full unfiltered suite, restored from a copy, `git status --short` empty
+after each).
+
+1. **N3.5's witnesses.** The retired matrix's `wraps`/`selfStorage` witnesses
+   read `LayoutTree.nodeCount`, the legacy tree's shape: under the proposal
+   authority a `Self`-returning `.width` lowers to a native frame and a margin
+   to a native padding, so the node count moves for a modifier that adds no
+   layer. N3.5 reads `Frame.elementBounds`' entry count instead (one per
+   element **and per modifier layer**, each layer having its own id, `MC-C`),
+   plus the id-free sorted element rects for "the layout did not move". A
+   `Component`'s per-member wrappers carry no id, so a `Component` row's
+   `wraps` and `distributes` are both proved by one per-member witness: each
+   member's own size unchanged and **every** gap around every member open (a
+   wrapper around the group leaves the interior gap closed; a wrapper on some
+   members leaves an end gap closed). Every row's outer widths and both
+   `Component` rows' gaps were derived by hand and held on the first run.
+2. **The `Component` `width(_:)` row changes kind.** The retired matrix filed
+   it `distributes` alone — an amend that overwrote each member's declared
+   width (`OM-F`). Under the proposal authority it is a native frame per member
+   that keeps each member's width (`LR-BG`, divergence 48's proposal answer:
+   members 30 and 50 centred at 20 and 80 in two 70-wide frames), so N3.5 files
+   it `distributes` + `wraps`, as the `padding(_:)` row. The amend reading is
+   the legacy authority's, a D concept (divergence 48's legacy answer, record
+   §49 row 219).
+3. **M3.5 as spelled traps, and "adds no layer" is unspellable.**
+   `.padding(_:)` returns `ModifiedElement<LayerBase>`, which always carries a
+   layer; and writing `Style.padding` onto a chain receiver's outermost layer
+   makes a frame layer's style check report `modifierLayer.style`, which traps
+   a production window and truncates the run (measured: `Frame.swift:1603:
+   Fatal error: MetalUI: modifierLayer.style has no proposal lowering`). The
+   taken spelling, **M3.5′**, writes `Style.padding` on a **non-chain**
+   receiver (`LayerBase.self == Self.self`) and returns it wrapped in an empty
+   layer: the `padding(_:)` row reddens at its outer width (a border-box
+   padding inside a declared 40×40 grows nothing), not at its element count.
+   The `paintOnly` kind mutation is scoped the same way for the same trap
+   (`border(_:width:)` also writing `Style.border`).
+4. **M3c as spelled does not redden the row's named replacement.** A lowered
+   `Box` built from its declared style reddens twelve tests — among them the
+   three 2.1's table names for its `Box` row
+   (`aLoweredBoxRegistersItsAnimatedWidth`,
+   `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap`,
+   `aLoweredMarginRegistersItsAnimatedValue`) — but not
+   `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`
+   itself, whose arms are the inner/outer modifier layers, the `ScrollView`
+   content and the `Component` snap. **M3c′** — an inner `ModifiedElement`
+   layer lowered from its declared style — reddens 2.1 **alone**: since the
+   removal of `everyRegisteringSiteAnimatesItsStyle` (whose inner-layer arm was
+   the legacy twin), 2.1's arm (a) is the only pin of that site. Family F15's
+   sample is M3c′; M3c is recorded beside it.
+5. **M3.4's spelling.** A frame layer with opacity below 1 paints its content
+   and border at opacity 1 and only its own fill (none in N3.4's fixture) under
+   the opacity. It reddens N3.4 at its two fade `#expect`s,
+   `everyDecorationScopingSiteContainsItsOwnContent`, and — before the removal
+   — the retired legacy twin.
+6. **Comments.** `Sources/` comments naming a retired lane-3 test as a present
+   pin are re-pointed, comment lines only (`LR-EG`): `EnvironmentValues.swift`
+   (two, → N3.1/N3.2) and `Component.swift` (two: B-7's readings → 2.1's arm
+   (c); the frame side door → N3.4). `LR-EN` item 6's `AnimationTests`
+   1007–1011 and `FrameDecorationInteractionTests` 379 were inside retired
+   tests; its `OuterModifierMatrixTests` 854 is re-pointed to row 215's
+   replacements.
+7. **The stage closes as `LR-EM` item 2 predicted**: `Test run with 1445
+   tests in 3 suites passed` (1670 − 236 + 11), the census instrument's
+   markers (1075) in exactly section A's 199 tests, 0 px in all fourteen
+   images, the `Sources/` diff comment-only, 0 `warning:` on both build
+   systems. The portable figure stays **200 + 22 + 3** (no lane-3 file is in
+   `MetalUICoreTests` or `MetalUILayoutTests`).
+
+**What it costs if wrong.** Keeping the node-count witness would have
+misfiled `width(_:)` and `margin(_:)` as wraps under production's authority;
+keeping the amend kind would have pinned a legacy answer the proposal
+authority does not give; M3.5 and the paint mutation as spelled would have
+recorded a trap as a sample; M3c alone would have left F15 without its
+replacement reddening, which spec §6 step 4 requires.
+
+---
+
+## LR-EP — the Record phase's independent re-check: the gated count was nine for the wrong branch, and divergence 4 still has legacy-arm witnesses
+
+**Evidence.** An independent re-verification of all three lanes (record §49
+§8), run at each lane's own closing commit, re-confirmed every suite count,
+removal reconciliation, `Sources/` diff and pixel comparison the lanes
+themselves reported, and re-ran several mutations §6's own tables had not
+covered (row 139's `lowerPresentation.axis` leading-inset clause, row 37's
+`alignmentFactor` overflow clause, row 54's `roundNativeStoredRects` call —
+completing the `MR2` re-run record §48 flagged as not yet done — and row 16's
+`hidden()` D replacement). Two findings did not confirm the record as
+written.
+
+**Finding 1 — the gated count.** Record §49 §5, §6.1, §6.2 and §7's first
+draft all read "gated tests stay nine". Measured on this stage's own tree by
+two independent methods (the suite log's `skipped.` lines, and `git grep -c
+'enabled(if: ProcessInfo' -- Tests` excluding `Tests/PortableTests`), both
+read **eleven**, at `41344e5` and at every lane's closing commit. "Nine" is
+`LR-EB`'s figure for `feat/engine-stage-7a` measured **before** it merged
+with `master` (1616 tests, ten gated less `regenerateAllGoldens`); this
+stage's own baseline is the **merged** `41344e5` (1670 tests), which already
+carried three more gated tests on `master`'s side of that merge
+(`recordDemoFrames`, `measureFallbackDifferences`, `measureBidiDifferences`)
+that the pre-merge branch never had. CLAUDE.md's own counts paragraph for
+`41344e5` already read "eleven gated tests skipped" — record §49 disagreed
+with the rule file it was built against, without anyone re-taking the figure
+from this stage's own baseline.
+
+**Finding 2 — divergence 4's retirement, overstated.** Record §49 §7's first
+draft said "divergence 4 has no pin left". A mutation of
+`Frame.computeRootLayout`'s legacy branch (offering `.maxContent` on both
+axes instead of the window's definite extent — the exact behaviour
+divergence 4 (`CS-I`) names) reddens 43 issues across 30 tests whose
+`.legacy` arm depends on a hugging legacy root filling the window —
+`AuthorityCoverage`-parameterised scroll, presentation, list and field tests
+among them. Production's own arm does not redden. `LR-EH`'s own "what it
+costs if wrong" named this exact risk ("a retired one still pinned is a test
+asserting a number the table says is gone") without checking for it.
+
+**The ruling.** Both are corrected in place in record §49 (§5, §6.1, §6.2, §7,
+§8), not by re-opening the lanes' own work: no test, count, guard or golden
+moves. Gated tests read **eleven** everywhere in record §49. Divergence 4
+retires as a row about the CSS engine — its two CSS-engine D rows (56, 57)
+are gone and 3.2's `.legacy` arm no longer asserts the legacy number by name
+— but `CS-I`'s behaviour stays exercised, unnamed, by the `.legacy` arm of
+roughly thirty `AuthorityCoverage`-parameterised tests until stage 9 deletes
+the legacy authority and those arms with it. Six stale test-file comments
+found in the same pass (`NativeDepthGuardTests.swift`, `ScrollViewTests.swift`,
+`ElementGroupTrapTests.swift`, `InputDispatchTests.swift`,
+`LoweringComponentTests.swift`, `LoweringCorpusTests.swift`) are re-pointed,
+comment lines only, each naming its retired row and D/N replacement.
+`FlexEngine.swift:107`'s `computeLayout`-on-a-native-root precondition is
+recorded as knowingly unpinned from this stage until stage 9 deletes
+`computeLayout` — no code change; its own exit test (row 188) retired as D,
+and the D replacement is the exit criterion itself (no test anywhere still
+calls `computeLayout`).
+
+**What it costs if wrong.** A stale "nine" sends CLAUDE.md's own count
+sideways at the next stage that copies it forward rather than re-measuring;
+"no pin left" tells stage 9 it can delete the legacy authority without
+checking these thirty tests' `.legacy` arms, when in fact they are exactly
+the tests stage 9 must re-spell or retire when that authority goes.
+
+## LR-EQ — stage 7b's adversarial branch check: row 190 is D, not R — the legacy engine's half of `SA-I`'s one flag is unpinned until stage 9
+
+**Evidence.** The branch check (record §49 §9) re-took the stage from a clean
+tree at `8d675eb` and ran two mutations of its own. **M-B1**: the
+`tree.beginLayout()` / `defer { tree.endLayout() }` pair deleted from
+`computeLayout` (`FlexEngine.swift`), so the CSS engine no longer holds
+`LayoutTree.isLayingOut` while it lays a tree out — full unfiltered suite
+**`Test run with 1445 tests in 3 suites passed`**, nothing reddened. Row 190
+(`NativeBoundaryTrapTests.registeringANodeDuringLegacyLayoutTraps`, "the check
+is not native-only") was filed **R** with `registeringALegacyLeafDuringNativeLayoutTraps`
+and `registeringANativeNodeDuringNativeLayoutTraps` as its replacements; both
+lay the tree out with the **native** engine, so neither can see whether the
+**legacy** engine sets the flag. Row 189's legacy half (`computeLayout`
+re-entered from a native measure closure) is the same shape: its replacements
+show the legacy *API* reads the native run's flag, never that the legacy
+*engine* raises it. **M-B2** (control, a different family): `Stack`'s
+`animated(` call deleted — 6 issues, `aLoweredStackLaysOutItsAnimatedWidthAndPadding`
+and `decorationSubstitutionReachesTheElementOnBoxAndStack`, the first being
+the `Stack` pin row 241's site map names; row 241 confirmed.
+
+**The ruling.** Row 190 is re-read as **D**: the fact it pinned — that the CSS
+engine's own layout call raises the shared flag — belongs to the CSS engine's
+entry (`computeLayout`, deleted at stage 9) and no native test can witness
+it; its two named tests stay as the pins of the native half and of the one
+storage check. Row 189 keeps **R** for its native half and carries the same
+note for its legacy half. The consequence is recorded rather than repaired,
+by the precedent of `LR-EP`'s `FlexEngine.swift:107` paragraph: from this
+stage until stage 9, CLAUDE.md's "**one `isLayingOut` flag guards both
+engines — do not split it**" is pinned on the native side only; a change that
+stops `computeLayout` bracketing its run reddens nothing. No test is restored
+(7b retires tests; a new legacy-engine test would be one more for stage 9 to
+retire) and no count, guard or golden moves.
+
+**What it costs if wrong.** If the legacy authority were to outlive stage 9,
+a split flag would let a legacy measure closure register a node mid-layout,
+growing the arrays the CSS engine indexes — silently, where `SA-I` promises a
+trap. Bounded: production runs `.proposal` since stage 6b and never reaches
+`computeLayout` (`noProductionFrameReachesTheLegacyEngine`).
+
+---
+
+## LR-ER — stage 8's scope: eight modifiers deprecated, the rest named, and every "stage 8" hand-off disposed
+
+**Evidence.** Record §50 §2: the deprecation warns at 1692 sites, 25 in the demo
+and 1667 in `MetalUITests`, none in any other target or package. Every earlier
+ruling that wrote "stage 8" was read (a grep of this doc for `stage 8`, 29
+hits): `LR-AI` (percentages), `LR-AG` (a non-greedy `maxSize`), `LR-AO` (a
+length `flexBasis`, divergence 52 via `LR-AL`), `LR-AQ` (an item field under a
+proposal container), `LR-AX` item 4 (a floored `space-*`), `LR-CJ` item 3 (the
+`…absolute` fields), `LR-DI` item 4 as amended by `LR-DO` (a root's auto-axis
+min/max and margin), and the parent spec §8's T7 row.
+
+**The ruling.**
+
+1. **Deprecated** (`LR-EU`): `StyledElement.width(_:)`, `height(_:)`,
+   `minWidth(_:)`, `maxWidth(_:)`, `minHeight(_:)`, `maxHeight(_:)`,
+   `width(fraction:)`, `height(fraction:)`.
+2. **Not deprecated**: `Component.width`/`height` and `StyledComponent.width`/
+   `height`. They do not write an element's own box and do not return `Self`
+   (CLAUDE.md's definition of a sizing modifier); under the proposal authority
+   each already lowers to one native frame per member (`LR-BG`, component
+   distribution probe G7/G8 — SwiftUI's answer); and `Component.frame` over
+   several members is a horizontal row (`LR-BH`), so a `renamed:` to it would
+   move members. Their reconciliation is stage 11's (modifier unification).
+   `flexBasis(fraction:)` and every item or container modifier stay: they are
+   not sizing, and their fields are stage 10's.
+3. **Divergence 52** (`Row`/`Column` default spacing, `LR-AL`) is **re-owned to
+   stage 10**. Closing it changes a public default under every default-gap
+   caller's pixels; this stage's exit is 0 px against `85217e3`. The two cannot
+   both hold.
+4. **One rule for every `Style`-field report whose public modifier this stage
+   deprecates or never had**: the report **stays**; the public spelling moves to
+   `.frame`, whose record is a frame layer's and is never reported; the report
+   dies with its field at **stage 10**. This disposes `LR-AI`'s percentages,
+   `LR-AG`'s non-greedy `maxSize`, `LR-AO`'s length `flexBasis`, `LR-AX` item
+   4's floored `space-*`, `LR-DI` item 4's root min/max/margin and `LR-CJ` item
+   3's `…absolute` **on a `Style`-written box** (`LR-EV` gives the framed box
+   its own answer). `LR-AQ`'s item fields under a proposal container likewise
+   keep reporting (owner 10).
+5. **T7** (SwiftUI centres `Text(…)` in `.frame(width:)`) is closed **by
+   spelling**, not by a behaviour change: the recipe writes `alignment:
+   .leading` where the old `.width` answer was leading (scratch S8, **SAME**),
+   and a caller who wants SwiftUI's centring writes `.frame(width:)` (probe T1:
+   x 94.5 vs T0's 50). Nothing moves.
+6. **The `Style()` clause** (parent row: "`Style()` writes of CSS fields in tests
+   moved onto modifiers or deleted with their tests") is **re-scoped**: the
+   census is recorded (record §50 §2: 232 lines, 50 files) and the writes are
+   **re-owned to stage 10**, except that lane 3 moves a `Style()` write that
+   sizes a childless `Box(style:)` and nothing else, in a file it already
+   converts, onto `.frame` by the same F rules. Reasons: no gate touches
+   `Style()` (it is not deprecated, and cannot be while `Box(style:)` is the
+   `Style` fields' public writer); a write of a sizing field is the very write
+   the K helpers make, so moving it onto one is cosmetic, and moving it onto
+   `.frame` is an F conversion with the same site risk and no deprecation to
+   justify it; the container-field writes (`flexDirection`, `alignItems`, `gap`)
+   have no one-to-one modifier (`Box(style:)` with `flexDirection = .column`
+   stretches where `Column` centres, EP-8); and the 39 in
+   `MetalUILayoutTests` write `LayoutTree` storage, stage 10's subject
+   (`LR-EE`). Stage 10 deletes the fields and must touch every writer once;
+   doing it there, after stage 9 has removed the legacy arm of every
+   two-authority test, costs one pass instead of two. No test is deleted for
+   this clause.
+
+**Amended, stage-8 critic round 1 (`LR-EY` items 1–2).** The title said
+"ten": `Box.swift` declares eight (the six sizes and clamps, and the two
+`fraction:` spellings), and item 1 always listed eight. **Item 3's owner is
+wrong**: stage 10's exit is also "0 px against 9", the same conflict this item
+cites against stage 8. Divergence 52 leaves task 7 for plan task 15, the
+replacement closeout — the one place a public default under every default-gap
+caller's pixels can be ruled. Where the text below says stage 10 inherits
+divergence 52, read task 15.
+
+**What it costs if wrong.** Items 3, 4 and 6 move work, not behaviour: stage
+10 inherits divergence 52, seven report families and 232 `Style()` lines on top
+of the ≈ 1200 `css*` sites (`LR-EW`). If a later reader expects "stage 8
+converted every `Style()` write", record §50 §2 and this ruling are where the
+re-scope is written. Item 2: a reader sees `.width` deprecated on `Box` and not
+on a `Component`; the two doc comments say why.
+
+---
+
+## LR-ES — the recipe under the proposal authority (`FR-F`'s recipe, amended)
+
+**Evidence.** `FR-F`'s recipe was written for the legacy engine: convert, move
+decorations/handlers/`alignItems`/`justifyContent` after the frame, fix the
+stored types. Production has run the proposal engine since stage 6b, where a
+`Style`-writing modifier after a `.frame` reports `modifierLayer.style`
+(`legacyFrameLayerDiagnostics`) — so `alignItems`/`justifyContent` after the
+frame, as `FR-F` wrote, would **trap** — and where a frame consumes and drops
+its child's item fields (`LR-AZ`). Scratch S1–S8 (record §50 §3), each pair
+rendered at `.proposal` with diagnostics and compared rect by rect, glyph by
+glyph and hitbox by hitbox; the demo prototype (§50 §4: 0 differing, scene
+identical, fourteen images); six demo mutations (Ma–Mf); the converter's
+20 → 1 issue count (§50 §5).
+
+**The ruling.** The recipe is spec §5.1's R1–R8: one frame per run (R1);
+paint, input, accessibility and `.id()` after the frame, `Box(decoration:)`
+split into modifiers after it (R2, S2); a sized container's frame aligned
+where the container put its content — `Row` `.leading`, `Column` `.top`,
+`Box` `.topLeading`, a centring container `.center` with its two container
+modifiers dropped (R3, S5, the list row); an item field never on a chain with a
+frame, re-spelled as SwiftUI's greedy frames (`flexGrow` → `.frame(maxMain:
+.infinity)`, S3a) or dropped (`flexShrink(0)` beside a fixed size) or moved
+(`margin` → `.padding`) (R4, S3b/S3c); a fixed axis and a bound — same axis
+folded, other axis two frames, flexible inner, fixed outer, both aligned (R5,
+S7a re-measured); an absolute box's size a frame before `.position` (R6,
+`LR-EV`); identity (R7) and animation (R8) as `LR-EW` rules them.
+
+**Why not `FR-F`'s order.** Its step 2 put `alignItems`/`justifyContent` after
+the frame "so it lands on the outer layer". On the legacy engine's one-cell
+stack that was a centring; on the proposal path it is a report, and in a
+production frame a report is a trap. The frame's own `alignment:` is SwiftUI's
+spelling of the same placement (S2: **SAME** with the two modifiers dropped).
+
+**Amended, stage-8 critic round 1 (`LR-EY` item 5).** "An item field never on
+a chain with a frame" contradicted the design's own demo patch, which keeps the
+sidebar's `.alignItems(.stretch).flexGrow(1).padding(14)` under its frame and
+reads 0 px. R4 is restated (spec §5.1): an item field is never on the frame's
+own layer (a report) or on the layer the frame wraps directly (consumed and
+dropped); under an inner wrapper it is that wrapper's child's record and is
+kept. R2 also lists `hidden()` among what moves after the frame.
+
+**What it costs if wrong.** A wrong rule is a pixel or an assertion: the demo's
+four discriminating mutations (Ma, Md, Me, Mf) redden
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`, F conversions keep their
+assertions or fall back to K, and the fourteen-image comparison is re-taken at
+lanes 1 and 3. The rule the demo cannot see — R5's zero minimum (Mb) — is N1.6's.
+
+---
+
+## LR-ET — `FR-G` amended: the automatic minimum under the proposal authority
+
+**Evidence.** `FR-G` kept the four clamps because of one live caller, the demo
+scroller box's `.minHeight(Pixels(0))`, measured (N7–N9b, legacy engine) to be
+the only spelling that cancels flex §4.5's automatic minimum. Record §50 §3,
+O1/O2: at `85217e3`, deleting that call — and, separately, it and
+`.flexBasis(Pixels(0))` — leaves `theDemoFrameMatchesTheValuesRecordedOnMacOS`
+green: under the proposal authority the box holds a lowered `ScrollView` whose
+viewport fills its proposal on the scrolling axis (`LR-BB`), so nothing floors
+the box. **FR-G's live caller has been inert in production since stage 6b.**
+The question it answered is still real for content that does not fill: scratch
+S7b (a greedy frame over 400pt of content answers 400 and pushes the header to
+y −90) vs S7a (with `minHeight: 0` it answers the 120 left), and SwiftUI
+answers identically (probe F0: 400, header at −140 in its 200pt host; F1: 120).
+
+**The ruling.** Under the proposal authority there is no automatic minimum; a
+greedy frame's lower bound is its content unless it declares a minimum, which
+is SwiftUI's rule (probe F). The cancellation's spelling is
+**`.frame(minHeight: 0, maxHeight: .infinity)`** on the growing box (the
+minimum on the greedy frame, not on a layer inside it — FR-G's N9/N9b were
+measuring the legacy engine's layer minimum, which is a different question).
+The deprecated `.minHeight(0)` on a grown axis still answers the same (it is
+W's minimum, `LR-AG`) and keeps working until stage 10. CLAUDE.md's sentence
+"`.minHeight(0)` is the only way to cancel flex's automatic minimum (`FR-G`)"
+is replaced at the Record phase by this rule; the `minHeight(_:)` doc comment's
+table (`Box.swift`) and the demo's scroller-box paragraph are rewritten by
+lanes 3 and 1.
+
+**What it costs if wrong.** If the zero minimum were dropped from the recipe,
+a growing box over non-filling content would keep its content height — a
+layout change the demo cannot see (Mb) and N1.6 exists to catch.
+
+---
+
+## LR-EU — `FR-I` and `FR-H` amended: the deprecation lands, with messages
+
+**Evidence.** `FR-I`: "Task 7, which deletes the legacy engine, migrates and
+deprecates in one move." Record §50 §2: 1692 sites, every one a test or the
+demo. G4 (`thePercentSizingModifiersAreDeprecatedRenamesOfFraction`) asserts
+the `fraction:` spellings draw 0 deprecations.
+
+**The ruling.**
+
+1. The eight modifiers of `LR-ER` item 1 take `@available(*, deprecated,
+   message:)` with spec §4's messages, in lane 3, in the same commit that leaves
+   no undecorated caller.
+2. **`message:`, not `renamed:`.** A `renamed:` produces a fix-it that rewrites
+   `.width(x)` to `.frame(width: x)` in place — R1 only — and would silently
+   skip R2–R6: a background left before its frame, a sized container's content
+   re-centred. The message names the replacement; the recipe does the rest.
+3. **`width(fraction:)`/`height(fraction:)` are deprecated with no replacement**
+   (`FR-H` amended): a fraction of the containing block has no SwiftUI
+   counterpart (`FR-H`, stage-2 probe C1/C2) and is unlowerable under the
+   proposal authority (`LR-AI`), so since stage 6b a production tree that calls
+   one traps. `FR-H` kept them "as an explicit MetalUI divergence with a
+   test" when production ran the legacy engine; that reason expired with the
+   switch. The `percent:` renames keep their own deprecation, unchanged.
+4. **G4's control arm is a T row**: it now expects 2 deprecations for the two
+   sizing `fraction:` calls and 0 for `flexBasis(fraction:)`; its `percent:` arm
+   is unchanged. The test is not removed.
+
+**What it costs if wrong.** The deprecation is a warning, not a removal: a
+caller outside the package still compiles. If the messages are wrong, N3.1 —
+which reads each message's replacement spelling — is what shows it.
+
+---
+
+## LR-EV — a framed box can be an absolute box
+
+**Evidence.** Record §50 §3, A0–A7. A1: `Box().frame(width: 20, height:
+20).background.onClick.position(.absolute).inset(…)` inside a `Deferred` lays out
+at (30, 10) 20×20 under the legacy authority and at 0×0 with
+`modifierLayer.style` under the proposal one — a production trap — because a
+`.position`/`.inset` written after a frame is compared as "a caller's modifier
+on the layer". A2 (the size moved to a child) agrees on both authorities but
+adds an element level and changes where the absolute box's handlers sit. So
+after this stage's deprecation **no undeprecated public spelling sizes an
+absolute box** except `Box(style:)` — the recipe would have no R6. With two
+conditions (the frame layer's `style` comparison takes `position`/`inset` from
+the declared style when it is absolute; `lowerPresentation`'s `…absolute` check
+skips a frame-layer record) A1 agrees on both authorities, A6/A7 (stretched)
+agree, and A4/A5 read SwiftUI's frame answers (100 with `minWidth: 100`, 80 with
+`maxWidth: 80`, probe P1/P2) where the legacy engine ignores both (`AP-E`). The
+unfiltered suite with the prototype: 1446 (1445 + the scratch), all green — no
+test pinned the old report. The prototype's hole: `planLegacyItems` skips the
+outside-a-`Deferred` `position` report for a frame layer.
+
+**The ruling.**
+
+1. A `.frame` layer whose **declared** style is `position: .absolute` does not
+   report `modifierLayer.style` for `position` and `inset`; every other field
+   still does.
+2. Inside a `Deferred` it is a presentation root like any absolute box
+   (`LR-CH`); its `FrameSpec` bounds are its own kernel frame's, so no
+   `…absolute` is reported for them and they answer as SwiftUI's frame does —
+   a **proposal-only** answer where the legacy engine ignores an auto-axis
+   bound (A4/A5; unnumbered, `LR-CJ`'s precedent for deliberate proposal-only
+   answers).
+3. Outside a `Deferred` it reports `modifierLayer.position`/`.inset`, as an
+   absolute box does (`LR-CK`): the `planLegacyItems` guard that skipped frame
+   layers is dropped with the exemption, in the same change.
+4. `minSize`/`maxSize` on the auto axis of a **`Style`-written** absolute box
+   keep reporting `…absolute`, re-owned to stage 10 by `LR-ER` item 4 — the
+   public spelling is now R6.
+
+**Amended, stage-8 critic round 1 (`LR-EY` item 3).** Item 1 is narrowed to a
+frame over **at most one node**. Over several — `anyComponent.frame(…)`, which
+lowers to `LR-BH`'s horizontal row of per-member frames — the presentation
+answer was never measured, and a row wrapper inside a presentation root is a
+shape stage 5 never lowered; it keeps reporting `modifierLayer.style` for
+`position`/`inset`, owner stage 11 with `Component.frame` (`LR-ER` item 2).
+Pinned by N1.4's arm 3; mutation M1h.
+
+**What it costs if wrong.** Item 1 widened to the whole style would let a
+`flexGrow` on an absolute frame layer lower silently (M1c reddens N1.4); item 3
+omitted would let a framed absolute box outside a `Deferred` lower in flow
+(M1d); item 2's proposal-only answers flip by restoring the report (M1b).
+
+---
+
+## LR-EW — the call-site classes, and what each conversion is checked against
+
+**Evidence.** Record §50 §3 (identity: a frame layer adds an identity level even
+where it adds no node), §5 (the converter's one residual failure is a literal
+structural path; `DisabledTests`' site loop would pass converted while no
+longer exercising `Box`'s, `Text`'s or `Stack`'s own `registerHandlers`). Stage
+6a's precedent (`LR-CV`): a test about a CSS answer moved onto the internal,
+undeprecated registrar rather than off its subject; a test about the deprecated
+registrar itself called it from a deprecated witness
+(`swift-deprecated-witness-silence.sh`).
+
+**The ruling.** Spec §5.2's classes F (convert by `LR-ES`, verified by
+unchanged assertions under every authority the test runs, K fallback per test,
+no assertion edited), K (`.x(` → `.cssX(` at the census's positions, the
+`Style` write kept by construction, for K1 field-lowering and two-authority
+tests and K2 per-site tests), D (the deprecated modifier's own tests, in a
+deprecated protocol witness) and R (expected empty). The file table in spec
+§5.2 is the starting classification; a lane may move a test from F to K with a
+recorded reason, never the reverse without the site-coverage check.
+
+- **Identity (R7).** A literal structural path used only to locate state is
+  re-derived; an asserted one keeps its assertion and the site goes K.
+- **Animation (R8).** No conversion may make an animation snap; N1.5 pins the
+  demo's one animated size, K2 keeps every site's own-style animation test on
+  its site.
+- **Site coverage.** Lane 3 runs Ms1–Ms3 before and after its F conversions;
+  each reddened set after must contain the one before.
+
+**Why K is most of the tests.** ≈ 1200 of 1667 test sites pin code that stages
+9 and 10 delete (the legacy lowering of `Style` fields, the legacy authority's
+arm of a comparison, and each site's own registration), where `.frame` would
+either change the subject or move the pin to `ModifiedElement` unseen. The demo
+— production — is converted whole.
+
+**What it costs if wrong.** A K site kept where F would have served costs
+stage 10 one more re-spelling. An F site that should have been K is the dangerous
+direction, which is why the site-coverage check gates it.
+
+---
+
+## LR-EX — three lanes, in order; the accounting
+
+**The ruling.** Lane 1 (`LegacyLowering.swift`, `DemoContent.swift`,
+`CSSSizing.swift` new, `PresentationLoweringTests`, `PresentationWindowTests`,
+`AnimationTests`, `FrameSizingTests`; N1.1–N1.6); lane 2 (the 28 K files; no new
+test; M2a/M2b base-vs-head); lane 3 (`Box.swift`, the 22 F files,
+`ModifierTests`, `ContainerCompileGuards`, `FrameSizingCompileGuards`; N3.1,
+T3.1, Ms1–Ms3; the deprecation and the 0-`warning:` gate on both build
+systems). Disjoint files; lanes 1 and 2 add no deprecation, so every lane
+commits at 0 `warning:`. **1445 − 0 + 7 = 1452 tests; 78 → 79 guards; 0
+goldens; one T row (G4); no R row expected.** The mutation plan is spec §6's.
+
+**Why three and in this order.** Lane 1 carries every behaviour change
+(`LR-EV`) and the helpers lane 2 renames onto; lane 2 is mechanical and large;
+lane 3 is the only one that can break the gate, so it lands last, as stage 6a's
+deprecation did.
+
+**What it costs if wrong.** A lane that finds a K file must be F (or the
+reverse) moves the file with a recorded reason; the totals of spec §5.2 are
+re-taken from the census, not carried.
+
+---
+
+## LR-EY — stage 8's design critic round 1: findings applied and rejected
+
+**Evidence.** A critic pass over `25f02b2` (the design commit): the spec, rulings
+`LR-ER`…`LR-EX`, record §50, the census, the demo patch and the converter were
+read against `Box.swift`, `Component.swift`, `LegacyLowering.swift`,
+`DemoContent.swift`, CLAUDE.md and `README.md`; the SwiftUI probe
+`swiftui-engine-stage-8.swift` was re-run twice under `/usr/bin/swift` —
+**byte-identical to its recorded header and to each other** (all three groups,
+F, P and T, so every arm with its control); and a new instrument,
+`docs/probes/stage-8-demo-hit-ax-hover.swift`, compared the demo's hitboxes,
+accessibility tree and hovered scenes at `85217e3` against `85217e3` + the
+design's patch (record §50 §7).
+
+**Applied.**
+
+1. **"Ten" was eight.** `Box.swift` declares six sizes and clamps and two
+   `fraction:` spellings. The spec, `LR-ER`'s title, `LR-EU` item 1, N1.1's
+   `#require`d count (10 → 8), N3.1's expected deprecations (10 → 8) and M3a's
+   reading (9 → 7) all said ten; an N3.1 written to the spec would have been red
+   against the correct implementation, and N1.1's `#require` would have failed
+   on a correct eight-entry list. Fixed everywhere, including the census header
+   and record §50 §2.
+2. **Divergence 52's new owner had the conflict it was moved to escape.** Stage
+   10's exit is "0 px against 9". Re-owned out of task 7 to plan task 15
+   (`LR-ER` item 3 amended; spec §9).
+3. **`LR-EV` over a multi-member frame was unruled.** Narrowed to a frame over
+   at most one node; N1.4 gains arm 3, mutation M1h (`LR-EV` amended).
+4. **`LR-ER` item 2 promised doc comments nobody owned.** `Component.swift` was
+   in no lane and outside §7's list of changed `Sources/` files. Lane 3 owns its
+   comment lines (spec §4, §7).
+5. **R4 contradicted the patch** (`LR-ES` amended); R2 omitted `hidden()`.
+6. **Hit testing, accessibility and hover were argued, not measured.** The
+   fourteen-image comparison renders no pointer and reads no hitbox or
+   accessibility record. Measured now: **identical** — every hitbox (bounds,
+   layer, opacity, order), the whole published tree (ids excluded, since R7
+   moves them by design) and the scene hovered at five points, modal off and
+   on; the instrument separates (hovered vs unhovered scenes differ). Lane 1
+   re-takes it on its real conversion (step 6, exit criterion 4). And T7's
+   MetalUI half (`Text.frame(width:)` centring its text in MetalUI, not only
+   in SwiftUI) is measured by lane 1 (step 7) before `LR-ER` item 5 may call T7
+   closed.
+7. **The `Backends/SDL` gate was not taken with the deprecation in.** Lane 1
+   ran it before any deprecation existed; lane 3 now builds it after (step 8).
+   It compiles `MetalUIDemoContent` from the root package, so it is a second
+   reader of the demo's census.
+8. **Record-phase copies were incomplete.** Besides the "Sizing modifiers"
+   paragraph, CLAUDE.md recommends a now-deprecated spelling in three more
+   places — "size … after `.padding`" (Legacy containers), "`width(fraction:
+   1)` fills" (Legacy `.frame`; a trap under the proposal authority since 6b)
+   and the human-verification section's padded-container rule — and
+   `README.md`'s example writes `.width(Pixels(36)).height(Pixels(36))`. Added
+   to spec §9.
+
+**Rejected, with the reason.**
+
+- **"K keeps ≈ 1200 test sites off `.frame`, against the row's 'converted …
+  at every call site'."** Not a hidden deferral: those tests' subjects are the
+  `Style` fields' lowering and each registration site's own code, which stages
+  9–10 delete; `.frame` would change the subject or silently move the pin to a
+  `ModifiedElement` layer (record §50 §5's `DisabledTests` finding). The
+  deprecation gate still holds — every public call is gone — and `LR-EW`
+  already rules it with a named end (stage 10).
+- **"The `Style()` clause re-owned to stage 10 is a deferral."** Kept as
+  `LR-ER` item 6 rules it: stage 10 deletes those fields and must touch every
+  writer anyway; no gate reads `Style()`.
+- **"`width(percent:)`'s `renamed:` now points at a deprecated target."** The
+  fix-it chain lands on a deprecation whose message says what to do; changing
+  the `percent:` attributes would edit G4's percent arm, which the stage keeps
+  unchanged. Harmless, recorded.
+- **"The recipe's R-rules lack a SwiftUI probe."** Every R-rule is a claim about
+  MetalUI's own lowering, measured by the scratch pairs S1–S8 and the demo
+  mutations; the SwiftUI claims (F, P, T) are the probe's, re-run byte-identical
+  above.
+- **"Lane 3 is too large."** 425 F sites, most `R1`/`R3` mechanical through the
+  converter; splitting it would split the site-coverage check (Ms1–Ms3 must
+  bracket every F conversion) across agents. Kept; three lanes.
+
+**What it costs if wrong.** Items 1 and 3 are test literals and one condition;
+item 2 moves an owner; items 6–8 are measurements and documentation. The
+accounting is unchanged: **1445 − 0 + 7 = 1452 tests; 78 → 79 guards**
+(N1.4's third arm is an arm, not a test).
+
+---
+
+## LR-EZ — stage 8 lane 1: what the demo's conversion moved that the design did not foresee, and the `…absolute` owner made real
+
+**Evidence.** Record §50 §8. Lane 1's red run (`9296f67`, the four files, the
+demo patch and N1.1–N1.6 in, `LegacyLowering.swift` not yet): besides the
+designed reds (N1.2–N1.4 and `PresentationWindowTests` 3.2/3.3/3.5/3.6, whose
+R6 spelling needs `LR-EV`), **four tests that read the demo by literal
+reddened**: `LoweringCorpusTests.swift:258` (`chrome.elements == 8`, read 11),
+`:571` (`report.elements == 2035`, read 3053), `LoweringPipelineParityTests.swift:119`
+and `:186` (`elements == 9`, read 12) and `RootSwitchTests.swift:213` (the
+demo's deepest native level, read 29 against 30, six roots). With the first
+literal corrected, the whole-demo census reddened further: 3031 of 3053 ids
+now **agree** where 6 of 2035 did. Production did not move: the fourteen-image
+comparison against `85217e3` read 0 differing, scene identical, in all
+fourteen (the design's patch plus lane 1's `.leading` on the scroller box's
+outer frame); `theDemoFrameMatchesTheValuesRecordedOnMacOS` stayed green
+unedited; the hit-testing/accessibility/hover dump was byte-identical
+(91 882 241 bytes both sides); `Backends/SDL`'s `DemoCapture` built the demo at
+the lane's head and read "byte-for-byte macOS's: true" against frame 5
+recorded at `85217e3`.
+
+**The ruling.**
+
+1. **Three structural literals are T rows, re-derived, not assertions
+   changed in kind** (spec §7's "every test not retired keeps its assertion"
+   said T3.1 was the one T row; it is not). Each counts the demo's elements
+   or native levels, and the conversion changes both by design: a `.frame`
+   layer is an identity level (R7) and the list row loses
+   `.alignItems(.center).flexGrow(1)` (R4). `chrome.elements` 8 → 11 and
+   parity's `elements` 9 → 12 (×2): the counter's three squares, one frame
+   layer each. The demo's deepest native level 30 → 29 (six roots): measured,
+   and the test's own doc comment says its literals move when a lowering adds
+   or drops a level.
+2. **The whole-demo census (`theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn`)
+   is re-derived** — a T row, the largest. Its subject is the legacy-vs-lowered
+   comparison of the production demo, and **the legacy side of the demo is what
+   moved**: a `.frame` layer is the same box on both engines, so the legacy
+   engine now serves the sidebar its 196 (divergence 55's shrink has nothing to
+   shrink), the main pane wraps at 648 on both sides, and all 3 000 list-row
+   ids agree (part 2b, `rowCensus` and the sub-pixel bracket on the legacy
+   sidebar's shrunk origin are gone with them). What still disagrees — 22 ids,
+   27 with the modal — is attributed to three causes the census now names: **R**
+   (unchanged: the lowered root offers 560), **O** (`FR-O`: a single-axis
+   infinite maximum is inert on the legacy engine — the header bar 0 wide and
+   the scroller box hugging the `List`'s 14 000, whose height every legacy
+   ancestor carries) and **53f** (divergence 53 at a frame layer: the legacy
+   one-cell stack offers fit-content and centres it — the header's padding
+   layer 84 wide at x 418, the sidebar's 70 wide at x 79), plus the modal's
+   unchanged **C**. The legacy authority no longer renders the demo
+   presentably (an 84pt centred header card, 14 000pt content); it is no
+   production path since stage 6b, has no public spelling (`LR-DF`), and is
+   deleted at stage 9. Instrument: **M-EZa** (the lowered frame layer's
+   infinite maximum passed as `nil`) reddens it.
+3. **`<field>.absolute`'s `owningStage` moves 8 → 10** (`LayoutAuthority.swift`),
+   making `LR-EV` item 4's "re-owned to stage 10" true in the trap message;
+   left at "8", a production trap on a `Style`-written absolute box would name
+   a delivered stage. `aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName`'s
+   owning-stage assertion is its T row; **M-EZb** (back to "8") reddens it.
+   Spec §7's list of changed `Sources/` files gains `LayoutAuthority.swift`
+   (one line and its comment).
+4. **T7's MetalUI half, measured** (`LR-ER` item 5, `LR-EY` item 6): in a
+   300-wide `Column` under `.proposal`, `Text("hi").frame(width: 100)` puts
+   the frame at x 100 and the text at **x 145** (100 + 44.5, rounded;
+   SwiftUI's T1 reads 50 + 44.5 = 94.5), and `alignment: .leading` puts it at
+   **x 100** (SwiftUI's T0: the frame's own x). MetalUI centres as SwiftUI
+   does; T7 is closed by spelling, as `LR-ER` item 5 says. (The centred
+   text's element bounds read 10 wide, the leading one 11: cumulative-edge
+   rounding of a half-point origin, `Rounding.swift`.)
+5. **Accounting at lane 1**: 1445 − 0 + 6 = **1451** (N1.1–N1.6), no test
+   removed, **six T rows** (items 1–3: the chrome and whole-demo census
+   tests, the two parity tests, the depth test, the owning-stage test). The
+   stage's total becomes 1452 with lane 3's N3.1, and its T rows seven with
+   T3.1.
+
+**What it costs if wrong.** Items 1–2 are literals of tests whose legacy halves
+die at stage 9; a wrong derivation is a red test, and every row is asserted
+exactly with no disagreement left unattributed. Item 3 is a message string.
+
+---
+
+## LR-FA — stage 8 lane 1 review: a framed absolute root reports, as the own-box spelling does
+
+**Evidence.** Lane 1's reviewer (record §50 §9). Under `.proposal` with
+diagnostics, the same box **as the frame's root**, spelled two ways: own-box
+(`Box().cssWidth(20).cssHeight(20).position(.absolute).inset(top 10, left 30)`)
+reported `[box.position.unconsumed, box.inset.unconsumed]`; framed
+(`Box().frame(width: 20, height: 20).position(.absolute).inset(…)`) reported
+`[]`. Before stage 8 the framed spelling reported `modifierLayer.style`.
+`LR-EV` item 1 exempted `position`/`inset` from the frame layer's `style`
+comparison and item 3 dropped `planLegacyItems`' `.frameLayer` guard so an
+in-flow framed absolute box still reports — but a root record is never planned
+by a parent, and `Frame.reportUnconsumedLoweredItems` skipped every
+`.frameLayer` record outright. So a converted absolute root lowered silently in
+production (to a different answer) where it had trapped. Every other context
+the reviewer tried reported equivalently on both spellings.
+
+**The ruling.** An unconsumed `.frameLayer` record whose **declared** style is
+`position: .absolute` reports `position.unconsumed`, then `inset.unconsumed`
+when an inset is set — those two names only; its `minSize`/`maxSize` and other
+fields stay its own frame's and are never reported (`LR-AQ`'s frame-layer rule
+otherwise unchanged). A non-absolute frame layer is still skipped. The same
+applies to a component's multi-member frame layer, which at the root now
+reports `modifierLayer.style` (as before) followed by the two `…unconsumed`
+names; production traps on the first either way.
+
+Pinned by N1.4's arm 4
+(`aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred`:
+the framed absolute box as the frame's root reports
+`[modifierLayer.position.unconsumed, modifierLayer.inset.unconsumed]`; red
+before, `[]`). Mutation **M1i** (the unconditional `.frameLayer` skip restored)
+reddens exactly that test, full unfiltered suite.
+
+**What it costs if wrong.** Without it a framed absolute root lowers to a
+non-legacy answer in production instead of trapping by name; widening it to
+the frame's own bounds would report fields the frame already lowers.
+
+---
+
+## LR-FB — stage 8 lane 3: the site-coverage check falls back per test, and most of class F went K
+
+**Evidence.** Record §50 §11. Spec §6 lane 3 step 3: after the F conversion,
+"each reddened set after ⊇ before, else **the file** whose tests dropped out
+reverts to K". Ms1 (`Box.prepaint` passes empty `Handlers`) reddened 129 tests
+before; after the first green conversion, 81 — **48 missing, none added**,
+every one a test whose `Box` carried its own handler, focusability, key
+context, action or accessibility node, which `LR-ES` R2 had moved onto the
+frame layer, so the test still passed while pinning `ModifiedElement`'s
+registration instead of `Box`'s. They sat in seven files (`AccessibilityTreeTests`
+17, `InputDispatchTests` 11, `FocusTests` 10, `KeymapTests` 5,
+`AccessibilityDefaultsTests` 2, `AccessibilityEndToEndTests` 2,
+`TrackInteractionTests` 1). Before any run, reading had already sent the
+site-enumerating tests (`onClickIsLiveOnEveryConformerThatCanRegisterOne`,
+`onKeyIsLiveOnEveryConformerThatCanRegisterOne`, …), two custom elements that
+measure their own `style.size` (`ComponentTests`' `Leaf`,
+`ElementGroupTrapTests`' `StateProbe`) and three K1 subjects to K; the first
+full run sent eleven more, whose legacy arm or asserted structural id moved
+(a legacy frame layer over one node is a one-cell stack its child overflows,
+so a framed scroller's viewport is not the frame's height on `.legacy`).
+`LR-EW` already allows "a lane may move a test from F to K with a recorded
+reason".
+
+**The ruling.**
+
+1. **The fallback is per test, not per file.** A test that drops out of an
+   Ms set takes K for its own sites and the helpers only it reaches; its
+   file's other F sites stay F. The file-level wording of spec §6 step 3 is
+   amended. The criterion is unchanged — the after set must contain the before
+   set — and it held **with equality** for all four mutations (Ms1–Ms3: 129,
+   3, 5; Ms4, lane 2's M2b: 63 — see the amendment below).
+2. **The outcome is recorded as measured: F 129 sites, K 296, in the 22 F
+   files** (the design's table read 425 F, 0 K; this ruling first read F 151 /
+   K 274, before the amendment below). The stage's `css*` sites are
+   therefore lane 2's 1115 plus these 296 plus lane 1's, all stage 10's. Every
+   K line equals its `85217e3` line modulo the `css` prefix, checked
+   mechanically; no assertion was edited, no test renamed or retired (R stays
+   empty).
+3. **What the F sites that remain are**: tests whose sized element carries no
+   handler, focus, key or accessibility of its own, or carries a paint-only
+   decoration whose site no Ms mutation pins (`ObservationTests`,
+   `ScrollViewTests`, `EnvironmentTests`, the `AccessibilityDefaultsTests`
+   combination arms, most of `KeymapTests`' and `FocusTests`' windows'
+   fixed-size neighbours). `Box`'s own **background** paint is pinned by
+   **Ms4**, lane 2's M2b (`Box.paint` drops its own background, hover and
+   focus colours), measured before and after like Ms1–Ms3 (amendment below):
+   every test M2b reddened before the conversion still reddens after it, so
+   the F sites that still move a `Box`'s `background` onto the frame layer
+   (`ObservationTests`' nine receivers among them) pin nothing M2b sees.
+
+**What it costs if wrong.** Per file would have K'd 84 more sites (the
+seven files' remaining F sites) that no Ms mutation distinguishes, costing stage 10 that many more re-spellings and
+nothing in coverage. Per test is only as good as the three Ms mutations: a
+site that none of them pins (a `Box`'s own background, `Text`'s own handlers)
+could still have moved unseen, which is why rule 3 names the background case.
+
+**Amended, stage-8 lane 3 review round.** Rule 3 first said the background
+moves were "judged by K2's rule — none of those tests is about `Box.paint`",
+by reading, and `ThemeTests` was not in its list at all. The review applied
+M2b before (`1604674`) and after (`61abb55`) with lane 2's five `--skip`s and
+found **ten** tests dropped out, none added: `ThemeTests`'
+`aBoxResolvesItsBackgroundTokenAgainstTheFramesTheme` (named for a `Box`),
+`theSameElementPaintsDifferentColoursUnderTheTwoThemes` and
+`cornerRadiusReachesTheSceneThroughTheModifier` (M2b crashes all three at
+`1604674`, at `ThemeTests.swift:110`/`:212`; at `61abb55` they passed, the
+background on the frame layer); `ScrollViewTests`'
+`aScrollViewsCornerRadiusReachesEveryPrimitiveItClips` and
+`aScrollViewWithNoCornerRadiusClipsSquare`; and `EnvironmentTests`'
+`aComponentReadsTheNearestEnvironmentInItsContent`,
+`aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope`,
+`aWholeValueWriteCannotResetTheThemeOrThePixelLength`,
+`theFramesRootEnvironmentCarriesItsThemeAndScale` and
+`theSpaceKeyBindingSwapsTheThemeThroughTheFakePlatform`. All ten took rule 1's
+per-test K (22 sites: `ThemeTests` 6, `ScrollViewTests` 10, `EnvironmentTests`
+6 — the helpers `surfaceBox`, `EnvComponent` and the key-binding test's
+`tree()`, each back to its `85217e3` line modulo the `css` prefix). M2b is now
+**Ms4**, and the after set equals the before set (63 names, 82 issues, the
+same five crashers in the same order when un-skipped). Record §50 §11.4 and
+§11.6 carry the measurement.
+
+
+---
+
+## LR-FC — stage 9: what the engine deletion deletes, what it keeps, and three places it departs from row 9's wording
+
+**Evidence.** Record §51 §2–§3, measured at `b9a5d7f` on `feat/engine-stage-9`
+(baseline `Test run with 1452 tests in 3 suites passed`). A scratch commit that
+deleted the seven engine files and `MeasureFunction.swift`'s legacy half built
+`MetalUILayout` with errors in **`LayoutTree.swift` alone** (its `newNode`/
+`newLeaf`/`style`/`setStyle`/`measure` and the `styles`/`measures` rows); with
+those stripped, `MetalUILayout` compiled and `MetalUI` failed in `Frame.swift`,
+`Passes.swift` and `Text.swift`; with `LayoutAuthority.legacy`, the four
+`Frame`/`LayoutPass` registrars, `Frame.style`/`setStyle` and
+`LayoutPass.lowersToProposal` removed too, the visible set was eleven files —
+`Box`, `Component`, `Deferred`, `Frame`, `ListRows`, `ModifiedElement`,
+`Passes`, `ScrollView`, `Stack`, `Text`, `TextField`. Nothing in
+`Backends/SDL`, `Tests/PortableTests`, `Experiments` or a compiled probe names
+a deleted symbol except `docs/probes/demo-pixels/ZZDemoPixels.swift` (the
+fourteen-image harness, which renders its chrome pair under both authorities).
+`resolveLength`/`resolveDimension`/`resolveEdges`/`resolveMargin`/`clamp`/
+`ResolvedEdges` have **no caller outside the engine files** (the lowering
+resolves px/rem through its own private `resolvedLength`/`resolvedDimension`,
+`LegacyLowering.swift:793`/`:803`); every function in `Alignment.swift` is a
+flex function (`MainAxisOffsets`, `distributeMainAxis`, `resolvedAlignment`,
+`crossAxisOffset`, `distributeLines`, `lineStretchAmount`, `lineContentSize`)
+— the alignment *enums* live in `Style.swift`.
+
+**The ruling.**
+
+1. **Deleted, `Sources/MetalUILayout`:** `FlexEngine.swift`,
+   `ResolveFlexibleLengths.swift`, `FlexBaseSize.swift`, `FlexLines.swift`,
+   `LayoutContext.swift`, **the whole of** `Alignment.swift` and **the whole
+   of** `Resolve.swift` (departure 1: row 9 says "flex half" and "percentage
+   half"; neither file has another half with a caller, and a kept function no
+   test or caller reaches is exactly what `LR-EQ` found unpinned);
+   `MeasureFunction.swift`'s `MeasureFunction`, `AvailableSpace`,
+   `AvailableSpaceSize` and `OptionalSizeD` (the file keeps `SizeD`, which the
+   kernel uses); `LayoutTree`'s `newNode(style:children:)`,
+   `newLeaf(style:measure:)`, `style(_:)`, `setStyle(_:_:)`, `measure(_:)`,
+   `isNativeLayoutNode(_:)` (always true once no legacy node can be minted), the
+   `styles` and `measures` storage rows and `appendNode`'s `style:` parameter
+   (the placeholder `Style.default` rows). `nodeCount` counts `childLists`.
+   `beginLayout`'s message stops naming `computeLayout`.
+2. **Deleted, `Sources/MetalUI`:** the `LayoutAuthority` enum **whole**,
+   `Frame.layoutAuthority`, `Frame.init`'s `layoutAuthority:` parameter,
+   `Frame.defaultLayoutAuthority`, `Window.layoutAuthority` (departure 2: row 9
+   says "`LayoutAuthority.legacy`, `Frame.layoutAuthority` branches"; a
+   one-case enum is not a choice, and keeping its property keeps a spelling
+   every test would still pass for nothing); `LayoutPass.lowersToProposal`;
+   `Frame.requestNode`/`requestLeaf` and their backstop
+   `unguardedLegacyRegistration`; the public deprecated
+   `LayoutPass.requestNode`/`requestLeaf`; `Frame.style`/`setStyle` and
+   `LayoutPass.style`/`setStyle`; `Frame.legacyRootLayoutCounter` and
+   `LegacyRootLayoutCounter`; `computeRootLayout`'s legacy branch (a root that
+   is not native is unreachable, so the method lays out presentations, then the
+   native root); `textMeasure` (all three overloads); `LoweringSite.customElement`;
+   every site's legacy branch (`Box`, `Stack`, `Text`, `TextField`,
+   `ModifiedElement` ×2, `ScrollView`, `Component`'s amend via `setStyle`,
+   `ListRows`' raw spacer and `ListRows.GroupLayout.spacer`, `Deferred`'s
+   authority guard, `LoweringState`'s authority guard); `Frame.isHidden`'s
+   `style(node).display == .none` clause (the proposal path's `hiddenNodes` is
+   the one source).
+3. **Deleted, the kernel's unreachable legacy-node checks** (departure 3: not in
+   row 9): once `appendNode` is reached only by native registrars, the four
+   `SA-G` preconditions that name a legacy node — `nativeNode(_:)`'s "native
+   layout subtree contains a legacy node", the two grid-mark checks and
+   `newNativeGrid`'s child check — cannot fire and no test can pin them.
+   `nativeNode(_:)` keeps its unwrap as a `preconditionFailure` whose message
+   says the node has no kernel case; the three others are deleted. **No other
+   kernel line changes**: `NativeLayoutRun.maxDepth` (72), `SA-L`, the depth
+   tests, `roundLayout`, `measuredWidth`, the `isLayingOut` flag (now guarding
+   one engine) and every native registrar stay.
+4. **Kept, and why.** `Style` and every CSS field (stage 10);
+   `StyledElement.style`; `LegacyLowering.swift`, now the legacy elements' only
+   path, under its present name (a rename is not a deletion and would move
+   every citation for nothing); `UnlowerableField`, `Frame.noteUnlowerable`,
+   `reportsUnlowerableFields` and every `Style`-field report (they are the
+   proposal authority's own reports, owned by stage 10 — `LR-ER` item 4);
+   `ModifiedElement`/`ModifiedContent` separate (stage 11);
+   `Tests/MetalUITests/CSSSizing.swift` (stage 10); `DifferentialRoot` (the
+   test harness's fixed top-leading root, now single-authority).
+
+**What it costs if wrong.** Departure 1: a caller of `resolveLength` outside
+this repository breaks — it is public API of `MetalUILayout`, but nothing in
+the repository, `Backends/SDL` or `Tests/PortableTests` calls it, and plan task
+7's text is "delete the CSS layout paths". Departure 2: none observable —
+production has run `.proposal` since 6b and no public spelling ever existed
+(`LR-DF`). Departure 3: a future legacy node minted by a new private path would
+hit the unwrap's message instead of an `SA-G` one; there is no such path.
+
+## LR-FD — stage 9: tokenizer min-content is deleted from production; the portable content sizes stay as library API with their oracle
+
+**Evidence.** `TextSystem.minContentWidth(_:font:)` has one production caller,
+`textMeasure`'s `.minContent` branch (`Text.swift:94`), reached only through the
+legacy `requestLeaf` closure; `LR-DQ` item 9 measured that a lowered `Text`
+takes no min-content probe (a pin unpinned from `.legacy` read `0 <= 40`).
+`Shaper.unbreakableRuns(of:)`, `unbreakableRunsReusingTokenizer`,
+`Shaper.runCallCounter`/`RunCallCounter` (`UnbreakableRuns.swift`) and
+`ShapingCache.minContentWidth`/`minContent`/`minContentCount` serve only that
+requirement. The portable side (`PortableText.unbreakableRuns`,
+`minContentWidth`, `maxContentWidth`, `ContentSizes.swift`, `LB-N`) is public
+API of the `MetalUIPortableText` library product, pinned byte-for-byte on Linux
+and Windows by `Tests/PortableTests`' `PortableTextDeterminismTests`, and its
+oracle `ContentSizeOracleTests` compares it against `Shaper.unbreakableRuns`
+(the `LB-L` 4 418-class-pair agreement).
+
+**The ruling.**
+
+1. Deleted: the `TextSystem.minContentWidth` requirement and both witnesses
+   (`CoreTextTextSystem`, `PortableTextSystem`); `UnbreakableRuns.swift` whole
+   (`Shaper.unbreakableRuns`, the reusing variant, `RunCallCounter`,
+   `runCallCounter`); `ShapingCache.minContentWidth`, its `minContent`
+   storage, its sweep arm and `minContentCount`. `TX-F`'s production rule dies
+   with them; `TX-K` (max-content, `measure(wrappingAt: nil)`) is untouched.
+2. Kept: `PortableText`'s three content-size functions — a library API outside
+   plan task 7's engine, with a CI pin in a separate package; deleting it would
+   edit `Tests/PortableTests` for no engine reason. Re-owned out of task 7: if
+   it is ever deleted, that is a text-library decision.
+3. **The oracle keeps its reference.** `ContentSizeOracleTests`' Apple arm
+   stops calling `Shaper.unbreakableRuns` and calls a test-local copy of the
+   same `CFStringTokenizer` walk, moved **verbatim** from
+   `UnbreakableRuns.swift` into the oracle's file before the source is
+   deleted, so `LB-L`'s agreement stays measured against the tokenizer it was
+   ruled against. Its gated `measureContentSizeDifferences` likewise.
+4. The tests whose subject is the deleted production code retire with rows
+   (spec §6 lane 2): `UnbreakableRunsTests` (2), `TokenizerReuseTests` (2), the
+   tokenizer/min-content tests of `ShapingCacheTests`, `TextMeasureTests`' four
+   `textMeasure` tests, `MeasurePerformanceTests`' two stage-9 tokenizer pins
+   (`LR-DQ` item 2). `TextHardLineBreakTests`' one test is re-spelled onto
+   `TextSystem.measure(_:font:wrappingAt: nil)` (TX-K, the same fact).
+
+**What it costs if wrong.** A future element wanting CSS min-content has to
+restore a tokenizer — the proposal path answers below-word proposals by
+`LR-AU`'s clamp, not a min-content probe (`LR-DQ` item 9 measured a lowered
+`Text` taking none). The oracle's copy could drift from a tokenizer nobody ships;
+it is a reference, and the portable side is what ships.
+
+**Amended, stage-9 critic round 1 (`LR-FH` item 6).** "What it costs if wrong"
+said "SwiftUI has no min-content concept for `Text`" — a SwiftUI claim no probe
+in `docs/probes/` carries. It is struck; the ruling never rested on it, and the
+sentence now cites the measured fact (`LR-DQ` item 9) instead.
+
+## LR-FE — stage 9: one authority — the parameterised scenarios collapse, the differential tests keep their literals, and the harness becomes single-authority
+
+**Evidence.** The stage-9 reach instrument
+(`docs/probes/stage-9-legacy-reach-instrument.patch`: a marker in
+`computeLayout`, in `LayoutTree.newNode` and in `Frame.init` for a `.legacy`
+frame; one unfiltered run, `Test run with 1452 tests in 3 suites passed`,
+reverted) reads **206 tests** in-process: **200** construct a `.legacy` frame,
+register CSS nodes and run the CSS engine (record §49 §2's census A, 199, plus
+stage 8's N1.2), and **6** only mint `LayoutTree.newNode` ids
+(`LayoutTreeTests`). Exit-test children are not seen. The static reference
+census (`docs/probes/stage-9-legacy-reference-census.tsv`: every `@Test` block
+naming a symbol row 9 deletes) lists **371** tests in 71 files. Of the 94 tests
+that call `LayoutDifferential.compare` or build a `WindowPair`, a
+literal-assertion heuristic finds 15 with no hand-derived rect literal (record
+§51 §2.3); the other 79 already assert the proposal side's rects by value next
+to the agreement check. The roll call (`everyParameterisedScenarioRanUnderBothLayoutAuthorities`)
+requires **87** scenarios across fifteen files under both authorities.
+
+**The ruling.**
+
+1. **Parameterised scenarios collapse.** Every `@Test(arguments:
+   AuthorityCoverage.authorities)` scenario loses its argument and runs once,
+   under the one authority; its `.legacy`-only branches go and its
+   `AuthorityCoverage.record` call goes. A parameterised test counts as one
+   test, so **no count moves** for these 87. `AuthorityCoverage.swift` and
+   `ZZAuthorityRollCall.swift` are deleted; the roll call retires (R row: its
+   subject is "both authorities"; nothing replaces it, stage 10's symbol check
+   is what shows the second authority is gone). CLAUDE.md's two roll-call CI
+   hazards retire with it (Record phase).
+2. **A differential test keeps its literals and loses the agreement.** A test
+   that compared the two engines becomes a single-authority assertion of the
+   same fact: its hand-derived literal assertions on the lowered side stay
+   verbatim; its agreement assertions (`expectFullAgreement`, `disagreeing`,
+   `legacyOnly`/`loweredOnly`, `scenesEqual`, `hitboxesEqual`,
+   `accessibilityEqual`, `stateSlotsEqual`) go, as the deleted concept "two
+   engines agree". **Where the test's name or doc names an observation that
+   only the agreement carried** (an element, a scene, a hitbox, an
+   accessibility record, a state slot), the lane writes a literal for it,
+   **derived by hand before the run**, and confirms it in a scratch run at the
+   lane's base against the legacy arm (which still exists there); the record
+   carries the scratch reading. **The site-coverage rule** (spec §6 lane 1):
+   five lowering mutations run at the lane's base and head; every test a
+   mutation reddens at base must still redden at head unless it is retired
+   with a row — a dropout gets a literal, not a pass.
+3. **Rejected: a frozen legacy snapshot** (dump every legacy `Report` side as
+   Swift literals keyed by test). It would keep whole-tree agreement exactly,
+   but it is a golden under another name — stage 7a retired the goldens so no
+   answer rests on a recorded engine's output — and its entries would be
+   element-id strings no reader can derive.
+4. **Windows.** A `WindowPair` becomes one `Window`; a test that asserted the
+   two windows agree keeps its per-window assertions.
+5. **The harness.** `LayoutDifferential` keeps `render(width:height:…)`
+   without an authority (always diagnostics on, element bounds recorded),
+   `Report` keeps only the lowered side's fields; `compare`,
+   `report(legacy:lowered:)`, `WindowPair` and the legacy branches of
+   `DifferentialRoot` and `ProbeLeaf` (`mintsProbeStateUnder`,
+   `paintsOnRaisedLayerUnder` become booleans or go) are deleted. The
+   harness's own self-tests of the comparison
+   (`theDifferentialHarnessSeesAOnePointDisagreementAtExactlyThatElement`,
+   `theDifferentialHarnessComparesPaintHitboxesAccessibilityAndState`) retire.
+6. **Names.** A test whose name states the legacy engine's answer or two
+   authorities (`…WhereTheLegacyRowShrinksItsChildren`, `…AgreesWithTheLegacy…`,
+   `…UnderBothAuthorities`, `…AndTrapsUnderTheLegacyOne`) is **renamed** to the
+   fact it still asserts, as a T row recording old → new (count-neutral; `LR-CB`'s
+   precedent: a name that lies sends the next reader wrong). "Legacy" naming a
+   legacy **element** (`aLegacyFramePlacesItsChildAtEachOfTheNineAlignments`)
+   is not renamed: the element survives.
+
+**What it costs if wrong.** Item 2: agreement on an element no literal names is
+lost — the demo's byte-for-byte pin (`theDemoFrameMatchesTheValuesRecordedOnMacOS`),
+the fourteen images and the site-coverage rule's mutations are what still see
+such an element move. Item 1: none — the roll call only ever measured the
+second authority's presence.
+
+## LR-FF — stage 9: every stage-9-owned item, disposed by name
+
+**Evidence.** Record §51 §3 (the containing-block measurement): with
+`reportPresentationContainingBlock` and `deferred.nested` removed in a scratch
+build, all seven `LR-CL` arms of `PresentationLoweringTests` 1.5 that reported
+(bordered root, a root of width 100 in 200, a `Deferred` root, a presentation
+inside a top/left-5 one, a root `.frame(maxWidth: 100)`, a root
+`.frame(minWidth: 300)`, a presentation inside a bordered `inset(0)` one) lay
+the presented box out at the window rect **(185, 85) 10×10** — its
+right/bottom-5 insets against the 200×100 window — with an empty report, as the
+auto root already did. With `deferred.amended` removed as well, a
+`Component().width(70)` over a presentation member **silently keeps the member
+at (5, 5) 10×10**: the amend is dropped, where the legacy amend overwrote the
+box's own width (70).
+
+**The ruling.**
+
+| item | owner until now | disposition |
+|---|---|---|
+| `NativeBoundaryIntegrationTests`' three N9 pins (`aProposalElementInsideALegacyContainerTrapsAtRegistration`, `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`, `aPaddingModifierOnAProposalComponentTraps`) and its fourth, 6a's N9 (`aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`) | 9 (`LR-DQ` item 2, record §38 §4) | retire (R): each pins an `SA-G` trap on a legacy node, and no legacy node can be minted |
+| `ProposalNodeIDTests.anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` | 9 (record §49 census A) | retire (R), same reason |
+| `MeasurePerformanceTests`' two tokenizer pins | 9 (`LR-DQ` item 2) | retire (R), `LR-FD` |
+| `deferred.containingBlock`, `.nested`, `.root` | 9 (`LR-CL`) | **deleted with the answer they protected**: a presentation's containing block is the window, whatever surrounds it (measured above). New test N3.1 pins the seven arms at the window rect; `aPresentationTrapsAProductionProposalFrameNamingItsField` (1.6) retires (R, replaced by N3.1); 1.5 loses its seven `deferred.*`-reporting arms |
+| `deferred.amended` | 9 (`LR-CK`) | **re-owned to stage 11**, report kept: deleting it drops the amend silently (measured above), and what `Component.width` means over a presentation member is `Component.width`/`frame`'s question, which `LR-ER` item 2 and `LR-EY` item 3 already gave stage 11. `owningStage` for `.deferred` reads "11"; the case keeps only this entry |
+| custom elements (`.customElement`, owning stage "9", `LR-CW`) | 9 | the public registrars and the site are **deleted**; the six trap tests retire (R): `aCustomElementsLegacyRegistrationTrapsUnderTheProposalAuthority`, `aDeprecatedRegistrarStillLaysOutUnderTheLegacyAuthorityAndTrapsUnderTheProposalOne`, and the four `aLegacySpelled…AbortsAProductionProposalFrame` (`AXNodeTests`, `ListTests`, `MeasurePerformanceTests`, `TombstoneTests`); `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` loses its two `customElement` arms (T); guard `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` is re-spelled to read their absence (T) |
+| divergence **11** (legacy-only since stage 5) | 9 | **retires** (57 → 56 live). `AbsoluteOverlayTests.anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt` retires (R: its name and its `.legacy` arm are the divergence); its `.proposal` fact (an absolute box outside a `Deferred` reports `position`/`inset`, owner 10) moves as one arm into 1.5 ("absolute in a `ScrollView`, no `Deferred`") |
+| record §05's "three rows now legacy-authority only" (`margin: .auto`, `Style.border` on a container, `Style.padding` on a leaf) and the `ListRows.GroupLayout.spacer` row | 9 | the rows are **deleted** (Record phase): with one authority each is lowered, not inert, and the spacer field is deleted |
+| record §05's untested `FlexBaseSize` figures (50/50, 83/17, 125/75) and `FlexBaseSize.swift:53`/`:128`'s comments | 9 (record §49 §5.1) | gone with the file |
+| `FlexEngine.swift:107`'s unpinned precondition and `computeLayout`'s `isLayingOut` bracket (`LR-EP`, `LR-EQ`) | 9 | gone with the file; the flag guards one engine, and CLAUDE.md's "do not split it" is re-worded (Record phase) |
+| `LR-H`'s ideal trap under the legacy authority | 9 (spec §4.1 note) | gone with the authority; `anIdealDimensionOnTheLegacyFrameTraps` retires (R); `anIdealFrameLowersUnderTheProposalAuthorityAndStillTrapsUnderTheLegacyOne` keeps its proposal arm and is renamed (T) |
+| `Frame`'s backstop (`LR-C`) | 9 | gone with the registrars; `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop` retires (R) |
+| `noProductionFrameReachesTheLegacyEngine` (6b's exit test) | 9 (row 9) | retires (R) with the branch and counter it read; stage 10's `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` replaces it |
+| `aFrameAndAWindowDefaultToTheProposalAuthority`, `aWindowBuildsEveryFrameUnderItsLayoutAuthority` | 6b/1 | retire (R): there is no authority to default or to pass |
+| `theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore` | 6b | retires (R): the legacy hidden path is gone |
+| every other test "under both authorities" | — | `LR-FE` |
+
+**What it costs if wrong.** The containing-block row: a tree with a bordered or
+non-window-sized root and a modal now lays out where it trapped since 6b —
+additive (a trap becoming an answer), and the answer is `LR-CL`'s stated
+construction, measured. The amended row: one more report carried into stage
+11; the alternative ships a silent drop.
+
+**Amended, stage-9 critic round 1 (`LR-FH` items 3–4).** The table's
+"retire (R)" meant "retire", not 7a/7b's R ("replaced by a named test"). Rows
+with no existing replacement are **D**: the four N9 pins and
+`anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` (concept: a legacy
+node in a native tree), the two tokenizer pins (tokenizer min-content),
+`anIdealDimensionOnTheLegacyFrameTraps`, `aSiteThatSkipsItsOwnCheckIsStoppedByFramesBackstop`,
+`aFrameAndAWindowDefaultToTheProposalAuthority`,
+`aWindowBuildsEveryFrameUnderItsLayoutAuthority`,
+`theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore`, and
+`noProductionFrameReachesTheLegacyEngine` (stage 10's symbol check is handed
+on, not cited: it does not exist yet). R stays for the rows whose replacement
+exists by the end of this stage: the six custom-element trap tests (G6a),
+1.6 (N3.1), the divergence-11 test (1.5's new arm). Spec §5–§6 carry the
+corrected labels; the count is unchanged.
+
+## LR-FG — stage 9: three lanes, the accounting, the mutation plan, the demo harness
+
+**Evidence.** Record §51 §2 (lane sizing): the Sources deletion touches
+fourteen `MetalUI`/`MetalUILayout`/text files and is mechanical once no test
+names a deleted symbol; the test work is 71 files, of which the 38 that share
+`LayoutDifferential.swift` or `AuthorityCoverage.swift` cannot be split across
+lanes without one lane editing a file another owns.
+
+**The ruling.**
+
+1. **Lane 1 — the two-authority tests and their harness** (every
+   `AuthorityCoverage` contributor, every `LayoutDifferential`/`WindowPair`
+   user, the two harness files, the roll call): `LR-FE`, plus the
+   `LR-FF` rows whose tests live in those files. No `Sources/` line.
+2. **Lane 2 — every other test that names a deleted symbol**: `layoutAuthority:`
+   arguments dropped, legacy branches of test elements dropped, the N9 and
+   root-switch rows, the `MetalUILayoutTests` re-spellings, `LR-FD`'s test side
+   (the oracle's local reference first). No `Sources/` line.
+3. **Lane 3 — the deletion**: every `Sources/` change of `LR-FC`/`LR-FD`/`LR-FF`,
+   the seven engine files deleted **last**, after lanes 1–2 left no reference;
+   `Fakes.swift`'s `layoutAuthority:` parameter; the three re-spelled guards;
+   N3.1 in a new file; the demo harness revision; `swift package clean`; both
+   build systems; `Backends/SDL`; a Linux container build.
+4. **Tests whose subject lane 3 deletes are retired by the lane that owns
+   their file**, before lane 3. Between that lane and lane 3 the doomed code
+   (the custom-element trap, `deferred.containingBlock`/`.nested`/`.root`, the
+   tokenizer, `textMeasure`) is unpinned; lane 3 deletes it. This is the
+   "every reference gone first" order, not a coverage gap in the result.
+5. **Accounting**: before − removed + added = after, per lane and for the
+   stage, every removed `@Test` a row in 7a/7b's format (R: replaced by a
+   named test; D: a deleted concept named; T: kept, changed — collapsed,
+   renamed or re-spelled). The design's count (spec §6): lane 1 −18, lane 2
+   −25, lane 3 +1 → **1452 − 43 + 1 = 1410**; a lane that finds a different
+   disposition re-derives the figure in its record, never silently.
+6. **Guards stay 79**: `aPlainImportCannotChooseTheLayoutAuthority`,
+   `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` and
+   `layoutPassStyleAccessorsAreNotPublic` are re-spelled to read the deleted
+   symbol's **absence** ("has no member"), each mutated red once by restoring
+   an internal declaration of that name (the diagnostic becomes
+   "inaccessible", or the fixture compiles).
+7. **The demo harness** (`docs/probes/demo-pixels/`) gains a stage-9 copy of
+   `ZZDemoPixels.swift` that renders both chrome images under the one
+   authority, chosen by `compare.sh` when the exported commit's `Fakes.swift`
+   has no `layoutAuthority:` parameter. The chrome pair's `[0]` control still
+   reads 0; `b9a5d7f`'s `chrome-legacy` against the head's must read 0
+   (it was equal to `chrome-proposal` at base).
+
+**What it costs if wrong.** Item 4: a lane-3 regression in a doomed branch is
+invisible for one lane — the branch is deleted in the same lane. Item 5: a
+miscount is caught by the summary line, which the lanes read, not the design's
+figure.
+
+**Amended, stage-9 critic round 1 (`LR-FH` item 1).** Items 1–2 are re-cut
+by harness; item 5's per-lane figures move to lane 1 −11, lane 2 −32, lane 3
++1 (the stage total, 1452 − 43 + 1 = 1410, is unchanged). The evidence's "the
+38 … cannot be split across lanes without one lane editing a file another
+owns" is withdrawn — see `LR-FH` item 1.
+
+## LR-FH — stage 9 critic round 1: the lanes re-cut by harness, the site-coverage check at every head, the labels, and what was upheld
+
+**Evidence.** Read at `caa331a` (the design commit), in the worktree. Line and
+edit-site counts over the old lane 1's 38 files: **24 985 lines, 617 sites**
+matching `compare(`/`WindowPair`/`AuthorityCoverage`/`.legacy`
+(`LoweringItemTests` alone 1 536 lines, 82 sites); the old lane 2's 35 files
+carry **252** sites of a deleted symbol. The files that use
+`AuthorityCoverage` and the files that use `LayoutDifferential.compare`/
+`render(authority:)`/`WindowPair` overlap in exactly five test files
+(`ScrollRoutingTests` 16 scenarios, `ListTests` 21, `DeferredTests` 5,
+`PresentationWindowTests` 6, `DecorationPaintTests` 1 = 49 of the registry's
+87); no file that uses only `AuthorityCoverage` uses the differential harness,
+and `AnimationTests`' one hit is `DifferentialRoot` (kept). The registry's
+`record` checks names against `expected`, and the roll call `#require`s the
+literal count, so shrinking both literals together keeps it green.
+`Frame.reportPresentationContainingBlock(root:)` (`Frame.swift:1833`) raises
+**both** `deferred.root` (a placeholder root) and `deferred.containingBlock`.
+A grep of every test and probe file for every deleted symbol lists no file
+outside the two lanes' lists but `Fakes.swift`, the two guard files (lane 3),
+`Expected.swift` (comment), `ZZDemoPixels.swift` (lane 3's copy),
+`PortableTextDeterminismTests` (`PortableText`'s kept API) and the
+standalone `modifier-composition-skeletons` kits (not built against the
+package). `grep SwiftUI` over the design's three documents finds one claim,
+in `LR-FD`.
+
+**The ruling.**
+
+1. **The lanes are re-cut by harness, not by "any two-authority test".**
+   Lane 1 owns `LayoutDifferential.swift` and every file that calls it or
+   builds a `WindowPair` (25 files, ~17k lines), including the five that also
+   contribute scenarios: it collapses their 49 scenarios, removes those names
+   from `AuthorityCoverage.expected` and moves the roll call's count to 38.
+   Lane 2 owns the ten other contributors (38 scenarios), deletes the registry
+   and the roll call, and keeps the design's lane-2 files. The old retirement
+   rows 1, 9, 11–15 move with their files to lane 2 (numbers kept as `L1-n`);
+   row 15's fact enters 1.5 in lane 1 before lane 2 retires the test. The
+   design's claim that the 38 files could not be split without two lanes
+   editing one file is withdrawn: lanes run in order on one branch, and the
+   only shared file lane 1 touches, `AuthorityCoverage.swift`, it touches in
+   two literals that lane 2 then deletes. Counts: 1452 − 11 = 1441,
+   1441 − 32 = 1409, 1409 + 1 = 1410.
+2. **The site-coverage check runs at every lane's head**, against the base set
+   lane 1 records at `b9a5d7f`: lane 2 collapses scenarios Md and Me reach
+   (`ScrollIndicatorTests`, `AccessibilityDefaultsTests`), and lane 3 edits
+   `LegacyLowering.swift`, `ListRows.swift` and `Frame.swift` — the files
+   every mutation is applied to — so a head reading only after lane 1 would
+   miss both.
+3. **R means "replaced by a test that exists by the stage's end".**
+   `noProductionFrameReachesTheLegacyEngine` is D, its replacement handed to
+   stage 10.
+4. `LR-FF`'s "retire (R)" rows with no replacement are D (amended paragraph
+   there); spec §5's two R labels likewise.
+5. **M3a reddens five arms**, not four: restoring the call brings back four
+   `deferred.containingBlock` reports and the `Deferred`-root arm's
+   `deferred.root`.
+6. **One unprobed SwiftUI sentence struck** (`LR-FD`, amended paragraph). No
+   other SwiftUI claim is made; none is re-run.
+7. **Upheld, with reasons.**
+   - *The containing-block reports are deleted, not kept.* Their condition is
+     defined by the legacy engine ("the root's declared style is the one the
+     legacy engine would register", `Frame.swift:1827`) and `LR-CL` itself
+     names stage 9 as their end; with no legacy engine the condition has no
+     meaning, and record §51 §3 measured every arm at the window answer the
+     auto-root control reads. The one production consequence is a trap
+     becoming that answer on trees the demo does not build.
+   - *`deferred.amended` is kept and re-owned to 11*, departing from
+     `LR-CL`'s "(with `deferred.amended`)": deleting it ships a measured
+     silent drop, and `LR-ER` item 2 gives `Component.width`'s reconciliation
+     to stage 11. Keeping one report pre-empts nothing of 10–11.
+   - *The plan's stale stage-8 sentence waits for the Record phase.* The
+     stage's instructions both ask for it and forbid editing the plan before
+     the Record phase; the parent spec's sentence is fixed now, the plan's is
+     §9's first Record-phase item.
+   - *Lane 3 is not split.* Its `Sources/` work is fourteen files, mechanical
+     once lanes 1–2 leave no reference, and its build order (deletion last)
+     is one sequence.
+
+**What it costs if wrong.** Item 1: lane 1's edit to the registry's literals
+is one commit lane 2 reverses by deletion; if lane 1 miscounts, the roll call
+names the missing scenario. Item 2: three more rounds of five full-suite runs
+(about eight minutes each).
+
+
+## LR-FI — stage 9 lane 1: the harness's single-authority API, the literals the agreement carried, one arm the design missed, and what lane 1 hands on
+
+**Evidence.** Record §51 §5 (lane 1): the site-coverage base set at `b9a5d7f`
+and its re-run at the lane's head (`docs/probes/stage-9-site-coverage.txt`),
+the scratch oracle over the added literals (§5.4), the fourteen-image
+comparison (§5.6), and the suite at the head, `Test run with 1441 tests in 3
+suites passed`.
+
+**The ruling.**
+
+1. **The harness API** (`LR-FE` item 5, spelled). `LayoutDifferential` keeps its
+   name (the record cites it) and holds `render(width:height:scaleFactor:stateTable:frames:_:)
+   -> Frame` and `report(width:height:scaleFactor:frames:_:) -> Report` (and
+   `report(_ frame:)`), always diagnostics on and bounds recorded. `Report` is
+   `elements`, `unlowerable`, `bounds` (the old `loweredBounds`) and `frame`, with
+   main-actor helpers for the observations the agreement used to carry:
+   `hitboxRects`, `accessibilityFrames`, `accessibilityTexts`, `sceneRects`,
+   `glyphRowCount(top:lineHeight:)`. `WindowPair` is replaced by the free function
+   `makeLoweredWindow(device:size:startsDisplayLink:_:)`, which keeps its
+   pre-flight (a non-empty report is a `try #require` failure, not a trap).
+   `DifferentialRoot` and `ProbeLeaf` are native-only; `ProbeLeaf`'s four
+   disagree-on-purpose knobs went with the harness self-tests they served.
+2. **A literal added where the agreement carried a named observation**, derived
+   by hand before the run, and **confirmed against the legacy arm** in one of two
+   ways, both recorded: (a) for every arm rendered through `report`, a scratch
+   oracle patch (reverted) rendered the same tree under `.legacy` and compared
+   bounds, scene, hitboxes, accessibility and state ids — `AGREE` on every arm
+   that carries an added literal; (b) for arms that do not go through `report`
+   (the `List` seeded arms, the parity windows), the base suite was green with
+   the agreement asserted and lane 1 changes no `Sources/` line, so the lowered
+   answer the literal is asserted on equals the legacy answer at `b9a5d7f`. Two
+   literals added on **divergence pins** (`aLoweredHorizontalScrollViewIsBoundedByItsParent`'s
+   scroll-region hitbox, `aLoweredScrollViewsContentKeepsItsNaturalExtent`'s
+   accessibility frame) are proposal-only by construction — the legacy arm
+   differed there on purpose — and are marked so.
+3. **Two first-run corrections**, recorded rather than hidden: A8's scroller is
+   160×60, not the 80×60 first derived (a vertical viewport's cross answer is its
+   content's width, which the stack does not compress; the legacy engine agreed,
+   which is why the old agreement held); and an unwritten `@State` mints no
+   `$state0`, so 5.7's state literal is each box's `$ax` slot.
+4. **One arm the design missed.** `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
+   (`LayoutAuthorityTests`) carried, besides its two `customElement` arms, a
+   bordered root over a presentation reporting `deferred.containingBlock` — the
+   same tree as 1.5's first containing-block arm. It is removed with 1.5's seven
+   (`LR-FF`, `LR-FG` item 4): lane 3 cannot edit that file, and N3.1's bordered
+   arm carries the tree's new answer. The test's arm count moves 11 → 9.
+5. **Site moves.** The two test fixtures that lowered through
+   `site: .customElement` (`ListLoweringTests.LoweredProbeLeaf`, `ListTests.Row`)
+   use `.box`, which reports nothing for their default style either (spec §6 lane
+   1 step 6).
+6. **Two lane-3 dependencies re-spelled in lane 1's files**: `LoweringLeafTests`'
+   below-word discriminator read `ShapingCache.minContentWidth` (`LR-FD` deletes
+   it) and now reads the widest word shaped unwrapped — the same number for its
+   ASCII string; `LoweringItemTests`' zero-basis text arm's legacy assertion,
+   which read the same accessor, went with the legacy half.
+7. **Renames** (`LR-FE` item 6): 46 test renames, each a T row in record §51
+   §5.3, each test's doc naming its old name. Names that state only "under the
+   proposal authority" are **not** renamed (the spec's list does not name them).
+8. **The committed `ZZDemoPixels.swift` stops running at lane 1's head**: its
+   `chrome-legacy` image renders `DifferentialRoot` under `.legacy`, which is now
+   native-only and traps (`SA-G`). Lane 1's comparison used a scratch copy with
+   the pre-stage-9 root inlined (record §51 §5.6); lane 3's
+   `ZZDemoPixels-stage9.swift` must not use `DifferentialRoot` under `.legacy`.
+
+**What it costs if wrong.** Item 2(b): a lowered answer that the base suite's
+agreement never compared would carry an unconfirmed literal; every such literal
+is listed in §5.4. Item 4: none — the arm's fact moves to N3.1.
+
+**Amended, stage-9 lane 1 fix round.** (a) The site-coverage base set was
+extracted with a pattern that matched only `Test NAME() failed …` and dropped
+every parameterised test (`Test NAME(_:) with K test cases failed …`): the base
+set is **Ma 20, Mb 56, Mc 7, Md 9, Me 13** tests, not 20/52/6/2/8. The probe
+file's header now states the parsing rule — both forms, and the per-test issue
+counts must sum to the summary line's total — and **lanes 2 and 3 re-read the set
+with that rule** (`LR-FH` item 2). All five re-run at `669e487`: every base test
+reddens under its own or its renamed name; there are no head-only reds beyond the
+renames (record §51 §5.1, §5.5). (b) The root **margin**'s owner is **stage 10**,
+not 9: `LR-ER` item 4 already disposes `LR-DI` item 4's root min/max/margin (the
+report stays and dies with its field). `RootFieldLoweringTests`' doc is corrected;
+the trap is unchanged (record §51 §5.7).
+
+## LR-FJ — stage 9 lane 2: one more retirement than designed, M2c's instrument, the positive controls, and one emptied file
+
+**Evidence.** Record §51 §6 (lane 2): the suite at `9786c37`, `Test run with
+1408 tests in 3 suites passed`; the mutations Mr, Ms1, Ms3, M2a (at the lane's
+base and head), M2b, M2c and M2c′, and the two control reds C1 and C2; the
+site-coverage re-run (`docs/probes/stage-9-site-coverage.txt`, lane 2's head
+section); `measureContentSizeDifferences`' output at base and head (62 lines,
+identical); the fourteen-image comparison `b9a5d7f` → `9786c37`.
+
+**The ruling.**
+
+1. **`aMinContentHitReStampsSoItSurvivesASweepingLoad` is R, not T** (spec §6
+   lane 2's fallback, taken). Re-spelled onto `shaped(_:font:wrappingAt:)` it
+   is `aSweepNeverDropsAnEntryTheCurrentFrameTouched` — a live entry looked up,
+   a hit, on every frame of a sweeping load. Measured: **Mr** (the storage hit
+   branch stops re-stamping) reddens exactly that test. The replacement is that
+   test; the count moves by one: **1441 − 33 = 1408**, not 1409.
+   `anEntrySurvivesExactlyTwoUntouchedSweptFrames` stays **T**: nothing else
+   pins `staleAfterGenerations` on the storage side, and the re-spelled test
+   is the only red under **Ms1** (2 → 1) and **Ms3** (2 → 3).
+2. **M2c as designed cannot redden `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns`.**
+   Deleting `appendNode`'s SA-I precondition blinds the test's closing probe (a
+   registration after the call), which an exit `.success` test cannot see:
+   measured, M2c reddens only `registeringANativeNodeDuringNativeLayoutTraps`,
+   the precondition's own pin. The base spelling had the same property (a
+   deleted `setStyle` precondition would have blinded its `setStyle` probe).
+   The test's red against a stuck flag is its own
+   `precondition(!tree.isLayingOut …)`, a direct read. **M2c′** is the
+   mutation its probe separates: `appendNode`'s check confusing "has laid out"
+   with "is laying out" (`!isLayingOut && lastNativeLayoutWork ==
+   NativeLayoutWork()`). It reddens the re-spelled test, and — being a trap on
+   any registration after a completed native run — also traps in-process at
+   `NativeInvalidationContractTests`' `aResetTreeMeasuresItsNewRe…`, truncating
+   the run (signal 5); the reds read before the truncation are recorded, not a
+   complete set (record §51 §6.4).
+3. **The two proposal-side controls** (spec §6 lane 2 step 6). The `.legacy`
+   arm of `aPortableFrameNeverShapesThroughCoreText` expected 0 as well, so it
+   was never a control; the test gains one that separates — the same tree
+   through `CoreTextTextSystem` over its own cache fills it — red once (**C2**,
+   the control given the portable system: `controlCache.storageCount > 0`
+   fails, the only red). `aFieldLaysOutAndEditsUnderBothAuthorities`' `.legacy`
+   arm was the only arm where "the line is centred" could fail (a one-line
+   field's caret sits at its own top either way); renamed
+   `aFieldLaysOutGreedilyAndEdits`, it gains a 60-point field whose centred and
+   top-aligned answers differ (`#require`d), red once (**C1**, `geometry`'s
+   `lineY` read as the bounds' top: only the control's assertion fails).
+4. **`NativeBoundaryIntegrationTests.swift` is deleted**: all four of its tests
+   are retired rows 1–4, and its fixtures had no other user.
+5. **Doc-only survivors of the exit-criterion grep in lane 2's files**, all
+   history: `EnvironmentTests.swift:1084` (`MeasureFunction`),
+   `ComponentTests.swift:112` (`requestNode(`), `MeasurePerformanceTests.swift:167`
+   and `:573` (`unbreakableRuns`).
+
+**What it costs if wrong.** Item 1: none — the reddened set under Mr names the
+replacement. Item 2: M2c′'s set is incomplete by construction; the test it was
+chosen for is in it.
+
+
+## LR-FK — stage 9 lane 3: the deletion as landed — five spellings the design left open, M3g's reddened set, and the pixel harness's selector
+
+**Evidence.** Record §51 §7 (lane 3): N3.1 red at `a84db27` and green at
+`4988ec7`; the suite at the head, `Test run with 1409 tests in 3 suites passed`
+after `swift package clean` (1408 + 1); mutations M3a–M3h and the site-coverage
+re-run Ma–Me at the head (`docs/probes/stage-9-site-coverage.txt`, lane 3's
+section); the fourteen-image comparison `b9a5d7f` → `35f1ffb`; `Backends/SDL`,
+`Tests/PortableTests` and a `swift:6.4-noble` container build.
+
+**The ruling.**
+
+1. **Five spellings the design left open**, each chosen so that no answer moves:
+   - `newNativeGrid`'s deleted legacy-child loop keeps its **generation read**
+     (`for child in children { _ = slot(child) }`): the deleted precondition
+     read `nativeNodes[slot(child)]`, so a stale id trapped there with C-3's
+     message before any other read; keeping the read keeps that order. The two
+     grid-mark checks needed no such line (each already reads `slot` first).
+   - `beginLayout`'s message reads `"native layout re-entered on the same tree"`
+     — it keeps the substring `re-entered on the same tree` that
+     `NativeBoundaryTrapTests`' re-entry exit test reads.
+   - `UnlowerableField.trapMessage` is **unchanged** ("…cannot run under the
+     proposal layout authority."): it is production's trap text, which two test
+     docs quote, and stage 10 deletes the reports it belongs to.
+   - `ListRows.spacerStyle` goes with `GroupLayout.spacer` (the spacer's style
+     was built by `List` for the legacy path alone), and `FrameSpec`'s
+     `trapIfLaidOutByTheLegacyEngine` (`FR-D`/`LR-H`'s legacy ideal trap) goes
+     with the legacy frame-layer registrar, its only caller.
+   - `Deferred`'s nested check is deleted with `presentationsBefore` and
+     `presentationCoversWindow` (no caller remained); `isPresentation` stays
+     (`loweredComponentFrame`'s `deferred.amended` reads it).
+2. **M3g's reddened set is not the one spec §6 names.** `Frame.isHidden`
+   returning `false` reddens six tests (18 issues) — `AccessibilityTreeTests`'
+   `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`,
+   `aHiddenRootPublishesNothing`, `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`
+   and `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`,
+   `AccessibilityDefaultsTests.aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`
+   and `HiddenLoweringTests.aHiddenTextIsHiddenUnderTheProposalAuthority` — and
+   **no `AXNodeTests` test**. The spec's "HiddenLoweringTests and AXNodeTests"
+   was a guess; the measured set is the finding, and it shows the single
+   source of "hidden" carried by the accessibility suppression tests.
+3. **The pixel harness's selector reads the parameter's declaration**
+   (`layoutAuthority: LayoutAuthority`), not the bare name the spec wrote: lane
+   3's own `Fakes.swift` comment names the deleted `layoutAuthority:`
+   parameter, and the first run selected the pre-stage-9 harness for the head
+   and failed to compile (record §51 §7.5).
+4. **The guards' red-before is their mutation.** G1, G6a and G5 were re-spelled
+   in the deletion commit, not in a red-first commit before it; M3d, M3e and
+   M3f restore the deleted symbol (internal, public-deprecated, internal) and
+   each reddens exactly its guard, which is the red-before the spec's table
+   describes (the access-level message, the fixture compiling, the access-level
+   message).
+
+**What it costs if wrong.** Item 1: none observable — each spelling was chosen
+to keep a message or an order; the suite and the fourteen images read it.
+Item 2: a reader expecting an `AXNodeTests` pin for hidden suppression finds
+none; the six named tests are the pin. Item 3: none.
+
+## LR-FL — stage 9's adversarial branch check: the stage stands; five doc defects, one of them a claimed edit that never landed
+
+**Evidence.** The branch check (record §51 §9) re-took the stage from a clean
+tree at `fde300d`: `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`, the one `warning:` SwiftPM's deprecation notice),
+unfiltered `swift test --build-system native --no-parallel` — **`Test run with
+1409 tests in 3 suites passed`**, the guards ran (`FR-J no-argument frame:
+succeeded=true`), eleven gated tests skipped; `swift build --build-tests` under
+the default build system 0 `error:`, 0 `warning:`. An independent parse of every
+`@Test` function (comments and multi-line strings stripped, `PortableTests`
+excluded) reads 1452 at `b9a5d7f` and 1409 at the head, **93 gone and 50 new**
+under a byte-order `comm` — the Record phase's figures (a locale-ordered `comm`
+reports 95/52, two spurious pairs; the instrument, not the stage). Three
+mutations of the check's own, each from a committed tree, restored from a copy,
+`git status --short` clean after each, full unfiltered suite:
+
+- **M-FL1** `Frame.computeRootLayout` lays every presentation out in a
+  half-width window (`in: LayoutRect(… width: width / 2 …)`): 11 issues, two
+  tests — `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` and
+  N3.1 `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`. The claim
+  "a presentation's containing block is the window" (`LR-FF`) is pinned, and
+  by exactly those two; `PresentationWindowTests` and
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` (modal off) do not see it.
+- **M-FL2** `Frame.disablingHitTestingIfHidden` returns `body()` always: 6
+  issues, three tests — `aHiddenClickTargetPassesTheClickToWhatIsUnderIt`,
+  `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`,
+  `aHiddenTextIsHiddenUnderTheProposalAuthority`. Hidden hit testing, the one
+  hidden path left after `theLegacyHiddenPathPaintsAndHitTestsExactlyAsBefore`
+  retired, is pinned.
+- **M-FL3** `Frame.bounds(of:)` reads `tree.layout(node)` instead of
+  `tree.layout(lowering.alias(node))`: 291 issues, 63 tests, among them
+  `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap`,
+  `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder`,
+  `aListsSceneAndHitboxesAreUnchangedByTheGroup`,
+  `aPresentationPublishesItsAccessibilityRecordAndTakesFocus`,
+  `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel`,
+  `anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues` and
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` (the full list is record §51
+  §9.2). Identity, hit testing, accessibility, animation and the scrim all read
+  element rects through the one alias the lowering — now the only path —
+  maintains.
+
+The fourteen-image offscreen comparison, re-taken (`compare.sh`, `b9a5d7f` →
+`fde300d`): **0 differing, scene identical, all fourteen**, controls at the
+header's stage-9-corrected values (1048576, 1031003, 454895, 0, 1048576, 0,
+544, 216, 491221, 529, 0). The real-window capture was **not** taken:
+`appkit-screen-lock-state.swift` printed `CGSSessionScreenIsLocked = 1` and
+`displayAsleep main: 1` at 18:04 PDT. `Backends/SDL`
+(`PKG_CONFIG_PATH=$PWD/.accesskit`): builds, 21 + 19 passed. A
+`swift:6.4-noble` container over `git archive HEAD`: `swift build
+--build-tests` 0 `error:`, the portable filter **192 + 3 + 22** passed. The
+seven engine files and `UnbreakableRuns.swift` are absent from `git ls-files`;
+`MetalUILayout` imports `MetalUICore` alone; no code line (comments excluded)
+names `computeLayout(`, `requestNode(`, `requestLeaf(`, `layoutAuthority`,
+`legacyRootLayoutCounter`, `AvailableSpace`, `OptionalSizeD`, `LayoutContext`,
+`FlexEngine`, `reportPresentationContainingBlock` or `customElement` outside the
+two guards whose fixtures spell them to prove they no longer compile;
+`PortableText.unbreakableRuns` stays as library API (`LR-FD`). `Style`'s CSS
+fields are all present (`Style.swift` unchanged in the range); guards 79 (80
+`canTypecheck` hits less the declaration and `UnitSafetyTests`' comment); 0
+goldens; `cmp CLAUDE.md AGENTS.md` equal; every `LR-` id cited in a changed doc
+resolves to a heading (with this one), and every other ruling id cited there
+resolves; every test name cited in the record and the stage spec that is absent
+from the code is described there as retired, deleted or stage 10's.
+
+**The ruling.** The stage stands: merge. Five doc defects, fixed in the check's
+commit:
+
+1. **`CLAUDE.md`'s prefix line read `LR-` (next `LR-FC`)** — two stages stale —
+   although record §51 §8 lists "the `LR-` next letter already at `LR-FL`"
+   among the Record phase's edits. The edit never landed; the line now reads
+   `LR-FM`. (§8's sentence is kept as written, with this ruling as its
+   erratum.)
+2. **Every "`LR-FC`…`LR-FL`" range** (`CLAUDE.md`, records §04 and §05, the
+   plan, the parent spec) cited a ruling that did not exist: `LR-FL` was the
+   next unused letter. This ruling is `LR-FL`, so the ranges are now true; the
+   next unused letter moves to `LR-FM`, and the stage spec's header range
+   (`LR-FC`…`LR-FH`) is widened to `LR-FL`.
+3. **`CLAUDE.md`'s manifest rule still read portable CI 200 + 22 + 3**,
+   "measured after stage 7b", while its own stage-9 counts bullet read 192.
+   It now reads 192 since stage 9, re-measured in the container above.
+4. **The parent spec called stages 6a and 6b "not yet merged"**; both are
+   ancestors of `b9a5d7f`. Corrected in place, the old wording quoted.
+5. **Two `Sources/` comments described the legacy path in the present tense**:
+   `Element.paintGroup`'s "the legacy path keeps painting a `display: none`
+   subtree exactly as before" (`ElementGroup.swift`) and the legacy `.frame`'s
+   "The legacy path lowers to CSS" (`FrameLayer.swift`). Both are rewritten as
+   history; comment-only, rebuilt and the suite re-run (record §51 §9.4).
+
+A second pass, after the first was interrupted before committing (record §51
+§9.6), re-took the suite (1409, passed), ran two lowering mutations of its own
+(M-FL4, the `minSize` fold, 3 tests; M-FL5, the alignment frame's factor, 5
+tests) and the fourteen images (0), and fixed two more: record §51 §8 item 1
+named `MeasureFunction.swift` among the seven deleted files in place of
+`Alignment.swift` (item 6), and two `LegacyLowering.swift` comments described
+deleted engine files in the present tense (item 7).
+
+**What it costs if wrong.** A reader taking `CLAUDE.md`'s prefix line at its
+word would have appended a second `LR-FC`; nothing else observable.

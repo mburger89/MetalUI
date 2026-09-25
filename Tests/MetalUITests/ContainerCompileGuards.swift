@@ -113,14 +113,20 @@ func theSpacingFirstStackInitializersAreDeprecated() throws {
 
 /// **G4 — the `percent:` sizing modifiers are deprecated renames of
 /// `fraction:`** (ruling `CN-O`). Both spellings compile from a plain
-/// `import MetalUI`; the three `fraction:` calls draw no diagnostic, and the
-/// three `percent:` calls draw exactly three deprecations, each naming its
-/// `fraction:` replacement.
+/// `import MetalUI`; of the three `fraction:` calls only `flexBasis(fraction:)`
+/// draws no diagnostic — stage 8 deprecated the two sizing ones (`LR-EU`, the
+/// control arm's T row, T3.1) — and the three `percent:` calls draw exactly
+/// three deprecations, each naming its `fraction:` replacement.
 ///
 /// Red before the lane: `fraction:` does not exist and `percent:` is not
 /// deprecated. Mutation that must redden it: remove one `@available`.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func thePercentSizingModifiersAreDeprecatedRenamesOfFraction() throws {
+    // T3.1 (stage 8, `LR-EU` items 3–4): the control arm read 0 deprecations
+    // for all three `fraction:` calls until stage 8 deprecated the two sizing
+    // ones with no replacement; it now reads exactly those 2, and
+    // `flexBasis(fraction:)` alone still reads 0. Mutation M3b (delete
+    // `width(fraction:)`'s `@available`) → the control reads 1, this test red.
     let control = try typecheckFile("""
         @MainActor func build() {
             _ = Box().width(fraction: 0.5).height(fraction: 0.5).flexBasis(fraction: 0.5)
@@ -128,7 +134,19 @@ func thePercentSizingModifiersAreDeprecatedRenamesOfFraction() throws {
         """, importing: "MetalUI")
     show("G4 control", control)
     try #require(control.succeeded, "the fraction: spellings must compile:\n\(control.output)")
-    #expect(deprecations(control) == 0, "fraction: is not deprecated:\n\(control.output)")
+    #expect(deprecations(control) == 2,
+            "width(fraction:) and height(fraction:) are deprecated (LR-EU), flexBasis(fraction:) is not:\n\(control.output)")
+    #expect(control.messages.contains("'width(fraction:)' is deprecated")
+                && control.messages.contains("'height(fraction:)' is deprecated"),
+            "the two deprecations must be the sizing fractions':\n\(control.output)")
+    let basisOnly = try typecheckFile("""
+        @MainActor func build() {
+            _ = Box().flexBasis(fraction: 0.5)
+        }
+        """, importing: "MetalUI")
+    show("G4 flexBasis(fraction:)", basisOnly)
+    try #require(basisOnly.succeeded, "flexBasis(fraction:) must compile:\n\(basisOnly.output)")
+    #expect(deprecations(basisOnly) == 0, "flexBasis(fraction:) is not deprecated (LR-ER item 2):\n\(basisOnly.output)")
 
     let result = try typecheckFile("""
         @MainActor func build() {

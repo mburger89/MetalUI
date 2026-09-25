@@ -10,9 +10,9 @@ import MetalUILayout
 // `ProposalNodeID` constrains WHO mints a native node id — only `MetalUI`'s
 // registrars — and the typed requirement constrains WHAT a proposal container
 // receives. Neither constrains what else an element registers during its typed
-// entry, how often it uses an id, or when. Tests 7 and 8 are pinned wrong on
-// purpose, at the values measured; test 9 pins the run-time backstop for a
-// stored id.
+// entry, how often it uses an id, or when. Test 8 was pinned wrong on purpose
+// until CN-L closed it (test 7 retired at stage 9 with the legacy registrars);
+// test 9 pins the run-time backstop for a stored id.
 
 @MainActor
 private final class TypedIDProbe: @unchecked Sendable {
@@ -32,171 +32,12 @@ private func tenByTen(_ pass: inout LayoutPass, _ probe: TypedIDProbe) -> Propos
 
 private let frameSize = Size(width: Pixels(140), height: Pixels(90))
 
-// MARK: - 7: an orphan legacy registration beside a typed leaf (MC-G holes 2 and 6)
+// MARK: - 7: retired
 
-/// Hole 2's element: its typed entry registers a LEGACY node, discards it, and
-/// returns a typed leaf.
-private struct OrphanLegacyNode: ProposalElement {
-    var probe: TypedIDProbe
-
-    mutating func requestProposalLayout(_ id: GlobalElementID,
-                                        pass: inout LayoutPass) -> (ProposalNodeID, Void) {
-        _ = pass.frame.requestNode(style: Style(), children: [])
-        return (tenByTen(&pass, probe), ())
-    }
-
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                           pass: inout PrepaintPass) {
-        probe.bounds["typed leaf"] = bounds
-    }
-
-    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                        prepaint: inout Void, pass: inout PaintPass) {}
-}
-
-/// A legacy leaf that writes its own `@State` from 7 to 8 during layout, and
-/// records the id it was laid out under.
-private struct StatefulLegacyLeaf: Element {
-    @State var value = 7
-    var probe: TypedIDProbe
-
-    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        value += 1
-        probe.ids["legacy leaf"] = id
-        return (pass.frame.requestNode(style: Style(), children: []), ())
-    }
-
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                           pass: inout PrepaintPass) {}
-
-    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                        prepaint: inout Void, pass: inout PaintPass) {}
-}
-
-/// The orphan subtree, sized so that it paints a visible rect wherever it is
-/// actually attached (the disagreeing oracle renders it as a root).
-@MainActor
-private func orphanBox(_ probe: TypedIDProbe) -> Box<StatefulLegacyLeaf> {
-    Box { StatefulLegacyLeaf(probe: probe) }
-        .width(Pixels(30)).height(Pixels(30))
-        .background(.accent)
-}
-
-/// Hole 6's element: its typed entry lays out a discarded legacy SUBTREE through
-/// the untyped group entry, then returns a typed leaf.
-private struct OrphanLegacySubtree: ProposalElement {
-    var probe: TypedIDProbe
-
-    mutating func requestProposalLayout(_ id: GlobalElementID,
-                                        pass: inout LayoutPass) -> (ProposalNodeID, Void) {
-        probe.ids["element"] = id
-        var orphan = orphanBox(probe)
-        var cursor = 0
-        _ = orphan.requestGroupLayout(under: id, at: &cursor, pass: &pass)
-        return (tenByTen(&pass, probe), ())
-    }
-
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                           pass: inout PrepaintPass) {
-        probe.bounds["typed leaf"] = bounds
-    }
-
-    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
-                        prepaint: inout Void, pass: inout PaintPass) {}
-}
-
-/// **PINNED WRONG ON PURPOSE (`MC-G` holes 2 and 6): a legacy registration made
-/// during a typed entry and never handed to a container is not rejected.** The
-/// type sees only the id the entry RETURNS; a node or a whole subtree registered
-/// on the side is invisible to it, and nothing at run time checks for orphans.
-///
-/// - **Arm a (hole 2):** one orphan legacy node beside a typed leaf. No trap; the
-///   typed leaf lays out and prepaints at 10×10; the only rect is the 5×5
-///   `Rectangle`; the orphan is counted in `nodeCount`.
-/// - **Arm b (hole 6):** an orphan `Box` over a leaf that writes its `@State`
-///   during layout. It is NOT inert: the leaf's `$state0` slot is bound, reads
-///   8 and is live, and the `Box`'s `$anim` slot is live — state entries and
-///   animation baselines kept moving for elements that never paint. Its accent
-///   fill is never emitted. The disagreeing oracle renders the same `Box` as a
-///   root and requires that it paints its 30×30 rect, so "no rect" is a reading
-///   the instrument could have got wrong.
-///
-/// **Whoever closes the holes.** An orphan check in `LayoutPass.requestNode`
-/// during a typed entry traps this test's process — measured (lane 3, record
-/// §10): the suite printed no summary line, stopping here after 953 tests — so
-/// the test becomes an exit test first. Nothing in this design closes arm b
-/// short of detecting state bound by an unregistered subtree.
-///
-/// Pinned to the legacy authority by stage 6a (N9, record §38 §4): its subject
-/// is a legacy registration, which `OrphanLegacyNode` and `StatefulLegacyLeaf`
-/// make through `Frame`'s internal registrar; stage 9 deletes it with the
-/// legacy authority.
-@MainActor
-@Test func anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected() throws {
-    // Arm a.
-    do {
-        let probe = TypedIDProbe()
-        let frame = Frame(contentSize: frameSize, scaleFactor: 1, layoutAuthority: .legacy)
-        var root = VStack {
-            HStack { OrphanLegacyNode(probe: probe) }
-            Rectangle(width: Pixels(5), height: Pixels(5), color: .accent)
-        }
-        frame.render(&root)
-        let rects = frame.finalizedScene().rects
-        print("MC-G hole 2 (arm a): typed leaf \(String(describing: probe.bounds["typed leaf"])), "
-              + "rects \(rects.map { ($0.bounds.size.width, $0.bounds.size.height) }), "
-              + "nodeCount \(frame.tree.nodeCount), measure calls \(probe.measureCalls)")
-        let leaf = try #require(probe.bounds["typed leaf"], "the typed leaf was never prepainted")
-        #expect(leaf.size == Size(width: Pixels(10), height: Pixels(10)))
-        try #require(rects.count == 1, "arm a: \(rects.count) rects")
-        #expect(rects[0].bounds.size.width == 5 && rects[0].bounds.size.height == 5)
-        // VStack, HStack, orphan, typed leaf, Rectangle.
-        #expect(frame.tree.nodeCount == 5)
-    }
-
-    // Arm b's disagreeing oracle: the orphan subtree, attached, paints.
-    do {
-        let probe = TypedIDProbe()
-        let frame = Frame(contentSize: frameSize, scaleFactor: 1, layoutAuthority: .legacy)
-        var attached = orphanBox(probe)
-        frame.render(&attached)
-        let rects = frame.finalizedScene().rects
-        try #require(rects.count == 1 && rects[0].bounds.size.width == 30,
-                     "the attached orphan subtree must paint its 30×30 rect, or \"no rect\" cannot fail: \(rects.count)")
-    }
-
-    // Arm b.
-    do {
-        let probe = TypedIDProbe()
-        let frame = Frame(contentSize: frameSize, scaleFactor: 1, layoutAuthority: .legacy)
-        var root = VStack {
-            HStack { OrphanLegacySubtree(probe: probe) }
-            Rectangle(width: Pixels(5), height: Pixels(5), color: .accent)
-        }
-        frame.render(&root)
-        let rects = frame.finalizedScene().rects
-        let element = try #require(probe.ids["element"], "the typed entry never ran")
-        let legacyLeaf = try #require(probe.ids["legacy leaf"], "the orphan subtree was never laid out")
-        let box = GlobalElementID.child(of: element, at: 0, name: nil)
-        try #require(legacyLeaf == GlobalElementID.child(of: box, at: 0, name: nil),
-                     "the orphan leaf's id is not under the orphan Box: \(legacyLeaf)")
-        let stateSlot = GlobalElementID.child(of: legacyLeaf, at: 0, name: ElementID("$state0"))
-        let table = frame.stateTable
-        print("MC-G hole 6 (arm b): typed leaf \(String(describing: probe.bounds["typed leaf"])), "
-              + "rects \(rects.map { ($0.bounds.size.width, $0.bounds.size.height) }), "
-              + "nodeCount \(frame.tree.nodeCount), $state0 \(String(describing: table.peek(stateSlot, as: Int.self))) "
-              + "live \(table.isLive(stateSlot)), box $anim live \(table.isLive(animRetentionSlot(for: box)))")
-        let leaf = try #require(probe.bounds["typed leaf"], "the typed leaf was never prepainted")
-        #expect(leaf.size == Size(width: Pixels(10), height: Pixels(10)))
-        #expect(table.peek(stateSlot, as: Int.self) == 8)
-        #expect(table.isLive(stateSlot))
-        #expect(table.isLive(animRetentionSlot(for: box)))
-        try #require(rects.count == 1, "arm b: \(rects.count) rects")
-        #expect(rects[0].bounds.size.width == 5 && rects[0].bounds.size.height == 5)
-        // VStack, HStack, orphan Box, orphan leaf, typed leaf, Rectangle.
-        #expect(frame.tree.nodeCount == 6)
-    }
-}
+// Test 7, `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` (MC-G holes 2
+// and 6, pinned wrong on purpose: an orphan LEGACY registration during a typed
+// entry was not rejected), retired at stage 9: no legacy node can be registered
+// any more, so the holes it pinned are closed by deletion (`LR-FF`, record §51).
 
 // MARK: - 8: one native node registered twice (MC-G hole 4)
 

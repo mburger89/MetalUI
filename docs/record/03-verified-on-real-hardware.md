@@ -1440,3 +1440,13 @@ pointed at as "the first one still owed."**
   moves from 29 (post-switch, pre-re-spelling) to **30** after the
   re-spelling, which a human verification look would not show (it is a
   work-counter reading, not a pixel).
+
+## 2026-09-23: no look added at engine replacement stage 7a
+
+Record §48 §6.3, §7. **Nothing a human needs to see changed.** Stage 7a touches
+test files and one doc comment; the fourteen-image offscreen comparison
+(`docs/probes/demo-pixels/compare.sh <scratch> 2cc763d 4ad1c79`) reads **0
+differing and scene identical in all fourteen**, every control at its `2cc763d`
+value (`LR-DZ`). The stage-6b looks above (the real-window capture and the four
+named demo-layout changes) are **still open and still owed**; this stage neither
+closes nor adds to them.

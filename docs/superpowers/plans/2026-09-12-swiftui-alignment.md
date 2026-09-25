@@ -409,7 +409,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   2026-09-21), G2 lazy grids after stage 4 — **unblocked**, since stage 4
   landed the windowing they need; 6a custom
   elements and the public legacy registrars deprecated; 6b the root switch
-  (`noProductionFrameReachesTheLegacyEngine`); 7a goldens replaced; 7b
+  (`noProductionFrameReachesTheLegacyEngine`); 7a goldens replaced (delivered
+  2026-09-23); 7b
   non-golden CSS tests retired; 8 sizing vocabulary onto `.frame`; 9 engine
   deleted; 10 `Style`'s CSS fields and the `dlsym` closing check; 11 modifier
   unification. **Stage 1 delivered** (five lanes, each red first, all verified
@@ -680,6 +681,161 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   stage's other 5 pins (3 N9, 2 tokenizer tests), the N9/RT/P-9 rows and the internal legacy registrar pair wait for stage 9's deletion;
   the real-window capture and the demo-layout human-verification rows record
   §03 re-opens are owed to the human, next time the screen is unlocked.
+  *Progress 2026-09-23 on `feat/engine-stage-7a` (from `2cc763d`), stage 7a
+  of 14, task still open.* Spec `specs/2026-09-23-engine-stage-7a-design.md`;
+  rulings `LR-DS`…`LR-EB` in `../2026-09-17-engine-replacement-decisions.md`;
+  probe `docs/probes/swiftui-engine-stage-7a.swift` (arms W, G, S, A, B) and
+  instrument `docs/probes/stage-7a-transcription-instrument.patch`; record
+  `docs/record/48-engine-replacement-stage-7a.md`. **The 97 WebKit goldens are
+  retired**, each with a row in record §48 §4: 44 **R** rows replaced by a
+  native arm asserting the golden's own boxes on its own tree under the
+  proposal authority (`GoldenReplacementFlexTests` 1.1–1.8,
+  `GoldenReplacementStackTests` 2.1–2.4), 53 **D** rows deleted with a named
+  CSS-only concept and the native test that pins the proposal authority's
+  answer instead (2.5–2.8 for the silent and `wrap-reverse` shapes). `Golden/`,
+  `Fixtures/`, `Oracle/`, `GeneratorTests`, `OracleTests`, four all-consumer
+  files and 96 consumer tests removed; one consumer trimmed for 7b. Three
+  lanes, each with its own mutation table; suite **1616** (1704 − 96 − 5 − 3 +
+  8 + 8), goldens **0**, guards 78; 0 px in all fourteen offscreen images.
+  Nothing of 7b is pre-empted: the other CSS-engine tests, `FlexEngine` and
+  every `.legacy` pin stay for 7b and 9.
+  *Progress 2026-09-24 on `feat/engine-stage-7b` (from `41344e5`, `master`'s
+  tip after the stage-7a merge), stage 7b of 14, task still open.* Spec
+  `specs/2026-09-23-engine-stage-7b-design.md`; rulings `LR-EC`…`LR-EQ` in
+  `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages
+  1–7a; `LR-EP` is this record phase's own correction, `LR-EQ` the
+  adversarial branch check's: row 190 is D, not R); no new SwiftUI probe
+  — five existing probes re-run 2026-09-24, every output line verbatim in its
+  header (`LR-EI`); record `docs/record/49-engine-replacement-stage-7b.md`.
+  **The non-golden CSS-engine tests are retired**: the 187 left in spec
+  §2.6's eighteen files after 7a (`StyleTests`' 4 kept), the three
+  `NativeBoundaryTrapTests` `computeLayout(` callers, and the 50 element
+  tests stages 6a/6b pinned `.legacy` with a 7b owner — 245 rows in record
+  §49 §4, each an **R** (a native test already asserts the same fact), a
+  **D** (a named CSS-only concept with the native answer instead), an **N**
+  (a new proposal-authority test — eleven new tests over twelve N rows, after lane 1's `LR-EM` turned row 71 from R to N), a **T**
+  (trimmed, byte-identical elsewhere) or a **K** (`StyleTests`, kept
+  untouched). A critic round (`LR-EL`) preceded three lanes, each with its
+  own mutation table, all verified `ok`; a fourth, independent re-check of
+  all three lanes (record §49 §8, `LR-EP`) found and fixed two documentation
+  errors — the gated-test count (carried over as "nine" from stage 7a's
+  pre-merge branch figure, where the merged baseline reads **eleven**) and
+  divergence 4's retirement (restated: the row retires, but `CS-I`'s
+  behaviour stays exercised, unnamed, by roughly thirty `.legacy` arms until
+  stage 9) — and six stale test-file comments, all comment-only. **Exit
+  criterion met**: `grep -rn "computeLayout(" Tests` empty; suite **1445**
+  (1670 − 236 + 11); the census instrument's markers fall in exactly the 199
+  tests that use the legacy authority as the other arm of a comparison, not
+  as a subject (record §49 §2); 0 px in all fourteen offscreen images;
+  `Sources/` diff comment-only (no behaviour line moves); 0 `warning:` on
+  both build systems. Goldens **0** (none remained), guards **78** unmoved.
+  **Divergence 4 retires** (58 → 57 live); divergences 9, 48, 52, 53 and 55
+  keep their fact with a new pin, their single-authority CSS-engine test
+  retired in favour of an already-live differential test that carries both
+  engines' answers (record §04's 2026-09-24 section). The freeze-loop
+  allocation CI hazard retires with `FreezeLoopAllocationTests.swift`
+  (record §08). Portable CI (`MetalUILayoutTests` + `MetalUICoreTests` +
+  `MetalUICrossPlatformTests`) drops **388 → 200**. **Not done:** `FlexEngine`,
+  `computeLayout`, the legacy authority, `Frame.requestNode`/`requestLeaf`
+  and the legacy lowering are untouched (7b retires tests, not `Sources/`);
+  the 199 census-A tests and every differential replacement's proposal arm
+  wait for stage 9 (`LR-EK`); the real-window capture and the demo-layout
+  human-verification rows record §03 re-opens are still owed to the human.
+  *Progress 2026-09-24 on `feat/engine-stage-8` (from `85217e3`, `master`'s
+  tip after the stage-7b merge), stage 8 of 14, task still open.* Spec
+  `specs/2026-09-24-engine-stage-8-design.md`; rulings `LR-ER`…`LR-FB` in
+  `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages
+  1–7b; `LR-EY` the design critic round, `LR-FA` lane 1's review round's
+  correction); probe `docs/probes/swiftui-engine-stage-8.swift` (groups F, P,
+  T); record `docs/record/50-engine-replacement-stage-8.md`. **The eight
+  `StyledElement` sizing modifiers — the six sizes and clamps and
+  `width(fraction:)`/`height(fraction:)` — are deprecated toward `.frame`**
+  in the same change (`FR-I`, as stage 6a deprecated the public registrars),
+  and every in-repo caller converts by class (`LR-EW`, `LR-FB`): **F** to
+  `.frame` by recipe R1–R8 (`LR-ES`) — 129 of lane 3's 22 files' 425 sites,
+  lane 1's `PresentationWindowTests`/`FrameSizingTests` (37) and the demo's
+  25; **K** the `Style` write kept through `Tests/MetalUITests/CSSSizing.swift`'s
+  eight same-closure-body helpers — 1115 sites in 28 files (lane 2) plus 296
+  of lane 3's 425 by the site-coverage check's per-test fallback; **D**
+  `ModifierTests`' eight rows spliced into a deprecated protocol witness that
+  warns nothing; **R (retired) is empty** — no test is retired for this
+  stage, and no converted call site's assertion is edited; seven existing
+  tests are T rows whose literals were re-derived (`LR-EZ`'s six — the demo's
+  element counts, depth, whole-demo census and the `…absolute` owning stage —
+  and G4's control arm, T3.1). A framed box over at most one node can now be an
+  absolute presentation's content (`LR-EV`), which discharges the two
+  `…absolute` fields stage 5 left owned here. Exit criteria met: 0 `warning:`
+  besides SwiftPM's notice on both build systems with the deprecations in;
+  suite **1452** (1445 + 7, 0 removed); guards **79**
+  (`FrameSizingCompileGuards` 2 → 3); goldens **0** (unmoved); 0 px in all
+  fourteen offscreen images against `85217e3`, `DemoFrameDeterminismTests`
+  unedited, and the demo's hitbox/accessibility/hovered-scene comparison
+  byte-identical; `Backends/SDL` built with the deprecation in draws 0
+  deprecation warnings and its `PortableReplay`/`DemoCapture` pass unedited;
+  portable CI untouched (**200 + 22 + 3**). A design critic round (`LR-EY`)
+  found the modifier count was eight, not ten, and narrowed `LR-EV` to a
+  frame over at most one node; a lane-1 review round (`LR-FA`) found a framed
+  absolute box **as the frame's root** reported nothing and fixed it. **Not
+  done:** no engine file, `Style` field, legacy registrar, the legacy
+  authority or a `Component` modifier is deleted or changed in meaning; the
+  `Style()` writes in tests (232 lines, 50 files) and lane 2's/lane 3's ≈ 1411
+  `css*` sites are re-owned to stage 10, which also inherits every
+  `Style`-field report this stage kept; divergence 52 (`Row`/`Column` default
+  spacing) moves from stage 10 to plan task 15 (closeout), because both
+  stages' exit is "0 px against the prior stage" and a public default under
+  every default-gap caller's pixels cannot satisfy both.
+  *Progress 2026-09-24 on `feat/engine-stage-9` (from `b9a5d7f`, `master`'s
+  tip after the stage-8 merge), stage 9 of 14, task still open.* Spec
+  `specs/2026-09-24-engine-stage-9-design.md`; rulings `LR-FC`…`LR-FL` in
+  `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages
+  1–8; `LR-FH` the design critic round); no new SwiftUI probe — the stage
+  claims no new SwiftUI behaviour (`LR-FH` item 4); record
+  `docs/record/51-engine-replacement-stage-9.md`. **The CSS engine is
+  deleted**: the seven engine files (`FlexEngine.swift`,
+  `ResolveFlexibleLengths.swift`, `FlexBaseSize.swift`, `FlexLines.swift`,
+  `Alignment.swift`'s flex half, `LayoutContext.swift`, `Resolve.swift`'s
+  percentage half), the legacy `MeasureFunction`/`textMeasure`/tokenizer
+  min-content, the legacy registrars (`LayoutPass.requestNode`/`requestLeaf`,
+  deprecated at stage 6a, and the internal `Frame.requestNode`/`requestLeaf`)
+  and the layout authority itself (`LayoutAuthority.legacy`,
+  `Frame.layoutAuthority`, `computeRootLayout`'s legacy branch,
+  `Frame.legacyRootLayoutCounter`) are all gone — `git ls-files
+  Sources/MetalUILayout` lists none of the seven files, `MetalUILayout`
+  imports only `MetalUICore`. **Every legacy element keeps working, through
+  the lowering, now its only path** (`Box`, `Row`, `Column`, `Stack`,
+  `ScrollView`, `List`, legacy `.frame`). Three lanes, each red first, all
+  verified `ok`: lane 1 (`LR-FI`) collapses the two-engine differential
+  harness (`LayoutDifferential`, `DifferentialRoot`) to one authority and its
+  27 users, retiring 11 rows; lane 2 (`LR-FJ`) collapses the
+  `AuthorityCoverage` registry's other ten contributors and retires every
+  other test naming a deleted symbol, 33 rows (one more than designed); lane
+  3 (`LR-FK`) does the deletion itself, red-first behind N3.1 (a
+  presentation's containing block is the window whatever surrounds it,
+  closing the `deferred.containingBlock`/`.nested`/`.root` reports stage 5
+  left open — `deferred.amended` survives, re-owned to stage 11, `LR-FF`).
+  Suite **1409** (1452 − 93 + 50: 44 retired rows — 11 lane 1's, 33 lane
+  2's — 49 renames, 1 added), 0 goldens, guards **79 unmoved** (two
+  re-spelled: the layout-authority guard now reads "has no member
+  'layoutAuthority'", the legacy-registrar guard now reads "no longer
+  compiles" rather than "is warned toward the native ones"). 0 `error:`, 0
+  `warning:` on both build systems; 0 px against `b9a5d7f` in all fourteen
+  offscreen images, `DemoFrameDeterminismTests` unedited;
+  `Backends/SDL` 21 + 19, `PortableReplay`/`DemoCapture` unedited;
+  `Tests/PortableTests` 18 + 6 + 5; the Linux container's three CI targets
+  pass **192 + 22 + 3** (down from 200 + 22 + 3, lane 2's eight
+  `MetalUILayoutTests` retirements). **Divergence 11 retires** (57 → 56
+  live): it was legacy-authority only since stage 5, and the legacy engine it
+  describes is gone; divergence 4's loose end (its behaviour stayed
+  exercised, unnamed, by `AuthorityCoverage`'s `.legacy` arms after 7b's
+  retirement) closes with the registry's own deletion. **Not done, owners
+  already assigned:** `Style`'s CSS fields, `CSSSizing.swift` and every
+  `Style`-field report this stage inherited stay for **stage 10**, which also
+  gets `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` in place of the
+  retired `noProductionFrameReachesTheLegacyEngine`; `deferred.amended`
+  stays for **stage 11**, with `Component.width` over a presentation member;
+  `ModifiedElement`/`ModifiedContent` are not unified (stage 11). Divergences
+  9, 10, 13, 14, 48, 52, 53, 55 and 56 keep their fact, re-read on the one
+  remaining authority; 18 is untouched.
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

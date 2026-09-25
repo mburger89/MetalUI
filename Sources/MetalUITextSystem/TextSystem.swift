@@ -20,10 +20,6 @@ public protocol TextSystem: AnyObject, Sendable {
     /// break).
     func measure(_ string: String, font: FontKey, wrappingAt width: Double?) -> TextMeasurement
 
-    /// CSS's min-content width: the widest unbreakable run, each on a line of
-    /// its own (TX-F).
-    func minContentWidth(_ string: String, font: FontKey) -> Double
-
     /// Every glyph of `string` in `font` wrapped at `width`, in a text box
     /// whose top-left is `origin` (points), placed at `scaleFactor`.
     func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,

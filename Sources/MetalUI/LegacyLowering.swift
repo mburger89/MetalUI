@@ -3,9 +3,9 @@ import MetalUILayout
 
 // Plan task 7, stage 1: legacy elements lowered onto the proposal kernel in place
 // (`docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §5.4; rulings
-// LR-A, LR-E, LR-F). Under the proposal layout authority a legacy site keeps its
-// type, ids, `prepaint` and `paint`, and registers kernel nodes from its `Style`
-// here instead of a CSS node through `Frame.requestNode`.
+// LR-A, LR-E, LR-F). A legacy site keeps its type, ids, `prepaint` and `paint`,
+// and registers kernel nodes from its `Style` here — its only path since stage 9
+// deleted the CSS registrar `Frame.requestNode` with the legacy engine (`LR-FC`).
 //
 // **Lane 2 lowers leaves** — a childless `Box` and a `Text`. **Lane 3 lowers
 // containers** — a `Box` with children, and so `Row` and `Column` — onto a native
@@ -85,8 +85,7 @@ extension LayoutPass {
     }
 
     /// `style` with a `display: .none` replaced by `display` (ruling `LR-DH`): the
-    /// style a hidden node lowers from, since under the proposal authority it is laid
-    /// out as if shown. Any other display is left alone.
+    /// style a hidden node lowers from, since it is laid out as if shown. Any other display is left alone.
     private func showing(_ style: Style, as display: Display) -> Style {
         guard style.display == .none else { return style }
         var shown = style
@@ -399,6 +398,21 @@ extension LayoutPass {
     ///    the layer. An animation never trips it, because the animated style is not
     ///    what is compared.
     ///
+    ///    **Except `position` and `inset` on an absolute frame over at most one
+    ///    node** (plan task 7, stage 8, ruling `LR-EV` as amended by `LR-EY` item
+    ///    3). A `.frame` written before `.position(.absolute)`/`.inset` is how the
+    ///    recipe sizes an absolute box once the sizing modifiers are deprecated
+    ///    (`LR-ES`'s R6), so when the **declared** style is absolute those two
+    ///    fields are taken from it before comparing: inside a `Deferred` the layer
+    ///    is a presentation root like any absolute box (`LR-CH`), and outside one
+    ///    `planLegacyItems` reports its `position`/`inset` as it reports any
+    ///    absolute child's (`LR-CK`). Every other field written after the frame —
+    ///    a `flexGrow`, a `minWidth` — still reports `style`. A frame over
+    ///    **several** nodes (a multi-member `Component`, `LR-BH`'s row of
+    ///    per-member frames) keeps reporting `style` for them too: that row as a
+    ///    presentation root was never measured (owner stage 11, with
+    ///    `Component.frame`).
+    ///
     /// There is no third check. A frame over **more than one node** (a multi-member
     /// `Component`) reported `frame.multipleNodes` until stage 3's lane 5, which
     /// lowers it to a row of per-member frames instead (ruling `LR-BH`, retiring
@@ -410,7 +424,12 @@ extension LayoutPass {
         func entry(_ name: String) -> UnlowerableField { UnlowerableField(site: .modifierLayer, field: name) }
         guard let spec = layer.frameSpec else { return [] }
         var fields: [UnlowerableField] = []
-        if declared != layer.lowered(spec.style(), childCount: childCount) { fields.append(entry("style")) }
+        var expected = layer.lowered(spec.style(), childCount: childCount)
+        if declared.position == .absolute && childCount <= 1 {
+            expected.position = declared.position
+            expected.inset = declared.inset
+        }
+        if declared != expected { fields.append(entry("style")) }
         return fields
     }
 
@@ -431,7 +450,9 @@ extension LayoutPass {
     /// `<site>.<field>.unconsumed` for every non-default item field the member
     /// declares — and in a production frame every report is a **trap**, so
     /// `MyComponent().width(70)` over a member declaring `.flexGrow(1)` would work
-    /// under the legacy authority and abort under the proposal one at stage 6b.
+    /// under the legacy authority and abort under the proposal one at stage 6b
+    /// (the legacy authority is deleted since stage 9; the abort is what the
+    /// consume prevents).
     ///
     /// **The parent kind is `.stack`**, as a frame's is everywhere else in the
     /// lowering, so the member's `flexGrow`, `flexShrink`, `flexBasis`,
@@ -541,7 +562,8 @@ extension LayoutPass {
     ///
     /// **Border is padding** (stage 2, lane 4, ruling LR-AH): CSS's border box puts
     /// `border` inside the declared size exactly where `padding` sits, and the legacy
-    /// engine shrinks its content box by both (`FlexEngine.swift`'s `contentBox`).
+    /// engine shrank its content box by both (`FlexEngine.swift`'s `contentBox`,
+    /// deleted at stage 9, `LR-FC`).
     /// SwiftUI has no layout border, so native padding is the spelling for the sum.
     ///
     /// **A declared size below that sum keeps its frame** (lane 4, `LR-AH` as
@@ -631,8 +653,9 @@ extension LayoutPass {
     ///
     /// Overflowing, every spacer collapses to its minimum and the line packs from
     /// the main start (J9) — which is also what `Alignment.swift`'s
-    /// `distributeMainAxis` does, since it clamps its free space at 0 for all three
-    /// distributions (lane 5's measurement, `LR-BA` item 1).
+    /// `distributeMainAxis` did, since it clamped its free space at 0 for all three
+    /// distributions (lane 5's measurement, `LR-BA` item 1; that file was deleted
+    /// with the CSS engine at stage 9, `LR-FC`).
     ///
     /// **A reverse direction reverses the node list** — the spacer pattern with it,
     /// which is symmetric — and mirrors the main factor. The children's group order,
@@ -1063,9 +1086,12 @@ extension LayoutPass {
             // Stage 5 (ruling `LR-CK`): an absolute child outside a `Deferred` is
             // removed from the proposal authority, reported at its own site after
             // its other item fields, under the names `legacyLeafDiagnostics` used to
-            // raise. A frame layer's record is skipped: a `.position` written after
-            // `.frame` is its own `style` report.
-            if item.kind != .frameLayer && d.position == .absolute {
+            // raise. **A frame layer's record included** since stage 8 (`LR-EV`
+            // item 3): until then a `.position` written after `.frame` was the
+            // layer's own `style` report and this check skipped it; with the
+            // one-node exemption in `legacyFrameLayerDiagnostics` a framed absolute
+            // box outside a `Deferred` would otherwise lower silently in flow.
+            if d.position == .absolute {
                 reports.append("position")
                 if d.inset != Edges(all: .auto) { reports.append("inset") }
             }
@@ -1184,7 +1210,9 @@ extension LayoutPass {
     /// **Reported, and the presentation still registers** (`LR-CJ` item 3):
     /// `minSize`/`maxSize` on an `auto` axis → `<site>.minSize.absolute` /
     /// `<site>.maxSize.absolute` (the legacy engine ignores them; SwiftUI and CSS
-    /// would not). A percentage `minSize`/`maxSize` on a declared axis reports
+    /// would not). **Not for a `.frame` layer's record** (stage 8, `LR-EV`
+    /// item 2): its bounds are its own kernel frame's and answer as SwiftUI's
+    /// frame does (a proposal-only answer, `AP-E` on the legacy side). A percentage `minSize`/`maxSize` on a declared axis reports
     /// `minSize.percent`/`maxSize.percent`, which the element's own fold ignores.
     /// **Dropped** (`LR-CK`): `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`
     /// and `margin` — the legacy engine ignores every one on an absolute box
@@ -1203,7 +1231,14 @@ extension LayoutPass {
                   animatedLeading: Dimension, animatedTrailing: Dimension,
                   minimum: Dimension, maximum: Dimension, extent: Pixels) -> AxisPlan {
             var plan = AxisPlan()
-            if size == .auto {
+            // Stage 8 (`LR-EV` item 2): a `.frame` layer's bounds are its own
+            // kernel frame's — `lowerShownLegacyFrameLayer` already registered
+            // them inside `node` — so they answer as SwiftUI's frame does (probe
+            // `swiftui-engine-stage-8.swift` P1/P2) and are never `…absolute`. A
+            // proposal-only answer where the legacy engine ignores an auto-axis
+            // bound (`AP-E`), unnumbered by `LR-CJ`'s precedent. A `Style`-written
+            // box's bounds still report (`LR-EV` item 4, owner stage 10).
+            if size == .auto && item.kind != .frameLayer {
                 plan.minimumAbsolute = minimum != .auto
                 plan.maximumAbsolute = maximum != .auto
             } else {
@@ -1262,24 +1297,5 @@ extension LayoutPass {
                                         width: Double(window.width.value),
                                         height: Double(window.height.value),
                                         alignment: proposalAlignment(horizontal: h.factor, vertical: v.factor))
-    }
-
-    /// Whether a presentation's content box **is** the window (ruling `LR-CL`): four
-    /// zero insets, both sizes `auto` and no border, so its padding box — the
-    /// containing block of any presentation registered inside it — is the window.
-    /// The one nested case the legacy engine answers as the lowering does (the
-    /// demo's card could hold a tooltip); every other nesting reports
-    /// `deferred.nested`.
-    func presentationCoversWindow(_ style: Style) -> Bool {
-        let i = style.inset, b = style.border
-        return [i.top, i.right, i.bottom, i.left].allSatisfy(isZero)
-            && style.size.width == .auto && style.size.height == .auto
-            && [b.top, b.right, b.bottom, b.left].allSatisfy { edge in
-                switch edge {
-                case .pixels(let p): p.value == 0
-                case .rems(let r): r.value == 0
-                case .percent(let f): f == 0
-                }
-            }
     }
 }

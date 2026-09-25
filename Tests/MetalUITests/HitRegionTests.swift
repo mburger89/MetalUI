@@ -86,17 +86,10 @@ private func keyDown(_ characters: String) -> InputEvent {
 /// `Frame.axNodes` either way, but an accessibility *client's* record — the only
 /// place `accessibleText` lands — is written only while one is collecting.
 @MainActor private func collect<E: Element>(_ element: E,
-                                            size: Float = 200,
-                                            authority: LayoutAuthority? = nil)
+                                            size: Float = 200)
     -> (Frame, AccessibilityTree) {
     var element = element
-    let frame = authority.map {
-        Frame(contentSize: Size(width: px(size), height: px(size)), scaleFactor: 1,
-              stateTable: StateTable(), shapingCache: ShapingCache(),
-              glyphAtlas: GlyphAtlas(width: 256, height: 256),
-              theme: Theme.forAppearance(.light), collectsAccessibility: true,
-              layoutAuthority: $0)
-    } ?? Frame(contentSize: Size(width: px(size), height: px(size)), scaleFactor: 1,
+    let frame = Frame(contentSize: Size(width: px(size), height: px(size)), scaleFactor: 1,
                stateTable: StateTable(), shapingCache: ShapingCache(),
                glyphAtlas: GlyphAtlas(width: 256, height: 256),
                theme: Theme.forAppearance(.light), collectsAccessibility: true)
@@ -129,14 +122,10 @@ private func measure<E: Element>(clickAt: Point<Pixels>,
                                  focusing: GlobalElementID,
                                  counter: ClickCounter,
                                  log: KeyLog,
-                                 authority: LayoutAuthority? = nil,
                                  _ make: @escaping @MainActor () -> E) throws -> HitReading {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
-    // `nil` leaves the window's default authority; a caller whose literals were
-    // re-derived for `CN-J`'s centring (stage 6b, `LR-DG`) passes `.proposal`.
-    let (window, platform) = try authority.map {
-        try makeFakeWindow(device: device, size: 200, layoutAuthority: $0, content: make)
-    } ?? makeFakeWindow(device: device, size: 200, content: make)
+    // (Took an optional layout authority from stage 6b, `LR-DG`, until stage 9.)
+    let (window, platform) = try makeFakeWindow(device: device, size: 200, content: make)
     window.drawFrameIfNeeded()
     let regions = window.lastHitboxes.map(describe)
     click(platform, at: clickAt)
@@ -177,7 +166,7 @@ private func measure<E: Element>(clickAt: Point<Pixels>,
 @Test @MainActor
 func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKeepsTheKeyboardOnes() throws {
     @MainActor func subject(_ counter: ClickCounter, _ log: KeyLog) -> Box<EmptyGroup> {
-        Box().width(px(100)).height(px(100)).background(.surface).id("subject")
+        Box().cssWidth(px(100)).cssHeight(px(100)).background(.surface).id("subject")
             .focusable().onKey { _ in log.keys.append("subject"); return true }
             .onClick { counter.bump() }
     }
@@ -207,7 +196,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     let n2Counter = ClickCounter(), n2Log = KeyLog()
     let n2 = try measure(clickAt: pt(50, 50), focusing: subjectID(),
                          counter: n2Counter, log: n2Log) {
-        Box().width(px(100)).height(px(100)).background(.surface).id("subject")
+        Box().cssWidth(px(100)).cssHeight(px(100)).background(.surface).id("subject")
             .allowsHitTesting(false)
             .focusable().onKey { _ in n2Log.keys.append("subject"); return true }
             .onClick { n2Counter.bump() }
@@ -221,11 +210,11 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     let child = try measure(clickAt: pt(50, 50), focusing: childID(),
                             counter: childCounter, log: childLog) {
         Box {
-            Box().width(px(100)).height(px(100)).background(.accent).id("child")
+            Box().cssWidth(px(100)).cssHeight(px(100)).background(.accent).id("child")
                 .focusable().onKey { _ in childLog.keys.append("child"); return true }
                 .onClick { childCounter.bump() }
         }
-        .width(px(100)).height(px(100)).id("subject")
+        .cssWidth(px(100)).cssHeight(px(100)).id("subject")
         .allowsHitTesting(false)
     }
     #expect(child.clicks == 0 && child.regions.isEmpty,
@@ -259,39 +248,37 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
         // (200 - 40) / 2 = 80, so (100, 100) is where (20, 20) was.
         let onCounter = ClickCounter(), onLog = KeyLog()
         let on = try measure(clickAt: pt(100, 100), focusing: subjectID(),
-                             counter: onCounter, log: onLog,
-                             authority: .proposal) { make(false, onCounter) }
+                             counter: onCounter, log: onLog) { make(false, onCounter) }
         try #require(on.clicks == 1 && on.regions.count == 1,
                      why("\(site): the control must be hittable and register one region, or the "
                          + "disabled arm proves nothing: \(on)"))
 
         let offCounter = ClickCounter(), offLog = KeyLog()
         let off = try measure(clickAt: pt(100, 100), focusing: subjectID(),
-                              counter: offCounter, log: offLog,
-                              authority: .proposal) { make(true, offCounter) }
+                              counter: offCounter, log: offLog) { make(true, offCounter) }
         #expect(off.clicks == 0 && off.regions.isEmpty,
                 why("\(site): under .allowsHitTesting(false) this site must register nothing and "
                     + "run nothing: \(off)"))
     }
 
     try check("Box") { disabled, counter in
-        let base = Box().width(px(40)).height(px(40)).background(.surface).id("subject")
+        let base = Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface).id("subject")
             .onClick { counter.bump() }
         return disabled ? base.allowsHitTesting(false) : base
     }
     try check("Stack") { disabled, counter in
-        let base = Stack { Box().width(px(10)).height(px(10)) }
-            .width(px(40)).height(px(40)).background(.surface).id("subject")
+        let base = Stack { Box().cssWidth(px(10)).cssHeight(px(10)) }
+            .cssWidth(px(40)).cssHeight(px(40)).background(.surface).id("subject")
             .onClick { counter.bump() }
         return disabled ? base.allowsHitTesting(false) : base
     }
     try check("Text") { disabled, counter in
-        let base = Text("hi").width(px(40)).height(px(40)).id("subject")
+        let base = Text("hi").cssWidth(px(40)).cssHeight(px(40)).id("subject")
             .onClick { counter.bump() }
         return disabled ? base.allowsHitTesting(false) : base
     }
     try check("ModifiedElement inner layer") { disabled, counter in
-        let base = Box().width(px(30)).height(px(30)).background(.surface)
+        let base = Box().cssWidth(px(30)).cssHeight(px(30)).background(.surface)
             .padding(Edges(all: .pixels(px(5))))
             .id("subject").onClick { counter.bump() }
         return (disabled ? base.allowsHitTesting(false) : base)
@@ -332,25 +319,25 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
                     + "\(node.role)/\(node.label ?? "nil")"))
     }
 
-    check("Box", Box().width(px(41)).height(px(23)).id("subject")
+    check("Box", Box().cssWidth(px(41)).cssHeight(px(23)).id("subject")
             .onClick { }.allowsHitTesting(false),
           declaring: AXNode(role: .button, label: "box-label"))
-    check("Stack", Stack { Box().width(px(10)).height(px(10)) }
-            .width(px(53)).height(px(37)).id("subject")
+    check("Stack", Stack { Box().cssWidth(px(10)).cssHeight(px(10)) }
+            .cssWidth(px(53)).cssHeight(px(37)).id("subject")
             .onClick { }.allowsHitTesting(false),
           declaring: AXNode(role: .image, label: "stack-label"))
-    check("Text", Text("Hi").width(px(59)).height(px(19)).id("subject")
+    check("Text", Text("Hi").cssWidth(px(59)).cssHeight(px(19)).id("subject")
             .onClick { }.allowsHitTesting(false),
           declaring: AXNode(role: .text, label: "text-label"))
     check("ModifiedElement outermost layer",
-          Box().width(px(31)).height(px(13)).padding(Edges(all: .pixels(px(4))))
+          Box().cssWidth(px(31)).cssHeight(px(13)).padding(Edges(all: .pixels(px(4))))
             .id("subject").onClick { }.allowsHitTesting(false),
           declaring: AXNode(role: .button, label: "layer-label"))
 
     // The `Text` arm the ruling is actually about: the STRING, which only an
     // accessibility client's record carries and which the helper could have
     // dropped by forwarding the three-argument overload.
-    let (_, tree) = collect(Text("hi").width(px(40)).height(px(20)).id("subject")
+    let (_, tree) = collect(Text("hi").cssWidth(px(40)).cssHeight(px(20)).id("subject")
                                .onClick { }.allowsHitTesting(false))
     // A clickable text leaf is published as a BUTTON whose label is the string
     // (`AB-F`), so both members are read: which one carries it is the
@@ -388,9 +375,8 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
         // Stage 6b (`LR-DG`, R-centre): the 100x100 root is centred in the
         // 200x200 window at (200 - 100) / 2 = 50; every literal below is the
         // legacy top-left one moved by 50 on both axes.
-        let (window, platform) = try makeFakeWindow(device: device, size: 200,
-                                                    layoutAuthority: .proposal) {
-            shape(Box().width(px(100)).height(px(100)).background(.surface).id("subject")
+        let (window, platform) = try makeFakeWindow(device: device, size: 200) {
+            shape(Box().cssWidth(px(100)).cssHeight(px(100)).background(.surface).id("subject")
                     .onClick { counter.bump() })
         }
         window.drawFrameIfNeeded()
@@ -483,14 +469,13 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     // reason: dropping it drops the input path and every arm reads zero.
     @MainActor func arm(_ inset: Pixels?, counter: ClickCounter)
         throws -> (regions: [String], window: Window, platform: FakePlatformWindow) {
-        let (window, platform) = try makeFakeWindow(device: device, size: 200,
-                                                    layoutAuthority: .proposal) {
+        let (window, platform) = try makeFakeWindow(device: device, size: 200) {
             Box {
-                let base = Box().width(px(40)).height(px(40)).background(.accent).id("child")
+                let base = Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).id("child")
                     .onClick { counter.bump() }
                 return inset.map { base.contentShape(inset: $0) } ?? base
             }
-            .width(px(80)).height(px(80)).background(.surface).id("subject").clipped()
+            .cssWidth(px(80)).cssHeight(px(80)).background(.surface).id("subject").clipped()
         }
         window.drawFrameIfNeeded()
         return (window.lastHitboxes.map(describe), window, platform)
@@ -536,12 +521,12 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
 /// The hit region's move is `#require`d first: without that, every "still
 /// 100x100" below would pass against a modifier that did nothing at all.
 @Test @MainActor func aContentShapeMovesNeitherTheAccessibilityFrameNorTheFocusRegistration() throws {
-    var element = Box().width(px(100)).height(px(100)).id("subject")
+    var element = Box().cssWidth(px(100)).cssHeight(px(100)).id("subject")
         .onClick { }.focusable().contentShape(inset: px(20))
     element.handlers.axNode = AXNode(role: .button, label: "shaped")
     // Stage 6b (`LR-DG`, R-centre): the 100x100 root is centred in the 200x200
     // frame at (200 - 100) / 2 = 50.
-    let (frame, tree) = collect(element, authority: .proposal)
+    let (frame, tree) = collect(element)
 
     let hit = try #require(frame.hitboxes.first, "the element declares an onClick and must register")
     try #require(hit.bounds.size.width.value == 60 && hit.bounds.size.height.value == 60,
@@ -581,8 +566,8 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     // Stage 6b (`LR-DG`, R-centre): the 40x40 root is centred in the 100x100
     // window at (100 - 40) / 2 = 30, so the 10pt-inset region is (40, 40) 20x20.
-    let (bare, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
-        Box().width(px(40)).height(px(40)).background(.surface).id("subject")
+    let (bare, _) = try makeFakeWindow(device: device, size: 100) {
+        Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface).id("subject")
             .contentShape(inset: px(10))
     }
     bare.drawFrameIfNeeded()
@@ -590,8 +575,8 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
             why("a content shape does not create a hit region: "
                 + bare.lastHitboxes.map(describe).joined(separator: " | ")))
 
-    let (clickable, _) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
-        Box().width(px(40)).height(px(40)).background(.surface).id("subject")
+    let (clickable, _) = try makeFakeWindow(device: device, size: 100) {
+        Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface).id("subject")
             .contentShape(inset: px(10)).onClick { }
     }
     clickable.drawFrameIfNeeded()
@@ -624,10 +609,10 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
         let (window, platform) = try makeFakeWindow(device: device, size: 100) {
             let base = Box {
                 ScrollView(.vertical, elementID: ElementID("scroller")) {
-                    Box().width(px(100)).height(px(400)).flexShrink(0).background(.accent)
+                    Box().cssWidth(px(100)).cssHeight(px(400)).flexShrink(0).background(.accent)
                 }
             }
-            .width(px(100)).height(px(100)).id("subject")
+            .cssWidth(px(100)).cssHeight(px(100)).id("subject")
             return disabled ? base.allowsHitTesting(false) : base
         }
         window.drawFrameIfNeeded()
@@ -686,7 +671,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
             Text("top")
             Text("bottom")
         }
-        .width(px(200)).height(px(200))
+        .cssWidth(px(200)).cssHeight(px(200))
         .justifyContent(.spaceBetween)
         .onClick { counter.bump() }
     }
@@ -765,7 +750,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
                         _ chain: @escaping @MainActor (Box<EmptyGroup>) -> ModifiedElement<Box<EmptyGroup>>)
         throws -> (centre: Int, edge: Int, regions: [String]) {
         let (window, platform) = try makeFakeWindow(device: device, size: 200) {
-            chain(Box().width(px(120)).height(px(120)).background(.accent).id("subject"))
+            chain(Box().cssWidth(px(120)).cssHeight(px(120)).background(.accent).id("subject"))
         }
         window.drawFrameIfNeeded()
         let regions = window.lastHitboxes.map(describe)
@@ -823,9 +808,8 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
 
     @MainActor func fill(_ disabled: Bool) throws -> String {
         // Stage 6b (`LR-DG`, R-centre): the 40x40 root is centred at 30..70.
-        let (window, platform) = try makeFakeWindow(device: device, size: 100,
-                                                    layoutAuthority: .proposal) {
-            let base = Box().width(px(40)).height(px(40))
+        let (window, platform) = try makeFakeWindow(device: device, size: 100) {
+            let base = Box().cssWidth(px(40)).cssHeight(px(40))
                 .background(.surface).hoverBackground(.accent).id("subject").onClick { }
             return disabled ? base.allowsHitTesting(false) : base
         }

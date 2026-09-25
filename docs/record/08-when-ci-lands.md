@@ -315,3 +315,19 @@ The guard count the default-build-system skip hides is now 61. New items, in
 tests needing `--no-parallel`; E24's hard failure on a root-locale runner; the
 accessibility arm-Q pin and signal test depending on the runner's accessibility
 clients and `isVoiceOverEnabled` (`AB-AC`).
+
+## 2026-09-24: item 5 retired at engine replacement stage 7b
+
+Record §49; rulings `LR-EC`…`LR-EP`. **Item 5 above (the freeze loop's
+allocation pin checking only half itself on a swiftlang toolchain) is
+retired**, not amended: `Tests/MetalUILayoutTests/FreezeLoopAllocationTests.swift`
+— the file item 5 cites throughout — is deleted whole, one of the seventeen
+non-golden CSS-engine files stage 7b retires (record §49 §4, rows 183–184; no
+replacement pin, since the fact is toolchain accounting for a CSS-engine-only
+loop, not a fact the proposal engine has). `ModifiedElementTests.swift`
+remains the suite's only `malloc_logger` installer (record §49 §6.2's
+"Comments" paragraph), so the two-installer race item 5's neighbouring
+`malloc_logger` note (2026-09-15, above) used to describe is now moot — one
+installer cannot race itself. `FREEZE-ALLOC: strict per-pass bound NOT
+CHECKED` no longer appears in any CI log; a reader grepping for it after this
+stage finds nothing, which is retirement, not a broken instrument.

@@ -24,15 +24,15 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 
 private let rootID = GlobalElementID.child(of: nil, at: 0, name: nil)
 
-/// The root under `authority` in a production-sized frame (920×560, the demo's
-/// window), with diagnostics on under `.proposal` so a report reads red instead of
-/// trapping, and the element bounds log on.
+/// The root in a production-sized frame (920×560, the demo's window), with
+/// diagnostics on so a report reads red instead of trapping, and the element
+/// bounds log on.
 @MainActor
-private func rootFrame<E: Element>(_ authority: LayoutAuthority, _ element: E) -> Frame {
+private func rootFrame<E: Element>(_ element: E) -> Frame {
     var element = element
     let frame = Frame(contentSize: Size(width: px(920), height: px(560)), scaleFactor: 2,
-                      stateTable: StateTable(), theme: .dark, layoutAuthority: authority,
-                      reportsUnlowerableFields: authority == .proposal,
+                      stateTable: StateTable(), theme: .dark,
+                      reportsUnlowerableFields: true,
                       recordsElementBounds: true)
     frame.render(&element)
     return frame
@@ -41,8 +41,8 @@ private func rootFrame<E: Element>(_ authority: LayoutAuthority, _ element: E) -
 /// **1.7** (`LR-DO` item 1). Three roots declaring `.height(370)` with a px minimum or
 /// maximum on that same axis — `.minHeight(0)` (the `demoLikeRows` shape),
 /// `.minHeight(500)` and `.maxHeight(300)` — laid out as a production frame's root
-/// under both authorities: the root is 370 / 500 / 300 tall on **both**, and the
-/// proposal report is empty. The second and third arms disagree with the declared
+/// (under both authorities until stage 9): the root is 370 / 500 / 300 tall, and the
+/// report is empty. The second and third arms disagree with the declared
 /// height alone (the separating arms: a fold that ignored the bound would read 370).
 ///
 /// Red before: each proposal arm reports `box.minSize.unconsumed` or
@@ -50,24 +50,21 @@ private func rootFrame<E: Element>(_ authority: LayoutAuthority, _ element: E) -
 /// Mutation **M1h**: the root fold removed from `reportUnconsumedLoweredItems`.
 @Test @MainActor func aRootsMinimumAndMaximumFoldIntoItsDeclaredSize() throws {
     func content() -> Box<Box<EmptyGroup>> {
-        Box { Box().width(px(10)).height(px(10)) }.width(px(420)).height(px(370))
+        Box { Box().cssWidth(px(10)).cssHeight(px(10)) }.cssWidth(px(420)).cssHeight(px(370))
     }
     let arms: [(name: String, root: Box<Box<EmptyGroup>>, height: Float)] = [
-        ("height(370).minHeight(0)", content().minHeight(px(0)), 370),
-        ("height(370).minHeight(500)", content().minHeight(px(500)), 500),
-        ("height(370).maxHeight(300)", content().maxHeight(px(300)), 300),
+        ("height(370).minHeight(0)", content().cssMinHeight(px(0)), 370),
+        ("height(370).minHeight(500)", content().cssMinHeight(px(500)), 500),
+        ("height(370).maxHeight(300)", content().cssMaxHeight(px(300)), 300),
     ]
     try #require(arms.count == 3)
     for arm in arms {
-        for authority in LayoutAuthority.allCases {
-            let frame = rootFrame(authority, arm.root)
-            #expect(frame.unlowerableFields.isEmpty,
-                    "\(arm.name), \(authority): reported \(frame.unlowerableFields)")
-            let bounds = try #require(frame.elementBounds[rootID], "\(arm.name), \(authority)")
-            #expect(bounds.size.height == px(arm.height),
-                    "\(arm.name), \(authority): the root is \(bounds.size.height), not \(arm.height)")
-            #expect(bounds.size.width == px(420), "\(arm.name), \(authority): width \(bounds.size.width)")
-        }
+        let frame = rootFrame(arm.root)
+        #expect(frame.unlowerableFields.isEmpty, "\(arm.name): reported \(frame.unlowerableFields)")
+        let bounds = try #require(frame.elementBounds[rootID], "\(arm.name)")
+        #expect(bounds.size.height == px(arm.height),
+                "\(arm.name): the root is \(bounds.size.height), not \(arm.height)")
+        #expect(bounds.size.width == px(420), "\(arm.name): width \(bounds.size.width)")
     }
 }
 
@@ -80,22 +77,23 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
         FileHandle.standardError.write(Data("no Metal device\n".utf8))
         exit(3)
     }
-    let (window, _) = try! makeFakeWindow(device: device, size: 200, layoutAuthority: .proposal,
-                                          content: root)
+    let (window, _) = try! makeFakeWindow(device: device, size: 200, content: root)
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
 }
 
 /// **1.8** (`LR-DO` item 1). Every root field that still has no lowering **traps a
 /// production `Window`** naming it — a trap production ships is a trap the suite
-/// shows. Three arms, each an exit test through a `.proposal` `makeFakeWindow`
-/// (explicit, since lane 1 runs before the default flips), each with its control —
+/// shows. Three arms, each an exit test through a production `makeFakeWindow`
+/// (explicitly `.proposal` until stage 9 deleted the authority), each with its control —
 /// the same root without the field — which must draw and exit successfully, so the
 /// abort is the field and not the window, the tree or the authority:
 ///
 /// - a `minHeight` on the root's **auto** height (no declared size to fold into;
 ///   stage 8's recipe spells it as a `.frame`): `box.minSize.unconsumed`;
-/// - a root **margin** (owner 9): `box.margin.unconsumed`;
+/// - a root **margin**: `box.margin.unconsumed` — its report dies with the field at
+///   stage 10 (`LR-ER` item 4, which disposes `LR-DI` item 4's root min/max/margin;
+///   this doc read "owner 9" until stage 9's lane 1 fix round);
 /// - a root **percentage** `maxWidth`, on a declared width (a percentage never folds;
 ///   stage 8): `box.maxSize.unconsumed`.
 ///
@@ -107,7 +105,7 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
     let minimum = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             drawInAProductionProposalWindow {
-                Box { Box().width(Pixels(10)).height(Pixels(10)) }.width(Pixels(100)).minHeight(Pixels(50))
+                Box { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }.cssWidth(Pixels(100)).cssMinHeight(Pixels(50))
             }
         }
     }
@@ -116,7 +114,7 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
     await #expect(processExitsWith: .success) {
         await MainActor.run {
             drawInAProductionProposalWindow {
-                Box { Box().width(Pixels(10)).height(Pixels(10)) }.width(Pixels(100))
+                Box { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }.cssWidth(Pixels(100))
             }
         }
     }
@@ -125,8 +123,8 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
     let margin = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             drawInAProductionProposalWindow {
-                Box { Box().width(Pixels(10)).height(Pixels(10)) }
-                    .width(Pixels(100)).height(Pixels(100)).margin(Pixels(4))
+                Box { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }
+                    .cssWidth(Pixels(100)).cssHeight(Pixels(100)).margin(Pixels(4))
             }
         }
     }
@@ -135,7 +133,7 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
     await #expect(processExitsWith: .success) {
         await MainActor.run {
             drawInAProductionProposalWindow {
-                Box { Box().width(Pixels(10)).height(Pixels(10)) }.width(Pixels(100)).height(Pixels(100))
+                Box { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }.cssWidth(Pixels(100)).cssHeight(Pixels(100))
             }
         }
     }
@@ -147,7 +145,7 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
                 var style = Style()
                 style.size = Size(width: .length(.pixels(Pixels(100))), height: .length(.pixels(Pixels(100))))
                 style.maxSize.width = .length(.percent(0.5))
-                return Box(style: style) { Box().width(Pixels(10)).height(Pixels(10)) }
+                return Box(style: style) { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }
             }
         }
     }
@@ -159,7 +157,7 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
                 var style = Style()
                 style.size = Size(width: .length(.pixels(Pixels(100))), height: .length(.pixels(Pixels(100))))
                 style.maxSize.width = .length(.pixels(Pixels(50)))
-                return Box(style: style) { Box().width(Pixels(10)).height(Pixels(10)) }
+                return Box(style: style) { Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)) }
             }
         }
     }

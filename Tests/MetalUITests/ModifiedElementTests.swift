@@ -64,11 +64,16 @@ private final class Generation {
 /// (declared FIRST, so its slot is `$state0`) and a default click handler that
 /// increments it. Lane 1's `CountingLeaf`, without the phase counters.
 ///
-/// **A Dual fixture since stage 6a** (record §38, spec §5 lane 3): under the
+/// **A Dual fixture from stage 6a to stage 9** (record §38, spec §5 lane 3); its
+/// legacy branch went with the legacy authority at stage 9 (record §51, lane 2).
+/// What follows is its history: under the
 /// proposal authority it is `declaredSizeNativeLeaf` (`ElementLayoutTests`), and
 /// its two R tests pass `.proposal`; under the legacy one it registers through
 /// `Frame`'s internal legacy registrar, and its three P tests pass `.legacy`.
 /// `observe` takes the authority as a required argument.
+///
+/// **Stage 7b** (record §49 §6.2) retired `aGenericWrapOverAChainIsIdenticalToTheFlatChain`
+/// and added N2.1 on the proposal branch.
 private struct LayerLeaf: StyledElement {
     @State var taps = 0
     var name: String
@@ -87,9 +92,7 @@ private struct LayerLeaf: StyledElement {
     }
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.lowersToProposal
-            ? declaredSizeNativeLeaf(style, pass)
-            : pass.frame.requestNode(style: style, children: []), ())
+        (declaredSizeNativeLeaf(style, pass), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -116,9 +119,11 @@ private struct LayerLeaf: StyledElement {
 /// The smallest legacy `StyledElement`, for the type-name tests: its name is
 /// what `String(describing:)` prints.
 ///
-/// **Registers through `Frame`'s internal legacy registrar since stage 6a**
-/// (record §38, disposition P-CSS): the one test that lays it out counts the
-/// legacy tree's nodes, and passes `.legacy` explicitly.
+/// **A declared-size native leaf since stage 9** (it registered through
+/// `Frame`'s internal legacy registrar from stage 6a, record §38, disposition
+/// P-CSS, until stage 9 deleted it). Nothing lays it out since stage 7b trimmed
+/// `legacyModifierChainsInferOneConcreteType` (record §49 §4 row 229): only
+/// its type name and its chains' layer counts are read.
 private struct ChainLeaf: StyledElement {
     var style = Style()
     var decoration = Decoration()
@@ -126,7 +131,7 @@ private struct ChainLeaf: StyledElement {
     var handlers = Handlers()
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.frame.requestNode(style: style, children: []), ())
+        (declaredSizeNativeLeaf(style, pass), ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -213,13 +218,12 @@ private struct Observation: Equatable {
 }
 
 @MainActor
-private func observe<Root: Element>(authority: LayoutAuthority,
-                                    _ make: (LayerLog) -> Root) throws -> Observation {
+private func observe<Root: Element>(_ make: (LayerLog) -> Root) throws -> Observation {
     let log = LayerLog()
     var root = make(log)
     let table = StateTable()
     let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
-                      stateTable: table, layoutAuthority: authority)
+                      stateTable: table)
     frame.render(&root)
     let leafID = try #require(log.ids["leaf"])
     let leafBounds = try #require(log.bounds["leaf"])
@@ -280,7 +284,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 /// Three receivers, none of which mentions `LayerBase` or `_wrap`: a leaf, a
 /// `Component` (whose `.frame` then `.padding(4)` reaches `ModifiedElement`'s
 /// own `padding`), and an external generic group. The stored spellings
-/// typecheck, and the stored `Row`'s layers still register one node each.
+/// typecheck.
 ///
 /// Green on the skeleton, whose type was already flat; red on the nesting
 /// skeleton only as a build failure ("cannot assign value of type
@@ -294,9 +298,13 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 /// here, test 2's flat chain, and tests 3 and 5's run-time layer, avoid a
 /// `Pixels` padding on a chain.
 ///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
+/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4);
+/// **trimmed by stage 7b** (record §49 §4 row 229, T): the `.legacy` `Frame`
+/// that rendered the stored `Row` and read `nodeCount == 4` (one node per
+/// layer, the legacy tree's shape) is gone, so the test is authority-free; the
+/// `Row` stays as a compile-time assertion of its stored type.
 @Test @MainActor func legacyModifierChainsInferOneConcreteType() throws {
-    let leafChain = ChainLeaf().padding(4).frame(width: 60).padding(Edges(all: .pixels(px(8)))).width(70)
+    let leafChain = ChainLeaf().padding(4).frame(width: 60).padding(Edges(all: .pixels(px(8)))).cssWidth(70)
     let componentChain = ChainComp().frame(width: 60).padding(4)
     let groupChain = ChainGroup(ChainLeaf()).frame(width: 30)
 
@@ -313,47 +321,41 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 
     let stored: ModifiedElement<ChainLeaf> = ChainLeaf().padding(4).frame(width: 60)
     #expect(stored.layerCount == 2)
-    var row: Row<ModifiedElement<ChainLeaf>> = Row {
+    let _: Row<ModifiedElement<ChainLeaf>> = Row {
         ChainLeaf().frame(width: 60).padding(Edges(all: .pixels(px(8))))
     }
-    let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1, layoutAuthority: .legacy)
-    frame.render(&row)
-    #expect(frame.tree.nodeCount == 4, "the row, two layers and the leaf; got \(frame.tree.nodeCount)")
 }
 
 // MARK: - 2: generic code over a chain (ruling MC-B)
 
 /// **A `.padding` written in generic code over a chain is identical to the
-/// flat chain** — same type, same layer count, and every observation lane 1's
-/// oracle test compares, against the same hand-built nested `Box`es, each with
-/// its own disagreeing oracle `try #require`d first (practices shape 15).
+/// flat chain under the proposal authority** — N2.1 of stage 7b (record §49
+/// §4 row 230, spec §6 lane 2), the non-CSS fact of the retired
+/// `aGenericWrapOverAChainIsIdenticalToTheFlatChain` (ruling MC-B) re-observed
+/// on the production path: same type, same layer count, and every observation
+/// `observe` takes, against the same hand-built nested `Box`es (each `Box`
+/// lowered by `lowerLegacyNode` at site `box`, the chain's layers by the
+/// layer lowering), rendered under `.proposal`.
 ///
-/// The chain is lane 1 test 4's with its `.padding(8)` moved into
-/// `wrapInPadding8`, whose return type is `ModifiedElement<T.LayerBase>`.
+/// **Every disagreeing oracle is `try #require`d to disagree with the oracle
+/// before any agreeing comparison is read** (practices shape 15): paddings
+/// swapped (rects), `.id("mid")` moved to the outermost layer (leaf id, hitbox
+/// ids), the frame layer's `onClick` dropped (hitbox list), the frame layer
+/// omitted (layer ids, `$anim` liveness), the radii exchanged (radii alone),
+/// and the inner fills reordered. **The retired test's node-count comparison
+/// is not carried** (`LR-EN`; the comment at the comparisons).
 ///
-/// Red on the skeleton (14 issues: every observation, both chains). Mutations
-/// that redden it (record §10): `_wrap` replacing its outermost layer instead of
-/// appending one; the content laid out under the outermost id; inner layers
-/// skipping `animated`, `registerHandlers`, or taking the outermost id; `.id`
-/// moved to the wrong layer; layers registered innermost-first or after their
-/// contents; fills painted after the content; and, since lane 2's verifier
-/// round — which gave the padding-4 layer a background and every layer its own
-/// corner radius, and `RectShape` the radii — the inner paint loop run
-/// innermost-first (N8) and an inner fill given the outermost layer's radius
-/// (N3). Before that round both left the whole suite green.
-///
-/// Pinned to the legacy authority by stage 6a (CSS-structure, record §38 §4).
-@Test @MainActor func aGenericWrapOverAChainIsIdenticalToTheFlatChain() throws {
+/// Red-before (record §49 §6.2, M2.1): `_wrap` replacing the outermost layer
+/// instead of appending one.
+@Test @MainActor func aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority() throws {
     func flatChain(_ log: LayerLog) -> ModifiedElement<LayerLeaf> {
         LayerLeaf("leaf", log: log)
             .background(.accent).onClick {}
             .padding(4).id("mid").background(.surfaceSecondary).cornerRadius(3)
             .frame(width: 60, height: 40)
             .background(.surface).cornerRadius(5).onClick {}
-            // `Edges`, not `Pixels`: under test 1's mutation (a concrete
-            // nesting `padding(_: Pixels)` on `ModifiedElement`) a `Pixels`
-            // padding on a chain nests and this return type stops compiling,
-            // which would take the whole target down instead of reddening.
+            // `Edges`, not `Pixels`, for test 1's reason (a `Pixels` padding on
+            // a chain would stop compiling under its mutation).
             .padding(Edges(all: .pixels(px(8))))
             .background(.separator).cornerRadius(9).onClick {}
     }
@@ -374,9 +376,9 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
     try #require(flatValue.layerCount == 3 && genericValue.layerCount == 3,
                  "layers: flat \(flatValue.layerCount), generic \(genericValue.layerCount)")
 
-    let flat = try observe(authority: .legacy) { log in Row { flatChain(log) } }
-    let generic = try observe(authority: .legacy) { log in Row { genericChain(log) } }
-    let oracle = try observe(authority: .legacy) { log in
+    let flat = try observe() { log in Row { flatChain(log) } }
+    let generic = try observe() { log in Row { genericChain(log) } }
+    let oracle = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -387,7 +389,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let paddingsSwapped = try observe(authority: .legacy) { log in
+    let paddingsSwapped = try observe() { log in
         Row {
             Box(style: paddingStyle(4), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -398,7 +400,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let idMoved = try observe(authority: .legacy) { log in
+    let idMoved = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -409,7 +411,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}.id("mid")
         }
     }
-    let clickDropped = try observe(authority: .legacy) { log in
+    let clickDropped = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -420,7 +422,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let layerFewer = try observe(authority: .legacy) { log in
+    let layerFewer = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: paddingStyle(4), content:
@@ -429,10 +431,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-
-    // The radii-swapped oracle: the padding-4 layer's radius and the outermost
-    // layer's exchanged, every other declaration unchanged.
-    let radiiSwapped = try observe(authority: .legacy) { log in
+    let radiiSwapped = try observe() { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -444,6 +443,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
         }
     }
 
+    // Every disagreeing oracle first.
     try #require(paddingsSwapped.rects != oracle.rects, "the rect comparison cannot fail")
     try #require(idMoved.leafID != oracle.leafID, "the wrapped element's id comparison cannot fail")
     try #require(idMoved.hitboxes.map(\.id) != oracle.hitboxes.map(\.id),
@@ -452,12 +452,14 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
                  "the hitbox list comparison cannot fail")
     try #require(layerFewer.layerIDs != oracle.layerIDs && layerFewer.animLive != oracle.animLive,
                  "the $anim liveness comparison cannot fail")
-    try #require(layerFewer.nodeCount != oracle.nodeCount, "the node count comparison cannot fail")
-    // Inner layers' corner radii and the order of their fills. The chain has
-    // TWO inner layers with backgrounds (padding 4, the frame), each with a
-    // radius unlike the outermost's, so a fill painted with the outermost
-    // layer's radius, or the inner fills emitted innermost-first, both move
-    // `rects`.
+    // No node-count comparison under the proposal authority (record §49 §6.2,
+    // LR-EN): the frame layer lowers to ONE native frame, the oracle's
+    // `Box(style: frameStyle(...))` — a hand spelling of the LEGACY frame's
+    // CSS lowering, a one-cell `display: .stack` — to an overlay inside a fixed
+    // frame (`lowerShownLegacyNode`'s stack branch), so the two native trees
+    // differ by one node (7 against 8) by construction. One layer = one node is
+    // the legacy tree's shape (CSS-structure), as the T row of
+    // `legacyModifierChainsInferOneConcreteType` rules.
     try #require(oracle.rects.count == 4, "outer, frame, padding-4 and leaf fills; read \(oracle.rects.count)")
     try #require(radiiSwapped.rects != oracle.rects, "the corner-radius comparison cannot fail")
     try #require(radiiSwapped.rects.map(\.withoutRadii) == oracle.rects.map(\.withoutRadii),
@@ -473,7 +475,6 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
         #expect(chain.leafBounds == oracle.leafBounds, "\(label): leaf bounds")
         #expect(chain.hitboxes == oracle.hitboxes, "\(label): hitboxes \(chain.hitboxes) vs \(oracle.hitboxes)")
         #expect(chain.rects == oracle.rects, "\(label): rects")
-        #expect(chain.nodeCount == oracle.nodeCount, "\(label): nodes \(chain.nodeCount) vs \(oracle.nodeCount)")
         #expect(chain.layerIDs == oracle.layerIDs, "\(label): layer ids")
         #expect(chain.animLive == oracle.animLive, "\(label): $anim liveness \(chain.animLive)")
     }
@@ -513,9 +514,9 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
     try #require(probe.layerCount == 2 && probe.outermost.elementID == ElementID("outer"),
                  "layers \(probe.layerCount), outermost name \(String(describing: probe.outermost.elementID))")
 
-    let flat = try observe(authority: .proposal) { log in Row { LayerLeaf("sibling", log: log); chain(log) } }
-    let oracle = try observe(authority: .proposal) { log in Row { LayerLeaf("sibling", log: log); nested(log, named: true) } }
-    let unnamed = try observe(authority: .proposal) { log in Row { LayerLeaf("sibling", log: log); nested(log, named: false) } }
+    let flat = try observe() { log in Row { LayerLeaf("sibling", log: log); chain(log) } }
+    let oracle = try observe() { log in Row { LayerLeaf("sibling", log: log); nested(log, named: true) } }
+    let unnamed = try observe() { log in Row { LayerLeaf("sibling", log: log); nested(log, named: false) } }
 
     try #require(unnamed.leafID != oracle.leafID, "the leaf id comparison cannot fail")
     try #require(unnamed.layerIDs != oracle.layerIDs, "the layer id comparison cannot fail")
@@ -555,7 +556,7 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = LayerLog()
     let generation = Generation()
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100, layoutAuthority: .proposal) {
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Row { growableChain(log, adding: generation.value > 0) }
     }
     window.drawFrameIfNeeded()
@@ -601,7 +602,7 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
                 .padding(generation.value == 0 ? 4 : 12)
                 .frame(width: generation.value == 0 ? 60 : 80, height: 40)
         }
-        .width(px(100)).height(px(100))
+        .cssWidth(px(100)).cssHeight(px(100))
     }
     window.drawFrameIfNeeded()
     let bounds = try #require(log.bounds["leaf"])
@@ -652,7 +653,7 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100,
                                                       startsDisplayLink: true) {
         Row { growableChain(log, adding: generation.value > 0) }
-            .width(px(100)).height(px(100))
+            .cssWidth(px(100)).cssHeight(px(100))
     }
     let p = GlobalElementID.child(of: rootID, at: 0, name: nil)
     let p0 = GlobalElementID.child(of: p, at: 0, name: nil)
@@ -721,8 +722,10 @@ nonisolated(unsafe) private let countingLogger: MallocLogger = { type, a1, a2, a
 }
 
 /// `FreezeLoopAllocationTests.swift`'s counter, copied (the two test targets
-/// cannot share a private helper): heap allocations `body` makes on the calling
-/// thread, through libmalloc's `malloc_logger` hook.
+/// could not share a private helper): heap allocations `body` makes on the
+/// calling thread, through libmalloc's `malloc_logger` hook. Stage 7b's lane 1
+/// deleted that file (record §49 §4), so this is now the suite's only copy and
+/// its only `malloc_logger` installer.
 private func countAllocations(_ body: () -> Void) throws -> Int {
     let symbol = try #require(
         dlsym(UnsafeMutableRawPointer(bitPattern: -2), "malloc_logger"),
@@ -828,8 +831,9 @@ private func chainAllocations(_ build: (Int, GlobalElementID, inout LayoutPass) 
 /// three-layer arms (3 000 and 5 000 over nested) and not the one-layer arm,
 /// whose `inner` is empty.
 ///
-/// **A hazard this adds, measured:** this file and
-/// `FreezeLoopAllocationTests.swift` each install libmalloc's process-wide
+/// **A hazard this added, measured — gone since stage 7b deleted
+/// `FreezeLoopAllocationTests.swift` (record §49 §4), the other installer:**
+/// this file and `FreezeLoopAllocationTests.swift` each installed libmalloc's process-wide
 /// `malloc_logger` hook. Run CONCURRENTLY — `swift test` without
 /// `--no-parallel`, filtered to the two — the freeze-loop test's calibration
 /// `#require` failed once. The whole suite passed in parallel mode once as

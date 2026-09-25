@@ -58,8 +58,8 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
     /// Carried from `requestLayout` to the later phases.
     ///
     /// `node` is stored rather than re-derived because there is nothing to
-    /// re-derive it from: the registrar (`Frame.requestNode`, or the lowering's
-    /// outermost kernel node under the proposal authority, ruling LR-A) mints ids
+    /// re-derive it from: the registrar (the lowering's outermost kernel node,
+    /// ruling LR-A) mints ids
     /// and hands them out once. `content` is the children's own threaded state.
     public struct Layout {
         public var node: LayoutNodeID
@@ -68,7 +68,7 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
 
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
-        // Children first: `requestNode` takes already-registered ids, so a
+        // Children first: a registrar takes already-registered ids, so a
         // container builds bottom-up and the engine sees a complete subtree.
         //
         // The cursor starts at 0 here and nowhere else: it is this container's
@@ -86,16 +86,12 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // reach the screen rather than only the layout node.
         let declared = style
         (style, decoration) = animated(style, decoration, for: id, pass: &pass)
-        // The site's own authority check (plan task 7, ruling LR-C). Under the
-        // proposal authority the (animated) style is lowered onto kernel nodes;
-        // the checks read the declared one (`LegacyLowering.swift`). A childless
-        // `Box` lowers since lane 2, a `Box` with children — and so `Row` and
-        // `Column` — since lane 3; a field outside the lowering table traps by
-        // name, or is reported with a 0×0 native leaf in its place under
+        // The (animated) style is lowered onto kernel nodes; the checks read the
+        // declared one (`LegacyLowering.swift`; plan task 7, rulings LR-C, and
+        // the only path since stage 9). A field outside the lowering table traps
+        // by name, or is reported with a 0×0 native leaf in its place under
         // diagnostics.
-        let node = pass.lowersToProposal
-            ? pass.lowerLegacyNode(style, declared: declared, children: children, site: .box)
-            : pass.frame.requestNode(style: style, children: children)
+        let node = pass.lowerLegacyNode(style, declared: declared, children: children, site: .box)
         return (node, Layout(node: node, content: contentLayout))
     }
 
@@ -154,8 +150,9 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
 
 extension Box where Content == EmptyGroup {
     /// A childless box — a sized leaf, and a **0x0** one unless its style says
-    /// otherwise: it reports no content size of its own, because it registers
-    /// through `requestNode` rather than `requestLeaf`.
+    /// otherwise: it reports no content size of its own (it lowers to a 0×0
+    /// native leaf inside its declared size; until stage 9 it registered through
+    /// the CSS `requestNode` rather than `requestLeaf`).
     ///
     /// That sentence used to end "…the framework has no leaf that reports a
     /// content size, because `newLeaf` has no production caller". `Text`
@@ -788,10 +785,13 @@ extension StyledElement {
     // A modifier here overwrites a field of the receiver's `Style` and returns
     // `Self`. `.frame(...)` wraps the receiver in a new outer layer of a
     // `ModifiedElement` and returns that. The difference is observable, and
-    // `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt`
-    // (`Tests/MetalUITests/FrameSizingTests.swift`) pins it: each of the eight
-    // leaves `LayoutTree.nodeCount` exactly where the unmodified element leaves
-    // it, and `.frame(width:)` adds one. Three consequences a caller meets:
+    // `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt` pinned
+    // it on the legacy tree until stage 7b retired it (record §49 §4 row 204):
+    // each of the eight left `LayoutTree.nodeCount` exactly where the
+    // unmodified element left it, and `.frame(width:)` added one. The type-level
+    // half is `legacyModifierChainsInferOneConcreteType`'s
+    // (`Tests/MetalUITests/ModifiedElementTests.swift`). Three consequences a
+    // caller meets:
     //
     // - `Box(decoration:).width(36)` paints a 36pt-wide decorated box;
     //   `Box(decoration:).frame(width: 36)` paints the decoration at the
@@ -805,40 +805,58 @@ extension StyledElement {
     //   declared before a `.frame` stays there too (scratch L4: a 0×0 hitbox
     //   at (30, 20), `FR-F`); that SwiftUI's gesture hit area does the same is
     //   by reading, unprobed.
-    // - the clamps below can cancel flex §4.5's automatic minimum; a frame
-    //   layer's `minSize` cannot reach into its child to do it (`minHeight`'s
-    //   comment has the numbers).
+    // - the clamps below cancelled flex §4.5's automatic minimum on the legacy
+    //   engine, where a frame layer's `minSize` could not reach into its child;
+    //   under the proposal authority there is no automatic minimum, and a
+    //   growing box's zero minimum is `.frame(minHeight: 0, maxHeight:
+    //   .infinity)` (`minHeight`'s comment, ruling `LR-ET`).
     //
-    // **None of the eight is deprecated, and that is a ruling rather than an
-    // oversight** (`FR-I`): the branch gates on 0 `warning:`, so a `renamed:`
-    // hint means migrating every caller in the same change — several hundred
-    // for `width`/`height` alone (`git grep -oE '\.(width|height)\(' --
-    // Sources Tests | wc -l`: 686 at `c4b5853`, and every test added since
-    // moves it, so the number is not written here). Plan task 7, which
-    // removes the legacy engine,
-    // owns the migration and `FR-F` holds its recipe. New code should reach for
-    // `.frame(...)`.
+    // **All eight are deprecated since plan task 7's stage 8** (rulings `LR-EU`,
+    // amending `FR-I` and `FR-H`; spec
+    // `docs/superpowers/specs/2026-09-24-engine-stage-8-design.md`). `FR-I` kept
+    // them undeprecated because the branch gates on 0 `warning:` and a
+    // deprecation means migrating every caller in the same change; stage 8 made
+    // that one move — the demo converted to `.frame` by `LR-ES`'s recipe, every
+    // test either converted (class F), moved to the test target's
+    // undeprecated `css*` helpers that write the same `Style` field (class K,
+    // `Tests/MetalUITests/CSSSizing.swift`), or kept inside a deprecated
+    // protocol witness where the modifier itself is the subject (class D,
+    // `LR-EW`). Each carries a `message:`, not a `renamed:` (`LR-EU` item 2): a
+    // `renamed:` fix-it rewrites `.width(x)` to `.frame(width: x)` in place and
+    // silently skips the rest of the recipe — a background left before its
+    // frame, a sized container's content re-centred (`LR-ES` R2, R3). The two
+    // `fraction:` spellings are deprecated with no replacement: a fraction of
+    // the containing block has no SwiftUI counterpart and traps under the
+    // proposal authority (`LR-AI`), which production runs since stage 6b. The
+    // guard is `theSizingModifiersAreDeprecatedTowardFrame`
+    // (`FrameSizingCompileGuards.swift`). The fields they write, and these
+    // modifiers, go with `Style.size`/`minSize`/`maxSize` at stage 10.
 
     /// Writes this element's own CSS `width`. SwiftUI's spelling is
     /// `.frame(width:)`, which wraps instead — see the section comment above.
+    @available(*, deprecated, message: "use .frame(width:), which wraps this element in a layer instead of writing its own box (LR-ES)")
     public func width(_ points: Pixels) -> Self {
         modifying { $0.size.width = .length(.pixels(points)) }
     }
 
     /// Writes this element's own CSS `height`. SwiftUI's spelling is
     /// `.frame(height:)`, which wraps instead — see the section comment above.
+    @available(*, deprecated, message: "use .frame(height:), which wraps this element in a layer instead of writing its own box (LR-ES)")
     public func height(_ points: Pixels) -> Self {
         modifying { $0.size.height = .length(.pixels(points)) }
     }
 
     /// This element's own CSS `width`, as a **fraction** of the containing
     /// block's width: `width(fraction: 0.5)` is half. SwiftUI has no
-    /// counterpart at all, which is why this one is kept as an explicit
-    /// MetalUI divergence with a test (`FR-H`); its nearest,
+    /// counterpart at all, which is why this one was kept as an explicit
+    /// MetalUI divergence with a test (`FR-H`) while production ran the legacy
+    /// engine — and why stage 8 deprecates it with no replacement (`LR-EU` item
+    /// 3: unlowerable under the proposal authority, `LR-AI`); its nearest,
     /// `containerRelativeFrame`, resolves against a named container rather
-    /// than a containing block. Pinned by
-    /// `aFractionSizeResolvesAgainstItsContainingBlock`
-    /// (`Tests/MetalUITests/FrameSizingTests.swift`).
+    /// than a containing block. Pinned on the legacy authority by
+    /// `aFractionSizeResolvesAgainstItsContainingBlock` until stage 7b retired
+    /// it (record §49 §4 row 203); under the proposal authority a fraction is
+    /// reported by name (`percentagesStillReportByNameWithTheirOwner`).
     ///
     /// **Renamed from `width(percent:)`** (ruling `CN-O`), whose label said
     /// percentage while `Length.percent` is `f * parent` in `resolveLength`, so
@@ -847,9 +865,10 @@ extension StyledElement {
     ///
     /// The **root** is not a special case: ruling `SZ-A` made `resolveRootSize`
     /// resolve a root fraction against the extent that axis was offered
-    /// (oracle `rootPercentageMatchesWebKit`,
-    /// `Tests/MetalUILayoutTests/SizingFixtureTests.swift`); the test's root
+    /// (oracle `rootPercentageMatchesWebKit`, in `SizingFixtureTests.swift`,
+    /// retired with the goldens by stage 7a and the file by 7b); the test's root
     /// arm keeps that honest through the public modifier.
+    @available(*, deprecated, message: "a fraction of the containing block has no SwiftUI counterpart and is unlowerable under the proposal layout authority (LR-AI); declare a length with .frame(width:)")
     public func width(fraction: Float) -> Self {
         modifying { $0.size.width = .length(.percent(fraction)) }
     }
@@ -857,6 +876,7 @@ extension StyledElement {
     /// This element's own CSS `height`, as a **fraction** of the containing
     /// block's height — see `width(fraction:)` for the unit and for the
     /// divergence `FR-H` keeps it under.
+    @available(*, deprecated, message: "a fraction of the containing block has no SwiftUI counterpart and is unlowerable under the proposal layout authority (LR-AI); declare a length with .frame(height:)")
     public func height(fraction: Float) -> Self {
         modifying { $0.size.height = .length(.percent(fraction)) }
     }
@@ -877,7 +897,9 @@ extension StyledElement {
 
     /// Writes this element's own CSS `min-width`. SwiftUI's spelling is
     /// `.frame(minWidth:)`, which wraps instead — and, as `minHeight(_:)`
-    /// records, the two are not interchangeable at a value of 0.
+    /// records, the two were not interchangeable at a value of 0 on the legacy
+    /// engine.
+    @available(*, deprecated, message: "use .frame(minWidth:), which wraps this element in a layer instead of writing its own box (LR-ES)")
     public func minWidth(_ points: Pixels) -> Self {
         modifying { $0.minSize.width = .length(.pixels(points)) }
     }
@@ -885,23 +907,29 @@ extension StyledElement {
     /// Writes this element's own CSS `min-height`. SwiftUI's spelling is
     /// `.frame(minHeight:)`, which wraps instead.
     ///
-    /// **A zero here is the only way to cancel flex §4.5's automatic
-    /// (content-based) minimum, and no frame layer can do it** — ruling
-    /// `FR-G`, measured on the demo's own shape (`MetalUIDemoContent/DemoContent.swift`'s
-    /// list: a `flexGrow(1)`, `flexBasis(0)` box holding 400pt of content in a
-    /// 200pt `Column` under an 80pt header):
+    /// **On the legacy engine a zero here was the only way to cancel flex
+    /// §4.5's automatic (content-based) minimum, and no frame layer could do
+    /// it** — ruling `FR-G`, measured on the demo's own shape (a `flexGrow(1)`,
+    /// `flexBasis(0)` box holding 400pt of content in a 200pt `Column` under an
+    /// 80pt header): `.minHeight(Pixels(0))` shrank the content to 120; with no
+    /// minimum, or with `.frame(minHeight: 0)` and the grow on either the layer
+    /// or the inner box, it stayed 400 — the layer's `minSize` is the *layer's*
+    /// minimum, and the element inside kept its own automatic one.
     ///
-    /// | spelling | the content's height |
-    /// |---|---|
-    /// | `.minHeight(Pixels(0))` — the demo's own | **120**, shrunk into the space left |
-    /// | no minimum — the control | **400** |
-    /// | `.frame(minHeight: 0)`, `flexGrow`/`flexBasis` on the layer | **400** |
-    /// | `.frame(minHeight: 0)`, `flexGrow`/`flexBasis` on the inner box | **400** |
-    ///
-    /// The layer's `minSize` is the *layer's* minimum; the element inside keeps
-    /// its own automatic one. Pinned by
-    /// `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt`. That
-    /// one live caller is why these four clamps are kept rather than migrated.
+    /// **Amended by stage 8** (`LR-ET`): under the proposal authority, which
+    /// production runs since stage 6b, there is no automatic minimum. A greedy
+    /// frame's lower bound is its content unless it declares a minimum —
+    /// SwiftUI's rule (probe `swiftui-engine-stage-8.swift` F0/F1: 400 without,
+    /// 120 with `minHeight: 0`) — so the cancellation's spelling is
+    /// **`.frame(minHeight: 0, maxHeight: .infinity)`** on the growing box,
+    /// pinned by `aGreedyFrameAnswersBelowItsContentOnlyWithAZeroMinimum`
+    /// (`FrameSizingTests`). FR-G's one live caller, the demo scroller box's
+    /// `.minHeight(Pixels(0))`, had been inert since stage 6b (its lowered
+    /// `ScrollView` fills its proposal; record §50 §3, O1/O2) and is gone with
+    /// the demo's conversion. This modifier, on a grown axis, still answers the
+    /// same under the proposal authority (it is the greedy frame's minimum,
+    /// `LR-AG`) until stage 10 deletes it.
+    @available(*, deprecated, message: "use .frame(minHeight:), which wraps this element in a layer instead of writing its own box (LR-ES); a growing box's zero minimum is .frame(minHeight: 0, maxHeight: .infinity) (LR-ET)")
     public func minHeight(_ points: Pixels) -> Self {
         modifying { $0.minSize.height = .length(.pixels(points)) }
     }
@@ -910,12 +938,14 @@ extension StyledElement {
     /// `.frame(maxWidth:)`, which wraps instead — and differs in more than the
     /// node: a legacy frame clamps at its maximum but never grows toward its
     /// proposal, where SwiftUI's does (ruling `FR-E`).
+    @available(*, deprecated, message: "use .frame(maxWidth:), which wraps this element in a layer instead of writing its own box (LR-ES)")
     public func maxWidth(_ points: Pixels) -> Self {
         modifying { $0.maxSize.width = .length(.pixels(points)) }
     }
 
     /// Writes this element's own CSS `max-height`. SwiftUI's spelling is
     /// `.frame(maxHeight:)`, which wraps instead — see `maxWidth(_:)`.
+    @available(*, deprecated, message: "use .frame(maxHeight:), which wraps this element in a layer instead of writing its own box (LR-ES)")
     public func maxHeight(_ points: Pixels) -> Self {
         modifying { $0.maxSize.height = .length(.pixels(points)) }
     }
@@ -943,10 +973,15 @@ extension StyledElement {
     /// *sizing* modifier anywhere. `FR-Q` counted four: its fourth,
     /// `borderWidth(_ edges:)`, was deleted by the outer-modifiers track in
     /// the same integration, ruling `OM-M`, and the paint-only `border` that
-    /// replaced it takes `Pixels`). A rem resolves in
-    /// `MetalUILayout/Resolve.swift` against `Frame.rootFontSize` — a single
-    /// per-frame `let`, default 16, not a per-element font size — and is
-    /// already pinned by `ResolveTests`. SwiftUI has neither, so it is a
+    /// replaced it takes `Pixels`). A rem resolves in the lowering
+    /// (`LegacyLowering.swift`'s `resolvedLength`; the CSS engine's `Resolve.swift`
+    /// until stage 9) against `Frame.rootFontSize` — a single
+    /// per-frame `let`, default 16, not a per-element font size. `ResolveTests`
+    /// pinned it until stage 7b retired that file (record §49 row 173); the
+    /// lowering's rem resolution is pinned by the rem arms of
+    /// `aLoweredFixedSizeBoxPaintsAndHitTestsAtItsDeclaredSize` and
+    /// `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` (record
+    /// §49 §6.1, M1l). SwiftUI has neither, so it is a
     /// MetalUI divergence kept under `FR-H`'s disposition; it is a box-model
     /// unit rather than a frame parameter, so plan task 4 left it alone.
     public func padding(_ edges: Edges<Length>) -> ModifiedElement<LayerBase> {
@@ -1117,43 +1152,20 @@ extension StyledElement {
 
     // MARK: Participation
 
-    /// `display: none` — the element and its subtree contribute no box.
-    ///
-    /// It still runs all three phases and still registers its nodes; the engine
-    /// filters it out of its parent's item list, so its rect stays at the zero
-    /// `LayoutTree` initialised it with.
-    ///
-    /// **This is a LAYOUT modifier and paint does not honour it. A hidden
-    /// subtree containing a `Text` still emits glyphs, at the surface's own
-    /// origin.** Nothing in `Sources/MetalUI` reads `Style.display` during
-    /// paint: `Box.paint` fills its bounds and recurses into
-    /// `content.paintGroup` unconditionally, so a hidden `Box`'s own fill is
-    /// harmlessly degenerate (a zero-size rect) while its children paint from
-    /// the zero rect's origin — which, a hidden node never having been placed,
-    /// is `(0, 0)` in surface coordinates rather than anywhere near where the
-    /// element was written. `Text.paint` then re-shapes at
-    /// `max(bounds.width, smallestWrapWidth)`, and `smallestWrapWidth` is 0.5,
-    /// so the string wraps after **every character** and stacks one glyph per
-    /// line down the window's left edge.
-    ///
-    /// Measured, not read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); … }`
-    /// in a 400×300 frame emits the expected zero rect **and two glyphs**, at
-    /// `(0, 2)` and `(−1, 18)` — the second negative in x, its left side
-    /// bearing carrying it outside the surface entirely.
-    ///
-    /// So `hidden()` is safe on a subtree of `Box`es and wrong on anything that
-    /// draws its own content. Use a conditional in the `@ElementBuilder` block
-    /// instead — `if showIt { … }` — which removes the element from the tree
-    /// rather than from the item list; `Sources/MetalUIDemoContent/DemoContent.swift`'s modal
-    /// does exactly that, and carries the vanishing-`if` identity caveat at its
-    /// call site. CLAUDE.md's declared-but-inert table has the row.
-    ///
-    /// **Everything above is the legacy authority.** Under the proposal
-    /// authority (stage 6b, ruling `LR-DH`) a hidden node lowers **as if
-    /// shown** — it keeps its space, as SwiftUI's `hidden()` does — and joins
-    /// `Frame.hiddenNodes`: it and its subtree paint nothing (a hidden `Text`
-    /// emits no glyph), register their pointer hitboxes under the
+    /// `display: none` — SwiftUI's `hidden()` (plan task 7, stage 6b, ruling
+    /// `LR-DH`): the node lowers **as if shown** — it keeps its space — and
+    /// joins `Frame.hiddenNodes`, so it and its subtree paint nothing (a hidden
+    /// `Text` emits no glyph), register their pointer hitboxes under the
     /// `hitTestingDisabled` scope and publish nothing to accessibility.
+    ///
+    /// **History.** Until stage 9 (`LR-FC`) the legacy authority's `display:
+    /// none` filtered the element out of its parent's item list and left its
+    /// rect at zero while paint still ran: a hidden subtree containing a `Text`
+    /// emitted glyphs from the surface origin, one per line (measured: two
+    /// glyphs at `(0, 2)` and `(−1, 18)` for `Column { Box { Text("Hi") }…
+    /// .hidden() }`), which is why CLAUDE.md's declared-but-inert table carried
+    /// the modifier as unsafe on drawing subtrees and recommended a conditional
+    /// in the `@ElementBuilder` block instead.
     public func hidden() -> Self {
         modifying { $0.display = .none }
     }
