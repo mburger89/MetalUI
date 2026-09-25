@@ -17,6 +17,14 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// legacy child at the type boundary rather than build a mixed tree that traps
 /// during layout. The positive control proves this is a boundary, not a
 /// missing overlay API.
+///
+/// **Plan task 7, stage 11 moved the boundary** (ruling `LR-FX` item 1, and
+/// `LR-GC` item 1 for this test's body): `.overlay` is declared on
+/// `ElementGroup`, so `Text("legacy").overlay { Rectangle() }` is now a legacy
+/// overlay and compiles — the old negative is the second positive below. What
+/// still must not compile is that legacy overlay entering a proposal container,
+/// because `OverlayModifier` is a `ProposalElementGroup` only when both of its
+/// sides are; the negative is that spelling.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func proposalOverlayAcceptsProposalContentAndRejectsLegacyContent() throws {
     let positive = try typecheck("""
@@ -24,22 +32,27 @@ func proposalOverlayAcceptsProposalContentAndRejectsLegacyContent() throws {
             _ = Rectangle().overlay {
                 Color(.accent)
             }
-        }
-        """, importing: "MetalUI")
-    #expect(positive.succeeded,
-            "proposal content must retain the canonical overlay API:\n\(positive.output)")
-
-    let negative = try typecheck("""
-        @MainActor func probe() {
             _ = Text("legacy").overlay {
                 Rectangle()
             }
         }
         """, importing: "MetalUI")
+    #expect(positive.succeeded,
+            "proposal content must retain the canonical overlay API, and a legacy primary take it:\n\(positive.output)")
+
+    let negative = try typecheck("""
+        @MainActor func probe() {
+            _ = HStack {
+                Text("legacy").overlay {
+                    Rectangle()
+                }
+            }
+        }
+        """, importing: "MetalUI")
     #expect(!negative.succeeded,
-            "a legacy child must not enter the proposal overlay and trap while registering layout:\n\(negative.output)")
-    #expect(negative.messages.contains("overlay"),
-            "rejected, but not because the proposal overlay boundary was absent:\n\(negative.output)")
+            "a legacy overlay must not enter a proposal container and trap while registering layout:\n\(negative.output)")
+    #expect(negative.messages.contains("ProposalElementGroup"),
+            "rejected, but not because the proposal-content constraint was missing:\n\(negative.output)")
 }
 
 /// `onTap` has no layout footprint, but it still delegates registration to its
@@ -85,6 +98,8 @@ func proposalLayoutConstructorsRequireProposalContent() throws {
             _ = ModifiedContent(content: Rectangle(), modifier: .padding(Edges(all: Pixels(1))))
             _ = OnTapModifier(content: Rectangle()) {}
             _ = OverlayModifier(content: Rectangle()) { Color(.accent) }
+            _ = HStack { OverlayModifier(content: Rectangle()) { Color(.accent) } }
+            _ = OverlayModifier(content: Text("legacy")) { Rectangle() }
         }
         """, importing: "MetalUI")
     #expect(positive.succeeded,
@@ -132,10 +147,12 @@ func proposalLayoutConstructorsRequireProposalContent() throws {
     try assertRejectsLegacyContent("""
         @MainActor func probe() { _ = OnTapModifier(content: Text("legacy")) {} }
         """)
+    // Plan task 7, stage 11 (`LR-FX` item 1): `OverlayModifier` takes any
+    // `ElementGroup`, so a legacy primary is a positive above; what is rejected
+    // is that overlay entering a proposal container, since it is a
+    // `ProposalElementGroup` only when both sides are.
     try assertRejectsLegacyContent("""
-        @MainActor func probe() {
-            _ = OverlayModifier(content: Text("legacy")) { Rectangle() }
-        }
+        @MainActor func probe() { _ = HStack { Text("legacy").overlay { Rectangle() } } }
         """)
 }
 
