@@ -92,7 +92,7 @@ extension Window {
             guard let id = node.base as? GlobalElementID,
                   let onClick = lastHitboxes.last(where: { $0.id == id && $0.handlers.onClick != nil })?
                       .handlers.onClick else { return false }
-            onClick()
+            StateDispatch.dispatching(to: id) { onClick() }   // ID-F: the pressed element
             setNeedsRedraw()
             return true
         case .increment(let node):
@@ -116,7 +116,9 @@ extension Window {
         guard let id = node.base as? GlobalElementID,
               let handler = lastFocusRegistry.actionHandler(
                   for: id, type: ObjectIdentifier(AccessibilityAdjustment.self)) else { return false }
-        handler(AccessibilityAdjustment(direction: direction))
+        StateDispatch.dispatching(to: id) {   // ID-F: the adjusted element
+            handler(AccessibilityAdjustment(direction: direction))
+        }
         setNeedsRedraw()
         return true
     }

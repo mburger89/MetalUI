@@ -124,7 +124,7 @@ enum StateBinder {
                 shape.ordinals.append(index)
                 shape.hasEnvironment = true
                 if snapshot == nil { snapshot = frame.environmentSnapshot() }
-                bindable.bind(snapshot!)
+                bindable.bind(snapshot!, id: id, generation: frame.stateTable.generation)
             }
         }
         shapes[key] = shape
@@ -175,7 +175,9 @@ enum StateBinder {
                 bindable.bind(to: table, id: id, slot: index)
             } else if let bindable = child.value as? BindableEnvironment,
                       let environment {
-                bindable.bind(environment)
+                // The element id and generation let an aliased box keep one
+                // snapshot per occurrence (ruling ID-F).
+                bindable.bind(environment, id: id, generation: table.generation)
             }
             next += 1
             if next == ordinals.endIndex { break }

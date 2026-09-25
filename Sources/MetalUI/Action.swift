@@ -52,7 +52,7 @@ func dispatchAction(_ action: any Action, along chain: [GlobalElementID],
     let key = ObjectIdentifier(type(of: action))
     for id in chain {
         guard let handler = registry.actionHandler(for: id, type: key) else { continue }
-        handler(action)
+        StateDispatch.dispatching(to: id) { handler(action) }   // ID-F: this level owns it
         return true
     }
     return false

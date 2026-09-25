@@ -1298,7 +1298,9 @@ public final class Window {
         }
         let hit = lastHitboxes[index]
         guard hit.id == pressed, let handler = hit.handlers.onClick else { return false }
-        handler()
+        // The clicked element owns the dispatch, so an aliased `@State` box
+        // writes this occurrence (ruling ID-F, `StateDispatch`).
+        StateDispatch.dispatching(to: hit.id) { handler() }
         return true
     }
 
@@ -1410,7 +1412,7 @@ public final class Window {
     private func applyEdit(_ id: GlobalElementID, _ target: TextInputTarget, _ text: String) {
         guard text != currentText(id, target) else { return }
         editedText[id] = text
-        target.onChange(text)
+        StateDispatch.dispatching(to: id) { target.onChange(text) }   // ID-F: the edited field
     }
 
     /// After each frame: text input is on exactly while a field is focused,
@@ -1482,7 +1484,7 @@ public final class Window {
         if let text = outcome.text { applyEdit(id, target, text) }
         if outcome.submitted {
             guard let onSubmit = target.onSubmit else { return false }
-            onSubmit()
+            StateDispatch.dispatching(to: id) { onSubmit() }   // ID-F: the submitting field
         }
         return true
     }

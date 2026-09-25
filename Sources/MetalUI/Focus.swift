@@ -161,7 +161,8 @@ func dispatchKey(_ event: KeyEvent, along chain: [GlobalElementID],
                  in registry: FocusRegistry) -> Bool {
     for id in chain {
         guard let handler = registry.handler(for: id) else { continue }
-        if handler(event) { return true }
+        // Each level owns its own handler's dispatch (ruling ID-F).
+        if StateDispatch.dispatching(to: id, { handler(event) }) { return true }
     }
     return false
 }
