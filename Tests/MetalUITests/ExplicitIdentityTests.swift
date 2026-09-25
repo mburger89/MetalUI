@@ -72,13 +72,13 @@ private struct StatefulPair: Component {
         VStack { HStack { ProposalConditionalCounter("p", reads) }.id("g\(n)") }
     }
     #expect(typed.values["p"] == 1, "VStack parent: a changed id restarts the probe; read \(String(describing: typed.values["p"]))")
-    #expect(typed.ids["p"] == child(named(root, 0, "g1"), 0), "typed: \(String(describing: typed.ids["p"]))")
+    #expect(typed.ids["p"] == child(child(named(root, 0, "g1"), 0), 0), "typed: \(String(describing: typed.ids["p"]))")
 
     let untyped = render(steps) { n, reads in
         Row { HStack { ProposalConditionalCounter("p", reads) }.id("g\(n)") }
     }
     #expect(untyped.values["p"] == 1, "Row parent: a changed id restarts the probe; read \(String(describing: untyped.values["p"]))")
-    #expect(untyped.ids["p"] == child(named(root, 0, "g1"), 0), "untyped: \(String(describing: untyped.ids["p"]))")
+    #expect(untyped.ids["p"] == child(child(named(root, 0, "g1"), 0), 0), "untyped: \(String(describing: untyped.ids["p"]))")
 
     // Control: the name held constant keeps counting (X1), so the reset above
     // is the name's doing, not a fresh table.
@@ -201,6 +201,7 @@ private struct StatefulPair: Component {
 // MARK: - E3.6–E3.7: names in a loop, duplicate names
 
 /// A proposal counter keyed by its label, for loop items.
+@MainActor
 private func item(_ label: String, _ reads: ConditionalReads) -> IdentifiedGroup<ProposalConditionalCounter> {
     ProposalConditionalCounter(label, reads).id(label)
 }

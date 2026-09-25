@@ -179,4 +179,5 @@ extension OnTapModifier: ProposalElement {}
 // `OverlayModifier` is a `ProposalElement` only when both of its sides are
 // proposal content, declared with it in `NativeOverlayModifier.swift` (ruling
 // `LR-FX` item 1).
-extension BackgroundModifier: ProposalElement {}
+// `BackgroundModifier` likewise, since plan task 8's `ID-J`
+// (`NativeBackgroundModifier.swift`).

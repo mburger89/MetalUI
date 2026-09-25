@@ -20,7 +20,21 @@ import MetalUILayout
 /// 0 under this modifier's id, the background content from 0 under
 /// `.child(of: id, at: -1, name: nil)`, so the content's state does not depend
 /// on how many indices the primary consumed.
-public struct BackgroundModifier<Content: ProposalElementGroup, Background: ProposalElementGroup>: Element {
+///
+/// **Either side may be legacy content** (plan task 8, ruling `ID-J`):
+/// `OverlayModifier`'s `LR-FX` recipe line for line — two entries (the untyped
+/// `requestLayout` through `requestGroupLayout`; the typed
+/// `requestProposalLayout` through `requestProposalGroupLayout`, only when both
+/// sides are proposal content), one shared background-side id
+/// (`backgroundSide(of:)`) and one shared `attach`, which passes both sides
+/// through `lowerAttachmentChildren` (a legacy record consumed and planned as a
+/// frame layer's child is, a presentation placeholder dropped, a proposal node
+/// unwrapped). A primary of zero nodes (a presentation) or several (a
+/// multi-member `Component`) traps naming its count — divergence 73: SwiftUI
+/// attaches one background per member of a `Group` (probe G3/G4), MetalUI keeps
+/// a modifier one layer (`MC-A`, `ID-I` item 3). Pinned by
+/// `LegacyBackgroundTests`.
+public struct BackgroundModifier<Content: ElementGroup, Background: ElementGroup>: Element {
     public var content: Content
     public var background: Background
     public var alignment: ProposalAlignment
@@ -38,20 +52,34 @@ public struct BackgroundModifier<Content: ProposalElementGroup, Background: Prop
         var background: Background.GroupLayout
     }
 
-    public mutating func requestProposalLayout(_ id: GlobalElementID,
-                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
+    /// The untyped entry — `Frame`'s root and a legacy parent: both sides
+    /// through `requestGroupLayout`, then the shared `attach`.
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         var contentCursor = 0
-        let (contentNodes, contentLayout) = content.requestProposalGroupLayout(under: id, at: &contentCursor,
-                                                                                pass: &pass)
+        let (contentNodes, contentLayout) = content.requestGroupLayout(under: id, at: &contentCursor,
+                                                                       pass: &pass)
         var backgroundCursor = 0
-        let backgroundSide = GlobalElementID.child(of: id, at: -1, name: nil)
-        let (backgroundNodes, backgroundLayout) = background.requestProposalGroupLayout(under: backgroundSide,
-                                                                                         at: &backgroundCursor,
-                                                                                         pass: &pass)
-        let node = pass.requestSecondaryContentAttachment(primary: contentNodes.map(\.layoutNodeID),
-                                                          secondary: backgroundNodes.map(\.layoutNodeID),
-                                                          alignment: alignment, modifier: "background")
-        return (ProposalNodeID(node), Layout(node: node, content: contentLayout, background: backgroundLayout))
+        let (backgroundNodes, backgroundLayout) = background.requestGroupLayout(under: Self.backgroundSide(of: id),
+                                                                                at: &backgroundCursor,
+                                                                                pass: &pass)
+        let node = attach(contentNodes, backgroundNodes, pass: &pass)
+        return (node, Layout(node: node, content: contentLayout, background: backgroundLayout))
+    }
+
+    /// The id the background side numbers under: `MC-P`'s `-1`, which no
+    /// cursor can produce.
+    static func backgroundSide(of id: GlobalElementID) -> GlobalElementID {
+        GlobalElementID.child(of: id, at: -1, name: nil)
+    }
+
+    /// Both sides lowered (`lowerAttachmentChildren`), then the attachment.
+    func attach(_ contentNodes: [LayoutNodeID], _ backgroundNodes: [LayoutNodeID],
+                pass: inout LayoutPass) -> LayoutNodeID {
+        let primary = pass.lowerAttachmentChildren(contentNodes)
+        let secondary = pass.lowerAttachmentChildren(backgroundNodes)
+        return pass.requestSecondaryContentAttachment(primary: primary, secondary: secondary,
+                                                      alignment: alignment, modifier: "background")
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
@@ -68,12 +96,34 @@ public struct BackgroundModifier<Content: ProposalElementGroup, Background: Prop
     }
 }
 
-extension ProposalElementGroup {
+extension BackgroundModifier: ProposalElementGroup, ProposalElement
+    where Content: ProposalElementGroup, Background: ProposalElementGroup {
+    /// The typed entry — a proposal parent: both sides through
+    /// `requestProposalGroupLayout`, then the shared `attach`.
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
+        var contentCursor = 0
+        let (contentNodes, contentLayout) = content.requestProposalGroupLayout(under: id, at: &contentCursor,
+                                                                                pass: &pass)
+        var backgroundCursor = 0
+        let (backgroundNodes, backgroundLayout) =
+            background.requestProposalGroupLayout(under: Self.backgroundSide(of: id), at: &backgroundCursor,
+                                                  pass: &pass)
+        let node = attach(contentNodes.map(\.layoutNodeID), backgroundNodes.map(\.layoutNodeID), pass: &pass)
+        return (ProposalNodeID(node), Layout(node: node, content: contentLayout, background: backgroundLayout))
+    }
+}
+
+extension ElementGroup {
     /// Places `content` behind this view, proposed this view's size and
-    /// positioned by `alignment` (ruling CN-K). The `ColorToken` overload,
-    /// `.background(_:)`, fills this view's bounds instead.
-    public func background<Background: ProposalElementGroup>(alignment: ProposalAlignment = .center,
-                                                             @ElementBuilder content: () -> Background)
+    /// positioned by `alignment` (ruling CN-K). **One overload, on
+    /// `ElementGroup`** (plan task 8, ruling `ID-J`, as `.overlay` is since
+    /// `LR-FX`): a legacy primary or background is lowered as a frame layer's
+    /// child; the result enters a proposal container only when both sides are
+    /// proposal content. The `ColorToken` overload, `.background(_:)`, fills
+    /// this view's bounds instead, and is still not offered on a `Component`.
+    public func background<Background: ElementGroup>(alignment: ProposalAlignment = .center,
+                                                     @ElementBuilder content: () -> Background)
         -> BackgroundModifier<Self, Background> {
         BackgroundModifier(content: self, alignment: alignment, background: content)
     }
