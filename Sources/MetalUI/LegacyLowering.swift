@@ -1089,8 +1089,10 @@ extension LayoutPass {
             // raise. **A frame layer's record included** since stage 8 (`LR-EV`
             // item 3): until then a `.position` written after `.frame` was the
             // layer's own `style` report and this check skipped it; with the
-            // one-node exemption in `legacyFrameLayerDiagnostics` a framed absolute
-            // box outside a `Deferred` would otherwise lower silently in flow.
+            // absolute exemption in `legacyFrameLayerDiagnostics` (over any node
+            // count since stage 11, `LR-FY` item 3) a framed absolute box — one
+            // node or a component's row — outside a `Deferred` would otherwise
+            // lower silently in flow.
             if d.position == .absolute {
                 reports.append("position")
                 if d.inset != Edges(all: .auto) { reports.append("inset") }
