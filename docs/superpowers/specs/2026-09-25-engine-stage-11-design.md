@@ -8,10 +8,31 @@ each amended passage says so; lane 1: `LR-GB`, likewise; lane 2: `LR-GC`, likewi
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md);
 measurements in `docs/record/54-engine-replacement-stage-11.md`.
 
-**Status: design.** No file under `Sources/` or `Tests/` changed in a commit.
-Two scratch measurements were applied, run and reverted (`git checkout
-Sources`, scratch tests deleted, `git status --short` showing only this
-design's docs and probes afterwards); record §54 §3–§4 has them.
+**Status, 2026-09-25 (PDT): DELIVERED.** Critic round 1 applied (`LR-GA`,
+seven findings); lane 1 landed (`273bbd8` red, `82c5ef9` green; record §54
+§7, `LR-GB`); lane 2 landed (`131fe16` red, `540da08` green, a fix round
+pinning the report path, the parent style and the overlay-side drop; record
+§54 §8, `LR-GC`/`LR-GD`); lane 3 landed (`dcdc415` red, `40e48bd`/`529b032`
+green, a fix round pinning the escaped fill's and border's emission order,
+N2.5; record §54 §9, `LR-GE`/`LR-GF`) — **`Test run with 1444 tests in 3
+suites passed`**, 84 guards, 0 goldens, 0 `warning:` besides SwiftPM's notice
+on both build systems, the fourteen-image comparison against `47c0d98`
+reading 0 differing. **The Record phase (record §54 §10) independently
+re-checked the suite, guard and golden counts, the pixel comparison from a
+fresh scratch copy, `Backends/SDL`, `Tests/PortableTests` and a
+`swift:6.4-noble` Docker container**, and closed the two verifier findings
+left open (lane 2's joined code block in record §54 §8.1; lane 3's stale
+M2e reddened-set count and line numbers in `DecorationPaintTests.swift`'s
+doc comment and record §54 §9.3) — every measurement reads the same as the
+lanes' own. In the design phase no `Sources/` or `Tests/` file changed in a
+commit; two scratch measurements were applied, run and reverted (`git
+checkout Sources`, scratch tests deleted, `git status --short` showing only
+this design's docs and probes afterwards); record §54 §3–§4 has them. **Task
+7's own three clauses now hold on this branch** (no production layout
+request reaches the legacy engine, the CSS layout paths and dead `Style`
+fields are gone, the two modifier vocabularies are unified) — the plan's
+checkbox moves only once the adversarial branch check confirms every §4.1
+row's exit criterion (§9).
 
 ## Contents
 

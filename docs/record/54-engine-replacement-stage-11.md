@@ -367,14 +367,14 @@ lines were taken from a build one helper-rename before the commit: the file's
 `group` builder helper clashed at the call site (`value of type 'group' has no
 member 'overlay'`) and was renamed `members` before `131fe16`. L5's own lines
 were re-taken at `131fe16` by the lane's verifier (and recorded by the fix
-round, `LR-GD` item 5):
+round, `LR-GD` item 5; its follow-on lines are `:311:13` and `:313:10`):
 
     LegacyOverlayTests.swift:310:26: error: referencing instance method 'overlay(alignment:content:)' on 'OptionalGroup' requires that 'EmptyComponent' conform to 'ProposalElementGroup'   (N1.3, L5)
-    LegacyOverlayTests.swift:311:13 and :313:10   (N1.3, L5: the same failure's follow-on lines) N1.6 is a must-not-move pin with no red by
-design. Its literals — **5 nodes, work 3/4/8, six recorded bounds, rects (80,
-65) 40×30 and (95, 75) 10×10 at alpha 0.5** — were taken at `47c0d98` by a
-scratch test in the demo-pixel harness's export of that commit (`src-47c0d98`),
-which was deleted afterwards.
+
+N1.6 is a must-not-move pin with no red by design. Its literals — **5 nodes,
+work 3/4/8, six recorded bounds, rects (80, 65) 40×30 and (95, 75) 10×10 at
+alpha 0.5** — were taken at `47c0d98` by a scratch test in the demo-pixel
+harness's export of that commit (`src-47c0d98`), which was deleted afterwards.
 
 ### 8.2 Green
 
@@ -535,6 +535,16 @@ the four touched files; `git status --short` empty after each.
 Every new test is reddened by at least one of its named mutations. No typecheck
 guard was added, so none is owed a red.
 
+**M2e re-run at `d86cb4e` (lane 3's fix round, §9.7):** N2.5 now exists, and
+M2e reddens it too — **15** issues, not the 14 above, taken at `529b032`
+before N2.5 was written. T2.1's own three lines have also moved, from
+`:918`/`:921`/`:930` (at `529b032`) to `:924`/`:927`/`:936` at this record's
+head (the doc comment above it grew by one line when it was corrected to name
+N2.5, §9.7); the row above is left as the literal `529b032` measurement, not
+retaken, since re-running M2e a third time was not needed to close the finding
+— T2.1's doc comment (`DecorationPaintTests.swift`) now names N2.5 and the
+current line numbers directly.
+
 ### 9.4 The demo, the pins, the gates
 
 `docs/probes/demo-pixels/compare.sh <scratch>/pix 47c0d98 540da08 529b032`.
@@ -616,3 +626,155 @@ Suite at `d86cb4e`: `swift build --build-system native --build-tests` 0
 `FR-J no-argument frame: succeeded=true`; `swift build --build-tests` 0
 `error:`, 0 `warning:`. T2.1's doc comment now spells M2e as the source
 inversion (`LR-GE` item 3).
+
+## 10. The stage's close (Record phase, 2026-09-25, PDT)
+
+Spec §8's exit criteria, re-checked independently at `774e775` (the docs
+commit ahead of lane 3's fix round), not by re-reading the lanes' own claims.
+
+### 10.1 Two verifier findings closed first
+
+Both minor issues carried by the three lane verdicts were fixed before the
+close, neither touching a `Sources/` line or a test assertion:
+
+1. **Lane 2's finding** — record §54 §8.1 joined an indented error line to
+   the prose paragraph after it, so `N1.6`'s sentence started inside the code
+   block and rendered wrong. Fixed: the code block now ends after
+   `LegacyOverlayTests.swift:310:26`'s line, the follow-on lines `:311:13`
+   and `:313:10` are named in the prose above it, and `N1.6 is a must-not-move
+   pin with no red by design.` opens its own paragraph (§8.1, this file).
+2. **Lane 3's finding** — the M2e row (§9.3, taken at `529b032` before N2.5
+   existed) reddens 14 issues there, but T2.1's own doc comment
+   (`DecorationPaintTests.swift`) still cited that count and those line
+   numbers after N2.5 was added, and neither said M2e now reddens N2.5 too.
+   Fixed: T2.1's doc comment names N2.5 in M2e's reddened set and gives this
+   file's current line numbers (`:924`/`:927`/`:936`); §9.3 gains a note
+   (below the mutation table) recording that M2e reddens **15** issues at
+   `d86cb4e`, not 14, with N2.5 among them, and that the table's own row is
+   left as the literal `529b032` measurement rather than retaken.
+
+Both are Tests-only comment edits (`DecorationPaintTests.swift`) plus this
+record; neither moves a suite, guard or golden count.
+
+### 10.2 Independent re-verification
+
+1. **`swift package clean`, then a clean rebuild**: `swift build
+   --build-system native --build-tests` → `Build complete!`, 0 `error:`, the
+   one `warning:` SwiftPM's own deprecation notice; `swift build
+   --build-tests` (default build system) → `Build complete!`, 0 `error:`, 0
+   `warning:`.
+2. Unfiltered `swift test --build-system native --no-parallel` →
+   **`Test run with 1444 tests in 3 suites passed after 81.394 seconds.`**,
+   the log carrying `FR-J no-argument frame: succeeded=true` (guards ran).
+   **84 guards** (`grep -c canTypecheck` per file, summed across
+   `Tests/MetalUICoreTests/UnitSafetyTests.swift` (3) and seventeen files
+   under `Tests/MetalUITests` — `PhaseSeparationTests` 19, `ErasureCompileGuards`
+   10, `EnvironmentCompileGuards` 8, `ProposalNodeIDCompileGuards` 6,
+   `ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5,
+   `ContainerCompileGuards` 4, `GridCompileGuards` 4, `StyleSurfaceCompileGuards`
+   3, `AXNodeTests` 3, `DecorationCompileGuards` 3, `FrameSizingCompileGuards`
+   3, `ModifiedElementCompileGuards` 2, `UnifiedModifiedContentCompileGuards`
+   2 (new this stage), `SceneBoundaryCompileGuards` 2,
+   `LayoutAuthorityCompileGuards` 2 — plus `Tests/MetalUITestSupport/Typecheck.swift`'s
+   own declaration (1): 86 total, less the declaration and `UnitSafetyTests`'
+   one comment-line hit = **84**, matching lane 1's figure exactly. **0
+   goldens** (`find Tests -name "*.json" -not -path "*/.build/*" | wc -l`
+   reads 0). **Eleven** gated tests skipped, unchanged from stage 10
+   (`recordDemoFrames`, the FreeType/HarfBuzz/portable-text/line-breaking/
+   lines-emission (two)/content-sizes/font-fallback/bidi `measure*` oracles,
+   `aListsWorkIsTheSameFor100kRowsAsFor500`).
+3. **The fourteen-image comparison against `47c0d98`**, re-taken independently
+   with `docs/probes/demo-pixels/compare.sh` from a fresh scratch directory at
+   `774e775`: the five pairwise controls and two distinct-value counts read
+   the stage-9-corrected values exactly (`1048576`, `1031003`, `454895`, `0`,
+   `1048576`, `0`, `544`/`216`, `491221`, `529`, `0` indicator rects) and **all
+   fourteen images read `differing=0`, scene identical**, matching all three
+   lanes' own runs (§7.6, §8.4, §9.4). `DemoFrameDeterminismTests` and
+   `DemoStackBudgetTests` are unedited and green in the 1444.
+4. **`Backends/SDL`** (`.accesskit` already fetched;
+   `PKG_CONFIG_PATH=$PWD/.accesskit swift build --build-tests` then `swift
+   test`): 0 `error:`; **`Test run with 21 tests` and `19 tests` passed**
+   (`ReplayFixtureTests`, `MetalUISDLTests`), re-run independently at
+   `774e775` — unmoved from lane 2's and lane 3's own readings, as expected
+   (no diff since `540da08` touches `Backends/SDL`).
+5. **`Tests/PortableTests`**: `swift build --build-tests` 0
+   `error:`/`warning:`; `swift test` → **18 + 6 + 5 passed**, re-run
+   independently at `774e775`.
+6. **`swift:6.4-noble`** (Docker, aarch64), re-run independently over `git
+   archive 774e775` rather than re-read any lane's own measurement: `swift
+   build --build-tests` → `Build complete!`, 0 `error:`/`warning:`; `swift
+   test --skip-build --filter
+   'MetalUICoreTests|MetalUILayoutTests|MetalUICrossPlatformTests'` →
+   **22 + 188 + 10 passed**, `theDemoFrameMatchesTheValuesRecordedOnMacOS` and
+   `everyProductionTreeBuildsOnAOneMegabyteThread` green off Apple. Windows
+   itself was not run locally (no Windows host in this environment); its
+   build is `root-windows` CI's job, unchanged by this stage beyond the files
+   this stage touches (all portable already).
+7. **Every removed `@Test` has a row: none was removed.** §7.3, §8.2/§8.3
+   and §9.2/§9.7 already give the equation (**1444 = 1426 + 18**: lane 1 +4
+   (`N1.1`, `N1.2`, `G1.1`, `G1.2`), lane 2 +9 (`N1.3`–`N1.7`, its fix round's
+   `N1.8`–`N1.11`), lane 3 +5 (`N2.1`–`N2.4`, its fix round's `N2.5`), no test
+   removed). This Record phase spot-checked the equation two ways: a grep for
+   the fourteen new test names above each hit exactly once, at its
+   declaration, in the tree at `774e775`; and no `Sources/`/`Tests/` diff
+   between `47c0d98` and `774e775` removes a `@Test` attribute or a `func`
+   line — every deletion in the range is a body edit (mutation reverts aside,
+   which never landed) or the two doc-comment fixes above. `goldensUnchanged`:
+   no `@Test` is removed, so no retirement row is owed.
+
+All seven hold.
+
+### 10.3 Not done, owners already assigned (spec §10)
+
+- **To plan task 8** (`Group` semantics): a legacy `.background { content }`;
+  `.frame` on a multi-member `Component` distributing per member (SwiftUI's
+  `Group` answer); a `Group`-style overlay on a multi-member primary (N1.7
+  traps); divergence 56's remainder (`TB-M`, the same per-member distribution
+  question).
+- **To plan task 10**: divergence 54 (a lowered `ScrollView`'s cross axis) —
+  a scrolling answer that moves every legacy `ScrollView`, not a modifier
+  question.
+- **To plan task 15** (closeout): deprecating or removing the `ModifiedElement`
+  typealias (a public spelling decision with no behaviour, alongside the
+  eight deprecated sizing modifiers, `LR-FN` item 5, already owed there).
+- **Recorded, kept**: divergence 46 (two `.opacity` calls on one legacy
+  element replace, not multiply) — `OM-AH`'s reasons stand, and no row of
+  this stage hands it here.
+- `OnTapModifier` and `BackgroundModifier` stay separate types, not the two
+  this row unifies — plan task 8's, alongside `Group` semantics generally.
+
+### 10.4 Docs updated to match this close
+
+`CLAUDE.md`/`AGENTS.md` (a new leading Counts bullet — 1444 / 0 / 84, not yet
+merged with `master`; the `LR-` next letter corrected to `LR-GG`; a stage-11
+entry added to "Where things are"'s per-task-per-stage list, closing task 7's
+own three clauses; the identity bullets (`MC-A`/`MC-C`/`MC-P`) and the
+`Deferred`/sizing-modifiers Architecture-rules paragraphs updated for the
+unified type, the generalized `.overlay`, and `deferred.amended`'s report
+removed; the "Modifiers on `ProposalElementGroup`" vocabulary sentence named
+precisely; the known-divergences bullet retiring 45 and re-owning 54/56's
+remainder; the declared-but-inert bullet deleting `deferred.amended`'s row;
+the guards list and helper counts gaining `UnifiedModifiedContentCompileGuards`
+and its two `typecheckFile` guards; the CI-hazards guard count corrected to
+84), `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` (a
+stage-11 paragraph appended to the running narrative; §4.1 row 11's exit
+citation corrected from the outer-modifier-order probe to
+border-clip-paint's G3/G4 plus group H and overlay-primary-shape's arms,
+per `LR-FY` item 4), this spec's own Status line marked DELIVERED,
+`docs/record/04-divergences.md` (divergence 45 retired, 54 and 56's
+remainder re-owned, a new 2026-09-25 dated section), `docs/record/05-declared-but-inert.md`
+(the `deferred.amended` row deleted, a new 2026-09-25 dated section),
+`docs/record/03-verified-on-real-hardware.md` (a "no look added" section:
+this stage moves no demo pixel, so no look is newly owed, and the four
+looks stage 6b left open stay open, untouched by this stage),
+`docs/record/README.md` (§54 indexed), the plan's task 7 note (dated,
+**not** ticked — the tick and the row-by-row adversarial confirmation are
+the next phase's), and this repository's top-level `README.md`.
+
+**Task 7's own three clauses now hold on this branch**: no production layout
+request passes through the legacy engine (stage 9 deleted it), the CSS
+layout paths and dead `Style` fields are gone (stages 9–10), and
+`ModifiedElement`/`ModifiedContent` are unified (this stage). Whether the
+plan's checkbox moves is the adversarial branch check's finding, reading
+each of §4.1's eleven-plus-G rows on this branch — not this Record phase's
+to declare (spec §9).
