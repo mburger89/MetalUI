@@ -7,18 +7,26 @@ modifier placement against SwiftUI custom-view behaviour. Preserve MetalUI's
 structural identity model where it matches, and close or document the currently
 known state-retention and reused-value aliasing differences."* Branch
 `feat/composition-identity` from `e3cb3e9` (task 7 closed: one engine, one
-modifier type). Rulings `ID-A`…`ID-N` in
+modifier type). Rulings `ID-A`…`ID-Q` in
 [`../2026-09-25-composition-identity-decisions.md`](../2026-09-25-composition-identity-decisions.md);
 measurements and **the audit table** in `docs/record/55-composition-identity.md`
 (record §55 §3); SwiftUI evidence in `docs/probes/swiftui-composition-identity.swift`
 (new, arms A, V, X, S, G, L; revision 2 from the critic round, `ID-M`; output in
 its header).
 
-**Status, 2026-09-25: DESIGNED, critic round applied (`ID-M`).** No lane has run. In the design phase no
-`Sources/` or `Tests/` file changed in a commit; one throwaway test file and
-one scratch implementation were applied, run and reverted (record §55 §2), and
-`git status --short` showed only this design's documents and the probe
-afterwards.
+**Status, 2026-09-25: DELIVERED.** All three lanes ran, each red first, each
+verified `ok: true`, no fix/re-verify round owed; lane 3's own fix round
+(`ID-Q` item 6, B3.4) is the only red-then-green cycle in the task. The
+Record phase's independent close (record §55 §8) re-took the suite, guard and
+golden counts, the fourteen-image pixel comparison, `Backends/SDL` and a
+`swift:6.4-noble` container, all unmoved from the lanes' own readings; the
+audit table (§3) disposes of every item addressed to plan task 8, each as
+matched-and-pinned, fixed to SwiftUI's answer, or a kept divergence with a
+reason and an owner. Final count on this branch: **1483 tests, 0 goldens, 88
+typecheck guards**; 0 px against `e3cb3e9` in all fourteen offscreen images.
+**Still owed, to a human with an unlocked screen**: the real-window capture
+(§6, record §55 §8.5) — the screen was locked at every check across all three
+lanes, the critic round and the Record phase's own close.
 
 ## Contents
 

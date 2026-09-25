@@ -48,8 +48,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
   its spec), `TI-` (next `TI-I`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
-  spec). A numbered citation
-  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
+  spec), `ID-` (next `ID-R`; rulings in its own decisions doc,
+  `2026-09-25-composition-identity-decisions.md`). A numbered citation
+  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
@@ -212,6 +213,12 @@ milestones append their record to `docs/record/` and put only the rule here.
   11) needed no renumbering**: written directly on `feat/engine-stage-11`
   from `47c0d98` (stage 10's own merge tip), with no other line publishing a
   §54 first.
+  Task 8 `ID-` (§55, spec `specs/2026-09-25-composition-identity-design.md`,
+  decisions doc `2026-09-25-composition-identity-decisions.md`, probe
+  `swiftui-composition-identity.swift`) — audits `Group`, conditional
+  content, explicit identity, `Component` and modifier placement against
+  SwiftUI, disposing of every item task 7 stages 3, 4, 9, 11 and the grids
+  track hand it (record §54 §10.3, `LR-GA`, grids record §22).
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -229,6 +236,42 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-25, `feat/composition-identity` — plan task 8, composition
+  and identity, from `e3cb3e9`, not yet merged with `master`): 1483 tests, 0
+  goldens, 88 typecheck guards**, 0 `error:` on both build systems, the one
+  `warning:` SwiftPM's deprecation notice under native (0 under the default
+  one, `swift build --build-tests`), taken after `swift package clean` with
+  `swift build --build-system native --build-tests` then unfiltered `swift
+  test --build-system native --no-parallel` (**one summary line**, `Test run
+  with 1483 tests in 3 suites passed`; eleven gated tests skipped, unchanged;
+  the guards ran — the log carries `FR-J no-argument frame: succeeded=`).
+  **1483 = 1444 + 10 + 12 + 17**: lane 1 (`ID-E`, `ID-F`) +10 (`O1.1`–`O1.8`,
+  the review round's `O1.9`–`O1.10`), lane 2 (`ID-B`, `ID-C`, `ID-D`) +12
+  (`C2.2`–`C2.12`, `G2.1`, the review round's `C2.13`), lane 3 (`ID-G`,
+  `ID-J`) +17 (`E3.1`–`E3.9`, `B3.1`–`B3.3`, `N3.1`, `G3.1`–`G3.3`, the fix
+  round's `B3.4`); no test deleted outright, nine retirement rows
+  (`goldensUnchanged`: one in lane 1, eight in lane 2). Guards **88 = 84 + 1
+  + 3** (`ConditionalIdentityCompileGuards`, new, `G2.1`; then
+  `ExplicitIdentityCompileGuards`, new, `G3.1`–`G3.3`). **Fixed to SwiftUI's
+  answer**: an `if`/`for` each take one structural slot so a vanishing `if`'s
+  trailing sibling keeps its own state (`ID-B`); an evaluated conditional's
+  content resets on return, `$focus`/`$ax` exempted (`ID-C`); `if`/`else`/
+  `switch` compile in every proposal container (`ID-D`); `@State`/
+  `@Environment` bind inside an `AnyElement` (`ID-E`); a handler run by input
+  dispatch resolves the occurrence that dispatched it, new
+  `StateDispatch.swift` (`ID-F`); `.id(_:)` on every element group via
+  `IdentifiedGroup` (`ID-G`); a legacy `.background(alignment:content:)`
+  (`ID-J`). **Divergences 18, 19, 48 and 69 retire; 71–74 are added; 56 is
+  amended** (its cross-axis alignment sub-row pinned, `N3.1`) — live count
+  stays **55** (record §04). **0 px against `e3cb3e9` in all fourteen
+  offscreen images**, scene identical, independently re-taken by this Record
+  phase; `Backends/SDL` 21 + 19; a `swift:6.4-noble` aarch64 container builds
+  with 0 `error:`/`warning:` and runs **188 + 10 + 22**. **The real-window
+  capture is still owed** (screen locked at every check across all three
+  lanes and the Record phase's own close, unrelated to stage 6b's own
+  still-open real-window debt). History: record §55 (§1–§4 design audit
+  table and divergence plan, §5 lane 1, §6 lane 2, §7 lane 3, §8 the Record
+  phase's independent close).
 - **Counts (2026-09-25, `feat/engine-stage-11` — plan task 7 stage 11,
   modifier unification, from `47c0d98`, not yet merged with `master`): 1444
   tests, 0 goldens, 84 typecheck guards**, 0 `error:` on both build systems,
@@ -826,14 +869,17 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 - **Guards:** `grep -c canTypecheck` per file across `PhaseSeparationTests`,
   `ErasureCompileGuards`, `ElementGroupTrapTests`, `ProposalLayoutCompileGuards`,
   `ModifiedElementCompileGuards`, `UnifiedModifiedContentCompileGuards`
-  (stage 11, new), `ProposalNodeIDCompileGuards`,
+  (stage 11), `ProposalNodeIDCompileGuards`,
   `EnvironmentCompileGuards`, `FrameSizingCompileGuards`,
   `DecorationCompileGuards`, `ContainerCompileGuards`,
   `LayoutAuthorityCompileGuards`, `GridCompileGuards`,
   `UnitSafetyTests` (one hit is a comment),
   `AXNodeTests`, `SceneBoundaryCompileGuards`, `StyleSurfaceCompileGuards`
-  (stage 10); `Typecheck.swift` holds only
-  the declaration. Two helpers, 40 and 44 (42 before stage 11's two; 39
+  (stage 10), `ConditionalIdentityCompileGuards` and
+  `ExplicitIdentityCompileGuards` (plan task 8, new); `Typecheck.swift` holds
+  only
+  the declaration. Two helpers, 40 and 48 (44 before task 8's four; 42 before
+  stage 11's two; 39
   before stage 10's three; 38
   before stage 8's N3.1, 37
   before stage 6a's): `typecheck(_:importing:)` wraps the fixture in a
@@ -848,7 +894,11 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary`,
   **three** `StyleSurfaceCompileGuards` (stage 10, all three plain-import
   `typecheckFile` guards: `aPlainImportCannotWriteAStyleField`,
-  `theDeletedStyleSpellingsDoNotCompile`, `theLayoutKernelDeclaresNoStyle`) and seven of
+  `theDeletedStyleSpellingsDoNotCompile`, `theLayoutKernelDeclaresNoStyle`),
+  **one** `ConditionalIdentityCompileGuards` (plan task 8, `G2.1`,
+  `anIfElseAndASwitchCompileInEveryProposalContainer`) and **three**
+  `ExplicitIdentityCompileGuards` (plan task 8, `G3.1`–`G3.3`, all
+  whole-file) and seven of
   `EnvironmentCompileGuards`'. A guard about what an external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
@@ -1063,8 +1113,33 @@ paint-only query gains a guard and a bullet in `PhaseSeparationTests.swift`'s
 header in the same change.
 
 **Identity is structural; `.id()` overrides a position, never joins it.**
-- A vanishing `if` makes the **trailing sibling adopt** its state, focus and
-  click dispatch. Remedy: name the trailing sibling.
+- **An `if` with no `else` and a `for` loop each take ONE structural slot**
+  (plan task 8, `ID-B`): `OptionalGroup`/`ArrayGroup` (both the untyped and
+  typed copies) reserve one cursor index whether or not they produce
+  content, numbering their content from 0 under it — the shape `EitherGroup`
+  already had. **A vanishing `if`'s trailing sibling keeps its own state**,
+  matching SwiftUI (probe V1); naming the trailing sibling is no longer a
+  remedy anything needs. **Content an evaluated conditional removes is
+  reset on return** (`ID-C`): when an `OptionalGroup`'s slot or an
+  `EitherGroup`'s untaken branch was produced the previous frame, every
+  `StateTable` entry under it is deleted, except a `.named("$focus")`/
+  `.named("$ax")` component — focus and accessibility retention through a
+  toggle are unaffected. Two retentions are kept, by design: an element a
+  `for` loop stops producing keeps its state and gets it back if the loop
+  regrows (divergence 74, owner plan task 10's `ForEach`), and a conditional
+  that is **not evaluated** (a `List` row out of its window) is untouched
+  (`TB-AH`). `if`/`else`/`switch` now compile inside every proposal
+  container too (`ID-D`). **Migration note**: every element inside a bare
+  `if` or a `for` loop moved one identity level deeper at this task; code
+  that built a `GlobalElementID` through one by hand needs the slot level.
+- **`.id(_:)` now works on every element group**, not only a `StyledElement`
+  (`ID-G`, plan task 8): `IdentifiedGroup<Content>` (`ExplicitIdentity.swift`)
+  wraps a proposal element, `Grid`, `GridRow` or a `Component`, consuming one
+  cursor index named after the string and numbering its content from 0 under
+  it — layout-transparent, forwarding `prepaint`/`paint`. A `StyledElement`'s
+  own `id(_:) -> Self` is untouched and still wins for `Box`/`Stack`/`Text`/
+  `ModifiedElement` (more specific); a changed name resets exactly as the
+  legacy spelling does, and `.id()` must still be the outermost modifier.
 - `.padding(_:)` and every legacy `.frame(...)` return one flat
   `ModifiedElement<LayerBase>` (`MC-A`); each modifier is one layer = one node
   = one id level; outermost layer takes the parent's slot, inner layers are
@@ -1083,7 +1158,12 @@ header in the same change.
   stage 11 the legacy `.overlay` is `OverlayModifier<Content, Overlay>`
   generalized over `ElementGroup`** (both vocabularies), with the primary and
   overlay sides each lowered like a frame layer's child
-  (`AttachmentLowering.swift`); the `-1` numbering is unmoved (`LR-FX`).
+  (`AttachmentLowering.swift`); the `-1` numbering is unmoved (`LR-FX`). **A
+  legacy `.background(alignment:content:)` exists too** (plan task 8, `ID-J`):
+  `BackgroundModifier<Content, Background>`, the overlay's recipe line for
+  line — the background side numbered under `.child(of: id, at: -1)` too,
+  painted and prepainted first. A primary of zero or several nodes traps
+  naming the count (divergence 73) on both the overlay and the background.
 - `GlobalElementID.cachedHash` and `==` are safe alone, unsafe together; do not
   simplify `==`'s chain walk on a green suite.
 - Prefer SwiftUI's answer where SwiftUI and CSS differ above the engine (EP-5).
@@ -1216,20 +1296,33 @@ containing block the window whatever surrounds it.
 
 **`Component`** is layout-transparent and identity-opaque: no layout node, one
 cursor index, `@State` under its own id. Its `.padding` wraps each top-level
-node (`OM-D`); `.width`/`.height` **overwrite** each member (divergence 48);
-`.frame` wraps the body in one layer. No `.background`/`.id()` (declare `var
-elementID`) — by type only, and `anyComponent.frame(...)` is a side door. A
-caller's modifier on a component never animates (B-7): declare animated sizes
-inside it. Over proposal content declare `some ProposalElementGroup`.
+node (`OM-D`); `.width`/`.height` **overwrite** each member, SwiftUI's own
+answer (`ID-K`, divergence 48 retired); `.frame` wraps the body in one layer,
+one flex item in its parent rather than SwiftUI's per-member `Group`
+distribution — kept, divergence 56 (`ID-I`). **`.id(_:)` now works** via
+`IdentifiedGroup` (plan task 8, `ID-G`; `var elementID` is still how a
+`Component` names itself by type). **`.background(alignment:content:)` is
+now offered too, exactly as `.overlay { }` already was** (`ID-J`) — a
+one-member component attaches, a multi-member one traps naming the count
+(divergence 73). The decoration-backed `background(_ token:)`/`onClick`/
+`focusable` are still **not** offered (declare them on the members) — by
+type only, and `anyComponent.frame(...)` is a side door. A caller's modifier
+on a component never animates (B-7): declare animated sizes inside it. Over
+proposal content declare `some ProposalElementGroup`.
 
 **`@State`** is a box seeded by reflection per element per frame; slots are
 `.named("$state<n>")`. Seven reserved names (`$state<n>`, `$focus`, `$ax`,
 `$anim`, `$anim-color` slots; `$anim-content`/`$anim-viewport` id prefixes),
 pinned by `theSevenRetentionSlotsAreMutuallyDistinct`. **Write from input,
-never from a phase** (keeps the link awake forever). Inert inside
-`AnyElement`. `prepaintGroup`/`paintGroup` re-bind, so a group-entry bind is
-observable only at layout time. One element VALUE placed twice shares one box
-(divergence 19) — build two values.
+never from a phase** (keeps the link awake forever). **`@State`/`@Environment`
+bind inside an `AnyElement`** (plan task 8, `ID-E`): `AnyElementBox` binds its
+concrete element before `requestLayout`, `prepaint` and `paint` — no longer
+inert. `prepaintGroup`/`paintGroup` re-bind, so a group-entry bind is
+observable only at layout time. **One element VALUE placed twice, read or
+written by a handler under input dispatch, resolves its own occurrence**
+(`ID-F`, `StateDispatch.swift`, divergence 19 retired); a write from
+**outside** dispatch — a phase, or a raw closure call — still reaches the
+*last-bound* occurrence (divergence 71, kept) — build two values there.
 
 **`@Observable`**: the whole frame build is tracked. The `RedrawSentinel`, the
 flush ordering in `drawFrameIfNeeded`, the `isFlushing` guard and
@@ -1689,10 +1782,13 @@ out through the propose/measure/place kernel. Detail: §19
   - **Spacing `nil` is the largest platform-default pair spacing meeting at
     each boundary**, not one number for the grid (`GR-D`); a given value is
     used verbatim on every gap of that axis, negative included.
-  - **A vanishing `if` inside a grid moves the cells after it** — the
-    framework's universal trailing-sibling adoption, inside a row and between
-    rows — and no built-in proposal element has `.id()`, so the documented
-    remedy cannot be spelled until task 8.
+  - **A vanishing cell or row's state no longer hands on to the next one**
+    (plan task 8, `ID-B`; divergence 69 retired): a `GridRow`'s untaken cell
+    and `Grid`'s untaken row each take one structural slot, exactly as an
+    `if`'s does, so there is no "next one" left to adopt it. `.id(_:)` is now
+    spellable on a `Grid`/`GridRow` too, via `IdentifiedGroup` (`ID-G`),
+    closing the remedy this row used to say could not be spelled until
+    task 8.
   - A grid registers and paints nothing of its own, publishes nothing to
     accessibility and never animates (`GR-K`). It **consumes no `LoweredItem`**,
     so a legacy item field on a top-level cell reports
@@ -1703,7 +1799,12 @@ out through the propose/measure/place kernel. Detail: §19
   `ProposalScrollView`, `ProposalText`, `ProposalLayoutContainer`,
   `Grid(alignment:horizontalSpacing:verticalSpacing:)` and `GridRow(alignment:)`
   with the four cell modifiers `.gridCellColumns(_:)`, `.gridCellAnchor(_:)`,
-  `.gridColumnAlignment(_:)` and `.gridCellUnsizedAxes(_:)`. Modifiers
+  `.gridColumnAlignment(_:)` and `.gridCellUnsizedAxes(_:)`. **`.id(_:)` on any
+  `ElementGroup`** (plan task 8, `ID-G`) wraps it in `IdentifiedGroup<Content>`
+  (`ExplicitIdentity.swift`); a `StyledElement`'s own `id(_:) -> Self` wins
+  where both apply. **A legacy `.background(alignment:content:)`**
+  (`ID-J`, `BackgroundModifier<Content, Background>`) joins the token
+  `background(_:)` overloads, the overlay's recipe line for line. Modifiers
   on `ProposalElementGroup` return `ModifiedContent<ProposalBase,
   LayoutModifier>` — the unified type's proposal arm since stage 11
   (`LR-FV`), the same struct a legacy `.padding`/`.frame` chain returns with
@@ -1818,7 +1919,7 @@ Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
 - **Known divergences** (**55 live**, stable labels; retired labels never
-  reused: 3, 4, 5–8, 11, 12, 15, 17, 36, 37, 40, 45, 59) — record §04 is current (its
+  reused: 3, 4, 5–8, 11, 12, 15, 17, 18, 19, 36, 37, 40, 45, 48, 59, 69) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
   its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
   adding a number, its first 2026-09-23 section likewise amends **13, 14 and
@@ -1886,10 +1987,30 @@ expected, measured facts:
   10's" to **plan task 10 alone**, and **56**'s remainder (a `.frame` on a
   multi-member `Component` stays one flex item, `TB-M`) to **plan task 8**
   (`Group` semantics) — neither is a modifier question, so stage 11 disposes
-  of neither by closing it (`LR-GA` item 5).
+  of neither by closing it (`LR-GA` item 5). **Plan task 8 retires 18, 19, 48
+  and 69 and adds 71–74** (55 → 55 live, net zero; record §04's 2026-09-25
+  task-8 section): 18 (a `@State` behind a removed `if` is retained) and 69
+  (a vanishing grid cell/row hands on its state) both retire under
+  `ID-B`/`ID-C`'s one-structural-slot fix and reset-on-return rule, which now
+  match SwiftUI (probes V1, V5, V7–V9); 19 (a handler writing one value
+  placed twice writes the last-bound occurrence) retires under `ID-F`'s
+  `StateDispatch`, which resolves the occurrence actually dispatching; 48 (a
+  `Component`'s width overwrites its members', already SwiftUI's answer
+  since stage 3) retires by `ID-K`'s bookkeeping alone, no code change.
+  **Added**: 71 (a write from *outside* input dispatch — a phase, a raw
+  closure — still reaches the last-bound occurrence, `ID-F`'s deliberate
+  remainder), 72 (two siblings with the same name/`.id` still share one
+  identity, kept, `ID-H`), 73 (`.overlay`/`.background { }` on a zero- or
+  multi-member primary traps, naming the count, kept, `ID-I` item 3), 74 (an
+  element a `for` loop stops producing keeps its state and gets it back if
+  the loop regrows, kept, owner plan task 10's `ForEach`). **56 is amended,
+  not retired**: its remainder (above) now also names the row's cross-axis
+  alignment as the frame's own where SwiftUI's is the parent's (probe L8,
+  kept, pinned by new `N3.1`) — task 8's audit closes the row's "owner: none"
+  clause with a pin rather than a fix.
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
   `hidden()` on
-  drawing/focusable subtrees, `AnyElement`'s `@State`, `PaintPass.isActive`,
+  drawing/focusable subtrees, `PaintPass.isActive`,
   `onInput`'s `-> Bool`, colour glyphs, baselines,
   `locale`/`layoutDirection`/`dynamicTypeSize`, one axis each of
   `markNativeGridRow`/`markNativeGridCell`'s alignment, a grid mark outside a
@@ -1934,7 +2055,11 @@ expected, measured facts:
   presentation member no longer reports at all — it lowers exactly as a
   legacy `.frame` layer over the same member already did — so the report
   mechanism has nothing left to answer here, not merely nothing new to say
-  (`LR-FY` §6.1, record §05's 2026-09-25 stage-11 section).
+  (`LR-FY` §6.1, record §05's 2026-09-25 stage-11 section). **Plan task 8
+  deletes the `@State`-inside-`AnyElement` row** (`ID-E`, record §05's
+  2026-09-25 task-8 section): `AnyElementBox` now binds its concrete element
+  before every phase, so the row is fixed rather than merely reassigned —
+  the same shape as `deferred.amended` above, not a narrowing.
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
@@ -1981,7 +2106,14 @@ expected, measured facts:
   at the demo's own 920×560),
   the animation panel at 320, the modal card's new height, and the list rows'
   labels now centred in their declared 28 pt row — none of these was ever seen
-  on a real display.
+  on a real display. **No look was added by engine-replacement stage 7a,
+  stage 11 or plan task 8** (record §03's own dated sections for each — stages
+  7b, 8, 9 and 10 recorded no §03 section, so this file makes no claim about
+  them): plan task 8 and stage 11 each touch no pixel the demo paints (0
+  differing in all fourteen offscreen images) and neither reopens or closes
+  the five looks above. Plan task 8's own lock probe ran six times (once per
+  lane, twice more by its Record phase) and read locked every time — the same
+  still-owed capture, not a new one.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;
   re-measure before reasoning from them. **`MP-I`'s 100 000-row cold frame
@@ -1990,7 +2122,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **84** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **88** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a

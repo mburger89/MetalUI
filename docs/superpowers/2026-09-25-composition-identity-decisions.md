@@ -5,12 +5,19 @@ on `feat/composition-identity` from `e3cb3e9`. Ids are **lettered**,
 `ID-A`…`ID-Q`; next unused is **`ID-R`**. A bare `ID-3` is a typo, not a
 citation. **A round that appends a ruling moves this line in the same commit.**
 
-**Status, 2026-09-25: designed; no lane has run.** Baseline measured in this
-worktree at `e3cb3e9`: `swift build --build-system native --build-tests`, then
-`swift test --build-system native --no-parallel` → `Test run with 1444 tests in
-3 suites passed after 81.223 seconds`, the guards ran (`FR-J no-argument frame:
-succeeded=true`). Measurements in `docs/record/55-composition-identity.md`
-(record §55); the audit table is its §3.
+**Status, 2026-09-25: DELIVERED.** All three lanes ran, red first, verified
+`ok: true`; the Record phase's independent close (record §55 §8) re-took the
+suite, guard and golden counts, the pixel comparison, `Backends/SDL` and a
+`swift:6.4-noble` container, unmoved from the lanes' own readings. Baseline
+measured in this worktree at `e3cb3e9`: `swift build --build-system native
+--build-tests`, then `swift test --build-system native --no-parallel` →
+`Test run with 1444 tests in 3 suites passed after 81.223 seconds`, the
+guards ran (`FR-J no-argument frame: succeeded=true`). Final, at `ea95cc4`:
+**1483 tests, 0 goldens, 88 typecheck guards**, 0 px against `e3cb3e9` in all
+fourteen offscreen images; the real-window capture is still owed (screen
+locked at every check, record §55 §8.5). Measurements in
+`docs/record/55-composition-identity.md` (record §55); the audit table is its
+§3.
 
 **Evidence, cited below by arm id:**
 

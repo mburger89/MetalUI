@@ -940,11 +940,57 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   task 8) and named divergence 35's live pin; verdict merge. The checkbox is
   the Record phase's to move.
 
-- [ ] **8. Audit composition and identity.**
+- [x] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and
   modifier placement against SwiftUI custom-view behaviour. Preserve MetalUI's
   structural identity model where it matches, and close or document the
   currently known state-retention and reused-value aliasing differences.
+  *Delivered 2026-09-25* (`feat/composition-identity` from `e3cb3e9`, rulings
+  `ID-A`…`ID-Q`, record §55). Every item addressed to this task (collected by
+  grep over the record and the decisions docs, §55 §1) is disposed of in the
+  audit table (§55 §3) as matched-and-pinned, fixed to SwiftUI's answer, or a
+  kept, numbered divergence with a reason and an owner. **Fixed to SwiftUI's
+  answer** (`EP-5`): an `if` with no `else` and a `for` loop each take one
+  structural slot, so a vanishing `if`'s trailing sibling keeps its own state
+  instead of adopting the vanished element's (`ID-B`); content an evaluated
+  conditional removes is reset on return, `$focus`/`$ax` exempted (`ID-C`);
+  `if`/`else`/`switch` now compile inside every proposal container (`ID-D`);
+  `@State`/`@Environment` bind inside an `AnyElement` instead of reading
+  inert defaults (`ID-E`); a handler run by input dispatch resolves the
+  occurrence that actually dispatched it, not the last-bound one (`ID-F`,
+  new `StateDispatch`); `.id(_:)` now works on every element group — proposal
+  elements, `Component`, `Grid`, `GridRow` — via `IdentifiedGroup` (`ID-G`,
+  closing the grid record's "no built-in proposal element has `.id()`" note);
+  a legacy `.background(alignment:content:)` is added, `LR-FX`'s recipe for
+  the overlay (`ID-J`). **Kept, with reasons**: duplicate sibling names share
+  one identity, divergence 72 (`ID-H`); a modifier over multi-member content
+  stays one layer, so `.overlay`/`.background` on a multi-member primary
+  traps (divergence 73) and a `.frame` over a multi-member `Component` stays
+  one row rather than SwiftUI's per-member `Group` distribution (divergence
+  56, amended — its cross-axis alignment sub-row now pinned) — `ID-I`.
+  **Retired**: divergences 18, 19, 48 and 69 (record §04's 2026-09-25
+  section); **added**: 71 (a write outside input dispatch still reaches the
+  last-bound occurrence), 72, 73, 74 (a `for` loop's dropped element keeps
+  its state and gets it back if the loop regrows — owner **plan task 10**,
+  `ForEach`). Divergence 54 (a lowered `ScrollView`'s cross axis) and the
+  `ModifiedElement` typealias/deprecated sizing modifiers are **unchanged**
+  by this task — already plan task 10's and plan task 15's respectively
+  (record §54 §10.3), and this task's audit did not reopen either. Three
+  lanes, each red first, all verified `ok`, one fix round (lane 3's `ID-Q`
+  item 6). Counts **1483 tests, 0 goldens, 88 typecheck guards**; 0 px
+  against `e3cb3e9` in all fourteen offscreen images, independently re-taken
+  by the Record phase along with the suite, guard and golden counts,
+  `Backends/SDL` (21 + 19) and a `swift:6.4-noble` container (188 + 10 +
+  22). **The checkbox is ticked**: every row of record §55 §3 is disposed as
+  the lanes left it, matching this task's own three-way instruction (match
+  and pin, fix, or keep and document) exactly. **Still owed, to a human with
+  an unlocked screen**: the real-window capture (the screen was locked at
+  every check across all three lanes and the Record phase's own close,
+  record §55 §8.5; record §03's 2026-09-25 section) — a distinct, unrelated
+  debt from stage 6b's own still-open real-window capture, which this task
+  neither closes nor adds to. **A `.id()` returning to a name it used
+  earlier** is neither probed nor pinned by either framework; owner: none
+  named (record §55 §7.5) — a probe arm and a test if it matters.
 
 - [ ] **9. Expand the environment and control-state model.**
   Evolve `Theme` into scoped environment values: enabled state, layout

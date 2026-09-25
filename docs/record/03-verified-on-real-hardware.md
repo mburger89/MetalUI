@@ -1470,3 +1470,36 @@ three lanes' verdicts or the Record phase's own close mention
 means nothing a real window would show differs either. The stage-6b looks
 above (the real-window capture and the four named demo-layout changes) are
 **still open and still owed**; this stage neither closes nor adds to them.
+
+## 2026-09-25: no look added at composition and identity (plan task 8), and the capture attempt itself recorded
+
+Record §55 §5.3, §6.3, §7.3, §8.3, §8.5. **Nothing a human needs to see
+changed.** The task fixes identity — one structural slot per `if`/`for`, an
+evaluated conditional's reset, `if`/`else` in proposal containers, `@State`/
+`@Environment` inside `AnyElement`, one-value-placed-twice dispatch, `.id(_:)`
+on every element group and a legacy `.background(alignment:content:)` — none
+of which the demo tree exercises except lane 2's `if`/`for` fix, which moves
+the demo's `List`-toggling modal one identity level deeper without moving a
+pixel (the images are static frames, the demo's own comment says the `List`
+holds no cross-frame state, and the modal's elements are fresh either way).
+The fourteen-image offscreen comparison against `e3cb3e9`
+(`docs/probes/demo-pixels/compare.sh`) reads **0 differing and scene
+identical in all fourteen**, taken independently at each lane's own head
+(§5.3, §6.3, §7.3) and again by the Record phase at `ea95cc4` (§8.3) — four
+readings in all, all zero, every control at its recorded `e3cb3e9` value.
+
+**Unlike stage 11, the capture attempt itself is recorded here, not skipped.**
+`docs/probes/appkit-screen-lock-state.swift` was run at the end of every lane
+(§5.3, §6.3, §7.3) and twice more by the Record phase — once before its own
+rebuild, once after (§8.5) — six readings in all, every one
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`, `displayActive main:
+0`. `capture.sh` was never run. **This is not a new debt**: it is the same
+screen-locked condition stage 6b's own real-window capture (above) has been
+waiting on since 2026-09-23, on the same machine, across every stage since —
+stage 11's section above happened not to mention the probe because 0 px made
+the capture moot there too, and this task's lane sections make a point of
+running the probe anyway so that "the screen was locked" is a measurement,
+not an assumption carried forward silently. The stage-6b looks (the
+real-window capture and the four named demo-layout changes) are **still open
+and still owed**; this task neither closes nor adds to them, and adds no new
+look of its own.

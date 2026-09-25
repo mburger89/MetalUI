@@ -660,3 +660,145 @@ exit 0 (`ID-Q` item 1).
   one not), the grid bullet ("no built-in proposal element has `.id()`"), the
   vocabulary list (`.id(_:)`, `IdentifiedGroup`, the legacy `.background { }`),
   counts (1483 after the fix round's B3.4) and guards (88, `ExplicitIdentityCompileGuards` 3).
+
+## 8. The task's close (Record phase, 2026-09-25, PDT)
+
+Spec §6's accounting and gates, re-checked independently at `ea95cc4` (the
+fix round's own commit — the last one before this section), not by re-reading
+the three lanes' own claims. All three lane verdicts read `ok: true`, so no
+fix/re-verify round was owed here (Practices: "Re-verify only on a finding").
+
+### 8.1 Suite, guards, goldens
+
+`swift package clean`, then `swift build --build-system native --build-tests`
+and `swift build --build-tests` (default): both `Build complete!`, 0
+`error:`, the only `warning:` SwiftPM's own deprecation notice under native
+(0 under the default). Unfiltered `swift test --build-system native
+--no-parallel` → **`Test run with 1483 tests in 3 suites passed after 82.720
+seconds`**, the log carrying `FR-J no-argument frame: succeeded=true
+deprecations=2` (guards ran) and `CONDITIONAL GUARD G2.1`/`EXPLICIT IDENTITY
+GUARD G3.1`/`G3.2`/`G3.3` each `positive: succeeded=true`, `control:
+succeeded=false`. **Eleven** gated tests skipped, unchanged from `e3cb3e9`
+(`recordDemoFrames`, the FreeType/HarfBuzz/portable-text/line-breaking/
+lines-emission (two)/content-sizes/font-fallback/bidi `measure*` oracles,
+`aListsWorkIsTheSameFor100kRowsAsFor500`).
+
+`find Tests/MetalUILayoutTests -name "*.json" | wc -l` reads **0** (stage 7a;
+unmoved). Guards: `grep -c canTypecheck` per file across the seventeen files
+`CLAUDE.md`'s "Guards" bullet names, plus this task's two new ones —
+`ConditionalIdentityCompileGuards.swift` (1, G2.1) and
+`ExplicitIdentityCompileGuards.swift` (3, G3.1–G3.3) — sums to 90 raw hits;
+less `Tests/MetalUITestSupport/Typecheck.swift`'s declaration (not counted,
+CLAUDE.md's own exclusion) and `UnitSafetyTests`' one comment-line hit gives
+**88 = 84 + 4**, matching lane 3's §7.3 figure exactly. All four new guard
+tests typecheck a whole-file `typecheckFile` fixture (none use the
+Swift-5-in-a-function `typecheck` helper), so the "two helpers" split moves
+40/44 → **40/48**.
+
+**Retirement accounting (`goldensUnchanged`).** No test was deleted outright.
+**Nine** retirement rows in all — one in lane 1 (§5.3, E8 renamed) and eight
+in lane 2 (§6.3: the eight-row table) — cover every renamed or re-answered
+`@Test`; lane 3 renamed or removed none. Spot-checked two ways at `ea95cc4`:
+a grep for each of the nine "was" names in the table above the retirement
+rows returns zero hits in `Tests/`, and a grep for each "now" name returns
+exactly one, at its declaration — no name is both present and absent, which
+would mean a rename half-landed.
+
+### 8.2 Must-not-move greens
+
+All read `passed` in the 1483-test run above:
+`theSevenRetentionSlotsAreMutuallyDistinct`,
+`everyProductionTreeBuildsOnAOneMegabyteThread`,
+`everyProductionRootsDeepestNativeLevelIsMeasured`,
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`. `Frame.legacyRootLayoutCounter`
+is not touched by any lane (no lane's diff names it).
+
+### 8.3 Pixels
+
+`docs/probes/demo-pixels/compare.sh <scratch> e3cb3e9 ea95cc4` (a fresh
+scratch directory, independent of every lane's own run): every control at its
+recorded `e3cb3e9` value — light vs dark 1 048 576, default vs modal
+1 031 003, default vs animation 454 895 (bbox (16,113)–(987,1007)), f0 vs f3
+0, preview 1 048 576, chrome pair 0, distinct 544/216, prod default vs modal
+491 221, distinct `prod-default-light` 529, indicator rects 0 in all
+twelve — and **all fourteen images read `differing=0`, scene identical**,
+matching all three lanes' own readings (§5.3, §6.3, §7.3). `Expected.swift`
+(`DemoFrameDeterminismTests`) is unedited by any lane. Lane 2 moves the
+demo's ids (the modal's `if` gains a structural slot) and no pixel moved —
+consistent with the spec's prediction (§6, "the images are static frames, the
+`List` holds no cross-frame state").
+
+### 8.4 Elsewhere
+
+- **`MetalUILayout` imports only `MetalUICore`**: anchored grep over
+  `Sources/MetalUILayout/*.swift`'s `import` lines, no other hit.
+- **`Backends/SDL`** (`.accesskit` already fetched;
+  `PKG_CONFIG_PATH=$PWD/.accesskit swift build --build-tests` then `swift
+  test --no-parallel`): 0 `error:`, the only `warning:` the pre-existing SDL
+  dylib deployment-target linker note (`prohibited flag(s):
+  -Wl,-rpath,/opt/homebrew/lib`, unrelated to this task); **`Test run with 21
+  tests` and `19 tests` passed** (`ReplayFixtureTests`, `MetalUISDLTests`),
+  unmoved from lane 3's own reading (§7.3) — no lane touches `Backends/SDL`.
+- **`swift:6.4-noble`** (Docker, aarch64), re-run independently over `git
+  archive HEAD` (`ea95cc4`) rather than re-read any lane's own measurement:
+  `swift build --build-tests` → `Build complete!`, 0 `error:`/`warning:`;
+  `swift test --skip-build --filter
+  'MetalUICoreTests|MetalUILayoutTests|MetalUICrossPlatformTests'` →
+  **188 + 10 + 22 passed** (`MetalUILayoutTests`, `MetalUICrossPlatformTests`,
+  `MetalUICoreTests`), matching lane 3's reading exactly;
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` and
+  `everyProductionTreeBuildsOnAOneMegabyteThread` green off Apple. Windows
+  itself was not run locally (no Windows host in this environment); its build
+  is `root-windows` CI's job, unchanged by a task that touches only
+  `Sources/MetalUI` files already portable.
+
+### 8.5 Real window — still owed
+
+`xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate
+&& /tmp/lockstate`, run twice this phase (once before the rebuild above, once
+after): both times `session CGSSessionScreenIsLocked = 1`, `displayAsleep
+main: 1`, `displayActive main: 0` — the screen was locked throughout, as it
+was at all three lanes' own checks (§5.3, §6.3, §7.3). `capture.sh` was not
+run. **This is the same debt every lane deferred, not a new one**: lane 2
+moves the demo's ids and lane 3 adds `.id(_:)`/a legacy `.background {}`, and
+neither is reachable from the demo tree (it holds no `AnyElement`, no value
+placed twice, no `.id` on a group and no legacy `.background { content }`),
+so the offscreen 0-px reading above is the only evidence available and the
+real-window capture would show nothing new if taken. It remains owed to a
+human with an unlocked screen, alongside stage 6b's still-open real-window
+debt (record §03) — a separate, unrelated capture this task neither closes
+nor adds to.
+
+### 8.6 Not done, owners already assigned
+
+- **A group that returns to a name it used earlier** (`.id("a")` → `"b"` →
+  `"a"`): neither SwiftUI's nor MetalUI's answer is probed or pinned. **Owner:
+  none named** (§7.5) — a probe arm and a test if it matters; the spec asked
+  only for a changed name to reset, which is pinned (E3.1–E3.3, E3.8, E3.9).
+- **Divergence 74** (an element a `for` loop stops producing keeps its state
+  and hands it back if the loop grows again): **plan task 10** (`ForEach`,
+  §4).
+- **Divergence 54** (a lowered `ScrollView`'s cross axis): unchanged by this
+  task, already **plan task 10**'s (record §54 §10.3; this task's audit did
+  not reopen it).
+- **The `ModifiedElement` typealias, and the eight deprecated sizing
+  modifiers**: unchanged by this task, already **plan task 15**'s (closeout).
+
+### 8.7 Docs updated to match this close
+
+`docs/superpowers/specs/2026-09-25-composition-identity-design.md`'s Status
+line moves to **DELIVERED**; the decisions doc's Status line is updated the
+same way; `CLAUDE.md`/`AGENTS.md` gain a plan-task-8 line in "Where things
+are", a new "Counts" bullet, the "Guards" bullet's two new files and helper
+split, the rewritten "Identity is structural", "`@State`" and "`Component`"
+paragraphs, the grid bullet's `.id()` sentence, the `ID-` prefix line and the
+Known-divergences/Declared-but-inert/Human-verification reference-table
+bullets; record §04 gets a new dated section (18, 19, 48, 69 retire; 71–74
+add; 56 amended); record §05 gets a new dated section (the `@State`-inside-
+`AnyElement` row deleted); record §03 gets a new dated section (no look
+added — pixels 0, real-window capture still owed, unrelated to stage 6b's own
+debt); record §README.md gains this file's row; the plan's task 8 entry gets
+a dated progress note and its checkbox moves, since every row of §3's audit
+table above is disposed as **M**, **F** or **K** with an owner, matching the
+task text's own three-way instruction exactly.

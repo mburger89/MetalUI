@@ -1382,3 +1382,102 @@ moves from fifty-six to fifty-five live; 45 joins the never-reused list.**
 **What it costs if wrong.** A reader who still expects 45 to be pinned wrong
 on purpose will find its test now asserting the opposite fact and conclude a
 regression where there is a fix; the renamed test name is the tell.
+
+## 2026-09-25: 18, 19, 48 and 69 retire; 71–74 added; 56 amended (plan task 8, composition and identity)
+
+Record §55; rulings `ID-A`…`ID-Q` in
+`docs/superpowers/2026-09-25-composition-identity-decisions.md`. **The table
+moves from fifty-five to fifty-five live**: four retire, four are added.
+
+- **18 retires** (a `@State` behind a removed `if` is retained rather than
+  reset). SwiftUI resets an evaluated conditional's content (probe V5, V9);
+  `ID-C` makes `OptionalGroup`/`EitherGroup` do the same when the absent slot
+  **was produced the previous frame**, deleting every `StateTable` entry under
+  it except a `.named("$focus")`/`.named("$ax")` component (focus and
+  accessibility retention are untouched, by design — `TB-J`/`AB-U`). The old
+  pin is gone; the new one is
+  `anElementAfterAVanishingIfKeepsItsOwnState`/the animation row's
+  `aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop` (record §55
+  §6.3's retirement table). **Two retentions are kept, by design, and neither
+  is 18's old shape**: an element a `for` loop stops producing keeps its state
+  (new divergence **74**, below) and a conditional that is **not evaluated**
+  (a `List` row out of its window) is untouched (`TB-AH`, unchanged).
+- **19 retires** (a handler that writes one element value placed twice writes
+  the *last-bound* occurrence, not its own). SwiftUI resolves each occurrence
+  independently (probe S1, S4). `ID-F`: a `State.Box`/`Environment.Box` bound
+  to more than one slot in a generation remembers every slot, and
+  `StateDispatch.owner` (new; `Sources/MetalUI/StateDispatch.swift`) lets
+  `wrappedValue`'s get/set resolve to the occurrence that is actually
+  dispatching — every enumerated handler path (click, key, action, the two
+  accessibility handlers, edit, submit) wraps its callback in
+  `StateDispatch.dispatching(to:)`. The old pin,
+  `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt`, is renamed
+  `aClosureRunOutsideInputDispatchWritesTheLastBoundOccurrence` (assertions
+  unchanged) because its old name now describes the *fixed* behaviour, not
+  the bug; the fixed behaviour is pinned by `O1.1`–`O1.8`
+  (`OccurrenceIdentityTests.swift`). **Divergence 71 is added for what
+  `ID-F` deliberately leaves alone**: a write from **outside** input dispatch
+  (a phase, or a raw closure call with no `StateDispatch.dispatching`
+  wrapper) still reaches the *last-bound* occurrence — SwiftUI has no
+  analogue (probe S5, with S6 as its two-different-values control) — pinned
+  by the renamed test itself (1 / 102) and by
+  `aComponentsEnvironmentKeepsTheFirstOccurrencesSnapshot`/
+  `aFrameBuiltInsideADispatchedHandlerReadsEachOccurrencesBinding` (lane 1's
+  review round, `ID-O`).
+- **48 retires** (a `Component`'s `.width`/`.height` overwrites each member's
+  own declared width, where a custom view's SwiftUI modifier does the same —
+  this was already agreement, not a divergence, kept on the books past its
+  own fix). `ID-K` retires it explicitly as this task's to count: the fact
+  (`aComponentsWidthFramesEachMember`) has been SwiftUI's answer since plan
+  task 7 stage 3 (`LR-BG`) and needed only this audit's bookkeeping to close.
+- **69 retires** (a vanishing grid cell or row hands its state to the next
+  one). `ID-B`'s one-structural-slot fix for `if`/`for` extends to
+  `GridRow`'s untaken cell and `Grid`'s untaken row exactly as `EitherGroup`'s
+  branch already worked (`SI-F`): the vanished cell/row no longer hands
+  anything on, because there is no "next one" left holding its slot. Old
+  pins `removingACellFromARowHandsItsStateToTheNextCell`/
+  `removingAWholeGridRowHandsItsStateToTheNextRow` are renamed
+  `removingACellFromARowLeavesTheNextCellsStateAlone`/
+  `removingAWholeGridRowLeavesTheNextRowsStateAlone` (record §55 §6.3),
+  asserting the opposite fact.
+- **72 is added** (kept, `ID-H`): two siblings with the same `.id`/name still
+  share one `GlobalElementID`, one `StateTable` entry, one hitbox id and one
+  accessibility node, and it is still not a trap — where SwiftUI's explicit
+  id keeps two same-named siblings distinct (probe X2). MetalUI's name
+  **replaces** its structural position (the same mechanism a reordered named
+  `for`-loop item relies on to keep its state, `ID-H`'s reasoning), so scoping
+  the name by position would reset every named loop item on reorder. Pinned
+  by `twoSiblingsWithTheSameIDShareOneStateEntry` and, for element groups,
+  lane 3's E3.7.
+- **73 is added** (kept, `ID-I` item 3): `.overlay`/`.background { }` (both
+  the token and content-taking forms) on a primary of zero or several nodes
+  **traps**, naming the count, where SwiftUI attaches one instance **per
+  member**, each with its own state (probe G3–G6). A modifier layer is one
+  node and one identity level (`MC-A`); distributing per member is available
+  as `.width`/`.height` (one frame per member, unchanged since stage 3) and
+  inside the component's own body. Pinned by the legacy overlay's N1.7 and
+  the new legacy background's B3.3.
+- **74 is added** (kept, owner **plan task 10**, `ForEach`): an element a
+  `for` loop stops producing keeps its state, and gets it back if the loop
+  regrows to the same index, where SwiftUI's `ForEach` gives a shrunk-then-
+  regrown element new state (probe V10 — a residual serial survives). This
+  is `18`'s "not evaluated" cousin rather than 18 itself: an `ArrayGroup`'s
+  member count shrinking does not evaluate-away any one member's slot the
+  way an `if` going false does, so `ID-C`'s reset rule does not reach it, and
+  data identity (a `ForEach`-style keyed loop) is where a scoped answer
+  belongs — plan task 10's, not this task's, to fix.
+- **56's alignment sub-row is pinned**, not amended in fact (`ID-I` item 1,
+  §55 §7.5's deferral closed): probe L8 (critic round) shows SwiftUI's framed
+  member taking the **parent's** cross-axis alignment (a top-aligned
+  `HStack`'s framed member sits at the parent's top), where MetalUI's row
+  puts it at the **frame's own** alignment. New test `N3.1`
+  (`LoweringComponentTests.swift`) pins MetalUI's kept answer; the row's fact
+  and its "owner: none" are unchanged (`TB-M`, re-owned to this task by
+  record §54 §10.3 and closed here with no fix).
+
+**What it costs if wrong.** A reader following 18, 19, 48 or 69 by an older
+section's name finds no such test, or a test that now asserts the opposite of
+what the row used to describe; the renamed/new names above are the fix. A
+reader who does not know 71 exists might read `O1.1`–`O1.8`'s green run as
+"19 unfixed" — it fixes only the dispatched half; 71 is the two-values
+control (S5/S6) that shows the residual case is real, not a leftover bug.
