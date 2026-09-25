@@ -324,3 +324,135 @@ fourteen images read 0 differing, and every scene is identical.**
 Nothing is deferred from lane 1. The overlay's widening (`OverlayModifier` over
 `ElementGroup`, the `.overlay` moved to `ElementGroup`) is lane 2's, and it
 touches no file of this lane.
+
+## 8. Lane 2 — the legacy `.overlay` (2026-09-25)
+
+Commits `131fe16` (red first: N1.3–N1.7 and the overlay T rows) and `540da08`
+(the overlay). Ruling `LR-GC`, which applies two T rows the design missed and
+adds N1.3's group arm.
+
+**What was built** (spec §5, `LR-FX`, as ruled). `OverlayModifier<Content:
+ElementGroup, Overlay: ElementGroup>` gets an untyped `requestLayout` in its
+body (both sides through `requestGroupLayout`) and a conditional `extension
+OverlayModifier: ProposalElementGroup, ProposalElement where Content:
+ProposalElementGroup, Overlay: ProposalElementGroup` with the typed
+`requestProposalLayout`. The two share `overlaySide(of:)` (`MC-P`'s `-1`) and
+`attach`. `attach` runs both sides through `lowerAttachmentChildren`, then calls
+`requestSecondaryContentAttachment`. The one `.overlay(alignment:content:)` moved
+to `extension ElementGroup`; the deprecated `nativeOverlay` and the
+`NativeOverlayModifier` typealias stay proposal-only. The new
+`Sources/MetalUI/AttachmentLowering.swift` holds `lowerAttachmentChildren`:
+`droppingPresentations`, `consume`, `planLegacyItems` at `parentKind: .stack`,
+`parentSite: .modifierLayer` against a `.center`/`.center` parent, then
+`registerLegacyItems`. `NativeBackgroundModifier.swift`'s
+`requestSecondaryContentAttachment` takes and returns `LayoutNodeID`s.
+`ProposalElementGroup.swift`'s unconditional `extension OverlayModifier:
+ProposalElement {}` is gone.
+
+### 8.1 Red first
+
+At `131fe16` the implementation was absent, so the new file does not compile.
+That is the red for all five tests, and the test target does not build by
+design. The build's error lines, one per test body:
+
+    LegacyOverlayTests.swift:275:10: error: value of type 'Box<Pair<OptionalGroup<Box<EmptyGroup>>, TapLeaf>>' has no member 'overlay'   (N1.3, L1)
+    LegacyOverlayTests.swift:294:10: error: referencing instance method 'overlay(alignment:content:)' on 'ModifiedContent' requires that 'Box<Pair<OptionalGroup<Box<EmptyGroup>>, TapLeaf>>' conform to 'ProposalElementGroup'   (N1.3, L3)
+    LegacyOverlayTests.swift:304:42: error: instance method 'overlay(alignment:content:)' requires that 'TapLeaf' conform to 'ProposalElementGroup'   (N1.3, L4: a proposal primary, a legacy overlay)
+    LegacyOverlayTests.swift:374:14: error: value of type 'Box<EmptyGroup>' has no member 'overlay'   (N1.4)
+    LegacyOverlayTests.swift:412:51: error: value of type 'Deferred<Box<EmptyGroup>>' has no member 'overlay'   (N1.5)
+    LegacyOverlayTests.swift:435:30: error: value of type 'TwoMembers' has no member 'overlay'   (N1.7)
+
+N1.3's other arms fail the same way (L2 `:284`, controls `:319`–`:343`). The
+lines were taken from a build one helper-rename before the commit: the file's
+`group` builder helper clashed at the call site (`value of type 'group' has no
+member 'overlay'`) and was renamed `members` before `131fe16`. L5's own line was
+not re-taken after the rename. N1.6 is a must-not-move pin with no red by
+design. Its literals — **5 nodes, work 3/4/8, six recorded bounds, rects (80,
+65) 40×30 and (95, 75) 10×10 at alpha 0.5** — were taken at `47c0d98` by a
+scratch test in the demo-pixel harness's export of that commit (`src-47c0d98`),
+which was deleted afterwards.
+
+### 8.2 Green
+
+After `swift package clean` (`OverlayModifier`'s public generic constraints
+changed), `swift build --build-system native --build-tests` gave 0 `error:`,
+with SwiftPM's deprecation notice the only `warning:`. The first unfiltered run
+read `Test run with 1435 tests in 3 suites failed … with 2 issues`. Both issues
+were in `anItemFieldNoLoweredContainerConsumesIsReportedByName`, whose
+`.overlay` primary and slot arms read `[]` against an expected
+`[box.flexGrow.unconsumed]`. That is the move `LR-FX` item 3 rules, missed by
+the design's T list (`LR-GC` item 2). `proposalOverlayAcceptsProposalContentAndRejectsLegacyContent`
+was found by reading before the run (`LR-GC` item 1). With both T rows applied,
+the unfiltered `swift test --build-system native --no-parallel` read **`Test
+run with 1435 tests in 3 suites passed after 80.951 seconds.`**, and the log
+carries `FR-J no-argument frame: succeeded=` (the guards ran). **1435 = 1430 +
+5** (N1.3–N1.7). Guards stay at 84: lane 2 edits two guards' bodies and adds
+none. No test was retired. The default build system (`swift build
+--build-tests --scratch-path <scratch>`) gave 0 `error:` and 0 `warning:`.
+`MetalUILayout` imports only `MetalUICore`, and no file of it changed.
+
+Measured control readings (N1.3): each arm read `[tally .positional(0) at the
+overlay side, 3 taps]` at all three steps, with its primary's trailing member
+at `.positional(1)`, `.positional(0)`, `.positional(1)`. A read `[3, 3, 3]`, B
+`[3, 0, 0]`, P5 `[3, nil, 3]` and Q `[3, 0, 3]`. The third step of P5 and Q is
+divergence 18's retention (`LR-GC` item 4).
+
+**Every identity test spec §3.3 lists ran unedited and green**, among them
+`theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities`,
+`aTapOnAnOverlaysPrimaryWritesOnlyThePrimarysState`,
+`hoveringAnOverlaysPrimaryDoesNotHoverTheOverlay` and
+`anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`.
+
+**Gates.** `Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit`) built with 0
+`error:` (its only warnings are the pre-existing SDL dylib deployment-target
+linker notes) and tested 21 + 19 passed. Docker was available this time. In a
+`swift:6.4-noble` container (aarch64), `git archive 540da08` built with the
+default build system with 0 `error:`/`warning:` lines. `swift test --filter
+'MetalUICoreTests|MetalUILayoutTests|MetalUICrossPlatformTests'` read three
+summary lines, 188, 10 and 22 tests passed, with
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` among them. `Expected.swift` is
+unmoved.
+
+### 8.3 Mutations
+
+Each mutation was applied by a script (`muts.py` in the scratchpad) to the
+committed tree (`540da08`), built incrementally (body-only changes), run
+through the whole suite unfiltered, and restored from a copy of
+`Sources/MetalUI/`. `git status --short` was empty after each.
+
+| id | mutation (spelling, branch) | suite | reddened |
+|---|---|---|---|
+| M1c | `overlaySide(of:)` returns `.child(of: id, at: 0)` (both entries share it) | 14 issues | N1.3 `aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape` (L1–L5 and control A, each on `tallyAtOverlaySide`); N1.4 `aLegacyOverlayConsumesItsPrimarysAndOverlaysRecordsAsAFrameLayerDoes` (the overlay's rect, `:387`); N1.6 `aProposalOverlayRegistersExactlyTheNodesItDidBeforeUnification` (`elementBounds.count == 6`, `:473`: the overlay's key collides with the primary's); `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities` (2); `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed` (3); `twoProposalScrollViewsInOneOverlayKeepSeparateOffsets` (1) |
+| M1c′ | the **untyped** entry's overlay side registered under `id`, continuing the primary's cursor (`MC-E`'s `6ff2d31`) | 8 issues | N1.3 (L1–L4 and A on the id only; **L5 on the state too**: the tally at indices 2, 1, 2 with taps 3, **0**, 3); N1.4 (`:387`); `twoProposalScrollViewsInOneOverlayKeepSeparateOffsets` (1) |
+| M1e | `attach` passes the primary's nodes unlowered | 4 issues | N1.4 (`unlowerableFields.isEmpty`, `:380`: `box.flexGrow.unconsumed`); `anItemFieldNoLoweredContainerConsumesIsReportedByName` (the overlay-primary arm, `:819`); N1.5 `anOverlayOnAPresentationTrapsNamingItsPrimaryCount` (2: the child exits 0, since the placeholder is not dropped) |
+| M1e′ | `attach` passes the overlay side's nodes unlowered | 2 issues | N1.4 (`:380`, `box.margin.unconsumed`); `anItemFieldNoLoweredContainerConsumesIsReportedByName` (the overlay-slot arm, `:819`) |
+| M1f | the primary lowered with `dropsPresentations: false` (a parameter added in the mutant; the overlay side still drops) | 2 issues | N1.5 (2: expected `.failure`, got `EXIT_SUCCESS`; the stderr line absent) |
+| M1g | `lowerAttachmentChildren` wraps every record-less child in `requestNativeFrame(child:alignment: .center)` | 4 issues | N1.6 (node count `:470`, work `:472`); `anEmptyOverlayOrBackgroundLeavesThePrimaryAlone` (`nodeCount == 1`); `everyProductionRootsDeepestNativeLevelIsMeasured` (the demo's overlay adds a level) |
+| M1j | `requestSecondaryContentAttachment`'s precondition relaxed to `primary.count >= 1` | 2 issues | N1.7 `aLegacyOverlayOnATwoMemberComponentTrapsNamingItsPrimaryCount` (2: the child exits 0; the stderr line absent) |
+
+Every new test is reddened by at least one of its named mutations. No new
+typecheck guard was added in this lane, so none is owed a red.
+
+### 8.4 The demo
+
+`docs/probes/demo-pixels/compare.sh <scratch>/pix 47c0d98 56275c5 540da08`.
+The controls at `47c0d98` read the stage-9 corrected values again: light vs
+dark 1048576, default vs modal 1031003, default vs animation 454895, f0 vs f3 0,
+preview light vs dark 1048576, chrome pair 0, distinct 544 / 216, prod default
+vs modal 491221, distinct prod-default-light 529, indicator rects 0. **All
+fourteen images read 0 differing, and every scene is identical**, for `47c0d98 →
+56275c5` and `56275c5 → 540da08` alike. The demo content's one `.overlay` (`PreviewToggle`'s
+`.topTrailing` badge in the proposal preview) takes the typed entry, and its
+record-less nodes pass through unwrapped (N1.6's rule; M1g, which wraps them,
+reddens `everyProductionRootsDeepestNativeLevelIsMeasured`).
+
+Value sizes are not re-taken: this lane adds no stored property, and
+`OverlayModifier<Rectangle, Rectangle>` has the same two stored sides and
+alignment. `everyProductionTreeBuildsOnAOneMegabyteThread` is green in the
+suite. The spec re-takes the bisection after lanes 1 and 3.
+
+### 8.5 Deferred from lane 2
+
+Nothing new is deferred from this lane. A legacy `.background { content }`
+(`LR-FX` item 6) and per-member overlay distribution over a multi-member
+`Component` (`LR-GA` item 3) stay plan task 8's, as ruled.

@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-GC`** (stage 11's design took `LR-FV`…`LR-FZ`, its critic round 1 `LR-GA` and its lane 1 `LR-GB`, appended at the end; stage-11 rulings amended by that round carry a paragraph headed **Amended, stage-11 critic round 1**; stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-GD`** (stage 11's design took `LR-FV`…`LR-FZ`, its critic round 1 `LR-GA`, its lane 1 `LR-GB` and its lane 2 `LR-GC`, appended at the end; stage-11 rulings amended by that round carry a paragraph headed **Amended, stage-11 critic round 1**; stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -10485,3 +10485,90 @@ supplies. Each is corrected where it was stated.
 assumed, the prefix is machinery for a rare path. It still costs one empty
 array (8 bytes) per legacy chain, and the absorbing path stays pinned by N1.2
 and by M1d/M1d′.
+
+---
+
+## LR-GC — stage 11, lane 2: the legacy overlay as built; two retained tests the design missed; N1.3's group arm; the controls' third step
+
+**The lane.** Commits `131fe16` (red first) and `540da08` (the overlay).
+Record §54 §8 has the red lines, the mutation table, the demo comparison and
+the container run. `LR-FX` holds **as ruled**: `OverlayModifier<Content:
+ElementGroup, Overlay: ElementGroup>`, a `ProposalElementGroup`/`ProposalElement`
+only when both sides are; one `.overlay(alignment:content:)`, on
+`ElementGroup` (`nativeOverlay` kept on `ProposalElementGroup`); both sides
+through `lowerAttachmentChildren` in the new `AttachmentLowering.swift`; `MC-P`'s
+ids unchanged — every identity test spec §3.3 lists stayed green **unedited**,
+and the proposal overlay mints exactly its `47c0d98` nodes (N1.6). Suite **1435**
+(1430 + N1.3–N1.7), 14 images 0 differing.
+
+1. **A retained guard the design did not list changes its answer, as `LR-FX`
+   item 1 rules.** `proposalOverlayAcceptsProposalContentAndRejectsLegacyContent`
+   (`ElementGroupTrapTests`, record §09) had `Text("legacy").overlay {
+   Rectangle() }` as its **negative**; with `.overlay` on `ElementGroup` that
+   spelling is a legacy overlay and compiles. Its body changes: the old
+   negative joins the positive, and the negative is that overlay entering a
+   proposal container, `HStack { Text("legacy").overlay { Rectangle() } }`,
+   rejected with a message naming `ProposalElementGroup` (measured). The name is
+   kept — the proposal overlay still rejects legacy content *where a proposal
+   parent would register it* — because a rename is a removal and a new test,
+   which would owe a retirement row for a test whose question survives. The
+   spec's T row for `proposalLayoutConstructorsRequireProposalContent` is
+   applied as written, plus one positive: `HStack { OverlayModifier(content:
+   Rectangle()) { Color(.accent) } }`, which proves the conditional conformance
+   still admits a both-proposal overlay to a container.
+2. **A second retained test the design did not list changes its answer, as
+   `LR-FX` item 3 rules.** `anItemFieldNoLoweredContainerConsumesIsReportedByName`
+   (1.13, `LoweringItemTests`, `LR-AQ`) had two arms — a `flexGrow(1)` box as
+   the `.overlay` **primary** and in the overlay **slot**, each under
+   `LegacyUnderProposal` — expecting `[box.flexGrow.unconsumed]`. The
+   attachment now consumes both sides' records at `.stack`, which drops the
+   grow as a frame layer does (`LR-AZ`), so each reads `[]` — the same move
+   that arm's `legacy ScrollView` sibling made at stage 3 (`LR-BB`). The
+   unconsumed mechanism itself stays pinned by the test's seven other
+   container arms; M1e and M1e′ turn these two arms red again.
+3. **N1.3 gains a fifth arm, L5 — a legacy group primary.** The spec's L1–L4
+   are each ONE element (a `Box`, a `ModifiedContent`), which consumes exactly
+   one index from the primary's cursor whatever its inner shape, so a threaded
+   cursor (M1c′) cannot move the overlay's index through a flip of any of
+   them. Measured: under M1c′, L1–L4 redden only on the id (the tally at
+   `.positional(1)` under the modifier, 3 taps at every step); only
+   `members { if flag { EmptyComponent() }; p }` — the probe's P2, `MC-E`'s
+   counterexample over legacy content — moves it (index 2, 1, 2) and loses the
+   state at the discriminating step (taps 3, **0**, 3). Every arm carries an
+   in-arm positive control: the primary's trailing member reads
+   `.positional(1)`, `.positional(0)`, `.positional(1)`.
+4. **The controls read MetalUI's retention on the third step, not SwiftUI's
+   reset.** B (`Box { tally }.id("g\(generation)")`) resets at every flip: 3,
+   0, 0. P5 (a tally inside the primary's own conditional) reads 3, `nil`
+   (absent, not painted), **3**; Q (the overlay's own `if`/`else`) reads 3, 0,
+   **3**. SwiftUI's P5 and Q reset at the third step too; MetalUI keeps an
+   absent id's `@State` below the sweep threshold (divergence 18), as
+   `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed` already
+   records for the threaded cursor. So the **second** step is the
+   discriminating one — no retained state can stand in there — and the test
+   says so.
+5. **Two spellings the spec left open.** (a) `lowerAttachmentChildren` plans
+   against a parent style aligning `.center` on both axes. A default `Style`
+   would stretch (`stretches(nil)` is true), and on a multi-node side (several
+   overlay views) the single-child exemption does not apply; a frame layer's
+   style is non-stretching by construction, so this is "exactly a frame
+   layer's arm". Under diagnostics a non-empty report replaces the side with
+   the one 0×0 leaf `Frame.unlowerable` returns; in production the first entry
+   traps. (b) `requestSecondaryContentAttachment` now takes and returns
+   `LayoutNodeID`s (the untyped entry has no `ProposalNodeID`s);
+   `BackgroundModifier` maps its proposal nodes and is **not** routed through
+   `lowerAttachmentChildren` — its sides are proposal-only and record-less, so
+   the call would be the identity, and a legacy `.background { }` is task 8's
+   (`LR-FX` item 6). Both entries of `OverlayModifier` share one `attach` and
+   one `overlaySide(of:)`, so M1c and the lowering mutations reach both.
+6. **Mutation spellings, recorded.** M1c′ was applied to the **untyped** entry
+   only (the one every legacy primary takes). M1e/M1e′ skip
+   `lowerAttachmentChildren` for one side entirely. M1f passes the primary
+   through with `dropsPresentations: false` (a parameter added to the mutant
+   only), leaving the overlay side's drop in place. M1g wraps every record-less
+   child in `requestNativeFrame(child:alignment: .center)`.
+
+**What it costs if wrong.** If a legacy primary's `flexGrow` under `.overlay`
+should grow (CSS's answer), the drop is a rect disagreement, never a trap, and
+the growing spelling is the grow on a wrapper outside the overlay (`LR-FX`).
+If the name kept in item 1 misleads, it is a doc-comment fix.

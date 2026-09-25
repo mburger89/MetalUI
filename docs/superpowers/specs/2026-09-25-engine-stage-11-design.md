@@ -4,7 +4,7 @@ Plan task 7, stage 11: the last row of
 [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 (`LR-V`, §8). Branch `feat/engine-stage-11` from `47c0d98`. Rulings
 `LR-FV`…`LR-FZ` (critic round 1: `LR-GA`, which amends this spec in place —
-each amended passage says so; lane 1: `LR-GB`, likewise) in
+each amended passage says so; lane 1: `LR-GB`, likewise; lane 2: `LR-GC`, likewise) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md);
 measurements in `docs/record/54-engine-replacement-stage-11.md`.
 
@@ -406,6 +406,13 @@ live" is stale and the Record phase corrects it.
   then — the one the proposal path already gives a multi-node primary.
 - Paint and prepaint: unchanged (primary, then overlay).
 - **Not here**: a legacy `.background { content }` (§10).
+- *Amended, stage-11 lane 2 (`LR-GC` item 5).* `lowerAttachmentChildren`
+  plans against a parent style aligning `.center` on both axes, so nothing is
+  stretched on a multi-node side (a default `Style` would stretch); a report
+  under diagnostics replaces the side with one 0×0 leaf.
+  `requestSecondaryContentAttachment` takes and returns `LayoutNodeID`s;
+  `BackgroundModifier` maps its proposal nodes and is not routed through the
+  lowering (its sides are record-less, so the call would be the identity).
 
 ## 6. The other stage-11 items (`LR-FY`)
 
@@ -537,11 +544,13 @@ smallest-stack bisection (the recursion is its change) and records them.
 attachment helper's input). Tests: new `Tests/MetalUITests/LegacyOverlayTests.swift`;
 body change in `ElementGroupTrapTests.swift`
 (`proposalLayoutConstructorsRequireProposalContent`'s overlay arm). **Not** any
-lane-1 file.
+lane-1 file. *Amended, stage-11 lane 2 (`LR-GC` items 1–2):* also
+`proposalOverlayAcceptsProposalContentAndRejectsLegacyContent` (same file) and
+`LoweringItemTests.swift`'s 1.13 overlay arms, below.
 
 | test | red before (at `47c0d98`) | mutation that must redden it |
 |---|---|---|
-| **N1.3** (exit) `aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape` — the overlay-primary-shape arms with `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`'s instrument (taps into the overlay's own `@State`, read after each flip): L1 `Box { if flag { Box() }; Box() }`, L2 `Box { if flag { EmptyComponent() }; Box() }`, L3 L1 `.padding(Pixels(2))` (a legacy `ModifiedContent`), L4 `ZStack { if flag { Rectangle() }; Rectangle() }.padding(e)` (a proposal `ModifiedContent`) — each keeps its taps through false→true; controls A (no flip, kept), B (`Box { tally }.id("g\(g)")`, reset every generation), P5 (a stateful probe inside the primary's conditional: present, absent, new) and Q (the overlay's own `if/else`, reset) | does not compile (legacy primaries) | **M1c** overlay side under `.child(of: id, at: 0)`; **M1c′** one cursor threaded through primary and overlay |
+| **N1.3** (exit) `aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape` — the overlay-primary-shape arms with `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`'s instrument (taps into the overlay's own `@State`, read after each flip): L1 `Box { if flag { Box() }; Box() }`, L2 `Box { if flag { EmptyComponent() }; Box() }`, L3 L1 `.padding(Pixels(2))` (a legacy `ModifiedContent`), L4 `ZStack { if flag { Rectangle() }; Rectangle() }.padding(e)` (a proposal `ModifiedContent`), *and, amended by lane 2 (`LR-GC` item 3),* L5 `members { if flag { EmptyComponent() }; p }` (a legacy group primary — the only arm a threaded cursor can move) — each keeps its taps through true→false→true, with an in-arm control (the primary's trailing member reads `.positional(1)`, `.positional(0)`, `.positional(1)`); controls A (no flip, kept), B (`Box { tally }.id("g\(g)")`, reset every generation), P5 (a stateful probe inside the primary's conditional: present, absent, new — *measured 3, `nil`, 3 by lane 2: divergence 18 retains the absent id's state, `LR-GC` item 4*) and Q (the overlay's own `if/else`, reset — *measured 3, 0, 3*) | does not compile (legacy primaries) | **M1c** overlay side under `.child(of: id, at: 0)`; **M1c′** one cursor threaded through primary and overlay |
 | **N1.4** `aLegacyOverlayConsumesItsPrimarysAndOverlaysRecordsAsAFrameLayerDoes` — in a `Row`, a `Box` primary declaring `flexGrow(1)` and an overlay `Box` declaring `margin`, under diagnostics: the report is empty, the grow and the margin are dropped (rect literals), the overlay is placed by `alignment` over the primary's rect | does not compile | **M1e** skip consuming the primary (report `…unconsumed`); **M1e′** skip consuming the overlay side |
 | **N1.5** (exit test) `anOverlayOnAPresentationTrapsNamingItsPrimaryCount` — a production frame over `Deferred { … }.overlay { Box() }` exits with failure, stderr containing `requires one primary node, got 0` | does not compile | **M1f** the primary not passed through `droppingPresentations` |
 | **N1.6** `aProposalOverlayRegistersExactlyTheNodesItDidBeforeUnification` — `ZStack { Rectangle(…).padding(e).overlay { Rectangle(…) }.opacity(0.5) }`: `tree.nodeCount` and `lastNativeLayoutWork` equal literals taken at `47c0d98` before the change (a must-not-move pin, green on both sides by design, stated in its doc) | — | **M1g** `lowerAttachmentChildren` wraps a record-less child in a frame |
@@ -552,6 +561,16 @@ Body change (T): `proposalLayoutConstructorsRequireProposalContent` —
 negatives to the positives, and the negative `HStack { Text("legacy").overlay
 { Rectangle() } }` (message naming `ProposalElementGroup`) replaces it. Its
 answer changes, as ruled (`LR-FX`).
+
+*Amended, stage-11 lane 2 (`LR-GC` items 1–2): two more T rows the design
+missed, each changing its answer as `LR-FX` rules.*
+`proposalOverlayAcceptsProposalContentAndRejectsLegacyContent` — its negative
+`Text("legacy").overlay { Rectangle() }` now compiles (item 1): it joins the
+positive, and the negative becomes `HStack { Text("legacy").overlay {
+Rectangle() } }`, message naming `ProposalElementGroup`.
+`anItemFieldNoLoweredContainerConsumesIsReportedByName` (1.13) — its `.overlay`
+primary and slot arms read `[]` where they read `[box.flexGrow.unconsumed]`
+(item 3: the attachment consumes both sides).
 
 ### Lane 3 — opacity order and the owned lowering items (Opus)
 
@@ -596,7 +615,9 @@ lanes.
   only retained tests whose bodies change, and only
   `proposalLayoutConstructorsRequireProposalContent`'s overlay arm, the three
   arms that leave to N2.2/N2.3, and the renamed T2.1 change an answer, all as
-  ruled. A lane that must edit any other retained test has found a defect and
+  ruled. *Amended, stage-11 lane 2 (`LR-GC` items 1–2):* so do
+  `proposalOverlayAcceptsProposalContentAndRejectsLegacyContent`'s negative and
+  1.13's two overlay arms, also as ruled (`LR-FX` items 1 and 3). A lane that must edit any other retained test has found a defect and
   stops.
 - **Pixels: 0 differing in all fourteen images** against `47c0d98`
   (`docs/probes/demo-pixels/compare.sh`). No demo site writes a legacy
