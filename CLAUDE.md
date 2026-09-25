@@ -48,7 +48,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
   its spec), `TI-` (next `TI-I`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
-  spec), `ID-` (next `ID-R`; rulings in its own decisions doc,
+  spec), `ID-` (next `ID-S`; rulings in its own decisions doc,
   `2026-09-25-composition-identity-decisions.md`). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`) is a typo; sweep
   case-insensitively.
@@ -236,8 +236,19 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-25, `feat/composition-identity-closeout` — plan task 8's
+  closeout, from `89a8337`): 1488 tests, 0 goldens, 88 typecheck guards**, 0
+  `error:` on both build systems, the one `warning:` SwiftPM's deprecation
+  notice under native (0 under the default one), taken after `swift package
+  clean` the same way (`Test run with 1488 tests in 3 suites passed`; eleven
+  gated tests skipped; the guards ran). **1488 = 1483 + 5**: `ID-R`'s three
+  (`anIDThatReturnsToAnEarlierNameStartsFresh`,
+  `aNameThatMovesToASiblingsPositionKeepsItsState`,
+  `everyNamingSiteStartsAReturningNameFresh`) and `ID-F`'s generation clause
+  pinned on both copies (`O1.11`, `O1.12`). No guard, no golden; 0 px against
+  `89a8337` in all fourteen offscreen images. History: record §55 §10.
 - **Counts (2026-09-25, `feat/composition-identity` — plan task 8, composition
-  and identity, from `e3cb3e9`, not yet merged with `master`): 1483 tests, 0
+  and identity, from `e3cb3e9`, merged at `89a8337`): 1483 tests, 0
   goldens, 88 typecheck guards**, 0 `error:` on both build systems, the one
   `warning:` SwiftPM's deprecation notice under native (0 under the default
   one, `swift build --build-tests`), taken after `swift package clean` with
@@ -1140,10 +1151,19 @@ header in the same change.
   own `id(_:) -> Self` is untouched and still wins for `Box`/`Stack`/`Text`/
   `ModifiedElement` (more specific); a changed name resets exactly as the
   legacy spelling does, and `.id()` must still be the outermost modifier.
-  **A name that changes and then RETURNS gets its old state back** (within
-  `TB-AH`'s sweep bound) on both spellings, where SwiftUI gives it new state
-  (probe X9–X11, revision 3) — found by task 8's branch check, not yet ruled,
-  numbered or pinned (record §55 §9.3).
+  **A name an evaluated position leaves is reset** (`ID-R`, the task-8
+  closeout): every site that mints a named id notes it at `(parent, cursor
+  index)` (`StateTable.noteNamed`); a position holding a different name than
+  last frame departs the old one, and `sweep()` resets it (at and under its
+  id, `$focus`/`$ax` kept) **unless the frame produced it elsewhere** — so
+  `.id` over a, b, a starts the returning name fresh, as SwiftUI does (probe
+  X9–X11), and a swap or a loop reorder keeps each name's state. Only an
+  EVALUATED position departs a name: a loop shrinking at its tail
+  (divergence 74) and a name → no-name change depart nothing, and **a
+  `List`'s rows are exempt** (`noteWindowedParent`; a row out of its window
+  is not evaluated, `TB-AH`). **A new site that mints a named id owes a
+  `noteNamed` call and an arm in `everyNamingSiteStartsAReturningNameFresh`**
+  — a site without one keeps a departed name's state silently.
 - `.padding(_:)` and every legacy `.frame(...)` return one flat
   `ModifiedElement<LayerBase>` (`MC-A`); each modifier is one layer = one node
   = one id level; outermost layer takes the parent's slot, inner layers are
@@ -2016,7 +2036,9 @@ expected, measured facts:
   not retired**: its remainder (above) now also names the row's cross-axis
   alignment as the frame's own where SwiftUI's is the parent's (probe L8,
   kept, pinned by new `N3.1`) — task 8's audit closes the row's "owner: none"
-  clause with a pin rather than a fix.
+  clause with a pin rather than a fix. **Task 8's closeout adds no row**
+  (`ID-R`, record §04's closeout section): a name that returns after a
+  detour now starts fresh, SwiftUI's answer, so label 75 stays unused.
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
   `hidden()` on
   drawing/focusable subtrees, `PaintPass.isActive`,

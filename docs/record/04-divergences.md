@@ -1509,3 +1509,26 @@ not in this table yet**: a group or element whose `.id` changes and then
 bound, where SwiftUI gives it new state (probe X9–X11, revision 3; MetalUI
 measured by a throwaway test at `da2d820`, record §55 §9.3). It owes a ruling
 (fix or keep) and, if kept, a number (next unused label **75**) and a pin.
+
+## 2026-09-25 (closeout): no row added — the returning-name row is fixed (plan task 8, `ID-R`)
+
+Record §55 §10; ruling `ID-R`. **The table stays at fifty-five live; label 75
+stays unused.** The state-retention difference the section above left open —
+a name that changes and then **returns** got its old state back within
+`TB-AH`'s bound, where SwiftUI gives it new state (probe X9–X11, revision 3,
+re-run byte-identical at `89a8337`) — is **fixed to SwiftUI's answer**, so it
+never became a numbered row: a name an evaluated position leaves is reset
+unless the frame produced it elsewhere (`StateTable.noteNamed`, `sweep()`),
+`$focus`/`$ax` kept as `ID-C` keeps them. Pinned by
+`anIDThatReturnsToAnEarlierNameStartsFresh`,
+`aNameThatMovesToASiblingsPositionKeepsItsState` and
+`everyNamingSiteStartsAReturningNameFresh` (`ExplicitIdentityTests.swift`).
+**74 is unchanged**: a loop shrinking at its tail evaluates no position, so its
+dropped element — named or not — departs nothing and keeps its state (plan task
+10). **`TB-AH` is unchanged**: a `List`'s rows are exempt, because a row out of
+its window is not evaluated (mutation MRc, the exemption dropped, reddens the
+two `List` excursion tests).
+
+**What it costs if wrong.** A reader looking for divergence 75 finds nothing —
+by design; the row this section's predecessor named is closed here, not
+numbered.

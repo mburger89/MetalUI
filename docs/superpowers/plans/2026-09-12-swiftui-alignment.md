@@ -940,7 +940,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   task 8) and named divergence 35's live pin; verdict merge. The checkbox is
   the Record phase's to move.
 
-- [ ] **8. Audit composition and identity.**
+- [x] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and
   modifier placement against SwiftUI custom-view behaviour. Preserve MetalUI's
   structural identity model where it matches, and close or document the
@@ -1007,6 +1007,20 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   lists is closed as the Record phase says, re-measured by the branch check
   (1483 tests, 88 guards, 0 px in all fourteen images, `Backends/SDL` 21 +
   19, `swift:6.4-noble` 188 + 10 + 22).
+  *Closeout, 2026-09-25 (`feat/composition-identity-closeout` from
+  `89a8337`, ruling `ID-R`, record §55 §10): the closeout closed the last
+  row, so the box is ticked.* The returning name is **fixed to SwiftUI's
+  answer**, not kept — a name an evaluated position leaves is reset unless
+  the frame produced it elsewhere, a `List`'s rows exempt so `TB-AH` holds —
+  so no divergence 75; pinned by `anIDThatReturnsToAnEarlierNameStartsFresh`
+  (red before: 3 where fresh reads 1, in every spelling),
+  `aNameThatMovesToASiblingsPositionKeepsItsState` and
+  `everyNamingSiteStartsAReturningNameFresh`. The branch check's two smaller
+  findings are closed too: `ID-F`'s generation clause is pinned on both
+  copies (`O1.11`/`O1.12`, red under B2 and B2e), and `LoweringComponentTests`'
+  4.1 doc comment reads as history. Counts **1488 tests, 0 goldens, 88
+  guards**; 0 px against `89a8337` in all fourteen images. The real-window
+  capture is still owed to a human (§55 §8.5), as before.
 
 - [ ] **9. Expand the environment and control-state model.**
   Evolve `Theme` into scoped environment values: enabled state, layout

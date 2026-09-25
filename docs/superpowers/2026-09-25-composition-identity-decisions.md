@@ -2,7 +2,7 @@
 
 Rulings for [`specs/2026-09-25-composition-identity-design.md`](specs/2026-09-25-composition-identity-design.md),
 on `feat/composition-identity` from `e3cb3e9`. Ids are **lettered**,
-`ID-A`…`ID-Q`; next unused is **`ID-R`**. A bare `ID-3` is a typo, not a
+`ID-A`…`ID-R`; next unused is **`ID-S`**. A bare `ID-3` is a typo, not a
 citation. **A round that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-25: DELIVERED.** All three lanes ran, red first, verified
@@ -20,6 +20,11 @@ reading above re-taken and unmoved; one audit row is **open** — a `.id` that
 changes and returns to an earlier name gets its old state back in MetalUI and
 new state in SwiftUI (probe revision 3, X9–X11) — owed a ruling, and if kept a
 number (75) and a pin; the plan's task 8 box is un-ticked until then.
+**Closeout, 2026-09-25 (record §55 §10, `ID-R`)**: the row is **fixed** to
+SwiftUI's answer — a name an evaluated position leaves is reset unless the
+frame produced it elsewhere, a `List`'s rows exempt — no divergence 75; `ID-F`'s
+generation clause pinned on both copies; **1488 tests, 0 goldens, 88 guards**,
+0 px against `89a8337`; the plan's task 8 box is ticked.
 Measurements in
 `docs/record/55-composition-identity.md` (record §55); the audit table is its
 §3.
@@ -785,3 +790,71 @@ instruments redden; item 4 is a count; item 6 is comments.
 **Cost if wrong.** Items 1–4 are how tests are spelled and what their
 instruments redden; item 5 is where a conformance is declared.
 
+## ID-R — the closeout: a name an evaluated position leaves is reset; the generation clause pinned
+
+Plan task 8's closeout (`feat/composition-identity-closeout` from `89a8337`),
+after the branch check left one audit row open (record §55 §9.3).
+
+**Ruling.**
+
+1. **Fixed to SwiftUI's answer, not kept** (`EP-5`; no divergence 75). A name
+   that changes and then returns — `.id` over a, b, a — starts fresh, as
+   SwiftUI's does (probe `swiftui-composition-identity.swift` revision 3: X9 on
+   a leaf and X11 on an `HStack`'s child each read three serials; X10, the name
+   held, one). Re-run at `89a8337` in both forms, byte-identical to the
+   header's 55 lines, exit 0, stderr empty.
+2. **The mechanism** (`StateTable.noteNamed`, `sweep()`): every site that mints
+   a **named** id notes it with the cursor index it consumed — the position a
+   name replaces, `NamedPosition(parent, index)`, a plain value. When a position
+   holds a different name than in the last completed frame, the old name
+   **departs**; `sweep()` resets each departed name **that the frame produced
+   nowhere** — every entry at the name's id and under it, except `$focus`/`$ax`
+   (the one deletion, `resetEntries(under:includingRoot:)`, shared with
+   `ID-C`'s `noteAbsent`, which passes `includingRoot: false`). The id itself is
+   included because an element can hold state at its own id (`ScrollView`'s
+   offset, an element's `withState(id, …)`). A name that moves to a sibling's
+   position (a swap, a loop reorder) is produced elsewhere and keeps its state.
+3. **Sites noted** — each a call, so each a copy with its own pin: the shared
+   `GlobalElementID.enteringGroupMember` (`Element`'s default, the typed
+   proposal defaults, the typed `Component` entry), `AnyElement`'s group entry,
+   the untyped `Component` entry, `IdentifiedGroup.slot` (shared by its two
+   entries), `ModifiedContent.innermostID` (a named inner layer; layout-only,
+   both entries) and `Frame.render`'s root.
+4. **What "vanished" means, precisely — only an EVALUATED position departs a
+   name.** A position nothing evaluates departs nothing: an `if` that went false
+   (its own `noteAbsent` resets it, `ID-C`), a loop that shrank at its tail
+   (divergence 74, plan task 10), anything under an element no longer
+   produced. A position that goes from a name to **no** name departs nothing
+   either (only names are noted, so an unnamed element pays no dictionary
+   work); with `.id(String)` taking no optional, that needs a structural change,
+   which a conditional already resets. **A `List`'s rows are exempt**
+   (`noteWindowedParent`, called by `ListRows` with the list's id): a row's
+   name leaves a position because the **window** moved, not because the row
+   left the data, and `TB-AH`'s bounded retention of a row scrolled out and
+   back is unchanged — a row keeps the same id while out of window; it is
+   simply not evaluated. Names inside a row's content are noted as anywhere
+   else. Focus and accessibility retention are untouched (`$focus`/`$ax` kept,
+   as `ID-C`).
+5. **One existing test's fixture moved, not its assertion**:
+   `StateTableTests.anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`
+   rendered a root named `"a"` and then a root named `"b"` — since this ruling a
+   rename, which resets `a`. Its second root is now unnamed, which is the "stops
+   being produced" the test is about; its sweep-ordering mutation (MSw, `sweep()`
+   moved to the start of `render`) still reddens it alone.
+6. **`ID-F`'s generation clause is pinned** on both copies: `State.bind`'s and
+   `Environment.bind`'s `box.occurrences = nil` on the first bind of a later
+   generation (the branch check's B2, and its unmutated `Environment` twin,
+   B2e — each left the suite green before this round). O1.11 and O1.12 place
+   one value twice in frame 1 and once, at a different depth, in frame 2; a
+   dispatch to frame 2's occurrence must not resolve to frame 1's dead slot.
+7. **`LoweringComponentTests`' 4.1 doc comment** is history now (record §55
+   §9.4's code-comment finding): the legacy arm and divergence 48 went at stage
+   9 and plan task 8.
+
+**Evidence.** Record §55 §10 (red before, mutations MRa–MRk, B2, B2e, MSw, the
+suite, pixels).
+
+**Cost if wrong.** Item 1 is a behaviour change: code that relied on a name
+getting its state back after a detour through another name now starts it
+fresh, as SwiftUI code does. Item 4's `List` exemption is what keeps `TB-AH`;
+mutation MRc (the exemption dropped) reddens the two `List` excursion tests.

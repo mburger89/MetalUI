@@ -899,3 +899,127 @@ section names it for the next round (next unused label 75).
 and animation move only where a ruling names the change (`ID-B`, `ID-C`,
 `ID-F`, `ID-P` item 1), each with its test. **Task 8: not closed** until §9.3
 is ruled and pinned.
+
+## 10. The closeout (`89a8337..`, 2026-09-25, PDT)
+
+One agent, on `feat/composition-identity-closeout` from `89a8337`, for §9's
+three findings. Commits `7e31ba7` (red tests), `18e009d` (the fix), `71298eb`
+(E3.12's inner arm re-spelled; 4.1's doc comment), then this section with
+`ID-R`.
+
+### 10.1 The open row — ruled a fix (`ID-R`), not divergence 75
+
+**Probe first.** `docs/probes/swiftui-composition-identity.swift` re-run at
+`89a8337` in both forms (`/usr/bin/swift …` and `xcrun swiftc … && ./probe`):
+exit 0 each, stderr 0 lines each, the two stdouts byte-identical to each other
+and to the header's recorded 55 lines (a `diff` against the header is empty),
+X9–X11 included:
+
+```
+X9 .id a, b, a (3 generations): p 72 / 73 / 74
+X10 .id a, a, a (3 generations, control for X9): p 75 / 75 / 75
+X11 HStack .id a, b, a (3 generations): in 76 / 77 / 78
+```
+
+**Decision.** `EP-5` prefers SwiftUI's answer, and the one obstacle §9.3
+implied — that a departed name is indistinguishable from a `List` row out of
+its window — is a matter of saying which positions are evaluated. `ID-R`:
+every site that mints a named id notes it at `(parent, cursor index)`; a
+position whose name differs from the last completed frame's departs the old
+name, and `sweep()` resets each departed name the frame produced nowhere (at
+and under its id, `$focus`/`$ax` kept, the deletion shared with `ID-C`'s
+`noteAbsent`). A `List`'s rows are exempt (`ListRows` →
+`noteWindowedParent`): a row keeps its id while out of window — it is not
+evaluated, not departed — so `TB-AH` is untouched. Only an evaluated position
+departs a name; a loop shrinking at its tail (divergence 74), an `if` gone
+false (`ID-C`'s own reset) and a name → no-name change (not noted, so unnamed
+elements pay nothing) depart nothing here (`ID-R` item 4).
+
+**Tests** (`ExplicitIdentityTests.swift`):
+
+| test | shape | red before (`7e31ba7`'s tests on `89a8337`'s sources) |
+|---|---|---|
+| E3.10 `anIDThatReturnsToAnEarlierNameStartsFresh` | names a, a, b, a and a, a, a, a; `Box` in a `Row`, root `Box`, `IdentifiedGroup` in a `VStack` and in a `Row`, a named leaf counting at its own id | 5 issues: every changed arm reads **3** (the fresh answer is 1); the five controls read 4 |
+| E3.11 `aNameThatMovesToASiblingsPositionKeepsItsState` | two named `Box`es swapping names every frame | green (pin): 3 and 3 |
+| E3.12 `everyNamingSiteStartsAReturningNameFresh` | the same over `AnyElement`, a `Component` declaring `elementID`, a named inner modifier layer (`.padding(2).id(n).padding(4)`) | 3 issues, each arm **3** (E3.12's first inner spelling, `.id(n).padding(4)`, also read 3 but reached `enteringGroupMember`, not `innermostID` — see MRf) |
+
+One existing test moved its fixture, not its assertion (`ID-R` item 5):
+`StateTableTests.anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`
+rendered root `"a"` then root `"b"` — a rename now, which reset `a` (2 issues
+on the fix's first run); its second root is unnamed.
+
+### 10.2 `ID-F`'s generation clause (the branch check's B2)
+
+`OccurrenceIdentityTests.swift`: **O1.11**
+`aStateBoxForgetsTheOccurrencesOfAnEarlierGeneration` — one value as `Row { p;
+Box { p } }` for a frame, then `Row { Box { p } }`; a write dispatched to frame
+2's occurrence (`root/0/0/0`) lands on its own slot, not frame 1's `root/0/0`.
+**O1.12** `anEnvironmentBoxForgetsTheOccurrencesOfAnEarlierGeneration` — the
+same shape through `Environment` (scopes 7 and 9, then 5): the dispatched read
+is 5. Both green before (pins of an unpinned clause); each reddened by its own
+copy's mutation alone (B2, B2e below). **B2e was unpinned too**: the whole
+suite under it reddens O1.12 alone.
+
+### 10.3 Mutations
+
+Each from the committed tree (`18e009d`, then `71298eb` for MRf/MRi's re-run),
+applied by exact-string substitution to one site, whole suite unfiltered, file
+restored from a copy, `git status --short Sources` empty after each.
+
+| id | site and spelling | reddened (issues) |
+|---|---|---|
+| MRa | `StateTable.noteNamed`: `guard case .named = id.component, false` (records nothing) | E3.10 (5), E3.12 (3) |
+| MRb | `sweep()`: `for name in departedNames` (the produced-anywhere check dropped) | E3.11 (1), `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot` (2), `reorderingANamedListCarriesEachItemsState` (3) |
+| MRc | `noteWindowedParent`: `_ = parent` (the `List` exemption dropped) | `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` (1), `aConditionalInAWindowedListRowIsNotResetByAnExcursion` (1) |
+| MRd | `AnyElement`'s group entry: its `noteNamed` line commented out | E3.12 (1, the `AnyElement` arm) |
+| MRe | untyped `Component.requestGroupLayout`: its `noteNamed` line deleted | E3.12 (1, the `Component` arm) |
+| MRf | `ModifiedContent.innermostID`: `table.noteNamed(innermostID, at: 0)` → `_ = table` | at `18e009d`: **none** (1488 passed — E3.12's inner arm, `Box { p }.id(n).padding(4)`, names the chain's content, noted by `enteringGroupMember`); after `71298eb`'s re-spelling (`.padding(2).id(n).padding(4)`): E3.12 (1) alone |
+| MRg | `IdentifiedGroup.slot`: its note → `_ = table` (both entries share it) | E3.10 (2, the two `IdentifiedGroup` arms) |
+| MRh | `Frame.render`'s root note → `_ = rootID` | E3.10 (1, the root arm) |
+| MRi | `GlobalElementID.enteringGroupMember`: its note deleted | at `18e009d`: E3.10 (2), E3.12 (1, the then inner arm); at `71298eb`: E3.10 (2) — the `Box` and named-leaf arms |
+| MRj | `resetEntries`: `(includingRoot && false && id == root)` (the departed id itself kept) | E3.10 (1, the named leaf counting at its own id) |
+| MRk | `resetEntries`: `&& !Self.isWindowRetained(id)` dropped (the shared exemption, both resets) | `aResetKeepsTheFocusAndAccessibilityRetentionSlots` (2), `aFocusedTextFieldInsideAToggledIfKeepsFocusAndStartsItsEditStateFresh` (3), `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow` (1), `aFocusRequestWhileDisabledLeavesNoRetentionSlot` (1) |
+| B2 | `State.bind`: the `box.occurrences = nil` branch left empty | O1.11 (2) alone |
+| B2e | `Environment.bind`: the same | O1.12 (1) alone |
+| MSw | `Frame.render`: `stateTable.sweep()` moved to the start of the build | `anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue` (1) alone — its moved fixture still pins the ordering |
+
+MRk reaches only `noteAbsent`'s tests, not a rename test: a rename that keeps
+`$focus`/`$ax` is asserted by nothing of its own; the exemption is one line
+both resets share, so the four tests above pin it for both.
+
+### 10.4 Gates
+
+- `swift package clean`, `swift build --build-system native --build-tests`:
+  `Build complete!`, 0 `error:`, the only `warning:` SwiftPM's deprecation
+  notice. Unfiltered `swift test --build-system native --no-parallel`:
+  **`Test run with 1488 tests in 3 suites passed after 83.901 seconds`**; the
+  log carries `FR-J no-argument frame: succeeded=true deprecations=2` (guards
+  ran), `CONDITIONAL GUARD G2.1 positive: succeeded=true`, `EXPLICIT IDENTITY
+  GUARD G3.1 positive: succeeded=true`; eleven gated tests skipped. **1488 =
+  1483 + 5** (E3.10, E3.11, E3.12, O1.11, O1.12). Guards **88**, unmoved (no
+  new guard); goldens 0.
+- Green in that run: `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS`, and every allocation pin.
+  `METALUI_RUN_100K_LIST_TEST=1 … aListsWorkIsTheSameFor100kRowsAsFor500`:
+  passed (27.6 s).
+- `swift build --build-tests` (default build system): 0 `error:`, 0
+  `warning:`.
+- Pixels: `docs/probes/demo-pixels/compare.sh <scratch> 89a8337 71298eb` —
+  controls at their recorded values (light/dark 1 048 576, default vs modal
+  1 031 003, default vs animation 454 895, f0 vs f3 0, preview 1 048 576,
+  chrome pair 0, distinct 544/216/529, prod default vs modal 491 221,
+  indicator rects 0) and **all fourteen images `differing=0`, scene
+  identical**. The demo names nothing that changes.
+- Not re-run: `Backends/SDL` and the `swift:6.4-noble` container (no file
+  either reads changed beyond `Sources/MetalUI`, already portable, and no
+  new API); the real-window capture stays owed (§8.5), unchanged by a fix the
+  demo cannot reach.
+
+### 10.5 Result
+
+§9's three findings are closed: the open row is fixed and pinned (E3.10–E3.12,
+`ID-R`), the generation clause is pinned on both copies (O1.11, O1.12), and
+4.1's comment is history. No divergence is added (75 stays unused); record
+§04's task-8 section gains a closeout note. **Plan task 8's box is ticked.**

@@ -31,6 +31,9 @@ reading above re-taken and unmoved; one audit row is **open** — a `.id` that
 changes and returns to an earlier name gets its old state back in MetalUI and
 new state in SwiftUI (probe revision 3, X9–X11) — owed a ruling, and if kept a
 number (75) and a pin; the plan's task 8 box is un-ticked until then.
+**Closeout, 2026-09-25 (record §55 §10, ruling `ID-R`)**: fixed to SwiftUI's
+answer — a returning name starts fresh — so no divergence 75; 1488 tests, 0 px;
+the box is ticked.
 
 ## Contents
 
