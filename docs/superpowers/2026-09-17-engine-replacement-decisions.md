@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FR`** (stage 10's design took `LR-FM`…`LR-FQ`, appended at the end; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FS`** (stage 10's design took `LR-FM`…`LR-FQ` and its critic round 1 `LR-FR`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -9602,6 +9602,12 @@ removed per a ruling, with the migration spelling.
 4. **Moved**: `Style` to `MetalUI` (`LR-FM` item 3). `Box(style:…)`,
    `Stack`'s initialiser and every `public var style` keep their spelling;
    `Style()` is the one value an external caller can pass.
+
+   **Amended, stage-10 critic round 1** (`LR-FR` F5): that makes the public
+   `style:` parameter of `Box`'s three initialisers **inert outside the
+   package** — it configures nothing an external caller can choose. It is
+   kept, recorded as a declared-but-inert row in record §05 at the Record
+   phase, and its deprecation or removal is handed to plan task 15.
 5. **Unchanged**: the eight sizing modifiers stage 8 deprecated (`LR-EU`),
    `width(fraction:)`/`height(fraction:)` and their `percent:` renames,
    `flexBasis(fraction:)`/`flexBasis(percent:)`, `margin(_:)`'s `Length`
@@ -9717,7 +9723,10 @@ macOS (both build systems) and Linux (`swift:6.4-noble`).
    10's eleven as they existed in `MetalUILayout` (the five deleted fields'
    getters, `flexGrow`'s getter in the kernel module, the three deleted
    enums' metadata accessors, the two removed modifiers), and four names a
-   regression re-adding a deleted field to the moved `Style` would export —
+   regression re-adding a deleted field to the moved `Style` would export
+   (**amended by `LR-FR` F1: twelve, 30 names in all** — every block-A/B
+   name whose mangling names `Style`, `FlexWrap`, `AlignContent` or
+   `Overflow` gets its `MetalUI` twin) —
    and five positive controls that must resolve (`MetalUI`'s
    `Style.flexGrow` getter, `StyledElement.flexGrow(_:)`,
    `LayoutTree.computeNativeLayout(root:proposal:in:)`, and both
@@ -9776,7 +9785,8 @@ executable built with exported symbols is the measurement to take.
    T1.16) and adds 2 (N1.1, T1.16's new name): 1411 − 3 + 2 = **1410**. Lane 2
    adds 4 (N2.1, G1–G3): **1414**. Guards 79 → **82**. Portable targets 22 +
    188 + 10 (Windows 22 + 188 + 9).
-3. **The mutations** (spec §6): M1a–M1d in lane 1; M2a–M2e in lane 2, each
+3. **The mutations** (spec §6): M1a–M1d in lane 1; M2a–M2g in lane 2 (M2f,
+   M2g added by `LR-FR` F2), each
    from a committed tree, restored from a copy, full unfiltered suite, every
    reddened test named; M2a also prints the instrument file's three predicted
    names.
@@ -9790,3 +9800,98 @@ executable built with exported symbols is the measurement to take.
 fields' report lines and `border`'s lowering are live but unpinned (lane 1
 retired or re-spelled the tests that read them); lane 2 deletes them, so no
 merged state carries unpinned code.
+
+---
+
+## LR-FR — stage 10 critic round 1: the closing check's names after the move, the missing restore-a-symbol mutation, and `Box(style:)` made inert
+
+**The round.** 2026-09-24 (PDT), one agent, critic and reviser, over
+`07e7c49` (spec, `LR-FM`…`LR-FQ`, record §52 §1–§2, the instrument file). No
+`Sources/` or `Tests/` file touched; every measurement below was taken in the
+scratchpad. Findings applied (F1–F6) and rejected (R1–R4).
+
+**F1 — applied. Block A's and B's names that spell a moved type go vacuous
+after lane 2.** A Swift mangled name carries the module of every nominal type
+in the signature. Block A's `LayoutPass`/`Frame.requestNode(style:children:)`
+spell `MetalUILayout.Style` (`…0A8UILayout…AG5StyleV…`), and block B's two
+modifier names spell `MetalUILayout.FlexWrap`/`AlignContent`; once `Style` is
+in `MetalUI`, a regression re-adding either exports `…AA5StyleV…` /
+`…yxAA04FlexF0OF`, which N2.1 as designed would never have looked up — it
+would pass with the symbol back. **Measured**: standalone two-module compiles
+(`swiftc -emit-module -module-name MetalUILayout` then `-module-name MetalUI`,
+`nm -gU`) whose **control** variant (the type left in `MetalUILayout`)
+reproduced block A's two `requestNode` names, block B's two modifier names and
+block D's `StyledElement.flexGrow(_:)` and `Style.flexGrow` names byte for
+byte; the moved variant printed the twins. Block C grows from 4 to **12**
+(the four moved-`Style` getters, the two modifier twins, the three enum
+accessor twins, the two `requestNode` twins; the border getter was already
+there); the absent list is **30** (instrument file block C; spec §6 N2.1).
+`computeLayout` and both `requestLeaf` names are **not** twinned: they spell
+`AvailableSpace`, which stage 9 deleted (no `enum`/`struct AvailableSpace` in
+`Sources` at `8095fd9`), so no source can re-export them; those rows record
+the deletion, and a re-added engine under a new signature is `LR-FP` item 3's
+renamed-entry-point case.
+
+**F2 — applied. `LR-P` item 0's mandated mutation was missing.** `LR-P` item 0
+reads "Mutation at stage 10: restore `computeLayout` as a public function
+(red)". Spec §6 re-added only stage-10 names (M2a). `computeLayout`'s exact
+name is unrestorable (F1), so the mutation is taken on the two stage-9 symbols
+that are: **M2f** re-adds `LayoutPass.requestNode(style:children:)` over the
+moved `Style` (reddens N2.1 only through F1's twin — the separating arm for
+F1), and **M2g** re-adds `enum LayoutAuthority` (block A's
+`$s7MetalUI15LayoutAuthorityOMa`, unchanged by the move).
+
+**F3 — applied. Block C's three predicted getters were unverified.** The same
+compiles printed all three exactly as predicted (plus the overflow getter,
+now listed); the instrument file says so, and lane 2 still re-confirms from
+its mutants.
+
+**F4 — applied. M1b's predicted reddened set named T1.4, which cannot redden.**
+`aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt` asserts every
+arm's hitbox is `cbBounds(185, 85, 10, 10)` and its report empty, whatever
+surrounds the root (`PresentationContainingBlockTests.swift`, the arm loop):
+dropping the padding from `paddedAndSized` moves no presentation. Removed from
+M1b's list; its fold is pinned by its subject, not by M1b.
+
+**F5 — applied as a ruling. `Box(style:)` becomes inert outside the package.**
+`LR-FN` item 4 kept the `style:` parameter "for `decoration:`" — a separate
+parameter; the reason was wrong. With every field `package`, an external
+caller can pass only `Style()`, so `Box`'s three public `init(style:…)`
+spellings (`Box.swift:45`, `:53`, `:162` at `8095fd9`) carry a parameter that
+configures nothing — the declared-but-inert shape. **Kept anyway**: removing
+it breaks every in-package caller (251 `Box(style:`/`Stack(style:` sites in
+`Sources` and `Tests`), and deprecating the public spelling while keeping a
+package one duplicates three initialisers for a question plan task 15 owns
+(release-facing API removal, as `LR-FN` item 5). Recorded as a record §05
+inert row at the Record phase, handed to task 15. The demo's one
+`Box(style: row)` (`DemoContent.swift:301`) is likewise a spelling no external
+app can write after this stage; it stays (re-spelling its `padding` as a
+`.padding` layer adds an identity level and risks the 0 px exit), noted in
+the Record phase's §05 row.
+
+**F6 — applied. The grep's golden count changed spelling silently.** `LR-P`
+item 3 names `find Tests -name "*.json" | wc -l`; spec §8 used `git ls-files
+'Tests/*.json'`. Both read 0 at `8095fd9` in the worktree; the deviation's
+reason (`find` counts `Tests/PortableTests/.build`'s JSON artifacts once built,
+CLAUDE.md's goldens bullet) is now written in §8, and both outputs are
+recorded.
+
+**Rejected.**
+
+- **R1 — a third lane.** `LR-FQ` item 1's reason holds: lane 1's test files are
+  shared by both deleted-field families, and lane 2's red-first commit needs
+  the move it tests. Lane 2 grows by two mutations and eight literals, not by a
+  file.
+- **R2 — run the closing check on Windows.** `LR-FP` item 4 stands: no Windows
+  host to measure `GetProcAddress` against a Swift test executable, and the
+  names are the same strings; compiled out per `PC-B`, not skipped.
+- **R3 — stage-11 pre-emption.** Neither lane's file list (spec §4.4) names
+  `ModifiedElement`, `NativeModifiedContent`, the overlay or `.opacity`; the
+  removed modifiers live in `Box.swift`'s `StyledElement` extension. None.
+- **R4 — a SwiftUI claim needing a probe.** The spec makes none; `LR-FO` item
+  1's equal-share reason cites 7a's existing probe G0/G1, unchanged.
+
+**What it costs if wrong.** If F1's twins are mis-spelled the lane's M2a/M2f
+nm readings correct them before N2.1 lands; if F5's inert parameter matters
+to an external caller before task 15, making the fields `public` again is
+additive (`LR-FM`'s cost paragraph).

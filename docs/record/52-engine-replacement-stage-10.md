@@ -168,3 +168,29 @@ then on the 8 MB thread — both died with signal 11 **before** `swift package
 clean` (§2.4's stale objects); after it the 8 MB run printed the figures above.
 The worker-thread attempt was not repeated after the clean, so which of the two
 causes killed it is not known.
+
+## 3. Critic round 1 (design, 2026-09-24)
+
+One critic-and-reviser agent over `07e7c49`; ruling `LR-FR` (F1–F6 applied,
+R1–R4 rejected). No `Sources/`/`Tests/` file touched.
+
+- **The closing check's names after the move** (F1, F3): a standalone
+  two-module `swiftc` compile whose control variant reprinted block A's two
+  `requestNode(style:children:)` names, block B's two modifier names and block
+  D's two `flexGrow` names byte for byte showed that each of those spells the
+  module of `Style`/`FlexWrap`/`AlignContent`, so a regression re-adding one
+  after the move exports a different string (`AG5StyleV` → `AA5StyleV`,
+  `0A8UILayout04FlexF0OF` → `AA04FlexF0OF`). Block C grows 4 → 12, the absent
+  list 22 → 30; the three predicted getters printed as predicted.
+  `computeLayout` and both `requestLeaf` names spell the deleted
+  `AvailableSpace` and cannot be re-exported by any source.
+- **Mutations added** (F2): M2f (re-add `LayoutPass.requestNode(style:children:)`
+  over the moved `Style`) and M2g (re-add `enum LayoutAuthority`) — `LR-P` item
+  0's "restore a symbol".
+- **M1b's list** (F4): T1.4 removed — it asserts window-placed hitboxes
+  whatever surrounds the root.
+- **`Box(style:)`** (F5): inert outside the package once every field is
+  `package`; kept, a record §05 row at the Record phase, handed to task 15.
+- **The golden-count spelling** (F6): `git ls-files 'Tests/*.json'` and
+  `find Tests -name "*.json"` both read 0 at `8095fd9`; the reason for the
+  former is in spec §8.

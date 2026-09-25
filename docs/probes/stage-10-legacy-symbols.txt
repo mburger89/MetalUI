@@ -60,13 +60,45 @@ $s7MetalUI13StyledElementPAAE12alignContentyx0A8UILayout05AlignF0OF
 #
 $s7MetalUI5StyleV6border0A6UICore5EdgesVyAE6LengthOGvg
 #
-#    PREDICTED, not printed (lane 2 prints each from its mutant M2a and
-#    corrects this file if one differs):
+#    Critic round 1 (LR-FR F1, F3): every block-A/B name whose mangling names
+#    a type the stage MOVES (`Style`) or deletes-and-a-regression-would-re-add
+#    in `MetalUI` (`FlexWrap`, `AlignContent`, `Overflow`) is unreachable by a
+#    re-add after lane 2 — the module is part of the name — so its `MetalUI`
+#    twin is listed here. Printed 2026-09-24 from standalone two-module
+#    compiles in the scratchpad (`swiftc -parse-as-library -emit-module
+#    -module-name MetalUILayout …; swiftc -module-name MetalUI -I . -L . …
+#    -emit-library`, then `nm -gU libM.dylib`), each with a CONTROL variant
+#    that keeps the type in `MetalUILayout` and printed block A's two
+#    `requestNode` names, block B's two modifier names and block D's
+#    `$s7MetalUI13StyledElementPAAE8flexGrowyxSfF` and
+#    `$s7MetalUI5StyleV8flexGrowSfvg` byte for byte. Lane 2 re-confirms the
+#    flexWrap three from mutant M2a and the LayoutPass requestNode twin from
+#    M2f with `nm` on the real build.
 #
+#    Field getters on the moved `Style`:
 $s7MetalUI5StyleV8flexWrapAA04FlexE0Ovg
 $s7MetalUI5StyleV12alignContentAA05AlignE0OSgvg
 $s7MetalUI5StyleV11aspectRatioSfSgvg
+$s7MetalUI5StyleV8overflow0A6UICore4AxesVyAA8OverflowOGvg
+#    The removed modifiers, over a `MetalUI`-module enum:
+$s7MetalUI13StyledElementPAAE8flexWrapyxAA04FlexF0OF
+$s7MetalUI13StyledElementPAAE12alignContentyxAA05AlignF0OF
+#    The deleted enums' metadata accessors, re-added in `MetalUI`:
+$s7MetalUI8FlexWrapOMa
+$s7MetalUI12AlignContentOMa
+$s7MetalUI8OverflowOMa
+#    Stage 9's style-taking registrars, re-added over the moved `Style`
+#    (block A's spellings encode `MetalUILayout.Style`: `AG5StyleV` → `AA5StyleV`):
+$s7MetalUI10LayoutPassV11requestNode5style8children0A8UILayout0cF2IDVAA5StyleV_SayAIGtF
+$s7MetalUI5FrameC11requestNode5style8children0A8UILayout06LayoutE2IDVAA5StyleV_SayAIGtF
 #
+#    NOT twinned, because no source can re-export them: block A's
+#    `computeLayout` and both `requestLeaf` names spell `AvailableSpace`,
+#    which stage 9 deleted (grep finds no `enum`/`struct AvailableSpace` at
+#    8095fd9). Those three rows record the deletion; a re-added engine under a
+#    new signature is the renamed-entry-point case (LR-FP item 3).
+#
+#    Absent list: A 7 + B 11 + C 12 = 30.
 # ---------------------------------------------------------------------------
 # D. Positive controls — must resolve, or the instrument is broken. The first
 #    was printed from the scratch move's object (as C); the rest from 8095fd9's

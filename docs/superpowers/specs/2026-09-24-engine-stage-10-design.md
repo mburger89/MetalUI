@@ -1,9 +1,9 @@
 # Engine replacement, stage 10 — `Style`'s CSS fields and the closing check (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 10, `LR-P`, §8. Rulings `LR-FM`…`LR-FQ` in
+§4.1 row 10, `LR-P`, §8. Rulings `LR-FM`…`LR-FR` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
-(next unused `LR-FR`).
+(next unused `LR-FS`; `LR-FR` is critic round 1's).
 Record: `docs/record/52-engine-replacement-stage-10.md` (§1 baseline, §2 the
 entry measurement).
 Instrument: `docs/probes/stage-10-legacy-symbols.txt` (every mangled name the
@@ -143,6 +143,8 @@ Record §52 §2 has the commands and the raw lists; in short:
 | `LegacyLowering` name | kept | `LR-FO` item 7 |
 | the closing check | `dlsym` test (macOS + Linux; compiled out on Windows), three guards, the grep | `LR-FP` |
 | lanes | two, in order; the deletion in the last | `LR-FQ` |
+| `Box(style:)`'s `style:` parameter once every field is `package` | kept, inert outside the package; a record §05 row; removal handed to task 15 | `LR-FR` F5 |
+| the closing check after the move | every block-A/B name whose mangling names a type the stage moves gets its `MetalUI` twin (block C 4 → 12; 30 absent names); two restore-a-symbol mutations | `LR-FR` F1–F2 |
 
 ## 4. API and files
 
@@ -197,7 +199,7 @@ The type's doc comments are rewritten for the one engine (every
 | every other `Style` stored field | **`package`** | the element's modifier: `hidden()`/`Stack` (`display`); `.position(_:)`/`.inset(_:)`; `.frame(…)` (`size`/`minSize`/`maxSize`); `.margin(_:)`; `.padding(_:)` (a layer, `MC-A`); `Row`/`Column`/`.flexDirection(_:)`; `.gap(_:)`; `.justifyContent(_:)`; `.alignItems(_:)`; `Stack(alignment:)`/`.frame(alignment:)` (`justifyItems`); `.flexGrow`/`.flexShrink`/`.flexBasis`/`.alignSelf` |
 | `Display`, `JustifyItems` | **`package`** | no public writer remained; `Stack`, `hidden()`, `.frame(alignment:)` |
 | `Style` (the type) | **moves** `MetalUILayout` → `MetalUI`; `init()`, `default`, `==` stay public | `import MetalUI` (which re-exports `MetalUILayout`, so an app's imports do not change) |
-| `Box(style:decoration:…)` and `Stack`'s, every `public var style` | **unchanged** | — (`Style()` is the only value an external caller can pass; the parameter stays for `decoration:`) |
+| `Box(style:decoration:…)` and `Stack`'s, every `public var style` | **unchanged** | — but **inert outside the package** (`Style()` is the only value an external caller can pass, so the parameter configures nothing; `decoration:` is a separate parameter and unaffected). Kept, with a declared-but-inert row (record §05, Record phase) and removal handed to task 15 (`LR-FR` F5) |
 | `width(_:)`, `height(_:)`, `min*`/`max*` (deprecated, stage 8), `width(fraction:)`/`height(fraction:)` and their `percent:` renames, `flexBasis(fraction:)`/`flexBasis(percent:)` | **unchanged** | not this stage's (`LR-FN` item 5) |
 
 ### 4.3 `UnlowerableField`'s owner (`Sources/MetalUI/LayoutAuthority.swift`, `LR-FO` item 3)
@@ -339,7 +341,10 @@ re-spelling below compiles and passes against the old `Style`.
 
 - **M1b** `paddedAndSized`'s `inset(_:_:)` returns `resolvedLength(border)`
   only (the padding dropped): must redden T1.13–T1.15 (they now carry the
-  border's widths as padding) and T1.4; the lane names every test it reddens.
+  border's widths as padding); the lane names every test it reddens. **Not
+  T1.4** (`LR-FR` F4): its arms assert the presentation's hitbox
+  `cbBounds(185, 85, 10, 10)` whatever the root's surroundings, so no inset
+  mutation can redden it — that insensitivity is its subject.
 - **M1c** (**V2**, re-run on the re-spelled fixture) `legacyLeafDiagnostics(…)
   + fields`: reddens T1.9.
 - **M1d** the leaf `inset` row deleted from `legacyLeafDiagnostics`: reddens
@@ -364,7 +369,7 @@ green.
   over the instrument file's lists, the names written into the test with a
   comment naming the file and each block's command. `try #require` that every
   **positive control** (block D, five names) resolves and that the absent list
-  has its literal count (block A 7 + B 11 + C 4 = **22**), then `#expect` each
+  has its literal count (block A 7 + B 11 + C 12 = **30**, `LR-FR` F1), then `#expect` each
   absent name resolves `nil`, naming it. No `.enabled(if:)`, no early return:
   it cannot skip; a broken instrument fails the positive controls.
   **Red before** (commit 1): the positive-control `#require` fails — block D's
@@ -372,14 +377,30 @@ green.
   that control set aside in scratch, the eleven block-B names resolve (the lane
   records both readings).
   **Mutations**: **M2a** `public var flexWrap: FlexWrap` and `enum FlexWrap`
-  re-added to the moved `Style` (+ `StyledElement.flexWrap(_:)`) → N2.1 (block
-  C's `$s7MetalUI5StyleV8flexWrap…` and block B's modifier name) and G2; the
-  lane prints block C's three predicted names from this mutant with `nm` and
-  corrects the instrument file if one differs. **M2c** `Style.swift` moved back
+  re-added to the moved `Style` (+ `StyledElement.flexWrap(_:)`) → N2.1 naming
+  block C's three `MetalUI`-module twins — the getter
+  `$s7MetalUI5StyleV8flexWrapAA04FlexE0Ovg`, the modifier
+  `$s7MetalUI13StyledElementPAAE8flexWrapyxAA04FlexF0OF` and the accessor
+  `$s7MetalUI8FlexWrapOMa` — and G2. **Not block B's modifier name**: block B
+  spells `FlexWrap` as `MetalUILayout`'s, which a re-add after the move cannot
+  export (`LR-FR` F1). The lane confirms the three with `nm` on the mutant. **M2c** `Style.swift` moved back
   to `MetalUILayout` → N2.1 (block B's `$s13MetalUILayout5StyleV8flexGrowSfvg`
   resolves; block D's `$s7MetalUI5StyleV8flexGrowSfvg` does not) and G3.
   **M2d** the resolver returns `false` for every name → N2.1's positive-control
   `#require` (and nothing else).
+  **M2f** (`LR-P` item 0's "restore a symbol", `LR-FR` F2) after the move,
+  `public func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID
+  { fatalError() }` re-added to `LayoutPass` in `MetalUI` → N2.1 names block C's
+  `$s7MetalUI10LayoutPassV11requestNode5style8children0A8UILayout0cF2IDVAA5StyleV_SayAIGtF`
+  (and would read green without F1: block A's spelling encodes
+  `MetalUILayout.Style`). **M2g** `enum LayoutAuthority { case proposal }`
+  re-added to `MetalUI` → N2.1 names `$s7MetalUI15LayoutAuthorityOMa`; if the
+  unused enum's accessor is not emitted, the lane gives it a stored use and
+  records which. Block A's `computeLayout` and both `requestLeaf` names
+  **cannot be re-exported by any source** — their signatures name
+  `AvailableSpace`, deleted by stage 9 — so those three rows are a record of
+  the deletion, not a tripwire; a re-added engine under a new signature is the
+  renamed-entry-point case the guards and grep cover (`LR-FP` item 3).
 - **G1** `aPlainImportCannotWriteAStyleField` (`StyleSurfaceCompileGuards.swift`,
   `typecheckFile`, `SA-P`): the fixture `var s = Style(); s.flexGrow = 1`
   fails with `'flexGrow' is inaccessible due to 'package' protection level`;
@@ -466,7 +487,10 @@ Guards 79 → **82**. Portable targets: `MetalUICoreTests` 22,
 1. **The recorded grep** (`LR-P` item 3, widened): `grep -rn
    "FlexEngine\|computeLayout(\|requestNode(style" Sources` prints only the
    history comments record §51 §7.7 lists; `git ls-files 'Tests/*.json' | wc -l`
-   reads 0; `grep -rnE 'flexWrap|alignContent|aspectRatio|\bOverflow\b|\.relative\b|FlexWrap|AlignContent' Sources Tests/MetalUITests Tests/MetalUICrossPlatformTests Tests/MetalUILayoutTests`
+   reads 0 (the `LR-P` item 3 spelling, `find Tests -name "*.json" | wc -l`, is
+   recorded beside it: both read 0 at `8095fd9` in the worktree, but `find`
+   also counts `Tests/PortableTests/.build`'s JSON build artifacts once that
+   package has been built, CLAUDE.md's goldens bullet — `LR-FR` F6); `grep -rnE 'flexWrap|alignContent|aspectRatio|\bOverflow\b|\.relative\b|FlexWrap|AlignContent' Sources Tests/MetalUITests Tests/MetalUICrossPlatformTests Tests/MetalUILayoutTests`
    prints only G2's and N2.1's fixtures/names, the proposal `.aspectRatio(_:)`
    modifier family (`NativeElements`, `NativeModifiedContent`, `LayoutTree`,
    `ProposalLayout` and their tests — a SwiftUI modifier, not the `Style`
@@ -493,7 +517,9 @@ Guards 79 → **82**. Portable targets: `MetalUICoreTests` 22,
   `Component.width` over a presentation member.
 - **To plan task 15** (closeout): divergence 52; whether the eight
   deprecated sizing modifiers and the `fraction:` spellings are removed
-  (`LR-FN` item 5); whether any permanent refusal of `LR-FO` item 1 becomes a
+  (`LR-FN` item 5); whether `Box(style:)`/`Stack`'s public `style:`
+  parameter, inert outside the package after this stage, is deprecated or
+  removed (`LR-FR` F5); whether any permanent refusal of `LR-FO` item 1 becomes a
   compile error by narrowing its modifier's parameter type.
 - **To the Record phase** (not before): CLAUDE.md/AGENTS.md — the counts
   (suite, guards 82, portable CI 22 + 188 + 10 and Windows' 9), `LR-` next
@@ -504,5 +530,7 @@ Guards 79 → **82**. Portable targets: `MetalUICoreTests` 22,
   (no divergence number moves; re-read 9, 10 and 54 for the permanent-refusal
   wording), record §05 (delete the `Style.aspectRatio`/`overflow`,
   `Style.border` on a container, and `Position.relative` offset rows; the
-  `margin: .auto` row becomes package-only), record README (§52), the parent
+  `margin: .auto` row becomes package-only; **add** a row for the public
+  `style:` parameter of `Box`'s three initialisers, inert outside the package,
+  `LR-FR` F5), record README (§52), the parent
   spec's §4.1 row 10 status, the plan's task 7 note.
