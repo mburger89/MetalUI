@@ -47,7 +47,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
-  its spec), `TI-` (next `TI-H`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
+  its spec), `TI-` (next `TI-I`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
   spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
@@ -193,6 +193,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-24, `feat/text-editor` — `TI-H` — merged with `master`
+  at `8095fd9`): 1423 tests, 0 goldens, 79 typecheck guards**, 0 `error:`,
+  the same one `warning:` under native, taken the same way; **1423 = 1411 +
+  12** (`TextEditingTests` +4, `TextEditorTests` +7, `TextSystemSeamTests`
+  +1); record §52.
 - **Counts (2026-09-24, `feat/engine-stage-9` merged with `master` at
   `1895e4a`, PR #30 — the Windows demo-stack fix): 1411 tests, 0 goldens, 79
   typecheck guards**, 0 `error:` on both build systems, the one `warning:`
@@ -1105,7 +1110,13 @@ field's `TextEditState.history`**: ⌘Z / ⌘⇧Z on Apple, ctrl-Z / ctrl-Y /
 ctrl-shift-Z elsewhere; typing and single deletes coalesce, and a caret move
 ends the group. The history is valid only for the text its last edit
 produced — a caller that changes the text itself drops it, rather than an
-undo replaying over a text it never saw.
+undo replaying over a text it never saw. **`TextEditor` (`TI-H`)** is the multi-line field: it
+draws line by line from `TextSystem.lineRanges`, and its caret, presses and
+up/down all read the same `TextLineModel`, so a caret at a wrap sits at the
+next line's start. Up and down keep a remembered column (`goalX`), and return
+inserts `\n`. Its vertical scroll follows the caret unless the wheel moved
+it (`revealsCaret`). The wheel over an editor is routed in
+`Window.applyScroll`, ahead of the opaque-hitbox stop.
 
 **Text.** `Text` and `ProposalText` measure and draw **only through
 `Frame.textSystem`** (`TS-A`): a `TextSystem` chosen once per app

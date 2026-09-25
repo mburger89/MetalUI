@@ -199,6 +199,8 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     // Roadmap item 14: `TextField` is its own site, lowered as `text` is.
     arms.append(("TextField", diagnostics { TextField("a", text: "", onChange: { _ in }).position(.relative) },
                  [field(.textField, "position")]))
+    arms.append(("TextEditor", diagnostics { TextEditor(text: "", onChange: { _ in }).position(.relative) },
+                 [field(.textEditor, "position")]))
     arms.append(("ModifiedElement, outermost registrar", diagnostics { Box().padding(px(4)).position(.relative) },
                  [field(.modifierLayer, "position")]))
     // The inner layer declares `position`, the outermost `inset`, so the two
@@ -244,7 +246,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     #expect(amendOut.contains("AMEND-ENTRIES []\n"),
             "Component amend: stdout \(amendOut)\nstderr \(amendErr)")
     arms.append(("Component wrap", diagnostics { ProposalProbeComponent().padding(px(4)) }, []))
-    try #require(arms.count == 9)
+    try #require(arms.count == 10)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }

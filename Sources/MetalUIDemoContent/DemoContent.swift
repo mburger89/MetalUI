@@ -99,6 +99,8 @@ public final class DemoModel {
     /// store what they are given back here.
     public var fieldText = ""
     public var secondFieldText = ""
+    /// The text-input demo's multi-line editor (ruling TI-H).
+    public var editorText = ""
 }
 
 @MainActor public let demoModel = DemoModel()
@@ -1224,6 +1226,12 @@ public func textInputDemoContent() -> some Element {
                   text: demoModel.secondFieldText) { demoModel.secondFieldText = $0 }
             .background(.surfaceSecondary)
         Text(demoModel.fieldText.isEmpty ? "(the first field echoes here)" : demoModel.fieldText)
+        // Multi-line (TI-H): return breaks a line, up and down keep the
+        // column, the wheel scrolls it.
+        TextEditor("A multi-line editor: return, up and down, the wheel",
+                   text: demoModel.editorText) { demoModel.editorText = $0 }
+            .height(Pixels(160))
+            .background(.surfaceSecondary)
     }
     .alignItems(.stretch)
     .padding(Pixels(24))

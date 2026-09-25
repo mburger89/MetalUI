@@ -6,7 +6,7 @@ import MetalUIPlatform
 /// the window's physical pixels. A plain value — the adapter turns it into an
 /// `accesskit_tree_update`, on whatever thread AccessKit asks from.
 public struct AccessKitSnapshot: Equatable, Sendable {
-    public enum Role: Equatable, Sendable { case window, genericContainer, button, label, image, table, row, textInput }
+    public enum Role: Equatable, Sendable { case window, genericContainer, button, label, image, table, row, textInput, multilineTextInput }
     public enum Action: Equatable, Hashable, Sendable { case click, focus, increment, decrement }
 
     public struct Node: Equatable, Sendable {
@@ -114,6 +114,7 @@ extension AccessKitSnapshot {
         case .table: .table
         case .row: .row
         case .textField: .textInput
+        case .textArea: .multilineTextInput
         }
     }
 

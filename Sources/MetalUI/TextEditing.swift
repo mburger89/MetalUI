@@ -20,6 +20,14 @@ struct TextEditState: Equatable, Sendable {
     var dragOrigin: Range<Int> = 0..<0
     /// Undo and redo (ruling TI-G).
     var history = TextEditHistory()
+    /// A multi-line field's remembered x for up and down (ruling TI-H): the
+    /// column a run of vertical moves keeps returning to across short lines.
+    var goalX: Double?
+    /// A multi-line field's vertical scroll, and whether the next frame must
+    /// scroll the caret into view — set by every edit and caret move, left
+    /// clear by the mouse wheel so a wheel scroll is not snapped back.
+    var scrollY = 0.0
+    var revealsCaret = true
 
     var selection: Range<Int> { min(anchor, head)..<max(anchor, head) }
 
@@ -97,10 +105,18 @@ enum TextEditing {
 
     // MARK: Keys
 
+    /// One key, per TI-D's table; with `lines` the field is multi-line
+    /// (ruling TI-H): return inserts a line break, up and down move between
+    /// display lines at a remembered x, and the line keys work on the display
+    /// line.
     static func key(_ key: KeyEvent, text: String, state: TextEditState,
-                    clipboard: () -> String?, platform: Platform = platform) -> KeyOutcome {
+                    clipboard: () -> String?, platform: Platform = platform,
+                    lines: TextLineModel? = nil) -> KeyOutcome {
         let characters = Array(text)
         var state = synced(state.clamped(to: characters.count), with: text)
+        let goalX = state.goalX
+        state.goalX = nil
+        state.revealsCaret = true
         let unhandled = KeyOutcome(state: state, handled: false)
         // An input method owns the keys while it composes.
         if !state.composition.text.isEmpty { return KeyOutcome(state: state, handled: true) }
@@ -136,7 +152,8 @@ enum TextEditing {
                                   text: newText, copied: selected, handled: true)
             case "v":
                 guard let pasted = clipboard(), !pasted.isEmpty else { return KeyOutcome(state: state, handled: true) }
-                let (newText, newState) = replace(state.selection, with: singleLine(pasted),
+                let (newText, newState) = replace(state.selection,
+                                                  with: lines == nil ? singleLine(pasted) : lineBreaksNormalized(pasted),
                                                   in: characters, state: state)
                 return KeyOutcome(state: recording(.other, from: text, state, to: newText, newState),
                                   text: newText, handled: true)
@@ -153,6 +170,43 @@ enum TextEditing {
             if !shift { state.anchor = target }
             state.history.openGroup = nil
             return KeyOutcome(state: state, handled: true)
+        }
+
+        if let lines {
+            let current = lines.lineIndex(of: state.head)
+            func vertical(_ step: Int) -> KeyOutcome {
+                let x = goalX ?? lines.x(of: state.head)
+                let target = current + step
+                // Past the first or last line the caret goes to the text's
+                // start or end, and the column is forgotten, as AppKit does.
+                if target < 0 { return move(to: 0) }
+                if target >= lines.lines.count { return move(to: characters.count) }
+                var kept = move(to: lines.boundary(inLine: target, nearest: x))
+                kept.state.goalX = x
+                return kept
+            }
+            let lineStart = lines.lines[current].range.lowerBound
+            let lineEnd = lines.visibleEnd(ofLine: current)
+            switch keyName {
+            case upArrow where toEdge: return move(to: 0)
+            case downArrow where toEdge: return move(to: characters.count)
+            case upArrow: return vertical(-1)
+            case downArrow: return vertical(1)
+            case leftArrow where toEdge, home: return move(to: lineStart)
+            case rightArrow where toEdge, end: return move(to: lineEnd)
+            case deleteBackward where toEdge && state.selection.isEmpty:
+                guard lineStart < state.head else { return KeyOutcome(state: state, handled: true) }
+                let (newText, newState) = replace(lineStart..<state.head, with: "", in: characters, state: state)
+                return KeyOutcome(state: recording(.other, from: text, state, to: newText, newState),
+                                  text: newText, handled: true)
+            case "\r", "\u{3}":
+                let (newText, newState) = replace(state.selection, with: "\n", in: characters, state: state)
+                if !state.selection.isEmpty { state.history.openGroup = nil }
+                return KeyOutcome(state: recording(.typing, from: text, state, to: newText, newState),
+                                  text: newText, handled: true)
+            default:
+                break
+            }
         }
 
         switch keyName {
@@ -208,16 +262,21 @@ enum TextEditing {
     // MARK: Text
 
     /// Committed text replaces the selection and ends any composition.
-    static func insert(_ inserted: String, text: String, state: TextEditState) -> (String, TextEditState) {
+    static func insert(_ inserted: String, text: String, state: TextEditState,
+                       multiline: Bool = false) -> (String, TextEditState) {
         let characters = Array(text)
         var state = synced(state.clamped(to: characters.count), with: text)
         state.composition = .none
+        state.goalX = nil
+        state.revealsCaret = true
         // One typed grapheme with nothing selected continues a typing group;
         // typing over a selection starts one; anything longer (an input
         // method's commit) is a group of its own.
         let kind: TextEditHistory.EditKind = inserted.count == 1 ? .typing : .other
         if !state.selection.isEmpty { state.history.openGroup = nil }
-        let (newText, newState) = replace(state.selection, with: singleLine(inserted), in: characters, state: state)
+        let (newText, newState) = replace(state.selection,
+                                          with: multiline ? lineBreaksNormalized(inserted) : singleLine(inserted),
+                                          in: characters, state: state)
         return (newText, recording(kind, from: text, state, to: newText, newState))
     }
 
@@ -293,6 +352,8 @@ enum TextEditing {
         let characters = Array(text)
         var state = state.clamped(to: characters.count)
         state.history.openGroup = nil
+        state.goalX = nil
+        state.revealsCaret = true
         let index = min(max(index, 0), characters.count)
         state.composition = .none
         if extend {
@@ -326,6 +387,8 @@ enum TextEditing {
         let characters = Array(text)
         var state = state.clamped(to: characters.count)
         state.history.openGroup = nil
+        state.goalX = nil
+        state.revealsCaret = true
         let index = min(max(index, 0), characters.count)
         let origin = state.dragOrigin.clamped(to: 0..<(characters.count + 1))
         switch state.dragGranularity {
@@ -369,6 +432,12 @@ enum TextEditing {
     }
 
     // MARK: Helpers
+
+    /// Every line break a paste or an input method can carry (CR LF, CR,
+    /// U+2028…) as `\n`, the one break a multi-line field stores.
+    static func lineBreaksNormalized(_ string: String) -> String {
+        String(string.map { $0.isNewline ? "\n" : $0 })
+    }
 
     static func singleLine(_ string: String) -> String {
         String(string.map { $0.isNewline ? " " : $0 })
@@ -434,8 +503,76 @@ struct TextInputTarget {
     var onChange: @MainActor (String) -> Void
     var onSubmit: (@MainActor () -> Void)?
 
-    /// The grapheme boundary under window x `x`.
-    func boundary(atWindowX x: Double) -> Int {
-        TextEditing.boundary(nearest: x - originX, offsets: caretOffsets)
+    // A multi-line field's (ruling TI-H); `lines` is nil for a `TextField`.
+    var lines: TextLineModel? = nil
+    /// Window y of line 0's top — the content's top minus the scroll.
+    var originY = 0.0
+    var lineHeight = 0.0
+    /// How far the content can scroll: its height past the field's.
+    var maxScrollY = 0.0
+
+    /// The grapheme boundary under a window point: on the line under `y`
+    /// (clamped to the first and last), nearest `x`.
+    func boundary(atWindowX x: Double, y: Double) -> Int {
+        guard let lines, lineHeight > 0 else {
+            return TextEditing.boundary(nearest: x - originX, offsets: caretOffsets)
+        }
+        let index = min(max(Int(((y - originY) / lineHeight).rounded(.down)), 0), lines.lines.count - 1)
+        return lines.boundary(inLine: index, nearest: x - originX)
+    }
+}
+
+/// A multi-line field's display lines in graphemes (ruling TI-H): what up and
+/// down, the line keys, a press and the caret's position read. Built by
+/// `TextEditor` from `TextSystem.lineRanges` and `caretOffsets`, so the lines
+/// the caret moves over are the lines it draws.
+struct TextLineModel: Equatable {
+    struct Line: Equatable {
+        /// The line's graphemes, its hard break excluded.
+        var range: Range<Int>
+        /// `caretOffsets` of the line's text: `range.count + 1` values.
+        var offsets: [Double]
+        /// Whether a hard break ends it (the next line starts after the
+        /// break); otherwise it wrapped, or it is the last line.
+        var endsInHardBreak: Bool
+    }
+
+    /// Never empty: an empty text is one empty line.
+    var lines: [Line]
+
+    /// The line a boundary's caret is drawn on. A boundary where a line
+    /// wrapped belongs to the next line (the caret after a wrapped line's last
+    /// space is drawn at the start of the next).
+    func lineIndex(of boundary: Int) -> Int {
+        for (index, line) in lines.enumerated() where boundary >= line.range.lowerBound {
+            if boundary < line.range.upperBound { return index }
+            if boundary == line.range.upperBound && (line.endsInHardBreak || index == lines.count - 1) {
+                return index
+            }
+        }
+        return lines.count - 1
+    }
+
+    /// The x of a boundary on its line.
+    func x(of boundary: Int) -> Double {
+        let line = lines[lineIndex(of: boundary)]
+        let local = min(max(boundary - line.range.lowerBound, 0), line.offsets.count - 1)
+        return line.offsets[local]
+    }
+
+    /// The last boundary a caret can sit at on line `index` and still be
+    /// drawn there: its end, or — for a line that wrapped — before its last
+    /// grapheme, whose end is the next line's start.
+    func visibleEnd(ofLine index: Int) -> Int {
+        let line = lines[index]
+        let wrapped = !line.endsInHardBreak && index < lines.count - 1 && !line.range.isEmpty
+        return wrapped ? line.range.upperBound - 1 : line.range.upperBound
+    }
+
+    /// The boundary on line `index` nearest `x`.
+    func boundary(inLine index: Int, nearest x: Double) -> Int {
+        let line = lines[index]
+        let local = TextEditing.boundary(nearest: x, offsets: line.offsets)
+        return min(line.range.lowerBound + local, visibleEnd(ofLine: index))
     }
 }
