@@ -4,7 +4,7 @@ Plan task 7, stage 11: the last row of
 [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 (`LR-V`, §8). Branch `feat/engine-stage-11` from `47c0d98`. Rulings
 `LR-FV`…`LR-FZ` (critic round 1: `LR-GA`, which amends this spec in place —
-each amended passage says so; lane 1: `LR-GB`, likewise; lane 2: `LR-GC`, likewise) in
+each amended passage says so; lane 1: `LR-GB`, likewise; lane 2: `LR-GC`, likewise; lane 3: `LR-GE`, likewise) in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md);
 measurements in `docs/record/54-engine-replacement-stage-11.md`.
 
@@ -602,6 +602,15 @@ one-node condition, their docs), `LayoutAuthority.swift` (`owner`, the
 | **N2.3** `aTwoMemberAbsoluteFrameInADeferredIsARowOfPerMemberFramesAgainstTheWindow` — empty report, hitboxes (35, 15) and (55, 15) 10×10; **control** (*critic round 1*): the same frame in a `Column`, no `Deferred`, still reports `["modifierLayer.position", "modifierLayer.inset"]` | reports `["modifierLayer.style"]`, hitboxes 0×0 at (0, 0) | **M2g** `&& childCount <= 1` restored; **M2g′** the exemption's `Deferred` check dropped with it (the control) |
 | **N2.4** (*critic round 1*) `aHoverOrFocusFillWrittenAfterOpacityEscapesOnlyWhileItIsTheResolvedOne` — `Box().background(red).opacity(0.5).hoverBackground(blue).onClick {}`: unhovered, the red fill reads `0.5 × a` (inside, G3); hovered, the blue reads `a` (outside, G4); the border twin `Box().border(red, 2).opacity(0.5).focusBorder(blue, 2).focusable()`: unfocused faded, focused full; and `Box().background(x).decoration == Decoration(background: x)` (no opacity, nothing recorded) | the hovered/focused arms are faded at `47c0d98` | **M2i** one member for all three fill slots (the design's `Bool`; the unhovered arm escapes); **M2j** the `opacity < 1` condition dropped (the equality arm, and `ModifierTests`' one-field table) |
 
+*Amended, stage-11 lane 3 (`LR-GE`).* N2.3's control read `["modifierLayer.style",
+"modifierLayer.position", "modifierLayer.inset"]` before the lane — the one-node
+condition kept it reporting `style` as well — so "still reports" is corrected to
+"reports, once the condition is gone". N2.4's border twin also carries
+`.onClick {}`, only to read its id off the hitbox. M2e is spelled as a source
+inversion (`fillEscapes` negated), M2g′ on `planLegacyItems`' outside-a-`Deferred`
+report (`&& item.kind != .frameLayer`), M2h as `case .opacity: inside()`; record
+§54 §9.3 has every reddened test.
+
 Body changes (T): `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`
 (its amended arm leaves, to N2.2), `everyReportNamesALiveOwnerOrIsRefusedByName`
 (the `deferred`/stage-11 row leaves),
@@ -619,7 +628,7 @@ lanes.
 ## 8. Accounting, pixels, stack budget, gates
 
 - **Suite: 1426 → 1439** (*amended, critic round 1*): +4 lane 1 (N1.1, N1.2,
-  G1.1, G1.2); +5 lane 2 (N1.3–N1.7), *+4 more by lane 2's fix round (N1.8–N1.11, `LR-GD`), so 1426 → 1443*; +4 lane 3 (N2.1–N2.4); T2.1 is a rename;
+  G1.1, G1.2); +5 lane 2 (N1.3–N1.7), *+4 more by lane 2's fix round (N1.8–N1.11, `LR-GD`), so 1426 → 1443*; +4 lane 3 (N2.1–N2.4; *measured 1443 at `40e48bd`, `LR-GE`*); T2.1 is a rename;
   no test retired. **Guards 82 → 84.** Goldens 0. `goldensUnchanged`: no
   `@Test` is removed, so no retirement row is owed; the T rows above are the
   only retained tests whose bodies change, and only

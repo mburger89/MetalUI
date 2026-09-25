@@ -477,3 +477,115 @@ suite. The spec re-takes the bisection after lanes 1 and 3.
 Nothing new is deferred from this lane. A legacy `.background { content }`
 (`LR-FX` item 6) and per-member overlay distribution over a multi-member
 `Component` (`LR-GA` item 3) stay plan task 8's, as ruled.
+
+## 9. Lane 3 — opacity order and the owned lowering items (2026-09-25)
+
+Commits `dcdc415` (red first: T2.1 renamed, N2.1–N2.4, the four T rows' arms
+moved), `40e48bd` (implementation) and `529b032` (a comment). Ruling `LR-GE`.
+Files as spec §7 lane 3 lists them; `ModifierTests` unedited.
+
+### 9.1 Red first
+
+Built with 0 `error:`/`warning:` beyond SwiftPM's notice, then the whole suite
+unfiltered at `dcdc415`'s tests over lane 2's source: **`Test run with 1443
+tests in 3 suites failed … with 10 issues`**, every issue in a new or renamed
+test:
+
+| test | red line |
+|---|---|
+| T2.1 `aBackgroundOrBorderWrittenAfterOpacityEscapesIt` | `DecorationPaintTests.swift:911` — `abs(g3 - g4) > 0.001` (G4 faded like G3) |
+| N2.1 `theOpacityOrderAnswersTheSameOnBothPathsThroughTheUnifiedType` | `OpacityOrderTests.swift:120` — the legacy path's `abs(path.g3 - path.g4) > 0.001` |
+| N2.4 `aHoverOrFocusFillWrittenAfterOpacityEscapesOnlyWhileItIsTheResolvedOne` | `:186` hovered fill `0.5 ×`; `:211` focused ring `0.5 ×` |
+| N2.2 `aComponentAmendOverAPresentationMemberAnswersAsAFrameLayerDoes` | `PresentationContainingBlockTests.swift:164` ×3 — `.width(70)`, `.height(70)` report `["deferred.amended"]`, the `StyledComponent` arm two of them; the frame-layer control green, hitboxes already (5, 5) 10×10 |
+| N2.3 `aTwoMemberAbsoluteFrameInADeferredIsARowOfPerMemberFramesAgainstTheWindow` | `PresentationLoweringTests.swift:725` `["modifierLayer.style"]`; `:726` both hitboxes 0×0 at (0, 0); `:735` the control read `["modifierLayer.style", "modifierLayer.position", "modifierLayer.inset"]` (`LR-GE` item 1) |
+
+T2.1's H1 and H3 arms were green before (the legacy path already faded both
+orders, so only the after-opacity arms G4 and H2 moved).
+
+### 9.2 Green
+
+`swift package clean` (a stored property on the public `Decoration`), then
+`swift build --build-system native --build-tests` 0 `error:`, one `warning:`
+(SwiftPM's notice); `swift test --build-system native --no-parallel`
+unfiltered: **`Test run with 1443 tests in 3 suites passed`**, the log carrying
+`FR-J no-argument frame: succeeded=true`. `swift build --build-tests` under the
+default build system: 0 `error:`, 0 `warning:`. No file of `MetalUILayout`
+changed.
+
+### 9.3 Mutations
+
+Applied by `mutations.py` (scratchpad) to the committed tree `529b032`, built
+incrementally, whole suite unfiltered (1443 tests each), restored from a copy of
+the four touched files; `git status --short` empty after each.
+
+| id | mutation (spelling, branch) | suite | reddened |
+|---|---|---|---|
+| M2a | `.background`'s `$0.noteWrite(.plainFill)` deleted | 2 issues | T2.1 (`:911`, G3 ≠ G4); N2.1 (`:120`, legacy G3 ≠ G4) |
+| M2b | `let escapes: Decoration.OpacityEscapes = []` in `paintDecoration` | 4 issues | T2.1 (`:911`); N2.1 (`:120`); N2.4 (`:186` hover, `:211` focus) |
+| M2c | `escapesOpacity = []` deleted from `setOpacity` | 3 issues | T2.1 (`:930`, H3 reads the full fill); N2.1 (`:132` H3 legacy ≠ proposal, `:133` H3 ≠ G3) |
+| M2d | `let borderEscapes = false` | 3 issues | T2.1 (`:914`, H1 ≠ H2); N2.1 (`:122`, legacy H1 ≠ H2); N2.4 (`:211`, focus ring) |
+| M2e | `fillEscapes` negated (`!escapes.contains($0.slot.fill)`, `LR-GE` item 3) | 14 issues | T2.1 (`:918` G3, `:921` G4, `:930` H3); N2.1 (`:124`, `:128`, `:129`, `:132`); N2.4 (`:171`, `:186`); `opacityMultipliesAndFadesTheElementsOwnBackground` (`:837`, `:850`); `aSecondOpacityOnOneElementReplacesTheFirstWhereSwiftUIMultiplies` (`:988`, `:991`); `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority` (`OuterModifierMatrixTests.swift:697`) |
+| M2f | `frame.noteUnlowerable(UnlowerableField(site: .deferred, field: "amended"))` restored in `loweredComponentFrame`'s presentation branch | 3 issues | N2.2 (`:164` ×3, the three amend arms) |
+| M2g | `if declared.position == .absolute && childCount <= 1 {` | 3 issues | N2.3 (`:725`, `:726`, and `:735` — the control gains `style` too) |
+| M2g′ | `if d.position == .absolute && item.kind != .frameLayer {` in `planLegacyItems`' outside-a-`Deferred` report (`LR-GE` item 4) | 2 issues | N2.3 control (`:735`); `aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred` (`:676`, arm 2) |
+| M2h | `LayoutModifier._paint`'s `case .opacity: inside()` (`LR-GE` item 5) | 3 issues | N2.1 (`:120`, the proposal G3 ≠ G4); `aProposalOverlayRegistersExactlyTheNodesItDidBeforeUnification` (`LegacyOverlayTests.swift:478`); `opacityMultipliesItsDescendantsPaintAlpha` (`NativeLayoutIntegrationTests.swift:943`) |
+| M2i | `.hoverBackground`/`.focusBackground` note `.plainFill`, and `PointerStateSlot.fill` answers `.plainFill` for all three slots (the design's one bit) | 1 issue | N2.4 (`:171`, the unhovered red escapes) |
+| M2j | `noteWrite` inserts unconditionally (`opacity < 1` dropped) | 11 issues | N2.4 (`:217`, `:219`, the equality arms); `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` (`ModifierTests.swift:416` ×9 — the one-field table) |
+
+Every new test is reddened by at least one of its named mutations. No typecheck
+guard was added, so none is owed a red.
+
+### 9.4 The demo, the pins, the gates
+
+`docs/probes/demo-pixels/compare.sh <scratch>/pix 47c0d98 540da08 529b032`.
+The controls at `47c0d98` read the stage-9 corrected values (light vs dark
+1048576, default vs modal 1031003, default vs animation 454895, f0 vs f3 0,
+preview light vs dark 1048576, chrome pair 0, distinct 544 / 216, prod default
+vs modal 491221, distinct prod-default-light 529, indicator rects 0). **All
+fourteen images read 0 differing, every scene identical**, for `47c0d98 →
+540da08` and `540da08 → 529b032` alike: no demo site writes a legacy `.opacity`
+before a `.background` or `.border`, so divergence 45's retirement moves no
+pixel, as spec §8 predicted. `Tests/MetalUICrossPlatformTests/Expected.swift`
+is unmoved (`git diff 47c0d98 HEAD` empty).
+
+`Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit`): build 0 `error:`, tests 21 +
+19 passed. `swift:6.4-noble` container (aarch64, OrbStack), `git archive
+529b032`, default build system: no `error:`/`warning:` line; `swift test
+--filter 'MetalUICoreTests|MetalUILayoutTests|MetalUICrossPlatformTests'` read
+188, 10 and 22 passed, `theDemoFrameMatchesTheValuesRecordedOnMacOS` and
+`everyProductionTreeBuildsOnAOneMegabyteThread` among them.
+
+### 9.5 Value sizes and the stack budget (after lane 3)
+
+The lane-1 scratch (`ZZScratchSizes.swift` in `MetalUICrossPlatformTests`,
+debug, macOS arm64), deleted afterwards:
+
+| type / value | `47c0d98` | `82c5ef9` (lane 1) | `529b032` |
+|---|---|---|---|
+| `Decoration` | 77 | 77 | **78** (`escapesOpacity`) |
+| `Handlers` | 320 | 320 | 320 |
+| `ModifierLayer` | 662 | 662 | 662 |
+| `LayoutModifier` | 46 | 46 | 46 |
+| `ModifiedElement<Box<EmptyGroup>>` | 1272 | 1280 | 1280 |
+| `Box<EmptyGroup>` | 600 | 600 | 600 |
+| `ModifiedContent<Rectangle, LayoutModifier>` | 62 | 80 | 80 |
+| `OverlayModifier<Rectangle, Rectangle>` | 23 | 23 | 23 |
+| `demoContent()` | 33 912 | 34 064 | 34 064 |
+| `nativeLayoutPreviewContent()` | 935 | 801 | 801 |
+| `textInputDemoContent()` | 5 312 | 5 328 | 5 328 |
+
+The one byte fits in `Decoration`'s padding, so no containing value moves.
+**Stack**: exit tests at 480–560 KB — `.signal(SIGBUS)` at 480, 496, 512,
+success at 516 and above: **> 512 and ≤ 516 KB**, the same as after lane 1 and
+under the 544 KB block. `everyProductionTreeBuildsOnAOneMegabyteThread` is green
+in the suite and in the container.
+
+### 9.6 Deferred from lane 3
+
+Nothing new. For the Record phase: `UnlowerableField.owner` no longer names task
+7 (its only branch left is `"plan task 11"`), but `trapMessage`'s permanent
+clause reads `"refused by name (plan task 7, LR-FO)"` — a ruling citation, not
+an owner — so spec §9.1's `grep -n "plan task 7" Sources` hits it (and many
+comments) and must be read, not counted. The mid-animation snap when a hover or
+focus change moves the winning slot across the scope is owed to record §05's
+snap list (spec §4).
