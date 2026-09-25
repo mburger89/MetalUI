@@ -1099,8 +1099,9 @@ private func builderGroup<G: ElementGroup>(@ElementBuilder _ body: () -> G) -> G
 /// Real `Window`, 100×100. The primary `{ if flag { EmptyContent() }; p 60x60 }`
 /// is centred at (20, 20); the 100×100 background content fills the window, so
 /// (90, 90) is the background alone. Three clicks there, then the flag flips
-/// off and on. In-test control: p's own component reads `.positional(1)`,
-/// `.positional(0)`, `.positional(1)`, proof the flip moved an index. The
+/// off and on. In-test control: p's own component reads `.positional(1)` at
+/// every step (plan task 8, `ID-B`: an `if` takes one slot; it read 1, 0, 1
+/// before, when the flip moved an index). The
 /// content then reads `.positional(0)` under `.positional(-1)`, 3 taps, at
 /// every step.
 ///
@@ -1145,8 +1146,12 @@ private func builderGroup<G: ElementGroup>(@ElementBuilder _ body: () -> G) -> G
     window.drawFrameIfNeeded()
     let third = reading()
 
-    try #require([first.primary, second.primary, third.primary] == [.positional(1), .positional(0), .positional(1)],
-                 "the primary's shape did not flip")
+    // Re-spelled by plan task 8 (`ID-B`, T row): the `if` takes one slot
+    // whether or not it has content, so `p` stays at `.positional(1)` through
+    // the flip (it read 1, 0, 1 before). The content's `-1` path is what a
+    // numbering mutation still reddens.
+    try #require([first.primary, second.primary, third.primary] == [.positional(1), .positional(1), .positional(1)],
+                 "the primary's trailing member moved")
     let kept = Reading(primary: nil, content: [.positional(0), .positional(-1)], taps: 3)
     for (label, r) in [("first", first), ("second", second), ("third", third)] {
         var half = r

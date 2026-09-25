@@ -2522,34 +2522,72 @@ final class AnimationDriveModel {
             "and nothing is left interpolating, so the link is free to idle")
 }
 
-/// Spec §6's free consequence of `StateTable` tombstones: an animating element
-/// that vanishes and returns within the retention window RESUMES on its
-/// original trajectory rather than restarting.
+/// **An animating element that vanishes and returns: inside an `if` it comes
+/// back fresh and snaps; inside a `for` loop it resumes** (plan task 8, ruling
+/// `ID-C`; `ID-P` records this row, which the design did not list).
 ///
-/// 175 at t = 100.75 is the resumption. A restart from the value it vanished at
-/// would read 125 there (a fresh 125 → 200 second, at elapsed 0), and a restart
-/// from the declared baseline would read 100.
-@MainActor @Test func anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting() throws {
-    let model = AnimationDriveModel()
-    let (window, platformWindow) = try makeDriveWindow(model)
+/// **Renamed from `anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting`**,
+/// which pinned the animation spec's §6 "free consequence of `StateTable`
+/// tombstones" through the `if` in `makeDriveWindow`: the `$anim` entry survived
+/// the excursion and the element resumed its trajectory (175 at t = 100.75).
+/// `ID-C` deletes every entry under a slot an evaluated `if` stops producing, the
+/// `$anim` baseline included (only `$focus` and `$ax` are exempt), so the
+/// returning element has no baseline and its first frame snaps to the declared
+/// 200 — `ID-C`'s migration note ("a returning element's first frame snaps
+/// rather than animating from where it left off"), SwiftUI's lifetime rule
+/// (probe V5: a returning view's state is new).
+///
+/// **The tombstone resumption still exists where nothing resets**: an element a
+/// `for` loop stops producing keeps its entries (divergence 74, owner plan task
+/// 10), so the second arm — the same subject inside `for _ in 0..<(show ? 1 :
+/// 0)` — still reads 175. A restart from the vanish-time value would read 125
+/// there, a restart from the declared baseline 100.
+@MainActor @Test func aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop() throws {
+    /// Drives the shared excursion and returns the width on the return frame.
+    func excursion(_ model: AnimationDriveModel, _ window: Window,
+                   _ platformWindow: FakePlatformWindow) throws -> Float? {
+        platformWindow.simulateTick(timestamp: 100)
+        try #require(subjectWidth(window) == 100, "set up")
 
-    platformWindow.simulateTick(timestamp: 100)
-    try #require(subjectWidth(window) == 100, "set up")
+        withAnimation(.linear(duration: 1)) { model.width = 200 }
+        platformWindow.simulateTick(timestamp: 100)
+        platformWindow.simulateTick(timestamp: 100.25)
+        try #require(subjectWidth(window) == 125, "set up: mid-flight before it vanishes")
 
-    withAnimation(.linear(duration: 1)) { model.width = 200 }
-    platformWindow.simulateTick(timestamp: 100)
-    platformWindow.simulateTick(timestamp: 100.25)
-    try #require(subjectWidth(window) == 125, "set up: mid-flight before it vanishes")
+        model.show = false
+        platformWindow.simulateTick(timestamp: 100.5)
+        try #require(subjectWidth(window) == nil, "set up: the element is genuinely gone")
 
-    model.show = false
-    platformWindow.simulateTick(timestamp: 100.5)
-    try #require(subjectWidth(window) == nil, "set up: the element is genuinely gone")
+        model.show = true
+        platformWindow.simulateTick(timestamp: 100.75)
+        return subjectWidth(window)
+    }
 
-    model.show = true
-    platformWindow.simulateTick(timestamp: 100.75)
-    #expect(subjectWidth(window) == 175, """
-            resumed on the ORIGINAL trajectory (elapsed 0.75 of the animation started at \
-            t = 100), not restarted; got \(String(describing: subjectWidth(window)))
+    // Arm 1: the subject inside an `if` (`makeDriveWindow`) — reset, so it snaps.
+    let ifModel = AnimationDriveModel()
+    let (ifWindow, ifPlatform) = try makeDriveWindow(ifModel)
+    let fresh = try excursion(ifModel, ifWindow, ifPlatform)
+    #expect(fresh == 200, """
+            the `if` removed the subject, so its `$anim` baseline was reset (ID-C) and the \
+            return frame snaps to the declared width; got \(String(describing: fresh))
+            """)
+
+    // Arm 2: the same subject inside a `for` loop — retained, so it resumes.
+    let loopModel = AnimationDriveModel()
+    let (loopWindow, loopPlatform) = try makeFakeWindowOnDefaultDevice(size: 300, startsDisplayLink: true) {
+        Column {
+            for _ in 0..<(loopModel.show ? 1 : 0) {
+                Box().background(.background)
+                    .cssWidth(Pixels(loopModel.width)).cssHeight(Pixels(40))
+                    .id("subject")
+            }
+        }
+    }
+    let resumed = try excursion(loopModel, loopWindow, loopPlatform)
+    #expect(resumed == 175, """
+            a loop's dropped element keeps its entries (divergence 74), so it resumes on the \
+            ORIGINAL trajectory (elapsed 0.75 of the animation started at t = 100); got \
+            \(String(describing: resumed))
             """)
 }
 

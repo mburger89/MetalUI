@@ -249,7 +249,12 @@ private final class Label {
         .id("root")
     }
     window.drawFrameIfNeeded()
-    let a = GlobalElementID.child(of: rootID("root"), at: 0, name: ElementID("a"))
+    // Plan task 8, `ID-B` (T row): the `if` takes one slot, `root/0`, and its
+    // content numbers inside it, so "a" is `root/0/named(a)` — it was
+    // `root/named(a)` before. The `$focus` retention slot under it is exempt
+    // from `ID-C`'s reset, which is what keeps this test's answer unchanged.
+    let ifSlot = GlobalElementID.child(of: rootID("root"), at: 0, name: nil)
+    let a = GlobalElementID.child(of: ifSlot, at: 0, name: ElementID("a"))
     window.focus(a)
     // The frame that CONFIRMS the focus — "a" is both produced and
     // `window.focusedElement` this frame — is what creates the retention

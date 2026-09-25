@@ -956,20 +956,19 @@ private func twoFrames<Root: Element>(_ make: (Int) -> Root) {
     #expect(probe.reads["d"] == 0, "row 1's second cell: \(String(describing: probe.reads["d"]))")
 }
 
-/// **A vanishing `if` inside a row hands the removed cell's state to the next
-/// cell** — pinned WRONG ON PURPOSE (divergence `GR-O` 9, ruling `GR-AF`).
+/// **A vanishing `if` inside a row leaves the next cell's state alone** (plan
+/// task 8, ruling `ID-B`; spec C2.5a). **Renamed from
+/// `removingACellFromARowHandsItsStateToTheNextCell`**, which pinned divergence
+/// 69 (`GR-O` 9, ruling `GR-AF`) wrong on purpose: `OptionalGroup` returned no
+/// node without advancing the cursor, so the cell after a vanished one read its
+/// slot (b read 0, c read b's 1). Since `ID-B` the `if` takes one slot whether
+/// or not it has content, so b keeps its own count (1) and c its own (0) — probe
+/// V7's answer (a `GridRow`'s trailing cell keeps its own serial).
 ///
-/// The framework's trailing-sibling rule is universal, and `OptionalGroup`
-/// returns no node without advancing the cursor, so removing row 0's FIRST cell
-/// shifts the rest of the row: the cell that was second reads the first's slot
-/// (0) and the cell that was third reads the second's (1, the count it did not
-/// make). SwiftUI's remedy is `.id()` on the trailing sibling, and no built-in
-/// proposal element has one (task 8, `GR-N`), so it cannot be spelled here.
-///
-/// The change that would fix it: make `OptionalGroup` consume its index when its
-/// wrapped value is nil. Then b reads 1 and c reads 0.
+/// Mutation M2a′ (the TYPED `OptionalGroup` copy advancing the cursor only when
+/// `wrapped != nil`) reddens this and C2.5b and no untyped test.
 @MainActor
-@Test func removingACellFromARowHandsItsStateToTheNextCell() {
+@Test func removingACellFromARowLeavesTheNextCellsStateAlone() {
     let probe = GridStateProbe()
     twoFrames { pass in
         Grid {
@@ -980,16 +979,16 @@ private func twoFrames<Root: Element>(_ make: (Int) -> Root) {
             }
         }
     }
-    #expect(probe.reads["b"] == 0, "b took a's slot: \(String(describing: probe.reads["b"]))")
-    #expect(probe.reads["c"] == 1, "c adopted b's count: \(String(describing: probe.reads["c"]))")
+    #expect(probe.reads["b"] == 1, "b keeps its own count: \(String(describing: probe.reads["b"]))")
+    #expect(probe.reads["c"] == 0, "c keeps its own count: \(String(describing: probe.reads["c"]))")
 }
 
-/// **A vanishing whole `GridRow` hands its row's state to the next row** — the
-/// same divergence one level up (`GR-AF`, `GR-O` 9), pinned wrong on purpose.
-///
-/// The change that would fix it is the same one.
+/// **A vanishing whole `GridRow` leaves the next row's state alone** — the same
+/// fix one level up (`ID-B`; spec C2.5b; probe V8). **Renamed from
+/// `removingAWholeGridRowHandsItsStateToTheNextRow`** (divergence 69, retired),
+/// where q read p's 0 and r read q's 1.
 @MainActor
-@Test func removingAWholeGridRowHandsItsStateToTheNextRow() {
+@Test func removingAWholeGridRowLeavesTheNextRowsStateAlone() {
     let probe = GridStateProbe()
     twoFrames { pass in
         Grid {
@@ -998,8 +997,8 @@ private func twoFrames<Root: Element>(_ make: (Int) -> Root) {
             GridRow { GridStatefulCell("r", probe) }
         }
     }
-    #expect(probe.reads["q"] == 0, "q took p's row: \(String(describing: probe.reads["q"]))")
-    #expect(probe.reads["r"] == 1, "r adopted q's count: \(String(describing: probe.reads["r"]))")
+    #expect(probe.reads["q"] == 1, "q keeps its own count: \(String(describing: probe.reads["q"]))")
+    #expect(probe.reads["r"] == 0, "r keeps its own count: \(String(describing: probe.reads["r"]))")
 }
 
 // MARK: - 4.10 a cell modifier is layout- and identity-transparent

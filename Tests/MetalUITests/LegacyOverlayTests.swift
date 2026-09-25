@@ -240,19 +240,24 @@ private func readings<Root: Element>(tapping tapped: String, primary: String?,
 ///
 /// Each arm's overlay is a stateful tally tapped three times and then read at
 /// `true`, `false`, `true`: it must sit at `.child(.child(root, -1), 0)` and
-/// read 3 taps at every step. **In-arm positive control:** the primary's
-/// trailing member `p` must read `.positional(1)`, `.positional(0)`,
-/// `.positional(1)` — the flip really moved an index inside the primary.
+/// read 3 taps at every step. **In-arm control:** the primary's trailing
+/// member `p` reads `.positional(1)` at all three steps. Until plan task 8 it
+/// read `.positional(1)`, `.positional(0)`, `.positional(1)` — the flip moved an
+/// index inside the primary; since `ID-B` an `if` takes one slot whether or not
+/// it has content, so no builder content moves an index at run time any more and
+/// "a flip of the primary's shape" is a flip of its node count (L1, L3, L4) or
+/// of an index-less member (L2, L5). The overlay's own path is what M1c and
+/// M1c′ still redden (T row, record §55 §6).
 ///
 /// **Controls** (the probe's A, B, P5, Q): **A** no flip in the primary —
 /// kept; **B** the tally inside `Box { tally }.id("g\(generation)")` — reset at
 /// every flip (3, 0, 0), which proves the instrument sees a reset; **P5** a
 /// tally inside the primary's own conditional, tapped — present (3), absent
-/// (`nil`: not painted), present again reading **3**, not SwiftUI's new 0:
-/// MetalUI retains an absent id's state below the sweep threshold (divergence
-/// 18), as `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`
-/// records; **Q** the overlay's own `if`/`else` — reset at the `else` (0), and
-/// the first branch's 3 back at the third step (divergence 18 again). The
+/// (`nil`: not painted), present again reading **0**, SwiftUI's new state (it
+/// read 3 until plan task 8's `ID-C` reset content an evaluated `if` removes;
+/// divergence 18 retired); **Q** the overlay's own `if`/`else` — reset at the
+/// `else` (0) and again on return (0; the first branch's 3 came back before
+/// `ID-C`). The
 /// discriminating step is the second: at it no retained state can stand in.
 ///
 /// Red before: does not compile at `56275c5` (`.overlay` is on
@@ -263,7 +268,8 @@ private func readings<Root: Element>(tapping tapped: String, primary: String?,
 @Test @MainActor func aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape() throws {
     func tally(_ log: TapLog) -> TapLeaf { TapLeaf("o", log: log, width: 10, height: 10) }
     let kept = { (primary: Bool) -> [Reading] in
-        let p: [PathComponent?] = primary ? [.positional(1), .positional(0), .positional(1)] : [nil, nil, nil]
+        // `ID-B`: the trailing member keeps `.positional(1)` through the flip.
+        let p: [PathComponent?] = primary ? [.positional(1), .positional(1), .positional(1)] : [nil, nil, nil]
         return p.map { Reading(tallyComponent: .positional(0), tallyAtOverlaySide: true, taps: 3, primary: $0) }
     }
 
@@ -336,7 +342,7 @@ private func readings<Root: Element>(tapping tapped: String, primary: String?,
         }
         .overlay(alignment: .bottomTrailing) { tally(log) }
     }
-    #expect(p5.map(\.taps) == [3, nil, 3], "control P5 (present, absent, retained — divergence 18): \(p5)")
+    #expect(p5.map(\.taps) == [3, nil, 0], "control P5 (present, absent, fresh — ID-C): \(p5)")
 
     // Control Q: the overlay's own `if`/`else` — each branch its own identity.
     let q = try readings(tapping: "o", primary: nil) { flip, log in
@@ -344,7 +350,7 @@ private func readings<Root: Element>(tapping tapped: String, primary: String?,
             if flip.flag { tally(log) } else { tally(log) }
         }
     }
-    #expect(q.map(\.taps) == [3, 0, 3], "control Q (reset at the else; divergence 18 on return): \(q)")
+    #expect(q.map(\.taps) == [3, 0, 0], "control Q (reset at the else and on return — ID-C): \(q)")
 }
 
 // MARK: - N1.4: the records are consumed as a frame layer's are

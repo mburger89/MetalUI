@@ -516,49 +516,37 @@ private struct Datum: Identifiable { let id: Int }
     #expect(raw == ["up"], "and the unclaimed release fell through to the raw handler")
 }
 
-// MARK: - Click dispatch inherits universal identity's vanishing-`if` adoption
+// MARK: - A press held across a rebuild
 
-/// A conditional sibling that vanishes **between the press and the release**
-/// makes the release fire the **trailing** sibling's `onClick`.
+/// **A press held across a rebuild clicks its own target, and a target that
+/// vanished clicks nothing** (plan task 8, `ID-B`; spec lane 2's R row).
+/// **Renamed from `aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling`**,
+/// which pinned the old identity rule's consequence: a conditional sibling
+/// vanishing between press and release freed `.positional(0)`, the trailing box
+/// slid into it, and the release fired the TRAILING box's `onClick` (naming the
+/// trailing box was the remedy). Since `ID-B` an `if` takes one slot whether or
+/// not it has content, so the trailing box keeps its own id and nothing adopts
+/// the pressed one.
 ///
-/// **Not a defect in `dispatchClick` — an emergent property of universal
-/// identity plus click dispatch, and it belongs to neither alone.** Dispatch
-/// compares `hit.id == pressed` by `GlobalElementID`, which is exactly the
-/// comparison `aPressOnOneElementReleasedOnAnotherIsNotAClick` above proves
-/// works. What moves here is the *id*: the vanished `if` frees
-/// `.positional(0)` and the trailing box takes it (CLAUDE.md's identity
-/// bullet — "a vanishing `if` makes the trailing sibling ADOPT the vanished
-/// element's state"), so the two elements really are one identity as far as
-/// anything downstream of identity can tell, and click dispatch is downstream
-/// of identity.
+/// - **Arm 1**: press `A` (inside the `if`), `A` vanishes, release at the same
+///   point — which is now over `B`, laid out into `A`'s place — and **nothing
+///   fires**: `B`'s id is not the pressed one.
+/// - **Arm 2**: press `B`, `A` (before it) vanishes, release over `B` at its new
+///   position — **`B` fires**: its id survived the rebuild.
 ///
-/// **Measured rather than argued**: the press records
-/// `positional(0)/positional(0)`; frame 2 registers exactly one hitbox and its
-/// id is `positional(0)/positional(0)` too. It is the *trailing* box's own
-/// closure that runs, not a stale one — the handler rides on
-/// `Hitbox.handlers`, which frame 2 rebuilt.
-///
-/// **It is also the only test in the suite that straddles a frame with a press,
-/// and a mutation found that.** Every other click test presses and releases
-/// inside one `click(_:at:)` with no redraw between, so the id `mouseDown`
-/// recorded and the id `mouseUp` resolves are the *same object*. Replacing
-/// `dispatchClick`'s `hit.id == pressed` with `hit.id === pressed` therefore
-/// reddens **this test alone** out of 739 (`--no-parallel`) — nothing else in
-/// the repo distinguishes structural equality from reference identity at that
-/// line, and `GlobalElementID`'s `==` walking the chain (see its own doc) is
-/// what makes a click survive a rebuild at all.
-///
-/// The second half is the differential **and the remedy in one**: naming the
-/// trailing sibling replaces its position, nothing is adopted, and the release
-/// correctly fires nothing. That asymmetry is what makes this identity's
-/// behaviour rather than dispatch's — `dispatchClick` is byte-identical across
-/// the two halves.
-@Test @MainActor func aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling() throws {
+/// **Arm 2 is the only test in the suite that straddles a frame with a press
+/// and expects a click**, so it is what reddens `dispatchClick`'s `hit.id ==
+/// pressed` → `hit.id === pressed` (frame 2 rebuilds every `GlobalElementID`
+/// object, and `==` walking the chain is what makes a click survive a rebuild).
+/// The old test was that pin; its arm moved here.
+@Test @MainActor func aPressHeldAcrossARebuildClicksItsOwnTargetAndAVanishedTargetClicksNothing() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = ClickLog()
     let present = PresenceFlag()
 
-    func run(nameTheSibling: Bool) throws -> [String] {
+    /// Presses at `press`, removes `A`, releases at (20, 50) — `A`'s old place
+    /// and `B`'s new one.
+    func run(press: Point<Pixels>) throws -> [String] {
         log.names = []
         present.on = true
         let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
@@ -566,11 +554,7 @@ private struct Datum: Identifiable { let id: Int }
                 if present.on {
                     Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("A") }
                 }
-                {
-                    let b = Box().cssWidth(px(40)).cssHeight(px(40))
-                        .onClick { log.names.append("B") }
-                    return nameTheSibling ? b.id("b") : b
-                }()
+                Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("B") }
             }
             // Stage 6b (`LR-DG`, R-fill): the window's extent declared on both
             // auto root axes — what `CS-I` gave the legacy root, now spelled.
@@ -578,30 +562,23 @@ private struct Datum: Identifiable { let id: Int }
         }
         window.drawFrameIfNeeded()
         // A `Row` in a 100x100 window: the two 40-wide boxes at x 0..40 and
-        // 40..80, centred vertically at y 30..70. The press lands on `A`.
-        platformWindow.simulateInput(mouseDown(at: pt(20, 50)))
-        #expect(window.active != nil, "the press landed on the conditional box")
+        // 40..80, centred vertically at y 30..70.
+        platformWindow.simulateInput(mouseDown(at: press))
+        #expect(window.active != nil, "the press landed on a box")
 
         present.on = false
         window.setNeedsRedraw()
         window.drawFrameIfNeeded()
         #expect(window.lastHitboxes.count == 1, "`A` is gone; only `B` registers now")
 
-        // `B` has slid into `A`'s place, so the SAME point is now over `B`.
         platformWindow.simulateInput(mouseUp(at: pt(20, 50)))
         return log.names
     }
 
-    #expect(try run(nameTheSibling: false) == ["B"],
-            """
-            the unnamed trailing sibling adopted the pressed element's \
-            `.positional(0)`, so the release fired the wrong element's `onClick`
-            """)
-    #expect(try run(nameTheSibling: true) == [],
-            """
-            naming the trailing sibling replaces its position, so nothing is \
-            adopted and the release correctly clicks nothing
-            """)
+    #expect(try run(press: pt(20, 50)) == [],
+            "the pressed element vanished; the box now under the pointer is not it, so nothing fires")
+    #expect(try run(press: pt(60, 50)) == ["B"],
+            "B keeps its own id through the rebuild, so a release over it at its new place clicks it")
 }
 
 /// Whether the conditional sibling is in the tree this frame — a class for

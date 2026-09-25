@@ -134,9 +134,14 @@ import MetalUICore
     second.render(&reversed)
 
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
-    #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: ElementID("a")),
+    // Plan task 8, ruling `ID-B` (T row): the `for` loop takes ONE slot,
+    // `root/0`, and its members number inside it, so a named item is
+    // `root/0/named(n)` — the name still replaces its position WITHIN the loop,
+    // the `ForEach` analogue. Before `ID-B` the items sat directly under `root`.
+    let loop = GlobalElementID.child(of: root, at: 0, name: nil)
+    #expect(table.peek(GlobalElementID.child(of: loop, at: 0, name: ElementID("a")),
                        as: Int.self) == 2)
-    #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: ElementID("b")),
+    #expect(table.peek(GlobalElementID.child(of: loop, at: 0, name: ElementID("b")),
                        as: Int.self) == 2)
     // 2 ("a" and "b") + 1 — the `Row`'s own `$anim` baseline (one entry
     // total across both frames, since the root's own identity is the same
@@ -225,20 +230,21 @@ import MetalUICore
     let ifBranch = GlobalElementID.child(of: root, at: 0, name: nil)
     let elseBranch = GlobalElementID.child(of: root, at: 1, name: nil)
 
-    // The `if` branch's element stopped being produced. It is now a
-    // tombstone — value 1, retained from the one frame it ran on — rather
-    // than swept away.
+    // The `if` branch's element stopped being produced, and its branch was
+    // EVALUATED absent on the frame after one that produced it, so its entry
+    // is deleted (plan task 8, ruling `ID-C`; T row). Until `ID-C` it
+    // tombstoned here — value 1, not live — and came back reading 2 if the
+    // branch flipped back (probe V9: SwiftUI starts it fresh).
     let ifContentID = GlobalElementID.child(of: ifBranch, at: 0, name: nil)
-    #expect(table.peek(ifContentID, as: Int.self) == 1)
+    #expect(table.peek(ifContentID, as: Int.self) == nil)
     #expect(!table.isLive(ifContentID))
     #expect(table.peek(GlobalElementID.child(of: elseBranch, at: 0, name: nil),
                        as: Int.self) == 1)
-    // Both entries are retained now: the live `else` branch and the `if`
-    // branch's tombstone. A shared-component regression would still show up
-    // here as `1`, not `2` — see the load-bearing comment above. + 1 for the
-    // `Row`'s own `$anim` baseline, on
-    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
-    #expect(table.count == 3)
+    // The live `else` branch's entry + 1 for the `Row`'s own `$anim` baseline,
+    // on `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing. 3 until `ID-C`
+    // removed the `if` branch's tombstone. A shared-component regression would
+    // still show up as the `else` entry reading 2, above.
+    #expect(table.count == 2)
 }
 
 /// The branches stay disjoint **whatever they contain**, which a flat pair of
@@ -282,33 +288,39 @@ import MetalUICore
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
     let elseBranch = GlobalElementID.child(of: root, at: 1, name: nil)
 
-    // 3 (the two `if`-branch tombstones plus the live `else`-branch entry)
-    // + 1 — the `Row`'s own `$anim` baseline, on
-    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
-    #expect(table.count == 4)
+    // The live `else`-branch entry + 1 — the `Row`'s own `$anim` baseline, on
+    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing. 4 until plan task
+    // 8's `ID-C` (T row) deleted the two `if`-branch tombstones when the branch
+    // was evaluated absent.
+    #expect(table.count == 2)
     #expect(table.peek(GlobalElementID.child(of: elseBranch, at: 0, name: nil),
                        as: Int.self) == 1)
 }
 
 // MARK: - `OptionalGroup` — an `if` with no `else`
 
-/// An element after a vanishing `if` **adopts that element's state entry**; it
-/// does not reset.
+/// **An element after a vanishing `if` keeps its own state** (plan task 8,
+/// ruling `ID-B`; spec C2.1; probe V1 and, for the second arm, G7).
 ///
-/// **This is the pin the plan's risk list and design spec §5 both claimed
-/// already existed.** Both say "adding a sibling shifts later siblings'
-/// identity" is *pinned as deliberate*, and before this test `grep` found no
-/// test pinning it — one inaccurate sentence at `OptionalGroup` was standing in
-/// for two claimed pins. The sentence said the later siblings were "reset",
-/// which is what intuition says and is not what happens: `OptionalGroup`
-/// consumes no index when absent, so the trailing element slides from
-/// `.positional(1)` to `.positional(0)` and finds the vanished element's entry
-/// sitting there.
+/// **Renamed from `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`**,
+/// which pinned the opposite as deliberate: `OptionalGroup` consumed no index
+/// when absent, so the trailing element slid from `.positional(1)` to
+/// `.positional(0)` and read the vanished element's **2**. That rested on
+/// `SI-G`'s claim that SwiftUI shifts, which no probe had run; probe V1 shows
+/// SwiftUI's trailing view keeping its own serial. Since `ID-B` the `if` takes
+/// ONE slot (`root/0`) whether or not it has content, its content numbers
+/// inside it (`root/0/0`), and the trailing element stays at `root/1` — reading
+/// its own 2. The vanished content's entry is deleted, not tombstoned (`ID-C`:
+/// the `if` was evaluated absent after a frame that produced it).
 ///
-/// **Deliberate, per ruling EP-5**, because it is SwiftUI's behaviour for an
-/// unkeyed `if`. It is a sharp edge and the remedy is the test below.
+/// The second arm is probe G7's: the trailing sibling is a two-member
+/// `Component` with a `.padding` — a modified group — and both members keep
+/// their own counts.
+///
+/// Mutation M2a (the UNTYPED `OptionalGroup` advances the cursor only when
+/// `wrapped != nil`) reddens this.
 @MainActor
-@Test func anElementAfterAVanishingIfAdoptsTheVanishedElementsState() {
+@Test func anElementAfterAVanishingIfKeepsItsOwnState() {
     let table = StateTable()
     let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
 
@@ -322,65 +334,47 @@ import MetalUICore
     }
 
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
-    // 2, not 1: the trailing element continued a count it never started. A
-    // `1` here would mean the slot was reset; a `nil` at slot 0 with `2` at
-    // slot 1 would mean the absent branch had reserved its index.
-    #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: nil), as: Int.self) == 2)
-    // **Inverted by the tombstones milestone's Task 1.** Slot 1 held frame
-    // 1's original trailing element (value 1) — the one whose position the
-    // adoption above displaced, not "reserved" by the absent branch. Before
-    // this task it read `nil` because `sweep()` deleted it the moment frame 2
-    // stopped landing anything there; now it tombstones instead, so it still
-    // reads its last value, just no longer live. This assertion was never
-    // about the sweep mechanism — it was ruling out "the absent branch
-    // reserved its index" — and that ruling-out is unaffected: a reserved
-    // index would show a *fresh* entry (value 1, `isLive == true`), not a
-    // tombstone.
-    //
-    // The `!isLive` assertion below is, incidentally (found by a review, not
-    // by design), sensitive to `Frame.render`'s sweep-after-phases ordering —
-    // moving `stateTable.sweep()` above the phases reddens this line too, via
-    // the same one-frame liveness lag
-    // `anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`
-    // (`StateTableTests.swift`) exists to pin. This test is not a second
-    // guard on that ordering; its purpose is unrelated (what a vacated slot
-    // does and does not inherit). Do not remove the assertion on the theory
-    // that the dedicated pin already covers it.
-    let vacatedSlot = GlobalElementID.child(of: root, at: 1, name: nil)
-    #expect(table.peek(vacatedSlot, as: Int.self) == 1)
-    #expect(!table.isLive(vacatedSlot))
-    // 2 (the adopted slot 0 and the vacated slot 1) + 1 — the `Row`'s own
-    // `$anim` baseline, on `twoUnnamedSiblingsDoNotShareOneStateEntry`'s
-    // footing.
-    #expect(table.count == 3)
+    let ifSlot = GlobalElementID.child(of: root, at: 0, name: nil)
+    // 2: the trailing element counted both frames at its own `root/1`. Adoption
+    // would leave `root/1` at 1 (frame 1's only) and put 2 at `root/0`.
+    #expect(table.peek(GlobalElementID.child(of: root, at: 1, name: nil), as: Int.self) == 2)
+    // The `if` content's entry is gone (`ID-C`), and nothing was ever stored at
+    // the slot itself.
+    #expect(table.peek(GlobalElementID.child(of: ifSlot, at: 0, name: nil), as: Int.self) == nil)
+    #expect(table.peek(ifSlot, as: Int.self) == nil)
+    // The trailing entry + 1 — the `Row`'s own `$anim` baseline, on
+    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
+    #expect(table.count == 2)
+
+    // Probe G7's arm: a modified two-member group after the vanishing `if`.
+    let reads = ConditionalReads()
+    let groupTable = StateTable()
+    for flag in [true, false] {
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: groupTable)
+        var row = Row {
+            if flag { ConditionalCounter("vanishing", reads) }
+            TwoCounters(first: "m0", second: "m1", reads: reads).padding(Pixels(4))
+        }
+        frame.render(&row)
+    }
+    #expect(reads.values["m0"] == 2, "member 0 keeps its own count: \(reads.values)")
+    #expect(reads.values["m1"] == 2, "member 1 keeps its own count: \(reads.values)")
 }
 
-/// Naming the **later sibling** is the remedy; naming the conditional content is
-/// not.
-///
-/// Both halves are asserted because the obvious advice is the wrong one. A name
-/// replaces a position (`PathComponent`), so a named trailing element is not in
-/// the shifting index space at all and carries its count across the flip —
-/// **2**, and no adoption. Naming the *conditional content* instead moves only
-/// the vanishing element out of slot 0, which stops the adoption and leaves the
-/// trailing element starting from scratch at slot 0 — **1**. That is better than
-/// inheriting a stranger's state and still not "survives".
-///
-/// **Both `count` assertions inverted by the tombstones milestone's Task 1**,
-/// and for the same reason as the tests above: an entry whose element stops
-/// being produced now tombstones rather than vanishes, so every abandoned
-/// slot this test's two frames leave behind is still counted. Neither
-/// inversion touches what each half of this test actually proves — the
-/// `peek` values, asserted unchanged, are the load-bearing checks for
-/// "survives" versus "resets"; `count` here was only ever a byproduct of how
-/// many distinct slots existed, which the tombstone change makes larger, not
-/// wrong.
+/// **Naming either side of a vanishing `if` leaves the trailing sibling's state
+/// alone** (plan task 8, `ID-B`). **Renamed from
+/// `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`**, whose two arms pinned
+/// the old rule's remedy: naming the trailing sibling kept its count (2), and
+/// naming the conditional content only stopped the adoption, the trailing
+/// element restarting at slot 0 (1). Since `ID-B` a vanishing `if` moves no
+/// sibling, so both arms read 2 — naming the trailing sibling past an `if`
+/// still works and is no longer needed.
 @MainActor
-@Test func namingTheLaterSiblingIsWhatSurvivesAVanishingIf() {
+@Test func namingEitherSideOfAVanishingIfLeavesTheTrailingSiblingsStateAlone() {
     let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
 
-    // Remedy: the trailing element carries a name.
+    // The trailing element carries a name.
     let named = StateTable()
     for flag in [true, false] {
         let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: named)
@@ -390,15 +384,13 @@ import MetalUICore
         }
         frame.render(&row)
     }
-    #expect(named.peek(GlobalElementID.child(of: root, at: 0, name: ElementID("tail")),
+    #expect(named.peek(GlobalElementID.child(of: root, at: 1, name: ElementID("tail")),
                        as: Int.self) == 2)
-    // 2 entries (the live "tail" and the tombstoned `if`-branch content that
-    // ran only on frame 1, positional, value 1, `isLive == false`) + 1 —
-    // the `Row`'s own `$anim` baseline, on
-    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
-    #expect(named.count == 3)
+    // The live "tail" + 1 — the `Row`'s own `$anim` baseline. The `if`
+    // content's entry is deleted (`ID-C`), not tombstoned as it was (3).
+    #expect(named.count == 2)
 
-    // Not the remedy: the *conditional content* carries the name instead.
+    // The conditional content carries the name instead.
     let misplaced = StateTable()
     for flag in [true, false] {
         let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: misplaced)
@@ -408,15 +400,13 @@ import MetalUICore
         }
         frame.render(&row)
     }
-    // No adoption — but the trailing element still moved slot and restarted.
-    #expect(misplaced.peek(GlobalElementID.child(of: root, at: 0, name: nil),
-                           as: Int.self) == 1)
-    // 3 entries (the fresh trailing entry at slot 0, live; the vacated
-    // slot 1 that frame 1's trailing element left behind; and the named
-    // "conditional" entry from frame 1's `if`-branch — the latter two now
-    // tombstoned rather than swept) + 1 — the `Row`'s own `$anim` baseline,
-    // on `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
-    #expect(misplaced.count == 4)
+    // The trailing element stays at `root/1` and keeps counting — 2, where the
+    // old rule moved it to slot 0 and restarted it at 1.
+    #expect(misplaced.peek(GlobalElementID.child(of: root, at: 1, name: nil),
+                           as: Int.self) == 2)
+    // The trailing entry + 1 — the `Row`'s own `$anim` baseline; the named
+    // conditional's entry is deleted with its slot (`ID-C`). 4 before.
+    #expect(misplaced.count == 2)
 }
 
 // MARK: - The two index-arithmetic lines the branch shipped unguarded
@@ -476,14 +466,14 @@ import MetalUICore
                        as: Int.self) == 1)
     #expect(table.peek(GlobalElementID.child(of: sibling, at: 0, name: nil),
                        as: Int.self) == 2)
-    // 3, not 2: the live `else`-branch entry, the live sibling entry, and
-    // the tombstoned `if`-branch entry from frame 1 (see the class comment
-    // above about `table.count` inverting here). The `peek` values above are
-    // still the load-bearing assertions against a shared-entry regression.
+    // 2: the live `else`-branch entry and the live sibling entry — the
+    // tombstoned `if`-branch entry from frame 1 is deleted since plan task 8's
+    // `ID-C` (T row; 5 before it). The `peek` values above are still the
+    // load-bearing assertions against a shared-entry regression.
     // + 2 — this fixture has TWO `Row`s (the root and the nested trailing
     // one), each now carrying its own `$anim` baseline, on
     // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
-    #expect(table.count == 5)
+    #expect(table.count == 4)
 }
 
 /// **An erased element is still one element and therefore one index.**
@@ -623,31 +613,25 @@ private struct ClickableStateProbe: Element {
                         layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-/// **PINNED WRONG ON PURPOSE.** A handler registered by one occurrence writes
-/// to the OTHER occurrence's `@State`, and this test asserts the broken values
-/// so the defect cannot be "fixed" by accident without the pin going red.
+/// **Divergence 71, kept (plan task 8, ruling `ID-F`): a closure run OUTSIDE
+/// input dispatch writes the occurrence that bound LAST.** Renamed from
+/// `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt` (spec lane 2's R
+/// row); the assertions are unchanged.
 ///
-/// This is the half of the shared-box defect that re-binding in
-/// `prepaintGroup`/`paintGroup` does NOT fix, and cannot: the closure captures
-/// the shared `State.Box` by reference, one box holds one `slotID`, and by the
-/// time the click arrives it holds whatever the LAST phase bound.
-/// `Window.lastHitboxes` keeps handlers alive across frames, so this is the
-/// production path rather than a contrivance.
-///
-/// Measured: occurrence 0 stamps 1, occurrence 1 stamps 2, occurrence 0 is
-/// clicked once — and occurrence 0 reads **1** (its click went elsewhere) while
-/// occurrence 1 reads **102** (it received a click it never got). Correct
-/// would be 101 and 2.
-///
-/// **Why this is not fixed here.** Binding is reflection-driven
-/// (`StateBinder.bind` walks a `Mirror`), which is exactly why the slot lives
-/// in a class box rather than a stored struct field — `Mirror` cannot write
-/// one. A per-copy slot would fix this and would also make the box
-/// unnecessary, but that is a change to how `@State` binds, not a patch to
-/// this path. `StateTable.aliasedStateBoxes` counts the shape in the meantime;
-/// it reads 0 across the whole suite apart from the two tests here.
+/// One element value placed twice shares one `State.Box` (a class), and a
+/// handler captures that box. Since `ID-F` every INPUT path — a click, a key, an
+/// action, an accessibility press or adjust, a text field's edit or submit —
+/// runs its handler under `StateDispatch.dispatching(to:)`, and an aliased box
+/// resolves to the dispatched element's own occurrence (lane 1's O1.1–O1.6).
+/// This test calls the first occurrence's `onClick` DIRECTLY, with no dispatch
+/// owner — the shape of a timer, a task or any closure a caller invokes itself —
+/// so the box falls back to its last-bound slot: occurrence 0 reads **1** and
+/// occurrence 1 reads **102**. SwiftUI moves the caller's own occurrence here
+/// (probe S5); MetalUI cannot, because `Mirror` cannot re-point a copy's box
+/// (`State.swift`'s note), so the remedy for a closure run outside dispatch is
+/// two values. `StateTable.aliasedStateBoxes` still counts the shape.
 @MainActor
-@Test func aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt() {
+@Test func aClosureRunOutsideInputDispatchWritesTheLastBoundOccurrence() {
     let counter = InstanceCounter()
     let table = StateTable()
     let probe = ClickableStateProbe(counter: counter)
@@ -671,9 +655,8 @@ private struct ClickableStateProbe: Element {
     let first = table.peek(slot(ids[0]), as: Int.self)
     let second = table.peek(slot(ids[1]), as: Int.self)
 
-    // The CORRECT answers are 101 and 2. These are the wrong ones, asserted so
-    // the defect is pinned rather than latent — change them together with the
-    // fix, and delete this test's "wrong on purpose" framing when you do.
+    // Divergence 71: with no dispatch owner the write reaches the last-bound
+    // occurrence. Through a real click the answers are 101 and 2 (`ID-F`).
     #expect(first == 1, "occurrence 0 was clicked; its own slot should have moved to 101")
     #expect(second == 102, "occurrence 1 was never clicked, yet received the write")
 

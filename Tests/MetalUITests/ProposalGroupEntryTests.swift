@@ -77,8 +77,8 @@ private func stateSlot(of id: GlobalElementID) -> GlobalElementID {
 /// through `Pair`'s typed entry (already pinned); the loop goes through
 /// `ArrayGroup`'s. The oracle's x origins are required 10 apart first, so
 /// "the loop matches the oracle" is a comparison that can fail (practices shape
-/// 15). Ids are compared too: a loop's items share the container's flat index
-/// space.
+/// 15). Ids are compared too: a loop's items number inside the loop's one slot
+/// (plan task 8, `ID-B`; they shared the container's flat index space before).
 ///
 /// Mutation (verifier's P3, recorded under MC-H): `ArrayGroup`'s typed entry
 /// appending only the first group's nodes. Unmutated the loop's leaves sit at
@@ -113,8 +113,11 @@ private func stateSlot(of id: GlobalElementID) -> GlobalElementID {
     print("MC-H ArrayGroup typed entry: loop x \(placed.map(\.origin.x.value)), "
           + "statements x \(oracle.map(\.origin.x.value)), nodeCount \(frame.tree.nodeCount)")
     #expect(placed == oracle, "loop \(placed) vs statements \(oracle)")
+    // Plan task 8, `ID-B` (T row): the loop takes ONE slot, `root/0`, and its
+    // iterations number inside it — `root/0/i`, not `root/i` as before.
+    let loopSlot = GlobalElementID.child(of: rootID, at: 0, name: nil)
     for index in 0..<3 {
-        #expect(loop.ids["\(index)"] == GlobalElementID.child(of: rootID, at: index, name: nil),
+        #expect(loop.ids["\(index)"] == GlobalElementID.child(of: loopSlot, at: index, name: nil),
                 "loop leaf \(index)'s id: \(String(describing: loop.ids["\(index)"]))")
     }
     // HStack plus three leaves.

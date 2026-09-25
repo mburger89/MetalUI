@@ -966,12 +966,14 @@ private func frameStyle(width: Float, height: Float) -> Style {
 /// a flip of its primary's shape).
 ///
 /// The primary is `{ if flag { EmptyProposalComponent() }; CountingProposalLeaf("p") }`:
-/// one node either way, but two indices or one, since an empty `Component`
-/// consumes an index and contributes no node (ruling MC-E's counterexample).
+/// one node either way. It was two indices or one (ruling MC-E's
+/// counterexample) until plan task 8's `ID-B` gave an `if` one slot whether or
+/// not it has content; since then no builder content moves an index at run
+/// time, and the flip changes only whether the empty `Component` is there.
 ///
-/// **In-test positive control, the probe's P5:** the primary leaf `p`'s id
-/// component must read `.positional(1)`, `.positional(0)`, `.positional(1)` —
-/// proof the flip really moved an index inside the primary. The overlay's
+/// **In-test control (T row, `ID-B`):** the primary leaf `p`'s id component
+/// reads `.positional(1)` at all three steps — it read 1, 0, 1 while the flip
+/// moved an index. The overlay's
 /// readings are then pinned unchanged across the three steps: `.positional(0)`
 /// under the `-1` overlay-side id, 3 taps, its `$state0` slot live.
 ///
@@ -1035,9 +1037,13 @@ private func frameStyle(width: Float, height: Float) -> Style {
     window.drawFrameIfNeeded()
     let third = reading()
 
-    // The control: the flip moved the primary leaf's index.
-    try #require([first.primary, second.primary, third.primary] == [.positional(1), .positional(0), .positional(1)],
-                 "the primary's shape did not flip: \([first.primary, second.primary, third.primary])")
+    // The control, re-spelled by plan task 8 (`ID-B`, T row): the flip no
+    // longer moves the primary leaf's index — the `if` takes one slot whether
+    // or not it has content, so `p` stays at `.positional(1)`. Until `ID-B` it
+    // read 1, 0, 1. The overlay's path (`MC-P`'s `-1` side) is what a
+    // numbering mutation still reddens.
+    try #require([first.primary, second.primary, third.primary] == [.positional(1), .positional(1), .positional(1)],
+                 "the primary's trailing member moved: \([first.primary, second.primary, third.primary])")
 
     let kept = Reading(primary: nil, overlayPath: [.positional(0), .positional(-1)], overlayIsExpectedID: true,
                        taps: 3, overlayLive: true)

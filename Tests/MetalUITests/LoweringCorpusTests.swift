@@ -616,7 +616,10 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
     // lowers, so the report that read `[stack.position, stack.inset]` is empty.
     #expect(modal.unlowerable.isEmpty, "\(modal.unlowerable)")
     try #require(modal.elements == 3060, "\(modal.elements)")
-    let deferred = child(scroll, 0), stack = child(deferred, 0)
+    // Plan task 8, `ID-B` (T row): the modal's `if` takes one slot, `scroll/0`,
+    // and its content numbers inside it, so the `Deferred` is `scroll/0/0` (it
+    // was `scroll/0`). The rects are unchanged.
+    let deferred = child(child(scroll, 0), 0), stack = child(deferred, 0)
     let card = child(stack, 0), cardPad = child(card, 0), column = child(cardPad, 0)
     // The `Deferred` and its scrim `Stack` — 920×560 at the origin (stage 5, lane
     // 1; the agreement with the legacy engine that carried this until stage 9 is

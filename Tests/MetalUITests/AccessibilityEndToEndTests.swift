@@ -182,25 +182,34 @@ private func elements(_ list: [Any]?) -> [NSAccessibilityElement] {
     #expect(!window.accessibility.isActive)
 }
 
-/// **`AB-H`'s recorded hazard, pinned with two arms that disagree.** A client
-/// holding the element for a conditional's id, when the conditional vanishes and
-/// an unnamed trailing sibling adopts that id, is holding the adopter: its press
-/// runs the adopter's `onClick`. Naming the trailing sibling — the identity
-/// rule's own remedy — detaches the held element and refuses the press.
-@Test @MainActor func aHeldElementWhoseIDIsAdoptedPressesTheAdopter() throws {
-    for named in [false, true] {
+/// **`AB-H`'s recorded hazard, re-spelled through the path that still has it**
+/// (plan task 8, `ID-B`; spec lane 2's R row). **Renamed from
+/// `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`**, whose unnamed arm reached
+/// the hazard through a vanishing `if`: the trailing sibling slid into the
+/// vanished element's id, and a client holding that id pressed the adopter.
+/// Since `ID-B` an `if` takes one slot whether or not it has content, so that
+/// path is closed — the second arm below shows it: the held element for the
+/// vanished content is detached and refuses the press, with no name needed.
+///
+/// **The hazard itself survives wherever an id moves between elements**, and a
+/// name that moves is how an app writes that: the first arm holds the element
+/// for a `for` loop item named `"x"`, then the data hands `"x"` to a different
+/// item. The held element follows the NAME, so it now reads the new owner's
+/// label and its press runs the new owner's `onClick` — identity is the key,
+/// which is SwiftUI's rule for `.id` too (`AB-H`).
+@Test @MainActor func aHeldElementWhoseNameMovesPressesItsNewOwner() throws {
+    // Arm 1: a name that moves to another item carries the held element with it.
+    do {
         let model = Model()
+        final class Keys { var first = "x", second = "y" }
+        let keys = Keys()
         let (window, appKit, nsWindow) = try makeAppKitWindow {
             Column {
-                if model.showFirst {
-                    declared(Box().cssWidth(px(40)).cssHeight(px(20)).onClick { model.first += 1 },
-                             AXNode(role: .button, label: "First"))
+                for (key, label) in [(keys.first, "First"), (keys.second, "Second")] {
+                    declared(Box().cssWidth(px(40)).cssHeight(px(20)).onClick {
+                        if label == "First" { model.first += 1 } else { model.second += 1 }
+                    }, AXNode(role: .button, label: label)).id(key)
                 }
-                // One expression of one type in both arms, so the only
-                // difference between them is the name.
-                let trailing = declared(Box().cssWidth(px(40)).cssHeight(px(20)).onClick { model.second += 1 },
-                                        AXNode(role: .button, label: "Second"))
-                named ? trailing.id("second") : trailing
             }
         }
         defer { nsWindow.close() }
@@ -208,28 +217,58 @@ private func elements(_ list: [Any]?) -> [NSAccessibilityElement] {
         _ = host.accessibilityChildren()
         window.drawFrameIfNeeded()
         let before = elements(host.accessibilityChildren())
-        try #require(before.count == 2, "named: \(named)")
+        try #require(before.count == 2)
         let held = before[0]
-        try #require(held.accessibilityLabel() == "First", "named: \(named)")
+        try #require(held.accessibilityLabel() == "First")
+
+        // The data swaps the names: "x" now names the second item.
+        keys.first = "y"
+        keys.second = "x"
+        window.setNeedsRedraw()
+        window.drawFrameIfNeeded()
+        let after = elements(host.accessibilityChildren())
+        try #require(after.count == 2)
+
+        let pressed = held.accessibilityPerformPress()
+        #expect(held.accessibilityParent() as AnyObject === host, "the moved name is still published")
+        #expect(held.accessibilityLabel() == "Second", "the held element follows the name to its new owner")
+        #expect(pressed, "the press runs the new owner's onClick")
+        #expect(model.first == 0 && model.second == 1)
+    }
+
+    // Arm 2: a vanishing `if` no longer hands its id to the trailing sibling.
+    do {
+        let model = Model()
+        let (window, appKit, nsWindow) = try makeAppKitWindow {
+            Column {
+                if model.showFirst {
+                    declared(Box().cssWidth(px(40)).cssHeight(px(20)).onClick { model.first += 1 },
+                             AXNode(role: .button, label: "First"))
+                }
+                declared(Box().cssWidth(px(40)).cssHeight(px(20)).onClick { model.second += 1 },
+                         AXNode(role: .button, label: "Second"))
+            }
+        }
+        defer { nsWindow.close() }
+        let host = appKit.hostView
+        _ = host.accessibilityChildren()
+        window.drawFrameIfNeeded()
+        let before = elements(host.accessibilityChildren())
+        try #require(before.count == 2)
+        let held = before[0]
+        try #require(held.accessibilityLabel() == "First")
 
         model.showFirst = false
         window.setNeedsRedraw()
         window.drawFrameIfNeeded()
         let after = elements(host.accessibilityChildren())
-        try #require(after.count == 1, "named: \(named)")
+        try #require(after.count == 1)
         #expect(after[0].accessibilityLabel() == "Second")
 
         let pressed = held.accessibilityPerformPress()
-        if named {
-            #expect(held.accessibilityParent() == nil, "the named sibling never held this id: detached")
-            #expect(!pressed, "a detached element refuses the press")
-            #expect(model.first == 0 && model.second == 0)
-        } else {
-            #expect(held.accessibilityParent() as AnyObject === host, "the adopted id is still published")
-            #expect(held === after[0], "the held element IS the adopter's element")
-            #expect(held.accessibilityLabel() == "Second")
-            #expect(pressed, "the press runs the adopter's onClick")
-            #expect(model.first == 0 && model.second == 1)
-        }
+        #expect(held.accessibilityParent() == nil, "no sibling slid into the vanished id: detached")
+        #expect(held !== after[0], "the trailing sibling keeps its own element")
+        #expect(!pressed, "a detached element refuses the press")
+        #expect(model.first == 0 && model.second == 0)
     }
 }
