@@ -122,19 +122,24 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-9` (2026-09-24 — plan task 7 stage 9, engine deletion,
-not yet merged with `master`) the suite reports **1409 tests** (1452 − 93 +
-50: 44 retired, 49 renamed, 1 added), in one summary line over three suites.
-That total includes **79** `swiftc -typecheck` guards and no goldens: stage
-7a retired all 97 (record §48), stage 7b retired the CSS engine's remaining
-non-golden tests (record §49), stage 8 deprecated the eight `StyledElement`
-sizing modifiers toward `.frame` (record §50), and **stage 9 deletes the CSS
-engine, the legacy registrars and the layout authority itself** — `FlexEngine`
-and its supporting files, `LayoutPass.requestNode`/`requestLeaf`,
-`Frame.layoutAuthority` and `Frame.legacyRootLayoutCounter` are all gone
-(record §51). Every legacy element (`Box`, `Row`, `Column`, `Stack`,
-`ScrollView`, `List`, legacy `.frame`) keeps working, through the lowering
-that is now its only path.
+On `feat/engine-stage-10` (2026-09-24 — plan task 7 stage 10, `Style`'s CSS
+fields and the closing check, not yet merged with `master`) the suite reports
+**1414 tests** (1411 − 3 + 2 + 4: 2 rows retired, 1 renamed, 5 added), in one
+summary line over three suites. That total includes **82** `swiftc -typecheck`
+guards and no goldens: stage 7a retired all 97 (record §48), stage 7b retired
+the CSS engine's remaining non-golden tests (record §49), stage 8 deprecated
+the eight `StyledElement` sizing modifiers toward `.frame` (record §50), stage
+9 deleted the CSS engine, the legacy registrars and the layout authority
+itself (record §51), and **stage 10 deletes `Style`'s CSS fields and narrows
+every surviving one to `package`** — `aspectRatio`, `overflow`, `border` and
+`Position.relative` are gone, `Style.swift` moves into `MetalUI`, and the
+mechanical closing check lands: `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+(a `dlsym` check that the deleted engine's mangled names no longer resolve in
+the test process), three plain-import guards and a recorded grep (record
+§52). Every legacy element (`Box`, `Row`, `Column`, `Stack`, `ScrollView`,
+`List`, legacy `.frame`) keeps working, through the lowering that is now its
+only path, and keeps its CSS-derived spelling even though `Style` itself is
+no longer public API.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them. **Production has run the
@@ -400,10 +405,11 @@ transforms, and text colour animation.
     [stage 6b](docs/superpowers/specs/2026-09-23-engine-stage-6b-design.md)
     [stage 7a](docs/superpowers/specs/2026-09-23-engine-stage-7a-design.md)
     [stage 7b](docs/superpowers/specs/2026-09-23-engine-stage-7b-design.md)
-    [stage 8](docs/superpowers/specs/2026-09-24-engine-stage-8-design.md) and
-    [stage 9](docs/superpowers/specs/2026-09-24-engine-stage-9-design.md)
-    specs (plan task 7, stages 1, 2, G, 3, 4, 5, 6a, 6b, 7a, 7b, 8 and 9 of 14
-    landed —
+    [stage 8](docs/superpowers/specs/2026-09-24-engine-stage-8-design.md),
+    [stage 9](docs/superpowers/specs/2026-09-24-engine-stage-9-design.md) and
+    [stage 10](docs/superpowers/specs/2026-09-24-engine-stage-10-design.md)
+    specs (plan task 7, stages 1, 2, G, 3, 4, 5, 6a, 6b, 7a, 7b, 8, 9 and 10 of
+    14 landed —
     legacy elements lower onto the kernel, with SwiftUI's flex-item
     semantics, scrolling, `Component` distribution, a windowed `List` and
     `Deferred`'s absolute content as a presentation root; the public
@@ -412,9 +418,12 @@ transforms, and text colour animation.
     stage 6b's root switch, `Frame.defaultLayoutAuthority = .proposal`; the
     97 WebKit goldens are retired — stage 7a; the CSS engine's remaining
     non-golden tests are retired — stage 7b; the eight `StyledElement` sizing
-    modifiers are deprecated toward `.frame` — stage 8; **the CSS engine, the
-    legacy registrars and the layout authority itself are deleted** — stage 9,
-    not yet merged with `master`)
+    modifiers are deprecated toward `.frame` — stage 8; the CSS engine, the
+    legacy registrars and the layout authority itself are deleted — stage 9;
+    **`Style`'s CSS fields are deleted or narrowed to `package`, and the
+    mechanical closing check lands** (a `dlsym` check that the deleted
+    engine's mangled names are absent from the test process, plain-import
+    guards and a recorded grep) — stage 10, not yet merged with `master`)
   - [grids spec](docs/superpowers/specs/2026-09-17-grids-design.md)
     (plan task 7 stage G, delivered: SwiftUI's `Grid` and `GridRow` on the
     proposal path as a kernel node; lazy grids are proposed as stage G2)

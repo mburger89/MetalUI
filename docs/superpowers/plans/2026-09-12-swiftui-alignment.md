@@ -836,6 +836,55 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `ModifiedElement`/`ModifiedContent` are not unified (stage 11). Divergences
   9, 10, 13, 14, 48, 52, 53, 55 and 56 keep their fact, re-read on the one
   remaining authority; 18 is untouched.
+  *Progress 2026-09-24 on `feat/engine-stage-10` (from `8095fd9`, stage 9's
+  tip), stage 10 of 14, task still open.* Spec
+  `specs/2026-09-24-engine-stage-10-design.md`; rulings `LR-FM`…`LR-FT` in
+  `../2026-09-17-engine-replacement-decisions.md` (the same doc as stages
+  1–9; `LR-FR` the design critic round); no new SwiftUI probe — the stage
+  claims no new SwiftUI behaviour; record
+  `docs/record/52-engine-replacement-stage-10.md`. **`Style`'s CSS fields are
+  resolved field by field, not deleted as a block** (`LR-FM`): `aspectRatio`,
+  `overflow` (read by nothing), `border` (`Box(style:)` its only writer) and
+  `Position.relative` (read only to be reported) are deleted with the enums
+  `FlexWrap`/`AlignContent`/`Overflow` and the modifiers
+  `flexWrap(_:)`/`alignContent(_:)`; every surviving stored field (seventeen)
+  and `Display`/`JustifyItems` are narrowed to `package`, so
+  `StyledElement.style` is opaque outside the package — realising row 10's
+  narrowing by access rather than by a shorter field list; `Style.swift`
+  moves from `MetalUILayout` to `MetalUI`, its only reader since stage 9 —
+  `MetalUILayout` declares no CSS vocabulary at all. Every `Style`-field
+  report this stage inherited becomes a **permanent** refusal by name
+  (`LR-FO`), and the mechanical closing check lands:
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` (`dlsym` on macOS and
+  Linux, compiled out on Windows), three plain-import guards
+  (`StyleSurfaceCompileGuards`) and the recorded grep (`LR-FP`). Two lanes,
+  each red first, both verified `ok`: lane 1 (`LR-FS`) re-spells the tests
+  off the deleted fields (`N1.1`
+  `everyReportNamesALiveOwnerOrIsRefusedByName`, sixteen re-spelled `T` tests,
+  two rows retired); lane 2 (`LR-FT`) does the deletion, the narrowing, the
+  move and the closing check (`N2.1`, `G1`–`G3`), with a fix round widening
+  `G1` to pin all seventeen narrowed fields rather than one. Suite **1414**
+  (1411 − 3 + 2 + 4: `D1.1`/`D1.2` retired and `T1.16` renamed, `N1.1` and
+  `T1.16`'s new name added by lane 1; `N2.1`/`G1`/`G2`/`G3` added by lane 2,
+  none removed), 0 goldens, guards **82** (79 + 3, `StyleSurfaceCompileGuards`).
+  0 `error:`, 0 `warning:` besides SwiftPM's notice on both build systems; 0 px
+  against `8095fd9` in all fourteen offscreen images; the Windows stack budget
+  improves, measured (`MemoryLayout<Style>.size` 226 → 178, the smallest
+  thread building every production tree 528 → 484 KB). `Backends/SDL`
+  21 + 19; `Tests/PortableTests` 18 + 6 + 5; the Linux container's three CI
+  targets pass **22 + 188 + 10**, `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+  green off Apple. An independent Record-phase re-check (record §52 §6)
+  re-took every one of these measurements from a fresh scratch copy and
+  closed two minor doc-comment findings the lane 1 verifier left open, both
+  Tests-only. **No divergence number moves** (9, 10 and 54 re-read for the
+  permanent-refusal wording, unchanged in substance). **Not done, owners
+  already assigned:** `ModifiedElement`/`ModifiedContent` unification, legacy
+  `.overlay`, `.opacity` G4 and `deferred.amended` with `Component.width`
+  over a presentation member stay for **stage 11**; divergence 52, whether
+  the eight deprecated sizing modifiers and the `fraction:` spellings are
+  removed, and whether `Box(style:)`/`Stack`'s public `style:` parameter
+  (inert outside the package since narrowing, `LR-FR` F5) is deprecated or
+  removed, stay for **plan task 15** (closeout).
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

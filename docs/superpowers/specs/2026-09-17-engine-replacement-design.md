@@ -127,6 +127,37 @@ in all fourteen offscreen images; divergence 11 retires (57 → 56 live) and
 pre-empts nothing of 10–11: `Style`'s CSS fields, `CSSSizing.swift` and every
 `Style`-field report this stage inherited stay for stage 10, and
 `ModifiedElement`/`ModifiedContent` are not unified (stage 11).
+**Stage 10 (`Style`'s CSS fields and the closing check) has landed on its
+branch, not yet merged** (2026-09-24): `feat/engine-stage-10` from `8095fd9`,
+record §52, spec
+[`2026-09-24-engine-stage-10-design.md`](2026-09-24-engine-stage-10-design.md),
+rulings `LR-FM`…`LR-FT`. It meets §4.1 row 10's exit, read field by field
+rather than as a blanket deletion (`LR-FM`): `aspectRatio`, `overflow`,
+`Style.border` (no production writer since `Box(style:)` is its only one),
+`flexWrap`, `alignContent` and `Position.relative` are deleted along with the
+enums `FlexWrap`/`AlignContent`/`Overflow` and the modifiers
+`flexWrap(_:)`/`alignContent(_:)`; every surviving stored field of `Style`
+(seventeen) is narrowed to `package`, as are `Display` and `JustifyItems`, so
+`StyledElement.style` reads as an opaque value outside the package; `Style.swift`
+moves from `MetalUILayout` to `MetalUI`, its only reader since stage 9 —
+`MetalUILayout` declares no CSS vocabulary at all. Every inherited
+`Style`-field report becomes a permanent refusal by name (`LR-FO`), and the
+mechanical closing check lands: `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+(`dlsym`, macOS and Linux, compiled out on Windows), three plain-import
+guards (`StyleSurfaceCompileGuards`) and the recorded grep (`LR-FP`). Two
+lanes, each red first, both verified `ok`: lane 1 (`LR-FS`) re-spells the
+tests off the deleted fields and makes every `Style`-field report permanent;
+lane 2 (`LR-FT`) does the deletion, the narrowing and the move, and lands the
+closing check, with a fix round widening guard G1 to pin all seventeen
+narrowed fields rather than one. Suite **1414** (1411 − 3 + 2 + 4: 2 rows
+retired, `T1.16` renamed, `N1.1`/`N2.1`/`G1`/`G2`/`G3` added), guards
+**82** (79 + 3), goldens 0; 0 px against `8095fd9` in all fourteen offscreen
+images, independently re-taken by the Record phase along with the suite,
+guard and golden counts, `Backends/SDL`, `Tests/PortableTests`, a
+`swift:6.4-noble` container and the recorded greps (record §52 §6). Stage 10
+pre-empts nothing of 11: `ModifiedElement`/`ModifiedContent` stay separate,
+legacy `.overlay` and `.opacity` G4 are untouched, and `deferred.amended`
+stays stage 11's.
 §4.1's
 table below is still the plan of record for the remaining stages; the **live** per-stage status is the
 stage list under task 7 in

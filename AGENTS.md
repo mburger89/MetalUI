@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-FM`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-FU`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -116,6 +116,14 @@ milestones append their record to `docs/record/` and put only the rule here.
   legacy `.frame`) keeps working through the lowering, now its only path;
   **no new SwiftUI probe** — the stage claims no new SwiftUI behaviour
   (`LR-FH` item 4)),
+  7 stage 10 `LR-FM`…`LR-FT` (§52, spec
+  `specs/2026-09-24-engine-stage-10-design.md`, same decisions doc — `Style`'s
+  CSS fields resolved field by field (deleted, narrowed to `package`, or
+  moved into `MetalUI`), every inherited `Style`-field report made a
+  permanent refusal by name, the mechanical closing check
+  (`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`, three plain-import
+  guards, a recorded grep); **no new SwiftUI probe** — the stage claims no
+  new SwiftUI behaviour),
   7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
@@ -193,7 +201,57 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
-- **Counts (2026-09-24, `feat/engine-stage-9` merged with `master` at
+- **Counts (2026-09-24, `feat/engine-stage-10` — plan task 7 stage 10,
+  `Style`'s CSS fields and the closing check, from `8095fd9`, stage 9's tip,
+  not yet merged with `master`): 1414 tests, 0 goldens, 82 typecheck
+  guards**, 0 `error:` on both build systems, the one `warning:` SwiftPM's
+  deprecation notice under native (0 under the default one), taken after
+  `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1414 tests in 3
+  suites passed`; **eleven** gated tests skipped, unchanged; the guards ran —
+  the log carries `FR-J no-argument frame: succeeded=`). **1414 = 1411 − 3 +
+  2 + 4**: lane 1 (`LR-FS`) retires `D1.1`
+  `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs`, `D1.2`
+  `aStyleBorderLowersAsInsetsInsideTheDeclaredSize` and `T1.16`'s old name,
+  and adds `N1.1` `everyReportNamesALiveOwnerOrIsRefusedByName` and `T1.16`'s
+  new name, `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`;
+  lane 2 (`LR-FT`) adds `N2.1` `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `G1` `aPlainImportCannotWriteAStyleField`, `G2`
+  `theDeletedStyleSpellingsDoNotCompile` and `G3`
+  `theLayoutKernelDeclaresNoStyle`, removing none. Guards **82 = 79 + 3**
+  (`StyleSurfaceCompileGuards`, new). No goldens to move (`find
+  Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0, as at `8095fd9`).
+  **`Style`'s CSS fields are resolved field by field**: `aspectRatio`,
+  `overflow`, `Style.border` (`Box(style:)` its only writer), `flexWrap`,
+  `alignContent` and `Position.relative` deleted with the enums
+  `FlexWrap`/`AlignContent`/`Overflow` and the modifiers
+  `flexWrap(_:)`/`alignContent(_:)`; every surviving stored field (seventeen)
+  and `Display`/`JustifyItems` narrowed to `package`; `Style.swift` moved
+  from `MetalUILayout` to `MetalUI`. Every inherited `Style`-field report
+  becomes a permanent refusal by name (`LR-FO`); the mechanical closing check
+  lands: `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` (`dlsym`, macOS
+  and Linux, compiled out on Windows), three plain-import guards
+  (`StyleSurfaceCompileGuards`, a fix round widening `G1` to pin all
+  seventeen narrowed fields rather than one) and a recorded grep (`LR-FP`).
+  **0 px against `8095fd9` in all fourteen offscreen images**, scene
+  identical, independently re-taken by the Record phase along with the
+  suite, guard and golden counts, `Backends/SDL` (21 + 19), `Tests/PortableTests`
+  (18 + 6 + 5), a `swift:6.4-noble` container (**22 + 188 + 10**, unmoved
+  from stage 9) and the recorded greps (record §52 §6). **The Windows stack
+  budget improves, measured**: `MemoryLayout<Style>.size` 226 → 178, the
+  smallest thread building every production tree on macOS arm64 debug 528 →
+  484 KB. **Not done, owners already assigned**:
+  `ModifiedElement`/`ModifiedContent` unification, legacy `.overlay`,
+  `.opacity` G4 and `deferred.amended` with `Component.width` over a
+  presentation member stay for **stage 11**; divergence 52, the eight
+  deprecated sizing modifiers and the `fraction:` spellings, and whether
+  `Box`'s/`Stack`'s public `style:` parameter (inert outside the package
+  since narrowing) is deprecated or removed, stay for **plan task 15**
+  (closeout). History: record §52 (§1–§3 baseline and critic round, §4 lane
+  1, §5 lane 2, §6 the Record phase's independent close).
+- **Stage 9's counts, merged with `master` (2026-09-24, `feat/engine-stage-9`
+  merged with `master` at
   `1895e4a`, PR #30 — the Windows demo-stack fix): 1411 tests, 0 goldens, 79
   typecheck guards**, 0 `error:` on both build systems, the one `warning:`
   SwiftPM's deprecation notice under native (0 under the default one), taken
@@ -340,7 +398,13 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   every `Style`-field report this stage inherited (percentages, a non-greedy
   `maxSize`, a length `flexBasis`, a root's auto-axis min/max and margin, a
   floored `space-*`, `…absolute` on a `Style`-written box) **stays reported**
-  and dies with its field at stage 10 (`LR-ER` item 4). Divergence 52
+  and — this paragraph predicted — dies with its field at stage 10 (`LR-ER`
+  item 4). **Refuted at stage 10**: none of these fields (`size`, `padding`,
+  `margin`, `minSize`, `maxSize`, `gap`, `flexBasis`, `justifyContent`) is
+  itself deleted — only `aspectRatio`, `overflow`, `border`, `flexWrap`,
+  `alignContent` and `Position.relative` are — so every one of these reports
+  instead becomes a **permanent refusal by name** (`LR-FO` item 1); `css*`
+  and its ≈ 1411 sites stay too, for the same reason (`LR-FO` item 6). Divergence 52
   (`Row`/`Column` default spacing) moves from stage 10 to **plan task 15**
   (closeout), because both stages' exit is "0 px against the prior stage" and
   a public default under every default-gap caller's pixels cannot satisfy
@@ -664,15 +728,19 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `DecorationCompileGuards`, `ContainerCompileGuards`,
   `LayoutAuthorityCompileGuards`, `GridCompileGuards`,
   `UnitSafetyTests` (one hit is a comment),
-  `AXNodeTests`, `SceneBoundaryCompileGuards`; `Typecheck.swift` holds only
-  the declaration. Two helpers, 40 and 39 (38 before stage 8's N3.1, 37
+  `AXNodeTests`, `SceneBoundaryCompileGuards`, `StyleSurfaceCompileGuards`
+  (stage 10, new); `Typecheck.swift` holds only
+  the declaration. Two helpers, 40 and 42 (39 before stage 10's three; 38
+  before stage 8's N3.1, 37
   before stage 6a's): `typecheck(_:importing:)` wraps the fixture in a
   function (Swift 5, nothing `public`/file-scope compiles);
   `typecheckFile(_:importing:)` is whole-file
   Swift 6 — the six/two/six of `ProposalLayout`/`ModifiedElement`/
   `ProposalNodeID`, **three** `FrameSizing` (stage 8's N3.1 the
   third), three `Decoration`, four `Container`,
-  four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary` and seven of
+  four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary`,
+  **three** `StyleSurfaceCompileGuards` (stage 10, `aPlainImportCannotWriteAStyleField`
+  a plain-import guard, the other two whole-file compile fixtures) and seven of
   `EnvironmentCompileGuards`'. A guard about what an external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
@@ -697,7 +765,11 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
   and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
   appended on macOS in the manifest — and run `MetalUILayoutTests`,
-  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**192 + 22 + 5**
+  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**188 + 22 + 10**
+  since stage 10, measured in `swift:6.4-noble` — `StyleTests.swift` moved
+  from `MetalUILayoutTests` to `MetalUICrossPlatformTests` (`git mv`, its
+  four tests following it, `LR-FT` §5.2) and `LegacyEngineSymbolTests`'
+  `N2.1` joins the latter too: 192 − 4 = 188, 5 + 4 + 1 = 10; **192 + 22 + 5**
   since stage 9 met PR #30, measured in `swift:6.4-noble` at the merge —
   `DemoStackBudgetTests`' two join `MetalUICrossPlatformTests`; **192 + 22 +
   3** at stage 9 alone; **200 + 22 + 3** measured in `swift:6.4-noble` after stage 7b; the WebKit goldens' 96
@@ -715,7 +787,11 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `MetalUITests`, which Linux and Windows CI do not run (record §49 §6.1,
   `LR-EM` item 5); **stage 9 drops it again, 200 to 192**, lane 2's eight
   `MetalUILayoutTests` retirements, measured in `swift:6.4-noble` at the
-  stage-9 head, record §51 §7.6 and §9), the last pinning the demo's
+  stage-9 head, record §51 §7.6 and §9); **stage 10 moves four from
+  `MetalUILayoutTests` to `MetalUICrossPlatformTests` and adds one there**
+  (`StyleTests.swift`'s `git mv`, `LegacyEngineSymbolTests`' `N2.1`), giving
+  188 + 22 + 10 (record §52 §5.6, independently re-taken record §52 §6.2 item
+  6), the last pinning the demo's
   whole frame byte-for-byte against
   macOS (`XP-C`). Inside `MetalUI`, CoreText stays behind `#if
   canImport(MetalUIText)`; off Apple a `Frame`/`Window` without a text system
@@ -862,9 +938,10 @@ Eight constraints that fail silently:
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (gamma-space compositing, §7.8).
-- Percentage `padding`/`border` resolve against the containing block's
+- Percentage `padding` resolves against the containing block's
   **width** on every edge; `Style.inset` is horizontal-vs-width,
-  vertical-vs-height (AP-D).
+  vertical-vs-height (AP-D). (`Style.border` had the same rule; the field is
+  deleted, `LR-FM` item 1, stage 10.)
 
 ## Architecture rules
 
@@ -1000,11 +1077,13 @@ whatever surrounds the presentation** — stage 9 deleted the
 `deferred.containingBlock`/`.nested`/`.root` reports along with the legacy
 engine whose containing block they protected (`LR-FF`;
 `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`). An absolute
-box **outside** a `Deferred` (`position`/`inset` at the consumer, owner
-stage 10), `minSize`/`maxSize` on an absolute box's `auto` axis (`…absolute`,
-owner stage 10 since stage 8's `LR-EZ` item 3, and only on a `Style`-written
-box: a `.frame` written before `.position(.absolute)` over at most one node
-answers SwiftUI's frame bounds and never reports, `LR-EV`), and a
+box **outside** a `Deferred` (`position`/`inset` at the consumer) and
+`minSize`/`maxSize` on an absolute box's `auto` axis (`…absolute`, and only
+on a `Style`-written box: a `.frame` written before `.position(.absolute)`
+over at most one node answers SwiftUI's frame bounds and never reports,
+`LR-EV`) are **permanent refusals since stage 10** (`LR-FO` item 2:
+`owner: nil`, no lowering will ever answer them — the kernel's only absolute
+layout is a presentation's), and a
 `Component`'s amend over a presentation member (`deferred.amended`, owner
 **stage 11**, `LR-FF`) each **report by name** rather than lower to a
 different answer.
@@ -1316,8 +1395,9 @@ out through the propose/measure/place kernel. Detail: §19
   `nativeLayoutPreviewContent()` from `MetalUIDemoContent`, `LR-S`, and a
   `List`, each through a real `Window`, bumping `Frame.legacyRootLayoutCounter`
   zero times) is **retired at stage 9** along with the counter it read —
-  there is no longer a legacy engine to reach; stage 10 replaces it with
-  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`. Record §41.
+  there is no longer a legacy engine to reach; **stage 10 replaces it** with
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` (a `dlsym` check, macOS
+  and Linux, compiled out on Windows). Record §41.
 - **Stage 7a retires the 97 WebKit goldens** (`LR-DS`…`LR-EB`). Verdicts
   (`LR-DS`): **R** (44) — the golden's own tree, transcribed field for field
   into `Box(style:)` with each `data-id` on `.id(_:)`, reproduces its rounded
@@ -1348,12 +1428,49 @@ out through the propose/measure/place kernel. Detail: §19
   or a registration site's own handler/decoration/focus/accessibility
   (`LR-EW`, `LR-FB` — R2's move onto a frame layer would silently re-point
   such a pin at `ModifiedElement`). A new test that sizes a box writes
-  `.frame`; `css*` dies with the fields at stage 10. A framed absolute box is
+  `.frame`. **`css*` was expected to die with the fields at stage 10; it did
+  not** — `Style.size`/`minSize`/`maxSize`, the only fields it writes, survive
+  stage 10 as the lowering's own inputs (`LR-FM` item 2), so `CSSSizing.swift`
+  stays, the reason above still holds, and only its narrower doc comment was
+  corrected (`LR-FO` item 6). A framed absolute box is
   a presentation root (`LR-EV`, one node only); unconsumed as the root it
   reports `position`/`inset` `.unconsumed` (`LR-FA`). Stage 8 pre-empted
   nothing of 9–11: at 8, no engine file, `Style` field, legacy registrar or
   the legacy authority was deleted (stage 9 did); `Component.width`/`height`
   stay undeprecated (stage 11). Record §50.
+- **Stage 10 resolves `Style`'s CSS fields field by field, and closes the
+  deletion mechanically** (`LR-FM`…`LR-FT`). **Deleted**: `aspectRatio`,
+  `overflow` (read by nothing), `Style.border` (`Box(style:)` its only
+  writer), `flexWrap`, `alignContent` (read only to be reported) and
+  `Position.relative` (read only to be reported), with the enums
+  `FlexWrap`/`AlignContent`/`Overflow` and the modifiers
+  `flexWrap(_:)`/`alignContent(_:)`. **Narrowed**: every surviving stored
+  field (seventeen) and `Display`/`JustifyItems` become `package` — outside
+  the package `Style` is opaque (`init()`, `default`, `==`), pinned by
+  `aPlainImportCannotWriteAStyleField`; `Box`'s/`Stack`'s public `style:`
+  initialiser parameter is therefore inert outside the package (record §05).
+  **Moved**: `Style.swift` from `MetalUILayout` to `MetalUI`, its only reader
+  since stage 9 — `MetalUILayout` declares no CSS vocabulary at all.
+  **`UnlowerableField.owningStage: String` becomes `owner: String?`**
+  (`LR-FO` item 3): every report this stage inherited becomes a **permanent
+  refusal by name**, not work owed to a later stage — percentages, a
+  non-greedy `maxSize`, a length `flexBasis`, a floored `space-*`, a root's
+  auto-axis min/max and margin, `…absolute` on a `Style`-written box, unequal
+  grow weights, a negative `flexGrow`/`flexShrink`, an absolute box outside a
+  `Deferred` (`position`/`inset` at the consumer) and `inset` on a static box
+  all read `owner: nil` and the trap message
+  `"…and is refused by name (plan task 7, LR-FO)"`; `deferred.amended`
+  (`"plan task 7, stage 11"`) and a `baseline` field (`"plan task 11"`) are
+  the only two with a live owner left. The mechanical closing check lands:
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` (`dlsym`, macOS and
+  Linux, compiled out on Windows) in place of the retired
+  `noProductionFrameReachesTheLegacyEngine`, three plain-import guards
+  (`StyleSurfaceCompileGuards`) and a recorded grep (`LR-FP`). No production
+  behaviour moves beyond the border-fold arithmetic now folding a border that
+  can only ever be `.zero`. Stage 10 pre-empts nothing of 11:
+  `ModifiedElement`/`ModifiedContent` stay separate, legacy `.overlay` and
+  `.opacity` G4 are untouched, and `deferred.amended` stays stage 11's.
+  Record §52.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -1609,9 +1726,12 @@ expected, measured facts:
   renamed pin (record §04's 2026-09-24 stage-9 section names each);
   **18** is untouched (it was never about the authority);
   §19 "Known divergences" is the frozen 48-row copy. Many are *pinned wrong on
-  purpose*; a test named for one reddening may be a fix, not a bug.
+  purpose*; a test named for one reddening may be a fix, not a bug. **Stage 10
+  moves no divergence number** — 9, 10 and 54 were re-read for the
+  permanent-refusal wording (`UnlowerableField.owner`) and hold unchanged in
+  substance (record §04's implicit stage-10 check, spec §9).
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
-  `Style.aspectRatio`/`overflow`, `Position.relative` offset, `hidden()` on
+  `hidden()` on
   drawing/focusable subtrees, `AnyElement`'s `@State`, `PaintPass.isActive`,
   `onInput`'s `-> Bool`, colour glyphs, baselines,
   `locale`/`layoutDirection`/`dynamicTypeSize`, one axis each of
@@ -1641,7 +1761,18 @@ expected, measured facts:
   survives (re-owned to stage 11). **`LayoutAuthority.proposal` in production
   is no longer inert — its row is deleted** (stage 6b, `LR-DF`: production
   now runs it by default); the
-  entry above listed it until this stage.
+  entry above listed it until this stage. **`Style.aspectRatio`, `overflow`,
+  `Style.border` on a container and `Position.relative`'s offset are DELETED
+  at stage 10, not merely inert — removed from the inline example list above,
+  not narrowed to it** (`LR-FM` item 1, record §05's 2026-09-24 stage-10
+  section): the fields themselves, the enums `FlexWrap`/`AlignContent`/
+  `Overflow` and the modifiers `flexWrap(_:)`/`alignContent(_:)` no longer
+  exist. `margin: .auto`'s row (kept, since `margin` survives) is narrowed
+  further: `Style.margin` is no longer public, so the case is unreachable
+  from outside the package by any route, not only through
+  `StyledElement.margin(_:)`'s `Length` parameter. **A row is added**:
+  `Box`'s/`Stack`'s public `style:` initialiser parameter, inert outside the
+  package now that every field it could set is `package` (`LR-FR` F5).
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
@@ -1697,7 +1828,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **79** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **82** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a
@@ -1748,3 +1879,11 @@ expected, measured facts:
     `assumeIsolated`). swift-corelibs Foundation silently ignores a
     `Thread.stackSize` of 64 KB, so a small-stack control there needs 128 KB
     or more. Record §50 §14.
+  - **Stage 10's closing check is compiled out on Windows.**
+    `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+    (`Tests/MetalUICrossPlatformTests/LegacyEngineSymbolTests.swift`) is
+    `#if canImport(Darwin) || canImport(Glibc)` — it runs on macOS and Linux,
+    where `dlsym` resolves each mangled name against the test process, and
+    does not exist on Windows, which has neither C library.
+    `root-windows` CI never runs it; its absence there is by design, not a
+    skip to investigate. Record §52 §6.2 item 6.
