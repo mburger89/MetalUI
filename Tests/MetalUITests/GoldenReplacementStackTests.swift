@@ -222,14 +222,19 @@ import MetalUICore
 ///
 /// **M2f** (`planLegacyItems.axis`, the stretched axis of a non-frame-layer item:
 /// `lo` = the item's padding + border on that axis) reddens both boxes (120×140).
+///
+/// **Stage 10** (record §52, lane 1, row T1.14): `Style.border` is deleted
+/// (`LR-FM` item 1), so each 10 border is folded into the padding edge by edge
+/// (60/50/60/50 + 10 = 70/60/70/60) — the lowering inset every edge by
+/// `padding + border`, so the literals are unchanged.
 @MainActor
 @Test func aStretchedStackChildIsNotFlooredByItsPaddingAndBorder() throws {
     try goldenArm("stack_stretch_border_box_floor",
                   "root:0,0,100x100 f:0,0,100x100 c:0,0,40x50") {
         gBox("root", { gSize(&$0, 100, 100); $0.display = .stack; $0.justifyItems = .stretch; $0.alignItems = .stretch }) {
-            gLeaf("f") { $0.padding = gEdges(60, 50, 60, 50); $0.border = Edges(all: gPl(10)) }
+            gLeaf("f") { $0.padding = gEdges(70, 60, 70, 60) }
             gLeaf("c") {
-                $0.padding = gEdges(60, 50, 60, 50); $0.border = Edges(all: gPl(10))
+                $0.padding = gEdges(70, 60, 70, 60)
                 $0.maxSize = Size(width: gPx(40), height: gPx(50))
             }
         }
@@ -254,6 +259,11 @@ import MetalUICore
 /// **M2g** (`paddedAndSized`: each folded declared size raised to its padding +
 /// border sum) reddens `sizing_over_constrained_grows` (box 120×140) and
 /// `sizing_specified_suggestion_is_used_value` (a 120).
+///
+/// **Stage 10** (record §52, lane 1, row T1.15): `Style.border` is deleted
+/// (`LR-FM` item 1), so the two 10 borders are folded into their paddings edge by
+/// edge — the lowering inset every edge by `padding + border`, so the literals are
+/// unchanged.
 @MainActor
 @Test func aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding() throws {
     try goldenArm("flex_row_shrink_padded_weighting",
@@ -273,7 +283,7 @@ import MetalUICore
     try goldenArm("sizing_specified_suggestion_is_used_value",
                   "root:0,0,150x60 a:0,0,100x60 g1:60,10,200x20 b:100,0,100x20") {
         gBox("root", { gSize(&$0, 150, 60) }) {
-            gBox("a", { gSize(&$0, 100, nil); $0.padding = gEdges(0, 50, 0, 50); $0.border = Edges(all: gPl(10)) }) {
+            gBox("a", { gSize(&$0, 100, nil); $0.padding = gEdges(10, 60, 10, 60) }) {
                 gLeaf("g1") { gSize(&$0, 200, 20) }
             }
             gLeaf("b") { gSize(&$0, 100, 20) }
@@ -282,69 +292,20 @@ import MetalUICore
     try goldenArm("sizing_over_constrained_grows",
                   "root:0,0,400x300 box:0,0,100x80 kid:60,70,10x10") {
         gBox("root", { gSize(&$0, 400, 300) }) {
-            gBox("box", { gSize(&$0, 100, 80); $0.padding = gEdges(60, 50, 60, 50); $0.border = Edges(all: gPl(10)) }) {
+            gBox("box", { gSize(&$0, 100, 80); $0.padding = gEdges(70, 60, 70, 60) }) {
                 gLeaf("kid") { gSize(&$0, 10, 10) }
             }
         }
     }
 }
 
-// MARK: - 2.8, wrap-reverse's report (LR-DY)
+// MARK: - 2.8, wrap-reverse's report (LR-DY) — retired at stage 10
 
-/// **D, reported.** Deleted concept: **wrap** (`flex-wrap`/`align-content`; a
-/// SwiftUI stack lays out one line, 7a probe W1, W2 vs W0). The existing "wrap" arm of
-/// `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` declares `.wrap`
-/// only, so nothing else sees the value `wrapReverse`: each arm here is its golden's
-/// own tree under the proposal authority and asserts `unlowerableFields` exactly.
-/// WebKit's answers (the goldens) were wrapped, cross-flipped layouts; the native
-/// answer is the report and a 0×0 lowered container.
-///
-/// - `flex_wrap_reverse` (`wrap-reverse`, `align-content: flex-start`) →
-///   `[box.flexWrap, box.alignContent]`;
-/// - `flex_wrap_reverse_align_content_end` (`wrap-reverse`, `align-content:
-///   flex-end`, `gap: 12px 0`) → `[box.flexWrap, box.alignContent]`;
-/// - `flex_wrap_reverse_row_reverse` (`row-reverse`, `wrap-reverse`, `gap: 10px 6px`,
-///   children with margins) → `[box.flexWrap]`.
-///
-/// `legacyContainerDiagnostics` appends `flexWrap` before `alignContent`, so the
-/// order is asserted too. **M2h** (`legacyContainerDiagnostics`:
-/// `declared.flexWrap != .noWrap` → `== .wrap`) reddens all three arms and leaves the
-/// "wrap" arm green.
-@MainActor
-@Test func aWrapReverseContainerIsReportedByNameAsAWrappingOneIs() throws {
-    func report<C: ElementGroup>(@ElementBuilder _ make: @MainActor () -> C) -> [String] {
-        LayoutDifferential.render(width: 800, height: 600, make)
-            .unlowerableFields.map(\.description)
-    }
-    let arms: [(golden: String, reported: [String], expected: [String])] = [
-        ("flex_wrap_reverse", report {
-            gBox("root", { gSize(&$0, 260, 300); $0.flexWrap = .wrapReverse; $0.alignContent = .flexStart }) {
-                gLeaf("a") { gSize(&$0, 80, 20) }
-                gLeaf("b") { gSize(&$0, 80, 40); $0.alignSelf = .flexEnd }
-                gLeaf("c") { gSize(&$0, 80, 26); $0.alignSelf = .center }
-                gLeaf("d") { gSize(&$0, 80, 90) }
-                gLeaf("e") { gSize(&$0, 80, 25); $0.alignSelf = .flexStart }
-            }
-        }, ["box.flexWrap", "box.alignContent"]),
-        ("flex_wrap_reverse_align_content_end", report {
-            gBox("root", { gSize(&$0, 260, 300); $0.flexWrap = .wrapReverse; $0.alignContent = .flexEnd
-                           $0.gap = Axes(horizontal: gPl(0), vertical: gPl(12)) }) {
-                gLeaf("a") { gSize(&$0, 120, 40) }
-                gLeaf("b") { gSize(&$0, 120, 30) }
-                gLeaf("c") { gSize(&$0, 120, 90) }
-            }
-        }, ["box.flexWrap", "box.alignContent"]),
-        ("flex_wrap_reverse_row_reverse", report {
-            gBox("root", { gSize(&$0, 260, 300); $0.flexDirection = .rowReverse; $0.flexWrap = .wrapReverse
-                           $0.gap = Axes(horizontal: gPl(6), vertical: gPl(10)) }) {
-                gLeaf("a") { gSize(&$0, 100, 40); $0.margin = gMargin(0, 0, 0, 8) }
-                gLeaf("b") { gSize(&$0, 100, 30) }
-                gLeaf("c") { gSize(&$0, 120, 50); $0.margin = gMargin(4, 0, 0, 0) }
-            }
-        }, ["box.flexWrap"]),
-    ]
-    try #require(arms.count == 3)
-    for arm in arms {
-        #expect(arm.reported == arm.expected, "\(arm.golden): the proposal authority reported \(arm.reported)")
-    }
-}
+// **D, reported** `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs` (`LR-DY`)
+// is **retired** at stage 10 (record §52, lane 1, row D1.1). Its deleted concept,
+// **wrap** (`flex-wrap`/`align-content`; a SwiftUI stack lays out one line, 7a
+// probe W1, W2 vs W0), is now unspellable: `Style.flexWrap`/`alignContent`,
+// `FlexWrap`, `AlignContent` and the `flexWrap(_:)`/`alignContent(_:)` modifiers
+// are deleted (`LR-FM` item 1, `LR-FN`, lane 2), so the report the test pinned
+// cannot be raised. Lane 2's guard G2 pins that neither `flexWrap(_:)` nor
+// `FlexWrap` exists.

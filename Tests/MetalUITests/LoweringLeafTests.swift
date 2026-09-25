@@ -152,7 +152,7 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
 /// **2.3.** Every "otherwise" row of spec §5.4's **every node** table is reported
 /// by its field name on a leaf — on a childless `Box` and on a `Text`. One arm
 /// per row, each setting only that field; each report is exactly one entry. Three
-/// combined rows follow on both sites: a percentage padding and a percentage border
+/// combined rows follow on both sites: a percentage size and a percentage padding
 /// together, in the table's order; `display: none` with a margin, reported alone
 /// (`LR-J`); `margin` with `flexGrow`, both in the table's order.
 ///
@@ -174,6 +174,11 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
 /// margin — and `alignSelf` as `.baseline`, which reports `alignSelf.baseline`: a
 /// `.center` `alignSelf` lowers since lane 1). 46 arms.
 ///
+/// **Stage 10** (lane 1; `LR-FM` item 1 deletes `Style.border` and
+/// `Position.relative` in lane 2): the `border.percent` and `position` rows go
+/// (four arms), and the combined "padding and border percent" arm becomes "size
+/// and padding percent" — still two every-node rows in the table's order. 42 arms.
+///
 /// **`display.none` is no longer a row** (stage 6b, lane 1, `LR-DH`): a hidden leaf
 /// lowers as if shown, so the table's `display.none` row went and the combined arms
 /// below carry a hidden leaf that reports nothing alone and, with a margin, reports
@@ -182,8 +187,8 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
 /// Mutations that must redden it: **M2c**, the `margin` check deleted; stage 1's
 /// **V4** (`display: none` no longer returned alone) is **retired** with the row;
 /// **V5**, only the last of several fields
-/// recorded; **M4h**, `margin.percent` no longer reported (2 issues); **V4q**, the
-/// `border.percent` entry removed (4). Stage 1's **V3** (the height half of the floor
+/// recorded; **M4h**, `margin.percent` no longer reported (2 issues). **V4q** (the
+/// `border.percent` entry removed) is **retired** with its row at stage 10. Stage 1's **V3** (the height half of the floor
 /// check deleted) is **retired**: lane 4 deleted the `padding.floor` branch outright,
 /// so the mutation has no target left (record §21's verification section).
 @MainActor
@@ -195,8 +200,6 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
         ("minSize.unconsumed", { $0.minSize.width = .length(.pixels(px(5))) }, true),
         ("maxSize.unconsumed", { $0.maxSize.height = .length(.pixels(px(50))) }, true),
         ("margin.unconsumed", { $0.margin.top = .length(.pixels(px(3))) }, true),
-        ("border.percent", { $0.border.right = .percent(0.1) }, true),
-        ("position", { $0.position = .relative }, true),
         ("inset", { $0.inset.left = .length(.pixels(px(4))) }, true),
         ("flexGrow.unconsumed", { $0.flexGrow = 1 }, true),
         ("flexShrink.unconsumed", { $0.flexShrink = 0 }, true),
@@ -229,10 +232,10 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
     // (`LR-J`); a leaf with two
     // unlowerable fields reports both, in the table's order.
     let combined: [(name: String, edit: (inout Style) -> Void, expected: [String])] = [
-        ("padding and border percent together", {
+        ("size and padding percent together", {
+            $0.size.width = .length(.percent(0.5))
             $0.padding.left = .percent(0.1)
-            $0.border.right = .percent(0.1)
-        }, ["padding.percent", "border.percent"]),
+        }, ["size.percent", "padding.percent"]),
         ("display.none alone", { $0.display = .none }, []),
         ("display.none with margin", {
             $0.display = .none
@@ -284,7 +287,7 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
                      }.unlowerableFields,
                      [field(.text, row.name)]))
     }
-    try #require(arms.count == 46)
+    try #require(arms.count == 42)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }
@@ -350,12 +353,15 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
 /// **2.4.** Every **container** field is ignored on a leaf, whatever its value
 /// (spec §5.4's leaves paragraph; `LR-E`, critic round 1 finding 6): the legacy
 /// engine lays out no children for a leaf. One arm per field with its most
-/// "unlowerable" value, plus `aspectRatio` and `overflow` (inert on legacy), each
-/// on a 30×20 childless `Box` and on `Text("ab")`: nothing is reported, the `Box`
+/// "unlowerable" value, each on a 30×20 childless `Box` and on `Text("ab")`: nothing is reported, the `Box`
 /// is 30×20 and the text sits at (0, 0) at its natural size — until stage 9 every
 /// observation was compared with the legacy engine's; since then the text's rect is
 /// a literal, derived before the run: its unwrapped widest line at 13pt, rounded,
 /// by one 16pt line.
+///
+/// **Stage 10** (lane 1): the `flexWrap.wrap`, `alignContent.spaceAround`,
+/// `aspectRatio` and `overflow.hidden` rows go with their fields (`LR-FM` item 1,
+/// deleted in lane 2). Twelve rows become eight, 24 arms 16.
 ///
 /// Mutation that must redden it: **M2d**, `.rowReverse` reported on a leaf.
 @MainActor
@@ -368,11 +374,7 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
         ("alignItems.stretch", { $0.alignItems = .stretch }),
         ("justifyContent.spaceBetween", { $0.justifyContent = .spaceBetween }),
         ("justifyItems.stretch", { $0.justifyItems = .stretch }),
-        ("flexWrap.wrap", { $0.flexWrap = .wrap }),
-        ("alignContent.spaceAround", { $0.alignContent = .spaceAround }),
         ("display.stack", { $0.display = .stack }),
-        ("aspectRatio", { $0.aspectRatio = 2 }),
-        ("overflow.hidden", { $0.overflow = Axes(both: .hidden) }),
     ]
     let textCache = ShapingCache()
     let textWidth = textCache.shaped("ab", font: textCache.resolveFont(family: nil, size: 13),
@@ -400,7 +402,7 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
         #expect(textReport.bounds[leafID] == naturalText, "Text \(row.name)")
         count += 1
     }
-    try #require(count == 24)
+    try #require(count == 16)
 }
 
 // MARK: - 2.5–2.8 — Text

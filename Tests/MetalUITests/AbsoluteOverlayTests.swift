@@ -26,10 +26,10 @@ private func sized(_ w: Float, _ h: Float) -> Style {
 
 /// **2.7** (plan task 7 stage 5, `LR-CK`, `LR-CP` item 4). An absolute box
 /// **outside** a `Deferred` is removed from the proposal authority rather than
-/// lowered, so a production proposal frame (diagnostics off) over one traps —
-/// and the trap names the stage that owns it, **stage 10** (the stage that
-/// deletes `Style.position`/`inset`). At `e5caefb` the child trapped naming
-/// stage 2, so the `stage 10` assertion is red there.
+/// lowered, so a production proposal frame (diagnostics off) over one traps.
+/// Until stage 10 the trap named the stage that owned it (**stage 10**; at
+/// `e5caefb` it named stage 2); since stage 10's `LR-FO` item 2 the entry is a
+/// **permanent refusal**, and the message says so instead of naming a stage.
 @Test func anAbsoluteBoxOutsideADeferredTrapsAProductionProposalFrame() async {
     let child = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
@@ -46,6 +46,7 @@ private func sized(_ w: Float, _ h: Float) -> Style {
         }
     }
     let stderr = String(decoding: child?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("MetalUI: box.position has no proposal lowering (plan task 7, stage 10)"),
-            "aborted, but not naming box.position and stage 10:\n\(stderr)")
+    #expect(stderr.contains("MetalUI: box.position has no proposal lowering and is refused by name "
+                            + "(plan task 7, LR-FO)"),
+            "aborted, but not naming box.position as a permanent refusal:\n\(stderr)")
 }

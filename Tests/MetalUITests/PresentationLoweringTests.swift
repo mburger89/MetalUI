@@ -374,7 +374,6 @@ private struct PresentingPair: Component {
 ///   nothing (the last was the separating arm of the removed clamped-frame arms);
 /// - a presentation inside an `inset(0)` one → nothing (its padding box is the
 ///   window);
-/// - inside a `.relative` ancestor → the ancestor's own `box.position`;
 /// - an absolute box in a column with no `Deferred` → `[box.position, box.inset]`
 ///   at the consumer; an absolute root → the `.unconsumed` pair;
 /// - `minWidth` on an absolute box's `auto` axis → `box.minSize.absolute`;
@@ -383,8 +382,13 @@ private struct PresentingPair: Component {
 /// - an absolute box inside a `ScrollView`, no `Deferred` → `[box.position,
 ///   box.inset]` (divergence 11's proposal fact, stage 9);
 /// - `Component().width(70)` over a `Deferred`-absolute member → `deferred.amended`;
-/// - and every `<field>.absolute` the frame reports is owned by **stage 10**
-///   since stage 8 (`LR-CQ`; `LR-EZ` item 3 — it read stage 8 until then).
+/// - and every `<field>.absolute` the frame reports is a **permanent refusal**
+///   (`owner == nil`) since stage 10 (`LR-FO` item 2; it read stage 8 until
+///   stage 8, then stage 10 — `LR-CQ`, `LR-EZ` item 3).
+///
+/// Stage 10 lane 1 removed the "inside a `.relative` ancestor" arm (its field,
+/// `Position.relative`, is deleted by lane 2, `LR-FM` item 1): twelve arms
+/// become eleven.
 ///
 /// Red-before: every `Deferred` arm reads `[box.position, box.inset]`; the
 /// absolute-root arm reads `[box.position, box.inset]`.
@@ -393,7 +397,8 @@ private struct PresentingPair: Component {
 /// `inset(0)` arm reads `[deferred.nested]`, until lane 3 deletes the nested
 /// check); **M1l** `planLegacyItems`' `position` entry deleted (the column and
 /// `ScrollView` arms read `[box.inset]`). Lane 1's corrections (`LR-CQ`) add
-/// **M1q** `owningStage` for `.absolute` → "2" (the stage-8 assertion); **M1r**
+/// **M1q** `owningStage` for `.absolute` → "2" (the stage-8 assertion; since
+/// stage 10 the property is `owner`, and the assertion reads `nil`); **M1r**
 /// the `maxSize.absolute` report deleted (the `maxHeight` arm reads `[]`, and the
 /// owning-stage `#require`); **M1s** the `minSize.percent` report deleted (the
 /// percentage arm reads `[]`). M1i, M1j, M1p and M1t targeted the removed arms'
@@ -410,9 +415,6 @@ private struct PresentingPair: Component {
     arms.append(("inside an inset(0) presentation", rootDiagnostics {
         Box { Deferred { Box { presented() }.background(.surface).position(.absolute).inset(px(0)) } }
     }, []))
-    arms.append(("inside a .relative ancestor", rootDiagnostics {
-        Box { Box { presented() }.position(.relative) }
-    }, ["box.position"]))
     arms.append(("absolute in a column, no Deferred", rootDiagnostics {
         Column { absBox(insets(top: dim(5), left: dim(5))).cssWidth(px(10)).cssHeight(px(10)) }
     }, ["box.position", "box.inset"]))
@@ -456,22 +458,23 @@ private struct PresentingPair: Component {
             }
         }
     }, ["box.minSize.percent"]))
-    try #require(arms.count == 12)
+    try #require(arms.count == 11)
     for arm in arms {
         #expect(arm.got == arm.expected, "\(arm.name): \(arm.got)")
     }
     // `<field>.absolute` belonged to stage 8's min/max recipe (`LR-CJ` item 3);
-    // since stage 8 it is stage 10's (`LR-EV` item 4, `LR-EZ` item 3: the public
-    // spelling is a `.frame` before `.position`, which never reports, so only a
-    // `Style`-written box reaches it, and it dies with the field). Read off the
-    // fields the frame really reported, not off a hand-built value.
+    // stage 8 made it stage 10's (`LR-EV` item 4, `LR-EZ` item 3: the public
+    // spelling is a `.frame` before `.position`, which never reports), and stage
+    // 10 made it a permanent refusal (`LR-FO` item 2: `minSize`/`maxSize`
+    // survive, so the report cannot die with them). Read off the fields the
+    // frame really reported, not off a hand-built value.
     let absoluteFields = rootFields {
         Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).cssMinWidth(px(50)).cssMaxHeight(px(50)) } }
     }
     try #require(absoluteFields.map(\.description) == ["box.minSize.absolute", "box.maxSize.absolute"],
                  "\(absoluteFields)")
     for field in absoluteFields {
-        #expect(field.owningStage == "10", "\(field) is owned by stage \(field.owningStage)")
+        #expect(field.owner == nil, "\(field) is owned by \(field.owner ?? "nobody")")
     }
 }
 

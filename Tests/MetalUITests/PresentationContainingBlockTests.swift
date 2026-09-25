@@ -71,7 +71,14 @@ private func renderAsRoot<E: Element>(_ make: () -> E) -> (fields: [UnlowerableF
 /// hitbox (the only one in each tree; the outer presentations of the two nested
 /// arms carry no `onClick`) is **(185, 85) 10×10**, and nothing is reported. Plus
 /// the amended arm: `Box { CBPresentingSolo().width(70) }` still reports exactly
-/// `deferred.amended`, now owned by stage **11**.
+/// `deferred.amended`, now owned by stage **11** (spelled `"plan task 7, stage
+/// 11"` since stage 10's `owner`, `LR-FO` item 3).
+///
+/// Stage 10 lane 1 (`LR-FM` item 1: `Style.border` is deleted in lane 2): the two
+/// bordered arms surround the root with `Style.padding` of the same widths
+/// instead — padding is a surrounding exactly as the border was, and the
+/// subject (every rect is the window's) is unchanged. No inset mutation can
+/// redden this test (`LR-FR` F4); that insensitivity is its subject.
 ///
 /// Red before (at lane 2's head `a84db27`): the five root arms report
 /// `deferred.containingBlock` (four) or `deferred.root` (the `Deferred` root),
@@ -80,13 +87,13 @@ private func renderAsRoot<E: Element>(_ make: () -> E) -> (fields: [UnlowerableF
 /// Mutations that must redden it: **M3a** the `reportPresentationContainingBlock`
 /// call restored → the five root arms; **M3b** `Deferred`'s nested report
 /// restored → the two nested arms; **M3c** `.deferred`'s `owningStage` back to "9"
-/// → the amended arm.
+/// (since stage 10, `owner`) → the amended arm.
 @MainActor
 @Test func aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt() throws {
-    var bordered = Style()
-    bordered.border = Edges(all: .pixels(px(4)))
-    var borderedCover = Style()
-    borderedCover.border = Edges(all: .pixels(px(3)))
+    var padded = Style()
+    padded.padding = Edges(all: .pixels(px(4)))
+    var paddedCover = Style()
+    paddedCover.padding = Edges(all: .pixels(px(3)))
 
     typealias Arm = (name: String, fields: [UnlowerableField], hitboxes: [Bounds<Pixels>])
     var arms: [Arm] = []
@@ -94,7 +101,7 @@ private func renderAsRoot<E: Element>(_ make: () -> E) -> (fields: [UnlowerableF
         let r = renderAsRoot(make)
         arms.append((name, r.fields, r.hitboxes))
     }
-    arm("bordered root") { Box(style: bordered) { cbPresented() } }
+    arm("padded root") { Box(style: padded) { cbPresented() } }
     arm("root width 100 in 200") { Box { cbPresented() }.cssWidth(px(100)) }
     arm("Deferred root") { cbPresented() }
     arm("inside a top/left-5 presentation") {
@@ -107,10 +114,10 @@ private func renderAsRoot<E: Element>(_ make: () -> E) -> (fields: [UnlowerableF
     }
     arm("root .frame(maxWidth: 100)") { Box { cbPresented() }.frame(maxWidth: px(100)) }
     arm("root .frame(minWidth: 300)") { Box { cbPresented() }.frame(minWidth: px(300)) }
-    arm("inside a bordered inset(0) presentation") {
+    arm("inside a padded inset(0) presentation") {
         Box {
             Deferred {
-                Box(style: borderedCover) { cbPresented() }.background(.surface).position(.absolute).inset(px(0))
+                Box(style: paddedCover) { cbPresented() }.background(.surface).position(.absolute).inset(px(0))
             }
         }
     }
@@ -123,6 +130,6 @@ private func renderAsRoot<E: Element>(_ make: () -> E) -> (fields: [UnlowerableF
     let amended = renderAsRoot { Box { CBPresentingSolo().width(px(70)) } }
     #expect(amended.fields.map(\.description) == ["deferred.amended"], "\(amended.fields)")
     for field in amended.fields {
-        #expect(field.owningStage == "11", "\(field) is owned by stage \(field.owningStage)")
+        #expect(field.owner == "plan task 7, stage 11", "\(field) is owned by \(field.owner ?? "nobody")")
     }
 }

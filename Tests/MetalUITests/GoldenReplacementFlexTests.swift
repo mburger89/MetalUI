@@ -132,11 +132,18 @@ import MetalUICore
 /// Padding plus border insets the content box edge by edge, and a nested
 /// padded container does so again inside it. **M1e** (`paddedAndSized`:
 /// `inset(_:_:)` returns the padding only) reddens all three arms.
+///
+/// **Stage 10** (record §52, lane 1, row T1.13): `Style.border` is deleted
+/// (`LR-FM` item 1), so each golden's border is folded into its padding edge by
+/// edge — `paddedAndSized` inset every edge by `padding + border`, so every
+/// literal is unchanged. The name keeps "border" as the goldens' own record.
+/// M1e's target (the border half of the sum) went with the field; **M1b**
+/// (`inset(_:_:)` returns the border only, the padding dropped) is its successor.
 @MainActor
 @Test func paddingAndBorderInsetTheContentBoxEdgeByEdge() throws {
     try goldenArm("flex_row_padding_border",
                   "root:0,0,400x100 a:23,25,50x30 b:73,25,60x30 c:133,25,256x30") {
-        gBox("root", { gSize(&$0, 400, 100); $0.padding = gEdges(20, 8, 4, 16); $0.border = gEdges(5, 3, 2, 7) }) {
+        gBox("root", { gSize(&$0, 400, 100); $0.padding = gEdges(25, 11, 6, 23) }) {
             gLeaf("a") { gSize(&$0, 50, 30) }
             gLeaf("b") { gSize(&$0, 60, 30) }
             gLeaf("c") { gSize(&$0, nil, 30); gFlex(&$0, 1, 1, gPx(0)) }
@@ -145,14 +152,14 @@ import MetalUICore
     try goldenArm("flex_column_padding_asymmetric",
                   "root:0,0,120x400 a:24,16,64x40 b:24,56,64x90 c:24,146,64x60") {
         gBox("root", { gSize(&$0, 120, 400); $0.flexDirection = .column
-                      $0.padding = gEdges(12, 30, 6, 18); $0.border = gEdges(4, 2, 8, 6) }) {
+                      $0.padding = gEdges(16, 32, 14, 24) }) {
             gLeaf("a") { gSize(&$0, nil, 40) }; gLeaf("b") { gSize(&$0, nil, 90) }; gLeaf("c") { gSize(&$0, nil, 60) }
         }
     }
     try goldenArm("flex_nested_padding",
                   "root:0,0,400x200 mid:15,15,200x80 g1:38,38,20x10 g2:58,38,134x10 sib:215,15,40x60") {
-        gBox("root", { gSize(&$0, 400, 200); $0.padding = Edges(all: gPl(10)); $0.border = Edges(all: gPl(5)) }) {
-            gBox("mid", { gSize(&$0, 200, 80); $0.padding = Edges(all: gPl(20)); $0.border = Edges(all: gPl(3)) }) {
+        gBox("root", { gSize(&$0, 400, 200); $0.padding = Edges(all: gPl(15)) }) {
+            gBox("mid", { gSize(&$0, 200, 80); $0.padding = Edges(all: gPl(23)) }) {
                 gLeaf("g1") { gSize(&$0, 20, 10) }
                 gLeaf("g2") { gSize(&$0, nil, 10); gFlex(&$0, 1, 1, gPx(0)) }
             }

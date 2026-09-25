@@ -102,8 +102,9 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
 ///
 /// Further arms:
 /// - **container fields a stack does not read** — `flexDirection(.column)`, a gap,
-///   `justifyContent(.spaceBetween)`, `flexWrap`, `alignContent` on a sized
-///   `.bottomTrailing` stack — report nothing and place a at (80, 50), b at (90, 30);
+///   `justifyContent(.spaceBetween)` on a sized `.bottomTrailing` stack — report
+///   nothing and place a at (80, 50), b at (90, 30) (`flexWrap` and `alignContent`
+///   left the arm at stage 10 with their modifiers, `LR-FM` item 1);
 /// - **reported** (the report is exactly this): a `Stack` with
 ///   `.alignItems(.baseline)` → `[alignItems.baseline]`; with `.margin(2)` →
 ///   `[margin.unconsumed]` (an item field its parent reads since stage 2, and the
@@ -151,7 +152,6 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
     var ignoring = Stack(alignment: .bottomTrailing) { fixed(20, 10); fixed(10, 30) }
         .cssWidth(px(100)).cssHeight(px(60))
         .gap(horizontal: px(7), vertical: px(9)).justifyContent(.spaceBetween)
-        .flexWrap(.wrap).alignContent(.center)
     ignoring.style.flexDirection = .column
     let ignored = ignoring
     let ignoredReport = LayoutDifferential.report(width: 200, height: 200) { ignored }

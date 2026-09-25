@@ -341,6 +341,11 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 /// (53, 0); unsized `rowReverse` 50×10, a (30, 0), b (0, 0); unsized
 /// `columnReverse` (centred) 30×20, b (0, 0), a (5, 10). **Renamed** from
 /// `everyContainerFieldEitherLowersAndAgreesOrIsReportedByName` (`LR-FE` item 6).
+///
+/// **Stage 10** (lane 1; `LR-FM` item 1, deleted in lane 2): the `wrap` and
+/// `alignContent` arms go with their fields, and the "border percent on a
+/// container" arm becomes "padding percent on a container" (`box.padding.percent`)
+/// — the every-node row stays represented. Sixteen arms become fourteen.
 @MainActor
 @Test func everyContainerFieldEitherLowersOrIsReportedByName() throws {
     let single = LayoutDifferential.report(width: 100, height: 100) { Box { fixed(20, 10) } }
@@ -388,13 +393,14 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
         return s
     }
     // Stage 2, lane 4: a declared size below the padding sum no longer reports (the
-    // fixed frame wins, spec 4.3), so this arm carries the every-node row lane 4 adds
-    // instead — a percentage border, which has no containing block here (`LR-AI`).
-    func percentBorder() -> Style {
+    // fixed frame wins, spec 4.3), so this arm carries an every-node row instead —
+    // a percentage border until stage 10 deleted `Style.border` (`LR-FM` item 1),
+    // a percentage padding since: neither has a containing block here (`LR-AI`).
+    func percentPadding() -> Style {
         var s = Style()
         s.alignItems = .flexStart
-        s.border = Edges(top: .pixels(px(0)), right: .percent(0.1),
-                         bottom: .pixels(px(0)), left: .pixels(px(0)))
+        s.padding = Edges(top: .pixels(px(0)), right: .percent(0.1),
+                          bottom: .pixels(px(0)), left: .pixels(px(0)))
         return s
     }
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
@@ -443,9 +449,6 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
         ("columnReverse (lowered since lane 5)", columnReverse.unlowerable, []),
         ("baseline", report { Row { fixed(20, 10); fixed(30, 10) }.alignItems(.baseline) },
          [field(.box, "alignItems.baseline")]),
-        ("wrap", report { Row { fixed(20, 10); fixed(30, 10) }.flexWrap(.wrap) }, [field(.box, "flexWrap")]),
-        ("alignContent", report { Row { fixed(20, 10); fixed(30, 10) }.alignContent(.center) },
-         [field(.box, "alignContent")]),
         ("row main-axis gap percent",
          report { Box(style: percentGap(Axes(horizontal: .percent(0.1), vertical: .pixels(px(4))))) {
              fixed(20, 10); fixed(30, 10)
@@ -456,8 +459,8 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
          } }, []),
         ("margin on a container (an item field: unconsumed under the harness root since stage 2)",
          report { Row { fixed(20, 10) }.margin(px(3)) }, [field(.box, "margin.unconsumed")]),
-        ("border percent on a container", report { Box(style: percentBorder()) { fixed(20, 10) } },
-         [field(.box, "border.percent")]),
+        ("padding percent on a container", report { Box(style: percentPadding()) { fixed(20, 10) } },
+         [field(.box, "padding.percent")]),
         ("display: .stack on a Box container (lowered as an overlay since lane 4, its stretch since stage 2)",
          report { Box(style: { var s = Style(); s.display = .stack; return s }()) {
              fixed(20, 10); fixed(30, 10)
@@ -466,7 +469,7 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
          report { Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.rowReverse).hidden() },
          []),
     ]
-    try #require(arms.count == 16)
+    try #require(arms.count == 14)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }
@@ -628,37 +631,41 @@ private func mixedTree() -> some ElementGroup {
             == [bounds(0, 0, 80, 18), bounds(4, 4, 10, 10), bounds(24, 4, 10, 10)], "half-way")
 }
 
-/// A container declaring two container rows (`gap.percent`, `flexWrap`) and two
-/// every-node rows (`position`, `inset`). **Re-spelled in stage 2, lane 1** from
-/// `margin` and `flexGrow`, item fields its parent reads since then (ruling LR-AB;
-/// under the harness root they report `…unconsumed` after the root returns, LR-AQ),
-/// and **again in lane 5**, which lowered `reverse` (ruling LR-AJ): a percentage
-/// main-axis gap took its place as the first container row.
+/// A container declaring two container rows (`gap.percent`, `alignItems.baseline`)
+/// and two every-node rows (`size.percent`, `inset`). **Re-spelled in stage 2,
+/// lane 1** from `margin` and `flexGrow`, item fields its parent reads since then
+/// (ruling LR-AB; under the harness root they report `…unconsumed` after the root
+/// returns, LR-AQ), **again in lane 5**, which lowered `reverse` (ruling LR-AJ): a
+/// percentage main-axis gap took its place as the first container row, and **again
+/// in stage 10** (lane 1): `flexWrap` and `Position.relative` are deleted (`LR-FM`
+/// item 1), so the second container row is `alignItems.baseline` and the first
+/// every-node row a percentage width.
 @MainActor
 private func fourFieldContainer() -> some ElementGroup {
     var style = Style()
-    style.alignItems = .flexStart
+    style.alignItems = .baseline
     style.gap = Axes(horizontal: .percent(0.1), vertical: .pixels(px(4)))
-    style.flexWrap = .wrap
-    style.position = .relative
+    style.size.width = .length(.percent(0.5))
     style.inset = Edges(all: .length(.pixels(px(3))))
     return Box(style: style) { fixed(20, 10); fixed(30, 10) }
 }
 
 /// **3.9.** `LR-Y`'s report order: a container's rows in §5.4's table order, then
-/// the every-node rows in theirs — `[gap.percent, flexWrap, position, inset]` — and
-/// in production (diagnostics off) the trap names the **first**, `box.gap.percent`.
+/// the every-node rows in theirs — `[gap.percent, alignItems.baseline,
+/// size.percent, inset]` since stage 10 (`[gap.percent, flexWrap, position,
+/// inset]` until then) — and in production (diagnostics off) the trap names the
+/// **first**, `box.gap.percent`.
 ///
 /// Mutation that must redden it: **V2**, `legacyLeafDiagnostics(…) + fields` (the
-/// report reads `[position, inset, gap.percent, flexWrap]` and the trap names
-/// `box.position`).
+/// report reads `[size.percent, inset, gap.percent, alignItems.baseline]` and the
+/// trap names `box.size.percent`; re-run on the stage-10 fixture as M1c).
 @MainActor
 @Test func aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst() async throws {
     let entries = LayoutDifferential.render(width: 100, height: 100) {
         fourFieldContainer()
     }.unlowerableFields
-    #expect(entries == [field(.box, "gap.percent"), field(.box, "flexWrap"),
-                        field(.box, "position"), field(.box, "inset")], "\(entries)")
+    #expect(entries == [field(.box, "gap.percent"), field(.box, "alignItems.baseline"),
+                        field(.box, "size.percent"), field(.box, "inset")], "\(entries)")
 
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
@@ -669,5 +676,5 @@ private func fourFieldContainer() -> some ElementGroup {
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
     #expect(stderr.contains("box.gap.percent has no proposal lowering"),
             "aborted, but not at the first unlowerable field:\n\(stderr)")
-    #expect(!stderr.contains("box.position"), "the trap must name the first field:\n\(stderr)")
+    #expect(!stderr.contains("box.size.percent"), "the trap must name the first field:\n\(stderr)")
 }

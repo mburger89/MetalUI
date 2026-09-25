@@ -1115,7 +1115,7 @@ import MetalUIRender
 ///
 /// Two honest negatives, stated because a bare "it reddens" hides them:
 /// this test does **not** redden under the 25-field-deletion mutation that
-/// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` is for
+/// `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` is for
 /// (it drives `flexGrow`, one of the three fields that survive it), and that
 /// test does not redden under the gate mutation (its transaction frames
 /// change all 28 fields, so the gates never fire in it). The two tests cover
@@ -1199,7 +1199,19 @@ import MetalUIRender
             """)
 }
 
-/// **All 28 animatable fields, in one table — because the suite pins three.**
+/// **All 24 animatable fields, in one table — because the suite pins three.**
+///
+/// **Stage 10** (record §52, lane 1, row T1.16; renamed from
+/// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`):
+/// `Style.border` is deleted (`LR-FM` item 1, lane 2), and its four animated
+/// edges with it, so the four `border.*` keys leave this test's table,
+/// `animatableFieldOrder` and `allAnimatableFields` — 28 fields become **24**.
+/// `aspectRatio`, the one non-animatable numeric field whose differing fixture
+/// values armed the key-set assertion's `unexpected` half, is deleted too, so
+/// that arm goes with it; the three non-animatable colour fields still arm it.
+/// The history below speaks of 28 fields and of `aspectRatio` as it was
+/// measured.
+///
 /// Measured by the fix round 1 re-review: instrumenting `animateField` to
 /// print its key and running the unfiltered suite showed only **6 of the 28
 /// keys are ever reached at all** (`size.width`, `size.height`, `flexGrow`,
@@ -1230,7 +1242,7 @@ import MetalUIRender
 /// distinct fixture the same mutation reddens this test and names both fields.
 ///
 /// Both halves are asserted: every field reads **exactly** halfway at t = 0.5,
-/// and all 28 leave `inFlight` on the settle frame — the same lifecycle
+/// and all 24 leave `inFlight` on the settle frame — the same lifecycle
 /// `theInFlightDictionaryIsEmptyWhenSettledAndHoldsOnlyTheMovingField` pins
 /// for one field, taken across the whole table.
 ///
@@ -1261,7 +1273,7 @@ import MetalUIRender
 /// reproduced with this test as the only difference. Re-taken at `18a137d`
 /// against the distinct fixture rather than carried, because a fixture change
 /// can move a mutation figure recorded under the old one.
-@Test @MainActor func allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle() throws {
+@Test @MainActor func allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle() throws {
     let dimensionFields: [(key: String, read: (Style) -> Dimension)] = [
         ("inset.top", { $0.inset.top }),
         ("inset.right", { $0.inset.right }),
@@ -1284,10 +1296,6 @@ import MetalUIRender
         ("padding.right", { $0.padding.right }),
         ("padding.bottom", { $0.padding.bottom }),
         ("padding.left", { $0.padding.left }),
-        ("border.top", { $0.border.top }),
-        ("border.right", { $0.border.right }),
-        ("border.bottom", { $0.border.bottom }),
-        ("border.left", { $0.border.left }),
         ("gap.horizontal", { $0.gap.horizontal }),
         ("gap.vertical", { $0.gap.vertical }),
     ]
@@ -1307,18 +1315,18 @@ import MetalUIRender
     // literals a few lines above it, so it cannot observe `Sources/` or spec
     // §4 moving, only someone editing one of these lists. The assertion that
     // observes `animated(...)` is the key-set one below.
-    #expect(expectedKeys.count == 28, "expected 28 animatable fields, listed \(expectedKeys.count)")
+    #expect(expectedKeys.count == 24, "expected 24 animatable fields, listed \(expectedKeys.count)")
 
     let table = StateTable()
     let id = eid("all-fields")
     let slot = animRetentionSlot(for: id)
 
-    // Frame 1: an explicit, per-field distinct pixel baseline for all 28 —
-    // field `i` starts at `i`, not all 28 at 0.
+    // Frame 1: an explicit, per-field distinct pixel baseline for all 24 —
+    // field `i` starts at `i`, not all 24 at 0.
     var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
     _ = animated(allAnimatableFields(0), allAnimatableDecoration(0), for: id, pass: &pass1)
 
-    // Frame 2: all 28 change to `100 + i` inside one transaction.
+    // Frame 2: all 24 change to `100 + i` inside one transaction.
     let target = allAnimatableFields(100)
     let targetDecoration = allAnimatableDecoration(100)
     var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
@@ -1360,7 +1368,7 @@ import MetalUIRender
             \(midDecoration.cornerRadius.value)
             """)
 
-    // Frame 4: the settle frame empties `inFlight` for all 28 at once.
+    // Frame 4: the settle frame empties `inFlight` for all 24 at once.
     var pass4 = LayoutPass(frame: animFrame(table, timestamp: 1))
     _ = animated(target, targetDecoration, for: id, pass: &pass4)
     let settled = try #require(table.peek(slot, as: AnimatedElementState.self)).inFlight
@@ -1370,9 +1378,10 @@ import MetalUIRender
             """)
 }
 
-/// Spec §4's 28 animatable fields in one canonical order, so that every fixture
+/// Spec §4's animatable fields — 28, 24 since stage 10 deleted `Style.border` — in
+/// one canonical order, so that every fixture
 /// value and every expected midpoint in
-/// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` can be
+/// `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` can be
 /// **distinct per field**: the *i*-th field animates `i -> 100 + i` and reads
 /// `50 + i` at the midpoint.
 ///
@@ -1393,7 +1402,6 @@ private let animatableFieldOrder: [String] = [
     "margin.top", "margin.right", "margin.bottom", "margin.left",
     "flexBasis",
     "padding.top", "padding.right", "padding.bottom", "padding.left",
-    "border.top", "border.right", "border.bottom", "border.left",
     "gap.horizontal", "gap.vertical",
     "flexGrow", "flexShrink",
     "cornerRadius",
@@ -1414,10 +1422,10 @@ private func fieldOffset(_ key: String) -> Float {
     return Float(index)
 }
 
-/// Every one of spec §4's 28 animatable fields at a concrete, non-`.auto`,
+/// Every one of spec §4's animatable fields (24 since stage 10) at a concrete, non-`.auto`,
 /// **per-field distinct** value: field *i* of `animatableFieldOrder` gets
 /// `base + i`. Used by
-/// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` as both
+/// `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` as both
 /// baseline (`base` 0) and target (`base` 100); the five `.auto`-defaulting
 /// fields are the reason a concrete baseline exists at all, and the crossed-
 /// field measurement is the reason the values are distinct (see that test's
@@ -1435,31 +1443,24 @@ private func fieldOffset(_ key: String) -> Float {
                      bottom: dim("margin.bottom"), left: dim("margin.left"))
     s.padding = Edges(top: len("padding.top"), right: len("padding.right"),
                       bottom: len("padding.bottom"), left: len("padding.left"))
-    s.border = Edges(top: len("border.top"), right: len("border.right"),
-                     bottom: len("border.bottom"), left: len("border.left"))
     s.gap = Axes(horizontal: len("gap.horizontal"), vertical: len("gap.vertical"))
     s.flexGrow = base + fieldOffset("flexGrow")
     s.flexShrink = base + fieldOffset("flexShrink")
     s.flexBasis = dim("flexBasis")
-    // NOT animatable, and the plan's Global Constraints say it must not become
-    // so — it is in CLAUDE.md's declared-but-inert table, and animating a
-    // property nothing reads is that table's trap doubled. It carries two
-    // DIFFERING values across this helper's two call sites purely so the
-    // key-set assertion can catch it being wired: every wiring in
-    // `animated(...)` mints its key only when the field differs from its
-    // baseline, so a field left equal in both fixtures mints nothing and
-    // passes. Measured at `18a137d` — with `aspectRatio` nil in both fixtures,
-    // wiring it into `animated(...)` left the suite green at 843, 0 issues.
-    s.aspectRatio = 1 + base / 100
+    // Until stage 10 an `aspectRatio` line stood here: NOT animatable, it carried
+    // two DIFFERING values across this helper's two call sites so the key-set
+    // assertion could catch it being wired (measured at `18a137d`: with it nil in
+    // both fixtures, wiring it left the suite green). Stage 10 deleted
+    // `Style.aspectRatio` (`LR-FM` item 1), and the line with it.
     return s
 }
 
 /// `Decoration`'s one animatable field (`cornerRadius`, offset from
-/// `animatableFieldOrder` like the other 27) plus its three non-animatable
+/// `animatableFieldOrder` like the other 23) plus its three non-animatable
 /// colour fields.
 ///
 /// The colours differ between this helper's two call sites for exactly the
-/// reason `aspectRatio` does: `background`, `hoverBackground` and
+/// reason `aspectRatio` did until stage 10 deleted it: `background`, `hoverBackground` and
 /// `focusBackground` pass through `animated(...)` untouched today, and the
 /// key-set assertion's `unexpected` half is the only thing that would notice
 /// one of them being interpolated instead — which it cannot do while both

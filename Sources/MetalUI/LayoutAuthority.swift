@@ -110,6 +110,11 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
         }
     }
 
+    /// Stage 10 lane 1, red-first scratch (record §52): forwards to the old
+    /// `owningStage` so the lane's re-spelled tests compile and read red; the
+    /// next commit replaces both with `LR-FO`'s `owner`.
+    var owner: String? { owningStage }
+
     /// `"MetalUI: <site>.<field> has no proposal lowering (plan task 7, stage
     /// <n>); …"` — the message spec §5.2 fixes, which the exit tests read.
     var trapMessage: String {

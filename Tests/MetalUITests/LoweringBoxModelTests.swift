@@ -14,6 +14,9 @@ import MetalUIText
 // its fixed frame where CSS floors the border box, and `margin` as native padding
 // outside the item's wrappers.
 //
+// **Stage 10** (record §52, lane 1): `Style.border` is deleted (`LR-FM` item 1), so
+// 4.1 is retired (row D1.2, see its MARK) and 4.7 loses its `border.percent` arm.
+//
 // **Stage 9** (record §51, lane 1; ruling `LR-FE`): the legacy engine is deleted,
 // so each divergence pin keeps its lowered literals and loses its legacy half
 // (the tables keep the legacy column as the record of the CSS answer), and the
@@ -64,11 +67,6 @@ private func fixed(_ w: Float, _ h: Float) -> Box<EmptyGroup> {
     Box().cssWidth(px(w)).cssHeight(px(h))
 }
 
-/// The lane's asymmetric border, one distinct value per edge (practices shape 1), so
-/// a transposed or dropped edge moves a literal.
-private let borderEdges = Edges<Length>(top: .pixels(px(1)), right: .pixels(px(2)),
-                                        bottom: .pixels(px(3)), left: .pixels(px(4)))
-
 /// The lane's asymmetric margin, likewise.
 private let marginEdges = Edges<Length>(top: .pixels(px(2)), right: .pixels(px(3)),
                                         bottom: .pixels(px(4)), left: .pixels(px(5)))
@@ -91,68 +89,18 @@ private func textShaping(_ string: String, wrappingAt width: Double?) -> ShapedT
 
 private let longString = "alpha bravo charlie delta echo foxtrot golf"
 
-// MARK: - 4.1 — Style.border
+// MARK: - 4.1 — Style.border (retired at stage 10)
 
-/// **4.1** (`LR-AH`). `Style.border` is CSS's border box: it shrinks the content box
-/// exactly as `Style.padding` does, and lowers to the same native padding's insets,
-/// **inside** the declared size. Four arms, all agreeing:
-///
-/// - a 60×50 `Box` with padding (2, 3, 4, 5) and border (1, 2, 3, 4) over a 10×10
-///   child: 60×50 on both sides with the child at (5 + 4, 2 + 1) = (9, 3);
-/// - an unsized childless `Box` with the border alone: 4 + 2 wide, 1 + 3 tall = 6×4;
-/// - the same with padding 2 on every edge as well: 10×8;
-/// - a bordered childless `Box` stretched by a 60-tall `Row {…}.alignItems(.stretch)`:
-///   20×60, the row 40×60 — the border rides inside the item frame W.
-///
-/// Every edge differs from every other, so a transposed pair moves a rect.
-///
-/// Mutation that must redden it: **M4a**, the border insets transposed top ↔ left
-/// (the first arm's child reads (6, 6)).
-@MainActor
-@Test func aStyleBorderLowersAsInsetsInsideTheDeclaredSize() throws {
-    let sized = style {
-        $0.size = Size(width: .length(.pixels(px(60))), height: .length(.pixels(px(50))))
-        $0.padding = Edges(top: .pixels(px(2)), right: .pixels(px(3)),
-                           bottom: .pixels(px(4)), left: .pixels(px(5)))
-        $0.border = borderEdges
-    }
-    let container = LayoutDifferential.report(width: 300, height: 200) {
-        Box(style: sized) { fixed(10, 10) }
-    }
-    try #require(container.elements == 3)
-    expectCorpusNothingReported(container, "sized container with padding and border")
-    #expect(container.bounds[containerID] == bounds(0, 0, 60, 50))
-    #expect(container.bounds[child(containerID, 0)] == bounds(9, 3, 10, 10))
-
-    let borderOnly = LayoutDifferential.report(width: 300, height: 200) {
-        Box(style: style { $0.border = borderEdges })
-    }
-    try #require(borderOnly.elements == 2)
-    expectCorpusNothingReported(borderOnly, "border alone")
-    #expect(borderOnly.bounds[containerID] == bounds(0, 0, 6, 4))
-
-    let withPadding = LayoutDifferential.report(width: 300, height: 200) {
-        Box(style: style {
-            $0.border = borderEdges
-            $0.padding = Edges(all: .pixels(px(2)))
-        })
-    }
-    try #require(withPadding.elements == 2)
-    expectCorpusNothingReported(withPadding, "border and padding")
-    #expect(withPadding.bounds[containerID] == bounds(0, 0, 10, 8))
-
-    let stretched = LayoutDifferential.report(width: 300, height: 200) {
-        Row {
-            Box(style: style { $0.border = borderEdges }).cssWidth(px(20)).background(.accent)
-            fixed(20, 10)
-        }
-        .alignItems(.stretch).cssHeight(px(60))
-    }
-    try #require(stretched.elements == 4)
-    expectCorpusNothingReported(stretched, "bordered box stretched")
-    #expect(stretched.bounds[containerID] == bounds(0, 0, 40, 60))
-    #expect(stretched.bounds[child(containerID, 0)] == bounds(0, 0, 20, 60))
-}
+// **4.1** `aStyleBorderLowersAsInsetsInsideTheDeclaredSize` (`LR-AH`) is
+// **retired** at stage 10 (record §52, lane 1, row D1.2): `Style.border` — CSS
+// border widths with no production writer since `Box.swift`'s `border(_:width:)`
+// family writes `Decoration.border` — is deleted (`LR-FM` item 1, lane 2). The
+// inset arithmetic it pinned is `paddedAndSized`'s padding insets, pinned by
+// `paddingAndBorderInsetTheContentBoxEdgeByEdge`,
+// `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder` and
+// `aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding` with each border
+// folded into the padding edge by edge (T1.13–T1.15, literals unchanged); lane 2's
+// guard G2 pins `Style.border`'s absence.
 
 // MARK: - 4.2 — Style padding on a Text
 
@@ -501,7 +449,9 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 /// `GeometryReader` around it (C2), so each call site needs a respelling decision.
 /// Lane 4 renames the two the parent reports — `minSize` and `maxSize` named the
 /// percentage case under stage 1's name — and adds the two the box model brings,
-/// `border.percent` and `margin.percent`.
+/// `border.percent` and `margin.percent`. **Stage 10** (lane 1) removed the
+/// `border.percent` arm with its field (`LR-FM` item 1); every remaining
+/// percentage is a permanent refusal (`LR-FO` item 1). Seven arms.
 ///
 /// One arm per field, each inside a lowered `Row` so the parent reads the item ones,
 /// each reporting exactly one entry.
@@ -520,7 +470,6 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
     var arms: [Arm] = [
         inRow("size.percent") { $0.size.width = .length(.percent(0.5)) },
         inRow("padding.percent") { $0.padding.left = .percent(0.1) },
-        inRow("border.percent") { $0.border.left = .percent(0.1) },
         inRow("margin.percent") { $0.margin.left = .length(.percent(0.1)) },
         inRow("minSize.percent") { $0.minSize.width = .length(.percent(0.5)) },
         inRow("maxSize.percent") { $0.maxSize.width = .length(.percent(0.5)) },
@@ -532,7 +481,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
                  LayoutDifferential.render(width: 300, height: 200) {
                      gapRow
                  }.unlowerableFields))
-    try #require(arms.count == 8)
+    try #require(arms.count == 7)
     for arm in arms {
         #expect(arm.report == [field(.box, arm.name)], "\(arm.name): \(arm.report)")
     }

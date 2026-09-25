@@ -1008,8 +1008,12 @@ private func lane2ExpectBounded(_ r: LayoutDifferential.Report, _ arm: String,
     }
     #expect(weights.unlowerableFields == [lane2Field(.scrollView, "flexGrow.weights")],
             "(c): \(weights.unlowerableFields)")
-    #expect(UnlowerableField(site: .scrollView, field: "flexGrow.weights").owningStage == "3",
-            "and the entry still names stage 3")
+    // Stage 10 (`LR-FO` item 1): unequal grow weights are a permanent refusal
+    // (SwiftUI shares a surplus equally, 7a probe G0/G1), so the entry names no
+    // owner; until stage 10 it named stage 3. The site staying reachable is the
+    // subject, asserted above.
+    #expect(UnlowerableField(site: .scrollView, field: "flexGrow.weights").owner == nil,
+            "and the entry is a permanent refusal")
 }
 
 // MARK: - 2.6 Both animation slots survive

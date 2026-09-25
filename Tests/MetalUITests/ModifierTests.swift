@@ -244,12 +244,6 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
         ModifierCase(name: "alignItems(_:)",
                      apply: { $0.alignItems(.center) },
                      effect: { s, _, _, _ in s.alignItems = .center }),
-        ModifierCase(name: "alignContent(_:)",
-                     apply: { $0.alignContent(.spaceAround) },
-                     effect: { s, _, _, _ in s.alignContent = .spaceAround }),
-        ModifierCase(name: "flexWrap(_:)",
-                     apply: { $0.flexWrap(.wrapReverse) },
-                     effect: { s, _, _, _ in s.flexWrap = .wrapReverse }),
 
         // MARK: As a flex item
         ModifierCase(name: "flexGrow(_:)",
@@ -399,8 +393,10 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
     // decoration) + 3 (lane 3's `allowsHitTesting` and `contentShape` ×2) =
     // **47**, this track's pre-agreed number — stated in the spec's lane 3
     // table so the parallel frame/sizing track adds to it rather than
-    // colliding with it (spec §8 risk (c)).
-    #expect(cases.count == 47)
+    // colliding with it (spec §8 risk (c)). − 2 at stage 10 (`alignContent(_:)`
+    // and `flexWrap(_:)`, removed with their fields, `LR-FM` item 1, `LR-FN`) =
+    // **45**.
+    #expect(cases.count == 45)
 
     for c in cases {
         var expectedStyle = Style()
