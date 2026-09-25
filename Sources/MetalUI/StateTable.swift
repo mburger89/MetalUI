@@ -234,6 +234,13 @@ final class StateTable {
     /// reads it).
     private(set) var departedNameResets = 0
 
+    /// Table entries the resets (`noteAbsent`'s and the departed names') visited
+    /// since the last sweep, and what the last COMPLETED sweep left there — a
+    /// work counter in `LayoutTree.lastNativeLayoutWork`'s shape (`SA-M`); nothing
+    /// in production reads it.
+    private var resetScanWork = 0
+    private(set) var lastResetScanWork = 0
+
     /// `id` was just minted at cursor `index` under its parent. A no-op unless
     /// its component is `.named` — an unnamed id IS its position, so it cannot
     /// be replaced by a different one there.
@@ -274,6 +281,7 @@ final class StateTable {
     /// element's own id carries entries too: `ScrollView`'s offset, an
     /// element's `withState(id, …)`).
     private func resetEntries(under root: GlobalElementID, includingRoot: Bool) {
+        resetScanWork += storage.count
         for id in storage.keys
         where ((includingRoot && id == root) || Self.descends(id, from: root)) && !Self.isWindowRetained(id) {
             storage.removeValue(forKey: id)
@@ -678,6 +686,8 @@ final class StateTable {
             resetEntries(under: name, includingRoot: true)
         }
         departedNames.removeAll(keepingCapacity: true)
+        lastResetScanWork = resetScanWork
+        resetScanWork = 0
         swap(&namedPositions, &previousNamedPositions)
         namedPositions.removeAll(keepingCapacity: true)
         producedNames.removeAll(keepingCapacity: true)

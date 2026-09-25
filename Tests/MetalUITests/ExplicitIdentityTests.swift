@@ -408,3 +408,74 @@ private struct NamedCounterComponent: Component {
         #expect(inner.values["p"] == expected, "inner-layer name over \(steps): \(String(describing: inner.values["p"]))")
     }
 }
+
+// MARK: - E3.13: the resets' work is one pass over the table
+
+/// Renders `make(step)` for each step against `table` and returns, per frame,
+/// the entries its sweep's resets visited (`lastResetScanWork`) and the table's
+/// count after the sweep.
+@MainActor
+private func resetWork<Root: Element, Step>(_ steps: [Step], table: StateTable,
+                                            _ make: (Step) -> Root) -> [(work: Int, count: Int)] {
+    steps.map { step in
+        var tree = make(step)
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
+        return (table.lastResetScanWork, table.count)
+    }
+}
+
+/// **E3.13 — the resets cost one pass over the table, however many names
+/// depart or conditionals go absent in one frame** (`ID-R` item 8; CLAUDE.md
+/// Practices: a work count, a branching tree, red on arrival). Three trees,
+/// each a counter per leaf holding one entry at its own id, so a table of `T`
+/// entries is `T` leaves:
+///
+/// - **A**, 1000 named rows in a `VStack`, every name replaced each frame
+///   (`g0-i`, `g1-i`, `g2-i`). `T` = 1000. At the renaming frame's sweep the
+///   table holds the last frame's 1000 plus this frame's 1000, so one pass
+///   visits **2000**; the old per-name scan read 1 500 500 (Σ 2000 − k).
+/// - **B**, 100 named `VStack`s of 100 named leaves each, `T` = 10 000; all 100
+///   outer names replaced: one pass visits the old 10 000 plus the new 10 000,
+///   **20 000** (per-name: 1 505 000); none replaced, the control: **0** (no
+///   pass at all).
+/// - **C**, 1000 unnamed `VStack { if flag { counter } }` all going false in
+///   one frame (`ID-C`'s `noteAbsent`, the other reset): nothing new is written,
+///   one pass visits **1000** (per-transition: 500 500, Σ 1000 − k).
+///
+/// Each figure is an upper bound (a cheaper pass passes); each arm also reads
+/// the table after the sweep, so a pass that deletes nothing cannot pass.
+/// Mutation **MRl** (the reset pass run once per departed name and per absent
+/// slot again, the pre-fix cost) reddens A, B and C.
+@MainActor
+@Test func theResetsScanTheTableOncePerSweep() throws {
+    let reads = ConditionalReads()
+
+    let a = resetWork([0, 1, 2], table: StateTable()) { g in
+        VStack { for i in 0..<1000 { ProposalConditionalCounter("r", reads).id("g\(g)-\(i)") } }
+    }
+    try #require(a.count == 3)
+    #expect(a[0].work == 0, "A, first frame: nothing departs: \(a[0])")
+    #expect(a[1].work <= 2000 && a[2].work <= 2000, "A, 1000 names replaced: one pass: \(a)")
+    #expect(a[1].count == 1000 && a[2].count == 1000, "A: every departed name was reset: \(a)")
+
+    for (renamed, bound) in [(0, 0), (100, 20_000)] {
+        let b = resetWork([0, 1], table: StateTable()) { g in
+            HStack {
+                for i in 0..<100 {
+                    VStack { for j in 0..<100 { ProposalConditionalCounter("c", reads).id("c\(j)") } }
+                        .id(i < renamed ? "g\(g)-\(i)" : "s\(i)")
+                }
+            }
+        }
+        try #require(b.count == 2)
+        #expect(b[1].work <= bound, "B, \(renamed) of 100 outer names replaced: \(b)")
+        #expect(b[1].count == 10_000, "B, \(renamed) replaced: the table settles at 10 000: \(b)")
+    }
+
+    let c = resetWork([true, false], table: StateTable()) { flag in
+        VStack { for _ in 0..<1000 { VStack { if flag { ProposalConditionalCounter("f", reads) } } } }
+    }
+    try #require(c.count == 2)
+    #expect(c[1].work <= 1000, "C, 1000 conditionals gone absent: one pass: \(c)")
+    #expect(c[1].count == 0, "C: every absent subtree was reset: \(c)")
+}
