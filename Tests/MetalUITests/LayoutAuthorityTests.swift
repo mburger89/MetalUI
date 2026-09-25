@@ -266,10 +266,12 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// **N1.1** (stage 10, lane 1; `LR-FO` items 1–3, spec §4.3). Every `(site,
 /// field)` the lowering can raise at lane 1's head — except the three lane 2
 /// deletes with their fields (`flexWrap`, `alignContent`, `border.percent`) —
-/// names a **live** owner or none: `deferred.amended` is stage 11's
-/// (`"plan task 7, stage 11"`, `LR-FF`), a baseline field is plan task 11's
+/// names a **live** owner or none: a baseline field is plan task 11's
 /// (`"plan task 11"`, parent spec §8), and everything else is a **permanent
 /// refusal** (`owner == nil`) whose trap message says so and names no stage.
+/// (Until stage 11, `deferred.amended` was stage 11's, `"plan task 7, stage
+/// 11"`, `LR-FF`; stage 11 deletes the report and `owner`'s branch for it,
+/// `LR-FY` item 1, so the row leaves the table.)
 ///
 /// The table was found by grepping `entry(`, `reports.append(`, `names.append(`
 /// and `UnlowerableField(` in `LegacyLowering.swift`, `LoweringState.swift`,
@@ -296,14 +298,14 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// - **unconsumed rows** (`reportUnconsumedLoweredItems`: each of `flexGrow`,
 ///   `flexShrink`, `flexBasis`, `alignSelf`, `minSize`, `maxSize`, `margin`,
 ///   `position`, `inset` + `.unconsumed`) at every recording site;
-/// - `modifierLayer.style` (`legacyFrameLayerDiagnostics`) and
-///   `deferred.amended` (`loweredComponentFrame`).
+/// - `modifierLayer.style` (`legacyFrameLayerDiagnostics`).
 ///
-/// **242** distinct entries (10 container, 32 leaf, 101 item — 99 at the nine
+/// **241** distinct entries (10 container, 32 leaf, 101 item — 99 at the nine
 /// recording sites plus `position`/`inset` at `list` — 6 weights, 10
-/// presentation, 81 unconsumed, 2 singletons), derived before the run. Stage 10
+/// presentation, 81 unconsumed, 1 singleton), derived before the run. Stage 10
 /// took it as 218 over eight recording sites; `master`'s `TextEditor` (`TI-H`)
-/// adds the ninth, +4 leaf, +11 item and +9 unconsumed rows (the merge).
+/// adds the ninth, +4 leaf, +11 item and +9 unconsumed rows (the merge), 242;
+/// stage 11 removes the second singleton, `deferred.amended` (`LR-FY` item 1).
 ///
 /// Red before: `owner` did not exist (build); with a scratch `owner` forwarding
 /// to the old `owningStage`, every permanent row read a stage number. Mutation
@@ -322,7 +324,6 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     let parentSites: [LoweringSite] = [.box, .stack, .scrollView, .modifierLayer, .component, .list]
     let presentedSites: [LoweringSite] = [.box, .stack, .text, .modifierLayer, .component]
 
-    let stage11 = "plan task 7, stage 11"
     let task11 = "plan task 11"
     var expected: [UnlowerableField: String?] = [:]
     func add(_ fields: [String], at sites: [LoweringSite], owner: String?) {
@@ -342,8 +343,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     add(["flexGrow", "flexShrink", "flexBasis", "alignSelf", "minSize", "maxSize", "margin",
          "position", "inset"].map { "\($0).unconsumed" }, at: recordingSites, owner: nil)
     add(["style"], at: [.modifierLayer], owner: nil)
-    add(["amended"], at: [.deferred], owner: stage11)
-    try #require(expected.count == 242, "the table holds \(expected.count) entries")
+    try #require(expected.count == 241, "the table holds \(expected.count) entries")
 
     let permanent = "and is refused by name (plan task 7, LR-FO)"
     for (field, owner) in expected.sorted(by: { $0.key.description < $1.key.description }) {

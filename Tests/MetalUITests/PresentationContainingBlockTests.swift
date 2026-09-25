@@ -17,9 +17,11 @@ import MetalUICore
 // deletes the legacy engine, and with it the condition those reports protected:
 // a presentation's containing block is the window whatever surrounds it — the
 // answer `LR-CL`'s construction already gave the auto root (record §51 §3
-// measured every arm at it with the reports removed). `deferred.amended` is
-// **kept**, re-owned to stage 11 (`LR-FF`): deleting it drops a
-// `Component.width` over a presentation member silently.
+// measured every arm at it with the reports removed). `deferred.amended` was
+// kept, re-owned to stage 11 (`LR-FF`); stage 11 deletes it (`LR-FY` item 1):
+// an amend over a presentation member now answers as a `.frame` layer over one
+// already did — the placeholder handed on and dropped, the presentation laid
+// out against the window — pinned by N2.2 below.
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
 private func dim(_ v: Float) -> MetalUICore.Dimension { .length(.pixels(Pixels(v))) }
@@ -69,10 +71,11 @@ private func renderAsRoot<E: Element>(_ make: () -> E) -> (fields: [UnlowerableF
 /// block was not the window — each rendered as the root of a plain 200×100
 /// `Frame` with diagnostics — lay the presented box out against the window: its
 /// hitbox (the only one in each tree; the outer presentations of the two nested
-/// arms carry no `onClick`) is **(185, 85) 10×10**, and nothing is reported. Plus
-/// the amended arm: `Box { CBPresentingSolo().width(70) }` still reports exactly
-/// `deferred.amended`, now owned by stage **11** (spelled `"plan task 7, stage
-/// 11"` since stage 10's `owner`, `LR-FO` item 3).
+/// arms carry no `onClick`) is **(185, 85) 10×10**, and nothing is reported.
+/// Until stage 11 it also carried the amended arm (`Box {
+/// CBPresentingSolo().width(70) }` reporting `deferred.amended`, owned by stage
+/// 11); stage 11 deletes that report (`LR-FY` item 1) and the arm moves to N2.2
+/// (`aComponentAmendOverAPresentationMemberAnswersAsAFrameLayerDoes`).
 ///
 /// Stage 10 lane 1 (`LR-FM` item 1: `Style.border` is deleted in lane 2): the two
 /// bordered arms surround the root with `Style.padding` of the same widths
@@ -86,8 +89,8 @@ private func renderAsRoot<E: Element>(_ make: () -> E) -> (fields: [UnlowerableF
 ///
 /// Mutations that must redden it: **M3a** the `reportPresentationContainingBlock`
 /// call restored → the five root arms; **M3b** `Deferred`'s nested report
-/// restored → the two nested arms; **M3c** `.deferred`'s `owningStage` back to "9"
-/// (since stage 10, `owner`) → the amended arm.
+/// restored → the two nested arms. (**M3c**, `.deferred`'s owner changed, targeted
+/// the amended arm, which left with the report at stage 11.)
 @MainActor
 @Test func aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt() throws {
     var padded = Style()
@@ -126,10 +129,39 @@ private func renderAsRoot<E: Element>(_ make: () -> E) -> (fields: [UnlowerableF
         #expect(arm.fields.isEmpty, "\(arm.name): reported \(arm.fields.map(\.description))")
         #expect(arm.hitboxes == [cbBounds(185, 85, 10, 10)], "\(arm.name): hitboxes \(arm.hitboxes)")
     }
+}
 
-    let amended = renderAsRoot { Box { CBPresentingSolo().width(px(70)) } }
-    #expect(amended.fields.map(\.description) == ["deferred.amended"], "\(amended.fields)")
-    for field in amended.fields {
-        #expect(field.owner == "plan task 7, stage 11", "\(field) is owned by \(field.owner ?? "nobody")")
+/// **N2.2** (plan task 7, stage 11; `LR-FY` item 1, record §54 §3). A
+/// `Component` **amend** over a presentation member — `.width(70)`,
+/// `.height(70)`, and a `StyledComponent`'s `.width(70)` (after a `.height`) —
+/// answers exactly as a legacy `.frame(width: 70)` **layer** over the same member
+/// already did: nothing reported, and the presented box's hitbox, the only one in
+/// the tree, at its top/left-5 insets against the window, **(5, 5) 10×10**. The
+/// placeholder is handed on and dropped (`LR-CK`); the window is the containing
+/// block whatever surrounds it.
+///
+/// Red before (lane 2's head): the three amend arms report `["deferred.amended"]`
+/// (the frame-layer control reads `[]`). Mutation **M2f** (the report restored in
+/// `loweredComponentFrame`'s presentation branch) must redden the amend arms.
+@MainActor
+@Test func aComponentAmendOverAPresentationMemberAnswersAsAFrameLayerDoes() throws {
+    typealias Arm = (name: String, fields: [UnlowerableField], hitboxes: [Bounds<Pixels>])
+    var arms: [Arm] = []
+    func arm<E: Element>(_ name: String, _ make: () -> E) {
+        let r = renderAsRoot(make)
+        arms.append((name, r.fields, r.hitboxes))
+    }
+    arm("control: .frame(width: 70) layer") { Box { CBPresentingSolo().frame(width: px(70)) } }
+    arm(".width(70) amend") { Box { CBPresentingSolo().width(px(70)) } }
+    arm(".height(70) amend") { Box { CBPresentingSolo().height(px(70)) } }
+    arm("StyledComponent .height(70).width(70)") {
+        Box { CBPresentingSolo().height(px(70)).width(px(70)) }
+    }
+    try #require(arms.count == 4)
+    try #require(arms[0].fields.isEmpty && arms[0].hitboxes == [cbBounds(5, 5, 10, 10)],
+                 "control: \(arms[0].fields.map(\.description)) \(arms[0].hitboxes)")
+    for arm in arms.dropFirst() {
+        #expect(arm.fields.isEmpty, "\(arm.name): reported \(arm.fields.map(\.description))")
+        #expect(arm.hitboxes == arms[0].hitboxes, "\(arm.name): hitboxes \(arm.hitboxes)")
     }
 }

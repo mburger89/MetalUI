@@ -381,14 +381,17 @@ private struct PresentingPair: Component {
 ///   declared axis → `box.minSize.percent` (lane 1's corrections, `LR-CQ`);
 /// - an absolute box inside a `ScrollView`, no `Deferred` → `[box.position,
 ///   box.inset]` (divergence 11's proposal fact, stage 9);
-/// - `Component().width(70)` over a `Deferred`-absolute member → `deferred.amended`;
 /// - and every `<field>.absolute` the frame reports is a **permanent refusal**
 ///   (`owner == nil`) since stage 10 (`LR-FO` item 2; it read stage 8 until
 ///   stage 8, then stage 10 — `LR-CQ`, `LR-EZ` item 3).
 ///
 /// Stage 10 lane 1 removed the "inside a `.relative` ancestor" arm (its field,
 /// `Position.relative`, is deleted by lane 2, `LR-FM` item 1): twelve arms
-/// become eleven.
+/// become eleven. Stage 11 lane 3 removed the "Component amend over a
+/// presentation member" arm, which expected `["deferred.amended"]`: the report is
+/// deleted (`LR-FY` item 1) and the arm moves to
+/// `PresentationContainingBlockTests`' N2.2, which pins its answer — eleven arms
+/// become ten.
 ///
 /// Red-before: every `Deferred` arm reads `[box.position, box.inset]`; the
 /// absolute-root arm reads `[box.position, box.inset]`.
@@ -437,9 +440,6 @@ private struct PresentingPair: Component {
     arms.append(("minWidth on an auto axis", rootDiagnostics {
         Box { Deferred { absBox(insets(top: dim(5), left: dim(5))).cssHeight(px(10)).cssMinWidth(px(50)) } }
     }, ["box.minSize.absolute"]))
-    arms.append(("Component amend over a presentation member", rootDiagnostics {
-        Box { PresentingSolo().width(px(70)) }
-    }, ["deferred.amended"]))
     arms.append(("root .frame(maxWidth: 300) (the separating arm)", rootDiagnostics {
         Box { presented() }.frame(maxWidth: px(300))
     }, []))
@@ -458,7 +458,7 @@ private struct PresentingPair: Component {
             }
         }
     }, ["box.minSize.percent"]))
-    try #require(arms.count == 11)
+    try #require(arms.count == 10)
     for arm in arms {
         #expect(arm.got == arm.expected, "\(arm.name): \(arm.got)")
     }
@@ -624,9 +624,9 @@ private struct PlainPair: Component {
             "maxWidth 80: \(String(describing: maximum.0)) \(maximum.1)")
 }
 
-/// **N1.4** (`LR-EV` items 1 and 3, as amended by `LR-EY` item 3). The
-/// exemption covers `position` and `inset` on a frame over at most one node, and
-/// nothing else:
+/// **N1.4** (`LR-EV` items 1 and 3, as amended by `LR-EY` item 3, and by stage
+/// 11's `LR-FY` item 3). The exemption covers `position` and `inset` on an
+/// absolute frame, and nothing else:
 ///
 /// 1. `.frame(20×20).position(.absolute).inset(…).flexGrow(1)` in a `Deferred`
 ///    still reports `modifierLayer.style` — the grow is a caller's modifier on
@@ -635,9 +635,12 @@ private struct PlainPair: Component {
 ///    reports `modifierLayer.position` then `modifierLayer.inset` — removed from
 ///    the proposal authority as any absolute box outside a `Deferred` is
 ///    (`LR-CK`), not lowered in flow;
-/// 3. a two-member `Component`'s `.frame(width: 20, height: 20).position(.absolute)
-///    .inset(…)` in a `Deferred` still reports `modifierLayer.style` — a row of
-///    per-member frames as a presentation root is unmeasured (owner stage 11).
+/// 3. (until stage 11: a two-member `Component`'s absolute `.frame` in a
+///    `Deferred` reported `modifierLayer.style`, the exemption's one-node
+///    condition; stage 11 deletes the condition, `LR-FY` item 3, and the arm
+///    moves to N2.3,
+///    `aTwoMemberAbsoluteFrameInADeferredIsARowOfPerMemberFramesAgainstTheWindow`,
+///    which pins the row's rects);
 /// 4. the same framed absolute box **as the frame's root** reports
 ///    `modifierLayer.position.unconsumed` then `modifierLayer.inset.unconsumed`, as
 ///    the own-box spelling reports `box.position.unconsumed`/`box.inset.unconsumed`
@@ -651,8 +654,7 @@ private struct PlainPair: Component {
 /// Mutations that must redden it: **M1c** (the comparison skipped entirely when
 /// the declared style is absolute) → arm 1; **M1d** (the `.frameLayer` guard
 /// restored in `planLegacyItems`' outside-a-`Deferred` report) → arm 2 lowers
-/// silently; **M1h** (the one-node condition dropped from the exemption) → arm 3;
-/// **M1i** (`reportUnconsumedLoweredItems`' unconditional `.frameLayer` skip
+/// silently; **M1i** (`reportUnconsumedLoweredItems`' unconditional `.frameLayer` skip
 /// restored) → arm 4 lowers silently.
 @MainActor
 @Test func aFramedAbsoluteBoxStillReportsEveryOtherFieldAndItsPositionOutsideADeferred() throws {
@@ -670,20 +672,66 @@ private struct PlainPair: Component {
                 .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
         }
     }
-    let pair = rootDiagnostics(width: 200, height: 200) {
-        Box {
-            Deferred {
-                PlainPair().frame(width: px(20), height: px(20))
-                    .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
-            }
-        }
-    }
     #expect(grown == ["modifierLayer.style"], "arm 1, a grow after the frame: \(grown)")
     #expect(inFlow == ["modifierLayer.position", "modifierLayer.inset"], "arm 2, no Deferred: \(inFlow)")
-    #expect(pair == ["modifierLayer.style"], "arm 3, a two-member frame: \(pair)")
     let asRoot = rootDiagnostics(width: 200, height: 200) {
         Box().frame(width: px(20), height: px(20)).background(.accent)
             .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
     }
     #expect(asRoot == ["modifierLayer.position.unconsumed", "modifierLayer.inset.unconsumed"], "arm 4, the frame's root: \(asRoot)")
+}
+
+/// Two clickable 10×10 members — record §54 §4's `SPair`.
+private struct ClickablePair: Component {
+    var content: some ElementGroup {
+        Box().cssWidth(px(10)).cssHeight(px(10)).background(.surface).onClick {}
+        Box().cssWidth(px(10)).cssHeight(px(10)).background(.surface).onClick {}
+    }
+}
+
+/// **N2.3** (plan task 7, stage 11; `LR-FY` item 3, record §54 §4). A two-member
+/// `Component`'s `.frame(width: 20, height: 20).position(.absolute)
+/// .inset(top: 10, left: 30)` inside a `Deferred` is a presentation root whose
+/// element is `LR-BH`'s row of per-member 20×20 frames: nothing reported, and the
+/// members' hitboxes at **(35, 15)** and **(55, 15)**, 10×10 each — each member
+/// centred in its own frame, the frames 20 apart, the row at the insets.
+///
+/// **Control** (`LR-GA`): the same frame in a `Column`, no `Deferred`, still
+/// reports `["modifierLayer.position", "modifierLayer.inset"]` — deleting the
+/// one-node condition must not widen the exemption beyond a `Deferred`.
+///
+/// Red before (lane 2's head): the `Deferred` arm reports
+/// `["modifierLayer.style"]` with both hitboxes 0×0 at (0, 0). Mutations that
+/// must redden it: **M2g** `&& childCount <= 1` restored (the `Deferred` arm);
+/// **M2g′** the exemption's `Deferred` check dropped with the node count (the
+/// control).
+@MainActor
+@Test func aTwoMemberAbsoluteFrameInADeferredIsARowOfPerMemberFramesAgainstTheWindow() throws {
+    func run<E: Element>(_ make: () -> E) -> (fields: [String], hitboxes: [Bounds<Pixels>]) {
+        var root = make()
+        let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
+                          reportsUnlowerableFields: true)
+        frame.render(&root)
+        return (frame.unlowerableFields.map(\.description), frame.hitboxes.map(\.bounds))
+    }
+    let presented = run {
+        Box {
+            Deferred {
+                ClickablePair().frame(width: px(20), height: px(20))
+                    .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
+            }
+        }
+    }
+    #expect(presented.fields.isEmpty, "the Deferred arm reported \(presented.fields)")
+    #expect(presented.hitboxes == [pBounds(35, 15, 10, 10), pBounds(55, 15, 10, 10)],
+            "the Deferred arm's hitboxes: \(presented.hitboxes)")
+
+    let control = run {
+        Column {
+            ClickablePair().frame(width: px(20), height: px(20))
+                .position(.absolute).inset(insets(top: dim(10), left: dim(30)))
+        }
+    }
+    #expect(control.fields == ["modifierLayer.position", "modifierLayer.inset"],
+            "control, no Deferred: \(control.fields)")
 }

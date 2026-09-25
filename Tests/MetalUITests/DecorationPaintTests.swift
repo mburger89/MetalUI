@@ -855,55 +855,82 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
                      + "`multiplies` is unfalsifiable here. \(quarter) vs \(half)"))
 }
 
-/// **PINNED WRONG ON PURPOSE.** `.opacity(0.5).background(x)` fades the
-/// background, where SwiftUI's leaves it opaque (probe arm **G4**) — and where
-/// MetalUI's own **proposal** path leaves it opaque too (`OM-N`, `OM-AA` a).
+/// **Whatever is written after `.opacity` is outside it** — probe
+/// `swiftui-border-clip-paint` arms **G3, G4, H1, H2, H3** on a bare legacy
+/// `Box` (plan task 7, stage 11, ruling `LR-FW` as amended by `LR-GA` items
+/// 1–2). Renamed from `opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot`,
+/// which pinned divergence 45 wrong on purpose: the legacy path faded a fill
+/// written after `.opacity` because `opacity` and `background` are fields of one
+/// `Decoration` whose write order was lost (`OM-H`, `OM-N`). The write order is
+/// now recorded — `Decoration.escapesOpacity`, one member per slot, inserted by
+/// a write only while `opacity < 1` and emptied by `.opacity` — and
+/// `paintDecoration` emits an escaped fill before the scope opens and an escaped
+/// border after it closes. Divergence 45 retires, its border twin (H2) with it.
 ///
-/// The mechanism is `OM-H`'s: on the legacy path `opacity` and `background` are
-/// fields of one `Decoration`, so the order in which they were written is not
-/// observable at all, and only one of the two orders can be right. The one a
-/// caller actually writes — fade a whole panel, fill included — was chosen;
-/// leaving the fill opaque there would look like a bug at every call site.
+/// SwiftUI (probe, re-run 2026-09-24): G3 `background(red).opacity(0.5)` fades
+/// the fill; G4 `opacity(0.5).background(red)` does not; H1
+/// `border(blue, 4).opacity(0.5)` fades the border (rgb(0.57,0.59,1.00)); H2
+/// `opacity(0.5).border(blue, 4)` does not (B2's full rgb(0.02,0.20,1.00)); H3
+/// `opacity(.5).background(red).opacity(.5)` fades the fill **once**
+/// (rgb(1.00,0.58,0.58), G3's value, not G2's double fade).
 ///
-/// **Two divergences, not one.** Against SwiftUI, and against MetalUI's other
-/// element system: a caller porting a subtree between the two paths — which is
-/// what plan tasks 6 and 7 are for — would find a fade appear or vanish with no
-/// modifier changed. Task 7's unification is the fix.
+/// Read off the emitted rect's alphas (`Frame.fill` multiplies both `color.a`
+/// and `borderColor.a` by `activeOpacity` on the way in), against the opaque
+/// controls. **The order pairs must disagree before either is believed** (shape
+/// 15): G3 ≠ G4 and H1 ≠ H2 are `#require`d.
 ///
-/// The spelling that gets SwiftUI's answer today is a layer between them:
-/// `Box { … }.opacity(0.5).background(x)` — a `Box` is a layer, and layers do
-/// order.
-@Test @MainActor func opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot() throws {
-    @MainActor func alpha<E: Element>(_ make: @escaping @MainActor () -> E) throws -> Float {
+/// Red before (`47c0d98`…lane 2's head): G4 read `0.5 × a` and H2 `0.5 × b`.
+/// Mutations that must redden it: **M2a** `.background` stops inserting its
+/// member (G4); **M2b** `paintDecoration` ignores the set (G4, H2); **M2c**
+/// `.opacity` stops emptying it (H3); **M2d** the border members ignored (H2);
+/// **M2e** the test's G3 expectation inverted.
+@Test @MainActor func aBackgroundOrBorderWrittenAfterOpacityEscapesIt() throws {
+    @MainActor func subject<E: Element>(_ make: @escaping @MainActor () -> E) throws -> MUIRect {
         let (window, _) = try render { inRow { make() } }
-        return try rect(window.lastScene, 40, 40).background.a
+        return try rect(window.lastScene, 40, 40)
     }
-
-    let opaque = try alpha { Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent) }
-    let backgroundFirst = try alpha {
-        Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).opacity(0.5)
+    @MainActor func fill<E: Element>(_ make: @escaping @MainActor () -> E) throws -> Float {
+        try subject(make).background.a
     }
-    let opacityFirst = try alpha {
-        Box().cssWidth(px(40)).cssHeight(px(40)).opacity(0.5).background(.accent)
+    @MainActor func ring<E: Element>(_ make: @escaping @MainActor () -> E) throws -> Float {
+        try subject(make).borderColor.a
     }
+    func sized() -> Box<EmptyGroup> { Box().cssWidth(px(40)).cssHeight(px(40)) }
 
-    // The control: an unfaded fill must read differently from a faded one, or
-    // "both orders fade" is satisfied by a modifier that does nothing.
-    try #require(abs(opaque - backgroundFirst) > 0.001,
-                 why("set up — `.opacity(0.5)` must move the alpha at all: opaque \(opaque), "
-                     + "faded \(backgroundFirst)"))
+    let opaqueFill = try fill { sized().background(.accent) }
+    let opaqueRing = try ring { sized().border(.separator, width: px(4)) }
+    try #require(opaqueFill > 0 && opaqueRing > 0,
+                 why("set up — both controls must be visible: fill \(opaqueFill), ring \(opaqueRing)"))
 
-    #expect(abs(backgroundFirst - opaque * 0.5) < 0.001,
-            why("probe G3, AGREEING: `.background(x).opacity(0.5)` fades the fill. got "
-                + "\(backgroundFirst)"))
-    #expect(abs(opacityFirst - opaque * 0.5) < 0.001,
-            why("DIVERGENCE (OM-N): `.opacity(0.5).background(x)` fades it too. SwiftUI's G4 "
-                + "reads the FULL fill, and so does MetalUI's own proposal path, where "
-                + "`.opacity` is its own ModifiedContent layer (OM-AA a). got \(opacityFirst)"))
-    #expect(abs(opacityFirst - backgroundFirst) < 0.001,
-            why("the two orders are not distinguishable on the legacy path at all — both "
-                + "modifiers write one Decoration (OM-H). got \(opacityFirst) and "
-                + "\(backgroundFirst)"))
+    let g3 = try fill { sized().background(.accent).opacity(0.5) }
+    let g4 = try fill { sized().opacity(0.5).background(.accent) }
+    let h1 = try ring { sized().border(.separator, width: px(4)).opacity(0.5) }
+    let h2 = try ring { sized().opacity(0.5).border(.separator, width: px(4)) }
+    let h3 = try fill { sized().opacity(0.5).background(.accent).opacity(0.5) }
+
+    try #require(abs(g3 - g4) > 0.001,
+                 why("the two fill orders must read differently, or G4's escape is unfalsifiable "
+                     + "here: G3 \(g3), G4 \(g4)"))
+    try #require(abs(h1 - h2) > 0.001,
+                 why("the two border orders must read differently, or H2's escape is unfalsifiable "
+                     + "here: H1 \(h1), H2 \(h2)"))
+
+    #expect(abs(g3 - opaqueFill * 0.5) < 0.001,
+            why("probe G3: `.background(x).opacity(0.5)` fades the fill. expected "
+                + "\(opaqueFill * 0.5), got \(g3)"))
+    #expect(abs(g4 - opaqueFill) < 0.001,
+            why("probe G4: `.opacity(0.5).background(x)` leaves the fill OUTSIDE the scope "
+                + "(LR-FW). expected \(opaqueFill), got \(g4)"))
+    #expect(abs(h1 - opaqueRing * 0.5) < 0.001,
+            why("probe H1: `.border(c, 4).opacity(0.5)` fades the border. expected "
+                + "\(opaqueRing * 0.5), got \(h1)"))
+    #expect(abs(h2 - opaqueRing) < 0.001,
+            why("probe H2: `.opacity(0.5).border(c, 4)` leaves the border outside the scope "
+                + "(LR-FW). expected \(opaqueRing), got \(h2)"))
+    #expect(abs(h3 - opaqueFill * 0.5) < 0.001,
+            why("probe H3: a fill between two opacities is faded ONCE — the second `.opacity` "
+                + "empties the escape set the fill wrote and replaces the first (OM-AH). "
+                + "expected \(opaqueFill * 0.5), got \(h3)"))
 }
 
 /// **PINNED WRONG ON PURPOSE.** A second `.opacity` on ONE element **replaces**
