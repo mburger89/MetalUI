@@ -424,7 +424,8 @@ private let lHostList = lChild(lHostScroller, 0)
 ///   `proposal.width`, so W's greedy width changes no number. The record is
 ///   kept for `LR-AB`'s uniform convention (every lowered site records the node
 ///   it returns) and for the `<field>.unconsumed` reachability
-///   `UnlowerableField.owningStage`'s `.list` comment claims, not because
+///   `UnlowerableField.owningStage`'s `.list` comment claimed until stage 10
+///   deleted that per-site switch for `owner` (record §52), not because
 ///   anything can see it today.
 @MainActor
 @Test func theListSiteReportsNothingAndItsRowsItemFieldsAreLowered() throws {

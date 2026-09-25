@@ -1208,9 +1208,12 @@ import MetalUIRender
 /// `animatableFieldOrder` and `allAnimatableFields` — 28 fields become **24**.
 /// `aspectRatio`, the one non-animatable numeric field whose differing fixture
 /// values armed the key-set assertion's `unexpected` half, is deleted too, so
-/// that arm goes with it; the three non-animatable colour fields still arm it.
-/// The history below speaks of 28 fields and of `aspectRatio` as it was
-/// measured.
+/// that arm goes with it. The three non-animatable colour fields are still in
+/// the fixture, but unmeasured here — both call sites of
+/// `allAnimatableDecoration` leave them at `Decoration()`'s `nil` (its own doc
+/// comment below), so nothing today shows they can arm the `unexpected` half
+/// the way `aspectRatio` did. The history below speaks of 28 fields and of
+/// `aspectRatio` as it was measured.
 ///
 /// Measured by the fix round 1 re-review: instrumenting `animateField` to
 /// print its key and running the unfiltered suite showed only **6 of the 28
