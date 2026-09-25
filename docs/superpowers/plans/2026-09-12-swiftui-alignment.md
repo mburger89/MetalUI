@@ -372,7 +372,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   at `a15ec83`) were built beside them; `List` and `Deferred` had no proposal
   counterpart. All still true except the alignment, now typed (`CN-I`).
 
-- [ ] **7. Port advanced layout, then remove the legacy engine.**
+- [x] **7. Port advanced layout, then remove the legacy engine.**
   Implement the proposal-system equivalents of unspecified, ideal, min/max,
   fixed-size, layout priority, compression, expansion, grids and custom
   layouts. Migrate the remaining elements off `FlexEngine` (including a windowed

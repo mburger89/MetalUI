@@ -192,9 +192,9 @@ table below is still the plan of record for the stages that delivered it;
 the **live** per-stage status is the
 stage list under task 7 in
 `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`. **As of stage 11,
-every row of §4.1 has a stage that claims it delivered** — task 7's box
-there moves once the adversarial branch check confirms each row's exit
-criterion on the branch (spec §9), not automatically with this paragraph.
+every row of §4.1 has a stage that claims it delivered** — the adversarial branch check confirmed each row's exit criterion on the
+branch (`LR-GG` item 4, record §54 §11), and **task 7's box is ticked**
+(2026-09-25, at the stage-11 merge).
 **Production now runs the proposal engine by default as of
 stage 6b** — every earlier "production still runs the legacy authority"
 sentence in this document describes history up to that stage, not the
