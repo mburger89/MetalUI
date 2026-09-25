@@ -468,11 +468,12 @@ private func readings<Root: Element>(tapping tapped: String, primary: String?,
     frame.render(&root)
     let work = frame.tree.lastNativeLayoutWork
     #expect(frame.tree.nodeCount == 5, "nodes \(frame.tree.nodeCount)")
-    #expect([work.measureCalls, work.cacheHits, work.cacheMisses] == [3, 4, 8],
-            "work \([work.measureCalls, work.cacheHits, work.cacheMisses])")
+    let counters: [Int] = [work.measureCalls, work.cacheHits, work.cacheMisses]
+    #expect(counters == [3, 4, 8], "work \(counters)")
     #expect(frame.elementBounds.count == 6, "bounds \(frame.elementBounds)")
-    let rects = frame.finalizedScene().rects.map {
+    let rects: [[Float]] = frame.finalizedScene().rects.map {
         [$0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height, $0.background.a]
     }
-    #expect(rects == [[80, 65, 40, 30, 0.5], [95, 75, 10, 10, 0.5]], "rects \(rects)")
+    let expected: [[Float]] = [[80, 65, 40, 30, 0.5], [95, 75, 10, 10, 0.5]]
+    #expect(rects == expected, "rects \(rects)")
 }

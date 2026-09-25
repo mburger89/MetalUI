@@ -134,5 +134,7 @@ extension Color: ProposalElement {}
 // `ModifiedContent` is a `ProposalElement` only over the proposal vocabulary,
 // declared with it in `ModifiedContent.swift` (ruling `LR-FV` item 2).
 extension OnTapModifier: ProposalElement {}
-extension OverlayModifier: ProposalElement {}
+// `OverlayModifier` is a `ProposalElement` only when both of its sides are
+// proposal content, declared with it in `NativeOverlayModifier.swift` (ruling
+// `LR-FX` item 1).
 extension BackgroundModifier: ProposalElement {}

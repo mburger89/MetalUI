@@ -48,9 +48,10 @@ public struct BackgroundModifier<Content: ProposalElementGroup, Background: Prop
         let (backgroundNodes, backgroundLayout) = background.requestProposalGroupLayout(under: backgroundSide,
                                                                                          at: &backgroundCursor,
                                                                                          pass: &pass)
-        let node = pass.requestSecondaryContentAttachment(primary: contentNodes, secondary: backgroundNodes,
+        let node = pass.requestSecondaryContentAttachment(primary: contentNodes.map(\.layoutNodeID),
+                                                          secondary: backgroundNodes.map(\.layoutNodeID),
                                                           alignment: alignment, modifier: "background")
-        return (node, Layout(node: node.layoutNodeID, content: contentLayout, background: backgroundLayout))
+        return (ProposalNodeID(node), Layout(node: node, content: contentLayout, background: backgroundLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
@@ -84,17 +85,26 @@ extension LayoutPass {
     /// answers the primary; several are one kernel `overlay` (a `ZStack`)
     /// aligned `.center` whatever `alignment` is (probe K5g, K5h), which the
     /// attachment then positions with `alignment`.
-    mutating func requestSecondaryContentAttachment(primary: [ProposalNodeID], secondary: [ProposalNodeID],
+    ///
+    /// **Takes `LayoutNodeID`s since stage 11** (ruling `LR-FX`): a legacy
+    /// overlay's sides are lowered legacy nodes, handed here by
+    /// `OverlayModifier.attach` after `lowerAttachmentChildren`; a proposal
+    /// modifier maps its `ProposalNodeID`s. The precondition's message is the
+    /// named answer for a presentation primary (`got 0`) and a multi-member
+    /// `Component` primary (`got 2`), pinned by exit tests
+    /// `anOverlayOnAPresentationTrapsNamingItsPrimaryCount` and
+    /// `aLegacyOverlayOnATwoMemberComponentTrapsNamingItsPrimaryCount`.
+    mutating func requestSecondaryContentAttachment(primary: [LayoutNodeID], secondary: [LayoutNodeID],
                                                     alignment: ProposalAlignment,
-                                                    modifier: String) -> ProposalNodeID {
+                                                    modifier: String) -> LayoutNodeID {
         precondition(primary.count == 1,
                      "a native \(modifier) modifier requires one primary node, got \(primary.count)")
-        let content: ProposalNodeID
+        let content: LayoutNodeID
         switch secondary.count {
         case 0: return primary[0]
         case 1: content = secondary[0]
-        default: content = requestNativeOverlay(children: secondary, alignment: .center)
+        default: content = frame.requestNativeOverlay(children: secondary, alignment: .center)
         }
-        return requestNativeOverlayAttachment(child: primary[0], overlay: content, alignment: alignment)
+        return frame.requestNativeOverlayAttachment(child: primary[0], overlay: content, alignment: alignment)
     }
 }

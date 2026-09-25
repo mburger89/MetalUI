@@ -709,8 +709,13 @@ private struct AtOrigin: ProposalLayout {
 ///
 /// - `Box().width(20).height(10).flexGrow(1)` directly under each proposal container
 ///   — `HStack`, `VStack`, `ZStack`, `ProposalFrame`, the `.padding` `ModifiedContent`,
-///   the `.overlay` primary and overlay slots, a `ProposalLayoutContainer`, a
-///   `ProposalScrollView` — reports exactly `[box.flexGrow.unconsumed]`;
+///   a `ProposalLayoutContainer`, a `ProposalScrollView` — reports exactly
+///   `[box.flexGrow.unconsumed]`;
+/// - the `.overlay` primary and overlay slots **consume** the record and report
+///   nothing, since stage 11 (`LR-FX` item 3, `LR-GC` item 3): both sides pass
+///   through `lowerAttachmentChildren`, planned at `.stack`, which drops the grow
+///   as a frame layer does (`LR-AZ`). Until then each read
+///   `[box.flexGrow.unconsumed]`;
 /// - under `HStack`, one arm each: `.minWidth(5)` → `box.minSize.unconsumed`,
 ///   `.maxWidth(50)` → `box.maxSize.unconsumed`, `.alignSelf(.flexEnd)` →
 ///   `box.alignSelf.unconsumed`, `.flexShrink(0)` → `box.flexShrink.unconsumed`,
@@ -751,10 +756,14 @@ private struct AtOrigin: ProposalLayout {
     arms.append(("ProposalFrame", report { ProposalFrame(width: px(50), height: px(50)) { LegacyUnderProposal(grow()) } },
                  unconsumed))
     arms.append(("padding ModifiedContent", report { LegacyUnderProposal(grow()).padding(Edges(all: px(4))) }, unconsumed))
+    // Stage 11 (`LR-FX` item 3, `LR-GC` item 3): an overlay attachment consumes
+    // both sides' records through `lowerAttachmentChildren`, planned at `.stack`,
+    // which drops a `flexGrow` as a frame layer does (`LR-AZ`) — so these two
+    // arms read `[]` where they read `[box.flexGrow.unconsumed]` until then.
     arms.append(("overlay primary",
-                 report { LegacyUnderProposal(grow()).overlay { Rectangle(width: px(5), height: px(5)) } }, unconsumed))
+                 report { LegacyUnderProposal(grow()).overlay { Rectangle(width: px(5), height: px(5)) } }, []))
     arms.append(("overlay slot",
-                 report { Rectangle(width: px(50), height: px(50)).overlay { LegacyUnderProposal(grow()) } }, unconsumed))
+                 report { Rectangle(width: px(50), height: px(50)).overlay { LegacyUnderProposal(grow()) } }, []))
     arms.append(("ProposalLayoutContainer", report { ProposalLayoutContainer(AtOrigin()) { LegacyUnderProposal(grow()) } },
                  unconsumed))
     arms.append(("ProposalScrollView", report { ProposalScrollView(.vertical) { LegacyUnderProposal(grow()) } }, unconsumed))
