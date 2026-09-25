@@ -1018,3 +1018,28 @@ Two further doc defects, fixed in `17b1b75`: §8 item 1 listed
 `LegacyLowering.swift` comments described `FlexEngine.swift`'s `contentBox`
 and `Alignment.swift`'s `distributeMainAxis` in the present tense. Verdict
 unchanged: **merge**.
+
+### 9.7 The merge with `master` (`1895e4a`, PR #30)
+
+`master` had moved by PR #30 (the Windows demo-stack fix, record §50 §14).
+Three conflicts: `CLAUDE.md`/`AGENTS.md` (the counts block — stage 9's
+paragraph kept as history, PR #30's kept, a merged paragraph above both; PR
+#30's CI-hazard bullet auto-merged after the surviving `…unconsumed` hazard,
+the lead-in now "Two hazards survive") and
+`Sources/MetalUIDemoContent/DemoContent.swift` — PR #30's per-section
+structure taken whole (the 1 MB stack budget), stage 9's only change to the
+file, the wrapping paragraph's comment re-spelled for the lowering, applied
+into it. After `swift package clean`: native `--build-tests` 0 `error:` (the
+one `warning:` SwiftPM's notice); **`Test run with 1411 tests in 3 suites
+passed after 77.054 seconds.`**, `FR-J no-argument frame: succeeded=true`;
+default build system `swift build --build-tests` 0 `error:`, 0 `warning:`.
+**1411 = 1409 + 2** (`everyProductionTreeBuildsOnAOneMegabyteThread`,
+`aThreadTooSmallForTheDemoFailsTheSameHarness`, both green);
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` green with `Expected.swift`
+unedited (`git diff origin/master -- …/Expected.swift` empty). `compare.sh`
+`1895e4a` → the merge: controls as in §9.3, **all fourteen `differing=0`,
+scene identical**. `swift:6.4-noble` (Docker) over `git archive` of the merge:
+`swift build --build-tests` 0 `error:`; the portable filter **192 + 5 + 22
+passed** (`MetalUILayoutTests`, `MetalUICrossPlatformTests` — three plus
+PR #30's two — and `MetalUICoreTests`), the two stack tests and the demo-frame
+pin among them.

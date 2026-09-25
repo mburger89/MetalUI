@@ -193,8 +193,21 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-24, `feat/engine-stage-9` merged with `master` at
+  `1895e4a`, PR #30 — the Windows demo-stack fix): 1411 tests, 0 goldens, 79
+  typecheck guards**, 0 `error:` on both build systems, the one `warning:`
+  SwiftPM's deprecation notice under native (0 under the default one), taken
+  after `swift package clean` the same way as the paragraph below (`Test run
+  with 1411 tests in 3 suites passed`; eleven gated tests skipped; the FR-J
+  line present). **1411 = 1409 + 2**: stage 9's figure below plus
+  `DemoStackBudgetTests`' two (`everyProductionTreeBuildsOnAOneMegabyteThread`
+  and its 256 KB control, `aThreadTooSmallForTheDemoFailsTheSameHarness`),
+  both green over PR #30's per-section `demoContent()` with stage 9's one
+  comment re-spelled into it; `theDemoFrameMatchesTheValuesRecordedOnMacOS`
+  green with `Expected.swift` unedited; the fourteen offscreen images read 0
+  against `1895e4a`; `swift:6.4-noble` reads 192 + 22 + 5; record §51 §9.7.
 - **Stage 9's counts (2026-09-24, `feat/engine-stage-9` from `b9a5d7f`,
-  plan task 7 stage 9 — not yet merged with `master`): 1409 tests, 0 goldens,
+  plan task 7 stage 9, before it met `master`'s `1895e4a`): 1409 tests, 0 goldens,
   79 typecheck guards**, 0 `error:` on both build systems, the one `warning:`
   SwiftPM's deprecation notice under native (0 under the default one), taken
   after `swift package clean` with `swift build --build-system native
@@ -254,6 +267,12 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `ModifiedElement`/`ModifiedContent` are not unified (stage 11). History:
   record §51 (§1–§4 design and critic round, §5 lane 1, §6 lane 2, §7 lane 3,
   §8 the close, §9 the adversarial branch check, `LR-FL`).
+- **Counts (2026-09-24, `fix/windows-demo-stack` from `b9a5d7f`, stage 8
+  merged): 1454 tests**, 0 `error:`, 0 `warning:` under the default build
+  system, taken the same way as the paragraph below (`Test run with 1454
+  tests in 3 suites passed`; the FR-J line present). **1454 = 1452 + 2**:
+  `DemoStackBudgetTests`' two (the 1 MB-thread build of every production tree
+  and its 256 KB control); record §50 §14.
 - **Stage 8's counts (2026-09-24, `feat/engine-stage-8` from `85217e3`,
   plan task 7 stage 8 — merged with `master` at `b9a5d7f`): 1452 tests, 0 goldens,
   79 typecheck guards**, 0 `error:` on both build systems, the one `warning:`
@@ -678,8 +697,10 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
   and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
   appended on macOS in the manifest — and run `MetalUILayoutTests`,
-  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**192 + 22 + 3**
-  since stage 9; **200 + 22 + 3** measured in `swift:6.4-noble` after stage 7b; the WebKit goldens' 96
+  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**192 + 22 + 5**
+  since stage 9 met PR #30, measured in `swift:6.4-noble` at the merge —
+  `DemoStackBudgetTests`' two join `MetalUICrossPlatformTests`; **192 + 22 +
+  3** at stage 9 alone; **200 + 22 + 3** measured in `swift:6.4-noble` after stage 7b; the WebKit goldens' 96
   consumer tests and the two ungated corpus tests
   (`everyFixtureFileIsListedInTheCorpus`, `goldenFileRoundTripsThroughJSON`)
   were portable and counted in `MetalUILayoutTests`' figure, so retiring them
@@ -1697,8 +1718,8 @@ expected, measured facts:
   which depended on Swift Testing's unspecified cross-file order across
   fifteen files) and the `AccessibilityDefaultsTests`-recording-after-`#require`
   ordering hazard against that same registry. Neither registry nor roll call
-  exists to be spuriously red any more. One hazard survives, unrelated to
-  either:
+  exists to be spuriously red any more. Two hazards survive, unrelated to
+  either (the second added by PR #30, merged at stage 9's close):
   - A proposal-authority regression that reports an `…unconsumed` field now
     **traps in a `Window` test and truncates the run with no summary line**
     (the first such test is #1251). Read the last lines of the log, not the
@@ -1712,3 +1733,18 @@ expected, measured facts:
     with no explicit authority now runs `.proposal` by default, so a
     lowering site that receives a `LoweredItem` nobody consumes traps at
     runtime in the app, not only in a test that opted into diagnostics.
+  - **Windows threads have 1 MB stacks** (the main thread and Swift Testing's
+    workers; macOS's and Linux's main threads have 8 MB), and a debug builder
+    closure reserves a slot for every temporary it holds — the demo's tree
+    value is 35 KB, so its builder frames measured 138–248 KB each on macOS
+    arm64, and `demoContent()` needed a 1200 KB thread at `b9a5d7f` (stage
+    8's `.frame` layers; 896 KB at `85217e3`), overflowing both Windows jobs
+    while macOS and Linux passed. Since the fix it needs 528 KB: each section
+    is its own function, passed as an argument to a generic composing
+    function (the note after `demoContent()`). **A new demo section goes in
+    its own function the same way**, not inline in a composing builder. Guard:
+    `everyProductionTreeBuildsOnAOneMegabyteThread` (an exit test, all three
+    platforms; it builds, it cannot render off the main thread —
+    `assumeIsolated`). swift-corelibs Foundation silently ignores a
+    `Thread.stackSize` of 64 KB, so a small-stack control there needs 128 KB
+    or more. Record §50 §14.
