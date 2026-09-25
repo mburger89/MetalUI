@@ -56,6 +56,9 @@ private func pushFocus(_ kind: Int, _ windowID: UInt32) {
     #expect(a.controlActiveState == .inactive)
     #expect(b.controlActiveState == .inactive)
 
+    // A pump with nothing queued changes nothing, so it calls nothing.
+    platform.pumpEvents()
+
     #expect(logA == [.key, .active, .inactive])
     #expect(logB == [.active, .key, .inactive])
 }
