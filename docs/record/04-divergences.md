@@ -1289,3 +1289,45 @@ live**.
 renames above are the fix. 11's row looks orphaned without this section's
 note that it is a genuine retirement, not another "no pin left" correction
 like 4's.
+
+## 2026-09-24: no row changed; 54's live pin named (plan task 7 stage 10)
+
+Record §52; rulings `LR-FM`…`LR-FU` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **The table
+stays at fifty-six; no number is retired, added or amended.** Stage 10 deletes
+`Style`'s fields no lowering reads (`aspectRatio`, `overflow`, `flexWrap`,
+`alignContent`, `border`, `Position.relative`), narrows the rest to `package`
+and makes every inherited `Style`-field report a permanent refusal by name
+(`UnlowerableField.owner`, `LR-FO`). Spec §9 asked for 9, 10 and 54 to be
+re-read against that wording; the stage's Record phase said it had (record
+§52 §6.4) but no commit touched this file, so the branch check (`LR-FU`) made
+the re-read and wrote this section:
+
+- **9** (an all-`auto`-inset absolute box sits at its containing block's
+  origin). **Unchanged.** Its pin,
+  `PresentationLoweringTests.aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`,
+  is not in either lane's T list and its body is unedited; the only
+  `PresentationLoweringTests` change (`T1.2`) is to
+  `aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName`, whose
+  `.relative` arm goes with `Position.relative` and whose `…absolute` owner
+  reads `nil`. An absolute box outside a `Deferred` still reports
+  `[box.position, box.inset]` — now a permanent refusal, not stage 10's work.
+- **10** (`Deferred` escapes every ancestor clip). **Unchanged.**
+  `PresentationWindowTests` and `DeferredTests` are unedited; the offscreen
+  fourteen images and a real-window capture read 0 differing against
+  `8095fd9` (record §52 §7).
+- **54** (a `ScrollView` takes its cross axis from its parent where SwiftUI's
+  takes its content's). **Unchanged in fact; the table's pin name is stale
+  since 7b, not since this stage.** The row above names
+  `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents`,
+  retired at 7b (record §49 row 228, R) and replaced by
+  `LoweringScrollTests.divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`
+  (the stage-3 section above already names it) and
+  `aLoweredScrollViewFillsItsProposalOnTheScrollingAxis`. Both are green and
+  unedited at stage 10; `T1.3` changes only the neighbouring
+  `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`'s
+  owner line (`owningStage == "3"` → `owner == nil`).
+
+**What it costs if wrong.** A reader following 54 by the table's name finds no
+such test; the name above is the fix. A reader expecting a stage-10 section
+because record §52 §6.4 promised one found none until this one.

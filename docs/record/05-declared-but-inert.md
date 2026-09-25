@@ -415,19 +415,26 @@ stored field — including `margin` — to `package`.
 - **`overflow` is gone** (the row above, and the 2026-09-22 section's "now has
   a write on both authorities and a read on neither" edit). `ScrollView.swift`'s
   `viewportStyle.overflow = Axes(both: .scroll)` write and the field it wrote
-  to are both deleted in the same change (lane 2, `LegacyEngineSymbolTests`'s
-  positive control names the deleted field's accessor) — the property does not
+  to are both deleted in the same change (lane 2; `LegacyEngineSymbolTests`
+  lists the deleted field's accessor among its **absent** names, block B and
+  its `MetalUI` twin in block C — not a positive control, as this bullet read
+  until the branch check, `LR-FU`) — the property does not
   survive as a write with no reader; it is gone outright.
 - **`Style.border` on a container is gone** — both the original `MUIRect`-row
   mention ("reachable only via `Box(style:)`") and the 2026-09-21 section's
   "legacy-authority-only, lowered to native padding insets" bullet describe a
   field that no longer exists. `Box(style:)`'s public parameter was `border`'s
-  only writer (spec §2.1), so no caller loses behaviour — a `Box` built with a
-  `border`-carrying `Style` before this stage already painted nothing from it
-  (the `MUIRect` row's own point). The lowering's border-fold arithmetic
-  (padding + border insets) survives unaffected: it now folds a border that
-  can only ever be `.zero`, which is what `T1.13`/`T1.15` and `M1b`'s mutation
-  pin (record §52 §4.3).
+  only writer (spec §2.1), so no in-repository production caller loses
+  behaviour — a `Box` built with a `border`-carrying `Style` before this stage
+  painted nothing from it (the `MUIRect` row's own point), though it did inset
+  its content, so an external caller that wrote `Style.border` loses that inset
+  and migrates to `.padding(_:)` (`LR-FN`'s table). The lowering's border-fold
+  arithmetic is **deleted with the field**: `paddedAndSized`'s insets are
+  `resolvedLength(padding)` alone since lane 2 (`LegacyLowering.swift`), and
+  `T1.13`–`T1.15` carry the old border widths folded into `padding`, which is
+  what `M1b`/`M1b′` pin (record §52 §4.3). Until the branch check (`LR-FU`)
+  this bullet said the fold "survives unaffected … a border that can only ever
+  be `.zero`" — refuted by the source: nothing folds a border any more.
 - **`Position.relative`'s offset row is gone** — the case itself is deleted
   (`Box.swift`'s own doc comment: "removed by plan task 7, stage 10"; a
   `.relative` box was already a production trap since stage 6b, so no
@@ -444,7 +451,7 @@ stored field — including `margin` — to `package`.
   parameter. Reachable only from inside `MetalUI` now (by direct `Style`
   construction, which lane 2's plain-import guard `aPlainImportCannotWriteAStyleField`
   pins against from outside).
-- **Added — `Box`'s and `Stack`'s public `style:` initialiser parameter**
+- **Added — `Box`'s public `style:` initialiser parameter** (its three `init(style:…)` spellings; `Stack` and `Text` have no `style:` initialiser, only the `public var style` every `StyledElement` conformer carries, equally opaque — corrected by the branch check, `LR-FU`)
   (`LR-FR` F5). Narrowing every stored field to `package` makes `Style`
   opaque outside the package (`init()`, `default`, `==` only, `LR-FM` item 2)
   — kept inert rather than deprecated or removed for this stage, handed to

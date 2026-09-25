@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FU`** (stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS` and its lane 2 `LR-FT`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FV`** (stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -9977,3 +9977,67 @@ restored from a copy, `git status --short` empty after each (record §52 §5).
 are claims about which test reports which mutation, replaced by the measured
 readings.
 
+
+## LR-FU — stage 10's adversarial branch check: the stage stands; seven doc defects, two of them claimed edits that never landed
+
+**Context.** The adversarial branch check of `8095fd9..92ae50b` (record §52
+§7) re-took every exit criterion of spec §8 from a clean build, ran two
+mutations of its own design, took the offscreen comparison and — the screen
+being unlocked — a real-window capture, and resolved every ruling id and test
+name the changed docs cite.
+
+**Ruling.**
+
+1. **The stage stands; no code defect.** `Test run with 1414 tests in 3 suites
+   passed` after `swift package clean`; 82 guards (the log carries the
+   `FR-J` line and all three `StyleSurfaceCompileGuards`); 0 goldens; 0
+   `error:` and only SwiftPM's notice on both build systems; the fourteen
+   offscreen images and the real-window default/preview pair read 0 against
+   `8095fd9`; `Backends/SDL` 21 + 19; `Tests/PortableTests` 18 + 6 + 5; a
+   `swift:6.4-noble` container 22 + 188 + 10 with
+   `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green. Merge verdict:
+   **merge**, after these doc fixes.
+2. **Mutation MA** (`public var aspectRatio: Float? = nil` re-added to the
+   moved `Style`) reddens exactly
+   `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`, naming
+   `$s7MetalUI5StyleV11aspectRatioSfSgvg`: block C's twin for a field no lane
+   mutation re-added, so the twins are right beyond `flexWrap`. G2 does not
+   redden — it has no `Style().aspectRatio` fixture; N2.1 is that field's only
+   tripwire, which is sufficient and is recorded, not fixed. **Mutation MB**
+   (`newStyle.gap = …` deleted from `animated`) reddens exactly
+   `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` and
+   `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap`: the surviving
+   animated fields still animate and are pinned.
+3. **Doc defects, fixed in the check's commit:**
+   (a) record §05's stage-10 section and CLAUDE.md's stage-10 bullet said the
+   border fold "survives … a border that can only ever be `.zero`" —
+   refuted by `paddedAndSized`, whose insets are `resolvedLength(padding)`
+   alone since lane 2; (b) record §05 said `LegacyEngineSymbolTests`'
+   **positive control** names the deleted `overflow` accessor — it is in the
+   absent list; (c) record §05 said no caller loses behaviour from
+   `Style.border`'s deletion — an external writer loses its inset and migrates
+   to `.padding` (`LR-FN`); (d) record §52 §6.4 said record §04 was updated
+   (no commit touched it — the stage-10 section is written now, and names
+   divergence 54's live pin, stale in the table since 7b) and named
+   `08-ci.md` for `08-when-ci-lands.md`; (e) "`Box`'s/`Stack`'s public
+   `style:` parameter" in CLAUDE.md, record §05, §52, the plan and spec §9 —
+   `Stack` has no `style:` initialiser (only `Box`'s three `init(style:…)`;
+   every conformer's `public var style` is equally opaque), so `LR-FR` F5's
+   "251 `Box(style:`/`Stack(style:` sites" counts no `Stack(style:` site;
+   (f) spec §6 and CLAUDE.md's Animation paragraph cite
+   `everyRegisteringSiteAnimatesItsStyle`, retired at 7b (record §49 row 241)
+   — replaced by `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`;
+   (g) CLAUDE.md's stage-2 bullet still listed `Style.border` as lowered and
+   the reported fields as "each with an owner" (now permanent refusals but
+   `baseline`; `hidden()` lowers since 6b), its guard sentence called G2/G3
+   "whole-file compile fixtures" rather than plain-import guards, and the
+   "Eight constraints" lacked spec §9's "`MetalUILayout` declares no
+   `Style`". Three `AnimationTests` comments/messages still said 28 fields.
+4. **Not stage 10's, recorded:** the row-10 phrase "`StyledElement.style`
+   narrowed to what paint/animation read" is met by access (`LR-FM` item 2),
+   not by a shorter field list, and ≈ 1411 `css*` sites and the `Style()`
+   writes in tests stay because their fields survive (`LR-FO` items 5–6) —
+   both are rulings the check read and does not overturn; stage 11's
+   `ModifiedElement`/`ModifiedContent` files are untouched.
+
+**What it costs if wrong.** Nothing in `Sources/` rests on this ruling.

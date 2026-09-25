@@ -882,7 +882,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `.overlay`, `.opacity` G4 and `deferred.amended` with `Component.width`
   over a presentation member stay for **stage 11**; divergence 52, whether
   the eight deprecated sizing modifiers and the `fraction:` spellings are
-  removed, and whether `Box(style:)`/`Stack`'s public `style:` parameter
+  removed, and whether `Box(style:)`'s public `style:` parameter
   (inert outside the package since narrowing, `LR-FR` F5) is deprecated or
   removed, stay for **plan task 15** (closeout).
 

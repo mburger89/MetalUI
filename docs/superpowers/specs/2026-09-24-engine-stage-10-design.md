@@ -1,9 +1,9 @@
 # Engine replacement, stage 10 — `Style`'s CSS fields and the closing check (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 10, `LR-P`, §8. Rulings `LR-FM`…`LR-FT` in
+§4.1 row 10, `LR-P`, §8. Rulings `LR-FM`…`LR-FU` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
-(next unused `LR-FU`; `LR-FR` is critic round 1's, `LR-FS` lane 1's, `LR-FT` lane 2's).
+(next unused `LR-FV`; `LR-FR` is critic round 1's, `LR-FS` lane 1's, `LR-FT` lane 2's, `LR-FU` the adversarial branch check's).
 Record: `docs/record/52-engine-replacement-stage-10.md` (§1 baseline, §2 the
 entry measurement).
 Instrument: `docs/probes/stage-10-legacy-symbols.txt` (every mangled name the
@@ -462,7 +462,10 @@ Guards 79 → **82**. Portable targets: `MetalUICoreTests` 22,
 
 - The animated `border` arm leaves `animated(_:_:for:pass:)`; the other 23
   `Style` keys keep animating — `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`,
-  `everyRegisteringSiteAnimatesItsStyle`, `everyBackgroundPaintingSiteAnimatesItsColour`
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` (the
+  branch check's correction, `LR-FU`: this line named
+  `everyRegisteringSiteAnimatesItsStyle`, retired at 7b, record §49 row 241),
+  `everyBackgroundPaintingSiteAnimatesItsColour`
   green unedited. **Mutation M2e** `newStyle.padding = …` deleted from
   `animated` → reddens T1.16's test (the lane names the rest).
 - `paddedAndSized`'s inset becomes `resolvedLength(padding)`; the
@@ -542,7 +545,7 @@ Guards 79 → **82**. Portable targets: `MetalUICoreTests` 22,
   `Component.width` over a presentation member.
 - **To plan task 15** (closeout): divergence 52; whether the eight
   deprecated sizing modifiers and the `fraction:` spellings are removed
-  (`LR-FN` item 5); whether `Box(style:)`/`Stack`'s public `style:`
+  (`LR-FN` item 5); whether `Box(style:)`'s public `style:`
   parameter, inert outside the package after this stage, is deprecated or
   removed (`LR-FR` F5); whether any permanent refusal of `LR-FO` item 1 becomes a
   compile error by narrowing its modifier's parameter type.

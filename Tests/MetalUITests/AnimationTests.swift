@@ -1083,7 +1083,7 @@ import MetalUIRender
 ///    this test, like every other one in this file, calls `animated(...)`
 ///    *inside* that closure to see a transaction at all. Once Task 5 makes
 ///    the transaction ambient for a whole frame build, the ungated mutant
-///    puts **all 28 fields of every element in the tree** into `inFlight` on
+///    puts **all 24 fields (28 before stage 10) of every element in the tree** into `inFlight` on
 ///    every transaction frame, reinstating exactly the allocation ruling U
 ///    removed.
 ///
@@ -1118,7 +1118,7 @@ import MetalUIRender
 /// `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` is for
 /// (it drives `flexGrow`, one of the three fields that survive it), and that
 /// test does not redden under the gate mutation (its transaction frames
-/// change all 28 fields, so the gates never fire in it). The two tests cover
+/// change all 24 fields — 28 before stage 10 — so the gates never fire in it). The two tests cover
 /// different lines and neither subsumes the other.
 @Test @MainActor func theInFlightDictionaryIsEmptyWhenSettledAndHoldsOnlyTheMovingField() throws {
     let table = StateTable()
@@ -1195,7 +1195,7 @@ import MetalUIRender
     let underIdleTransaction = try inFlightKeys("unchanged frame under a live transaction")
     #expect(underIdleTransaction.isEmpty, """
             an unchanged frame under a live transaction must enrol NOTHING — the fast-path \
-            gates are what keep all 28 fields out of inFlight, got \(underIdleTransaction)
+            gates are what keep all 24 fields out of inFlight, got \(underIdleTransaction)
             """)
 }
 

@@ -583,7 +583,7 @@ All nine hold.
   `Component.width` over a presentation member.
 - **To plan task 15** (closeout): divergence 52; whether the eight deprecated
   sizing modifiers and the `fraction:` spellings are removed (`LR-FN` item 5);
-  whether `Box(style:)`/`Stack`'s public `style:` parameter, inert outside the
+  whether `Box(style:)`'s public `style:` parameter, inert outside the
   package after this stage, is deprecated or removed (`LR-FR` F5); whether any
   permanent refusal of `LR-FO` item 1 becomes a compile error by narrowing its
   modifier's parameter type.
@@ -607,12 +607,90 @@ bullets checked for a stray CSS-field mention; a stage-10 bullet added under
 gate; "not yet merged" language checked for staleness now stages 7b–9 are
 ancestors), `docs/record/04-divergences.md` (no divergence number moves per
 spec §9 — 9, 10 and 54 re-read for the permanent-refusal wording, unchanged in
-substance), `docs/record/05-declared-but-inert.md` (the `Style.aspectRatio`/
+substance; **this edit did not land in the Record phase** — no commit of it
+touched the file — and was made by the branch check, §7), `docs/record/05-declared-but-inert.md` (the `Style.aspectRatio`/
 `overflow`, `Style.border` on a container, and `Position.relative` offset rows
 deleted with their fields; the `margin: .auto` row narrowed to
-package-visible-only; a row **added** for `Box`'s/`Stack`'s public `style:`
+package-visible-only; a row **added** for `Box`'s public `style:`
 initialiser parameter, inert outside the package since narrowing, `LR-FR` F5),
-`docs/record/08-ci.md` (N2.1's Windows gate), `docs/record/README.md` (§52
+`docs/record/08-when-ci-lands.md` (N2.1's Windows gate; the file name corrected by the branch check, §7), `docs/record/README.md` (§52
 indexed), the parent spec's §4.1 row 10 status marked done, the plan's task 7
 note (dated, not ticked — stages 11–14 remain), and this repository's
 top-level `README.md`.
+
+## 7. Adversarial branch check (2026-09-24, PDT; `LR-FU`)
+
+Range `8095fd9..92ae50b`, in the worktree, one agent.
+
+1. **Suite.** `swift package clean`, `swift build --build-system native
+   --build-tests` (0 `error:`, one `warning:`, SwiftPM's notice), unfiltered
+   `swift test --build-system native --no-parallel`:
+   **`Test run with 1414 tests in 3 suites passed after 80.661 seconds.`**,
+   `FR-J no-argument frame: succeeded=` present, every `STYLE-SURFACE GUARD`
+   line printed (G1 write `succeeded=false`, control `true`; G2's seven
+   fixtures `false`, control `true`; G3). `swift build --build-tests` (default
+   build system): 0 `error:`, 0 `warning:`. Guards 82 (`grep -c
+   canTypecheck`); `git ls-files 'Tests/*.json'` 0. `cmp CLAUDE.md AGENTS.md`
+   equal. `grep -h '^import' Sources/MetalUILayout/*.swift | sort -u` →
+   `import MetalUICore` alone; `grep -rn Style Sources/MetalUILayout` → three
+   history comments (`LayoutTree.swift:36–37,144`).
+2. **Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 8095fd9 HEAD`:
+   all fourteen images **differing=0, scene identical**; controls read the
+   stage-9 corrected values (default vs modal 1031003, default vs animation
+   454895, prod default vs modal 491221, distinct 544/216/529, indicator rects
+   0). **Real window**: `appkit-screen-lock-state.swift` printed no lock key
+   and `displayAsleep main: 0`, so `docs/probes/window-capture/capture.sh
+   <scratch> 8095fd9 92ae50b` ran: each window's a-vs-b 0, `8095fd9 →
+   92ae50b` default **0** and preview **0** (1840×1176), control default vs
+   preview 958986, `nonblack` 2161164 of 2163840. The first real-window
+   capture of stages 9–10.
+3. **Portable.** `Backends/SDL` (`fetch-accesskit.py`, then
+   `PKG_CONFIG_PATH=Backends/SDL/.accesskit`): 21 + 19 passed (the only
+   `warning:` Homebrew SDL's `-rpath` pkg-config flag, pre-existing).
+   `Tests/PortableTests` 18 + 6 + 5. `swift:6.4-noble` over a `git archive`
+   of `92ae50b`: `MetalUILayoutTests` 188, `MetalUICrossPlatformTests` 10
+   (`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` passed),
+   `MetalUICoreTests` 22.
+4. **Mutations of this check's design** (each from a clean tree, restored from
+   a copy, full unfiltered suite, `git status --short` empty after):
+
+   | id | mutation | summary line | reddened |
+   |---|---|---|---|
+   | MA | `public var aspectRatio: Float? = nil` added to `Sources/MetalUI/Style.swift` after `alignSelf` | `1414 tests … failed … with 1 issue` | `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` alone, naming `$s7MetalUI5StyleV11aspectRatioSfSgvg` |
+   | MB | the two-line `newStyle.gap = Axes(…)` deleted from `animated(_:_:for:pass:)` (`AnimatedStyle.swift`) | `1414 tests … failed` | `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`, `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap` |
+
+   MA shows the closing check can redden on a block-C twin no lane re-added,
+   and that it cannot skip (no `.enabled(if:)`, positive controls first). G2
+   stayed green under MA: it has no `Style().aspectRatio` fixture.
+5. **Resolution.** Every backticked test name of 25+ characters on an added
+   line of the changed docs resolves by `git grep -w` in `Sources`/`Tests`/
+   `Backends/SDL` (82 names); every ruling id cited on an added line resolves
+   to a heading or table row, except the "next unused" letters. One cited
+   name did not resolve to a live test: `everyRegisteringSiteAnimatesItsStyle`
+   (spec §6, CLAUDE.md), retired at 7b — `LR-FU` item 3(f).
+6. **Invariants, by name** (all passed in item 1's log, none edited by the
+   stage): `theSevenRetentionSlotsAreMutuallyDistinct`,
+   `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+   `everyBackgroundPaintingSiteAnimatesItsColour`,
+   `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`,
+   `theTopmostOfTwoOverlappingHandlersRuns`,
+   `onClickIsLiveOnEveryConformerThatCanRegisterOne`,
+   `everyHandlerRegisteringSiteHonoursAllowsHitTesting`,
+   `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScroll`,
+   `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`,
+   `theDemoFrameMatchesTheValuesRecordedOnMacOS`,
+   `everyProductionTreeBuildsOnAOneMegabyteThread`. `ModifiedElement.swift`
+   and the `ModifiedContent` sources are outside the diff (stage 11 not
+   pre-empted); plan task 7 is `- [ ]` with a dated stage-10 note.
+7. **Doc defects fixed** (`LR-FU` item 3): the border-fold "survives at
+   `.zero`" claim (record §05, CLAUDE.md), the overflow accessor called a
+   positive control (record §05), "no caller loses behaviour" (record §05),
+   §6.4's record §04 edit that never landed (written now, with divergence
+   54's live pin) and its `08-ci.md` file name, "`Stack`'s `style:`
+   parameter" (five docs), the retired `everyRegisteringSiteAnimatesItsStyle`
+   cited as live (spec §6, CLAUDE.md), CLAUDE.md's stage-2 bullet, guard
+   sentence and "Eight constraints", and three 28-field comments in
+   `AnimationTests.swift` (comment and message text only). `LR-` next unused
+   moves to `LR-FV`.
+
+**Verdict: merge.** No code defect found.

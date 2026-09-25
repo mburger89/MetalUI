@@ -35,7 +35,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
   (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-FU`), `GR-` (next `GR-AU`),
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-FV`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -116,7 +116,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   legacy `.frame`) keeps working through the lowering, now its only path;
   **no new SwiftUI probe** — the stage claims no new SwiftUI behaviour
   (`LR-FH` item 4)),
-  7 stage 10 `LR-FM`…`LR-FT` (§52, spec
+  7 stage 10 `LR-FM`…`LR-FU` (§52, spec
   `specs/2026-09-24-engine-stage-10-design.md`, same decisions doc — `Style`'s
   CSS fields resolved field by field (deleted, narrowed to `package`, or
   moved into `MetalUI`), every inherited `Style`-field report made a
@@ -246,7 +246,7 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `.opacity` G4 and `deferred.amended` with `Component.width` over a
   presentation member stay for **stage 11**; divergence 52, the eight
   deprecated sizing modifiers and the `fraction:` spellings, and whether
-  `Box`'s/`Stack`'s public `style:` parameter (inert outside the package
+  `Box`'s public `style:` parameter (inert outside the package
   since narrowing) is deprecated or removed, stay for **plan task 15**
   (closeout). History: record §52 (§1–§3 baseline and critic round, §4 lane
   1, §5 lane 2, §6 the Record phase's independent close).
@@ -739,8 +739,9 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `ProposalNodeID`, **three** `FrameSizing` (stage 8's N3.1 the
   third), three `Decoration`, four `Container`,
   four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary`,
-  **three** `StyleSurfaceCompileGuards` (stage 10, `aPlainImportCannotWriteAStyleField`
-  a plain-import guard, the other two whole-file compile fixtures) and seven of
+  **three** `StyleSurfaceCompileGuards` (stage 10, all three plain-import
+  `typecheckFile` guards: `aPlainImportCannotWriteAStyleField`,
+  `theDeletedStyleSpellingsDoNotCompile`, `theLayoutKernelDeclaresNoStyle`) and seven of
   `EnvironmentCompileGuards`'. A guard about what an external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
@@ -898,7 +899,9 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 Eight constraints that fail silently:
 
 - `MetalUILayout` imports only `MetalUICore` (anchored grep; since `PC-A`
-  an Apple import also fails the Linux and Windows builds).
+  an Apple import also fails the Linux and Windows builds), and since stage 10
+  declares no `Style` (`LR-FM` item 3; plain-import guard
+  `theLayoutKernelDeclaresNoStyle`, which skips silently where guards skip).
 - `MetalUIScene` imports only `MetalUIShaderTypes` — no Foundation, CoreText,
   CoreGraphics or Metal (`PS-A`). macOS cannot see a violation; the Swift
   workflow's `scene-linux` job can (`PS-G`). An initialiser that must stay
@@ -1225,7 +1228,9 @@ back unless a frame build is coming; both clauses are measured fixes.
 Layout-phase helper `animated(_:_:for:pass:)` (`AnimatedStyle.swift`); colour
 helper `animatedBackground` in paint (`AnimatedColor.swift`, needs the theme).
 A site that skips its helper is silently unanimated — guards
-`everyRegisteringSiteAnimatesItsStyle`, `everyBackgroundPaintingSiteAnimatesItsColour`.
+`everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` (which
+replaced `everyRegisteringSiteAnimatesItsStyle` at stage 7b, record §49 row
+241), `everyBackgroundPaintingSiteAnimatesItsColour`.
 Interpolation is per-component RGB, never hue; slots store tokens. "Live" is
 `Frame.noteActiveAnimation()` → `hasActiveAnimations`, copied after the whole
 render; **not** `wantsAnotherFrame` — never raise both. **Snaps:** any
@@ -1283,15 +1288,17 @@ out through the propose/measure/place kernel. Detail: §19
   `flexShrink: 0` as `fixedSize` and any positive shrink as SwiftUI's
   compression; px/rem `minSize`/`maxSize` folded into a declared size as
   `max(min, min(size, max))`; `Style.border` as insets inside the declared
-  size; a `Text`'s `Style.padding` around **its leaf** (glyphs paint and wrap
+  size (until stage 10 deleted the field, `LR-FM` item 1); a `Text`'s `Style.padding` around **its leaf** (glyphs paint and wrap
   at the leaf); `margin` as a native padding outside the item frame, unaliased,
   `.auto` as 0, negative accepted; `justifyContent`'s three distributions as
   native spacers plus a rigid gap leaf, with a declared main size only;
   `.rowReverse`/`.columnReverse` as the children's **nodes** reversed with the
   main factor mirrored (identity, paint, hit and accessibility order
-  untouched). Still reported by name, each with an owner: percentages, unequal
+  untouched). Still reported by name: percentages, unequal
   grow weights, a length `flexBasis`, a non-greedy `maxSize`, `space-*` on an
-  unsized container a parent grows, `baseline`, `hidden()`. **Structure reads
+  unsized container a parent grows, `baseline` — since stage 10 each a
+  **permanent refusal** (`owner: nil`, `LR-FO`) except `baseline` (owner plan
+  task 11); `hidden()` lowers since stage 6b (`LR-DH`). **Structure reads
   the declared style, values the animated one** (`LR-AS`); a new read of
   `Style` in the lowering owes an animated arm, or it is unpinned. A `Stack`
   and a `.frame` layer ignore a child's margin, as the legacy engine did. A
@@ -1439,7 +1446,7 @@ out through the propose/measure/place kernel. Detail: §19
   the legacy authority was deleted (stage 9 did); `Component.width`/`height`
   stay undeprecated (stage 11). Record §50.
 - **Stage 10 resolves `Style`'s CSS fields field by field, and closes the
-  deletion mechanically** (`LR-FM`…`LR-FT`). **Deleted**: `aspectRatio`,
+  deletion mechanically** (`LR-FM`…`LR-FU`). **Deleted**: `aspectRatio`,
   `overflow` (read by nothing), `Style.border` (`Box(style:)` its only
   writer), `flexWrap`, `alignContent` (read only to be reported) and
   `Position.relative` (read only to be reported), with the enums
@@ -1447,7 +1454,7 @@ out through the propose/measure/place kernel. Detail: §19
   `flexWrap(_:)`/`alignContent(_:)`. **Narrowed**: every surviving stored
   field (seventeen) and `Display`/`JustifyItems` become `package` — outside
   the package `Style` is opaque (`init()`, `default`, `==`), pinned by
-  `aPlainImportCannotWriteAStyleField`; `Box`'s/`Stack`'s public `style:`
+  `aPlainImportCannotWriteAStyleField`; `Box`'s public `style:`
   initialiser parameter is therefore inert outside the package (record §05).
   **Moved**: `Style.swift` from `MetalUILayout` to `MetalUI`, its only reader
   since stage 9 — `MetalUILayout` declares no CSS vocabulary at all.
@@ -1466,8 +1473,10 @@ out through the propose/measure/place kernel. Detail: §19
   Linux, compiled out on Windows) in place of the retired
   `noProductionFrameReachesTheLegacyEngine`, three plain-import guards
   (`StyleSurfaceCompileGuards`) and a recorded grep (`LR-FP`). No production
-  behaviour moves beyond the border-fold arithmetic now folding a border that
-  can only ever be `.zero`. Stage 10 pre-empts nothing of 11:
+  behaviour moves: no production tree wrote a deleted field, and
+  `paddedAndSized`'s insets are the padding alone now that `Style.border` is
+  gone (the border fold is deleted with it, not kept at `.zero` — `LR-FU`).
+  Stage 10 pre-empts nothing of 11:
   `ModifiedElement`/`ModifiedContent` stay separate, legacy `.overlay` and
   `.opacity` G4 are untouched, and `deferred.amended` stays stage 11's.
   Record §52.
@@ -1729,7 +1738,10 @@ expected, measured facts:
   purpose*; a test named for one reddening may be a fix, not a bug. **Stage 10
   moves no divergence number** — 9, 10 and 54 were re-read for the
   permanent-refusal wording (`UnlowerableField.owner`) and hold unchanged in
-  substance (record §04's implicit stage-10 check, spec §9).
+  substance (record §04's 2026-09-24 stage-10 section, added by the branch
+  check, `LR-FU`, which also names 54's live pin,
+  `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem` — the
+  table's name retired at 7b).
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
   `hidden()` on
   drawing/focusable subtrees, `AnyElement`'s `@State`, `PaintPass.isActive`,
@@ -1771,7 +1783,7 @@ expected, measured facts:
   further: `Style.margin` is no longer public, so the case is unreachable
   from outside the package by any route, not only through
   `StyledElement.margin(_:)`'s `Length` parameter. **A row is added**:
-  `Box`'s/`Stack`'s public `style:` initialiser parameter, inert outside the
+  `Box`'s public `style:` initialiser parameter, inert outside the
   package now that every field it could set is `package` (`LR-FR` F5).
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
