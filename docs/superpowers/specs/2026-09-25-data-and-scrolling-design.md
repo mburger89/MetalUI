@@ -190,7 +190,11 @@ external module's view):
 | G1.2 | `aForEachOfLegacyContentDoesNotCompileInsideAProposalStack` — `HStack { ForEach(0..<2) { _ in Box() } }` fails | the `ProposalElementGroup` conformance made unconditional (with a trapping body) |
 
 **Retirement rows**: none (1.11 is an existing test whose assertion changes by
-ruling — record it as a changed answer, divergence 74's retirement).
+ruling — record it as a changed answer, divergence 74's retirement). **Lane 1
+found a second changed answer (`DD-N`)**:
+`aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop`'s loop arm
+read 175 (divergence 74's resumption) and now reads 200; the test is renamed
+`aReturningAnimatingElementSnapsInsideAnIfAndInsideALoop`, the count unmoved.
 **Guard delta**: +2 (`ForEachCompileGuards` 2).
 
 ### Lane 2 — `Binding`, and the `List` origin (`DD-D`, `DD-E`, `DD-F`)

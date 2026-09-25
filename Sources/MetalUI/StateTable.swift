@@ -172,8 +172,9 @@ final class StateTable {
     private var previouslyProducedSlots: Set<GlobalElementID> = []
 
     /// How many subtree resets `noteAbsent` queued: once per produced → absent
-    /// transition, never per absent frame. A work counter (spec C2.9); nothing in
-    /// production reads it. The table itself is walked once per sweep for all of
+    /// transition, never per absent frame — and, since plan task 10 (`DD-C`),
+    /// once per evaluated loop whose extent shrank (`queueLoopResets`). A work
+    /// counter (spec C2.9; lane 1's 1.15); nothing in production reads it. The table itself is walked once per sweep for all of
     /// them together (`lastResetScanWork`, `ID-R` item 8).
     private(set) var subtreeResetScans = 0
 
@@ -267,9 +268,9 @@ final class StateTable {
     /// returning a fresh, as SwiftUI's does (probe X9–X11; ruling `ID-R`).
     /// Only an EVALUATED position replaces a name: a position nothing
     /// evaluates (an `if` that went false — its own `noteAbsent` resets it; a
-    /// loop that shrank, divergence 74; anything under an element no longer
-    /// produced) departs nothing here, and a `List`'s rows are exempt
-    /// (`noteWindowedParent`).
+    /// loop that shrank — `noteLoop` resets its dropped names, `DD-C`; anything
+    /// under an element no longer produced) departs nothing here, and a
+    /// `List`'s rows are exempt (`noteWindowedParent`).
     func noteNamed(_ id: GlobalElementID, at index: Int) {
         guard case .named = id.component else { return }
         if let parent = id.parent, windowedParents.contains(parent) { return }
@@ -286,6 +287,55 @@ final class StateTable {
     /// `TB-AH`'s bounded retention.
     func noteWindowedParent(_ parent: GlobalElementID) {
         windowedParents.insert(parent)
+    }
+
+    // MARK: A loop that stops producing an element (plan task 10, ruling `DD-C`)
+
+    /// Every loop slot the frame being built evaluated, with the inner-cursor
+    /// extent it consumed; and the same for the last COMPLETED frame (swapped by
+    /// `sweep()`, as `producedSlots` is).
+    private var loopExtents: [GlobalElementID: Int] = [:]
+    private var previousLoopExtents: [GlobalElementID: Int] = [:]
+
+    /// A loop — a `for` loop's `ArrayGroup` or a `ForEach`, each in its untyped
+    /// and typed copy — was EVALUATED at `slot` and consumed `extent` indices of
+    /// its inner cursor.
+    ///
+    /// **`sweep()` resets what the loop stopped producing** (divergence 74
+    /// retired; SwiftUI's `ForEach`, probe F2, F3, F8): the positional children
+    /// at an index from this frame's extent up to last frame's (the tail an
+    /// unnamed `for` loop dropped), and every named child the slot held last
+    /// frame that this frame produced nowhere (a `ForEach` element dropped
+    /// anywhere, a `for` iteration carrying `.id()` dropped at the tail). Both
+    /// go through the one reset pass (`resetQueuedEntries`), `$focus`/`$ax`
+    /// exempted as there. **Only the loop's DIRECT children are considered**:
+    /// a `List` inside a surviving element keeps `TB-AH`'s retention for its
+    /// rows. **Only an evaluated loop calls this**: a loop inside an element
+    /// not produced notes nothing, and a loop with no extent recorded last
+    /// frame compares nothing.
+    func noteLoop(_ slot: GlobalElementID, extent: Int) {
+        loopExtents[slot] = extent
+    }
+
+    /// Queues the loop rule's resets for `sweep()`: the positional tail each
+    /// shrunk loop dropped, then — in ONE pass over last frame's named positions
+    /// for all the loops together — every named direct child produced nowhere.
+    /// Counted in `subtreeResetScans` (one per shrunk loop) and
+    /// `departedNameResets` (one per name not already departed by `ID-R`).
+    private func queueLoopResets() {
+        guard !loopExtents.isEmpty else { return }
+        for (slot, extent) in loopExtents {
+            guard let previous = previousLoopExtents[slot], previous > extent else { continue }
+            subtreeResetScans += 1
+            for index in extent..<previous {
+                departedRoots.insert(GlobalElementID(component: .positional(index), parent: slot))
+            }
+        }
+        for (position, name) in previousNamedPositions {
+            guard let parent = position.parent, loopExtents[parent] != nil,
+                  !producedNames.contains(name) else { continue }
+            if departedRoots.insert(name).inserted { departedNameResets += 1 }
+        }
     }
 
     /// The departed names `sweep()` resets this frame (filled from
@@ -731,6 +781,8 @@ final class StateTable {
             departedNameResets += 1
             departedRoots.insert(name)
         }
+        // `DD-C`: what an evaluated loop stopped producing joins the same pass.
+        queueLoopResets()
         resetQueuedEntries()
         departedNames.removeAll(keepingCapacity: true)
         lastResetScanWork = resetScanWork
@@ -739,6 +791,8 @@ final class StateTable {
         namedPositions.removeAll(keepingCapacity: true)
         producedNames.removeAll(keepingCapacity: true)
         windowedParents.removeAll(keepingCapacity: true)
+        swap(&loopExtents, &previousLoopExtents)
+        loopExtents.removeAll(keepingCapacity: true)
 
         generation += 1
         for id in storage.keys {

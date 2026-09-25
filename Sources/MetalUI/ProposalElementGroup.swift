@@ -61,7 +61,11 @@ extension ProposalElementGroup where ProposalBase == Self {
 // the verifier round on lane 3, three of the four could lose a load-bearing line
 // with the whole suite green (ruling MC-H). `Pair`'s node order is pinned by the
 // native layout tests, `ArrayGroup`'s appends by
-// `aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot`,
+// `aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot` and its
+// `noteLoop` (plan task 10, `DD-C`) by
+// `aForLoopInsideAProposalContainerResetsItsDroppedTail` (M1i), `ForEach`'s typed
+// copy (`ForEach.swift`) by
+// `aForEachInsideAProposalStackPlacesEveryElementAndResetsItsDroppedTail` (M1f),
 // `OptionalGroup`'s `wrapped = inner` by
 // `anElementInsideAnIfInsideAProposalContainerKeepsItsLayoutTimeWrites` and its
 // one structural slot (plan task 8, `ID-B`) by
@@ -157,6 +161,7 @@ extension ArrayGroup: ProposalElementGroup where Group: ProposalElementGroup {
             nodes.append(contentsOf: childNodes)
             layouts.append(childLayout)
         }
+        pass.frame.stateTable.noteLoop(slot, extent: innerCursor)  // `DD-C`, the copy's own
         return (nodes, layouts)
     }
 }

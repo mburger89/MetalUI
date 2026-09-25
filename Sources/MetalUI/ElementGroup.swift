@@ -534,10 +534,17 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
     /// unnamed item's identity *is* its position in the loop. Until `ID-B` the
     /// items sat directly in the container's flat space.
     ///
-    /// **A loop does not reset** (`ID-C`): an item it stops producing keeps its
-    /// entries and gets them back if the loop grows again — divergence 74,
-    /// owner plan task 10 (`ForEach`), pinned by C2.4b. The typed copy is pinned
-    /// on its own (`aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot`).
+    /// **An item the loop stops producing is reset** (plan task 10, ruling
+    /// `DD-C`, retiring divergence 74): the loop notes its slot and the inner
+    /// extent it consumed (`StateTable.noteLoop`), and the sweep resets the
+    /// positional tail it dropped and every named iteration it produced nowhere,
+    /// so an item that returns starts fresh — `ForEach(0..<n)`'s answer (probe
+    /// F3). Until `DD-C` the item kept its entries and got them back. This copy's
+    /// `noteLoop` is pinned by C2.4b (`aShrinkingForLoopLeavesTheTrailingSiblingsStateAlone`,
+    /// mutation M1g) and `aForLoopsNamedIterationDroppedAtTheTailStartsFreshOnReturn`;
+    /// the typed copy's by `aForLoopInsideAProposalContainerResetsItsDroppedTail`
+    /// (M1i), and its appends by
+    /// `aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot`.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
@@ -555,6 +562,7 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
             nodes.append(contentsOf: childNodes)
             layouts.append(childLayout)
         }
+        pass.frame.stateTable.noteLoop(slot, extent: innerCursor)  // `DD-C`
         return (nodes, layouts)
     }
 

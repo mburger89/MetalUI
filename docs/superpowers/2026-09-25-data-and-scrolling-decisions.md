@@ -2,7 +2,7 @@
 
 Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-data-and-scrolling-design.md),
 on `feat/data-and-scrolling` from `e7bc2e7`. Ids are **lettered**,
-`DD-A`…`DD-M`; next unused is **`DD-N`**. A bare `DD-3` is a typo, not a
+`DD-A`…`DD-N`; next unused is **`DD-O`**. A bare `DD-3` is a typo, not a
 citation. **A round that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-25: DESIGNED, then CRITICISED AND REVISED** (the critic
@@ -649,4 +649,38 @@ branch may not edit, so they are recorded here under `DD-`):
 - *"Part-2 creep."* `ScrollViewReader` is programmatic scrolling (part 1's
   text); `scrollPosition(id:)`, `ForEach(Binding)`, selection and controls are
   all in `DD-J`. No change.
+
+---
+
+## DD-N — lane 1: a second changed answer `DD-C` owes, which the design did not list
+
+**Ruling.** `DD-C`'s loop reset changes the answer of **one more existing
+test** than the design named (the design named only C2.4b, test 1.11):
+`AnimationTests.swift`'s `aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop`,
+whose second arm — an animating subject, `.id("subject")`, inside
+`for _ in 0..<(show ? 1 : 0)`, vanishing mid-flight and returning — pinned
+divergence 74's **tombstone resumption** (the `$anim` baseline survived, the
+return frame read **175** on the original trajectory). Under `DD-C` the loop
+resets the dropped named iteration, `$anim` included, so the return frame
+snaps to the declared **200**, exactly as the `if` arm already did (`ID-C`).
+This is `DD-C` item 4's migration note ("a fresh `$anim` slot") measured, not
+a new behaviour.
+
+1. **The arm is inverted** (175 → 200) and the test is **renamed**
+   `aReturningAnimatingElementSnapsInsideAnIfAndInsideALoop` — the old name
+   states the retired behaviour. A rename, not a retirement: the test count
+   does not move and every assertion is kept, the loop arm's value changed by
+   ruling. **Red before: 175** (lane 1's red run, `0d52013`).
+2. **Where tombstone resumption still exists**: nowhere a loop or conditional
+   evaluates — only a `List` row out of the window (`TB-AH`, bounded), which no
+   test pins for `$anim`. Recorded, not added.
+
+**Why the design missed it.** The design grepped for divergence 74's pin
+(C2.4b) and the source comments citing it; the animation test cites
+"divergence 74, owner plan task 10" in a doc comment the grep did not reach
+(the Record phase copies this finding to record §57 as a design-time miss).
+
+**Evidence.** Lane 1's red run (`175.0`), and the green run after the loop
+rule (`200`); mutation M1h (the named half of the loop rule removed) reads 175
+here again.
 
