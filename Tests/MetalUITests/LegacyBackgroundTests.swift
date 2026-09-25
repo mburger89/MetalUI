@@ -16,6 +16,10 @@ import MetalUICore
 private func px(_ v: Float) -> Pixels { Pixels(v) }
 private func dim(_ v: Float) -> MetalUICore.Dimension { .length(.pixels(Pixels(v))) }
 
+private func bounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixels> {
+    Bounds(origin: Point(x: px(x), y: px(y)), size: Size(width: px(w), height: px(h)))
+}
+
 private func sized(_ w: Float, _ h: Float) -> Style {
     var s = Style()
     s.size = Size(width: dim(w), height: dim(h))
@@ -145,6 +149,69 @@ private final class ClickLog {
     let modifier = child(rootID, 0)
     #expect(typedReads.ids["pbg"] == child(GlobalElementID.child(of: modifier, at: -1, name: nil), 0),
             "typed entry: \(String(describing: typedReads.ids["pbg"]))")
+}
+
+// MARK: - B3.4: both sides through `lowerAttachmentChildren`
+
+/// **B3.4 — a legacy background consumes its primary's and its background's
+/// records as a frame layer does, and drops a background-side presentation's
+/// placeholder** (ruling `ID-J`, `ID-Q` item 5). The background copy of
+/// `aLegacyOverlayConsumesItsPrimarysAndOverlaysRecordsAsAFrameLayerDoes` and
+/// `anOverlaySideDeferredPresentsAgainstTheWindowAndLeavesNoPlaceholder`: B3.1–
+/// B3.3 use only fixed-size leaves with no item field, over which
+/// `lowerAttachmentChildren` does nothing, so dropping either call reddened
+/// none of them (verifier V5/V6).
+///
+/// Arm 1: `Row { Box(30×20).flexGrow(1).background(.topLeading) { Box(10×10)
+/// .margin(5) }; Box(10×10) }` 200×100 under diagnostics. The report is empty
+/// (the primary's grow and the background's margin are consumed); both are
+/// dropped as a frame layer's child's are — the primary stays 30×20 at (0, 40),
+/// the background sits at its origin 10×10, the sibling follows at (30, 45).
+///
+/// Arm 2: a 40×30 `Box` root with a background-side `Deferred` over an
+/// absolute 10×10 box inset (5, 5), 200×100: the presented box reads (5, 5)
+/// against the window, the primary is centred at (80, 35) (`CN-J`), and the
+/// tree holds 7 nodes — measured, the overlay's figure; a placeholder left in
+/// the background stack makes it 8.
+///
+/// Mutations: **V5** (`let primary = contentNodes`) reports
+/// `box.flexGrow.unconsumed`; **V6** (`let secondary = backgroundNodes`)
+/// reports `box.margin.unconsumed` and reads 8 nodes.
+@Test @MainActor func aLegacyBackgroundLowersBothSidesAsAFrameLayerDoes() throws {
+    var root = Row {
+        Box(style: sized(30, 20)).flexGrow(1)
+            .background(alignment: .topLeading) { Box(style: sized(10, 10)).margin(px(5)) }
+        Box(style: sized(10, 10))
+    }.cssWidth(px(200)).cssHeight(px(100))
+    let frame = Frame(contentSize: Size(width: px(200), height: px(100)), scaleFactor: 1,
+                      reportsUnlowerableFields: true, recordsElementBounds: true)
+    frame.render(&root)
+    #expect(frame.unlowerableFields.isEmpty, "report: \(frame.unlowerableFields)")
+    let modifier = child(rootID, 0)
+    let primary = child(modifier, 0)
+    let background = child(GlobalElementID.child(of: modifier, at: -1, name: nil), 0)
+    let sibling = child(rootID, 1)
+    #expect(frame.elementBounds[primary] == bounds(0, 40, 30, 20),
+            "primary \(String(describing: frame.elementBounds[primary]))")
+    #expect(frame.elementBounds[background] == bounds(0, 40, 10, 10),
+            "background \(String(describing: frame.elementBounds[background]))")
+    #expect(frame.elementBounds[sibling] == bounds(30, 45, 10, 10),
+            "sibling \(String(describing: frame.elementBounds[sibling]))")
+
+    var absolute = sized(10, 10)
+    absolute.position = .absolute
+    absolute.inset = Edges(top: dim(5), right: .auto, bottom: .auto, left: dim(5))
+    var presenting = Box(style: sized(40, 30)).background { Deferred { Box(style: absolute) } }
+    let second = Frame(contentSize: Size(width: px(200), height: px(100)), scaleFactor: 1,
+                       reportsUnlowerableFields: true, recordsElementBounds: true)
+    second.render(&presenting)
+    #expect(second.unlowerableFields.isEmpty, "report: \(second.unlowerableFields)")
+    let presented = child(child(GlobalElementID.child(of: rootID, at: -1, name: nil), 0), 0)
+    #expect(second.elementBounds[presented] == bounds(5, 5, 10, 10),
+            "presented \(String(describing: second.elementBounds[presented]))")
+    #expect(second.elementBounds[child(rootID, 0)] == bounds(80, 35, 40, 30),
+            "primary \(String(describing: second.elementBounds[child(rootID, 0)]))")
+    #expect(second.tree.nodeCount == 7, "nodes \(second.tree.nodeCount)")
 }
 
 // MARK: - B3.3: the named trap (divergence 73)
