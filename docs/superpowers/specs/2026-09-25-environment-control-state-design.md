@@ -44,6 +44,18 @@ under SDL's offscreen driver); every M2.* reddened its named test; 0 px in all
 fourteen offscreen images; screen locked, so no capture and no C-arm re-run.
 Detail: record §56 §2.
 
+**Lane 3 ran, 2026-09-25** (`a52132a` red, `d860bdb` implementation): as
+designed, no ruling change. Conformers before the requirement landed, by
+grep: `AppKitWindow`, `SDLWindow`, `FakePlatformWindow` — the three named.
+T3.4 imports `MetalUIPlatform` itself (`typecheckFile` sees it under
+`#filePath`'s layout). Root **1506 tests in 3 suites passed** after `swift
+package clean`, **90 guards**; every M3.* and MG7/MG8 reddened its named test
+(M3.4's set equals M3.2's, since `Window.environment` holds `.key` against the
+fake's `.inactive`; M3.5 also reddens the two pre-existing resize tests);
+`Backends/SDL` 21 + 22 on macOS, 21 + 21 in a `swift:6.4-noble` container; 0
+px in all fourteen offscreen images; screen locked, so no capture and no C-arm
+re-run. Detail: record §56 §3.
+
 ## Contents
 
 1. Baseline

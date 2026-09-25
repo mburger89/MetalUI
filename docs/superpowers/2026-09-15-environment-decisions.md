@@ -2148,8 +2148,16 @@ the `SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED` case) reddened
 `aScaleOrPixelSizeChangeReachesOnResize` alone (2 issues; the whole
 `Backends/SDL` suite, 21 + 22); M2.12 (`MetalHostView.viewDidChangeBackingProperties`
 stops calling `onGeometryChange`) reddened `aBackingPropertiesChangeReachesOnResize`
-alone (1 issue; the full unfiltered root suite of 1501). Still owed: lane 3
-(M3.5, M3.6).
+alone (1 issue; the full unfiltered root suite of 1501). Lane 3 **ran** its
+two at `d860bdb` (committed first, restored from a copy, full unfiltered root
+suite of 1506, `git status --short` clean after each): M3.5 (`Window`'s
+`onResize` closure does nothing) reddened
+`aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame` (3 issues) and the
+two pre-existing resize tests, `resizingTheWindowDirtiesItAndTheNextFrameLaysOutAtTheNewSize`
+and `aRealAppKitResizeDirtiesTheWindowAndTheNextFrameReflows` (4 each) — 11;
+M3.6 (`Frame(scaleFactor: platformWindow.scaleFactor)` in place of the
+drawable's) reddened `aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame`
+alone (2: the separating arm's two lines).
 
 ## EV-AB — `controlActiveState` comes from the platform window, through a new `PlatformWindow` pair; a scope can write it
 
@@ -2246,8 +2254,26 @@ dropped) the same test alone (2: the repeat arm and the final log); M2.10
 test alone (1: the wiring arm); M2.11 (application activity checked first,
 `!isApplicationActive → .inactive`) reddened
 `theAppKitMappingPutsKeyBeforeActiveBeforeInactive` alone (1: the key
-non-activating-panel row). M2.7 and M2.12 are under `EV-AA`. Still owed:
-lane 3 (M3.1–M3.6, MG7, MG8).
+non-activating-panel row). M2.7 and M2.12 are under `EV-AA`. Lane 3 **ran**
+M3.1–M3.4, MG7 and MG8 at `d860bdb` (each committed first, restored from a
+copy, full unfiltered root suite of 1506, `git status --short` clean after
+each; M3.5 and M3.6 are under `EV-AA`): M3.1 (`Window.init` does not assign
+`onControlActiveStateChange`) reddened
+`theWindowStampsItsPlatformsControlActiveStateAndAChangeRepaints` alone (5);
+M3.2 (the stamp line omitted at draw) reddened that test (2) and
+`aScopeWriteOfControlActiveStateWinsBelowItAndTheWindowsEnvironmentDoesNot`
+(2); M3.3 (`controlActiveState`'s `didSet` without its `!=` guard) reddened
+the first alone (1: the no-op arm); M3.4 (the stamp applied to the frame's
+root **before** `frame.rootEnvironment = environment`, so `Window.environment`
+lands over it) reddened the same two tests on the same four lines as M3.2 —
+because `Window.environment.controlActiveState` holds the bare `.key` and the
+fake starts `.inactive`, the first arm of each already sees `Window.environment`
+win; T3.2's `Window.environment` write arm (its last root read) is among the
+four, as the spec named; MG7 (a protocol-extension default for both
+requirements) reddened `aPlatformWindowWithoutTheControlActiveStatePairDoesNotCompile`
+alone (1: the negative compiled); MG8 (`public var controlActiveState` on
+`Window`) reddened `theWindowsControlActiveStateIsReadableButNotSettableOutsideTheModule`
+alone (1: the write compiled).
 
 ## EV-AC — `controlSize` is carried with SwiftUI's five sizes and no built-in reader (divergence 76)
 

@@ -4,10 +4,10 @@ Branch `feat/environment-control-state` from `e732d98`. Spec
 `docs/superpowers/specs/2026-09-25-environment-control-state-design.md`;
 rulings `EV-AA`…`EV-AF` appended to
 `docs/superpowers/2026-09-15-environment-decisions.md`; probe
-`docs/probes/swiftui-environment-control-state.swift`. **This file is lanes 1 and 2's
+`docs/probes/swiftui-environment-control-state.swift`. **This file is lanes 1–3's
 first draft**, written so its measurements are not lost before the Record
-phase; the Record phase owns its final shape (design-phase section, lanes 2
-and 3, divergence and inert rows, counts).
+phase; the Record phase owns its final shape (design-phase section, divergence
+and inert rows, counts).
 
 ## 1. Lane 1 — the values
 
@@ -238,3 +238,103 @@ scene identical**. (`8418d43` changes only an SDL test.)
 **Real-window capture: not taken.** Lock probe at lane 2's end (13:54 PDT):
 `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`, `displayActive main:
 0`. The probe's C arms were not re-run.
+
+## 3. Lane 3 — the seam
+
+Commits: `a52132a` (red tests), `d860bdb` (implementation).
+
+### 3.1 What landed
+
+- **Conformers, by grep before the requirement** (`(class|struct|actor|extension)
+  … PlatformWindow` over `Sources`, `Tests`, `Backends/SDL`, `Experiments`):
+  `AppKitWindow` (`Sources/MetalUIAppKit/AppKitPlatform.swift`), `SDLWindow`
+  (`Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`), `FakePlatformWindow`
+  (`Tests/MetalUITests/Fakes.swift`) — the spec's three, no fourth.
+- `PlatformWindow` requires `controlActiveState` and
+  `onControlActiveStateChange`, no default.
+- `Window`: `public private(set) var controlActiveState`, read from the
+  platform window in `init`, its `didSet` guarded by `!=` then
+  `setNeedsRedraw()`; the callback assigns it; `drawFrameIfNeeded` builds the
+  root as `environment` with `controlActiveState` stamped over it before
+  `frame.rootEnvironment = …`. `environment`'s doc now names **three** fields
+  that are not the root's source (`theme`, `displayScale` — `pixelLength`
+  derived — and `controlActiveState`), replacing the stale "`pixelLength` from
+  the surface's scale factor"; the `onResize` hook's comment names it the
+  backing-scale path.
+- Fakes: the pair on `FakePlatformWindow` (default `.key`, so no existing test
+  moved); `simulateControlActiveStateChange(to:)`, which fires on every call so
+  `Window`'s own guard is what T3.1's no-op arm tests; `FakeRenderSurface.scaleFactor`
+  (settable, returned by `nextFrame()`, so `beginFrame()`); and
+  `simulateBackingScaleChange(to:)`, which sets both scales and fires `onResize`.
+- Tests: `Tests/MetalUITests/WindowControlStateTests.swift` (T3.1–T3.3),
+  `Tests/MetalUITests/ControlStateCompileGuards.swift` (T3.4, T3.5; 2
+  `canTypecheck` lines). **T3.4 imports `MetalUIPlatform` itself**: its
+  module is in `.build/<triple>/debug/Modules`, so `typecheckFile` sees it.
+
+### 3.2 Red
+
+`swift build --build-system native --build-tests` at `a52132a`: 10 `error:`
+sites, all in `WindowControlStateTests.swift` — `value of type
+'FakePlatformWindow' has no member 'controlActiveState'` /
+`'simulateControlActiveStateChange'` / `'simulateBackingScaleChange'`, `value
+of type 'Window' has no member 'controlActiveState'`, `value of type
+'FakeRenderSurface' has no member 'scaleFactor'`. The guards, run alone with
+that file set aside (and restored before the commit): T3.4 `without
+succeeded=true` (the conformer without the pair compiled — no requirement
+yet), failing its `#require`; T3.5 `read succeeded=false … value of type
+'Window' has no member 'controlActiveState'`, failing its `#require`. Both
+ran, not skipped.
+
+### 3.3 Mutations
+
+Each committed first (`d860bdb`), applied by exact-string substitution to one
+site, restored from a copy, native build and the full unfiltered root suite
+(1506, one summary line each), `git status --short` empty after each.
+
+| # | mutation | reddened | issues |
+|---|---|---|---|
+| M3.1 | `Window.init` does not assign `onControlActiveStateChange` | `theWindowStampsItsPlatformsControlActiveStateAndAChangeRepaints` | 5 |
+| M3.2 | `rootEnvironment.controlActiveState = controlActiveState` deleted | `theWindowStampsItsPlatformsControlActiveStateAndAChangeRepaints` (2), `aScopeWriteOfControlActiveStateWinsBelowItAndTheWindowsEnvironmentDoesNot` (2) | 4 |
+| M3.3 | `controlActiveState`'s `didSet` without `guard … != oldValue` | `theWindowStampsItsPlatformsControlActiveStateAndAChangeRepaints` (the no-op arm) | 1 |
+| M3.4 | the stamp written into `frame.rootEnvironment`, then `frame.rootEnvironment = environment` over it | as M3.2, the same four lines | 4 |
+| M3.5 | `platformWindow.onResize = { _, _ in }` | `aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame` (3), `resizingTheWindowDirtiesItAndTheNextFrameLaysOutAtTheNewSize` (4), `aRealAppKitResizeDirtiesTheWindowAndTheNextFrameReflows` (4) | 11 |
+| M3.6 | `Frame(scaleFactor: platformWindow.scaleFactor, …)` | `aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame` (the separating arm's two lines) | 2 |
+| MG7 | `extension PlatformWindow` defaulting both requirements | `aPlatformWindowWithoutTheControlActiveStatePairDoesNotCompile` | 1 |
+| MG8 | `public var controlActiveState` on `Window` | `theWindowsControlActiveStateIsReadableButNotSettableOutsideTheModule` | 1 |
+
+**M3.4 does not separate from M3.2**, and the spec's "(the second arm)" is
+narrower than what it reddens: `Window.environment.controlActiveState` holds
+the bare `.key` while the fake starts `.inactive`, so under M3.4 the first
+root read of T3.1 and of T3.2 already sees `Window.environment` win, exactly
+as with the stamp deleted. T3.2's `Window.environment` write arm (its last
+root read, `:141`) is among the reddened lines, as named. No mutation of this
+lane reddened nothing.
+
+### 3.4 Exit
+
+Root, after `swift package clean` (`Window` gained a stored property):
+`swift build --build-system native --build-tests` then unfiltered `swift test
+--build-system native --no-parallel`: **`Test run with 1506 tests in 3 suites
+passed`** (1501 + 3 + 2), guards ran (`FR-J no-argument frame: succeeded=`,
+and both new guards printed their `EV-AB` lines), **90 guards** (88 +
+`ControlStateCompileGuards` 2). 0 `error:`; the only `warning:` under native
+is SwiftPM's notice; the default build system's `swift build --build-tests`
+printed no `warning:` or `error:`. `MetalUILayout` imports only
+`MetalUICore`. `everyProductionTreeBuildsOnAOneMegabyteThread` and
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` passed in that run.
+
+`Backends/SDL` on macOS (`PKG_CONFIG_PATH=$PWD/.accesskit swift test` in
+`Backends/SDL`): `ReplayFixtureTests` 21, `MetalUISDLTests` 22 — `SDLWindow`
+satisfies the new requirement with lane 2's public pair. In a
+`swift:6.4-noble` container (`metalui-portable-ax`, repository at `/work`,
+`--scratch-path /tmp/sb`): 21 and 21, passed.
+
+**Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> e732d98 d860bdb` —
+controls 1048576, 1031003, 454895, 0, 1048576, 0, 544 / 216, 491221, 529,
+indicator rects 0; **all fourteen images `differing=0`, scene identical**.
+`Expected.swift` unedited.
+
+**Real-window capture: not taken.** Lock probe at lane 3's end (14:26 PDT):
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`, `displayActive main:
+0`. The probe's C arms were not re-run; `EV-AB`'s key/active mapping stays
+MetalUI's choice, owed that re-run.
