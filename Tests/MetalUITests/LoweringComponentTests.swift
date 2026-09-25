@@ -108,25 +108,30 @@ private func lane4Rect(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glob
             "\(arm): \(String(describing: r.bounds[id]))", sourceLocation: sourceLocation)
 }
 
-// MARK: - 4.1 The amend frames each member where the legacy amend overwrites it
+// MARK: - 4.1 The amend frames each member
 
-/// **Test 4.1** (`LR-BG`), a **divergence pin**. A caller's `.width(70)` on a
-/// component OVERWRITES each member's own declared width under the legacy
-/// authority (divergence 48; its own CSS-engine pin,
-/// `aComponentsWidthStillOverwritesItsMembersDeclaredWidth`, was retired by
-/// stage 7b as a D row — this test is now divergence 48's legacy-arm pin
-/// until stage 9, record §49 row 219) and FRAMES each member under the
-/// proposal one, which is SwiftUI's answer.
+/// **Test 4.1** (`LR-BG`). A caller's `.width(70)` on a component FRAMES each
+/// member — each member at its own width, centred in its own 70 — which is
+/// SwiftUI's answer.
 ///
-/// | arm | legacy | lowered | SwiftUI |
-/// |---|---|---|---|
-/// | **C1** `Pair().width(70)` | members **70**×10 at x 0 and 70 | 30 and 50 wide, centred at x **20** and **80** | probe W1 (a at 96, b at 164 in a 300pt host — each member centred in its own 70) and component-distribution G7 |
-/// | **C2** `Solo().width(70)` | member **70**×10 at x 0 | 30 wide at x **20** | component-distribution G8 (a at x 20 in a 70pt outer) |
+/// | arm | framed (asserted) | SwiftUI |
+/// |---|---|---|
+/// | **C1** `Pair().width(70)` | 30 and 50 wide, centred at x **20** and **80** | probe W1 (a at 96, b at 164 in a 300pt host — each member centred in its own 70) and component-distribution G7 |
+/// | **C2** `Solo().width(70)` | 30 wide at x **20** | component-distribution G8 (a at x 20 in a 70pt outer) |
 ///
 /// **The member rects are the assertion, not the group's outer size**: a frame
 /// registered around the whole group rather than per member reads the same
 /// OUTER 70 (C2) or 140 (C1) and only the members tell the two apart — which is
 /// mutation **M4a**.
+///
+/// **History.** Until stage 9 this was a divergence pin with a legacy arm: the
+/// CSS engine OVERWROTE each member's declared width (members 70×10 at x 0 and
+/// 70 in C1, 70×10 at x 0 in C2) — divergence 48, whose own CSS-engine pin
+/// (`aComponentsWidthStillOverwritesItsMembersDeclaredWidth`) stage 7b retired
+/// as a D row (record §49 row 219). The legacy arm went with the legacy
+/// authority at stage 9 (record §51), and plan task 8 retired divergence 48
+/// itself (`ID-K`, record §04's 2026-09-25 section): this test now pins only
+/// the one answer, SwiftUI's.
 ///
 /// **Renamed at stage 9** from `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt` (`LR-FE` item 6).
 @MainActor

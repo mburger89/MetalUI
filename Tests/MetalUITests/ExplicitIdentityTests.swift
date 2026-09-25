@@ -381,9 +381,12 @@ private struct NamedCounterComponent: Component {
 /// unpinned"). Names a, a, b, a against one table, three spellings E3.10 does
 /// not reach: an erased element (`AnyElement`'s own group entry, a copy of
 /// `enteringGroupMember`), a `Component` that declares its `elementID` (its
-/// untyped group entry), and a name written INSIDE a wrapper (`Box { p }.id(n)
-/// .padding(4)`: the named `Box` is an inner layer, `ModifiedContent`'s
-/// `innermostID`). Each returning probe reads 1; the constant control reads 4.
+/// untyped group entry), and a name on an INNER modifier layer (`Box { p }
+/// .padding(2).id(n).padding(4)`: `.id` names the first padding layer, which
+/// the second `.padding` makes an inner layer — `ModifiedContent`'s
+/// `innermostID`; `Box { p }.id(n).padding(4)` would not reach it, the named
+/// `Box` there being the chain's content, noted by `enteringGroupMember`).
+/// Each returning probe reads 1; the constant control reads 4.
 ///
 /// Red before: every changed arm reads 3. Mutations **MRd** (`AnyElement`'s
 /// note deleted), **MRe** (the untyped `Component` note deleted) and **MRf**
@@ -400,7 +403,7 @@ private struct NamedCounterComponent: Component {
         #expect(component.values["p"] == expected, "named Component over \(steps): \(String(describing: component.values["p"]))")
 
         let inner = render(steps) { n, reads in
-            Row { Box { ConditionalCounter("p", reads) }.id(n).padding(Pixels(4)) }
+            Row { Box { ConditionalCounter("p", reads) }.padding(Pixels(2)).id(n).padding(Pixels(4)) }
         }
         #expect(inner.values["p"] == expected, "inner-layer name over \(steps): \(String(describing: inner.values["p"]))")
     }
