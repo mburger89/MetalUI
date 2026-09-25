@@ -1,9 +1,9 @@
 # Engine replacement, stage 10 — `Style`'s CSS fields and the closing check (plan task 7)
 
 Parent design: [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
-§4.1 row 10, `LR-P`, §8. Rulings `LR-FM`…`LR-FS` in
+§4.1 row 10, `LR-P`, §8. Rulings `LR-FM`…`LR-FT` in
 [`../2026-09-17-engine-replacement-decisions.md`](../2026-09-17-engine-replacement-decisions.md)
-(next unused `LR-FT`; `LR-FR` is critic round 1's, `LR-FS` lane 1's).
+(next unused `LR-FU`; `LR-FR` is critic round 1's, `LR-FS` lane 1's, `LR-FT` lane 2's).
 Record: `docs/record/52-engine-replacement-stage-10.md` (§1 baseline, §2 the
 entry measurement).
 Instrument: `docs/probes/stage-10-legacy-symbols.txt` (every mangled name the
@@ -395,6 +395,9 @@ green.
   export (`LR-FR` F1). The lane confirms the three with `nm` on the mutant. **M2c** `Style.swift` moved back
   to `MetalUILayout` → N2.1 (block B's `$s13MetalUILayout5StyleV8flexGrowSfvg`
   resolves; block D's `$s7MetalUI5StyleV8flexGrowSfvg` does not) and G3.
+  **Amended, lane 2 (`LR-FT` item 2): measured, N2.1 reports only the
+  positive control** — its first `try #require` ends the test before the
+  absent loop; block B's name is exported by the mutant (`nm`), not reported.
   **M2d** the resolver returns `false` for every name → N2.1's positive-control
   `#require` (and nothing else).
   **M2f** (`LR-P` item 0's "restore a symbol", `LR-FR` F2) after the move,
@@ -405,7 +408,8 @@ green.
   `MetalUILayout.Style`). **M2g** `enum LayoutAuthority { case proposal }`
   re-added to `MetalUI` → N2.1 names `$s7MetalUI15LayoutAuthorityOMa`; if the
   unused enum's accessor is not emitted, the lane gives it a stored use and
-  records which. Block A's `computeLayout` and both `requestLeaf` names
+  records which (**measured, lane 2, `LR-FT` item 3: emitted with no stored
+  use**). Block A's `computeLayout` and both `requestLeaf` names
   **cannot be re-exported by any source** — their signatures name
   `AvailableSpace`, deleted by stage 9 — so those three rows are a record of
   the deletion, not a tripwire; a re-added engine under a new signature is the

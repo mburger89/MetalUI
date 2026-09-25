@@ -332,8 +332,8 @@ extension ProposalElementGroup {
     /// determining the other, ∞ a concrete axis, nil×nil passed through — and
     /// answers the content's answer to it, as SwiftUI does (ruling CN-G): a
     /// fixed-size child keeps its own size, a child that takes the offer takes
-    /// the ratio's shape. The modifier never reads the legacy CSS
-    /// `Style.aspectRatio` field.
+    /// the ratio's shape. The modifier never read the legacy CSS
+    /// `Style.aspectRatio` field, which stage 10 deleted (`LR-FM` item 1).
     ///
     /// **The kernel's rule, checked at construction** so the two layers cannot
     /// disagree (ruling SA-K item 4): the ratio must be finite and non-zero; a

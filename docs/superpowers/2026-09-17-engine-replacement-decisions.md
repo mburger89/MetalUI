@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FT`** (stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR` and its lane 1 `LR-FS`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FU`** (stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS` and its lane 2 `LR-FT`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -9930,4 +9930,50 @@ each (record §52 §4).
 **What it costs if wrong.** Nothing in `Sources/` rests on either
 prediction; they were claims about which test sees which mutation, now
 replaced by the measured sets.
+
+---
+
+## LR-FT — stage 10 lane 2: the deletion as designed; M2c reads at the positive control; the stack budget measured
+
+**Lane 2**, 2026-09-24 (PDT), commits `79cca7e` (red first: N2.1, G1–G3) and
+`133f634` (the deletion, the narrowing, the move), then one doc-comment
+commit. Mutations taken in the worktree, each built and run unfiltered and
+restored from a copy, `git status --short` empty after each (record §52 §5).
+
+1. **The design held.** The deletion needed no `Sources/` change beyond spec
+   §6's list (seven errors in `AnimatedStyle.swift`, `LegacyLowering.swift`,
+   `ScrollView.swift` once `Style.swift` was rewritten), and no test outside
+   lane 2's list (the only test errors were `StyleTests.swift`'s, after its
+   move). Suite **1410 + 4 = 1414**, guards **79 + 3 = 82**, portable
+   22 + 188 + 10 on Linux (`swift:6.4-noble`, N2.1 green there).
+2. **M2c reads at the positive control, not at block B.** With `Style.swift`
+   moved back to `MetalUILayout`, N2.1 fails at its first `try #require`
+   (`$s7MetalUI5StyleV8flexGrowSfvg does not resolve`), which ends the test
+   before the absent loop — by design (`LR-FP` item 2: a broken instrument, or
+   a moved type, reads red at the controls). Block B's
+   `$s13MetalUILayout5StyleV8flexGrowSfvg` is exported by the mutant (`nm -gU`
+   on the test binary: `T _$s13MetalUILayout5StyleV8flexGrowSfvg`), so the
+   spec's "block B's resolves" half is true of the binary but is not what the
+   test reports. G3 reddens with it, as predicted.
+3. **M2g needs no stored use.** An unused internal `enum LayoutAuthority {
+   case proposal }` in `MetalUI` exports `$s7MetalUI15LayoutAuthorityOMa` in
+   the debug test binary (`-enable-testing`), and N2.1 names it.
+4. **Block C's twins confirmed by `nm` on the real build** (`LR-FR` F1–F3):
+   M2a's three (`$s7MetalUI5StyleV8flexWrapAA04FlexE0Ovg`,
+   `$s7MetalUI13StyledElementPAAE8flexWrapyxAA04FlexF0OF`,
+   `$s7MetalUI8FlexWrapOMa`) and M2f's
+   `$s7MetalUI10LayoutPassV11requestNode5style8children0A8UILayout0cF2IDVAA5StyleV_SayAIGtF`
+   byte for byte as the instrument file predicted; M2f also reddens stage 9's
+   `aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles`.
+5. **The Windows stack budget improves, measured.** `MemoryLayout<Style>.size`
+   226 → **178** (as predicted), `Box<EmptyGroup>` 616 → 568,
+   `MemoryLayout.size(ofValue: demoContent())` 34 808 → **32 216** (54
+   `Style`s × 48 bytes), and the smallest thread stack that builds every
+   production tree on macOS arm64 (debug, the stack-budget harness in an exit
+   test, 16 KB steps then 4 KB) **> 512 and ≤ 528 KB at `8095fd9`, > 480 and
+   ≤ 484 KB at `133f634`** — both measured the same way in this session.
+
+**What it costs if wrong.** Nothing in `Sources/` rests on items 2–3; they
+are claims about which test reports which mutation, replaced by the measured
+readings.
 

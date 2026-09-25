@@ -137,3 +137,23 @@ $s7MetalUI5FrameC17requestNativeLeaf7measure0A8UILayout12LayoutNodeIDVAF0I11Meas
 #
 #   Windows: not measured (no Windows host). The test is compiled out there
 #   (LR-FP item 4).
+#
+# ---------------------------------------------------------------------------
+# F. Lane 2's confirmations on the real build (record §52 §5, LR-FT item 4),
+#    2026-09-24, `nm -gU .build/arm64-apple-macosx/debug/MetalUIPackageTests.xctest/Contents/MacOS/MetalUIPackageTests`
+#    on each mutant, after `swift package clean`:
+#
+#   M2a (FlexWrap, Style.flexWrap, StyledElement.flexWrap(_:) re-added in MetalUI):
+#     T _$s7MetalUI13StyledElementPAAE8flexWrapyxAA04FlexF0OF
+#     T _$s7MetalUI5StyleV8flexWrapAA04FlexE0Ovg
+#     T _$s7MetalUI8FlexWrapOMa
+#   M2c (Style.swift back in MetalUILayout):
+#     T _$s13MetalUILayout5StyleV8flexGrowSfvg
+#   M2f (LayoutPass.requestNode(style:children:) re-added in MetalUI):
+#     T _$s7MetalUI10LayoutPassV11requestNode5style8children0A8UILayout0cF2IDVAA5StyleV_SayAIGtF
+#   M2g (an unused internal `enum LayoutAuthority { case proposal }` in MetalUI):
+#     T _$s7MetalUI15LayoutAuthorityOMa
+#
+#   Every block-C prediction held byte for byte; no name was corrected.
+#   At lane 2's head (`133f634`) in `swift:6.4-noble` (aarch64), N2.1 passed:
+#   the five controls resolve and the thirty absent names do not, off Apple.

@@ -262,3 +262,159 @@ modal 1031003, default vs animation 454895, f0 vs f3 0, preview light vs dark
 distinct prod-default-light 529, indicator rects 0 — the stage-9 corrected
 values. **All fourteen images 0 differing, every scene identical.**
 
+
+## 5. Lane 2 — the deletion, the narrowing, the move, the closing check (2026-09-24)
+
+Commits `79cca7e` (red first: N2.1, G1–G3) and `133f634` (the deletion, the
+narrowing, the move), then the docs commit carrying this section (and one
+`Sources` doc comment, `NativeModifiedContent.swift`'s `Style.aspectRatio`
+sentence, found by the §8 grep). Ruling `LR-FT`.
+
+### 5.1 Red first
+
+At `79cca7e`, unfiltered: **`Test run with 1414 tests in 3 suites failed
+after 80.960 seconds with 17 issues.`** Four tests failed:
+
+| test | issues | first failure line |
+|---|---|---|
+| N2.1 `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` | 1 | `LegacyEngineSymbolTests.swift:115:13: Expectation failed: resolves(name)` — the first positive control, `$s7MetalUI5StyleV8flexGrowSfvg`, does not exist before the move |
+| G1 `aPlainImportCannotWriteAStyleField` | 1 | `StyleSurfaceCompileGuards.swift:44:9: Expectation failed: write.succeeded != control.succeeded` — the `Style` write compiles |
+| G2 `theDeletedStyleSpellingsDoNotCompile` | 14 | `StyleSurfaceCompileGuards.swift:86:9: Expectation failed: !result.succeeded` and `:87:9` `result.messages.contains(fixture.message)`, once each for all seven fixtures |
+| G3 `theLayoutKernelDeclaresNoStyle` | 1 | `StyleSurfaceCompileGuards.swift:112:9: Expectation failed: kernel.succeeded != control.succeeded` — `MetalUILayout.Style` exists |
+
+**The second reading of N2.1** (spec §6): with the positive-control
+`#require` set aside in scratch (restored after, `git status --short` clean),
+`--filter theLegacyEngineSymbolsAreAbsent` failed with **11 issues, exactly
+block B's eleven names** resolving (`$s13MetalUILayout5StyleV8flexGrowSfvg`,
+the five field getters, the three enum accessors, the two modifiers); every
+block-A and block-C name was already absent.
+
+### 5.2 Green
+
+`Style.swift` rewritten (four deleted fields, `border`, `.relative`, three
+enums gone; every stored field, `Display` and `JustifyItems` `package`; doc
+comments for the one engine) and `git mv`d to `Sources/MetalUI/`;
+`StyleTests.swift` `git mv`d to `Tests/MetalUICrossPlatformTests/` with
+`@testable import MetalUI` and its five deleted-field lines removed (T2.1–T2.4,
+names unchanged). The compiler named exactly spec §2.2's `Sources` sites:
+`AnimatedStyle.swift` (the `border` arm), `LegacyLowering.swift` (the
+`flexWrap`/`alignContent`/`border.percent`/`.relative` report lines and
+`paddedAndSized`'s `padding + border` inset, now `resolvedLength(padding)`),
+`ScrollView.swift` (the inert `overflow` write); `Box.swift` lost the two
+modifiers. Doc comments that described a deleted field as present were
+re-worded as history in `LegacyLowering`, `AnimatedStyle`, `StateTable`,
+`ScrollView`, `Frame`, `Box` and `NativeModifiedContent`.
+
+After `swift package clean`: `swift build --build-system native
+--build-tests` 0 `error:`, one `warning:` (SwiftPM's notice); `swift build
+--build-tests` (default build system) 0 `error:`, 0 `warning:`. Unfiltered
+`swift test --build-system native --no-parallel`: **`Test run with 1414
+tests in 3 suites passed after 79.845 seconds.`** (and `82.232` at the docs
+commit), the log carrying `FR-J no-argument frame: succeeded=`; eleven gated
+tests skipped. **1410 + 4 − 0 = 1414** (added N2.1, G1, G2, G3; removed
+none). Guards `grep -c canTypecheck`: 83 hits across seventeen files, minus
+`UnitSafetyTests`' comment and `Typecheck.swift`'s declaration = **82**
+(`StyleSurfaceCompileGuards` 3 new). Goldens 0 (`git ls-files 'Tests/*.json'`).
+
+The guards' measured messages (the log's `STYLE-SURFACE GUARD` lines): G1
+`'flexGrow' is inaccessible due to 'package' protection level`; G2
+`value of type 'Box<EmptyGroup>' has no member 'flexWrap'` / `…'alignContent'`,
+`type 'Position' has no member 'relative'`, `cannot find type 'FlexWrap' in
+scope` (and `AlignContent`, `Overflow`), `value of type 'Style' has no member
+'border'`; G3 `module 'MetalUILayout' has no member named 'Style'`. Every
+control compiled.
+
+**`MetalUILayout`**: `grep -h '^import' Sources/MetalUILayout/*.swift | sort
+-u` prints one line, `import MetalUICore`; `grep -rn 'Style'
+Sources/MetalUILayout` prints three history comments only —
+`LayoutTree.swift:36–37` (the deleted `style`/`setStyle` API and placeholder
+`Style.default` rows) and `LayoutTree.swift:144` (`setStyle`).
+
+### 5.3 Mutations
+
+Each applied to the committed `133f634` by a script, built, run unfiltered,
+restored from a copy; `git status --short` empty after each. `swift package
+clean` before M2a–M2d (M2a and M2c change a public type's stored layout or
+module). Every mutant built with 0 `error:`.
+
+| id | mutation | suite | reddened |
+|---|---|---|---|
+| M2a | `public enum FlexWrap`, `public var flexWrap: FlexWrap` on the moved `Style` and `StyledElement.flexWrap(_:)` re-added (`Style.swift`, `Box.swift`) | 7 issues | N2.1 (3: block C's `$s7MetalUI5StyleV8flexWrapAA04FlexE0Ovg`, `$s7MetalUI13StyledElementPAAE8flexWrapyxAA04FlexF0OF`, `$s7MetalUI8FlexWrapOMa` resolve), G2 (4: the `flexWrap(.wrap)` and `FlexWrap?` fixtures compile) — as predicted; the three names confirmed by `nm` (instrument block F) |
+| M2b | `Style.flexGrow` `package` → `public` | 1 issue | G1 alone — as predicted |
+| M2c | `Style.swift` moved back to `Sources/MetalUILayout/` | 2 issues | N2.1 (1: `$s7MetalUI5StyleV8flexGrowSfvg` does not resolve — the positive control ends the test, `LR-FT` item 2; `nm` shows the mutant exports block B's `$s13MetalUILayout5StyleV8flexGrowSfvg`), G3 (1) |
+| M2d | `resolves(_:)` returns `false` for every name (`LegacyEngineSymbolTests.swift`) | 1 issue | N2.1 at `LegacyEngineSymbolTests.swift:116:13` (the positive-control `#require`) and nothing else — as predicted |
+| M2e | `newStyle.padding = …` deleted from `animated(_:_:for:pass:)` (`AnimatedStyle.swift`) | 13 issues | `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` (5), `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` (3), `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap` (2), `aLoweredStackLaysOutItsAnimatedWidthAndPadding` (2), `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer` (1) |
+| M2f | `extension LayoutPass { public func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID { fatalError() } }` in `MetalUI` | 2 issues | N2.1 (1: block C's `$s7MetalUI10LayoutPassV11requestNode5style8children0A8UILayout0cF2IDVAA5StyleV_SayAIGtF`, confirmed by `nm`), stage 9's `aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles` (1) |
+| M2g | `enum LayoutAuthority { case proposal }` (internal, unused) in `MetalUI` | 1 issue | N2.1 (1: `$s7MetalUI15LayoutAuthorityOMa`) — no stored use needed (`LR-FT` item 3) |
+
+### 5.4 Size and the Windows stack budget
+
+Measured with a scratch test (deleted after) in `MetalUICrossPlatformTests`,
+at `8095fd9` (a `git archive` in the scratchpad, never a worktree) and at
+`133f634`, the same test file in both, debug, macOS arm64:
+
+| | `8095fd9` | `133f634` |
+|---|---|---|
+| `MemoryLayout<Style>.size` | 226 | **178** (spec §2.6's prediction) |
+| `MemoryLayout<Box<EmptyGroup>>.size` | 616 | 568 |
+| `MemoryLayout.size(ofValue: demoContent())` (built on an 8 MB thread) | 34 808 | **32 216** (−2 592 = 54 × 48) |
+| smallest thread stack building every production tree (`buildEveryProductionTree(onAThreadOf:)` in an exit test) | fails 512 KB, passes 528 KB | fails 480 KB, passes **484 KB** |
+
+`everyProductionTreeBuildsOnAOneMegabyteThread` and
+`aThreadTooSmallForTheDemoFailsTheSameHarness` green unedited;
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` green, `Expected.swift`
+unedited (`git diff --stat 8095fd9 -- Tests/MetalUICrossPlatformTests/Expected.swift`
+empty).
+
+### 5.5 The demo
+
+`docs/probes/demo-pixels/compare.sh <scratch>/pix 8095fd9 133f634`: controls
+light vs dark 1048576, default vs modal 1031003, default vs animation 454895,
+f0 vs f3 0, preview light vs dark 1048576, chrome pair 0, distinct 544 / 216,
+prod default vs modal 491221, distinct prod-default-light 529, indicator
+rects 0 — the stage-9 corrected values. **All fourteen images 0 differing,
+every scene identical.**
+
+### 5.6 Off the root package
+
+- **`Backends/SDL`** (`python3 Backends/SDL/scripts/fetch-accesskit.py`, then
+  `PKG_CONFIG_PATH=$PWD/.accesskit swift build --build-tests` and `swift
+  test`): 0 `error:`; `Test run with 21 tests` and `19 tests` passed
+  (`ReplayFixtureTests`, `MetalUISDLTests`; `PortableReplay`/`DemoCapture`
+  unedited). The package's `ld: warning: building for macOS-14.0, but linking
+  with dylib … libSDL3.0.dylib … built for newer version 26.0` and `'sdl':
+  prohibited flag(s)` lines are the host's Homebrew SDL3, not this change.
+- **`Tests/PortableTests`**: builds with 0 `error:`/`warning:`; 18 + 6 + 5
+  passed.
+- **`swift:6.4-noble`** (OrbStack, aarch64) over `git archive HEAD` at
+  `133f634`: `swift build --build-tests` 0 `error:`, 0 `warning:`; `swift
+  test --skip-build --filter 'MetalUICoreTests|MetalUILayoutTests|MetalUICrossPlatformTests'`
+  → **22 + 188 + 10** passed, `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+  green (the closing check off Apple).
+
+### 5.7 The recorded grep (spec §8 item 1), at lane 2's head
+
+- `grep -rn "FlexEngine\|computeLayout(\|requestNode(style" Sources`: four
+  history comments — `DemoContent.swift:768,772` (`FlexEngine`),
+  `Passes.swift:32` and `Frame.swift:1604` (stage 9's deleted registrars) —
+  record §51 §7.7's list.
+- `git ls-files 'Tests/*.json' | wc -l` → 0. `find Tests -name "*.json" | wc
+  -l` → 45, every one under `Tests/PortableTests/.build/` (0 with `-not -path
+  '*/.build/*'`) — `LR-FR` F6's reason for the `git ls-files` spelling.
+- `grep -rnE 'flexWrap|alignContent|aspectRatio|\bOverflow\b|\.relative\b|FlexWrap|AlignContent' Sources Tests/MetalUITests Tests/MetalUICrossPlatformTests Tests/MetalUILayoutTests`:
+  the proposal `.aspectRatio(_:)` family (`NativeElements`,
+  `NativeModifiedContent`, `LayoutTree`, `ProposalLayout`, their tests),
+  vendored C (`CFreeType`, `CHarfBuzz`: "Overflow"), N2.1's names and G2's
+  fixtures, and history comments: `Style.swift:11–12,27`,
+  `Box.swift:431,1041,1109–1112`, `LegacyLowering.swift:189,778`,
+  `AnimatedStyle.swift:24,47`, `NativeModifiedContent.swift:336`, and lane 1's
+  test comments (`ModifierTests.swift:24,396–397`,
+  `PresentationLoweringTests.swift:389–390`, `LoweringStackAndLayerTests.swift:106`,
+  `GoldenReplacementStackTests.swift:307–311`, `LoweringContainerTests.swift:293,346,640,655`,
+  `LayoutAuthorityTests.swift:185–186,266`, `LoweringLeafTests.swift:178,362–363`,
+  `AnimationTests.swift:1209–1463`, `StyleTests.swift:4–5`).
+  **One is present-tense and not lane 2's to edit**:
+  `LoweringContainerTests.swift:293` lists "`.wrap`: `flexWrap`; an
+  `alignContent`: `alignContent`" among the container rows in a doc comment
+  above a test whose arms lane 1 already removed — handed to the Record phase.
+- `grep -rn 'Style' Sources/MetalUILayout`: the three history comments of §5.2.
