@@ -290,7 +290,8 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 /// - single-child stretch with a declared cross size (`.height(30)`):
 ///   `alignItems.stretch`;
 /// - `.baseline`: `alignItems.baseline`;
-/// - `.wrap`: `flexWrap`; an `alignContent`: `alignContent`;
+/// - (history: `.wrap` reported `flexWrap` and an `alignContent` reported
+///   `alignContent` until stage 10 deleted both fields, `LR-FN`);
 /// - a main-axis gap in percent: `gap.percent` (a cross-axis percent gap is read by
 ///   nothing on a single line and is not reported);
 /// - every-node rows on a container: `margin` (`…unconsumed` under the harness root

@@ -347,6 +347,30 @@ module). Every mutant built with 0 `error:`.
 | M2f | `extension LayoutPass { public func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID { fatalError() } }` in `MetalUI` | 2 issues | N2.1 (1: block C's `$s7MetalUI10LayoutPassV11requestNode5style8children0A8UILayout0cF2IDVAA5StyleV_SayAIGtF`, confirmed by `nm`), stage 9's `aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles` (1) |
 | M2g | `enum LayoutAuthority { case proposal }` (internal, unused) in `MetalUI` | 1 issue | N2.1 (1: `$s7MetalUI15LayoutAuthorityOMa`) — no stored use needed (`LR-FT` item 3) |
 
+**Fix round (verifier finding V3, major).** G1 as first committed pinned one
+declaration of the nineteen the narrowing made `package`: the verifier widened
+`package enum Display` and `Style.padding` to `public` and the unfiltered suite
+still read `Test run with 1414 tests in 3 suites passed after 80.155 seconds.`
+(guards ran). G1 was extended in place (the guard count stays **82**, the
+test count **1414**): one plain-import fixture now reads all **17** surviving
+stored fields (`display`, `position`, `inset`, `size`, `minSize`, `maxSize`,
+`margin`, `padding`, `flexDirection`, `gap`, `justifyContent`, `alignItems`,
+`justifyItems`, `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`, each
+`try #require`-counted) and names `Display` and `JustifyItems`, and the guard
+expects one message per name — `'<field>' is inaccessible due to 'package'
+protection level` per field and, measured, `cannot find type '<Enum>' in scope`
+per enum (swiftc hides a `package` type from a plain import rather than naming
+its access level). The control compiles `Box().flexGrow(1)` and names the
+public `Position`. Re-run of the mutation on the fixed guard:
+
+| id | mutation | suite | reddened |
+|---|---|---|---|
+| V3 | `package enum Display` → `public`, `package var padding` → `public` (`Style.swift`), after `swift package clean` | `Test run with 1414 tests in 3 suites failed after 81.080 seconds with 2 issues.` (FR-J line present) | `aPlainImportCannotWriteAStyleField` alone, 2 issues: "`Display` is nameable from outside the package" and "`Style.padding` is not rejected by access" |
+
+Restored from a copy, `git status --short` empty; after `swift package clean`
+the unfiltered suite read `Test run with 1414 tests in 3 suites passed after
+82.152 seconds.` with the FR-J line present.
+
 ### 5.4 Size and the Windows stack budget
 
 Measured with a scratch test (deleted after) in `MetalUICrossPlatformTests`,
@@ -417,4 +441,7 @@ every scene identical.**
   `LoweringContainerTests.swift:293` lists "`.wrap`: `flexWrap`; an
   `alignContent`: `alignContent`" among the container rows in a doc comment
   above a test whose arms lane 1 already removed — handed to the Record phase.
+  **Fixed in lane 2's fix round**: the line now reads as history ("until
+  stage 10 deleted both fields, `LR-FN`"), so the grep's hit there is a
+  history comment like the rest.
 - `grep -rn 'Style' Sources/MetalUILayout`: the three history comments of §5.2.
