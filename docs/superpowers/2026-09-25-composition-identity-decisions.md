@@ -2,7 +2,7 @@
 
 Rulings for [`specs/2026-09-25-composition-identity-design.md`](specs/2026-09-25-composition-identity-design.md),
 on `feat/composition-identity` from `e3cb3e9`. Ids are **lettered**,
-`ID-A`…`ID-O`; next unused is **`ID-P`**. A bare `ID-3` is a typo, not a
+`ID-A`…`ID-P`; next unused is **`ID-Q`**. A bare `ID-3` is a typo, not a
 citation. **A round that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-25: designed; no lane has run.** Baseline measured in this
@@ -625,3 +625,62 @@ unchanged).
 **Cost if wrong.** Item 1 is a test. Item 2 adds one save/restore of a static
 per frame; the whole suite and all fourteen offscreen images read unchanged.
 
+
+---
+
+## ID-P — lane 2's amendments: an eighth retirement row, two re-spellings, the accounting, two mutation predictions
+
+**Ruling.**
+
+1. **An eighth retirement row, which the design did not list.**
+   `anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting`
+   (`AnimationTests.swift`) pinned the animation spec's §6 "free consequence of
+   `StateTable` tombstones" through an `if` (`makeDriveWindow`): a `$anim`
+   baseline surviving the excursion, 175 at t = 100.75. `ID-C` resets it (only
+   `$focus`/`$ax` are exempt) and its migration note already rules the answer
+   ("a returning element's first frame snaps"), so the exemption list is **not
+   widened** (spec risk 2): the test is renamed
+   **`aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop`** — arm 1
+   the same `if` reading the declared 200, arm 2 the same subject inside
+   `for _ in 0..<(show ? 1 : 0)` still reading 175, since a loop does not reset
+   (divergence 74). The resumption stays pinned where it still exists. The
+   design-phase scratch run (record §55 §2.3) implemented `ID-B` alone, which is
+   why its census missed this row. M2d reddens arm 1.
+2. **C2.4 re-spelled.** With equal steps, adoption and ownership both read 2
+   (`Row { for …; t }`, n 2 → 1: the adopted iteration's count plus one is the
+   trailing element's own two frames), so the spec's spelling was green before
+   the fix. The iterations count in steps of 10: adoption reads 11, measured at
+   the red run.
+3. **The overlay/background T rows' in-arm control changes meaning.** Since
+   `ID-B` no builder content moves an index at run time (an `if` and a `for`
+   take one slot, an `if`/`else` two, every other group a fixed count), so "the
+   flip moved an index inside the primary" (`1, 0, 1`) cannot be constructed.
+   The controls now assert `1, 1, 1`; what a flip of the primary still changes is
+   its node count or an index-less member. The `MC-P` numbering stays pinned by
+   the overlay's path: mutation **Mo** (the overlay side threaded through the
+   primary's cursor, both entries) reddens
+   `aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape` and
+   `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed` among eight.
+   What no test can pin any more is *state through an index-moving flip*,
+   because the flip no longer exists.
+4. **Accounting.** Lane 1's review round (`ID-O`) added O1.9 and O1.10, so lane
+   2 runs **1454 → 1465**, not 1452 → 1463; lane 3 then runs 1465 → **1481**.
+   Guards 84 → 85 → 88 unchanged.
+5. **Mutation predictions.** **M2a′** (typed `OptionalGroup`) reddens C2.5a and
+   C2.5b **and three typed-primary overlay/background tests**
+   (`aBackgroundsContentKeepsItsStateWhenThePrimaryChangesShape`,
+   `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`, L4 of
+   `aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape`) — still
+   no untyped test. **M2c′**, the typed `ArrayGroup` copy with M2c's edit, is
+   added (the spec listed only the untyped one): it reddens
+   `aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot` alone.
+6. **Comment-only edits outside the lane's listed files**, because each stated
+   the old adoption rule as current behaviour: `ScrollView.swift` (an offset
+   handed to the trailing sibling), `Window.swift` (`dispatchClick`'s doc and
+   its pin's name), `State.swift` (divergence 71's pin, renamed) and
+   `Frame.swift` (a renamed test in the sweep-ordering note). No statement moves.
+
+**Evidence.** Record §55 §6.
+
+**Cost if wrong.** Items 1–3 and 5 are how tests are spelled and what their
+instruments redden; item 4 is a count; item 6 is comments.

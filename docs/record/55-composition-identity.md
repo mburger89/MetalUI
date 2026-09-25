@@ -349,3 +349,149 @@ scene identical**. `Expected.swift` unedited.
 - The Record phase: record §05's `AnyElement` inert row, divergence 19's
   retirement and 71's addition, CLAUDE.md's "Inert inside `AnyElement`" and
   divergence 19 sentences.
+
+## 6. Lane 2 — structural slots, reset, proposal if/else (`ID-B`, `ID-C`, `ID-D`)
+
+Commits `4fe5881` (red tests), `9f2528c` (implementation), then this section
+with `ID-P`. Baseline `a2cd063`, **1454** tests (lane 1's review round added
+two, `ID-O`), not the spec's 1452 (`ID-P` item 4). No stored property on a
+public type changed (`StateTable` is internal), so no `swift package clean`.
+
+### 6.1 What landed
+
+- `OptionalGroup` and `ArrayGroup`, **both copies** (`ElementGroup.swift`,
+  `ProposalElementGroup.swift`): one cursor index always, content numbered from
+  0 under `.positional(index)`; an `ArrayGroup` threads one inner cursor across
+  its members.
+- `StateTable`: `producedSlots`/`previouslyProducedSlots`, swapped in `sweep()`
+  (`removeAll(keepingCapacity:)`); `noteProduced`; `noteAbsent` resets only
+  when the slot was produced by the last completed frame (it `remove`s the slot
+  from the previous set, so a second note in one frame scans nothing), deleting
+  every entry with the slot as a proper ancestor except a `.named("$focus")` or
+  `.named("$ax")` component; `subtreeResetScans` counts the scans. `sweep()`
+  never resets.
+- `EitherGroup`: both copies note the taken branch produced and the untaken
+  absent; the typed conformance (`ID-D`) is new. An `if`/`else` now builds two
+  branch ids per frame (was one); every allocation pin stayed green.
+- Doc comments rewritten: the groups, the `AnyElement` extension (§3.4),
+  `ElementID.swift` (identity depth), `Grid.swift`, the demo's modal comment
+  (a comment only), and — outside the listed files, `ID-P` item 6 —
+  `ScrollView.swift`, `Window.dispatchClick`, `State.swift`, `Frame.swift`.
+
+### 6.2 Red before (`4fe5881` against `a2cd063`'s sources)
+
+The test target does not build: `ConditionalIdentityTests.swift:324: value of
+type 'StateTable' has no member 'subtreeResetScans'` (C2.9) and `:399: generic
+struct 'HStack' requires that 'EitherGroup<ProposalConditionalCounter,
+ProposalConditionalCounter>' conform to 'ProposalElementGroup'` (C2.11). With
+those two compiled out (uncommitted), `Test run with 1463 tests in 3 suites
+failed … with 60 issues`, every one in a lane-2 test; G2.1 printed `positive:
+succeeded=false`, `control: succeeded=false`.
+
+| test | failing line(s) |
+|---|---|
+| C2.1 `anElementAfterAVanishingIfKeepsItsOwnState` | `root/1 == 2`, slot `== nil`, `count == 2`, `m0 == 2`, `m1 == 2` |
+| C2.2 | `root/1 == 2`; `root/0/0 == 1` |
+| C2.3 | `root/0/0 == 1`, `root/0/1 == 1`, `root/1 == 3` |
+| C2.4 | `root/0/1 == 2`, `root/0/0 == 3`; the first spelling's `root/1 == 2` was **green** — re-spelled with steps of 10, then `t == 2` read **11** (`ID-P` item 2) |
+| C2.5a / C2.5b | `b == 1`, `c == 0` / `q == 1`, `r == 0` |
+| C2.6 | `c == 1`, `t == 3` |
+| C2.7 | `a == 1` |
+| C2.8 | `$state0 == nil` only (focus and `$ax` green, as predicted) |
+| C2.10 | green (pin) |
+| C2.12 | `after == TextEditState()`; the input area at boundary 0 (focus half green, as predicted) |
+| G2.1 | `positive.succeeded != control.succeeded` |
+| T `reorderingANamedListCarriesEachItemsState` | both loop-slot peeks |
+| T `flippingAnEitherBranchResetsTheBranchesState` | `peek(ifContent) == nil`, `count == 2` |
+| T `aBranchWithTwoMembers…` / `aBranchReservesBothIndices…` | `count == 2` / `count == 4` |
+| R `namingEitherSideOfAVanishingIf…` | `named.count == 2`, misplaced `root/1 == 2`, `misplaced.count == 2` |
+| R `aHeldElementWhoseNameMovesPressesItsNewOwner` | arm 2's four (arm 1 green: a moving name already carried the held element) |
+| R `aPressHeldAcrossARebuild…` | arm 1 `== []`, arm 2 `== ["B"]` |
+| R `aReturningAnimatingElementSnaps…` (`ID-P` item 1) | arm 1 `fresh == 200` (arm 2's 175 green) |
+| T `aBackgroundsContentKeepsItsState…`, `anOverlaysIdentity…` | the re-spelled control `1, 1, 1` |
+| T `aLegacyOverlayKeepsItsOverlaysState…` | L1–L5 `kept(true)`, P5 `[3, nil, 0]`, Q `[3, 0, 0]` |
+| T `focusOnAnElementThatStopsBeingProduced…` | four (the id gains the slot) |
+| T `theWholeDemoReports…` | the `Deferred`/stack and four modal rows (the ids gain the slot) |
+| T `aForLoopInsideAProposalContainer…` | three ids |
+
+### 6.3 After
+
+`swift build --build-system native --build-tests` and `swift build
+--build-tests`: 0 `error:`, the only `warning:` SwiftPM's deprecation notice.
+`swift test --build-system native --no-parallel` → **`Test run with 1465 tests
+in 3 suites passed after 81.741 seconds`**, guards ran (`FR-J no-argument
+frame: succeeded=true`; `CONDITIONAL GUARD G2.1 positive: succeeded=true`,
+`control: succeeded=false`). **1465 = 1454 + 11** (C2.2, C2.3, C2.4, C2.6–C2.12,
+G2.1); guards **85** (`canTypecheck(module` grep 82 → 83 at `a2cd063` → `HEAD`).
+`everyProductionTreeBuildsOnAOneMegabyteThread`,
+`theSevenRetentionSlotsAreMutuallyDistinct` and
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green in that run.
+`StateTableTests.swift` unedited (no count literal moved).
+
+**Retirement rows (eight, `goldensUnchanged`).** Each renamed test's answer
+changed by ruling; none deleted:
+
+| was | now | ruling |
+|---|---|---|
+| `anElementAfterAVanishingIfAdoptsTheVanishedElementsState` (2 at `root/0`) | `anElementAfterAVanishingIfKeepsItsOwnState` (2 at `root/1`, content gone; G7 arm) | `ID-B`, `ID-C` |
+| `removingACellFromARowHandsItsStateToTheNextCell` (b 0, c 1) | `removingACellFromARowLeavesTheNextCellsStateAlone` (b 1, c 0) | `ID-B`; 69 retires |
+| `removingAWholeGridRowHandsItsStateToTheNextRow` (q 0, r 1) | `removingAWholeGridRowLeavesTheNextRowsStateAlone` (q 1, r 0) | `ID-B`; 69 retires |
+| `namingTheLaterSiblingIsWhatSurvivesAVanishingIf` (2 / 1) | `namingEitherSideOfAVanishingIfLeavesTheTrailingSiblingsStateAlone` (2 / 2) | `ID-B` |
+| `aHeldElementWhoseIDIsAdoptedPressesTheAdopter` | `aHeldElementWhoseNameMovesPressesItsNewOwner` (`AB-H` through a moving name; a vanishing `if` detaches) | `ID-B` |
+| `aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling` (`["B"]` / `[]`) | `aPressHeldAcrossARebuildClicksItsOwnTargetAndAVanishedTargetClicksNothing` (`[]` / `["B"]`) | `ID-B` |
+| `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt` | `aClosureRunOutsideInputDispatchWritesTheLastBoundOccurrence` — assertions unchanged (1 / 102), doc rewritten | `ID-F` (71) |
+| `anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting` (175) | `aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop` (200 in an `if`, 175 in a loop) | `ID-C`, `ID-P` item 1 |
+
+The T rows keep their names; their literals moved as §6.2 lists. Every other
+retained test kept its answer.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> e3cb3e9 9f2528c`:
+controls as lane 1 read them (light/dark 1048576, default vs modal 1031003,
+default vs animation 454895, f0 vs f3 0, chrome pair 0, distinct 544/216/529,
+prod default vs modal 491221, indicator rects 0), and **all fourteen images
+differing=0, scene identical** — the demo's ids moved (the modal's `if` slot)
+and no pixel did. `Expected.swift` unedited.
+
+**Real window.** Lock probe (`appkit-screen-lock-state.swift`):
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` — the screen was
+locked, so `capture.sh` was not run; the capture after lane 2 is **owed**
+(spec §6), with the Record phase's.
+
+### 6.4 Mutations
+
+Each from the committed `9f2528c`, the file copied and restored, whole suite
+unfiltered, `git status --short` empty after each. Copy named per row.
+
+| id | copy | mutation | reddened (issues) |
+|---|---|---|---|
+| M2a | untyped `OptionalGroup` | cursor advanced only when `wrapped != nil` | C2.1 (5), C2.2, C2.3, C2.6, `namingEitherSide…` (2), `aPressHeldAcrossARebuild…`, `aLegacyOverlayKeeps…` (4) — 15 |
+| M2a′ | typed `OptionalGroup` | the same edit | C2.5a (2), C2.5b (2), `aBackgroundsContentKeeps…`, `aLegacyOverlayKeeps…` (L4), `anOverlaysIdentity…` — 7; no untyped test (`ID-P` item 5) |
+| M2b | untyped `OptionalGroup` | slot reserved, members numbered with the outer cursor under `parent` | C2.3 (2) among 13 tests, 37 issues (C2.1, C2.2, C2.6, C2.8, C2.12, the held-element, press, overlay, focus, demo and animation rows — content outside the slot escapes the reset too) |
+| M2c | untyped `ArrayGroup` | no slot; members through the outer cursor | C2.4 (3), `reorderingANamedListCarriesEachItemsState` (2) — 5 |
+| M2c′ | typed `ArrayGroup` | the same edit (`ID-P` item 5) | `aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot` (3) |
+| M2d | `StateTable.noteAbsent` | never deletes | 13 tests, 19 issues: C2.3, C2.6, C2.7, C2.8, C2.11, C2.12 (state half, 2), C2.1, the animation row (arm 1), `namingEitherSide…`, the three `IdentityTests` count T rows, `aLegacyOverlayKeeps…` (P5, Q) |
+| M2e | both `EitherGroup`s' untyped copy | no absent note | C2.7, `flippingAnEither…` (2), `aBranchWithTwoMembers…`, `aBranchReservesBoth…`, `aLegacyOverlayKeeps…` (Q) — 6 |
+| M2f | `StateTable.noteAbsent` | no `$focus`/`$ax` exemption | C2.8 (2), C2.12 (focus half, 3), `focusOnAnElementThatStopsBeingProduced…`, `aFocusRequestWhileDisabledLeavesNoRetentionSlot` — 7 |
+| M2g | `StateTable.noteAbsent` | scans on every absent note | C2.9 alone |
+| M2h | `StateTable.sweep` | resets every previously produced slot not produced this frame | C2.10 alone |
+| M2i | typed `EitherGroup` | both branches at `branchIndex` | C2.11 alone |
+| G2.1 | typed `EitherGroup` | conformance deleted (C2.11 compiled out, uncommitted) | G2.1 alone (`positive: succeeded=false`; 1464 tests) |
+| Mp | `Window.dispatchClick` | `hit.id === pressed` | `aPressHeldAcrossARebuild…` (arm 2), `aClickNeedsTheTargetEnabledAtPressAndAtRelease` — 2 |
+| Mo | `OverlayModifier`, both entries | overlay side threaded through the primary's cursor (`MC-E`) | `aLegacyOverlayKeeps…` (6), `anOverlaysIdentity…` (3) among 8 tests, 17 issues (`ID-P` item 3) |
+
+M2a′'s three extra tests and M2f's `aFocusRequestWhileDisabled…` were not in
+the spec's predictions; `ID-P` item 5 records the first. The second
+(`DisabledTests.swift:755`, `hazard`) is that test's instrument arm, pinned wrong
+on purpose: a non-focusable element inside `if model.present` leaves a `$focus`
+slot that makes a second focus request stick — it needs `$focus` to survive the
+`if`'s reset, so it pins the exemption too. Mp's old doc said the
+press test was the only one to redden it; `aClickNeedsTheTargetEnabledAtPressAndAtRelease`
+now reddens too.
+
+### 6.5 Deferred
+
+- The real-window capture (locked screen), to the Record phase.
+- Record phase: record §04 retires 18 and 69 (and 19, 48 with lanes 1/3), adds
+  74; CLAUDE.md's "Identity is structural" bullets, the grid bullet and the
+  demo/`ScrollView` notes; record §05's `AnyElement` row (its source comment is
+  rewritten here).
