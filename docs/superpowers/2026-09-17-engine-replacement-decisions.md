@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FK`** (stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI` and its lane 2 `LR-FJ`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-FL`** (stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ` and its lane 3 `LR-FK`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -9334,3 +9334,60 @@ identical); the fourteen-image comparison `b9a5d7f` → `9786c37`.
 replacement. Item 2: M2c′'s set is incomplete by construction; the test it was
 chosen for is in it.
 
+
+## LR-FK — stage 9 lane 3: the deletion as landed — five spellings the design left open, M3g's reddened set, and the pixel harness's selector
+
+**Evidence.** Record §51 §7 (lane 3): N3.1 red at `a84db27` and green at
+`4988ec7`; the suite at the head, `Test run with 1409 tests in 3 suites passed`
+after `swift package clean` (1408 + 1); mutations M3a–M3h and the site-coverage
+re-run Ma–Me at the head (`docs/probes/stage-9-site-coverage.txt`, lane 3's
+section); the fourteen-image comparison `b9a5d7f` → `35f1ffb`; `Backends/SDL`,
+`Tests/PortableTests` and a `swift:6.4-noble` container build.
+
+**The ruling.**
+
+1. **Five spellings the design left open**, each chosen so that no answer moves:
+   - `newNativeGrid`'s deleted legacy-child loop keeps its **generation read**
+     (`for child in children { _ = slot(child) }`): the deleted precondition
+     read `nativeNodes[slot(child)]`, so a stale id trapped there with C-3's
+     message before any other read; keeping the read keeps that order. The two
+     grid-mark checks needed no such line (each already reads `slot` first).
+   - `beginLayout`'s message reads `"native layout re-entered on the same tree"`
+     — it keeps the substring `re-entered on the same tree` that
+     `NativeBoundaryTrapTests`' re-entry exit test reads.
+   - `UnlowerableField.trapMessage` is **unchanged** ("…cannot run under the
+     proposal layout authority."): it is production's trap text, which two test
+     docs quote, and stage 10 deletes the reports it belongs to.
+   - `ListRows.spacerStyle` goes with `GroupLayout.spacer` (the spacer's style
+     was built by `List` for the legacy path alone), and `FrameSpec`'s
+     `trapIfLaidOutByTheLegacyEngine` (`FR-D`/`LR-H`'s legacy ideal trap) goes
+     with the legacy frame-layer registrar, its only caller.
+   - `Deferred`'s nested check is deleted with `presentationsBefore` and
+     `presentationCoversWindow` (no caller remained); `isPresentation` stays
+     (`loweredComponentFrame`'s `deferred.amended` reads it).
+2. **M3g's reddened set is not the one spec §6 names.** `Frame.isHidden`
+   returning `false` reddens six tests (18 issues) — `AccessibilityTreeTests`'
+   `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`,
+   `aHiddenRootPublishesNothing`, `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`
+   and `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`,
+   `AccessibilityDefaultsTests.aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`
+   and `HiddenLoweringTests.aHiddenTextIsHiddenUnderTheProposalAuthority` — and
+   **no `AXNodeTests` test**. The spec's "HiddenLoweringTests and AXNodeTests"
+   was a guess; the measured set is the finding, and it shows the single
+   source of "hidden" carried by the accessibility suppression tests.
+3. **The pixel harness's selector reads the parameter's declaration**
+   (`layoutAuthority: LayoutAuthority`), not the bare name the spec wrote: lane
+   3's own `Fakes.swift` comment names the deleted `layoutAuthority:`
+   parameter, and the first run selected the pre-stage-9 harness for the head
+   and failed to compile (record §51 §7.5).
+4. **The guards' red-before is their mutation.** G1, G6a and G5 were re-spelled
+   in the deletion commit, not in a red-first commit before it; M3d, M3e and
+   M3f restore the deleted symbol (internal, public-deprecated, internal) and
+   each reddens exactly its guard, which is the red-before the spec's table
+   describes (the access-level message, the fixture compiling, the access-level
+   message).
+
+**What it costs if wrong.** Item 1: none observable — each spelling was chosen
+to keep a message or an order; the suite and the fourteen images read it.
+Item 2: a reader expecting an `AXNodeTests` pin for hidden suppression finds
+none; the six named tests are the pin. Item 3: none.

@@ -645,3 +645,141 @@ values (1048576, 1031003, 454895, 0, 1048576, 0, 544, 216, 491221, 529, 0).
   `ComponentTests.swift:112` (`requestNode(`), `MeasurePerformanceTests.swift:167`
   and `:573` (`unbreakableRuns`). Lane 3's count is **1408 + 1 = 1409**
   (`LR-FJ` item 1).
+
+## 7. Lane 3 — the deletion (2026-09-24)
+
+Commits: `4f43d8b` (N3.1, red), `4988ec7` (the deletion), `a801871` and
+`35f1ffb` (the pixel harness). Ruling `LR-FK`.
+
+### 7.1 N3.1, red first
+
+`aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`
+(`Tests/MetalUITests/PresentationContainingBlockTests.swift`), filtered at
+`a84db27`: 8 issues — `bordered root`, `root width 100 in 200`,
+`root .frame(maxWidth: 100)` and `root .frame(minWidth: 300)` reported
+`["deferred.containingBlock"]`; `Deferred root` `["deferred.root"]`;
+`inside a top/left-5 presentation` and `inside a bordered inset(0) presentation`
+`["deferred.nested"]`; and `deferred.amended is owned by stage 9`. Every arm's
+hitbox already read (185, 85) 10×10 — diagnostics mode reports and lays out, as
+§3 measured. Green at `4988ec7`.
+
+### 7.2 The count
+
+Unfiltered, after `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`, the one `warning:` SwiftPM's notice) then `swift
+test --build-system native --no-parallel`: **`Test run with 1409 tests in 3
+suites passed`**, the log carrying `FR-J no-argument frame: succeeded=`.
+**1408 + 1 = 1409** (N3.1; no test removed by this lane). `swift build
+--build-tests` under the default build system: 0 `error:`, 0 `warning:`.
+Guards **79** (G1, G6a, G5 re-spelled; G6a renamed
+`aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles`, a T row;
+`typecheckFile`'s helper count unchanged); goldens 0; eleven gated tests.
+`grep -h '^import' Sources/MetalUILayout/*.swift | sort -u` reads
+`import MetalUICore` alone. `git ls-files Sources/MetalUILayout` lists none of
+the seven engine files.
+
+| row | test | label | note |
+|---|---|---|---|
+| L3-1 | `aPlainImportCannotChooseTheLayoutAuthority` (`LayoutAuthorityCompileGuards`) | T | reads `has no member 'layoutAuthority'` |
+| L3-2 | `aPlainImportCallerOfTheLegacyRegistrarsIsWarnedTowardTheNativeOnes` → `aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles` | T | renamed; reads both `has no member` messages |
+| L3-3 | `layoutPassStyleAccessorsAreNotPublic` (`ErasureCompileGuards`) | T | reads `has no member 'style'` |
+| L3-4 | `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt` | added | N3.1 |
+
+### 7.3 Mutations
+
+Each applied to the committed tree (`4988ec7`'s sources), full unfiltered
+suite, restored from a copy, `git status --short` clean after; reds read with
+§5.1's rule, per-test issues summing to the summary line's.
+
+| mutation | reddened (issues) |
+|---|---|
+| **M3a** `reportPresentationContainingBlock(root:)` and its call restored | N3.1 (5) — the four `deferred.containingBlock` arms and the `Deferred`-root arm |
+| **M3b** `Deferred`'s nested report restored (with `presentationsBefore`, `presentationCoversWindow`) | N3.1 (2) — the two nested arms |
+| **M3c** `.deferred`'s `owningStage` back to `"9"` | N3.1 (1) — the amended arm |
+| **M3d** internal `var layoutAuthority = 0` on `Window` | `aPlainImportCannotChooseTheLayoutAuthority` (1) |
+| **M3e** public deprecated `requestNode(style:children:)` restored on `LayoutPass`, body `fatalError()` | `aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles` (1) |
+| **M3f** internal `func style(_:)` restored on `LayoutPass` | `layoutPassStyleAccessorsAreNotPublic` (1) |
+| **M3g** `Frame.isHidden` returns `false` | `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce` (3), `aHiddenRootPublishesNothing` (2), `aHiddenInnerModifierLayerSuppressesEverythingInsideIt` (2), `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient` (8) — all `AccessibilityTreeTests`; `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` (2, `AccessibilityDefaultsTests`); `aHiddenTextIsHiddenUnderTheProposalAuthority` (1, `HiddenLoweringTests`) — 18; no `AXNodeTests` test (`LR-FK` item 2) |
+| **M3h** `computeRootLayout` skips the presentations loop | 17 tests, 86 issues: `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape` (40), `aPresentationPlaceholderIsDroppedByEveryLoweredContainer` (8), `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (7), N3.1 (7), `aDeferredAbsoluteBoxResolvesItsInsetsAgainstTheWindowAndLeavesTheFlow` (6), `aFramedAbsoluteBoxIsAPresentationRoot` (4), `anAbsoluteTextWrapsAtTheWindowMinusItsInset` (2), `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel` (2), `aPresentationPublishesItsAccessibilityRecordAndTakesFocus` (2), and one each: `aDeferredAbsoluteScrimCoversTheWindowAndEscapesTheScroll`, `anAbsoluteBoxStretchedBelowItsPaddingKeepsItsInsetBox`, `presentationsAreLaidOutBeforeTheRootSoTheRootsWorkRecordIsUnchanged`, `aFramesOwnBoundsOnAnAbsoluteAutoAxisAnswerAsSwiftUIsFrameDoes`, `aPresentationInsideAFadedSubtreeIsStillFaded`, `aPresentationKeepsItsDeclaringScopesEnvironment`, `anAnimatedInsetInterpolatesItsValue`, `nestedPresentationsLandOnOneLayer` |
+
+The guards' red-before is M3d–M3f (`LR-FK` item 4): each re-spelling landed in
+the deletion commit.
+
+### 7.4 The site-coverage re-run at the head
+
+Ma–Me at lane 3's head (probe file, lane 3's section; Md re-anchored to the
+same line's current spelling): **Ma 20** (96), **Mb 56** (264), **Mc 7** (24),
+**Md 9** (81), **Me 13** (68). Against lane 2's head every test reddens again
+under the same name; the one head-only red is N3.1 under Me (7 issues). Head ⊇
+base − retired holds.
+
+### 7.5 The demo
+
+The stage-9 harness copy (`docs/probes/demo-pixels/ZZDemoPixels-stage9.swift`)
+renders the chrome pair twice under the one authority, under the old names;
+`compare.sh` picks it for a commit whose `Fakes.swift` declares no
+`layoutAuthority: LayoutAuthority` parameter. The first run selected on the
+bare name `layoutAuthority:`, matched lane 3's own `Fakes.swift` comment, gave
+the head the old harness and failed to compile (`cannot find type
+'LayoutAuthority'`); `35f1ffb` selects on the declaration (`LR-FK` item 3).
+`compare.sh <scratch> b9a5d7f 35f1ffb`: **0 differing, scene identical, in all
+fourteen images**; controls at `b9a5d7f` 1048576, 1031003, 454895, 0,
+1048576, 0, 544, 216, 491221, 529, 0 (§5.6's values); at the head
+chrome-legacy vs chrome-proposal 0 (distinct 216). The header's two stale
+controls (1030498, 210027) are corrected in a paragraph; the printed brackets
+are kept.
+
+### 7.6 Off the root package
+
+- `Backends/SDL` (`fetch-accesskit.py`, then `PKG_CONFIG_PATH=.accesskit`):
+  `swift build --build-tests` 0 `error:` (the only warnings are the host's
+  SDL3 dylib deployment-target linker notes and SwiftPM's `-rpath` flag
+  notice); `swift test` 21 + 19 passed. Fixtures re-recorded at the head
+  (`Experiments/SDLGPU`, `Replay --portable --record`, all six frames 0 px
+  against the Metal renderer, draw-order mutation detected); `PortableReplay …
+  --expect 6` PASS (every frame 0 px); `DemoCapture` PASS (scene byte-for-byte
+  the recorded frame 5, 0 px). The fixtures are untracked and
+  self-consistent at one commit; the cross-commit pin of the demo frame is
+  `DemoFrameDeterminismTests` against `Expected.swift`, green unedited in the
+  suite.
+- `Tests/PortableTests`: builds, 18 + 6 + 5 passed.
+- `swift:6.4-noble` container (OrbStack), `git archive` of the head: `swift
+  build --build-tests` complete, 0 `error:`; `--filter
+  'MetalUICoreTests|MetalUILayoutTests|MetalUICrossPlatformTests'` 192 + 22 + 3
+  passed (macOS reads 217 for the same filter). The portable CI figure moves
+  200 + 22 + 3 → **192 + 22 + 3**, lane 2's eight `MetalUILayoutTests`
+  retirements.
+
+### 7.7 Doc comments, and the exit grep
+
+Every `Sources/` comment that described the legacy authority, `computeLayout`,
+`requestNode`, `textMeasure`, the min-content memo or a spacer as present was
+rewritten as history or deleted (`Box`, `Component`, `Deferred`, `ElementGroup`,
+`ElementID`, `Frame`, `FrameLayer`, `LayoutAuthority`, `LegacyLowering`, `List`,
+`ListRows`, `LoweringState`, `ModifiedElement`, `NativeModifiedContent`,
+`Passes`, `ProposalNodeID` — its holes 2, 5, 6 closed —, `ScrollView`, `Stack`,
+`Text`, `TextField`, `Window`, `AnimatedStyle`, `Units`, `DemoContent`,
+`LayoutTree`, `MeasureFunction`, `NativeLayoutRun`, `Rounding`, `Atlas`,
+`ShapingCache`, `FontKey`, `FontResolver`, `ContentSizes`), and lane 1's
+stale-citation list (§5.7) was fixed to the renamed tests. The exit-criterion
+grep (spec §8 item 1) over `Sources`, `Tests/MetalUITests`,
+`Tests/MetalUILayoutTests`, `Tests/MetalUITextTests` prints only:
+`ProposalMeasureFunction` (the pattern's `MeasureFunction\b` has no leading
+boundary); `PortableText.unbreakableRuns`/`minContentWidth` (kept API,
+`LR-FD` item 2); the history comments naming a deleted symbol in
+`LayoutAuthority.swift`, `Passes.swift`, `Frame.swift`, `Text.swift`,
+`MeasureFunction.swift`, `ShapingCache.swift`, `ContentSizes.swift` and
+`Fakes.swift`; the two guards' fixtures and docs, which name the deleted
+symbols on purpose; and lanes 1–2's doc survivors (§5.7, §6.8).
+**Survivors kept, with reasons**: `UnlowerableField.trapMessage`'s "proposal
+layout authority" (`LR-FK` item 1); `DemoContent.swift`'s two historical
+narratives of how the demo's scroll box was fixed "on the legacy engine"
+(dated, scoped history); `LegacyLowering.swift`'s comparisons with what "the
+legacy engine" answers — each the reason a lowering reads as it does, not a
+claim that the engine runs; the file keeps its name (`LR-FC` item 4).
+
+### 7.8 Handed on
+
+- **Record phase**: the parent spec's "Stage 9 … is designed" sentence;
+  CLAUDE.md's counts (1409; portable CI 192 + 22 + 3), the rules spec §9
+  lists, and `compare.sh`'s stage-9 selector.
