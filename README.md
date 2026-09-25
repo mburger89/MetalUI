@@ -301,15 +301,13 @@ controls (`docs/probes/swiftui-frame-semantics.swift`, `…-negative-sizes.swift
 and `docs/probes/` holds the other re-runnable SwiftUI probes; the earliest
 probes survive only as prose.
 
-Fifty-eight measured divergences from CSS, SwiftUI or WebKit are tabled in
-[`CLAUDE.md`](CLAUDE.md). One is an unfixed defect (19, one element value
-placed twice shares a `@State` box); the rest are deliberate decisions or known
-limits. Divergence 15 was fixed by task 5; 36, 37 and 40 were retired by task 6
-(40's `percent:` modifiers are now spelled `fraction:`); 59 was retired by task
-7 stage 2, which clamps a text answer to its proposal as SwiftUI does.
-[`docs/record/04-divergences.md`](docs/record/04-divergences.md) holds the
-original eleven in full and index tables for 20–34, 35–50, 51–58, 59 and 60–70;
-divergence 19 is recorded only in `CLAUDE.md`.
+Fifty-six measured divergences from CSS, SwiftUI or WebKit are tabled in
+[`CLAUDE.md`](CLAUDE.md); retired labels (3, 4, 5–8, 11, 12, 15, 17, 18, 19,
+24, 36, 37, 40, 45, 48, 59, 69) are never reused — most retirements are a
+later task's own fix landing SwiftUI's answer, not a correction of the
+original measurement. [`docs/record/04-divergences.md`](docs/record/04-divergences.md)
+holds the original eleven in full and a dated index of every later addition,
+amendment and retirement.
 
 ## Milestones
 
@@ -320,8 +318,9 @@ input and focus, `@State` and `@Observable` reactivity, windowed `List`,
 
 In progress: SwiftUI behavioural alignment. The replacement inventory is
 published; the proposal-layout kernel (task 2), typed modifier composition
-(task 3), scoped environment values with a disabled state (task 9, with carried
-items) and a macOS accessibility bridge (task 12's bridge half) exist beside
+(task 3), scoped environment values — disabled state, display scale, and
+control active state/size (task 9, closed) — and a macOS accessibility
+bridge (task 12's bridge half) exist beside
 the legacy engine. No legacy container has been ported yet. The decisions
 documents are prefixed `SA-`, `MC-`, `EV-` and `AB-`.
 
