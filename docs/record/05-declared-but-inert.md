@@ -521,3 +521,43 @@ unbound" is likewise left as written: it records what was true at that
 integration, and this task's fix does not rewrite history, only the present
 tense the deleted row asserted.
 
+## 2026-09-25: three rows added, none deleted, at environment control state and scale (plan task 9)
+
+Record §56; rulings `EV-AA`…`EV-AF`. **Three rows added**, each with an owner
+or a reason it needs none:
+
+- **`EnvironmentValues.controlActiveState`**: declared, read by
+  `Window`'s own guarded copy and stamped over the root each frame, but no
+  built-in element changes appearance because of it — MetalUI's controls do
+  not dim in an inactive window. **Owner: plan task 12**, alongside the
+  disabled look (`EV-AB`, `EV-Q`).
+- **`EnvironmentValues.controlSize`**: declared, scoped like every other
+  environment value (`.controlSize(_:)`, nearest writer wins, `EV-AC`), but
+  no built-in element measures differently under it — SwiftUI's `Text`,
+  `TextField` and `Button` all do (probe Z2, Z3; divergence 76, record §04).
+  **Owner: plan task 11** for `Text`'s default font, **plan task 10** for
+  `TextField`/`Button` and the other common controls.
+- **`EnvironmentValues.displayScale`**: declared and writable, but **no
+  owner is named** — the same footing as `pixelLength`'s own row above (added
+  2026-09-15), which this task turns from a stored, re-stamped field into a
+  computed one derived from `displayScale` without changing its inert status.
+  Both exist for an **author** to read (a hairline's width, a scale-aware
+  asset choice), not for a framework consumer to read back: `Frame.fill`
+  still scales by the frame's own `scaleFactor`, never by
+  `environmentTop.displayScale` (`EV-AA`'s S3 finding — SwiftUI's own
+  rendering does the same), and `roundLayout` still rounds to whole points
+  whatever `displayScale` reads (divergence 77, record §04). Nothing here is
+  scheduled to close it, because nothing is wrong: `pixelLength` has held
+  this exact shape since the 2026-09-15 integration with no report of a
+  bug, and `displayScale` inherits it verbatim.
+
+**What it costs if wrong.** A reader who sees `controlActiveState`/
+`controlSize` declared and assumes a built-in control already reads them
+would be surprised that a `Button` under `.controlSize(.small)` renders at
+regular size, or that a panel's controls do not dim when another window
+becomes key — both are their pins (`controlSizeReachesNoBuiltInMeasurement`,
+and `controlActiveState`'s absence of one). A reader who lists `displayScale`
+here expecting a future "add a reader" row, as most of this table's rows
+carry, is the one case this section corrects in advance: there is no such
+row coming for this one, by design, same as `pixelLength`.
+

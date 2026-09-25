@@ -1508,3 +1508,54 @@ look of its own.
 §9.1).** A seventh lock-probe reading, on `da2d820`: `CGSSessionScreenIsLocked
 = 1`, `displayAsleep main: 1`, `displayActive main: 0`. `capture.sh` not run;
 the offscreen fourteen re-taken, all `differing=0`. Nothing above changes.
+
+## 2026-09-25: no look shown, but two new looks owed at environment control state and scale (plan task 9)
+
+Record §56 §1.7, §2.4, §3.4, §4.3, §4.6. **Nothing a human needs to see
+changed.** `displayScale`, `controlActiveState` and `controlSize` are all
+exposed and writable now, but no built-in element reads any of them (record
+§05's new section), and the demo sets none of them, so the fourteen-image
+offscreen comparison against `e732d98` (`docs/probes/demo-pixels/compare.sh`)
+reads **0 differing and scene identical in all fourteen**, taken
+independently at each lane's own head (§1.7, §2.4, §3.4) and again by the
+Record phase at `fb92808` (§4.3) — four readings in all, all zero, every
+control at its recorded `e732d98` value. `Expected.swift`
+(`DemoFrameDeterminismTests`) is unedited.
+
+**The lock probe was run at the end of every lane and once more by the Record
+phase** (`docs/probes/appkit-screen-lock-state.swift`) — four readings in all,
+every one `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`,
+`displayActive main: 0`. `capture.sh` was never run, and the SwiftUI probe's
+C1–C3/C5 arms could not run either (they need a window to become key and the
+app to become active, which a locked session never produces). **This task
+neither closes nor adds to stage 6b's still-open real-window capture and its
+four named demo-layout changes** (above) — but it does add **two new looks of
+its own**, distinct from stage 6b's and reachable only with an unlocked
+screen:
+
+- **The key/active mapping** (`EV-AB`). MetalUI's platform mapping (AppKit:
+  key window → active app → else inactive; SDL: this window's keyboard focus
+  → another of the platform's own windows → else inactive) is stated as
+  MetalUI's own choice, not a measured SwiftUI fact, because the probe's C1
+  (a window made key in an active app must read `key`) never moved: every
+  reading printed `NSApp.isActive=false`, `A.isKey=false` throughout. Once a
+  human can unlock the screen, re-run the probe's C arms and, if SwiftUI's
+  mapping disagrees, amend `EV-AB` and its pin (`theAppKitMappingPutsKeyBefore
+  ActiveBeforeInactive`) to the measured one — no divergence is numbered for
+  this row for exactly the reason it might still change (record §04's new
+  section).
+- **A `displayScale` change from moving the window between displays.** Pinned
+  today only through the fakes (`FakeRenderSurface.scaleFactor`,
+  `simulateBackingScaleChange`) and a synthetic raw SDL event push
+  (`mui_push_raw_window_event`); no test in the suite drags a real
+  `NSWindow`/SDL window across two displays of different backing scale to
+  confirm `viewDidChangeBackingProperties`/`DISPLAY_SCALE_CHANGED` fire in
+  practice and the next frame's `displayScale` follows. `docs/probes/window-
+  capture/capture.sh` cannot exercise this on one display; it needs a second
+  display of a different scale connected, or the same machine's external
+  display swapped in.
+
+Both looks are owed to whoever next has this machine (or an equivalent one)
+with an unlocked screen and, for the second, two displays of different
+scale — no other owner is named, the same shape as the still-open real-window
+debt above.

@@ -1541,3 +1541,74 @@ goes away. It is the same `$focus`-exempt retention as `ID-C`'s `if` reset
 observes focus across an identity change), so it is recorded as a known
 difference, **owner plan task 12**, pinned as today's behaviour by
 `focusOutlivesARenameAndAnIfUntilItsElementReturns` (C2.13) — not given label 75.
+
+## 2026-09-25: 24 retires; 76 and 77 added (plan task 9, environment control state and scale)
+
+Record §56; rulings `EV-AA`…`EV-AF` in
+`docs/superpowers/2026-09-15-environment-decisions.md`. **The table moves from
+fifty-five to fifty-six live**: one retires, two are added.
+
+- **24 retires** (`EV-AA`): `displayScale` was neither exposed nor writable,
+  and a `\.self` reset was claimed to change the scale rendering uses as well
+  as the number. All three clauses are now aligned: `EnvironmentValues.displayScale`
+  is `public var`, `pixelLength` derives from it
+  (`displayScale == 0 ? 1 : 1 / displayScale`), a scope can write it and
+  `pixelLength` follows (probe S2, X1), and a `\.self` reset reads `displayScale`
+  1 and `pixelLength` 1 (X2). **S3 refutes the reason the old ruling gave for
+  withholding it**: at a hosted renderer scale of 2, a `pixelLength`-wide
+  hairline is 1 device pixel with no write and **2** device pixels under
+  `.environment(\.displayScale, 1)` — SwiftUI's own write changes the *number*,
+  not the scale its renderer draws at, exactly the shape MetalUI now has
+  (`Frame.fill` still scales by the frame's `scaleFactor`, never by the
+  environment's `displayScale`; T1.4 pins the two disagree only in the number).
+  The label joins the never-reused list. **The retained test that changed its
+  answer**: E19 `aWholeValueWriteCannotResetTheThemeOrThePixelLength` is
+  renamed `aWholeValueWriteResetsTheDisplayScaleButNotTheTheme` — its `theme`
+  half stands, its old `pixelLength == 0.5` half becomes `displayScale == 1`
+  and `pixelLength == 1` (record §56 §1.3).
+- **76 is added** (kept, pinned wrong on purpose, `EV-AC`): `controlSize` is
+  carried (`ControlSize`, `.controlSize(_:)`, `EnvironmentValues.controlSize`,
+  default `.regular`) but **reaches no built-in measurement**. SwiftUI's
+  built-ins on macOS do read it: a `Text`'s default font shrinks under `.mini`/
+  `.small` (probe Z2: 53×11 / 63×14 against 72×16; an explicit font is
+  unaffected, Z2e/f), and `TextField`/`Button` resize across all five sizes
+  (Z3). MetalUI's `Text` stores a fixed `fontSize` with no "default font"
+  state, so aligning needs a text-model change: owner **plan task 11** for
+  `Text`'s default font, **plan task 10** for `TextField`/`Button` and the
+  other common controls. Pinned by `controlSizeReachesNoBuiltInMeasurement`
+  (T1.7).
+- **77 is added** (kept, pinned wrong on purpose, found by probe S4, `EV-AD`):
+  layout rounds every stored rectangle to **whole points**
+  (`Rounding.swift`'s `roundLayout`) whatever `displayScale` reads, where
+  SwiftUI rounds each view's absolute position to the `displayScale` pixel
+  grid and follows a scoped write (S4: a fractional position of 62.65 rounds
+  to 63 / 62.5 / 62.667 at scale 1 / 2 / 3). A `displayScale` write therefore
+  changes no MetalUI layout today. Not changed here: moving it moves every
+  fractional layout's pixels, the fourteen demo images and
+  `Expected.swift`'s pinned frame. Owner: **plan task 11** (rendering-facing
+  semantics). Pinned by `layoutRoundsToWholePointsWhateverTheDisplayScale`
+  (T1.5), which also names divergence 77 in its own doc comment.
+- **`controlActiveState` gets no numbered row** (`EV-AB`): SwiftUI's own
+  key/active/inactive mapping is **unmeasured** here (the probe's C1–C3/C5
+  arms did not run — the screen was locked at every check across all three
+  lanes and the Record phase's own close, record §56 §4.6), so the platform
+  mapping (AppKit: `isKeyWindow` → `.key`, else `NSApp.isActive` → `.active`,
+  else `.inactive`; SDL: keyboard focus of this window → `.key`, another of
+  the platform's own windows → `.active`, none → `.inactive`) is stated as
+  MetalUI's own choice, not a divergence from a measured SwiftUI answer — the
+  one measured row, C0 (app not active, no window key: every hosted SwiftUI
+  reader reads `inactive`), agrees with it. **No built-in consumer either**
+  (MetalUI's controls do not dim in an inactive window): owner **plan task
+  12**, with the disabled look.
+- **Label 75 stays unused**, as record §04's closeout section (above) already
+  told a reader looking for it: giving it a different meaning here would
+  contradict that note (`EV-AF` finding 13, rejecting the suggestion to reuse
+  it for 76).
+
+**What it costs if wrong.** A reader following divergence 24 by its old text
+finds a test that now asserts the *opposite* — E19's new name and its flipped
+half are the fix, not a further break; the rename row above is what to read
+instead. A reader who assumes `controlActiveState`'s mapping is a *measured*
+SwiftUI fact (as most divergence rows are) would be wrong to cite it as one:
+it is MetalUI's own choice pending the C-arm re-run, stated as such in `EV-AB`
+and not given a divergence number for exactly that reason.

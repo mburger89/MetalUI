@@ -56,6 +56,27 @@ fake's `.inactive`; M3.5 also reddens the two pre-existing resize tests);
 px in all fourteen offscreen images; screen locked, so no capture and no C-arm
 re-run. Detail: record §56 §3.
 
+**Record phase close, 2026-09-25: DELIVERED.** All three lane verdicts read
+`ok: true`; no fix/re-verify round was owed. The Record phase's independent
+close (record §56 §4) re-took the suite, guard and golden counts (**1506
+tests, 0 goldens, 90 typecheck guards**, unmoved), the fourteen-image pixel
+comparison (0 px against `e732d98`, scene identical), the probe (49 lines
+byte-identical to its header), `Backends/SDL` on macOS (21 + 22) and
+independently in a `swift:6.4-noble` aarch64 container (21 + 21) — all
+unmoved from the lanes' own readings. **Both clauses of the 2026-09-15
+progress note land**: `displayScale` is exposed and writable with a derived
+`pixelLength` (`EV-AA`, divergence 24 retires), and `controlActiveState`/
+`controlSize` come from the platform seam and a scope (`EV-AB`, `EV-AC`,
+divergence 76 added; divergence 77 added by `EV-AD`'s own measurement). Their
+built-in *consumers* — an inactive-window look, `Text`'s default font,
+`TextField`/`Button`, `roundLayout`'s pixel grid, SDL's system UI scale —
+stay distributed to tasks 10, 11, 12 and 14 exactly as `EV-AE` disposes them;
+none is delivered here. **Plan task 9 is ticked.** **Still owed, to a human
+with an unlocked screen**: the real-window capture, and now also the probe's
+C1–C3/C5 arms (SwiftUI's key/active mapping) and a `displayScale` change from
+moving the window between displays — the screen was locked at every check
+across all three lanes and the Record phase's own close (record §56 §4.6).
+
 ## Contents
 
 1. Baseline
