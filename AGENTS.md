@@ -47,7 +47,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
-  its spec), `TI-` (next `TI-I`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
+  its spec), `TI-` (next `TI-K`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
   spec). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
   case-insensitively.
@@ -193,6 +193,10 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (valu
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 ```
 
+- **Counts (2026-09-24, `feat/text-page` — `TI-I`, `TI-J`): 1430 tests, 0
+  goldens, 79 typecheck guards**, taken the same way; **1430 = 1423 + 7**
+  (`TextEditingTests` +2, `TextEditorTests` +1, `FocusTraversalTests` +4);
+  record §53.
 - **Counts (2026-09-24, `feat/text-editor` — `TI-H` — merged with `master`
   at `8095fd9`): 1423 tests, 0 goldens, 79 typecheck guards**, 0 `error:`,
   the same one `warning:` under native, taken the same way; **1423 = 1411 +
@@ -887,7 +891,7 @@ header in the same change.
   `ModifiedElement<LayerBase>` (`MC-A`); each modifier is one layer = one node
   = one id level; outermost layer takes the parent's slot, inner layers are
   `positional(0)`, content numbers from 0 under the innermost (`MC-C`).
-  **`.id()` must be the outermost modifier.** Changing layer COUNT resets the
+  **`.id()` must be the outermost modifier.** Changing layer 1430 resets the
   wrapped element's `@State`/focus/`$anim`/AX node; changing VALUES does not.
   A decoration/handler written after a wrapper configures the outermost layer
   (`.padding(8).background` fills the padded box, `OM-C`).
@@ -1085,10 +1089,15 @@ everything inside via `Frame.suppressingAccessibilityIfHidden` (`AB-O`). A
 text-painting conformer passes `accessibleText:`. Qualify
 `MetalUIPlatform.AccessibilityRequest` in files importing AppKit.
 
-**Focus:** `Window.focus(_:)` is the only mover; clicking does not focus —
-**except a `TextField`**, which a press focuses (`TI-B`). Keys go to the
-`Keymap` first, then to a focused field's editing keys, then bubble raw
-`onKey` up the parent chain. `focusBorder(_:width:)` is the (opt-in) ring;
+**Focus:** `Window.focus(_:)` moves focus; clicking does not focus —
+**except a `TextField`/`TextEditor`**, which a press focuses (`TI-B`) — and
+**Tab / shift-Tab traverse** every focusable element in tree order, wrapping
+(`FocusRegistry.tabOrder`, `TI-J`; tabbing into a field selects its text).
+Keys go to the `Keymap` first, then to a focused field's editing keys, then
+bubble raw `onKey` up the parent chain, and only then does an unclaimed,
+unmodified (shift aside) Tab traverse — so a binding or `onKey` for Tab wins.
+`onKey` bubbles from the focused element, so with nothing focused it sees
+nothing. `focusBorder(_:width:)` is the (opt-in) ring;
 background and border resolve `focus ?? hover ?? plain`.
 
 **Text input (`TI-`).** `TextField(_:text:onChange:)` is **controlled** (there

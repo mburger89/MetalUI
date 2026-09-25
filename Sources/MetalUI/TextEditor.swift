@@ -196,9 +196,12 @@ public struct TextEditor: Element, StyledElement {
                                size: Size(width: Pixels(1), height: Pixels(Float(g.lineHeight))))
         var handlers = self.handlers
         handlers.isFocusable = true
+        var textLines = g.textLines
+        textLines.lineHeight = g.lineHeight
+        textLines.visibleHeight = Double(bounds.size.height.value)
         handlers.textInput = TextInputTarget(
             text: text, caretOffsets: [], originX: originX, caretRect: caretRect,
-            onChange: onChange, onSubmit: nil, lines: g.textLines, originY: originY,
+            onChange: onChange, onSubmit: nil, lines: textLines, originY: originY,
             lineHeight: g.lineHeight, maxScrollY: g.maxScrollY)
         if handlers.axNode.isEmpty {
             handlers.axNode = AXNode(role: .textArea, label: placeholder.isEmpty ? nil : placeholder, value: text)

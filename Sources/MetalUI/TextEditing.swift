@@ -102,6 +102,7 @@ enum TextEditing {
     static let upArrow = "\u{f700}", downArrow = "\u{f701}"
     static let home = "\u{f729}", end = "\u{f72b}"
     static let deleteBackward = "\u{7f}", deleteForward = "\u{f728}"
+    static let pageUp = "\u{f72c}", pageDown = "\u{f72d}"
 
     // MARK: Keys
 
@@ -192,6 +193,19 @@ enum TextEditing {
             case downArrow where toEdge: return move(to: characters.count)
             case upArrow: return vertical(-1)
             case downArrow: return vertical(1)
+            // Page keys (ruling TI-I). A page is the visible height less one
+            // line, so a line of context stays in view. On a Mac they scroll
+            // and leave the caret, as NSTextView does; elsewhere they move
+            // the caret a page at its column, as Windows' and GTK's do.
+            case pageUp, pageDown:
+                let sign = keyName == pageUp ? -1.0 : 1.0
+                if platform == .mac {
+                    state.scrollY = min(max(state.scrollY + sign * lines.pageHeight, 0), lines.maxScrollY)
+                    state.revealsCaret = false
+                    state.goalX = goalX
+                    return KeyOutcome(state: state, handled: true)
+                }
+                return vertical(Int(sign) * lines.linesPerPage)
             case leftArrow where toEdge, home: return move(to: lineStart)
             case rightArrow where toEdge, end: return move(to: lineEnd)
             case deleteBackward where toEdge && state.selection.isEmpty:
@@ -539,6 +553,16 @@ struct TextLineModel: Equatable {
 
     /// Never empty: an empty text is one empty line.
     var lines: [Line]
+    /// The line height and the field's visible height, for the page keys
+    /// (ruling TI-I); 0 when unknown, which makes a page one line.
+    var lineHeight = 0.0
+    var visibleHeight = 0.0
+
+    /// A page: the visible height less one line, never under one line.
+    var pageHeight: Double { max(lineHeight, visibleHeight - lineHeight) }
+    var linesPerPage: Int { lineHeight > 0 ? max(1, Int(pageHeight / lineHeight)) : 1 }
+    /// How far the content can scroll.
+    var maxScrollY: Double { max(0, Double(lines.count) * lineHeight - visibleHeight) }
 
     /// The line a boundary's caret is drawn on. A boundary where a line
     /// wrapped belongs to the next line (the caret after a wrapped line's last
