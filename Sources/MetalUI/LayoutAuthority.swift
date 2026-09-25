@@ -27,10 +27,13 @@ enum LoweringSite: String, Sendable {
     case list
     case component
     /// A `Deferred` presentation root (plan task 7, stage 5, rulings `LR-CH`,
-    /// `LR-CK`): one entry, `amended`, raised by a `Component` amend over a
-    /// presentation member; owned by stage 11 (`LR-FF`). Stage 5's
-    /// `containingBlock`, `nested` and `root` entries went with the legacy
-    /// engine whose containing block they protected (stage 9, `LR-FF`).
+    /// `LR-CK`): the site of the placeholder's own `LoweredItem`
+    /// (`Deferred.swift`). **It raises no entry since stage 11**: its last one,
+    /// `amended` (a `Component` amend over a presentation member, owned by
+    /// stage 11 per `LR-FF`), is deleted — the amend answers as a `.frame` layer
+    /// does (`LR-FY` item 1). Stage 5's `containingBlock`, `nested` and `root`
+    /// entries went with the legacy engine whose containing block they
+    /// protected (stage 9, `LR-FF`).
     case deferred
 }
 
@@ -65,12 +68,10 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
     /// `component`/`list`, `"10"` for `position`/`inset` and `<field>.absolute`
     /// (`LR-CK`, `LR-EZ` item 3), `"11"` for `deferred`. Once stage 10 finished,
     /// every stage but 11 had closed, so a message naming one read as work owed
-    /// by a finished stage. Now:
+    /// by a finished stage. Stage 10 spelled site `deferred`'s owner `"plan task
+    /// 7, stage 11"`; stage 11 deletes that site's one entry, `amended`, and the
+    /// branch with it (`LR-FY` item 1), so no owner names task 7. Now:
     ///
-    /// - site `deferred` → `"plan task 7, stage 11"`: its one entry, `amended`
-    ///   (a `Component.width`/`frame` amend over a presentation member, `LR-CK`),
-    ///   is `Component.width`'s question, stage 11's (`LR-FF`, `LR-ER` item 2,
-    ///   `LR-EY` item 3);
     /// - a field with the prefix `alignItems.baseline` or `alignSelf.baseline` →
     ///   `"plan task 11"`: baselines (parent spec §8);
     /// - everything else → `nil`. Percentages (no containing block, `LR-AI`), a
@@ -83,7 +84,6 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
     ///   and `modifierLayer.style` — the kernel has no answer for any of them, and
     ///   no later task is ruled to give one (`LR-FO` items 1–2).
     var owner: String? {
-        if site == .deferred { return "plan task 7, stage 11" }
         if field.hasPrefix("alignItems.baseline") || field.hasPrefix("alignSelf.baseline") {
             return "plan task 11"
         }

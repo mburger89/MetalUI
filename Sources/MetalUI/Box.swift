@@ -300,14 +300,15 @@ public struct Decoration: Sendable, Hashable {
     /// `setOpacity(_:)` or the memberwise `init` below, both of which trap
     /// outside `0...1`.
     ///
-    /// **The scope includes this element's own fill** (`OM-N`), so
-    /// `.background(x).opacity(0.5)` fades the panel — SwiftUI's G3, agreeing —
-    /// and `.opacity(0.5).background(x)` fades it too, where SwiftUI's G4 leaves
-    /// a background written after an opacity opaque. Both are fields of one
-    /// `Decoration`, so only one of the two orders can be right; the one a
-    /// caller actually writes was chosen. Recorded divergence, and the
-    /// **proposal** path already answers the second order SwiftUI's way
-    /// (`OM-AA` a), so the two paths disagree with each other as well.
+    /// **The scope includes this element's own fill and border when they were
+    /// written BEFORE the opacity, and excludes them when written after it**
+    /// (plan task 7, stage 11, `LR-FW` as amended by `LR-GA` items 1–2):
+    /// `.background(x).opacity(0.5)` fades the panel (SwiftUI's G3) and
+    /// `.opacity(0.5).background(x)` does not (G4); the border likewise (probe
+    /// group H). Until stage 11 both orders faded — `OM-N`'s divergence 45, the
+    /// write order lost because both are fields of one `Decoration` — where the
+    /// proposal path already answered SwiftUI's way (`OM-AA` a). The order is now
+    /// recorded in `escapesOpacity`, below, and both paths answer alike.
     ///
     /// **One field, so a second `.opacity(_:)` on the same element REPLACES the
     /// first rather than multiplying into it** (`OM-AH`) — the same mechanism
@@ -330,11 +331,53 @@ public struct Decoration: Sendable, Hashable {
     /// than escaping it.
     public var clipsContent: Bool
 
+    /// Which of the six paint slots were written **after** this decoration's
+    /// `opacity` (plan task 7, stage 11, `LR-FW` as amended by `LR-GA` items
+    /// 1–2) — the write order `OM-N` said one `Decoration` could not observe.
+    ///
+    /// **One member per slot**, because the escape is decided by the slot that
+    /// WINS the pointer-state resolution: with one bit per three slots,
+    /// `.background(red).opacity(0.5).hoverBackground(blue)` would push the
+    /// unhovered red — written before the opacity, faded in SwiftUI's G3 — out
+    /// of the scope.
+    ///
+    /// **Written only by the six modifiers, and only while `opacity < 1`**
+    /// (`noteWrite(_:)`), so a decoration built with no opacity before its paint
+    /// modifiers compares equal to its memberwise twin (`ModifierTests`' one-field
+    /// table); `setOpacity(_:)` empties it. A direct write of a public field
+    /// records nothing and stays inside the scope. Internal: no public spelling,
+    /// and `Hashable` stays synthesized. `paintDecoration` is the one reader.
+    var escapesOpacity: OpacityEscapes = []
+
+    /// The six paint slots `escapesOpacity` can hold.
+    struct OpacityEscapes: OptionSet, Sendable, Hashable {
+        let rawValue: UInt8
+        static let plainFill = OpacityEscapes(rawValue: 1 << 0)
+        static let hoverFill = OpacityEscapes(rawValue: 1 << 1)
+        static let focusFill = OpacityEscapes(rawValue: 1 << 2)
+        static let plainBorder = OpacityEscapes(rawValue: 1 << 3)
+        static let hoverBorder = OpacityEscapes(rawValue: 1 << 4)
+        static let focusBorder = OpacityEscapes(rawValue: 1 << 5)
+    }
+
+    /// Records that `slot` was written after this decoration's opacity — only
+    /// when there is one (`opacity < 1`), so a write with no opacity before it
+    /// records nothing. The six paint modifiers' one call.
+    mutating func noteWrite(_ slot: OpacityEscapes) {
+        if opacity < 1 { escapesOpacity.insert(slot) }
+    }
+
     /// Traps outside `0...1`, so the failure names the assignment rather than
     /// the `pass.opacity` call a frame later. See `opacity`.
+    ///
+    /// **Empties `escapesOpacity`**: every slot written so far was written
+    /// before this opacity, so it is inside it (probe H3 — a fill between two
+    /// opacities is faded by the second). A second opacity still REPLACES the
+    /// first (`OM-AH`, divergence 46).
     public mutating func setOpacity(_ value: Float) {
         Self.validateOpacity(value)
         opacity = value
+        escapesOpacity = []
     }
 
     static func validateOpacity(_ value: Float) {
@@ -721,7 +764,7 @@ extension StyledElement {
     /// both appearances while looking exactly like a themed one at the call
     /// site, which is §7.9's whole objection to literals.
     public func background(_ token: ColorToken) -> Self {
-        decorating { $0.background = token }
+        decorating { $0.background = token; $0.noteWrite(.plainFill) }
     }
 
     /// Fills with `token` instead of `background(_:)` while the pointer is over
@@ -739,7 +782,7 @@ extension StyledElement {
     /// target without the affordance — a whole row that is clickable while the
     /// highlight lives on a child — and one modifier writes one field.
     public func hoverBackground(_ token: ColorToken) -> Self {
-        decorating { $0.hoverBackground = token }
+        decorating { $0.hoverBackground = token; $0.noteWrite(.hoverFill) }
     }
 
     /// Fills with `token` instead of `background(_:)` — and instead of
@@ -756,7 +799,7 @@ extension StyledElement {
     /// background forever, exactly as `hoverBackground(_:)` does without a
     /// click handler.
     public func focusBackground(_ token: ColorToken) -> Self {
-        decorating { $0.focusBackground = token }
+        decorating { $0.focusBackground = token; $0.noteWrite(.focusFill) }
     }
 
     /// Rounds all four corners of the background by the same radius.
@@ -958,7 +1001,9 @@ extension StyledElement {
     /// modifier applies it to a new outer layer of a `ModifiedElement` (MC-A).
     /// A fixed-size child keeps its declared size; its caller sees an outer
     /// footprint enlarged by the padding. Repeating the modifier adds a layer,
-    /// so padding composes, and the chain's type stays `ModifiedElement<Base>`.
+    /// so padding composes, and the chain's type stays `ModifiedElement<Base>` —
+    /// since stage 11 a typealias of the one flat `ModifiedContent<Base,
+    /// ModifierLayer>` (`LR-FV`), each layer still one node and one id level.
     public func padding(_ points: Pixels) -> ModifiedElement<LayerBase> {
         padding(Edges(all: .pixels(points)))
     }
@@ -1211,12 +1256,12 @@ extension StyledElement {
     ///
     /// Traps on a negative or non-finite width — see `BorderStyle`.
     public func border(_ token: ColorToken, width: Pixels) -> Self {
-        decorating { $0.border = BorderStyle(token, width: width) }
+        decorating { $0.border = BorderStyle(token, width: width); $0.noteWrite(.plainBorder) }
     }
 
     /// The per-edge form of `border(_:width:)`.
     public func border(_ token: ColorToken, widths: Edges<Pixels>) -> Self {
-        decorating { $0.border = BorderStyle(token, widths: widths) }
+        decorating { $0.border = BorderStyle(token, widths: widths); $0.noteWrite(.plainBorder) }
     }
 
     /// Draws this border instead of `border(_:width:)`'s while the pointer is
@@ -1227,12 +1272,12 @@ extension StyledElement {
     /// an element into the hitbox list, so `.hoverBorder(…)` alone compiles and
     /// draws the plain border forever.
     public func hoverBorder(_ token: ColorToken, width: Pixels) -> Self {
-        decorating { $0.hoverBorder = BorderStyle(token, width: width) }
+        decorating { $0.hoverBorder = BorderStyle(token, width: width); $0.noteWrite(.hoverBorder) }
     }
 
     /// The per-edge form of `hoverBorder(_:width:)`.
     public func hoverBorder(_ token: ColorToken, widths: Edges<Pixels>) -> Self {
-        decorating { $0.hoverBorder = BorderStyle(token, widths: widths) }
+        decorating { $0.hoverBorder = BorderStyle(token, widths: widths); $0.noteWrite(.hoverBorder) }
     }
 
     /// **The focus ring**: draws this border instead of `border(_:width:)`'s —
@@ -1248,12 +1293,12 @@ extension StyledElement {
     /// focus (`Window.focus(_:)` is the only mover), so an element declaring
     /// this and nothing else draws its plain border forever.
     public func focusBorder(_ token: ColorToken, width: Pixels) -> Self {
-        decorating { $0.focusBorder = BorderStyle(token, width: width) }
+        decorating { $0.focusBorder = BorderStyle(token, width: width); $0.noteWrite(.focusBorder) }
     }
 
     /// The per-edge form of `focusBorder(_:width:)`.
     public func focusBorder(_ token: ColorToken, widths: Edges<Pixels>) -> Self {
-        decorating { $0.focusBorder = BorderStyle(token, widths: widths) }
+        decorating { $0.focusBorder = BorderStyle(token, widths: widths); $0.noteWrite(.focusBorder) }
     }
 
     /// Multiplies the opacity of everything this element paints — its own
@@ -1274,9 +1319,11 @@ extension StyledElement {
     /// spelling that multiplies puts a scope between the two calls: a nested
     /// `Box`, or a layer (`.opacity(0.5).padding(2).opacity(0.5)` reads 0.25).
     ///
-    /// **`.opacity(0.5).background(x)` fades the background too, and SwiftUI's
-    /// does not** (G4). See `Decoration.opacity` for why that order was the one
-    /// given up, and `OM-N`/`OM-AA` for the two divergences it produces.
+    /// **A background or border written AFTER this call is outside it**, as
+    /// SwiftUI's is (G4, H2; plan task 7, stage 11, `LR-FW`):
+    /// `.opacity(0.5).background(x)` paints an opaque fill, and
+    /// `.background(x).opacity(0.5)` fades it. Until stage 11 both orders faded
+    /// (divergence 45, retired). See `Decoration.escapesOpacity`.
     public func opacity(_ value: Float) -> Self {
         Decoration.validateOpacity(value)
         return decorating { $0.setOpacity(value) }

@@ -396,20 +396,24 @@ extension LayoutPass {
     ///    the layer. An animation never trips it, because the animated style is not
     ///    what is compared.
     ///
-    ///    **Except `position` and `inset` on an absolute frame over at most one
-    ///    node** (plan task 7, stage 8, ruling `LR-EV` as amended by `LR-EY` item
-    ///    3). A `.frame` written before `.position(.absolute)`/`.inset` is how the
+    ///    **Except `position` and `inset` on an absolute frame** (plan task 7,
+    ///    stage 8, ruling `LR-EV` as amended by `LR-EY` item 3, and by stage 11's
+    ///    `LR-FY` item 3). A `.frame` written before `.position(.absolute)`/`.inset` is how the
     ///    recipe sizes an absolute box once the sizing modifiers are deprecated
     ///    (`LR-ES`'s R6), so when the **declared** style is absolute those two
     ///    fields are taken from it before comparing: inside a `Deferred` the layer
     ///    is a presentation root like any absolute box (`LR-CH`), and outside one
     ///    `planLegacyItems` reports its `position`/`inset` as it reports any
     ///    absolute child's (`LR-CK`). Every other field written after the frame —
-    ///    a `flexGrow`, a `minWidth` — still reports `style`. A frame over
-    ///    **several** nodes (a multi-member `Component`, `LR-BH`'s row of
-    ///    per-member frames) keeps reporting `style` for them too: that row as a
-    ///    presentation root was never measured (owner stage 11, with
-    ///    `Component.frame`).
+    ///    a `flexGrow`, a `minWidth` — still reports `style`. **A frame over
+    ///    several nodes** (a multi-member `Component`, `LR-BH`'s row of
+    ///    per-member frames) is exempt too since stage 11 (`LR-FY` item 3; record
+    ///    §54 §4): inside a `Deferred` the row is the presentation's element,
+    ///    laid out at the insets against the window
+    ///    (`aTwoMemberAbsoluteFrameInADeferredIsARowOfPerMemberFramesAgainstTheWindow`),
+    ///    and outside one it reports `position`/`inset` as a one-node frame does
+    ///    (that test's control). Until stage 11 an `&& childCount <= 1` kept it
+    ///    reporting `style`, "unmeasured".
     ///
     /// There is no third check. A frame over **more than one node** (a multi-member
     /// `Component`) reported `frame.multipleNodes` until stage 3's lane 5, which
@@ -423,7 +427,7 @@ extension LayoutPass {
         guard let spec = layer.frameSpec else { return [] }
         var fields: [UnlowerableField] = []
         var expected = layer.lowered(spec.style(), childCount: childCount)
-        if declared.position == .absolute && childCount <= 1 {
+        if declared.position == .absolute {
             expected.position = declared.position
             expected.inset = declared.inset
         }
@@ -475,12 +479,16 @@ extension LayoutPass {
     /// for it in the same change, or a stage-6b production trap arrives with no
     /// test seeing it go.
     func loweredComponentFrame(_ node: LayoutNodeID, _ size: Size<Dimension>) -> LayoutNodeID {
-        // Stage 5 (ruling `LR-CK`): an amend over a presentation member. The legacy
-        // amend overwrites the absolute box's OWN size (divergence 48's mechanism),
-        // an answer not reproduced here, so it reports and frames nothing — the
-        // placeholder is handed on, for the parent to drop.
+        // An amend over a presentation member frames nothing: the placeholder is
+        // handed on, for the parent to drop (`LR-CK`), and the presentation is laid
+        // out against the window whatever surrounds it — exactly what a `.frame`
+        // LAYER over the same member already answered (plan task 7, stage 11,
+        // `LR-FY` item 1; record §54 §3). Until stage 11 this branch reported
+        // `deferred.amended` (stage 5's `LR-CK`, owned by stage 11 per `LR-FF`),
+        // because the legacy amend overwrote the absolute box's own size
+        // (divergence 48's mechanism); pinned by
+        // `aComponentAmendOverAPresentationMemberAnswersAsAFrameLayerDoes`.
         if frame.lowering.isPresentation(node) {
-            frame.noteUnlowerable(UnlowerableField(site: .deferred, field: "amended"))
             return node
         }
         let alignment = componentFrameAlignment(size)

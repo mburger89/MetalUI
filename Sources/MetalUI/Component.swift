@@ -492,7 +492,12 @@ extension Component {
     /// member (`LR-BG` — SwiftUI's
     /// answer, component distribution probe G7/G8); and `Component.frame` over
     /// several members is a horizontal row (`LR-BH`), so it is not a rename
-    /// target. Its reconciliation with `.frame` is stage 11's.
+    /// target. **Reconciled with `.frame` by ruling, not by API** (plan task 7,
+    /// stage 11, `LR-FY` item 2): the two are different modifiers and both stay
+    /// — this one frames each member, `.frame` wraps the members' row in one
+    /// layer. A `.frame` that distributes per member is SwiftUI's `Group`
+    /// semantics, plan task 8's (`CN-Q`). Over a presentation member it frames
+    /// nothing and reports nothing, as a `.frame` layer does (`LR-FY` item 1).
     public func width(_ points: Pixels) -> StyledComponent<Self> {
         StyledComponent(component: self, ops: [.amend(componentWidth(points))])
     }
@@ -506,7 +511,12 @@ extension Component {
     /// member (`LR-BG` — SwiftUI's
     /// answer, component distribution probe G7/G8); and `Component.frame` over
     /// several members is a horizontal row (`LR-BH`), so it is not a rename
-    /// target. Its reconciliation with `.frame` is stage 11's.
+    /// target. **Reconciled with `.frame` by ruling, not by API** (plan task 7,
+    /// stage 11, `LR-FY` item 2): the two are different modifiers and both stay
+    /// — this one frames each member, `.frame` wraps the members' row in one
+    /// layer. A `.frame` that distributes per member is SwiftUI's `Group`
+    /// semantics, plan task 8's (`CN-Q`). Over a presentation member it frames
+    /// nothing and reports nothing, as a `.frame` layer does (`LR-FY` item 1).
     public func height(_ points: Pixels) -> StyledComponent<Self> {
         StyledComponent(component: self, ops: [.amend(componentHeight(points))])
     }
@@ -532,7 +542,8 @@ extension Component {
 ///
 /// `width`/`height` here are **not deprecated**, though the `StyledElement`
 /// modifiers of the same names are since plan task 7's stage 8 — for the
-/// reason `Component.width(_:)` gives (ruling `LR-ER` item 2; stage 11's).
+/// reason `Component.width(_:)` gives (ruling `LR-ER` item 2; reconciled with
+/// `.frame` by stage 11's `LR-FY` item 2).
 extension StyledComponent {
     public func padding(_ points: Pixels) -> StyledComponent<C> {
         StyledComponent(component: component, ops: ops + [.wrap(paddingWrapperStyle(points))])
