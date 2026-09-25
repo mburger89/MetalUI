@@ -6,7 +6,7 @@ scoped environment values, add a disabled control state, and clear the keymap's
 `Binding` name for task 10.
 
 Prefixed **`EV-`** and **lettered** (`EV-A`, `EV-B`, …). **A bare `EV-3` is a
-typo, not a citation.** The next unused letter is `EV-AF`.
+typo, not a citation.** The next unused letter is `EV-AG`.
 
 Read alongside:
 
@@ -21,8 +21,8 @@ Read alongside:
   - `docs/probes/swiftui-environment-api-shape.swift` (compile-only);
   - `docs/probes/swiftui-disabled-ancestor-and-order.swift` (arms N, O);
   - `docs/probes/swiftui-environment-pixel-length.swift` (arms V, X).
-- Task 9's closing rulings, `EV-AA`…`EV-AE` (2026-09-25, at the end of this
-  file): `docs/superpowers/specs/2026-09-25-environment-control-state-design.md`
+- Task 9's closing rulings, `EV-AA`…`EV-AE`, and the critic pass on them,
+  `EV-AF` (2026-09-25, at the end of this file): `docs/superpowers/specs/2026-09-25-environment-control-state-design.md`
   and `docs/probes/swiftui-environment-control-state.swift` (arms V, S, C, Z).
 
 ## How to read the letters
@@ -50,7 +50,8 @@ applies or rejects each. The rulings below are already amended.
   loud.
 - **`EV-AA`…`EV-AE`** — task 9's closing half (2026-09-25): `displayScale`,
   `controlActiveState`, `controlSize`, the rounding divergence, and the
-  `EV-Q` disposition.
+  `EV-Q` disposition. **`EV-AF`** — the critic pass on them, applied and
+  rejected findings.
 
 **Every ruling ends with a "Mutations" line reading _owed by lane N_.** The lane
 that implements a ruling replaces that line with the mutations it ran and the
@@ -2051,6 +2052,13 @@ requirement: a backing-scale change already fires `onResize` on AppKit
 (`viewDidChangeBackingProperties` → `syncSurfaceGeometry`) and on SDL
 (`DISPLAY_SCALE_CHANGED`/`PIXEL_SIZE_CHANGED` → `MUI_EVENT_RESIZE`), which
 dirties the window, and the next frame is built at the new drawable's scale.
+**On SDL the drawable's scale is `SDL_GetWindowPixelDensity`, not SDL's
+content (display) scale** (amended by `EV-AF`): at 150% on Windows or X11 a
+window is typically density 1, so `displayScale` reads 1 — what MetalUI
+draws at, since it does not follow the system UI scale there at all. Owner of
+that: plan task 14. Both pre-existing scale paths were unpinned at `e732d98`;
+the spec's T2.3 (SDL `translate`) and T2.6 (AppKit
+`viewDidChangeBackingProperties`) pin them.
 
 **Why.**
 
@@ -2101,7 +2109,8 @@ design would diverge from X1/X2/S2 for a hazard S3 shows SwiftUI shares.
 be *drawn* at another scale gets only the number, as in SwiftUI (S3). If a
 later SwiftUI changes S3's answer, T1.4 is the pin that faces it.
 
-**Mutations:** owed by lane 1 (M1.1–M1.4, M1.9, M1.10, MG1, MG3, MG6a).
+**Mutations:** owed by lane 1 (M1.1–M1.4, M1.9, M1.10, MG1, MG3, MG6a),
+lane 2 (M2.7, M2.12: the scale paths) and lane 3 (M3.5, M3.6).
 
 ## EV-AB — `controlActiveState` comes from the platform window, through a new `PlatformWindow` pair; a scope can write it
 
@@ -2118,12 +2127,20 @@ re-stamps it after a scoped write.
 
 **Mapping — MetalUI's choice, not a SwiftUI claim (`EV-S`).** AppKit:
 `isKeyWindow` → `.key`, else `NSApp.isActive` → `.active`, else `.inactive`,
-re-read on `windowDidBecomeKey`/`windowDidResignKey` and on
+re-read on `NSWindow.didBecomeKey`/`didResignKey` and on
 `NSApplication.didBecomeActive`/`didResignActive`, the callback fired only on a
-change. SDL: this window has keyboard focus → `.key`; another window of the same
+change. (Amended by `EV-AF`: the getter is a live read; the notifications are
+observed explicitly, selector-based, on an internal injectable
+`NotificationCenter` defaulting to `.default` — not through `NSWindowDelegate`
+methods; the last-reported value used for de-duplication is updated on every
+re-read whether or not a callback is set.) SDL: this window has keyboard focus → `.key`; another window of the same
 `SDLPlatform` has it → `.active`; none → `.inactive`, tracked from
 `SDL_EVENT_WINDOW_FOCUS_GAINED`/`LOST` (two `MUI_EVENT_*` kinds appended, none
-renumbered).
+renumbered). (Amended by `EV-AF`: the getter reads a platform-owned
+`focusedID`, not `SDL_GetWindowFlags`, which a pushed event does not update;
+`GAINED` for an unowned id is ignored, a closed window's focus is forgotten,
+and states are recomputed and callbacks fired once after `pumpEvents()`
+drains, so a switch between two own windows reports no transient `.inactive`.)
 
 **Why.**
 
@@ -2157,8 +2174,8 @@ say otherwise in some window arrangement; no built-in element reads it, so no
 pixel moves. A new `PlatformWindow` conformer outside this repo stops compiling
 until it implements the pair — the point of having no default.
 
-**Mutations:** owed by lanes 1 (M1.8), 2 (M2.1–M2.4) and 3 (M3.1–M3.9, MG7,
-MG8).
+**Mutations:** owed by lanes 1 (M1.8), 2 (M2.1–M2.12: SDL and AppKit, since
+`EV-AF` moved the AppKit conformer to lane 2) and 3 (M3.1–M3.6, MG7, MG8).
 
 ## EV-AC — `controlSize` is carried with SwiftUI's five sizes and no built-in reader (divergence 76)
 
@@ -2232,13 +2249,56 @@ Record phase — not before every lane is verified.
 | Every other row | unchanged |
 
 **Items addressed to "task 9" in other decisions docs.** The accessibility
-bridge's rulings (`AB-H`, its deferred-work table, the panel's "non-button
-click absorber") name "task 9's `Button`". `Button` is a common control, which
-the plan's current numbering gives to **task 10** ("common controls"); none is
-delivered here, and the Record phase re-points those notes to task 10.
+bridge's doc and spec were written when the interaction work was numbered
+task 9. **Corrected by `EV-AF`** (the first wording sent all of them to task
+10): the plan's current task 12 is "gesture composition, button semantics,
+disabled behaviour, keyboard focus, pointer hit testing and content shapes",
+so **button semantics, the non-button click absorber (the panel), `AB-H`'s
+`allowsHitTesting(false)` press question (divergence 28),
+`accessibilityElement(children:)`, disabled behaviour and content shapes go to
+task 12**; only a `Button` *control's existence* is task 10's ("common
+controls"). None is delivered here. The Record phase re-points those notes
+(`AB-` doc lines naming "task 9"; the bridge spec's header) accordingly.
 
 **Cost if wrong.** If a reviewer reads "control state" as including the
 consumers, the box is ticked early; the progress note and this table say
 exactly which half landed.
 
 **Mutations:** none (a disposition, no behaviour).
+
+## EV-AF — critic pass on `EV-AA`…`EV-AE` and the spec (applied and rejected findings)
+
+**What.** One critic-and-revise pass over `a4a7f03` (spec, `EV-AA`…`EV-AE`,
+probe). The probe was re-run compiled (`/usr/bin/swiftc`, then
+`OS_ACTIVITY_DT_MODE=1`, the header's filter) on the same machine: **all 49
+filtered lines byte-identical to the header**, V, S, C and Z alike; the lock
+probe still read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`, so
+C1–C3/C5 still did not run and `EV-AB`'s mapping remains MetalUI's choice.
+Rejections are recorded here, under this track's own prefix, rather than as
+`LR-` rulings: `LR-` is the engine-replacement track's doc, which this track
+does not own.
+
+| # | finding | disposition |
+|---|---|---|
+| 1 | `EV-AE` sent every accessibility-bridge "task 9" item to task 10. The plan's task 12 text is "gesture composition, button semantics, disabled behaviour, keyboard focus, pointer hit testing and content shapes" | **Applied**: `EV-AE` corrected in place — button semantics, the panel's non-button click absorber, `AB-H`'s press question (divergence 28), `accessibilityElement(children:)`, disabled behaviour and content shapes → task 12; a `Button` control's existence → task 10. None is pulled into task 9 |
+| 2 | The AppKit window was to re-read key state from `NSWindowDelegate` methods while T3.4 **posted notifications** — a test path that holds only because AppKit auto-registers a delegate, and posting `NSApplication.didResignActiveNotification` on the default center reaches AppKit's own observers in the shared test process | **Applied**: explicit selector-based observers on an internal injectable `NotificationCenter` (default `.default`); application notifications posted only on a private center; one production-wiring arm posts only a window-scoped notification on the default center (M2.10) |
+| 3 | The AppKit de-duplication value was unspecified across `openWindow`'s `makeKeyAndOrderFront`, which can report before `Window` assigns the callback | **Applied**: the getter is a live read; the last-reported value updates on every re-read, callback or not; `Window`'s `!=` guard absorbs a duplicate |
+| 4 | SDL: an `SDL_PushEvent`ed focus event does not update `SDL_GetWindowFlags`, so a getter reading flags would make T2.1 unreachable; and per-event recomputation reports a transient `.inactive` to the window losing focus in a switch between two own windows | **Applied**: the getter reads a platform-owned `focusedID`; states recomputed and callbacks fired once after `pumpEvents()` drains; T2.1 pins the exact logs; **M2.5** (per-event recompute) must redden it |
+| 5 | T2.2 said "if no honest spelling reddens it, delete the test" — a deferral that could delete the only ownership pin | **Applied**: §4 spells the recompute (`focusedID == id ? .key : (focusedID != nil ? .active : .inactive)`), under which M2.4 is red by construction; the test gains a closed-window arm (M2.6) |
+| 6 | Both pre-existing scale paths — AppKit's `viewDidChangeBackingProperties` → `onGeometryChange`, SDL's `DISPLAY_SCALE_CHANGED`/`PIXEL_SIZE_CHANGED` → `MUI_EVENT_RESIZE` — are pinned by nothing at `e732d98`; either could go and leave `displayScale` stale after a display move with the suite green. T3.3 exercises only the fake | **Applied**: T2.3 (a test-only raw-event push helper) and T2.6; mutations M2.7, M2.12 |
+| 7 | SDL's drawable scale is the **pixel density**, not SDL's content scale; at 150% on Windows/X11 `displayScale` reads 1 | **Applied as a named platform limit**, not a change: the value reports what is drawn (S1's rule); following the system UI scale is plan task 14's (`EV-AA` amended) |
+| 8 | Lane 3 carried the protocol, `Window`, the fakes **and** the AppKit conformer and its tests | **Applied**: the AppKit conformer and its three tests move to lane 2 (disjoint files; both real conformers gain the pair before lane 3 requires it). Counts: lane 2 +3 root tests, lane 3 +3 tests +2 guards, total **1506 tests, 90 guards** (was 1505: T2.6 added) |
+| 9 | "The platform tests' AppKit window count is unchanged" was false (T3.4 opens a window) | **Applied**: the spec states three new AppKit windows (T2.4 two, T2.6 one), each `isReleasedWhenClosed = false`, and an unfiltered run |
+| 10 | The Windows 1 MB stack budget: `EnvironmentValues` is copied on the scope stack and changes shape | **Applied as a measurement**: lane 1 records `MemoryLayout<EnvironmentValues>.size`/`.stride` before and after in §56; `everyProductionTreeBuildsOnAOneMegabyteThread` stays the gate (Windows CI on push) |
+| 11 | `pixelLength` stored → computed is a public API break | **Rejected**: outside the module it was get-only (`public internal(set)`) and stays get-only; every spelling an external caller could write still compiles (G3 re-verifies its message). The only change is ABI/stored layout across modules, which the spec's `swift package clean` already covers |
+| 12 | Built-in `Text` should follow `controlSize` now, since Z2 measured it | **Rejected**: `Text.init` stores `fontSize = 13` with no default-font state (`Text.swift:81`, re-read), so Z2's default-only rule needs a text-model change; `EV-AC`'s owners (tasks 11, 10) stand |
+| 13 | Reuse divergence label 75 instead of skipping to 76 | **Rejected**: record §04's closeout says "label 75 stays unused"; `EV-AC`'s reason stands |
+| 14 | M1.5 (`roundLayout` to half points) reddens a large set, so its named list is unwieldy | **Rejected as a defect**: no mutation that makes layout follow `displayScale` exists without plumbing the scale into `MetalUILayout`; the spec now says every reddened name goes to §56 grouped by file |
+| 15 | `EV-AB` rests on unrun arms | **Rejected as stated**: the seam rests on C0 (host-stamped, bare `key` vs hosted `inactive` — a separating pair) and C4; only the mapping is unmeasured, ruled as MetalUI's choice with the C arms owed on an unlocked screen, and the `(false, false)` row agrees with C0 |
+| 16 | Scope creep into task 12 | **None found**: no focus, hit-testing, key-routing or look change; `controlActiveState` has no built-in consumer |
+
+**Cost if wrong.** Finding 4's coalescing hides a real two-pump transient
+from a reader; nothing reads it and it costs one redraw. Finding 2's injected
+center could drift from production; M2.10 is the pin.
+
+**Mutations:** none of its own; the applied findings add M2.5–M2.12 to lane 2.
