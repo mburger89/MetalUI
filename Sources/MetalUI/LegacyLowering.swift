@@ -186,7 +186,8 @@ extension LayoutPass {
     ///   spacers, `arrangeLegacyMainAxis`. **Without** a declared main size it still
     ///   lowers as `flex-start`, and a parent that makes the container greedy on its
     ///   own main axis reports it there, `planLegacyItems`' re-check, `LR-AR`);
-    /// - `flexWrap` (≠ `.noWrap`), `alignContent` (≠ `nil`) — deleted concepts.
+    /// - (`flexWrap` and `alignContent` were rows until stage 10 deleted the fields,
+    ///   `LR-FM` item 1.)
     ///
     /// **Not reported: overflow** (ruling LR-I). Whether fixed children overflow a
     /// declared size is known only after measurement; CSS shrinks them, the lowered
@@ -205,8 +206,6 @@ extension LayoutPass {
             fields.append(entry("gap.percent"))
         }
         if declared.alignItems == .baseline { fields.append(entry("alignItems.baseline")) }
-        if declared.flexWrap != .noWrap { fields.append(entry("flexWrap")) }
-        if declared.alignContent != nil { fields.append(entry("alignContent")) }
         return fields + legacyLeafDiagnostics(declared, site: site)
     }
 
@@ -223,11 +222,10 @@ extension LayoutPass {
     /// its parent (stage 2, ruling LR-AB) — a hidden one too since stage 6b (`LR-DH`).
     ///
     /// **Every container field is ignored** (`flexDirection`, `gap`, `alignItems`,
-    /// `justifyContent`, `justifyItems`, `flexWrap`, `alignContent`, `display:
-    /// .stack`), and so are `aspectRatio` and `overflow`: the legacy engine lays out
-    /// no children for a leaf and reads neither of the last two (spec §5.4, critic
-    /// round 1 finding 6). Every **node** field outside the stage-1 subset is
-    /// reported by name — see `legacyLeafDiagnostics`.
+    /// `justifyContent`, `justifyItems`, `display: .stack`): a leaf has no
+    /// children to lay out (spec §5.4, critic round 1 finding 6). Every **node**
+    /// field outside the stage-1 subset is reported by name — see
+    /// `legacyLeafDiagnostics`.
     func lowerLegacyLeaf(_ style: Style, declared: Style, site: LoweringSite,
                          content: () -> LayoutNodeID) -> LayoutNodeID {
         // Stage 6b (ruling `LR-DH`): a hidden leaf lowers as if shown — a leaf reads
@@ -553,20 +551,18 @@ extension LayoutPass {
         return frame.unlowerable(fields[fields.count - 1])
     }
 
-    /// `node` → native padding (`style.padding` **plus `style.border`**, when any edge
-    /// is non-zero) → a fixed native frame (`style.size`, when either axis is declared)
+    /// `node` → native padding (`style.padding`, when any edge is non-zero) → a fixed native frame (`style.size`, when either axis is declared)
     /// aligned by `alignment`. Returns the outermost node registered. Since stage 2's
     /// lane 2 a declared axis is folded with the style's own px/rem
     /// `minSize`/`maxSize`, `max(min, min(size, max))` — CSS's used size — from the
     /// animated style (the values half of ruling LR-AS).
     ///
-    /// **Border is padding** (stage 2, lane 4, ruling LR-AH): CSS's border box puts
-    /// `border` inside the declared size exactly where `padding` sits, and the legacy
-    /// engine shrank its content box by both (`FlexEngine.swift`'s `contentBox`,
-    /// deleted at stage 9, `LR-FC`).
-    /// SwiftUI has no layout border, so native padding is the spelling for the sum.
+    /// **History: border was padding** (stage 2, lane 4, ruling LR-AH): until stage
+    /// 10 deleted `Style.border` (`LR-FM` item 1) the insets were `padding + border`
+    /// edge by edge, since CSS's border box puts `border` inside the declared size
+    /// exactly where `padding` sits. SwiftUI has no layout border.
     ///
-    /// **A declared size below that sum keeps its frame** (lane 4, `LR-AH` as
+    /// **A declared size below the padding keeps its frame** (lane 4, `LR-AH` as
     /// amended; stage-2 probe P1, P7, P8): the padding overflows the fixed frame,
     /// placed by `alignment`, where CSS floors the border box at the sum (`BM-4`).
     /// Nothing is reported for it — spec 4.3 pins the divergence.
@@ -579,13 +575,10 @@ extension LayoutPass {
                                 textLeaf: Bool = false) -> LayoutNodeID {
         let content = node
         var node = node
-        func inset(_ padding: Length, _ border: Length) -> Double {
-            resolvedLength(padding) + resolvedLength(border)
-        }
-        let insets = Edges(top: inset(style.padding.top, style.border.top),
-                           right: inset(style.padding.right, style.border.right),
-                           bottom: inset(style.padding.bottom, style.border.bottom),
-                           left: inset(style.padding.left, style.border.left))
+        let insets = Edges(top: resolvedLength(style.padding.top),
+                           right: resolvedLength(style.padding.right),
+                           bottom: resolvedLength(style.padding.bottom),
+                           left: resolvedLength(style.padding.left))
         var padded = false
         if insets.top != 0 || insets.right != 0 || insets.bottom != 0 || insets.left != 0 {
             node = frame.requestNativePadding(child: node, insets: insets)
@@ -760,12 +753,12 @@ extension LayoutPass {
     /// reads them from the element's `LoweredItem` (`planLegacyItems`), and a record
     /// no lowered container consumes reports them `…unconsumed` (ruling LR-AQ).
     ///
-    /// Padding and border each report **only** their percentage — `padding.percent`,
-    /// `border.percent` — which resolves against a containing block the kernel does
-    /// not have (ruling LR-AI, stage 8's recipe). Since stage 2's lane 4 a px/rem
-    /// border lowers into the native padding's insets, a `Text`'s padding lowers
-    /// around its leaf, and a declared size below the padding + border sum keeps its
-    /// fixed frame (ruling LR-AH) — so `padding.floor` and `padding.text` are gone.
+    /// Padding reports **only** its percentage — `padding.percent` — which resolves
+    /// against a containing block the kernel does not have (ruling LR-AI, stage 8's
+    /// recipe). Since stage 2's lane 4 a `Text`'s padding lowers around its leaf, and
+    /// a declared size below the padding keeps its fixed frame (ruling LR-AH) — so
+    /// `padding.floor` and `padding.text` are gone. (`border.percent` went with
+    /// `Style.border` at stage 10, `LR-FM` item 1.)
     func legacyLeafDiagnostics(_ declared: Style, site: LoweringSite) -> [UnlowerableField] {
         func entry(_ name: String) -> UnlowerableField { UnlowerableField(site: site, field: name) }
         var fields: [UnlowerableField] = []
@@ -778,13 +771,12 @@ extension LayoutPass {
                 .contains { if case .percent = $0 { true } else { false } }
         }
         if hasPercentEdge(declared.padding) { fields.append(entry("padding.percent")) }
-        if hasPercentEdge(declared.border) { fields.append(entry("border.percent")) }
         // Stage 5 (ruling `LR-CK`): `.absolute` is reported by the CONSUMER, not
         // here — `planLegacyItems` for a child, `reportUnconsumedLoweredItems` for a
         // record nobody consumed — because a `Deferred` consumes it and lowers it
-        // as a presentation (`lowerPresentation`). `.relative` and an inset on a
-        // non-absolute box still report here, unchanged.
-        if declared.position == .relative { fields.append(entry("position")) }
+        // as a presentation (`lowerPresentation`). An inset on a non-absolute box
+        // still reports here (a permanent refusal, `LR-FO` item 2); `.relative`
+        // was deleted by stage 10 (`LR-FN` item 3).
         if declared.position != .absolute && declared.inset != Edges(all: .auto) {
             fields.append(entry("inset"))
         }

@@ -238,7 +238,8 @@ final class StateTable {
     /// would be unreachable dead code, not a fix. Kept anyway — this is what
     /// this task's own tests read, two of which construct no `Window` at
     /// all — and listed in CLAUDE.md's declared-but-inert table under the
-    /// `Style.overflow` shape: a production write with no production read.
+    /// shape `Style.overflow` had until stage 10 deleted it (`LR-FM` item 1):
+    /// a production write with no production read.
     ///
     /// **Deliberately NOT raised by `withState`.** `ScrollView`'s per-frame
     /// offset bookkeeping (`ScrollChrome.resolvedOffset`) goes through

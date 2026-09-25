@@ -1748,7 +1748,7 @@ public final class Frame {
     /// `NativeModifiedContent`'s `.border` (proposal path) and
     /// `Decoration.border`/`hoverBorder`/`focusBorder` (legacy path, rulings
     /// `OM-B`/`OM-L`) both carry `Pixels`, which paint can pair with a colour
-    /// directly. `Style.border` remains engine-side and is still discarded.
+    /// directly. `Style.border` was deleted by stage 10 (`LR-FM` item 1).
     func fill(_ bounds: Bounds<Pixels>, color: Hsla,
               cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
               borderColor: Hsla = .transparent,

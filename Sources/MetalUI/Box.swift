@@ -206,8 +206,8 @@ extension Box {
 /// computes inside `contentBox` and then discards. `BorderStyle` below declares
 /// its widths in `Pixels`, which have nothing to resolve, so that blocker does
 /// not apply to it. The layout-affecting `borderWidth(_:)` modifier that wrote
-/// `Style.border` is deleted (`OM-M`); `Style.border` itself stays, engine-side
-/// and reachable only through `Box(style:)`.
+/// `Style.border` is deleted (`OM-M`), and `Style.border` itself was deleted by
+/// plan task 7, stage 10 (`LR-FM` item 1).
 public struct Decoration: Sendable, Hashable {
     public var background: ColorToken?
     public var cornerRadius: Pixels
@@ -427,11 +427,11 @@ public struct BorderStyle: Sendable, Hashable {
 /// on it (there is no main axis) while `alignSelf` is inert on its *children*
 /// — see `Display.stack`'s own doc comment for the mechanism in each case.
 ///
-/// **Every modifier below maps to a `Style` property the engine reads.** There
-/// are deliberately none for `overflow` or `aspectRatio`: those two are
-/// CLAUDE.md's remaining inert rows, and a modifier for an inert property is
-/// worse than no modifier, because from outside it is indistinguishable from an
-/// implemented one. `position` and `inset` were on that list until the engine
+/// **Every modifier below maps to a `Style` property the lowering reads.** There
+/// were deliberately none for `overflow` or `aspectRatio`: those two were
+/// CLAUDE.md's inert rows until stage 10 deleted both fields (`LR-FM` item 1),
+/// and a modifier for an inert property is worse than no modifier, because
+/// from outside it is indistinguishable from an implemented one. `position` and `inset` were on that list until the engine
 /// read them; they gained `position(_:)`/`inset(_:)` in the same change that
 /// deleted their rows, which is ruling AL-6's rule running in the other
 /// direction. Two live properties are also unreachable from here on purpose:
@@ -1013,8 +1013,8 @@ extension StyledElement {
     // and on any box it painted nothing at all. That is worse than inert, and
     // CLAUDE.md's declared-but-inert table exists to remove that shape rather
     // than annotate it. The name belongs to the paint-only `border(_:width:)`
-    // at the end of this extension; `Style.border` stays engine-side, reachable
-    // only through `Box(style:)`, on `margin: .auto`'s footing.
+    // at the end of this extension; `Style.border` itself was deleted by plan
+    // task 7, stage 10 (`LR-FM` item 1).
     // `borderWidthIsNoLongerSpellable` (`DecorationCompileGuards.swift`) pins
     // the removal against a plain import.
 
@@ -1038,13 +1038,10 @@ extension StyledElement {
         modifying { $0.alignItems = value }
     }
 
-    public func alignContent(_ value: AlignContent) -> Self {
-        modifying { $0.alignContent = value }
-    }
-
-    public func flexWrap(_ value: FlexWrap) -> Self {
-        modifying { $0.flexWrap = value }
-    }
+    // `alignContent(_:)` and `flexWrap(_:)` were removed by plan task 7,
+    // stage 10 (`LR-FN` items 1–2): a wrapping line has no proposal lowering
+    // (both were reported by name, a production trap since stage 6b). Delete
+    // the call; lay rows out explicitly, or use `Grid`.
 
     // MARK: As a flex item
 
@@ -1109,17 +1106,16 @@ extension StyledElement {
     /// the offset to zero, so `Deferred { Box().position(.absolute)… }` is the
     /// spelling that does cover the window from anywhere in the tree.
     ///
-    /// **`.relative` is half-implemented and this modifier is what makes that
-    /// reachable.** It does make a box a containing block, which is its whole
-    /// purpose here; it does *not* shift the box by its own inset the way CSS
-    /// does. CLAUDE.md carries the row, on the same footing as `.baseline` on
-    /// `alignItems(_:)`.
+    /// **`Position.relative` was removed by plan task 7, stage 10** (`LR-FN`
+    /// item 3): the window is the only containing block (`LR-FF`), and a
+    /// `.relative` box was reported by name, a production trap since stage 6b.
+    /// Delete `.position(.relative)`.
     public func position(_ value: Position) -> Self {
         modifying { $0.position = value }
     }
 
     /// The four offsets an `.absolute` box is placed by, against its containing
-    /// block. Inert on a `.static` or `.relative` box, exactly as in CSS.
+    /// block. On a `.static` box it is refused by name (`LR-FO` item 2).
     ///
     /// Takes `Dimension` rather than `Length`, unlike `margin(_:)`, because
     /// `.auto` is this property's default and its meaning is defined: an axis

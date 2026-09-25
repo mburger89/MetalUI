@@ -104,9 +104,8 @@ public struct ScrollContext: Sendable, Equatable {
 /// A clipped, scrollable viewport over content taller (or wider) than itself.
 ///
 /// **SwiftUI's shape, not CSS's** (ruling EP-5): `ScrollView { … }` rather than
-/// `Box.overflow(.scroll)`. `Style.overflow` stays the substrate this element
-/// writes into, the way `Column.init` writes `alignItems` without `Style`'s
-/// default moving (ruling EP-8).
+/// `Box.overflow(.scroll)`. (It wrote an inert `Style.overflow` until stage 10
+/// deleted the field, `LR-FM` item 1.)
 ///
 /// **Two layout nodes**: a content node — stage 2's container lowering, so its
 /// children's stretch, grow, margins, gaps and `justifyContent` lower as under
@@ -316,9 +315,6 @@ public struct ScrollView<Content: ElementGroup>: Element {
 
         var viewportStyle = Style()
         viewportStyle.flexDirection = axis == .vertical ? .column : .row
-        // Inert (CLAUDE.md's table): the kernel reads `overflow` nowhere, and
-        // the lowering does not carry it.
-        viewportStyle.overflow = Axes(both: .scroll)
         (viewportStyle, _) = animated(viewportStyle, Decoration(), for: scrollViewViewportAnimID(for: id),
                                       pass: &pass)
         let node = pass.frame.requestNativeScrollViewport(
