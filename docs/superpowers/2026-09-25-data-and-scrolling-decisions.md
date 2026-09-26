@@ -2,7 +2,7 @@
 
 Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-data-and-scrolling-design.md),
 on `feat/data-and-scrolling` from `e7bc2e7`. Ids are **lettered**,
-`DD-A`…`DD-O`; next unused is **`DD-P`**. A bare `DD-3` is a typo, not a
+`DD-A`…`DD-P`; next unused is **`DD-Q`**. A bare `DD-3` is a typo, not a
 citation. **A round that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-25: DESIGNED, then CRITICISED AND REVISED** (the critic
@@ -770,3 +770,73 @@ tests, nothing else); the green run after this ruling; the guard mutation runs.
 
 **What it costs if wrong.** A table sized within one entry of 256 retains or
 reaps one row's state differently than before; nothing else moves.
+
+## DD-P — lane 3: its mutation table, one redundant clamp, and a second copy of the scope check
+
+**Ruling.** Lane 3 (`DD-G`, `DD-H`, `DD-K`) records its mutations here; three
+of the readings change what the lane's tests claim to pin.
+
+1. **The table.** Each row is a full unfiltered run with the source restored
+   from a copy after. "Implementer" rows are the readings lane 3's test docs
+   name; "verifier" rows were re-taken by the verifier round; "fix" rows by
+   the fix round.
+
+   | Mutation | Change | Reddens | Taken by |
+   |---|---|---|---|
+   | M3f | `scrollTo`'s formula reads the target's `maxY` | 3.6 (reads 330, 295, 260, 312.5) | implementer |
+   | M3g | a nil anchor treated as `.top` | 3.7, first two arms (300, 30) | implementer |
+   | M3h | unresolved requests kept pending | 3.8, second arm (reads 450) | implementer |
+   | M3h-clamp | the clamp in `Frame.scrollOffset(bringing:into:anchor:)` removed | **nothing**: redundant (item 2) | verifier |
+   | M3i | `List`'s pending-request scan removed | 3.9 (reads 1) | implementer |
+   | M3j | the target is the union of a `ForEach` element's members | 3.10 (`.bottom` reads 340) | implementer |
+   | M3k | resolved against the outermost scroller frame | 3.11 (outer 200, inner 0) | implementer |
+   | M3l | `ProposalScrollView` pushes no scroller frame | 3.12, second arm (reads 0) | implementer |
+   | M3m | the scope check dropped from `Frame.matchScrollRequests` | 3.13, S2 arm (B moves to 300) | implementer, verifier |
+   | V-ListScope | the scope check dropped from `Frame.unresolvedScrollRequests(enclosing:)` | before the fix round: **nothing** (1555 passed); after: 3.13b `scrollToIsScopedToItsReaderOnTheListPath`, its separating `offset(window, "b") == 0` only (1556, 1 issue) | verifier, fix |
+   | M3n | the reader takes no slot (both entries) | 3.14, **both** arms: the two entries share the `proxy(under:at:pass:)` helper | verifier |
+   | M3n′ | the same in the typed entry only | 3.14, typed arm only | implementer |
+   | M3o | `.never` falls through to the automatic path | 3.15 | implementer |
+   | M3p | keys matched by `String(describing:)` | 3.16, the negative arms | implementer |
+   | M3q | typed keys noted with no request pending | 3.16, the counter arm | implementer |
+   | MG4 | a plain `gridCellAnchor(_: UnitPoint)` overload | does not build (item 4) | verifier |
+   | MG4c | the same overload, `@_disfavoredOverload` | `aGridCellAnchorIsNinePoint` (`4 unit point: succeeded=true`) | verifier |
+
+2. **The clamp in `scrollOffset(bringing:into:anchor:)` is redundant, not a
+   pin.** Test 3.8's row-19 arm reads 500 with it removed, because
+   `ScrollChrome.resolvedOffset` re-clamps the stored offset on its next read
+   and writes the clamped value back. The spec asked for this to be measured;
+   M3h-clamp is that measurement. The clamp stays, so the resolution value is
+   correct at the point it is computed. Nothing claims it as a pin.
+3. **The scope check exists twice, and only one copy had a pin** (the
+   copy-of-a-pinned-implementation shape). `.id` elements are matched in
+   `Frame.matchScrollRequests`; `List` rows are matched through
+   `Frame.unresolvedScrollRequests(enclosing:)`, which carries its own
+   `isStrictDescendant(id, of: scope)` clause. 3.13's S2 arm uses only `.id`
+   elements, so V-ListScope read green. **3.13b** (fix round) is S2's shape
+   with two readers over `ScrollView { List }`: row id 150 exists only in
+   reader B's `List`. Its control is B's own proxy moving B to 1500. Its
+   separating arm is reader A's proxy moving neither scroller. The mutation
+   reddens only that arm.
+4. **`UnitPoint` and the grid anchor.** Since `DD-G` MetalUI has a public
+   `UnitPoint`, but `gridCellAnchor` still takes the nine-case
+   `ProposalAlignment` (divergence `GR-O` 4; task 11 owns it). The obvious
+   mutation, a plain `UnitPoint` overload, does not build: `UnitPoint`'s
+   statics (`.top`, `.trailing`, `.topLeading`) make every existing
+   leading-dot call site ambiguous (`Grid.swift`,
+   `ModifierCompositionProofTests`, `GridElementTests`). Task 11 will hit the
+   same ambiguity when it adds the real overload. The guard's named mutation
+   is now the `@_disfavoredOverload` spelling (MG4c).
+5. **Red-first figure.** At `f656270` (the red-first commit) the unfiltered
+   suite read **10 of 13** new tests failing with 25 issues (3.6–3.13, 3.15,
+   3.16). 3.14 and both guards passed over the skeleton. The commit message's
+   "12 of 13" is wrong and stays unamended; this is the figure record §57
+   carries.
+
+**Evidence.** The verifier round's mutation logs (M3h-clamp, M3n at
+`ScrollToTests.swift` lines 527 and 556 before 3.13b moved them, MG4, MG4c,
+V-ListScope at 1555 passed). The fix round's V-ListScope run: `Test run with
+1556 tests in 3 suites failed … with 1 issue`, the one issue being 3.13b's
+`offset(window, "b") == 0`.
+
+**What it costs if wrong.** Without 3.13b, a proxy from one reader could
+scroll a `List` under another reader with the suite green.

@@ -172,8 +172,8 @@ private final class RowCount { var count = 20 }
 /// unknown id does nothing, and an element that appears with that id a frame
 /// later is **not** scrolled to — the request was dropped. **M3h**: unresolved
 /// requests kept pending (the second arm reads 450). The clamp itself is also
-/// re-applied by `ScrollChrome.resolvedOffset`'s write-back (measured, see
-/// the lane's mutation table).
+/// re-applied by `ScrollChrome.resolvedOffset`'s write-back, so removing it
+/// reddens nothing — redundant, not a pin (M3h-clamp, `DD-P` item 2).
 @Test @MainActor
 func scrollToClampsToTheContentAndIgnoresAnUnknownID() throws {
     do {
@@ -467,6 +467,61 @@ func scrollToIsScopedToItsReader() throws {
     }
 }
 
+/// Two 100 × 100 readers side by side, `"a"` and `"b"`, each over a scroller
+/// (named `"a"`/`"b"`) holding a `List` at 30: A's rows are ids `0..<20`, B's
+/// `100..<300`.
+@MainActor
+private func twoListReaders(_ proxies: Proxies) -> some Element {
+    func reader(_ name: String, _ ids: Range<Int>) -> some ElementGroup {
+        ScrollViewReader { proxy in
+            let _ = proxies.keep(proxy, as: name)
+            ScrollView(.vertical, elementID: ElementID(name)) {
+                Box(style: sized(width: 100, column: true)) {
+                    List(ids.map(Datum.init), rowHeight: px(30)) { _ in
+                        Box(style: sized(width: 100, height: 30))
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+    return Box(style: sized(width: 200, height: 100, row: true)) {
+        Box(style: sized(width: 100, height: 100, column: true)) { reader("a", 0..<20) }
+        Box(style: sized(width: 100, height: 100, column: true)) { reader("b", 100..<300) }
+    }
+}
+
+/// **3.13b (S2 on the `List` path).** 3.13's S2 arm uses `.id` elements only,
+/// so it pins the scope check in `Frame.matchScrollRequests`; a `List` row is
+/// matched by `Frame.unresolvedScrollRequests(enclosing:)`, which carries its
+/// own copy of the check. Row id 150 sits only in reader B's `List`: B's own
+/// proxy moves B to 1500 (index 50 × 30, the control), and reader A's proxy
+/// moves **neither** scroller (SwiftUI moves nothing, S2). **V-ListScope**:
+/// the `isStrictDescendant` clause dropped from
+/// `unresolvedScrollRequests(enclosing:)` — reddens the separating arm (B
+/// moves to 1500).
+@Test @MainActor
+func scrollToIsScopedToItsReaderOnTheListPath() throws {
+    let proxies = Proxies()
+    let (window, _) = try makeFakeWindowOnDefaultDevice(size: 200) {
+        twoListReaders(proxies)
+    }
+    window.drawFrameIfNeeded()
+    try requireViewport(window, height: 100, "a")
+    try requireViewport(window, height: 100, "b")
+    proxies["b"].scrollTo(150, anchor: .top)
+    settle(window)
+    try #require(try offset(window, "b") == 1500, "control: B's own proxy reaches B's list row")
+    proxies["b"].scrollTo(100, anchor: .top)
+    settle(window)
+    try #require(try offset(window, "b") == 0, "control: B back at the top")
+
+    proxies["a"].scrollTo(150, anchor: .top)
+    settle(window)
+    #expect(try offset(window, "a") == 0, "S2: A's proxy finds no row 150 in A's list")
+    #expect(try offset(window, "b") == 0, "S2: and does not reach into B's list")
+}
+
 /// Logs each id and state value it is built with.
 @MainActor
 private final class Seen {
@@ -506,8 +561,9 @@ private struct IDLogger: Element {
 /// entry, inside a proposal `HStack` (`requestProposalGroupLayout`, its own
 /// registration call): the reader's `Rectangle` at root/0/0, the sibling at
 /// root/1. **M3n**: the reader consumes no slot (its content numbers in its
-/// parent's cursor space) — reddens the first arm; **M3n′**, the same in the
-/// typed entry only, reddens the second.
+/// parent's cursor space) — reddens **both** arms (the two entries share the
+/// `proxy(under:at:pass:)` helper); **M3n′**, the same in the typed entry
+/// only, reddens only the second.
 @Test @MainActor
 func aScrollViewReaderIsOneSlotWithItsOwnIdentityLevel() throws {
     let seen = Seen()

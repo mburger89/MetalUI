@@ -326,8 +326,9 @@ extension ProposalElementGroup {
     /// (GL10, GL11, GL13) — a non-row child included.
     ///
     /// Nine-point only: SwiftUI takes a `UnitPoint` and GL14 reads a fractional
-    /// one, which MetalUI has no spelling for (divergence `GR-O` 4, guard
-    /// `aGridCellAnchorIsNinePoint`; task 11 owns the gap).
+    /// one. MetalUI has a public `UnitPoint` since plan task 10 (`DD-G`, for
+    /// `scrollTo(_:anchor:)`), but this modifier does not take it (divergence
+    /// `GR-O` 4, guard `aGridCellAnchorIsNinePoint`; task 11 owns the gap).
     public func gridCellAnchor(_ anchor: ProposalAlignment) -> GridCellModifier<Self> {
         GridCellModifier(content: self, attribute: .anchor(anchor))
     }

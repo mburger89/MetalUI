@@ -125,7 +125,13 @@ func aGridColumnAlignmentIsAHorizontalAlignment() throws {
 /// the argument's type rather than on an unknown name — still "for the anchor
 /// argument", which is what the message check reads.
 ///
-/// Mutation that must redden it: add a `gridCellAnchor(_: UnitPoint)` overload.
+/// Mutation that must redden it: add a `@_disfavoredOverload`
+/// `gridCellAnchor(_: UnitPoint)` overload (MG4c, measured: `4 unit point:
+/// succeeded=true`). The plain overload (MG4) does not build at all:
+/// `UnitPoint`'s statics (`.top`, `.trailing`, `.topLeading`) make every
+/// existing leading-dot call site ambiguous (`Grid.swift`,
+/// `ModifierCompositionProofTests`, `GridElementTests`) — the hazard task 11
+/// faces when it adds the real overload.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func aGridCellAnchorIsNinePoint() throws {
     let control = try typecheckFile("""
