@@ -158,11 +158,14 @@ public struct EnvironmentValues {
     /// EV-AC). `.regular` in a bare value (V0); written by `.controlSize(_:)` or
     /// `.environment(\.controlSize, _)`, nearest writer winning (Z1).
     ///
-    /// **Carried, with no built-in reader — divergence 76, pinned wrong on
-    /// purpose** by `controlSizeReachesNoBuiltInMeasurement`. SwiftUI's `Text`
-    /// default font, `TextField` and `Button` follow it on macOS (Z2, Z3);
-    /// MetalUI's measure nothing differently. Owners: plan task 11 (`Text`'s
-    /// default font), plan task 10 (`TextField` and the common controls).
+    /// **One built-in reader: `Button`'s chrome** (ruling `DD-R` item 4 —
+    /// its padding and height follow the size, its label's font does not).
+    /// Otherwise carried unread — **divergence 76, amended and kept, pinned
+    /// wrong on purpose** by `controlSizeReachesNoBuiltInMeasurement`: SwiftUI's
+    /// `Text` default font and `TextField` follow it on macOS (Z2, Z3);
+    /// MetalUI's measure nothing differently. Owner of the remainder (a
+    /// `Text`'s default font, `TextField`/`TextEditor`, the other controls'
+    /// metrics): plan task 11 (`DD-AB` item 2).
     public var controlSize: ControlSize = .regular
 
     /// The theme tokens resolve against. **Internal, and paint-only**: the only
@@ -197,8 +200,8 @@ public enum DynamicTypeSize: Sendable, Hashable, CaseIterable, Comparable {
 
 /// SwiftUI's five control sizes (ruling EV-AC).
 ///
-/// Carried in `EnvironmentValues.controlSize`; no built-in element reads it
-/// (divergence 76).
+/// Carried in `EnvironmentValues.controlSize`; `Button`'s chrome is the one
+/// built-in reader (`DD-R` item 4; divergence 76, amended).
 public enum ControlSize: Sendable, Hashable, CaseIterable {
     case mini, small, regular, large, extraLarge
 }

@@ -83,9 +83,9 @@ private func pickerWindow(_ model: Choice<Flavor>, style: PickerStyle = .automat
 
 /// **1.15.** A press writes the option's **tag**, not its position: a click on
 /// the third segment writes `.gamma`, an accessibility press on the first
-/// writes `.alpha` (PA1, PA2). M1m (the option writes its position) must
-/// redden it — it does not compile against an enum selection, so the mutant
-/// writes the position as the tag of an `Int`-tagged arm below.
+/// writes `.alpha` (PA1, PA2). M1m (the option writes its position, as an
+/// `Int`) reddens all three arms: an `Int` is no `Flavor`, so the enum arms
+/// write nothing, and the `Int`-tagged arm (tags 10/20/30) reads 0.
 @Test @MainActor func pressingAnOptionWritesItsTag() throws {
     let model = Choice(Flavor.beta)
     let (window, platform) = try pickerWindow(model)
@@ -234,8 +234,14 @@ private struct Counter: Element {
 /// ids of `Text("A")`; a grown `Box().flexGrow(1).tag(1)` keeps its grown width
 /// beside a fixed sibling (`DD-AC` item 5, the container arm); an `.id` on the
 /// tagged content still names it; and a tagged element's `@State` is bound.
-/// M1q (`TaggedElement` builds its segment chrome with no scope) and M1q′ (it
-/// forwards only the three phases) must redden it.
+/// Measured (`DD-AD` item 2): M1q (`TaggedElement` builds its segment chrome
+/// with no scope) reddens the leaf arm's bounds and ids and the `@State` arm;
+/// M1q′ (it forwards only the three phases, the Element defaults taking the
+/// group entry and `elementID`) reddens the `.id` and `@State` arms. **The
+/// container arm reddens under neither** — a lowered record passes through
+/// any wrapper that registers the content's node, and a greedy child makes a
+/// wrapping chrome greedy too — so it is a regression pin for the record's
+/// passage, not the discriminator `DD-AC` item 5 took it for.
 @Test @MainActor func aTagOutsideAPickerChangesNothing() throws {
     func leaf<C: ElementGroup>(@ElementBuilder _ content: () -> C) throws
         -> (bounds: [GlobalElementID: Bounds<Pixels>], ids: Set<GlobalElementID>, rects: Int, glyphs: Int) {
@@ -278,7 +284,9 @@ private struct Counter: Element {
 
 /// **1.24.** Disabled: a segment click, focused arrows and a `.press` write
 /// nothing; the group and every radio button publish disabled (PA4; `DD-AC`
-/// item 7). M1g, re-run on this arm, must redden it.
+/// item 7). M1g, re-run on this arm, reddens it; so does M1t (the partial
+/// fold keeping only interactive descendants, which folds a disabled
+/// picker's options into its label — `DD-AD` item 1).
 @Test @MainActor func aDisabledPickerWritesNothingAndPublishesDisabled() throws {
     let model = Choice(Flavor.alpha)
     let (window, platform) = try pickerWindow(model, disabled: true)

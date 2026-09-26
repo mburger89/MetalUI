@@ -4,7 +4,7 @@ Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-d
 on `feat/data-and-scrolling` from `e7bc2e7` (part 1, `DD-A`…`DD-P`), and for
 [`specs/2026-09-26-controls-and-selection-design.md`](specs/2026-09-26-controls-and-selection-design.md),
 on `feat/controls-and-selection` from `27b2fcc` (part 2, `DD-Q` onward). Ids
-are **lettered**, `DD-A`…`DD-AC`; next unused is **`DD-AD`**. A bare `DD-3`
+are **lettered**, `DD-A`…`DD-AD`; next unused is **`DD-AE`**. A bare `DD-3`
 is a typo, not a citation. **A round that appends a ruling moves this line in
 the same commit.**
 
@@ -1572,3 +1572,79 @@ replacement's decisions doc, and none of these touches the engine.
 **Cost if wrong.** Items 1–7 each change a test's literal or add a test
 before any code exists; the rejected attacks each name the ruling that would
 move.
+
+---
+
+## DD-AD — lane 1 (part 2): a disabled control survives the partial fold; its mutation table; two readings the spec had wrong
+
+**Ruling.** Lane 1 (`DD-R`, `DD-S`, `DD-T`, `DD-U`, `DD-V`) records its
+mutations here; three readings change what the design said.
+
+1. **The partial fold keeps a disabled control** (amends `DD-U` item 3). As
+   designed — "their interactive descendants stay as children" — a disabled
+   picker's options, which have no derived action (no hitbox, `EV-E`) and are
+   not focusable, were **folded into the group's label and not published**:
+   spec 1.24 read `radios.count → 0`. PA4 has SwiftUI's disabled radio
+   buttons published DISABLED. So the partial fold keeps a descendant that is
+   interactive **or** resolves to a control role (anything but static text
+   and group — a declared `.radioButton`, a clickable node that step B made a
+   `.button`, which a disabled stepper half still is, since `isClickable` is
+   recorded ungated); only the rest contributes text and is dropped. The full
+   fold (`.button`, `.checkBox`, `.radioButton`) is unchanged. Pinned by 1.24
+   (M1t below).
+2. **1.20's container arm is not M1q′'s discriminator** (amends `DD-AC` item
+   5). Measured: M1q′ (`TaggedElement` forwarding only the three phases, the
+   `Element` defaults taking the group entry and `elementID`) leaves the
+   container arm green — a lowered record is keyed by node and passes through
+   any wrapper that registers the content's node — and M1q (option chrome
+   with no scope) leaves it green too, because a greedy child makes the
+   wrapping chrome greedy. What M1q′ does break is the content's `.id` (the
+   default `elementID` is `nil`) and its `@State` (the default entry binds the
+   wrapper, whose mirror holds no `State`), so 1.20 gained two arms, a named
+   content and a tagged element whose `@State` survives a click; M1q′ reddens
+   exactly those two. The container arm stays as a regression pin.
+3. **M1c does not redden 1.4** (the spec's "also reddens 1.4"): the button's
+   activation key runs the action directly, not through its hitbox, so 1.4 is
+   pinned by M1d and M1e.
+4. **Site.** `OptionRow` (the segmented options' group) plans its options as
+   a column's children under `parentSite: .box` and records its node at site
+   `box`: it is part of the options `Box`, which consumes the record, and its
+   options are internal `Box`es declaring no item field, so no report is
+   reachable through it. No `LoweringSite` is added (`LayoutAuthority.swift`
+   is lane 2's).
+5. **The table.** Each row is a full unfiltered run (1582 tests) with the
+   source restored from a copy after, `git status --short` empty after each;
+   `Backends/SDL` rows are that package's full `swift test` on macOS.
+
+   | Mutation | Change | Reddens |
+   |---|---|---|
+   | M1a | regular padding 12 → 11 | 1.1, 1.2 |
+   | M1b | the chrome reads `.regular` whatever the environment | 1.2 |
+   | M1c | `Button` leaves `onClick` unset | 1.3, 1.5, 1.7, 1.8, `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`, `onClickIsLiveOnEveryConformerThatCanRegisterOne` |
+   | M1d | Return activates on Apple | 1.4 |
+   | M1e | `isFocusable` false | 1.4, 1.5, 1.6 |
+   | M1f | the activation replaces the caller's `onKey` | 1.6 |
+   | M1g | the `enabled` conjunct dropped from `Frame.registerHandlers`' focus registration and hitbox insert | 1.8, 1.12, 1.24 and 20 existing tests (D2, `aDisabledElementCannotAcquireFocus`, `aDisabledFieldTakesNoFocusAndNoText`, `aDisabledGridRegistersNoCellHitbox`, …; 23 in all) |
+   | M1h | toggle gap 7 → 8 | 1.9 |
+   | M1i | the toggle writes `isOn`, not `!isOn` | 1.10 |
+   | M1j | `.checkBox` left out of the full fold | 1.11 |
+   | M1k | the indicator filled by `Toggle.paint`, not a `Box` | 1.13 |
+   | M1l | `EqualWidthRow` places each at its own ideal width | 1.14 |
+   | M1m | an option writes its position | 1.15 (all three arms) |
+   | M1n′ | an unmatched selection writes the first tag | 1.16, D2 (the segment arm's picker matches no tag) |
+   | M1n | the partial fold removed | 1.17, 1.22 |
+   | M1o | radio gap 6 → 8 | 1.18 |
+   | M1o′ | the radio row's indicator gap 7 → 6 | 1.18 |
+   | M1p | wrap-around | 1.19 |
+   | M1q | option chrome built with no scope | 1.20 (leaf bounds and ids, `@State`) |
+   | M1q′ | forwards only the three phases | 1.20 (`.id`, `@State`) |
+   | M1r | `.checkBox` → AppKit `.button` | 1.21 |
+   | M1s | the hint not stripped before the emptiness test | 1.23 |
+   | M1t | the partial fold keeps only interactive descendants | 1.24 |
+   | MG1.1 | `Toggle.init(_:isOn:)` internal | G1.1 |
+   | MG1.2 | `public static let menu` added | G1.2 |
+   | MS1 | AccessKit `toggled` dropped | `theFiveControlRolesMapToAccessKitWithToggledAndNumericValues` |
+
+**Cost if wrong.** Item 1 is one clause in `combine`; if task 12's VoiceOver
+script prefers disabled options folded, it narrows back and 1.24 inverts.
+

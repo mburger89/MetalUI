@@ -3,7 +3,7 @@
 Branch `feat/controls-and-selection` from `27b2fcc` (part 1's tip). Rulings
 `DD-Q`…`DD-AC` are appended to part 1's decisions doc,
 [`../2026-09-25-data-and-scrolling-decisions.md`](../2026-09-25-data-and-scrolling-decisions.md)
-(next unused after the critic round: **`DD-AD`**). Evidence:
+(next unused after the critic round: `DD-AD`; lane 1 appended `DD-AD`, so next unused is **`DD-AE`**). Evidence:
 `docs/probes/swiftui-controls-and-selection.swift` (**new**, this design; arm
 ids cited as `BT0`, `SA3`, `KY6c` …, its header carries the recorded output
 and the reading). Record: `docs/record/58-controls-and-selection.md` (written
@@ -307,7 +307,9 @@ with `.press` and `isSelected`; bounded, a `.row` (`DD-AC` item 6).
   PA1/PA2 — kids=0), and **partially folds** an `.incrementor` and a
   `.radioGroup`: their non-interactive descendants' text becomes the label
   (when none is declared) and is not published; their interactive
-  descendants stay as children — so the title is the control's own label
+  descendants — and, since `DD-AD` item 1, any descendant resolving to a
+  control role, so a disabled picker's options stay — stay as children — so
+  the title is the control's own label
   (**divergence 82, added**: SwiftUI publishes it as a sibling static text
   beside an unlabelled control, STA0/PA0–PA2).
 - `AXNode.selectionHint` (internal) → `AccessibilityNode.isSelected`, stripped
@@ -386,7 +388,7 @@ strut height, gap).
 |---|---|---|---|---|
 | 1.1 | `aButtonIsItsLabelPaddedTwelveASideAndTwentyFourTall` | `Button("Go")` is `(textW + 24) × max(textH, 24)` (BT0) | no type | M1a: padding 12 → 11 |
 | 1.2 | `aButtonReadsControlSizeForItsChromeButNotItsLabelsFont` | per size, width `textW + 2·{8,10,12,14,18}`, height `max(textH, {13,20,24,28,36})`, the label's own size identical across sizes (BT4, BT5; divergence 76 amended) | no type | M1b: the chrome reads `.regular` whatever the environment |
-| 1.3 | `aButtonRunsItsActionOncePerClickAndNotOnAPressReleasedOutside` | click → 1; press in, release out → 0 | no type | M1c: `Button` leaves `onClick` unset (also reddens 1.4, 1.7) |
+| 1.3 | `aButtonRunsItsActionOncePerClickAndNotOnAPressReleasedOutside` | click → 1; press in, release out → 0 | no type | M1c: `Button` leaves `onClick` unset (also reddens 1.5, 1.7, 1.8 — **not 1.4**, `DD-AD` item 3) |
 | 1.4 | `aFocusedButtonActivatesOnSpaceAndOnReturnOnlyOffApple` | `ControlKeys.activatesButton(_:platform:)` for both platforms; through a `Window` on the host platform, Space → 1, Return → 0 on Apple | no type | M1d: Return activates on Apple |
 | 1.5 | `aButtonIsFocusableButAClickDoesNotFocusIt` | `lastFocusRegistry.isFocusable(id)`; after a click `focusedElement == nil` | no type | M1e: `isFocusable` false (also reddens 1.4) |
 | 1.6 | `aCallersOnKeyRunsBeforeTheButtonsActivation` | a caller `onKey` claiming Space suppresses the action; one declining lets it run | no type | M1f: the activation replaces the caller's `onKey` |
@@ -403,11 +405,11 @@ strut height, gap).
 | 1.17 | `aPickerPublishesARadioGroupTitledByItsTitle` | `.radioGroup` label `"Flavor"`, three `.radioButton` children labelled by option, value `"1"` + `.selected` on the chosen one only (PA1, PA2; divergence 82) | no type | M1n: the partial fold removed (also reddens 1.22) |
 | 1.18 | `aRadioGroupPickerStacksItsOptionsSixPointsApart` | column of rows `14 + 7 + textW_i`, gap 6, leading-aligned (PK1, PK2/PK3; `DD-AC` item 8) | no type | M1o: gap 6 → 8; M1o′: the row's indicator gap 7 → 6 |
 | 1.19 | `aFocusedPickerMovesItsSelectionWithTheArrowsAndDoesNotWrap` | → from the last writes nothing, ← from the first nothing, → from the first writes the second | no type | M1p: wrap-around |
-| 1.20 | `aTagOutsideAPickerChangesNothing` | `Text("A").tag(1)` in a `Row` gives the scene, bounds and `StateTable` ids of `Text("A")`; **and** `Box().flexGrow(1).tag(1)` beside a fixed box in a `Row` keeps its grown width (`DD-AC` item 5) | no type | M1q: `TaggedElement` builds its segment chrome with no scope; M1q′: it forwards only the three phases (the container arm) |
+| 1.20 | `aTagOutsideAPickerChangesNothing` | `Text("A").tag(1)` in a `Row` gives the scene, bounds and `StateTable` ids of `Text("A")`; **and** `Box().flexGrow(1).tag(1)` beside a fixed box in a `Row` keeps its grown width (`DD-AC` item 5) | no type | M1q: `TaggedElement` builds its segment chrome with no scope; M1q′: it forwards only the three phases — **measured: reddens the `.id` and `@State` arms lane 1 added, not the container arm** (`DD-AD` item 2) |
 | 1.21 | `theFiveControlRolesReachTheAppKitBridge` | roles `AXCheckBox`, `AXRadioButton`, `AXRadioGroup`, `AXSlider`, `AXIncrementor`; `accessibilityValue` an `NSNumber` for the four valued roles | no case | M1r: `.checkBox` mapped to `.button` in AppKit |
 | 1.22 | `aPartialFoldKeepsInteractiveChildrenAndTakesTheRestAsTheLabel` | a `Box` declaring `.incrementor` over a `Text` and two clickable `Box`es: label = the text, two children | no case | M1n |
 | 1.23 | `aSelectionHintPublishesSelectedAndWritesNoAXSlot` | a `Box` with `selectionHint`: `isSelected` true; no `axNodes` entry, no `$ax` id in `StateTable` | no field | M1s: the hint not stripped before the emptiness test |
-| 1.24 | `aDisabledPickerWritesNothingAndPublishesDisabled` | a segment click, focused arrows and a `.press` write nothing; the group and every radio button publish disabled (PA4; `DD-AC` item 7) | no type | M1g, re-run on this arm |
+| 1.24 | `aDisabledPickerWritesNothingAndPublishesDisabled` | a segment click, focused arrows and a `.press` write nothing; the group and every radio button publish disabled (PA4; `DD-AC` item 7) | no type | M1g, re-run on this arm; M1t (the partial fold keeping only interactive descendants, `DD-AD` item 1) |
 | G1.1 | `theControlsSwiftUISpellingsCompileFromOutsideTheModule` (plain import, `typecheckFile`) | §3's lane-1 spellings with a `@State` projection | — | MG1.1: `Toggle.init(_:isOn:)` made internal |
 | G1.2 | `aMenuPickerStyleIsNotOffered` | `.pickerStyle(.menu)` fails to typecheck | — | MG1.2: `static let menu` added |
 | SDL | `theFiveControlRolesMapToAccessKitWithToggledAndNumericValues` | role codes; toggled from `"1"`/`"0"`; numeric value | no case | MS1: toggled dropped |
