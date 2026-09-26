@@ -17,7 +17,9 @@ private let skipReason: Comment =
 /// argument type (a `ClosedRange`, which SwiftUI's range initialiser does not
 /// take either), and the two arms are `#require`d to disagree first.
 ///
-/// Mutation that must redden it: the `Range` initialiser made `internal`.
+/// Mutation that must redden it: the `Range` initialiser made `internal` —
+/// measured on the full unfiltered suite, it reddens this guard alone (G1.2's
+/// arms use the `id:` initialiser).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func anExternalModuleCanWriteForEachOverIdentifiableKeyPathAndRangeData() throws {
     let positive = try typecheckFile("""
@@ -63,7 +65,9 @@ func anExternalModuleCanWriteForEachOverIdentifiableKeyPathAndRangeData() throws
 /// leaves this guard green and the two guards discriminate separately.
 ///
 /// Mutation that must redden it: the `ProposalElementGroup` conformance made
-/// unconditional (with a trapping body).
+/// unconditional (with a trapping body) — measured with the guard file run
+/// alone (the trapping body would truncate a full run): this guard reddens
+/// (both arms compile), G1.1 stays green.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func aForEachOfLegacyContentDoesNotCompileInsideAProposalStack() throws {
     let legacy = try typecheckFile("""
