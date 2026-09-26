@@ -104,6 +104,9 @@ private struct HandlerShape: Equatable {
     /// Roadmap item 14 (TI-B): internal, set only by `TextField`, so no
     /// modifier case writes it — a modifier that did is a mismatch here.
     var textInput = false
+    /// Plan task 10 part 2 (`DD-W` item 5): internal, set only by `Slider`, so
+    /// no modifier case writes it either.
+    var valueTrack = false
 }
 
 @MainActor
@@ -423,7 +426,8 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
                              axNode: got.handlers.axNode,
                              allowsHitTesting: got.handlers.allowsHitTesting,
                              contentShapeInset: got.handlers.contentShapeInset,
-                             textInput: got.handlers.textInput != nil) == expectedHandlers,
+                             textInput: got.handlers.textInput != nil,
+                             valueTrack: got.handlers.valueTrack != nil) == expectedHandlers,
                 "\(c.name) wrote the wrong `Handlers` member, or wrote nothing")
     }
 }

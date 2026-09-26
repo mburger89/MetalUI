@@ -427,29 +427,25 @@ private final class LabelBox {
 
 private struct Datum: Identifiable { let id: Int }
 
-// MARK: - The accepted cost (recorded, not fixed)
+// MARK: - Divergence 16, retired (plan task 10 part 2, ruling `DD-Y`)
 
-/// **An `onClick` inside a `ScrollView` swallows that scroller's wheel.** This
-/// test asserts the behaviour this framework has today, which is *not* what a
-/// browser does — it is pinned so the cost is a decision a reader can find
-/// rather than a surprise, exactly as the divergence pins in `ListTests` are,
-/// and as the retired `AbsolutePositioningTests`' were (stage 7b deleted the
-/// whole file; e.g. divergence 9's arm is now
-/// `aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`, record §49
-/// row 141).
+/// **An `onClick` inside a `ScrollView` passes the wheel over itself to that
+/// scroller** (spec test 2.18). **Renamed** from
+/// `aClickTargetInsideAScrollViewSwallowsTheWheel`, with its first arm inverted
+/// (0 → 37): that test pinned divergence 16 — a click target registers an
+/// opaque hitbox, and a wheel event stopped at the topmost opaque hitbox unless
+/// it was itself a scroller — and its own doc asked whoever fixed it to invert
+/// it. A changed answer, not a retirement: the second arm (off the button, 37)
+/// is unchanged.
 ///
-/// The mechanism is Task 7's fold: a wheel event stops at the topmost **opaque**
-/// hitbox under the pointer and scrolls only if that hitbox is itself a
-/// scroller. A click target registers opaque — it must, or a modal scrim could
-/// not swallow clicks aimed at what it covers — so a button inside a scroller
-/// blocks the wheel over its own rect. The named fix, deliberately not made
-/// here, is at `Window.applyScroll`: a wheel should stop at an opaque hitbox
-/// only when that hitbox is on a **higher layer** than the topmost scroller
-/// under the same point, which the layer already on every `Hitbox` decides with
-/// no ancestor walk.
-///
-/// Whoever implements that gets a red test here and should invert it.
-@Test @MainActor func aClickTargetInsideAScrollViewSwallowsTheWheel() throws {
+/// `DD-Y`'s rule (`Window.applyScroll`): when the topmost opaque hitbox under
+/// the pointer is not a scroller, the wheel goes to the **nearest ancestor**
+/// that registered a scroll region containing the point **on the same layer**.
+/// The ancestry and layer clauses have their own pins in
+/// `WheelAndClickDispatchTests` (2.19, 2.20). Each arm runs in a fresh window so
+/// neither reads the other's offset. Mutation that must redden it: **M2q**, the
+/// rule reverted.
+@Test @MainActor func aClickTargetInsideAScrollViewPassesTheWheelToItsScroller() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     var rowStyle = Style()
     rowStyle.size = Size(width: .auto, height: .length(.pixels(px(40))))
@@ -458,33 +454,30 @@ private struct Datum: Identifiable { let id: Int }
     // `ScrollRoutingTests` uses, and for the same reason.
     var column = Style()
     column.flexDirection = .column
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        ScrollView(.vertical, elementID: ElementID("list")) {
-            Box(style: column) {
-                Box(style: rowStyle).onClick {}
-                Box(style: rowStyle); Box(style: rowStyle); Box(style: rowStyle)
+    let scroller = GlobalElementID.child(of: nil, at: 0, name: ElementID("list"))
+    func offsetAfterAWheel(at point: Point<Pixels>) throws -> Double {
+        let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+            ScrollView(.vertical, elementID: ElementID("list")) {
+                Box(style: column) {
+                    Box(style: rowStyle).onClick {}
+                    Box(style: rowStyle); Box(style: rowStyle); Box(style: rowStyle)
+                }
             }
         }
+        window.drawFrameIfNeeded()
+        platformWindow.simulateInput(
+            .scrollWheel(ScrollEvent(position: point, delta: Point(x: px(0), y: px(-37)))))
+        var offset = 0.0
+        window.stateTable.withState(scroller, initial: ScrollState()) { offset = $0.offset }
+        return offset
     }
-    window.drawFrameIfNeeded()
-    let scroller = GlobalElementID.child(of: nil, at: 0, name: ElementID("list"))
 
-    // Over the button: swallowed, and the scroller does not move.
-    platformWindow.simulateInput(
-        .scrollWheel(ScrollEvent(position: pt(20, 20),
-                                 delta: Point(x: px(0), y: px(-37)))))
-    var offset = 0.0
-    window.stateTable.withState(scroller, initial: ScrollState()) { offset = $0.offset }
-    #expect(offset == 0,
-            "TODAY'S BEHAVIOUR, not the desired one: the click target swallowed the wheel")
-
-    // The differential: the identical event below the button scrolls normally,
-    // so the line above is about the button and not about the scroller.
-    platformWindow.simulateInput(
-        .scrollWheel(ScrollEvent(position: pt(20, 60),
-                                 delta: Point(x: px(0), y: px(-37)))))
-    window.stateTable.withState(scroller, initial: ScrollState()) { offset = $0.offset }
-    #expect(offset == 37, "the same wheel event off the button reaches the scroller")
+    // Over the button: the wheel reaches the enclosing scroller.
+    #expect(try offsetAfterAWheel(at: pt(20, 20)) == 37,
+            "the click target passed the wheel to its scroller")
+    // Off the button: unchanged — the scroller takes it directly.
+    #expect(try offsetAfterAWheel(at: pt(20, 60)) == 37,
+            "the same wheel event off the button reaches the scroller")
 }
 
 // MARK: - Dispatch claims the event

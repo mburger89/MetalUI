@@ -120,6 +120,8 @@ private struct HandlerFingerprint: Equatable {
     var contentShapeInset: Edges<Pixels>?
     /// Roadmap item 14 (TI-B).
     var textInput = false
+    /// Plan task 10 part 2 (`DD-W` item 5).
+    var valueTrack = false
 
     @MainActor init(_ h: Handlers) {
         click = h.onClick != nil
@@ -131,6 +133,7 @@ private struct HandlerFingerprint: Equatable {
         allowsHitTesting = h.allowsHitTesting
         contentShapeInset = h.contentShapeInset
         textInput = h.textInput != nil
+        valueTrack = h.valueTrack != nil
     }
 }
 

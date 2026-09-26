@@ -245,6 +245,9 @@ public struct Handlers {
     /// no caller can build a half-configured one.
     var textInput: TextInputTarget?
 
+    // SKELETON (lane 2 red-first): declared, unread.
+    var valueTrack: ValueTrackTarget?
+
     public init() {}
 
     /// Whether this element is a **pointer** hit target — the hitbox gate.

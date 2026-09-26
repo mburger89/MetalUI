@@ -210,6 +210,10 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
                  [field(.textField, "inset")]))
     arms.append(("TextEditor", diagnostics { TextEditor(text: "", onChange: { _ in }).inset(px(1)) },
                  [field(.textEditor, "inset")]))
+    // Plan task 10 part 2 (`DD-W`): `Slider` is its own site, lowered as
+    // `textField` is.
+    arms.append(("Slider", diagnostics { Slider(value: .constant(0.5)).inset(px(1)) },
+                 [field(.slider, "inset")]))
     arms.append(("ModifiedElement, outermost registrar", diagnostics { Box().padding(px(4)).inset(px(1)) },
                  [field(.modifierLayer, "inset")]))
     // The inner layer declares a percentage width, the outermost `inset`, so the
@@ -255,7 +259,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     #expect(amendOut.contains("AMEND-ENTRIES []\n"),
             "Component amend: stdout \(amendOut)\nstderr \(amendErr)")
     arms.append(("Component wrap", diagnostics { ProposalProbeComponent().padding(px(4)) }, []))
-    try #require(arms.count == 10)
+    try #require(arms.count == 11)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }
@@ -319,7 +323,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s).
 @Test func everyReportNamesALiveOwnerOrIsRefusedByName() throws {
     let containerSites: [LoweringSite] = [.box, .stack, .scrollView, .modifierLayer, .component]
-    let leafSites: [LoweringSite] = containerSites + [.text, .textField, .textEditor]
+    let leafSites: [LoweringSite] = containerSites + [.text, .textField, .textEditor, .slider]
     let recordingSites: [LoweringSite] = leafSites + [.list]
     let parentSites: [LoweringSite] = [.box, .stack, .scrollView, .modifierLayer, .component, .list]
     let presentedSites: [LoweringSite] = [.box, .stack, .text, .modifierLayer, .component]
@@ -343,7 +347,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     add(["flexGrow", "flexShrink", "flexBasis", "alignSelf", "minSize", "maxSize", "margin",
          "position", "inset"].map { "\($0).unconsumed" }, at: recordingSites, owner: nil)
     add(["style"], at: [.modifierLayer], owner: nil)
-    try #require(expected.count == 241, "the table holds \(expected.count) entries")
+    try #require(expected.count == 265, "the table holds \(expected.count) entries")
 
     let permanent = "and is refused by name (plan task 7, LR-FO)"
     for (field, owner) in expected.sorted(by: { $0.key.description < $1.key.description }) {

@@ -390,6 +390,20 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
             }.disabled(d)
         }.cssWidth(px(100)).cssHeight(px(100))
     }
+    // Plan task 10 part 2, lane 2: a `Slider`'s track (a press writes the value
+    // under the pointer, through `Handlers.valueTrack`) and a `Stepper`'s
+    // increment half, 8 + 10 in past an empty title and in its top 12 points.
+    try arm("slider") { d in
+        Row {
+            Slider(value: Binding(get: { 0.5 }, set: { _ in log.names.append("slider") })).disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
+    }
+    try arm("stepper-half", at: pt(18, 44)) { d in
+        Row {
+            Stepper("", value: Binding(get: { 1 }, set: { _ in log.names.append("stepper-half") }),
+                    in: 0...5).disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
+    }
 
     // EV-X: after the scope fires (O2); the same layers with the scope written
     // last do not (O1), and that spelling's own control does.
