@@ -4,13 +4,17 @@ Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-d
 on `feat/data-and-scrolling` from `e7bc2e7` (part 1, `DD-A`…`DD-P`), and for
 [`specs/2026-09-26-controls-and-selection-design.md`](specs/2026-09-26-controls-and-selection-design.md),
 on `feat/controls-and-selection` from `27b2fcc` (part 2, `DD-Q` onward). Ids
-are **lettered**, `DD-A`…`DD-AB`; next unused is **`DD-AC`**. A bare `DD-3`
+are **lettered**, `DD-A`…`DD-AC`; next unused is **`DD-AD`**. A bare `DD-3`
 is a typo, not a citation. **A round that appends a ruling moves this line in
 the same commit.**
 
-**Part 2 status, 2026-09-25: DESIGNED** (`DD-Q`…`DD-AB`, appended after part
-1's rulings; evidence `docs/probes/swiftui-controls-and-selection.swift`,
-new, arm ids cited as `BT0`, `SA3`, `KY6c` …). Part 1's status follows.
+**Part 2 status, 2026-09-25: DESIGNED, then CRITICISED AND REVISED**
+(`DD-Q`…`DD-AB`, appended after part 1's rulings; the critic round appended
+`DD-AC` and amended `DD-S`, `DD-T`, `DD-U`, `DD-V`, `DD-Y`, `DD-Z`, `DD-AA`
+and `DD-AB` in place, each amendment marked "critic round"; evidence
+`docs/probes/swiftui-controls-and-selection.swift`, new, arm ids cited as
+`BT0`, `SA3`, `KY6c` …, re-run unlocked and extended with PK2/PK3 by the
+critic round). Part 1's status follows.
 
 **Status, 2026-09-25: DESIGNED, then CRITICISED AND REVISED** (the critic
 round appended `DD-K`…`DD-M` and amended `DD-A`, `DD-B`, `DD-D`, `DD-F` and
@@ -983,7 +987,14 @@ a `Box`, so its colour animates under `withAnimation` through
 56×24, and a different tree — TA1 publishes a sibling static text and an
 unlabelled switch) and `ToggleStyle` are not offered (`DD-AB` item 7).
 
-**Evidence.** TG0–TG2, TA0–TA3.
+**Critic round.** Only the sum 21 (indicator + gap) is measured (TG0: 53 −
+32; the radio row's 21, PK2/PK3, agrees); the 14/7 split is MetalUI's and
+moves no size. An **empty-label** toggle is 21 × 19 in SwiftUI (TG0) where
+MetalUI's is 21 × `max(14, textH(""))` (SwiftUI's own empty `Text` is 0 × 14,
+PK2, so its 19 is the checkbox cell's) — not matched, folded into divergence
+76's control-metrics remainder (plan task 11, `DD-AB` item 2).
+
+**Evidence.** TG0–TG2, TA0–TA3, PK2.
 
 **Cost if wrong.** A port that asked for `.toggleStyle(.switch)` fails to
 compile, not silently; the checkbox is SwiftUI's own default on this
@@ -1009,9 +1020,11 @@ platform.
    `NSApp.isFullKeyboardAccessEnabled = false`, and a focused `Button`, a
    `.focusable()` `Button`, `Toggle` and `Slider` ignore Space, Return and the
    arrows (KY1, KY4, KY4b, KY5, KY7), while KY0's focused `onKeyPress` view
-   receives its key, so the events are delivered. MetalUI behaves as SwiftUI
-   would **with** Full Keyboard Access on — which is unmeasured here — and
-   reads no system setting. Only `List`'s arrows are SwiftUI's measured
+   receives its key, so the events are delivered. MetalUI's key table is its
+   own convention and reads no system setting; what SwiftUI does **with**
+   Full Keyboard Access on is unmeasured, so no claim is made about it
+   (critic round: the design said MetalUI "behaves as SwiftUI would" there,
+   an unprobed SwiftUI claim). Only `List`'s arrows are SwiftUI's measured
    behaviour (KY6/KY8). KY3 (Return runs a `.keyboardShortcut(.defaultAction)`
    button without focus) is task 12's (`DD-AB` item 7).
 
@@ -1051,6 +1064,10 @@ If task 12 rules focus to follow the system setting, it removes
    PA2; SA8 for a slider's label). MetalUI's answer gives the control an
    accessible name, which SwiftUI's lacks; a `.button` with an interactive
    descendant still keeps its children and its label (divergence 29 unmoved).
+   *Critic round (`DD-AC` item 9):* divergence 82 also names two measured
+   shapes MetalUI does not publish — a slider's `AXValueIndicator` child
+   (SA0, kids=1) and a stepper's arrow buttons marked DISABLED while the
+   stepper is enabled (STA0).
 4. **`AXNode.selectionHint`** (internal): published as `isSelected`, and
    stripped before `Frame.registerHandlers`' emptiness test exactly as
    `logicalIndex` is (`AB-L`), so a selected `List` row records and writes
@@ -1098,15 +1115,26 @@ roles and values are SwiftUI's own.
    211, 37 + 8 + 67). Segmented: **every segment as wide as the widest** (PA1:
    70, 70, 70 for Alpha/Beta/Gamma) — an internal `EqualWidthRow:
    ProposalLayout` over the consumed and planned option records, the shape
-   `ListRows` uses; each segment `textW + 24` before equalising, 24 tall by
-   strut. Radio group: a leading-aligned column, gap 6, each row a 14-pt
-   circle, 6, the label.
+   `ListRows` uses; each segment `textW + 24` before equalising (PK2: Gamma
+   46 → 70), 24 tall by strut. Radio group: a leading-aligned column, gap 6,
+   each row a 14-pt circle, **7**, the label — `textW + 21`, the checkbox's
+   21 (critic round, PK2/PK3: 55, 67, 141 over 34, 46, 120; the design's
+   "14, 6" gave 20, which no arm supports). **Not matched, folded into
+   divergence 81** (critic round): SwiftUI's segmented control is `n·w + 1`
+   (PK1 211 = 3·70 + 1, PK3 289 = 2·144 + 1) where MetalUI's is `n·w`, and
+   its radio rows sit 6.5 apart in PK1 where MetalUI's gap is 6 (PK3 reads
+   6).
 6. **A tag outside a picker is transparent** (`TaggedElement` forwards its
    content at the content's own id): record §05 gains the row — `.tag(_:)`
-   is stored and read by nothing outside a `Picker` (SwiftUI also reads tags
-   in a content-built `List`, which MetalUI does not have, divergence 84).
+   is stored and read by nothing outside a `Picker`. (Critic round: the
+   design's aside about what SwiftUI's `List` does with tags was unprobed and
+   is withdrawn.) **`TaggedElement` forwards every `Element` requirement**,
+   not only the three phases, so a legacy item record or any other hook
+   passes through it unchanged; `DD-AC` item 5 pins it with a container
+   field, not only a leaf. It is public only because `.tag` returns it
+   (SwiftUI's returns `some View`); its initialiser is internal.
 
-**Evidence.** PK0/PK1, PA0–PA4.
+**Evidence.** PK0–PK3, PA0–PA4.
 
 **Cost if wrong.** A port using the default style gets segments where it had
 a menu — visible, not silent; `.menu` fails to compile (guard G1.2). The
@@ -1199,8 +1227,10 @@ pointer is not a scroller, the wheel goes to the **nearest ancestor** of that
 hitbox's id (`GlobalElementID.parent`) that registered a scroll region
 containing the point **on the same layer**; with none it stops, as before.
 The multi-line editor's own branch stays first. So a button, a toggle, a
-slider or a selectable `List` row inside a `ScrollView` no longer blocks the
-wheel over itself; a click target **overlaid on** a scroller but not inside
+slider, a selectable `List` row **or a single-line `TextField`** (a pointer
+target through `Handlers.textInput`; critic round, `DD-AC` item 3 — a
+changed `TextField` answer the design did not list) inside a `ScrollView`
+no longer blocks the wheel over itself; a click target **overlaid on** a scroller but not inside
 it (a `Stack` sibling) still stops it (the ancestry clause), and a scrim
 hoisted by `Deferred` still stops it even when declared inside the
 scroller's content (the layer clause — `Deferred` content is on layer 1,
@@ -1289,6 +1319,10 @@ demo is unaffected (its counter sits outside its `ScrollView`).
    after the handler returns. Internal; a public tap-with-modifiers API is
    gesture composition, task 12.
 
+**Critic round.** Items 3, 6 and 7 are amended by `DD-AC` items 1, 2 and 4
+(a selected row's colour slot, the lead-reveal key, per-frame work), and
+the unbounded window's row role by `DD-AC` item 6.
+
 **Evidence.** LA0–LD0, KY6–KY8g; `DD-F`, `DD-G`, `TI-B`, `AB-L`.
 
 **Cost if wrong.** The pointer rules are MetalUI's until a human looks; a
@@ -1305,9 +1339,10 @@ hands each element a `Binding<C.Element>` reading and writing
 `items[index]`, identified by the element's id (`DD-B`'s identity, unchanged).
 **A binding kept past a change of the collection** (a handler captured last
 frame) checks that the element at its index still has its id: if not, a write
-is dropped and a read returns the last value it read — where SwiftUI's
-index-captured binding can read or write another element or trap
-(unprobed; not made a divergence, since SwiftUI's answer is a crash).
+is dropped and a read returns the last value it read. SwiftUI's answer for
+a stale element binding is **unprobed**, so this is MetalUI's own rule and
+no divergence is claimed (critic round: the design asserted what SwiftUI's
+binding does, with no arm).
 `ForEachBindingSlot<C>` (index and id) is the `Data` element, opaque outside.
 
 **Evidence.** `DD-B`, `DD-D`; the SDK's `ForEach` interface for the spelling.
@@ -1367,9 +1402,10 @@ nothing, which is the safer failure.
 8. **Additive, owner none**: `Slider`'s label and `onEditingChanged`,
    `Stepper`'s label builders and `onEditingChanged`, `Picker`'s label
    builder, `.tag(_:includeOptional:)` and optional-selection wrapping,
-   `.pickerStyle` as an environment value (SwiftUI's propagates to nested
-   pickers; MetalUI's is a `Picker` method, and calling it elsewhere fails to
-   compile). **The generic signatures differ where a label builder is
+   `.pickerStyle` as an environment value (SwiftUI's is a `View` modifier,
+   per the SDK interface; MetalUI's is a `Picker` method, and calling it
+   elsewhere fails to compile — critic round: the design's "propagates to
+   nested pickers" was unprobed and is withdrawn). **The generic signatures differ where a label builder is
    missing**: SwiftUI's `Picker<Label, SelectionValue, Content>`,
    `Slider<Label, ValueLabel>` and `Stepper<Label>` against MetalUI's
    `Picker<SelectionValue, Content>`, `Slider` and `Stepper`; only a caller
@@ -1379,3 +1415,160 @@ nothing, which is the safer failure.
 **Cost if wrong.** If a reviewer reads "rework `List` limitations" as
 including divergence 84, the tick is early; this item names exactly what was
 not done and why, so the note can be re-opened without archaeology.
+
+---
+
+## DD-AC — the critic round: fixes, and the attacks rejected
+
+The design (`f4bc700`) was attacked against the source at `27b2fcc` and the
+probe re-run. The screen was **unlocked** this time (lock probe: no
+`CGSSessionScreenIsLocked` line, `displayAsleep main: 0`): the design's
+compiled probe reproduced all 172 recorded lines byte for byte, twice — so
+the failed click and wheel controls (CK0, WH0) are **not** the lock's doing,
+and every pointer rule stays MetalUI's own. Two arms were added (PK2 bare
+label sizes, PK3 a segmented and a radio picker over labels of 9 and 120
+points); that revision ran twice, 182 lines byte-identical, its other 172
+lines unchanged. Rejections are recorded here under this doc's own prefix,
+as part 1's `DD-M` did, rather than as `LR-` rulings: `LR-` is the engine
+replacement's decisions doc, and none of these touches the engine.
+
+**Fixed (each amends the ruling it names; the spec is revised to match):**
+
+1. **A selected row's background mints a `$anim-color` slot** (`DD-Z` item 3;
+   spec 3.15 was red by construction). `animatedColor` writes a baseline
+   `AnimatedColorState` on first sight of any non-nil token
+   (`AnimatedColor.swift`, `animatedColor(_:for:pass:)`), so every selected
+   *realised* row adds one `StateTable` entry at its first paint — with or
+   without input, since the model can select. The fill stays a row-`Box`
+   background (it then animates under `withAnimation` like any `Box`'s, and
+   no second paint path exists to drift), and the claim is corrected: a
+   selectable list with nothing selected adds **no** entry; each selected
+   realised row adds **exactly one**, its colour slot, and **no** `$ax`.
+   `TB-AH`'s crossing for a selectable list is `2n + 6 + s` (`s` the selected
+   realised rows) — a new list, so no existing pin moves. Spec 3.15 is renamed
+   `aSelectableListAddsOneColourSlotPerSelectedRowAndNoAXSlot`; M3m (the hint
+   as a declared trait, writing `$ax`) still reddens it. `DD-Z` item 7's "a
+   list gains no entry until it is interacted with" is read the same way: no
+   entry beyond the `ListOrigin` that a list inside a vertical scroller
+   already writes in every `prepaint` (`DD-F`), which lead and anchor share.
+2. **The keyboard reveal cannot use a caller-visible key** (`DD-Z` item 6).
+   Part 1's queue matches a request by key, first match wins, within the
+   request's scope (`Frame.unresolvedScrollRequests(enclosing:)` needs the
+   list to be a **strict** descendant of the scope). Enqueued with the lead's
+   own `datum.id`, a sibling declared before the list with an equal `.id`
+   (or an earlier `ForEach` key) would take the scroll. The list enqueues
+   instead, from its key handler (input), a request whose scope is the list's
+   `id.parent` and whose key is an **internal** `ListLeadReveal(list: id,
+   row: AnyHashable(datum.id))`, which only that list's
+   `resolveScrollRequests` matches; the queue is captured from
+   `frame.scrollRequestQueue` when the handler is built in `prepaint`. No
+   public key type, no change to `DD-G`/`DD-K`'s matching. Pinned by 3.12
+   and by the new arm 3.12b (a sibling `.id` equal to the lead's id above the
+   list does not scroll to itself).
+3. **`DD-Y` moves a `TextField` answer the design did not list.**
+   `Handlers.isPointerTarget` is `onClick != nil || textInput != nil`, so a
+   single-line `TextField` registers an opaque hitbox and today swallows its
+   scroller's wheel; under `DD-Y` the wheel passes to the scroller. That is a
+   changed, user-visible `TextField` answer — ruled here (a text field is a
+   click target like any other; the multi-line editor keeps its own branch)
+   and pinned by new spec test 2.24. No existing test asserts the old answer
+   (grep: no `TextField` fixture sends a wheel), so nothing is retired.
+   Comments citing divergence 16 as live — `Box.swift`, `Passes.swift`,
+   `Handlers.swift`, `Window.swift`, `FocusTests.swift` (two, including
+   `aFocusableRowInsideAScrollViewDoesNotSwallowTheWheel`'s "the differential
+   is the neighbouring file's test", which stops disagreeing and is reworded
+   to name `focusabilityAndKeyHandlingRegisterNoPointerHitbox` as the
+   mechanism pin) and `Sources/MetalUIDemoContent/DemoContent.swift` (three;
+   comment-only, 0 px) — are lane 2's to update.
+4. **Per-frame work of a selectable list stays O(window)** (`DD-Z` item 7).
+   The design left open *when* a lead missing from the selection is
+   re-derived; a data scan in `requestLayout` would make a 100 000-row list's
+   warm frame O(n), which `aListsWorkIsTheSameFor100kRowsAsFor500` cannot see
+   (its list has no `selection:`). Ruled: per frame, a selectable list touches
+   only its realised rows (one `contains`/`==` each); finding the lead's
+   index, re-deriving it and every range computation happen in the key and
+   click handlers (input). New spec test 3.21 counts element accesses through
+   a counting `RandomAccessCollection` over a warm frame at 500 and 5 000
+   rows with a selection whose lead is absent — equal; mutation M3r
+   (re-derive the lead in `requestLayout`) reddens it. Lane 3 also runs the
+   gated `METALUI_RUN_100K_LIST_TEST=1` test.
+5. **`TaggedElement`'s transparency was pinned by a leaf only** (`DD-V` item
+   6). A fixture of fixed-size leaves cannot see a forwarding gap in an item
+   record or a group hook (Practices, "a fixture of fixed-size leaves").
+   `TaggedElement` forwards every `Element` requirement; spec 1.20 gains a
+   container arm — `Box().flexGrow(1).tag(1)` beside a fixed box in a `Row`
+   keeps its grown width — and mutation M1q′ (forward only the three phases)
+   must redden it.
+6. **An unbounded selectable list publishes its rows as buttons** (`DD-Z`
+   item 3, `DD-U`). A row carries `logicalIndex` only while a client is
+   active **and** the window is bounded (`List.swift`, `indexesRows`); with
+   an `onClick` and no index, `AccessibilityTreeBuilder` resolves a row as a
+   `.button` and folds its content (step B/C). Ruled, not hidden: while the
+   window is unbounded (no vertical scroller, or the scroller's first frame)
+   a selectable row publishes as a button labelled by its content, with
+   `.press` and, when selected, `isSelected`; bounded, it is a `.row` with
+   its index, `.press` and `isSelected`. Folded into divergence 83's text.
+   New spec test 3.20 pins both arms.
+7. **Two disabled controls had no test.** `Picker` (PA4) and `Stepper`
+   (STA7) were covered by D2 arms for their clicks only, not their keys or
+   their published state. New spec tests 1.24
+   `aDisabledPickerWritesNothingAndPublishesDisabled` and 2.23
+   `aDisabledStepperStepsNothingAndPublishesDisabled`; M1g re-run on each.
+8. **Measured metrics corrected** (`DD-S`, `DD-V` item 5): a radio row is
+   `textW + 21`, not `+ 20`; segmented `n·w + 1`, radio gap 6.5 (PK1) and the
+   empty-label toggle's 19 are named as not matched (divergences 81 and 76).
+   Spec 1.18's literal becomes `14 + 7 + textW_i`.
+9. **Unprobed SwiftUI claims withdrawn** (`DD-T` item 3, `DD-V` item 6,
+   `DD-AA`, `DD-AB` item 8), each amended in place. Divergence 82's text
+   also names two measured AX shapes MetalUI does not match: a slider's
+   `AXValueIndicator` child (SA0 kids=1; MetalUI publishes none) and a
+   stepper's arrow buttons published DISABLED by AppKit even when enabled
+   (STA0; MetalUI's are enabled). Neither is a clause of the task.
+10. **Native depth is measured, not assumed.** Every control lowers to
+    several native levels (a `Picker` segment: outer row, options `Box`,
+    `SegmentRow`, segment `Box`, content — each a padded, sized legacy node of
+    up to five levels). Lane 3 records each control's deepest native level
+    and the controls demo's through a real `Window` (the record §41 §5
+    instrument), and the demo must stay at or below the default demo's 30 +
+    10, well inside `NativeLayoutRun.maxDepth` (72); 3.19 through a real
+    `Window` traps if not.
+
+**Attacks rejected (with the reason):**
+
+- *Focusable controls and their keys are task 12's scope.* The brief asks for
+  keyboard activation per control; no Tab traversal, focus ring or
+  gesture composition is built, and `DD-T`'s cost paragraph names the one
+  place per control task 12 would change.
+- *`ClickDispatch` is a gesture API.* It is internal, set only during
+  `dispatchClick`, with one consumer; the public tap-with-modifiers API stays
+  task 12's (`DD-Z` item 9).
+- *Divergence 54 and two-axis scrolling were the plan's hand-offs to task 10
+  and `DD-AB` item 5 drops them.* Kept: task 10's text does not name them,
+  task 15 requires every remaining difference documented, which divergence
+  54's row and `CN-M` do; both move pixels and reshape `ScrollView`'s axis
+  API, a run of their own.
+- *`EqualWidthRow` under a legacy `Box` is an `SA-G` violation.* There is one
+  engine since stage 7b; a `ProposalLayout` child of a lowered container is
+  `Grid`'s and `ListRows`' shape. `SegmentRow` consumes its options' records
+  (`LR-AQ`).
+- *`justifyContent: .center` on the unsized `Button` reports.* Only the
+  `space-*` distributions report on an undeclared main size
+  (`LegacyLowering.swift`); `.center` is a factor.
+- *Lanes are too large.* Three sequential lanes over disjoint sources; lane 1
+  carries the roles the other two need, and moving `Picker` would put a
+  second author on `ControlKeys.swift`.
+- *Run the 100k test now.* The branch holds no source change yet, so it would
+  measure `27b2fcc`; item 4 adds the discriminating test and hands the gated
+  run to lane 3.
+- *Linux/Windows/`Backends/SDL` break.* `ControlKeys`, `ClickDispatch` and the
+  controls use `TextEditing.platform` and `MouseEvent.modifiers`, both
+  portable (SDL fills the modifiers); the five roles are added to both
+  bridges' exhaustive switches in lane 1, the change `DD-U` item 1 names.
+
+**Totals.** 1556 + 26 + 24 + 22 = **1628 tests** (lane 1 24 + 2 guards; lane
+2 23 new + 1 guard, the rename adding none; lane 3 21 + 1 guard), guards
+**100**, `Backends/SDL` `MetalUISDLTests` 22 → 23 on macOS.
+
+**Cost if wrong.** Items 1–7 each change a test's literal or add a test
+before any code exists; the rejected attacks each name the ruling that would
+move.

@@ -1,16 +1,19 @@
 # Controls and selection — design (plan task 10, part 2)
 
 Branch `feat/controls-and-selection` from `27b2fcc` (part 1's tip). Rulings
-`DD-Q`…`DD-AB` are appended to part 1's decisions doc,
+`DD-Q`…`DD-AC` are appended to part 1's decisions doc,
 [`../2026-09-25-data-and-scrolling-decisions.md`](../2026-09-25-data-and-scrolling-decisions.md)
-(next unused after this design: **`DD-AC`**). Evidence:
+(next unused after the critic round: **`DD-AD`**). Evidence:
 `docs/probes/swiftui-controls-and-selection.swift` (**new**, this design; arm
 ids cited as `BT0`, `SA3`, `KY6c` …, its header carries the recorded output
 and the reading). Record: `docs/record/58-controls-and-selection.md` (written
 by the lanes and the Record phase). Part 1 is record §57 and spec
 `2026-09-25-data-and-scrolling-design.md`.
 
-**Status: DESIGNED.**
+**Status: DESIGNED, then CRITICISED AND REVISED** (`DD-AC`: ten fixes, each
+amending the ruling it names and the section below that carries it; eight
+attacks rejected with reasons; the probe re-run unlocked, byte-identical,
+and extended with PK2/PK3).
 
 ## 1. Baseline
 
@@ -91,7 +94,8 @@ public struct PickerStyle: Sendable, Hashable {        // a closed set today (DD
     public static let segmented: PickerStyle
     public static let radioGroup: PickerStyle
 }
-public struct TaggedElement<Content: Element>: Element  // what `.tag` returns
+public struct TaggedElement<Content: Element>: Element  // what `.tag` returns; init internal;
+                                                        // forwards EVERY Element requirement (DD-AC 5)
 extension Element {
     public func tag<V: Hashable>(_ value: V) -> TaggedElement<Self>
 }
@@ -183,7 +187,8 @@ control is new, and its internal nodes number from 0 under its own id.
   picker, builds its chrome: a segment `Box` (horizontal padding 12, 24 tall
   by strut, background `.surface` when selected) or a radio row (a 14×14
   circle `Box`, `cornerRadius` 7, `.accent` when selected / `.surface` with a
-  `.separator` border, gap 6, then the content). Each option's handlers:
+  `.separator` border, gap **7** (a row is `textW + 21`, PK2/PK3; `DD-AC`
+  item 8), then the content). Each option's handlers:
   `onClick` writes its tag; `axNode = AXNode(role: .radioButton, value:
   selected ? "1" : "0", traits: selected ? [.selected] : [])`. Outside a
   picker scope a `TaggedElement` forwards its content's phases unchanged, at
@@ -246,6 +251,12 @@ nothing while KY0's control passes) — **divergence 80, added** (`DD-T`).
   the **nearest ancestor** (by `GlobalElementID.parent`) that registered a
   scroll region containing the point **on the same layer**; with none, the
   event stops as today. The multi-line text editor's own branch stays first.
+  **A single-line `TextField` is such a click target** (`isPointerTarget`
+  includes `textInput`), so its wheel now reaches its scroller too — a
+  changed `TextField` answer, ruled by `DD-AC` item 3 and pinned by 2.24.
+  Comments that cite divergence 16 as live are updated in the same lane
+  (`Box.swift`, `Passes.swift`, `Handlers.swift`, `Window.swift`,
+  `FocusTests.swift` ×2, `DemoContent.swift` ×3 — comment-only, 0 px).
 - **`ClickDispatch`** (new, internal, `ClickDispatch.swift`): while
   `Window.dispatchClick` runs an `onClick`, `ClickDispatch.modifiers` holds
   the completing mouse event's modifiers (`[]` otherwise, and `[]` for an
@@ -266,10 +277,19 @@ gains, only when the list has a selection model: `onClick` (pointer rules,
 `DD-Z` item 4), background `.accent` when selected, and the internal
 `AXNode.selectionHint` (lane 1) when selected — a hint stripped with
 `logicalIndex` in `Frame.registerHandlers`, so a selected row records
-`isSelected` and writes neither `axNodes` nor a `$ax` slot (`TB-AH` and
-retention untouched). The list's own handlers gain `isFocusable` and the
-arrow keys. A keyboard move asks the `DD-G` queue to reveal the new lead
-row (anchor `nil`).
+`isSelected` and writes neither `axNodes` nor a `$ax` slot. **The background
+does write one `$anim-color` slot per selected realised row** at its first
+paint (`animatedColor`'s baseline), so `TB-AH`'s crossing for a selectable
+list is `2n + 6 + s`; a list without `selection:`, or with nothing selected,
+adds nothing (`DD-AC` item 1). The list's own handlers gain `isFocusable`
+and the arrow keys. A keyboard move enqueues on the `DD-G` queue a request
+scoped to the list's parent whose key is the internal
+`ListLeadReveal(list:row:)`, which only this list matches (anchor `nil`;
+`DD-AC` item 2). **Per frame the list touches only its realised rows**; the
+lead's index, its re-derivation and every range are computed in the
+handlers (`DD-AC` item 4). **While the window is unbounded** a selectable
+row has no `logicalIndex` and publishes as a button labelled by its content,
+with `.press` and `isSelected`; bounded, a `.row` (`DD-AC` item 6).
 
 ## 8. Accessibility (`DD-U`, lane 1)
 
@@ -326,7 +346,9 @@ adds its site — sequential lanes attribute a red by commit, the reason
    (`LoweringSite.slider`). Tests: `SliderTests.swift`, `StepperTests.swift`,
    `WheelAndClickDispatchTests.swift`, `SliderStepperCompileGuards.swift`
    (new); `InputDispatchTests.swift` (the renamed divergence-16 test),
-   `FocusTests.swift` (its comment citing the old name), `ModifierTests.swift`
+   `FocusTests.swift` (its two comments citing the old name), comment-only
+   edits in `Box.swift`, `Passes.swift` and
+   `Sources/MetalUIDemoContent/DemoContent.swift` (`DD-AC` item 3), `ModifierTests.swift`
    and `OuterModifierMatrixTests.swift` (the field); registry arms.
 3. **Lane 3 — `List(selection:)`, `ForEach(_: Binding<C>)`, the controls
    demo** (`DD-Z`, `DD-AA`). Edits: `Sources/MetalUI/List.swift`,
@@ -335,7 +357,9 @@ adds its site — sequential lanes attribute a red by commit, the reason
    `ListSelectionTests.swift`, `ForEachBindingTests.swift`,
    `SelectionCompileGuards.swift` (new);
    `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift` (the new tree
-   in `buildEveryProductionTree`).
+   in `buildEveryProductionTree`). Lane 3 records each control's deepest
+   native level and the controls demo's through a real `Window` (at most 40,
+   against `maxDepth` 72; `DD-AC` item 10) and runs the gated 100k test.
 
 `Tests/MetalUITests/FocusTests.swift` declares a file-private `final class
 Toggle`, which shadows `MetalUI.Toggle` inside that file only — harmless, and
@@ -356,7 +380,7 @@ sizes (`textW`, `textH` of the label in the test's text system), never from
 SwiftUI's points, except where the arm's number is structural (padding,
 strut height, gap).
 
-### Lane 1 (23 tests + 2 guards; `Backends/SDL` +1)
+### Lane 1 (24 tests + 2 guards; `Backends/SDL` +1)
 
 | # | test | asserts | red before | mutation that must redden it |
 |---|---|---|---|---|
@@ -377,12 +401,13 @@ strut height, gap).
 | 1.15 | `pressingAnOptionWritesItsTag` | enum tags (not indices): a click on the third segment writes `.gamma`; a `.press` on the first writes `.alpha` (PA1, PA2) | no type | M1m: the option writes its position |
 | 1.16 | `aSelectionMatchingNoTagSelectsNothingAndWritesNothing` | no option `.selected`, no write over two frames (PA3) | no type | M1n′: an unmatched selection writes the first tag |
 | 1.17 | `aPickerPublishesARadioGroupTitledByItsTitle` | `.radioGroup` label `"Flavor"`, three `.radioButton` children labelled by option, value `"1"` + `.selected` on the chosen one only (PA1, PA2; divergence 82) | no type | M1n: the partial fold removed (also reddens 1.22) |
-| 1.18 | `aRadioGroupPickerStacksItsOptionsSixPointsApart` | column of rows `14 + 6 + textW_i`, gap 6, leading-aligned (PK1) | no type | M1o: gap 6 → 8 |
+| 1.18 | `aRadioGroupPickerStacksItsOptionsSixPointsApart` | column of rows `14 + 7 + textW_i`, gap 6, leading-aligned (PK1, PK2/PK3; `DD-AC` item 8) | no type | M1o: gap 6 → 8; M1o′: the row's indicator gap 7 → 6 |
 | 1.19 | `aFocusedPickerMovesItsSelectionWithTheArrowsAndDoesNotWrap` | → from the last writes nothing, ← from the first nothing, → from the first writes the second | no type | M1p: wrap-around |
-| 1.20 | `aTagOutsideAPickerChangesNothing` | `Text("A").tag(1)` in a `Row` gives the scene, bounds and `StateTable` ids of `Text("A")` | no type | M1q: `TaggedElement` builds its segment chrome with no scope |
+| 1.20 | `aTagOutsideAPickerChangesNothing` | `Text("A").tag(1)` in a `Row` gives the scene, bounds and `StateTable` ids of `Text("A")`; **and** `Box().flexGrow(1).tag(1)` beside a fixed box in a `Row` keeps its grown width (`DD-AC` item 5) | no type | M1q: `TaggedElement` builds its segment chrome with no scope; M1q′: it forwards only the three phases (the container arm) |
 | 1.21 | `theFiveControlRolesReachTheAppKitBridge` | roles `AXCheckBox`, `AXRadioButton`, `AXRadioGroup`, `AXSlider`, `AXIncrementor`; `accessibilityValue` an `NSNumber` for the four valued roles | no case | M1r: `.checkBox` mapped to `.button` in AppKit |
 | 1.22 | `aPartialFoldKeepsInteractiveChildrenAndTakesTheRestAsTheLabel` | a `Box` declaring `.incrementor` over a `Text` and two clickable `Box`es: label = the text, two children | no case | M1n |
 | 1.23 | `aSelectionHintPublishesSelectedAndWritesNoAXSlot` | a `Box` with `selectionHint`: `isSelected` true; no `axNodes` entry, no `$ax` id in `StateTable` | no field | M1s: the hint not stripped before the emptiness test |
+| 1.24 | `aDisabledPickerWritesNothingAndPublishesDisabled` | a segment click, focused arrows and a `.press` write nothing; the group and every radio button publish disabled (PA4; `DD-AC` item 7) | no type | M1g, re-run on this arm |
 | G1.1 | `theControlsSwiftUISpellingsCompileFromOutsideTheModule` (plain import, `typecheckFile`) | §3's lane-1 spellings with a `@State` projection | — | MG1.1: `Toggle.init(_:isOn:)` made internal |
 | G1.2 | `aMenuPickerStyleIsNotOffered` | `.pickerStyle(.menu)` fails to typecheck | — | MG1.2: `static let menu` added |
 | SDL | `theFiveControlRolesMapToAccessKitWithToggledAndNumericValues` | role codes; toggled from `"1"`/`"0"`; numeric value | no case | MS1: toggled dropped |
@@ -391,7 +416,7 @@ Registry arms: `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`
 (`Button`, `Toggle`, a segment); `onClickIsLiveOnEveryConformerThatCanRegisterOne`
 (`Button`).
 
-### Lane 2 (21 new tests + 1 renamed + 1 guard)
+### Lane 2 (23 new tests + 1 renamed + 1 guard)
 
 | # | test | asserts | red before | mutation |
 |---|---|---|---|---|
@@ -417,6 +442,8 @@ Registry arms: `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`
 | 2.20 | `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel` | a scrim declared inside the scroller's content: 0 | green at base (pins the layer clause) | M2s: the layer clause dropped |
 | 2.21 | `aClickHandlerSeesItsClicksModifiersAndOnlyDuringTheClick` | ⌘ on the mouse-up read inside the handler; `[]` after; `[]` for a `.press` | no type | M2t: `modifiers` not reset |
 | 2.22 | `aClickHandlersFocusRequestIsHonouredAfterItReturns` | `focusedElement == id` after the click; a non-focusable id is cleared at the frame boundary | no type | M2u: the request ignored |
+| 2.23 | `aDisabledStepperStepsNothingAndPublishesDisabled` | half clicks, focused ↑/↓ and increment/decrement requests write nothing; the incrementor publishes disabled (STA7; `DD-AC` item 7) | no type | M1g, re-run on this arm |
+| 2.24 | `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller` | a wheel over the field moves the scroller; a press still focuses it (`DD-AC` item 3) | red: reads 0 at `27b2fcc` | M2q (the rule reverted); M2v: the `textInput` target excluded from the ancestor walk |
 | G2.1 | `theSliderAndStepperSpellingsCompileFromOutsideTheModule` | §3's lane-2 spellings | — | MG2.1: `Slider.init(value:in:step:)` internal |
 
 Registry arms: D2 (`Slider`, a `Stepper` half), `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
@@ -424,7 +451,7 @@ Registry arms: D2 (`Slider`, a `Stepper` half), `everyLegacySiteIsReportedByName
 **2.18 is a changed answer, not a retirement**: its second arm (off the
 button, 37) is unchanged; the record's retirement table lists it.
 
-### Lane 3 (19 tests + 1 guard)
+### Lane 3 (21 tests + 1 guard)
 
 | # | test | asserts | red before | mutation |
 |---|---|---|---|---|
@@ -439,22 +466,24 @@ button, 37) is unchanged; the record's retirement table lists it.
 | 3.9 | `aSelectedRowPublishesSelectedAndAnUnselectedOneDoesNot` | `isSelected` per row (LA1, LB1) | no init | M3i: the hint never set |
 | 3.10 | `aSelectionNamingARemovedRowIsKeptAndReselectsItOnReturn` | no write; the row selected again (LA5) | no init | M3j: stale ids pruned |
 | 3.11 | `aDisabledListShowsItsSelectionAndChangesNothing` | LD0; clicks and arrows write nothing | no init | M1g, re-run on this lane's head |
-| 3.12 | `anArrowPastTheWindowScrollsTheNewLeadIntoView` | 100 rows, lead at the last visible row, ↓ → offset moved just enough, the row realised | no init | M3k: no reveal request |
+| 3.12 | `anArrowPastTheWindowScrollsTheNewLeadIntoView` | 100 rows, lead at the last visible row, ↓ → offset moved just enough, the row realised; arm 3.12b: a sibling above the list whose `.id` equals the lead's id does not take the scroll (`DD-AC` item 2) | no init | M3k: no reveal request; M3k′: the request keyed by the bare `datum.id` (reddens 3.12b) |
 | 3.13 | `aSelectableListScrollsUnderTheWheelOverARow` | the joint test with `DD-Y` | red at base: rows are click targets that swallow | lane 2's M2q, re-run on this lane's head |
 | 3.14 | `aSelectedRowPaintsTheAccentBackground` | the row's fill is `theme.accent`; unselected none | no init | M3l: no background |
-| 3.15 | `aSelectableListAddsNoStateTableEntryUntilInput` | same entry count with and without `selection:` over two frames with selected rows | no init | M3m: `.selected` declared as a trait (writes `$ax`) |
+| 3.15 | `aSelectableListAddsOneColourSlotPerSelectedRowAndNoAXSlot` (renamed by `DD-AC` item 1: the design's "no entry" was red by construction) | over two frames: nothing selected → the same entry count as without `selection:`; `s` selected realised rows → exactly `s` more, each an `$anim-color` slot, no `$ax` id | no init | M3m: `.selected` declared as a trait (writes `$ax`) |
 | 3.16 | `anAccessibilityClientSelectsARowByPressingItAndCannotSetSelectedDirectly` | `.press` on a row replaces the selection; the AppKit element's `setAccessibilitySelected(true)` changes nothing (divergence 83) | no init | M3n: rows' press not wired (no `onClick` under `.press`) |
 | 3.17 | `aForEachOverABindingHandsEachElementItsOwnBinding` | toggling row 1 writes `items[1].done` only | no init | M3o: every slot bound to index 0 |
 | 3.18 | `aStaleElementBindingDropsItsWriteAndKeepsItsLastRead` | a handler captured before its item was removed: no write, no trap, last read returned | no init | M3p: the id check removed (writes the item now at that index) |
 | 3.19 | `theControlsDemoPublishesEveryControlsRole` | `controlsDemoContent()` through a real `Window`, a client active: a button, a check box, a slider, an incrementor, a radio group, a table with one selected row | no tree | M3q: the demo's list built without `selection:` |
+| 3.20 | `anUnboundedSelectableListPublishesButtonRowsAndABoundedOneTableRows` | no scroller: each row a `.button` labelled by its text with `.press`, the selected one `isSelected`; inside a scroller after its first frame: `.row`s with index, `.press`, `isSelected` (`DD-AC` item 6) | no init | M3s: `logicalIndex` set on unbounded rows too (reddens the first arm) |
+| 3.21 | `aSelectableListsWarmFrameTouchesOnlyItsRealisedRows` | a counting `RandomAccessCollection`: a warm frame's element accesses equal at 500 and 5 000 rows with a selection whose lead is absent (`DD-AC` item 4) | no init | M3r: the lead re-derived by a data scan in `requestLayout` |
 | G3.1 | `theSelectionAndBindingForEachSpellingsCompileFromOutsideTheModule` | §3's lane-3 spellings | — | MG3.1: the `Set` initialiser internal |
 
 `everyProductionTreeBuildsOnAOneMegabyteThread` builds `controlsDemoContent()`
 too (edited, not new).
 
-**Expected totals**: **1556 + 25 + 22 + 20 = 1623 tests** (lane 2's rename
-adds none), guards **96 + 4 = 100**, `Backends/SDL` `MetalUISDLTests` 22 → 23
-on macOS.
+**Expected totals** (critic round, `DD-AC`): **1556 + 26 + 24 + 22 = 1628
+tests** (lane 2's rename adds none), guards **96 + 4 = 100**, `Backends/SDL`
+`MetalUISDLTests` 22 → 23 on macOS.
 
 ## 11. Must not move, and the demo expectation
 
@@ -468,8 +497,10 @@ on macOS.
 - **State retention**: no id path of an existing element moves;
   `theSevenRetentionSlotsAreMutuallyDistinct` unmoved (no new reserved name —
   the lead/anchor ride `ListOrigin`); `TB-AH` unmoved for every list without
-  `selection:` and, by 3.15, for one with it until input.
-- Hit testing moves exactly by `DD-Y` (divergence 16) and `valueTrack`; focus
+  `selection:`, and for one with it moved by exactly its selected realised
+  rows' colour slots (`2n + 6 + s`, 3.15, `DD-AC` item 1).
+- Hit testing moves exactly by `DD-Y` (divergence 16, including the
+  single-line `TextField`, `DD-AC` item 3) and `valueTrack`; focus
   moves exactly by `DD-Z` item 5; accessibility moves by the five roles, the
   folds and the hint; animation, the scrim, `Deferred`, `List` windowing,
   `TextField`/`TextEditor` do not move.
@@ -481,19 +512,28 @@ on macOS.
 
 ## 12. Divergences and records
 
-- **16 retires** (`DD-Y`); **76 amended, kept** (`DD-R` item 4).
+- **16 retires** (`DD-Y`); **76 amended, kept** (`DD-R` item 4; its
+  control-metrics remainder also names the empty-label toggle's 19-pt
+  height, TG0, `DD-S` critic round).
 - **80 added** — controls take keyboard focus and keys whatever the system's
   Full Keyboard Access setting (`DD-T`); pinned by 1.4/1.5.
 - **81 added** — `Picker`'s automatic style is segmented, where SwiftUI's
-  is a pop-up menu (PK0, PA0); `.menu` not offered (`DD-V`); pinned by G1.2
-  and 1.14.
+  is a pop-up menu (PK0, PA0); `.menu` not offered (`DD-V`); also named
+  (critic round): SwiftUI's segmented control is `n·w + 1` wide (PK1, PK3)
+  and its radio rows 6.5 apart in PK1, MetalUI's `n·w` and 6; pinned by G1.2,
+  1.14 and 1.18.
 - **82 added** — a titled control (`Stepper`, `Picker`) publishes its title
   as its own label, where SwiftUI publishes a sibling static text beside an
-  unlabelled control (STA0, PA0–PA2) (`DD-U`); pinned by 1.17 and 2.16.
+  unlabelled control (STA0, PA0–PA2) (`DD-U`); also named (critic round):
+  MetalUI publishes no slider `AXValueIndicator` child (SA0) and enables a
+  stepper's arrow buttons that AppKit publishes DISABLED (STA0); pinned by
+  1.17, 2.8 and 2.16.
 - **83 added** — an accessibility client selects a `List` row by pressing
   it; `AXSelected`/`AXSelectedRows` writes change nothing, where SwiftUI's
-  accept both (LA2–LA4, LB2, LB3) (`DD-Z` item 8); owner **plan task 12**;
-  pinned by 3.16.
+  accept both (LA2–LA4, LB2, LB3) (`DD-Z` item 8); and a selectable list
+  whose window is unbounded publishes its rows as buttons, where SwiftUI's
+  are always `AXRow`s (LA0; `DD-AC` item 6); owner **plan task 12**; pinned
+  by 3.16 and 3.20.
 - **84 added** — a `List` answers its content height and needs an enclosing
   `ScrollView`, its rows share one declared `rowHeight`, and it is
   data-driven only, where SwiftUI's is greedy and scrolls itself (L0, L1, K6)

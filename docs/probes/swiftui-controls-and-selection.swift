@@ -54,6 +54,18 @@
 // link failure, not a probe answer — so SA-O's second form is recorded as
 // unavailable rather than as agreeing.
 //
+// RE-RUN 2026-09-25 by the critic round (DD-AC), screen UNLOCKED (lock probe:
+// no `CGSSessionScreenIsLocked` line, `displayAsleep main: 0`): the compiled
+// form of the design's revision, run twice, reproduced all 172 recorded lines
+// byte for byte (exit 0, stderr empty) — so CK0's and WH0's failures are NOT
+// the lock: synthesized clicks and wheels do not reach SwiftUI or an
+// NSScrollView through `sendEvent` on this machine either way. The critic
+// round then added PK2 (bare label sizes) and PK3 (a segmented and a radio
+// picker whose labels differ widely); that revision was compiled and run
+// twice: 182 lines, byte-identical, exit 0, stderr empty, and its other 172
+// lines identical to the design's recording. The ten new lines are inserted
+// below in output order.
+//
 //   --- SIZE (own size in a 300x200 window; fitting = hosting view's ideal)
 //     BT0 Button("Go") automatic: own size 41x24 fitting 41x24
 //     BT0 Button("A longer label") automatic: own size 107x24 fitting 107x24
@@ -90,6 +102,16 @@
 //     PK1 .segmented: own size 256x24 fitting 256x24
 //     PK1 .radioGroup: own size 112x61 fitting 112x61
 //     PK1 .inline: own size 112x61 fitting 112x61
+//     PK2 control: Text("Alpha"): own size 34x16 fitting 34x16
+//     PK2 control: Text("Beta"): own size 28x16 fitting 28x16
+//     PK2 control: Text("Gamma"): own size 46x16 fitting 46x16
+//     PK2 control: Text("Flavor"): own size 37x16 fitting 37x16
+//     PK2 control: Text("Qty"): own size 22x16 fitting 22x16
+//     PK2 control: Text("A"): own size 9x16 fitting 9x16
+//     PK2 control: Text("A much longer label"): own size 120x16 fitting 120x16
+//     PK2 control: Text(""): own size 0x14 fitting 0x14
+//     PK3 .segmented [A, A much longer label]: own size 289x24 fitting 289x24
+//     PK3 .radioGroup [A, A much longer label]: own size 141x38 fitting 141x39
 //     LS0 List(selection:) rows 0..<3 in 300x200: own size 300x200 fitting 0x0
 //   --- AX (tree under the hosting view) and AX actions
 //     BA0 Button("Go") { count += 1 }:
@@ -280,6 +302,14 @@
 //   selected datum writes nothing — the binding keeps the stale id, and the
 //   row is selected again when it returns. LD0: a disabled list still shows
 //   its selection.
+// - PK2/PK3 (critic round): a segment is its label + 24 (Gamma 46 -> 70) and
+//   every segment takes the widest's width (PK3: 2 x (120 + 24) + 1 = 289;
+//   PK1: 3 x 70 + 1 = 211 — the control is n x w + 1). A radio row is its
+//   label + 21 (Alpha 34 -> 55, Gamma 46 -> 67, "A much longer label" 120 ->
+//   141; Beta 28 -> 48 is the one 20, a rounding of fractional text widths),
+//   the same 21 as the checkbox (TG0); rows are 6 apart in PK3 (38 = 2 x 16 +
+//   6) and 6.5 in PK1 (61 = 3 x 16 + 2 x 6.5). An empty Text is 0x14, while
+//   TG0's empty-label Toggle is 21x19.
 // - CK0-CK4: NOT MEASURED (the SwiftUI click control reads nothing).
 // - KY1-KY5/KY7: `NSApp.isFullKeyboardAccessEnabled = false` here, and a
 //   focused Button, a focused `.focusable()` Button, Toggle or Slider ignore
@@ -522,6 +552,21 @@ struct KeyControl: View {
     size("PK1 .segmented", picker().pickerStyle(.segmented))
     size("PK1 .radioGroup", picker().pickerStyle(.radioGroup))
     size("PK1 .inline", picker().pickerStyle(.inline))
+    // Added by the critic round (DD-AC): the bare label sizes the picker's
+    // segment padding and radio-row indicator are derived against, a
+    // segmented picker whose labels differ widely (does every segment take
+    // the widest's width?), and an empty Text (the empty-label Toggle's height).
+    for t in ["Alpha", "Beta", "Gamma", "Flavor", "Qty", "A", "A much longer label", ""] {
+        size("PK2 control: Text(\"\(t)\")", Text(t))
+    }
+    size("PK3 .segmented [A, A much longer label]",
+         Picker("", selection: .constant(0)) {
+             Text("A").tag(0); Text("A much longer label").tag(1)
+         }.pickerStyle(.segmented).labelsHidden())
+    size("PK3 .radioGroup [A, A much longer label]",
+         Picker("", selection: .constant(0)) {
+             Text("A").tag(0); Text("A much longer label").tag(1)
+         }.pickerStyle(.radioGroup).labelsHidden())
     size("LS0 List(selection:) rows 0..<3 in 300x200", List(0..<3, id: \.self, selection: .constant(Int?.none)) { Text("Row \($0)") })
 
     // The hosting view publishes no accessibility children until a client is
