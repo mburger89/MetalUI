@@ -1612,3 +1612,61 @@ instead. A reader who assumes `controlActiveState`'s mapping is a *measured*
 SwiftUI fact (as most divergence rows are) would be wrong to cite it as one:
 it is MetalUI's own choice pending the C-arm re-run, stated as such in `EV-AB`
 and not given a divergence number for exactly that reason.
+
+## 2026-09-25: 74 retires; 78 and 79 added (plan task 10, part 1 — data and scrolling)
+
+Record §57; rulings `DD-A`…`DD-P` in
+`docs/superpowers/2026-09-25-data-and-scrolling-decisions.md`. **The table
+moves from fifty-six to fifty-seven live**: one retires, two are added.
+
+- **74 retires** (`DD-C`): an element a `for` loop stops producing was kept —
+  it got its old state back if the loop regrew. It is now **fixed to
+  SwiftUI's answer**: a loop notes its slot and the extent it consumed
+  (`StateTable.noteLoop`, four minting copies — `ArrayGroup`'s untyped and
+  typed `requestGroupLayout`, and `ForEach`'s untyped and typed entries, new
+  this task); at `sweep()`, a positional child past this frame's extent and
+  below last frame's, or a named child the slot held last frame that this
+  frame produced nowhere, is reset — the one reset pass `ID-R` built,
+  `$focus`/`$ax` exempted as there. `ForEach` (new, `DD-B`) gets the same
+  rule as a bare `for` (probes F2, F3, F8; K2 — SwiftUI has no `for` in a
+  builder, so `ForEach(0..<n)` is its nearest spelling and it resets too).
+  The label joins the never-reused list. **The retained test that changed
+  its answer**: `AnimationTests.swift`'s
+  `aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop` pinned the
+  retired tombstone-resumption behaviour (a returning animating loop element
+  read its old `$anim` baseline, 175, rather than the declared 200) — a
+  **second** changed answer the design did not list (`DD-N`), found only
+  because the test's own doc comment cites "divergence 74, owner plan task
+  10" outside the grep the design ran for the pin's own name. **The test is
+  renamed** `aReturningAnimatingElementSnapsInsideAnIfAndInsideALoop`, its
+  assertion count unmoved, the loop arm's value inverted 175 → 200 by ruling
+  — a rename, not a retirement. **`TB-AH` is unchanged**: only the loop's
+  direct children are considered, so a `List` inside a surviving element
+  keeps its rows' retention (rows are not the loop's children), and a
+  `List`'s own rows stay exempt from this rule too (they are not a loop).
+- **78 is added** (kept, pinned wrong on purpose, `DD-D` item 4): `Binding`
+  is `@MainActor`, where SwiftUI's is nonisolated and `Sendable` with
+  `@isolated(any)` closures — `State` is already main-actor-only in MetalUI
+  and a binding's whole job is to reach it. Pinned by
+  `aBindingIsMainActorIsolated` (guard G2.3: a `nonisolated func` reading
+  `b.wrappedValue` fails to typecheck under Swift 6).
+- **79 is added** (kept, pinned wrong on purpose, found by probe S6 —
+  `docs/probes/swiftui-scrollviewreader-scope.swift` — `DD-L`, critic round):
+  a `ForEach` whose ids collide in **description** but differ in **value**
+  (`AnyHashable(1)` and `AnyHashable("1")`) produces only the **first** of
+  them; SwiftUI evaluates both. `ElementID` is a `String` (`ID-G`), and
+  producing both elements would put two members at one `GlobalElementID` —
+  the aliasing `ID-F` exists to repair for one element placed twice, and
+  which here would be silent. `List`'s own rows already carry the same
+  collision (documented in its type doc) and are unchanged by this task.
+  Pinned by `aForEachWhoseIDsCollideInDescriptionProducesOnlyTheFirst`
+  (mutation M1l: the dedupe's name half removed reddens this test alone;
+  1.8, the equal-*value* case, stays green on the value half).
+
+**What it costs if wrong.** A caller who relied on a shrunk-then-regrown
+`for` loop keeping its state (the retired behaviour, pinned as divergence 74
+and never documented as a feature) now sees it reset — the migration note
+`DD-C` item 4 states. A caller with description-colliding `ForEach` ids
+loses the second element where SwiftUI shows it (divergence 79); the fix
+(type-qualified names) would change every `ForEach` id path and is not taken
+now.

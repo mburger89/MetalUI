@@ -1559,3 +1559,41 @@ Both looks are owed to whoever next has this machine (or an equivalent one)
 with an unlocked screen and, for the second, two displays of different
 scale — no other owner is named, the same shape as the still-open real-window
 debt above.
+
+## 2026-09-25: no demo look shown, but one new look owed at data and scrolling (plan task 10, part 1)
+
+Record §57 §5, §8; rulings `DD-A`…`DD-P`. **Nothing a human needs to see
+changed.** `ForEach`, `Binding`, `ScrollViewReader` and the `List`/indicator
+fixes touch no tree the demo builds, so the fourteen-image offscreen
+comparison against `e7bc2e7` (`docs/probes/demo-pixels/compare.sh`) reads
+**0 differing and scene identical in all fourteen**, taken by this Record
+phase at `71251e4`. `Expected.swift` (`DemoFrameDeterminismTests`) is
+unedited.
+
+**The lock probe was run twice more this task** (design time and the critic
+round, per the decisions doc's own header; a third time by this Record
+phase, at `71251e4`): all three readings `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`, `displayActive main: 0`. `capture.sh` was never
+run. **This task neither closes nor adds to stage 6b's still-open
+real-window capture and its four named demo-layout changes, and adds no new
+look to task 9's two** (above) — but it does owe **one look of its own**:
+
+- **Wheel scrolling under `.disabled`** (`EV-Q`'s item for this task,
+  `DD-I` item 3). `docs/probes/swiftui-data-and-scrolling.swift`'s W0
+  (the enabled control) read 0 under five delivery strategies with the
+  screen locked, so its W1/W2 arms (a `ScrollView { … }.disabled(true)`)
+  mean nothing — the positive control itself never ran. MetalUI's disabled
+  `ScrollView` still scrolls on the wheel
+  (`aDisabledScrollViewStillScrollsOnTheWheel`, unchanged — scroll regions
+  are outside the disabled gate, `EV-E`), a behaviour that predates this
+  task and is simply re-cited here. Once a human can unlock the screen:
+  build and run the probe's W arms against a real
+  `ScrollView { … }.disabled(true)`; if SwiftUI's disabled scroll view does
+  not scroll, the fix is moving `registerScrollRegion` inside the gate, one
+  line, with a pinned test to invert (record §04 gets no new divergence
+  number unless and until this is measured, for the same reason
+  `controlActiveState`'s mapping got none at task 9).
+
+This look is owed to whoever next has this machine (or an equivalent one)
+with an unlocked screen — no other owner is named, the same shape as the
+still-open debts above.

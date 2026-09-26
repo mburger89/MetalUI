@@ -561,3 +561,29 @@ here expecting a future "add a reader" row, as most of this table's rows
 carry, is the one case this section corrects in advance: there is no such
 row coming for this one, by design, same as `pixelLength`.
 
+## 2026-09-25: no row added or deleted, at data and scrolling (plan task 10, part 1)
+
+Record §57; rulings `DD-A`…`DD-P`. **Nothing changes in this table's shape.**
+Two candidates were considered and both rejected, each with a reason
+(`DD-M`, critic round):
+
+- **`ScrollIndicatorVisibility`'s two new cases (`.visible`, `.never`) are
+  not a new inert row.** The enum's own doc comment used to read "a third
+  case would be inert"; that sentence is now wrong on its face (`.visible`
+  and `.never` behave exactly as SwiftUI's overlay scrollers do, measured —
+  probes I1–I5), so it was tempting to log them here as "declared but
+  reaching no built-in behaviour" the way `controlSize` is above. They are
+  not that shape: `.visible` behaves as `.automatic` and `.never` as
+  `.hidden`, both already-wired paths, not new state nobody reads.
+- **`KeyBinding`'s deprecated `Binding` alias is deleted, not merely made
+  inert.** It never held a row in this table (a deprecated alias was never
+  "declared but inert" — it worked, and warned), so there is nothing to
+  remove here either; its own guard,
+  `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding`, is a
+  retired *test* (record §57 §3.3), not a retired row of this table.
+
+**What it costs if wrong.** A reader who assumed the enum's own superseded
+doc comment still held would think `.visible`/`.never` were placeholders;
+this section says plainly they are not, and points at the probes that
+measured them instead of the source comment that used to guess.
+

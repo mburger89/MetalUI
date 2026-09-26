@@ -217,7 +217,11 @@ Environment values are scoped with `.environment(_:_:)`,
 `.transformEnvironment`, `.disabled`, `.dynamicTypeSize` and `.theme`, read
 with `@Environment` or `pass.environment`, and rooted at `Window.environment`.
 A modifier written after a scope sits outside it, as in SwiftUI. The keymap's
-type is `KeyBinding` (`Binding` is a deprecated alias).
+type is `KeyBinding`, unrelated to `Binding<Value>` — SwiftUI's own value
+binding, landed on plan task 10 part 1 (`@State`'s `$` projection, a
+key-path-derived binding, `.constant`, `TextField`/`TextEditor` binding
+initialisers) — the deprecated `Binding = KeyBinding` alias is deleted in the
+same change (record §57).
 
 A counter in the proposal vocabulary. Every ancestor up to the window root must
 be a proposal element as well. Nested in a legacy container it still compiles,
@@ -301,10 +305,10 @@ controls (`docs/probes/swiftui-frame-semantics.swift`, `…-negative-sizes.swift
 and `docs/probes/` holds the other re-runnable SwiftUI probes; the earliest
 probes survive only as prose.
 
-Fifty-six measured divergences from CSS, SwiftUI or WebKit are tabled in
-[`CLAUDE.md`](CLAUDE.md); retired labels (3, 4, 5–8, 11, 12, 15, 17, 18, 19,
-24, 36, 37, 40, 45, 48, 59, 69) are never reused — most retirements are a
-later task's own fix landing SwiftUI's answer, not a correction of the
+Fifty-seven measured divergences from CSS, SwiftUI or WebKit are tabled in
+[`CLAUDE.md`](CLAUDE.md); retired labels (3, 4, 5–8, 11, 12, 14, 15, 17, 18,
+19, 24, 36, 37, 40, 45, 48, 59, 69, 74) are never reused — most retirements
+are a later task's own fix landing SwiftUI's answer, not a correction of the
 original measurement. [`docs/record/04-divergences.md`](docs/record/04-divergences.md)
 holds the original eleven in full and a dated index of every later addition,
 amendment and retirement.
@@ -370,7 +374,16 @@ transforms, and text colour animation.
   for its 6b stage — the root switch: production's default layout authority
   becomes `.proposal` — and
   [`48-engine-replacement-stage-7a.md`](docs/record/48-engine-replacement-stage-7a.md)
-  for its 7a stage — the 97 WebKit goldens retired. Five files are
+  for its 7a stage — the 97 WebKit goldens retired — and
+  [`57-data-and-scrolling.md`](docs/record/57-data-and-scrolling.md) for plan
+  task 10's **part 1** — `ForEach` and loop identity, `Binding<Value>`, a
+  `List`'s own scroller origin, and `ScrollViewReader`/`scrollTo`/indicators;
+  part 2 (common controls and selection) is the next run.
+  **This list runs behind `docs/record/README.md`**: task 7's stages 7b
+  through 11 (records `49`–`54`) and plan tasks 8 and 9 (records `55`–`56`)
+  landed between `48` and `57` above and are not yet described here — read
+  `docs/record/README.md`'s own index for every record file, which is kept
+  current. Five files listed by name above are
   not task tracks:
   [`19-claude-md-full-2026-09-21.md`](docs/record/19-claude-md-full-2026-09-21.md)
   is the root `CLAUDE.md` as it read before it was cut to rules only,

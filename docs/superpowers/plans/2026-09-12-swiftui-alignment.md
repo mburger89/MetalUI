@@ -1079,6 +1079,52 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   SwiftUI layouts blank or state-destructive, while retaining virtualization as
   an internal implementation choice. Specify scroll position, indicators and
   programmatic scrolling.
+  *Progress note, 2026-09-25 — part 1 delivered, box stays unticked*
+  (`feat/data-and-scrolling` from `e7bc2e7`, rulings `DD-A`…`DD-P`, record
+  §57). The task is split in two by the workflow that runs it, and **this is
+  part 1**: `ForEach<Data, ID, Content>` with SwiftUI's three initialisers
+  (`id:` keypath, `Identifiable`, `Range<Int>`) and the typed
+  `ProposalElementGroup` copy, one structural slot per loop and one identity
+  level per element (`DD-B`); an element a loop stops producing now starts
+  fresh if it comes back, for `ForEach` and a bare `for` alike — **divergence
+  74 retires** (`DD-C`); a duplicate id (by value or by minted name) is not
+  produced twice — **divergence 79, added**, for the description-colliding
+  case SwiftUI still evaluates both of (`DD-L`). `Binding<Value>` — SwiftUI's
+  `@propertyWrapper`/`@dynamicMemberLookup` surface, but **`@MainActor`**
+  where SwiftUI's is nonisolated — **divergence 78, added** (`DD-D`); `$state`
+  now projects it through the box; **the deprecated `typealias Binding =
+  KeyBinding` is deleted in the same change**, as `EV-N` announced;
+  `TextField`/`TextEditor` gain `Binding<String>` initialisers, nothing
+  controlled moved (`DD-E`). A `List` inside a scroller now stores its own
+  origin (through `withState`, never a dirtying write) and windows against
+  it — **divergence 14 retires** (a header or other sibling above it in the
+  scroller no longer blanks it) — and asks for exactly one more frame when
+  the window goes stale — **divergence 13 amended, kept** (the next frame is
+  drawn correct; the two-row overscan divergence 13 itself names is
+  unchanged) (`DD-F`). `ScrollViewReader`/`ScrollViewProxy.scrollTo(_:anchor:)`/
+  `UnitPoint` — one slot with its own identity level, keys matched **by
+  value** against a `ForEach` element's typed key, a `List` row's `datum.id`
+  or an `.id` name (`DD-G`, `DD-K`, critic round — the design's own
+  description-matching rule was superseded before landing);
+  `ScrollIndicatorVisibility` gains `.visible`/`.never`, SwiftUI's own
+  measured macOS behaviour, not new inert state (`DD-H`). **Kept, unmeasured**:
+  wheel scrolling under `.disabled` — the screen was locked at design time and
+  the critic round, so SwiftUI's positive control never ran; a human look is
+  owed (record §03) (`DD-I`). Three lanes, each with its own mutation table,
+  all verified `ok`, one fix round adding a further pin (a second,
+  independently-written copy of the reader-scope check that had no pin of
+  its own, 3.13b); this Record phase's independent close re-took the suite,
+  guard and golden counts (**1556 / 0 / 96**), the fourteen-image pixel
+  comparison (0 px against `e7bc2e7`), `Backends/SDL` on macOS (21 + 22,
+  unmoved) and independently in a `swift:6.4-noble` container (root package,
+  0 `error:`/`warning:`) and a Linux aarch64 container (`Backends/SDL`,
+  21 + 21, unmoved) — all unmoved from the lanes' own readings. **Re-owned to
+  part 2** (`DD-J`): common controls, `controlSize`'s consumers (divergence
+  76), a `Button` control's existence, selection, `List` scrolling itself and
+  answering greedily, non-uniform rows, `List { ForEach }`, divergence 32,
+  accessibility scrolling to unrealised rows, two-axis scrolling and
+  divergence 54, and `scrollPosition(id:)`. **Part 2 (common controls and
+  selection) remains, so the box stays unticked.**
 
 - [ ] **11. Close text, shape and rendering-facing semantics.**
   Add the overlapping SwiftUI text controls: foreground style, font metrics,

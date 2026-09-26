@@ -8,9 +8,11 @@ probe [`docs/probes/swiftui-data-and-scrolling.swift`](../../probes/swiftui-data
 (arms S0–S7); record `docs/record/57-data-and-scrolling.md`
 (written by the Record phase).
 
-**Status: DESIGNED, CRITICISED AND REVISED** (critic round: `DD-K`…`DD-M`;
-`DD-F` moved to lane 2; tests 1.16 and 3.16 added; 3.9 re-cited; 3.13's scope
-arm made separating). Part 1 of plan task 10 — `ForEach`, `Binding`, the
+**Status: DESIGNED, CRITICISED, REVISED AND DELIVERED** (critic round:
+`DD-K`…`DD-M`; `DD-F` moved to lane 2; tests 1.16 and 3.16 added; 3.9
+re-cited; 3.13's scope arm made separating; delivered as record §57 — 1556
+tests, 0 goldens, 96 guards, 0 px against `e7bc2e7` in all fourteen offscreen
+images). Part 1 of plan task 10 — `ForEach`, `Binding`, the
 `List`/`ScrollView` limitations, programmatic scrolling and indicators. Part 2
 (common controls, selection, and everything `DD-J` names) is the next run; the
 plan's task 10 box stays unticked.
