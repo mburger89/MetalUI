@@ -25,7 +25,8 @@ private let skipReason: Comment =
 /// (below) makes compile.
 ///
 /// Mutation that must redden it (M-G2.1): a public
-/// `init(_: String, _: some Action) where Value == String` added to `Binding`.
+/// `init(_: String, _: some Action) where Value == String` added to `Binding`
+/// — measured on the full unfiltered suite: reddens this guard alone.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func theKeyBindingAliasIsGoneSoBindingNamesTheValueBinding() throws {
     // Whole-file and `@MainActor`, so the old spelling can fail only for its
@@ -72,7 +73,10 @@ func theKeyBindingAliasIsGoneSoBindingNamesTheValueBinding() throws {
 /// `projectedValue` made `internal` — does not compile: "internal property
 /// 'projectedValue' cannot have more restrictive access than its enclosing
 /// property wrapper type 'State'" (measured), so the compiler itself pins the
-/// access level and the rename is the nearest mutant that builds.
+/// access level. A rename does not build either — the in-module tests spell
+/// `$n` — so the mutation run is **M-G2.2b**, the `TextField` binding
+/// initialiser made `internal`: measured on the full unfiltered suite, it
+/// reddens this guard alone ("missing argument for parameter 'onChange'").
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func anExternalModuleCanDeclareABindingAndPassAStateProjection() throws {
     func source(_ childArgument: String) -> String {
@@ -119,8 +123,11 @@ func anExternalModuleCanDeclareABindingAndPassAStateProjection() throws {
 /// `b.wrappedValue` fails; the same function `@MainActor` succeeds (control).
 ///
 /// Mutation that must redden it (M-G2.3): `@MainActor` removed from
-/// `Binding`, its closures made plain `@Sendable` (the projection's closures
-/// reaching `State` through `MainActor.assumeIsolated`).
+/// `Binding` (and from its `LastValue` helper), its closure types made plain
+/// non-`@MainActor` function types — the module still builds, since a
+/// non-`Sendable` closure formed on the main actor inherits its isolation.
+/// Measured on the full unfiltered suite: reddens this guard alone (the
+/// nonisolated arm compiles).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func aBindingIsMainActorIsolated() throws {
     let nonisolatedRead = try typecheckFile("""

@@ -731,8 +731,20 @@ ruling's wording left out.
    empty window for a list scrolled past, which would otherwise draw one blank
    frame when the content shrinks under a stale offset.
 
+4. **Two guard instruments differ from the design's table.** G2.1's negative
+   arm is the bare `Binding("cmd-k", A())` inside a whole-file `@MainActor`
+   function, not `Keymap([Binding("cmd-k", A())])` in a function body: the
+   Keymap-wrapped spelling stays an error under M-G2.1 (a value `Binding` is
+   never a `KeyBinding`), and a nonisolated function body rejects a main-actor
+   initialiser for its isolation — the first version of the guard read green
+   under M-G2.1 for exactly that reason (measured). G2.2's named mutation
+   (`State.projectedValue` made `internal`) does not compile — the compiler
+   requires a wrapper's projection at the wrapper's access level — and a
+   rename breaks the in-module tests' `$n`, so the run mutation is the
+   `TextField` binding initialiser made `internal` (M-G2.2b).
+
 **Evidence.** Lane 2's full unfiltered run after `DD-F` (4 issues in these two
-tests, nothing else); the green run after this ruling.
+tests, nothing else); the green run after this ruling; the guard mutation runs.
 
 **What it costs if wrong.** A table sized within one entry of 256 retains or
 reaps one row's state differently than before; nothing else moves.
