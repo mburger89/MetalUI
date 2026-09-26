@@ -118,6 +118,24 @@ func aKeyPathBindingWritesOneFieldAndLeavesTheOthers() {
     #expect(writes == 1, "through one write of the whole value")
 }
 
+/// **2.3b (B3).** Two derived bindings made before either writes — two
+/// `TextField`s bound to `$model.name` and `$model.count` with composed edits
+/// between frames — write one after the other, and both fields land: each
+/// write reads the base's CURRENT value. **Red under V6** (the subscript
+/// snapshots the base when the derived binding is made): the second write
+/// reverts the first field.
+@Test @MainActor
+func twoKeyPathBindingsMadeTogetherEachWriteOverTheOthersWrite() {
+    var storage = Model(name: "a", count: 1)
+    let model = Binding(get: { storage }, set: { storage = $0 })
+    let name = model.name
+    let count = model.count
+    name.wrappedValue = "b"
+    count.wrappedValue = 2
+    #expect(storage.name == "b", "the first write survives the second")
+    #expect(storage.count == 2, "and the second lands")
+}
+
 /// **2.4 (B4).** `init(get:set:)`: read 1, write 4, read 4; the setter runs
 /// once per write. M2d (`wrappedValue`'s setter calls `set` twice).
 @Test @MainActor
@@ -146,6 +164,11 @@ func theOptionalBindingInitialisersMatchSwiftUI() throws {
     #expect(unwrapped.wrappedValue == 3)
     unwrapped.wrappedValue = 9
     #expect(present == 9, "and writes through")
+    present = 5
+    #expect(unwrapped.wrappedValue == 5, "it reads the base's current value (V5)")
+    present = nil
+    #expect(unwrapped.wrappedValue == 5,
+            "and once the base goes nil, the last non-nil value it read (MetalUI's answer, unprobed; DD-D item 2)")
 
     var plain = 2
     let base = Binding(get: { plain }, set: { plain = $0 })

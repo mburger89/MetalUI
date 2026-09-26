@@ -959,6 +959,34 @@ func aListWhoseOriginChangesIsReWindowedOnTheNextFrame() throws {
     #expect(!window.needsRedraw, "and asks for nothing more")
 }
 
+/// **3.6 (`DD-F` item 1; the subtraction).** Real `Window`: the scroller is
+/// NOT at the window origin — an 88pt strip sits above it — and the `List` is
+/// at the top of its content (no header), wheeled to 300. The rows on screen
+/// are 10…14, and the rows built cover them within the overscan (⊆ 8…16). The
+/// origin is the list's bounds minus the scroller content node's, so the 88pt
+/// strip above the scroller cancels out. **Red under V3** (the origin taken as
+/// the list's bounds alone, 88 not 0): rows 5…13 built, row 14 on screen and
+/// blank. Every other `DD-F` fixture has the scroller at the window origin or
+/// the origin clamped by a 300pt header, so this is the only one that sees it.
+@Test @MainActor
+func aListInAScrollerBelowTheWindowOriginWindowsTheRowsOnScreen() throws {
+    let log = RowLog()
+    let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 200) {
+        Box { HeaderedList(tall: false, log: log) }
+    }
+    window.drawFrameIfNeeded()
+    try requireViewport(window, 112)
+    let region = try #require(window.lastScrollRegions.first)
+    try #require(region.bounds.origin.y.value == 88, "control: the scroller sits 88pt below the window origin")
+
+    log.reset()
+    platform.simulateInput(wheel(-300))
+    window.drawFrameIfNeeded()
+    let built = Set(log.built)
+    #expect(built.isSuperset(of: 10...14), "the rows on screen are built: \(log.built)")
+    #expect(built.isSubset(of: 8...16), "and nothing beyond the two rows of overscan: \(log.built)")
+}
+
 /// A 112pt root `ScrollView` over a 112-wide `List` of `rows` at 28.
 @MainActor
 private func scrolledList(_ rows: Int, log: RowLog) -> some Element {
