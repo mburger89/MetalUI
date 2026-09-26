@@ -502,8 +502,12 @@ private struct IDLogger: Element {
 /// its own: the element inside it is `positional(0)` under the reader's slot
 /// `positional(0)`, the sibling after the reader keeps index 1, both are
 /// stable across frames, and the reader's content keeps its `@State` (a click
-/// writes 1, read on the next two frames). **M3n**: the reader consumes no
-/// slot (its content numbers in its parent's cursor space).
+/// writes 1, read on the next two frames). The same slot through the typed
+/// entry, inside a proposal `HStack` (`requestProposalGroupLayout`, its own
+/// registration call): the reader's `Rectangle` at root/0/0, the sibling at
+/// root/1. **M3n**: the reader consumes no slot (its content numbers in its
+/// parent's cursor space) — reddens the first arm; **M3n′**, the same in the
+/// typed entry only, reddens the second.
 @Test @MainActor
 func aScrollViewReaderIsOneSlotWithItsOwnIdentityLevel() throws {
     let seen = Seen()
@@ -536,6 +540,21 @@ func aScrollViewReaderIsOneSlotWithItsOwnIdentityLevel() throws {
     window.drawFrameIfNeeded()
     #expect(seen.counts == [1, 1], "the reader's content keeps its state across frames: \(seen.counts)")
     #expect(seen.ids == [inside, after, inside, after], "and both ids are stable")
+
+    // The typed entry.
+    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
+                      recordsElementBounds: true)
+    var stack = HStack {
+        ScrollViewReader { _ in Rectangle() }
+        Rectangle()
+    }
+    frame.render(&stack)
+    let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let slot = GlobalElementID.child(of: root, at: 0, name: nil)
+    #expect(frame.elementBounds[GlobalElementID.child(of: slot, at: 0, name: nil)] != nil,
+            "typed entry: the reader's content is index 0 under the reader's slot: \(frame.elementBounds.keys.count) ids")
+    #expect(frame.elementBounds[GlobalElementID.child(of: root, at: 1, name: nil)] != nil,
+            "typed entry: the sibling after the reader keeps index 1")
 }
 
 /// **3.16 (`DD-K`, S3–S5).** Keys compare by value: `.id("10")` is reached by
