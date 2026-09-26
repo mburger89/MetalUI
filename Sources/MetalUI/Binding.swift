@@ -72,7 +72,8 @@ public struct Binding<Value> {
 
     /// A binding to one field of this binding's value (B3): the write reads
     /// the current value, changes the one field, and writes the whole value
-    /// back.
+    /// back — so two derived bindings made together each write over the
+    /// other's write (`twoKeyPathBindingsMadeTogetherEachWriteOverTheOthersWrite`).
     public subscript<Subject>(dynamicMember keyPath: WritableKeyPath<Value, Subject>) -> Binding<Subject> {
         let base = self
         return Binding<Subject>(
@@ -94,8 +95,9 @@ public struct Binding<Value> {
 
     /// Unwraps a binding to an optional: `nil` while the base is `nil`, and a
     /// binding that writes through otherwise (B5). Once the base goes `nil`
-    /// later, it reads the last non-`nil` value it saw (unprobed; `DD-D`
-    /// item 2).
+    /// later, it reads the last non-`nil` value it saw (MetalUI's answer,
+    /// unprobed in SwiftUI, pinned by `theOptionalBindingInitialisersMatchSwiftUI`;
+    /// `DD-D` item 2).
     public init?(_ base: Binding<Value?>) {
         guard let initial = base.wrappedValue else { return nil }
         let last = LastValue(initial)

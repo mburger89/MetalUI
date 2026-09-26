@@ -522,7 +522,10 @@ where Data.Element: Identifiable {
     ///    its own id through `withState`, **never `write`**: `withState` raises
     ///    no `isDirty` and fires no `onWrite` (`ScrollChrome.resolvedOffset`'s
     ///    prepaint write-back is the precedent), so this cannot keep the
-    ///    display link awake. No new reserved name
+    ///    display link awake. The subtraction is pinned by
+    ///    `aListInAScrollerBelowTheWindowOriginWindowsTheRowsOnScreen` (a
+    ///    scroller 88pt below the window origin; V3, the bounds alone, builds
+    ///    rows 5…13 where 10…14 are on screen). No new reserved name
     ///    (`theSevenRetentionSlotsAreMutuallyDistinct` unmoved). Pinned by
     ///    `anUnboundedListFrameAsksForNoExtraFrame`.
     /// 2. **Asks for one more frame when the window it built is stale**: the

@@ -291,7 +291,15 @@ lane's work counter, not by wall clock.
    (B5); a binding kept after its body ran reads and writes the **current**
    state — live, not a snapshot (B6). An unwrapped binding whose base later
    goes nil returns the last non-nil value it read (unprobed; SwiftUI traps on
-   a related shape, measured while writing B5 and not made an arm).
+   a related shape, measured while writing B5 and not made an arm). That is
+   MetalUI's own answer, pinned in test 2.5 (base 9 → 5 reads 5, then nil
+   reads 5; V5, the getter no longer updating the last value, reddens only
+   `theOptionalBindingInitialisersMatchSwiftUI`, 2 issues). A key-path
+   binding's write reads the base's **current** value, pinned by test 2.3b
+   (`twoKeyPathBindingsMadeTogetherEachWriteOverTheOthersWrite`: two derived
+   bindings made before either writes, both fields land); V6, the subscript
+   snapshotting the base when the derived binding is made, reddens only that
+   test (1 issue: the second write reverted the name).
 3. **`State.projectedValue` goes through the box**, so a write resolves the
    slot at call time: the dispatching occurrence during input (`ID-F`), the
    last-bound one outside it (divergence 71, unchanged).
@@ -366,7 +374,15 @@ initialisers build the same element (test 2.10 compares the scenes).
    it cannot keep the display link awake; the only redraw a list asks for is
    item 3's explicit, self-limiting `requestAnotherFrame()`. The origin must
    **never** be written through `StateTable.write` — lane 2's test 3.4 is the
-   pin that an unbounded frame asks for nothing. Probe L2 is the answer being matched: the rows on screen (0…3 at offset
+   pin that an unbounded frame asks for nothing. **The subtraction is pinned
+   by test 3.6** (`aListInAScrollerBelowTheWindowOriginWindowsTheRowsOnScreen`,
+   the verifier's round): the scroller 88pt below the window origin, the list
+   at the top of its content, wheeled to 300 — rows 10…14 on screen, built
+   ⊇ 10…14 and ⊆ 8…16. Under V3 (the origin taken as the list's bounds alone)
+   it built 5…13, row 14 on screen and blank; it is the only test V3 reddens
+   (full unfiltered run, 1542 tests, 2 issues, both in 3.6) — every other
+   `DD-F` fixture puts the scroller at the window origin or clamps the origin
+   with a 300pt header. Probe L2 is the answer being matched: the rows on screen (0…3 at offset
    300 below a 300 header), which SwiftUI's lazy stack realises and MetalUI's
    `List` — its analogue inside a `ScrollView`, not SwiftUI's self-scrolling
    `List` (L0/L1, part 2) — did not (DD14: 8…16).
@@ -742,6 +758,12 @@ ruling's wording left out.
    requires a wrapper's projection at the wrapper's access level — and a
    rename breaks the in-module tests' `$n`, so the run mutation is the
    `TextField` binding initialiser made `internal` (M-G2.2b).
+
+5. **Verifier round: three mutations that read green now redden.** V3
+   (`DD-F`'s subtraction dropped) reddens test 3.6 only; V6 (the key-path
+   binding's snapshot) reddens test 2.3b only; V5 (the unwrapped binding's
+   last value never updated) reddens test 2.5 only. Each was taken as a full
+   unfiltered run (1542 tests) with the source restored from a copy after.
 
 **Evidence.** Lane 2's full unfiltered run after `DD-F` (4 issues in these two
 tests, nothing else); the green run after this ruling; the guard mutation runs.
