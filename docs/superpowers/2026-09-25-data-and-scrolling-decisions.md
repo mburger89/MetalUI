@@ -4,7 +4,7 @@ Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-d
 on `feat/data-and-scrolling` from `e7bc2e7` (part 1, `DD-A`…`DD-P`), and for
 [`specs/2026-09-26-controls-and-selection-design.md`](specs/2026-09-26-controls-and-selection-design.md),
 on `feat/controls-and-selection` from `27b2fcc` (part 2, `DD-Q` onward). Ids
-are **lettered**, `DD-A`…`DD-AE`; next unused is **`DD-AF`**. A bare `DD-3`
+are **lettered**, `DD-A`…`DD-AF`; next unused is **`DD-AG`**. A bare `DD-3`
 is a typo, not a citation. **A round that appends a ruling moves this line in
 the same commit.**
 
@@ -1695,10 +1695,13 @@ inside, what the design said.
    (2.21) — and both honour a `focusRequest` after the handler returns. One
    path, so the two cannot drift. The press's focus request is **not pinned
    by this lane** (2.22 clicks); lane 3's 3.16 presses a row and may pin it.
-3. **A slider publishes its clamped value** (spec §4 said `<value>`): the
-   thumb is drawn clamped (SA5, SA6), and `Stepper` publishes its clamped
-   value (STA4, measured); what SwiftUI's slider publishes out of range is
-   unmeasured.
+   *(Superseded by `DD-AF` item 5: 2.22b pins it in lane 2.)*
+3. **A slider publishes its clamped value** (spec §4 said `<value>`), as
+   SwiftUI's does — **measured**: SA5 publishes `value 10` for 15 on 0…10 and
+   SA6 `value 0` for −3, and `Stepper` publishes its clamped value too
+   (STA4). *Erratum (`DD-AF` item 3): this item first said what SwiftUI's
+   slider publishes out of range was "unmeasured"; the probe header's SA5/SA6
+   lines measured it. Pinned by 2.4's published-value line (V2).*
 4. **2.1's nil-width arm reads `Slider.size(proposedWidth:)` directly.** No
    legacy container offers a leaf a nil width, and a legacy element cannot be
    a proposal stack's child to take `.fixedSize()`; the leaf's measure closure
@@ -1759,3 +1762,61 @@ subtree, so without the layer clause its wheel passes to that scroller.
 **Cost if wrong.** Item 2 is one call site; if task 12 rules that a press
 must not focus, `handleAccessibilityRequest` passes a discarding closure.
 Item 3 is one `clamp` call.
+
+## DD-AF — lane 2 (part 2) verifier fix round: the unpinned copies, the clamp, the scroll offset, the nearest scroller, the press's focus request
+
+**Ruling.** The verifier found eleven lane-2 mutants green at 1612 (V1, V2,
+V4b, V5, V6, V7, V13, V14, V15, and by the same shape the stepper's `onKey`
+and declared-value copies). Nine tests were added and 2.4 gained a line; each
+mutant now reddens exactly one test. No `Sources/` line moved.
+
+1. **The caller-composition copies are pinned per control** (CLAUDE.md "A
+   copy of a pinned implementation is unpinned"), as `DD-AD` pinned lane 1's:
+   `Slider`'s and `Stepper`'s `onKey` precedence (2.7b, 2.17b), and each
+   one's declared role, value and adjustment handler (2.8b, 2.16b — a caller
+   declares `.image` through `handling`, `.accessibilityValue` and
+   `.accessibilityAdjustableAction`).
+2. **The pointer formula's `clamp01` and `ValueTrackTarget.minX`'s scroll
+   offset are pinned**: 2.6b presses and drags an **unstepped** slider past
+   both ends (it writes exactly 0 and 10 — 2.6's step re-clamps through
+   `onGrid` and could not see the clamp); 2.6c presses a slider inside a
+   horizontal `ScrollView` scrolled by 50 (offset written through the
+   `StateTable`, then a redraw) and reads the value under the window x.
+3. **DD-AE item 3's evidence is corrected in place** (quoted erratum there,
+   and in record §58 §2.2): SA5/SA6 measured SwiftUI publishing the clamped
+   value. 2.4 asserts `"10"` for 15 on 0…10.
+4. **`DD-Y`'s "nearest ancestor" is pinned** by 2.19b (a click target inside
+   an inner `ScrollView` inside an outer one, both covering the point: only
+   the inner offset moves, 37).
+5. **The press's focus request is pinned in this lane** (2.22b: an
+   accessibility `.press` whose handler sets `ClickDispatch.focusRequest`
+   moves focus), rather than left to lane 3's 3.16 as `DD-AE` item 2 said.
+   2.21's press arm cannot see a bypass, since `ClickDispatch.modifiers`
+   defaults to `[]`. **`allowsHitTesting(false)` removing the track** is
+   pinned by 2.9b.
+6. **2.18's changed answer gets its row** in record §58 §2.5 (old name, new
+   name, first arm 0 → 37, `DD-Y`), which spec §10 said the record lists.
+
+**The table.** Each row a full unfiltered run of **1621** tests (`swift build
+--build-system native --build-tests`, then `swift test --build-system native
+--no-parallel`), applied to the fix round's test commit, the source restored
+from a copy after, `git status --short` empty after each (14 of 14).
+
+| Mutation | Change (spelling applied) | Reddens |
+|---|---|---|
+| V1 | `ValueTrackTarget.minX` drops `offset.x` (`Slider.prepaint`) | 2.6c |
+| V2 | the slider publishes `read()` unclamped | 2.4 |
+| V4b | `Frame.registerHandlers`' hitbox condition `hitTestingDisabledDepth == 0 \|\| handlers.valueTrack != nil` | 2.9b |
+| V5 | `clamp01` removed from `ValueStepping.sliderValue` | 2.6b |
+| V6 | the `.press` case calls `StateDispatch.dispatching(to: id) { onClick() }`, not `runClick` | 2.22b |
+| V7 | `enclosingScroller` keeps walking and returns the outermost match | 2.19b |
+| V13 | the slider's arrows before the caller's `onKey` | 2.7b |
+| V14 | the slider's role written unconditionally | 2.8b |
+| V19 | the slider's value written unconditionally | 2.8b |
+| V20 | the slider's adjustment handler written unconditionally | 2.8b |
+| V15 | the stepper's adjustment handler written unconditionally | 2.16b |
+| V16 | the stepper's arrows before the caller's `onKey` | 2.17b |
+| V17 | the stepper's role written unconditionally | 2.16b |
+| V18 | the stepper's value written unconditionally | 2.16b |
+
+**Cost if wrong.** Tests only; each is one fixture.

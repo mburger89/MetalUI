@@ -151,7 +151,10 @@ its mutation (`DD-AE`).
 As spec §4–§6 and `DD-W`, `DD-X`, `DD-Y`, `DD-Z` item 9, with the choices
 `DD-AE` records: the owner table's `slider` rows (241 → 265), an
 accessibility press through the same `Window.runClick` as a click (so it
-honours a focus request too), the slider's published value clamped, 2.1's
+honours a focus request too), the slider's published value clamped — as
+SwiftUI's is, measured by SA5/SA6 (`value 10` for 15, `value 0` for −3; an
+earlier wording here and in `DD-AE` item 3 called it unmeasured, corrected
+by `DD-AF` item 3), 2.1's
 nil-width arm read from `Slider.size(proposedWidth:)`, and two fixture
 corrections before green (2.18's arms in fresh windows; 2.24 presses before
 the wheel, since the wheel scrolls the field out of its viewport). The
@@ -192,9 +195,31 @@ and `DemoContent` ×3).
 ### 2.4 Mutations
 
 `DD-AE` is the table (26 rows, every test reddened named; `git status
---short` empty after each).
+--short` empty after each); the fix round's 14 rows are `DD-AF` (§2.5).
 
-### 2.5 Owed
+### 2.5 Verifier fix round
+
+The verifier found eleven mutants green at 1612 (V1, V2, V4b, V5, V6, V7,
+V13, V14, V15, and the stepper's `onKey` and declared-value copies by the
+same shape): the caller-composition copies of spec §4 in `Slider` and
+`Stepper`, the pointer formula's `clamp01` (2.6's step hid it), the scroll
+offset in `ValueTrackTarget.minX`, the published clamped value, `DD-Y`'s
+"nearest", the press's focus request and `allowsHitTesting(false)` on the
+track. Nine tests were added (2.6b, 2.6c, 2.7b, 2.8b, 2.9b, 2.16b, 2.17b,
+2.19b, 2.22b) and 2.4 gained its published-value line; **1621 tests in 3
+suites passed**. Each mutant (14 rows, `DD-AF`), re-run in a full unfiltered
+run from a copy with `git status --short` empty after, reddens exactly one
+test. No `Sources/` line moved, so §2.3's pixel, capture, SDL and container
+readings stand.
+
+**Changed answers** (spec §10's 2.18 sentence; no test is retired by lane 2):
+
+| old name | new name | arm | at `27b2fcc` | now | ruling |
+|---|---|---|---|---|---|
+| `aClickTargetInsideAScrollViewSwallowsTheWheel` | `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller` | the wheel over the button | 0 | 37 | `DD-Y` (divergence 16 retired) |
+| (same) | (same) | the wheel off the button | 37 | 37, unchanged | — |
+
+### 2.6 Owed
 
 A human look at the pointer rules (a slider press and drag, stepper halves,
 the wheel over a button and over a single-line field inside a scroller) —

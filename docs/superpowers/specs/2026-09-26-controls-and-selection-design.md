@@ -203,8 +203,9 @@ control is new, and its internal nodes number from 0 under its own id.
   capsule thumb (`.surface`, border `.separator`) at `minX + f·(W − 20)`,
   `f` the clamped fraction. Handlers: the internal `valueTrack` target (§6),
   `isFocusable`, arrows, `onAction(AccessibilityAdjustment.self)`;
-  `axNode = AXNode(role: .slider, value: <value>)`, value printed without a
-  trailing `.0` (SA0 reads `5`).
+  `axNode = AXNode(role: .slider, value: <clamped value>)`, value printed
+  without a trailing `.0` (SA0 reads `5`; SA5/SA6 publish the clamped value,
+  `DD-AE` item 3).
 - **`Stepper`** (`DD-X`): an outer `Box` row, gap 8, `alignItems: .center`:
   `Text(title)` and a 20×24 column `Box` of two 20×12 halves (background
   `.surfaceSecondary`, the column `cornerRadius` 5, a `.separator` hairline
@@ -427,7 +428,7 @@ Registry arms: `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`
 (`Button`, `Toggle`, a segment); `onClickIsLiveOnEveryConformerThatCanRegisterOne`
 (`Button`).
 
-### Lane 2 (23 new tests + 1 renamed + 1 guard)
+### Lane 2 (23 new tests + 1 renamed + 1 guard; +9 in the verifier fix round, `DD-AF`)
 
 | # | test | asserts | red before | mutation |
 |---|---|---|---|---|
@@ -437,9 +438,14 @@ Registry arms: `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`
 | 2.4 | `anOutOfRangeValueIsDrawnClampedAndWrittenOnlyWhenAdjusted` | 15 on 0…10: thumb at the maximum, no write over two frames, − → 9 (SA5, SA6) | no type | M2d: the clamp written back in `prepaint` |
 | 2.5 | `anAdjustmentAtTheMaximumStillWrites` | one write of 10 (SA2) | no type | M2e: an unchanged value not written |
 | 2.6 | `aPressOnTheSliderSetsTheValueUnderThePointerAndADragFollows` | press at a derived x → derived value (stepped); drag → second value; the drag past the end → the bound | no type | M2f: `mouseDragged` not dispatched to `valueTrack` |
+| 2.6b | `anUnsteppedPressOrDragPastEitherEndWritesExactlyTheBound` | unstepped, x 5 → 0, x 295/400 → 10, x −100 → 0 | green (fix round) | V5: `clamp01` removed |
+| 2.6c | `aPressOnASliderInAScrolledScrollViewWritesTheValueUnderTheWindowX` | scrolled by 50, a press at window x 200 → 5 | green (fix round) | V1: `minX` drops the offset |
 | 2.7 | `aFocusedSliderAdjustsByTheAccessibilityStepOnTheArrows` | → and ↑ +, ← and ↓ − | no type | M2g: ↑/↓ unhandled |
+| 2.7b | `aCallersOnKeyRunsBeforeTheSlidersArrows` | a claiming caller `onKey` suppresses →; a declining one lets it write | green (fix round) | V13 |
 | 2.8 | `aSliderPublishesAnAdjustableSliderWithItsValue` | `.slider`, value `"5"`, label nil, `.increment`/`.decrement` (SA0) | no type | M2h: the adjustment handler not registered |
+| 2.8b | `aCallersDeclaredRoleValueAndAdjustmentWinOverTheSliders` | declared `.image`, `"loud"`, adjustment handler kept | green (fix round) | V14, V19, V20 |
 | 2.9 | `aDisabledSliderNeitherTracksNorAdjustsAndPublishesDisabled` | press, drag, arrows, adjust: no write (SA9) | no type | M2i: the track's hitbox registered through `pass.insertHitbox` directly (as a scroll region is) rather than `registerHandlers` — bypassing the gate |
+| 2.9b | `aSliderThatDoesNotAllowHitTestingDoesNotTrack` | `allowsHitTesting(false)`: no track hitbox, no write | green (fix round) | V4b |
 | 2.10 | `aSliderTrapsOnANonPositiveStepOrNonFiniteBounds` | exit test (`#expect(processExitsWith: .failure)`) for step 0, step −1, bounds `0...Double.infinity` | no type | M2j: the precondition removed |
 | 2.11 | `aStepperIsItsTitleEightPointsAndATwentyByTwentyFourControl` | `(textW + 8 + 20) × max(textH, 24)`; empty title 28 × 24 (ST0) | no type | M2k: gap 6 |
 | 2.12 | `aStepperClampsIntoItsRangeAndWritesNothingWhenTheValueWouldNotMove` | STA1, STA2, STA3 through half clicks and adjust requests | no type | M2l: an unchanged value written |
@@ -447,12 +453,16 @@ Registry arms: `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`
 | 2.14 | `anUnboundedStepperDoesNotClamp` | 1 → 2 → 1 → 0 → −1 (STA5) | no type | M2n: an unbounded stepper clamped at 0 |
 | 2.15 | `aClosureStepperRunsItsClosuresAndANilOneDisablesItsDirection` | STA6 | no type | M2o: a nil `onDecrement` falls back to `onIncrement` |
 | 2.16 | `aStepperPublishesALabelledIncrementorWithTwoArrowButtons` | `.incrementor`, label `"Qty"`, value `"1"`, two `.button` children (STA0; divergence 82) | no type | lane 1's M1n, re-run on this lane's head |
+| 2.16b | `aCallersDeclaredRoleValueAndAdjustmentWinOverTheSteppers` | declared `.image`, `"many"`, adjustment handler kept | green (fix round) | V15, V17, V18 |
 | 2.17 | `aFocusedStepperStepsOnTheUpAndDownArrows` | ↑ +1, ↓ −1 | no type | M2p: ↑/↓ swapped |
+| 2.17b | `aCallersOnKeyRunsBeforeTheSteppersArrows` | a claiming caller `onKey` suppresses ↑ | green (fix round) | V16 |
 | 2.18 | `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller` (**renamed** from `aClickTargetInsideAScrollViewSwallowsTheWheel`, first arm inverted 0 → 37) | the wheel over the button moves the scroller | red: reads 0 at `27b2fcc` | M2q: the rule reverted |
 | 2.19 | `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel` | a `Stack` sibling covering a `ScrollView`: 0 | green at base (pins the ancestry clause) | M2r: ancestry dropped (layer only) |
+| 2.19b | `aClickTargetInsideNestedScrollViewsPassesTheWheelToTheNearest` | inner offset 37, outer 0 | green (fix round) | V7: the outermost match |
 | 2.20 | `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel` | a scrim declared inside the scroller's content: 0 | green at base (pins the layer clause) | M2s: the layer clause dropped |
 | 2.21 | `aClickHandlerSeesItsClicksModifiersAndOnlyDuringTheClick` | ⌘ on the mouse-up read inside the handler; `[]` after; `[]` for a `.press` | no type | M2t: `modifiers` not reset |
 | 2.22 | `aClickHandlersFocusRequestIsHonouredAfterItReturns` | `focusedElement == id` after the click; a non-focusable id is cleared at the frame boundary | no type | M2u: the request ignored |
+| 2.22b | `anAccessibilityPressHonoursItsHandlersFocusRequest` | a `.press` honours `focusRequest` | green (fix round) | V6: the press bypasses `runClick` |
 | 2.23 | `aDisabledStepperStepsNothingAndPublishesDisabled` | half clicks, focused ↑/↓ and increment/decrement requests write nothing; the incrementor publishes disabled (STA7; `DD-AC` item 7) | no type | M1g, re-run on this arm |
 | 2.24 | `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller` | a press focuses the field, then a wheel over it moves the scroller (`DD-AC` item 3; press first, `DD-AE` item 5) | red: reads 0 at `27b2fcc` | M2q (the rule reverted); M2v: the `textInput` target excluded from the ancestor walk |
 | G2.1 | `theSliderAndStepperSpellingsCompileFromOutsideTheModule` | §3's lane-2 spellings | — | MG2.1: `Slider.init(value:in:step:)` internal |
@@ -462,7 +472,7 @@ Registry arms: D2 (`Slider`, a `Stepper` half), `everyLegacySiteIsReportedByName
 site, 241 → 265; `DD-AE` item 1), `HandlerShape`/`HandlerFingerprint` (`valueTrack`).
 Lane 2's mutation table is `DD-AE`.
 **2.18 is a changed answer, not a retirement**: its second arm (off the
-button, 37) is unchanged; the record's retirement table lists it.
+button, 37) is unchanged; record §58 §2.5's changed-answer table lists it.
 
 ### Lane 3 (21 tests + 1 guard)
 
