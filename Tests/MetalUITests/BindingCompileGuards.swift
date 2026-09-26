@@ -3,8 +3,8 @@ import MetalUITestSupport
 
 // Plan task 10, part 1, lane 2, guards G2.1–G2.3 (ruling `DD-D`). Each fixture
 // compiles against a PLAIN `import MetalUI` — this file's own imports are
-// irrelevant (shape 16). G2.2 and G2.3 are whole-file Swift 6
-// (`typecheckFile`, ruling SA-P); G2.1 is the function-body form.
+// irrelevant (shape 16). All three are whole-file Swift 6 (`typecheckFile`,
+// ruling SA-P).
 //
 // **A guard skips silently when `.build/<triple>/debug/Modules` is absent**
 // (CLAUDE.md, "Guards"); grep the log for `BINDING GUARD` to know it ran.
@@ -13,7 +13,7 @@ private let skipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUI not found — guard skipped"
 
 /// **G2.1 — the `KeyBinding` alias is gone, so `Binding` names the value
-/// binding** (`DD-D` item 6; inverts the retired
+/// binding** (`DD-D` item 6; whole-file Swift 6, `@MainActor`; inverts the retired
 /// `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding`). The old
 /// keymap spelling `Binding("cmd-k", A())` fails to typecheck; the same entry
 /// spelled `KeyBinding` succeeds in a `Keymap` (control).
@@ -28,17 +28,25 @@ private let skipReason: Comment =
 /// `init(_: String, _: some Action) where Value == String` added to `Binding`.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func theKeyBindingAliasIsGoneSoBindingNamesTheValueBinding() throws {
-    let old = try typecheck("""
+    // Whole-file and `@MainActor`, so the old spelling can fail only for its
+    // spelling: in a nonisolated function-body fixture, a main-actor
+    // `Binding` initialiser is rejected for its ISOLATION, which read green
+    // under the mutation below (measured: the first version of this guard).
+    let old = try typecheckFile("""
         struct A: Action {}
-        let b = Binding("cmd-k", A())
-        _ = b
+        @MainActor func keymapEntry() {
+            let b = Binding("cmd-k", A())
+            _ = b
+        }
         """, importing: "MetalUI")
     print("BINDING GUARD G2.1 old spelling: succeeded=\(old.succeeded)\n\(old.messages)")
 
-    let control = try typecheck("""
+    let control = try typecheckFile("""
         struct A: Action {}
-        let k = Keymap([KeyBinding("cmd-k", A())])
-        _ = k
+        @MainActor func keymapEntry() {
+            let k = Keymap([KeyBinding("cmd-k", A())])
+            _ = k
+        }
         """, importing: "MetalUI")
     print("BINDING GUARD G2.1 control: succeeded=\(control.succeeded)\n\(control.messages)")
 
@@ -47,6 +55,8 @@ func theKeyBindingAliasIsGoneSoBindingNamesTheValueBinding() throws {
     #expect(!old.succeeded, "the keymap's old `Binding` spelling must no longer compile:\n\(old.output)")
     #expect(!old.messages.contains("deprecated"),
             "rejected outright, not through a lingering deprecated alias:\n\(old.output)")
+    #expect(!old.messages.contains("actor"),
+            "rejected for its spelling, not for isolation:\n\(old.output)")
     #expect(control.succeeded, "`KeyBinding` is the keymap entry:\n\(control.output)")
 }
 
@@ -57,8 +67,12 @@ func theKeyBindingAliasIsGoneSoBindingNamesTheValueBinding() throws {
 /// $s)`, `TextEditor(text: $s)`. The control passes the plain value `n` where
 /// the binding goes.
 ///
-/// Mutation that must redden it (M-G2.2): `State.projectedValue` made
-/// `internal`.
+/// Mutation that must redden it (M-G2.2): `State.projectedValue` renamed
+/// (`projectedBinding`), so `$n` does not exist. The spec's mutation —
+/// `projectedValue` made `internal` — does not compile: "internal property
+/// 'projectedValue' cannot have more restrictive access than its enclosing
+/// property wrapper type 'State'" (measured), so the compiler itself pins the
+/// access level and the rename is the nearest mutant that builds.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func anExternalModuleCanDeclareABindingAndPassAStateProjection() throws {
     func source(_ childArgument: String) -> String {
