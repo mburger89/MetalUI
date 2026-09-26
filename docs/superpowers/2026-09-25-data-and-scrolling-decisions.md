@@ -1096,7 +1096,9 @@ roles and values are SwiftUI's own.
 2. **Options are found through a picker scope**, not by walking the content
    (an `ElementGroup` cannot be introspected): `Picker` pushes an internal
    scope (a `@MainActor` static stack in `Picker.swift`, balanced by `defer`)
-   around each phase of its content; a `TaggedElement` reads the innermost,
+   around its content's **layout only** (amended by `DD-AD` item 6: an
+   option carries its chrome to prepaint and paint in its layout state); a
+   `TaggedElement` reads the innermost,
    appends its tag in `requestLayout` (so the picker knows the order for its
    arrows) and builds its option chrome.
 3. **Selection is by value equality** of the tag with the binding's value.
@@ -1526,7 +1528,7 @@ replacement's decisions doc, and none of these touches the engine.
    (STA0; MetalUI's are enabled). Neither is a clause of the task.
 10. **Native depth is measured, not assumed.** Every control lowers to
     several native levels (a `Picker` segment: outer row, options `Box`,
-    `SegmentRow`, segment `Box`, content — each a padded, sized legacy node of
+    `OptionRow`, segment `Box`, content — each a padded, sized legacy node of
     up to five levels). Lane 3 records each control's deepest native level
     and the controls demo's through a real `Window` (the record §41 §5
     instrument), and the demo must stay at or below the default demo's 30 +
@@ -1549,7 +1551,7 @@ replacement's decisions doc, and none of these touches the engine.
   API, a run of their own.
 - *`EqualWidthRow` under a legacy `Box` is an `SA-G` violation.* There is one
   engine since stage 7b; a `ProposalLayout` child of a lowered container is
-  `Grid`'s and `ListRows`' shape. `SegmentRow` consumes its options' records
+  `Grid`'s and `ListRows`' shape. `OptionRow` consumes its options' records
   (`LR-AQ`).
 - *`justifyContent: .center` on the unsized `Button` reports.* Only the
   `space-*` distributions report on an undeclared main size
@@ -1644,6 +1646,29 @@ mutations here; three readings change what the design said.
    | MG1.1 | `Toggle.init(_:isOn:)` internal | G1.1 |
    | MG1.2 | `public static let menu` added | G1.2 |
    | MS1 | AccessKit `toggled` dropped | `theFiveControlRolesMapToAccessKitWithToggledAndNumericValues` |
+   | V16 | `Button`: `let activate = action` (a caller's `onClick` overwritten) | 1.6b `aCallersOnClickReplacesTheButtonsAction` |
+   | V9 | `Toggle`: the write ignores a caller's `onClick` | 1.10c `aCallersOnClickReplacesTheTogglesWrite` |
+   | V8 | `Toggle`: the caller's `onKey` not consulted | 1.10b `aCallersOnKeyRunsBeforeTheTogglesSpace` |
+   | V15 | `Picker`: the caller's `onKey` not consulted | 1.19b `aCallersOnKeyRunsBeforeThePickersArrows` |
+   | V18 | the option chrome takes no `elementID` | 1.20b `anOptionInsideAPickerTakesItsContentsIDAndKeepsItsState` |
+   | V10 | `behindBarrier` pushes no `nil` | 1.20c `aTagNestedInsideAnOptionIsNotASecondOption` |
+   | V12 | Return also toggles a `Toggle` | 1.10 |
+   | V14 | → from no selection writes index 1 | 1.19 |
+
+   The eight `V` rows are the verifier's mutants, each green at 1582; the
+   fix round added 1.6b, 1.10b, 1.10c, 1.19b, 1.20b and 1.20c and extended
+   1.10 (a Return arm) and 1.19 (an unmatched-selection arm). Each row is a
+   full unfiltered run of **1588** tests, restored from a copy, `git status
+   --short` empty after, and each reddened exactly the one test named.
+
+6. **Two spec sentences corrected to the code** (amends `DD-V` item 2 and
+   `DD-AC` item 10's wording). The picker scope is pushed around the
+   content's **layout only**, not "each phase": an option's choice of chrome
+   rides in its layout state, which is what `PickerScope`'s doc says; and
+   the segmented options' group is `OptionRow`, not `SegmentRow`. Every copy
+   (spec §4, `DD-V` item 2, `DD-AC` item 10 and its `SA-G` rejection) now
+   reads the code's spelling; `grep SegmentRow` over the spec and this doc
+   returns only this item.
 
 **Cost if wrong.** Item 1 is one clause in `combine`; if task 12's VoiceOver
 script prefers disabled options folded, it narrows back and 1.24 inverts.

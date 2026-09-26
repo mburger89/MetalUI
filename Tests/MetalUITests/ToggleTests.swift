@@ -74,7 +74,7 @@ private func toggleWindow(_ model: Switch, disabled: Bool = false,
 /// **1.10b.** A caller's `onKey` runs before the toggle's Space (spec §4, as
 /// 1.6 for `Button`): one that claims Space suppresses the write; one that
 /// declines lets it run. V8 (the toggle's key replaces the caller's `onKey`)
-/// must redden it (`DD-AE` item 1).
+/// must redden it (`DD-AD` item 5).
 @Test @MainActor func aCallersOnKeyRunsBeforeTheTogglesSpace() throws {
     for claims in [true, false] {
         let model = Switch()
@@ -96,7 +96,7 @@ private func toggleWindow(_ model: Switch, disabled: Bool = false,
 /// **1.10c.** A caller's `.onClick` on a `Toggle` **replaces** its write (spec
 /// §4): a click, a focused Space and a `.press` each run the caller's handler
 /// once and write nothing. V9 (the toggle's write overwrites the caller's
-/// `onClick`) must redden it (`DD-AE` item 1).
+/// `onClick`) must redden it (`DD-AD` item 5).
 @Test @MainActor func aCallersOnClickReplacesTheTogglesWrite() throws {
     let model = Switch()
     let caller = ControlModel()

@@ -237,7 +237,7 @@ private func pickerWindow(_ model: Choice<Flavor>, style: PickerStyle = .automat
 /// **1.19b.** A caller's `onKey` runs before the picker's arrows (spec §4, as
 /// 1.6 for `Button`): one that claims → suppresses the move; one that declines
 /// lets it run. V15 (the picker's key replaces the caller's `onKey`) must
-/// redden it (`DD-AE` item 1).
+/// redden it (`DD-AD` item 5).
 @Test @MainActor func aCallersOnKeyRunsBeforeThePickersArrows() throws {
     for claims in [true, false] {
         let model = Choice(Flavor.alpha)
@@ -356,7 +356,7 @@ private struct NamedCounter: Element {
 /// option records its bounds at the **named** id under the options `Box`, not
 /// at `positional(0)`; and a named option's content keeps its `@State` under
 /// that name across a selection change. V18 (the chrome takes no
-/// `elementID`) must redden it (`DD-AE` item 2).
+/// `elementID`) must redden it (`DD-AD` item 5).
 @Test @MainActor func anOptionInsideAPickerTakesItsContentsIDAndKeepsItsState() throws {
     let model = Choice(3)
     let (window, platform) = try controlWindow {
@@ -401,7 +401,7 @@ private struct NamedCounter: Element {
 /// `TaggedElement` pushes around its content): a picker over
 /// `Row { Text("x").tag(2) }.tag(1)` and `Text("y").tag(3)` publishes two
 /// radio buttons, and → from the first option goes to 3, not to 2. V10 (no
-/// barrier) must redden it (`DD-AE` item 2).
+/// barrier) must redden it (`DD-AD` item 5).
 @Test @MainActor func aTagNestedInsideAnOptionIsNotASecondOption() throws {
     let model = Choice(1)
     let (window, platform) = try controlWindow {

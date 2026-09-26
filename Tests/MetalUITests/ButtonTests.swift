@@ -247,7 +247,7 @@ private func buttonWindow(_ model: ControlModel, disabled: Bool = false,
 /// §4, the one-field rule): a click, a focused Space and an accessibility
 /// `.press` each run the caller's handler once and the action never. V16
 /// (`let activate = action`, the caller's `onClick` overwritten) must redden
-/// it (`DD-AE` item 1).
+/// it (`DD-AD` item 5).
 @Test @MainActor func aCallersOnClickReplacesTheButtonsAction() throws {
     let model = ControlModel()
     let (window, platform) = try controlWindow {

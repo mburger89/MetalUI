@@ -174,7 +174,7 @@ control is new, and its internal nodes number from 0 under its own id.
   `axNode = AXNode(role: .checkBox, value: isOn ? "1" : "0")`.
 - **`Picker`** (`DD-V`): an outer `Box` row, gap 8, `alignItems: .center`:
   `Text(title)` and the options container — `.segmented`: an internal
-  `SegmentRow` group that consumes and plans its options' records (as
+  `OptionRow` group that consumes and plans its options' records (as
   `ListRows` does, `ListRows.swift`'s `consume` + `planLegacyItems`) and
   places them with an internal `EqualWidthRow: ProposalLayout` (every
   segment as wide as the widest, PA1), inside a `Box` with background
@@ -183,7 +183,9 @@ control is new, and its internal nodes number from 0 under its own id.
   (§5), and declares `AXNode(role: .radioGroup)`. **Options**: `.tag(v)`
   wraps an element in `TaggedElement`, which reads the innermost **picker
   scope** — a `@MainActor` static stack in `Picker.swift`, pushed by `Picker`
-  around each phase of its content and balanced by `defer` — and, inside a
+  around its content's **layout only** and balanced by `defer` (an option
+  carries its choice of chrome to prepaint and paint in its layout state, so
+  those phases read no scope; amended by `DD-AD` item 6) — and, inside a
   picker, builds its chrome: a segment `Box` (horizontal padding 12, 24 tall
   by strut, background `.surface` when selected) or a radio row (a 14×14
   circle `Box`, `cornerRadius` 7, `.accent` when selected / `.surface` with a
@@ -392,10 +394,13 @@ strut height, gap).
 | 1.4 | `aFocusedButtonActivatesOnSpaceAndOnReturnOnlyOffApple` | `ControlKeys.activatesButton(_:platform:)` for both platforms; through a `Window` on the host platform, Space → 1, Return → 0 on Apple | no type | M1d: Return activates on Apple |
 | 1.5 | `aButtonIsFocusableButAClickDoesNotFocusIt` | `lastFocusRegistry.isFocusable(id)`; after a click `focusedElement == nil` | no type | M1e: `isFocusable` false (also reddens 1.4) |
 | 1.6 | `aCallersOnKeyRunsBeforeTheButtonsActivation` | a caller `onKey` claiming Space suppresses the action; one declining lets it run | no type | M1f: the activation replaces the caller's `onKey` |
+| 1.6b | `aCallersOnClickReplacesTheButtonsAction` | a caller `.onClick` on a `Button` runs instead of the action for a click, a focused Space and a `.press` | no type | V16: `let activate = action` (`DD-AD` item 5) |
 | 1.7 | `aButtonPublishesOneAXButtonLabelledByItsLabel` | one `.button` node, label `"Go"`, no children, `.press`; `.press` request runs the action once (BA0, BA2) | no type | M1c |
 | 1.8 | `aDisabledButtonRunsNothingAndPublishesDisabled` | click, focused Space and `.press` all 0; `isEnabled == false` (BA1) | no type | M1g: the `enabled` conjunct removed from `Frame.registerHandlers`' hitbox insert and focus registration (the central gate; must also redden the existing D2 guard) |
 | 1.9 | `aToggleIsAFourteenPointCheckboxSevenPointsBeforeItsLabel` | `(14 + 7 + textW) × max(14, textH)` (TG0) | no type | M1h: gap 7 → 8 |
-| 1.10 | `aToggleClickSpaceAndPressEachWriteTheNegationOnce` | click → `true`, focused Space → `false`, `.press` → `true`; one binding write each (TA0) | no type | M1i: the write is `isOn`, not `!isOn` |
+| 1.10 | `aToggleClickSpaceAndPressEachWriteTheNegationOnce` | click → `true`, focused Space → `false`, `.press` → `true`; one binding write each (TA0); a focused Return writes nothing | no type | M1i: the write is `isOn`, not `!isOn`; V12: Return also toggles |
+| 1.10b | `aCallersOnKeyRunsBeforeTheTogglesSpace` | a caller `onKey` claiming Space suppresses the write; one declining lets it run | no type | V8: the caller's `onKey` not consulted (`DD-AD` item 5) |
+| 1.10c | `aCallersOnClickReplacesTheTogglesWrite` | a caller `.onClick` on a `Toggle` runs instead of the write for a click, a focused Space and a `.press` | no type | V9: the write ignores the caller's `onClick` |
 | 1.11 | `aTogglePublishesALabelledCheckboxWithItsValue` | `.checkBox`, label `"Wi-Fi"`, value `"0"` then `"1"`, no children (TA0) | no type | M1j: `.checkBox` left out of the full fold |
 | 1.12 | `aDisabledToggleWritesNothingAndPublishesDisabled` | TA3 | no type | M1g, re-run on this arm |
 | 1.13 | `aTogglesIndicatorColourAnimatesUnderWithAnimation` | mid-flight (`simulateTick`) the indicator's fill lies strictly between `.surface` and `.accent` | no type | M1k: the indicator painted by `Toggle.paint` with `pass.fill`, not a `Box` |
@@ -404,8 +409,11 @@ strut height, gap).
 | 1.16 | `aSelectionMatchingNoTagSelectsNothingAndWritesNothing` | no option `.selected`, no write over two frames (PA3) | no type | M1n′: an unmatched selection writes the first tag |
 | 1.17 | `aPickerPublishesARadioGroupTitledByItsTitle` | `.radioGroup` label `"Flavor"`, three `.radioButton` children labelled by option, value `"1"` + `.selected` on the chosen one only (PA1, PA2; divergence 82) | no type | M1n: the partial fold removed (also reddens 1.22) |
 | 1.18 | `aRadioGroupPickerStacksItsOptionsSixPointsApart` | column of rows `14 + 7 + textW_i`, gap 6, leading-aligned (PK1, PK2/PK3; `DD-AC` item 8) | no type | M1o: gap 6 → 8; M1o′: the row's indicator gap 7 → 6 |
-| 1.19 | `aFocusedPickerMovesItsSelectionWithTheArrowsAndDoesNotWrap` | → from the last writes nothing, ← from the first nothing, → from the first writes the second | no type | M1p: wrap-around |
+| 1.19 | `aFocusedPickerMovesItsSelectionWithTheArrowsAndDoesNotWrap` | → from the last writes nothing, ← from the first nothing, → from the first writes the second; with nothing selected → writes the first tag and ← the last | no type | M1p: wrap-around; V14: → from no selection writes index 1 |
+| 1.19b | `aCallersOnKeyRunsBeforeThePickersArrows` | a caller `onKey` claiming → suppresses the move; one declining lets it run | no type | V15: the caller's `onKey` not consulted |
 | 1.20 | `aTagOutsideAPickerChangesNothing` | `Text("A").tag(1)` in a `Row` gives the scene, bounds and `StateTable` ids of `Text("A")`; **and** `Box().flexGrow(1).tag(1)` beside a fixed box in a `Row` keeps its grown width (`DD-AC` item 5) | no type | M1q: `TaggedElement` builds its segment chrome with no scope; M1q′: it forwards only the three phases — **measured: reddens the `.id` and `@State` arms lane 1 added, not the container arm** (`DD-AD` item 2) |
+| 1.20b | `anOptionInsideAPickerTakesItsContentsIDAndKeepsItsState` | inside a picker, `Text("A").id("a").tag(1)`'s option records bounds at the named id under the options `Box`; a named option's content keeps its `@State` across selection changes | no type | V18: the chrome takes no `elementID` |
+| 1.20c | `aTagNestedInsideAnOptionIsNotASecondOption` | `Row { Text("x").tag(2) }.tag(1)` beside `.tag(3)` publishes two radio buttons, and → from the first writes 3 | no type | V10: no `nil` barrier |
 | 1.21 | `theFiveControlRolesReachTheAppKitBridge` | roles `AXCheckBox`, `AXRadioButton`, `AXRadioGroup`, `AXSlider`, `AXIncrementor`; `accessibilityValue` an `NSNumber` for the four valued roles | no case | M1r: `.checkBox` mapped to `.button` in AppKit |
 | 1.22 | `aPartialFoldKeepsInteractiveChildrenAndTakesTheRestAsTheLabel` | a `Box` declaring `.incrementor` over a `Text` and two clickable `Box`es: label = the text, two children | no case | M1n |
 | 1.23 | `aSelectionHintPublishesSelectedAndWritesNoAXSlot` | a `Box` with `selectionHint`: `isSelected` true; no `axNodes` entry, no `$ax` id in `StateTable` | no field | M1s: the hint not stripped before the emptiness test |

@@ -92,3 +92,19 @@ element reads it (`Button`'s chrome does; divergence 76 amended).
 ### 1.4 Mutations
 
 `DD-AD` item 5 is the table (26 rows, every test reddened named).
+
+### 1.5 Verifier fix round
+
+The verifier found eight mutants green at 1582 (V8, V9, V10, V12, V14, V15,
+V16, V18): three copies of spec §4's caller-composition rule (Toggle's and
+Picker's `onKey`, Toggle's and Button's `onClick` — only Button's `onKey` was
+pinned), the option chrome's named id and the nested-tag barrier, Toggle's
+Space-only key and `PickerScope.move` from no selection. Six tests were added
+(1.6b, 1.10b, 1.10c, 1.19b, 1.20b, 1.20c) and 1.10 and 1.19 each gained an
+arm; **1588 tests in 3 suites passed**. Each mutant, re-run in a full
+unfiltered run from a copy with `git status --short` empty after, reddens
+exactly one test — the rows are `DD-AD` item 5's `V` rows. Two spec sentences
+were corrected to the code (`DD-AD` item 6: the picker scope is pushed in
+layout only; the group is `OptionRow`). The guard baseline (96 in the design,
+94 by `grep -c canTypecheck` summed over `Tests/MetalUITests` at `27b2fcc`,
+96 at HEAD) is left to the Record phase.
