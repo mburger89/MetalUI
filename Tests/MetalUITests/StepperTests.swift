@@ -198,3 +198,51 @@ private func incrementor(_ window: Window, _ platform: FakePlatformWindow) throw
     #expect(model.writes.isEmpty, "nothing written while disabled: \(model.writes)")
     #expect(node.value.isEnabled == false, "published disabled")
 }
+
+// MARK: - Lane 2 fix round (`DD-AF`): the caller-composition copies
+
+/// **2.17b.** A caller's `onKey` runs before the stepper's arrows (spec §4, as
+/// 1.10b and 2.7b): one that claims ↑ suppresses the step; one that declines
+/// lets it run. The stepper's `onKey` copy reversed (its arrows first) must
+/// redden it.
+@Test @MainActor func aCallersOnKeyRunsBeforeTheSteppersArrows() throws {
+    for claims in [true, false] {
+        let model = Count(1)
+        let seen = ControlModel()
+        let (window, platform) = try stepperWindow {
+            Stepper("Qty", value: model.binding, in: 0...5).onKey { event in
+                seen.keys.append(event.charactersIgnoringModifiers)
+                return claims
+            }
+        }
+        window.focus(stepperID)
+        window.drawFrameIfNeeded()
+        try #require(window.focusedElement == stepperID)
+        platform.simulateInput(controlKey(TextEditing.upArrow))
+        #expect(seen.keys == [TextEditing.upArrow], "claims \(claims): the caller saw the key")
+        #expect(model.writes == (claims ? [] : [2]), "claims \(claims): the step ran only if declined: \(model.writes)")
+    }
+}
+
+/// **2.16b.** A caller's declared role, value and adjustment handler win over
+/// the stepper's (spec §4): declared `.image`, valued `"many"` and given its
+/// own `accessibilityAdjustableAction`, it publishes `.image` and `"many"`,
+/// and an increment runs the caller's handler, stepping nothing. The role and
+/// value copies overwritten, and V15 (the stepper overwrites a caller's
+/// `AccessibilityAdjustment` handler), must each redden it.
+@Test @MainActor func aCallersDeclaredRoleValueAndAdjustmentWinOverTheSteppers() throws {
+    let model = Count(1)
+    let caller = ControlModel()
+    let (window, platform) = try stepperWindow {
+        Stepper("Qty", value: model.binding, in: 0...5)
+            .handling { $0.axNode.role = .image }
+            .accessibilityValue("many")
+            .accessibilityAdjustableAction { _ in caller.count += 1 }
+    }
+    let tree = try controlTree(window, platform)
+    #expect(!tree.nodes.values.contains { $0.role == .incrementor }, "the caller's role wins")
+    let node = try #require(tree.nodes.first { $0.value.value == "many" }, "the caller's value wins: \(tree.nodes.values.map(\.value))")
+    #expect(node.value.role == .image, "role \(node.value.role)")
+    #expect(platform.simulateAccessibilityRequest(.increment(node.key)))
+    #expect(caller.count == 1 && model.writes.isEmpty, "the caller's handler ran: \(caller.count), \(model.writes)")
+}

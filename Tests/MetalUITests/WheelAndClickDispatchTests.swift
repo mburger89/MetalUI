@@ -172,3 +172,60 @@ private final class ClickLog {
     window.drawFrameIfNeeded()
     #expect(window.focusedElement == nil, "a non-focusable id is cleared at the frame boundary")
 }
+
+// MARK: - Lane 2 fix round (`DD-AF`)
+
+/// **2.19b.** With nested scrollers the wheel goes to the **nearest**
+/// ancestor (`DD-Y`): a click target inside an inner `ScrollView` inside an
+/// outer one, both covering the point, moves only the inner offset. V7
+/// (`enclosingScroller` keeps walking and returns the outermost match) must
+/// redden it.
+@Test @MainActor func aClickTargetInsideNestedScrollViewsPassesTheWheelToTheNearest() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let outerID = ElementID("outer"), innerID = ElementID("inner")
+    let (window, platform) = try makeFakeWindow(device: device, size: 100) {
+        ScrollView(.vertical, elementID: outerID) {
+            Box(style: column()) {
+                Box(style: column()) {
+                    ScrollView(.vertical, elementID: innerID) {
+                        Box(style: column()) {
+                            Box().cssWidth(wheelPx(100)).cssHeight(wheelPx(40)).onClick {}
+                            Box(style: row40()); Box(style: row40()); Box(style: row40())
+                        }
+                    }
+                }.cssHeight(wheelPx(80))
+                Box(style: row40()); Box(style: row40())
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let regions = window.lastHitboxes.filter { $0.scroll != nil }
+    let outer = try #require(regions.first { $0.id.component == .named(outerID) }, "the outer scroller registers")
+    let inner = try #require(regions.first { $0.id.component == .named(innerID) }, "the inner scroller registers")
+    let target = try #require(window.lastHitboxes.first { $0.handlers.onClick != nil }, "the target registers")
+    let point = controlCentre(target.bounds)
+    try #require(outer.bounds.contains(point) && inner.bounds.contains(point), "set up: both cover the point")
+    #expect(platform.simulateInput(wheel(at: point)), "a scroller claims the wheel")
+    #expect(offset(window, inner.id) == 37, "the nearest scroller moved: \(String(describing: offset(window, inner.id)))")
+    #expect((offset(window, outer.id) ?? 0) == 0, "the outer one did not")
+}
+
+/// **2.22b.** An accessibility `.press` runs through the same
+/// `Window.runClick` as a mouse click (`DD-AE` item 2), so a focus request
+/// its handler leaves is honoured too. V6 (the press calling the handler
+/// directly, bypassing `runClick`) must redden it — 2.21's press arm cannot,
+/// since a bypass leaves `ClickDispatch.modifiers` at its `[]` default.
+@Test @MainActor func anAccessibilityPressHonoursItsHandlersFocusRequest() throws {
+    let target = controlID([0, 1])
+    let (window, platform) = try controlWindow {
+        controlRoot {
+            Box().cssWidth(controlPx(40)).cssHeight(controlPx(40)).onClick { ClickDispatch.focusRequest = target }
+            Box().cssWidth(controlPx(40)).cssHeight(controlPx(40)).focusable()
+        }
+    }
+    let tree = try controlTree(window, platform)
+    let button = try #require(tree.nodes.first { $0.value.role == .button }, "the click target publishes a button")
+    #expect(platform.simulateAccessibilityRequest(.press(button.key)))
+    #expect(window.focusedElement == target, "the press's request was honoured: \(String(describing: window.focusedElement))")
+    #expect(ClickDispatch.focusRequest == nil, "and cleared")
+}

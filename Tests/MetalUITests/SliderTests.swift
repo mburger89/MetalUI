@@ -24,10 +24,12 @@ private final class Level {
 /// slider is 300 wide at x = 0 (greedy) and centred vertically.
 @MainActor
 private func sliderWindow(_ model: Level, in range: ClosedRange<Double> = 0...10, step: Double? = nil,
-                          disabled: Bool = false) throws -> (Window, FakePlatformWindow) {
+                          disabled: Bool = false,
+                          _ configure: @escaping @MainActor (Slider) -> Slider = { $0 })
+    throws -> (Window, FakePlatformWindow) {
     try controlWindow(size: 300) {
-        let slider = step.map { Slider(value: model.binding, in: range, step: $0) }
-            ?? Slider(value: model.binding, in: range)
+        let slider = configure(step.map { Slider(value: model.binding, in: range, step: $0) }
+            ?? Slider(value: model.binding, in: range))
         return controlRoot(width: 300, height: 300) { slider.disabled(disabled) }
     }
 }
@@ -112,6 +114,9 @@ private func mouse(_ point: Point<Pixels>) -> MouseEvent { MouseEvent(position: 
     #expect(model.writes.isEmpty, "no write on appear: \(model.writes)")
     #expect(try thumbX(window) == 280, "the thumb at the maximum")
     let node = try sliderNode(window, platform)
+    // SwiftUI publishes the clamped value too (probe SA5: `value 10` for 15).
+    // V2 (the raw value published) must redden this line.
+    #expect(node.value.value == "10", "publishes the clamped value, read \(node.value.value ?? "nil")")
     platform.simulateAccessibilityRequest(.decrement(node.key))
     #expect(model.writes == [9], "SA5: \(model.writes)")
 }
@@ -216,4 +221,123 @@ private func mouse(_ point: Point<Pixels>) -> MouseEvent { MouseEvent(position: 
     await #expect(processExitsWith: .success) {
         await MainActor.run { _ = Slider(value: .constant(1.0), in: 1.0...1.0, step: 0.5) }
     }
+}
+
+// MARK: - Lane 2 fix round (`DD-AF`): the clamp, the scroll offset, and the
+// caller-composition copies
+
+/// **2.6b.** An unstepped press or drag past either end of the track writes
+/// **exactly** the bound (`DD-W` item 5's `clamp01`): on 0…10 over W = 300,
+/// x 5 (left of the track's start at 10) → 0, x 295 and x 400 → 10, x −100 →
+/// 0. 2.6's step re-clamps through `onGrid`, so only an unstepped slider sees
+/// the clamp. V5 (`clamp01` removed from `ValueStepping.sliderValue`) must
+/// redden it.
+@Test @MainActor func anUnsteppedPressOrDragPastEitherEndWritesExactlyTheBound() throws {
+    let model = Level(5)
+    let (window, platform) = try sliderWindow(model)
+    let bounds = try controlBounds(window.lastFrameBounds(), controlID([0, 0]))
+    try #require(bounds.origin.x.value == 0 && bounds.size.width.value == 300, "set up: \(bounds)")
+    let y = bounds.origin.y.value + 8
+    platform.simulateInput(.mouseDown(mouse(Point(x: controlPx(5), y: controlPx(y)))))
+    for x: Float in [295, 400, -100] {
+        platform.simulateInput(.mouseDragged(mouse(Point(x: controlPx(x), y: controlPx(y)))))
+    }
+    platform.simulateInput(.mouseUp(mouse(Point(x: controlPx(-100), y: controlPx(y)))))
+    #expect(model.writes == [0, 10, 10, 0], "each end writes its bound exactly: \(model.writes)")
+}
+
+/// **2.6c.** A press on a slider inside a horizontally **scrolled**
+/// `ScrollView` writes the value under the window x — `ValueTrackTarget.minX`
+/// carries the scroll offset. A 250-wide viewport over a 100-wide spacer and a
+/// 300-wide box holding the slider, scrolled by 50: the slider's box starts at
+/// window x 50, so a press at x 200 is `(200 − 50 − 10) / 280` = 0.5 → 5 on
+/// 0…10. Without the offset it would read `(200 − 100 − 10) / 280` → 3.21….
+/// V1 (`minX` drops `activeOffset.x`) must redden it.
+@Test @MainActor func aPressOnASliderInAScrolledScrollViewWritesTheValueUnderTheWindowX() throws {
+    let model = Level(0)
+    let (window, platform) = try controlWindow(size: 300) {
+        controlRoot(width: 300, height: 300) {
+            Row {
+                ScrollView(.horizontal, elementID: ElementID("track")) {
+                    Row {
+                        Box().cssWidth(controlPx(100)).cssHeight(controlPx(16))
+                        Row { Slider(value: model.binding, in: 0...10) }.cssWidth(controlPx(300))
+                    }
+                }
+            }.cssWidth(controlPx(250)).cssHeight(controlPx(100))
+        }
+    }
+    let region = try #require(window.lastScrollRegions.first, "the scroller registers a region")
+    window.stateTable.withState(region.id, initial: ScrollState()) { $0.offset = 50 }
+    controlRedraw(window)
+    let scrolled = window.stateTable.peek(region.id, as: ScrollState.self)?.offset
+    try #require(scrolled == 50, "set up: scrolled by 50, read \(String(describing: scrolled))")
+    let hit = try #require(window.lastHitboxes.first { $0.handlers.valueTrack != nil }, "the slider registers")
+    try #require(hit.bounds.origin.x.value == 50, "set up: the slider's box starts at window x 50: \(hit.bounds)")
+    let y = hit.bounds.origin.y.value + hit.bounds.size.height.value / 2
+    platform.simulateInput(.mouseDown(mouse(Point(x: controlPx(200), y: controlPx(y)))))
+    platform.simulateInput(.mouseUp(mouse(Point(x: controlPx(200), y: controlPx(y)))))
+    #expect(model.writes == [5], "the value under window x 200: \(model.writes)")
+}
+
+/// **2.7b.** A caller's `onKey` runs before the slider's arrows (spec §4, as
+/// 1.10b for `Toggle`): one that claims → suppresses the write; one that
+/// declines lets it run. V13 (the slider's arrows run before the caller's
+/// `onKey`) must redden it.
+@Test @MainActor func aCallersOnKeyRunsBeforeTheSlidersArrows() throws {
+    for claims in [true, false] {
+        let model = Level(5)
+        let seen = ControlModel()
+        let (window, platform) = try sliderWindow(model) {
+            $0.onKey { event in
+                seen.keys.append(event.charactersIgnoringModifiers)
+                return claims
+            }
+        }
+        let id = controlID([0, 0])
+        window.focus(id)
+        window.drawFrameIfNeeded()
+        try #require(window.focusedElement == id)
+        platform.simulateInput(controlKey(TextEditing.rightArrow))
+        #expect(seen.keys == [TextEditing.rightArrow], "claims \(claims): the caller saw the key")
+        #expect(model.writes == (claims ? [] : [6]), "claims \(claims): the write ran only if declined: \(model.writes)")
+    }
+}
+
+/// **2.8b.** A caller's declared role, value and adjustment handler win over
+/// the slider's (spec §4): a slider declared `.image`, valued `"loud"` and
+/// given its own `accessibilityAdjustableAction` publishes `.image` and
+/// `"loud"`, and an increment runs the caller's handler, writing nothing. V14
+/// (the slider's role overwrites a caller's) and the value and adjustment
+/// copies (overwritten likewise) must each redden it.
+@Test @MainActor func aCallersDeclaredRoleValueAndAdjustmentWinOverTheSliders() throws {
+    let model = Level(5)
+    let caller = ControlModel()
+    let (window, platform) = try sliderWindow(model) {
+        $0.handling { $0.axNode.role = .image }
+            .accessibilityValue("loud")
+            .accessibilityAdjustableAction { _ in caller.count += 1 }
+    }
+    let tree = try controlTree(window, platform)
+    #expect(!tree.nodes.values.contains { $0.role == .slider }, "the caller's role wins")
+    let node = try #require(tree.nodes.first { $0.value.value == "loud" }, "the caller's value wins: \(tree.nodes.values.map(\.value))")
+    #expect(node.value.role == .image, "role \(node.value.role)")
+    #expect(platform.simulateAccessibilityRequest(.increment(node.key)))
+    #expect(caller.count == 1 && model.writes.isEmpty, "the caller's handler ran: \(caller.count), \(model.writes)")
+}
+
+/// **2.9b.** `allowsHitTesting(false)` removes the slider's track with its
+/// hitbox (`ValueTrackTarget`'s doc; `OM-AK`): a press and a drag write
+/// nothing and no hitbox carries the track. V4b (the gate bypassed for a
+/// `valueTrack`) must redden it.
+@Test @MainActor func aSliderThatDoesNotAllowHitTestingDoesNotTrack() throws {
+    let model = Level(5)
+    let (window, platform) = try sliderWindow(model) { $0.allowsHitTesting(false) }
+    let bounds = try controlBounds(window.lastFrameBounds(), controlID([0, 0]))
+    let y = bounds.origin.y.value + 8
+    #expect(!window.lastHitboxes.contains { $0.handlers.valueTrack != nil }, "no hitbox carries the track")
+    platform.simulateInput(.mouseDown(mouse(Point(x: controlPx(50), y: controlPx(y)))))
+    platform.simulateInput(.mouseDragged(mouse(Point(x: controlPx(250), y: controlPx(y)))))
+    platform.simulateInput(.mouseUp(mouse(Point(x: controlPx(250), y: controlPx(y)))))
+    #expect(model.writes.isEmpty, "nothing written: \(model.writes)")
 }
