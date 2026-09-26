@@ -101,14 +101,13 @@ private func offset(_ window: Window, _ id: GlobalElementID) -> Double? {
     window.drawFrameIfNeeded()
     let field = try #require(window.lastHitboxes.first { $0.handlers.textInput != nil }, "the field registers")
     let centre = controlCentre(field.bounds)
-    #expect(platform.simulateInput(wheel(at: centre)), "the scroller claims the wheel")
-    #expect(offset(window, scroller) == 37, "the wheel over the field reached its scroller")
+    // The press first: after the wheel the field scrolls out of the viewport.
+    platform.simulateInput(.mouseDown(MouseEvent(position: centre)))
+    platform.simulateInput(.mouseUp(MouseEvent(position: centre)))
+    #expect(window.focusedElement == field.id, "a press still focuses the field")
     window.drawFrameIfNeeded()
-    let moved = try #require(window.lastHitboxes.first { $0.handlers.textInput != nil })
-    let point = controlCentre(moved.bounds)
-    platform.simulateInput(.mouseDown(MouseEvent(position: point)))
-    platform.simulateInput(.mouseUp(MouseEvent(position: point)))
-    #expect(window.focusedElement == moved.id, "a press still focuses the field")
+    #expect(platform.simulateInput(wheel(at: centre)), "the scroller claims the wheel")
+    #expect(offset(window, scroller) == 37, "the wheel over the focused field reached its scroller")
 }
 
 @MainActor

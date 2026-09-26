@@ -227,13 +227,14 @@ public struct QuitDemo: Action { public init() {} }
 /// state and a keymap binding — design spec §12's milestone-3 exit criterion,
 /// in one element.**
 ///
-/// **Where it is matters: this is in the main pane and NOT inside the
-/// `ScrollView`.** An `onClick` hitbox registers *opaque*, and a wheel event
-/// stops at the topmost opaque hitbox and scrolls only if that hitbox is itself
-/// a scroller — so a button inside the list would silently stop the list
-/// scrolling over its own rect. That is CLAUDE.md's divergence 16, and putting
-/// the counter here is the milestone's own mitigation for it rather than a
-/// layout preference.
+/// **Where it is: in the main pane and NOT inside the `ScrollView`.** An
+/// `onClick` hitbox registers *opaque*, and until plan task 10 part 2 a wheel
+/// event stopped at the topmost opaque hitbox and scrolled only if that hitbox
+/// was itself a scroller — so a button inside the list would have stopped the
+/// list scrolling over its own rect (divergence 16), and putting the counter
+/// here was the milestone's mitigation. Divergence 16 has since retired
+/// (ruling `DD-Y`: the wheel passes a click target to its enclosing scroller);
+/// the counter stays where it is, so the demo's pixels do not move.
 ///
 /// **`@State` is written on INPUT only.** The two closures below run from
 /// `Window`'s input path, between frames; nothing in `requestLayout` writes
@@ -614,9 +615,9 @@ private func demoMainPane(heroStack: some Element, scrollBox: some Element) -> s
         heroStack
 
         // **Milestone 3's exit criterion**, and it is in the main pane
-        // rather than in the `ScrollView` below on purpose — an
-        // `onClick` hitbox is opaque and would swallow that scroller's
-        // wheel over its own rect (divergence 16). See `CounterPanel`.
+        // rather than in the `ScrollView` below — placed there when an
+        // `onClick` hitbox swallowed its scroller's wheel over its own
+        // rect (divergence 16, retired by `DD-Y`). See `CounterPanel`.
         //
         // Four things a human has to look at here, and no assertion in
         // this repo can see any of them: whether clicking feels
@@ -1018,10 +1019,11 @@ private func demoModal() -> some Element {
         // rather than a wash**, and it is spec exit
         // criterion 4 made visible: an `onClick`
         // registers an OPAQUE hitbox, a wheel event
-        // stops at the topmost opaque hitbox and
-        // scrolls only if that hitbox is itself a
-        // scroller, and `Deferred` has hoisted this one
-        // to the root layer over the whole window. So
+        // stops at the topmost opaque hitbox unless it
+        // is a scroller or sits inside one on its own
+        // layer (`DD-Y`), and `Deferred` has hoisted
+        // this one to the root layer over the whole
+        // window, inside no scroller there. So
         // with the modal up, a wheel over the scrim
         // moves nothing — the limitation three
         // milestones recorded, closed. Clicking

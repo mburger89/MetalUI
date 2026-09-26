@@ -584,6 +584,14 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
+            // A slider's track (ruling `DD-W` item 5): a press writes the value
+            // under the pointer and a drag from it writes again. Beside the
+            // text fields and on their footing — ahead of click dispatch, and
+            // it does not focus.
+            if self.dispatchValueTrack(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             // After scroll routing and before the raw handler, on the same
             // footing: an element that consumed the point consumed the event.
             if self.dispatchClick(event, pressedBefore: pressed) {
@@ -1077,7 +1085,8 @@ public final class Window {
     }
 
     /// Applies a wheel delta to the topmost **opaque hitbox** under the
-    /// pointer, if that hitbox is a scroller.
+    /// pointer if that hitbox is a scroller, and otherwise to that hitbox's
+    /// nearest enclosing scroller on the same layer (ruling `DD-Y`).
     ///
     /// **One list, one ranking** (design spec §3.1). This used to walk a
     /// separate `lastScrollRegions` with its own copy of the ranking closure;
@@ -1087,46 +1096,48 @@ public final class Window {
     /// the most deeply nested hitbox containing the point, which is the
     /// visually topmost one.
     ///
-    /// **An opaque hitbox that is NOT a scroller swallows the event**, which is
-    /// the entire point of the fold and the limitation three milestones
-    /// recorded: before it, a non-scrolling `Deferred` scrim registered nothing
-    /// a wheel event could see, so the list underneath a modal scrolled through
-    /// it. The walk stops at the topmost opaque record whatever that record is;
-    /// it does not keep descending looking for something scrollable.
+    /// **An opaque hitbox that is NOT a scroller stops the walk**, which is the
+    /// entire point of the fold and the limitation three milestones recorded:
+    /// before it, a non-scrolling `Deferred` scrim registered nothing a wheel
+    /// event could see, so the list underneath a modal scrolled through it. The
+    /// walk does not keep descending through what the hitbox covers.
     ///
-    /// **It is CLAIMED rather than merely dropped**, and the two are different.
-    /// Returning `false` here would leave an event that landed on an element
-    /// which consumed the point being re-offered to the window's own fallback
-    /// handler as though nothing had taken it — half a swallow, the shape
-    /// ruling AP-I warns about for the portal's two halves. So the answer is
-    /// "this was consumed", and nothing scrolled.
+    /// **But the wheel passes a non-scrolling hitbox to its nearest enclosing
+    /// scroller** (ruling `DD-Y`, plan task 10 part 2 — **divergence 16
+    /// retired**): the nearest ancestor of its id that registered a scroll
+    /// region containing the point **on the same layer**
+    /// (`enclosingScroller(of:at:)`). Until then a click target inside a
+    /// `ScrollView` swallowed that scroller's wheel over its own rect, where a
+    /// browser scrolls (a wheel event bubbles up the DOM to the first
+    /// scrollable ancestor) — pinned as today's behaviour by
+    /// `aClickTargetInsideAScrollViewSwallowsTheWheel`, whose doc asked whoever
+    /// fixed it to invert it; it is now
+    /// `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`. A selectable
+    /// `List` — rows of click targets edge to edge — is what made it due. The
+    /// fix this doc once named (prefer the topmost scroller whenever its layer
+    /// is not lower, "no ancestor walk") is **narrowed by an ancestry test**:
+    /// by layer alone a click target merely *overlaid* on a scroller (a `Stack`
+    /// sibling) would pass the wheel to what it covers. **The two clauses** are
+    /// pinned apart: ancestry by
+    /// `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`,
+    /// the layer — a `Deferred` scrim hoisted to layer 1 while the scroller
+    /// that declared it paints on 0 — by
+    /// `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`. **A
+    /// single-line `TextField` is such a click target** (a pointer target
+    /// through `Handlers.textInput`), so its wheel reaches its scroller too — a
+    /// changed `TextField` answer (`DD-AC` item 3), pinned by
+    /// `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller`. The
+    /// multi-line editor's own branch stays first. SwiftUI's and AppKit's
+    /// answers are unmeasured (the probe's wheel control WH0 failed); a human
+    /// look is owed.
     ///
-    /// **What it costs, and something in production pays it now.** That
-    /// sentence read "nothing in production pays it yet" until `onClick`
-    /// landed: `StyledElement.onClick(_:)` registers this framework's first
-    /// non-scrolling production hitbox, opaque, so **a click target inside a
-    /// `ScrollView` swallows that scroller's wheel over its own rect** where a
-    /// browser would scroll (a wheel event bubbles up the DOM to the first
-    /// scrollable ancestor). Accepted, not fixed here, and pinned by
-    /// `aClickTargetInsideAScrollViewSwallowsTheWheel` so the cost is a
-    /// decision a reader can find. Opaque was not optional: a non-opaque click
-    /// target would stop a `Deferred` scrim swallowing clicks aimed at what it
-    /// covers, which is the sibling property of the wheel swallow this
-    /// milestone's exit criterion 4 is about.
-    ///
-    /// **The named fix, so whoever needs it is not starting from a mystery.**
-    /// A wheel should stop at an opaque hitbox only when that hitbox is on a
-    /// **higher layer** than the topmost *scroller* under the same point. That
-    /// distinguishes the two cases with no ancestor walk and no new field:
-    /// `Deferred` hoists a scrim to the root layer, so it outranks the scroller
-    /// it covers and rightly swallows; a button inside a `ScrollView` shares
-    /// its scroller's layer, so it would not. Concretely: find the topmost
-    /// opaque record as now, and — when it is not itself a scroller — look for
-    /// the topmost scroller under the same point and prefer it whenever its
-    /// layer is not lower. It is deliberately NOT implemented here, because
-    /// this method is the site of two shipped intermittent defects that only a
-    /// human found, and it does not get an unreviewed refinement bolted on in a
-    /// task about click handlers. Whoever makes the change inverts that test.
+    /// **It is CLAIMED rather than merely dropped**, whether or not anything
+    /// scrolled. Returning `false` here would leave an event that landed on an
+    /// element which consumed the point being re-offered to the window's own
+    /// fallback handler as though nothing had taken it — half a swallow, the
+    /// shape ruling AP-I warns about for the portal's two halves. Opaque was not
+    /// optional for a click target: a non-opaque one would stop a `Deferred`
+    /// scrim swallowing clicks aimed at what it covers.
     ///
     /// **The layer is what registration order cannot express, and it is the
     /// whole reason `PrepaintPass.deferred` hoists at all.** A `Deferred`
@@ -1212,9 +1223,53 @@ public final class Window {
             }
             return true
         }
-        // Opaque, and not a scroller: it consumed the point, so the event stops
-        // here rather than falling through to whatever it covers.
-        guard let axis = region.scroll else { return true }
+        // Opaque, and not a scroller (ruling `DD-Y`, divergence 16 retired):
+        // the wheel goes to the nearest ancestor scroller under the point on
+        // the same layer; with none it stops here, claimed, rather than falling
+        // through to whatever the hitbox covers.
+        guard region.scroll != nil else {
+            if let scroller = enclosingScroller(of: region, at: event.position) {
+                scroll(lastHitboxes[scroller], by: event)
+            }
+            return true
+        }
+        scroll(region, by: event)
+        return true
+    }
+
+    /// The index in `lastHitboxes` of the scroll region a wheel over the
+    /// non-scrolling hitbox `hit` passes to (ruling `DD-Y`): the **nearest
+    /// ancestor** of `hit.id` (by `GlobalElementID.parent`) that registered a
+    /// scroll region containing `point` **on `hit`'s layer**.
+    ///
+    /// **Ancestry** keeps a click target merely *overlaid* on a scroller (a
+    /// `Stack` sibling) stopping its wheel; **the layer** keeps a `Deferred`
+    /// scrim — hoisted to layer 1 while the scroller that declared it paints on
+    /// 0 — stopping it too. Pinned by
+    /// `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`
+    /// and `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`; the
+    /// rule itself by `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`
+    /// and, for a single-line `TextField` (a pointer target through
+    /// `Handlers.textInput`, `DD-AC` item 3), by
+    /// `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller`.
+    private func enclosingScroller(of hit: Hitbox, at point: Point<Pixels>) -> Int? {
+        let candidates = lastHitboxes.indices.filter {
+            let region = lastHitboxes[$0]
+            return region.scroll != nil && region.layer == hit.layer && region.bounds.contains(point)
+        }
+        guard !candidates.isEmpty else { return nil }
+        var ancestor = hit.id.parent
+        while let id = ancestor {
+            if let match = candidates.last(where: { lastHitboxes[$0].id == id }) { return match }
+            ancestor = id.parent
+        }
+        return nil
+    }
+
+    /// Moves `region`'s stored offset by the wheel's component on its axis.
+    /// See `applyScroll` for why the write is unbounded.
+    private func scroll(_ region: Hitbox, by event: ScrollEvent) {
+        guard let axis = region.scroll else { return }
         let componentDelta = axis == .horizontal ? event.delta.x : event.delta.y
         stateTable.withState(region.id, initial: ScrollState()) {
             // Natural scrolling: a positive scrollingDelta means content moves
@@ -1240,7 +1295,6 @@ public final class Window {
             // current.
             $0.lastScrollTime = event.timestamp
         }
-        return true
     }
 
     /// Updates `lastMousePosition` and `active` from a raw input event —
@@ -1342,10 +1396,21 @@ public final class Window {
         }
         let hit = lastHitboxes[index]
         guard hit.id == pressed, let handler = hit.handlers.onClick else { return false }
-        // The clicked element owns the dispatch, so an aliased `@State` box
-        // writes this occurrence (ruling ID-F, `StateDispatch`).
-        StateDispatch.dispatching(to: hit.id) { handler() }
+        runClick(handler, on: hit.id, modifiers: mouse.modifiers)
         return true
+    }
+
+    /// Runs a click handler — a mouse click's or an accessibility `.press`'s —
+    /// with `ClickDispatch` set for it, then honours the focus request it left
+    /// (ruling `DD-Z` item 9). The one place both click paths run a handler, so
+    /// the two cannot drift.
+    func runClick(_ handler: @MainActor () -> Void, on id: GlobalElementID, modifiers: Modifiers) {
+        let request = ClickDispatch.running(modifiers: modifiers) {
+            // The clicked element owns the dispatch, so an aliased `@State` box
+            // writes this occurrence (ruling ID-F, `StateDispatch`).
+            StateDispatch.dispatching(to: id) { handler() }
+        }
+        if let request { focus(request) }
     }
 
     /// Dispatches a key event from the focused element **outward through its
@@ -1476,6 +1541,30 @@ public final class Window {
 
     private func setEditState(_ id: GlobalElementID, _ state: TextEditState) {
         stateTable.withState(id, initial: TextEditState()) { $0 = state }
+    }
+
+    /// A slider's pointer events (ruling `DD-W` item 5); see the call site.
+    /// The press resolves against `lastHitboxes` exactly as `mouseDown` does,
+    /// and the drag follows the id `active` holds — the one the press made
+    /// active — wherever the pointer goes, as a field's drag does.
+    private func dispatchValueTrack(_ event: InputEvent) -> Bool {
+        switch event {
+        case .mouseDown(let mouse):
+            guard let index = topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position),
+                  let track = lastHitboxes[index].handlers.valueTrack else { return false }
+            StateDispatch.dispatching(to: lastHitboxes[index].id) {   // ID-F: the pressed slider
+                track.track(toWindowX: Double(mouse.position.x.value))
+            }
+            return true
+        case .mouseDragged(let mouse):
+            guard let id = active,
+                  let track = lastHitboxes.last(where: { $0.id == id && $0.handlers.valueTrack != nil })?
+                      .handlers.valueTrack else { return false }
+            StateDispatch.dispatching(to: id) { track.track(toWindowX: Double(mouse.position.x.value)) }
+            return true
+        default:
+            return false
+        }
     }
 
     /// Pointer and text events for fields; see the call site.

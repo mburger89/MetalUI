@@ -92,7 +92,8 @@ extension Window {
             guard let id = node.base as? GlobalElementID,
                   let onClick = lastHitboxes.last(where: { $0.id == id && $0.handlers.onClick != nil })?
                       .handlers.onClick else { return false }
-            StateDispatch.dispatching(to: id) { onClick() }   // ID-F: the pressed element
+            // A press runs what a click runs, with no modifiers (`DD-Z` item 9).
+            runClick(onClick, on: id, modifiers: [])
             setNeedsRedraw()
             return true
         case .increment(let node):

@@ -372,9 +372,12 @@ public struct PrepaintPass {
     /// carries a keyboard one, and nothing at all when it carries neither.
     ///
     /// **Two gates, not one, and the separation is load-bearing.** A hitbox is
-    /// opaque, and an opaque hitbox swallows the wheel of any `ScrollView` it
-    /// sits inside (`Window.applyScroll`) — so registering one for every
-    /// *focusable* element would stop a list of focusable rows scrolling. See
+    /// opaque, and an opaque hitbox shadows clicks and hover aimed at whatever
+    /// it covers — so registering one for every *focusable* element would make
+    /// a keyboard-only element a pointer target. (It also swallowed the wheel
+    /// of a `ScrollView` it sat inside until divergence 16 retired, ruling
+    /// `DD-Y`: the wheel now passes to the nearest enclosing scroller on the
+    /// same layer, `Window.applyScroll`.) See
     /// `Handlers` for both gates and `focusabilityAndKeyHandlingRegisterNoPointerHitbox`
     /// for the pin.
     ///
@@ -392,10 +395,10 @@ public struct PrepaintPass {
     ///
     /// **The empty-set gate is the load-bearing half.** An element with no
     /// handlers must not register: an opaque hitbox for every `Box` would
-    /// shadow whatever it covers and would swallow the wheel of any
-    /// `ScrollView` it sits inside, since Task 7 made a wheel event stop at the
-    /// topmost opaque hitbox whatever that hitbox is. So `onClick` is what
-    /// makes a box a hit target, and a box without one stays transparent.
+    /// shadow whatever it covers — a click, hover, and a scroller it overlays
+    /// without being inside it, which still stops the wheel (`DD-Y`'s ancestry
+    /// clause). So `onClick` is what makes a box a hit target, and a box
+    /// without one stays transparent.
     ///
     /// Public rather than internal because `StyledElement` and its `handlers`
     /// requirement are public: an element type outside this module can store a

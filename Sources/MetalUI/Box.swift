@@ -535,19 +535,19 @@ extension StyledElement {
     /// between.
     ///
     /// **This is what makes an element a hit target.** A `Box` with no handler
-    /// registers no hitbox at all, so it is transparent to the pointer and,
-    /// more sharply, does not swallow the wheel of a `ScrollView` it sits
-    /// inside. Adding a handler flips both: the element registers an **opaque**
-    /// hitbox at its own bounds, so it also shadows whatever it covers.
+    /// registers no hitbox at all, so it is transparent to the pointer. Adding
+    /// a handler registers an **opaque** hitbox at its own bounds, so it also
+    /// shadows whatever it covers.
     ///
-    /// **The one cost that will surprise a reader who knows a browser**: an
-    /// `onClick` inside a `ScrollView` swallows that scroller's wheel over its
-    /// own rect, because a wheel event stops at the topmost opaque hitbox and
-    /// scrolls only if that hitbox is itself a scroller. Accepted deliberately
-    /// — non-opaque would stop a modal scrim swallowing clicks aimed at what is
-    /// under it, which is worse — and pinned by
-    /// `aClickTargetInsideAScrollViewSwallowsTheWheel`. The named fix is at
-    /// `Window.applyScroll`.
+    /// **An `onClick` inside a `ScrollView` does not block its wheel** (ruling
+    /// `DD-Y`, plan task 10 part 2; divergence 16 retired): a wheel over a
+    /// non-scrolling hitbox goes to its nearest enclosing scroller on the same
+    /// layer, as a browser's wheel bubbles to the first scrollable ancestor.
+    /// One **overlaid** on a scroller without being inside it, or a `Deferred`
+    /// scrim, still stops it. Pinned by
+    /// `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller` (renamed from
+    /// `aClickTargetInsideAScrollViewSwallowsTheWheel`, its first arm
+    /// inverted); the rule is at `Window.applyScroll`.
     ///
     /// **Bubble-only, and there is no chaining**: a click resolves to one
     /// hitbox and stops, so an `onClick` on a container never sees a click that

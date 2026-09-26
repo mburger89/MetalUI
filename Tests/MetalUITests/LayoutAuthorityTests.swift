@@ -310,6 +310,9 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// took it as 218 over eight recording sites; `master`'s `TextEditor` (`TI-H`)
 /// adds the ninth, +4 leaf, +11 item and +9 unconsumed rows (the merge), 242;
 /// stage 11 removes the second singleton, `deferred.amended` (`LR-FY` item 1).
+/// Plan task 10 part 2 (`DD-W`) adds `slider`, a leaf lowered through
+/// `lowerLegacyLeaf` as `textField` is — a tenth recording site, +4 leaf, +11
+/// item and +9 unconsumed rows: **265**.
 ///
 /// Red before: `owner` did not exist (build); with a scratch `owner` forwarding
 /// to the old `owningStage`, every permanent row read a stage number. Mutation
