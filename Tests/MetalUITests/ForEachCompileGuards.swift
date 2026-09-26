@@ -56,9 +56,11 @@ func anExternalModuleCanWriteForEachOverIdentifiableKeyPathAndRangeData() throws
 
 /// **G1.2 — a `ForEach` of legacy content does not compile inside a proposal
 /// stack.** `ForEach` is a `ProposalElementGroup` only when its content is
-/// (`DD-B` item 1), so `HStack { ForEach(0..<2) { _ in Box() } }` is a compile
-/// error, not an `SA-G` trap. The control is the same `ForEach` over
-/// `Rectangle()`.
+/// (`DD-B` item 1), so `HStack { ForEach([1, 2], id: \.self) { _ in Box() } }`
+/// is a compile error, not an `SA-G` trap. The control is the same `ForEach`
+/// over `Rectangle()`. Both arms use the `id:` key-path initialiser, not the
+/// `Range` one, so G1.1's mutation (the `Range` initialiser made `internal`)
+/// leaves this guard green and the two guards discriminate separately.
 ///
 /// Mutation that must redden it: the `ProposalElementGroup` conformance made
 /// unconditional (with a trapping body).
@@ -66,14 +68,14 @@ func anExternalModuleCanWriteForEachOverIdentifiableKeyPathAndRangeData() throws
 func aForEachOfLegacyContentDoesNotCompileInsideAProposalStack() throws {
     let legacy = try typecheckFile("""
         @MainActor public func bad() {
-            _ = HStack { ForEach(0..<2) { _ in Box() } }
+            _ = HStack { ForEach([1, 2], id: \\.self) { _ in Box() } }
         }
         """, importing: "MetalUI")
     print("FOREACH GUARD G1.2 legacy: succeeded=\(legacy.succeeded)\n\(legacy.messages)")
 
     let control = try typecheckFile("""
         @MainActor public func good() {
-            _ = HStack { ForEach(0..<2) { _ in Rectangle() } }
+            _ = HStack { ForEach([1, 2], id: \\.self) { _ in Rectangle() } }
         }
         """, importing: "MetalUI")
     print("FOREACH GUARD G1.2 control: succeeded=\(control.succeeded)\n\(control.messages)")

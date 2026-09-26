@@ -227,7 +227,13 @@ element's state resets once on upgrade (a migration note, never silent).
 3. **Only an evaluated loop resets.** A loop inside an element that is not
    produced, or inside an `if` that went false (whose own `noteAbsent` already
    resets everything under it), notes nothing; when it is evaluated again with
-   no previous extent recorded, nothing is compared. **Only the loop's direct
+   no previous extent recorded, nothing is compared. The half that makes this
+   true is `sweep()` clearing `loopExtents` after the swap, so a loop noted in
+   an earlier frame never reads as evaluated in this one; pinned by
+   `aLoopInsideAWindowedListRowKeepsItsStateWhileTheRowIsOut` (1.14b: a
+   `ForEach` and a `for` loop inside a windowed `List` row keep their state
+   while the row is out — mutation V11, that clear deleted, resets both to 1).
+   **Only the loop's direct
    children are considered**: a `List` inside a surviving element keeps
    `TB-AH`'s retention for its rows (which are not the loop's children), and
    `List`'s own rows are not a loop (`ListRows` builds them; `noteWindowedParent`

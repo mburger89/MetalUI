@@ -312,7 +312,10 @@ final class StateTable {
     /// a `List` inside a surviving element keeps `TB-AH`'s retention for its
     /// rows. **Only an evaluated loop calls this**: a loop inside an element
     /// not produced notes nothing, and a loop with no extent recorded last
-    /// frame compares nothing.
+    /// frame compares nothing — which holds only because `sweep()` clears
+    /// `loopExtents` after its swap (pinned by
+    /// `aLoopInsideAWindowedListRowKeepsItsStateWhileTheRowIsOut`: a loop inside
+    /// an out-of-window `List` row keeps `TB-AH`'s retention; mutation V11).
     func noteLoop(_ slot: GlobalElementID, extent: Int) {
         loopExtents[slot] = extent
     }

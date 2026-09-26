@@ -443,6 +443,62 @@ private final class PlacedBounds {
             "a surviving element's List row keeps TB-AH's retention: \(String(describing: reads.values["a-row4"]))")
 }
 
+/// **1.14b — a loop inside a windowed `List` row keeps its elements' state
+/// while the row is out of the window.** `Box { ScrollView { List of 12 rows,
+/// each Row { ForEach(["x"]) { C }; for k in ["y"] { C.id(k) } } } }`; row 4 is
+/// scrolled in (both counters read 3), scrolled out for one frame, and back:
+/// both read **4**.
+///
+/// `DD-C` item 3: **only an evaluated loop resets** — a loop inside an element
+/// that is not produced (the out-of-window row) notes nothing, so its extent and
+/// its named children are compared by nobody. 1.14 cannot see this: its loop is
+/// outside the `List`. Mutation **V11** (`StateTable.sweep()`'s
+/// `loopExtents.removeAll(keepingCapacity: true)` after the swap deleted, so a
+/// loop noted two frames ago still reads as evaluated) reset both: each read 1.
+@MainActor
+@Test func aLoopInsideAWindowedListRowKeepsItsStateWhileTheRowIsOut() throws {
+    let reads = ConditionalReads()
+    let rows = (0..<12).map { Item("row\($0)") }
+    let table = StateTable()
+    func tree() -> some Element {
+        Box {
+            ScrollView(.vertical, elementID: ElementID("scroller")) {
+                List(rows, rowHeight: Pixels(20)) { row in
+                    Row {
+                        ForEach(["x"], id: \.self) { k in ConditionalCounter("\(row.id)-\(k)", reads) }
+                        for k in ["y"] { ConditionalCounter("\(row.id)-\(k)", reads).id(k) }
+                    }
+                }
+            }
+        }.cssHeight(Pixels(20))
+    }
+    let scroller = GlobalElementID.child(of: root, at: 0, name: ElementID("scroller"))
+    func renderFrame(offset: Double?) {
+        if let offset {
+            let current = table.peek(scroller, as: ScrollState.self) ?? ScrollState()
+            table.write(scroller, ScrollState(offset: offset, lastScrollTime: current.lastScrollTime,
+                                              viewportExtent: current.viewportExtent))
+        }
+        var root = tree()
+        Frame(contentSize: Size(width: Pixels(100), height: Pixels(40)), scaleFactor: 1,
+              stateTable: table).render(&root)
+    }
+
+    renderFrame(offset: nil)        // cold: every row built
+    renderFrame(offset: 100)        // window [3, 8): row 4 in
+    renderFrame(offset: 100)
+    try #require(reads.values["row4-x"] == 3, "set up: \(String(describing: reads.values["row4-x"]))")
+    try #require(reads.values["row4-y"] == 3, "set up: \(String(describing: reads.values["row4-y"]))")
+    renderFrame(offset: 0)          // row 4 out of the window
+    reads.values["row4-x"] = nil
+    reads.values["row4-y"] = nil
+    renderFrame(offset: 100)        // row 4 back
+    #expect(reads.values["row4-x"] == 4,
+            "a ForEach in an out-of-window row is not evaluated: \(String(describing: reads.values["row4-x"]))")
+    #expect(reads.values["row4-y"] == 4,
+            "a for loop in an out-of-window row is not evaluated: \(String(describing: reads.values["row4-y"]))")
+}
+
 /// **1.15 — a steady loop queues no reset.** A 1000-element `ForEach` and a
 /// 1000-iteration `for` beside it, rendered three times unchanged: the
 /// cumulative `subtreeResetScans` and `departedNameResets` and the last sweep's
