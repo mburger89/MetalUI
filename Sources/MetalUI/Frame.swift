@@ -1142,7 +1142,10 @@ public final class Frame {
         //
         // **A row hint is not a declaration** (ruling AB-L): `logicalIndex` is
         // stripped before the test, so a `List` row that carries only its index
-        // emits nothing here and writes no `$ax` slot (AB-U).
+        // emits nothing here and writes no `$ax` slot (AB-U). **A selection
+        // hint is stripped the same way** (ruling `DD-U` item 4): a selected
+        // `List(selection:)` row records `isSelected` for a client and writes
+        // neither `axNodes` nor a `$ax` slot, so retention does not move.
         //
         // **A disabled element's declared node gains `.disabled`** (ruling
         // EV-E). Presence and role still come from the ungated `handlers`: a
@@ -1150,6 +1153,7 @@ public final class Frame {
         // `isEnabled: enabled` (ruling EV-W item 4).
         var declaration = handlers.axNode
         declaration.logicalIndex = nil
+        declaration.selectionHint = false
         if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }
@@ -1166,6 +1170,7 @@ public final class Frame {
         if collectsAccessibility, !isAccessibilitySuppressed(for: id) {
             let adjustable = handlers.actions[ObjectIdentifier(AccessibilityAdjustment.self)] != nil
             let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
+                || handlers.axNode.selectionHint
                 || (synthesizesAccessibility
                     && (handlers.onClick != nil || handlers.isFocusable || adjustable
                         || accessibleText != nil))

@@ -55,13 +55,16 @@ private func pickerWindow(_ model: Choice<Flavor>, style: PickerStyle = .automat
 /// **1.14.** Segmented: every segment as wide as the widest (`textW + 24`
 /// before equalising), the row three times that, the whole `titleW + 8 + row`
 /// (PK1, PA1). Segments sit at fractional x after the widest's width, so each
-/// is within one rounding of the width. M1l (`EqualWidthRow` places each at
+/// is within one rounding of the width, and the row within three (the widest's
+/// raw width is rounded once and multiplied); a segment at its own width
+/// misses by tens of points. M1l (`EqualWidthRow` places each at
 /// its own ideal width) must redden it.
 @Test @MainActor func aSegmentedPickerMakesEverySegmentAsWideAsTheWidest() throws {
     let widths = try labels.map { try controlTextSize($0).width.value }
     let title = try controlTextSize("Flavor").width.value
     let widest = try #require(widths.max()) + 24
-    let frame = try controlRender(controlRoot { flavorPicker(Choice(.alpha)) })
+    // 600 wide, so the whole picker (≈ 411) is not compressed.
+    let frame = try controlRender(controlRoot(width: 600) { flavorPicker(Choice(.alpha)) }, width: 600)
     let segments = options(frame.hitboxes)
     try #require(segments.count == 3, "three segment click targets, read \(segments.count)")
     for (index, segment) in segments.enumerated() {
@@ -70,9 +73,10 @@ private func pickerWindow(_ model: Choice<Flavor>, style: PickerStyle = .automat
     }
     let row = segments[2].bounds.origin.x.value + segments[2].bounds.size.width.value
         - segments[0].bounds.origin.x.value
-    #expect(abs(row - 3 * widest) <= 1, "the row is 3 × the widest: \(row) vs \(3 * widest)")
+    // Three times a width rounded once: within 3 × ½ plus an edge's rounding.
+    #expect(abs(row - 3 * widest) <= 3, "the row is 3 × the widest: \(row) vs \(3 * widest)")
     let picker = try controlBounds(frame, controlID([0, 0]))
-    #expect(abs(picker.size.width.value - (title + 8 + 3 * widest)) <= 2,
+    #expect(abs(picker.size.width.value - (title + 8 + 3 * widest)) <= 3,
             "title, 8, the row: \(picker.size.width.value) vs \(title + 8 + 3 * widest)")
     #expect(abs(segments[0].bounds.origin.x.value - (title + 8)) <= 1, "the row starts 8 after the title")
 }

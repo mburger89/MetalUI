@@ -109,7 +109,8 @@ extension AccessKitSnapshot {
                     return (x, y, x + Double(f.size.width.value) * scale, y + Double(f.size.height.value) * scale)
                 },
                 children: node.children.map(ids.number(for:)), actions: actions,
-                isDisabled: !node.isEnabled, isSelected: node.isSelected))
+                isDisabled: !node.isEnabled, isSelected: node.isSelected,
+                toggled: toggled(node), numericValue: numericValue(node)))
             stack.append(contentsOf: node.children.reversed())
         }
         let focus = tree.focused.flatMap { tree.nodes[$0] != nil ? ids.number(for: $0) : nil } ?? rootID
@@ -126,8 +127,30 @@ extension AccessKitSnapshot {
         case .row: .row
         case .textField: .textInput
         case .textArea: .multilineTextInput
-        case .checkBox, .radioButton, .radioGroup, .slider, .incrementor: .genericContainer  // SKELETON
+        case .checkBox: .checkBox
+        case .radioButton: .radioButton
+        case .radioGroup: .radioGroup
+        case .slider: .slider
+        case .incrementor: .spinButton
         }
+    }
+
+    /// A check box's or radio button's toggled state from its `"1"`/`"0"`
+    /// value (ruling `DD-U` item 1); `nil` for any other role or value.
+    static func toggled(_ node: AccessibilityNode) -> Bool? {
+        guard node.role == .checkBox || node.role == .radioButton else { return nil }
+        switch node.value {
+        case "1": return true
+        case "0": return false
+        default: return nil
+        }
+    }
+
+    /// A slider's or stepper's value as a number when it parses (`DD-U` item
+    /// 1); `nil` for any other role.
+    static func numericValue(_ node: AccessibilityNode) -> Double? {
+        guard node.role == .slider || node.role == .incrementor else { return nil }
+        return node.value.flatMap(Double.init)
     }
 
     /// The MetalUI request an AccessKit action on node `number` means, if any.

@@ -102,7 +102,7 @@ enum AccessibilityTreeBuilder {
                 role: role(of: node),
                 label: node.label,
                 value: node.value,
-                isSelected: declared.traits.contains(.selected),
+                isSelected: declared.traits.contains(.selected) || declared.selectionHint,
                 isEnabled: node.record.isEnabled && !declared.traits.contains(.disabled),
                 isFocusable: node.isFocusable,
                 actions: node.actions,
@@ -200,12 +200,24 @@ enum AccessibilityTreeBuilder {
     /// none of its own (AB-G). A button with an interactive descendant keeps
     /// its children and its label, `nil` included (the recorded divergence
     /// from arm R7). Portal content is a root, so it is never a descendant.
+    ///
+    /// **A check box and a radio button fold exactly as a button does** (ruling
+    /// `DD-U` item 2; TA0, PA1, PA2 read kids=0): a `Toggle`'s and a `Picker`
+    /// option's label content becomes their label. **An incrementor and a
+    /// radio group fold partially** (`DD-U` item 3): their non-interactive
+    /// descendants' text becomes the label (when none is declared) and is not
+    /// published, and their interactive descendants — a stepper's arrow
+    /// halves, a picker's options — stay as children, each then combined in
+    /// its own right. So a `Stepper`'s or `Picker`'s title labels the control
+    /// itself, where SwiftUI publishes it as a sibling static text beside an
+    /// unlabelled control (divergence 82).
     private static func combine(_ ids: [GlobalElementID],
                                 placed: inout [GlobalElementID: [GlobalElementID]],
                                 state: inout [GlobalElementID: Resolving]) {
         for id in ids {
             let kids = placed[id] ?? []
-            if role(of: state[id]!) == .button {
+            switch role(of: state[id]!) {
+            case .button, .checkBox, .radioButton:
                 var descendants: [GlobalElementID] = []
                 var stack = Array(kids.reversed())
                 var foldable = true
@@ -215,19 +227,51 @@ enum AccessibilityTreeBuilder {
                     stack.append(contentsOf: (placed[next] ?? []).reversed())
                 }
                 if foldable {
-                    // In tree order: its label, or its value when it has none;
-                    // and its value only beside a label (a plain text's value is
-                    // its string, which already went to the label).
-                    let labels = descendants.compactMap { state[$0]!.label ?? state[$0]!.value }
-                    let values = descendants.compactMap { state[$0]!.label == nil ? nil : state[$0]!.value }
-                    if state[id]!.label == nil, !labels.isEmpty { state[id]!.label = labels.joined(separator: ", ") }
-                    if state[id]!.value == nil, !values.isEmpty { state[id]!.value = values.joined(separator: ", ") }
+                    takeLabelAndValue(from: descendants, into: id, state: &state)
                     placed[id] = []
                     continue
                 }
+            case .incrementor, .radioGroup:
+                // Walk in tree order: an interactive node — or a control that
+                // is not interactive only because it is disabled (a disabled
+                // picker's options publish DISABLED, PA4) — is kept, its subtree
+                // untouched; any other node contributes and is dropped, and its
+                // own children are walked in its place.
+                var kept: [GlobalElementID] = []
+                var folded: [GlobalElementID] = []
+                var stack = Array(kids.reversed())
+                while let next = stack.popLast() {
+                    let node = state[next]!
+                    let isControl = node.isInteractive || (role(of: node) != .staticText && role(of: node) != .group)
+                    if isControl {
+                        kept.append(next)
+                    } else {
+                        folded.append(next)
+                        stack.append(contentsOf: (placed[next] ?? []).reversed())
+                    }
+                }
+                takeLabelAndValue(from: folded, into: id, state: &state, value: false)
+                placed[id] = kept
+                combine(kept, placed: &placed, state: &state)
+                continue
+            default:
+                break
             }
             combine(kids, placed: &placed, state: &state)
         }
+    }
+
+    /// The fold's contribution, in tree order: each descendant's label, or its
+    /// value when it has none, joined into `id`'s label where it has none; and
+    /// (with `value`) each labelled descendant's value into `id`'s value (a
+    /// plain text's value is its string, which already went to the label). A
+    /// partial fold takes no value: an incrementor's value is its own number.
+    private static func takeLabelAndValue(from descendants: [GlobalElementID], into id: GlobalElementID,
+                                          state: inout [GlobalElementID: Resolving], value: Bool = true) {
+        let labels = descendants.compactMap { state[$0]!.label ?? state[$0]!.value }
+        let values = descendants.compactMap { state[$0]!.label == nil ? nil : state[$0]!.value }
+        if state[id]!.label == nil, !labels.isEmpty { state[id]!.label = labels.joined(separator: ", ") }
+        if value, state[id]!.value == nil, !values.isEmpty { state[id]!.value = values.joined(separator: ", ") }
     }
 
     /// The role map (AB-F, AB-L). A `logicalCount` makes a table **whatever the
@@ -246,7 +290,11 @@ enum AccessibilityTreeBuilder {
         case .image: return .image
         case .textField: return .textField
         case .textArea: return .textArea
-        case .checkBox, .radioButton, .radioGroup, .slider, .incrementor: return .group  // SKELETON
+        case .checkBox: return .checkBox
+        case .radioButton: return .radioButton
+        case .radioGroup: return .radioGroup
+        case .slider: return .slider
+        case .incrementor: return .incrementor
         case .container, .generic: return .group
         }
     }
