@@ -663,6 +663,11 @@ per frame; the whole suite and all fourteen offscreen images read unchanged.
    (divergence 74). The resumption stays pinned where it still exists. The
    design-phase scratch run (record §55 §2.3) implemented `ID-B` alone, which is
    why its census missed this row. M2d reddens arm 1.
+   **Correction, 2026-09-25 (plan task 10 part 1, `DD-C`/`DD-N`):** a loop
+   DOES reset now — divergence 74 retires — so arm 2 is renamed again
+   (**`aReturningAnimatingElementSnapsInsideAnIfAndInsideALoop`**) and reads
+   **200**, not 175; "the resumption stays pinned where it still exists" no
+   longer describes a loop. See `docs/record/57-data-and-scrolling.md`.
 2. **C2.4 re-spelled.** With equal steps, adoption and ownership both read 2
    (`Row { for …; t }`, n 2 → 1: the adopted iteration's count plus one is the
    trailing element's own two frames), so the spec's spelling was green before

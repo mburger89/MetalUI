@@ -209,6 +209,15 @@ sibling names share one identity), **73** (per-member attachments trap), **74**
 parent, the zero-member frame, the row's alignment; owner none). Live count
 55 → 55. The Record phase writes record §04's section and CLAUDE.md's bullet.
 
+**Correction, 2026-09-25 (plan task 10 part 1, `DD-C`):** divergence 74,
+listed above and in §3's audit table (the "an element a `for` loop drops, on
+regrowth" row, disposition **K**) as kept with owner plan task 10, is
+**retired** by that task instead — `ForEach` and a bare `for` both reset a
+dropped element now, matching SwiftUI. §3's row and this section's own
+sentence are left as written, because they state what task 8 measured and
+ruled at the time (kept, owner named); record §04's dated 2026-09-25
+task-10-part-1 section carries the current fact.
+
 ## 5. Lane 1 — occurrences and erasure (`ID-E`, `ID-F`)
 
 Commits `11a5433` (red tests), `8f325ed` (implementation), then this section
@@ -455,6 +464,15 @@ changed by ruling; none deleted:
 | `aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling` (`["B"]` / `[]`) | `aPressHeldAcrossARebuildClicksItsOwnTargetAndAVanishedTargetClicksNothing` (`[]` / `["B"]`) | `ID-B` |
 | `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt` | `aClosureRunOutsideInputDispatchWritesTheLastBoundOccurrence` — assertions unchanged (1 / 102), doc rewritten | `ID-F` (71) |
 | `anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting` (175) | `aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop` (200 in an `if`, 175 in a loop) | `ID-C`, `ID-P` item 1 |
+
+**Correction, 2026-09-25 (plan task 10 part 1, `DD-N`):** the "now" name in
+the row above is renamed again,
+`aReturningAnimatingElementSnapsInsideAnIfAndInsideALoop`, and its loop
+arm's value inverted 175 → 200 — divergence 74 (this task's own `ID-C`
+citation two rows up) retires rather than staying kept. The row is left as
+written, since it states what this task measured and named at the time;
+record §57 and record §04's 2026-09-25 task-10-part-1 section carry the
+current name and value.
 
 The T rows keep their names; their literals moved as §6.2 lists. Every other
 retained test kept its answer.

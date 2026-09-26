@@ -119,6 +119,10 @@ Callers: `OptionalGroup` (both copies) notes its slot produced or absent;
 untaken one absent. Nothing else calls `noteAbsent`, so an unevaluated subtree
 (a `List` row out of the window) keeps `TB-AH`'s retention, and `sweep()` itself
 never resets (M2h). `ArrayGroup` does not reset (divergence 74).
+**Correction, 2026-09-25 (plan task 10 part 1, `DD-C`):** `ArrayGroup` DOES
+reset a dropped element now — `StateTable.noteLoop` and the sweep's loop
+rule, new this task — and divergence 74 retires rather than staying this
+spec's kept fact. See `docs/record/57-data-and-scrolling.md`.
 
 ### 3.3 `if`/`else` inside proposal containers (`ID-D`)
 
@@ -290,6 +294,13 @@ mutated on its own ("a copy of a pinned implementation is unpinned").
 | **C2.11** `anIfElseInsideAProposalStackTakesItsBranchIdentity` — `HStack { if flag { probe } else { probe }; probe }`: branches at `root/0/0` / `root/1/0`, trailing `root/2`; a flip resets the branch and keeps the trailing probe | does not compile | **M2i** the typed `EitherGroup` copy numbers both branches at `branchIndex` |
 | **C2.12** `aFocusedTextFieldInsideAToggledIfKeepsFocusAndStartsItsEditStateFresh` (`ID-M` item 4) — through a real `Window` (`makeFakeWindow`), a `TextField` inside `if flag`, focused, with a selection and marked text; `flag` false for one frame then true: while absent `setTextInputArea(nil)` is recorded (the `e3cb3e9` behaviour); `window.focusedElement` is the field's id throughout; on return its `TextEditState` equals `TextEditState()` and the recorded input area is the fresh caret's | red on the state half (the old selection and marked text come back) | **M2d** reddens the state half; **M2f** the focus half |
 | **G2.1** `anIfElseAndASwitchCompileInEveryProposalContainer` (`typecheckFile`) — if/else and a three-case `switch` inside `HStack`, `VStack`, `ZStack`, `Grid`, `GridRow`, and a proposal `.overlay` content, compile; control: `HStack { if f { Box() } else { Box() } }` does not (`#require`d to disagree) | the positive does not compile | delete the conformance |
+
+**Correction, 2026-09-25 (plan task 10 part 1, `DD-C`):** C2.4b's "reads 2
+(retained)" row above states divergence 74's kept behaviour as this spec
+designed and shipped it. Plan task 10 changes that answer: C2.4b now reads
+**1** (reset), divergence 74 retires, and the row's own reference,
+"record §55 §2.2 V6", is history — the current fact is in
+`docs/record/57-data-and-scrolling.md`.
 
 **T** (body change, same subject, new literal — reason in the lane's record
 section): `reorderingANamedListCarriesEachItemsState`,

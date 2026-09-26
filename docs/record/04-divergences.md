@@ -1402,6 +1402,13 @@ moves from fifty-five to fifty-five live**: four retire, four are added.
   is 18's old shape**: an element a `for` loop stops producing keeps its state
   (new divergence **74**, below) and a conditional that is **not evaluated**
   (a `List` row out of its window) is untouched (`TB-AH`, unchanged).
+  **Correction, 2026-09-25 (plan task 10 part 1, `DD-C`):** divergence 74 is
+  no longer kept — it **retires** (this file's own later section, below,
+  dated 2026-09-25) — and the test named here is **renamed**
+  `aReturningAnimatingElementSnapsInsideAnIfAndInsideALoop`, its loop arm's
+  value inverted 175 → 200. This paragraph is left as written because it
+  states what task 8 measured and ruled at the time; read the later section
+  for the current fact.
 - **19 retires** (a handler that writes one element value placed twice writes
   the *last-bound* occurrence, not its own). SwiftUI resolves each occurrence
   independently (probe S1, S4). `ID-F`: a `State.Box`/`Environment.Box` bound
