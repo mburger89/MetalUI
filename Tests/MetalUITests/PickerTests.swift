@@ -190,7 +190,9 @@ private func pickerWindow(_ model: Choice<Flavor>, style: PickerStyle = .automat
 
 /// **1.19.** A focused picker moves its selection with the arrows and does not
 /// wrap: → from the last writes nothing, ← from the first writes nothing, →
-/// from the first writes the second. M1p (wrap-around) must redden it.
+/// from the first writes the second; with nothing selected → writes the first
+/// tag and ← the last. M1p (wrap-around) and V14 (forward from no selection
+/// writes index 1) must redden it.
 @Test @MainActor func aFocusedPickerMovesItsSelectionWithTheArrowsAndDoesNotWrap() throws {
     let model = Choice(Flavor.gamma)
     let (window, platform) = try pickerWindow(model)
@@ -208,6 +210,54 @@ private func pickerWindow(_ model: Choice<Flavor>, style: PickerStyle = .automat
     #expect(model.writes.isEmpty, "before the first: nothing, read \(model.writes)")
     platform.simulateInput(controlKey(TextEditing.rightArrow))
     #expect(model.writes == [.beta], "→ from the first writes the second")
+
+    // With nothing selected, → selects the first option and ← the last
+    // (`PickerScope.move`).
+    let numbers = Choice(99)
+    let (numbersWindow, numbersPlatform) = try controlWindow {
+        controlRoot {
+            Picker("N", selection: numbers.binding) {
+                Text("one").tag(1)
+                Text("two").tag(2)
+                Text("three").tag(3)
+            }
+        }
+    }
+    numbersWindow.focus(id)
+    numbersWindow.drawFrameIfNeeded()
+    try #require(numbersWindow.focusedElement == id)
+    numbersPlatform.simulateInput(controlKey(TextEditing.rightArrow))
+    #expect(numbers.writes == [1], "→ from no selection writes the first tag, read \(numbers.writes)")
+    numbers.value = 99
+    controlRedraw(numbersWindow)
+    numbersPlatform.simulateInput(controlKey(TextEditing.leftArrow))
+    #expect(numbers.writes == [1, 3], "← from no selection writes the last tag, read \(numbers.writes)")
+}
+
+/// **1.19b.** A caller's `onKey` runs before the picker's arrows (spec §4, as
+/// 1.6 for `Button`): one that claims → suppresses the move; one that declines
+/// lets it run. V15 (the picker's key replaces the caller's `onKey`) must
+/// redden it (`DD-AE` item 1).
+@Test @MainActor func aCallersOnKeyRunsBeforeThePickersArrows() throws {
+    for claims in [true, false] {
+        let model = Choice(Flavor.alpha)
+        let seen = ControlModel()
+        let (window, platform) = try controlWindow {
+            controlRoot {
+                flavorPicker(model).onKey { event in
+                    seen.keys.append(event.charactersIgnoringModifiers)
+                    return claims
+                }
+            }
+        }
+        let id = controlID([0, 0])
+        window.focus(id)
+        window.drawFrameIfNeeded()
+        try #require(window.focusedElement == id)
+        platform.simulateInput(controlKey(TextEditing.rightArrow))
+        #expect(seen.keys == [TextEditing.rightArrow], "claims \(claims): the caller saw the key first")
+        #expect(model.writes == (claims ? [] : [.beta]), "claims \(claims): the move ran only if declined")
+    }
 }
 
 /// A counter whose width shows its own `@State`, for 1.20's retention arm.
@@ -280,6 +330,98 @@ private struct Counter: Element {
     controlRedraw(window)
     #expect(try controlBounds(window.lastFrameBounds(), controlID([0, 0])).size.width.value == 11,
             "the tagged element's @State survives the click")
+}
+
+/// A `Counter` named `"c"`, for 1.20b's retention arm inside a picker.
+private struct NamedCounter: Element {
+    @State var taps = 0
+    var elementID: ElementID? { ElementID("c") }
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Box<EmptyGroup>.Layout) {
+        var box = Box().cssWidth(controlPx(Float(10 + taps))).cssHeight(controlPx(10))
+        return box.requestLayout(id, pass: &pass)
+    }
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Box<EmptyGroup>.Layout,
+                           pass: inout PrepaintPass) {
+        let state = $taps
+        var box = Box().cssWidth(controlPx(Float(10 + taps))).cssHeight(controlPx(10))
+            .onClick { state.wrappedValue += 1 }
+        box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+    }
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Box<EmptyGroup>.Layout,
+                        prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **1.20b.** Inside a `Picker` an option's chrome takes the content's `.id`
+/// as its own (`TaggedElement.makeChrome`): `Text("A").id("a").tag(1)`'s
+/// option records its bounds at the **named** id under the options `Box`, not
+/// at `positional(0)`; and a named option's content keeps its `@State` under
+/// that name across a selection change. V18 (the chrome takes no
+/// `elementID`) must redden it (`DD-AE` item 2).
+@Test @MainActor func anOptionInsideAPickerTakesItsContentsIDAndKeepsItsState() throws {
+    let model = Choice(3)
+    let (window, platform) = try controlWindow {
+        controlRoot {
+            Picker("N", selection: model.binding) {
+                Text("A").id("a").tag(1)
+                NamedCounter().tag(2)
+                Text("C").tag(3)
+            }
+        }
+    }
+    let options = controlID([0, 0, 1])
+    let named = GlobalElementID.child(of: options, at: 0, name: ElementID("a"))
+    let namedCounter = GlobalElementID.child(of: options, at: 1, name: ElementID("c"))
+    let bounds = window.lastElementBounds
+    #expect(bounds[named] != nil, "the first option's chrome is named \"a\"")
+    #expect(bounds[GlobalElementID.child(of: options, at: 0, name: nil)] == nil,
+            "no option sits at positional(0)")
+    #expect(bounds[namedCounter] != nil, "the second option's chrome is named \"c\"")
+
+    func counter() throws -> (GlobalElementID, Bounds<Pixels>) {
+        try #require(window.lastElementBounds.first {
+            $0.value.size.height.value == 10 && $0.value.size.width.value >= 10 && $0.value.size.width.value <= 12
+        }, "no counter bounds")
+    }
+    let (counterID, before) = try counter()
+    #expect(counterID.parent == namedCounter, "the counter numbers under its named option")
+    try #require(before.size.width.value == 10)
+    controlClick(platform, at: controlCentre(before))
+    controlRedraw(window)
+    try #require(try counter().1.size.width.value == 11, "set up: the counter's click landed")
+    model.value = 2
+    controlRedraw(window)
+    model.value = 1
+    controlRedraw(window)
+    let (afterID, after) = try counter()
+    #expect(afterID == counterID && after.size.width.value == 11,
+            "the counter's @State survives two selection changes under its named option")
+}
+
+/// **1.20c.** A tag nested inside an option is transparent (the barrier
+/// `TaggedElement` pushes around its content): a picker over
+/// `Row { Text("x").tag(2) }.tag(1)` and `Text("y").tag(3)` publishes two
+/// radio buttons, and → from the first option goes to 3, not to 2. V10 (no
+/// barrier) must redden it (`DD-AE` item 2).
+@Test @MainActor func aTagNestedInsideAnOptionIsNotASecondOption() throws {
+    let model = Choice(1)
+    let (window, platform) = try controlWindow {
+        controlRoot {
+            Picker("N", selection: model.binding) {
+                Row { Text("x").tag(2) }.tag(1)
+                Text("y").tag(3)
+            }
+        }
+    }
+    let id = controlID([0, 0])
+    window.focus(id)
+    window.drawFrameIfNeeded()
+    try #require(window.focusedElement == id)
+    platform.simulateInput(controlKey(TextEditing.rightArrow))
+    #expect(model.writes == [3], "→ from the first goes to the next top-level option, read \(model.writes)")
+    model.value = 1
+    let tree = try controlTree(window, platform)
+    let radios = tree.nodes.values.filter { $0.role == .radioButton }
+    #expect(radios.count == 2, "two options, read \(radios.count): \(tree.nodes.values.map(\.role))")
 }
 
 /// **1.24.** Disabled: a segment click, focused arrows and a `.press` write

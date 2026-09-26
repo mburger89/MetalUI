@@ -18,9 +18,14 @@ private final class Switch {
 }
 
 @MainActor
-private func toggleWindow(_ model: Switch, disabled: Bool = false) throws -> (Window, FakePlatformWindow) {
+private func toggleWindow(_ model: Switch, disabled: Bool = false,
+                          onKey: (@MainActor (KeyEvent) -> Bool)? = nil,
+                          onClick: (@MainActor () -> Void)? = nil) throws -> (Window, FakePlatformWindow) {
     try controlWindow {
-        controlRoot { Toggle("Wi-Fi", isOn: model.binding).disabled(disabled) }
+        var toggle = Toggle("Wi-Fi", isOn: model.binding)
+        if let onKey { toggle = toggle.onKey(onKey) }
+        if let onClick { toggle = toggle.onClick(onClick) }
+        return controlRoot { toggle.disabled(disabled) }
     }
 }
 
@@ -42,8 +47,9 @@ private func toggleWindow(_ model: Switch, disabled: Bool = false) throws -> (Wi
 }
 
 /// **1.10.** A click, a focused Space and an accessibility press each write
-/// the negation once (TA0: `on set true`). M1i (the write is `isOn`, not
-/// `!isOn`) must redden it.
+/// the negation once (TA0: `on set true`); a focused Return writes nothing, on
+/// every platform. M1i (the write is `isOn`, not `!isOn`) and V12 (Return also
+/// toggles) must redden it.
 @Test @MainActor func aToggleClickSpaceAndPressEachWriteTheNegationOnce() throws {
     let model = Switch()
     let (window, platform) = try toggleWindow(model)
@@ -56,10 +62,58 @@ private func toggleWindow(_ model: Switch, disabled: Bool = false) throws -> (Wi
     try #require(window.focusedElement == id, "a toggle takes focus")
     platform.simulateInput(controlKey(" "))
     #expect(model.writes == [true, false], "a focused Space writes false once")
+    // Return is not a toggle's key on any platform (`ControlKeys.togglesToggle`).
+    platform.simulateInput(controlKey("\r"))
+    #expect(model.writes == [true, false], "a focused Return writes nothing, read \(model.writes)")
     let tree = try controlTree(window, platform)
     let box = try #require(tree.nodes.first { $0.value.role == .checkBox }, "no check box published")
     #expect(platform.simulateAccessibilityRequest(.press(box.key)))
     #expect(model.writes == [true, false, true], "a press writes true once")
+}
+
+/// **1.10b.** A caller's `onKey` runs before the toggle's Space (spec §4, as
+/// 1.6 for `Button`): one that claims Space suppresses the write; one that
+/// declines lets it run. V8 (the toggle's key replaces the caller's `onKey`)
+/// must redden it (`DD-AE` item 1).
+@Test @MainActor func aCallersOnKeyRunsBeforeTheTogglesSpace() throws {
+    for claims in [true, false] {
+        let model = Switch()
+        let seen = ControlModel()
+        let (window, platform) = try toggleWindow(model, onKey: { event in
+            seen.keys.append(event.charactersIgnoringModifiers)
+            return claims
+        })
+        let id = controlID([0, 0])
+        window.focus(id)
+        window.drawFrameIfNeeded()
+        try #require(window.focusedElement == id)
+        platform.simulateInput(controlKey(" "))
+        #expect(seen.keys == [" "], "claims \(claims): the caller saw the key first")
+        #expect(model.writes == (claims ? [] : [true]), "claims \(claims): the write ran only if declined")
+    }
+}
+
+/// **1.10c.** A caller's `.onClick` on a `Toggle` **replaces** its write (spec
+/// §4): a click, a focused Space and a `.press` each run the caller's handler
+/// once and write nothing. V9 (the toggle's write overwrites the caller's
+/// `onClick`) must redden it (`DD-AE` item 1).
+@Test @MainActor func aCallersOnClickReplacesTheTogglesWrite() throws {
+    let model = Switch()
+    let caller = ControlModel()
+    let (window, platform) = try toggleWindow(model, onClick: { caller.count += 1 })
+    let id = controlID([0, 0])
+    controlClick(platform, at: controlCentre(try controlBounds(window.lastFrameBounds(), id)))
+    #expect(caller.count == 1 && model.writes.isEmpty, "a click runs the caller's handler, not the write")
+    controlRedraw(window)
+    window.focus(id)
+    window.drawFrameIfNeeded()
+    try #require(window.focusedElement == id)
+    platform.simulateInput(controlKey(" "))
+    #expect(caller.count == 2 && model.writes.isEmpty, "Space runs what the click runs")
+    let tree = try controlTree(window, platform)
+    let box = try #require(tree.nodes.first { $0.value.role == .checkBox }, "no check box published")
+    #expect(platform.simulateAccessibilityRequest(.press(box.key)))
+    #expect(caller.count == 3 && model.writes.isEmpty, "a press runs the caller's handler: \(caller.count), \(model.writes)")
 }
 
 /// **1.11.** Published as a check box labelled by its label, value `"0"` then

@@ -243,6 +243,32 @@ private func buttonWindow(_ model: ControlModel, disabled: Bool = false,
     }
 }
 
+/// **1.6b.** A caller's `.onClick` on a `Button` **replaces** its action (spec
+/// §4, the one-field rule): a click, a focused Space and an accessibility
+/// `.press` each run the caller's handler once and the action never. V16
+/// (`let activate = action`, the caller's `onClick` overwritten) must redden
+/// it (`DD-AE` item 1).
+@Test @MainActor func aCallersOnClickReplacesTheButtonsAction() throws {
+    let model = ControlModel()
+    let (window, platform) = try controlWindow {
+        controlRoot { Button("Go") { model.count += 1 }.onClick { model.keys.append("caller") } }
+    }
+    let id = controlID([0, 0])
+    controlClick(platform, at: controlCentre(try controlBounds(window.lastFrameBounds(), id)))
+    #expect(model.keys == ["caller"] && model.count == 0, "a click runs the caller's handler, not the action")
+    controlRedraw(window)
+    window.focus(id)
+    window.drawFrameIfNeeded()
+    try #require(window.focusedElement == id)
+    platform.simulateInput(controlKey(" "))
+    #expect(model.keys == ["caller", "caller"] && model.count == 0, "Space runs what the click runs")
+    let tree = try controlTree(window, platform)
+    let button = try #require(tree.nodes.first { $0.value.role == .button }, "no button published")
+    #expect(platform.simulateAccessibilityRequest(.press(button.key)))
+    #expect(model.keys == ["caller", "caller", "caller"] && model.count == 0,
+            "a press runs the caller's handler: \(model.keys), action ran \(model.count)")
+}
+
 // MARK: - 1.7–1.8 accessibility and disabled
 
 /// **1.7.** One `.button`, labelled by its label, no children, `.press`; a
