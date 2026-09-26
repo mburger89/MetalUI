@@ -308,6 +308,20 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     // Control: the list does take its arrows.
     key(window, platform, TextEditing.downArrow)
     #expect(!model.multiWrites.isEmpty, "control: an arrow writes")
+
+    // A caller's `onKey` runs first (spec §4): claiming ↓ suppresses the move,
+    // declining ↑ lets it run. M3v (the list's arrows before the caller's
+    // `onKey`) must redden this arm.
+    let claimed = Selection(single: 1)
+    let (claimedWindow, claimedPlatform) = try unboundedWindow {
+        List(claimed.items, selection: claimed.singleBinding, rowHeight: controlPx(20)) { Text("Row \($0.id)") }
+            .onKey { $0.charactersIgnoringModifiers == TextEditing.downArrow }
+    }
+    try focusList(claimedWindow, unboundedListID)
+    key(claimedWindow, claimedPlatform, TextEditing.downArrow)
+    #expect(claimed.singleWrites.isEmpty, "the caller claimed ↓: \(claimed.singleWrites)")
+    key(claimedWindow, claimedPlatform, TextEditing.upArrow)
+    #expect(claimed.singleWrites == [0], "the caller declined ↑: \(claimed.singleWrites)")
 }
 
 // MARK: - What a row shows (`DD-Z` item 3)
