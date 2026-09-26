@@ -150,38 +150,32 @@ import MetalUILayout
 /// context; a non-vertical one; a first-frame zero viewport; a zero or negative
 /// `rowHeight`).
 ///
-/// **A `List` must be its enclosing `ScrollView`'s only layout-contributing
-/// child, and violating that renders it BLANK rather than merely imprecise.**
-/// This is a requirement of the same rank as `Identifiable` and a uniform
-/// `rowHeight`, and unlike those two nothing enforces it: `ScrollView { Text(...);
-/// List(...) }` compiles, lays out, and paints nothing where the list should be.
-/// The ambient `ScrollContext` describes the SCROLLER — how far the scroller's
-/// content has moved under its viewport — and `visibleRange` reads it as though
-/// it described this `List`, i.e. as though row 0 sat exactly at the scroller's
-/// content origin. Put anything that occupies FLOW above the list — a header, a
-/// spacer, a second `List` — and the two differ by that thing's height, so the
-/// window slides off the rows actually on screen. Measured, with a 300pt header
-/// above a 40-row list at `rowHeight` 28, viewport 112, scrolled to 300: the
-/// rows visible are 0 through 3 and the rows built are **8 through 16**, every
-/// one of them painted below the viewport under a mask that shows none of them.
+/// **A `List` windows against its OWN origin within its scroller's content**
+/// (ruling `DD-F`, plan task 10; divergence 14 retired). Until then it read the
+/// ambient `ScrollContext` — which describes the SCROLLER — as though row 0 sat
+/// at the scroller's content origin, so anything in flow above the list (a
+/// header, a spacer, a second `List`) slid the window off the rows on screen and
+/// rendered it **blank**: a 300pt header above a 40-row list at `rowHeight` 28,
+/// viewport 112, scrolled to 300, built rows 8…16 where 0…3 were visible
+/// (`MP-L` called it unfixable because `requestLayout` has no position). The
+/// fix meets that blocker the way `ScrollState.viewportExtent` meets the
+/// viewport's: **last frame's measurement**. In `prepaint`, inside a vertical
+/// scroller (`Frame.activeScrollerFrame`, pushed by `ScrollView` and
+/// `ProposalScrollView`; reset by `Deferred`), the list stores its origin at its
+/// own id (`ListOrigin`, through `withState` — never `write`), and
+/// `requestLayout` windows against it. Pinned by
+/// `aListBelowAHeaderWindowsTheRowsOnScreen`.
 ///
-/// **Two measured refinements of that rule, in opposite directions.** An
-/// out-of-flow sibling costs nothing — a `.position(.absolute)` box declared
-/// before the list, which is what the demo's own `Deferred` modal is, leaves the
-/// rows at y = 0 — so the requirement is about flow rather than about sibling
-/// count. And making the `List` itself absolute does not save it: at
-/// `.position(.absolute)` with `inset(top: 300)` it builds the identical wrong
-/// rows, because the window comes from the ambient offset either way.
-///
-/// **Not fixable from inside this type, which is why it is a documented
-/// requirement rather than a bug with a fix pending** (ruling MP-L, CLAUDE.md
-/// divergence 14). Correcting the window needs this `List`'s own offset within
-/// the scroller's content, and `requestLayout` has no position — that is the
-/// phase's contract, not an oversight. Supplying one means either laying the
-/// scroller out twice or threading resolved geometry into a phase defined to run
-/// before geometry exists. Pinned by
-/// `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`, so the fix,
-/// when it comes, arrives as a red test rather than as a surprise.
+/// **One more frame when the window went stale, and only then** (`DD-F` item
+/// 3). The first frame after a resize, or after something above the list
+/// changed height, still windows against last frame's measurements — the two
+/// rows of overscan are the only cover for that frame (divergence 13, amended)
+/// — but `prepaint` sees the fresh window is not contained in the one it built
+/// and calls `requestAnotherFrame()`, so the next frame is drawn, and correct,
+/// with no input. Pinned by `aGrownViewportIsFilledOnTheNextFrameWithoutInput`
+/// and `aListWhoseOriginChangesIsReWindowedOnTheNextFrame`;
+/// `anUnboundedListFrameAsksForNoExtraFrame` pins that a frame that built
+/// every row asks for nothing.
 ///
 /// **`ListRows`' `WindowedRowsLayout` places the window**: built row *i* at
 /// `(firstIndex + i) × rowHeight`, directly (`LR-BQ`, `LR-BR`). Until stage 9 the
@@ -265,6 +259,11 @@ where Data.Element: Identifiable {
     /// frame (MP-I). The one unbounded case the next frame can fix (AB-X rule 3).
     private var windowAwaitsViewport = false
 
+    /// The window `requestLayout` built this frame, threaded to `prepaint`
+    /// like `box`, which compares it with the window this frame's fresh
+    /// measurements would give (ruling `DD-F` item 3).
+    private var builtWindow: Range<Int> = 0..<0
+
     /// `List`'s layout state, as a **public wrapper around an internal one**.
     ///
     /// `Element.LayoutState` is inferred from `requestLayout`'s return, and
@@ -346,19 +345,42 @@ where Data.Element: Identifiable {
     /// rest of the list fills in only once frame two has a real viewport —
     /// a visible one-frame flash. Building everything on that first frame
     /// costs one slow frame instead of a flash.
-    private func visibleRange(count: Int, pass: LayoutPass) -> Range<Int> {
+    ///
+    /// **Against this list's own origin within the scroller's content** (ruling
+    /// `DD-F` item 1; divergence 14 retired). `requestLayout` has no position,
+    /// so the origin is **last frame's measurement**, stored by `prepaint` at
+    /// this list's id — the way `ScrollState.viewportExtent` already carries
+    /// the viewport. With none stored (the list's first frame inside its
+    /// scroller) it is 0, today's answer. See `window(count:rowExtent:offset:viewport:origin:)`.
+    private func visibleRange(count: Int, origin: Double, pass: LayoutPass) -> Range<Int> {
         guard let context = pass.scrollContext, context.axis == .vertical,
               context.viewportExtent > 0, rowHeight.value > 0 else {
             return 0..<count
         }
-        let extent = Double(rowHeight.value) * Double(count)
-        // The ambient offset is raw and unclamped (`ScrollContext`'s own doc);
-        // this is the clamp `List` owns because it — unlike `LayoutPass` — knows
-        // its own exact content extent without waiting on a resolved layout.
-        let offset = min(max(0, context.offset), max(0, extent - context.viewportExtent))
-        let rowExtent = Double(rowHeight.value)
-        let rawFirst = Int((offset / rowExtent).rounded(.down)) - Self.overscan
-        let rawLast = Int(((offset + context.viewportExtent) / rowExtent).rounded(.up)) + Self.overscan
+        return Self.window(count: count, rowExtent: Double(rowHeight.value),
+                           offset: context.offset, viewport: context.viewportExtent,
+                           origin: origin)
+    }
+
+    /// The rows intersecting the viewport — the scroller's `offset` and
+    /// `viewport`, seen from a list whose row 0 sits `origin` down the
+    /// scroller's content — widened by `overscan` and clamped into `0..<count`.
+    /// Needs `rowExtent > 0` and `viewport > 0` (the callers' guards).
+    ///
+    /// **The list-local top is clamped into `0...max(0, extent − viewport)`**,
+    /// the clamp this type has always applied to the raw offset (the ambient
+    /// offset is raw and unclamped, `ScrollContext`'s own doc). At `origin` 0
+    /// that is exactly the pre-`DD-F` window; with an origin it keeps the
+    /// window a **superset** of the rows actually on screen when the list is
+    /// partly above or below the viewport (a band that starts above row 0, or
+    /// runs past the last row, is served by the nearest full viewport of rows),
+    /// so a list scrolled past never windows to nothing.
+    static func window(count: Int, rowExtent: Double, offset: Double, viewport: Double,
+                       origin: Double) -> Range<Int> {
+        let extent = rowExtent * Double(count)
+        let top = min(max(0, offset - origin), max(0, extent - viewport))
+        let rawFirst = Int((top / rowExtent).rounded(.down)) - Self.overscan
+        let rawLast = Int(((top + viewport) / rowExtent).rounded(.up)) + Self.overscan
         let first = min(max(0, rawFirst), count)
         let last = min(max(first, rawLast), count)
         return first..<last
@@ -385,7 +407,11 @@ where Data.Element: Identifiable {
         rowStyle.flexShrink = 0
 
         let count = data.count
-        let window = visibleRange(count: count, pass: pass)
+        // `DD-F` item 1: last frame's measured origin, read with `peek` so a
+        // list outside every scroller mints no entry. `prepaint` stores it.
+        let origin = pass.frame.stateTable.peek(id, as: ListOrigin.self)?.offset ?? 0
+        let window = visibleRange(count: count, origin: origin, pass: pass)
+        builtWindow = window
         // The same test `visibleRange`'s guard makes, kept rather than inferred
         // from `window`: a short list's real window can equal `0..<count`.
         let context = pass.scrollContext
@@ -467,6 +493,7 @@ where Data.Element: Identifiable {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> PrepaintState {
+        noteOriginAndStaleness(id, bounds: bounds, pass: pass)
         // **An unbounded window publishes the table and no rows** (ruling AB-X
         // rule 1): it built every row, and a client active at frame 0 would
         // otherwise be handed a row and a text per datum, then see them all
@@ -487,9 +514,57 @@ where Data.Element: Identifiable {
         })
     }
 
+    /// Ruling `DD-F` items 1 and 3, inside a vertical scroller
+    /// (`Frame.activeScrollerFrame`; none inside a `Deferred`):
+    ///
+    /// 1. **Stores this list's origin** within the scroller's content — its
+    ///    own bounds' origin minus the content node's, both layout space — at
+    ///    its own id through `withState`, **never `write`**: `withState` raises
+    ///    no `isDirty` and fires no `onWrite` (`ScrollChrome.resolvedOffset`'s
+    ///    prepaint write-back is the precedent), so this cannot keep the
+    ///    display link awake. No new reserved name
+    ///    (`theSevenRetentionSlotsAreMutuallyDistinct` unmoved). Pinned by
+    ///    `anUnboundedListFrameAsksForNoExtraFrame`.
+    /// 2. **Asks for one more frame when the window it built is stale**: the
+    ///    window this frame's fresh inputs (the measured origin, this frame's
+    ///    viewport, the resolved offset) give is not contained in `builtWindow`
+    ///    — a grown viewport (divergence 13's effect, amended) or a list that
+    ///    moved within its content. A frame that built every row contains any
+    ///    window, so the unbounded first frame (`MP-I`) asks for nothing, and
+    ///    the next frame builds exactly the fresh window, so the request
+    ///    cannot repeat. `requestAnotherFrame()`, never `noteActiveAnimation()`.
+    private func noteOriginAndStaleness(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                        pass: PrepaintPass) {
+        guard let scroller = pass.frame.activeScrollerFrame, scroller.axis == .vertical else {
+            return
+        }
+        let origin = Double(bounds.origin.y.value - scroller.contentOrigin.y.value)
+        pass.withState(id, initial: ListOrigin()) { $0.offset = origin }
+
+        let count = data.count
+        let fresh: Range<Int>
+        if scroller.viewportExtent > 0, rowHeight.value > 0 {
+            fresh = Self.window(count: count, rowExtent: Double(rowHeight.value),
+                                offset: scroller.offset, viewport: scroller.viewportExtent,
+                                origin: origin)
+        } else {
+            fresh = 0..<count
+        }
+        let contained = fresh.isEmpty
+            || (builtWindow.lowerBound <= fresh.lowerBound && fresh.upperBound <= builtWindow.upperBound)
+        if !contained { pass.frame.requestAnotherFrame() }
+    }
+
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout PrepaintState,
                                pass: inout PaintPass) {
         box.paint(id, bounds: bounds, layout: &layout.inner, prepaint: &prepaint.inner, pass: &pass)
     }
+}
+
+/// A `List`'s origin within its scroller's content, in points down the
+/// scrolling axis — last frame's measurement, stored at the list's own id
+/// (ruling `DD-F` item 1).
+struct ListOrigin: Sendable {
+    var offset: Double = 0
 }

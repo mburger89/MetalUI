@@ -106,8 +106,10 @@ public final class Frame {
     ///
     /// **Distinct from `wantsAnotherFrame` above, and after this task nothing
     /// raises both.** `wantsAnotherFrame` means "mark the window DIRTY next
-    /// frame" and its one caller is `ScrollView`'s scroll-indicator fade, which
-    /// predates the `Animation` type and drives itself by dirtying. This means
+    /// frame" and its callers are `ScrollView`'s scroll-indicator fade, which
+    /// predates the `Animation` type and drives itself by dirtying, and — since
+    /// plan task 10's `DD-F` — a `List` whose window went stale, once; neither
+    /// raises `noteActiveAnimation()`. This means
     /// "an `Animation` is interpolating", and it keeps the loop running
     /// *without* dirtying the window — so a window mid-fade reports
     /// `needsRedraw == false`, which is true: nobody changed anything.
@@ -510,6 +512,28 @@ public final class Frame {
     func popScrollContext() {
         scrollContextStack.removeLast()
     }
+
+    /// The innermost scroller whose content is being prepainted — ruling
+    /// `DD-F` item 2's prepaint frame. `ScrollView` and `ProposalScrollView`
+    /// push one around their content's prepaint (`PrepaintPass.inScroller`);
+    /// `List` reads it to measure its own origin within the scroller's content
+    /// and to see whether the window it built is stale.
+    ///
+    /// **`ScrollerFrame?`, for `scrollContextStack`'s reason**: `Deferred`
+    /// pushes the ABSENCE of one (`PrepaintPass.deferred`), since a portal has
+    /// escaped its scroller — popping the entry instead would expose the next
+    /// scroller out, a different wrong answer. Prepaint-only; empty between
+    /// phases.
+    private var scrollerFrameStack: [ScrollerFrame?] = []
+
+    /// The scroller frame in effect, or `nil` outside every scroller (or
+    /// inside a `Deferred`).
+    var activeScrollerFrame: ScrollerFrame? { scrollerFrameStack.last ?? nil }
+
+    /// Balanced by `popScrollerFrame`, reached only through a `defer`.
+    func pushScrollerFrame(_ frame: ScrollerFrame?) { scrollerFrameStack.append(frame) }
+
+    func popScrollerFrame() { scrollerFrameStack.removeLast() }
 
     /// The axis-aligned intersection of two bounds. Either dimension can go to
     /// zero (or below, clamped to zero) when the two do not overlap; it never

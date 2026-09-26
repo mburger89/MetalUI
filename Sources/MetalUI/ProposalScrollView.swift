@@ -87,10 +87,16 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
                                            pass: pass)
         pass.registerScrollRegion(bounds, id: id, axis: axis)
+        // `DD-F` item 2: the content prepaints inside this scroller's frame.
+        let scroller = ScrollerFrame(scrollerID: id, axis: axis,
+                                     contentOrigin: pass.bounds(of: layout.contentNode).origin,
+                                     viewport: bounds, offset: offset)
         var result: Content.GroupPrepaint!
         pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
                      cornerRadii: Corners(all: cornerRadius)) {
-            result = content.prepaintGroup(layout: &layout.content, pass: &pass)
+            pass.inScroller(scroller) {
+                result = content.prepaintGroup(layout: &layout.content, pass: &pass)
+            }
         }
         return result
     }

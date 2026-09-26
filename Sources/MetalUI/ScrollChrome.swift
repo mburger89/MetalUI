@@ -221,3 +221,27 @@ struct ScrollChrome {
         }
     }
 }
+
+/// What a scroller tells the content it is prepainting (ruling `DD-F` item 2):
+/// pushed by `ScrollView` and `ProposalScrollView` around their content's
+/// prepaint, read by `List` (`Frame.activeScrollerFrame`).
+///
+/// Every rect is **layout space** — `PrepaintPass.bounds(of:)`'s untranslated
+/// geometry — so a descendant's own `bounds` minus `contentOrigin` is its
+/// position within the scroller's content, whatever the offset.
+struct ScrollerFrame {
+    /// The scroller's own element id.
+    var scrollerID: GlobalElementID
+    var axis: ScrollAxis
+    /// The content node's origin, layout space.
+    var contentOrigin: Point<Pixels>
+    /// The viewport's bounds this frame, layout space.
+    var viewport: Bounds<Pixels>
+    /// The offset `ScrollChrome.resolvedOffset` resolved (clamped) this frame.
+    var offset: Double
+
+    /// The viewport's extent on the scrolling axis.
+    var viewportExtent: Double {
+        Double(axis == .vertical ? viewport.size.height.value : viewport.size.width.value)
+    }
+}

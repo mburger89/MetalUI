@@ -452,7 +452,7 @@ struct MeasurePerformanceTests {
     ///
     /// **Under both layout authorities from plan task 7's stage 4, lane 5, to
     /// stage 9** (spec §4.1 rows 5 and 6; `LR-CG`). Every literal below — the cold
-    /// `2n + 5` and all three checkpoints — read identically on both, which is the
+    /// `2n + 6` (`2n + 5` before `DD-O`) and all three checkpoints — read identically on both, which is the
     /// measurement that says the windowed `ProposalLayout` changed what a row's
     /// rect comes through and changed nothing about which rows are built or when
     /// they are reaped. **A PRODUCTION frame**: this fixture sets no
@@ -488,6 +488,12 @@ struct MeasurePerformanceTests {
         // builds every row (ruling MP-I) rather than windowing — the peak
         // this test exists to see reaped.
         renderFrame(offset: nil)
+        // **`2n + 6` since plan task 10 (ruling `DD-O`)**: `DD-F` stores the
+        // `List`'s origin within its scroller at the list's own id
+        // (`ListOrigin`, through `withState`), one more fixed entry for a
+        // `List` inside a vertical scroller — the sixth below. It read `2n + 5`
+        // before, as this paragraph goes on to derive.
+        //
         // `2n + 5`, not `n + 2` — moved by the animation milestone's Task 4
         // (20006 at n = 10_000, re-run after wiring `animated(_:_:for:pass:)`
         // into `Box.requestLayout`) and moved again by plan task 7's stage 4
@@ -510,7 +516,7 @@ struct MeasurePerformanceTests {
         // `theListsSpacerIsANodeNotAnElement` (`ListTests.swift`) pins its
         // absence directly, and this literal is the arithmetic half of the
         // same claim.
-        #expect(table.count == 2 * n + 5, """
+        #expect(table.count == 2 * n + 6, """
                 the cold frame must build every row plus the scroller's own \
                 ScrollState entry plus the List's own $ax retention slot — Task 7 made \
                 a List unconditionally emit ITS OWN AXNode (role .container, carrying \
@@ -523,7 +529,8 @@ struct MeasurePerformanceTests {
                 animated(_:_:for:pass:), which unconditionally persists a $anim baseline on \
                 first sighting — doubling the per-row cost and adding three more fixed entries. \
                 Stage 4 lane 1 (LR-BS) then took the windowing spacer's own entry away by \
-                demoting it from a Box element to a bare legacy node.
+                demoting it from a Box element to a bare legacy node. Plan task 10's DD-F \
+                added the List's stored origin (DD-O): 2n + 6.
                 """)
 
         // Scroll in large jumps across the FULL 10k-row range — each
@@ -549,7 +556,7 @@ struct MeasurePerformanceTests {
             print("MeasurePerformanceTests: table.count after scroll frame \(frame) = \(count)")
             #expect(count < n / 10, """
                     after frame \(frame) of scrolling, \(count) entries survive — a \
-                    policy that never reaps would sit at \(2 * n + 5) here, since every \
+                    policy that never reaps would sit at \(2 * n + 6) here, since every \
                     jump only re-marks entries the cold frame already created.
                     """)
         }

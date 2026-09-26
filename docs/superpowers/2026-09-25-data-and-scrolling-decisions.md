@@ -2,7 +2,7 @@
 
 Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-data-and-scrolling-design.md),
 on `feat/data-and-scrolling` from `e7bc2e7`. Ids are **lettered**,
-`DD-A`…`DD-N`; next unused is **`DD-O`**. A bare `DD-3` is a typo, not a
+`DD-A`…`DD-O`; next unused is **`DD-P`**. A bare `DD-3` is a typo, not a
 citation. **A round that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-25: DESIGNED, then CRITICISED AND REVISED** (the critic
@@ -690,3 +690,49 @@ a new behaviour.
 rule (`200`); mutation M1h (the named half of the loop rule removed) reads 175
 here again.
 
+
+---
+
+## DD-O — lane 2: two changed answers `DD-F` owes, and the window's clamp, which the design did not list
+
+**Ruling.** `DD-F`'s stored origin changes the answer of **two existing
+tests** the design did not name, and its window formula keeps one clamp the
+ruling's wording left out.
+
+1. **`ListLoweringTests`' `aLoweredListLaysOutEveryWindowedShape`, arm B4** —
+   a `List` under a 10pt `.padding` layer in a scroller at offset 50 — built
+   rows **3…16** while the window ignored the list's origin; the list sits 10pt
+   down its scroller's content, so the list-local band is 40…140 (rows 4…13)
+   and the window is now **2…15**. This is divergence 14's retirement measured
+   on a second shape, not a new behaviour. The arm's expected window and its
+   per-row bounds loop move to 2…15; every other arm (B1–B3, B6…) is at origin
+   0 and unmoved. **Red before** (lane 2's first full run with `DD-F`):
+   `lRealizedIndices(b4.lowered) → [2, …, 15]` against `Array(3...16)`, and
+   `B4 row 16: nil`.
+2. **`MeasurePerformanceTests`' `theResidentEntrySetStaysBoundedWhileScrolling10kRows`**:
+   the cold frame's `StateTable` count moves **`2n + 5` → `2n + 6`**. The
+   stored `ListOrigin` is one more fixed entry for a `List` inside a vertical
+   scroller (at the list's own id, `DD-F` item 1 — no new reserved name, so
+   `theSevenRetentionSlotsAreMutuallyDistinct` is unmoved). **`TB-AH`'s rule is
+   unchanged** — rows out of the window past two generations lose their state
+   once the table exceeds 256 entries — but a table holding a scrolled `List`
+   reaches that bound **one entry sooner**. Recorded, not hidden: this is the
+   only retention-visible consequence of `DD-F`, and it is per list, not per
+   row. **Red before**: `table.count == 2 * n + 5` failed at 20 006 + 1.
+3. **The window keeps the pre-`DD-F` clamp on its list-local top**
+   (`List.window(count:rowExtent:offset:viewport:origin:)`): the top of the
+   visible band, `offset − origin`, is clamped into `0…max(0, count × rowHeight
+   − viewport)` before rows are counted, exactly as the raw offset was clamped
+   before. At origin 0 that is the old window bit for bit (so every origin-0
+   test is unmoved); with an origin it makes the window a **superset** of the
+   rows `DD-F` item 1's "intersecting" wording names whenever the list is only
+   partly inside the viewport (a band starting above row 0 is served by rows
+   0…, one running past the last row by the last viewport's worth) — never an
+   empty window for a list scrolled past, which would otherwise draw one blank
+   frame when the content shrinks under a stale offset.
+
+**Evidence.** Lane 2's full unfiltered run after `DD-F` (4 issues in these two
+tests, nothing else); the green run after this ruling.
+
+**What it costs if wrong.** A table sized within one entry of 256 retains or
+reaps one row's state differently than before; nothing else moves.

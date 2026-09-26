@@ -492,13 +492,30 @@ public struct PrepaintPass {
     ///
     /// Closure form rather than push/pop, for the reason `clipped(to:offsetBy:)`
     /// above already gives: an unbalanced stack is not expressible.
+    ///
+    /// **It also resets the scroller frame** (ruling `DD-F` item 2): a `List`
+    /// inside the portal has no scroller, so it measures no origin and asks
+    /// for no frame — the prepaint counterpart of `Deferred`'s layout-time
+    /// `withoutScrollContext`. Pinned by
+    /// `aListInADeferredInsideAScrollViewMeasuresNoScrollerOrigin`.
     public func deferred(_ body: () -> Void) {
         frame.pushLayer()
         frame.pushRootClip()
+        frame.pushScrollerFrame(nil)
         defer {
+            frame.popScrollerFrame()
             frame.popClip()
             frame.popLayer()
         }
+        body()
+    }
+
+    /// Runs `body` — a scroller's content prepaint — with `scroller` as the
+    /// innermost scroller frame (ruling `DD-F` item 2). Closure form, so an
+    /// unbalanced stack is not expressible.
+    func inScroller(_ scroller: ScrollerFrame, _ body: () -> Void) {
+        frame.pushScrollerFrame(scroller)
+        defer { frame.popScrollerFrame() }
         body()
     }
 }

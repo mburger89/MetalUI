@@ -302,13 +302,18 @@ private let lHostList = lChild(lHostScroller, 0)
         }
     }
     try lRequireBoundedWindow(b4.lowered, count: 20, "B4")
-    #expect(lRealizedIndices(b4.lowered) == Array(3...16), "B4 window: \(lRealizedIndices(b4.lowered))")
+    // **2…15 since plan task 10 (ruling `DD-O`, a changed answer of `DD-F`)**:
+    // the padding layer puts the list 10pt down its scroller's content, so at
+    // offset 50 the list-local band is 40…140 (rows 4…13, plus two of
+    // overscan). It read 3…16 while the window ignored the list's origin
+    // (divergence 14, retired).
+    #expect(lRealizedIndices(b4.lowered) == Array(2...15), "B4 window: \(lRealizedIndices(b4.lowered))")
     lExpectNothingReported(b4.report, "B4")
     // The padding layer takes the list's slot; the list is its member 0.
     let b4Layer = lHostList, b4List = lChild(b4Layer, 0)
     #expect(b4.report.bounds[b4Layer] == lBounds(0, 0, 100, 220), "B4 layer: \(String(describing: b4.report.bounds[b4Layer]))")
     #expect(b4.report.bounds[b4List] == lBounds(10, 10, 80, 200), "B4 list: \(String(describing: b4.report.bounds[b4List]))")
-    for index in 3...16 {
+    for index in 2...15 {
         let row = lNamed(b4List, "item-\(index)")
         #expect(b4.report.bounds[row] == lBounds(10, 10 + Float(index) * 10, 80, 10),
                 "B4 row \(index): \(String(describing: b4.report.bounds[row]))")

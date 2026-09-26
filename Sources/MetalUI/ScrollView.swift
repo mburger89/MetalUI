@@ -350,10 +350,16 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // with the fix reverted, a wheel at (100, 120) reached the OUTER
         // scroller and one at (100, 170) still reached the inner one.
         pass.registerScrollRegion(bounds, id: id, axis: axis)
+        // `DD-F` item 2: the content prepaints inside this scroller's frame.
+        let scroller = ScrollerFrame(scrollerID: id, axis: axis,
+                                     contentOrigin: pass.bounds(of: layout.contentNode).origin,
+                                     viewport: bounds, offset: offset)
         var result: Content.GroupPrepaint!
         pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
                     cornerRadii: Corners(all: cornerRadius)) {
-            result = content.prepaintGroup(layout: &layout.inner, pass: &pass)
+            pass.inScroller(scroller) {
+                result = content.prepaintGroup(layout: &layout.inner, pass: &pass)
+            }
         }
         return result
     }

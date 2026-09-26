@@ -245,8 +245,9 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 
 // MARK: - Identity opacity: `@State` inside a component
 
-/// `@Binding` does not exist in this framework — `grep -rn "propertyWrapper"
-/// Sources/MetalUI/` finds exactly one `@propertyWrapper`, `State.swift:39`.
+/// `@Binding` did not exist in this framework when this was written (it
+/// arrived with plan task 10, ruling `DD-D`; the fixture below predates it and
+/// is kept as written, since the property it isolates does not need one).
 /// So this component takes the brief's stated fallback: it increments its own
 /// `@State` directly inside `content`'s getter, rather than handing a binding
 /// down to a child leaf. That is safe only because `content` is materialized
