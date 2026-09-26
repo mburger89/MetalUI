@@ -47,7 +47,8 @@ import MetalUILayout
 /// content registration and the `noteLoop` call are written twice, so each
 /// entry's `noteLoop` is pinned on its own (mutations M1b and M1f).
 ///
-/// Not in part 1: `ForEach(_: Binding<C>)` (part 2, `DD-J`).
+/// **Over a binding** (part 2, `DD-AA`): `ForEach($items) { $item in … }` —
+/// see `init(_:content:)` over a `Binding<C>` below.
 public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: ElementGroup>: ElementGroup {
     public var data: Data
     public var content: (Data.Element) -> Content
@@ -180,22 +181,64 @@ extension ForEach: ProposalElementGroup where Content: ProposalElementGroup {
 
 extension ForEach {
     /// A `ForEach` over a binding to a collection, handing each element a
-    /// binding to itself (SwiftUI's `ForEach(_:content:)` over a `Binding`;
-    /// ruling `DD-AA`).
+    /// binding to itself — SwiftUI's `ForEach($items) { $item in … }` (ruling
+    /// `DD-AA`).
+    ///
+    /// Each element keeps `DD-B`'s identity (its `id`, one named scope under
+    /// the `ForEach`'s slot) and receives a `Binding<C.Element>` that reads and
+    /// writes `data.wrappedValue[index]` at call time. **A binding kept past a
+    /// change of the collection** — a handler captured last frame — checks that
+    /// the element at its index still carries its id: if not, a write is
+    /// dropped and a read returns the last value it read. SwiftUI's answer for a
+    /// stale element binding is unprobed, so that rule is MetalUI's own
+    /// (`DD-AA`; no divergence is claimed).
+    ///
+    /// The collection is read once, here, when the `ForEach` is built — in a
+    /// body, during layout — to make one slot per element.
     public init<C: MutableCollection & RandomAccessCollection>(
         _ data: Binding<C>, @ElementBuilder content: @escaping (Binding<C.Element>) -> Content)
         where C.Element: Identifiable, ID == C.Element.ID, Data == [ForEachBindingSlot<C>] {
         let collection = data.wrappedValue
-        let slots = collection.indices.map { ForEachBindingSlot<C>(index: $0, id: collection[$0].id,
-                                                                   initial: collection[$0]) }
-        self.init(slots, id: \.id) { slot in content(.constant(slot.initial)) }
+        let slots = collection.indices.map { index in
+            ForEachBindingSlot<C>(index: index, id: collection[index].id,
+                                  last: ForEachBindingSlot<C>.LastRead(collection[index]))
+        }
+        self.init(slots, id: \.id) { slot in content(slot.binding(through: data)) }
     }
 }
 
-/// One element of a ``ForEach`` over a binding: its index and its id (ruling
-/// `DD-AA`). Opaque outside the framework.
+/// One element of a ``ForEach`` over a binding: its index, its id and the last
+/// value its binding read (ruling `DD-AA`). Opaque outside the framework.
 public struct ForEachBindingSlot<C: MutableCollection & RandomAccessCollection> where C.Element: Identifiable {
     let index: C.Index
     let id: C.Element.ID
-    let initial: C.Element
+    let last: LastRead
+
+    /// The last value an element binding read — returned once its index holds
+    /// another element.
+    final class LastRead {
+        var value: C.Element
+        init(_ value: C.Element) { self.value = value }
+    }
+
+    /// The element's binding: live while `index` still holds `id`, stale after.
+    @MainActor
+    func binding(through data: Binding<C>) -> Binding<C.Element> {
+        let index = self.index, id = self.id, last = self.last
+        func current(_ collection: C) -> C.Element? {
+            guard collection.indices.contains(index) else { return nil }
+            let element = collection[index]
+            return element.id == id ? element : nil
+        }
+        return Binding(get: {
+            if let element = current(data.wrappedValue) { last.value = element }
+            return last.value
+        }, set: { newValue in
+            var collection = data.wrappedValue
+            guard current(collection) != nil else { return }
+            collection[index] = newValue
+            last.value = newValue
+            data.wrappedValue = collection
+        })
+    }
 }

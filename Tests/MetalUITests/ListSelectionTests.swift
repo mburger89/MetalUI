@@ -537,11 +537,46 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     }
     let table = try #require(tree.nodes.first { $0.value.role == .table }, "a table")
     let rows = table.value.children.compactMap { tree.nodes[$0] }
-    #expect(!rows.isEmpty, "the table publishes rows")
-    #expect(rows.filter(\.isSelected).count == 1, "exactly one selected row: \(rows.filter(\.isSelected).count)")
+    #expect(!rows.isEmpty, "the table publishes rows: \(rows.map { ($0.role, $0.rowIndex, $0.isSelected) })")
+    #expect(rows.filter(\.isSelected).count == 1,
+            "exactly one selected row: \(rows.map { ($0.role, $0.rowIndex, $0.isSelected, $0.label) })")
     let deepest = window.lastNativeLayoutDeepestLevel
     print("CONTROLS DEMO deepest native level: \(deepest)")
     #expect(deepest > 0 && deepest <= 40, "the controls demo's deepest native level \(deepest) is at most 40")
+
+    // Each control alone, in the controls' own root, through a real window
+    // (`DD-AC` item 10's record; the default demo's own root reads 30).
+    let flag = Binding.constant(true), level = Binding.constant(0.5), count = Binding.constant(1)
+    let choice = Binding.constant(1), picked = Binding<Int?>.constant(2)
+    func depth<E: Element>(_ name: String, _ make: @escaping @MainActor () -> E) throws -> Int {
+        let (window, _) = try controlWindow(size: 400) { make() }
+        controlRedraw(window)
+        let level = window.lastNativeLayoutDeepestLevel
+        print("CONTROL DEPTH \(name): \(level)")
+        return level
+    }
+    let levels = [
+        try depth("Button") { controlRoot { Button("Go") {} } },
+        try depth("Toggle") { controlRoot { Toggle("Wi-Fi", isOn: flag) } },
+        try depth("Slider") { controlRoot { Slider(value: level, in: 0...1) } },
+        try depth("Stepper") { controlRoot { Stepper("Qty", value: count, in: 0...9) } },
+        try depth("Picker segmented") {
+            controlRoot { Picker("P", selection: choice) { Text("A").tag(0); Text("B").tag(1) } }
+        },
+        try depth("Picker radioGroup") {
+            controlRoot {
+                Picker("P", selection: choice) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.radioGroup)
+            }
+        },
+        try depth("List(selection:) in a ScrollView") {
+            Box(style: column(width: 100, height: 100)) {
+                ScrollView {
+                    List((0..<20).map(Item.init), selection: picked, rowHeight: controlPx(20)) { Text("Row \($0.id)") }
+                }
+            }
+        },
+    ]
+    #expect(levels.allSatisfy { $0 > 0 && $0 <= 40 }, "every control's deepest level is at most 40: \(levels)")
 }
 
 /// **3.20** (`DD-AC` item 6). With no scroller (an unbounded window) each

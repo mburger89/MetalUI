@@ -456,6 +456,12 @@ where Data.Element: Identifiable {
             }
         }
 
+        // `DD-Z` item 3 and `DD-AC` item 4: the selection is read ONCE, and each
+        // realised row asks one `==`/`contains` of it — nothing here scans
+        // `data`. A lead missing from the selection is re-derived in the
+        // handlers (input), never here.
+        let reader = selection.reader()
+        let table = pass.frame.stateTable
         let rows: [Box<Row>] = data[windowStart..<windowEnd].enumerated().map { offset, datum in
             // `String(describing:)` is the collision the type doc names —
             // distinct `datum.id`s that describe the same string land here as
@@ -463,6 +469,19 @@ where Data.Element: Identifiable {
             var rowBox = Box(style: rowStyle, content: { row(datum) })
                 .id(String(describing: datum.id))
             if indexesRows { rowBox.handlers.axNode.logicalIndex = window.lowerBound + offset }
+            if let reader {
+                let selected = reader(datum.id)
+                if selected {
+                    // A row-`Box` background, so it animates through
+                    // `animatedBackground` and mints exactly one `$anim-color`
+                    // slot per selected realised row (`DD-AC` item 1); the hint
+                    // records `isSelected` and writes no `$ax` (`DD-U` item 4).
+                    rowBox.decoration.background = .accent
+                    rowBox.handlers.axNode.selectionHint = true
+                }
+                rowBox.handlers.onClick = Self.rowClick(list: id, row: datum.id, data: data,
+                                                        selection: selection, table: table)
+            }
             return rowBox
         }
 
@@ -509,6 +528,15 @@ where Data.Element: Identifiable {
                                   pass: inout PrepaintPass) -> PrepaintState {
         noteOriginAndStaleness(id, bounds: bounds, pass: pass)
         if pass.frame.hasUnresolvedScrollRequests { resolveScrollRequests(id, bounds: bounds, pass: pass) }
+        if !selection.isNone { composeSelectionKeys(id, pass: pass) }
+        // `DD-AC` item 6, as amended by `DD-AG` item 1: a selectable list whose
+        // window can never be bounded (no vertical scroller, or a zero
+        // `rowHeight`) publishes its rows — as buttons, having no index — so a
+        // client can press them. The scroller's first frame keeps AB-X rule 1.
+        if !selection.isNone, !windowIsBounded, !windowAwaitsViewport {
+            return PrepaintState(inner: box.prepaint(id, bounds: bounds,
+                                                     layout: &layout.inner, pass: &pass))
+        }
         // **An unbounded window publishes the table and no rows** (ruling AB-X
         // rule 1): it built every row, and a client active at frame 0 would
         // otherwise be handed a row and a text per datum, then see them all
@@ -581,10 +609,17 @@ where Data.Element: Identifiable {
                                        pass: PrepaintPass) {
         let pending = pass.frame.unresolvedScrollRequests(enclosing: id)
         guard !pending.isEmpty else { return }
+        // `DD-AC` item 2: this list's own lead reveals, matched by row. A
+        // `ListLeadReveal` equals no caller's key, so only this list takes it.
+        let reveals = pending.compactMap { request -> (index: Int, row: AnyHashable)? in
+            guard let reveal = request.key.base as? ListLeadReveal, reveal.list == id else { return nil }
+            return (request.index, reveal.row)
+        }
         for (index, datum) in data.enumerated() {
             let key = AnyHashable(datum.id)
-            for request in pending where request.key == key
-                && !pass.frame.isScrollRequestResolved(request.index) {
+            let matching = pending.filter { $0.key == key }
+                + reveals.filter { $0.row == key }.map { (index: $0.index, key: key) }
+            for request in matching where !pass.frame.isScrollRequestResolved(request.index) {
                 let row = Bounds(origin: Point(x: bounds.origin.x,
                                                y: bounds.origin.y + rowHeight * Float(index)),
                                  size: Size(width: bounds.size.width, height: rowHeight))
@@ -627,6 +662,204 @@ enum ListSelection<ID: Hashable> {
 /// A `List`'s origin within its scroller's content, in points down the
 /// scrolling axis — last frame's measurement, stored at the list's own id
 /// (ruling `DD-F` item 1).
-struct ListOrigin: Sendable {
+///
+/// **It also holds a selectable list's lead and anchor rows** (`DD-Z` item 7),
+/// written from input only (the row clicks and the key handler, through
+/// `withState`, which fires no `onWrite`): the table keys by id alone, so a
+/// second type at the list's id would overwrite this one. No new reserved name.
+struct ListOrigin: @unchecked Sendable {
     var offset: Double = 0
+    /// The row a keyboard move starts from (a datum id), or nil.
+    var lead: AnyHashable?
+    /// The row a ⇧-move or ⇧-click extends from (a datum id), or nil.
+    var anchor: AnyHashable?
+}
+
+/// The key a selectable list's keyboard move enqueues on the `DD-G` queue to
+/// reveal its new lead (`DD-AC` item 2): internal, so no caller's `scrollTo`
+/// key or `.id` can equal it, and matched only by the list it names.
+struct ListLeadReveal: Hashable {
+    let list: GlobalElementID
+    let row: AnyHashable
+}
+
+extension ListSelection {
+    var isNone: Bool {
+        if case .none = self { return true }
+        return false
+    }
+
+    /// Whether an id is selected, reading the binding once — nil for `.none`.
+    @MainActor
+    func reader() -> ((ID) -> Bool)? {
+        switch self {
+        case .none: return nil
+        case .single(let binding):
+            let current = binding.wrappedValue
+            return { $0 == current }
+        case .multi(let binding):
+            let current = binding.wrappedValue
+            return { current.contains($0) }
+        }
+    }
+}
+
+// MARK: - Selection input (`DD-Z` items 4–7; handlers only — input, never a phase)
+
+extension List {
+    /// The index of `id` in `data`, by a scan — input time only.
+    private static func index(of id: Data.Element.ID, in data: Data) -> Int? {
+        for (index, datum) in data.enumerated() where datum.id == id { return index }
+        return nil
+    }
+
+    /// The stored lead if it is still selected, else the first selected row in
+    /// data order (`DD-Z` item 7), else nil. Input time only (`DD-AC` item 4).
+    private static func leadIndex(stored: AnyHashable?, isSelected: (Data.Element.ID) -> Bool,
+                                  data: Data) -> Int? {
+        if let stored = stored?.base as? Data.Element.ID, isSelected(stored),
+           let index = index(of: stored, in: data) {
+            return index
+        }
+        for (index, datum) in data.enumerated() where isSelected(datum.id) { return index }
+        return nil
+    }
+
+    /// The ids of rows `a…b` (either order), inclusive.
+    private static func ids(from a: Int, to b: Int, in data: Data) -> Set<Data.Element.ID> {
+        let range = min(a, b)...max(a, b)
+        var result = Set<Data.Element.ID>()
+        for (index, datum) in data.enumerated() where range.contains(index) { result.insert(datum.id) }
+        return result
+    }
+
+    /// A row's click (`DD-Z` item 4): selects exactly the row; in a multi list
+    /// the platform's shortcut modifier toggles it and ⇧ selects the range
+    /// from the anchor; a single list selects it whatever the modifiers. A
+    /// write happens only when the selection changes. Focuses the list
+    /// (`DD-Z` item 5) through `ClickDispatch.focusRequest`.
+    private static func rowClick(list: GlobalElementID, row: Data.Element.ID, data: Data,
+                                 selection: ListSelection<Data.Element.ID>,
+                                 table: StateTable) -> @MainActor () -> Void {
+        { [weak table] in
+            ClickDispatch.focusRequest = list
+            guard let table else { return }
+            let modifiers = ClickDispatch.modifiers
+            let origin = table.peek(list, as: ListOrigin.self) ?? ListOrigin()
+            var anchor: AnyHashable = AnyHashable(row)
+            switch selection {
+            case .none:
+                return
+            case .single(let binding):
+                if binding.wrappedValue != row { binding.wrappedValue = row }
+            case .multi(let binding):
+                let current = binding.wrappedValue
+                var next: Set<Data.Element.ID>
+                if modifiers.contains(ControlKeys.selectionToggleModifier()) {
+                    next = current
+                    if next.remove(row) == nil { next.insert(row) }
+                } else if modifiers.contains(.shift) {
+                    let rowIndex = index(of: row, in: data) ?? 0
+                    let anchorIndex: Int
+                    if let stored = origin.anchor?.base as? Data.Element.ID, current.contains(stored),
+                       let found = index(of: stored, in: data) {
+                        anchorIndex = found
+                        anchor = AnyHashable(stored)
+                    } else if let lead = leadIndex(stored: origin.lead, isSelected: current.contains,
+                                                   data: data) {
+                        anchorIndex = lead
+                        anchor = AnyHashable(data[data.index(data.startIndex, offsetBy: lead)].id)
+                    } else {
+                        anchorIndex = rowIndex
+                    }
+                    next = ids(from: anchorIndex, to: rowIndex, in: data)
+                } else {
+                    next = [row]
+                }
+                if next != current { binding.wrappedValue = next }
+            }
+            table.withState(list, initial: ListOrigin()) {
+                $0.lead = AnyHashable(row)
+                $0.anchor = anchor
+            }
+        }
+    }
+
+    /// The list's own handlers for a selection (`DD-T`, `DD-Z` item 6):
+    /// focusable, and the arrows after a caller's own `onKey` declined. The
+    /// queue is captured here, in prepaint, from the frame (`DD-AC` item 2).
+    private mutating func composeSelectionKeys(_ id: GlobalElementID, pass: PrepaintPass) {
+        let data = self.data
+        let selection = self.selection
+        let callerKey = box.handlers.onKey
+        let table = pass.frame.stateTable
+        let queue = pass.frame.scrollRequestQueue
+        box.handlers.isFocusable = true
+        box.handlers.onKey = { [weak table, weak queue] event in
+            if let callerKey, callerKey(event) { return true }
+            guard let move = ControlKeys.listMove(event), let table else { return false }
+            guard let row = Self.move(list: id, move.direction, extends: move.extends, data: data,
+                                      selection: selection, table: table) else { return false }
+            if let scope = id.parent {
+                queue?.enqueue(ScrollRequest(scope: scope,
+                                             key: AnyHashable(ListLeadReveal(list: id, row: AnyHashable(row))),
+                                             anchor: nil))
+            }
+            return true
+        }
+    }
+
+    /// One keyboard move (KY6, KY8): the next/previous row from the lead —
+    /// with nothing selected ↓ the first and ↑ the last — clamped at the ends;
+    /// a multi list's plain move collapses to that row and ⇧ selects from the
+    /// anchor to it; a single list ignores ⇧. Writes only a changed selection;
+    /// stores the new lead (and anchor). Returns the new lead's id, or nil when
+    /// the list has no rows.
+    private static func move(list: GlobalElementID, _ direction: ControlKeys.Direction, extends: Bool,
+                             data: Data, selection: ListSelection<Data.Element.ID>,
+                             table: StateTable) -> Data.Element.ID? {
+        let count = data.count
+        guard count > 0 else { return nil }
+        let origin = table.peek(list, as: ListOrigin.self) ?? ListOrigin()
+        func id(at index: Int) -> Data.Element.ID { data[data.index(data.startIndex, offsetBy: index)].id }
+        func target(from lead: Int?) -> Int {
+            guard let lead else { return direction == .forward ? 0 : count - 1 }
+            return direction == .forward ? min(lead + 1, count - 1) : max(lead - 1, 0)
+        }
+        let row: Data.Element.ID
+        var anchor: AnyHashable
+        switch selection {
+        case .none:
+            return nil
+        case .single(let binding):
+            let current = binding.wrappedValue
+            let lead = leadIndex(stored: origin.lead, isSelected: { $0 == current }, data: data)
+            row = id(at: target(from: lead))
+            anchor = AnyHashable(row)
+            if current != row { binding.wrappedValue = row }
+        case .multi(let binding):
+            let current = binding.wrappedValue
+            let lead = leadIndex(stored: origin.lead, isSelected: current.contains, data: data)
+            let next = target(from: lead)
+            row = id(at: next)
+            anchor = AnyHashable(row)
+            var selected: Set<Data.Element.ID> = [row]
+            if extends {
+                if let stored = origin.anchor?.base as? Data.Element.ID, current.contains(stored),
+                   let found = index(of: stored, in: data) {
+                    anchor = AnyHashable(stored)
+                    selected = ids(from: found, to: next, in: data)
+                } else if let lead {
+                    anchor = AnyHashable(id(at: lead))
+                    selected = ids(from: lead, to: next, in: data)
+                }
+            }
+            if selected != current { binding.wrappedValue = selected }
+        }
+        table.withState(list, initial: ListOrigin()) {
+            $0.lead = AnyHashable(row)
+            $0.anchor = anchor
+        }
+        return row
+    }
 }
