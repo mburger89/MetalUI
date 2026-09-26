@@ -586,54 +586,13 @@ func aVerticalListInsideAHorizontalScrollViewBuildsEveryRow() throws {
             "the same numbers on the axis this List stacks on DO window it")
 }
 
-/// **CLAUDE.md divergence 14, pinned so its fix arrives as a red test.**
-///
-/// `ScrollContext` describes the SCROLLER — how far the scroller's content has
-/// moved under its viewport — and `visibleRange` reads it as though it
-/// described this `List`, i.e. as though row 0 sat at the scroller's content
-/// origin. A 300pt header above the list makes the two differ by exactly 300,
-/// and the window slides off the rows actually on screen: at offset 300 with a
-/// 112pt viewport the visible list-local band is 0...112, rows 0 through 3,
-/// while the rows built are 8 through 16.
-///
-/// **This test asserts the WRONG answer on purpose**, which is why it names it
-/// in its own message. Whoever gives `requestLayout` a position (or lays the
-/// scroller out twice) must delete or invert it; a `List` that starts building
-/// rows 0 through 5 here is correct, not regressed.
-///
-/// The consequence, measured through a real `ScrollView` rather than this
-/// hand-pushed context: every one of those nine rows paints at y 224 through
-/// 448 under a content mask of (0, 0) 100x112, so the list renders **blank**.
-///
-/// **Pinned on BOTH layout authorities since stage 4 lane 3** (`LR-CE`; the
-/// design assigned this row to lane 4 and lane 3 parameterised the whole file
-/// at once). The divergence is `visibleRange`'s, which is authority-blind, so
-/// the lowering neither fixes it nor makes it worse — and that is the claim the
-/// second arm makes.
-@Test @MainActor
-func aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows() throws {
-    let data = items(40)
-    var headerStyle = Style()
-    headerStyle.size.height = .length(.pixels(px(300)))
-    headerStyle.flexShrink = 0
-    var columnStyle = Style()
-    columnStyle.flexDirection = .column
-
-    let tree = Box(style: columnStyle) {
-        Box(style: headerStyle)
-        List(data, rowHeight: px(28)) { Row($0) }
-    }
-    let (frame, _) = renderWindowed(tree,
-                                    context: ScrollContext(offset: 300, viewportExtent: 112,
-                                                           axis: .vertical), frameHeight: 2000)
-
-    // Row indices, recovered by subtracting the header the list sits below.
-    let built = Set(frame.scrollRegions.map { Int(($0.bounds.origin.y.value - 300) / 28) })
-    #expect(built == Set(8...16),
-            "today's answer on both authorities, and it is the wrong one: the rows visible at this offset are 0 through 3")
-    #expect(built.isDisjoint(with: Set(0...5)),
-            "not one visible row (0 through 3, plus overscan) is among them")
-}
+// **Retired by plan task 10 part 1** (ruling `DD-F`, a retirement row):
+// `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows` pinned
+// divergence 14 — rows 8…16 built below a 300pt header at offset 300, every one
+// off screen. Its hand-pushed `ScrollContext` has no scroller, so it could not
+// see a measured origin at all and would have stayed green asserting the retired
+// answer. Divergence 14 retires; `aListBelowAHeaderWindowsTheRowsOnScreen`
+// (below, test 3.1) asserts the fix through a real `ScrollView`.
 
 /// **`Deferred`'s layout-phase escape**, the half `pass.deferred` does not
 /// cover: it resets the clip stack and the accumulated scroll translation for
@@ -848,3 +807,239 @@ func aListsSceneAndHitboxesAreUnchangedByTheGroup() throws {
 // can no longer be spelled; the re-spelled plain-import guard G6a
 // (`aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles`) is what now stops
 // a future edit putting `pass.requestNode` back (record §51, lane 1 row 10, R).
+
+// MARK: - Plan task 10 part 1, lane 2 (`DD-F`): the List's own origin, and the
+// one more frame a stale window asks for
+
+/// The rows one frame built, in build order, and each row's element id.
+@MainActor
+private final class RowLog {
+    var built: [Int] = []
+    var ids: [GlobalElementID] = []
+    func reset() { built = []; ids = [] }
+}
+
+/// A childless row that logs its index when it is BUILT (its `requestLayout`
+/// runs). It registers nothing, so a wheel over it reaches the `ScrollView`.
+private struct LoggingRow: Element {
+    let index: Int
+    let log: RowLog
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        log.built.append(index)
+        log.ids.append(id)
+        return (pass.lowerLegacyNode(Style(), declared: Style(), children: [], site: .box), ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {}
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+private struct Indexed: Identifiable { let id: String; let index: Int }
+
+private func indexed(_ n: Int) -> [Indexed] {
+    (0..<n).map { Indexed(id: "row-\($0)", index: $0) }
+}
+
+private func sized(width: Float? = nil, height: Float? = nil, column: Bool = false) -> Style {
+    var s = Style()
+    if column { s.flexDirection = .column }
+    if let width { s.size.width = .length(.pixels(px(width))) }
+    if let height { s.size.height = .length(.pixels(px(height))); s.flexShrink = 0 }
+    return s
+}
+
+/// A 200 × 200 window: an 88pt clickable strip, then a `ScrollView` taking the
+/// remaining 112pt, whose content is a header of `@State` height (0 until the
+/// strip is clicked, then 300 — or 300 from the start) above a `List` of 40
+/// rows at 28. Indicators hidden, so no fade asks for frames.
+private struct HeaderedList: Component {
+    @State var tall: Bool
+    let log: RowLog
+    let deferred: Bool
+
+    init(tall: Bool, log: RowLog, deferred: Bool = false) {
+        self._tall = State(wrappedValue: tall)
+        self.log = log
+        self.deferred = deferred
+    }
+
+    var content: some ElementGroup {
+        let log = self.log
+        let list = List(indexed(40), rowHeight: px(28)) { LoggingRow(index: $0.index, log: log) }
+        return Box(style: sized(width: 200, height: 200, column: true)) {
+            Box(style: sized(width: 200, height: 88)).onClick { tall = true }
+            ScrollView {
+                Box(style: sized(width: 200, column: true)) {
+                    Box(style: sized(width: 200, height: tall ? 300 : 0))
+                    if deferred {
+                        Deferred { list }
+                    } else {
+                        list
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+}
+
+private func wheel(_ deltaY: Float) -> InputEvent {
+    .scrollWheel(ScrollEvent(position: Point(x: px(100), y: px(150)),
+                             delta: Point(x: px(0), y: px(deltaY)), isMomentum: false))
+}
+
+/// The scroller's viewport, required to be the 112pt the scenarios assume.
+@MainActor
+private func requireViewport(_ window: Window, _ height: Float) throws {
+    let region = try #require(window.lastScrollRegions.first)
+    try #require(region.bounds.size.height.value == height,
+                 "control: the viewport is \(height)pt, got \(region.bounds.size.height.value)")
+}
+
+/// **3.1 (`DD-F` item 1; probe L2).** Real `Window`: a 300pt header above a
+/// `List` of 40 at 28 in a 112pt viewport, wheeled to 300 — the rows on screen
+/// are 0…3, and the rows built cover them and no more than the overscan
+/// (⊆ 0…5). **Red before: 8…16** (DD14, divergence 14). M3a (`visibleRange`
+/// ignores the stored origin).
+@Test @MainActor
+func aListBelowAHeaderWindowsTheRowsOnScreen() throws {
+    let log = RowLog()
+    let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 200) {
+        Box { HeaderedList(tall: true, log: log) }
+    }
+    window.drawFrameIfNeeded()
+    try requireViewport(window, 112)
+    try #require(log.built.count == 40, "control: the first frame is unbounded and builds every row")
+
+    log.reset()
+    platform.simulateInput(wheel(-300))
+    window.drawFrameIfNeeded()
+    let built = Set(log.built)
+    #expect(built.isSuperset(of: 0...3), "the rows on screen are built: \(log.built)")
+    #expect(built.isSubset(of: 0...5), "and nothing beyond the two rows of overscan: \(log.built)")
+}
+
+/// **3.2 (`DD-F` item 3).** A header toggled from 0 to 300 by a click while
+/// scrolled to 300: the frame after the click still windows against last
+/// frame's origin (rows 8…16), sees the fresh window is not contained and
+/// leaves `needsRedraw` true; the next frame's rows cover the rows on screen
+/// (0…3). **Red before**: the stale window, `needsRedraw` false. M3b
+/// (`requestAnotherFrame()` removed from `List.prepaint`).
+@Test @MainActor
+func aListWhoseOriginChangesIsReWindowedOnTheNextFrame() throws {
+    let log = RowLog()
+    let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 200) {
+        Box { HeaderedList(tall: false, log: log) }
+    }
+    window.drawFrameIfNeeded()
+    try requireViewport(window, 112)
+    platform.simulateInput(wheel(-300))
+    window.drawFrameIfNeeded()
+    try #require(Set(log.built).isSuperset(of: 8...11), "control: scrolled to 300 with no header")
+    try #require(!window.needsRedraw, "control: a settled scrolled frame asks for nothing")
+
+    let strip = try #require(window.lastHitboxes.last { $0.handlers.onClick != nil })
+    let point = Point(x: strip.bounds.origin.x + px(10), y: strip.bounds.origin.y + px(10))
+    platform.simulateInput(.mouseDown(MouseEvent(position: point)))
+    platform.simulateInput(.mouseUp(MouseEvent(position: point)))
+    log.reset()
+    window.drawFrameIfNeeded()
+    #expect(window.needsRedraw,
+            "the list moved 300pt down its scroller; its window went stale, so it asks for one more frame")
+
+    log.reset()
+    window.drawFrameIfNeeded()
+    #expect(Set(log.built).isSuperset(of: 0...3),
+            "the next frame windows against the new origin and covers the rows on screen: \(log.built)")
+    #expect(!window.needsRedraw, "and asks for nothing more")
+}
+
+/// A 112pt root `ScrollView` over a 112-wide `List` of `rows` at 28.
+@MainActor
+private func scrolledList(_ rows: Int, log: RowLog) -> some Element {
+    ScrollView {
+        Box(style: sized(width: 112, column: true)) {
+            List(indexed(rows), rowHeight: px(28)) { LoggingRow(index: $0.index, log: log) }
+        }
+    }
+    .scrollIndicators(.hidden)
+}
+
+/// **3.3 (`DD-F` items 3–4; divergence 13's effect).** 100 rows in a 112pt
+/// viewport, resized to 560: the first frame after the resize still windows
+/// against last frame's extent (0…5) and asks for a frame; the next
+/// `drawFrameIfNeeded()` builds 0…21. **Red before: 0 rows, `needsRedraw`
+/// false** (DD13). M3b; M3c (the containment test inverted).
+@Test @MainActor
+func aGrownViewportIsFilledOnTheNextFrameWithoutInput() throws {
+    let log = RowLog()
+    let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 112) {
+        scrolledList(100, log: log)
+    }
+    window.drawFrameIfNeeded()
+    window.setNeedsRedraw()
+    log.reset()
+    window.drawFrameIfNeeded()
+    try requireViewport(window, 112)
+    try #require(log.built == Array(0...5), "control: a bounded 112pt window builds 0…5, got \(log.built)")
+    try #require(!window.needsRedraw)
+
+    platform.simulateResize(to: Size(width: px(560), height: px(560)))
+    log.reset()
+    window.drawFrameIfNeeded()
+    #expect(log.built == Array(0...5), "the first frame after the resize windows against last frame's extent")
+    #expect(window.needsRedraw, "and, seeing a 560pt viewport it did not fill, asks for one more frame")
+
+    log.reset()
+    window.drawFrameIfNeeded()
+    #expect(log.built == Array(0...21), "the next frame fills the grown viewport with no input: \(log.built)")
+    #expect(!window.needsRedraw, "and asks for nothing more")
+}
+
+/// **3.4 (`DD-F` items 1 and 3).** A `ScrollView { List }`'s first frame —
+/// every row built, the window unbounded — leaves `needsRedraw` false: a frame
+/// that built every row contains any window. Also the pin that the stored
+/// origin never goes through `StateTable.write` (which would dirty the window).
+/// M3d (request whenever the fresh window differs, containment dropped).
+@Test @MainActor
+func anUnboundedListFrameAsksForNoExtraFrame() throws {
+    let log = RowLog()
+    let (window, _) = try makeFakeWindowOnDefaultDevice(size: 112) {
+        scrolledList(100, log: log)
+    }
+    window.drawFrameIfNeeded()
+    try #require(log.built.count == 100, "control: the first frame is unbounded")
+    #expect(!window.needsRedraw, "an unbounded frame contains every window and asks for nothing")
+}
+
+/// **3.5 (`DD-F` item 2).** Real `Window`: a `Deferred { List }` inside a
+/// scrolled `ScrollView` builds every row, asks for no frame, and stores no
+/// origin at the list's id — a portal has no scroller (`PrepaintPass.deferred`
+/// resets the scroller stack, as it resets the clip). M3e (`deferred` does not
+/// reset the scroller stack) — the origin arm is the one it reaches: the
+/// layout-time context is already absent inside a `Deferred`, so rows and
+/// frames alone cannot see it.
+@Test @MainActor
+func aListInADeferredInsideAScrollViewMeasuresNoScrollerOrigin() throws {
+    let log = RowLog()
+    let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 200) {
+        Box { HeaderedList(tall: true, log: log, deferred: true) }
+    }
+    window.drawFrameIfNeeded()
+    platform.simulateInput(wheel(-300))
+    log.reset()
+    window.drawFrameIfNeeded()
+    #expect(log.built.count == 40, "a list in a portal is not windowed by the scroller it escaped")
+    #expect(!window.needsRedraw, "and asks for no frame")
+
+    let rowBox = try #require(log.ids.first?.parent)
+    try #require(rowBox.component == .named(ElementID("row-0")), "control: the row box is named by the datum's id")
+    let listID = try #require(rowBox.parent)
+    #expect(!window.stateTable.ids.contains(listID),
+            "nothing measured this list's origin within a scroller it is not in")
+}
