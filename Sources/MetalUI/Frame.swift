@@ -81,6 +81,18 @@ public final class Frame {
     /// Ask for another frame after this one — for an animation in progress.
     func requestAnotherFrame() { wantsAnotherFrame = true }
 
+    /// Where a ``ScrollViewProxy`` built in this frame enqueues its
+    /// `scrollTo` requests (ruling `DD-G` item 3). `Window` replaces this with
+    /// its own queue before rendering, so a request outlives the frame whose
+    /// proxy made it; a bare `Frame`'s own queue dies with it.
+    var scrollRequestQueue = ScrollRequestQueue()
+
+    /// The typed keys noted this frame (`DD-K`).
+    private(set) var scrollKeys: [GlobalElementID: AnyHashable] = [:]
+
+    /// How many typed keys this frame noted — a work counter.
+    var scrollKeyCount: Int { scrollKeys.count }
+
     /// True once anything in this frame has reported an `Animation` that is
     /// still interpolating **after this frame's own update** — the property
     /// M4 spec 1 refused to declare without a writer (ruling `RX-O`), and the

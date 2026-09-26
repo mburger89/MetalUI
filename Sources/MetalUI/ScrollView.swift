@@ -3,23 +3,29 @@ import MetalUILayout
 
 public enum ScrollAxis: Sendable, Equatable { case vertical, horizontal }
 
-/// Whether `ScrollView` paints its fading overlay indicator.
+/// Whether `ScrollView` and `ProposalScrollView` paint their fading overlay
+/// indicator.
 ///
-/// **SwiftUI's spelling, deliberately narrowed to two cases** (ruling EP-5):
-/// SwiftUI's `ScrollIndicatorVisibility` also has `.visible` and `.never`,
-/// but those distinctions only pay off with nested scroll views and
-/// platform-level defaults this framework does not have. `.automatic` is
-/// this element's only behaviour today, so a third case would be a case
-/// that does nothing — the exact shape CLAUDE.md's declared-but-inert table
-/// exists to keep out. Add one later if a caller needs it; that is
-/// source-compatible, unlike shipping an inert case now.
+/// **SwiftUI's four cases, each with SwiftUI's measured macOS answer** (plan
+/// task 10, part 1, ruling `DD-H`, probe I0–I5): on overlay scrollers SwiftUI
+/// leaves the `NSScrollView` identical under `.automatic` and `.visible`, and
+/// removes the scroller under `.hidden`, `.never` and `showsIndicators: false`
+/// alike — so `.visible` paints as `.automatic` and `.never` as `.hidden`.
+/// This supersedes the `EP-5` note that narrowed the enum to two cases ("a
+/// third case would be inert"): the new cases are SwiftUI's spellings with
+/// SwiftUI's answers, not stored-but-unread state. Whether the "always show
+/// scroll bars" system setting separates them is unmeasured, and MetalUI reads
+/// no such setting.
 public enum ScrollIndicatorVisibility: Sendable, Equatable {
-    /// Today's behaviour: the thumb appears while scrolling and fades out
-    /// afterward. The default.
+    /// The thumb appears while scrolling and fades out afterward. The default.
     case automatic
+    /// As `.automatic` on macOS's overlay scrollers (probe I1, I2).
+    case visible
     /// No indicator is ever painted, and no frame is ever requested to fade
     /// one — `ScrollChrome.paintIndicator` returns before either happens.
     case hidden
+    /// As `.hidden` (probe I3–I5).
+    case never
 }
 
 /// Cross-frame scroll position, in logical points along the scroll axis.
