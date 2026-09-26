@@ -119,6 +119,12 @@ public struct Keystroke: Equatable, Sendable {
 /// `KeyBinding` is a plain value with no failable initializer and a keymap can be
 /// written as a literal list. A spelling that does not parse makes *that*
 /// binding inert and nothing else — same rule as a malformed `context`.
+///
+/// **Named `KeyBinding`, not `Binding`** (ruling `EV-N`): `Binding` is the
+/// SwiftUI value binding (`Binding.swift`, `DD-D`). The deprecated
+/// `typealias Binding = KeyBinding` that bridged task 9's rename was deleted
+/// with that type's arrival (`DD-D` item 6); `Binding("m", ToggleModal())` no
+/// longer compiles (`theKeyBindingAliasIsGoneSoBindingNamesTheValueBinding`).
 public struct KeyBinding {
     /// One or two `-`-separated strokes, separated from each other by a space:
     /// `"cmd-c"`, `"ctrl-k ctrl-f"`.
@@ -144,20 +150,6 @@ public struct KeyBinding {
         return parsed.map { $0! }
     }
 }
-
-/// The keymap entry's pre-task-9 name, kept compiling for one release (ruling
-/// EV-N).
-///
-/// **Renamed because a SwiftUI-like `Binding` needs the name** (plan task 10;
-/// ruling CO-Z recorded the collision): `@Binding var x` fails with a confusing
-/// error while a non-wrapper holds it, and a SwiftUI reader takes
-/// `Binding("m", ToggleModal())` for a value binding.
-///
-/// **Task 10 deletes this alias**, together with its guard
-/// `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding`, in the
-/// change that declares `Binding<Value>`: a module cannot hold both.
-@available(*, deprecated, renamed: "KeyBinding")
-public typealias Binding = KeyBinding
 
 /// A window's key bindings.
 ///

@@ -107,6 +107,23 @@ public struct State<Value> {
             table.write(slotID, newValue)
         }
     }
+
+    /// `$name` on a `@State var name`: a ``Binding`` that reads and writes this
+    /// state's slot **at call time** (ruling `DD-D` item 3), so a write from a
+    /// dispatched handler reaches the occurrence the handler belongs to
+    /// (`ID-F`, `Box.resolvedSlot`) and a write from anywhere else reaches the
+    /// last-bound one (divergence 71). It goes through ``wrappedValue``, so it
+    /// is a `@State` write in every respect — it dirties the window, and it
+    /// belongs in input, never in a phase (`DD-D` item 7).
+    ///
+    /// Declared here rather than beside `Binding` because a property wrapper's
+    /// projection must be in the wrapper's own body (measured: from an
+    /// extension, `$n` is "cannot find in scope").
+    public var projectedValue: Binding<Value> {
+        let state = self
+        return Binding(get: { state.wrappedValue },
+                       set: { state.wrappedValue = $0 })
+    }
 }
 
 extension State {

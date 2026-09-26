@@ -16,40 +16,11 @@ import MetalUITestSupport
 private let skipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUI not found — guard skipped"
 
-/// **G5 — the keymap's old `Binding` spelling still compiles, and is
-/// deprecated toward `KeyBinding`** (ruling EV-N, lane 1).
-///
-/// Two halves, and each is reddened by a different mutation:
-///
-/// - `succeeded`: deleting the typealias makes `Binding` unresolvable, so an
-///   external caller who wrote the old spelling stops compiling instead of
-///   getting a release to move.
-/// - `messages` naming `KeyBinding`: dropping `@available(*, deprecated,
-///   renamed:)` leaves the alias compiling silently, so nobody is told to move
-///   before task 10 deletes the name. The assertion reads `messages`, never
-///   `output`: the fixture's own source never spells `KeyBinding`, but a
-///   diagnostic-free `output` must not be able to satisfy it by accident either.
-///
-/// **This guard is deleted by task 10** in the change that introduces a
-/// SwiftUI-like `Binding<Value>`, since a module cannot declare both (EV-N).
-///
-/// The deprecation warning is printed by the child `swiftc`, whose output the
-/// helper captures through a pipe, so it does not reach the suite log's
-/// `warning:` count.
-@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding() throws {
-    let result = try typecheck("""
-        struct A: Action {}
-        let k = Keymap([Binding("cmd-k", A())])
-        _ = k
-        """, importing: "MetalUI")
-    #expect(result.succeeded,
-            "the deprecated `Binding` spelling must still compile:\n\(result.output)")
-    #expect(result.messages.contains("'Binding' is deprecated"),
-            "`Binding` must carry a deprecation diagnostic:\n\(result.output)")
-    #expect(result.messages.contains("KeyBinding"),
-            "the deprecation must name its replacement, `KeyBinding`:\n\(result.output)")
-}
+// **G5 was deleted by plan task 10** (ruling `DD-D` item 6, a retirement
+// row): `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding`
+// pinned `EV-N`'s deprecated `typealias Binding = KeyBinding`, which went in
+// the change that declared the value `Binding<Value>`. Its fact is inverted by
+// `BindingCompileGuards`' `theKeyBindingAliasIsGoneSoBindingNamesTheValueBinding`.
 
 // MARK: - Lane 2: the environment's public shape (EV-C, EV-G, EV-J, EV-U, EV-W)
 
