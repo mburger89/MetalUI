@@ -289,7 +289,8 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   a resize is drawn correct); **divergences 78 and 79 are added** (`Binding`
   is main-actor isolated where SwiftUI's is not; a `ForEach` whose ids
   collide in description produces only the first, where SwiftUI evaluates
-  both) — live count **56 → 57**. **0 px against `e7bc2e7` in all fourteen
+  both) — live count **56 → 56** (two retire, two are added; the branch's
+  first write-up read 56 → 57, omitting 14's retirement from the arithmetic). **0 px against `e7bc2e7` in all fourteen
   offscreen images**, scene identical, independently re-taken by this Record
   phase; `Backends/SDL` 21 + 22 on macOS, 21 + 21 in a `swift:6.4-noble`
   aarch64 container (unmoved — no source in `Backends/SDL` touched); the
@@ -2162,7 +2163,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**57 live**, stable labels; retired labels never
+- **Known divergences** (**56 live**, stable labels; retired labels never
   reused: 3, 4, 5–8, 11, 12, 14, 15, 17, 18, 19, 24, 36, 37, 40, 45, 48, 59, 69, 74) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
   its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
@@ -2270,13 +2271,17 @@ expected, measured facts:
   gets no row**: its AppKit/SDL mapping is stated as MetalUI's own choice, not
   a measured SwiftUI fact — the probe's C1–C3/C5 arms never ran (screen
   locked), so there is nothing yet to diverge *from* (`EV-AB`).
-  **Plan task 10 part 1 retires 74 and adds 78 and 79** (56 → 57 live; record
+  **Plan task 10 part 1 retires 74 and 14, amends 13, and adds 78 and 79** (56 → 56 live, net zero; record
   §04's 2026-09-25 task-10-part-1 section, rulings `DD-A`…`DD-P`): 74 (an
   element a `for` loop stops producing kept its state and got it back if the
   loop regrew) retires under `DD-C` — a loop now notes its slot and the
   extent it consumed and resets a dropped positional tail or a dropped named
   child exactly as `ID-C`'s evaluated-conditional reset already does; `ForEach`
-  (new, `DD-B`) gets the identical rule. **Added**: 78 (`Binding` is
+  (new, `DD-B`) gets the identical rule. **14** (a `List` below a flow sibling in its
+  scroller windowed against the scroller's origin and rendered blank) retires
+  under `DD-F` — the list windows against its own origin, last frame's
+  measurement; **13** is amended, kept (the first frame after a resize is
+  still stale, but the list asks for exactly one more frame). **Added**: 78 (`Binding` is
   `@MainActor`, where SwiftUI's is nonisolated and `Sendable`, kept, `DD-D`
   item 4), 79 (a `ForEach` whose ids collide in description but differ in
   value produces only the first of them, where SwiftUI evaluates both, kept,

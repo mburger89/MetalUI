@@ -348,7 +348,7 @@ tree (`swift package clean` first):
 Nothing above moved from the lanes' own readings; this phase found no new
 issue.
 
-## 6. Divergences (record §04): 74 retires; 78 and 79 added
+## 6. Divergences (record §04): 74 and 14 retire; 13 amended; 78 and 79 added
 
 **74 retires** (`DD-C`): an element a `for` loop stops producing no longer
 keeps its state and gets it back if the loop regrows — it starts fresh, as
@@ -361,7 +361,11 @@ added** (kept, pinned wrong on purpose, `DD-L`): a `ForEach` whose ids
 collide in description (`AnyHashable(1)` vs `AnyHashable("1")`) produces only
 the first of them, where SwiftUI evaluates both (probe S6) — MetalUI cannot
 give the two identities without risking the same aliasing `ID-F` exists to
-repair. Live count moves **56 → 57**.
+repair. **14 retires and 13 is amended** (`DD-F`, section 3 above; record
+§04's section carries both). Live count **56 → 56**: two retire, two are
+added. (The first write-up of this section read "56 → 57" and left 14 out of
+the arithmetic and out of record §04's section; corrected by the branch
+checker.)
 
 ## 7. Declared but inert (record §05): no row added or deleted
 
@@ -411,3 +415,55 @@ Spec `docs/superpowers/specs/2026-09-25-data-and-scrolling-design.md`:
 **DELIVERED (part 1)**. Decisions doc: **DESIGNED, CRITICISED, REVISED, AND
 DELIVERED**; next unused ruling id **`DD-Q`**. Plan task 10's checkbox stays
 unticked — see the plan's own dated progress note.
+
+## 11. Branch checker (adversarial, `e7bc2e7..054d755`)
+
+- **Clean build and full suite, re-taken**: `swift package clean`, `swift
+  build --build-system native --build-tests` (0 `error:`, the one `warning:`
+  SwiftPM's deprecation notice), unfiltered `swift test --build-system native
+  --no-parallel` → `Test run with 1556 tests in 3 suites passed`; the log
+  carries `FR-J no-argument frame: succeeded=`. Guards 96 (`grep -c
+  canTypecheck`, 94 in `Tests/MetalUITests` plus `UnitSafetyTests`' 2 of 3
+  hits). `cmp CLAUDE.md AGENTS.md` clean. Every `DD-` id cited in a changed
+  doc resolves to a heading; every test name cited in an added line resolves
+  to a `func`, except three cited as retired or renamed
+  (`aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`,
+  `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding`,
+  `aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop`).
+- **Two mutations of the checker's own**, each a full unfiltered run with the
+  source restored from a copy and `git status --short` empty after:
+  - **MA** — `StateTable.queueLoopResets`' named half keyed on
+    `previousLoopExtents[parent] != nil` instead of `loopExtents[parent] != nil`
+    (a loop's dropped names reset even when the loop was not evaluated this
+    frame; `DD-C` item 3): 1556 tests, **2 issues, both in
+    `aLoopInsideAWindowedListRowKeepsItsStateWhileTheRowIsOut`** (`row4-x`
+    and `row4-y` not 4). Nothing else reddens.
+  - **MB** — `Frame.applyScrollResolutions`' `requestAnotherFrame()` removed
+    (a resolved `scrollTo` writes the offset but asks for no frame to show
+    it): 1556 tests, **1 issue, in `scrollToReachesAnUnrealisedListRow`**
+    (`log.indices.contains(150)`). Every other `scrollTo` test drives its
+    frames explicitly, so this one test is the whole pin for "and asks for
+    that next frame".
+- **Offscreen demo comparison re-taken** (`docs/probes/demo-pixels/compare.sh`,
+  `e7bc2e7` → `054d755`): 0 differing, scene identical, in all fourteen
+  images; controls non-zero as the script requires. **Real-window capture not
+  taken**: the lock probe read `CGSSessionScreenIsLocked = 1` and
+  `displayAsleep main: 1`.
+- **The 100 000-row test** (`METALUI_RUN_100K_LIST_TEST=1`) passed;
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` and
+  `theSevenRetentionSlotsAreMutuallyDistinct` green in the full run.
+  `MetalUILayout` imports only `MetalUICore`. `Backends/SDL` on macOS: 21 +
+  22. A fresh `swift:6.4-noble` container: the root package's `swift build
+  --build-tests` prints 0 `error:`/`warning:`, and `MetalUICrossPlatformTests`
+  (10, `theDemoFrameMatchesTheValuesRecordedOnMacOS` among them) pass;
+  `Expected.swift` is unedited.
+- **Doc defect fixed**: the live divergence count. §6 and record §04's
+  section read "56 → 57, one retires, two are added" and record §04's section
+  omitted 14's retirement (and 13's amendment) that `DD-F`, §3, `CLAUDE.md`'s
+  retired-label list and the README's all record. Two retire (74, 14), two are
+  added (78, 79): **56 live**. Corrected in `CLAUDE.md`/`AGENTS.md` (the
+  counts paragraph, the reference table's count and its task-10 sentence),
+  record §04 (header, count, and new 14 and 13 bullets), §6 above, record
+  `README.md` and the top-level `README.md`. The decisions doc's status line
+  now says DELIVERED.

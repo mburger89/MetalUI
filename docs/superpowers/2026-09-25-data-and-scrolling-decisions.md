@@ -7,7 +7,8 @@ citation. **A round that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-25: DESIGNED, then CRITICISED AND REVISED** (the critic
 round appended `DD-K`…`DD-M` and amended `DD-A`, `DD-B`, `DD-D`, `DD-F` and
-`DD-G` in place, each amendment marked "critic round"). Plan task 10 is split in two by the
+`DD-G` in place, each amendment marked "critic round"), **then DELIVERED** (lanes 1–3
+appended `DD-N`…`DD-P`; record §57). Plan task 10 is split in two by the
 workflow that runs it: **part 1** (this doc) is `ForEach` and identified data,
 a SwiftUI `Binding`, the `List`/`ScrollView` limitations that blank a layout,
 and scroll position, indicators and programmatic scrolling; **part 2** (the

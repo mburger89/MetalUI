@@ -305,7 +305,7 @@ controls (`docs/probes/swiftui-frame-semantics.swift`, `…-negative-sizes.swift
 and `docs/probes/` holds the other re-runnable SwiftUI probes; the earliest
 probes survive only as prose.
 
-Fifty-seven measured divergences from CSS, SwiftUI or WebKit are tabled in
+Fifty-six measured divergences from CSS, SwiftUI or WebKit are tabled in
 [`CLAUDE.md`](CLAUDE.md); retired labels (3, 4, 5–8, 11, 12, 14, 15, 17, 18,
 19, 24, 36, 37, 40, 45, 48, 59, 69, 74) are never reused — most retirements
 are a later task's own fix landing SwiftUI's answer, not a correction of the

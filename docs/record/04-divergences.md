@@ -1620,11 +1620,14 @@ SwiftUI fact (as most divergence rows are) would be wrong to cite it as one:
 it is MetalUI's own choice pending the C-arm re-run, stated as such in `EV-AB`
 and not given a divergence number for exactly that reason.
 
-## 2026-09-25: 74 retires; 78 and 79 added (plan task 10, part 1 — data and scrolling)
+## 2026-09-25: 74 and 14 retire; 13 amended; 78 and 79 added (plan task 10, part 1 — data and scrolling)
 
 Record §57; rulings `DD-A`…`DD-P` in
 `docs/superpowers/2026-09-25-data-and-scrolling-decisions.md`. **The table
-moves from fifty-six to fifty-seven live**: one retires, two are added.
+stays at fifty-six live**: two retire, two are added. (The branch's first
+write-up of this section read "moves from fifty-six to fifty-seven live: one
+retires, two are added" — it left out 14, which `DD-F` retires; corrected by
+the branch checker.)
 
 - **74 retires** (`DD-C`): an element a `for` loop stops producing was kept —
   it got its old state back if the loop regrew. It is now **fixed to
@@ -1651,6 +1654,23 @@ moves from fifty-six to fifty-seven live**: one retires, two are added.
   direct children are considered, so a `List` inside a surviving element
   keeps its rows' retention (rows are not the loop's children), and a
   `List`'s own rows stay exempt from this rule too (they are not a loop).
+- **14 retires** (`DD-F`): a `List` with anything in flow above it in its
+  scroller windowed against the SCROLLER's origin and so built rows off
+  screen, rendering blank (300pt header, 40 rows at 28, viewport 112, offset
+  300: rows 8…16 built where 0…3 are visible). The list now stores its own
+  origin within the scroller's content in `prepaint` (last frame's
+  measurement, at its own id through `withState`) and windows against it —
+  `MP-L`'s "requestLayout has no position" met as `ScrollState.viewportExtent`
+  already meets the viewport. The retired pin
+  `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows` (a synthetic
+  harness with no scroller) is replaced by `aListBelowAHeaderWindowsTheRowsOnScreen`
+  and `aListInAScrollerBelowTheWindowOriginWindowsTheRowsOnScreen`. The label
+  joins the never-reused list.
+- **13 is amended, kept** (`DD-F` items 3–4): the first frame after a resize
+  still windows against last frame's extent (the two rows of overscan remain
+  its only cover), but the list now calls `requestAnotherFrame()` once when
+  the fresh window is not contained in the one it built, so the next frame is
+  drawn and correct with no input (`aGrownViewportIsFilledOnTheNextFrameWithoutInput`).
 - **78 is added** (kept, pinned wrong on purpose, `DD-D` item 4): `Binding`
   is `@MainActor`, where SwiftUI's is nonisolated and `Sendable` with
   `@isolated(any)` closures — `State` is already main-actor-only in MetalUI
