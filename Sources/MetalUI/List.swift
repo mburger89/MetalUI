@@ -264,6 +264,9 @@ where Data.Element: Identifiable {
     /// measurements would give (ruling `DD-F` item 3).
     private var builtWindow: Range<Int> = 0..<0
 
+    /// The selection model (`DD-Z` item 1): none, single or multi.
+    private var selection: ListSelection<Data.Element.ID> = .none
+
     /// `List`'s layout state, as a **public wrapper around an internal one**.
     ///
     /// `Element.LayoutState` is inferred from `requestLayout`'s return, and
@@ -595,6 +598,30 @@ where Data.Element: Identifiable {
                                pass: inout PaintPass) {
         box.paint(id, bounds: bounds, layout: &layout.inner, prepaint: &prepaint.inner, pass: &pass)
     }
+}
+
+extension List {
+    /// A list whose rows select into `selection`, one row at a time
+    /// (SwiftUI's `List(_:selection:rowContent:)`; ruling `DD-Z`).
+    public init(_ data: Data, selection: Binding<Data.Element.ID?>, rowHeight: Pixels,
+                @ElementBuilder row: @escaping (Data.Element) -> Row) {
+        self.init(data, rowHeight: rowHeight, row: row)
+        self.selection = .single(selection)
+    }
+
+    /// A list whose rows select into the set `selection` (ruling `DD-Z`).
+    public init(_ data: Data, selection: Binding<Set<Data.Element.ID>>, rowHeight: Pixels,
+                @ElementBuilder row: @escaping (Data.Element) -> Row) {
+        self.init(data, rowHeight: rowHeight, row: row)
+        self.selection = .multi(selection)
+    }
+}
+
+/// A `List`'s selection model (`DD-Z` item 1).
+enum ListSelection<ID: Hashable> {
+    case none
+    case single(Binding<ID?>)
+    case multi(Binding<Set<ID>>)
 }
 
 /// A `List`'s origin within its scroller's content, in points down the

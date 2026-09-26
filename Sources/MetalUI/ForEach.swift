@@ -177,3 +177,25 @@ extension ForEach: ProposalElementGroup where Content: ProposalElementGroup {
         return (produced.nodes, produced.layout)
     }
 }
+
+extension ForEach {
+    /// A `ForEach` over a binding to a collection, handing each element a
+    /// binding to itself (SwiftUI's `ForEach(_:content:)` over a `Binding`;
+    /// ruling `DD-AA`).
+    public init<C: MutableCollection & RandomAccessCollection>(
+        _ data: Binding<C>, @ElementBuilder content: @escaping (Binding<C.Element>) -> Content)
+        where C.Element: Identifiable, ID == C.Element.ID, Data == [ForEachBindingSlot<C>] {
+        let collection = data.wrappedValue
+        let slots = collection.indices.map { ForEachBindingSlot<C>(index: $0, id: collection[$0].id,
+                                                                   initial: collection[$0]) }
+        self.init(slots, id: \.id) { slot in content(.constant(slot.initial)) }
+    }
+}
+
+/// One element of a ``ForEach`` over a binding: its index and its id (ruling
+/// `DD-AA`). Opaque outside the framework.
+public struct ForEachBindingSlot<C: MutableCollection & RandomAccessCollection> where C.Element: Identifiable {
+    let index: C.Index
+    let id: C.Element.ID
+    let initial: C.Element
+}
