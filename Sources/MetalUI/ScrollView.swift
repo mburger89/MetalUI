@@ -198,8 +198,9 @@ public struct ScrollView<Content: ElementGroup>: Element {
     }
 
     /// Sets whether the fading overlay indicator is ever painted.
-    /// `.hidden` suppresses it entirely, including the frame requests it
-    /// makes while fading — see `ScrollChrome.paintIndicator`'s guard.
+    /// `.hidden` and `.never` suppress it entirely, including the frame
+    /// requests it makes while fading — see `ScrollChrome.paintIndicator`'s
+    /// guard; `.visible` paints as `.automatic` (ruling `DD-H`).
     public func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> Self {
         var copy = self
         copy.indicatorVisibility = visibility
@@ -359,7 +360,8 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // `DD-F` item 2: the content prepaints inside this scroller's frame.
         let scroller = ScrollerFrame(scrollerID: id, axis: axis,
                                      contentOrigin: pass.bounds(of: layout.contentNode).origin,
-                                     viewport: bounds, offset: offset)
+                                     viewport: bounds, offset: offset,
+                                     contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size))
         var result: Content.GroupPrepaint!
         pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
                     cornerRadii: Corners(all: cornerRadius)) {

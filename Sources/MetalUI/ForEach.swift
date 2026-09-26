@@ -92,6 +92,9 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
         var nodes: [Node] = []
         var members: [Member] = []
         members.reserveCapacity(data.count)
+        // `DD-K`: typed keys only while a `scrollTo` is pending — one flag read
+        // per `ForEach` otherwise.
+        let notesKeys = pass.frame.notesScrollKeys
         for element in data {
             let key = element[keyPath: idKeyPath]
             let name = String(describing: key)
@@ -100,6 +103,7 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
             guard seenIDs.insert(key).inserted, seenNames.insert(name).inserted else { continue }
             let scope = GlobalElementID.child(of: slot, at: offset, name: ElementID(name))
             pass.frame.stateTable.noteNamed(scope, at: offset)  // `ID-R`, the scope's own copy
+            if notesKeys { pass.frame.noteScrollKey(scope, AnyHashable(key)) }
             offset += 1
             var built = content(element)
             let (childNodes, childLayout) = register(&built, scope, &pass)

@@ -87,11 +87,157 @@ public final class Frame {
     /// proxy made it; a bare `Frame`'s own queue dies with it.
     var scrollRequestQueue = ScrollRequestQueue()
 
-    /// The typed keys noted this frame (`DD-K`).
+    // MARK: - `scrollTo` resolution (plan task 10, part 1, rulings `DD-G`, `DD-K`)
+
+    /// The requests this frame resolves, taken from `scrollRequestQueue` when
+    /// the frame starts rendering. Anything still unresolved after prepaint is
+    /// dropped (T8): a request never outlives the frame that looked for it.
+    private var scrollRequests: [ScrollRequest] = []
+    private var scrollRequestResolved: [Bool] = []
+    private var unresolvedScrollRequestCount = 0
+
+    /// Whether any request is still looking for its target — the one flag
+    /// `recordElementBounds` and `List.prepaint` read before doing any work.
+    var hasUnresolvedScrollRequests: Bool { unresolvedScrollRequestCount > 0 }
+
+    /// Whether this frame notes typed keys (`DD-K`): true only while a request
+    /// is pending, so a steady frame pays one flag read per `ForEach` and per
+    /// `List` and notes nothing (`scrollKeyCount` reads 0).
+    private(set) var notesScrollKeys = false
+
+    /// The typed keys noted this frame (`DD-K`): each `ForEach` element scope's
+    /// key and each realised `List` row's `datum.id`, by the scope's or row's
+    /// id. `recordElementBounds`' match reads an id's key here first and falls
+    /// back to its `String` name, so `scrollTo(10)` does not reach a `ForEach`
+    /// element keyed `"10"` or an `.id("10")`.
     private(set) var scrollKeys: [GlobalElementID: AnyHashable] = [:]
 
     /// How many typed keys this frame noted — a work counter.
     var scrollKeyCount: Int { scrollKeys.count }
+
+    /// Each resolved request's scroller and the offset it moves to, in
+    /// resolution order — applied after paint (`applyScrollResolutions`).
+    private var scrollResolutions: [(scroller: GlobalElementID, offset: Double)] = []
+
+    /// Notes `id`'s typed key. Callers check `notesScrollKeys` first.
+    func noteScrollKey(_ id: GlobalElementID, _ key: AnyHashable) {
+        scrollKeys[id] = key
+    }
+
+    /// Takes the window's pending requests at the start of a render.
+    private func beginScrollRequests() {
+        scrollRequests = scrollRequestQueue.take()
+        scrollRequestResolved = Array(repeating: false, count: scrollRequests.count)
+        unresolvedScrollRequestCount = scrollRequests.count
+        notesScrollKeys = !scrollRequests.isEmpty
+    }
+
+    /// The unresolved requests whose reader encloses `id`, as (index, key).
+    func unresolvedScrollRequests(enclosing id: GlobalElementID) -> [(index: Int, key: AnyHashable)] {
+        guard hasUnresolvedScrollRequests else { return [] }
+        return scrollRequests.indices.compactMap { index in
+            guard !scrollRequestResolved[index],
+                  Self.isStrictDescendant(id, of: scrollRequests[index].scope) else { return nil }
+            return (index, scrollRequests[index].key)
+        }
+    }
+
+    /// Whether request `index` has already found its target (first match wins).
+    func isScrollRequestResolved(_ index: Int) -> Bool { scrollRequestResolved[index] }
+
+    /// Resolves request `index` against `target` (layout space) and the
+    /// innermost scroller frame in effect — the target's nearest scroller
+    /// (T14). A target in no scroller resolves to nothing, and the request is
+    /// spent either way.
+    func resolveScrollRequest(_ index: Int, target: Bounds<Pixels>) {
+        guard !scrollRequestResolved[index] else { return }
+        scrollRequestResolved[index] = true
+        unresolvedScrollRequestCount -= 1
+        guard let scroller = activeScrollerFrame else { return }
+        let offset = Self.scrollOffset(bringing: target, into: scroller,
+                                       anchor: scrollRequests[index].anchor)
+        scrollResolutions.append((scroller.scrollerID, offset))
+    }
+
+    /// Matches every unresolved request against `id` and its ancestors — the
+    /// first element recorded at or under a key equal to the request's, inside
+    /// the request's reader (`DD-G` item 2, `DD-K`). Called by
+    /// `recordElementBounds`, which the four element-bounds sites already call
+    /// in document order, so the first match is the first such element.
+    private func matchScrollRequests(_ id: GlobalElementID, _ bounds: Bounds<Pixels>) {
+        var ancestor: GlobalElementID? = id
+        while let candidate = ancestor, hasUnresolvedScrollRequests {
+            if let key = scrollKey(of: candidate) {
+                for index in scrollRequests.indices
+                where !scrollRequestResolved[index] && scrollRequests[index].key == key
+                    && Self.isStrictDescendant(candidate, of: scrollRequests[index].scope) {
+                    resolveScrollRequest(index, target: bounds)
+                }
+            }
+            ancestor = candidate.parent
+        }
+    }
+
+    /// `id`'s key: its typed key when one was noted, else its `String` name
+    /// (an `.id(_:)`, `ID-G`), else none.
+    private func scrollKey(of id: GlobalElementID) -> AnyHashable? {
+        if let typed = scrollKeys[id] { return typed }
+        if case .named(let name) = id.component { return AnyHashable(name.name) }
+        return nil
+    }
+
+    /// Whether `scope` is a proper ancestor of `id` — a proxy's reach (S0–S2).
+    private static func isStrictDescendant(_ id: GlobalElementID, of scope: GlobalElementID) -> Bool {
+        var ancestor = id.parent
+        while let candidate = ancestor {
+            if candidate == scope { return true }
+            ancestor = candidate.parent
+        }
+        return false
+    }
+
+    /// The offset that brings `target` into `scroller` (`DD-G` item 2):
+    /// with an anchor, `minY − anchor.y × (viewport − height)` (T1–T3, T9;
+    /// `x`/`width` horizontally, T11); with none, the least distance — above
+    /// → top-aligned, below → bottom-aligned, visible → unmoved (T4–T6).
+    /// Clamped to the content (T7).
+    static func scrollOffset(bringing target: Bounds<Pixels>, into scroller: ScrollerFrame,
+                             anchor: UnitPoint?) -> Double {
+        let vertical = scroller.axis == .vertical
+        let start = Double(vertical ? target.origin.y.value - scroller.contentOrigin.y.value
+                                    : target.origin.x.value - scroller.contentOrigin.x.value)
+        let length = Double(vertical ? target.size.height.value : target.size.width.value)
+        let viewport = scroller.viewportExtent
+        let offset: Double
+        if let anchor {
+            offset = start - (vertical ? anchor.y : anchor.x) * (viewport - length)
+        } else if start < scroller.offset {
+            offset = start
+        } else if start + length > scroller.offset + viewport {
+            offset = start + length - viewport
+        } else {
+            offset = scroller.offset
+        }
+        return ScrollChrome.clamp(offset: offset, content: scroller.contentExtent, viewport: viewport)
+    }
+
+    /// Writes each resolved scroller's offset — after paint, so the frame that
+    /// resolved a request paints the old offset consistently with its
+    /// hitboxes, and the next frame shows the new one — through `withState`
+    /// (as `ScrollChrome.resolvedOffset`'s write-back does: no `onWrite`), and
+    /// asks for that next frame. Then drops every request, resolved or not.
+    private func applyScrollResolutions() {
+        for resolution in scrollResolutions {
+            stateTable.withState(resolution.scroller, initial: ScrollState()) {
+                $0.offset = resolution.offset
+            }
+        }
+        if !scrollResolutions.isEmpty { requestAnotherFrame() }
+        scrollResolutions = []
+        scrollRequests = []
+        scrollRequestResolved = []
+        unresolvedScrollRequestCount = 0
+    }
 
     /// True once anything in this frame has reported an `Animation` that is
     /// still interpolating **after this frame's own update** — the property
@@ -1614,7 +1760,12 @@ public final class Frame {
     private(set) var elementBounds: [GlobalElementID: Bounds<Pixels>] = [:]
 
     /// Records `bounds` for `id` when this frame records element bounds.
+    ///
+    /// **Also where a pending `scrollTo` finds its target** (ruling `DD-G`
+    /// item 3), whether or not the frame records bounds: one flag read per
+    /// element while no request is pending.
     func recordElementBounds(_ id: GlobalElementID, _ bounds: Bounds<Pixels>) {
+        if hasUnresolvedScrollRequests { matchScrollRequests(id, bounds) }
         guard recordsElementBounds else { return }
         elementBounds[id] = bounds
     }
@@ -1926,6 +2077,7 @@ public final class Frame {
 
     private func renderOutsideDispatch<E: Element>(_ element: inout E) {
         isRendering = true
+        beginScrollRequests()  // `DD-G` item 3: before layout, where `ForEach` and `List` note keys
         // The root is the only id with no parent, and the only one this file
         // builds. `at: 0` is not inert: an unnamed root element takes
         // `.positional(0)`, which is what gives a `Row { … }` rendered straight
@@ -2011,6 +2163,7 @@ public final class Frame {
         }
         glyphAtlas.endFrame()
         textSystem.endFrame()
+        applyScrollResolutions()
 
         // After the frame, not before — but **not for the reason it is tempting
         // to write down.** Sweeping first does *not* discard everything the

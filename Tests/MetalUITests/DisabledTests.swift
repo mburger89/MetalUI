@@ -971,7 +971,9 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// stands at integration (environment track, second verification round):
 /// `Frame.registerScrollRegion` inserts its hitbox directly, not through
 /// `registerHandlers`, so the disabled gate never sees it. SwiftUI's answer is
-/// **unmeasured** (ruling EV-Q's task-10 item); this pins MetalUI's, so a change
+/// **unmeasured** (ruling EV-Q's task-10 item; plan task 10's `DD-I` item 3 kept
+/// MetalUI's answer — the probe's enabled control, W0, read 0 with the screen
+/// locked — and owes a human look); this pins MetalUI's, so a change
 /// either way is a decision rather than an accident. Control: the same scroller
 /// enabled reads the same offset, and a wheel that misses reads 0, so the
 /// instrument can tell a scroll from none.
@@ -1007,5 +1009,5 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     let enabled = try offset(disabled: false, at: pt(20, 100))
     try #require(missed == 0 && enabled > 0, "the instrument: a miss reads \(missed), a hit \(enabled)")
     let disabled = try offset(disabled: true, at: pt(20, 100))
-    #expect(disabled == enabled, "a disabled ScrollView scrolls as an enabled one does (unpinned choice, EV-Q)")
+    #expect(disabled == enabled, "a disabled ScrollView scrolls as an enabled one does (kept by DD-I item 3; SwiftUI unmeasured, EV-Q)")
 }

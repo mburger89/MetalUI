@@ -116,6 +116,7 @@ public struct ScrollViewProxy {
     ///   is resolved by the next frame and shows one frame after that; an id
     ///   that frame does not find does nothing, and the request is dropped.
     public func scrollTo<ID: Hashable>(_ id: ID, anchor: UnitPoint? = nil) {
+        queue?.enqueue(ScrollRequest(scope: scope, key: AnyHashable(id), anchor: anchor))
     }
 }
 

@@ -90,7 +90,8 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         // `DD-F` item 2: the content prepaints inside this scroller's frame.
         let scroller = ScrollerFrame(scrollerID: id, axis: axis,
                                      contentOrigin: pass.bounds(of: layout.contentNode).origin,
-                                     viewport: bounds, offset: offset)
+                                     viewport: bounds, offset: offset,
+                                     contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size))
         var result: Content.GroupPrepaint!
         pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
                      cornerRadii: Corners(all: cornerRadius)) {

@@ -42,6 +42,12 @@ public final class Window {
     /// it from `Tests/MetalUITests`.
     let stateTable = StateTable()
 
+    /// The pending `ScrollViewProxy.scrollTo` requests (ruling `DD-G` item 3),
+    /// handed to each `Frame` before it renders. An enqueue dirties the window
+    /// (below, in `init`), so a request made from a handler while the display
+    /// link is paused still draws the frame that resolves it.
+    let scrollRequests = ScrollRequestQueue()
+
     /// The shaping cache (spec §3.2), owned here for the same reason
     /// `stateTable` is: a `Frame` lives for one frame and a cache that died with
     /// it would re-shape every string through CoreText on every frame, with the
@@ -513,6 +519,7 @@ public final class Window {
         // Captured weakly: `self` owns `stateTable`, so a strong capture here
         // would be a retain cycle.
         stateTable.onWrite = { [weak self] in self?.setNeedsRedraw() }
+        scrollRequests.onEnqueue = { [weak self] in self?.setNeedsRedraw() }
 
         // Also the backing-scale path (ruling EV-AA): both platforms report a
         // move between displays through `onResize`, and the next frame's
@@ -958,6 +965,7 @@ public final class Window {
         var rootEnvironment = environment
         rootEnvironment.controlActiveState = controlActiveState
         frame.rootEnvironment = rootEnvironment
+        frame.scrollRequestQueue = scrollRequests
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three

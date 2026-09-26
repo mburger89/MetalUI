@@ -442,6 +442,17 @@ where Data.Element: Identifiable {
         let windowStart = data.index(data.startIndex, offsetBy: window.lowerBound)
         let windowEnd = data.index(data.startIndex, offsetBy: window.upperBound)
 
+        // `DD-K`: while a `scrollTo` is pending, each realised row's `datum.id`
+        // is its typed key, so a row keyed `2` is not reached by `"2"` through
+        // its `String` name. The row is named directly under the list.
+        if pass.frame.notesScrollKeys {
+            for datum in data[windowStart..<windowEnd] {
+                let rowID = GlobalElementID.child(of: id, at: 0,
+                                                  name: ElementID(String(describing: datum.id)))
+                pass.frame.noteScrollKey(rowID, AnyHashable(datum.id))
+            }
+        }
+
         let rows: [Box<Row>] = data[windowStart..<windowEnd].enumerated().map { offset, datum in
             // `String(describing:)` is the collision the type doc names —
             // distinct `datum.id`s that describe the same string land here as
@@ -494,6 +505,7 @@ where Data.Element: Identifiable {
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> PrepaintState {
         noteOriginAndStaleness(id, bounds: bounds, pass: pass)
+        if pass.frame.hasUnresolvedScrollRequests { resolveScrollRequests(id, bounds: bounds, pass: pass) }
         // **An unbounded window publishes the table and no rows** (ruling AB-X
         // rule 1): it built every row, and a client active at frame 0 would
         // otherwise be handed a row and a text per datum, then see them all
@@ -556,6 +568,26 @@ where Data.Element: Identifiable {
         let contained = fresh.isEmpty
             || (builtWindow.lowerBound <= fresh.lowerBound && fresh.upperBound <= builtWindow.upperBound)
         if !contained { pass.frame.requestAnotherFrame() }
+    }
+
+    /// Ruling `DD-G` item 2 (T15) and `DD-K`: a pending `scrollTo` whose key
+    /// equals a row's `datum.id` — realised or not — targets that row's rect,
+    /// computed from its index at the uniform `rowHeight`. Before the rows
+    /// prepaint, so the list's own answer is the first match for its rows.
+    private func resolveScrollRequests(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                       pass: PrepaintPass) {
+        let pending = pass.frame.unresolvedScrollRequests(enclosing: id)
+        guard !pending.isEmpty else { return }
+        for (index, datum) in data.enumerated() {
+            let key = AnyHashable(datum.id)
+            for request in pending where request.key == key
+                && !pass.frame.isScrollRequestResolved(request.index) {
+                let row = Bounds(origin: Point(x: bounds.origin.x,
+                                               y: bounds.origin.y + rowHeight * Float(index)),
+                                 size: Size(width: bounds.size.width, height: rowHeight))
+                pass.frame.resolveScrollRequest(request.index, target: row)
+            }
+        }
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

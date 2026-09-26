@@ -154,7 +154,13 @@ struct ScrollChrome {
         // `requestAnotherFrame()` below — a hidden indicator that kept
         // asking would hold the display link awake forever, exactly the
         // failure `guard alpha > 0` exists to prevent for a faded one.
-        guard indicatorVisibility != .hidden else { return }
+        //
+        // `.never` is `.hidden` and `.visible` is `.automatic` (ruling `DD-H`,
+        // probe I1–I5: SwiftUI's macOS answers on overlay scrollers).
+        switch indicatorVisibility {
+        case .hidden, .never: return
+        case .automatic, .visible: break
+        }
         let content = extent(pass.bounds(of: contentNode).size)
         let viewport = extent(bounds.size)
         let scrollable = max(0, content - viewport)
@@ -239,6 +245,9 @@ struct ScrollerFrame {
     var viewport: Bounds<Pixels>
     /// The offset `ScrollChrome.resolvedOffset` resolved (clamped) this frame.
     var offset: Double
+    /// The content's extent on the scrolling axis — what a `scrollTo`
+    /// resolution clamps against (`DD-G` item 2, T7).
+    var contentExtent: Double
 
     /// The viewport's extent on the scrolling axis.
     var viewportExtent: Double {

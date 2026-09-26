@@ -118,12 +118,14 @@ func aGridColumnAlignmentIsAHorizontalAlignment() throws {
 
 /// **G4 — a cell anchor is nine-point.** Divergence `GR-O` 4: SwiftUI's
 /// `gridCellAnchor` takes a `UnitPoint` and probe GL14 reads a fractional one;
-/// MetalUI has no `UnitPoint` and takes the nine-case `ProposalAlignment`, so a
-/// fractional anchor is a compile error rather than a silent rounding. The owner
-/// of the gap is plan task 11 (`GR-N`).
+/// MetalUI takes the nine-case `ProposalAlignment`, so a fractional anchor is a
+/// compile error rather than a silent rounding. The owner of the gap is plan
+/// task 11 (`GR-N`). Since plan task 10's `DD-G` MetalUI HAS a public
+/// `UnitPoint` (for `scrollTo(_:anchor:)`), so the fixture below now fails on
+/// the argument's type rather than on an unknown name — still "for the anchor
+/// argument", which is what the message check reads.
 ///
-/// Mutation that must redden it: add a public `UnitPoint` and a
-/// `gridCellAnchor(_: UnitPoint)` overload.
+/// Mutation that must redden it: add a `gridCellAnchor(_: UnitPoint)` overload.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func aGridCellAnchorIsNinePoint() throws {
     let control = try typecheckFile("""
