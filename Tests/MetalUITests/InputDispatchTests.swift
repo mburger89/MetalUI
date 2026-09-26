@@ -403,6 +403,10 @@ private final class LabelBox {
         List([Datum(id: 0)], rowHeight: px(40)) { _ in Box() }
             .cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("list") }
     }
+    // Plan task 10 part 2, lane 1: a `Button`'s action is its `onClick`.
+    try fires("button") {
+        Button("x") { log.names.append("button") }.cssWidth(px(40)).cssHeight(px(40))
+    }
     // Ruling MC-I: a `.padding`/`.frame` chain is ONE `ModifiedElement` that
     // registers each layer's handlers in a loop — two arms over a two-layer
     // chain, the handler on the INNER layer (32x32 at (4, 4), inside a 40x40

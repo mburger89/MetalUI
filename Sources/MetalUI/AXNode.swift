@@ -17,6 +17,21 @@ public enum AXRole: Equatable, Sendable {
     case textField
     /// Editable multi-line text — `TextEditor` (ruling TI-H).
     case textArea
+    /// A checkbox — `Toggle` (ruling `DD-U` item 1; probe TA0 reads
+    /// `AXCheckBox`). Folded like a button (`DD-U` item 2).
+    case checkBox
+    /// One option of a `Picker` (`DD-U` item 1; PA1/PA2 `AXRadioButton`).
+    /// Folded like a button (`DD-U` item 2).
+    case radioButton
+    /// A `Picker` (`DD-U` item 1; PA1/PA2 `AXRadioGroup`). **Partially folded**
+    /// (`DD-U` item 3): its non-interactive descendants' text is its label, its
+    /// interactive descendants stay its children.
+    case radioGroup
+    /// A `Slider` (`DD-U` item 1; SA0 `AXSlider`).
+    case slider
+    /// A `Stepper` (`DD-U` item 1; STA0 `AXIncrementor`). Partially folded, as
+    /// `radioGroup` is (`DD-U` item 3).
+    case incrementor
 }
 
 /// One descriptive trait an accessibility client can read off a node — spec
@@ -116,6 +131,15 @@ public struct AXNode: Equatable {
     /// public initializer and not `public`, so a third-party virtualized
     /// container cannot publish row indices (AB-Q item 10).
     var logicalIndex: Int?
+
+    /// **A selection hint, not a declaration** (ruling `DD-U` item 4): set on a
+    /// selected `List(selection:)` row, published as
+    /// `AccessibilityNode.isSelected`. Stripped by `Frame.registerHandlers`
+    /// before `isEmpty`'s gate exactly as `logicalIndex` is (`AB-L`), so a
+    /// selected row writes neither `Frame.axNodes` nor a `$ax` slot (`AB-U`) —
+    /// retention and `TB-AH` do not move. Internal, like `logicalIndex`; a
+    /// `Picker` option declares the public `.selected` trait instead.
+    var selectionHint = false
 
     /// The resolved bounds, absolute to the root — meaningless, and fixed at
     /// zero, until `emitAXNode` fills it in from `prepaint`'s own resolved

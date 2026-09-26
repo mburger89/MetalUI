@@ -34,6 +34,16 @@ public enum AccessibilityRole: Equatable, Sendable {
     case textField
     /// Editable multi-line text (ruling TI-H).
     case textArea
+    /// A checkbox — `Toggle` (ruling `DD-U` item 1; AppKit `.checkBox`).
+    case checkBox
+    /// One option of a `Picker` (`DD-U`; AppKit `.radioButton`).
+    case radioButton
+    /// A `Picker` (`DD-U`; AppKit `.radioGroup`).
+    case radioGroup
+    /// A `Slider` (`DD-U`; AppKit `.slider`).
+    case slider
+    /// A `Stepper` (`DD-U`; AppKit `.incrementor`).
+    case incrementor
 }
 
 /// What a client may ask a node to do. **Derived from live handlers, never from

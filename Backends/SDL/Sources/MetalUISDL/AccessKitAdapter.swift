@@ -203,6 +203,8 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .row: ACCESSKIT_ROLE_ROW.rawValue
         case .textInput: ACCESSKIT_ROLE_TEXT_INPUT.rawValue
         case .multilineTextInput: ACCESSKIT_ROLE_MULTILINE_TEXT_INPUT.rawValue
+        case .checkBox, .radioButton, .radioGroup, .slider, .spinButton:
+            ACCESSKIT_ROLE_GENERIC_CONTAINER.rawValue  // SKELETON
         }
         return UInt8(value)
     }

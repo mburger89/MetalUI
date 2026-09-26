@@ -6,7 +6,11 @@ import MetalUIPlatform
 /// the window's physical pixels. A plain value — the adapter turns it into an
 /// `accesskit_tree_update`, on whatever thread AccessKit asks from.
 public struct AccessKitSnapshot: Equatable, Sendable {
-    public enum Role: Equatable, Sendable { case window, genericContainer, button, label, image, table, row, textInput, multilineTextInput }
+    public enum Role: Equatable, Sendable {
+        case window, genericContainer, button, label, image, table, row, textInput, multilineTextInput
+        /// The five control roles (ruling `DD-U` item 1).
+        case checkBox, radioButton, radioGroup, slider, spinButton
+    }
     public enum Action: Equatable, Hashable, Sendable { case click, focus, increment, decrement }
 
     public struct Node: Equatable, Sendable {
@@ -20,12 +24,19 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         public var actions: Set<Action>
         public var isDisabled: Bool
         public var isSelected: Bool
+        /// A check box's or radio button's state, from its `"1"`/`"0"` value
+        /// (`DD-U` item 1); `nil` for every other role.
+        public var toggled: Bool? = nil
+        /// A slider's or stepper's value as a number, when it parses (`DD-U`
+        /// item 1); `nil` otherwise.
+        public var numericValue: Double? = nil
 
         public static func == (a: Node, b: Node) -> Bool {
             a.id == b.id && a.role == b.role && a.label == b.label && a.value == b.value
                 && a.bounds.map { [$0.0, $0.1, $0.2, $0.3] } == b.bounds.map { [$0.0, $0.1, $0.2, $0.3] }
                 && a.children == b.children && a.actions == b.actions
                 && a.isDisabled == b.isDisabled && a.isSelected == b.isSelected
+                && a.toggled == b.toggled && a.numericValue == b.numericValue
         }
     }
 
@@ -115,6 +126,7 @@ extension AccessKitSnapshot {
         case .row: .row
         case .textField: .textInput
         case .textArea: .multilineTextInput
+        case .checkBox, .radioButton, .radioGroup, .slider, .incrementor: .genericContainer  // SKELETON
         }
     }
 

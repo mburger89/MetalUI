@@ -378,6 +378,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case .row: .row
         case .textField: .textField
         case .textArea: .textArea
+        case .checkBox, .radioButton, .radioGroup, .slider, .incrementor: .group  // SKELETON
         }
     }
 

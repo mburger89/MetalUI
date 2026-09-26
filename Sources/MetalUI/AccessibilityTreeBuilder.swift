@@ -246,6 +246,7 @@ enum AccessibilityTreeBuilder {
         case .image: return .image
         case .textField: return .textField
         case .textArea: return .textArea
+        case .checkBox, .radioButton, .radioGroup, .slider, .incrementor: return .group  // SKELETON
         case .container, .generic: return .group
         }
     }

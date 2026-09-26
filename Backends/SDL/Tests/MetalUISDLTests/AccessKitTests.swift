@@ -3,6 +3,7 @@ import MetalUICore
 import MetalUIPlatform
 @testable import MetalUISDL
 import SDLBridge
+import CAccessKit
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -69,6 +70,46 @@ private func sampleTree() -> AccessibilityTree {
     #expect(AccessKitSnapshot.role(.staticText) == .label)
     #expect(AccessKitSnapshot.role(.textField) == .textInput)
     #expect(AccessKitSnapshot.role(.textArea) == .multilineTextInput)
+}
+
+/// Plan task 10 part 2, lane 1 (ruling `DD-U` item 1): the five control roles
+/// map to AccessKit's check box, radio button, radio group, slider and spin
+/// button; a check box's and a radio button's `"1"`/`"0"` become the toggled
+/// state, and a slider's and a stepper's number the numeric value. Mutation
+/// MS1 (toggled dropped) must redden it.
+@Test func theFiveControlRolesMapToAccessKitWithToggledAndNumericValues() throws {
+    #expect(AccessKitSnapshot.role(.checkBox) == .checkBox)
+    #expect(AccessKitSnapshot.role(.radioButton) == .radioButton)
+    #expect(AccessKitSnapshot.role(.radioGroup) == .radioGroup)
+    #expect(AccessKitSnapshot.role(.slider) == .slider)
+    #expect(AccessKitSnapshot.role(.incrementor) == .spinButton)
+    #expect(AccessKitAdapter.role(.checkBox) == UInt8(ACCESSKIT_ROLE_CHECK_BOX.rawValue))
+    #expect(AccessKitAdapter.role(.radioButton) == UInt8(ACCESSKIT_ROLE_RADIO_BUTTON.rawValue))
+    #expect(AccessKitAdapter.role(.radioGroup) == UInt8(ACCESSKIT_ROLE_RADIO_GROUP.rawValue))
+    #expect(AccessKitAdapter.role(.slider) == UInt8(ACCESSKIT_ROLE_SLIDER.rawValue))
+    #expect(AccessKitAdapter.role(.spinButton) == UInt8(ACCESSKIT_ROLE_SPIN_BUTTON.rawValue))
+
+    let names = ["on", "off", "radio", "group", "slider", "stepper"]
+    let tree = AccessibilityTree(
+        roots: names.map { AccessibilityNodeID($0) },
+        nodes: [
+            AccessibilityNodeID("on"): AccessibilityNode(role: .checkBox, label: "Wi-Fi", value: "1"),
+            AccessibilityNodeID("off"): AccessibilityNode(role: .checkBox, label: "BT", value: "0"),
+            AccessibilityNodeID("radio"): AccessibilityNode(role: .radioButton, label: "A", value: "1"),
+            AccessibilityNodeID("group"): AccessibilityNode(role: .radioGroup, label: "Flavor"),
+            AccessibilityNodeID("slider"): AccessibilityNode(role: .slider, value: "5"),
+            AccessibilityNodeID("stepper"): AccessibilityNode(role: .incrementor, label: "Qty", value: "2.5"),
+        ],
+        geometry: [:], focused: nil)
+    let snapshot = AccessKitSnapshot.translate(tree, title: "", scale: 1, ids: AccessKitIDs())
+    try #require(snapshot.nodes.count == 7, "the window and six nodes")
+    let byLabel = Dictionary(uniqueKeysWithValues: zip(names, snapshot.nodes.dropFirst()))
+    #expect(byLabel["on"]?.toggled == true && byLabel["off"]?.toggled == false, "check boxes toggle")
+    #expect(byLabel["radio"]?.toggled == true, "a radio button toggles")
+    #expect(byLabel["group"]?.toggled == nil && byLabel["group"]?.numericValue == nil, "a group has neither")
+    #expect(byLabel["slider"]?.numericValue == 5 && byLabel["slider"]?.toggled == nil, "a slider's number")
+    #expect(byLabel["stepper"]?.numericValue == 2.5, "a stepper's number")
+    #expect(byLabel["on"]?.numericValue == nil, "a check box has no numeric value")
 }
 
 /// A node keeps its number while it lives; a vanished one is forgotten and

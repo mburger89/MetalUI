@@ -372,6 +372,25 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         }.cssWidth(px(100)).cssHeight(px(100))
     }
 
+    // Plan task 10 part 2, lane 1: the three control click targets (spec §10's
+    // registry arms). A `Button`'s action and a `Toggle`'s write are its
+    // `onClick`; a segment is found 8 in past an empty title.
+    try arm("button") { d in
+        Row { Button("x") { log.names.append("button") }.disabled(d) }.cssWidth(px(100)).cssHeight(px(100))
+    }
+    try arm("toggle") { d in
+        Row {
+            Toggle("x", isOn: Binding(get: { false }, set: { _ in log.names.append("toggle") })).disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
+    }
+    try arm("segment", at: pt(20, 50)) { d in
+        Row {
+            Picker("", selection: Binding(get: { 0 }, set: { _ in log.names.append("segment") })) {
+                Text("x").tag(1)
+            }.disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
+    }
+
     // EV-X: after the scope fires (O2); the same layers with the scope written
     // last do not (O1), and that spelling's own control does.
     let after = try fired("after", at: pt(10, 50)) {
