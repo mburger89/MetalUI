@@ -3,7 +3,7 @@
 Branch `feat/controls-and-selection` from `27b2fcc` (part 1's tip). Rulings
 `DD-Q`…`DD-AC` are appended to part 1's decisions doc,
 [`../2026-09-25-data-and-scrolling-decisions.md`](../2026-09-25-data-and-scrolling-decisions.md)
-(next unused after the critic round: `DD-AD`; lane 1 appended `DD-AD`, so next unused is **`DD-AE`**). Evidence:
+(next unused after the critic round: `DD-AD`; lane 1 appended `DD-AD` and lane 2 `DD-AE`, so next unused is **`DD-AF`**). Evidence:
 `docs/probes/swiftui-controls-and-selection.swift` (**new**, this design; arm
 ids cited as `BT0`, `SA3`, `KY6c` …, its header carries the recorded output
 and the reading). Record: `docs/record/58-controls-and-selection.md` (written
@@ -260,11 +260,12 @@ nothing while KY0's control passes) — **divergence 80, added** (`DD-T`).
   (`Box.swift`, `Passes.swift`, `Handlers.swift`, `Window.swift`,
   `FocusTests.swift` ×2, `DemoContent.swift` ×3 — comment-only, 0 px).
 - **`ClickDispatch`** (new, internal, `ClickDispatch.swift`): while
-  `Window.dispatchClick` runs an `onClick`, `ClickDispatch.modifiers` holds
-  the completing mouse event's modifiers (`[]` otherwise, and `[]` for an
-  accessibility press); a handler may set `ClickDispatch.focusRequest` to an
-  id, which `Window` passes to `focus(_:)` after the handler returns (and
-  clears). Its only consumer is lane 3's selectable `List`.
+  `Window.runClick` runs an `onClick` — for a mouse click and for an
+  accessibility press alike (`DD-AE` item 2) — `ClickDispatch.modifiers`
+  holds the completing mouse event's modifiers (`[]` otherwise, and `[]` for
+  a press); a handler may set `ClickDispatch.focusRequest` to an id, which
+  `Window` passes to `focus(_:)` after the handler returns (and clears). Its
+  only consumer is lane 3's selectable `List`.
 
 ## 7. Selection (`DD-Z`, lane 3)
 
@@ -453,11 +454,13 @@ Registry arms: `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`
 | 2.21 | `aClickHandlerSeesItsClicksModifiersAndOnlyDuringTheClick` | ⌘ on the mouse-up read inside the handler; `[]` after; `[]` for a `.press` | no type | M2t: `modifiers` not reset |
 | 2.22 | `aClickHandlersFocusRequestIsHonouredAfterItReturns` | `focusedElement == id` after the click; a non-focusable id is cleared at the frame boundary | no type | M2u: the request ignored |
 | 2.23 | `aDisabledStepperStepsNothingAndPublishesDisabled` | half clicks, focused ↑/↓ and increment/decrement requests write nothing; the incrementor publishes disabled (STA7; `DD-AC` item 7) | no type | M1g, re-run on this arm |
-| 2.24 | `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller` | a wheel over the field moves the scroller; a press still focuses it (`DD-AC` item 3) | red: reads 0 at `27b2fcc` | M2q (the rule reverted); M2v: the `textInput` target excluded from the ancestor walk |
+| 2.24 | `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller` | a press focuses the field, then a wheel over it moves the scroller (`DD-AC` item 3; press first, `DD-AE` item 5) | red: reads 0 at `27b2fcc` | M2q (the rule reverted); M2v: the `textInput` target excluded from the ancestor walk |
 | G2.1 | `theSliderAndStepperSpellingsCompileFromOutsideTheModule` | §3's lane-2 spellings | — | MG2.1: `Slider.init(value:in:step:)` internal |
 
 Registry arms: D2 (`Slider`, a `Stepper` half), `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
-(`.slider`), `HandlerShape`/`HandlerFingerprint` (`valueTrack`).
+(`.slider`), `everyReportNamesALiveOwnerOrIsRefusedByName` (`.slider` a leaf
+site, 241 → 265; `DD-AE` item 1), `HandlerShape`/`HandlerFingerprint` (`valueTrack`).
+Lane 2's mutation table is `DD-AE`.
 **2.18 is a changed answer, not a retirement**: its second arm (off the
 button, 37) is unchanged; the record's retirement table lists it.
 

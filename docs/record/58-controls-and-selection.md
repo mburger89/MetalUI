@@ -108,3 +108,96 @@ were corrected to the code (`DD-AD` item 6: the picker scope is pushed in
 layout only; the group is `OptionRow`). The guard baseline (96 in the design,
 94 by `grep -c canTypecheck` summed over `Tests/MetalUITests` at `27b2fcc`,
 96 at HEAD) is left to the Record phase.
+
+## 2. Lane 2 — `Slider`, `Stepper`; value tracking, the wheel rule, `ClickDispatch`
+
+Commits: `1411e31` (red-first over a no-op skeleton), `05d5e7b` (the
+implementation), and the lane's docs/mutation commit after it.
+
+### 2.1 Red-first
+
+The skeleton gave `Slider` and `Stepper` their public spellings (a 0×0 leaf
+at site `box`; a bare row), `ValueStepping` empty, `ClickDispatch` declared
+and never set, `Handlers.valueTrack` declared and unread, and
+`LoweringSite.slider`. Full unfiltered run: `Test run with 1612 tests in 3
+suites failed` (1588 + 24), 24 tests red, each first issue:
+
+| test | first failing line at the skeleton |
+|---|---|
+| 2.1 | `slider.size.width.value == 300 && slider.size.height.value == 16` |
+| 2.2, 2.3, 2.5, 2.8, 2.9 | `platform.publishedAccessibilityTrees.last` (nothing published) |
+| 2.4 | `window.lastScene.rects.first { 20×16 }` |
+| 2.6 | `bounds.origin.x.value == 0 && bounds.size.width.value == 300` |
+| 2.7 | `window.focusedElement == id` |
+| 2.10 | `expected exit status ".failure", but ".exitCode(EXIT_SUCCESS)"` |
+| 2.11 | `control.size.width.value == 20 && control.size.height.value == 24` |
+| 2.12, 2.14, 2.15, 2.23 | `source.bounds[id]` (no halves) |
+| 2.13, 2.16 | `tree.nodes.first { $0.value.role == .incrementor }` |
+| 2.17 | `window.focusedElement == stepperID` |
+| 2.18 | `try offsetAfterAWheel(at: pt(20, 20)) == 37` (read 0) |
+| 2.21 | `log.modifiers == [.command]` |
+| 2.22 | `window.focusedElement == target` |
+| 2.24 | `offset(window, scroller) == 37` (read 0) |
+| D2 | `control == 1` (the slider and stepper-half arms) |
+| legacy sites | `arm.entries == arm.expected` (the `Slider` arm) |
+
+Green at the skeleton by construction: 2.19 and 2.20 (they pin clauses the
+base already has — every opaque hitbox stopped the wheel), G2.1 (spellings
+only) and the owner table (a pure function of the field) — each pinned by
+its mutation (`DD-AE`).
+
+### 2.2 What was built
+
+As spec §4–§6 and `DD-W`, `DD-X`, `DD-Y`, `DD-Z` item 9, with the choices
+`DD-AE` records: the owner table's `slider` rows (241 → 265), an
+accessibility press through the same `Window.runClick` as a click (so it
+honours a focus request too), the slider's published value clamped, 2.1's
+nil-width arm read from `Slider.size(proposedWidth:)`, and two fixture
+corrections before green (2.18's arms in fresh windows; 2.24 presses before
+the wheel, since the wheel scrolls the field out of its viewport). The
+comments citing divergence 16 as live were updated, comment-only (`Box`,
+`Passes`, `Handlers`, `Window`, `FocusTests` ×2 — the second no longer calls
+the neighbouring test its differential and names
+`focusabilityAndKeyHandlingRegisterNoPointerHitbox` as the mechanism pin —
+and `DemoContent` ×3).
+
+### 2.3 Counts and must-not-move
+
+- `swift package clean`, `swift build --build-system native --build-tests`
+  (0 `error:`, the one `warning:` SwiftPM's deprecation notice), unfiltered
+  `swift test --build-system native --no-parallel`: **`Test run with 1612
+  tests in 3 suites passed`** (1588 + 24); `FR-J no-argument frame:
+  succeeded=` in the log; `SLIDER STEPPER GUARD G2.1 positive:
+  succeeded=true`, `control: succeeded=false`. Guards **+1** (G2.1).
+- Default build system `swift build --build-tests`: 0 `warning:`.
+- `MetalUILayout` imports only `MetalUICore`.
+- `Backends/SDL` on macOS: `ReplayFixtureTests` 21, `MetalUISDLTests` 23,
+  passed (its three `warning:` lines are the pre-existing SDL link/pkg-config
+  notices). `metalui-portable-ax` (`swift:6.4-noble`, aarch64), from a `git
+  archive` of the implementation: 21 and 22, passed.
+- `everyProductionTreeBuildsOnAOneMegabyteThread` and
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green in the full run.
+- Pixels: `compare.sh <scratch> 27b2fcc 05d5e7b` — controls 1048576,
+  1031003, 454895, 0, 1048576, 0, 544 / 216, 491221, 529, indicator rects 0;
+  **all fourteen images `differing=0`, scene identical**. `Expected.swift`
+  unedited.
+- Real window (lock probe: no `CGSSessionScreenIsLocked` line,
+  `displayAsleep main: 0`): `capture.sh <scratch> 27b2fcc 05d5e7b`, every
+  a-vs-b 0; default and preview 27b2fcc → 05d5e7b **0 and 0**; control
+  default vs preview 958986.
+- State retention, `List` windowing, `Deferred`, animation: untouched by the
+  lane's sources (no id path moves; no reserved name). Hit testing moves by
+  `DD-Y` and `valueTrack` only; the two `TextField` answers are 2.24's.
+
+### 2.4 Mutations
+
+`DD-AE` is the table (26 rows, every test reddened named; `git status
+--short` empty after each).
+
+### 2.5 Owed
+
+A human look at the pointer rules (a slider press and drag, stepper halves,
+the wheel over a button and over a single-line field inside a scroller) —
+the probe's click and wheel controls failed, so none is SwiftUI-measured;
+lane 3's controls demo is where a human sees them (record §03 at the Record
+phase).

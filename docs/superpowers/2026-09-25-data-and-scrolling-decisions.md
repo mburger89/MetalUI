@@ -4,7 +4,7 @@ Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-d
 on `feat/data-and-scrolling` from `e7bc2e7` (part 1, `DD-A`…`DD-P`), and for
 [`specs/2026-09-26-controls-and-selection-design.md`](specs/2026-09-26-controls-and-selection-design.md),
 on `feat/controls-and-selection` from `27b2fcc` (part 2, `DD-Q` onward). Ids
-are **lettered**, `DD-A`…`DD-AD`; next unused is **`DD-AE`**. A bare `DD-3`
+are **lettered**, `DD-A`…`DD-AE`; next unused is **`DD-AF`**. A bare `DD-3`
 is a typo, not a citation. **A round that appends a ruling moves this line in
 the same commit.**
 
@@ -1673,3 +1673,89 @@ mutations here; three readings change what the design said.
 **Cost if wrong.** Item 1 is one clause in `combine`; if task 12's VoiceOver
 script prefers disabled options folded, it narrows back and 1.24 inverts.
 
+
+---
+
+## DD-AE — lane 2 (part 2): its mutation table; a registry arm, one fixture order and two readings the spec left open
+
+**Ruling.** Lane 2 (`DD-W`, `DD-X`, `DD-Y`, `DD-Z` item 9) records its
+mutations here; the items below say where the lane went past, or chose
+inside, what the design said.
+
+1. **The owner table gains `slider`** (a registry arm spec §10 did not list).
+   `LoweringSite.slider` is a leaf lowered through `lowerLegacyLeaf` as
+   `textField` is, so it is a tenth recording site of
+   `everyReportNamesALiveOwnerOrIsRefusedByName`'s table: +4 leaf, +11 item
+   and +9 unconsumed rows, **241 → 265** — `TI-H`'s precedent for
+   `textEditor`. `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` gains
+   its `Slider` arm (10 → 11 arms) as the spec said.
+2. **An accessibility `.press` runs through the same `Window.runClick` as a
+   mouse click** (amends spec §6, which named `dispatchClick` only): both set
+   `ClickDispatch` — the mouse-up's modifiers for a click, `[]` for a press
+   (2.21) — and both honour a `focusRequest` after the handler returns. One
+   path, so the two cannot drift. The press's focus request is **not pinned
+   by this lane** (2.22 clicks); lane 3's 3.16 presses a row and may pin it.
+3. **A slider publishes its clamped value** (spec §4 said `<value>`): the
+   thumb is drawn clamped (SA5, SA6), and `Stepper` publishes its clamped
+   value (STA4, measured); what SwiftUI's slider publishes out of range is
+   unmeasured.
+4. **2.1's nil-width arm reads `Slider.size(proposedWidth:)` directly.** No
+   legacy container offers a leaf a nil width, and a legacy element cannot be
+   a proposal stack's child to take `.fixedSize()`; the leaf's measure closure
+   calls exactly this function, and the 300-proposal arm goes through a real
+   frame. M2a (height 20) reddens it through the frame arm.
+5. **Two fixture corrections before green, neither an implementation
+   change.** 2.18's two arms each run in a fresh window, so the off-button arm
+   reads its own 37 rather than a cumulative 74; 2.24 presses the field
+   **before** the wheel — after the wheel it scrolls out of the 100-point
+   viewport and its clipped hitbox is empty (measured: the press-after arm
+   read `focusedElement == nil`).
+6. **Stepper's shape inside the design.** The hairline is the lower half's
+   top border (a paint-only `Decoration` border with per-edge `widths`), not
+   a node; the increment mark is a `Stack` of two bars. The public
+   requirements spell the full nested types rather than adding public
+   typealiases, so no name joins the public API.
+
+**The table.** Each row is a full unfiltered run of **1612** tests
+(`swift build --build-system native --build-tests`, then `swift test
+--build-system native --no-parallel`), the source restored from a copy after,
+`git status --short` empty after each (26 of 26). Applied to the lane's
+implementation commit.
+
+| Mutation | Change | Reddens |
+|---|---|---|
+| M2a | slider height 16 → 20 | 2.1, 2.4 (its 20×16 thumb lookup) |
+| M2b | unstepped adjustment 10% → 5% | 2.2, 2.4, 2.7 |
+| M2c | grid rounding half down | 2.3, 2.6 |
+| M2c′ | no last-grid-point clamp | 2.3 |
+| M2d | the clamp written back in `prepaint` | 2.4 |
+| M2e | an unchanged adjustment not written | 2.3, 2.5 |
+| M2f | `mouseDragged` not dispatched to `valueTrack` | 2.6 |
+| M2g | ↑/↓ dropped from `ControlKeys.sliderStep` | 2.7 |
+| M2h | the slider's adjustment handler not registered | 2.2, 2.3, 2.4, 2.5, 2.8 |
+| M2i | the track's hitbox inserted through `pass.frame.insertHitbox` directly, bypassing the gate | 2.9, `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled` |
+| M2j | the slider's preconditions removed | 2.10 |
+| M2k | stepper gap 8 → 6 | 2.11 |
+| M2l | an unchanged step written | 2.12 |
+| M2m | stepping from the raw value | 2.13 |
+| M2n | an unbounded stepper clamped at 0 | 2.14 |
+| M2o | a nil `onDecrement` falls back to `onIncrement` | 2.15 |
+| M2p | ↑/↓ swapped in `ControlKeys.stepperStep` | 2.15, 2.17 |
+| M2q | the `DD-Y` rule reverted (no ancestor scroll) | 2.18, 2.24 |
+| M2r | ancestry dropped (any scroller on the layer under the point) | 2.19 |
+| M2s | the layer clause dropped | 2.20, `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel` |
+| M2t | `ClickDispatch.modifiers` not reset | 2.21 |
+| M2u | the focus request ignored | 2.22 |
+| M2v | a `textInput` target excluded from the ancestor walk | 2.24 |
+| MG2.1 | `Slider.init(value:in:step:)` internal | G2.1 |
+| M1g (re-run) | the `enabled` conjunct dropped from `Frame.registerHandlers`' focus registration and hitbox insert | 2.9, 2.23, 1.8, 1.12, 1.24, D2 and 19 more (25 tests) |
+| M1n (re-run) | the partial fold removed | 2.16, 1.17, 1.22 |
+
+M2p reddening 2.15 too is expected: its ↓ arm, with ↑/↓ swapped, runs the
+closure stepper's increment. M2s reddening the demo-modal test is the layer
+clause's second pin: the demo's scrim is declared inside a scroller's
+subtree, so without the layer clause its wheel passes to that scroller.
+
+**Cost if wrong.** Item 2 is one call site; if task 12 rules that a press
+must not focus, `handleAccessibilityRequest` passes a discarding closure.
+Item 3 is one `clamp` call.
