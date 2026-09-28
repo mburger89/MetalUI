@@ -1,4 +1,5 @@
 import MetalUIFreeType
+import MetalUITextSystem
 
 /// A request — an optional family name and a point size — turned into a
 /// ``PortableFont``, over font files the caller registers (rulings `FN-A`…`FN-C`). The portable counterpart of `MetalUIText`'s
@@ -117,6 +118,17 @@ public final class PortableFontResolver {
                 .map { try self.font(face: $0, size: size) }
         }
         return font
+    }
+
+    /// The face `descriptor` asks for (ruling TE-C item 1).
+    public func resolve(_ descriptor: FontDescriptor) throws -> PortableFont {
+        try resolve(family: descriptor.family, size: descriptor.size)   // SKELETON
+    }
+
+    /// Makes `design` resolve to `family` for a request with no family
+    /// (ruling TE-C item 1).
+    public func register(design: FontDesign, family: String) {
+        // SKELETON
     }
 
     /// Face `index` at `size`, memoized.

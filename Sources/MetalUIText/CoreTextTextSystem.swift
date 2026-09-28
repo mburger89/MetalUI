@@ -18,8 +18,8 @@ public final class CoreTextTextSystem: TextSystem {
         self.cache = cache
     }
 
-    public func resolveFont(family: String?, size: Double) -> FontKey {
-        let font = cache.resolveFont(family: family, size: size)
+    public func resolveFont(_ descriptor: FontDescriptor) -> FontKey {
+        let font = cache.resolveFont(descriptor)
         cache.registerFont(font)
         return font.key
     }
@@ -68,7 +68,7 @@ public final class CoreTextTextSystem: TextSystem {
     public func beginFrame() { cache.beginFrame() }
     public func endFrame() { cache.endFrame() }
 
-    /// The font `key` names, which ``resolveFont(family:size:)`` registered.
+    /// The font `key` names, which ``resolveFont(_:)`` registered.
     private func registered(_ key: FontKey) -> ResolvedFont {
         guard let font = cache.font(for: key) else {
             preconditionFailure("""

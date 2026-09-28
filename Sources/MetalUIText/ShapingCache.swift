@@ -319,6 +319,11 @@ public final class ShapingCache {
         return font
     }
 
+    /// ``FontResolver/resolve(_:)``, memoized per request (ruling TE-C item 1).
+    public func resolveFont(_ descriptor: FontDescriptor) -> ResolvedFont {
+        resolveFont(family: descriptor.family, size: descriptor.size)   // SKELETON: TE-C item 1 ignored
+    }
+
     /// Shapes `string` in `font` at `width`, consulting the cache first.
     ///
     /// Registers `font` under its key as a side effect (see

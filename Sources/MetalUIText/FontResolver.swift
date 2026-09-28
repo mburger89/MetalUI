@@ -1,5 +1,6 @@
 import CoreText
 import Foundation
+import MetalUITextSystem
 
 /// A font as CoreText actually resolved it, paired with the identity
 /// (``FontKey``) and the metrics that were read back off it.
@@ -124,6 +125,11 @@ public enum FontResolver {
                 ?? CTFontCreateWithName("Helvetica" as CFString, CGFloat(size), nil)
         }
         return ResolvedFont(ctFont: font)
+    }
+
+    /// The face `descriptor` asks for (ruling TE-C item 1).
+    public static func resolve(_ descriptor: FontDescriptor) -> ResolvedFont {
+        resolve(family: descriptor.family, size: descriptor.size)   // SKELETON
     }
 
     /// Counts calls to ``resolve(family:size:)`` made while the calling task

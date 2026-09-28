@@ -39,8 +39,9 @@ let truncationCorpus: [TruncationCase] = [
                    options: TextLayoutOptions(maxLines: 2, alignment: .center)),
 ]
 
-func pinTruncation(_ truncationCase: TruncationCase) throws -> (pinned: PinnedEmit, lines: Int) {
-    let font = try PortableFont(data: fontBytes(notoSans), size: truncationCase.size)
+func pinTruncation(_ truncationCase: TruncationCase,
+                   font given: PortableFont? = nil) throws -> (pinned: PinnedEmit, lines: Int) {
+    let font = try given ?? PortableFont(data: fontBytes(notoSans), size: truncationCase.size)
     let atlas = GlyphAtlas(width: atlasSide, height: atlasSide)
     var scene = Scene()
     let mask = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 4096, height: 4096))
@@ -73,6 +74,25 @@ func pinTruncation(_ truncationCase: TruncationCase) throws -> (pinned: PinnedEm
             let got = try pinTruncation(truncationCase).pinned
             #expect(got == expectedTruncations[index],
                     "\(truncationCase): measured \(got), recorded on macOS \(expectedTruncations[index])")
+        }
+    }
+
+    /// **1.12** (plan task 11 part 1, lane 2; ruling TE-C item 1): a bold
+    /// italic request on a resolver whose Noto Sans has only its Regular face
+    /// (beside two other families' regular faces) selects that face and emits
+    /// row 0's recorded bytes exactly — no other family's face, no
+    /// synthesis, on every platform CI runs.
+    @Test func aWeightedRequestOnARegularOnlyResolverEmitsTheRegularFaceByteIdentically() throws {
+        try #require(!expectedTruncations.isEmpty)
+        let resolver = try PortableFontResolver(defaultFont: fontBytes(notoSans))
+        try resolver.register(fontBytes("SourceSans3-Regular.otf"))
+        try resolver.register(fontBytes("NotoSansArabic-Regular.ttf"))
+        for weight in [0.4, 0.62, -0.4] {
+            let font = try resolver.resolve(FontDescriptor(family: "Noto Sans", size: truncationCorpus[0].size,
+                                                           weight: weight, italic: true))
+            #expect(font.key.postScriptName == "NotoSans-Regular", "weight \(weight)")
+            #expect(try pinTruncation(truncationCorpus[0], font: font).pinned == expectedTruncations[0],
+                    "weight \(weight)")
         }
     }
 

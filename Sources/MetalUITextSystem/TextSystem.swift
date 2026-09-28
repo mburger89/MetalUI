@@ -11,10 +11,14 @@
 /// requests that resolve to one face are one font (the `FontKey` rule).
 @MainActor
 public protocol TextSystem: AnyObject, Sendable {
-    /// The face `family` names (`nil`: the system's default face) at `size`
-    /// points. A name that matches nothing substitutes a face; it never fails.
-    /// `size` must be finite and positive.
-    func resolveFont(family: String?, size: Double) -> FontKey
+    /// The face `descriptor` asks for (ruling TE-C item 1, TE-W): its
+    /// `family` (`nil`: the system's default face) at its `size` in points,
+    /// then the face of that family nearest its `weight`, then its italic
+    /// face, and, for the system face, its `design`. A name that matches
+    /// nothing substitutes a face; a weight, slope or design the family lacks
+    /// keeps the face it has — nothing is synthesised. It never fails. The
+    /// size must be finite and positive.
+    func resolveFont(_ descriptor: FontDescriptor) -> FontKey
 
     /// `font`'s vertical metrics, in points (ruling TE-C item 2): the values
     /// `measure` and `placeGlyphs` lay lines out with.
@@ -65,6 +69,13 @@ public protocol TextSystem: AnyObject, Sendable {
 }
 
 extension TextSystem {
+    /// The face `family` names (`nil`: the system's default face) at `size`
+    /// points — ``resolveFont(_:)`` with no weight, slope or design, the
+    /// spelling every caller used before ruling TE-C.
+    public func resolveFont(family: String?, size: Double) -> FontKey {
+        resolveFont(FontDescriptor(family: family, size: size))
+    }
+
     /// `measure` with no line limit, tail truncation and leading alignment —
     /// the spelling every caller used before ruling TE-C.
     public func measure(_ string: String, font: FontKey, wrappingAt width: Double?) -> TextMeasurement {
@@ -81,6 +92,41 @@ extension TextSystem {
     /// `lineRanges` under the default options (ruling TE-C).
     public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?) -> [Range<Int>] {
         lineRanges(string, font: font, wrappingAt: width, options: TextLayoutOptions())
+    }
+}
+
+/// A system face's design (ruling TE-B item 1): SwiftUI's `Font.Design`
+/// at the seam. CoreText answers it with the system font's design trait
+/// (SF, New York, SF Rounded, SF Mono); the portable system with a family the
+/// app registered for it (`PortableFontResolver.register(design:family:)`),
+/// else the default face.
+public enum FontDesign: Hashable, Sendable {
+    case `default`, serif, rounded, monospaced
+}
+
+/// A font request at the seam (ruling TE-C item 1): a family (`nil`: the
+/// system face), a size in points, and optionally a weight, a slope and — for
+/// the system face only — a design.
+///
+/// `weight` is CoreText's weight-trait scale, −1…1 (SwiftUI's nine weights
+/// are −0.8, −0.6, −0.4, 0, 0.23, 0.3, 0.4, 0.56, 0.62); `nil` asks for no
+/// particular weight, so a named face keeps its own ("HelveticaNeue-Bold"
+/// stays bold), where `0` asks for the family's regular face. A request is
+/// not an identity: two descriptors can resolve to one ``FontKey``.
+public struct FontDescriptor: Hashable, Sendable {
+    public var family: String?
+    public var size: Double
+    public var weight: Double?
+    public var italic: Bool
+    public var design: FontDesign
+
+    public init(family: String? = nil, size: Double, weight: Double? = nil,
+                italic: Bool = false, design: FontDesign = .default) {
+        self.family = family
+        self.size = size
+        self.weight = weight
+        self.italic = italic
+        self.design = design
     }
 }
 

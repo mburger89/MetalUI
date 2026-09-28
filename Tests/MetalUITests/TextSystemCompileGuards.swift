@@ -57,3 +57,42 @@ func theSeamsNewSpellingsArePublicAndTheOldOnesStillCompile() throws {
     #expect(negative.messages.contains("ellipsis"), "the control fails for the missing case: \(negative.messages)")
     #expect(positive.succeeded, "the seam's spellings must compile from a plain import: \(positive.messages)")
 }
+
+/// **G1.2** (plan task 11 part 1, lane 2; ruling TE-C item 1). The font
+/// request's spelling is public from a plain `import MetalUITextSystem`:
+/// `FontDescriptor`'s initialiser with a weight, a slope and a design,
+/// `resolveFont(_:)`, and the `resolveFont(family:size:)` extension every
+/// caller used before. **Positive control**: the seam's weight is a `Double`
+/// on CoreText's trait scale — `Font.Weight` is `MetalUI`'s, so a `.bold`
+/// weight fails here.
+///
+/// Mutation: **MG1c** `FontDescriptor.init` made `package` — the positive
+/// fixture stops compiling (record §59 §3).
+@MainActor
+@Test(.enabled(if: canTypecheck(module: "MetalUITextSystem"), skipReason))
+func theFontDescriptorSpellingIsPublic() throws {
+    let uses = """
+        @MainActor
+        func use(_ system: some TextSystem) {
+            let descriptor = FontDescriptor(size: 13, weight: 0.4, italic: true, design: .serif)
+            let _: FontKey = system.resolveFont(descriptor)
+            let _: FontKey = system.resolveFont(family: "Noto Sans", size: 13)
+            let _: FontKey = system.resolveFont(FontDescriptor(family: nil, size: 11))
+            let _: [FontDesign] = [.default, .serif, .rounded, .monospaced]
+            var copy = descriptor
+            copy.weight = nil
+            copy.italic = false
+            _ = (copy.family, copy.size, copy.design)
+        }
+        """
+    let control = "let _ = FontDescriptor(size: 13, weight: .bold)"
+    let positive = try typecheckFile(uses, importing: "MetalUITextSystem")
+    let negative = try typecheckFile(control, importing: "MetalUITextSystem")
+    print("""
+        TE-C font descriptor: positive succeeded=\(positive.succeeded) messages=[\(positive.messages)]; \
+        control succeeded=\(negative.succeeded) messages=[\(negative.messages)]
+        """)
+    try #require(!negative.succeeded, "the control must fail, or this guard cannot: \(negative.messages)")
+    #expect(negative.messages.contains("bold"), "the control fails for the missing weight: \(negative.messages)")
+    #expect(positive.succeeded, "the font request must be spellable from a plain import: \(positive.messages)")
+}
