@@ -292,8 +292,12 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   canTypecheck` over `Tests/MetalUITests` alone, which excludes
   `UnitSafetyTests` (`Tests/MetalUICoreTests`, 3 hits, one a comment); the
   canonical count this file's own "Guards" bullet defines spans both
-  targets and reads 96 at `27b2fcc`, 100 now. **No test retired, none
-  renamed.** New public API: `Button(action:label:)`/`Button(_:action:)`,
+  targets and reads 96 at `27b2fcc`, 100 now. **No test retired; one
+  renamed with its answer changed** (`aClickTargetInsideAScrollViewSwallowsTheWheel`
+  → `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`, its first
+  arm 0 → 37 by `DD-Y`, record §58 §2.5 — not counted in the 87; the
+  Record phase's write-up read "none renamed", corrected by the branch
+  checker, record §58 §11). New public API: `Button(action:label:)`/`Button(_:action:)`,
   `Toggle(isOn:label:)`/`Toggle(_:isOn:)`, `Slider(value:in:step:)`,
   `Stepper` (three initialisers), `Picker(_:selection:content:)`/`.tag(_:)`/
   `PickerStyle`, `List(_:selection:rowHeight:row:)` over `Binding<ID?>` or
@@ -1734,8 +1738,13 @@ collapsing either branch breaks the suite. A phase-time `@Observable` write is
 silently stale.
 
 **Hit testing.** One hitbox list; ranking is `topmostOpaqueHitbox(in:at:)` —
-no second copy. `onClick` alone makes an opaque pointer target; the keyboard
-gate (`onKey || isFocusable || actions || keyContext`) stays separate.
+no second copy. `onClick`, a `TextField`'s `textInput` or a `Slider`'s
+`valueTrack` makes an opaque pointer target (`Handlers.isPointerTarget`); the
+keyboard gate (`onKey || isFocusable || actions || keyContext`) stays separate.
+**A wheel over a non-scrolling opaque hitbox passes to its nearest ancestor
+scroller on the same layer** (`DD-Y`, divergence 16 retired,
+`Window.enclosingScroller(of:at:)`); an overlaid-but-not-enclosed target or a
+`Deferred` scrim still stops it.
 `allowsHitTesting(false)` gates only `registerHandlers`' pointer hitbox —
 scroll regions and raw `insertHitbox` bypass it (`OM-AK`); it is per layer
 (divergence 44). `contentShape(inset:)` moves the pointer region only and
@@ -1753,8 +1762,9 @@ fails the other. `registerHandlers` holds the hitbox, focus, AX record and the
 disabled gate; skipping it makes an element ungated and invisible to
 VoiceOver. **Any hook added to `Element`'s group defaults must be mirrored per
 layer in `ModifiedElement` and in `AnyElement`'s group entry** (`MC-B`,
-`LR-AA`). `Handlers` has nine members (the ninth, `textInput`, internal
-and set only by `TextField`, `TI-B`); `HandlerShape` (`ModifierTests`) and
+`LR-AA`). `Handlers` has ten members (the ninth, `textInput`, internal
+and set only by `TextField`, `TI-B`; the tenth, `valueTrack`, internal and
+set only by `Slider`, `DD-W` item 5); `HandlerShape` (`ModifierTests`) and
 `HandlerFingerprint` (`OuterModifierMatrixTests`) each gain a field when it
 gains one.
 
@@ -1886,7 +1896,8 @@ included), and an element returning inside an `if` **or a `for` loop or
 `ForEach`** (its `$anim` baseline is reset with the rest of the removed
 content, `ID-C`/`ID-P` item 1 for the `if`; the loop case matches since plan
 task 10, `DD-C` — divergence 74's retirement, which changed one existing
-animation test's own answer, `DD-N`). **An animated flex-item field snaps its STRUCTURE** (`LR-AS`): the
+animation test's own answer, `DD-N`), and a `Slider`'s thumb (drawn in its
+own `paint`, so a value written under `withAnimation` jumps, `DD-W`). **An animated flex-item field snaps its STRUCTURE** (`LR-AS`): the
 lowering reads which wrappers exist from the *declared* style and only their
 values from the animated one, so a grow that appears or vanishes mid-flight
 jumps and two equal declared factors stay equal mid-flight

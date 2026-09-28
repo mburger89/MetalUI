@@ -587,3 +587,32 @@ doc comment still held would think `.visible`/`.never` were placeholders;
 this section says plainly they are not, and points at the probes that
 measured them instead of the source comment that used to guess.
 
+
+## 2026-09-28: `controlSize`'s row narrowed, none added or deleted, at controls and selection (plan task 10, part 2)
+
+Record §58 (§7); rulings `DD-Q`…`DD-AI`. (This section was cited by
+`CLAUDE.md` and record §58 from the Record phase's commit `c9a741e` but not
+written there; the branch checker wrote it, record §58 §11.)
+
+- **`controlSize` is narrowed, not deleted** (`DD-R` item 4): `Button`'s
+  automatic chrome — its padding and height, not its label's font — now
+  reads it, so the row no longer reads "reaches no built-in element" but
+  "reaches `Button`'s chrome only" (divergence 76, amended). `Text`'s default
+  font, `TextField`/`TextEditor` and every other control's metrics still read
+  nothing from it — owner plan task 11 (`DD-AB` item 2). The inline example
+  list in `CLAUDE.md` keeps the name, as stage 10 kept `margin: .auto`'s after
+  narrowing it; the dated sections say what narrowed.
+- **`controlActiveState` and `displayScale` are untouched**: no control this
+  part built reads either. `controlActiveState`'s consumers stay plan task
+  12's (`DD-Q`'s table).
+- **No row is added.** `PickerStyle` is a closed struct offering only
+  `.automatic` (== `.segmented`) and `.radioGroup`, both wired, so there is
+  no stored-but-unread style; the internal `AXNode.selectionHint` is read by
+  both bridges (`isSelected`); `Handlers.valueTrack` is read by `Window`'s
+  press and drag dispatch. `ClickDispatch.modifiers` has one consumer (a
+  selectable `List`'s rows) and is internal.
+
+**What it costs if wrong.** A reader who takes `controlSize` for wholly inert
+would miss that a `Button`'s size moves with it; a reader who takes it for
+wired everywhere would expect a `Text` or a `TextField` to follow it, and
+neither does.

@@ -1697,3 +1697,90 @@ and never documented as a feature) now sees it reset — the migration note
 loses the second element where SwiftUI shows it (divergence 79); the fix
 (type-qualified names) would change every `ForEach` id path and is not taken
 now.
+
+## 2026-09-28: 16 retires; 76 amended again; 80–85 added (plan task 10, part 2 — controls and selection)
+
+Record §58 (§6); rulings `DD-Q`…`DD-AI` in
+`docs/superpowers/2026-09-25-data-and-scrolling-decisions.md`. **The table
+moves from fifty-six to sixty-one live**: one retires, six are added. (This
+section was cited by `CLAUDE.md` and record §58 from the Record phase's
+commit `c9a741e` but not written there; the branch checker wrote it, record
+§58 §11.)
+
+- **16 retires** (`DD-Y`): a click target inside a `ScrollView` swallowed
+  that scroller's wheel over its own rect, because a wheel stopped at the
+  topmost opaque hitbox and scrolled only if it was itself a scroller. The
+  wheel over a non-scrolling hitbox now passes to the **nearest ancestor**
+  (by id) that registered a scroll region containing the point **on the same
+  layer** (`Window.enclosingScroller(of:at:)`). The ancestry clause keeps a
+  click target merely overlaid on a scroller stopping its wheel
+  (`aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`);
+  the layer clause keeps a `Deferred`-hoisted scrim stopping it
+  (`aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`,
+  `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel`). **The retained
+  test that changed its answer**: `aClickTargetInsideAScrollViewSwallowsTheWheel`
+  is renamed `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`, its
+  first arm inverted (0 → 37) — a rename, not a retirement, as that test's
+  own doc comment asked. A single-line `TextField` is such a click target, so
+  its wheel reaches its scroller too (`DD-AC` item 3,
+  `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller`); the
+  nearest of nested scrollers wins
+  (`aClickTargetInsideNestedScrollViewsPassesTheWheelToTheNearest`). SwiftUI's
+  and AppKit's own answers are unmeasured (probe control WH0 read 0); a human
+  look is owed (record §03's 2026-09-28 section). The label joins the
+  never-reused list.
+- **76 is amended again, kept** (`DD-R` item 4): `Button`'s automatic chrome
+  (padding and height) now reads `controlSize`, its label's font does not;
+  every other consumer (`Text`'s default font, `TextField`/`TextEditor`, the
+  other controls' metrics) stays unread — owner plan task 11 (`DD-AB` item
+  2). `controlSizeReachesNoBuiltInMeasurement` still pins the remainder.
+- **80 is added** (kept, `DD-T` item 3): every control is focusable and takes
+  its keys once focused (`ControlKeys.swift`), whether or not SwiftUI's own
+  controls would take them — on macOS they need Full Keyboard Access, a
+  system setting the probe could print but not vary, so SwiftUI's answer with
+  it off is unmeasured and no claim is made about that state. Pinned by the
+  per-control key tests (`aFocusedButtonActivatesOnSpaceAndOnReturnOnlyOffApple`,
+  `aToggleClickSpaceAndPressEachWriteTheNegationOnce`,
+  `aFocusedSliderAdjustsByTheAccessibilityStepOnTheArrows`,
+  `aFocusedStepperStepsOnTheUpAndDownArrows`,
+  `aFocusedPickerMovesItsSelectionWithTheArrowsAndDoesNotWrap`).
+- **81 is added** (kept, owner plan task 12 for the menu presentation,
+  `DD-V` item 4): `PickerStyle.automatic` is `.segmented`; SwiftUI's
+  automatic picker on macOS is a pop-up menu (probe PK0/PK1: 139×24, the
+  `.menu` size). `PickerStyle` is a closed struct, not SwiftUI's protocol,
+  so `.pickerStyle(.menu)` does not typecheck (guard G1.2).
+- **82 is added** (kept, owner plan task 12's VoiceOver validation, `DD-U`
+  items 3 and 9): the accessibility **partial fold** gives `.incrementor`/
+  `.radioGroup` an accessible name from their non-interactive descendants,
+  where SwiftUI publishes a sibling static text beside an unlabelled control;
+  MetalUI also publishes no `AXValueIndicator` child under a slider, and a
+  stepper's two arrow buttons are enabled where AppKit reads SwiftUI's as
+  disabled while the stepper is enabled. Pinned by
+  `aPickerPublishesARadioGroupTitledByItsTitle` and
+  `aStepperPublishesALabelledIncrementorWithTwoArrowButtons`.
+- **83 is added** (kept, owner plan task 12, `DD-Z` item 8): an
+  accessibility client selects a `List` row only by **pressing** it;
+  `AXSelected`/`AXSelectedRows` writes change nothing, where SwiftUI's do.
+  Pinned by
+  `anAccessibilityClientSelectsARowByPressingItAndCannotSetSelectedDirectly`.
+- **84 is added** (kept, owner **none**, `DD-AB` item 3): a `List` answers
+  its content height as `rowHeight × count`, needs an enclosing `ScrollView`,
+  is data-driven only (no `List { … }` content) and shares one row height,
+  where SwiftUI's is greedy (probe LS0: 300×200 in a 300×200 window) and
+  self-scrolling. Retaining virtualization is plan task 10's own text, so
+  this is the ruled shape, not a debt; its pins are `List`'s existing ones
+  (the `List` paragraph of `CLAUDE.md`, `LR-BQ`).
+- **85 is added** (kept, owner **plan task 15** closeout, `DD-AI`, found by
+  the controls demo, `DD-AG` item 3): an optional `@State` with a non-`nil`
+  initial value reads `nil` until its first write —
+  `StateTable.peek`/`State.wrappedValue` casts an absent entry to the
+  optional `Value` as a present `.some(nil)`, so `?? initialValue` never
+  runs; SwiftUI shows the initial value. **Unpinned**: the red-first test is
+  owed with the fix (`DD-AI`), which changes every such `@State`'s
+  observable behaviour and so wants its own ruling and migration note.
+
+**What it costs if wrong.** A caller who relied on a button inside a scroll
+view blocking its wheel (divergence 16, never documented as a feature) now
+sees the wheel scroll there. A caller writing `@State var x: Int? = 2` sees
+`nil` until the first write (85) — the controls demo works around it with a
+`Set`.

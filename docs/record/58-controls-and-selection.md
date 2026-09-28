@@ -494,6 +494,8 @@ Per `DD-AB` item 1, the box is ticked only if every clause of the plan's task
 | scroll position | built, part 1 (`DD-G`) |
 | indicators | built, part 1 (`DD-H`) |
 | programmatic scrolling | built, part 1 (`scrollTo(_:anchor:)`, `DD-G`) |
+| the task-9 note: the deprecated `Binding` alias deleted with a SwiftUI `Binding` | done, part 1 (`DD-D` item 6) |
+| the task-9 note: wheel scrolling under `.disabled` (`EV-Q`'s item) | ruled, part 1 (`DD-I` item 3): MetalUI's disabled `ScrollView` keeps scrolling, pinned; SwiftUI unmeasured, a human look owed (record §03). Part 2's `DD-Y` does not move it — a disabled click target registers no hitbox, so the wheel reaches the scroller directly, as before (these two rows added by the branch checker, §11) |
 
 Every item `DD-J`/`DD-Q` re-owned away from task 10 — `List`'s own greedy
 answer and non-uniform rows (divergence 84, owner none), divergence 32 and
@@ -510,3 +512,89 @@ Spec `docs/superpowers/specs/2026-09-26-controls-and-selection-design.md`:
 DELIVERED**; next unused ruling id **`DD-AJ`**. Plan task 10's checkbox is
 **ticked** — both parts close every clause of the task's text (§9 above).
 
+
+## 11. The adversarial branch check (`27b2fcc..c9a741e`)
+
+Taken 2026-09-28 in this worktree at `c9a741e`, independently of every
+reading above.
+
+- **Suite**: `swift package clean`, then `swift build --build-system native
+  --build-tests` (0 `error:`, the one `warning:` SwiftPM's deprecation
+  notice) and unfiltered `swift test --build-system native --no-parallel` →
+  **`Test run with 1643 tests in 3 suites passed after 96.288 seconds`**; the
+  log carries `FR-J no-argument frame: succeeded=` and the four new guards'
+  positive and control lines (G1.1, G1.2, G2.1, G3.1, each control
+  disagreeing with its positive). `swift build --build-tests` under the
+  default build system: 0 `error:`, 0 `warning:`. Goldens 0; `grep -c
+  canTypecheck` over all of `Tests/` reads 102 raw (the 101 of §4 plus
+  `Typecheck.swift`'s declaration), so 100 guards the canonical way;
+  `MetalUILayout` imports only `MetalUICore`; `cmp CLAUDE.md AGENTS.md`
+  clean. Green in that run, by name: `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `focusabilityAndKeyHandlingRegisterNoPointerHitbox`,
+  `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`,
+  `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`,
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread` and
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`.
+- **`List` virtualization**: `METALUI_RUN_100K_LIST_TEST=1 swift test
+  --build-system native --filter aListsWorkIsTheSameFor100kRowsAsFor500` —
+  passed (28.8 s).
+- **Pixels**: `compare.sh <scratch> 27b2fcc HEAD` — every control as recorded
+  in §4, **all fourteen `differing=0`, scene identical**.
+- **Real window**: the lock probe read `CGSSessionScreenIsLocked = 1`,
+  `displayAsleep main: 1` (10:25 PDT) — `capture.sh` not run.
+- **`Backends/SDL`** (macOS, AccessKit fetched fresh into
+  `Backends/SDL/.accesskit`): 21 + 23 passed. **`swift:6.4-noble`** (root
+  package from `git archive HEAD`): `swift build --build-tests` 0
+  `error:`/`warning:`; `MetalUILayoutTests`/`MetalUICoreTests`/
+  `MetalUICrossPlatformTests` **188 + 22 + 10** passed (the last includes the
+  closing check).
+- **Every test name (107) and ruling id cited in the branch's doc diff
+  resolves** (`DD-AJ` only as "next unused"; `DD-3` only as the typo
+  example).
+
+**Two mutations of this check's own design**, each committed state restored
+from a copy, full unfiltered suite, `git status --short` clean after:
+
+| Mutation | Change (spelling applied) | Reddens |
+|---|---|---|
+| MX1 | `declaration.selectionHint = false` deleted from `Frame.registerHandlers` (the hint no longer stripped before the declaration test, so a selected row declares a node) | `aSelectionHintPublishesSelectedAndWritesNoAXSlot`, `aSelectableListAddsOneColourSlotPerSelectedRowAndNoAXSlot` (5 issues) |
+| MX2 | `dispatchValueTrack`'s press resolves `lastHitboxes.lastIndex(where: valueTrack != nil && bounds.contains(point))` instead of `topmostOpaqueHitbox(in:at:)` — a second, unranked copy of hit resolution | **none** (1643 passed) |
+
+**MX2 is a finding, not a broken instrument**: a scratch test (a `Slider`
+under an opaque `onClick` `Box` sibling in a `Stack`, covering it) read value
+**5** under the mutant and **0** on the committed source, so the mutant
+differs and no retained test sees it. The committed code is correct —
+`dispatchValueTrack` does use the one ranking — but that it does is
+unpinned: a slider covered by an opaque sibling, or by a `Deferred` scrim,
+taking no press is asserted by nothing. **Non-blocking**; owed as one test
+(the scratch test's shape) by whoever next touches `dispatchValueTrack`.
+
+**Doc defects found and fixed in this commit**:
+
+1. Records §03, §04 and §05 had **no** 2026-09-28 task-10-part-2 section,
+   though `CLAUDE.md`, §6–§8 above and `c9a741e`'s message all cite them —
+   written now from §6–§8, the rulings and the tests they name (§04 moves
+   56 → 61 live, 16 joining the never-reused list).
+2. `CLAUDE.md` said "**No test retired, none renamed**" for this task; one
+   retained test was renamed with its answer changed
+   (`aClickTargetInsideAScrollViewSwallowsTheWheel` →
+   `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`, §2.5's own
+   row) — corrected.
+3. `CLAUDE.md`'s "`Handlers` has nine members" (the Controls paragraph
+   beside it says `valueTrack` is the tenth) and "Hit testing"'s "`onClick`
+   alone makes an opaque pointer target" (stale since `TI-B` and now
+   `valueTrack`) — corrected, and the `DD-Y` wheel rule added to "Hit
+   testing".
+4. `DD-W` item 8 says a `Slider`'s thumb snapping was "added to CLAUDE.md's
+   snaps list by the Record phase"; it was not — added.
+5. §9's clause table omitted the two items the plan's task-9 note assigns to
+   task 10 (the alias deletion, wheel scrolling under `.disabled`) — rows
+   added; both were disposed of by part 1, so the tick stands.
+
+**Verdict**: task 10's box stays ticked — the plan text's four sentences and
+its task-9 note are each closed by part 1 or part 2 (§9), every re-owned
+item named. No code defect found; **merge**.

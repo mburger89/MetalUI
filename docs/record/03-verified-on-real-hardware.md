@@ -1597,3 +1597,43 @@ look to task 9's two** (above) — but it does owe **one look of its own**:
 This look is owed to whoever next has this machine (or an equivalent one)
 with an unlocked screen — no other owner is named, the same shape as the
 still-open debts above.
+
+## 2026-09-28: no demo look shown, but the controls demo and its pointer and accessibility looks owed at controls and selection (plan task 10, part 2)
+
+Record §58 §4, §8; rulings `DD-Q`…`DD-AI`. (This section was cited by
+`CLAUDE.md` and record §58 from the Record phase's commit `c9a741e` but not
+written there; the branch checker wrote it, record §58 §11.) **Nothing the
+ordinary demo shows changed**: the fourteen-image offscreen comparison
+against `27b2fcc` reads **0 differing and scene identical in all fourteen**,
+taken by the Record phase at `87e3f9c` and again by the branch checker at
+`c9a741e`; `Expected.swift` is unedited. The only demo-source changes are
+comments (`DemoContent.swift`, divergence 16's retirement) and a new, gated
+tree (`ControlsDemo.swift`, `METALUI_CONTROLS_DEMO=1`), which no offscreen
+image renders.
+
+**The lock probe read locked at every lane's own check, at the Record
+phase's close and at the branch check** (`CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`), so `capture.sh` never ran. SwiftUI's own click and
+wheel positive controls (probe CK0, WH0) failed in every probe session,
+locked and unlocked alike (the critic round re-ran them unlocked, `DD-AC`),
+so no pointer rule below is SwiftUI-measured. **Owed**, to whoever next has
+this machine with an unlocked screen:
+
+- **The controls demo on screen** (`METALUI_CONTROLS_DEMO=1 swift run
+  MetalUIDemo`): every control by pointer and by key — a slider press and
+  drag, a stepper's two halves, a segmented and a radio-group picker, a
+  toggle, a button by Space/Return.
+- **The wheel rule** (`DD-Y`, divergence 16 retired): the wheel over a
+  button, a single-line field and a selectable row inside a scroller scrolls
+  it; over a modal scrim it does not.
+- **Selection by pointer and key**: ⌘-click (toggle), ⇧-click (range from
+  the anchor), ↓/↑ and ⇧↓/⇧↑, and the reveal of an off-screen lead.
+- **VoiceOver on the five new roles** (`.checkBox`, `.radioButton`,
+  `.radioGroup`, `.slider`, `.incrementor`) and a selected row's `isSelected`
+  — including the two shapes divergence 82 names (a partial fold's
+  accessible name; a stepper's arrows) and divergence 83 (a client presses a
+  row rather than setting `AXSelected`).
+
+These join, and neither close nor reopen, the still-owed real-window capture
+and its four demo-layout changes from stage 6b, task 9's two looks and part
+1's wheel-under-`.disabled` look (above).
