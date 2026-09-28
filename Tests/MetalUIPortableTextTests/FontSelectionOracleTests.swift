@@ -26,7 +26,7 @@ private let oracleFamilies = [
     "American Typewriter", "Optima", "Baskerville", "Menlo", "Palatino", "Didot", "Hoefler Text", "Cochin",
     "Seravek", "Sukhumvit Set", "Charter", "Iowan Old Style", "Superclarendon", "Athelas", "Big Caslon",
     "Copperplate", "Marion", "Rockwell", "Georgia", "Verdana", "Trebuchet MS", "Arial", "Times New Roman",
-    "Courier New", "Kohinoor Bangla", "Kohinoor Telugu", "Kohinoor Gujarati", "Galvji", "Charter",
+    "Courier New", "Kohinoor Bangla", "Kohinoor Telugu", "Kohinoor Gujarati", "Galvji", "Charter", "Hiragino Sans",
 ]
 
 private let requestWeights: [Double?] = [nil, -0.8, -0.6, -0.4, 0, 0.23, 0.3, 0.4, 0.56, 0.62]
@@ -175,4 +175,61 @@ let pinnedSelectionDifferences: Set<SelectionDifference> = [
                 .postScriptName == "NotoSans-Regular", "a family wins over a design")
         }
     }
+}
+
+/// **1.1b** (the lane-2 fix round; TE-W item 6). The two style rules 1.1's
+/// weight-word families never reach, through the lazy path
+/// (`FreeTypeFaceNames.read(path:)`), against CoreText's face:
+///
+/// - Hiragino Sans's `W0`…`W9` take their weight from the number, not the
+///   OS/2 class (W3 is class 300 and CoreText's regular, W4 class 400 and
+///   0.23): every request equals CoreText's. Dropping the number rule reddens
+///   this half and 1.1.
+/// - A style with neither a weight word nor a number takes the class: Marker
+///   Felt "Wide" is class 700, CoreText's 0.4. **The fallback is the only rule
+///   deciding that face on a macOS 27 install, and it moves no answer**: with
+///   the class read as 0 (mutation V9), Wide weighs 0 and every request still
+///   lands on the same face — so the rule itself is pinned by the synthetic
+///   `FaceTraits` rows below, not by the oracle. One Marker Felt request
+///   differs, pinned: at weight 0 CoreText picks "Thin", which it weighs 0
+///   (class 400) against its own style word, where the portable resolver reads
+///   "thin" as −0.6 and picks Wide, the nearer.
+@Test func aStyleWithNoWeightWordTakesItsWeightNumberOrItsClass() throws {
+    var checked: [String] = []
+    for family in ["Marker Felt", "Hiragino Sans"] {
+        let faces = coreTextFaces(of: family)
+        guard faces.count >= 2 else { continue }
+        checked.append(family)
+        let resolver = try PortableFontResolver(defaultFont: fontBytes("NotoSans-Regular.ttf"))
+        for path in faces.paths.sorted() {
+            for face in FreeTypeFaceNames.read(path: path) {
+                resolver.register(face, inCascade: false) { [UInt8](try Data(contentsOf: URL(fileURLWithPath: path))) }
+            }
+        }
+        var distinct: Set<String> = []
+        for weight in requestWeights.compactMap({ $0 }) {
+            let descriptor = FontDescriptor(family: family, size: 15, weight: weight)
+            let apple = FontResolver.resolve(descriptor).key.postScriptName
+            let portable = try resolver.resolve(descriptor).key.postScriptName
+            distinct.insert(apple)
+            if family == "Marker Felt" && weight == 0 {
+                #expect(apple == "MarkerFelt-Thin" && portable == "MarkerFelt-Wide", "pinned: \(apple) \(portable)")
+            } else {
+                #expect(portable == apple, "\(descriptor)")
+            }
+        }
+        // The arm separates: CoreText answers more than one face across the weights.
+        #expect(distinct.count >= (family == "Hiragino Sans" ? 9 : 2), "\(family): \(distinct)")
+    }
+    try #require(!checked.isEmpty, "neither Marker Felt nor Hiragino Sans is installed")
+
+    // The class fallback on CoreText's scale, and its guards: a weight word or
+    // a number wins over the class, "Italic" alone and an empty style are 0,
+    // and no class is 0.
+    #expect(FaceTraits(style: "Wide", weightClass: 700, widthClass: 5).weight == 0.4)
+    #expect(FaceTraits(style: "Chancery", weightClass: 300, widthClass: 5).weight == -0.4)
+    #expect(FaceTraits(style: "Chancery", weightClass: 0, widthClass: 0).weight == 0)
+    #expect(FaceTraits(style: "W3", weightClass: 300, widthClass: 5).weight == 0)
+    #expect(FaceTraits(style: "Thin", weightClass: 400, widthClass: 5).weight == -0.6)
+    #expect(FaceTraits(style: "Italic", weightClass: 500, widthClass: 5).weight == 0)
 }

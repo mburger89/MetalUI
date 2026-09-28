@@ -325,13 +325,16 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// `LR-FS` corrects the prediction (the raising half is
 /// `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s).
 ///
-/// **Plan task 11 part 1** (ruling TE-L, spec 2.10, a T row): the 16 baseline
+/// **Plan task 11 part 1** (ruling TE-L, spec 2.10, a T row): the 15 baseline
 /// rows (`alignItems.baseline` at the five container sites, `alignSelf.baseline`
-/// at the eleven recording sites) change owner from `"plan task 11"` to `nil`
+/// at the ten recording sites) change owner from `"plan task 11"` to `nil`
 /// — task 11 lowers a baseline row and a column, and every baseline entry
 /// still raisable (a `display: .stack` container's, an `alignSelf` outside a
 /// baseline row) is a permanent refusal. The table keeps all **265** entries,
-/// and no entry has a live owner left. Mutation **M2k**: the `"plan task 11"`
+/// and no entry has a live owner left. The lane-2 fix round (TE-L item 5)
+/// adds 40 more, each a permanent refusal: `alignSelf.flexStart`/`.center`/
+/// `.flexEnd`/`.stretch` under a baseline row at the ten recording sites
+/// (**305**). Mutation **M2k**: the `"plan task 11"`
 /// branch restored in `owner`.
 @Test func everyReportNamesALiveOwnerOrIsRefusedByName() throws {
     let containerSites: [LoweringSite] = [.box, .stack, .scrollView, .modifierLayer, .component]
@@ -353,12 +356,14 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
          "margin.percent", "justifyContent.spaceBetween", "justifyContent.spaceAround",
          "justifyContent.spaceEvenly", "position", "inset"], at: recordingSites, owner: nil)
     add(["alignSelf.baseline"], at: recordingSites, owner: nil)
+    add(["alignSelf.flexStart", "alignSelf.center", "alignSelf.flexEnd", "alignSelf.stretch"],
+        at: recordingSites, owner: nil)
     add(["flexGrow.weights"], at: parentSites, owner: nil)
     add(["minSize.absolute", "maxSize.absolute"], at: presentedSites, owner: nil)
     add(["flexGrow", "flexShrink", "flexBasis", "alignSelf", "minSize", "maxSize", "margin",
          "position", "inset"].map { "\($0).unconsumed" }, at: recordingSites, owner: nil)
     add(["style"], at: [.modifierLayer], owner: nil)
-    try #require(expected.count == 265, "the table holds \(expected.count) entries")
+    try #require(expected.count == 305, "the table holds \(expected.count) entries")
 
     let permanent = "and is refused by name (plan task 7, LR-FO)"
     for (field, owner) in expected.sorted(by: { $0.key.description < $1.key.description }) {

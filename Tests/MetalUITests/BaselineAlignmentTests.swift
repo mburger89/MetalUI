@@ -128,3 +128,41 @@ private let b2Names = ["13", "26", "2line", "colour"]
     #expect(refused.unlowerable == [entry], "\(refused.unlowerable)")
     #expect(entry.owner == nil)
 }
+
+
+/// **2.11b.** Under a baseline row, a child's `alignSelf` other than
+/// `.baseline` is a permanent refusal by name (`box.alignSelf.<case>`, owner
+/// `nil`; TE-L item 5). Lowered, each laid out silently wrong: `.flexStart`
+/// has the baseline container's factor (0), so no alignment frame is built
+/// and the box sits baseline-aligned where CSS puts it at the top; `.center`,
+/// `.flexEnd` and `.stretch` each build a frame greedy on the cross axis whose
+/// guide in a baseline stack is its whole height, so the row answers taller
+/// than its 100 proposal (110) and pushes the text down. The control: the same
+/// children under a `flexStart` row report nothing.
+@MainActor
+@Test func aNonBaselineAlignSelfUnderABaselineRowIsRefusedByName() throws {
+    for alignSelf in [AlignSelf.flexStart, .center, .flexEnd, .stretch] {
+        let probe = BaselineProbe()
+        let text = probe.leaf("26", 18, 30, first: 25)
+        let name: String = switch alignSelf {
+        case .flexStart: "alignSelf.flexStart"
+        case .center: "alignSelf.center"
+        case .flexEnd: "alignSelf.flexEnd"
+        case .stretch: "alignSelf.stretch"
+        case .baseline: "alignSelf.baseline"
+        }
+        let refused = LayoutDifferential.report(width: 200, height: 100) {
+            Row { text; Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)).alignSelf(alignSelf) }
+                .alignItems(.baseline)
+        }
+        let entry = UnlowerableField(site: .box, field: name)
+        #expect(refused.unlowerable == [entry], "\(alignSelf): \(refused.unlowerable)")
+        #expect(entry.owner == nil)
+
+        let control = LayoutDifferential.report(width: 200, height: 100) {
+            Row { text; Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)).alignSelf(alignSelf) }
+                .alignItems(.flexStart)
+        }
+        #expect(control.unlowerable.isEmpty, "\(alignSelf) control: \(control.unlowerable)")
+    }
+}

@@ -260,8 +260,10 @@ struct FreeTypeFontNames {
 /// face's class and name part ways — Avenir Next UltraLight is class 275 and
 /// weight −0.8, Avenir Heavy class 900 and 0.56, Avenir Black class 800 and
 /// 0.62 — and follows the style name's weight word (record §59 §3). So a
-/// weight word in the style name decides, and the class decides only a style
-/// with none. The slope is the style name's "italic" or "oblique" (CoreText's
+/// weight word in the style name decides — or a `W0`…`W9` weight number, which
+/// CoreText reads over the class too (Hiragino, TE-W item 6) — and the class
+/// decides only a style with neither (Marker Felt Wide, class 700, is
+/// CoreText's 0.4). The slope is the style name's "italic" or "oblique" (CoreText's
 /// italic trait agreed with it on 2 753 of those faces, more than with
 /// `fsSelection` or `macStyle`), and the width `(usWidthClass − 5) / 10`
 /// (condensed, class 3, is CoreText's −0.2).
@@ -283,12 +285,28 @@ struct FaceTraits: Equatable {
         (100, -0.8), (200, -0.6), (300, -0.4), (400, 0), (500, 0.23), (600, 0.3), (700, 0.4), (800, 0.56), (900, 0.62),
     ]
 
+    /// The Japanese weight-number convention (`W0`…`W9`, Hiragino's styles)
+    /// on the same scale: CoreText reads the number, not the OS/2 class — Hiragino
+    /// Sans W3 is class 300 and CoreText's 0 (its regular), W4 class 400 and
+    /// 0.23, W2 class 250 and −0.4 (measured on macOS 27, record §59 §3, TE-W
+    /// item 6).
+    private static let numberWeights: [Double] = [-0.8, -0.6, -0.4, 0, 0.23, 0.3, 0.4, 0.56, 0.62, 0.62]
+
+    private static func weightNumber(_ words: String) -> Double? {
+        let characters = Array(words)
+        guard characters.count == 2, characters[0] == "w", let digit = characters[1].wholeNumberValue
+        else { return nil }
+        return numberWeights[digit]
+    }
+
     init(style: String, weightClass: Int, widthClass: Int) {
         let words = style.lowercased().filter { $0 != " " && $0 != "-" && $0 != "_" }
         italic = words.contains("italic") || words.contains("oblique")
         width = widthClass > 0 ? Double(widthClass - 5) / 10 : 0
         if let word = Self.weightWords.first(where: { words.contains($0.0) }) {
             weight = word.1
+        } else if let number = Self.weightNumber(words) {
+            weight = number
         } else if italic || words.isEmpty {
             // "Italic" alone is the family's regular slanted (Cochin-Italic is
             // class 500 and CoreText's 0).

@@ -113,6 +113,36 @@ private struct BaselineReportingLayout: ProposalLayout {
     #expect(baselines(measured { t in t.newNativeFrame(child: text13(t), height: 50) }) == [30, 30])
 }
 
+/// **2.1c** (the lane-2 fix round; `docs/probes/swiftui-baseline-offsets.swift`).
+/// The offsets a combined baseline is read at, where 2.1's arms put every one
+/// at 0 or at a child's height: a vertical stack's gaps (`VStack(spacing: 8)
+/// {13; 26}` 13/49, O1 — 41 at spacing 0, O1c) and a grid's row cursor,
+/// vertical gap, grid factor and cell anchor (`nativeGridCellOffsetsY`, TE-X
+/// item 2): two rows `{13; colour 40}` and `{26}` at vertical spacing 8 report
+/// 25/73 centred (O2) and 13/73 at `.top` (O3); a 13 pt cell anchored
+/// `.bottom` beside a 40-tall colour reports 37 (O4). Mutations V4 (the
+/// vertical cursor drops its gaps) and V5 (every grid offset 0) redden it.
+@Test func aStacksGapsAndAGridsOffsetsMoveTheBaselinesItReports() {
+    #expect(baselines(measured { t in
+        t.newNativeLinearStack(children: [text13(t), text26(t)], axis: .vertical, spacing: 8)
+    }) == [13, 49])
+    func twoRows(_ t: LayoutTree, _ alignment: ProposalAlignment) -> LayoutNodeID {
+        let first = [text13(t), colour(t, 40)], second = [text26(t)]
+        t.markNativeGridRow(first)
+        t.markNativeGridRow(second)
+        return t.newNativeGrid(children: first + second, alignment: alignment, verticalSpacing: 8)
+    }
+    #expect(baselines(measured { t in twoRows(t, .center) }) == [25, 73])
+    #expect(baselines(measured { t in twoRows(t, .top) }) == [13, 73])
+    #expect(baselines(measured { t in
+        let text = text13(t)
+        t.markNativeGridCell(text, anchor: .bottom)
+        let row = [text, colour(t, 40)]
+        t.markNativeGridRow(row)
+        return t.newNativeGrid(children: row, alignment: .top)
+    }) == [37, 37])
+}
+
 /// B2's four children in a spacing-0 horizontal stack: the 13 pt text, the
 /// 26 pt one, the two-line one and the colour — at whole-point widths (18, 34,
 /// 18, 10), so the stored rects, which layout rounds, keep every vertical

@@ -929,7 +929,9 @@ extension LayoutPass {
     ///
     /// **Still reported** at the child's site: `alignSelf.baseline` outside a
     /// baseline container (a permanent refusal since plan task 11, TE-L; under one
-    /// it is consumed, the child aligning so already) and `margin` (lane 4). A `.frame` layer child reports nothing: its item fields are
+    /// it is consumed, the child aligning so already), any other explicit
+    /// `alignSelf` under a baseline **row** (`alignSelf.flexStart`/`.center`/
+    /// `.flexEnd`/`.stretch`, permanent refusals, TE-L item 5) and `margin` (lane 4). A `.frame` layer child reports nothing: its item fields are
     /// its own frame's.
     ///
     /// **`parentSite:` names exactly one report, `flexGrow.weights`** (ruling LR-BM).
@@ -1004,6 +1006,24 @@ extension LayoutPass {
                     // already); anywhere else a permanent refusal by name.
                     if d.alignSelf == .baseline && parent.alignItems != .baseline {
                         reports.append("alignSelf.baseline")
+                    }
+                    // TE-L item 5: under a baseline ROW any other explicit
+                    // `alignSelf` is a permanent refusal by name. The baseline stack
+                    // has no per-child alignment: `.flexStart` shares the container's
+                    // factor (0), so no alignment frame is built and the child sits
+                    // baseline-aligned where CSS puts it at the top; `.center`,
+                    // `.flexEnd` and `.stretch` build a frame greedy on the cross axis
+                    // whose baseline guide is its whole height, growing the row past
+                    // its proposal. (A column's baseline lowers as `flexStart`, and an
+                    // `alignSelf` under it lowers as under any column.)
+                    if isRow && parent.alignItems == .baseline, let own = d.alignSelf {
+                        switch own {
+                        case .flexStart: reports.append("alignSelf.flexStart")
+                        case .center: reports.append("alignSelf.center")
+                        case .flexEnd: reports.append("alignSelf.flexEnd")
+                        case .stretch: reports.append("alignSelf.stretch")
+                        case .baseline: break
+                        }
                     }
                 }
                 if !stretched {
