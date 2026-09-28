@@ -296,3 +296,155 @@ unfiltered, `git status --short` empty after each restore):
 | MCLAMP | the `max(1, …)` clamp dropped on both systems | the run traps in 1.6 (`Index out of range`), no summary line |
 
 Next unused `TE-W`.
+
+## 3. Lane 2 — font selection on both systems; baselines in the kernel; the legacy `baseline` fields
+
+Commits: `a0acce8` (red, font selection), `d5a2b3f` (font selection),
+`666d88b` (red, baselines), `4bd1092` (baselines), `02eb735` (the NaN fix, red
+first), `baf1420` and `6574330` (2.1b's two arms after M2x), and the docs commit carrying this
+section.
+
+### 3.1 What landed
+
+- `MetalUITextSystem`: `FontDesign`, `FontDescriptor`, the requirement
+  `resolveFont(_:)`; `resolveFont(family:size:)` is now a protocol extension.
+- CoreText: `FontResolver.resolve(_:)` and a descriptor-keyed
+  `ShapingCache.resolveFont(_:)` memo (`TE-W` items 1, 5).
+- Portable: `FreeTypeFont.styleName`/`weightAndWidthClass`,
+  `FreeTypeFaceNames.weightClass`/`widthClass` (read without the bytes),
+  `FaceTraits`, `PortableFontResolver.resolve(_:)` and
+  `register(design:family:)` (`TE-W` items 2–3). A family name now means the
+  family's regular face, not the first registered.
+- Kernel: `ProposalTextBaseline`; `firstBaseline`/`lastBaseline` for every
+  node kind; `newNativeLinearStack(…, baseline:)` (a vertical stack with one
+  traps); `LayoutPass`/`Frame.requestNativeLinearStack(…, baseline:)`.
+- `MetalUI`: `VerticalAlignment.firstTextBaseline`/`.lastTextBaseline`;
+  `HStack` passes them; `GridRow` traps on them (divergence 88); a legacy
+  row's `alignItems(.baseline)` lowers to `.first`, a column's to `flexStart`,
+  a `display: .stack` container's stays reported; `alignSelf.baseline` is
+  consumed under a baseline container; `UnlowerableField.owner` is always
+  `nil` (`TE-L`, `TE-X`).
+- Probe `docs/probes/swiftui-font-selection.swift` (new): P0, W 144/144, N 7/7,
+  S 32/32.
+
+### 3.2 Rulings
+
+`TE-W` (font selection as measured; ten portable rows pinned) and `TE-X` (a
+custom node's own baselines; a grid's from its solve; the third T row, spec
+2.13; no NaN from an infinite answer, spec 2.1b). Next unused `TE-Y`.
+
+The two CoreText measurements `TE-W` cites (scratch, not probes — they read
+CoreText, not SwiftUI): over 2 755 installed faces, CoreText's weight trait
+against the OS/2 class (many disagree — class 400 carries every weight among
+variable-font named instances, 275/900/800 carry −0.8/0.56/0.62 among Avenir's
+statics) and against the style word (2 566 agree); its italic trait against
+the style name (2 753), `macStyle` (2 737), `fsSelection` (2 731). CoreText's
+selection over 68 static families: the portable rule, fed CoreText's own
+traits, agreed on 1 329 of 1 360 rows, the misses variable fonts (which
+FreeType lists as one face) and the classes `TE-W` item 4 pins.
+
+### 3.3 Red first
+
+Font selection, at `a0acce8` (skeleton: both systems ignore weight, slope and
+design), filtered: 1.3 `theSystemDescriptorIsNSFontsSystemFontAtEveryWeightAndDesign`
+156 issues (`FontResolver.resolve(descriptor).key == expected`), 1.4
+`aCustomFamilysWeightSelectsItsNearestFace` 30 issues, 1.1 1 issue (then only
+Sukhumvit Set's family-name face, both skeletons ignoring weight alike); with
+CoreText implemented, 1.1 read **474 differences** of 600 (`differences ==
+pinned`) — the portable resolver ignoring the weight. 1.2 and G1.2 passed on
+the skeleton, as their rows say (a pin; an API that existed). 1.12
+(`Tests/PortableTests`) passed on the skeleton too: a regular-only resolver
+has nothing else to choose — its mutation is M1b's.
+
+Baselines, at `666d88b`, filtered to the 15 touched tests, 62 issues: 2.1 10
+(`baselines(measured { … ZStack … }) == [25, 25]` …), 2.2 2 (`answer.size ==
+SizeD(width: 80, height: 44)`), 2.3 2, 2.5 2, 2.6 2 (exit status success), 2.7
+2, 2.8 4 (exit status success), 2.9 1 (`row.unlowerable.isEmpty`), 2.10 30
+(`field.owner == owner`), 2.11 4, 2.12 2, 2.13 1; green by design: 2.4 (the
+control), the work pin, G2.1. 2.1b was red (SIGTRAP) against `4bd1092`.
+
+### 3.4 Close
+
+After `swift package clean`-free rebuilds (no stored property on a public type
+crossing a module boundary changed layout: `FreeTypeFaceNames` gained two, a
+stale `SystemFontsTests` object was rebuilt by touching it — the link error
+`Undefined symbols … FreeTypeFaceNames.init(faceIndex:postScript:family:full:style:)`):
+`swift build --build-system native --build-tests` 0 `error:`, the one
+deprecation `warning:`; `swift build --build-tests` 0/0; unfiltered
+`swift test --build-system native --no-parallel` **`Test run with 1675 tests
+in 3 suites passed`**, the `FR-J` line present. **1675 = 1657 + 18**: 1.1,
+1.2, 1.3, 1.4, G1.2 (5); 2.1, 2.1b, 2.2–2.6, the work pin (8); 2.7, 2.9, 2.11
+(3); 2.8 (1); G2.1 (1). Guards **101 → 103** (G1.2, G2.1, both
+`typecheckFile`). T rows 2.10, 2.12, 2.13 re-answered, none removed.
+`MetalUILayout` imports only `MetalUICore`. `Tests/PortableTests` 21 + 6 + 5
+(1.12). `Backends/SDL` (`PKG_CONFIG_PATH=Backends/SDL/.accesskit`) 21 + 23. A
+`swift:6.4-noble` (aarch64) container builds the root package with 0
+`error:`/`warning:` and runs **196 + 22 + 10** (`MetalUILayoutTests` + 8,
+`BaselineMeasurementTests`), `Tests/PortableTests` **21 + 6 + 5**, 1.12
+confirmed on Linux.
+
+`compare.sh` 169d166 → `4bd1092` and → `6574330`: controls as recorded since
+stage 6b (1048576, 1031003, 454895, 0, 1048576, 0, 544, 216, 491221, 529, 0);
+**0 differing pixels, scene identical, in all fourteen**. No demo tree writes
+a font weight, a design, a baseline alignment or `alignItems(.baseline)`, and
+no production leaf reports a baseline before lane 3. The lock probe read
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`: the real-window
+capture is still owed.
+
+`SA-M`: every work-literal test green unedited; `baselineAlignmentAddsNoMeasurementWork`
+pins that baseline alignment and baseline-reporting leaves add no measure
+call, hit or miss. The 1 MB every-kind depth test green; the ceiling was not
+re-bisected (the maximum is unchanged; new per-level work sits in
+`@inline(never)` helpers).
+
+### 3.5 Mutations
+
+Committed first, each applied from a copy, the whole suite unfiltered, `git
+status --short` empty after every restore:
+
+| # | mutation | reddened |
+|---|---|---|
+| M1a | portable nearest → the pool's first face | 1.1 (2) |
+| M1b | a one-face family's weight/slope falls to the cascade's first face | 1.2 (114) |
+| M1c | CoreText system path drops the weight | 1.3 (117) |
+| M1d | CoreText family path keeps the named face (no weight descriptor) | 1.4 (26), 1.1 (2) |
+| M1q | portable italic tie → heavier | 1.1 (1: Avenir Next light italic) |
+| M1r | portable weight word ignored when a class exists | 1.1 (2) |
+| M1s | the memo's `==` ignores the weight (hash kept) | 1.3, then the run traps (duplicate `FontRequest` keys), no summary line |
+| M1s2 | `==` and hash both ignore the weight | 1.3 (58), 1.4 (13) |
+| MG1c | `FontDescriptor.init` `package` | G1.2 |
+| M2a | a stack's baselines from its first child only | 2.1 (5), 2.5 (2) |
+| M2b | an attachment takes its overlay's baselines | 2.1 (2) |
+| M2c | a text-less child counted as its height | the run traps at checkpoint 2 in `theDemoFrameDrawsRectsAndText`/`theDemoFrameMatchesTheValuesRecordedOnMacOS` (∞ − ∞ in the demo's spacer rows — the finding behind `TE-X` item 6); filtered to the baseline files, 2.1 (4) |
+| M2d | baseline stack height = tallest child | 2.2, 2.3 |
+| M2e | a text-less guide read as 0 | 2.2, 2.3 (2), 2.7 (2), 2.9, 2.11 |
+| M2f | `.last` reads the first baseline | 2.3 (2), 2.5, 2.7 |
+| M2g | baseline placement whenever a child reports one | 2.4 (3), 2.7 |
+| M2h | a stack's last = its first | 2.1 (5), 2.5 (2) |
+| M2i | `textBaseline` always nil | 2.7 (2), 2.8 (4: no trap) |
+| M2j | a baseline column lowers as centre | 2.9 |
+| M2k | `"plan task 11"` owner restored | 2.10 (30), 2.11 |
+| M2l | `alignSelf.baseline` consumed everywhere | 2.11, `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` (2) |
+| M2m | a flex container reports `alignItems.baseline` again | 2.12 (2), 2.13, 2.9, 2.11 (3) |
+| M2n | the stack branch's `alignItems.baseline` row deleted | 2.12, `aLoweredStackPlacesFixedChildrenAtAllNineAlignments` |
+| MG2 | `firstTextBaseline` added to `HorizontalAlignment` | does not build (exhaustive switch) |
+| MG2b | MG2 plus the switch arm | G2.1 |
+| M2t1 | the vertical-stack precondition off | 2.6 (2) |
+| M2t2 | the `GridRow` precondition off | 2.8 (4) |
+| M2w | a baseline stack re-measures its children | the work pin (2) |
+| M2x | the combination's finite guard dropped (first) | 2.1b (after its infinite-probe assertion was added; before, green — `Swift.min` keeps a non-NaN first argument) |
+| M2y | the frame's NaN guard dropped | 2.1b |
+
+### 3.6 Deferrals
+
+- `TE-W` item 4's ten rows (Hoefler Text, Futura, Sukhumvit Set): pinned,
+  owner none.
+- `TE-X` item 2: a grid cell that answers its slot differently from its solve
+  answer reports the solve's baseline; reachable only under a baseline
+  `HStack`; unpinned beyond X3i.
+- The depth ceiling is not re-bisected (`SA-L` asks it only before raising
+  `maxDepth`).
+- Nothing element-facing: `Text`/`ProposalText` report no baseline and pass
+  no descriptor until lane 3 (`Font`, `fontWeight`, `italic`).
+
+Next unused `TE-Y`.

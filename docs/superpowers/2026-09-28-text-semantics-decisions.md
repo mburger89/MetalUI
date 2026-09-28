@@ -1,8 +1,8 @@
 # Text semantics decisions (plan task 11, part 1)
 
 Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-semantics-design.md),
-on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-V`;
-next unused is **`TE-W`**. A bare `TE-3` is a typo, not a citation. **A round
+on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-X`;
+next unused is **`TE-Y`**. A bare `TE-3` is a typo, not a citation. **A round
 that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-28: DESIGNED; critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
@@ -965,3 +965,175 @@ systems); alignment's factors and its leaving out trailing whitespace
 at that blank line, would draw a stray "…" on macOS alone; a text box
 narrower than one glyph would stack one more blank line on Linux and Windows
 than on macOS.
+
+---
+
+## TE-W — font selection, measured: CoreText's descriptor matching on the Apple path, the style word over the OS/2 class on the portable one; ten rows pinned (lane 2)
+
+**Evidence.** `docs/probes/swiftui-font-selection.swift` (**new**, this lane;
+compiled five times and interpreted once, 186 lines byte-identical, screen
+locked; a warm-up render added after the first draft's P0 italic count read
+3078 once and 3080 otherwise): arms P0 (HelveticaNeue vs -Bold 4924 px, vs
+-Italic 3081 px — a 0-px match names one face), W (nine weights × two slopes
+over eight families, **144/144** rows where SwiftUI draws the face CoreText's
+prediction names), N (no weight, italic only: **7/7**), S (the system font at
+four weights × two slopes × four designs: **32/32** at 0 px). Two scratch
+measurements, recorded here and in record §59 §3.2, not committed as probes
+(they measure CoreText, not SwiftUI): over the **2 755** faces a stock macOS 27
+install lists under `/System/Library/Fonts` and `/Library/Fonts`, CoreText's
+weight trait against the OS/2 `usWeightClass` and against the style name's
+weight word, and its italic trait against the style name, `fsSelection` bit 0
+and `macStyle` bit 1; and CoreText's selection (the W arm's rule) for every
+static family of four or more faces, 68 families × ten weights × two slopes.
+
+**The ruling.**
+
+1. **The Apple path is CoreText's descriptor matching, measured equal to
+   SwiftUI's `Font`** (`FontResolver.resolve(_:)`, amending `TE-C` item 1's
+   "family's face nearest that weight" with the rule that reaches it): the
+   system face is the UI font's descriptor plus `kCTFontWeightTrait` and, for
+   a design, the traits key `NSCTFontUIFontDesignTrait` (what
+   `NSFontDescriptor.withDesign` writes; CoreText exports no constant) — key
+   for key `NSFont.systemFont(ofSize:weight:)` and `withDesign` at every
+   weight × design, sizes 13 and 26 (1.3) — then the created font slanted by
+   `CTFontCreateCopyWithSymbolicTraits`; a family is `CTFontCreateWithName`,
+   then with a weight a descriptor of that face's family name plus the weight
+   trait, then with italic the **descriptor's** symbolic italic trait. The
+   two paths slant differently because SwiftUI does: slanting the system
+   descriptor drew another face in 15 of S's 32 rows, and slanting the
+   created custom font drew Avenir Next light italic as Italic where SwiftUI
+   draws UltraLightItalic (W, the first draft's one miss). A request with no
+   weight, no slope and the default design is `resolve(family:size:)`
+   unchanged, so every existing caller draws what it drew.
+2. **The portable face's traits come from its style word before its OS/2
+   class** (amending `TE-C` item 1's "its OS/2 `usWeightClass`"), measured:
+   CoreText's weight trait follows the class only where class and name agree
+   — Avenir Next UltraLight is class 275 and −0.8, Avenir Heavy class 900 and
+   0.56, Avenir Black class 800 and 0.62 — and over 18 of the oracle's families (110 faces) the
+   style word reproduces 107 faces' weights where the class reproduces 101. So `FaceTraits` (`PortableFontResolver.swift`) takes the
+   first weight word of the style name (ultralight/extralight −0.8, thin −0.6,
+   light −0.4, book/regular/roman/normal 0, medium 0.23, semibold/demibold
+   0.3, extrabold/heavy 0.56, ultrabold/extrablack/black 0.62, bold 0.4), a
+   style of "Italic" alone as 0 (Cochin-Italic is class 500 and CoreText's 0),
+   and the class, to the nearest hundred, only for a style with no word. The
+   slope is the style's "italic" or "oblique" (CoreText's italic trait agreed
+   with it on 2 753 of the 2 755 faces; `fsSelection` on 2 731, `macStyle` on
+   2 737), the width `(usWidthClass − 5) / 10` (condensed, class 3, is
+   CoreText's −0.2). `FreeTypeFaceNames` carries the class pair and the style,
+   read by `FreeTypeFaceNames.read(path:)` without the face's bytes, so a lazy
+   system face (`SF-B`) is selected unloaded: registering the oracle's 187
+   faces loads none, and one bold italic request loads exactly its answer.
+3. **The portable selection** (`PortableFontResolver.resolve(_:)`): a name
+   that is a face's **family** name means the family's regular upright face
+   (nearest weight 0, normal width) — `CTFontCreateWithName`'s answer ("Futura"
+   is Futura-Medium, "Sukhumvit Set" SukhumvitSet-Text), no longer whichever
+   face registered first (a PostScript or full name still means its face,
+   `FN-A`); a weight picks the upright face of that face's family minimising
+   `|Δweight| + |width|`, a tie keeping the named face, then the heavier;
+   italic picks, among the family's italic faces of the selected face's
+   width, the one nearest the requested weight — the **lighter** on a tie,
+   which is how CoreText answers Avenir Next and Seravek (light italic →
+   UltraLightItalic, thin italic → ExtraLightItalic, where upright they tie
+   the other way) — or, with no weight, nearest the selected face's own.
+   Nothing is synthesised (F2h, F4b: 1.2 on both systems). A design with no
+   family resolves the family `register(design:family:)` named for it, else
+   the default face.
+4. **Ten rows differ, pinned by name, not matched** (`LB-M`'s and `TE-U`'s
+   precedent; `pinnedSelectionDifferences`, 1.1 requires the differences to
+   equal exactly these): over **30** installed families, **187** faces and
+   **600** requests (ten weights incl. none × two slopes), 590 equal
+   CoreText's face. The ten are three classes, none reachable from the
+   traits FreeType reads: (a) a face whose CoreText weight follows neither its
+   style word nor its class — Hoefler Text Black is class 700, word "black"
+   (0.62), CoreText 0.4, so medium and semibold (0.23, 0.3; each upright and
+   italic, 4 rows) select Black on CoreText and Regular on the portable path;
+   Futura Condensed ExtraBold is class 800, word "extrabold" (0.56), CoreText
+   0.62, so black (0.62) upright is Condensed ExtraBold on CoreText and Bold
+   here (1 row); (b) a slant CoreText declines for a nearer italic face —
+   Futura bold and heavy italic stay upright Bold on CoreText where the
+   portable path takes MediumItalic (2 rows), and black italic keeps
+   Condensed ExtraBold (1 row), while Gill Sans ultra-bold italic takes
+   BoldItalic on both — no distance rule over the three fits both families;
+   (c) an exact face CoreText passes over — Sukhumvit Set thin (−0.6) is
+   SukhumvitSet-Light on CoreText although SukhumvitSet-Thin is −0.6 (2 rows).
+   A family not installed is skipped; at least two must be (`#require`).
+5. `ShapingCache`'s font memo (`resolvedFonts`) is keyed on the whole
+   descriptor — weight by `bitPattern`, slope, design — so a weight resolves
+   its own face through the seam (1.3's seam arm; `FontRequest`); it stays
+   never swept, as `TX-C`/`fonts` require.
+
+**Cost if wrong.** A portable app asking a Hoefler Text, Futura or Sukhumvit
+Set weight in the ten pinned rows draws a neighbouring face of the same
+family where macOS draws another; every other row of the corpus is macOS's
+face. A future macOS whose CoreText weights move would redden 1.1 and 1.3 —
+the probe and the two scratch measurements re-run give the new rule.
+
+---
+
+## TE-X — baselines in the kernel and the legacy fields, as landed: a custom node's own baselines, a grid's from its solve, a third T row, and no NaN from an infinite answer (lane 2)
+
+**Evidence.** Lane 2's implementation against `TE-K`/`TE-L` and the existing
+suite: `aNaNCustomMeasurementTraps` (checkpoint 2, SA-J) reddened when a custom
+node's baselines were dropped as `TE-K` item 2 said; `aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst`
+(stage 2's 3.9) reddened when `TE-L` lowered its fixture's `alignItems:
+.baseline`; `SA-M`'s work literals (every `lastNativeLayoutWork` test) stayed
+green unedited; `baselineAlignmentAddsNoMeasurementWork` (new) pins it.
+
+**The ruling.**
+
+1. **A custom node reports the baselines its `sizeThatFits` returns**
+   (amends `TE-K` item 2's "`custom` — `nil`"): none unless it says so, which
+   is what every in-repo `ProposalLayout` does — the nearest this protocol has
+   to SwiftUI's `explicitAlignment`. Dropping them would have silenced
+   checkpoint 2 on a custom NaN baseline, an existing pin of `SA-J`. Row 2.1
+   pins both arms (a layout reporting none → `nil`; one passing its child's
+   → 13).
+2. **A grid's baselines are its cells' explicit ones at the offsets its
+   placement uses** (the anchor's, else the row's, else the grid's vertical
+   factor, `nativeGridCellOffsetsY`), each cell's measurement read back from
+   the run's cache at the proposal the solve recorded — a lookup that counts
+   no work, so the grid work literals (`GR-U`, `NativeGridWorkTests`) do not
+   move. A cell placed at a slot it answers differently is re-measured there
+   by `nativeGridCellRects`; its baseline in the grid's answer is the solve's.
+   Reachable only where a grid is a child of a baseline-aligned `HStack`; X3i
+   (one cell, 13) pins the common case.
+3. **Third T row, spec 2.13**: `aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst`
+   expected `[gap.percent, alignItems.baseline, size.percent, inset]`; a flex
+   container's `alignItems.baseline` lowers since `TE-L` and no other flex
+   container row exists, so it now expects `[gap.percent, size.percent,
+   inset]`, its fixture unchanged, and the production trap still names
+   `box.gap.percent`. V2 (every-node rows first) still separates: the report
+   would read `[size.percent, inset, gap.percent]`. The design listed two T
+   rows; this is the third, its retirement row in record §59 §3.
+4. **Placement by a baseline is from the stack's top edge** (each child at
+   `bounds.y + maxGuide − guide`), the offsets `measureLinearStack` used, so
+   measurement and placement agree for a stack placed at its own answer — as
+   every kernel container places a child. A vertical stack's baselines are
+   its children's at their cursor positions; a horizontal factor-aligned
+   one's at `(height − h) × factor`.
+5. **No measurement is added**: the new helpers (`measureOverlay`,
+   `measureLinearStack`, `gridMeasurement`, `@inline(never)`) read answers
+   already in hand, and `measureNative`'s own frame gains no loop locals
+   (`SA-L`); `aChainOfMaxDepthNodesOfEveryKindSurvivesAOneMegabyteThread`
+   green. `VerticalAlignment.proposalAlignment` reads `.top` for the two
+   baseline cases, a factor the kernel ignores whenever `textBaseline` is set.
+
+6. **An infinite answer never makes a baseline NaN** (found by mutation M2c,
+   record §59 §3): a greedy frame over a text at an infinite proposal (CN-F;
+   a vertical stack's flexibility probe reaches one, CN-B) answers ∞ with a
+   baseline of 13 + ∞ × ½ = ∞; a container's offset `(∞ − ∞) × factor`, a
+   baseline guide's remainder `∞ − ∞`, and a second greedy frame's own shift
+   are NaN, which checkpoint 2 (SA-J) traps. So a frame drops a baseline its
+   shift makes NaN, a guide falls back to the height when its baseline is not
+   finite, a NaN offset or remainder is 0, and `combinedBaselines` leaves out
+   any placed baseline that is not finite. Before lane 3 no production leaf
+   reports a baseline, so nothing reached it; pinned by **2.1b**
+   `anInfiniteAnswerNeverMakesABaselineNaN` (exit `.success`, one and two
+   greedy frames, factor and both baselines; the row reports no baseline at
+   the infinite probe).
+
+**Cost if wrong.** A custom layout that returns a baseline it does not mean
+would now align by it inside a baseline `HStack`; a grid cell that grows in
+its slot would misreport the grid's baseline by that growth — both only
+under a baseline alignment, which nothing in the demo or the repo's trees
+writes.

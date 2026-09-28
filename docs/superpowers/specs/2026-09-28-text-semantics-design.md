@@ -3,7 +3,7 @@
 Branch `feat/text-semantics` from `169d166` (plan task 10's tip). Rulings
 `TE-A`…`TE-U` in a new decisions doc,
 [`../2026-09-28-text-semantics-decisions.md`](../2026-09-28-text-semantics-decisions.md)
-(next unused **`TE-V`**). Evidence: `docs/probes/swiftui-text-semantics.swift`
+(next unused **`TE-Y`**; lane 1 added `TE-T`…`TE-V`, lane 2 `TE-W`, `TE-X`). Evidence: `docs/probes/swiftui-text-semantics.swift`
 (**new**, this design; arm ids `F1`, `L5`, `X8` …; its header carries the
 recorded output and the reading). Record: `docs/record/59-text-semantics.md`
 (written by the lanes and the Record phase).
@@ -268,7 +268,7 @@ numbers so every citation stands.
 
 | # | test | red before | mutation that must redden it |
 |---|---|---|---|
-| 1.1 | `thePortableResolverPicksCoreTextsFaceForEveryWeightAndItalic` — every (family, weight, italic) over the installed multi-weight families found (`#require` ≥ 2 families of ≥ 4 faces) equals CoreText's PostScript name | portable ignores `weight` | M1a: nearest weight → the family's first face |
+| 1.1 | `thePortableResolverPicksCoreTextsFaceForEveryWeightAndItalic` — every (family, weight, italic) over the installed multi-weight families found (`#require` ≥ 2 families of ≥ 4 faces) equals CoreText's PostScript name, **except exactly the ten rows `TE-W` item 4 pins** (590 of 600 over 30 families); registering the lazy faces loads none, one request loads its answer (**amended by `TE-W`**) | portable ignores `weight` | M1a: nearest weight → the family's first face |
 | 1.2 | `aWeightOrItalicTheFamilyLacksDrawsTheRegisteredFaceUnchanged` — Noto Sans Regular only, bold/italic → `NotoSans-Regular` on both systems (F2h, F4b) | portable picks another registered face | M1b: fall back to the cascade's first face |
 | 1.3 | `theSystemDescriptorIsNSFontsSystemFontAtEveryWeightAndDesign` — CoreText, nine weights (F2) and three designs (F3) by PostScript name | `weight`/`design` ignored | M1c: weight dropped on the system path |
 | 1.4 | `aCustomFamilysWeightSelectsItsNearestFace` — Helvetica Neue per X2 (semibold → Medium, heavy → Bold, `HelveticaNeue-Bold` + light → Light) | exact match only | M1d: no nearest, request's face kept |
@@ -305,8 +305,8 @@ default options).
 import: `resolveFont(FontDescriptor(size: 13, weight: 0.4, italic: true,
 design: .serif))` and `resolveFont(family:size:)` compile; control
 `FontDescriptor(size: 13, weight: .bold)` fails (the seam's weight is a
-`Double`, `Font.Weight` is `MetalUI`'s); MG1b: `FontDescriptor.init` made
-`internal`.
+`Double`, `Font.Weight` is `MetalUI`'s); **MG1c** (lane 1 took the name MG1b): `FontDescriptor.init` made
+`package`.
 
 **Baseline files**: `MetalUILayout/{LayoutTree,NativeGrid,ProposedSize}.swift`;
 `MetalUI/{StackAlignment,NativeElements,Grid,Passes,LegacyLowering,LayoutAuthority,Style}.swift`
@@ -319,7 +319,8 @@ edits to `LayoutAuthorityTests.swift`, `LoweringContainerTests.swift`,
 
 | # | test | red before | mutation |
 |---|---|---|---|
-| 2.1 | `everyNodeKindReportsItsBaselineAsSwiftUIDoes` — B1/X3 per kind: ZStack of 40×40 and a (16, first 13) leaf → 25 (B1k); overlay/background keep the primary's (X3g, X3h); fixedSize/priority/aspectRatio pass through; spacer/scroll/custom `nil`; stacks min/max at offsets (B1g 13/41, B1h 20/25, X3a 20/25, B1p 23); a one-cell grid 13 (X3i) | `nil` everywhere but frame/padding | M2a: stack takes its first child's (X3a → 25); M2b: attachment takes the overlay's (X3h); M2c: a text-less child counted as its height (B1p → 10) |
+| 2.1 | `everyNodeKindReportsItsBaselineAsSwiftUIDoes` — B1/X3 per kind: ZStack of 40×40 and a (16, first 13) leaf → 25 (B1k); overlay/background keep the primary's (X3g, X3h); fixedSize/priority/aspectRatio pass through; spacer/scroll `nil`; custom what its `sizeThatFits` returns (**`TE-X` item 1**: `nil` unless it reports one); stacks min/max at offsets (B1g 13/41, B1h 20/25, X3a 20/25, B1p 23); a one-cell grid 13 (X3i) | `nil` everywhere but frame/padding | M2a: stack takes its first child's (X3a → 25); M2b: attachment takes the overlay's (X3h); M2c: a text-less child counted as its height (B1p → 10) |
+| 2.1b | `anInfiniteAnswerNeverMakesABaselineNaN` (**added by `TE-X` item 6**, exit `.success`) — one and two greedy frames over a text inside an `HStack` (factor, first, last) inside a two-child `VStack`: no NaN trap, and the row reports no baseline at its infinite probe | the run traps (checkpoint 2) | M2y: the frame's NaN guard dropped; M2x: the combination's finite guard dropped |
 | 2.2 | `anHStackAlignedByFirstTextBaselinePlacesAndSizesAsSwiftUI` — B2 first: 44 tall, offsets 12/0/12/15 | factor alignment | M2d: height = max child height; M2e: a text-less guard read as 0 |
 | 2.3 | `anHStackAlignedByLastTextBaselinePlacesAndSizesAsSwiftUI` — B2 last: 34, 16/4/0/19 | — | M2f: `.last` reads `firstBaseline` |
 | 2.4 | `existingStackAlignmentsAnswerUnchanged` — the same children, reporting baselines, under `.top`/`.center`/`.bottom`: B2's top and centre rows (32; 8/1/0/11) | — (green before and after: the control) | M2g: baseline alignment used whenever a child reports one |
@@ -331,10 +332,11 @@ edits to `LayoutAuthorityTests.swift`, `LoweringContainerTests.swift`,
 | 2.10 | `everyReportNamesALiveOwnerOrIsRefusedByName` — **T row** (amended by `TE-S` item 2): the table keeps **265** entries; its 16 baseline rows (5 `alignItems.baseline`, 11 `alignSelf.baseline`) change owner from `"plan task 11"` to `nil` | — | M2k: restore `"plan task 11"` |
 | 2.11 | `anAlignSelfBaselineIsConsumedUnderABaselineRowAndRefusedByNameElsewhere` | always reported | M2l: consume it everywhere |
 | 2.12 | `everyContainerFieldEitherLowersOrIsReportedByName` — **T row**: its `baseline` arm becomes a row-lowering and a column-lowering arm, and a `Stack` (`display: .stack`) arm still reports `stack.alignItems.baseline` (`TE-L`, `TE-S` item 2) | — | M2m: report `alignItems.baseline` again on a row; M2n: lower it on a stack display (the stack arm reddens) |
-| G2.1 | `aTextBaselineIsAVerticalAlignmentButNotAHorizontalOne` — plain import: `HStack(alignment: .firstTextBaseline)` compiles; control `VStack(alignment: .firstTextBaseline)` fails | — | MG2: `firstTextBaseline` added to `HorizontalAlignment` |
+| 2.13 | `aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst` — **T row, added by `TE-X` item 3**: the report reads `[gap.percent, size.percent, inset]` (was `[gap.percent, alignItems.baseline, size.percent, inset]`); the trap still names `box.gap.percent` | — | M2m reddens it (the row restored) |
+| G2.1 | `aTextBaselineIsAVerticalAlignmentButNotAHorizontalOne` — plain import: `HStack(alignment: .firstTextBaseline)` compiles; control `VStack(alignment: .firstTextBaseline)` fails | — | MG2: `firstTextBaseline` added to `HorizontalAlignment` (does not build: an exhaustive switch; **MG2b** adds the switch arm too) |
 
 Every existing stack, grid, lowering and depth test stays green unedited
-except the two T rows; `SA-M`'s work literals must not move (baselines are
+except the two T rows (three since `TE-X` item 3: 2.13); `SA-M`'s work literals must not move (baselines are
 computed from answers already in hand — the lane states it and a work-counter
 test proves it).
 
