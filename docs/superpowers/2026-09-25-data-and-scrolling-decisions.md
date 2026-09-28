@@ -4,7 +4,7 @@ Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-d
 on `feat/data-and-scrolling` from `e7bc2e7` (part 1, `DD-A`…`DD-P`), and for
 [`specs/2026-09-26-controls-and-selection-design.md`](specs/2026-09-26-controls-and-selection-design.md),
 on `feat/controls-and-selection` from `27b2fcc` (part 2, `DD-Q` onward). Ids
-are **lettered**, `DD-A`…`DD-AF`; next unused is **`DD-AG`**. A bare `DD-3`
+are **lettered**, `DD-A`…`DD-AG`; next unused is **`DD-AH`**. A bare `DD-3`
 is a typo, not a citation. **A round that appends a ruling moves this line in
 the same commit.**
 
@@ -1511,6 +1511,9 @@ replacement's decisions doc, and none of these touches the engine.
    `.press` and, when selected, `isSelected`; bounded, it is a `.row` with
    its index, `.press` and `isSelected`. Folded into divergence 83's text.
    New spec test 3.20 pins both arms.
+   *Amended by `DD-AG` item 1 (lane 3): "or the scroller's first frame" is
+   withdrawn — that frame keeps AB-X rule 1 (the table, no rows); only a
+   window that can never be bounded publishes button rows. Pinned by 3.20b.*
 7. **Two disabled controls had no test.** `Picker` (PA4) and `Stepper`
    (STA7) were covered by D2 arms for their clicks only, not their keys or
    their published state. New spec tests 1.24
@@ -1820,3 +1823,97 @@ from a copy after, `git status --short` empty after each (14 of 14).
 | V18 | the stepper's value written unconditionally | 2.16b |
 
 **Cost if wrong.** Tests only; each is one fixture.
+
+## DD-AG — lane 3 (part 2): the scroller's first frame keeps AB-X rule 1; its mutation table; the counts; one pre-existing `@State` finding
+
+**Ruling.** Lane 3 (`DD-Z`, `DD-AA`, `DD-AC` items 1, 2, 4, 6 and 10) records
+its mutations here; the items below say where the lane went past, or chose
+inside, what the design said.
+
+1. **A selectable list publishes button rows only while its window can
+   NEVER be bounded** (amends `DD-AC` item 6): no vertical scroller, or a
+   zero `rowHeight`. On an enclosing scroller's **first** frame (the viewport
+   not yet measured, `windowAwaitsViewport`) it keeps AB-X rule 1 — the
+   table, no rows, one retry frame — exactly as a list without `selection:`
+   does, so a client active at frame 0 is not handed one button per datum
+   and then told they were all destroyed on the next frame (AB-X's own
+   reason). `List.prepaint`: `if !selection.isNone, !windowIsBounded,
+   !windowAwaitsViewport` publishes the rows unsuppressed; every other
+   unbounded frame is suppressed as before. **This clause was unpinned at
+   `f1f9683`** (M3t green over the whole suite); 3.20b, an arm of 3.20
+   (`0bfb915`), pins it — no test is added to the count.
+2. **The stale element binding is MetalUI's own rule** (`DD-AA`, unprobed):
+   a `ForEachBindingSlot` keeps its index, its id and a `LastRead` box; its
+   binding reads `data[index]` while that element still carries the id and
+   otherwise returns the last value it read, and a write to a stale slot is
+   dropped — no trap, no write to whatever element now sits at the index.
+   No divergence is claimed.
+3. **A pre-existing `@State` bug, found by the controls demo, not fixed
+   here** (state retention must not move unless ruled): an optional `@State`
+   with a non-`nil` initial value (`@State var picked: Int? = 2`) reads `nil`
+   until its first write. `State.wrappedValue` is
+   `table.peek(slotID, as: Value.self) ?? initialValue`, and with `Value ==
+   Int?` the cast `storage[id]?.value as? Int?` of an absent entry succeeds
+   as `.some(nil)` (measured with a standalone `swiftc` program: `peek` of
+   an empty dictionary as `Int?` prints `Optional(nil)`, and `?? 2` gives
+   `nil`), so the initial value never runs. The demo uses a `Set<Int>`
+   instead. **Owner: the Record phase decides** — it is a one-line fix in
+   `StateTable.peek` or `State.wrappedValue` (distinguish an absent entry
+   from a present `nil`) and a behaviour change to every optional `@State`
+   with a non-`nil` default, so it wants its own ruling and test, not a
+   lane-3 edit.
+4. **Counts.** `swift package clean`, then **`Test run with 1643 tests in 3
+   suites passed`** — not the spec's 1628: lane 1's fix round (+6, `DD-AD`)
+   and lane 2's (+9, `DD-AF`) added 15 the critic round's arithmetic did not
+   carry, so 1556 + 26 + 6 + 24 + 9 + 22 = **1643**. Guards +1 (G3.1:
+   `SELECTION GUARD G3.1 positive: succeeded=true`, `control:
+   succeeded=false`).
+5. **Native depth, measured through a real `Window`** (`DD-AC` item 10; each
+   control alone in the controls' own root, printed by 3.19): `Button` 6,
+   `Toggle` 5, `Slider` 3, `Stepper` 10, `Picker` segmented 10, `Picker`
+   `.radioGroup` 7, a `List(selection:)` in a `ScrollView` 13; the controls
+   demo **15** — all at most 40, against `maxDepth` 72.
+
+**The table.** Each row a full unfiltered run of **1643** tests (`swift build
+--build-system native --build-tests`, then `swift test --build-system native
+--no-parallel`), the source restored from a copy after, `git status --short`
+empty after each (28 of 28). Applied to `f1f9683` (the lane's implementation
+plus 3.8's caller arm), except M3t's second run and MG3.1′, applied to
+`0bfb915` (3.20b).
+
+| Mutation | Change (spelling applied) | Reddens |
+|---|---|---|
+| M3a | a plain multi click inserts (`next = current; next.insert(row)`) | 3.1, 3.16 |
+| M3b | the shortcut toggle replaces (`next = [row]`) | 3.2 |
+| M3c | the ⇧-click range drops the anchor's row | 3.3 |
+| M3d | ⌘ on the selected row deselects in single mode | 3.4 |
+| M3e | `ClickDispatch.focusRequest = list` removed from the row click | 3.5 |
+| M3w | the list's `isFocusable = true` removed | 3.5, 3.6, 3.7, 3.8, 3.12 |
+| M3f | the arrows wrap at the ends (`% count`) | 3.6, 3.7 |
+| M3g | ⇧+arrow extends from the lead where the anchor is stored | 3.7 |
+| M3h | ⌘A selects every row of a multi list | 3.8 |
+| M3v | the list's arrows before the caller's `onKey` | 3.8 |
+| M3i | the selection hint never set | 3.9, 3.10, 3.11, 3.19, 3.20 |
+| M3j | a single selection naming an absent id pruned to `nil` in `requestLayout` | 3.10 |
+| M1g (re-run) | the `enabled` conjunct dropped from `Frame.registerHandlers`' focus registration and hitbox insert | 3.11 and 25 more (26 tests) |
+| M3k | the reveal never enqueued (`if false, let scope = id.parent`) | 3.12 |
+| M3k′ | the reveal keyed by the bare `datum.id` | 3.12 (its 3.12b arm) |
+| M2q (re-run) | the `DD-Y` rule reverted (no ancestor scroll) | 3.13, 2.18, 2.19b, 2.24 |
+| M3l | the selected row's `.accent` background removed | 3.14, 3.15, 3.11 |
+| M3m | the hint declared as a `.selected` trait (writes `$ax`) | 3.15 |
+| M3n | the rows' `onClick` set only while no client is active | 3.16, 3.20, 3.11 |
+| M3o | every binding slot at the collection's first index | 3.17, 3.18 |
+| M3p | the stale-binding id check removed | 3.18 |
+| M3q | the demo's list built without `selection:` | 3.19 |
+| M3s | `logicalIndex` set on unbounded rows too | 3.20 |
+| M3r | the lead re-derived by a data scan in `requestLayout` | 3.21 |
+| M3t | the `windowAwaitsViewport` clause dropped (item 1) | **none** at `f1f9683`; 3.20 (its 3.20b arm) at `0bfb915` |
+| MG3.1 | the `Set` initialiser `internal` | does not build: `ControlsDemo.swift` (another module, a plain import) calls it — a compile error in production code is its own pin |
+| MG3.1′ | the single-selection initialiser `internal` | G3.1 |
+
+M3l reddening 3.11 is its background line (the disabled list still paints
+its selection); M3n reddening 3.11 is its every-row-publishes line (a
+disabled row with no `onClick` resolves as no button). 3.13's re-run of M2q
+reddens it alone among lane 3's tests, as the joint test should.
+
+**Cost if wrong.** Item 1 is one conjunct; item 3 is deferred, not changed.

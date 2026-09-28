@@ -293,7 +293,9 @@ scoped to the list's parent whose key is the internal
 lead's index, its re-derivation and every range are computed in the
 handlers (`DD-AC` item 4). **While the window is unbounded** a selectable
 row has no `logicalIndex` and publishes as a button labelled by its content,
-with `.press` and `isSelected`; bounded, a `.row` (`DD-AC` item 6).
+with `.press` and `isSelected`; bounded, a `.row` (`DD-AC` item 6). **Amended by `DD-AG` item 1:** "unbounded" means a window that can
+never be bounded (no vertical scroller, a zero `rowHeight`); an enclosing
+scroller's first frame keeps AB-X rule 1 — the table and no rows.
 
 ## 8. Accessibility (`DD-U`, lane 1)
 
@@ -497,7 +499,7 @@ button, 37) is unchanged; record §58 §2.5's changed-answer table lists it.
 | 3.17 | `aForEachOverABindingHandsEachElementItsOwnBinding` | toggling row 1 writes `items[1].done` only | no init | M3o: every slot bound to index 0 |
 | 3.18 | `aStaleElementBindingDropsItsWriteAndKeepsItsLastRead` | a handler captured before its item was removed: no write, no trap, last read returned | no init | M3p: the id check removed (writes the item now at that index) |
 | 3.19 | `theControlsDemoPublishesEveryControlsRole` | `controlsDemoContent()` through a real `Window`, a client active: a button, a check box, a slider, an incrementor, a radio group, a table with one selected row | no tree | M3q: the demo's list built without `selection:` |
-| 3.20 | `anUnboundedSelectableListPublishesButtonRowsAndABoundedOneTableRows` | no scroller: each row a `.button` labelled by its text with `.press`, the selected one `isSelected`; inside a scroller after its first frame: `.row`s with index, `.press`, `isSelected` (`DD-AC` item 6) | no init | M3s: `logicalIndex` set on unbounded rows too (reddens the first arm) |
+| 3.20 | `anUnboundedSelectableListPublishesButtonRowsAndABoundedOneTableRows` | no scroller: each row a `.button` labelled by its text with `.press`, the selected one `isSelected`; inside a scroller after its first frame: `.row`s with index, `.press`, `isSelected` (`DD-AC` item 6); arm 3.20b (`DD-AG` item 1): a client active before a scroller's first frame sees the table and no row or button row on that frame | no init | M3s: `logicalIndex` set on unbounded rows too (reddens the first arm); M3t: the `windowAwaitsViewport` clause dropped (reddens 3.20b) |
 | 3.21 | `aSelectableListsWarmFrameTouchesOnlyItsRealisedRows` | a counting `RandomAccessCollection`: a warm frame's element accesses equal at 500 and 5 000 rows with a selection whose lead is absent (`DD-AC` item 4) | no init | M3r: the lead re-derived by a data scan in `requestLayout` |
 | G3.1 | `theSelectionAndBindingForEachSpellingsCompileFromOutsideTheModule` | §3's lane-3 spellings | — | MG3.1: the `Set` initialiser internal |
 
@@ -506,7 +508,9 @@ too (edited, not new).
 
 **Expected totals** (critic round, `DD-AC`): **1556 + 26 + 24 + 22 = 1628
 tests** (lane 2's rename adds none), guards **96 + 4 = 100**, `Backends/SDL`
-`MetalUISDLTests` 22 → 23 on macOS.
+`MetalUISDLTests` 22 → 23 on macOS. *Measured (`DD-AG` item 4): **1643** — the two
+verifier fix rounds added 6 (lane 1, `DD-AD`) and 9 (lane 2, `DD-AF`), so
+1556 + 26 + 6 + 24 + 9 + 22.*
 
 ## 11. Must not move, and the demo expectation
 

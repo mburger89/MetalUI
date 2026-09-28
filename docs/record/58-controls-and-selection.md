@@ -2,7 +2,7 @@
 
 Branch `feat/controls-and-selection` from `27b2fcc`. Spec
 `docs/superpowers/specs/2026-09-26-controls-and-selection-design.md`;
-rulings `DD-Q`…`DD-AD` in `docs/superpowers/2026-09-25-data-and-scrolling-decisions.md`;
+rulings `DD-Q`…`DD-AG` in `docs/superpowers/2026-09-25-data-and-scrolling-decisions.md`;
 probe `docs/probes/swiftui-controls-and-selection.swift`. Written by the
 lanes; the Record phase completes it.
 
@@ -226,3 +226,119 @@ the wheel over a button and over a single-line field inside a scroller) —
 the probe's click and wheel controls failed, so none is SwiftUI-measured;
 lane 3's controls demo is where a human sees them (record §03 at the Record
 phase).
+
+## 3. Lane 3 — `List(selection:)`, `ForEach` over a `Binding`, the controls demo
+
+Commits: `ede7b71` (red-first over a no-op skeleton), `4eb808f` (the
+implementation), `f1f9683` (3.8's caller-`onKey` arm), `0bfb915` (3.20b,
+`DD-AG` item 1), and the lane's docs/mutation commit after it.
+
+### 3.1 Red-first
+
+The skeleton gave `List(_:selection:rowHeight:row:)` (both), `ForEach` over a
+`Binding<C>` and `ForEachBindingSlot`, and `controlsDemoContent()` their
+public spellings over today's behaviour (the selection stored and unread; each
+slot's binding a constant; the demo a bare `Column`), and added the new tree
+to `everyProductionTreeBuildsOnAOneMegabyteThread`. Full unfiltered run at
+`ede7b71`: `Test run with 1643 tests in 3 suites failed` (1621 + 22), 20
+tests red. Re-taken filtered from `ede7b71`'s sources and tests (the lane-3
+files and the stack budget, 24 tests): each first issue —
+
+| test | first failing line at the skeleton |
+|---|---|
+| 3.1–3.5 | `window.lastHitboxes.first { $0.id == row && $0.handlers.onClick != nil }` (rows are not click targets) |
+| 3.6, 3.7, 3.8, 3.12 | `window.focusedElement == list` (the list takes no focus) |
+| 3.9 | `singleRows.filter { $0.value.isSelected }.map(\.key) == [2]` |
+| 3.10 | `rowNodes(tree)[4]?.isSelected == true` |
+| 3.11 | `rows.count == 5` (an unbounded list published no rows) |
+| 3.13 | `window.lastHitboxes.contains { $0.id == rowID(list, 1) && $0.handlers.onClick != nil }` |
+| 3.14 | `rowRects.count == 1` (no row fill) |
+| 3.15 | `added.count == 2` |
+| 3.16 | `row3.value.actions.contains(.press)` |
+| 3.17 | `tasks.items.map(\.done) == [false, true, false]` |
+| 3.18 | `tasks.items[1].done && tasks.writes == 1` |
+| 3.19 | `roles.contains(role)` |
+| 3.20 | `buttons.count == 5` (line 557; its message is interleaved with SwiftPM's notice in the log), then `buttons.filter(\.isSelected).map { $0.label ?? "" } == ["Row 2"]` |
+
+Green at the skeleton by construction: 3.21 (a skeleton with no data scan
+touches only realised rows) and G3.1 (spellings only) — pinned by M3r and
+MG3.1′ (`DD-AG`); the two stack-budget tests (the demo's bare tree builds).
+
+### 3.2 What was built
+
+As spec §7 and `DD-Z`, `DD-AA`, `DD-AC` items 1, 2, 4, 6 and 10: the
+selection read once per frame and asked one `==`/`contains` per realised
+row; a selected row's `Box` takes `.accent` (one `$anim-color` slot per
+selected realised row, `2n + 6 + s`) and the internal selection hint (no
+`$ax`); a row click selects, toggles (⌘ on Apple, ctrl elsewhere) or selects
+the range from the anchor, and focuses the list through
+`ClickDispatch.focusRequest`; the focused list's ↑/↓ (⇧ to extend) move the
+lead after a caller's own `onKey` declines, the lead and anchor stored in
+`ListOrigin` through `withState` from input only (no new reserved name), and
+a move enqueues `ListLeadReveal(list:row:)` on the `DD-G` queue scoped to the
+list's parent, which only that list matches; the lead's index, its
+re-derivation and every range are computed in the handlers. `ForEach($items)`
+hands each element its own binding, with `DD-AG` item 2's stale rule.
+`controlsDemoContent()` (`Sources/MetalUIDemoContent/ControlsDemo.swift`)
+behind `METALUI_CONTROLS_DEMO=1`. Past the design: `DD-AG` item 1 (the
+scroller's first frame keeps AB-X rule 1, a clause M3t found unpinned; 3.20b
+added) and item 3 (a pre-existing optional-`@State` bug, deferred).
+
+### 3.3 Counts and must-not-move
+
+- `swift package clean`, `swift build --build-system native --build-tests`
+  (0 `error:`, the one `warning:` SwiftPM's deprecation notice), unfiltered
+  `swift test --build-system native --no-parallel`: **`Test run with 1643
+  tests in 3 suites passed`** (1621 + 22; the spec's 1628 did not carry the
+  two fix rounds' 15, `DD-AG` item 4); `FR-J no-argument frame: succeeded=`
+  in the log; `SELECTION GUARD G3.1 positive: succeeded=true`, `control:
+  succeeded=false`. Guards **+1** (G3.1).
+- Default build system `swift build --build-tests`: 0 `warning:`, 0 `error:`.
+- `MetalUILayout` imports only `MetalUICore`.
+- `everyProductionTreeBuildsOnAOneMegabyteThread` (now building
+  `controlsDemoContent()` too) and
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green in the full run.
+- Gated `aListsWorkIsTheSameFor100kRowsAsFor500`
+  (`METALUI_RUN_100K_LIST_TEST=1`): passed (40.4 s).
+- Native depth through a real `Window` (`DD-AG` item 5): `Button` 6,
+  `Toggle` 5, `Slider` 3, `Stepper` 10, `Picker` segmented 10, `.radioGroup`
+  7, `List(selection:)` in a `ScrollView` 13; the controls demo **15** (at
+  most 40, `maxDepth` 72).
+- `Backends/SDL` on macOS (`PKG_CONFIG_PATH=.accesskit`):
+  `ReplayFixtureTests` 21, `MetalUISDLTests` 23, passed.
+  `metalui-portable-ax` (`swift:6.4-noble`, aarch64), from a `git archive`
+  of `f1f9683`: `Backends/SDL` 21 and 22 passed; the root package builds with
+  0 `error:`/`warning:` and runs `MetalUILayoutTests` + `MetalUICoreTests` +
+  `MetalUICrossPlatformTests` **188 + 22 + 10**, unmoved.
+- Pixels: `compare.sh <scratch> 27b2fcc f1f9683` — controls 1048576,
+  1031003, 454895, 0, 1048576, 0, 544 / 216, 491221, 529, indicator rects 0;
+  **all fourteen images `differing=0`, scene identical**. `Expected.swift`
+  unedited.
+- Real window (lock probe 2026-09-28 08:19 PDT: no `CGSSessionScreenIsLocked`
+  line, `displayAsleep main: 0`): `capture.sh <scratch> 27b2fcc f1f9683`,
+  every a-vs-b 0; default and preview 27b2fcc → f1f9683 **0 and 0**; control
+  default vs preview 958986.
+- State retention: no id path of an existing element moves;
+  `theSevenRetentionSlotsAreMutuallyDistinct` unmoved; `TB-AH` unmoved for a
+  list without `selection:` and moved by exactly `s` colour slots with one
+  (3.15). `List` windowing, `Deferred`, animation, `TextField`/`TextEditor`
+  untouched; hit testing and focus move only by the rows' click targets and
+  the list's focusability.
+
+### 3.4 Mutations
+
+28 rows in `DD-AG`, each a full unfiltered run with `git status --short`
+empty after. One finding: M3t (item 1's clause) was green over the whole
+suite and is now pinned by 3.20b. MG3.1 (the `Set` initialiser internal)
+does not build because the demo calls it from another module; MG3.1′ (the
+single-selection initialiser internal) reddens G3.1 alone.
+
+### 3.5 Owed
+
+- The human look at the controls demo (`METALUI_CONTROLS_DEMO=1 swift run
+  MetalUIDemo`): every control by pointer and keys, the list's ⌘/⇧ clicks and
+  arrows, the reveal, the wheel over a row — the pointer rules no SwiftUI
+  probe measured (§2.6).
+- `DD-AG` item 3's optional-`@State` bug: a ruling and a test, owner chosen
+  by the Record phase.
+
