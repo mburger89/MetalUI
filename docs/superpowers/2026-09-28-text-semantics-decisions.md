@@ -1,8 +1,8 @@
 # Text semantics decisions (plan task 11, part 1)
 
 Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-semantics-design.md),
-on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-T`;
-next unused is **`TE-U`**. A bare `TE-3` is a typo, not a citation. **A round
+on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-U`;
+next unused is **`TE-V`**. A bare `TE-3` is a typo, not a citation. **A round
 that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-28: DESIGNED; critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
@@ -802,3 +802,91 @@ portable path's oracle.
 
 **Cost if wrong.** A line limit over text with hard breaks would draw the rest
 glued onto one line ("SetGo") — the answer `TE-C` as first written gave.
+
+---
+
+## TE-U — the truncation rule, measured on both systems; one right-to-left class pinned, not matched (lane 1)
+
+**Evidence.** `TruncationOracleTests` (`METALUI_TRUNCATION_MEASURE=1`,
+2026-09-28, macOS 27.0): 7,980 cases — Noto Sans and Source Sans 3 over seven
+Latin strings (kerning pairs, a ligature, leading and trailing spaces, three
+with hard breaks), a combining-mark string (precomposed and stacked marks),
+two CJK strings in the system's Hiragino Sans GB, two Arabic strings in Noto
+Sans Arabic with Noto Sans as its cascade on both sides; 13 and 17 pt; `nil`,
+4, 8, 10.5 and 12…222 pt by 7; one and two kept lines; all three modes; the
+alignment cycling — 6,093 of them truncated. Each case compares every line's
+source range and advance (1e-9 pt) and every glyph's face, id, device pixel,
+subpixel variant and baseline against the Apple path's
+`CTLineCreateTruncatedLine`. Exploratory `CTLine` dumps (a scratch harness,
+not committed) supplied the hypotheses; the oracle is what each rule was
+kept or dropped by. The first implementation read 156 differences; the rules
+below brought it to 38, every one in the class of item 7.
+
+**The ruling** (the rule `PortableText.truncatedLine` implements; each item a
+measured disagreement it removed):
+
+1. **Whitespace hangs, asymmetrically.** With `L` the line's advance, `T` its
+   trailing whitespace (`CTLineGetTrailingWhitespaceWidth`) and `t` the
+   token's advance: tail keeps the longest prefix with `prefix + t ≤ width +
+   T`; head the longest suffix with `suffix − T + t ≤ width`; middle a prefix
+   and a suffix each within `(width + T − t) / 2`, the suffix measured without
+   `T`. A kept prefix drops its trailing whitespace, a kept suffix its leading
+   whitespace (X6 for the tail). A line with `L − T ≤ width` is handed back
+   untruncated.
+2. **Middle splits the room in halves**, not "prefix first, the rest to the
+   suffix" (X5's middle arm, CoreText's 85.12 at 100, is this rule).
+3. **What is removed is a cluster that is a whole grapheme**: a ligature goes
+   whole (its cluster spans graphemes); a base goes with its marks, although
+   HarfBuzz may give each stacked mark a cluster of its own (the combining
+   string's `q́̂̃`).
+4. **Kept glyphs keep their advances in the line's shaping** — the share,
+   kerning into a dropped neighbour included — and are not re-shaped (an
+   Arabic letter keeps its joined form when its neighbour is dropped).
+5. **Narrower than the token** (`TE-T` item 4): the longest run of whole
+   GRAPHEMES that fits, at least one; a prefix ending inside a ligature is
+   measured and drawn re-shaped — `CTTypesetterSuggestClusterBreak` keeps
+   Source Sans 3's "Af" out of "Affix" at 12 pt, splitting "ffi".
+6. **Alignment offsets are rounded to 1/256 pt on both paths**
+   (`Shaper.alignmentOffset`, `PortableText.alignmentOffset`). The two paths
+   measure a line's width to ~1e-13 pt, and an unrounded centring offset put
+   pens across subpixel-variant boundaries (the first run's centred Latin
+   differences, e.g. "The quick…" at 131 pt, one variant apart); on a 1/256 pt grid
+   the offsets are equal and the pen arithmetic after them is the unaligned
+   pen's. Visually nothing: a variant is ¼ device pixel.
+7. **Not matched: a right-to-left suffix in head or middle mode** (38 cases,
+   every Arabic head or middle difference; Arabic TAIL, the default, matches
+   in every case, as do Latin, the marks and CJK in all three modes).
+   CoreText sometimes keeps one more cluster at the suffix's edge than the
+   share rule — e.g. "مَرْحَبًا بالعالم يا صديقي" at 13 pt, head, width 26:
+   CoreText keeps "قي" (16.003 pt, with the 10.283 pt token 0.286 over the
+   width), the portable path "ي" (9.568). Three hypotheses were measured and
+   dropped: glyph-position widths (a mark's offset at either edge: 46
+   differences), CoreText's kerning bookkeeping at the cut (a right-to-left
+   pair's adjustment stored on a different glyph than HarfBuzz stores it: 68),
+   and both (68). **Pinned**, both answers: `aRightToLeftHeadTruncationKeepsOneClusterLessThanCoreText`
+   (the case above, glyph for glyph), and
+   `thePortableTruncationKeepsCoreTextsStringInEveryMode` requires every
+   difference to be in this class and their count to be 38. `LB-M`'s
+   precedent (Thai): a portable path that differs from CoreText on a named
+   class, pinned, never dropped from the corpus. No divergence number: this
+   is the portable path against CoreText, not MetalUI against SwiftUI.
+8. **The line breaker's emergency break keeps a base with its marks**
+   (`PortableText.layOut`, `graphemeBreak`): at a width narrower than one
+   grapheme it broke between a base and a mark HarfBuzz had given its own
+   cluster, where CoreText keeps the grapheme ("مَ" at 4 pt). Found by this
+   oracle's two-line cases; the line-breaking, emission, content-size,
+   fallback, bidi and caret oracles stay green (`MetalUIPortableTextTests`,
+   64 tests).
+9. **A variant tie.** CoreText moves the glyphs after a middle token as a
+   run; the portable path walks their pens; the sums differ in the last bit.
+   In `theSeamsLayoutOptionsPlaceTheSameGlyphsOnBothSystems`' 864 cases one
+   pen lands on an exact variant boundary (59.625 against
+   59.624999999999996 device pixels, 15 pt, scale 1) and rounds a quarter
+   pixel apart; the test allows exactly that one tie and pins it. Emulating
+   the run shift instead (both associations) moved 1.5 from 38 to 44
+   differences and 1.7 to four ties, so the pen walk stays.
+
+**Cost if wrong.** A right-to-left label truncated at its head or middle may
+keep one letter fewer on Linux and Windows than on macOS. Tail truncation —
+the default, and the only mode a `TextField` or a list row is likely to use —
+is exact on every script measured.

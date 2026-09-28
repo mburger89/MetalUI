@@ -1,9 +1,9 @@
 # Text semantics — design (plan task 11, part 1)
 
 Branch `feat/text-semantics` from `169d166` (plan task 10's tip). Rulings
-`TE-A`…`TE-T` in a new decisions doc,
+`TE-A`…`TE-U` in a new decisions doc,
 [`../2026-09-28-text-semantics-decisions.md`](../2026-09-28-text-semantics-decisions.md)
-(next unused **`TE-U`**). Evidence: `docs/probes/swiftui-text-semantics.swift`
+(next unused **`TE-V`**). Evidence: `docs/probes/swiftui-text-semantics.swift`
 (**new**, this design; arm ids `F1`, `L5`, `X8` …; its header carries the
 recorded output and the reading). Record: `docs/record/59-text-semantics.md`
 (written by the lanes and the Record phase).
@@ -276,12 +276,13 @@ numbers so every citation stands.
 | 1.6 | `theDroppedLinesAreTruncatedAsOneLineAfterTheKeptOnes` — `maxLines: 2` at 100: line 1 kept, the rest truncated as one line, both systems' glyphs equal (X8) | untruncated | M1g: truncate line n−1's own text only |
 | 1.6b | `aHardBreakEndsTheTruncatedLineAtItsParagraph` (**added by `TE-T`**) — the last kept line is the rest's first paragraph: "Ready\nSet\nGo" at `maxLines: 2` draws "Set…" in tail, "Set" in head/middle; an overflowing paragraph is CoreText's truncation of it alone; both systems | the whole rest truncated as one line | M1l: truncate the whole rest (E1's tail and E4's head/middle redden) |
 | 1.6c | `aWidthNarrowerThanTheTokenKeepsTheLongestPrefixThatFits` (**added by `TE-T`**) — "Hello" at 10 and 4 draws "H", no token, every mode, both systems | nothing drawn | M1m: draw nothing when the token does not fit |
+| 1.5b | `aRightToLeftHeadTruncationKeepsOneClusterLessThanCoreText` (**added by `TE-U`**) — the pinned, unmatched class: one Arabic head case, both answers glyph for glyph; 1.5 requires every difference to be in this class and their count to be 38 | — (pins both answers) | M1g reddens it (the Apple answer moves) |
 | 1.7 | `theSeamsLayoutOptionsPlaceTheSameGlyphsOnBothSystems` — limit × mode × alignment through `placeGlyphs` on Noto Sans at scales 1 and 2 | options ignored | M1h: portable alignment factor 0 |
 | 1.8 | `theSeamsMetricsAgreeOnBothSystems` — `fontMetrics` of Noto Sans at 11, 13, 17, 26 equal | no requirement | M1i: portable `lineHeight` rounded to nearest |
 | 1.9 | `anUnspecifiedWidthCutsKeptLinesWithoutAnEllipsis` — `"A\nB\nC"`, `maxLines: 2`, width `nil`: two lines, no token glyph (L4) | a token appended | M1j: token at `nil` width |
 | 1.10 | `measureAnswersTheWidestKeptLine` — width is the widest of the kept (and truncated) lines, height `kept × lineHeight`, both systems | widest of all lines | M1k: widest over every line |
 | 1.11 | `truncatedAndAlignedEmissionIsByteIdentical` (`Tests/PortableTests`) — emission of 1.6/1.7's cases, recorded on macOS (the bold-request half is lane 2's 1.12) | no expected values | recorded pin; Linux/Windows CI confirm |
-| G1.1 | `theSeamsNewSpellingsArePublicAndTheOldOnesStillCompile` — plain `import MetalUITextSystem`: old and new `measure`/`placeGlyphs`/`lineRanges` spellings and `TextLayoutOptions(maxLines:truncation:alignment:)` compile; control: `TextLayoutOptions(truncation: .ellipsis)` fails | — | MG1: `TextLayoutOptions.init` made `internal` |
+| G1.1 | `theSeamsNewSpellingsArePublicAndTheOldOnesStillCompile` — plain `import MetalUITextSystem`: old and new `measure`/`placeGlyphs`/`lineRanges` spellings and `TextLayoutOptions(maxLines:truncation:alignment:)` compile; control: `TextLayoutOptions(truncation: .ellipsis)` fails | — | MG1: `TextLayoutOptions.init` made `internal` (**does not build**: `emitLines`' public default argument references it; replaced by **MG1b**, the old `measure` extension made `package`, record §59 §2) |
 
 `theCoreTextAndPortableSystemsDrawTheSameSprites` and every existing seam,
 oracle and portable pin must stay green unedited (the old spellings are the

@@ -19,8 +19,11 @@ private let skipReason: Comment =
 /// a truncation mode the seam does not have (`.ellipsis`) fails, so the file
 /// is typechecked against the real declarations, not waved through.
 ///
-/// Mutation: **MG1** `TextLayoutOptions.init` made `internal` (the positive
-/// fixture stops compiling).
+/// Mutation: **MG1b** the old `measure(_:font:wrappingAt:)` extension made
+/// `package` — the positive fixture stops compiling, the guard reddens alone
+/// (record §59 §2). The design's MG1 (`TextLayoutOptions.init` not public)
+/// does not build the package at all: `emitLines`' public default argument
+/// references the initialiser.
 @MainActor
 @Test(.enabled(if: canTypecheck(module: "MetalUITextSystem"), skipReason))
 func theSeamsNewSpellingsArePublicAndTheOldOnesStillCompile() throws {
