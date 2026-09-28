@@ -96,8 +96,6 @@ extension PortableText {
         try layOut(text, font: font, wrappingAt: width).map(\.line)
     }
 
-    /// `lines`, with each line's glyphs kept: the glyphs `emitLines` draws
-    /// (ruling LB-H) are the ones this measured, so the two cannot drift.
     /// `layOut` under a line limit (rulings TE-C item 3, TE-T): with more
     /// lines than `options.maxLines` (below 1 acts as 1), at a `nil` width the
     /// first lines are kept and the rest cut (L4); at a width the lines before
@@ -117,6 +115,8 @@ extension PortableText {
                                  font: font, width: width, mode: options.truncation)]
     }
 
+    /// `lines`, with each line's glyphs kept: the glyphs `emitLines` draws
+    /// (ruling LB-H) are the ones this measured, so the two cannot drift.
     static func layOut(_ text: String, font: PortableFont,
                        wrappingAt width: Double?) throws -> [LaidOutLine] {
         if let width {
@@ -208,7 +208,19 @@ extension PortableText {
                     }
                     break
                 }
-                if breaks[index] == .mandatory { end = index + 1; break }
+                if breaks[index] == .mandatory {
+                    end = index + 1
+                    // A line whose one cluster is wider than the width, ending
+                    // at a hard break straight after that cluster (no space,
+                    // no CR before it), takes the NEXT paragraph break too
+                    // when an empty paragraph follows: CoreText's "A\n\nB" at
+                    // 4 pt is "A\n\n", "B" (measured, ruling TE-V).
+                    if running > limit, index > start, !isBreakingWhitespace(units[index - 1]),
+                       end < units.count, isHardBreak(units[end]) {
+                        end += units[end] == 0x0D && end + 1 < units.count && units[end + 1] == 0x0A ? 2 : 1
+                    }
+                    break
+                }
                 if breaks[index] == .allowed { lastAllowed = index + 1 }
                 index += 1
             }

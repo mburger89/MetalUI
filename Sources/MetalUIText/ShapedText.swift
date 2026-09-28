@@ -93,64 +93,6 @@ public struct ShapedText {
 
 /// Turns a string and a ``ResolvedFont`` into display lines.
 public enum Shaper {
-    /// Shapes `string` in `font`, wrapping at `width`.
-    ///
-    /// `width: nil` means "no soft wrapping" — the max-content answer: **one
-    /// line per hard line break, never one line for the whole string.**
-    ///
-    /// ## `nil` is the same loop at an infinite width
-    ///
-    /// **This used to build one `CTLine` for the whole string with
-    /// `CTLineCreateWithAttributedString`, and that was a defect the doc here
-    /// called intended.** A whole-string line lays every hard break's segments
-    /// side by side, while `CTTypesetterSuggestLineBreak` always breaks after
-    /// one — so `.maxContent` reported the **sum** of the segments where every
-    /// definite width reported the widest: `"Ready\nSet\nGo"` at 13pt measured
-    /// 75.004 unwrapped and 37.565 wrapped, one line against three. The
-    /// separators are CoreText's, measured: U+000A, U+000D, CR LF, U+2028,
-    /// U+2029, U+0085, U+000B and U+000C.
-    ///
-    /// **Why `.infinity` and not "a large width".** For a break-free string the
-    /// typesetter's one line at `.infinity` is byte-identical to the whole-string
-    /// line — glyphs, positions, advances, string indices, run status and
-    /// typographic bounds, over bidi, CJK, clusters and a 136,000-unit string
-    /// (`anUnwrappedBreakFreeStringIsTheLineCoreTextBuildsWhole`). A finite
-    /// stand-in is not: that same string soft-breaks at width `1e4` and at `1e5`.
-    ///
-    /// **A trailing break opens no empty last line** — `"Ready\n"` is one line
-    /// with the separator inside it. That is the typesetter's answer, and the
-    /// wrapping branch has always given it.
-    ///
-    /// ## Why this re-typesets per display line
-    ///
-    /// `CTTypesetterSuggestLineBreak` + `CTTypesetterCreateLine`, once per
-    /// display line, is the branch that is **always** correct. The design spec's
-    /// §6.3 fast path — shape the logical line once, then re-wrap arithmetically
-    /// from cached advances — is not an available shortcut here, and §6.3
-    /// measured why: for a base-RTL paragraph the per-display-line run origins
-    /// (`-3.6 / 0.0 / 20.2 / 23.8 / 48.2`) are not reproducible from the
-    /// whole-line advances at all, because UAX #9 L1 resets trailing-whitespace
-    /// levels *per display line*. So the fast path needs a bidi gate, and this
-    /// is what the gate falls back to. It is M6's optimisation over a working
-    /// implementation, not a faster way to write this function.
-    ///
-    /// §6.4's hand-rolled UAX #14 subset is out for the same reason. §6.4's
-    /// complaint — "CoreText exposes no width-independent line-break API" — is a
-    /// complaint about the *fast path*: a width-taking API is precisely the
-    /// right shape for "wrap at this width".
-    ///
-    /// ## The width must be positive
-    ///
-    /// Spec §3.4 requires callers to offer a **small positive** width rather
-    /// than zero, and requires the violation to be loud. It is a
-    /// ``Swift/precondition`` here rather than a clamp because a clamp would
-    /// silently answer a different question than the one asked, and the caller
-    /// that needs this is the min-content branch of Task 4's measure function —
-    /// the one place where "narrowest possible" is a real request and `0` is the
-    /// obvious wrong spelling of it. **A `.definite(0)` offered extent reaches
-    /// the same precondition**, which is deliberate: that is a real case for a
-    /// `Text` in a zero-width box, and the measure function owes it the same
-    /// small positive width, not a zero passed through.
     /// `shape(_:font:wrappingAt:)` under a line limit, truncation and
     /// alignment (ruling TE-C item 3).
     ///
@@ -219,10 +161,11 @@ public enum Shaper {
     ///   face lacks it) wider than `width`: the longest prefix of whole
     ///   clusters that fits, at least one — `CTTypesetterSuggestClusterBreak`.
     /// - `P` wraps (`wraps`): `CTLineCreateTruncatedLine` of `P` in `mode`.
-    /// - `P` fits, so text follows it: in tail mode `P` takes the token anyway
-    ///   — `CTLineCreateTruncatedLine` of `P` followed by one glyph far wider
-    ///   than any width, so CoreText's own tail rule chooses the kept prefix;
-    ///   in head and middle mode `P` is drawn whole.
+    /// - `P` fits, so text follows it: in tail mode a non-empty `P` takes the
+    ///   token anyway — `CTLineCreateTruncatedLine` of `P` followed by one
+    ///   glyph far wider than any width, so CoreText's own tail rule chooses
+    ///   the kept prefix; an empty `P`, and `P` in head and middle mode, is
+    ///   drawn whole (no token).
     static func truncatedLine(_ string: String, from start: Int, wraps: Bool, font: ResolvedFont,
                               width: Double, mode: TextTruncation) -> ShapedLine {
         let source = string as NSString
@@ -252,7 +195,10 @@ public enum Shaper {
         if wraps {
             return shaped(CTLineCreateTruncatedLine(whole, width, type, token) ?? whole)
         }
-        guard mode == .tail else { return shaped(whole) }
+        // An EMPTY `P` takes no token in any mode, even with text after it
+        // (TE-T item 3, probe E5: SwiftUI draws "A" alone for "A\n\nB" at
+        // lineLimit(2), nothing for "\nB\nC" at lineLimit(1)).
+        guard mode == .tail, attributed.length > 0 else { return shaped(whole) }
         // One glyph wider than any width follows `P`, in a run of its own (so
         // it kerns with nothing), and is never kept.
         let forced = NSMutableAttributedString(attributedString: attributed)
@@ -262,6 +208,64 @@ public enum Shaper {
         return shaped(CTLineCreateTruncatedLine(overflowing, width, .end, token) ?? whole)
     }
 
+    /// Shapes `string` in `font`, wrapping at `width`.
+    ///
+    /// `width: nil` means "no soft wrapping" — the max-content answer: **one
+    /// line per hard line break, never one line for the whole string.**
+    ///
+    /// ## `nil` is the same loop at an infinite width
+    ///
+    /// **This used to build one `CTLine` for the whole string with
+    /// `CTLineCreateWithAttributedString`, and that was a defect the doc here
+    /// called intended.** A whole-string line lays every hard break's segments
+    /// side by side, while `CTTypesetterSuggestLineBreak` always breaks after
+    /// one — so `.maxContent` reported the **sum** of the segments where every
+    /// definite width reported the widest: `"Ready\nSet\nGo"` at 13pt measured
+    /// 75.004 unwrapped and 37.565 wrapped, one line against three. The
+    /// separators are CoreText's, measured: U+000A, U+000D, CR LF, U+2028,
+    /// U+2029, U+0085, U+000B and U+000C.
+    ///
+    /// **Why `.infinity` and not "a large width".** For a break-free string the
+    /// typesetter's one line at `.infinity` is byte-identical to the whole-string
+    /// line — glyphs, positions, advances, string indices, run status and
+    /// typographic bounds, over bidi, CJK, clusters and a 136,000-unit string
+    /// (`anUnwrappedBreakFreeStringIsTheLineCoreTextBuildsWhole`). A finite
+    /// stand-in is not: that same string soft-breaks at width `1e4` and at `1e5`.
+    ///
+    /// **A trailing break opens no empty last line** — `"Ready\n"` is one line
+    /// with the separator inside it. That is the typesetter's answer, and the
+    /// wrapping branch has always given it.
+    ///
+    /// ## Why this re-typesets per display line
+    ///
+    /// `CTTypesetterSuggestLineBreak` + `CTTypesetterCreateLine`, once per
+    /// display line, is the branch that is **always** correct. The design spec's
+    /// §6.3 fast path — shape the logical line once, then re-wrap arithmetically
+    /// from cached advances — is not an available shortcut here, and §6.3
+    /// measured why: for a base-RTL paragraph the per-display-line run origins
+    /// (`-3.6 / 0.0 / 20.2 / 23.8 / 48.2`) are not reproducible from the
+    /// whole-line advances at all, because UAX #9 L1 resets trailing-whitespace
+    /// levels *per display line*. So the fast path needs a bidi gate, and this
+    /// is what the gate falls back to. It is M6's optimisation over a working
+    /// implementation, not a faster way to write this function.
+    ///
+    /// §6.4's hand-rolled UAX #14 subset is out for the same reason. §6.4's
+    /// complaint — "CoreText exposes no width-independent line-break API" — is a
+    /// complaint about the *fast path*: a width-taking API is precisely the
+    /// right shape for "wrap at this width".
+    ///
+    /// ## The width must be positive
+    ///
+    /// Spec §3.4 requires callers to offer a **small positive** width rather
+    /// than zero, and requires the violation to be loud. It is a
+    /// ``Swift/precondition`` here rather than a clamp because a clamp would
+    /// silently answer a different question than the one asked, and the caller
+    /// that needs this is the min-content branch of Task 4's measure function —
+    /// the one place where "narrowest possible" is a real request and `0` is the
+    /// obvious wrong spelling of it. **A `.definite(0)` offered extent reaches
+    /// the same precondition**, which is deliberate: that is a real case for a
+    /// `Text` in a zero-width box, and the measure function owes it the same
+    /// small positive width, not a zero passed through.
     public static func shape(_ string: String, font: ResolvedFont,
                              wrappingAt width: Double?) -> ShapedText {
         let attributed = NSAttributedString(

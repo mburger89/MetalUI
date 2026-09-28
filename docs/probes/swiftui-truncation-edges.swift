@@ -25,12 +25,25 @@
 // - E3: at each width every candidate ("", "…", "H", "H…", …) is printed.
 // - E4: the paragraph-only reading (E1/E2) against the whole rest, when the
 //   paragraph itself overflows.
+// - E5 (added by lane 1's fix round, ruling TE-V): an EMPTY paragraph as the
+//   last kept line with text after it — the token alone ("A/…") against no
+//   token ("A/empty"), 54 px apart (the token's ink), and both against the
+//   untruncated text.
 //
 // RECORDED 2026-09-28 by plan task 11 part 1's lane 1, macOS 27.0 (26A428),
 // Apple Swift 6.4 (swiftlang-6.4.0.33.1), screen LOCKED (lock probe:
 // `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`) — irrelevant, no
 // window is ordered front. Compiled form run twice and interpreted form once,
 // stdout byte-identical (32 lines), exit 0, stderr empty.
+// RE-RECORDED 2026-09-28 by lane 1's fix round with arm E5 added (same
+// machine and toolchain, screen locked, `displayAsleep main: 1`): compiled
+// form twice and interpreted form once on an IDLE machine, stdout
+// byte-identical (39 lines), exit 0, stderr empty, every pre-E5 line
+// byte-identical to the first recording. **The non-zero candidate counts can
+// move under load**: a reviewer's run taken while the root suite ran in
+// parallel read E0 tail `untruncated=2232px` (2254 here) and E1 head
+// 349/648/402/349 (328/633/381/328 here); every 0 px reading held, and no
+// ruling rests on a non-zero count's exact value, only on its being non-zero.
 //
 //   --- E0 control: X8's paragraph, lineLimit(2) at 100
 //     E0 tail: CT rest "gamma delta e…" — line1+CTrest=0px untruncated=2254px
@@ -49,6 +62,13 @@
 //     E4 tail: line1+CTpara=0px line1+CTrest=0px
 //     E4 head: line1+CTpara=0px line1+CTrest=2379px
 //     E4 middle: line1+CTpara=0px line1+CTrest=1388px
+//   --- E5 an empty paragraph as the last kept line, more text after it
+//     E5 tail "A\n\nB" lineLimit(2) at 100: A/…=54px A/empty=0px A/B=185px A/B…=239px untruncated=185px
+//     E5 head "A\n\nB" lineLimit(2) at 100: A/…=54px A/empty=0px A/B=185px A/B…=239px untruncated=185px
+//     E5 middle "A\n\nB" lineLimit(2) at 100: A/…=54px A/empty=0px A/B=185px A/B…=239px untruncated=185px
+//     E5 tail "\nB\nC" lineLimit(1) at 100: …=54px empty=0px B=185px B…=239px untruncated=349px
+//     E5 head "\nB\nC" lineLimit(1) at 100: …=54px empty=0px B=185px B…=239px untruncated=349px
+//     E5 middle "\nB\nC" lineLimit(1) at 100: …=54px empty=0px B=185px B…=239px untruncated=349px
 //   --- E3 a width narrower than the token: "Hello", lineLimit(1)
 //     E3 width 4.0: CT tail "nil" — empty=66px …=106px H…=148px H=94px Hello=513px
 //     E3 width 8.0: CT tail "nil" — empty=122px …=158px H…=92px H=38px Hello=457px
@@ -80,6 +100,10 @@
 //   truncation of the PARAGRAPH, in all three modes (0 px; the whole rest's
 //   reads 2379/1388 px in head/middle, and equal in tail, where the two
 //   truncations keep the same prefix).
+// - E5: an EMPTY paragraph as the last kept line takes NO token, in any mode,
+//   even with text after it — "A" alone for "A\n\nB" at lineLimit(2) and
+//   nothing for "\nB\nC" at lineLimit(1) (0 px; the token's reading 54 px
+//   off). So E1/E2's tail token is for a non-empty paragraph only (TE-V).
 // - E3: at a width narrower than the token (CoreText answers nil at 4, 8 and
 //   10), SwiftUI draws no token in any mode; at 10 it draws "H" exactly (0 px),
 //   at 8 and 4 a clipped "H" (38 and 94 px short of a whole one) — the longest

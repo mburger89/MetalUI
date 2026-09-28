@@ -180,6 +180,21 @@ private func proposalTree() -> some Element {
     #expect(wrapped.count > 2)
     #expect(portable.lineRanges("ab\ncd", font: portable.resolveFont(family: nil, size: 13), wrappingAt: nil)
             == [0..<3, 3..<5])
+    // TE-V: a line whose one cluster is wider than the width and ends at a
+    // hard break straight after it takes the next paragraph break too when an
+    // empty paragraph follows — CoreText's own wrapping, the portable one
+    // matching it. Not after a space or a CR LF; not when the cluster fits.
+    let narrow: [(String, Double, [Range<Int>])] = [
+        ("A\n\nB", 4, [0..<3, 3..<4]), ("A\n\nB", 30, [0..<2, 2..<3, 3..<4]),
+        ("A \n\nB", 4, [0..<3, 3..<4, 4..<5]), ("A\r\n\r\nB", 4, [0..<3, 3..<5, 5..<6]),
+        ("A\n\r\nB", 4, [0..<4, 4..<5]), ("A\n\n", 4, [0..<3]), ("ABC\n\nD", 4, [0..<1, 1..<2, 2..<5, 5..<6]),
+    ]
+    for (string, width, expected) in narrow {
+        #expect(apple.lineRanges(string, font: apple.resolveFont(family: "Noto Sans", size: 13), wrappingAt: width)
+                == expected, "CoreText \(string.debugDescription) at \(width)")
+        #expect(portable.lineRanges(string, font: portable.resolveFont(family: nil, size: 13), wrappingAt: width)
+                == expected, "portable \(string.debugDescription) at \(width)")
+    }
 }
 
 // MARK: - TE-C, TE-T: layout options and metrics through both systems
