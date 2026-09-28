@@ -179,14 +179,38 @@ func measureTruncationDifferences() throws {
 }
 
 /// 1.5. Every corpus case lays out, truncates and places exactly as the
-/// Apple path does.
+/// Apple path does — Latin, combining marks and CJK in all three modes, and
+/// Arabic in tail mode, the default — except the one class ruling TE-U names
+/// and pins: an Arabic (right-to-left) suffix in head or middle mode, where
+/// CoreText sometimes keeps one more cluster at the suffix's edge than the
+/// share rule. Measured 2026-09-28 (`METALUI_TRUNCATION_MEASURE=1`): 7,980
+/// cases, 6,093 truncated, 38 differing, every one of them that class.
 @MainActor
 @Test func thePortableTruncationKeepsCoreTextsStringInEveryMode() throws {
     let (cases, truncated, differences) = try truncationDifferences()
     let strings = 2 * truncationLatin.count + truncationMarks.count + truncationCJK.count + truncationArabic.count
     try #require(cases == strings * truncationSizes.count * truncationWidths.count * 2 * truncationModes.count)
     #expect(truncated > cases / 3, "the corpus must truncate: \(truncated) of \(cases)")
-    #expect(differences.isEmpty, "\(differences.count) of \(cases) differ; first: \(differences.first.map { "\($0)" } ?? "")")
+    let unruled = differences.filter { !($0.font == notoSansArabic && $0.options.truncation != .tail) }
+    #expect(unruled.isEmpty, "\(unruled.count) of \(cases) differ outside TE-U's class; first: \(unruled.first.map { "\($0)" } ?? "")")
+    #expect(differences.count == 38, "TE-U pins 38 right-to-left head/middle differences; measured \(differences.count)")
+}
+
+/// TE-U's pin of both answers, one case: "مَرْحَبًا بالعالم يا صديقي" at 13 pt,
+/// head mode, width 26. CoreText keeps "قي" (the last two letters, 16.003 pt,
+/// with the 10.283 pt token over the width by 0.286); the portable path keeps
+/// "ي" alone (9.568 pt), the longest suffix that fits by the share rule.
+@MainActor
+@Test func aRightToLeftHeadTruncationKeepsOneClusterLessThanCoreText() throws {
+    let arabic = try truncationFonts().first { $0.0.name == notoSansArabic }!.0
+    let options = TextLayoutOptions(maxLines: 1, truncation: .head)
+    let text = truncationArabic[1]
+    let apple = appleTruncatedLayout(text, font: try arabic.apple(13), width: 26, options: options)
+    let portable = try portableTruncatedLayout(text, font: try arabic.portable(13), width: 26, options: options)
+    let ellipsis = FallbackPlaced(face: "NotoSans-Regular", id: 526, pixelX: 0, variant: 0, baselineY: 0).id
+    #expect(apple.glyphs.map(\.id) == [318, 104, 287, 52, ellipsis], "CoreText: \(apple.summary)")
+    #expect(portable.glyphs.map(\.id) == [318, 104, ellipsis], "portable: \(portable.summary)")
+    #expect(abs(apple.advances[0] - 26.286) < 0.001 && abs(portable.advances[0] - 19.851) < 0.001)
 }
 
 /// The corpus reaches what the rules are for, on the Apple side, so the

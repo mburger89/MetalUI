@@ -66,13 +66,13 @@ extension ShapedText {
     ///
     /// ## What this deliberately does not do
     ///
-    /// **No alignment and no direction handling beyond CoreText's own.** Every
-    /// line starts at `origin.x`, so a right-to-left paragraph lays its glyphs
-    /// out correctly *within* the line (CoreText resolved that when it built
-    /// the `CTLine`) and the line itself is still flush left. `text-align` is
-    /// not in M2's `Style` at all, so there is nothing to read; when it arrives
-    /// it is a per-line x offset computed here from `advance` and the box
-    /// width.
+    /// **No direction handling beyond CoreText's own.** Every line starts at
+    /// `origin.x` plus its ``ShapedText/lineOffsets`` entry — the alignment
+    /// offset `Shaper.shape(_:font:wrappingAt:options:)` computed (ruling
+    /// TE-J), 0 for every line of a leading layout — so a right-to-left
+    /// paragraph lays its glyphs out correctly *within* the line (CoreText
+    /// resolved that when it built the `CTLine`) and a leading line is still
+    /// flush left (`EV-K`: `.leading` is the left edge).
     ///
     /// **No clipping to the box.** A caller that hands in a box narrower or
     /// shorter than the shape gets glyphs outside it, on purpose: clamping
@@ -118,8 +118,9 @@ extension ShapedText {
                 CTRunGetGlyphs(run, CFRange(location: 0, length: 0), &glyphs)
                 CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
 
+                let lineX = origin.x + lineOffsets[index]
                 for i in 0..<count {
-                    let deviceX = (origin.x + Double(positions[i].x)) * scale
+                    let deviceX = (lineX + Double(positions[i].x)) * scale
                     let placement = GlyphRaster.subpixelPlacement(forDeviceX: deviceX)
                     // CoreText's run positions are y-**up** from the baseline
                     // (a superscript sits at a positive y), and every device

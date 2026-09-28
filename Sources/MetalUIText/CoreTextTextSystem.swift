@@ -25,12 +25,14 @@ public final class CoreTextTextSystem: TextSystem {
     }
 
     public func fontMetrics(_ font: FontKey) -> TextFontMetrics {
-        TextFontMetrics(ascent: 0, descent: 0, leading: 0, lineHeight: 0)  // skeleton (lane 1 red)
+        let metrics = registered(font).metrics
+        return TextFontMetrics(ascent: metrics.ascent, descent: metrics.descent, leading: metrics.leading,
+                               lineHeight: metrics.lineHeight)
     }
 
     public func measure(_ string: String, font: FontKey, wrappingAt width: Double?,
                         options: TextLayoutOptions) -> TextMeasurement {
-        let shaped = cache.shaped(string, font: registered(font), wrappingAt: width)
+        let shaped = cache.shaped(string, font: registered(font), wrappingAt: width, options: options)
         return TextMeasurement(widestLine: shaped.widestLine, totalHeight: shaped.totalHeight)
     }
 
@@ -40,17 +42,14 @@ public final class CoreTextTextSystem: TextSystem {
 
     public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?,
                            options: TextLayoutOptions) -> [Range<Int>] {
-        cache.shaped(string, font: registered(font), wrappingAt: width).lines.map { shaped in
-            let range = CTLineGetStringRange(shaped.line)
-            return range.location..<(range.location + range.length)
-        }
+        cache.shaped(string, font: registered(font), wrappingAt: width, options: options).lines.map(\.sourceRange)
     }
 
     public func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
                             options: TextLayoutOptions,
                             origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
         let requested = registered(font)
-        return cache.shaped(string, font: requested, wrappingAt: width)
+        return cache.shaped(string, font: requested, wrappingAt: width, options: options)
             .placedGlyphs(at: origin, font: requested, scaleFactor: scaleFactor)
             .map { placed in
                 if placedFonts[placed.font.key] == nil { placedFonts[placed.font.key] = placed.font }

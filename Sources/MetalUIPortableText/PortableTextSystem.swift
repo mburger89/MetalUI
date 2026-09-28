@@ -15,10 +15,14 @@ public final class PortableTextSystem: TextSystem {
     public let resolver: PortableFontResolver
     private var fonts: [FontKey: PortableFont] = [:]
 
+    /// `(string, font, width, options)` — the options are part of the key
+    /// (ruling TE-C item 3): a line limit or truncation mode is a different
+    /// layout of the same string.
     private struct MeasureKey: Hashable {
         let string: String
         let font: FontKey
         let width: Double?
+        let options: TextLayoutOptions
     }
     private struct Entry<Value> {
         var value: Value
@@ -40,18 +44,22 @@ public final class PortableTextSystem: TextSystem {
     }
 
     public func fontMetrics(_ font: FontKey) -> TextFontMetrics {
-        TextFontMetrics(ascent: 0, descent: 0, leading: 0, lineHeight: 0)  // skeleton (lane 1 red)
+        let metrics = registered(font).metrics
+        return TextFontMetrics(ascent: metrics.ascent, descent: metrics.descent, leading: metrics.leading,
+                               lineHeight: metrics.lineHeight)
     }
 
     public func measure(_ string: String, font: FontKey, wrappingAt width: Double?,
                         options: TextLayoutOptions) -> TextMeasurement {
-        let key = MeasureKey(string: string, font: font, width: width)
+        let key = MeasureKey(string: string, font: font, width: width, options: options)
         if let hit = measurements[key] {
             measurements[key]?.generation = generation
             return hit.value
         }
         let portable = registered(font)
-        let lines = trapping { try PortableText.lines(string, font: portable, wrappingAt: width) }
+        let lines = trapping {
+            try PortableText.layOut(string, font: portable, wrappingAt: width, options: options).map(\.line)
+        }
         let value = TextMeasurement(widestLine: lines.reduce(0) { max($0, $1.advance) },
                                     totalHeight: Double(lines.count) * portable.metrics.lineHeight)
         measurements[key] = Entry(value: value, generation: generation)
@@ -64,7 +72,9 @@ public final class PortableTextSystem: TextSystem {
 
     public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?,
                            options: TextLayoutOptions) -> [Range<Int>] {
-        trapping { try PortableText.lines(string, font: registered(font), wrappingAt: width).map(\.range) }
+        trapping {
+            try PortableText.layOut(string, font: registered(font), wrappingAt: width, options: options).map(\.line.range)
+        }
     }
 
     public func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
@@ -73,7 +83,7 @@ public final class PortableTextSystem: TextSystem {
         let portable = registered(font)
         let placements = trapping {
             try PortableText.placements(string, font: portable, origin: origin, wrappingAt: width,
-                                        scaleFactor: scaleFactor).placements
+                                        options: options, scaleFactor: scaleFactor).placements
         }
         return placements.map { placement in
             let split = GlyphImage.subpixelPlacement(forDeviceX: placement.deviceX)

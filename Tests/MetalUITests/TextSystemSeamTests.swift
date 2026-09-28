@@ -316,6 +316,25 @@ private let ctModes: [(TextTruncation, CTLineTruncationType)] = [(.tail, .end), 
 /// leading one), and a limit changes them. Mutation **M1h** (portable
 /// alignment factor 0) reddens the equality for every centred and trailing
 /// case.
+///
+/// **One case is a subpixel tie, ruled by TE-U and pinned**: CoreText moves
+/// the glyphs after a middle token as a run, the portable path walks their
+/// pens, and the two sums differ in the last bit; at scale 1 one pen lands
+/// on an exact variant boundary (59.625 against 59.624999999999996 device
+/// pixels) and rounds a quarter pixel apart. Every other glyph of all 864
+/// cases is identical.
+private func sameGlyphsBarAVariantTie(_ a: [TextGlyph], _ p: [TextGlyph]) -> (same: Bool, ties: Int) {
+    guard a.count == p.count else { return (false, 0) }
+    var ties = 0
+    for (x, y) in zip(a, p) where x != y {
+        let step = (x.pixelX * 4 + x.key.subpixelVariant) - (y.pixelX * 4 + y.key.subpixelVariant)
+        guard abs(step) == 1, x.key.glyph == y.key.glyph, x.key.font == y.key.font, x.baselineY == y.baselineY
+        else { return (false, ties) }
+        ties += 1
+    }
+    return (true, ties)
+}
+
 @MainActor
 @Test func theSeamsLayoutOptionsPlaceTheSameGlyphsOnBothSystems() throws {
     CTFontManagerRegisterFontsForURL(notoURL as CFURL, .process, nil)
@@ -324,6 +343,7 @@ private let ctModes: [(TextTruncation, CTLineTruncationType)] = [(.tail, .end), 
     let strings = ["The quick brown fox jumps over the lazy dog, twice over.", "Kerning AV To Ty\nReady\nSet",
                    "  spaced  words  "]
     var compared = 0, moved = 0, limited = 0
+    var tied: [String] = []
     for scale: Float in [1, 2] {
         for string in strings {
             for width: Double? in [nil, 60, 100, 150] {
@@ -338,7 +358,10 @@ private let ctModes: [(TextTruncation, CTLineTruncationType)] = [(.tail, .end), 
                             let p = portable.placeGlyphs(string, font: portableFont, wrappingAt: width,
                                                          options: options, origin: (3.3, 7.6), scaleFactor: scale)
                             try #require(!a.isEmpty)
-                            #expect(p == a, "\(string.debugDescription) w=\(String(describing: width)) \(options) ×\(scale)")
+                            let label = "\(string.debugDescription) w=\(String(describing: width)) \(options) ×\(scale)"
+                            let (same, ties) = sameGlyphsBarAVariantTie(a, p)
+                            #expect(same, "\(label)")
+                            if ties > 0 { tied.append("\(label): \(ties)") }
                             compared += 1
                             if alignment != .leading, a != apple.placeGlyphs(
                                 string, font: appleFont, wrappingAt: width,
@@ -352,6 +375,9 @@ private let ctModes: [(TextTruncation, CTLineTruncationType)] = [(.tail, .end), 
         }
     }
     try #require(compared == 2 * 3 * 4 * 4 * 3 * 3)
+    #expect(tied.count == 1 && tied.first?.hasPrefix("\"The quick") == true
+            && tied.first?.contains("middle") == true && tied.first?.hasSuffix("×1.0: 1") == true,
+            "TE-U pins one variant tie; measured \(tied)")
     #expect(moved > compared / 3, "alignment moves glyphs: \(moved)")
     #expect(limited > compared / 10, "a limit changes glyphs: \(limited)")
 }
