@@ -16,13 +16,20 @@ public protocol TextSystem: AnyObject, Sendable {
     /// `size` must be finite and positive.
     func resolveFont(family: String?, size: Double) -> FontKey
 
-    /// `string` in `font`, wrapped at `width` points (`nil`: one line per hard
-    /// break).
-    func measure(_ string: String, font: FontKey, wrappingAt width: Double?) -> TextMeasurement
+    /// `font`'s vertical metrics, in points (ruling TE-C item 2): the values
+    /// `measure` and `placeGlyphs` lay lines out with.
+    func fontMetrics(_ font: FontKey) -> TextFontMetrics
 
-    /// Every glyph of `string` in `font` wrapped at `width`, in a text box
-    /// whose top-left is `origin` (points), placed at `scaleFactor`.
+    /// `string` in `font`, wrapped at `width` points (`nil`: one line per hard
+    /// break), laid out under `options` (ruling TE-C item 3): the widest kept
+    /// (or truncated) line, and `kept lines × lineHeight`.
+    func measure(_ string: String, font: FontKey, wrappingAt width: Double?,
+                 options: TextLayoutOptions) -> TextMeasurement
+
+    /// Every glyph of `string` in `font` wrapped at `width` under `options`, in
+    /// a text box whose top-left is `origin` (points), placed at `scaleFactor`.
     func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
+                     options: TextLayoutOptions,
                      origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph]
 
     /// The x offset, in points from the line's start, of every grapheme
@@ -43,8 +50,11 @@ public protocol TextSystem: AnyObject, Sendable {
     /// `width` (ruling TI-H), as UTF-16 ranges into `string`, each with its
     /// trailing whitespace and hard break — `CTLineGetStringRange`'s ranges.
     /// `nil` is one line per hard break; a trailing hard break opens no empty
-    /// line; an empty string is one empty line.
-    func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?) -> [Range<Int>]
+    /// line; an empty string is one empty line. Under a line limit (ruling
+    /// TE-C item 3), only the kept lines, the truncated last one standing for
+    /// the whole rest of the string (its range runs to the string's end).
+    func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?,
+                    options: TextLayoutOptions) -> [Range<Int>]
 
     /// The coverage for `key` — a key this system placed.
     func rasterize(_ key: GlyphKey) -> GlyphImage
@@ -52,6 +62,76 @@ public protocol TextSystem: AnyObject, Sendable {
     /// Brackets one frame's text work, for per-frame caches.
     func beginFrame()
     func endFrame()
+}
+
+extension TextSystem {
+    /// `measure` with no line limit, tail truncation and leading alignment —
+    /// the spelling every caller used before ruling TE-C.
+    public func measure(_ string: String, font: FontKey, wrappingAt width: Double?) -> TextMeasurement {
+        measure(string, font: font, wrappingAt: width, options: TextLayoutOptions())
+    }
+
+    /// `placeGlyphs` under the default options (ruling TE-C).
+    public func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
+                            origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
+        placeGlyphs(string, font: font, wrappingAt: width, options: TextLayoutOptions(),
+                    origin: origin, scaleFactor: scaleFactor)
+    }
+
+    /// `lineRanges` under the default options (ruling TE-C).
+    public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?) -> [Range<Int>] {
+        lineRanges(string, font: font, wrappingAt: width, options: TextLayoutOptions())
+    }
+}
+
+/// A face's vertical metrics at one size, in points (ruling TE-C item 2) —
+/// `FontMetrics` on the CoreText path, `PortableFontMetrics` on the portable
+/// one. `lineHeight` is `ceil(ascent + descent + leading)` on both (the line
+/// advance every multi-line layout uses; divergence 86).
+public struct TextFontMetrics: Hashable, Sendable {
+    public let ascent: Double
+    public let descent: Double
+    public let leading: Double
+    public let lineHeight: Double
+
+    public init(ascent: Double, descent: Double, leading: Double, lineHeight: Double) {
+        self.ascent = ascent
+        self.descent = descent
+        self.leading = leading
+        self.lineHeight = lineHeight
+    }
+}
+
+/// Which end of a line a truncation keeps (ruling TE-I): `.tail` keeps the
+/// start, `.head` the end, `.middle` both ends — `CTLineTruncationType`'s
+/// `.end`, `.start` and `.middle`.
+public enum TextTruncation: Hashable, Sendable {
+    case tail, head, middle
+}
+
+/// Where each line sits inside the text's box (ruling TE-J): left, centred or
+/// right, by the line's width without its trailing whitespace.
+public enum TextLineAlignment: Hashable, Sendable {
+    case leading, center, trailing
+}
+
+/// How `measure`, `placeGlyphs` and `lineRanges` lay a string out beyond
+/// wrapping (ruling TE-C item 3, amended by TE-T): at most `maxLines` lines
+/// (`nil`: no limit; below 1 acts as 1), the last one truncated with `…`
+/// (U+2026) in `truncation`'s mode when text is dropped at a definite width,
+/// and each line aligned by `alignment`. The defaults — no limit, tail,
+/// leading — lay out exactly as the spellings without `options:` always did.
+public struct TextLayoutOptions: Hashable, Sendable {
+    public var maxLines: Int?
+    public var truncation: TextTruncation
+    public var alignment: TextLineAlignment
+
+    public init(maxLines: Int? = nil, truncation: TextTruncation = .tail,
+                alignment: TextLineAlignment = .leading) {
+        self.maxLines = maxLines
+        self.truncation = truncation
+        self.alignment = alignment
+    }
 }
 
 /// A measured string: its widest line and its total height, both in points.

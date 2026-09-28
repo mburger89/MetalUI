@@ -1,5 +1,6 @@
 import CoreText
 import Foundation
+import MetalUITextSystem
 
 /// One display line: the `CTLine` CoreText produced for it, and how wide that
 /// line measures.
@@ -28,6 +29,13 @@ public struct ShapedLine {
     /// same metric ``FontResolver/resolve(family:size:)``'s ruling TX-C
     /// discussion quotes, so the two are comparable.
     public let advance: Double
+
+    /// The UTF-16 range of the shaped string this line stands for (skeleton:
+    /// CoreText's own range).
+    public var sourceRange: Range<Int> {
+        let range = CTLineGetStringRange(line)
+        return range.location..<(range.location + range.length)
+    }
 
     // **The memberwise initialiser is internal on purpose, and the decision is
     // taken here rather than left to the first task that trips over it.** Both
@@ -118,6 +126,13 @@ public enum Shaper {
     /// the same precondition**, which is deliberate: that is a real case for a
     /// `Text` in a zero-width box, and the measure function owes it the same
     /// small positive width, not a zero passed through.
+    /// `shape(_:font:wrappingAt:)` under a line limit, truncation and
+    /// alignment (ruling TE-C item 3).
+    public static func shape(_ string: String, font: ResolvedFont, wrappingAt width: Double?,
+                             options: TextLayoutOptions) -> ShapedText {
+        shape(string, font: font, wrappingAt: width)  // skeleton (lane 1 red)
+    }
+
     public static func shape(_ string: String, font: ResolvedFont,
                              wrappingAt width: Double?) -> ShapedText {
         let attributed = NSAttributedString(

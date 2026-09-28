@@ -1,5 +1,6 @@
 import MetalUIScene
 import MetalUIShaderTypes
+import MetalUITextSystem
 
 /// What `PortableText.emitLines` drew (ruling LB-H).
 public struct PortableParagraph: Sendable, Equatable {
@@ -28,9 +29,10 @@ extension PortableText {
                                  maskCornerRadii: MUICorners = MUICorners(topLeft: 0, topRight: 0,
                                                                           bottomRight: 0, bottomLeft: 0),
                                  order: UInt32 = 0, layer: Int = 0,
+                                 options: TextLayoutOptions = TextLayoutOptions(),
                                  into scene: inout Scene, atlas: GlyphAtlas) throws -> PortableParagraph {
         let (laidOut, placements) = try placements(text, font: font, origin: origin,
-                                                   wrappingAt: width, scaleFactor: scaleFactor)
+                                                   wrappingAt: width, options: options, scaleFactor: scaleFactor)
         for placement in placements {
             try emitGlyph(placement.id, deviceX: placement.deviceX, baselineY: placement.baselineY,
                           font: placement.font, scaleFactor: scaleFactor, color: color,
@@ -44,6 +46,13 @@ extension PortableText {
     /// Where `emitLines` puts each glyph, before the atlas: the pen's device
     /// x and the device baseline row. Separate so the oracle (LB-I) can
     /// compare placement against `placedGlyphs` without rasterizing.
+    static func placements(_ text: String, font: PortableFont, origin: (x: Double, y: Double),
+                           wrappingAt width: Double?, options: TextLayoutOptions,
+                           scaleFactor: Float) throws
+        -> (lines: [LaidOutLine], placements: [GlyphPlacement]) {
+        try placements(text, font: font, origin: origin, wrappingAt: width, scaleFactor: scaleFactor)  // skeleton
+    }
+
     static func placements(_ text: String, font: PortableFont, origin: (x: Double, y: Double),
                            wrappingAt width: Double?, scaleFactor: Float) throws
         -> (lines: [LaidOutLine], placements: [GlyphPlacement]) {

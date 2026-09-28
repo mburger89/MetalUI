@@ -1,8 +1,8 @@
 # Text semantics decisions (plan task 11, part 1)
 
 Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-semantics-design.md),
-on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-S`;
-next unused is **`TE-T`**. A bare `TE-3` is a typo, not a citation. **A round
+on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-T`;
+next unused is **`TE-U`**. A bare `TE-3` is a typo, not a citation. **A round
 that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-28: DESIGNED; critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
@@ -181,7 +181,9 @@ oracle or a sprite comparison (spec §4):
 2. **`fontMetrics(_:) -> TextFontMetrics`** (`ascent`, `descent`, `leading`,
    `lineHeight`) — `FontMetrics`/`PortableFontMetrics`' values, already equal
    by `PT-`'s oracle; the element derives baselines from it (`TE-G`).
-3. **`TextLayoutOptions`** (`maxLines: Int?`, `truncation: TextTruncation`
+3. (**Amended by `TE-T`**: with a hard break in the rest, the last kept line
+   is the rest's first paragraph, not the whole rest; narrower than the token,
+   the longest prefix that fits.) **`TextLayoutOptions`** (`maxLines: Int?`, `truncation: TextTruncation`
    (`.tail`/`.head`/`.middle`), `alignment: TextLineAlignment`
    (`.leading`/`.center`/`.trailing`)) as a new parameter of `measure`,
    `placeGlyphs` and `lineRanges`; the old spellings stay as extensions passing
@@ -740,3 +742,63 @@ commit):
 - *Baseline measurement moves `SA-M`'s work literals*: not by construction
   (baselines come from answers already in hand); the lane's work-counter test
   (spec §8 lane 2) is the check, kept.
+
+---
+
+## TE-T — a hard break ends the truncated line at its paragraph; narrower than the token, the longest prefix that fits (lane 1)
+
+**Evidence.** `docs/probes/swiftui-truncation-edges.swift` (**new**, lane 1;
+compiled twice and interpreted once, byte-identical, screen locked): E0
+reproduces X8 (positive control, 0 px in all three modes, > 2000 px from the
+untruncated text); E1 "Ready\nSet\nGo" at `lineLimit(2)`, width 100 — tail
+draws "Ready\nSet…" (0 px), head and middle "Ready\nSet" (0 px), the one-line
+truncation of the whole rest "Set\nGo" 327–656 px off in every mode;
+`lineLimit(1)` tail "Ready…" (0 px); E2 the same with a longer rest ("gamma…"
+tail, "gamma" head/middle, 0 px; the whole rest's truncation 798–1948 px off);
+E4 a paragraph that itself overflows, with more text after it — CoreText's
+truncation of the PARAGRAPH, all three modes (0 px). E3 "Hello" at
+`lineLimit(1)`: CoreText's `CTLineCreateTruncatedLine` answers nil at 4, 8 and
+10 (the token is 10.283 wide in SF 13 … every width narrower than it); SwiftUI
+draws no token in any mode, exactly "H" at 10 (0 px), a clipped "H" at 8 and 4.
+
+**The ruling** (amends `TE-C` item 3, whose "the rest of the string from line
+`n−1`'s start is truncated as one line" X8 measured only for a rest with no
+hard break):
+
+1. With `maxLines == n`, a definite width and more than `n` lines, lines
+   `0..<n−1` are kept and the last kept line is built from the rest's **first
+   paragraph** `P` — from line `n−1`'s start to the first hard break (U+000A,
+   U+000B, U+000C, U+000D, U+0085, U+2028, U+2029), the break excluded, or to
+   the string's end.
+2. `P` wraps at the width (it is wider than one line): `P` is truncated as one
+   line in the mode — `CTLineCreateTruncatedLine` on a line of `P` alone on the
+   Apple path (E0, E4).
+3. `P` fits and text follows it: in **tail** mode `P` takes the token anyway
+   (E1, E2) — the longest prefix of `P` that fits with the token, as the tail
+   rule measures it — on the Apple path CoreText's truncated line of `P`
+   followed by one glyph too wide to keep, so the kept prefix is CoreText's;
+   in **head** and **middle** mode `P` is drawn whole, no token (E1, E2).
+4. The token does not fit the width (CoreText's nil): the line is the longest
+   prefix of `P` of whole clusters that fits the width, **at least one
+   cluster**, no token, in every mode — `CTTypesetterSuggestClusterBreak` on
+   the Apple path. SwiftUI clips that one cluster at its frame where MetalUI,
+   which never clips text (`PlacedGlyph`'s doc comment), draws it whole: a
+   difference of ink inside one character's width at a width below ~10 pt,
+   recorded here and given no divergence number.
+5. `lineRanges` gives the kept lines' ranges and, for the last line, `start..<
+   string end` — it stands for the whole rest, whatever part of it is drawn.
+6. At an unspecified width nothing is truncated: the first `n` lines are kept
+   (`TE-C`, L4), hard breaks included.
+
+Pinned by spec rows **1.6b** `aHardBreakEndsTheTruncatedLineAtItsParagraph`
+and **1.6c** `aWidthNarrowerThanTheTokenKeepsTheLongestPrefixThatFits` (both
+systems, and CoreText's own glyphs read outside the seam), and by the
+hard-break strings in `TruncationOracleTests`' corpus (1.5).
+
+**Observed, not ruled on.** E3's head mode at width 20 matches none of its
+candidates (nearest CoreText's "…o", 108 px); `swiftui-text-semantics.swift`'s
+head arms (X5, X7 at 60) agree with CoreText, and `TE-I` keeps CoreText as the
+portable path's oracle.
+
+**Cost if wrong.** A line limit over text with hard breaks would draw the rest
+glued onto one line ("SetGo") — the answer `TE-C` as first written gave.

@@ -24,7 +24,12 @@ public final class CoreTextTextSystem: TextSystem {
         return font.key
     }
 
-    public func measure(_ string: String, font: FontKey, wrappingAt width: Double?) -> TextMeasurement {
+    public func fontMetrics(_ font: FontKey) -> TextFontMetrics {
+        TextFontMetrics(ascent: 0, descent: 0, leading: 0, lineHeight: 0)  // skeleton (lane 1 red)
+    }
+
+    public func measure(_ string: String, font: FontKey, wrappingAt width: Double?,
+                        options: TextLayoutOptions) -> TextMeasurement {
         let shaped = cache.shaped(string, font: registered(font), wrappingAt: width)
         return TextMeasurement(widestLine: shaped.widestLine, totalHeight: shaped.totalHeight)
     }
@@ -33,7 +38,8 @@ public final class CoreTextTextSystem: TextSystem {
         Shaper.caretOffsets(string, font: registered(font))
     }
 
-    public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?) -> [Range<Int>] {
+    public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?,
+                           options: TextLayoutOptions) -> [Range<Int>] {
         cache.shaped(string, font: registered(font), wrappingAt: width).lines.map { shaped in
             let range = CTLineGetStringRange(shaped.line)
             return range.location..<(range.location + range.length)
@@ -41,6 +47,7 @@ public final class CoreTextTextSystem: TextSystem {
     }
 
     public func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
+                            options: TextLayoutOptions,
                             origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
         let requested = registered(font)
         return cache.shaped(string, font: requested, wrappingAt: width)

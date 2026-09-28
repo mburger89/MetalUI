@@ -1,9 +1,9 @@
 # Text semantics — design (plan task 11, part 1)
 
 Branch `feat/text-semantics` from `169d166` (plan task 10's tip). Rulings
-`TE-A`…`TE-S` in a new decisions doc,
+`TE-A`…`TE-T` in a new decisions doc,
 [`../2026-09-28-text-semantics-decisions.md`](../2026-09-28-text-semantics-decisions.md)
-(next unused **`TE-T`**). Evidence: `docs/probes/swiftui-text-semantics.swift`
+(next unused **`TE-U`**). Evidence: `docs/probes/swiftui-text-semantics.swift`
 (**new**, this design; arm ids `F1`, `L5`, `X8` …; its header carries the
 recorded output and the reading). Record: `docs/record/59-text-semantics.md`
 (written by the lanes and the Record phase).
@@ -274,6 +274,8 @@ numbers so every citation stands.
 | 1.4 | `aCustomFamilysWeightSelectsItsNearestFace` — Helvetica Neue per X2 (semibold → Medium, heavy → Bold, `HelveticaNeue-Bold` + light → Light) | exact match only | M1d: no nearest, request's face kept |
 | 1.5 | `thePortableTruncationKeepsCoreTextsStringInEveryMode` — corpus (Latin with kerning pairs and spaces, CJK, Arabic, a combining mark) × widths × modes: kept string and width equal `CTLineCreateTruncatedLine`'s | no portable truncation | M1e: keep trailing whitespace before a tail token (X6); M1f: middle split one grapheme off |
 | 1.6 | `theDroppedLinesAreTruncatedAsOneLineAfterTheKeptOnes` — `maxLines: 2` at 100: line 1 kept, the rest truncated as one line, both systems' glyphs equal (X8) | untruncated | M1g: truncate line n−1's own text only |
+| 1.6b | `aHardBreakEndsTheTruncatedLineAtItsParagraph` (**added by `TE-T`**) — the last kept line is the rest's first paragraph: "Ready\nSet\nGo" at `maxLines: 2` draws "Set…" in tail, "Set" in head/middle; an overflowing paragraph is CoreText's truncation of it alone; both systems | the whole rest truncated as one line | M1l: truncate the whole rest (E1's tail and E4's head/middle redden) |
+| 1.6c | `aWidthNarrowerThanTheTokenKeepsTheLongestPrefixThatFits` (**added by `TE-T`**) — "Hello" at 10 and 4 draws "H", no token, every mode, both systems | nothing drawn | M1m: draw nothing when the token does not fit |
 | 1.7 | `theSeamsLayoutOptionsPlaceTheSameGlyphsOnBothSystems` — limit × mode × alignment through `placeGlyphs` on Noto Sans at scales 1 and 2 | options ignored | M1h: portable alignment factor 0 |
 | 1.8 | `theSeamsMetricsAgreeOnBothSystems` — `fontMetrics` of Noto Sans at 11, 13, 17, 26 equal | no requirement | M1i: portable `lineHeight` rounded to nearest |
 | 1.9 | `anUnspecifiedWidthCutsKeptLinesWithoutAnEllipsis` — `"A\nB\nC"`, `maxLines: 2`, width `nil`: two lines, no token glyph (L4) | a token appended | M1j: token at `nil` width |

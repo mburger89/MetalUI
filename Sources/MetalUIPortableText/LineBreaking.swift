@@ -1,5 +1,6 @@
 import CUnibreak
 import MetalUIHarfBuzz
+import MetalUITextSystem
 
 /// What UAX #14 allows after one UTF-16 unit (ruling LB-B).
 public enum LineBreakOpportunity: Sendable, Equatable {
@@ -93,6 +94,11 @@ extension PortableText {
 
     /// `lines`, with each line's glyphs kept: the glyphs `emitLines` draws
     /// (ruling LB-H) are the ones this measured, so the two cannot drift.
+    static func layOut(_ text: String, font: PortableFont, wrappingAt width: Double?,
+                       options: TextLayoutOptions) throws -> [LaidOutLine] {
+        try layOut(text, font: font, wrappingAt: width)  // skeleton (lane 1 red)
+    }
+
     static func layOut(_ text: String, font: PortableFont,
                        wrappingAt width: Double?) throws -> [LaidOutLine] {
         if let width {

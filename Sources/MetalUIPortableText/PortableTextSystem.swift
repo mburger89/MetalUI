@@ -39,7 +39,12 @@ public final class PortableTextSystem: TextSystem {
         return font.key
     }
 
-    public func measure(_ string: String, font: FontKey, wrappingAt width: Double?) -> TextMeasurement {
+    public func fontMetrics(_ font: FontKey) -> TextFontMetrics {
+        TextFontMetrics(ascent: 0, descent: 0, leading: 0, lineHeight: 0)  // skeleton (lane 1 red)
+    }
+
+    public func measure(_ string: String, font: FontKey, wrappingAt width: Double?,
+                        options: TextLayoutOptions) -> TextMeasurement {
         let key = MeasureKey(string: string, font: font, width: width)
         if let hit = measurements[key] {
             measurements[key]?.generation = generation
@@ -57,11 +62,13 @@ public final class PortableTextSystem: TextSystem {
         trapping { try PortableText.caretOffsets(string, font: registered(font)) }
     }
 
-    public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?) -> [Range<Int>] {
+    public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?,
+                           options: TextLayoutOptions) -> [Range<Int>] {
         trapping { try PortableText.lines(string, font: registered(font), wrappingAt: width).map(\.range) }
     }
 
     public func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
+                            options: TextLayoutOptions,
                             origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
         let portable = registered(font)
         let placements = trapping {
