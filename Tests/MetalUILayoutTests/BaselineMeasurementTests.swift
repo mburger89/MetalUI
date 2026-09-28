@@ -235,14 +235,16 @@ private func layOutB2(alignment: ProposalAlignment = .center, baseline: Proposal
 /// combination instead. Under a factor alignment, and under both baselines.
 @Test func anInfiniteAnswerNeverMakesABaselineNaN() async {
     await #expect(processExitsWith: .success) {
-        for baseline in [nil, ProposalTextBaseline.first, .last] {
+        for (baseline, nested) in [(nil, false), (ProposalTextBaseline.first, false), (.last, false),
+                                   (nil, true), (.first, true)] {
             let tree = LayoutTree(generation: 0)
             let text = tree.newNativeLeaf { _ in
                 LayoutMeasurement(size: SizeD(width: 17.5, height: 16), firstBaseline: 13, lastBaseline: 13)
             }
-            // Two greedy frames: the outer one's `(∞ − ∞) × ½` shift is NaN too.
-            let greedy = tree.newNativeFrame(child: tree.newNativeFrame(child: text, maxHeight: .infinity),
-                                             maxHeight: .infinity)
+            // One greedy frame (the stack's `(∞ − ∞) × ½` offset is NaN), or
+            // two (the outer frame's own shift is NaN too).
+            let inner = tree.newNativeFrame(child: text, maxHeight: .infinity)
+            let greedy = nested ? tree.newNativeFrame(child: inner, maxHeight: .infinity) : inner
             let other = tree.newNativeLeaf { _ in
                 LayoutMeasurement(size: SizeD(width: 10, height: 10), firstBaseline: 8, lastBaseline: 8)
             }
