@@ -1,11 +1,11 @@
 # Text semantics decisions (plan task 11, part 1)
 
 Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-semantics-design.md),
-on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-P`;
-next unused is **`TE-Q`**. A bare `TE-3` is a typo, not a citation. **A round
+on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-S`;
+next unused is **`TE-T`**. A bare `TE-3` is a typo, not a citation. **A round
 that appends a ruling moves this line in the same commit.**
 
-**Status, 2026-09-28: DESIGNED.** Plan task 11 is split in two by the workflow
+**Status, 2026-09-28: DESIGNED; critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
 that runs it: **part 1** (this doc) is the text half of the task's first
 sentence — foreground style, font metrics, line limit, truncation, multiline
 alignment, baseline alignment and dynamic type response — plus every item the
@@ -30,6 +30,12 @@ plan's task 11 box stays **unticked** after part 1.
   (divergence 77), re-read, not re-run: F8 reproduces Z2's numbers.
 - `docs/probes/swiftui-engine-replacement-stage2.swift` group Y (divergence
   60), re-read: M1 extends it to scales 1, 2 and 3.
+- Critic round (`TE-Q`…`TE-S`): `docs/probes/swiftui-controlsize-text-render.swift`
+  (**new**, arms R0–R2: which instrument sees `controlSize`) and
+  `docs/probes/swiftui-text-in-stacks.swift` (**new**, arms K0–K4: a wrapping
+  text beside a sibling in a tight stack), each compiled twice and interpreted
+  once, byte-identical; `swiftui-text-semantics.swift` re-run whole by the
+  critic, **all 294 lines byte-identical** to its header.
 
 ---
 
@@ -62,14 +68,18 @@ sizing and m0 plans and their decisions docs, `AppKitPlatform.swift:146` and
 | colour glyphs (record §05 row) | record §05 | **part 2** (rendering-facing), `TE-O` |
 | an `onTap` control invisible to VoiceOver | `AB-` doc `:1408` | **plan task 12** (accessibility), `TE-O` |
 
-**Three lanes**, run in order 1, 2, 3 (spec §8 names every file): **1** the
-`TextSystem` seam and both text systems (font descriptors, metrics, line
-limit, truncation and alignment in placement, each oracle-checked); **2** the
-kernel's baselines and the legacy `baseline` fields (synthetic leaves only, so
-it does not wait for lane 1); **3** the element surface (`Font`, the
+**Three lanes**, run in order 1, 2, 3 (spec §8 names every file; **amended by
+`TE-S` item 1**, which moved font selection from lane 1 to lane 2): **1** the
+`TextSystem` seam's layout options and metrics on both text systems (line
+limit, truncation and alignment in measurement and placement, `fontMetrics`,
+each oracle-checked); **2** font selection on both systems (`FontDescriptor`,
+weights, italic, designs) and the kernel's baselines and the legacy `baseline`
+fields (synthetic leaves only); **3** the element surface (`Font`, the
 environment values and modifiers, `Text`/`ProposalText`/`TextField`/
-`TextEditor`), which consumes both. **Source files are disjoint**; the only
-shared test files take append-only arms (spec §8).
+`TextEditor`), which consumes both. Lanes 1 and 2 share three seam files
+(`TextSystem.swift`, `CoreTextTextSystem.swift`, `PortableTextSystem.swift`),
+which is safe only because the lanes run one at a time, in order; every other
+source file is one lane's.
 
 **Cost if wrong.** An item missed here is found by part 2's collection or plan
 task 15's inventory; each row names its source so the grep can be re-run.
@@ -179,11 +189,20 @@ oracle or a sprite comparison (spec §4):
    test caller are untouched. With `maxLines == n` and more lines than `n`,
    lines `0..<n−1` are kept and the rest of the string from line `n−1`'s start
    is truncated as **one line** at the wrap width in the given mode (X8, 0 px
-   for all three modes), `…` (U+2026) in the same font as the token (T6),
+   for all three modes), `…` (U+2026) as the token, shaped in the text's **resolved** font — the
+request's face, not whichever fallback face drew the truncated run — with
+that font's own fallback when the face lacks U+2026 (T6; on the portable path
+the token is shaped through `shapeCascading`, `FB-A`, never `HarfBuzzShaper`
+directly),
    trailing whitespace before a tail token dropped (X6) — CoreText's
    `CTLineCreateTruncatedLine` on the Apple path, and on the portable path a
    `PortableText` truncation that must equal it over the
-   `TruncationOracleTests` corpus (widths, kept string, glyphs placed). At an
+   `TruncationOracleTests` corpus (widths, kept string, glyphs placed). **If a
+   corpus case cannot be matched** after the lane has measured the rule (as
+   `LB-D` measured its four), the lane stops and a new `TE-` ruling names the
+   case, the two answers and a pin of each (`LB-M`'s precedent for Thai) —
+   never a silent exclusion from the corpus, and never for Latin tail, the
+   default mode, which must match. At an
    unspecified width the kept lines are simply cut (L4: no ellipsis without a
    width to fit). `measure` answers the kept lines' widest width and `kept ×
    lineHeight`. `alignment` moves each placed line by
@@ -244,7 +263,9 @@ the text-style table (`TE-B` item 1) gains a size column.
 ## TE-F — `controlSize` reaches the default font, and through it `TextField` and `Button`'s label
 
 **Evidence.** F8/Z2: the default font is 9 pt at `.mini`, 11 pt at `.small`,
-13 pt at `.regular`/`.large`/`.extraLarge`; an explicit font (`.body`,
+13 pt at `.regular`/`.large`/`.extraLarge` — by **layout**, uniquely (R2);
+F8's `equals=.system(size: 13)` field in every row is `ImageRenderer`'s blind
+spot, not a drawn 13 pt (`TE-Q`); an explicit font (`.body`,
 `.caption`) does not move; an environment font wins (F8h). F8/Z3: a
 `TextField`'s height follows its font (32 at `.system(20)` whatever the size),
 its default font follows the size.
@@ -312,8 +333,12 @@ round(ascent) in all 25 arms: 13, 25, 11, 18, 16 …; last = first + (lines − 
 3. **Divergence 86, added, kept, owner none**: MetalUI's line advance is
    `ceil(ascent + descent + leading)` on both text systems (`FontMetrics`,
    `PortableFontMetrics`, measured equal by `PT-`), where SwiftUI's is
-   TextKit's line-fragment height, which X13 shows is not a function of those
-   three numbers (and an empty `Text` is 0×14, X10, where MetalUI's is 0×16).
+   TextKit's line-fragment height, which X13's 21 sizes fit by no formula
+   tried over those three numbers — neither `ceil` nor `round` of their sum,
+   nor `ceil(ascent) + ceil(descent)` (right at 9–15, wrong at 16: 20 against
+   19, and at 26: 32 against 30) — so "no public metric gives it" is a
+   measured absence of a fit, not a proof (and an empty `Text` is 0×14, X10,
+   where MetalUI's is 0×16).
    Matching it would need a metric no public CoreText call returns and no
    portable file carries; changing the formula would move every multi-line
    text's pixels and the portable pins. Pinned by
@@ -357,6 +382,9 @@ value, nearest writer).
    answer: `lines = min(limit.max ?? ∞, heightLines, natural)`, `heightLines =
    max(1, ⌊h / lineHeight⌋)` for a finite `h`; height `max(lines, limit.min ??
    0) × lineHeight`; width the widest kept line, capped by the proposal.
+   **This makes every wrapping text vertically flexible inside a stack** — a
+   consequence the design did not name; `TE-R` measures it against SwiftUI
+   and says what it may move.
 3. A limit of 0 **or below** acts as 1 (0 is L1's; below 0 is unprobed and
    treated like 0 rather than rejected, `SA-J`: reject only what SwiftUI
    rejects).
@@ -425,7 +453,12 @@ produce).
 
 1. `VerticalAlignment` gains `.firstTextBaseline` and `.lastTextBaseline`
    (SwiftUI's). `HorizontalAlignment` gains nothing (SwiftUI's has no
-   baseline).
+   baseline). **Migration note** (`TE-S` item 5): MetalUI's `VerticalAlignment`
+   is a public `enum` (SwiftUI's is a struct), so an exhaustive `switch` over
+   it outside the package stops compiling; add a `default:` or the two cases.
+   The kernel's two-axis `ProposalAlignment` (every `frame`/`overlay`/
+   `ZStack`/`Grid(alignment:)` parameter) is a separate type and gains
+   nothing, so no baseline is reachable there (item 5).
 2. **Measurement**, per `NativeNode` kind, of the `firstBaseline`/`lastBaseline`
    `LayoutMeasurement` already carries: leaf — its closure's; frame, padding —
    unchanged; overlay (`ZStack`) and `linearStack` — the min (first) / max
@@ -470,16 +503,26 @@ measurement.
 
 **The ruling.** `alignItems.baseline` on a legacy **row** container lowers to
 `baseline: .first` on its native stack; on a **column** it lowers as
-`flexStart`. `alignSelf.baseline` on a child is consumed without a report
+`flexStart`; on a **`display: .stack`** container (a legacy `Stack`, or any
+container `legacyContainerDiagnostics`' first branch sees) it stays a
+**permanent refusal by name** (`owner: nil`) — a layered stack is a `ZStack`,
+and `TE-K` item 5 builds no baseline `Alignment` for one (`TE-S` item 2; the
+design left this branch unruled). `alignSelf.baseline` on a child is consumed without a report
 when its parent's own `alignItems` is `.baseline` (the child already aligns
 so); anywhere else it is a **permanent refusal by name** (`owner: nil`) —
 per-child baseline alignment among differently aligned siblings has no
 SwiftUI stack shape. `UnlowerableField.owner`'s `"plan task 11"` branch is
 deleted, so **every remaining report is a permanent refusal**; the property
-stays (`String?`, now always `nil`) to avoid an API break, and
-`everyReportNamesALiveOwnerOrIsRefusedByName` loses its baseline rows (spec
-2.10). `everyContainerFieldEitherLowersOrIsReportedByName`'s `baseline` arm
-becomes a lowering arm.
+stays (`String?`, now always `nil`) to avoid an API break.
+`everyReportNamesALiveOwnerOrIsRefusedByName` **keeps all 265 entries** — the
+table is a pure function of `UnlowerableField` (its own doc: it pins the owner
+scheme, not which entries a tree raises), and both baseline fields can still
+be raised (`alignItems.baseline` by a stack-display container,
+`alignSelf.baseline` outside a baseline row) — so its **16** baseline rows
+(5 container, 11 item) change owner from `"plan task 11"` to `nil` (spec 2.10;
+**amended by `TE-S` item 2**, the design's "265 → 260" was wrong on both
+counts). `everyContainerFieldEitherLowersOrIsReportedByName` gains a row and
+a column lowering arm and keeps a stack-display report arm.
 
 **Cost if wrong.** A legacy tree with `.alignItems(.baseline)` that relied on
 the report (it trapped in production) now lays out; no in-repo tree uses it.
@@ -556,3 +599,144 @@ time, so it is owed, as for tasks 8–10.
 
 **Cost if wrong.** A ticked box with part 2 undone would overclaim; this line
 forbids it.
+
+---
+
+## TE-Q — F8's render field is `ImageRenderer`'s blind spot; `controlSize` reaches the default font by layout (critic round)
+
+**Evidence.** `docs/probes/swiftui-controlsize-text-render.swift` (new): R0
+(each instrument separates 9 from 13 pt: 2404 px by render; 77×11 against
+106×16 by fitting size), R1 (`ImageRenderer` identifies the default `Text`
+under `.mini`, `.small` and `.regular` as `.system(size: 13)` every time —
+reproducing F8's `equals=` field), R2 (the hosting view's fitting size
+identifies the same three as exactly 9, 11 and 13, no other candidate
+matching). A third instrument, `NSHostingView.cacheDisplay`, drew blank with
+the screen locked (its own control read 0 px) and was dropped.
+
+**The ruling.** F8's `equals=.system(size: 13)` in its `.mini` and `.small`
+rows is an instrument that does not apply `controlSize`, not evidence against
+`TE-F`; `TE-F` rests on the layout answer (F8's sizes, Z2, R2). The **drawn**
+font under `controlSize` in an on-screen window is unmeasured (screen locked)
+and joins the owed real-window capture (Record phase, record §03). No test or
+design row changes: MetalUI draws with the font it measures with, by
+construction (one resolution function, spec §3).
+
+**Cost if wrong.** If an on-screen window drew 13 pt under `.mini` while
+laying out at 9, SwiftUI would be inconsistent with itself; the capture
+would show it and `TE-F` would be revisited.
+
+---
+
+## TE-R — a wrapping text in a tight stack: SwiftUI compresses it, the kernel will too, and that may move pixels (critic round)
+
+**Evidence.** `docs/probes/swiftui-text-in-stacks.swift` (new), the paragraph
+of L1 (six lines at width 100, K0): beside a `Spacer` at height 60 it gets one
+line and the spacer 44.5, although the spacer could have shrunk to 8 (K1); at
+100, three lines; at 200, all six (the separating control). Beside a rigid
+40-tall colour at 80: two lines (K2). Two paragraphs at 100: three lines each
+(K3). `Spacer(minLength: 0)`: the same (K4).
+
+**The problem the design missed.** `TE-H` item 2 makes a text's answer depend
+on a finite height proposal. Today every text is vertically **rigid** in a
+stack (its height ignores the proposal); after `TE-H` a wrapping text is
+**flexible** between one line and its natural height, so the kernel's
+least-flexible-first allocation (`CN-B`) serves it before a spacer with only
+its equal share — K1–K4 are exactly that rule over L5/X9's `⌊h / lineHeight⌋`,
+so this is **SwiftUI's answer** and needs no new mechanism. But it reaches every
+lowered legacy `Column`/`Box` too (a positive `flexShrink` lowers to SwiftUI's
+compression, `LR-AB`), so **any production text proposed less than its
+natural height now draws fewer lines** — where the design's §7 asserted 0 px
+without checking.
+
+**The ruling.**
+
+1. The behaviour is adopted (SwiftUI's, K1–K4); no ruling exempts stacks.
+2. **Lane 3 measures before it implements**: a scratch instrument (a
+   `docs/probes/text-semantics-height-census.patch`, recorded, not committed
+   to `Sources/`) logs every `Text`/`ProposalText` leaf whose finite height
+   proposal is below its natural height, over `demoContent()`,
+   `nativeLayoutPreviewContent()` and the controls demo at the demo's own
+   window size and every size the fourteen offscreen images use. **An empty
+   census** confirms spec §7's 0 px; **a non-empty one** is recorded row by
+   row in record §59, the fourteen images are compared after implementation,
+   and each moved image is named by a new `TE-` ruling (the census row it
+   comes from) before the lane closes — `Expected.swift` re-recorded only
+   under that ruling, with Linux and Windows CI owed the confirmation.
+3. **A pin**: spec 3.23 `aStackSharesItsHeightWithAWrappingTextAsSwiftUIDoes`
+   — K1 (60, 100, 200) and K2 (80) as **line counts** (1, 3, 6; 2) on a
+   `VStack(spacing: 0)` of `ProposalText` 100 wide, and K2 alone on a legacy
+   `Column` (gap 0) of a `Text` and a 40-tall `Box` (the legacy vocabulary has
+   no `Spacer`); literals from the frame's own line height (16 at the default
+   13 pt, where SwiftUI agrees, X13); red before (every arm reads 6); mutation M3u: the text's measure ignores a finite
+   height proposal (the pre-`TE-H` answer) reddens it. The heights SwiftUI
+   reports half a point under whole lines are divergence 77's grid, not read.
+4. An existing test whose answer moves under this is a **T row** with its
+   retirement row, never an edited literal without one (`goldensUnchanged`).
+
+**Cost if wrong.** A caller whose paragraph shared a tight column with a
+spacer sees it truncate, as in SwiftUI; the remedy is SwiftUI's too
+(`.fixedSize(horizontal: false, vertical: true)`, or `lineLimit(nil)` plus
+room).
+
+---
+
+## TE-S — critic round: amendments, and the attacks rejected
+
+**Amendments** (each applied to the ruling or spec row it names, in this
+commit):
+
+1. **Lanes rebalanced** (`TE-A`). The design put both oracle-heavy pieces —
+   portable truncation matching `CTLineCreateTruncatedLine` over Latin, CJK,
+   Arabic and combining marks in three modes, and portable font selection by
+   weight and italic over lazy system faces — in lane 1, with lane 2 a
+   kernel-only lane. Font selection (`TE-C` item 1, spec 1.1–1.4, the bold
+   half of 1.11, `FontDescriptor`'s half of G1.1) moves to **lane 2**; lane 1
+   keeps layout options and metrics. The two riskiest measurements no longer
+   share one lane's budget.
+2. **`TE-L`'s unruled branch and its wrong count.** `legacyContainerDiagnostics`
+   raises `alignItems.baseline` on a `display: .stack` container through a
+   separate branch the design did not rule; it stays a permanent refusal. The
+   report table therefore keeps all 265 entries, 16 changing owner (spec 2.10
+   was "265 → 260").
+3. **Divergence 60's pin separates at the rect** (spec 3.14): "Hello, world"
+   at 13 (71.525) rounds to 72 either way, so a `ceil` mutant (M3m) would move
+   no stored rect; the test adds "Hello, world" at **11** (62.068: rect 62
+   unrounded-and-rounded, 63 under a `ceil`) and asserts both the measured
+   width (`measuredWidth`) and the rect.
+4. **Divergence 86's wording** (`TE-G` item 3): "not a function of" replaced
+   by the fits actually tried and where each misses.
+5. **`VerticalAlignment`'s two new cases are a source break** for an external
+   exhaustive `switch` (a public `enum`); `TE-K` item 1 carries the migration
+   note.
+6. **The truncation token and an unmatched oracle case** (`TE-C` item 3): the
+   token is shaped in the text's resolved font through `shapeCascading` on
+   the portable path (`FB-A`), and a case the portable truncation cannot match
+   stops the lane for a ruling instead of leaving the corpus.
+7. **The Windows stack budget is measured, not assumed** (`TE-N`): lane 3
+   records `MemoryLayout<Text>.size`, `MemoryLayout<ProposalText>.size` and
+   the smallest thread that builds every production tree (record §53's 484 KB
+   harness), before and after; `everyProductionTreeBuildsOnAOneMegabyteThread`
+   green is the gate, the numbers go to record §59.
+
+**Attacks rejected** (recorded here, the run's own prefix, rather than as
+`LR-` rulings, whose decisions doc belongs to plan task 7):
+
+- *A baseline `Alignment` is reachable through `.frame`/`ZStack`/`Grid`*:
+  no — those take `ProposalAlignment`, not built from `VerticalAlignment`
+  (`StackAlignment.swift`); only `HStack` and `GridRow` take the enum.
+- *`ElementGroup.foregroundColor(_:)` collides with `Text`'s*: no — the
+  concrete `Text.foregroundColor(_:)` (and `ProposalText`'s, `TextField`'s,
+  `TextEditor`'s) is more specific and keeps its answer; G3.1 compiles both.
+- *The seam change breaks conformers*: two exist (`CoreTextTextSystem`,
+  `PortableTextSystem`), none in `Tests/` or `Backends/SDL` (grep of
+  `: TextSystem`); the migration note stands for outside callers.
+- *The probe's claims are unreproduced*: the critic re-ran it whole; all 294
+  lines are byte-identical to the header.
+- *`FontKey` would conflate weights of the variable system face*: no — it
+  reads the variation coordinates and the PostScript name (`.SFNS-Semibold`,
+  X12) off the resolved font (`FontKey.swift`), never the request.
+- *Scope creep into part 2*: none — the shape half of `foregroundStyle` (C9),
+  clipping and images are `TE-O`'s.
+- *Baseline measurement moves `SA-M`'s work literals*: not by construction
+  (baselines come from answers already in hand); the lane's work-counter test
+  (spec §8 lane 2) is the check, kept.

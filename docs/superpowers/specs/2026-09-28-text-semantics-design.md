@@ -1,14 +1,17 @@
 # Text semantics — design (plan task 11, part 1)
 
 Branch `feat/text-semantics` from `169d166` (plan task 10's tip). Rulings
-`TE-A`…`TE-P` in a new decisions doc,
+`TE-A`…`TE-S` in a new decisions doc,
 [`../2026-09-28-text-semantics-decisions.md`](../2026-09-28-text-semantics-decisions.md)
-(next unused **`TE-Q`**). Evidence: `docs/probes/swiftui-text-semantics.swift`
+(next unused **`TE-T`**). Evidence: `docs/probes/swiftui-text-semantics.swift`
 (**new**, this design; arm ids `F1`, `L5`, `X8` …; its header carries the
 recorded output and the reading). Record: `docs/record/59-text-semantics.md`
 (written by the lanes and the Record phase).
 
-**Status: DESIGNED.**
+**Status: DESIGNED; critic round applied** (`TE-Q`…`TE-S`: two new probes,
+`swiftui-controlsize-text-render.swift` and `swiftui-text-in-stacks.swift`;
+lanes rebalanced; `TE-L`'s stack branch ruled; a stack-compression pin and
+census added).
 
 ## 1. Baseline
 
@@ -174,7 +177,9 @@ repository or in `Backends/SDL`).
   (`fsSelection`/`macStyle`); `FreeTypeFaceNames` carries them so a lazy face
   (`SF-B`) is selectable without its bytes; `PortableFontResolver` selects by
   family then nearest weight then italic, and `register(design:family:)`;
-  `PortableText` gains truncation (a new `Truncation.swift`) and alignment in
+  `PortableText` gains truncation (a new `Truncation.swift`, its `…` token
+  shaped in the text's resolved font through `shapeCascading`, never
+  `HarfBuzzShaper` directly — `FB-A`, `TE-C` item 3) and alignment in
   `emitLines`/`placements`; `PortableTextSystem` caches by (string, font,
   width, options).
 
@@ -221,12 +226,20 @@ its fields); `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green;
 beyond SwiftPM's notice; `Backends/SDL` builds and runs (21 + 23) with
 `PKG_CONFIG_PATH=$PWD/.accesskit`, and a `swift:6.4-noble` container builds the
 root package and runs 188 + 22 + 10 (+ any new `MetalUILayoutTests`) if Docker
-is available. A moved pixel stops the lane until a ruling names it.
+is available. A moved pixel stops the lane until a ruling names it. **`TE-R`**: `TE-H` makes
+every wrapping text vertically flexible in a stack (SwiftUI's answer, probe
+K1–K4), so 0 px holds only if no production text is proposed less than its
+natural height; lane 3 takes the height census (`TE-R` item 2) before
+implementing, and a non-empty census predicts which images move and names each
+by ruling.
 Real-window capture: lock probe first; locked → owed (record §03).
 
 ## 8. Lanes
 
-Three lanes, run in order **1, 2, 3**. Each lane commits its red tests first
+Three lanes, run in order **1, 2, 3** (**rebalanced by `TE-S` item 1**: font
+selection moved from lane 1 to lane 2; lanes 1 and 2 share the three seam files
+`TextSystem.swift`, `CoreTextTextSystem.swift`, `PortableTextSystem.swift`,
+safe only because they run one at a time). Each lane commits its red tests first
 (against a compiling skeleton where a new API is needed), then the
 implementation, then a mutation table: commit, mutate from a copy, run the
 **whole unfiltered suite**, `git status --short` after each restore, name every
@@ -238,18 +251,20 @@ type crossing a module boundary — lane 1's `FontDescriptor`/options in
 its readings to `TE-` as a new lettered ruling (moving the "next unused" line)
 and its section to record §59.
 
-### Lane 1 — the seam and both text systems
+### Lane 1 — the seam's layout options and metrics, on both text systems
 
-**Files** (only these in `Sources/`): `MetalUITextSystem/TextSystem.swift`;
-`MetalUIText/{CoreTextTextSystem,FontResolver,ShapedText,ShapingCache,PlacedGlyph}.swift`;
-`MetalUIPortableText/{PortableTextSystem,PortableFontResolver,PortableText,LineEmission,LineBreaking}.swift`
-and new `MetalUIPortableText/Truncation.swift`;
-`MetalUIFreeType/FreeTypeFont.swift`; `MetalUISystemFonts/SystemFonts.swift`.
-**Tests**: new `Tests/MetalUIPortableTextTests/{FontSelectionOracleTests,TruncationOracleTests}.swift`,
-new `Tests/MetalUITextTests/FontDescriptorResolutionTests.swift`, new
-`Tests/MetalUITests/TextSystemCompileGuards.swift`, arms appended to
+**Files** (only these in `Sources/`): `MetalUITextSystem/TextSystem.swift`
+(`TextFontMetrics`, `TextLayoutOptions` and its enums, `fontMetrics`, the
+`options:` requirements and the old spellings' extensions);
+`MetalUIText/{CoreTextTextSystem,ShapedText,ShapingCache,PlacedGlyph}.swift`;
+`MetalUIPortableText/{PortableTextSystem,PortableText,LineEmission,LineBreaking}.swift`
+and new `MetalUIPortableText/Truncation.swift`.
+**Tests**: new `Tests/MetalUIPortableTextTests/TruncationOracleTests.swift`,
+new `Tests/MetalUITests/TextSystemCompileGuards.swift` (G1.1), arms appended to
 `Tests/MetalUITests/TextSystemSeamTests.swift`, and
 `Tests/PortableTests/Tests/PortableTextDeterminismTests/` (new pins, macOS-recorded).
+Rows **1.1–1.4 below belong to lane 2** (`TE-S` item 1); the table keeps their
+numbers so every citation stands.
 
 | # | test | red before | mutation that must redden it |
 |---|---|---|---|
@@ -263,16 +278,33 @@ new `Tests/MetalUITextTests/FontDescriptorResolutionTests.swift`, new
 | 1.8 | `theSeamsMetricsAgreeOnBothSystems` — `fontMetrics` of Noto Sans at 11, 13, 17, 26 equal | no requirement | M1i: portable `lineHeight` rounded to nearest |
 | 1.9 | `anUnspecifiedWidthCutsKeptLinesWithoutAnEllipsis` — `"A\nB\nC"`, `maxLines: 2`, width `nil`: two lines, no token glyph (L4) | a token appended | M1j: token at `nil` width |
 | 1.10 | `measureAnswersTheWidestKeptLine` — width is the widest of the kept (and truncated) lines, height `kept × lineHeight`, both systems | widest of all lines | M1k: widest over every line |
-| 1.11 | `truncatedAlignedAndWeightedEmissionIsByteIdentical` (`Tests/PortableTests`) — emission of 1.6/1.7's cases and a bold request on a regular-only resolver, recorded on macOS | no expected values | recorded pin; Linux/Windows CI confirm |
-| G1.1 | `theSeamsNewSpellingsArePublicAndTheOldOnesStillCompile` — plain `import MetalUITextSystem`: old and new `measure`/`resolveFont` spellings compile; control: `TextLayoutOptions(truncation: .ellipsis)` fails | — | MG1: `TextLayoutOptions.init` made `internal` |
+| 1.11 | `truncatedAndAlignedEmissionIsByteIdentical` (`Tests/PortableTests`) — emission of 1.6/1.7's cases, recorded on macOS (the bold-request half is lane 2's 1.12) | no expected values | recorded pin; Linux/Windows CI confirm |
+| G1.1 | `theSeamsNewSpellingsArePublicAndTheOldOnesStillCompile` — plain `import MetalUITextSystem`: old and new `measure`/`placeGlyphs`/`lineRanges` spellings and `TextLayoutOptions(maxLines:truncation:alignment:)` compile; control: `TextLayoutOptions(truncation: .ellipsis)` fails | — | MG1: `TextLayoutOptions.init` made `internal` |
 
 `theCoreTextAndPortableSystemsDrawTheSameSprites` and every existing seam,
 oracle and portable pin must stay green unedited (the old spellings are the
 default options).
 
-### Lane 2 — baselines in the kernel, and the legacy `baseline` fields
+### Lane 2 — font selection on both systems; baselines in the kernel, and the legacy `baseline` fields
 
-**Files**: `MetalUILayout/{LayoutTree,NativeGrid,ProposedSize}.swift`;
+**Font selection files** (`TE-S` item 1): `MetalUITextSystem/TextSystem.swift`
+(`FontDesign`, `FontDescriptor`, `resolveFont(_:)` and the
+`resolveFont(family:size:)` extension); `MetalUIText/{CoreTextTextSystem,FontResolver}.swift`;
+`MetalUIPortableText/{PortableTextSystem,PortableFontResolver}.swift`;
+`MetalUIFreeType/FreeTypeFont.swift`; `MetalUISystemFonts/SystemFonts.swift`.
+**Font selection tests**: rows 1.1–1.4 above, in new
+`Tests/MetalUIPortableTextTests/FontSelectionOracleTests.swift` and
+`Tests/MetalUITextTests/FontDescriptorResolutionTests.swift`; **1.12**
+`aWeightedRequestOnARegularOnlyResolverEmitsTheRegularFaceByteIdentically`
+(`Tests/PortableTests`, macOS-recorded, Linux/Windows CI confirm); **G1.2**
+`theFontDescriptorSpellingIsPublic` in `TextSystemCompileGuards.swift` — plain
+import: `resolveFont(FontDescriptor(size: 13, weight: 0.4, italic: true,
+design: .serif))` and `resolveFont(family:size:)` compile; control
+`FontDescriptor(size: 13, weight: .bold)` fails (the seam's weight is a
+`Double`, `Font.Weight` is `MetalUI`'s); MG1b: `FontDescriptor.init` made
+`internal`.
+
+**Baseline files**: `MetalUILayout/{LayoutTree,NativeGrid,ProposedSize}.swift`;
 `MetalUI/{StackAlignment,NativeElements,Grid,Passes,LegacyLowering,LayoutAuthority,Style}.swift`
 (`Style.swift`: doc comment only). **Tests**: new
 `Tests/MetalUILayoutTests/BaselineMeasurementTests.swift` (portable CI runs
@@ -292,9 +324,9 @@ edits to `LayoutAuthorityTests.swift`, `LoweringContainerTests.swift`,
 | 2.7 | `hStackTextBaselineCasesReachTheKernel` — `HStack(alignment: .firstTextBaseline/.lastTextBaseline)` over synthetic leaves, element bounds equal 2.2/2.3's | cases do not exist | M2i: the cases mapped to `.bottom` |
 | 2.8 | `aGridRowWithATextBaselineAlignmentTraps` (exit test; `stderr` names divergence 88) | lays out at a factor | — |
 | 2.9 | `aLegacyBaselineRowLowersToFirstTextBaselineAndAColumnToItsStart` — `Row{…}.alignItems(.baseline)` over baseline-reporting leaves places as 2.2; a `Column` as `flexStart`; empty report | reported | M2j: column lowers as centre |
-| 2.10 | `everyReportNamesALiveOwnerOrIsRefusedByName` — **T row**: the five `alignItems.baseline` rows leave the table (265 → 260), `alignSelf.baseline` rows read `owner: nil` | — | M2k: restore `"plan task 11"` |
+| 2.10 | `everyReportNamesALiveOwnerOrIsRefusedByName` — **T row** (amended by `TE-S` item 2): the table keeps **265** entries; its 16 baseline rows (5 `alignItems.baseline`, 11 `alignSelf.baseline`) change owner from `"plan task 11"` to `nil` | — | M2k: restore `"plan task 11"` |
 | 2.11 | `anAlignSelfBaselineIsConsumedUnderABaselineRowAndRefusedByNameElsewhere` | always reported | M2l: consume it everywhere |
-| 2.12 | `everyContainerFieldEitherLowersOrIsReportedByName` — **T row**: its `baseline` arm becomes a lowering arm | — | M2m: report `alignItems.baseline` again |
+| 2.12 | `everyContainerFieldEitherLowersOrIsReportedByName` — **T row**: its `baseline` arm becomes a row-lowering and a column-lowering arm, and a `Stack` (`display: .stack`) arm still reports `stack.alignItems.baseline` (`TE-L`, `TE-S` item 2) | — | M2m: report `alignItems.baseline` again on a row; M2n: lower it on a stack display (the stack arm reddens) |
 | G2.1 | `aTextBaselineIsAVerticalAlignmentButNotAHorizontalOne` — plain import: `HStack(alignment: .firstTextBaseline)` compiles; control `VStack(alignment: .firstTextBaseline)` fails | — | MG2: `firstTextBaseline` added to `HorizontalAlignment` |
 
 Every existing stack, grid, lowering and depth test stays green unedited
@@ -306,7 +338,11 @@ test proves it).
 
 **Files**: new `MetalUI/{Font,TextModifiers,TextStyleResolution}.swift`;
 `MetalUI/{Text,ProposalText,EnvironmentValues,TextField,TextEditor,Button}.swift`
-(`Button.swift`: doc comment only). **Tests**: new
+(`Button.swift`: doc comment only). **First, before any source change**: the
+height census, `docs/probes/text-semantics-height-census.patch` (`TE-R` item
+2), applied in a scratch worktree, its rows recorded in record §59 and the
+patch committed under `docs/probes/`, never to `Sources/`. 3.23 goes in
+`LineLimitTests.swift`. **Tests**: new
 `Tests/MetalUITests/{FontTests,ForegroundStyleTests,LineLimitTests,TruncationTests,TextAlignmentTests,TextBaselineTests,TextCompileGuards}.swift`;
 edits to `EnvironmentScaleAndSizeTests.swift` (T1.7), `ButtonTests.swift`
 (1.2), `EnvironmentTests.swift` (none edited; 3.9 is new beside it). Literals
@@ -330,7 +366,7 @@ which.
 | 3.11 | `controlSizeReachesTheDefaultFontButNoControlsChrome` — **T row**, renamed from T1.7 `controlSizeReachesNoBuiltInMeasurement`: default font 9/11/13 (F8), an explicit or environment font unmoved (F8, F8h), a `TextField`'s height follows its default font, its padding does not | — | M3k: `controlSize` ignored |
 | 3.12 | `aButtonReadsControlSizeForItsChromeAndItsLabelsDefaultFont` — **T row**, renamed from `…ButNotItsLabelsFont` (ButtonTests 1.2): label width is the 9/11/13 pt text's | — | M3k reddens it too |
 | 3.13 | `aFiniteHeightProposalCapsTheLines` — X9: `⌊h/lh⌋` (47.9 → 2, 48 → 3 at a 16 pt line), never below 1, combined with the limit by the smaller, ignored by `reservesSpace`, infinity unlimited, `nil` width with a height is one line | height ignored | M3l: `ceil` for `floor` |
-| 3.14 | `aTextAnswersItsUnroundedWidestLineWhereSwiftUICeilsToThePixelGrid` — **divergence 60, pinned wrong on purpose**: "Hello, world" at 13 answers the seam's 71.525-class width, not 72 (M1) | — (pins today's answer) | M3m: `ceil` in the measurement |
+| 3.14 | `aTextAnswersItsUnroundedWidestLineWhereSwiftUICeilsToThePixelGrid` — **divergence 60, pinned wrong on purpose**: "Hello, world" at 13 and at 11 answer the seam's unrounded widths (71.525- and 62.068-class, read through `measuredWidth`), not 72 and 63 (M1); the 11 pt arm's stored rect is 62 wide, where a `ceil` gives 63 (`TE-S` item 3: at 13 both round to 72) | — (pins today's answer) | M3m: `ceil` in the measurement (reddens both the measured and the rect half) |
 | 3.15 | `aNotoSansLineIsTwentyFourPointsWhereSwiftUIsIsTwentyThree` — **divergence 86, pinned**: one line of Noto Sans 17 is 24 tall (X13: SwiftUI 23) | — | M3n: `lineHeight` rounded to nearest (both systems) |
 | 3.16 | `aMiddleTruncationKeepsCoreTextsStringWhereSwiftUIKeepsMore` — **divergence 87, pinned**: "Hello, wonderful world" at 13, width 100, middle → CoreText's 85.12-class width, not 97.5 (X5) | — | M3o: widen the middle split |
 | 3.17 | `aTruncatedTextDrawsTheSameSpritesThroughEitherSystem` — `lineLimit(1)`/`(2)` × three modes on Noto Sans; `#require` fewer glyphs than untruncated | untruncated | M3p: options not passed at paint |
@@ -339,6 +375,7 @@ which.
 | 3.20 | `anHStackAlignsRealTextsByTheirBaselines` — B2's tree with real `Text`s: first-aligned 44 / 12, 0, 12, 15 (agrees with SwiftUI); last-aligned offsets from MetalUI's 26 pt line height (divergence 86) | — | M3s: `Text` reports no baseline |
 | 3.21 | `aLegacyBaselineRowAlignsRealTexts` — `Row { Text 13; Text 26 }.alignItems(.baseline)` | — | M3s reddens it too |
 | 3.22 | `aTextFieldAndATextEditorTakeTheEnvironmentFont` — `.font(.system(size: 20))` on a container grows both; the default environment draws what it drew | — | M3t: fields keep `fontSize` 13 |
+| 3.23 | `aStackSharesItsHeightWithAWrappingTextAsSwiftUIDoes` — **`TE-R`**: probe K1 (60, 100, 200 → 1, 3, 6 lines) and K2 (80 → 2) on a `VStack(spacing: 0)` of `ProposalText` 100 wide; K2 on a legacy `Column` of a `Text` and a 40-tall `Box`; line counts, never SwiftUI's half-point heights | every arm 6 lines | M3u: the measure ignores a finite height proposal |
 | G3.1 | `theTextModifiersAreSwiftUIsSpellings` — plain import: every §3 spelling on `Text`, on a `ProposalText` inside an `HStack`, and on a container | — | MG3a: `lineLimit(_: ClosedRange<Int>)` made `internal` |
 | G3.2 | `textBoldIsNotOffered` — `Text("a").bold()` fails; control `Text("a").font(.body.bold())` compiles | — | MG3b: add `Text.bold()` |
 
@@ -351,8 +388,12 @@ every existing text test stay green unedited except the two T rows.
 
 ## 9. Verification (each lane, and the Record phase)
 
-Full unfiltered suite, summary line read (≈ 1644 + 11 + 11 + 22 + the four
-guards counted in the total; the lanes give the exact figure), guards ran
+Full unfiltered suite, summary line read (≈ **1690** = 1644 + 41 new
+tests + 5 guards after `TE-S`: lane 1 six (1.5–1.10) + G1.1, lane 2 fourteen
+(1.1–1.4, 2.1–2.9, 2.11) + G1.2 + G2.1, lane 3 twenty-one (3.1–3.10,
+3.13–3.23) + G3.1 + G3.2; the four T rows rename or re-answer, adding none;
+1.11 and 1.12 run in `Tests/PortableTests`, outside this count; the lanes give
+the exact figure), guards ran
 (`FR-J` line), 0 `error:`, one `warning:`; fourteen images 0 px; the probe
 re-run byte-identical to its header; `Backends/SDL`; a `swift:6.4-noble`
 container if Docker; `goldensUnchanged`: every T row above has its retirement
