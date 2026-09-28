@@ -127,9 +127,80 @@ public enum FontResolver {
         return ResolvedFont(ctFont: font)
     }
 
-    /// The face `descriptor` asks for (ruling TE-C item 1).
+    /// The face `descriptor` asks for (rulings TE-C item 1, TE-W) — the face
+    /// SwiftUI's `Font` draws, measured by `docs/probes/swiftui-text-semantics.swift`
+    /// F2–F5/X2 and `docs/probes/swiftui-font-selection.swift` W/N/S:
+    ///
+    /// - **No weight, upright, default design**: exactly
+    ///   ``resolve(family:size:)`` — every caller before ruling TE-C.
+    /// - **The system face** (`family == nil`): the UI font's descriptor with
+    ///   the weight trait and, for a design, the system font's design trait
+    ///   (`NSCTFontUIFontDesignTrait`, the attribute `NSFontDescriptor.withDesign`
+    ///   writes — CoreText has no public spelling for it), then the created
+    ///   font slanted (`CTFontCreateCopyWithSymbolicTraits`). Equal, key for
+    ///   key, to `NSFont.systemFont(ofSize:weight:)` and `withDesign` (1.3).
+    /// - **A family**: `CTFontCreateWithName`, then, with a weight, a
+    ///   descriptor of that face's family name and the weight trait — CoreText
+    ///   matches the family's nearest face by its own rule (X2: Helvetica Neue
+    ///   heavy is Bold, black CondensedBlack) — and, italic, the descriptor's
+    ///   symbolic italic trait (Avenir Next light italic is UltraLightItalic,
+    ///   where slanting the created Regular would give Italic: probe W). The
+    ///   two paths slant differently because SwiftUI does (probe S: slanting
+    ///   the system descriptor draws another face in 15 of 32 rows).
+    ///
+    /// A weight or slope the family lacks keeps the face it has (F2h, F4b):
+    /// CoreText answers the nearest face, and a slant it cannot find is no
+    /// slant. `design` is ignored for a family, as SwiftUI's custom fonts have
+    /// none. Traps on a size that is not finite and positive, as
+    /// ``resolve(family:size:)`` does.
     public static func resolve(_ descriptor: FontDescriptor) -> ResolvedFont {
-        resolve(family: descriptor.family, size: descriptor.size)   // SKELETON
+        let size = descriptor.size
+        let plain = descriptor.weight == nil && !descriptor.italic
+        if plain && (descriptor.family != nil || descriptor.design == .default) {
+            return resolve(family: descriptor.family, size: size)
+        }
+        let base = resolve(family: descriptor.family, size: size).ctFont   // counts, and checks the size
+        if descriptor.family == nil {
+            var traits: [CFString: Any] = [:]
+            if let weight = descriptor.weight { traits[kCTFontWeightTrait] = weight }
+            if let design = systemDesignTrait(descriptor.design) { traits[systemDesignTraitKey] = design }
+            var font = base
+            if !traits.isEmpty {
+                let designed = CTFontDescriptorCreateCopyWithAttributes(
+                    CTFontCopyFontDescriptor(base), [kCTFontTraitsAttribute: traits] as CFDictionary)
+                font = CTFontCreateWithFontDescriptor(designed, CGFloat(size), nil)
+            }
+            if descriptor.italic {
+                font = CTFontCreateCopyWithSymbolicTraits(font, 0, nil, .traitItalic, .traitItalic) ?? font
+            }
+            return ResolvedFont(ctFont: font)
+        }
+        var request = CTFontCopyFontDescriptor(base)
+        if let weight = descriptor.weight {
+            request = CTFontDescriptorCreateWithAttributes([
+                kCTFontFamilyNameAttribute: CTFontCopyFamilyName(base),
+                kCTFontTraitsAttribute: [kCTFontWeightTrait: weight],
+            ] as CFDictionary)
+        }
+        if descriptor.italic,
+           let slanted = CTFontDescriptorCreateCopyWithSymbolicTraits(request, .traitItalic, .traitItalic) {
+            request = slanted
+        }
+        return ResolvedFont(ctFont: CTFontCreateWithFontDescriptor(request, CGFloat(size), nil))
+    }
+
+    /// The traits-dictionary key `NSFontDescriptor.withDesign(_:)` writes
+    /// (read back off its `fontAttributes`, 2026-09-28): CoreText honours it
+    /// and exports no constant for it.
+    private static var systemDesignTraitKey: CFString { "NSCTFontUIFontDesignTrait" as CFString }
+
+    private static func systemDesignTrait(_ design: FontDesign) -> String? {
+        switch design {
+        case .default: nil
+        case .serif: "NSCTFontUIFontDesignSerif"
+        case .rounded: "NSCTFontUIFontDesignRounded"
+        case .monospaced: "NSCTFontUIFontDesignMonospaced"
+        }
     }
 
     /// Counts calls to ``resolve(family:size:)`` made while the calling task

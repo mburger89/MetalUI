@@ -52,9 +52,33 @@ struct SelectionDifference: Hashable, CustomStringConvertible {
     }
 }
 
-/// The differences ruling TE-W names, each with its reason there; nothing
-/// else may differ.
-let pinnedSelectionDifferences: Set<SelectionDifference> = []
+/// The differences ruling TE-W names (item 4), each with its reason there;
+/// nothing else may differ. Three classes: a face whose CoreText weight
+/// follows neither its style word nor its OS/2 class (Hoefler Text Black is
+/// CoreText's 0.4, Futura Condensed ExtraBold its 0.62), a slant CoreText
+/// declines for a nearer italic face (Futura bold italic stays upright Bold,
+/// where Gill Sans ultra-bold italic takes BoldItalic), and one exact face
+/// CoreText passes over (Sukhumvit Set thin, −0.6, is Light).
+let pinnedSelectionDifferences: Set<SelectionDifference> = [
+    SelectionDifference(family: "Futura", weight: 0.4, italic: true, coreText: "Futura-Bold", portable: "Futura-MediumItalic"),
+    SelectionDifference(family: "Futura", weight: 0.56, italic: true, coreText: "Futura-Bold", portable: "Futura-MediumItalic"),
+    SelectionDifference(family: "Futura", weight: 0.62, italic: false, coreText: "Futura-CondensedExtraBold",
+                        portable: "Futura-Bold"),
+    SelectionDifference(family: "Futura", weight: 0.62, italic: true, coreText: "Futura-CondensedExtraBold",
+                        portable: "Futura-MediumItalic"),
+    SelectionDifference(family: "Hoefler Text", weight: 0.23, italic: false, coreText: "HoeflerText-Black",
+                        portable: "HoeflerText-Regular"),
+    SelectionDifference(family: "Hoefler Text", weight: 0.23, italic: true, coreText: "HoeflerText-BlackItalic",
+                        portable: "HoeflerText-Italic"),
+    SelectionDifference(family: "Hoefler Text", weight: 0.3, italic: false, coreText: "HoeflerText-Black",
+                        portable: "HoeflerText-Regular"),
+    SelectionDifference(family: "Hoefler Text", weight: 0.3, italic: true, coreText: "HoeflerText-BlackItalic",
+                        portable: "HoeflerText-Italic"),
+    SelectionDifference(family: "Sukhumvit Set", weight: -0.6, italic: false, coreText: "SukhumvitSet-Light",
+                        portable: "SukhumvitSet-Thin"),
+    SelectionDifference(family: "Sukhumvit Set", weight: -0.6, italic: true, coreText: "SukhumvitSet-Light",
+                        portable: "SukhumvitSet-Thin"),
+]
 
 /// **1.1.** Every (family, weight, slope) over the installed families: the
 /// portable face's PostScript name equals CoreText's, except exactly the rows
@@ -88,6 +112,11 @@ let pinnedSelectionDifferences: Set<SelectionDifference> = []
             return [UInt8](try Data(contentsOf: URL(fileURLWithPath: path)))
         }
     }
+    // Laziness (SF-B): registering reads no face's bytes, and a selection
+    // reads traits, not bytes — the first request opens only its answer.
+    #expect(loads == 0, "registration loaded \(loads) faces")
+    _ = try resolver.resolve(FontDescriptor(family: "Helvetica Neue", size: 15, weight: 0.4, italic: true))
+    #expect(loads == 1, "one bold italic request loaded \(loads) faces")
     var differences: Set<SelectionDifference> = []
     var compared = 0
     for family in found {
@@ -111,9 +140,8 @@ let pinnedSelectionDifferences: Set<SelectionDifference> = []
     let unpinned = differences.subtracting(pinned).sorted { $0.description < $1.description }
     let unmatched = pinned.subtracting(differences).sorted { $0.description < $1.description }
     #expect(differences == pinned, "unpinned: \(unpinned); pinned but matching: \(unmatched)")
-    // Laziness (SF-B): selection reads traits, not bytes — only the faces
-    // resolved (at most one per request) are ever opened.
-    #expect(loads <= compared && loads < names.count, "\(loads) of \(names.count) faces loaded")
+    // The corpus is not dominated by the pinned rows.
+    #expect(compared >= 300 && differences.count * 20 < compared, "\(differences.count) of \(compared)")
 }
 
 /// **1.2.** A weight or slope the family lacks draws the registered face
@@ -135,6 +163,16 @@ let pinnedSelectionDifferences: Set<SelectionDifference> = []
                     }
                 }
             }
+            // A design names a registered family for a request with no
+            // family (`register(design:family:)`); an unregistered design is
+            // the default face, as an unmatched name is.
+            let defaultName = try resolver.resolve(family: nil, size: 15).key.postScriptName
+            resolver.register(design: .serif, family: "Source Sans 3")
+            #expect(try resolver.resolve(FontDescriptor(size: 15, design: .serif)).key.postScriptName
+                    == "SourceSans3-Regular")
+            #expect(try resolver.resolve(FontDescriptor(size: 15, design: .rounded)).key.postScriptName == defaultName)
+            #expect(try resolver.resolve(FontDescriptor(family: "Noto Sans", size: 15, design: .serif)).key
+                .postScriptName == "NotoSans-Regular", "a family wins over a design")
         }
     }
 }

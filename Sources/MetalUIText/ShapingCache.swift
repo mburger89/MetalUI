@@ -260,17 +260,37 @@ public final class ShapingCache {
     /// probed standalone, they shaped Latin, Arabic, Devanagari, CJK and emoji
     /// to identical widths. Equal keys are not equal behaviour for every pair;
     /// see `fonts`.
+    ///
+    /// Since ruling TE-C the request also carries the descriptor's weight
+    /// (compared by `bitPattern` too), slope and design; the `(family, size)`
+    /// spelling is the descriptor with none of them.
     private struct FontRequest: Hashable {
         var family: String?
         var size: Double
+        var weight: Double?
+        var italic: Bool
+        var design: FontDesign
+
+        init(_ descriptor: FontDescriptor) {
+            family = descriptor.family
+            size = descriptor.size
+            weight = descriptor.weight
+            italic = descriptor.italic
+            design = descriptor.design
+        }
 
         static func == (lhs: FontRequest, rhs: FontRequest) -> Bool {
             lhs.family == rhs.family && lhs.size.bitPattern == rhs.size.bitPattern
+                && lhs.weight?.bitPattern == rhs.weight?.bitPattern && lhs.italic == rhs.italic
+                && lhs.design == rhs.design
         }
 
         func hash(into hasher: inout Hasher) {
             hasher.combine(family)
             hasher.combine(size.bitPattern)
+            hasher.combine(weight?.bitPattern)
+            hasher.combine(italic)
+            hasher.combine(design)
         }
     }
 
@@ -312,16 +332,22 @@ public final class ShapingCache {
     /// for why it is not swept, and `Text.requestLayout` for the one caller
     /// that also needs ``registerFont(_:)``.
     public func resolveFont(family: String?, size: Double) -> ResolvedFont {
-        let request = FontRequest(family: family, size: size)
+        let request = FontRequest(FontDescriptor(family: family, size: size))
         if let font = resolvedFonts[request] { return font }
         let font = FontResolver.resolve(family: family, size: size)
         resolvedFonts[request] = font
         return font
     }
 
-    /// ``FontResolver/resolve(_:)``, memoized per request (ruling TE-C item 1).
+    /// ``FontResolver/resolve(_:)``, memoized per request (ruling TE-C item
+    /// 1) in the same never-swept memo as ``resolveFont(family:size:)``, whose
+    /// entries are this function's with no weight, slope or design.
     public func resolveFont(_ descriptor: FontDescriptor) -> ResolvedFont {
-        resolveFont(family: descriptor.family, size: descriptor.size)   // SKELETON: TE-C item 1 ignored
+        let request = FontRequest(descriptor)
+        if let font = resolvedFonts[request] { return font }
+        let font = FontResolver.resolve(descriptor)
+        resolvedFonts[request] = font
+        return font
     }
 
     /// Shapes `string` in `font` at `width`, consulting the cache first.
