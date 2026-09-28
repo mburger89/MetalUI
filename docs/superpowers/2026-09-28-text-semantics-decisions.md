@@ -1,8 +1,8 @@
 # Text semantics decisions (plan task 11, part 1)
 
 Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-semantics-design.md),
-on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-U`;
-next unused is **`TE-V`**. A bare `TE-3` is a typo, not a citation. **A round
+on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-V`;
+next unused is **`TE-W`**. A bare `TE-3` is a typo, not a citation. **A round
 that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-28: DESIGNED; critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
@@ -773,7 +773,8 @@ hard break):
 2. `P` wraps at the width (it is wider than one line): `P` is truncated as one
    line in the mode — `CTLineCreateTruncatedLine` on a line of `P` alone on the
    Apple path (E0, E4).
-3. `P` fits and text follows it: in **tail** mode `P` takes the token anyway
+3. (**Amended by `TE-V`**: a NON-EMPTY `P` — an empty `P` takes no token in
+   any mode, probe E5.) `P` fits and text follows it: in **tail** mode `P` takes the token anyway
    (E1, E2) — the longest prefix of `P` that fits with the token, as the tail
    rule measures it — on the Apple path CoreText's truncated line of `P`
    followed by one glyph too wide to keep, so the kept prefix is CoreText's;
@@ -808,9 +809,12 @@ glued onto one line ("SetGo") — the answer `TE-C` as first written gave.
 ## TE-U — the truncation rule, measured on both systems; one right-to-left class pinned, not matched (lane 1)
 
 **Evidence.** `TruncationOracleTests` (`METALUI_TRUNCATION_MEASURE=1`,
-2026-09-28, macOS 27.0): 7,980 cases — Noto Sans and Source Sans 3 over seven
+2026-09-28, macOS 27.0): 7,980 cases at this ruling, **9,660 since `TE-V`**
+added two empty-paragraph strings (7,701 truncated; still 38 differences, the
+same class) — Noto Sans and Source Sans 3 over seven
 Latin strings (kerning pairs, a ligature, leading and trailing spaces, three
-with hard breaks), a combining-mark string (precomposed and stacked marks),
+with hard breaks; nine since `TE-V`, five with hard breaks, two of them with an
+empty paragraph), a combining-mark string (precomposed and stacked marks),
 two CJK strings in the system's Hiragino Sans GB, two Arabic strings in Noto
 Sans Arabic with Noto Sans as its cascade on both sides; 13 and 17 pt; `nil`,
 4, 8, 10.5 and 12…222 pt by 7; one and two kept lines; all three modes; the
@@ -856,6 +860,13 @@ measured disagreement it removed):
 7. **Not matched: a right-to-left suffix in head or middle mode** (38 cases,
    every Arabic head or middle difference; Arabic TAIL, the default, matches
    in every case, as do Latin, the marks and CJK in all three modes).
+   **Scope: this is a claim about the corpus.** As first written the corpus
+   held no empty paragraph, and outside it the two systems disagreed on Latin
+   in tail mode — CoreText drew a token for an empty last paragraph, the
+   portable path none (a reviewer's "A\n\nB" at `lineLimit(2)`) — and, at a
+   width narrower than one glyph, in their base wrapping of an empty
+   paragraph. `TE-V` measured SwiftUI, fixed both and added the strings; the
+   corpus now covers them and the 38 are unchanged.
    CoreText sometimes keeps one more cluster at the suffix's edge than the
    share rule — e.g. "مَرْحَبًا بالعالم يا صديقي" at 13 pt, head, width 26:
    CoreText keeps "قي" (16.003 pt, with the 10.283 pt token 0.286 over the
@@ -890,3 +901,67 @@ measured disagreement it removed):
 keep one letter fewer on Linux and Windows than on macOS. Tail truncation —
 the default, and the only mode a `TextField` or a list row is likely to use —
 is exact on every script measured.
+
+---
+
+## TE-V — an empty last paragraph takes no token; an overflowing line keeps CoreText's empty-paragraph break (lane 1 fix round)
+
+**Evidence.** `docs/probes/swiftui-truncation-edges.swift` arm **E5** (added
+this round; compiled twice and interpreted once on an idle machine, stdout
+byte-identical, every earlier line byte-identical to `TE-T`'s recording,
+screen locked): "A\n\nB" at `lineLimit(2)`, width 100 — "A" alone 0 px in
+tail, head and middle, the token's reading ("A", then "…") 54 px off, the
+untruncated text 185 px off; "\nB\nC" at `lineLimit(1)` — nothing drawn, 0 px
+in all three modes, the token alone 54 px off. The 54 px is the token's ink,
+the same separation E1 read between "Set…" and "Set". CoreText's own
+wrapping, read through `CoreTextTextSystem.lineRanges` (the Apple path's
+typesetter, no options): "A\n\nB" at 4 pt is `[0..<3, 3..<4]`, at 30 pt
+`[0..<2, 2..<3, 3..<4]`; "A \n\nB" at 4 is `[0..<3, 3..<4, 4..<5]`;
+"A\r\n\r\nB" at 4 is `[0..<3, 3..<5, 5..<6]`; "A\n\r\nB" at 4 is `[0..<4,
+4..<5]`; "A\n\n" at 4 is `[0..<3]`; "ABC\n\nD" at 4 is `[0..<1, 1..<2, 2..<5,
+5..<6]`; "A\u{2028}\u{2028}B" and "A\n\u{2029}B" at 4 take the second break
+the same way.
+
+**The ruling.**
+
+1. **An empty paragraph as the last kept line takes no token, in any mode**
+   (amends `TE-T` item 3, whose tail token is for a non-empty `P`): the line
+   is drawn empty, `measure` counts it at 0 width and one line height, and
+   `lineRanges` still gives it the whole rest (`TE-T` item 5). The Apple path
+   drew CoreText's forced token for it ("A", "…"; widest line 10.283 where
+   the answer is 8.307) and is the one fixed (`Shaper.truncatedLine`: `guard
+   mode == .tail, attributed.length > 0`); the portable path already drew
+   nothing.
+2. **A line whose one cluster is wider than the width, ending at a hard break
+   straight after that cluster, takes the next paragraph break too when an
+   empty paragraph follows** — CoreText's wrapping, now the portable line
+   breaker's (`PortableText.layOut`): not after a space or a CR LF ending the
+   line, a following CR LF taken whole, and never when the cluster fits. This
+   is base wrapping, not truncation, found because the empty-paragraph
+   strings reach widths narrower than "A" (4 and 8 pt, and 10.5 in Source
+   Sans 3). It moves the portable `lineRanges`, `measure` and placement only
+   there, toward CoreText; SwiftUI's answer at such a width is CoreText's
+   (`TE-I`), and no probe arm separates it further. The line-breaking,
+   emission, content-size, fallback, bidi and caret oracles stay green.
+3. `TE-U`'s "every difference is in the right-to-left class" is scoped to
+   its corpus, which now holds "A\n\nB" and "\nB\nC": 9,660 cases, 7,701
+   truncated, 38 differences, every one of them in `TE-U` item 7's class.
+
+Pinned by **1.6b**'s E5 arm (both systems, glyphs and `measure`, all three
+modes), `bothSystemsBreakLinesAtTheSameRanges`' literal arm (item 2, both
+systems, the seven strings above), and 1.5 over the enlarged corpus. Mutations
+(record §59 §2.7): dropping item 1's empty-`P` guard reddens 1.6b and 1.5;
+dropping item 2's absorb reddens `bothSystemsBreakLinesAtTheSameRanges` and
+1.5.
+
+**Also pinned this round, no new rule**: the portable measurement cache is
+keyed on the options (1.10's arm, both orders, on fresh systems); a limit
+below 1 acts as 1 at the seam (`TE-H` item 3; 1.6's arm, 0 and −1 on both
+systems); alignment's factors and its leaving out trailing whitespace
+(`TE-J`, A5) against a `CTLine` built in the test — **1.7b**
+`aLineIsAlignedByItsWidthWithoutItsTrailingWhitespace`.
+
+**Cost if wrong.** A multi-paragraph label with a blank line, limited to end
+at that blank line, would draw a stray "…" on macOS alone; a text box
+narrower than one glyph would stack one more blank line on Linux and Windows
+than on macOS.

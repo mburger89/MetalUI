@@ -20,7 +20,9 @@ import MetalUITextSystem
 // widths from narrower than the token to wider than the text, one and two
 // kept lines, in all three modes, the alignment cycling through all three.
 // Hard-break strings reach TE-T's paragraph rule (probe
-// `swiftui-truncation-edges.swift` E1, E2, E4).
+// `swiftui-truncation-edges.swift` E1, E2, E4), and two with an empty
+// paragraph reach TE-V's (E5; and, below one glyph's width, CoreText's
+// empty-paragraph wrapping).
 
 let truncationLatin = [
     "The quick brown fox jumps over the lazy dog.",
@@ -186,7 +188,9 @@ func measureTruncationDifferences() throws {
 /// and pins: an Arabic (right-to-left) suffix in head or middle mode, where
 /// CoreText sometimes keeps one more cluster at the suffix's edge than the
 /// share rule. Measured 2026-09-28 (`METALUI_TRUNCATION_MEASURE=1`): 7,980
-/// cases, 6,093 truncated, 38 differing, every one of them that class.
+/// cases, 6,093 truncated, 38 differing, every one of them that class; with
+/// TE-V's two empty-paragraph strings, 9,660 cases, 7,701 truncated, the same
+/// 38.
 @MainActor
 @Test func thePortableTruncationKeepsCoreTextsStringInEveryMode() throws {
     let (cases, truncated, differences) = try truncationDifferences()

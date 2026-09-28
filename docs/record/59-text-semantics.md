@@ -220,3 +220,79 @@ at the probe run and at this close.
   ruled.
 - Nothing element-facing lands here: `Text`/`ProposalText` still call the old
   spellings (default options) until lane 3.
+
+### 2.7 Fix round (review findings)
+
+Commits: `3f3048e` (red), `42e990d` (fix), and the docs commit carrying this
+section. Six findings (two major, four minor), each disposed:
+
+1. **Major — an empty last paragraph in tail mode**: fixed, **`TE-V`**. Probe
+   `swiftui-truncation-edges.swift` gained arm E5 ("A\n\nB" at
+   `lineLimit(2)`, "\nB\nC" at `lineLimit(1)`; positive control: the token's
+   reading 54 px off, the untruncated text 185/349 px off): SwiftUI draws **no
+   token** in any mode — the portable path was right, CoreText's forced token
+   wrong; `Shaper.truncatedLine` fixed. Adding the two strings to
+   `TruncationOracleTests`' corpus exposed a second, pre-existing difference
+   in BASE wrapping (a line of one over-wide cluster ending at a hard break
+   takes the next paragraph break when an empty paragraph follows, in
+   CoreText, not in the portable breaker) at 4, 8 and 10.5 pt; fixed on the
+   portable side (`TE-V` item 2), pinned by a literal arm in
+   `bothSystemsBreakLinesAtTheSameRanges`. `TE-U`'s scope sentence corrected
+   (a claim about its corpus). Corpus 9,660 cases, 7,701 truncated, 38
+   differences, the same class.
+2. **Major — the portable cache key unpinned**: 1.10 gained an arm measuring
+   one string and width on a fresh system under default options then
+   `maxLines: 1`, and the reverse, each required to equal CoreText's; the
+   CoreText side is run the same way.
+3. **Minor — alignment pinned only by agreement**: new test **1.7b**
+   `aLineIsAlignedByItsWidthWithoutItsTrailingWhitespace` against a `CTLine`
+   built in the test (A5's trailing whitespace included), exact at scale 64
+   where a 1/256 pt offset step is one quarter-pixel variant.
+4. **Minor — displaced doc comments**: `Shaper.shape(_:font:wrappingAt:options:)`
+   and `PortableText.layOut(_:font:wrappingAt:options:)` now sit above the
+   old functions' doc comments, which again attach to their own
+   declarations.
+5. **Minor — probe header**: re-recorded with E5 on an idle machine
+   (compiled twice, interpreted once, 39 lines byte-identical, every pre-E5
+   line identical to the first recording); the header now says the non-zero
+   counts move under load, citing the reviewer's run.
+6. **Minor — the seam's clamp unpinned**: 1.6 gained an arm, maxLines 0 and
+   −1 equal 1 on both systems (glyphs, ranges, `measure`).
+
+Red at `3f3048e` (filtered to the touched tests): 1.5 (differences 306, one
+outside `TE-U`'s class), 1.6b's E5 arm (CoreText drew `[36, 3, 526]` and
+`[526]`, measured 10.283 where 8.307 and 0), and 1.6's first clamp arm
+(its cross-system `measure` equality was a wrong instrument — the two systems
+agree to ~1e-13, not bit for bit — replaced before the commit by each
+system's own maxLines-1 answer); 1.10's cache arm and 1.7b pass on the
+unmutated code by design (they pin, and V1/V2/V3 below redden them).
+`bothSystemsBreakLinesAtTheSameRanges`' literal arm was red (4 portable
+issues) against the fix commit with only `LineBreaking.swift` restored.
+
+Close: `swift build --build-system native --build-tests` 0 `error:`, the
+one deprecation `warning:`; the default build system 0 `error:`/`warning:`;
+unfiltered `swift test --build-system native --no-parallel` **`Test run with
+1657 tests in 3 suites passed`** (1656 + 1.7b), the `FR-J` line present;
+`Tests/PortableTests` 20 + 6 + 5 on macOS (unedited pins green over the
+portable wrapping change); `MetalUILayout` imports only `MetalUICore`;
+`compare.sh` 169d166 → 42e990d, controls as recorded, **0 differing pixels,
+scene identical, in all fourteen**. The lock probe read
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`: real-window capture
+still owed. Backends/SDL and the container were not re-run (no source they
+build changed beyond `MetalUIPortableText`'s narrow wrap case and
+`MetalUIText`, which they do not run; the portable package, which runs the
+portable pins, was).
+
+Mutations (committed at `42e990d`, applied from a copy, the whole suite
+unfiltered, `git status --short` empty after each restore):
+
+| # | mutation | reddened |
+|---|---|---|
+| ME5 | CoreText: an empty `P` takes the tail token (`TE-V` item 1 reverted) | 1.6b (6 issues), 1.5 (2) |
+| MTEV | portable: no empty-paragraph absorb (`TE-V` item 2 reverted) | `bothSystemsBreakLinesAtTheSameRanges` (4), 1.5 (2) |
+| V2 | portable `MeasureKey` built with default options | 1.10 (2) |
+| V1 | centre and trailing factors swapped on both systems | 1.7b (4) |
+| V3 | trailing whitespace counted in the line's width on both systems | 1.7b (6) |
+| MCLAMP | the `max(1, …)` clamp dropped on both systems | the run traps in 1.6 (`Index out of range`), no summary line |
+
+Next unused `TE-W`.
