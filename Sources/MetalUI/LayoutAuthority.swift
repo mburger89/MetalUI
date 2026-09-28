@@ -73,11 +73,15 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
     /// every stage but 11 had closed, so a message naming one read as work owed
     /// by a finished stage. Stage 10 spelled site `deferred`'s owner `"plan task
     /// 7, stage 11"`; stage 11 deletes that site's one entry, `amended`, and the
-    /// branch with it (`LR-FY` item 1), so no owner names task 7. Now:
+    /// branch with it (`LR-FY` item 1), so no owner names task 7. Plan task 11
+    /// deletes the last live branch (ruling TE-L): `alignItems.baseline` and
+    /// `alignSelf.baseline` named `"plan task 11"` until a row's baseline lowered
+    /// and a column's became `flexStart`; what can still raise either — a
+    /// `display: .stack` container, an `alignSelf` outside a baseline container —
+    /// has no SwiftUI stack shape. **Every entry is now `nil`**; the property is
+    /// kept, `String?`, so the trap-message scheme and callers do not change.
     ///
-    /// - a field with the prefix `alignItems.baseline` or `alignSelf.baseline` →
-    ///   `"plan task 11"`: baselines (parent spec §8);
-    /// - everything else → `nil`. Percentages (no containing block, `LR-AI`), a
+    /// - Every entry → `nil`: baselines outside a row (TE-L). Percentages (no containing block, `LR-AI`), a
     ///   non-greedy `maxSize`, a length `flexBasis`, a floored `space-*`, unequal
     ///   grow weights (SwiftUI shares a surplus equally, 7a probe G0/G1), a
     ///   negative grow or shrink, a root's auto-axis min/max and margin, every
@@ -87,10 +91,7 @@ struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
     ///   and `modifierLayer.style` — the kernel has no answer for any of them, and
     ///   no later task is ruled to give one (`LR-FO` items 1–2).
     var owner: String? {
-        if field.hasPrefix("alignItems.baseline") || field.hasPrefix("alignSelf.baseline") {
-            return "plan task 11"
-        }
-        return nil
+        nil
     }
 
     /// `"MetalUI: <site>.<field> has no proposal lowering (<owner>); …"` for an

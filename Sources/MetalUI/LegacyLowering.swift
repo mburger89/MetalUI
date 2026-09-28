@@ -152,12 +152,17 @@ extension LayoutPass {
         }
         let arrangement = arrangeLegacyMainAxis(registerLegacyItems(children, plans),
                                                 declared: declared, animated: style)
-        // The stack reads only the cross-axis factor of its alignment.
+        // The stack reads only the cross-axis factor of its alignment. A row's
+        // `alignItems: .baseline` aligns its children's first text baselines
+        // (ruling TE-L; CSS's `baseline` is the first line's); a column's lowers
+        // as `flexStart`, the factor `alignmentFactor(.baseline)` already is —
+        // its cross axis is horizontal. Structure from the declared style (LR-AS).
         let stack = frame.requestNativeLinearStack(
             children: arrangement.nodes, axis: isRow ? .horizontal : .vertical,
             spacing: arrangement.spacing,
             alignment: isRow ? proposalAlignment(horizontal: 0, vertical: cross)
-                             : proposalAlignment(horizontal: cross, vertical: 0))
+                             : proposalAlignment(horizontal: cross, vertical: 0),
+            baseline: isRow && declared.alignItems == .baseline ? .first : nil)
         return recordLoweredItem(paddedAndSized(stack, style, alignment: contentAlignment), animated: style,
                                  declared: declared, site: site, contentAlignment: contentAlignment, kind: kind)
     }
@@ -169,7 +174,9 @@ extension LayoutPass {
     /// as if shown, `LR-DH`, so no style reaching this function is `.none`.) A
     /// `display: .stack` container (lane
     /// 4) reads none of the flex rows below — the legacy engine branches to its
-    /// stack layout before any of them — and reports `alignItems.baseline`, then the
+    /// stack layout before any of them — and reports `alignItems.baseline` (a
+    /// permanent refusal since plan task 11: a layered stack is a `ZStack`, which
+    /// has no baseline alignment, TE-L, TE-S item 2), then the
     /// every-node rows (its stretch on either axis lowers per child since stage 2,
     /// `planLegacyItems`). The flex container rows, in order:
     ///
@@ -178,7 +185,9 @@ extension LayoutPass {
     ///   order with its main factor mirrored, `arrangeLegacyMainAxis`, ruling LR-AJ);
     /// - `gap.percent` — a percentage **main-axis** gap (the cross-axis gap is read
     ///   by nothing on a single line, so it is not reported);
-    /// - `alignItems.baseline`;
+    /// - (`alignItems.baseline` is no longer a flex container row: since plan task
+    ///   11 a row lowers it as first-baseline alignment and a column as
+    ///   `flexStart`, ruling TE-L);
     /// - (`alignItems.stretch` is no longer a container row: since stage 2 each
     ///   child it reaches is wrapped by `planLegacyItems`, ruling LR-AC);
     /// - (`justifyContent.spaceBetween`/`.spaceAround`/`.spaceEvenly` with a declared
@@ -205,7 +214,6 @@ extension LayoutPass {
         if case .percent = isRow ? declared.gap.horizontal : declared.gap.vertical {
             fields.append(entry("gap.percent"))
         }
-        if declared.alignItems == .baseline { fields.append(entry("alignItems.baseline")) }
         return fields + legacyLeafDiagnostics(declared, site: site)
     }
 
@@ -919,8 +927,9 @@ extension LayoutPass {
     /// main size and `justifyContent` `space-*`, reports `justifyContent.<case>` at
     /// its site.
     ///
-    /// **Still reported** at the child's site: `alignSelf.baseline` (task 11) and
-    /// `margin` (lane 4). A `.frame` layer child reports nothing: its item fields are
+    /// **Still reported** at the child's site: `alignSelf.baseline` outside a
+    /// baseline container (a permanent refusal since plan task 11, TE-L; under one
+    /// it is consumed, the child aligning so already) and `margin` (lane 4). A `.frame` layer child reports nothing: its item fields are
     /// its own frame's.
     ///
     /// **`parentSite:` names exactly one report, `flexGrow.weights`** (ruling LR-BM).
@@ -991,7 +1000,11 @@ extension LayoutPass {
                             reports.append("flexBasis")
                         }
                     }
-                    if d.alignSelf == .baseline { reports.append("alignSelf.baseline") }
+                    // TE-L: consumed under a baseline container (the child aligns so
+                    // already); anywhere else a permanent refusal by name.
+                    if d.alignSelf == .baseline && parent.alignItems != .baseline {
+                        reports.append("alignSelf.baseline")
+                    }
                 }
                 if !stretched {
                     let parentFactor = alignmentFactor(parent.alignItems)

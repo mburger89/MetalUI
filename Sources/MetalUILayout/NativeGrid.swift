@@ -374,6 +374,29 @@ func nativeGridCellRects(_ plan: NativeGridPlan, solution: NativeGridSolution, x
     }
 }
 
+/// Each cell's y offset from the grid's top edge at `solution`, by the
+/// alignment `nativeGridCellRects` places it with (the anchor's, else its
+/// row's, else the grid's vertical factor) — at the answer the solve recorded
+/// (ruling TE-K item 2: a grid's baselines are its cells' at these offsets).
+/// A cell placed at a slot it answers differently is re-measured there by
+/// `nativeGridCellRects`; the baselines read the solve's answer, which adds no
+/// measurement (`SA-M`).
+func nativeGridCellOffsetsY(_ plan: NativeGridPlan, solution: NativeGridSolution) -> [Double] {
+    var rowY = Array(repeating: 0.0, count: plan.rowCount)
+    var cursor = 0.0
+    for row in 0..<plan.rowCount {
+        cursor += plan.vgap[row]
+        rowY[row] = cursor
+        cursor += solution.rowHeights[row]
+    }
+    return plan.cells.enumerated().map { index, cell in
+        let fy = cell.anchor?.verticalFactor
+            ?? plan.rowAlignments[cell.row]?.verticalFactor
+            ?? plan.alignment.verticalFactor
+        return rowY[cell.row] + (solution.rowHeights[cell.row] - solution.answers[index].height) * fy
+    }
+}
+
 /// A grid's zero-spacing edges seen from an enclosing stack (spec §4.4, ruling
 /// GR-R): positional. Along `.horizontal` the leading edge is zero if a cell
 /// starting at column 0 has a zero leading edge, the trailing edge if a cell

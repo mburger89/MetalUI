@@ -429,6 +429,14 @@ public final class LayoutTree {
     ///
     /// **Marks its spacers** with `axis` (ruling CN-C; `markSpacers`), so each
     /// answers 0 on this stack's cross axis.
+    ///
+    /// **`baseline`** (ruling TE-K item 3): a horizontal stack given one aligns
+    /// its children by it instead of by `alignment`'s vertical factor — each
+    /// child's first (or last) text baseline, or its height when it reports
+    /// none, on the largest such guide; the stack is that guide plus the
+    /// largest remainder below one tall (probe B2). **A vertical stack traps**:
+    /// its cross axis is horizontal, where a baseline means nothing, and no
+    /// public spelling reaches it (`VStack` takes a `HorizontalAlignment`).
     public func newNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
                                      spacing: Double? = 0,
                                      alignment: ProposalAlignment = .center,
@@ -437,11 +445,13 @@ public final class LayoutTree {
         if let spacing {
             precondition(spacing.isFinite, "linear stack spacing must be finite (SA-J), got \(spacing)")
         }
+        precondition(axis == .horizontal || baseline == nil,
+                     "a vertical linear stack cannot align by a text baseline (TE-K item 3): its cross axis is horizontal")
         let id = appendNode(children: children)
         recordParent(id, of: children)
         for child in children { markSpacers(child, axis: axis) }
         nativeNodes[id.index] = .linearStack(axis: axis, spacing: spacing,
-                                             alignment: alignment)
+                                             alignment: alignment, baseline: baseline)
         return id
     }
 
@@ -748,14 +758,8 @@ public final class LayoutTree {
                 width: mark == .vertical ? 0 : spacerLength(for: proposal.width, minimum: minLength),
                 height: mark == .horizontal ? 0 : spacerLength(for: proposal.height, minimum: minLength)
             ))
-        case .overlay:
-            result = children(id).reduce(LayoutMeasurement(size: .zero)) { current, child in
-                let childMeasurement = measureNative(child, proposal: proposal, run: run)
-                return LayoutMeasurement(
-                    size: SizeD(width: max(current.size.width, childMeasurement.size.width),
-                                height: max(current.size.height, childMeasurement.size.height))
-                )
-            }
+        case .overlay(let alignment):
+            result = measureOverlay(id, alignment: alignment, proposal: proposal, run: run)
         case .overlayAttachment:
             let child = measureNative(children(id)[0], proposal: proposal, run: run)
             _ = measureNative(children(id)[1],
@@ -810,13 +814,17 @@ public final class LayoutTree {
                                                                 content: content.size))
         case .custom(let layout):
             run.work.measureCalls += 1
+            // TE-K item 2 (amended by TE-X item 1): a custom layout reports the
+            // baselines its `sizeThatFits` returns — none unless it says so, the
+            // nearest `ProposalLayout` has to SwiftUI's `explicitAlignment` — and
+            // checkpoint 2 still traps a NaN one (`aNaNCustomMeasurementTraps`).
             result = layout.sizeThatFits(proposal: proposal,
                                          subviews: MeasurementSubviews(run: run, nodes: children(id)))
-        case .linearStack(let axis, let spacing, _):
-            result = LayoutMeasurement(size: solveLinearStack(id, axis: axis, spacing: spacing,
-                                                              proposal: proposal, run: run).size)
+        case .linearStack(let axis, let spacing, let alignment, let baseline):
+            result = measureLinearStack(id, axis: axis, spacing: spacing, alignment: alignment,
+                                        baseline: baseline, proposal: proposal, run: run)
         case .grid:
-            result = LayoutMeasurement(size: measureGrid(id, proposal: proposal, run: run))
+            result = measureGrid(id, proposal: proposal, run: run)
         }
         run.measureDepth -= 1
         precondition(!result.size.width.isNaN && !result.size.height.isNaN
@@ -942,7 +950,7 @@ public final class LayoutTree {
                         in: LayoutRect(x: bounds.x, y: bounds.y,
                                        width: measurement.size.width, height: measurement.size.height),
                         proposal: childProposal, run: run)
-        case .linearStack(let axis, let spacing, let alignment):
+        case .linearStack(let axis, let spacing, let alignment, let baseline):
             // CN-E: at a nil cross proposal the stack reports its first-pass
             // answers (measurement) but places after re-running the
             // distribution at its own measured cross size (probe Q1, X10,
@@ -958,8 +966,12 @@ public final class LayoutTree {
             default:
                 break
             }
-            let solution = solveLinearStack(id, axis: axis, spacing: spacing, proposal: solveProposal, run: run)
+            let solution = solveLinearStack(id, axis: axis, spacing: spacing, baseline: baseline,
+                                            proposal: solveProposal, run: run)
             let gaps = stackGaps(id, axis: axis, spacing: spacing)
+            // TE-K item 3: by a baseline, each child's guide on the largest one,
+            // from the stack's top edge — the offsets `measureLinearStack` read.
+            let crossOffsets = baseline.map { baselineOffsets(solution.answers, $0) }
             var cursor = axis == .horizontal ? bounds.x : bounds.y
             for (index, child) in children(id).enumerated() {
                 let answer = solution.answers[index].size
@@ -967,7 +979,8 @@ public final class LayoutTree {
                 switch axis {
                 case .horizontal:
                     childBounds = LayoutRect(x: cursor,
-                                             y: bounds.y + (bounds.height - answer.height) * alignment.verticalFactor,
+                                             y: bounds.y + (crossOffsets?[index]
+                                                ?? (bounds.height - answer.height) * alignment.verticalFactor),
                                              width: answer.width, height: answer.height)
                     cursor += answer.width + (index < gaps.count ? gaps[index] : 0)
                 case .vertical:
@@ -1131,7 +1144,7 @@ public final class LayoutTree {
             let (leading, trailing) = axis == .horizontal ? (insets.left, insets.right)
                                                           : (insets.top, insets.bottom)
             return (child.leading && leading == 0, child.trailing && trailing == 0)
-        case .linearStack(let stackAxis, _, _) where stackAxis == axis:
+        case .linearStack(let stackAxis, _, _, _) where stackAxis == axis:
             let nodes = children(id)
             guard let first = nodes.first, let last = nodes.last else { return (true, true) }
             return (zeroSpacingEdges(first, axis: axis).leading, zeroSpacingEdges(last, axis: axis).trailing)
@@ -1201,6 +1214,7 @@ public final class LayoutTree {
     /// SwiftUI's; the extra measurements are counted by
     /// `nestedStacksUnderAnUnspecifiedCrossProposalDoBoundedWork`.
     private func solveLinearStack(_ id: LayoutNodeID, axis: ProposalStackAxis, spacing: Double?,
+                                  baseline: ProposalTextBaseline?,
                                   proposal: ProposedSize,
                                   run: NativeLayoutRun) -> (answers: [LayoutMeasurement],
                                                             proposals: [ProposedSize], size: SizeD) {
@@ -1251,10 +1265,99 @@ public final class LayoutTree {
         }
 
         let mainTotal = answers.reduce(gaps) { $0 + mainLength($1) }
-        let crossMax = answers.map { axis == .horizontal ? $0.size.height : $0.size.width }.max() ?? 0
+        // TE-K item 3 (probe B2): by a baseline, the largest guide plus the
+        // largest remainder below one, which can exceed the tallest child.
+        let crossMax = baseline.map { baselineCrossExtent(answers, $0) }
+            ?? answers.map { axis == .horizontal ? $0.size.height : $0.size.width }.max() ?? 0
         let size = axis == .horizontal ? SizeD(width: mainTotal, height: crossMax)
                                        : SizeD(width: crossMax, height: mainTotal)
         return (answers, proposals, size)
+    }
+
+    /// A child's alignment guide under `baseline` (ruling TE-K item 3): its
+    /// first or last text baseline, or its height when it reports none (probe
+    /// B2's colour; B1f).
+    private func baselineGuide(_ answer: LayoutMeasurement, _ baseline: ProposalTextBaseline) -> Double {
+        (baseline == .first ? answer.firstBaseline : answer.lastBaseline) ?? answer.size.height
+    }
+
+    /// A baseline-aligned horizontal stack's height: the largest guide plus the
+    /// largest remainder below one (probe B2: 25 + 19 = 44 first, 29 + 5 = 34
+    /// last). 0 with no children.
+    private func baselineCrossExtent(_ answers: [LayoutMeasurement], _ baseline: ProposalTextBaseline) -> Double {
+        guard !answers.isEmpty else { return 0 }
+        let above = answers.map { baselineGuide($0, baseline) }.max()!
+        let below = answers.map { $0.size.height - baselineGuide($0, baseline) }.max()!
+        return above + below
+    }
+
+    /// Each child's y offset from a baseline-aligned stack's top edge: its
+    /// guide on the largest one (probe B2: 12, 0, 12, 15 first).
+    private func baselineOffsets(_ answers: [LayoutMeasurement], _ baseline: ProposalTextBaseline) -> [Double] {
+        let guides = answers.map { baselineGuide($0, baseline) }
+        let top = guides.max() ?? 0
+        return guides.map { top - $0 }
+    }
+
+    /// A container's baselines from its children's answers at their offsets
+    /// from its top edge (ruling TE-K item 2; probe B1g, B1h, X3a–X3d, B1k):
+    /// the smallest explicit first baseline and the largest explicit last one,
+    /// `nil` when no child has one (B1p: a text-less child is skipped, not read
+    /// as its height).
+    private func combinedBaselines(_ answers: [LayoutMeasurement], offsets: [Double]) -> (Double?, Double?) {
+        var first: Double?, last: Double?
+        for (answer, offset) in zip(answers, offsets) {
+            if let value = answer.firstBaseline { first = Swift.min(first ?? .infinity, offset + value) }
+            if let value = answer.lastBaseline { last = Swift.max(last ?? -.infinity, offset + value) }
+        }
+        return (first, last)
+    }
+
+    /// A `ZStack`'s answer (ruling CN-E) with its baselines (TE-K item 2): the
+    /// union of the children's answers, each child's offset its union remainder
+    /// times the vertical factor, as `placeNative` places it at its own answer.
+    /// Its own function so `measureNative`'s frame does not carry this loop's
+    /// locals (the depth guard's 1 MB fraction, `SA-L`).
+    @inline(never)
+    private func measureOverlay(_ id: LayoutNodeID, alignment: ProposalAlignment, proposal: ProposedSize,
+                                run: NativeLayoutRun) -> LayoutMeasurement {
+        let answers = children(id).map { measureNative($0, proposal: proposal, run: run) }
+        let union = answers.reduce(SizeD.zero) {
+            SizeD(width: Swift.max($0.width, $1.size.width), height: Swift.max($0.height, $1.size.height))
+        }
+        let (first, last) = combinedBaselines(answers, offsets: answers.map {
+            (union.height - $0.size.height) * alignment.verticalFactor
+        })
+        return LayoutMeasurement(size: union, firstBaseline: first, lastBaseline: last)
+    }
+
+    /// A linear stack's answer (`solveLinearStack`) with its baselines (TE-K
+    /// item 2): each child's offset is where `placeNative` puts it in bounds of
+    /// the stack's own answer — the cursor on a vertical stack, the factor's
+    /// share of the remainder (or the baseline offset) on a horizontal one.
+    /// Computed from the answers the solve already holds, so no measurement is
+    /// added (`SA-M`, `baselineAlignmentAddsNoMeasurementWork`).
+    @inline(never)
+    private func measureLinearStack(_ id: LayoutNodeID, axis: ProposalStackAxis, spacing: Double?,
+                                    alignment: ProposalAlignment, baseline: ProposalTextBaseline?,
+                                    proposal: ProposedSize, run: NativeLayoutRun) -> LayoutMeasurement {
+        let solution = solveLinearStack(id, axis: axis, spacing: spacing, baseline: baseline,
+                                        proposal: proposal, run: run)
+        let offsets: [Double]
+        switch axis {
+        case .horizontal:
+            offsets = baseline.map { baselineOffsets(solution.answers, $0) }
+                ?? solution.answers.map { (solution.size.height - $0.size.height) * alignment.verticalFactor }
+        case .vertical:
+            let gaps = stackGaps(id, axis: axis, spacing: spacing)
+            var cursor = 0.0
+            offsets = solution.answers.enumerated().map { index, answer in
+                defer { cursor += answer.size.height + (index < gaps.count ? gaps[index] : 0) }
+                return cursor
+            }
+        }
+        let (first, last) = combinedBaselines(solution.answers, offsets: offsets)
+        return LayoutMeasurement(size: solution.size, firstBaseline: first, lastBaseline: last)
     }
 
     /// The priority a native stack (and a `ProposalLayout` subview proxy) reads
@@ -1498,7 +1601,8 @@ private enum NativeNode {
     case spacer(minLength: Double)
     case scrollViewport(axis: ProposalStackAxis)
     /// `spacing` nil is the platform default, decided per pair (CN-H).
-    case linearStack(axis: ProposalStackAxis, spacing: Double?, alignment: ProposalAlignment)
+    case linearStack(axis: ProposalStackAxis, spacing: Double?, alignment: ProposalAlignment,
+                     baseline: ProposalTextBaseline?)
     case custom(any ProposalLayout)
     /// A grid, its plan resolved at registration (ruling GR-A; `NativeGrid.swift`).
     case grid(NativeGridPlan)
@@ -1712,7 +1816,7 @@ extension LayoutTree {
     /// depends on earlier answers, so this loop feeds `NativeGridSolver` one
     /// measurement at a time and the recursion into a cell starts here, not
     /// inside the solver (the same gate, record §22 lane 2).
-    private func measureGrid(_ id: LayoutNodeID, proposal: ProposedSize, run: NativeLayoutRun) -> SizeD {
+    private func measureGrid(_ id: LayoutNodeID, proposal: ProposedSize, run: NativeLayoutRun) -> LayoutMeasurement {
         guard let plan = nativeGridPlan(id) else { preconditionFailure("measureGrid on a node that is not a grid") }
         guard proposal.width == nil, proposal.height == nil else {
             return measureGrid(plan, atAProposal: proposal, run: run)
@@ -1722,7 +1826,24 @@ extension LayoutTree {
         for cell in plan.cells {
             answers.append(measureNative(cell.node, proposal: proposal, run: run).size)
         }
-        return solveNativeGrid(plan, proposal: proposal) { index, _ in answers[index] }.size
+        return gridMeasurement(plan, solution: solveNativeGrid(plan, proposal: proposal) { index, _ in answers[index] },
+                               run: run)
+    }
+
+    /// A grid's answer with its baselines (ruling TE-K item 2): the min/max of
+    /// its cells' explicit baselines at their offsets (`nativeGridCellOffsetsY`),
+    /// each cell's measurement read back from the run's cache at the proposal
+    /// the solve recorded — every one was just measured there — without a
+    /// lookup that counts (`SA-M`: a grid's work literals are unchanged).
+    @inline(never)
+    private func gridMeasurement(_ plan: NativeGridPlan, solution: NativeGridSolution,
+                                 run: NativeLayoutRun) -> LayoutMeasurement {
+        let answers = plan.cells.indices.map { index -> LayoutMeasurement in
+            run.cache[NativeMeasurementKey(id: plan.cells[index].node, proposal: solution.proposals[index])]
+                ?? LayoutMeasurement(size: solution.answers[index])
+        }
+        let (first, last) = combinedBaselines(answers, offsets: nativeGridCellOffsetsY(plan, solution: solution))
+        return LayoutMeasurement(size: solution.size, firstBaseline: first, lastBaseline: last)
     }
 
     /// A grid's answer at a proposal with a non-nil axis: feeds
@@ -1732,12 +1853,12 @@ extension LayoutTree {
     /// with the loop inline in `measureGrid` and 167 with it here (record §22,
     /// lane 2).
     private func measureGrid(_ plan: NativeGridPlan, atAProposal proposal: ProposedSize,
-                             run: NativeLayoutRun) -> SizeD {
+                             run: NativeLayoutRun) -> LayoutMeasurement {
         let solver = NativeGridSolver(plan, proposal: proposal)
         while let request = solver.request {
             solver.provide(measureNative(plan.cells[request.index].node, proposal: request.proposal, run: run).size)
         }
-        return solver.size
+        return gridMeasurement(plan, solution: solver.solution, run: run)
     }
 
     /// Places a grid's cells (spec §4.3): the solve again at `proposal`, every

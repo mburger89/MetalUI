@@ -57,7 +57,8 @@ public struct HStack<Content: ProposalElementGroup>: Element {
                                                                            pass: &pass)
         let node = pass.requestNativeLinearStack(children: children, axis: .horizontal,
                                                  spacing: spacing.map { Double($0.value) },
-                                                 alignment: alignment.proposalAlignment)
+                                                 alignment: alignment.proposalAlignment,
+                                                 baseline: alignment.textBaseline)
         return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }
 

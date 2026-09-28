@@ -38,13 +38,16 @@ private func measured(_ build: (LayoutTree) -> LayoutNodeID) -> LayoutMeasuremen
 
 private func baselines(_ m: LayoutMeasurement) -> [Double?] { [m.firstBaseline, m.lastBaseline] }
 
-/// A custom layout that stacks its children and reports its first child's
-/// baselines — the kernel reports none for a custom node (TE-K item 2).
+/// A custom layout answering its first child's size and, when `reports`, its
+/// baselines — a custom node reports exactly what its `sizeThatFits` returns
+/// (TE-K item 2 as amended by TE-X item 1): none unless it says so.
 private struct BaselineReportingLayout: ProposalLayout {
+    var reports: Bool
     func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
         let child = subviews[0].sizeThatFits(proposal)
-        return LayoutMeasurement(size: child.size, firstBaseline: child.firstBaseline,
-                                 lastBaseline: child.lastBaseline)
+        return reports ? LayoutMeasurement(size: child.size, firstBaseline: child.firstBaseline,
+                                           lastBaseline: child.lastBaseline)
+                       : LayoutMeasurement(size: child.size)
     }
     func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {}
 }
@@ -52,8 +55,9 @@ private struct BaselineReportingLayout: ProposalLayout {
 /// **2.1.** Per node kind (TE-K item 2): a `ZStack` of a 40 × 40 colour and a
 /// 13 pt text reports 25 (B1k); an attachment keeps its primary's (X3g, X3h —
 /// the colour's none, whatever its overlay); `fixedSize`, `layoutPriority` and
-/// `aspectRatio` pass the child's through (X3f); a spacer, a scroll viewport
-/// and a custom layout report none (X3: `ScrollView{Text}` is its height); a
+/// `aspectRatio` pass the child's through (X3f); a spacer and a scroll viewport
+/// report none (X3: `ScrollView{Text}` is its height), a custom layout what
+/// its `sizeThatFits` says (none unless it reports one; TE-X item 1); a
 /// stack the min/max of its children's at their placed offsets — `VStack{13;
 /// 26}` 13/41 (B1g), a centred `HStack{13; 26}` 20/25 (B1h) and `{26; 13}`
 /// 20/25 (X3a), a text-less child skipped (`VStack{colour; 13}` 23, B1p;
@@ -72,8 +76,12 @@ private struct BaselineReportingLayout: ProposalLayout {
             == [13, 13])
     #expect(baselines(measured { t in t.newNativeSpacer() }) == [nil, nil])
     #expect(baselines(measured { t in t.newNativeScrollViewport(child: text13(t), axis: .vertical) }) == [nil, nil])
-    #expect(baselines(measured { t in t.newNativeLayout(BaselineReportingLayout(), children: [text13(t)]) })
-            == [nil, nil])
+    #expect(baselines(measured { t in
+        t.newNativeLayout(BaselineReportingLayout(reports: false), children: [text13(t)])
+    }) == [nil, nil])
+    #expect(baselines(measured { t in
+        t.newNativeLayout(BaselineReportingLayout(reports: true), children: [text13(t)])
+    }) == [13, 13])
 
     #expect(baselines(measured { t in
         t.newNativeLinearStack(children: [text13(t), text26(t)], axis: .vertical)

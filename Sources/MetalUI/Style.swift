@@ -37,8 +37,10 @@ public enum FlexDirection: Sendable, Equatable {
     public var isReverse: Bool { self == .rowReverse || self == .columnReverse }
 }
 
-/// `.baseline` has no lowering and is reported by name (owner plan task 11,
-/// baselines; `LR-FO` item 3).
+/// `.baseline` (ruling TE-L, plan task 11): a row container aligns its children's
+/// first text baselines, a column's lowers as `.flexStart` (its cross axis is
+/// horizontal), and a `display: .stack` container reports it by name — a
+/// permanent refusal, a layered stack having no baseline alignment.
 public enum AlignItems: Sendable, Equatable {
     case flexStart, flexEnd, center, baseline, stretch
 }
@@ -49,7 +51,9 @@ public enum AlignItems: Sendable, Equatable {
 /// `package` since stage 10 (no public writer remained).
 package enum JustifyItems: Sendable, Equatable { case start, center, end, stretch }
 
-/// `.baseline` is reported by name, as `AlignItems.baseline` is.
+/// `.baseline` (ruling TE-L): consumed without a report under a baseline
+/// container (the child aligns so already); anywhere else reported by name, a
+/// permanent refusal.
 public enum AlignSelf: Sendable, Equatable {
     case flexStart, flexEnd, center, baseline, stretch
 }
