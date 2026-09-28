@@ -232,7 +232,8 @@ private func layOutB2(alignment: ProposalAlignment = .center, baseline: Proposal
 /// horizontal stack's offsets `(∞ − ∞) × factor` and a baseline guide's
 /// remainder `∞ − ∞` are NaN, and checkpoint 2 (SA-J) traps a NaN baseline or
 /// size — so a non-finite guide, offset or baseline is left out of the
-/// combination instead. Under a factor alignment, and under both baselines.
+/// combination instead — at the infinite probe the row reports no baseline.
+/// Under a factor alignment, and under both baselines.
 @Test func anInfiniteAnswerNeverMakesABaselineNaN() async {
     await #expect(processExitsWith: .success) {
         for (baseline, nested) in [(nil, false), (ProposalTextBaseline.first, false), (.last, false),
@@ -254,6 +255,11 @@ private func layOutB2(alignment: ProposalAlignment = .center, baseline: Proposal
             }], axis: .vertical)
             _ = tree.computeNativeLayout(root: column, proposal: ProposedSize(width: 100, height: 300),
                                          in: LayoutRect(x: 0, y: 0, width: 100, height: 300))
+            // At the probe's own infinite height every placed baseline in the
+            // row is infinite or NaN, so none is combined: the row reports none.
+            let probed = tree.measureNativeLayout(root: row, proposal: ProposedSize(width: 100, height: .infinity))
+            precondition(probed.firstBaseline == nil && probed.lastBaseline == nil,
+                         "an infinite answer's baseline was combined: \(probed)")
         }
     }
 }
