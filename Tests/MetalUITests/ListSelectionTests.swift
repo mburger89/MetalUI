@@ -186,6 +186,15 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     let (multiWindow, multiPlatform) = try unboundedWindow { multiList(multi) }
     try clickRow(multiWindow, multiPlatform, rowID(unboundedListID, 2))
     #expect(multi.multiWrites == [[2]], "multi: a plain click replaces the set: \(multi.multiWrites)")
+
+    // 3.1b (`DD-Z` item 4, `DD-AH` item 3): a plain click on the sole selected
+    // row of a multi list changes nothing, so writes nothing. V5 (a multi
+    // click always writes) must redden it.
+    let sole = Selection(multi: [2])
+    let (soleWindow, solePlatform) = try unboundedWindow { multiList(sole) }
+    try clickRow(soleWindow, solePlatform, rowID(unboundedListID, 2))
+    try #require(sole.multi == [2], "control: row 2 stays selected")
+    #expect(sole.multiWrites.isEmpty, "3.1b: no write when nothing changes: \(sole.multiWrites)")
 }
 
 /// **3.2.** The platform's shortcut modifier (⌘ on Apple, ctrl elsewhere,
@@ -216,6 +225,21 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     // Backwards from the same anchor.
     try clickRow(window, platform, rowID(unboundedListID, 0), .shift)
     #expect(model.multi == [0, 1], "the anchor stays: \(model.multi)")
+
+    // 3.3b (`DD-Z` item 7, `DD-AH` item 1): inside a scroller, where the
+    // list's origin is written every frame into the same `ListOrigin` entry,
+    // an anchor that is NOT the first selected row in data order survives
+    // that write. Click 3, ⇧-click 1 → [1, 2, 3] (anchor 3), ⇧-click 4 →
+    // [3, 4]. V3 (the origin write resets the entry) re-derives the anchor as
+    // the first selected row and reads [1, 2, 3, 4].
+    let scrolled = Selection(count: 10)
+    let (scrolledWin, scrolledPlatform) = try scrolledWindow { multiList(scrolled) }
+    let list = GlobalElementID.child(of: scrolledContentID, at: 0, name: nil)
+    try clickRow(scrolledWin, scrolledPlatform, rowID(list, 3))
+    try clickRow(scrolledWin, scrolledPlatform, rowID(list, 1), .shift)
+    try #require(scrolled.multi == [1, 2, 3], "control: anchor 3 to row 1: \(scrolled.multi)")
+    try clickRow(scrolledWin, scrolledPlatform, rowID(list, 4), .shift)
+    #expect(scrolled.multi == [3, 4], "3.3b: the anchor survives the origin write: \(scrolled.multi)")
 }
 
 /// **3.4.** A single-selection list selects the clicked row whatever the
@@ -294,6 +318,28 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     key(window, platform, TextEditing.downArrow)
     #expect(model.multiWrites.last == [4] && model.multiWrites.count == 6,
             "KY8g: ↓ at the end collapses to the lead, a write: \(model.multiWrites)")
+    // 3.7c (`DD-Z` item 6, `DD-AH` item 3): with only the lead selected, a
+    // plain ↓ at the end changes nothing, so writes nothing (`DD-Z`'s general
+    // rule; the probe measured only KY8g). V6 (a multi arrow always writes)
+    // must redden it.
+    key(window, platform, TextEditing.downArrow)
+    try #require(model.multi == [4], "control: still the lead alone: \(model.multi)")
+    #expect(model.multiWrites.count == 6, "3.7c: no write when nothing changes: \(model.multiWrites)")
+
+    // 3.7b (`DD-Z` item 7, `DD-AH` item 1): inside a scroller, the lead and
+    // anchor survive the per-frame origin write. Click 3, ⇧↑ ⇧↑ → [1, 2, 3]
+    // (anchor 3, lead 1), ⇧↓ → [2, 3]. V3 (the origin write resets the entry)
+    // re-derives lead and anchor as row 1 and reads [1, 2].
+    let scrolled = Selection(count: 10)
+    let (scrolledWin, scrolledPlatform) = try scrolledWindow { multiList(scrolled) }
+    let list = GlobalElementID.child(of: scrolledContentID, at: 0, name: nil)
+    try clickRow(scrolledWin, scrolledPlatform, rowID(list, 3))
+    try focusList(scrolledWin, list)
+    key(scrolledWin, scrolledPlatform, TextEditing.upArrow, .shift)
+    key(scrolledWin, scrolledPlatform, TextEditing.upArrow, .shift)
+    try #require(scrolled.multi == [1, 2, 3], "control: anchor 3, lead 1: \(scrolled.multi)")
+    key(scrolledWin, scrolledPlatform, TextEditing.downArrow, .shift)
+    #expect(scrolled.multi == [2, 3], "3.7b: lead and anchor survive the origin write: \(scrolled.multi)")
 }
 
 /// **3.8 (KY8c, KY8d).** Neither ⌘A nor Space changes a selection. M3h (⌘A
@@ -420,6 +466,26 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     try #require(holder.selection == "r5", "control: ↓ selects r5")
     let siblingOffset = try scrollOffset(siblingWindow)
     #expect(siblingOffset == 20, "3.12b: the list's own reveal scrolls, not the sibling named r5: \(siblingOffset)")
+
+    // 3.12c (`DD-AC` item 2, `DD-AH` item 2): a second selectable list with
+    // the same datum ids, placed BEFORE the focused one in the same scroller,
+    // does not take the reveal. The upper list's 10 rows fill 0…200; the
+    // lower's row 5 is 300…320, so the offset reads 220. V4 (the
+    // `reveal.list == id` conjunct dropped) lets the upper list resolve it
+    // first, at its own row 5 (100…120), and reads 20.
+    let upper = Selection(count: 10)
+    let lower = Selection(count: 100, single: 4)
+    let (twoWindow, twoPlatform) = try scrolledWindow {
+        singleList(upper)
+        singleList(lower)
+    }
+    let lowerList = GlobalElementID.child(of: scrolledContentID, at: 1, name: nil)
+    try focusList(twoWindow, lowerList)
+    key(twoWindow, twoPlatform, TextEditing.downArrow)
+    settle(twoWindow)
+    try #require(lower.single == 5 && upper.singleWrites.isEmpty, "control: ↓ selects the lower list's row 5")
+    let twoOffset = try scrollOffset(twoWindow)
+    #expect(twoOffset == 220, "3.12c: only the list the reveal names takes it: \(twoOffset)")
 }
 
 /// **3.13.** The joint test with `DD-Y`: a selectable list's rows are click
