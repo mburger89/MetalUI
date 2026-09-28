@@ -356,3 +356,157 @@ ticking task 10.
 - `DD-AG` item 3's optional-`@State` bug: a ruling and a test, owner chosen
   by the Record phase.
 
+## 4. This phase's independent close
+
+Re-took, at `87e3f9c` (HEAD), everything the lanes measured, from a clean
+tree (`swift package clean` first):
+
+- **Build**: `swift build --build-system native --build-tests` — 0 `error:`,
+  the one `warning:` SwiftPM's deprecation notice.
+- **Suite**: unfiltered `swift test --build-system native --no-parallel` →
+  **`Test run with 1643 tests in 3 suites passed`** (95.2s). The log carries
+  `FR-J no-argument frame: succeeded=` and the three new guard lines
+  (`CONTROLS GUARD`, `SLIDER STEPPER GUARD`, `SELECTION GUARD`);
+  `everyProductionTreeBuildsOnAOneMegabyteThread` and
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` both passed in this run.
+- **Guards, and lane 1's issue 5 resolved**: `grep -c canTypecheck` summed
+  over `Tests/MetalUITests` alone reads 94 at `27b2fcc` and 98 now — the
+  reading lane 1's verdict flagged as disagreeing with the design's "96". It
+  disagrees because it is the wrong sum: this file's own "Guards" bullet
+  defines the count across **two** targets (`Tests/MetalUITests` and
+  `Tests/MetalUICoreTests/UnitSafetyTests.swift`), discounting one comment
+  hit in the latter. Summed the canonical way: **96** at `27b2fcc` (97 raw
+  across the 23 named files, minus `UnitSafetyTests`' one comment) and
+  **100** now (101 raw across the 26 named files — the three new guard files
+  add 4 — minus the same one comment). The design's own arithmetic, "96 + 4 =
+  100" (spec line 495), was correct throughout; lane 1's "94, not 96" is
+  retracted, not the design's baseline. New files:
+  `ControlsCompileGuards.swift` (2, whole-file), `SliderStepperCompileGuards.swift`
+  (1, whole-file), `SelectionCompileGuards.swift` (1, whole-file) — all four
+  `typecheckFile`, none `typecheck`.
+- **Goldens**: 0 (unmoved — stage 7a; `find Tests/MetalUILayoutTests -name
+  "*.json" | wc -l` reads 0).
+- **`MetalUILayout` imports only `MetalUICore`**: `grep -h '^import'
+  Sources/MetalUILayout/*.swift | sort -u` reads exactly `import MetalUICore`.
+- **Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> 27b2fcc HEAD` —
+  the five non-zero controls read as recorded by every lane (default vs
+  modal light 1031003, default vs animation light 454895, prod default vs
+  modal 491221, distinct default-light-f0 544, distinct prod-default-light
+  529; f0-vs-f3, chrome-legacy-vs-proposal and the indicator-rects control all
+  0 as they must) — **all fourteen images `differing=0`, scene identical**.
+  No source this task touched is on the ordinary demo's tree (the controls
+  demo is a separate, gated tree, `METALUI_CONTROLS_DEMO=1`).
+  `Tests/MetalUICrossPlatformTests/Expected.swift` unedited.
+- **Real-window capture**: the lock probe (`docs/probes/appkit-screen-lock-state.swift`)
+  read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` at this
+  phase's own close — locked, as at every lane's own check — so
+  `docs/probes/window-capture/capture.sh` was not run; the offscreen
+  fourteen-image comparison above stands in for the ordinary demo, and says
+  nothing about the controls demo, which it never renders (record §03 below).
+- **`Backends/SDL`** (`PKG_CONFIG_PATH=$PWD/.accesskit swift test`, macOS,
+  fetched fresh with `scripts/fetch-accesskit.py`): `ReplayFixtureTests` 21,
+  `MetalUISDLTests` 23 (22 + 1, `theFiveControlRolesMapToAccessKitWithToggledAndNumericValues`)
+  — both passed, matching every lane's own reading.
+- **`swift:6.4-noble` container** (root package, source mounted read-only):
+  `swift build` — 0 `error:`, 0 `warning:`; unfiltered
+  `MetalUILayoutTests`/`MetalUICoreTests`/`MetalUICrossPlatformTests` —
+  **188 + 22 + 10**, unmoved, all passed.
+- **`metalui-portable-ax` container** (Linux aarch64, `Backends/SDL`):
+  `swift build` — 0 `error:`, 0 `warning:`; `ReplayFixtureTests` 21,
+  `MetalUISDLTests` 22 (no NSAccessibility test there) — both passed.
+
+Nothing above moved from the lanes' own readings, except the guard-count
+correction, which corrects a reading, not a fact: the true total (100) was
+never in question, only which grep produced it.
+
+## 5. `DD-AG` item 3 disposed of: divergence 85, ruling `DD-AI`
+
+Ruling `DD-AI` (appended to the decisions doc) makes the choice `DD-AH` item
+4 deferred: the optional-`@State` bug (`StateTable.peek`/`State.wrappedValue`
+casts an absent entry to an optional `Value` as a present `.some(nil)` before
+the `?? initialValue` fallback runs, so `@State var picked: Int? = 2` reads
+`nil` until its first write) is **not fixed on this branch**. It is added to
+record §04 as **divergence 85**, kept, owner **plan task 15** (closeout): a
+fix is one line in `StateTable.peek` or `State.wrappedValue` (distinguish an
+absent entry from a present `nil`), but it changes the observable behaviour
+of every optional `@State` with a non-`nil` default across the whole
+framework, which wants its own ruling, a red-first test and a migration
+note — a scope a docs-phase edit should not absorb un-reviewed. This
+disposition, not a source fix, is what `DD-AH` item 4 required before task
+10 could be ticked; it is met here. The controls demo keeps its `Set`
+workaround (record §58 §3.2).
+
+## 6. Divergences (record §04): 16 retires; 76 amended again; 80–85 added
+
+**16 retires** (`DD-Y`): a click target inside a `ScrollView` no longer
+swallows the wheel over itself — it passes to the nearest ancestor hitbox on
+the same layer that registered a scroll region; an overlay sibling and a
+`Deferred`-hoisted scrim still stop it. The label joins the never-reused
+list. **76 is amended again, not retired** (`DD-R` item 4): `Button`'s
+automatic chrome now reads `controlSize`; every other consumer (`Text`'s
+default font, every other control's metrics) is still nobody's. **Added**:
+80 (control keys work whether or not SwiftUI's Full Keyboard Access setting
+would allow it there — unmeasured, `DD-T` item 3), 81 (the automatic
+`Picker` is segmented, not SwiftUI's pop-up menu, `DD-V` item 4), 82 (the
+accessibility partial fold's accessible name where SwiftUI publishes a
+sibling static text; also a missing `AXValueIndicator` child and two arrow
+buttons AppKit reads DISABLED while enabled, `DD-U` items 3 and 9), 83 (a
+selection client presses a row; `AXSelected`/`AXSelectedRows` write nothing,
+`DD-Z` item 8), 84 (a `List` stays virtualized, uniform-row and data-driven
+rather than SwiftUI's greedy self-scrolling one, `DD-AB` item 3), 85 (the
+optional-`@State` bug above, `DD-AI`). Live count **56 → 61**: one retires,
+six are added.
+
+## 7. Declared but inert (record §05): `controlSize`'s row narrowed
+
+`Button`'s chrome reading `controlSize` (`DD-R` item 4) narrows that row from
+"reaches no built-in element" to "reaches `Button`'s chrome only" — the
+inline example list is left as is (the same pattern stage 10 used for
+`margin: .auto`'s narrowing), and the dated section says so. No row is added
+or deleted: `controlActiveState` and `displayScale` are read by nothing this
+task built.
+
+## 8. Human verification (record §03): the controls demo and its pointer/AX looks
+
+The lock probe read locked at every lane's own check and again at this
+phase's close (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`), so
+`capture.sh` never ran, and neither did SwiftUI's own click/wheel controls in
+either probe session (CK0, WH0 failed both times, as part 1's W0 did). The
+controls demo is a new look, not a reopening of the five still-owed rows
+from earlier tasks (it builds a tree the ordinary demo never does, so the
+fourteen-image offscreen comparison says nothing about it). **Owed**: the
+controls demo on screen and by VoiceOver, and specifically the pointer rules
+(§2.6, §3.5 above) and the two accessibility shapes divergence 82 names.
+
+## 9. Task 10, clause by clause: every clause closed
+
+Per `DD-AB` item 1, the box is ticked only if every clause of the plan's task
+10 text is closed, with the rest re-owned by name:
+
+| clause | disposition |
+|---|---|
+| `ForEach`/identified-data semantics | built, part 1 (`DD-B`) |
+| bindings | built, part 1 (`DD-D`) and this part (`ForEach(_: Binding<C>)`, `DD-AA`) |
+| common controls | built, this part (`DD-R`, `DD-S`, `DD-V`, `DD-W`, `DD-X`) |
+| selection | built, this part (`DD-Z`) |
+| rework `List`/`ScrollView` limitations that blank or destroy state | closed: divergence 14 retired (part 1, `DD-F`), divergence 13 amended kept (part 1), divergence 16 retired (this part, `DD-Y`) |
+| retain virtualization as an internal choice | kept by ruling (divergence 84, `DD-AB` item 3) |
+| scroll position | built, part 1 (`DD-G`) |
+| indicators | built, part 1 (`DD-H`) |
+| programmatic scrolling | built, part 1 (`scrollTo(_:anchor:)`, `DD-G`) |
+
+Every item `DD-J`/`DD-Q` re-owned away from task 10 — `List`'s own greedy
+answer and non-uniform rows (divergence 84, owner none), divergence 32 and
+accessibility scrolling to unrealised rows (plan task 12), two-axis
+scrolling and divergence 54 (kept, owner none), `scrollPosition(id:)` (not
+built, additive), styles and gesture composition (plan task 12) — is **not**
+a clause of the task's own text (`DD-AB` items 3–8), so none of it blocks the
+tick. **Task 10 is ticked.**
+
+## 10. Status
+
+Spec `docs/superpowers/specs/2026-09-26-controls-and-selection-design.md`:
+**DELIVERED**. Decisions doc: **DESIGNED, CRITICISED, REVISED, AND
+DELIVERED**; next unused ruling id **`DD-AJ`**. Plan task 10's checkbox is
+**ticked** — both parts close every clause of the task's text (§9 above).
+

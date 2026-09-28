@@ -1070,7 +1070,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   layout direction, locale, dynamic type/scale, control state, platform
   metrics, the `Binding` rename) remains undelivered.
 
-- [ ] **10. Align data-driven controls and scrolling.**
+- [x] **10. Align data-driven controls and scrolling.**
   Define `ForEach`/identified-data semantics, bindings, common controls and
   selection. *Note 2026-09-15 (task 9):* the deprecated `Binding` alias (for
   `KeyBinding`) is deleted in the change that introduces a SwiftUI `Binding`;
@@ -1124,7 +1124,82 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   answering greedily, non-uniform rows, `List { ForEach }`, divergence 32,
   accessibility scrolling to unrealised rows, two-axis scrolling and
   divergence 54, and `scrollPosition(id:)`. **Part 2 (common controls and
-  selection) remains, so the box stays unticked.**
+  selection) remains, so the box stays unticked at this point — see the
+  2026-09-28 note below, which ticks it.**
+  *Progress note, 2026-09-28 — part 2 delivered; task 10 ticked*
+  (`feat/controls-and-selection` from `27b2fcc`, rulings `DD-Q`…`DD-AI`,
+  record §58). `Button(action:label:)`/`Button(_:action:)` over a `Box`
+  (`onClick` unchanged as the tap-gesture primitive, a caller's `onClick`
+  replacing a button's action) (`DD-R`); `Toggle(isOn:)` as the macOS
+  checkbox (`DD-S`); every control focusable and keyed through one internal
+  table, `ControlKeys.swift` (divergence 80, added — SwiftUI's own controls
+  take none of these keys without Full Keyboard Access, unmeasured, so no
+  claim is made about that state) (`DD-T`); five new accessibility roles on
+  both bridges with a full and a **partial** fold (`.incrementor`/
+  `.radioGroup` take an accessible name from non-interactive descendants,
+  interactive-or-control ones kept as children — divergence 82, added:
+  SwiftUI publishes a sibling static text beside an unlabelled control
+  instead, and also a slider's `AXValueIndicator` child and a disabled-look
+  on a stepper's arrows MetalUI does not match) and a selection hint
+  (`AXNode.selectionHint`, no `$ax` write) (`DD-U`); `Picker(_:selection:content:)`/
+  `.tag(_:)` with options found through an internal picker scope (not by
+  walking the content) and a closed `PickerStyle` struct offering only
+  `.automatic`==`.segmented` and `.radioGroup` (divergence 81, added:
+  SwiftUI's automatic picker is a pop-up menu on macOS, task 12's) (`DD-V`);
+  `Slider(value:in:step:)`, a greedy leaf with SwiftUI's measured clamping,
+  stepping and grid-rounding rules, its published value clamped like
+  SwiftUI's (`DD-W`); `Stepper` (three initialisers) with SwiftUI's
+  double-clamp and no-write-when-unchanged rule (`DD-X`); **divergence 16
+  retires** — the wheel now passes from a click target to the nearest
+  enclosing scroller registered on the same layer, an ancestry clause
+  keeping an overlaid (not enclosed) target's old answer and a layer clause
+  keeping a `Deferred`-hoisted scrim's (`DD-Y`); `List(_:selection:rowHeight:row:)`
+  over `Binding<ID?>`/`Binding<Set<ID>>`, single and multi selection by
+  click (⌘/ctrl toggles, ⇧ ranges, a click also focusing the list) and by
+  keyboard (SwiftUI's measured ↓/↑/⇧ rules), lead and anchor kept in the
+  list's own `ListOrigin` entry, per-frame work staying O(window) at any row
+  count, the new lead revealed through part 1's `ScrollViewReader` queue —
+  **divergence 83, added** (an accessibility client selects a row only by
+  pressing it; `AXSelected`/`AXSelectedRows` write nothing, where SwiftUI's
+  do, plan task 12's) (`DD-Z`); `ForEach(_: Binding<C>)` handing each
+  element its own binding, safe when its slot goes stale (`DD-AA`). Three
+  lanes plus two verifier fix rounds, all verified `ok`; **divergence 84,
+  added, owner none** (`List` stays virtualized, uniform-row and
+  data-driven, where SwiftUI's is greedy, self-scrolling and blank beside a
+  header — retaining virtualization as an internal choice is the task's own
+  text, `DD-AB` item 3); **divergence 76 amended again** (`Button`'s chrome
+  now reads `controlSize`; every other consumer stays plan task 11's).
+  **The Record phase's own close (`DD-AI`) disposes of the one item the
+  lanes left open**: a pre-existing bug found by the controls demo
+  (`StateTable.peek`/`State.wrappedValue` reads an optional `@State` with a
+  non-`nil` initial value as `nil` until its first write) is named
+  **divergence 85, added, kept, owner plan task 15** (closeout) rather than
+  fixed here — the fix is one line but changes every optional `@State`'s
+  observable behaviour across the framework, wanting its own ruling,
+  red-first test and migration note. Live divergence count **56 → 61**.
+  **Every item `DD-J`/`DD-Q` re-owned away from task 10's own text is
+  disposed of by name, not left implicit** (`DD-AB`, record §58 §9): `List`'s
+  own greedy answer/non-uniform rows/`List { ForEach }` (divergence 84,
+  owner none), divergence 32 and accessibility scrolling to unrealised rows
+  (plan task 12), two-axis scrolling and divergence 54 (kept, owner none),
+  `scrollPosition(id:)` (not built, additive), style protocols and gesture
+  composition (plan task 12) — none of these is a clause of the task's own
+  text, so none blocks the tick. This Record phase's independent close
+  re-took the suite, guard and golden counts (**1643 / 0 / 100** — a lane-1
+  guard-count reading of "94, not 96" is retracted: the design's baseline
+  was right, taken the file's own two-target way), the fourteen-image pixel
+  comparison (0 px against `27b2fcc`), `Backends/SDL` on macOS (21 + 23,
+  the five new roles) and independently in a `swift:6.4-noble` container
+  (root package, 188 + 22 + 10) and a Linux aarch64 container
+  (`Backends/SDL`, 21 + 22) — all unmoved from the lanes' own readings.
+  **Task 10's box is ticked**: both parts close every clause of the task's
+  text (record §58 §9's table). **Still owed, unmoved from earlier tasks**:
+  the real-window capture (screen locked at every check across all three
+  lanes and this phase's own close); this task adds the controls demo's own
+  pointer rules (a slider press/drag, stepper halves, the wheel over a
+  button/field/selectable row, ⌘/⇧-click and arrow selection, the reveal)
+  and VoiceOver on the five new roles to it, none of them SwiftUI-measured
+  (CK0/WH0 failed in every probe session).
 
 - [ ] **11. Close text, shape and rendering-facing semantics.**
   Add the overlapping SwiftUI text controls: foreground style, font metrics,

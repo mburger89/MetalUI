@@ -50,9 +50,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
   its spec), `TI-` (next `TI-I`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
   spec), `ID-` (next `ID-S`; rulings in its own decisions doc,
-  `2026-09-25-composition-identity-decisions.md`), `DD-` (next `DD-Q`;
+  `2026-09-25-composition-identity-decisions.md`), `DD-` (next `DD-AJ`;
   rulings in its own decisions doc, `2026-09-25-data-and-scrolling-decisions.md`,
-  plan task 10 part 1). A numbered citation
+  plan task 10, both parts). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -225,7 +225,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   content, explicit identity, `Component` and modifier placement against
   SwiftUI, disposing of every item task 7 stages 3, 4, 9, 11 and the grids
   track hand it (record §54 §10.3, `LR-GA`, grids record §22).
-  Task 10, **part 1**, `DD-` (§57, spec
+  Task 10, **part 1**, `DD-A`…`DD-P` (§57, spec
   `specs/2026-09-25-data-and-scrolling-design.md`, decisions doc
   `2026-09-25-data-and-scrolling-decisions.md`, probes
   `swiftui-data-and-scrolling.swift` and, from the critic round,
@@ -233,8 +233,26 @@ milestones append their record to `docs/record/` and put only the rule here.
   (divergence 74 retires, 79 added), a `Binding<Value>` (`KeyBinding`'s
   deprecated alias deleted, divergence 78 added), a `List`'s own scroller
   origin (divergence 14 retires, 13 amended) and `ScrollViewReader`/
-  `scrollTo(_:anchor:)`/indicators. **Part 2** (common controls and
-  selection) is the next run; task 10's box stays unticked until it lands.
+  `scrollTo(_:anchor:)`/indicators. **Part 2**, `DD-Q`…`DD-AI` (§58, spec
+  `specs/2026-09-26-controls-and-selection-design.md`, same decisions doc,
+  probe `swiftui-controls-and-selection.swift`) — `Button`, `Toggle`,
+  `Slider`, `Stepper`, `Picker`/`.tag(_:)`/`PickerStyle` and
+  `List(selection:)` single and multi selection, each on `Binding`,
+  `StyledElement`'s handler/focus/accessibility machinery and the
+  `.disabled` gate; `ForEach(_: Binding<C>)`; divergence 16 retires (the
+  wheel now passes to the nearest enclosing scroller, `DD-Y`); divergences
+  80–84 added (control keys need no system setting, `DD-T`; the AX partial
+  fold's accessible name where SwiftUI publishes a sibling title, `DD-U`;
+  the automatic picker is segmented, not a pop-up menu, `DD-V`; a
+  selection client presses a row rather than setting `AXSelected`, `DD-Z`;
+  `List` stays virtualized and data-driven, `DD-AB`); divergence 76 amended
+  (`Button`'s chrome reads `controlSize`, `DD-R`). Three lanes plus two
+  verifier fix rounds, all verified `ok`; the Record phase's own close
+  (`DD-AI`) resolves the one item the lanes left open — a pre-existing
+  optional-`@State` bug the controls demo found (`StateTable.peek` reads an
+  absent entry as a present `nil`) — as divergence 85, added, owner **plan
+  task 15** (closeout), not fixed on this branch. **Task 10 is ticked**:
+  every clause of both parts is closed.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -250,8 +268,94 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
+METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
 ```
 
+- **Counts (2026-09-28, `feat/controls-and-selection` — plan task 10, part 2,
+  from `27b2fcc`): 1643 tests, 0 goldens, 100 typecheck guards**, 0 `error:`
+  on both build systems, the one `warning:` SwiftPM's deprecation notice
+  under native (0 under the default one), taken after `swift package clean`
+  with `swift build --build-system native --build-tests` then unfiltered
+  `swift test --build-system native --no-parallel` (**one summary line**,
+  `Test run with 1643 tests in 3 suites passed`; the guards ran — the log
+  carries `FR-J no-argument frame: succeeded=` and the three new `CONTROLS
+  GUARD`/`SLIDER STEPPER GUARD`/`SELECTION GUARD` lines). **1643 = 1556 + 26
+  + 6 + 24 + 9 + 22**: lane 1's 26 (`Button`/`Toggle`/`Picker`/`.tag` + 2
+  guards) plus its fix round's 6, lane 2's 24 (`Slider`/`Stepper` +
+  `ClickDispatch` + 1 guard) plus its fix round's 9, lane 3's 22
+  (`List(selection:)`/`ForEach(Binding)`/the controls demo + 1 guard); the
+  design's own running total (1628) did not carry the two fix rounds' 15
+  (`DD-AG` item 4). Guards **100 = 96 + 2 + 1 + 1**: `ControlsCompileGuards`
+  (new, G1.1/G1.2), `SliderStepperCompileGuards` (new, G2.1),
+  `SelectionCompileGuards` (new, G3.1) — **the design's baseline was right
+  the whole time**: lane 1 flagged "94, not 96" by summing `grep -c
+  canTypecheck` over `Tests/MetalUITests` alone, which excludes
+  `UnitSafetyTests` (`Tests/MetalUICoreTests`, 3 hits, one a comment); the
+  canonical count this file's own "Guards" bullet defines spans both
+  targets and reads 96 at `27b2fcc`, 100 now. **No test retired, none
+  renamed.** New public API: `Button(action:label:)`/`Button(_:action:)`,
+  `Toggle(isOn:label:)`/`Toggle(_:isOn:)`, `Slider(value:in:step:)`,
+  `Stepper` (three initialisers), `Picker(_:selection:content:)`/`.tag(_:)`/
+  `PickerStyle`, `List(_:selection:rowHeight:row:)` over `Binding<ID?>` or
+  `Binding<Set<ID>>`, `ForEach(_: Binding<C>)`. **Divergence 16 retires**
+  (the wheel now passes to the nearest enclosing scroller registered on the
+  same layer, so a button, toggle, slider, selectable `List` row or
+  single-line `TextField` inside a `ScrollView` no longer blocks it,
+  `DD-Y`); **divergences 80–84 are added** (a focused control takes its
+  keys whether or not a system full-keyboard-access setting would allow it
+  in SwiftUI, unmeasured there, `DD-T`; the accessibility partial fold gives
+  `.incrementor`/`.radioGroup` an accessible name where SwiftUI publishes a
+  sibling static text beside an unlabelled control, `DD-U`; the automatic
+  `Picker` is segmented, not SwiftUI's pop-up menu, `DD-V`; a selection
+  client selects a row by pressing it — `AXSelected`/`AXSelectedRows` write
+  nothing, where SwiftUI's do, `DD-Z`; a `List` stays virtualized,
+  uniform-row and data-driven rather than SwiftUI's greedy self-scrolling
+  one, `DD-AB`); **divergence 76 is amended, kept** (`Button`'s chrome now
+  reads `controlSize`; every other consumer — `Text`'s default font and
+  every other control's metrics — stays plan task 11's, `DD-R` item 4) —
+  live count **56 → 61** (one retires, six are added: 80, 81, 82, 83, 84,
+  and 85 below). **The Record phase closes the one item the lanes left
+  open** (`DD-AG` item 3, `DD-AH` item 4, ruling `DD-AI`): a pre-existing
+  bug in `StateTable.peek`/`State.wrappedValue` reads an optional `@State`
+  with a non-`nil` initial value as `nil` until its first write (the cast
+  of an absent entry to an optional type succeeds as `.some(nil)`, so `??
+  initialValue` never runs) — a real, measured divergence from SwiftUI
+  (which shows the initial value), not merely an untested corner; **added
+  as divergence 85**, kept, owner **plan task 15** (closeout) — a one-line
+  fix changes every optional `@State` with a non-`nil` default and wants
+  its own ruling, red-first test and migration note, not a docs-phase edit.
+  The controls demo works around it with a `Set` (record §58 §3.4b, §4).
+  **0 px against `27b2fcc` in all fourteen offscreen images**, scene
+  identical, independently re-taken by this Record phase; `Backends/SDL`
+  `ReplayFixtureTests` 21 + `MetalUISDLTests` 23 (22 + 1, the five new AX
+  roles) on macOS, 21 + 22 in a `swift:6.4-noble` aarch64 container (no
+  NSAccessibility test there); the root package builds with 0
+  `error:`/`warning:` in a `swift:6.4-noble` container and runs
+  `MetalUILayoutTests` + `MetalUICoreTests` + `MetalUICrossPlatformTests`
+  **188 + 22 + 10**, unmoved. **Native depth, measured through a real
+  `Window`** (`DD-AG` item 5): each control alone in its own root —
+  `Button` 6, `Toggle` 5, `Slider` 3, `Stepper` 10, `Picker` segmented 10,
+  `Picker` `.radioGroup` 7, `List(selection:)` in a `ScrollView` 13 — and
+  the controls demo **15**, all well inside `maxDepth` 72.
+  `everyProductionTreeBuildsOnAOneMegabyteThread` (now building the
+  controls demo too) and `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+  green. **Task 10 is ticked**: part 1 (`ForEach`, `Binding`,
+  `ScrollViewReader`/`scrollTo`, indicators, the `List` origin fix) and
+  part 2 (this run) close every clause of the task's text — `List`'s own
+  scrolling/greedy answer, non-uniform rows, `List { ForEach }`, two-axis
+  scrolling and divergence 54, `scrollPosition(id:)`, and every style
+  protocol/gesture-composition item are each re-owned by name rather than
+  left implicit (`DD-AB`). **The real-window capture is still owed**,
+  unmoved from part 1 and the tasks before it — the screen was locked at
+  every lane's own check and at this Record phase's close (lock probe:
+  `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`) — and this task
+  adds the controls demo's own pointer rules (a slider press/drag, stepper
+  halves, the wheel over a button, a field or a selectable row, ⌘/⇧-click
+  and arrow selection, the reveal) and VoiceOver on the five new roles to
+  it: none of SwiftUI's click/wheel/full-keyboard-access controls ran in
+  either lane's probe session (CK0, WH0, the FKA setting), so every pointer
+  rule and the "no system setting" reading of `DD-T` are MetalUI's own
+  until a human looks. History: record §58.
 - **Counts (2026-09-25, `feat/data-and-scrolling` — plan task 10, part 1,
   from `e7bc2e7`): 1556 tests, 0 goldens, 96 typecheck guards**, 0 `error:`
   on both build systems, the one `warning:` SwiftPM's deprecation notice
@@ -295,9 +399,11 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   phase; `Backends/SDL` 21 + 22 on macOS, 21 + 21 in a `swift:6.4-noble`
   aarch64 container (unmoved — no source in `Backends/SDL` touched); the
   root package builds with 0 `error:`/`warning:` in a `swift:6.4-noble`
-  container too. **Plan task 10's box stays unticked**: part 2 (common
-  controls and selection, and every item `DD-J` re-owns to it) is the next
-  run. **A new look is owed**: wheel scrolling under `.disabled` (`EV-Q`'s
+  container too. **Plan task 10's box stays unticked at this point**: part 2
+  (common controls and selection, and every item `DD-J` re-owns to it) is
+  the next run — superseded above (2026-09-28): part 2 landed and task 10 is
+  now ticked (record §58). **A new look is owed**: wheel scrolling under
+  `.disabled` (`EV-Q`'s
   item for this task) — SwiftUI's own answer is unmeasured, the screen
   locked at every check across all three lanes and this phase's own close;
   MetalUI's disabled `ScrollView` still scrolls, unchanged. History: record
@@ -995,11 +1101,14 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `AXNodeTests`, `SceneBoundaryCompileGuards`, `StyleSurfaceCompileGuards`
   (stage 10), `ConditionalIdentityCompileGuards`,
   `ExplicitIdentityCompileGuards` (plan task 8),
-  `ControlStateCompileGuards` (plan task 9) and, new at plan task 10 part 1,
-  `ForEachCompileGuards`, `BindingCompileGuards` and `ScrollCompileGuards`;
+  `ControlStateCompileGuards` (plan task 9), `ForEachCompileGuards`,
+  `BindingCompileGuards` and `ScrollCompileGuards` (plan task 10 part 1) and,
+  new at plan task 10 part 2, `ControlsCompileGuards`,
+  `SliderStepperCompileGuards` and `SelectionCompileGuards`;
   `Typecheck.swift` holds
   only
-  the declaration. Two helpers, 39 and 57 (40 and 50 before task 10 part 1's
+  the declaration. Two helpers, 39 and 61 (57 before task 10 part 2's four;
+  40 and 50 before task 10 part 1's
   net −1/+7; 48 before task 9's two; 44 before
   task 8's four; 42 before
   stage 11's two; 39
@@ -1029,7 +1138,10 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   guard left in the file already used `typecheckFile`), and, new this task,
   **two** `ForEachCompileGuards` (`G1.1`/`G1.2`, both whole-file), **three**
   `BindingCompileGuards` (`G2.1`–`G2.3`, all whole-file) and **two**
-  `ScrollCompileGuards` (`G3.1`/`G3.2`, both whole-file). A guard about what an
+  `ScrollCompileGuards` (`G3.1`/`G3.2`, both whole-file); new at plan task 10
+  part 2, **two** `ControlsCompileGuards` (`G1.1`/`G1.2`), **one**
+  `SliderStepperCompileGuards` (`G2.1`) and **one** `SelectionCompileGuards`
+  (`G3.1`), all four whole-file. A guard about what an
   external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
@@ -1436,6 +1548,81 @@ their loss past the bound, the `AXTable` and its `AXIndex`es, the
 unbounded-window and one-more-frame rules, `MP-I`'s cold frame, wheel
 routing, hit testing and the disabled gate are all measured against this
 lowering (stage 9 collapsed the "both authorities" pins onto it alone); **divergence 13 survives, amended; divergence 14 retires** (`DD-F`).
+
+**`List(selection:)`** (plan task 10 part 2, `DD-Z`, divergence 83): the
+initialisers `List(_:selection:rowHeight:row:)` take `Binding<ID?>` or
+`Binding<Set<ID>>`, `ID = Data.Element.ID`. The list reads the binding fresh
+every frame and never prunes it (removing a selected datum writes nothing; it
+re-selects when the datum returns). A selected row's `Box` gets `.accent`
+(one `$anim-color` slot per selected *realised* row, `TB-AH`'s crossing
+`2n + 6 + s`) and the internal `AXNode.selectionHint` (`isSelected` for a
+client, no `$ax` write — `DD-U` item 4). A click selects the row (replacing
+the set in a multi list); the platform shortcut modifier (⌘ on Apple, ctrl
+elsewhere, via `ControlKeys`) toggles it; ⇧ selects the range from the
+anchor; a single list always selects the clicked row. A click also focuses
+the list (`ClickDispatch.focusRequest`, the second exception to "clicking
+does not focus" after `TextField`), so its arrows work next. Lead and anchor
+live in `ListOrigin`, the list's one `StateTable` entry (shared with `DD-F`'s
+scroll origin, written with `withState` from input only); a lead the model
+drops is re-derived as the first selected row in data order, and every range
+or re-derivation happens in the input handlers, not `requestLayout`, so a
+selectable list's warm frame stays O(window) at any row count. A focused
+list's ↓/↑ move the lead (⇧ extends/shrinks from the anchor in a multi
+list); the new lead is revealed through `ScrollViewReader`'s queue
+(`ListLeadReveal(list:row:)`, an internal key scoped to the list's parent so
+only that list's own reveal resolves it). An accessibility client selects a
+row only by **pressing** it — `AXSelected`/`AXSelectedRows` write nothing
+(divergence 83; a settable-selection request is plan task 12's). A row
+carries `logicalIndex`, and publishes as `.row`, only while its window is
+bounded; while it can never be bounded (no enclosing vertical scroller, or a
+zero `rowHeight`) a selected row publishes as a `.button` labelled by its
+content — **not** while a bounded scroller's viewport is merely still
+unmeasured on frame 0, which keeps `AB-X` rule 1 (the table, no rows)
+exactly as an unselected list does.
+
+**Every control** (`Button`, `Toggle`, `Slider`, `Stepper`, `Picker`, a
+selectable `List`; plan task 10 part 2, `DD-R`…`DD-AA`) is built on
+`Binding<Value>` and today's element/handler machinery, not a new subsystem:
+one hitbox (`onClick` for `Button`/`Toggle`/`Picker` options/`List` rows, the
+internal `Handlers.valueTrack` — the tenth member, `TI-B`'s precedent — for a
+`Slider`'s press/drag, dispatched by `Window` ahead of click dispatch and
+riding the same hitbox, so `.disabled`/`allowsHitTesting(false)` remove it
+too); `isFocusable` set on every one of them (**a click still does not focus
+any of them**, `List`'s row click excepted — divergence 80: SwiftUI's own
+controls take none of these keys without Full Keyboard Access, an
+unmeasured setting, so no claim is made about that state); one keyboard
+table, `ControlKeys.swift`, keyed on `TextEditing.platform` — Button
+Space/Return (Apple)/Space and Return (elsewhere), Toggle Space, Slider
+←↓/→↑ by the accessibility step, Stepper ↓/↑, Picker ←↑/→↓ with no wrap,
+`List` per the paragraph above — each running **after** a caller's own
+`onKey` declines and, for `Button`/`Toggle`, replacing rather than adding to
+a caller's `onClick` (the one-field rule `Handlers.onClick`'s doc already
+states); the `.disabled` environment gate in `Frame.registerHandlers` (no
+hitbox, nothing in the focus registry, published to accessibility disabled
+with no actions); accessibility through five new roles
+(`.checkBox`/`.radioButton`/`.radioGroup`/`.slider`/`.incrementor`,
+`AXNode`/`AccessibilityRole` on both bridges) with two folds (`AB-G`'s full
+fold now covers `.checkBox`/`.radioButton`; a new **partial** fold for
+`.incrementor`/`.radioGroup` makes a non-interactive, non-control descendant
+the label and keeps an interactive-or-control one, disabled included, as a
+child — `DD-U`); the existing animation helpers (a `Slider`'s thumb is drawn
+in its own `paint`, so an animated value **snaps** — added to the snaps
+list); theme colours. `controlSize`/`controlActiveState` are read only where
+named (`Button`'s chrome reads `controlSize`, divergence 76 amended; nothing
+reads `controlActiveState` yet, plan task 12). **Not built**: any style but
+the one automatic look per control (`ButtonStyle`, `.toggleStyle`,
+`.pickerStyle(.menu)` — a closed `PickerStyle` struct, not SwiftUI's
+protocol, so the call site compiles the same way later), a pressed look, the
+focus ring, gesture composition, `Button(role:)`, `.keyboardShortcut` — all
+plan task 12's (`DD-AB` item 7). `PickerStyle`'s options are found through an
+internal picker scope pushed around the content's layout phase only
+(`Picker.swift`'s `@MainActor` static stack), not by walking the content;
+`TaggedElement` (from `.tag(_:)`) forwards every `Element` requirement, and a
+tag outside a `Picker` is transparent. `ClickDispatch` (internal) carries a
+completing click's modifiers and a handler's optional focus request through
+`Window.dispatchClick`/an accessibility `.press`, both paths honouring a
+focus request the same way — a public tap-with-modifiers API stays plan task
+12's.
 
 **`ScrollViewReader`/`scrollTo` (`DD-G`…`DD-I`, `DD-K`; plan task 10 part 1).**
 `ScrollViewReader` is one slot with its own identity level, exactly as a
@@ -2163,8 +2350,9 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**56 live**, stable labels; retired labels never
-  reused: 3, 4, 5–8, 11, 12, 14, 15, 17, 18, 19, 24, 36, 37, 40, 45, 48, 59, 69, 74) — record §04 is current (its
+- **Known divergences** (**61 live**, stable labels; retired labels never
+  reused: 3, 4, 5–8, 11, 12, 14, 15, 16, 17, 18, 19, 24, 36, 37, 40, 45, 48,
+  59, 69, 74) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
   its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
   adding a number, its first 2026-09-23 section likewise amends **13, 14 and
@@ -2291,6 +2479,39 @@ expected, measured facts:
   own doc comment that a third case would be inert. **`KeyBinding`'s
   deprecated `Binding` alias is deleted, not a divergence**: `EV-N` announced
   the break, `DD-D` item 6 lands it.
+  **Plan task 10 part 2 retires 16 and adds 80–85** (56 → 61 live; record
+  §04's 2026-09-28 task-10-part-2 section, rulings `DD-Q`…`DD-AI`): 16 (a
+  click target inside a `ScrollView` swallowed the wheel over itself)
+  retires under `DD-Y` — the wheel now passes to the nearest ancestor
+  hitbox on the same layer that registered a scroll region, so a button, a
+  toggle, a slider, a selectable `List` row or a single-line `TextField`
+  no longer blocks it; an overlay sibling and a `Deferred`-hoisted scrim
+  still stop it (the ancestry and layer clauses, both pinned). **Added**: 80
+  (every control takes its keys once focused whether or not SwiftUI's own
+  Full Keyboard Access setting would allow it — unmeasured there, kept,
+  `DD-T` item 3), 81 (the automatic `Picker` is segmented, where SwiftUI's
+  is a pop-up menu on macOS, kept, owner plan task 12 for the menu
+  presentation, `DD-V` item 4), 82 (the accessibility partial fold gives
+  `.incrementor`/`.radioGroup` an accessible name from its non-interactive
+  descendants, where SwiftUI publishes a sibling static text beside an
+  unlabelled control — also missing a slider's `AXValueIndicator` child and
+  a stepper's arrows published DISABLED while enabled — kept, owner plan
+  task 12's VoiceOver validation, `DD-U` items 3 and 9), 83 (an
+  accessibility client selects a `List` row only by pressing it;
+  `AXSelected`/`AXSelectedRows` write nothing, where SwiftUI's do, kept,
+  owner plan task 12, `DD-Z` item 8), 84 (a `List` answers its content
+  height as `rowHeight × count`, needs an enclosing `ScrollView`, is
+  data-driven only and shares one row height, where SwiftUI's is greedy,
+  self-scrolling and blank beside a header — kept, owner **none**, `DD-AB`
+  item 3), 85 (an optional `@State` with a non-`nil` initial value reads
+  `nil` until its first write — `StateTable.peek`/`State.wrappedValue` casts
+  an absent entry to the optional type as a present `.some(nil)` before the
+  `?? initialValue` fallback runs — kept, owner **plan task 15** closeout,
+  found by the controls demo and disposed of by the Record phase rather
+  than fixed on this branch, `DD-AG` item 3, `DD-AH` item 4, `DD-AI`).
+  Divergence 76 is **amended again, not retired** (`Button`'s chrome now
+  reads `controlSize`; every other consumer stays plan task 11's, `DD-R`
+  item 4).
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
   `hidden()` on
   drawing/focusable subtrees, `PaintPass.isActive`,
@@ -2358,6 +2579,16 @@ expected, measured facts:
   cases are wired to already-live paths (`.visible` as `.automatic`, `.never`
   as `.hidden`), not new unread state, and `KeyBinding`'s deprecated alias is
   deleted outright, never having held a row here.
+  **Plan task 10 part 2 narrows the `controlSize` row, adds no other, deletes
+  none** (record §05's 2026-09-28 task-10-part-2 section): `Button`'s
+  automatic chrome now reads it (`DD-R` item 4), so the row is no longer a
+  flat "inert" example above — narrowed to "reaches `Button`'s chrome only,
+  divergence 76 amended"; `Text`'s default font (plan task 11) and every
+  other control's metrics (also plan task 10's own remaining consumers, none
+  built this part) still read nothing from it. `controlActiveState` and
+  `displayScale`'s rows are untouched: neither control this part built reads
+  either (`DD-Q`'s table re-points `controlActiveState`'s consumers at plan
+  task 12 unchanged).
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
@@ -2431,6 +2662,27 @@ expected, measured facts:
   (`EV-Q`'s item for this task, `DD-I` item 3) is owed: SwiftUI's positive
   control never ran (screen locked), so whether its disabled scroll view
   scrolls is unmeasured — MetalUI's still does, pinned, unchanged.
+  **Plan task 10 part 2 adds one new demo look and a long list of pointer
+  and accessibility looks, all still owed** (record §03's 2026-09-28
+  task-10-part-2 section): the controls demo
+  (`METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo`) is a tree the existing
+  demo never built, so it is its own look, not a reopening of the five still
+  owed above; the fourteen-image offscreen comparison stands in for the
+  ordinary demo (0 px against `27b2fcc`) but says nothing about a tree it
+  never renders. The lock probe read locked at every lane's own check and
+  again at this Record phase's close (`CGSSessionScreenIsLocked = 1`,
+  `displayAsleep main: 1`), so `capture.sh` never ran and SwiftUI's own
+  click/wheel/keyboard controls never did either (CK0, WH0 failed in every
+  probe session) — **owed**: the controls demo on screen (every control by
+  pointer and by key — a slider press and drag, stepper halves, the wheel
+  over a button/field/selectable row, ⌘/⇧-click and arrow selection on a
+  `List`, the lead reveal); VoiceOver on the five new roles (the partial
+  fold's accessible name vs. SwiftUI's sibling title, divergence 82; a
+  slider's missing `AXValueIndicator` child and a stepper's arrows read
+  DISABLED by AppKit while enabled); and whether SwiftUI's controls take
+  Space/Return/arrows without Full Keyboard Access, which the design's own
+  probe run never turned on (divergence 80). None of these was ever seen on
+  a real display or a real accessibility client.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;
   re-measure before reasoning from them. **`MP-I`'s 100 000-row cold frame
@@ -2439,7 +2691,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **96** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **100** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a

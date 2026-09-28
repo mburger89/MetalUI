@@ -4,17 +4,21 @@ Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-d
 on `feat/data-and-scrolling` from `e7bc2e7` (part 1, `DD-A`…`DD-P`), and for
 [`specs/2026-09-26-controls-and-selection-design.md`](specs/2026-09-26-controls-and-selection-design.md),
 on `feat/controls-and-selection` from `27b2fcc` (part 2, `DD-Q` onward). Ids
-are **lettered**, `DD-A`…`DD-AH`; next unused is **`DD-AI`**. A bare `DD-3`
+are **lettered**, `DD-A`…`DD-AI`; next unused is **`DD-AJ`**. A bare `DD-3`
 is a typo, not a citation. **A round that appends a ruling moves this line in
 the same commit.**
 
-**Part 2 status, 2026-09-25: DESIGNED, then CRITICISED AND REVISED**
-(`DD-Q`…`DD-AB`, appended after part 1's rulings; the critic round appended
-`DD-AC` and amended `DD-S`, `DD-T`, `DD-U`, `DD-V`, `DD-Y`, `DD-Z`, `DD-AA`
-and `DD-AB` in place, each amendment marked "critic round"; evidence
+**Part 2 status, 2026-09-28: DELIVERED** (`DD-Q`…`DD-AB` designed;
+`DD-AC` the critic round's fixes, amending `DD-S`, `DD-T`, `DD-U`, `DD-V`,
+`DD-Y`, `DD-Z`, `DD-AA` and `DD-AB` in place; `DD-AD`/`DD-AE` the lanes' own
+mutation tables and readings, `DD-AF`/`DD-AH` two verifier fix rounds,
+`DD-AG` lane 3's own readings, `DD-AI` the Record phase's close — the
+guard-count reading corrected and the optional-`@State` bug named divergence
+85, owner plan task 15; evidence
 `docs/probes/swiftui-controls-and-selection.swift`, new, arm ids cited as
 `BT0`, `SA3`, `KY6c` …, re-run unlocked and extended with PK2/PK3 by the
-critic round). Part 1's status follows.
+critic round). **Plan task 10 is ticked** (record §58 §9). Part 1's status
+follows.
 
 **Status, 2026-09-25: DESIGNED, then CRITICISED AND REVISED** (the critic
 round appended `DD-K`…`DD-M` and amended `DD-A`, `DD-B`, `DD-D`, `DD-F` and
@@ -1966,3 +1970,41 @@ empty after.
    table.**
 
 **Cost if wrong.** Test arms only; no source line moves.
+
+---
+
+## DD-AI — the Record phase's close: the guard-count reading corrected; the optional-`@State` bug named divergence 85, owner plan task 15
+
+**Ruling.**
+
+1. **Lane 1's issue 5 is retracted, not the design.** `grep -c canTypecheck`
+   summed over `Tests/MetalUITests` alone reads 94 at `27b2fcc` and 98 at
+   `87e3f9c` — a narrower sum than the one CLAUDE.md's own "Guards" bullet
+   defines, which spans `Tests/MetalUITests` **and**
+   `Tests/MetalUICoreTests/UnitSafetyTests.swift` (discounting one comment
+   hit there). Summed the canonical way: **96** at `27b2fcc`, **100** now.
+   The design's "96 + 4 = 100" (spec line 495) was right throughout; nothing
+   in the spec or this doc needs correcting for it. Record §58 §4 carries the
+   arithmetic.
+2. **`DD-AG` item 3's optional-`@State` bug is disposed of, not fixed, per
+   `DD-AH` item 4's own condition.** A one-line fix
+   (`StateTable.peek`/`State.wrappedValue` casting an absent entry to an
+   optional `Value` as `.some(nil)` before `?? initialValue` runs) changes the
+   observable answer of every optional `@State` with a non-`nil` default
+   across the framework — a behaviour change wanting its own ruling,
+   red-first test and migration note, not a docs-phase edit made without a
+   fix round to verify it. It is named **divergence 85**, added, kept, owner
+   **plan task 15** (closeout) — record §04's 2026-09-28 section and record
+   §58 §5 carry the same wording. The controls demo's `Set` workaround
+   (`DD-AG` item 3) is unchanged.
+3. **Task 10 is ticked** (`DD-AB` item 1): items 1 and 2 above were the two
+   things standing between "every lane verified `ok`" and "every clause of
+   the task's text closed" — record §58 §9's table closes the rest by
+   citation, none of it newly found here.
+
+**Evidence.** The guard sums in record §58 §4; `DD-AG` item 3, `DD-AH` item 4.
+
+**Cost if wrong.** Item 1 is a reading, not a fact — the total (100) does not
+move either way. Item 2 is deferred work with a named owner; if plan task 15
+finds a different owner more fitting, this ruling's "plan task 15" is one
+citation to move, not a behaviour to undo.

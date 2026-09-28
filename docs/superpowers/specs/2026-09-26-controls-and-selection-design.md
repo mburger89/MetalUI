@@ -3,17 +3,22 @@
 Branch `feat/controls-and-selection` from `27b2fcc` (part 1's tip). Rulings
 `DD-Q`…`DD-AC` are appended to part 1's decisions doc,
 [`../2026-09-25-data-and-scrolling-decisions.md`](../2026-09-25-data-and-scrolling-decisions.md)
-(next unused after the critic round: `DD-AD`; lane 1 appended `DD-AD` and lane 2 `DD-AE`, so next unused is **`DD-AF`**). Evidence:
+(next unused after the critic round: `DD-AD`; lane 1 appended `DD-AD`, lane 2
+`DD-AE`, lane 2's fix round `DD-AF`, lane 3 `DD-AG`, lane 3's fix round
+`DD-AH`, and the Record phase `DD-AI`, so next unused is **`DD-AJ`**).
+Evidence:
 `docs/probes/swiftui-controls-and-selection.swift` (**new**, this design; arm
 ids cited as `BT0`, `SA3`, `KY6c` …, its header carries the recorded output
 and the reading). Record: `docs/record/58-controls-and-selection.md` (written
 by the lanes and the Record phase). Part 1 is record §57 and spec
 `2026-09-25-data-and-scrolling-design.md`.
 
-**Status: DESIGNED, then CRITICISED AND REVISED** (`DD-AC`: ten fixes, each
+**Status: DELIVERED** (`DD-AC`: ten fixes, each
 amending the ruling it names and the section below that carries it; eight
 attacks rejected with reasons; the probe re-run unlocked, byte-identical,
-and extended with PK2/PK3).
+and extended with PK2/PK3; three lanes plus two verifier fix rounds, all
+verified `ok`; the Record phase's close, `DD-AI`, names divergence 85's
+owner — record §58, plan task 10 ticked).
 
 ## 1. Baseline
 
