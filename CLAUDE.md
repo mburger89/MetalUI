@@ -271,6 +271,11 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
 ```
 
+- **Counts (2026-09-28, `test/covered-slider` — the branch check's MX2
+  pin): 1644 tests, 0 goldens, 100 typecheck guards**, taken the same way
+  (`Test run with 1644 tests in 3 suites passed`; the FR-J line present).
+  **1644 = 1643 + 1**: `aPressOnASliderCoveredByAnOpaqueClickTargetRunsTheClickAndWritesNothing`,
+  which MX2 now reddens. History: record §58 §11.
 - **Counts (2026-09-28, `feat/controls-and-selection` — plan task 10, part 2,
   from `27b2fcc`): 1643 tests, 0 goldens, 100 typecheck guards**, 0 `error:`
   on both build systems, the one `warning:` SwiftPM's deprecation notice

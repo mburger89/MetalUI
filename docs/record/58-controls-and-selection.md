@@ -573,6 +573,20 @@ unpinned: a slider covered by an opaque sibling, or by a `Deferred` scrim,
 taking no press is asserted by nothing. **Non-blocking**; owed as one test
 (the scratch test's shape) by whoever next touches `dispatchValueTrack`.
 
+**2026-09-28, MX2 pinned** (`test/covered-slider` from `3aa44e5`): new test
+`aPressOnASliderCoveredByAnOpaqueClickTargetRunsTheClickAndWritesNothing`
+(`SliderTests.swift`, 2.6c — a `Slider` under an opaque `onClick` `Box`
+sibling in a `Stack`, pressed at a point `try #require`d inside both) is
+green on the committed source. MX2 re-applied with the spelling in the table
+above, full unfiltered `swift test --build-system native --no-parallel`:
+**reddens `aPressOnASliderCoveredByAnOpaqueClickTargetRunsTheClickAndWritesNothing`**
+(1 issue, `model.writes` read `[5.0]`; its `cover.count == 1` arm held —
+the click still reaches the box on mouse-up, so only the value arm sees
+MX2); `Test run with 1644 tests in 3 suites failed … with 1 issue`. Restored
+from a copy, `git status --short` clean of `Sources/`. On the restored
+source: `Test run with 1644 tests in 3 suites passed`, FR-J line present,
+0 `error:`; `swift build --build-tests` 0 `warning:`.
+
 **Doc defects found and fixed in this commit**:
 
 1. Records §03, §04 and §05 had **no** 2026-09-28 task-10-part-2 section,

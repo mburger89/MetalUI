@@ -280,6 +280,36 @@ private func mouse(_ point: Point<Pixels>) -> MouseEvent { MouseEvent(position: 
     #expect(model.writes == [5], "the value under window x 200: \(model.writes)")
 }
 
+/// **2.6c.** A press on a slider covered by an opaque `onClick` box goes to
+/// the box, not the slider: `dispatchValueTrack` resolves the press through
+/// the one ranking, `topmostOpaqueHitbox(in:at:)` (CLAUDE.md "Hit testing").
+/// The branch check's MX2 (record §58 §11: the press picks its slider by an
+/// unranked `lastHitboxes.lastIndex(where: valueTrack != nil && contains)`)
+/// wrote 5 here and must redden it.
+@Test @MainActor func aPressOnASliderCoveredByAnOpaqueClickTargetRunsTheClickAndWritesNothing() throws {
+    let model = Level(0)
+    let cover = ControlModel()
+    let (window, platform) = try controlWindow(size: 300) {
+        controlRoot(width: 300, height: 300) {
+            Stack {
+                Row { Slider(value: model.binding, in: 0...10) }.cssWidth(controlPx(300)).cssHeight(controlPx(16))
+                Box().cssWidth(controlPx(300)).cssHeight(controlPx(16)).onClick { cover.count += 1 }
+            }
+        }
+    }
+    let slider = try #require(window.lastHitboxes.first { $0.handlers.valueTrack != nil }, "the slider registers")
+    let box = try #require(window.lastHitboxes.first { $0.handlers.onClick != nil && $0.handlers.valueTrack == nil },
+                           "the covering box registers")
+    let y = slider.bounds.origin.y.value + slider.bounds.size.height.value / 2
+    let point = Point(x: controlPx(150), y: controlPx(y))
+    try #require(slider.bounds.contains(point) && box.bounds.contains(point),
+                 "set up: the point lies in both: slider \(slider.bounds), box \(box.bounds)")
+    platform.simulateInput(.mouseDown(mouse(point)))
+    platform.simulateInput(.mouseUp(mouse(point)))
+    #expect(model.writes.isEmpty, "the covered slider took no press: \(model.writes)")
+    #expect(cover.count == 1, "the covering box's click ran: \(cover.count)")
+}
+
 /// **2.7b.** A caller's `onKey` runs before the slider's arrows (spec §4, as
 /// 1.10b for `Toggle`): one that claims → suppresses the write; one that
 /// declines lets it run. V13 (the slider's arrows run before the caller's
