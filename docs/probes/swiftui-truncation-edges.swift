@@ -207,6 +207,21 @@ MainActor.assumeIsolated {
         }
     }
 
+    print("--- E5 an empty paragraph as the last kept line, more text after it")
+    do {
+        for (name, _, mode) in modes {
+            print("  E5 \(name) \"A\\n\\nB\" lineLimit(2) at 100: " + readings(
+                Text("A\n\nB").lineLimit(2).truncationMode(mode).frame(width: 100, alignment: .leading), width: 100,
+                [("A/…", "A\n\u{2026}"), ("A/empty", "A"), ("A/B", "A\nB"), ("A/B…", "A\nB\u{2026}"),
+                 ("untruncated", "A\n\nB")]))
+        }
+        for (name, _, mode) in modes {
+            print("  E5 \(name) \"\\nB\\nC\" lineLimit(1) at 100: " + readings(
+                Text("\nB\nC").lineLimit(1).truncationMode(mode).frame(width: 100, alignment: .leading), width: 100,
+                [("…", "\u{2026}"), ("empty", ""), ("B", "B"), ("B…", "B\u{2026}"), ("untruncated", "\nB\nC")]))
+        }
+    }
+
     print("--- E3 a width narrower than the token: \"Hello\", lineLimit(1)")
     for w in [4.0, 8, 10, 11, 12, 14, 20] as [CGFloat] {
         print("  E3 width \(w): CT tail \(show(ctKept("Hello", width: Double(w), type: .end))) — " + readings(

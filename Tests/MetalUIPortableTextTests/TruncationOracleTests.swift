@@ -30,6 +30,8 @@ let truncationLatin = [
     "Ready\nSet\nGo",
     "Alpha beta gamma\ndelta epsilon zeta eta theta",
     "Alpha beta gamma delta epsilon zeta eta theta\nmore",
+    "A\n\nB",
+    "\nB\nC",
 ]
 let truncationMarks = ["e\u{301}te\u{301} cafe\u{301} na\u{303}o e\u{302}\u{323}x q\u{301}\u{302}\u{303}z end"]
 let truncationCJK = ["日本語のテキストを切り詰める。中文字符串也一样。", "ABC 漢字 def ghi 仮名かな"]

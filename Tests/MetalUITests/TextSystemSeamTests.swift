@@ -253,6 +253,27 @@ private let ctModes: [(TextTruncation, CTLineTruncationType)] = [(.tail, .end), 
         #expect(a.count < untruncated.count, "\(mode): text is dropped")
         #expect(apple.lineRanges(text, font: appleFont, wrappingAt: 100, options: options) == [0..<11, 11..<45])
         #expect(portable.lineRanges(text, font: portableFont, wrappingAt: 100, options: options) == [0..<11, 11..<45])
+        // TE-H item 3: a limit below 1 acts as 1, at the seam itself, on both
+        // systems (without the clamp, `lines[maxLines - 1]` traps at 0).
+        let one = apple.placeGlyphs(text, font: appleFont, wrappingAt: 100,
+                                    options: TextLayoutOptions(maxLines: 1, truncation: mode),
+                                    origin: (0, 0), scaleFactor: 1)
+        try #require(Set(one.map(\.baselineY)).count == 1)
+        for below in [0, -1] {
+            let clamped = TextLayoutOptions(maxLines: below, truncation: mode)
+            #expect(apple.placeGlyphs(text, font: appleFont, wrappingAt: 100, options: clamped,
+                                      origin: (0, 0), scaleFactor: 1) == one, "\(mode) maxLines \(below): CoreText")
+            #expect(portable.placeGlyphs(text, font: portableFont, wrappingAt: 100, options: clamped,
+                                         origin: (0, 0), scaleFactor: 1) == one, "\(mode) maxLines \(below): portable")
+            #expect(apple.lineRanges(text, font: appleFont, wrappingAt: 100, options: clamped) == [0..<45])
+            #expect(portable.lineRanges(text, font: portableFont, wrappingAt: 100, options: clamped) == [0..<45])
+            #expect(apple.measure(text, font: appleFont, wrappingAt: 100, options: clamped)
+                    == apple.measure(text, font: appleFont, wrappingAt: 100,
+                                     options: TextLayoutOptions(maxLines: 1, truncation: mode)))
+            #expect(portable.measure(text, font: portableFont, wrappingAt: 100, options: clamped)
+                    == portable.measure(text, font: portableFont, wrappingAt: 100,
+                                        options: TextLayoutOptions(maxLines: 1, truncation: mode)))
+        }
     }
 }
 
@@ -286,6 +307,32 @@ private let ctModes: [(TextTruncation, CTLineTruncationType)] = [(.tail, .end), 
     }
     #expect(lastLine("Ready\nSet\nGo", TextLayoutOptions(maxLines: 1)) == (try coreTextGlyphIDs("Ready")) + ellipsis,
             "E1 one line")
+    // E5: an EMPTY paragraph as the last kept line takes no token in any
+    // mode, even with text after it — SwiftUI draws "A" alone for "A\n\nB" at
+    // lineLimit(2), and nothing for "\nB\nC" at lineLimit(1) (0 px; the
+    // token's reading 54 px off).
+    let lineHeight = apple.fontMetrics(appleFont).lineHeight
+    // "A\n" drawn alone: the hard break draws the space glyph (`drawnGlyph`).
+    let a = apple.placeGlyphs("A\n", font: appleFont, wrappingAt: 100, origin: (0, 0), scaleFactor: 1).map(\.key.glyph)
+    try #require(a.first == (try coreTextGlyphIDs("A")).first)
+    let aWidth = apple.measure("A", font: appleFont, wrappingAt: nil).widestLine
+    try #require(aWidth > 5)
+    for (mode, _) in ctModes {
+        for (text, maxLines, glyphs, widest) in [("A\n\nB", 2, a, aWidth), ("\nB\nC", 1, [], 0.0)] {
+            let options = TextLayoutOptions(maxLines: maxLines, truncation: mode)
+            let drawn = apple.placeGlyphs(text, font: appleFont, wrappingAt: 100, options: options,
+                                          origin: (0, 0), scaleFactor: 1)
+            #expect(drawn.map(\.key.glyph) == glyphs, "E5 \(text.debugDescription) \(mode): CoreText")
+            #expect(portable.placeGlyphs(text, font: portableFont, wrappingAt: 100, options: options,
+                                         origin: (0, 0), scaleFactor: 1) == drawn,
+                    "E5 \(text.debugDescription) \(mode): the systems agree")
+            let expected = TextMeasurement(widestLine: widest, totalHeight: Double(maxLines) * lineHeight)
+            #expect(apple.measure(text, font: appleFont, wrappingAt: 100, options: options) == expected,
+                    "E5 \(text.debugDescription) \(mode): CoreText measure")
+            #expect(portable.measure(text, font: portableFont, wrappingAt: 100, options: options) == expected,
+                    "E5 \(text.debugDescription) \(mode): portable measure")
+        }
+    }
 }
 
 /// **1.6c** (TE-T, E3). Narrower than the token, CoreText's truncation has no
@@ -453,4 +500,63 @@ private func sameGlyphsBarAVariantTie(_ a: [TextGlyph], _ p: [TextGlyph]) -> (sa
     #expect(a.totalHeight == 2 * lineHeight)
     #expect(a.widestLine <= 80 && a.widestLine > 60, "\(a)")
     #expect(portable.measure(paragraph, font: portableFont, wrappingAt: 80, options: two) == a)
+    // The options are part of each system's measurement cache key: one
+    // system asked for the same string and width under two sets of options,
+    // in either order, answers each set's own measurement — never the
+    // other's cached one.
+    let unlimited = apple.measure(paragraph, font: appleFont, wrappingAt: 80)
+    let limited = apple.measure(paragraph, font: appleFont, wrappingAt: 80, options: one)
+    try #require(unlimited != limited)
+    for limitedFirst in [false, true] {
+        let fresh = try portableSystem()
+        let font = fresh.resolveFont(family: nil, size: 13)
+        let order: [TextLayoutOptions] = limitedFirst ? [one, TextLayoutOptions()] : [TextLayoutOptions(), one]
+        for options in order {
+            #expect(fresh.measure(paragraph, font: font, wrappingAt: 80, options: options)
+                    == (options == one ? limited : unlimited), "portable, limited first: \(limitedFirst), \(options)")
+        }
+        let freshApple = CoreTextTextSystem()
+        let appleKey = freshApple.resolveFont(family: "Noto Sans", size: 13)
+        for options in order {
+            #expect(freshApple.measure(paragraph, font: appleKey, wrappingAt: 80, options: options)
+                    == (options == one ? limited : unlimited), "CoreText, limited first: \(limitedFirst), \(options)")
+        }
+    }
+}
+
+/// **1.7b** (TE-J, A5). Alignment against an instrument independent of both
+/// systems: line 1 of "Alpha beta gamma …" at 100 is "Alpha beta ", ending in
+/// a space; centred it moves by `(100 − (L − T)) / 2` and trailing by `100 −
+/// (L − T)`, `L` and `T` read from a `CTLine` built here
+/// (`CTLineGetTypographicBounds`, `CTLineGetTrailingWhitespaceWidth`), on the
+/// 1/256 pt grid (TE-U item 6). At scale 64 a 1/256 pt step is exactly one
+/// quarter-pixel variant, so the shift is read exactly off the placed glyphs.
+/// Separated: counting the trailing space (`100 − L`) is a different number.
+@MainActor
+@Test func aLineIsAlignedByItsWidthWithoutItsTrailingWhitespace() throws {
+    CTFontManagerRegisterFontsForURL(notoURL as CFURL, .process, nil)
+    defer { CTFontManagerUnregisterFontsForURL(notoURL as CFURL, .process, nil) }
+    let (apple, appleFont, portable, portableFont) = try seamPair()
+    let text = "Alpha beta gamma delta epsilon zeta eta theta"
+    let font = CTFontCreateWithName("NotoSans-Regular" as CFString, 13, nil)
+    let line = CTLineCreateWithAttributedString(NSAttributedString(
+        string: "Alpha beta ", attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font]))
+    let advance = CTLineGetTypographicBounds(line, nil, nil, nil)
+    let trailing = CTLineGetTrailingWhitespaceWidth(line)
+    try #require(trailing > 1, "the line ends in whitespace")
+    func quarters(_ points: Double) -> Int { Int((points * 256).rounded()) }
+    try #require(apple.lineRanges(text, font: appleFont, wrappingAt: 100).first == 0..<11)
+    for system in [(apple as any TextSystem, appleFont), (portable, portableFont)] {
+        func firstGlyph(_ alignment: TextLineAlignment) -> Int {
+            let placed = system.0.placeGlyphs(text, font: system.1, wrappingAt: 100,
+                                              options: TextLayoutOptions(alignment: alignment),
+                                              origin: (0, 0), scaleFactor: 64)
+            return placed[0].pixelX * 4 + placed[0].key.subpixelVariant
+        }
+        let leading = firstGlyph(.leading)
+        let name = system.0 is CoreTextTextSystem ? "CoreText" : "portable"
+        #expect(firstGlyph(.trailing) - leading == quarters(100 - (advance - trailing)), "\(name) trailing")
+        #expect(firstGlyph(.center) - leading == quarters((100 - (advance - trailing)) / 2), "\(name) centre")
+        #expect(firstGlyph(.trailing) - leading != quarters(100 - advance), "\(name): the space is left out")
+    }
 }
