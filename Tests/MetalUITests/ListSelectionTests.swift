@@ -617,6 +617,30 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     let selected = rows.filter { $0.value.isSelected }
     #expect(selected.count == 1 && selected.first?.value.rowIndex == 2, "row index 2 is selected")
     #expect(Set(rows.compactMap(\.value.rowIndex)) == Set(0..<5), "each carries its index")
+
+    // 3.20b (`DD-AG` item 1): the scroller's FIRST frame, a client active
+    // before it, is unbounded only until the viewport is measured, so a
+    // selectable list keeps AB-X rule 1 there — the table, no rows and no
+    // button rows — rather than publishing every row as a button for one frame.
+    // M3t (the `windowAwaitsViewport` clause dropped) must redden this arm.
+    let first = Selection(single: 2)
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (firstWindow, firstPlatform) = try makeFakeWindow(device: device, size: 100) {
+        Box(style: column(width: 100, height: 100)) {
+            ScrollView {
+                Box(style: column(width: 100)) { singleList(first) }
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+    #expect(firstPlatform.simulateAccessibilityRequest(.activate))
+    firstWindow.drawFrameIfNeeded()
+    try #require(firstWindow.framesDrawn == 1)
+    let frame0 = try #require(firstPlatform.publishedAccessibilityTrees.last, "frame 0 publishes")
+    let table0 = try #require(frame0.nodes.values.first { $0.role == .table }, "the table on frame 0")
+    #expect(table0.children.isEmpty, "3.20b: no rows on the scroller's first frame")
+    #expect(!frame0.nodes.values.contains { $0.role == .button && ($0.label ?? "").hasPrefix("Row ") },
+            "3.20b: no button rows on the scroller's first frame")
 }
 
 /// A collection counting its element accesses.
