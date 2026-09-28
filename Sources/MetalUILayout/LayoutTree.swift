@@ -774,10 +774,14 @@ public final class LayoutTree {
                                         fixed: width, ideal: idealWidth, min: minWidth, max: maxWidth)
             let frameHeight = framedSize(child.size.height, proposal: proposal.height,
                                          fixed: height, ideal: idealHeight, min: minHeight, max: maxHeight)
+            // A baseline the shift would make NaN — `(∞ − ∞) × factor`, a greedy
+            // frame over an infinite answer — is dropped rather than trapped at
+            // checkpoint 2 (ruling TE-X item 6).
+            let shift = (frameHeight - child.size.height) * alignment.verticalFactor
             result = LayoutMeasurement(
                 size: SizeD(width: frameWidth, height: frameHeight),
-                firstBaseline: child.firstBaseline.map { $0 + (frameHeight - child.size.height) * alignment.verticalFactor },
-                lastBaseline: child.lastBaseline.map { $0 + (frameHeight - child.size.height) * alignment.verticalFactor }
+                firstBaseline: child.firstBaseline.map { $0 + shift }.flatMap { $0.isNaN ? nil : $0 },
+                lastBaseline: child.lastBaseline.map { $0 + shift }.flatMap { $0.isNaN ? nil : $0 }
             )
         case .padding(let insets):
             let childProposal = paddingProposal(proposal, insets: insets)
@@ -1276,9 +1280,11 @@ public final class LayoutTree {
 
     /// A child's alignment guide under `baseline` (ruling TE-K item 3): its
     /// first or last text baseline, or its height when it reports none (probe
-    /// B2's colour; B1f).
+    /// B2's colour; B1f) — or reports an infinite one (a greedy frame at an
+    /// infinite proposal, TE-X item 6).
     private func baselineGuide(_ answer: LayoutMeasurement, _ baseline: ProposalTextBaseline) -> Double {
-        (baseline == .first ? answer.firstBaseline : answer.lastBaseline) ?? answer.size.height
+        let value = baseline == .first ? answer.firstBaseline : answer.lastBaseline
+        return value.flatMap { $0.isFinite ? $0 : nil } ?? answer.size.height
     }
 
     /// A baseline-aligned horizontal stack's height: the largest guide plus the
@@ -1287,7 +1293,12 @@ public final class LayoutTree {
     private func baselineCrossExtent(_ answers: [LayoutMeasurement], _ baseline: ProposalTextBaseline) -> Double {
         guard !answers.isEmpty else { return 0 }
         let above = answers.map { baselineGuide($0, baseline) }.max()!
-        let below = answers.map { $0.size.height - baselineGuide($0, baseline) }.max()!
+        // An infinitely tall child whose guide is its height leaves ∞ − ∞: it
+        // has no remainder below its guide (TE-X item 6).
+        let below = answers.map { answer -> Double in
+            let remainder = answer.size.height - baselineGuide(answer, baseline)
+            return remainder.isNaN ? 0 : remainder
+        }.max()!
         return above + below
     }
 
@@ -1296,19 +1307,26 @@ public final class LayoutTree {
     private func baselineOffsets(_ answers: [LayoutMeasurement], _ baseline: ProposalTextBaseline) -> [Double] {
         let guides = answers.map { baselineGuide($0, baseline) }
         let top = guides.max() ?? 0
-        return guides.map { top - $0 }
+        return guides.map { top - $0 }.map { $0.isNaN ? 0 : $0 }
     }
 
     /// A container's baselines from its children's answers at their offsets
     /// from its top edge (ruling TE-K item 2; probe B1g, B1h, X3a–X3d, B1k):
     /// the smallest explicit first baseline and the largest explicit last one,
     /// `nil` when no child has one (B1p: a text-less child is skipped, not read
-    /// as its height).
+    /// as its height). A child whose placed baseline is not finite — an
+    /// infinite answer's offset `(∞ − ∞) × factor` is NaN, and checkpoint 2
+    /// traps a NaN baseline — is left out (TE-X item 6,
+    /// `anInfiniteAnswerNeverMakesABaselineNaN`).
     private func combinedBaselines(_ answers: [LayoutMeasurement], offsets: [Double]) -> (Double?, Double?) {
         var first: Double?, last: Double?
         for (answer, offset) in zip(answers, offsets) {
-            if let value = answer.firstBaseline { first = Swift.min(first ?? .infinity, offset + value) }
-            if let value = answer.lastBaseline { last = Swift.max(last ?? -.infinity, offset + value) }
+            if let value = answer.firstBaseline, (offset + value).isFinite {
+                first = Swift.min(first ?? .infinity, offset + value)
+            }
+            if let value = answer.lastBaseline, (offset + value).isFinite {
+                last = Swift.max(last ?? -.infinity, offset + value)
+            }
         }
         return (first, last)
     }

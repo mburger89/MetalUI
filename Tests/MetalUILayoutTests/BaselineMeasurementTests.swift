@@ -223,3 +223,35 @@ private func layOutB2(alignment: ProposalAlignment = .center, baseline: Proposal
     #expect(work(baseline: .first, reporting: true) == plain)
     #expect(work(baseline: .last, reporting: false) == plain)
 }
+
+/// **2.1b** (exit test, `.success`; ruling TE-X item 6). An infinite answer
+/// never turns a baseline into NaN: a greedy frame around a 13 pt text inside
+/// a horizontal stack, itself one of two children of a vertical stack, is
+/// probed at an infinite height (the vertical stack's flexibility probe, CN-B;
+/// CN-F: the greedy frame answers ∞, its baseline 13 + ∞ × ½ = ∞). The
+/// horizontal stack's offsets `(∞ − ∞) × factor` and a baseline guide's
+/// remainder `∞ − ∞` are NaN, and checkpoint 2 (SA-J) traps a NaN baseline or
+/// size — so a non-finite guide, offset or baseline is left out of the
+/// combination instead. Under a factor alignment, and under both baselines.
+@Test func anInfiniteAnswerNeverMakesABaselineNaN() async {
+    await #expect(processExitsWith: .success) {
+        for baseline in [nil, ProposalTextBaseline.first, .last] {
+            let tree = LayoutTree(generation: 0)
+            let text = tree.newNativeLeaf { _ in
+                LayoutMeasurement(size: SizeD(width: 17.5, height: 16), firstBaseline: 13, lastBaseline: 13)
+            }
+            // Two greedy frames: the outer one's `(∞ − ∞) × ½` shift is NaN too.
+            let greedy = tree.newNativeFrame(child: tree.newNativeFrame(child: text, maxHeight: .infinity),
+                                             maxHeight: .infinity)
+            let other = tree.newNativeLeaf { _ in
+                LayoutMeasurement(size: SizeD(width: 10, height: 10), firstBaseline: 8, lastBaseline: 8)
+            }
+            let row = tree.newNativeLinearStack(children: [greedy, other], axis: .horizontal, baseline: baseline)
+            let column = tree.newNativeLinearStack(children: [row, tree.newNativeLeaf { _ in
+                LayoutMeasurement(size: SizeD(width: 20, height: 20))
+            }], axis: .vertical)
+            _ = tree.computeNativeLayout(root: column, proposal: ProposedSize(width: 100, height: 300),
+                                         in: LayoutRect(x: 0, y: 0, width: 100, height: 300))
+        }
+    }
+}
