@@ -333,6 +333,20 @@ suite and is now pinned by 3.20b. MG3.1 (the `Set` initialiser internal)
 does not build because the demo calls it from another module; MG3.1′ (the
 single-selection initialiser internal) reddens G3.1 alone.
 
+### 3.4b Verifier fix round (`DD-AH`)
+
+The verifier's V3–V6 were each green over the whole 1643-test suite at
+`2dcb05e`: the lead and anchor surviving the scroller's origin write (every
+⇧ test ran unbounded, where no origin is written), the reveal's
+`reveal.list == id` conjunct, and the two multi-selection no-write guards.
+Five arms of existing tests (`7c478d6`: 3.1b, 3.3b, 3.7b, 3.7c, 3.12c; no
+test added, **1643** unchanged) pin them; re-run on `7c478d6`, V3 reddens
+3.3 and 3.7, V4 3.12, V5 3.1, V6 3.7 — each a full unfiltered run,
+`git status --short` empty after. `DD-AC` item 2's "pinned by" sentence
+carries an erratum. The optional-`@State` finding (`DD-AG` item 3) stays
+unfixed in the lane; `DD-AH` item 4 makes its disposition a condition of
+ticking task 10.
+
 ### 3.5 Owed
 
 - The human look at the controls demo (`METALUI_CONTROLS_DEMO=1 swift run

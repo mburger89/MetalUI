@@ -480,18 +480,18 @@ button, 37) is unchanged; record §58 §2.5's changed-answer table lists it.
 
 | # | test | asserts | red before | mutation |
 |---|---|---|---|---|
-| 3.1 | `aPlainClickSelectsExactlyTheClickedRow` | single `nil` → `2`; multi `[1, 3]` → `[2]` (LB3's replace) | no init | M3a: a multi click inserts |
+| 3.1 | `aPlainClickSelectsExactlyTheClickedRow` | single `nil` → `2`; multi `[1, 3]` → `[2]` (LB3's replace); arm 3.1b (`DD-AH`): a plain click on the sole selected row writes nothing | no init | M3a: a multi click inserts; V5: a multi click always writes (3.1b) |
 | 3.2 | `aShortcutClickTogglesARowInAMultiSelectionList` | ⌘ (Apple) / ctrl (elsewhere, via the table) toggles in and out | no init | M3b: the toggle replaces |
-| 3.3 | `aShiftClickSelectsTheRangeFromTheAnchor` | anchor 1, ⇧-click 3 → `[1, 2, 3]` | no init | M3c: the range excludes the anchor |
+| 3.3 | `aShiftClickSelectsTheRangeFromTheAnchor` | anchor 1, ⇧-click 3 → `[1, 2, 3]`; arm 3.3b (`DD-AH`): in a scroller, click 3, ⇧-click 1, ⇧-click 4 → `[3, 4]` | no init | M3c: the range excludes the anchor; V3: the origin write resets `ListOrigin` (3.3b) |
 | 3.4 | `aSingleSelectionListSelectsTheClickedRowWhateverTheModifiers` | ⌘/⇧ click → that row | no init | M3d: ⌘ deselects in single mode |
 | 3.5 | `aPressOnARowFocusesItsList` | `focusedElement == list` after a row click | no init | M3e: no `focusRequest` |
 | 3.6 | `theArrowsMoveASingleSelectionAndStopAtTheEnds` | KY6, KY6b, KY6c, KY6d, KY6e, KY6f, write counts included | no init | M3f: wrap at the ends |
-| 3.7 | `aPlainArrowCollapsesAMultiSelectionAndShiftExtendsFromTheAnchor` | KY8, KY8b, KY8e, KY8f, KY8g | no init | M3g: shift extends from the lead, not the anchor |
+| 3.7 | `aPlainArrowCollapsesAMultiSelectionAndShiftExtendsFromTheAnchor` | KY8, KY8b, KY8e, KY8f, KY8g; arm 3.7c (`DD-AH`): ↓ at the end with only the lead selected writes nothing; arm 3.7b: in a scroller, click 3, ⇧↑ ⇧↑, ⇧↓ → `[2, 3]` | no init | M3g: shift extends from the lead, not the anchor; V6: a multi arrow always writes (3.7c); V3 (3.7b) |
 | 3.8 | `neitherCommandANorSpaceChangesASelection` | KY8c, KY8d | no init | M3h: ⌘A selects all |
 | 3.9 | `aSelectedRowPublishesSelectedAndAnUnselectedOneDoesNot` | `isSelected` per row (LA1, LB1) | no init | M3i: the hint never set |
 | 3.10 | `aSelectionNamingARemovedRowIsKeptAndReselectsItOnReturn` | no write; the row selected again (LA5) | no init | M3j: stale ids pruned |
 | 3.11 | `aDisabledListShowsItsSelectionAndChangesNothing` | LD0; clicks and arrows write nothing | no init | M1g, re-run on this lane's head |
-| 3.12 | `anArrowPastTheWindowScrollsTheNewLeadIntoView` | 100 rows, lead at the last visible row, ↓ → offset moved just enough, the row realised; arm 3.12b: a sibling above the list whose `.id` equals the lead's id does not take the scroll (`DD-AC` item 2) | no init | M3k: no reveal request; M3k′: the request keyed by the bare `datum.id` (reddens 3.12b) |
+| 3.12 | `anArrowPastTheWindowScrollsTheNewLeadIntoView` | 100 rows, lead at the last visible row, ↓ → offset moved just enough, the row realised; arm 3.12b: a sibling above the list whose `.id` equals the lead's id does not take the scroll (`DD-AC` item 2); arm 3.12c (`DD-AH`): a second selectable list with the same ids above the focused one does not take the reveal (offset 220) | no init | M3k: no reveal request; M3k′: the request keyed by the bare `datum.id` (reddens 3.12b); V4: the `reveal.list == id` conjunct dropped (reddens 3.12c) |
 | 3.13 | `aSelectableListScrollsUnderTheWheelOverARow` | the joint test with `DD-Y` | red at base: rows are click targets that swallow | lane 2's M2q, re-run on this lane's head |
 | 3.14 | `aSelectedRowPaintsTheAccentBackground` | the row's fill is `theme.accent`; unselected none | no init | M3l: no background |
 | 3.15 | `aSelectableListAddsOneColourSlotPerSelectedRowAndNoAXSlot` (renamed by `DD-AC` item 1: the design's "no entry" was red by construction) | over two frames: nothing selected → the same entry count as without `selection:`; `s` selected realised rows → exactly `s` more, each an `$anim-color` slot, no `$ax` id | no init | M3m: `.selected` declared as a trait (writes `$ax`) |

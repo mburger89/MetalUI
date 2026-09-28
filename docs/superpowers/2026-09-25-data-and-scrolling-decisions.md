@@ -4,7 +4,7 @@ Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-d
 on `feat/data-and-scrolling` from `e7bc2e7` (part 1, `DD-A`…`DD-P`), and for
 [`specs/2026-09-26-controls-and-selection-design.md`](specs/2026-09-26-controls-and-selection-design.md),
 on `feat/controls-and-selection` from `27b2fcc` (part 2, `DD-Q` onward). Ids
-are **lettered**, `DD-A`…`DD-AG`; next unused is **`DD-AH`**. A bare `DD-3`
+are **lettered**, `DD-A`…`DD-AH`; next unused is **`DD-AI`**. A bare `DD-3`
 is a typo, not a citation. **A round that appends a ruling moves this line in
 the same commit.**
 
@@ -1466,7 +1466,12 @@ replacement's decisions doc, and none of these touches the engine.
    `frame.scrollRequestQueue` when the handler is built in `prepaint`. No
    public key type, no change to `DD-G`/`DD-K`'s matching. Pinned by 3.12
    and by the new arm 3.12b (a sibling `.id` equal to the lead's id above the
-   list does not scroll to itself).
+   list does not scroll to itself). **Erratum (`DD-AH` item 2):** neither of
+   those sees the `reveal.list == id` conjunct — 3.12b's sibling is an `.id`,
+   not a list — and V4 (the conjunct dropped) left the suite green; the
+   "matched only by the list it names" clause is pinned since the lane-3 fix
+   round by arm 3.12c (a second selectable list with the same datum ids
+   above the focused one does not take the reveal).
 3. **`DD-Y` moves a `TextField` answer the design did not list.**
    `Handlers.isPointerTarget` is `onClick != nil || textInput != nil`, so a
    single-line `TextField` registers an opaque hitbox and today swallows its
@@ -1857,7 +1862,10 @@ inside, what the design said.
    as `.some(nil)` (measured with a standalone `swiftc` program: `peek` of
    an empty dictionary as `Int?` prints `Optional(nil)`, and `?? 2` gives
    `nil`), so the initial value never runs. The demo uses a `Set<Int>`
-   instead. **Owner: the Record phase decides** — it is a one-line fix in
+   instead. **Owner: the Record phase decides, before task 10 is ticked**
+   (`DD-AH` item 4: either fixed under its own ruling with a red-first test
+   and a migration note, or an owning plan task named in record §58 and the
+   divergence or inert table) — it is a one-line fix in
    `StateTable.peek` or `State.wrappedValue` (distinguish an absent entry
    from a present `nil`) and a behaviour change to every optional `@State`
    with a non-`nil` default, so it wants its own ruling and test, not a
@@ -1910,6 +1918,10 @@ plus 3.8's caller arm), except M3t's second run and MG3.1′, applied to
 | M3t | the `windowAwaitsViewport` clause dropped (item 1) | **none** at `f1f9683`; 3.20 (its 3.20b arm) at `0bfb915` |
 | MG3.1 | the `Set` initialiser `internal` | does not build: `ControlsDemo.swift` (another module, a plain import) calls it — a compile error in production code is its own pin |
 | MG3.1′ | the single-selection initialiser `internal` | G3.1 |
+| V3 (fix round) | the origin write resets the entry (`{ $0 = ListOrigin(offset: origin) }`) | 3.3 (its 3.3b arm), 3.7 (its 3.7b arm, at its control line: the second ⇧↑ already reads `[1, 2]`) |
+| V4 (fix round) | the `reveal.list == id` conjunct dropped from `resolveScrollRequests` | 3.12 (its 3.12c arm: 20, not 220) |
+| V5 (fix round) | a multi click always writes (`binding.wrappedValue = next`) | 3.1 (its 3.1b arm) |
+| V6 (fix round) | a multi arrow always writes (`binding.wrappedValue = selected`) | 3.7 (its 3.7c arm) |
 
 M3l reddening 3.11 is its background line (the disabled list still paints
 its selection); M3n reddening 3.11 is its every-row-publishes line (a
@@ -1917,3 +1929,40 @@ disabled row with no `onClick` resolves as no button). 3.13's re-run of M2q
 reddens it alone among lane 3's tests, as the joint test should.
 
 **Cost if wrong.** Item 1 is one conjunct; item 3 is deferred, not changed.
+
+## DD-AH — lane 3 (part 2) verifier fix round: the anchor under the origin write, the reveal's list, the multi no-write guards
+
+**Ruling.** The verifier found four clauses of `DD-Z`/`DD-AC` that no test
+saw (its V3–V6, each green over the whole 1643-test suite at `2dcb05e`, each
+shown to behave differently by a scratch test). Each is now pinned by an arm
+of an existing test — **no test is added, the count stays 1643** — and the
+four mutations join `DD-AG`'s table, re-run on `7c478d6` (the arms), each a
+full unfiltered run, the source restored from a copy, `git status --short`
+empty after.
+
+1. **Lead and anchor survive the scroller's per-frame origin write**
+   (`DD-Z` item 7). Every ⇧-click and ⇧-arrow test used the unbounded
+   fixture, where `noteOriginAndStaleness` returns before writing, and every
+   anchor there was also the first selected row in data order, which is
+   exactly what a reset entry re-derives. Arms 3.3b (click 3, ⇧-click 1 →
+   `[1, 2, 3]`, ⇧-click 4 → `[3, 4]`) and 3.7b (click 3, ⇧↑ ⇧↑ → `[1, 2, 3]`,
+   ⇧↓ → `[2, 3]`) run in the scrolled fixture with an anchor that is not the
+   first selected row. V3 reddens both.
+2. **The lead reveal is taken only by the list it names** (`DD-AC` item 2,
+   whose "pinned by" sentence carries an erratum). Arm 3.12c: two single
+   lists in one 100-pt scroller, 10 rows above 100 rows with selection 4;
+   the lower list focused, ↓ → offset **220** (the lower list's row 5). V4
+   reads 20 (the upper list's row 5).
+3. **A multi list writes only a changed selection** (`DD-Z` items 4 and 6).
+   Arm 3.1b: multi `[2]`, a plain click on row 2 writes nothing (V5 writes
+   `[2]`). Arm 3.7c: multi `[4]` with the lead at the end, a plain ↓ writes
+   nothing (V6 writes `[4]`). The latter rests on `DD-Z`'s general rule,
+   unprobed: the probe measured only KY8g's `[2, 3, 4]` → `[4]`.
+4. **The optional-`@State` finding (`DD-AG` item 3) is not fixed here**: it
+   is a behaviour change to every optional `@State` with a non-`nil`
+   default, so it wants its own ruling, test and migration note. **Task 10
+   is not ticked until the Record phase has either fixed it that way or
+   named an owning plan task in record §58 and the divergence or inert
+   table.**
+
+**Cost if wrong.** Test arms only; no source line moves.
