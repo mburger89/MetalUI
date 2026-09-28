@@ -431,7 +431,8 @@ public final class LayoutTree {
     /// answers 0 on this stack's cross axis.
     public func newNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
                                      spacing: Double? = 0,
-                                     alignment: ProposalAlignment = .center) -> LayoutNodeID {
+                                     alignment: ProposalAlignment = .center,
+                                     baseline: ProposalTextBaseline? = nil) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
         if let spacing {
             precondition(spacing.isFinite, "linear stack spacing must be finite (SA-J), got \(spacing)")

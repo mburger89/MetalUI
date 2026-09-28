@@ -33,6 +33,13 @@ public struct ProposedSize: Sendable, Hashable {
     }
 }
 
+/// Which text baseline a horizontal stack aligns its children by (ruling
+/// TE-K): SwiftUI's `VerticalAlignment.firstTextBaseline` and
+/// `.lastTextBaseline`, at the kernel.
+public enum ProposalTextBaseline: Hashable, Sendable {
+    case first, last
+}
+
 /// A layout response, including optional text baselines.
 ///
 /// Baselines are distances from the measured rectangle's top edge. Boxes and

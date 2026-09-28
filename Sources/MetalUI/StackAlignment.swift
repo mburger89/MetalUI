@@ -8,13 +8,13 @@ import MetalUILayout
 /// `HStack(alignment: .leading)` does not compile, as in SwiftUI
 /// (`aHorizontalCaseIsNotAnHStackAlignmentNorAVerticalCaseAVStacks`).
 public enum VerticalAlignment: Sendable, Hashable {
-    case top, center, bottom
+    case top, center, bottom, firstTextBaseline, lastTextBaseline
 
     /// The kernel's nine-case alignment with this vertical factor; a
     /// horizontal stack reads only that factor.
     var proposalAlignment: ProposalAlignment {
         switch self {
-        case .top: .top
+        case .top, .firstTextBaseline, .lastTextBaseline: .top   // SKELETON
         case .center: .center
         case .bottom: .bottom
         }

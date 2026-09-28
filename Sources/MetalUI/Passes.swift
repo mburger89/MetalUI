@@ -134,9 +134,11 @@ public struct LayoutPass {
     /// The default stays 0 for callers that name no spacing.
     public func requestNativeLinearStack(children: [ProposalNodeID], axis: ProposalStackAxis,
                                          spacing: Double? = 0,
-                                         alignment: ProposalAlignment = .center) -> ProposalNodeID {
+                                         alignment: ProposalAlignment = .center,
+                                         baseline: ProposalTextBaseline? = nil) -> ProposalNodeID {
         ProposalNodeID(frame.requestNativeLinearStack(children: children.map(\.layoutNodeID), axis: axis,
-                                                      spacing: spacing, alignment: alignment))
+                                                      spacing: spacing, alignment: alignment,
+                                                      baseline: baseline))
     }
 
     /// Registers a custom `ProposalLayout` algorithm over native children.
