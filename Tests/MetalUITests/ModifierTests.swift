@@ -111,6 +111,11 @@ private struct HandlerShape: Equatable {
     /// five gesture modifiers APPEND — "wrote one" and "replaced with one" are
     /// different answers only a count tells apart.
     var gestureCount = 0
+    /// Plan task 12 part 1, lane 2: the shortcut is internal, set only by
+    /// `Button` (`IX-F`), so no modifier case writes it; `contentShape(_:)`
+    /// writes the boxed shape (`IX-L`).
+    var keyboardShortcut = false
+    var contentShape = false
 }
 
 @MainActor
@@ -405,6 +410,10 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
                          h.contentShapeInset = Edges(top: px(67), right: px(68),
                                                      bottom: px(69), left: px(70))
                      }),
+        // Plan task 12 part 1, lane 2 (`IX-L`): a shape, not an inset.
+        ModifierCase(name: "contentShape(_ shape:)",
+                     apply: { $0.contentShape(Circle()) },
+                     effect: { _, _, _, h in h.contentShape = true }),
 
         // MARK: `Box`'s own — deliberately not on `StyledElement`, so that
         // `Column { … }.flexDirection(.row)` cannot compile.
@@ -420,8 +429,8 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
     // colliding with it (spec §8 risk (c)). − 2 at stage 10 (`alignContent(_:)`
     // and `flexWrap(_:)`, removed with their fields, `LR-FM` item 1, `LR-FN`) =
     // **45**. + 5 at plan task 12 part 1 (the gesture attachment modifiers,
-    // `IX-B`) = **50**.
-    #expect(cases.count == 50)
+    // `IX-B`) = **50**. + 1 at lane 2 (`contentShape(_:)`, `IX-L`) = **51**.
+    #expect(cases.count == 51)
 
     for c in cases {
         var expectedStyle = Style()
@@ -450,7 +459,9 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
                              contentShapeInset: got.handlers.contentShapeInset,
                              textInput: got.handlers.textInput != nil,
                              valueTrack: got.handlers.valueTrack != nil,
-                             gestureCount: got.handlers.gestures.count) == expectedHandlers,
+                             gestureCount: got.handlers.gestures.count,
+                             keyboardShortcut: got.handlers.keyboardShortcut != nil,
+                             contentShape: got.handlers.contentShape != nil) == expectedHandlers,
                 "\(c.name) wrote the wrong `Handlers` member, or wrote nothing")
     }
 }

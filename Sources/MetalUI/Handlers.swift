@@ -276,6 +276,25 @@ public struct Handlers {
     /// Windows stack budget).
     var gestures: [GestureAttachment] = []
 
+    // MARK: Keyboard shortcut and content shape (plan task 12 part 1, lane 2)
+
+    /// A `Button`'s `.keyboardShortcut` and the action it runs (ruling `IX-F`),
+    /// or `nil`. Internal, set only by `Button`. **A keyboard-side ask**, so
+    /// `isKeyTarget` counts it and the one disabled gate removes it with the
+    /// rest of the focus registration (`B4l`, `K4`), while
+    /// `allowsHitTesting(false)` — a pointer-only scope — does not (`K1`).
+    /// One reference (`IX-N`).
+    var keyboardShortcut: ShortcutTarget?
+
+    /// The shape a `.contentShape(_:)` declared (ruling `IX-L`), or `nil` for
+    /// the element's (inset) hit rect. Applied where `contentShapeInset` is —
+    /// only to the hitbox `Frame.registerHandlers` inserts, as that hitbox's
+    /// geometry, which `Hitbox.contains(_:)` tests — so focus registration and
+    /// the accessibility frame keep the element's own box. Like the inset it
+    /// **configures** a hit region and creates none (`OM-AB`). A class box, one
+    /// reference: a `Shape` existential is never stored inline (`IX-N`).
+    var contentShape: ContentShape?
+
     public init() {}
 
     /// Whether this element is a **pointer** hit target — the hitbox gate.
@@ -304,5 +323,6 @@ public struct Handlers {
     /// elements that use it.
     var isKeyTarget: Bool {
         onKey != nil || isFocusable || !actions.isEmpty || keyContext != nil || textInput != nil
+            || keyboardShortcut != nil
     }
 }

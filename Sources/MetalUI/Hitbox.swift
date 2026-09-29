@@ -130,6 +130,22 @@ struct Hitbox {
     }
 }
 
+/// A declared `.contentShape(_:)`'s shape, boxed so `Handlers` carries one
+/// reference (ruling `IX-L`; `IX-N`'s Windows stack budget) — never a `Shape`
+/// existential stored inline.
+final class ContentShape {
+    private let geometryIn: @MainActor (Bounds<Pixels>) -> ShapeGeometry
+
+    @MainActor
+    init<S: Shape>(_ shape: S) {
+        geometryIn = { shape.geometry(in: $0) }
+    }
+
+    /// The shape's geometry inside `rect`.
+    @MainActor
+    func geometry(in rect: Bounds<Pixels>) -> ShapeGeometry { geometryIn(rect) }
+}
+
 /// The index of the topmost **opaque** hitbox containing `point`, or `nil` when
 /// nothing opaque is under it.
 ///

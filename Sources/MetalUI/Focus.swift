@@ -63,6 +63,11 @@ struct FocusRegistry {
     /// Focusable elements in registration order — the tree's order, which is
     /// the Tab order (ruling TI-J).
     private(set) var tabOrder: [GlobalElementID] = []
+    /// Every `Button`'s keyboard shortcut this frame, **in registration order**
+    /// — the tree's order — so the first button in tree order wins a shared
+    /// shortcut (plan task 12 part 1, `IX-F` item 3, probe `B4h`). Registered
+    /// behind the one disabled gate, like everything here (`B4l`).
+    private var shortcuts: [(id: GlobalElementID, target: ShortcutTarget)] = []
 
     /// Records whatever `handlers` asked for on the keyboard side, and nothing
     /// at all when it asked for neither.
@@ -93,6 +98,11 @@ struct FocusRegistry {
         if !handlers.actions.isEmpty { actionHandlers[id] = handlers.actions }
         if let context = handlers.keyContext { contexts[id] = context }
         if let target = handlers.textInput { textTargets[id] = target }
+    }
+
+    /// The first shortcut in tree order that `event` matches, and its owner.
+    func shortcut(matching event: KeyEvent) -> (GlobalElementID, ShortcutTarget)? {
+        shortcuts.first { $0.target.shortcut.matches(event) }.map { ($0.id, $0.target) }
     }
 
     /// Whether `id` declared itself focusable this frame.

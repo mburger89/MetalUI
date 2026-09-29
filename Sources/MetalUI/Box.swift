@@ -1462,4 +1462,25 @@ extension StyledElement {
     public func contentShape(inset: Edges<Pixels>) -> Self {
         handling { $0.contentShapeInset = inset }
     }
+
+    /// Hit-tests this element by `shape`'s geometry in its hit rect — SwiftUI's
+    /// `.contentShape(_:)` (plan task 12 part 1, ruling `IX-L`): a `Circle()`
+    /// refuses the corners and takes the centre (probe `swiftui-interaction`
+    /// `C1`, `C11`, `C13`). The rect is the element's box, or that box inset by
+    /// `contentShape(inset:)` when both are written.
+    ///
+    /// **Every pointer consumer follows it** — a click, the gesture arena,
+    /// hover, active and wheel routing all rank through `topmostOpaqueHitbox`,
+    /// which asks `Hitbox.contains(_:)`, the one region test. Like the inset it
+    /// **configures a hit region and creates none** (`OM-AB`): on an element
+    /// with no pointer target it is written and never read. Focus registration
+    /// and the accessibility frame keep the element's own box. A `.continuous`
+    /// rounded rectangle hit-tests circular, as it draws (divergence 90). The
+    /// region is still intersected with the active clip's rect, as every hitbox
+    /// is (divergence 43). `eoFill` and the `kind:` forms are not offered.
+    ///
+    /// **One field**: a second `contentShape(_:)` replaces the first.
+    public func contentShape<S: Shape>(_ shape: S) -> Self {
+        handling { $0.contentShape = ContentShape(shape) }
+    }
 }

@@ -45,6 +45,10 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
     public var handlers: Handlers = Handlers()
     private var action: @MainActor () -> Void
     private var box: Box<Pair<Label, Box<EmptyGroup>>>
+    /// The role (`IX-E` item 1): stored and read by nothing.
+    private(set) var role: ButtonRole?
+    private var buttonStyleValue: ButtonStyle = .automatic
+    private var shortcut: KeyboardShortcut?
 
     public init(action: @escaping @MainActor () -> Void, @ElementBuilder label: () -> Label) {
         var style = Style()
@@ -110,9 +114,63 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
     }
 }
 
+extension Button {
+    /// A button with a role (SwiftUI's `Button(role:action:label:)`, `IX-E`
+    /// item 1). The role binds no key and changes nothing drawn (`B4c`, `B4d`,
+    /// `B5`).
+    public init(role: ButtonRole?, action: @escaping @MainActor () -> Void,
+                @ElementBuilder label: () -> Label) {
+        self.init(action: action, label: label)
+        self.role = role
+    }
+
+    /// This button drawn in `style` — SwiftUI's `.buttonStyle(_:)` over a
+    /// closed set (`IX-E` item 2). `.plain` and `.borderless` drop the chrome's
+    /// fill, border and corner radius **where they are still the chrome's
+    /// own**, so a caller's `.background` written before or after survives,
+    /// and draw the label at its own size; `.bordered`/`.automatic` restore the
+    /// chrome's fields the same way.
+    public func buttonStyle(_ style: ButtonStyle) -> Self {
+        var copy = self
+        copy.buttonStyleValue = style
+        return copy
+    }
+
+    /// Runs this button's action when `key` is pressed with exactly
+    /// `modifiers` — SwiftUI's `.keyboardShortcut(_:modifiers:)` (`IX-F`).
+    /// Focus is not needed; the first button in tree order wins a shared
+    /// shortcut; a focused element's own key handler, a keymap binding and a
+    /// focused field's editing keys claim the key first; a disabled button's is
+    /// silent and a hit-testing-off or invisible one's still fires.
+    public func keyboardShortcut(_ key: KeyEquivalent, modifiers: EventModifiers = .command) -> Self {
+        keyboardShortcut(KeyboardShortcut(key, modifiers: modifiers))
+    }
+
+    /// `keyboardShortcut(_:modifiers:)` with a whole shortcut, such as
+    /// `.defaultAction` (Return) or `.cancelAction` (Escape).
+    public func keyboardShortcut(_ shortcut: KeyboardShortcut) -> Self {
+        var copy = self
+        copy.shortcut = shortcut
+        return copy
+    }
+
+    /// `keyboardShortcut(_:)` that removes the shortcut when `nil`.
+    public func keyboardShortcut(_ shortcut: KeyboardShortcut?) -> Self {
+        var copy = self
+        copy.shortcut = shortcut
+        return copy
+    }
+}
+
 extension Button where Label == Text {
     /// A button labelled by `title` (SwiftUI's `Button(_:action:)`).
     public init(_ title: String, action: @escaping @MainActor () -> Void) {
         self.init(action: action) { Text(title) }
+    }
+
+    /// A button labelled by `title` with a role (SwiftUI's
+    /// `Button(_:role:action:)`, `IX-E` item 1).
+    public init(_ title: String, role: ButtonRole?, action: @escaping @MainActor () -> Void) {
+        self.init(role: role, action: action) { Text(title) }
     }
 }

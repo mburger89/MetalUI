@@ -63,6 +63,8 @@ extension StyledElement {
 public struct GestureModifier<Content: ProposalElementGroup>: Element {
     public var content: Content
     var attachment: GestureAttachment
+    /// A `.contentShape(_:)` written after the gesture (ruling `IX-L`), or `nil`.
+    var shape: ContentShape?
 
     init(content: Content, attachment: GestureAttachment) {
         self.content = content
@@ -84,6 +86,7 @@ public struct GestureModifier<Content: ProposalElementGroup>: Element {
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         var handlers = Handlers()
         handlers.gestures = [attachment]
+        handlers.contentShape = shape
         // As `OnTapModifier`: routes a press like any hitbox and synthesizes no
         // accessibility node (ruling AB-Y).
         pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
@@ -98,6 +101,16 @@ public struct GestureModifier<Content: ProposalElementGroup>: Element {
 }
 
 extension GestureModifier: ProposalElement {}
+
+extension GestureModifier {
+    /// `OnTapModifier.contentShape(_:)` for a gesture wrapper (ruling `IX-L`):
+    /// written after the gesture, on the wrapper that owns the hitbox.
+    public func contentShape<S: Shape>(_ shape: S) -> Self {
+        var copy = self
+        copy.shape = ContentShape(shape)
+        return copy
+    }
+}
 
 extension ProposalElementGroup {
     /// `StyledElement.onTapGesture(count:perform:)` on the proposal path.

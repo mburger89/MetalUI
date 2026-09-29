@@ -242,3 +242,39 @@ func theLegacyAndProposalDecorationModifiersDoNotCollide() throws {
             \(crossedShape.output)
             """)
 }
+
+/// **G2.2 (plan task 12 part 1, lane 2; ruling `IX-L` item 1) — a proposal
+/// element cannot spell `.contentShape(_:)` before its tap.** On the proposal
+/// path the shape is written **after** the tap or gesture, on the wrapper that
+/// owns the hitbox (`OnTapModifier`, `GestureModifier`); spelled on the bare
+/// proposal element it would configure a node that registers no hitbox. The
+/// control arm writes it after `.onTap { }` and after `.onTapGesture { }`, and
+/// on a legacy `Box`, where it is a `StyledElement` modifier.
+///
+/// Mutation that must redden it (mutated red once, `IX-R`): `contentShape(_:)`
+/// declared on `ProposalElementGroup`.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aProposalElementCannotSpellContentShapeBeforeItsTap() throws {
+    let before = try typecheckFile("""
+        @MainActor func before() -> some Element {
+            HStack { ProposalText("hi") }.contentShape(Circle()).onTap { }
+        }
+        """, importing: "MetalUI")
+    let after = try typecheckFile("""
+        @MainActor func after() -> some Element {
+            HStack { ProposalText("hi") }.onTap { }.contentShape(Circle())
+        }
+        @MainActor func gesture() -> some Element {
+            HStack { ProposalText("hi") }.onTapGesture { }.contentShape(RoundedRectangle(cornerRadius: Pixels(4)))
+        }
+        @MainActor func legacy() -> Box<EmptyGroup> {
+            Box().contentShape(Circle()).onClick { }
+        }
+        """, importing: "MetalUI")
+    print("IX-L contentShape order: before succeeded=\(before.succeeded) messages=[\(before.messages)]; "
+          + "after succeeded=\(after.succeeded) messages=[\(after.messages)]")
+    try #require(before.succeeded != after.succeeded,
+                 "the two arms must disagree, or the guard measures nothing:\n\(before.output)\n\(after.output)")
+    #expect(!before.succeeded, "a proposal element must not spell contentShape before its tap:\n\(before.output)")
+    #expect(after.succeeded, "contentShape after a proposal tap or gesture, and on a Box, compiles:\n\(after.output)")
+}

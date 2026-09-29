@@ -9,6 +9,8 @@ public struct OnTapModifier<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var action: @MainActor () -> Void
     public var hoverColor: ColorToken?
+    /// A `.contentShape(_:)` written after the tap (ruling `IX-L`), or `nil`.
+    var shape: ContentShape?
 
     public init(content: Content, hoverColor: ColorToken? = nil,
                 action: @escaping @MainActor () -> Void) {
@@ -32,6 +34,7 @@ public struct OnTapModifier<Content: ProposalElementGroup>: Element {
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         var handlers = Handlers()
         handlers.onClick = action
+        handlers.contentShape = shape
         // Routes a press like any hitbox, but synthesizes no accessibility node
         // (ruling AB-Y): its proposal-path content records nothing and cannot be
         // labelled, so it would publish an unlabelled button.
@@ -48,6 +51,21 @@ public struct OnTapModifier<Content: ProposalElementGroup>: Element {
                 pass.fill(bounds, color: pass.theme[hoverColor])
             }
         }
+    }
+}
+
+extension OnTapModifier {
+    /// Hit-tests this tap by `shape`'s geometry in its bounds — SwiftUI's
+    /// `.contentShape(_:)` on the proposal path (ruling `IX-L`; probe
+    /// `swiftui-interaction` `C2`, `C10`). **Written after the tap**, on the
+    /// wrapper that owns the hitbox: a proposal element that spells it before
+    /// its tap does not compile (guard
+    /// `aProposalElementCannotSpellContentShapeBeforeItsTap`). SwiftUI's two
+    /// orders agree (`C2`), so the one spelling offered loses no answer.
+    public func contentShape<S: Shape>(_ shape: S) -> Self {
+        var copy = self
+        copy.shape = ContentShape(shape)
+        return copy
     }
 }
 

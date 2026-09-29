@@ -124,6 +124,10 @@ private struct HandlerFingerprint: Equatable {
     var valueTrack = false
     /// Plan task 12 part 1 (`IX-B`): the gestures, counted (they append).
     var gestureCount = 0
+    /// Plan task 12 part 1, lane 2 (`IX-F`, `IX-L`): the shortcut (internal,
+    /// set only by `Button`) and the declared content shape.
+    var keyboardShortcut = false
+    var contentShape = false
 
     @MainActor init(_ h: Handlers) {
         click = h.onClick != nil
@@ -137,6 +141,8 @@ private struct HandlerFingerprint: Equatable {
         textInput = h.textInput != nil
         valueTrack = h.valueTrack != nil
         gestureCount = h.gestures.count
+        keyboardShortcut = h.keyboardShortcut != nil
+        contentShape = h.contentShape != nil
     }
 }
 
