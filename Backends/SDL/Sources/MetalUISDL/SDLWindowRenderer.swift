@@ -78,6 +78,11 @@ public final class SDLWindowRenderer: WindowRenderer {
         MainActor.assumeIsolated { mui_renderer_destroy(renderer) }
     }
 
+    /// The `ImageTexture` identities with a GPU copy cached right now.
+    package var cachedTextureIdentities: Set<ObjectIdentifier> { [] }
+    /// How many image textures have been uploaded, ever.
+    package private(set) var textureUploadCount = 0
+
     /// The SDL GPU driver in use (`metal`, `vulkan`, `direct3d12`).
     public var driver: String { String(cString: mui_renderer_driver(renderer)) }
 

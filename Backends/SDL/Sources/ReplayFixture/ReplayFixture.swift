@@ -18,12 +18,22 @@ import MetalUIScene
 import MetalUIShaderTypes
 
 public struct FixtureRun: Equatable, Sendable {
-    public enum Kind: UInt32, Sendable { case rect = 0, glyph = 1 }
+    public enum Kind: UInt32, Sendable { case rect = 0, glyph = 1, image = 2 }
     public var kind: Kind
     public var start: UInt32
     public var count: UInt32
     public init(kind: Kind, start: UInt32, count: UInt32) {
         self.kind = kind; self.start = start; self.count = count
+    }
+}
+
+/// A texture an image record samples: premultiplied RGBA8, row-major.
+public struct FixtureTexture: Equatable, Sendable {
+    public var width: UInt32
+    public var height: UInt32
+    public var pixels: [UInt8]
+    public init(width: UInt32, height: UInt32, pixels: [UInt8]) {
+        self.width = width; self.height = height; self.pixels = pixels
     }
 }
 
@@ -35,12 +45,15 @@ public struct ReplayFixture: Equatable, Sendable {
     /// `thePrimitiveABIIsTheOneTheShadersRead` pins both values.
     public static let rectStride = UInt32(MemoryLayout<MUIRect>.stride)
     public static let glyphStride = UInt32(MemoryLayout<MUIGlyph>.stride)
+    public static let imageStride = UInt32(MemoryLayout<MUIImage>.stride)
     public static let maxDimension: UInt32 = 4096
 
     public var width: UInt32
     public var height: UInt32
     public var rects: [UInt8]
     public var glyphs: [UInt8]
+    public var images: [UInt8] = []
+    public var textures: [FixtureTexture] = []
     public var runs: [FixtureRun]
     public var atlasWidth: UInt32
     public var atlasHeight: UInt32
@@ -50,6 +63,23 @@ public struct ReplayFixture: Equatable, Sendable {
 
     public var rectCount: Int { rects.count / Int(Self.rectStride) }
     public var glyphCount: Int { glyphs.count / Int(Self.glyphStride) }
+    public var imageCount: Int { images.count / Int(Self.imageStride) }
+
+    /// The image records as the struct the renderer draws.
+    public var imageRecords: [MUIImage] {
+        images.withUnsafeBytes { raw in
+            (0..<imageCount).map { raw.loadUnaligned(fromByteOffset: $0 * Int(Self.imageStride), as: MUIImage.self) }
+        }
+    }
+
+    public init(width: UInt32, height: UInt32, rects: [UInt8], glyphs: [UInt8],
+                images: [UInt8], textures: [FixtureTexture], runs: [FixtureRun],
+                atlasWidth: UInt32, atlasHeight: UInt32, atlas: [UInt8],
+                projection: [Float], reference: [UInt8]) throws(FixtureError) {
+        try self.init(width: width, height: height, rects: rects, glyphs: glyphs, runs: runs,
+                      atlasWidth: atlasWidth, atlasHeight: atlasHeight, atlas: atlas,
+                      projection: projection, reference: reference)
+    }
 
     public init(width: UInt32, height: UInt32, rects: [UInt8], glyphs: [UInt8], runs: [FixtureRun],
                 atlasWidth: UInt32, atlasHeight: UInt32, atlas: [UInt8],
@@ -89,7 +119,7 @@ public struct ReplayFixture: Equatable, Sendable {
         guard projection.count == 16, projection.allSatisfy(\.isFinite) else { throw .invalid("projection must be 16 finite floats") }
         guard reference.count == Int(width) * Int(height) * 4 else { throw .invalid("reference bytes \(reference.count) ≠ \(width)×\(height)×4") }
         for (index, run) in runs.enumerated() {
-            let records = run.kind == .rect ? rectCount : glyphCount
+            let records = run.kind == .rect ? rectCount : run.kind == .glyph ? glyphCount : imageCount
             guard run.count > 0, UInt64(run.start) + UInt64(run.count) <= UInt64(records) else {
                 throw .invalid("run \(index) \(run.kind) \(run.start)+\(run.count) exceeds \(records) records")
             }
@@ -107,7 +137,7 @@ public enum FixtureError: Error, Equatable, CustomStringConvertible {
     case truncated(at: Int, needed: Int)
     case badMagic
     case unsupportedVersion(UInt32)
-    case strideMismatch(rect: UInt32, glyph: UInt32)
+    case strideMismatch(rect: UInt32, glyph: UInt32, image: UInt32)
     case badRunKind(UInt32)
     case trailingBytes(Int)
     case invalid(String)
@@ -117,7 +147,7 @@ public enum FixtureError: Error, Equatable, CustomStringConvertible {
         case let .truncated(at, needed): "fixture truncated: need \(needed) bytes at offset \(at)"
         case .badMagic: "not a MetalUI replay fixture"
         case let .unsupportedVersion(v): "fixture version \(v), reader supports \(ReplayFixture.version)"
-        case let .strideMismatch(r, g): "primitive ABI changed: rect \(r)/glyph \(g), shaders expect \(ReplayFixture.rectStride)/\(ReplayFixture.glyphStride)"
+        case let .strideMismatch(r, g, i): "primitive ABI changed: rect \(r)/glyph \(g)/image \(i), shaders expect \(ReplayFixture.rectStride)/\(ReplayFixture.glyphStride)/\(ReplayFixture.imageStride)"
         case let .badRunKind(k): "unknown run kind \(k)"
         case let .trailingBytes(n): "\(n) trailing bytes after fixture"
         case let .invalid(message): "invalid fixture: \(message)"
@@ -161,7 +191,7 @@ extension ReplayFixture {
         let width = try u32(), height = try u32()
         let rectStride = try u32(), glyphStride = try u32()
         guard rectStride == Self.rectStride, glyphStride == Self.glyphStride else {
-            throw .strideMismatch(rect: rectStride, glyph: glyphStride)
+            throw .strideMismatch(rect: rectStride, glyph: glyphStride, image: Self.imageStride)
         }
         let rects = try bytes(Int(try u32()))
         let glyphs = try bytes(Int(try u32()))
@@ -277,6 +307,9 @@ extension ReplayFixture {
         }
         return mask
     }
+
+    /// Pixels judged at the sprite tolerance.
+    public func spriteMask() -> [Bool] { glyphMask() }
 
     public func parity(of pixels: [UInt8]) -> Parity {
         precondition(pixels.count == reference.count, "output size differs from reference")

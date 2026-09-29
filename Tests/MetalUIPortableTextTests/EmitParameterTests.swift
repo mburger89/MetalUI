@@ -39,7 +39,7 @@ private func insertRect(into scene: inout Scene, order: UInt32 = 0, layer: Int =
     scene.insert(MUIRect(bounds: mask, contentMask: mask, maskCornerRadii: square,
                          background: white, borderColor: white, cornerRadii: square,
                          borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
-                         order: order, _reserved: 0), layer: layer)
+                         order: order, shape: 0), layer: layer)
 }
 
 private func kinds(_ scene: Scene) -> [PrimitiveKind] {

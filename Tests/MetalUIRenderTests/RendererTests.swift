@@ -362,7 +362,7 @@ private func whiteRect() -> MUIRect {
             borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
             cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
             borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
-            order: 0, _reserved: 0)
+            order: 0, shape: 0)
 }
 
 /// `encode` traps on a non-empty scene whose `finalize()` was never called.

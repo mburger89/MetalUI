@@ -29,7 +29,7 @@ private func rect(id: Float, order: MUIUInt) -> MUIRect {
             borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
             cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
             borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
-            order: order, _reserved: 0)
+            order: order, shape: 0)
 }
 
 private func glyph(id: Float, order: MUIUInt) -> MUIGlyph {
@@ -49,6 +49,7 @@ private func emit(_ script: [Emission], into scene: inout Scene) {
         switch e.kind {
         case .rect: scene.insert(rect(id: e.id, order: e.order), layer: e.layer)
         case .glyph: scene.insert(glyph(id: e.id, order: e.order), layer: e.layer)
+        case .image: preconditionFailure("these scripts emit rects and glyphs only")
         }
     }
 }

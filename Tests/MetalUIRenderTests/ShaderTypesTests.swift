@@ -65,7 +65,7 @@ import MetalUIShaderTypes
     #expect(r.borderWidths.left == 11)
 
     #expect(r.order == 3)
-    #expect(r._reserved == 0)
+    #expect(r.shape == 0)
 }
 
 /// The `MUIGlyph` converter's own `contentMask`/`bounds` differential.

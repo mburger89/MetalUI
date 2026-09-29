@@ -49,7 +49,8 @@ extension MUIRect {
         borderColor: Hsla,
         cornerRadii: Corners<ScaledPixels>,
         borderWidths: Edges<ScaledPixels>,
-        order: UInt32
+        order: UInt32,
+        shape: PrimitiveShape = .roundedRectangle
     ) {
         self.init(bounds: MUIBounds(bounds),
                   contentMask: MUIBounds(contentMask),
@@ -59,7 +60,27 @@ extension MUIRect {
                   cornerRadii: MUICorners(cornerRadii),
                   borderWidths: MUIEdges(borderWidths),
                   order: order,
-                  _reserved: 0)
+                  shape: shape.rawValue)
+    }
+}
+
+extension MUIImage {
+    /// Build a GPU image quad from framework types. All geometry must already
+    /// be scaled. `texture` is left 0: `Scene.insert(_:texture:layer:)` sets
+    /// it to the texture's index in the scene it lands in.
+    public init(bounds: Bounds<ScaledPixels>,
+                contentMask: Bounds<ScaledPixels>,
+                maskCornerRadii: Corners<ScaledPixels> = Corners(all: ScaledPixels(0)),
+                opacity: Float,
+                filter: ImageFilter,
+                order: UInt32) {
+        self.init(bounds: MUIBounds(bounds),
+                  contentMask: MUIBounds(contentMask),
+                  maskCornerRadii: MUICorners(maskCornerRadii),
+                  opacity: opacity,
+                  texture: 0,
+                  filter: filter.rawValue,
+                  order: order)
     }
 }
 

@@ -138,6 +138,7 @@ private func paintPositions(_ scene: Scene) -> (rects: [Int], glyphs: [Int]) {
             switch run.kind {
             case .rect: rects[i] = next
             case .glyph: glyphs[i] = next
+            case .image: break   // no decoration paints an image
             }
             next += 1
         }

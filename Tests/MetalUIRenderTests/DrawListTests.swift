@@ -12,7 +12,7 @@ private func rect(order: MUIUInt) -> MUIRect {
             borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
             cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
             borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
-            order: order, _reserved: 0)
+            order: order, shape: 0)
 }
 
 private func glyph(order: MUIUInt) -> MUIGlyph {
@@ -221,4 +221,35 @@ private func glyph(order: MUIUInt) -> MUIGlyph {
     let ordersAfterSecond = scene.rects.map(\.order)
     #expect(ordersAfterSecond == [1, 5],
             "layer 0 must still draw first on a second finalize -- a layer array left unpermuted after the first pass would tiebreak this the other way")
+}
+
+private func image(order: MUIUInt) -> MUIImage {
+    MUIImage(bounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 4, height: 4)),
+             contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 1000, height: 1000)),
+             maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+             opacity: 1, texture: 0, filter: 0, order: order)
+}
+
+/// 1.4 — an image run breaks where the texture changes, so a run is still one
+/// draw call (one pipeline, one bound texture) and the number of runs is still
+/// the draw-call count (ruling TE-AF item 4). Images A, A, B, then a rect, all
+/// on one layer at one order: three runs. `finalize()` twice gives the same
+/// list and keeps each image's texture index with its record.
+@Test func imageRunsBreakWhereTheTextureChanges() throws {
+    let a = ImageTexture(width: 1, height: 1, premultipliedRGBA: [255, 0, 0, 255])
+    let b = ImageTexture(width: 1, height: 1, premultipliedRGBA: [0, 0, 255, 255])
+    var scene = Scene()
+    scene.insert(image(order: 0), texture: a)
+    scene.insert(image(order: 0), texture: a)
+    scene.insert(image(order: 0), texture: b)
+    scene.insert(rect(order: 0))
+    scene.finalize()
+    func runs() -> [String] { scene.drawList.map { "\($0.kind) \($0.start)+\($0.count)" } }
+    let expected = ["image 0+2", "image 2+1", "rect 0+1"]
+    #expect(runs() == expected)
+    #expect(scene.textures.count == 2)
+    #expect(scene.images.map(\.texture) == [0, 0, 1])
+    scene.finalize()
+    #expect(runs() == expected)
+    #expect(scene.images.map(\.texture) == [0, 0, 1])
 }

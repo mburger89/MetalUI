@@ -1949,7 +1949,8 @@ public final class Frame {
     func fill(_ bounds: Bounds<Pixels>, color: Hsla,
               cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
               borderColor: Hsla = .transparent,
-              borderWidths: Edges<Pixels> = Edges(all: Pixels(0))) {
+              borderWidths: Edges<Pixels> = Edges(all: Pixels(0)),
+              shape: PrimitiveShape = .roundedRectangle) {
         let translated = Bounds(
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
@@ -1967,6 +1968,10 @@ public final class Frame {
                                 bottom: borderWidths.bottom.scaled(by: scaleFactor),
                                 left: borderWidths.left.scaled(by: scaleFactor)),
             order: 0), layer: activeLayer)
+    }
+
+    /// Emits one image quad sampling `texture` over `bounds` (ruling TE-AF).
+    func drawImage(_ texture: ImageTexture, in bounds: Bounds<Pixels>, filter: ImageFilter) {
     }
 
     /// Emits one glyph sprite, taking its bitmap from the atlas and rasterizing

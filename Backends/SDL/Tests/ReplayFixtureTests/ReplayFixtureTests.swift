@@ -29,7 +29,7 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 @Test func encodingIsLittleEndianWithMagicAndVersion() throws {
     let bytes = try sample().encoded()
     #expect(Array(bytes[0..<8]) == Array("MUIRPLY".utf8) + [0])
-    #expect(Array(bytes[8..<12]) == [1, 0, 0, 0])       // version
+    #expect(Array(bytes[8..<12]) == [2, 0, 0, 0])       // version
     #expect(Array(bytes[12..<16]) == [3, 0, 0, 0])      // width
     #expect(Array(bytes[20..<24]) == [120, 0, 0, 0])    // rect stride
     #expect(Array(bytes[24..<28]) == [88, 0, 0, 0])     // glyph stride
@@ -52,7 +52,7 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 @Test func aChangedPrimitiveABIIsRejectedByName() throws {
     var bytes = try sample().encoded()
     bytes[20] = 128   // a 128-byte MUIRect: the shaders' 8-lane read would drift
-    #expect(throws: FixtureError.strideMismatch(rect: 128, glyph: 88)) {
+    #expect(throws: FixtureError.strideMismatch(rect: 128, glyph: 88, image: 64)) {
         try ReplayFixture(decoding: bytes)
     }
 }
@@ -62,8 +62,8 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
     bytes[0] = UInt8(ascii: "X")
     #expect(throws: FixtureError.badMagic) { try ReplayFixture(decoding: bytes) }
     bytes = try sample().encoded()
-    bytes[8] = 2
-    #expect(throws: FixtureError.unsupportedVersion(2)) { try ReplayFixture(decoding: bytes) }
+    bytes[8] = 1   // version 1 had no images; its files are re-recorded, never read
+    #expect(throws: FixtureError.unsupportedVersion(1)) { try ReplayFixture(decoding: bytes) }
 }
 
 @Test func aRunPastItsBufferIsRejected() throws {
@@ -78,16 +78,17 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 @Test func anUnknownRunKindIsRejected() throws {
     let fixture = try sample()
     var bytes = fixture.encoded()
-    let runsOffset = 8 + 4 + 16 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4
+    // Version 2: a fourth stride, then the (empty) image bytes and textures.
+    let runsOffset = 8 + 4 + 20 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4 + 4
     try #require(bytes[runsOffset] == 0)  // first run is a rect
-    bytes[runsOffset] = 2
-    #expect(throws: FixtureError.badRunKind(2)) { try ReplayFixture(decoding: bytes) }
+    bytes[runsOffset] = 3                 // 2 is an image run since version 2
+    #expect(throws: FixtureError.badRunKind(3)) { try ReplayFixture(decoding: bytes) }
 }
 
 @Test func anOverstatedRunCountIsRejected() throws {
     let fixture = try sample()
     var bytes = fixture.encoded()
-    let countOffset = 8 + 4 + 16 + 4 + fixture.rects.count + 4 + fixture.glyphs.count
+    let countOffset = 8 + 4 + 20 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4
     bytes.replaceSubrange(countOffset..<countOffset + 4, with: [0xFF, 0xFF, 0xFF, 0x7F])
     #expect(throws: FixtureError.self) { try ReplayFixture(decoding: bytes) }
 }
@@ -197,6 +198,61 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
     // bridge pads 120 -> 128 and 88 -> 96. A struct change must redden here.
     #expect(ReplayFixture.rectStride == 120)
     #expect(ReplayFixture.glyphStride == 88)
+    // An image is four float4 lanes, uploaded unpadded (ruling TE-AF).
+    #expect(ReplayFixture.imageStride == 64)
+}
+
+/// S1.1 — version 2 carries image records and the textures they sample
+/// (width, height, premultiplied RGBA8 bytes) after the glyph bytes, and a
+/// run of kind 2 indexes the images. Distinct bytes everywhere, so a field
+/// written or read at the wrong offset changes the decoded fixture.
+@Test func aVersionTwoFixtureRoundTripsImagesAndTextures() throws {
+    var image = MUIImage()
+    image.bounds = MUIBounds(origin: MUIPoint(x: 1, y: 2), size: MUISize(width: 3, height: 4))
+    image.opacity = 0.5
+    image.texture = 1
+    image.filter = 1
+    let images = withUnsafeBytes(of: image) { Array($0) } + withUnsafeBytes(of: MUIImage()) { Array($0) }
+    let textures = [FixtureTexture(width: 1, height: 1, pixels: [1, 2, 3, 4]),
+                    FixtureTexture(width: 2, height: 1, pixels: [5, 6, 7, 8, 9, 10, 11, 12])]
+    let fixture = try ReplayFixture(
+        width: 3, height: 2, rects: [], glyphs: [], images: images, textures: textures,
+        runs: [FixtureRun(kind: .image, start: 0, count: 1), FixtureRun(kind: .image, start: 1, count: 1)],
+        atlasWidth: 1, atlasHeight: 1, atlas: [0],
+        projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+        reference: (0..<24).map { UInt8($0) })
+    let bytes = fixture.encoded()
+    #expect(Array(bytes[8..<12]) == [2, 0, 0, 0], "version 2")
+    let decoded = try ReplayFixture(decoding: bytes)
+    #expect(decoded == fixture)
+    #expect(decoded.imageCount == 2)
+    #expect(decoded.textures == textures)
+    #expect(decoded.imageRecords.first?.texture == 1 && decoded.imageRecords.first?.opacity == 0.5)
+    // A texture index past the textures, or a texture of the wrong byte
+    // count, is rejected before the bridge could read past a buffer.
+    var bad = image; bad.texture = 2
+    #expect(throws: FixtureError.self) {
+        try ReplayFixture(width: 3, height: 2, rects: [], glyphs: [],
+                          images: withUnsafeBytes(of: bad) { Array($0) }, textures: textures,
+                          runs: [FixtureRun(kind: .image, start: 0, count: 1)],
+                          atlasWidth: 1, atlasHeight: 1, atlas: [0],
+                          projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                          reference: [UInt8](repeating: 0, count: 24))
+    }
+    #expect(throws: FixtureError.self) {
+        try ReplayFixture(width: 3, height: 2, rects: [], glyphs: [], images: images,
+                          textures: [FixtureTexture(width: 2, height: 2, pixels: [1, 2, 3])] + textures,
+                          runs: [], atlasWidth: 1, atlasHeight: 1, atlas: [0],
+                          projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                          reference: [UInt8](repeating: 0, count: 24))
+    }
+    // An image quad is judged at the sprite tolerance, like a glyph's.
+    let mask = try ReplayFixture(width: 8, height: 8, rects: [], glyphs: [], images: images,
+                                 textures: textures, runs: [], atlasWidth: 1, atlasHeight: 1, atlas: [0],
+                                 projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                                 reference: [UInt8](repeating: 0, count: 8 * 8 * 4)).spriteMask()
+    #expect(mask[3 * 8 + 2], "inside the image quad (1, 2, 3×4)")
+    #expect(!mask[7 * 8 + 7])
 }
 
 @Test func aFixtureFromASceneCarriesItsPrimitivesDrawListAndAtlas() throws {

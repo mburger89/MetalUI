@@ -110,7 +110,7 @@ private func bothWays(_ text: String, file: String, size: Double, width: Double?
     scene.insert(MUIRect(bounds: contentMask, contentMask: contentMask, maskCornerRadii: square,
                          background: inkColor, borderColor: inkColor, cornerRadii: square,
                          borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
-                         order: 0, _reserved: 0), layer: 0)
+                         order: 0, shape: 0), layer: 0)
     scene.finalize()
     #expect(scene.drawList.first?.kind == .rect)
 }

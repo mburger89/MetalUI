@@ -621,9 +621,21 @@ public struct PaintPass {
     public func fill(_ bounds: Bounds<Pixels>, color: Hsla,
                      cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
                      borderColor: Hsla = .transparent,
-                     borderWidths: Edges<Pixels> = Edges(all: Pixels(0))) {
+                     borderWidths: Edges<Pixels> = Edges(all: Pixels(0)),
+                     shape: PrimitiveShape = .roundedRectangle) {
         frame.fill(bounds, color: color, cornerRadii: cornerRadii,
-                   borderColor: borderColor, borderWidths: borderWidths)
+                   borderColor: borderColor, borderWidths: borderWidths, shape: shape)
+    }
+
+    /// Draws the whole of `texture` stretched over `bounds` (ruling TE-AF),
+    /// translated, clipped and faded by the active clip, offset and opacity
+    /// scopes exactly as ``fill(_:color:cornerRadii:borderColor:borderWidths:shape:)``
+    /// is, on the active layer. `bounds` is in points, as `fill`'s is; the
+    /// texture's own pixel size never enters — stretch is the caller's
+    /// decision (`Image` answers `pixels ÷ scale` until `.resizable()`).
+    public func drawImage(_ texture: ImageTexture, in bounds: Bounds<Pixels>,
+                          filter: ImageFilter = .linear) {
+        frame.drawImage(texture, in: bounds, filter: filter)
     }
 
     /// Multiplies the opacity of every primitive emitted by `body`.

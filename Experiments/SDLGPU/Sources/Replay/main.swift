@@ -70,7 +70,7 @@ func fixture(width: Int, height: Int, atlas: GlyphAtlas, addedText: Bool) throws
             maskCornerRadii: corners(clipRadius), background: c,
             borderColor: color(0.13, 0.85, 0.7), cornerRadii: corners(radius),
             borderWidths: MUIEdges(top: border, right: border, bottom: border, left: border),
-            order: order, _reserved: 0))
+            order: order, shape: 0))
         order += 1
     }
     func text(_ value: String, x: Double, y: Double, size: Double, clip: MUIBounds? = nil) throws {
@@ -139,7 +139,7 @@ func portableFixture(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene
             maskCornerRadii: corners(clipRadius), background: c,
             borderColor: color(0.13, 0.85, 0.7), cornerRadii: corners(radius),
             borderWidths: MUIEdges(top: border, right: border, bottom: border, left: border),
-            order: 0, _reserved: 0))
+            order: 0, shape: 0))
     }
     // `emit` takes the baseline, not the box's top-left: `size` below the top
     // is close to where ``fixture``'s CoreText lines sit, and nothing compares

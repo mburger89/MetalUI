@@ -40,8 +40,20 @@ typedef struct {
     MUICorners cornerRadii;
     MUIEdges borderWidths;
     MUIUInt order;
-    MUIUInt _reserved;
+    // Which outline `bounds` holds (`MUIShape`): 0, a rounded rectangle with
+    // `cornerRadii` — the zero value every scene written before this field
+    // existed carries, since it was `_reserved`, always 0 — or 1, the ellipse
+    // inscribed in `bounds` (ruling TE-AE), which ignores `cornerRadii` and
+    // reads one border width, `borderWidths.top`, as SwiftUI's inset-ellipse
+    // band. The same word the field replaced, so the struct's size, the
+    // replay packing (8 lanes) and every recorded scene's bytes are unchanged.
+    MUIUInt shape;
 } MUIRect;
+
+typedef enum {
+    MUIShapeRoundedRect = 0,
+    MUIShapeEllipse     = 1
+} MUIShape;
 
 // One glyph sprite: a 1:1 blit of an R8 coverage bitmap, tinted.
 //
@@ -69,6 +81,26 @@ typedef struct {
     MUIUInt   _reserved;
 } MUIGlyph;
 
+// One image: the whole of `Scene.textures[texture]` (premultiplied RGBA8, sRGB
+// gamma space) stretched over `bounds` (ruling TE-AF). No source rectangle —
+// an image always samples its whole texture, and a `.fill` image's overflow is
+// cut by the mask, never by UVs. `filter` is `MUIImageFilter`. 64 bytes: four
+// `float4` lanes, so the SDL bridge uploads the records as they are.
+typedef struct {
+    MUIBounds  bounds;          // destination, ScaledPixels
+    MUIBounds  contentMask;     // see `MUIRect.contentMask`
+    MUICorners maskCornerRadii; // see `MUIRect.maskCornerRadii`
+    float      opacity;         // multiplies the premultiplied texel
+    MUIUInt    texture;         // index into the scene's textures
+    MUIUInt    filter;
+    MUIUInt    order;
+} MUIImage;
+
+typedef enum {
+    MUIImageFilterLinear  = 0,
+    MUIImageFilterNearest = 1
+} MUIImageFilter;
+
 typedef enum {
     MUIRectBufferVertices   = 0,
     MUIRectBufferRects      = 1,
@@ -88,9 +120,21 @@ typedef enum {
 } MUIGlyphTextureIndex;
 
 typedef enum {
+    MUIImageBufferVertices   = 0,
+    MUIImageBufferImages     = 1,
+    MUIImageBufferViewport   = 2,
+    MUIImageBufferProjection = 3
+} MUIImageBufferIndex;
+
+typedef enum {
+    MUIImageTextureImage = 0
+} MUIImageTextureIndex;
+
+typedef enum {
     MUIProbeBufferOut   = 0,
     MUIProbeBufferRect  = 1,
-    MUIProbeBufferGlyph = 2
+    MUIProbeBufferGlyph = 2,
+    MUIProbeBufferImage = 3
 } MUIProbeBufferIndex;
 
 #endif

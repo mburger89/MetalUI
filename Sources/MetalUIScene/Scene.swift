@@ -1,7 +1,7 @@
 import MetalUIShaderTypes
 
 /// Which pipeline a primitive belongs to. One case per instanced draw.
-public enum PrimitiveKind: Sendable, Equatable { case rect, glyph }
+public enum PrimitiveKind: Sendable, Equatable { case rect, glyph, image }
 
 /// One instanced draw: `count` primitives of `kind`, starting at `start` in
 /// that kind's own array.
@@ -27,6 +27,15 @@ public struct Scene: Sendable {
 
     /// Glyph sprites (`monochromeSprite`, spec 7.1).
     public private(set) var glyphs: [MUIGlyph] = []
+
+    /// Image quads (ruling TE-AF). `MUIImage.texture` indexes ``textures``.
+    public private(set) var images: [MUIImage] = []
+
+    /// The pixels ``images`` sample, one entry per distinct `ImageTexture`
+    /// identity, in first-use order. The scene carries them so a renderer can
+    /// never receive an image without its pixels, and
+    /// `WindowRenderer.finishFrame(scene:atlas:)` keeps its signature (`RS-A`).
+    public private(set) var textures: [ImageTexture] = []
 
     /// Built by ``finalize()``. Empty until then.
     public private(set) var drawList: [DrawRun] = []
@@ -73,6 +82,20 @@ public struct Scene: Sendable {
         glyphSequence.append(nextSequence)
         glyphLayer.append(layer)
         nextSequence += 1
+    }
+
+    /// Appends `image`, sampling `texture`. Its `texture` field is set here,
+    /// to `texture`'s index in ``textures`` — a texture drawn twice is carried
+    /// once.
+    public mutating func insert(_ image: MUIImage, texture: ImageTexture, layer: Int = 0) {
+        var image = image
+        if let index = textures.firstIndex(where: { $0 === texture }) {
+            image.texture = MUIUInt(index)
+        } else {
+            image.texture = MUIUInt(textures.count)
+            textures.append(texture)
+        }
+        images.append(image)
     }
 
     public mutating func clear() {
@@ -187,6 +210,8 @@ public struct Scene: Sendable {
                 sortedGlyphs.append(glyphs[entry.4])
                 sortedGlyphSequence.append(entry.2)
                 sortedGlyphLayer.append(entry.0)
+            case .image:
+                preconditionFailure("images are not sorted yet")
             }
             if let last = runs.last, last.kind == kind {
                 runs[runs.count - 1] =

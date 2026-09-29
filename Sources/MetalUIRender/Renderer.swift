@@ -71,6 +71,13 @@ public final class Renderer {
     /// stays true if that changes.
     private var atlasTextureWasEncoded = false
 
+    /// How many image textures have been uploaded to the GPU, ever. Test
+    /// support for the cache (`TE-AF` item 3).
+    private(set) var imageTextureUploadCount = 0
+
+    /// The `ImageTexture` identities with a GPU copy cached right now.
+    var cachedImageTextureIdentities: Set<ObjectIdentifier> { [] }
+
     public init(device: any MTLDevice) throws {
         self.device = device
         guard let queue = device.makeCommandQueue() else {
@@ -197,6 +204,8 @@ public final class Renderer {
             case .glyph:
                 try encodeGlyphs(Array(scene.glyphs[run.start..<(run.start + run.count)]),
                                  into: encoder, viewport: &viewport, projection: &projection)
+            case .image:
+                break
             }
         }
     }

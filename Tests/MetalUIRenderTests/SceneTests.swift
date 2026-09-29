@@ -46,3 +46,23 @@ private func rect(order: UInt32, x: Float) -> MUIRect {
     // Insertion order must survive: painters at the same order layer in sequence.
     #expect(s.rects.map(\.bounds.origin.x) == (0..<count).map { Float($0) })
 }
+
+/// 1.3 — `isEmpty` reads all three arrays (ruling TE-AF item 4).
+/// `Renderer.encode` returns early on an empty scene, so a scene holding only
+/// an image that read as empty would draw nothing with no error — the hazard
+/// `aSceneHoldingOnlyAGlyphIsNotEmpty` names for glyphs. `clear()` empties
+/// the images and the textures they sample too.
+@Test func aSceneHoldingOnlyAnImageIsNotEmpty() {
+    var s = Scene()
+    let texture = ImageTexture(width: 1, height: 1, premultipliedRGBA: [0, 0, 0, 255])
+    s.insert(MUIImage(bounds: Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
+                                     size: Size(width: ScaledPixels(1), height: ScaledPixels(1))),
+                      contentMask: Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
+                                          size: Size(width: ScaledPixels(100), height: ScaledPixels(100))),
+                      opacity: 1, filter: .linear, order: 0),
+             texture: texture)
+    #expect(!s.isEmpty)
+    s.clear()
+    #expect(s.isEmpty)
+    #expect(s.images.isEmpty && s.textures.isEmpty)
+}

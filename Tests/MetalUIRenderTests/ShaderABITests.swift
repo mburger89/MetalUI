@@ -94,3 +94,74 @@ import MetalUIShaderTypes
     #expect(out[29] == 51)   // maskCornerRadii.topLeft
     #expect(out[30] == 53)   // maskCornerRadii.bottomRight
 }
+
+/// 1.10 — Metal's view of `MUIImage` (64 bytes, four `float4` lanes) and of
+/// `MUIRect.shape`, the word `_reserved` used to be: at offset 116, after
+/// `order`, so the struct and every recorded scene's bytes are unchanged
+/// (ruling TE-AD item 1). Read by `image_abi_probe`, its own kernel so the
+/// two probes above keep their 32-slot buffers. Distinct values per field;
+/// `order` and `shape` are adjacent `MUIUInt`s, so a probe reading one for
+/// the other reports a wrong number.
+@Test func metalAndSwiftAgreeOnTheImageStructAndTheShapeField() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let library = try ShaderLibrary.make(device: device)
+    let function = try #require(library.makeFunction(name: "image_abi_probe"))
+    let pipeline = try device.makeComputePipelineState(function: function)
+    let queue = try #require(device.makeCommandQueue())
+
+    #expect(MemoryLayout<MUIImage>.size == 64 && MemoryLayout<MUIImage>.stride == 64)
+    #expect(MemoryLayout<MUIRect>.size == 120)
+    #expect(MemoryLayout<MUIRect>.offset(of: \MUIRect.order) == 112)
+    #expect(MemoryLayout<MUIRect>.offset(of: \MUIRect.shape) == 116)
+
+    var rect = MUIRect(
+        bounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0)),
+        contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0)),
+        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+        background: MUIHsla(h: 0, s: 0, l: 0, a: 0), borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
+        cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+        borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
+        order: 9, shape: 1)
+    var image = MUIImage(
+        bounds: MUIBounds(origin: MUIPoint(x: 11, y: 12), size: MUISize(width: 13, height: 14)),
+        contentMask: MUIBounds(origin: MUIPoint(x: 21, y: 22), size: MUISize(width: 23, height: 24)),
+        maskCornerRadii: MUICorners(topLeft: 31, topRight: 32, bottomRight: 33, bottomLeft: 34),
+        opacity: 0.25, texture: 41, filter: 1, order: 43)
+
+    let slots = 16
+    let out = try #require(device.makeBuffer(length: slots * MemoryLayout<UInt32>.stride,
+                                             options: .storageModeShared))
+    let rectBuffer = try #require(device.makeBuffer(bytes: &rect, length: MemoryLayout<MUIRect>.stride,
+                                                    options: .storageModeShared))
+    let imageBuffer = try #require(device.makeBuffer(bytes: &image, length: MemoryLayout<MUIImage>.stride,
+                                                     options: .storageModeShared))
+    let commandBuffer = try #require(queue.makeCommandBuffer())
+    let encoder = try #require(commandBuffer.makeComputeCommandEncoder())
+    encoder.setComputePipelineState(pipeline)
+    encoder.setBuffer(out, offset: 0, index: Int(MUIProbeBufferOut.rawValue))
+    encoder.setBuffer(rectBuffer, offset: 0, index: Int(MUIProbeBufferRect.rawValue))
+    encoder.setBuffer(imageBuffer, offset: 0, index: Int(MUIProbeBufferImage.rawValue))
+    encoder.dispatchThreads(MTLSize(width: 1, height: 1, depth: 1),
+                            threadsPerThreadgroup: MTLSize(width: 1, height: 1, depth: 1))
+    encoder.endEncoding()
+    commandBuffer.commit()
+    commandBuffer.waitUntilCompleted()
+    #expect(commandBuffer.error == nil)
+
+    let v = out.contents().bindMemory(to: UInt32.self, capacity: slots)
+    #expect(v[0] == 64)      // sizeof(MUIImage)
+    #expect(v[1] == 11)      // bounds.origin.x
+    #expect(v[2] == 14)      // bounds.size.height
+    #expect(v[3] == 21)      // contentMask.origin.x
+    #expect(v[4] == 24)      // contentMask.size.height
+    #expect(v[5] == 31)      // maskCornerRadii.topLeft
+    #expect(v[6] == 34)      // maskCornerRadii.bottomLeft
+    #expect(v[7] == 250)     // opacity * 1000
+    #expect(v[8] == 41)      // texture
+    #expect(v[9] == 1)       // filter
+    #expect(v[10] == 43)     // order
+    #expect(v[11] == 120)    // sizeof(MUIRect)
+    #expect(v[12] == 9)      // MUIRect.order
+    #expect(v[13] == 1)      // MUIRect.shape
+}

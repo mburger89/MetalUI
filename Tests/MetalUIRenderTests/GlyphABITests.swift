@@ -39,7 +39,7 @@ private func makeRect() -> MUIRect {
         cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
         order: 0,
-        _reserved: 0)
+        shape: 0)
 }
 
 @Test func sceneKeepsGlyphsAndRectsInSeparateLists() {
@@ -668,7 +668,7 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
                 borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
                 cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
                 borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
-                order: order, _reserved: 0)
+                order: order, shape: 0)
     }
 
     // Find a pixel the glyph definitely inks, so "covered" is meaningful.
