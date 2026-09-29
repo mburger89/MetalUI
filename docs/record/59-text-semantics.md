@@ -509,3 +509,41 @@ Mutations (committed first, restored from a copy, whole suite unfiltered,
 | MC | the class fallback reads 0 | 1.1b (2: the synthetic `Wide`/700 and `Chancery`/300 rows) |
 
 Next unused `TE-Y`.
+
+## 4. Lane 3 — the element surface
+
+### 4.1 The height census (`TE-R` item 2), before any source change
+
+Instrument `docs/probes/text-semantics-height-census.patch` (committed under
+`docs/probes/`, never to `Sources/`): a `censusLeafPlacementHook` in
+`LayoutTree.placeNative`'s leaf case, a `censusTextLeaves` registry filled by
+`Text.requestLayout` (the native leaf inside `lowerLegacyLeaf`, not the
+element's node) and `ProposalText.requestProposalLayout`, and a gated test
+(`METALUI_TEXT_CENSUS=1`) that renders every tree at every size the fourteen
+offscreen images use, plus the 920×560 window in each demo state and the
+controls demo. A row is a text leaf whose **placement** proposal has a finite
+height below its natural height at that proposal's width (`measure` with no
+options) — the leaves `TE-H` item 2 would give fewer lines. Applied to this
+worktree at `35eb357` (lanes 1–2), run, and reverted (`git status --short`
+clean afterwards but for the patch).
+
+| capture | size | text placements | rows |
+|---|---|---|---|
+| default light/dark f0 | 1024² | 507 | 0 |
+| default light/dark f3 | 1024² | 594 | 0 |
+| modal | 1024² | 509 | 0 |
+| modal (prod) | 920×560 | 509 | 0 |
+| animation | 1024² | 507 | 0 |
+| **animation** | **920×560** | 507 | **1** |
+| default (prod) | 920×560 | 507 | 0 |
+| preview | 1024², 920×560 | 2 | 0 |
+| controls demo | 920×560, 1024² | 81 | 0 |
+| chrome (`CounterPanel`) | 560² | 3 | 0 |
+
+**The one row**: `demoMainPane()`'s wrapping paragraph ("CoreText shapes this
+paragraph, a shelf packer…") under the **A** state at the demo's own 920×560
+window, placed at proposal (524, 68.5) against a natural 80 (five 16 pt
+lines). It is **not one of the fourteen images** (`animation-light`/`-dark`
+are 1024², where the row is absent), so the census predicts **0 px in all
+fourteen**; the row is a real-window look, named by a ruling after the
+implementation re-runs the census (§4.3).
