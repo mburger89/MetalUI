@@ -802,8 +802,11 @@ public final class Frame {
     /// `rect`'s four corner discs (radius clamped to half its shorter side, as
     /// the shader clamps) has its centre at least its radius inside
     /// `container`'s signed distance field — the rounded-rect SDF the shaders
-    /// evaluate, radius chosen by quadrant. A 1e-4 pt tolerance absorbs float
-    /// rounding at an exact tangency (C6's circle touches the capsule).
+    /// evaluate, radius chosen by quadrant. The 1e-4 pt tolerance is
+    /// **defensive and unpinned** (`TE-AT` item 2): C6's tangency — the circle
+    /// touching the capsule — is exact in integers, and removing the tolerance
+    /// reddens nothing (mutation X2); it is kept against a non-integer
+    /// tangency rounding a hair outside, a sub-pixel cost if it is too loose.
     static func roundedRect(_ rect: Bounds<Pixels>, radii: Corners<Pixels>,
                             liesInside container: Bounds<Pixels>,
                             radii containerRadii: Corners<Pixels>) -> Bool {

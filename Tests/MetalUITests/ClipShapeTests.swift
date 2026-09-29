@@ -39,6 +39,37 @@ private func overflowing() -> some ProposalElement {
     }
 }
 
+/// **2.15b — the proposal `clipShape`'s PREPAINT half: a hitbox inside is cut
+/// to the geometry's bounding rect** (`TE-AQ` item 4's rule, as the legacy
+/// path's 2.18; MetalUI's existing rule for every clip, not a SwiftUI claim).
+/// A `ProposalScrollView` registers its viewport as a scroll-region hitbox —
+/// the one proposal element that registers a hitbox of its own — and fills its
+/// 100×60 proposal: the control registers (0, 0, 100, 60); under
+/// `.clipShape(Circle())` the region is the circle's square (20, 0, 60, 60).
+/// Paint (2.15) and prepaint are separate halves of the modifier (`OM-AI`),
+/// so each needs its own test.
+///
+/// Mutation: **X7** the `.clipShape` case in `LayoutModifier._prepaint` returns
+/// `inside()` unclipped.
+@Test @MainActor func aProposalClipShapeCutsTheHitboxesInsideIt() throws {
+    @MainActor func hitboxes<E: Element>(_ root: E) -> [[Float]] {
+        var root = root
+        let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(60)), scaleFactor: 1)
+        frame.render(&root)
+        return frame.hitboxes.map {
+            [$0.bounds.origin.x.value, $0.bounds.origin.y.value,
+             $0.bounds.size.width.value, $0.bounds.size.height.value]
+        }
+    }
+    @MainActor func scroller() -> some ProposalElement {
+        ProposalScrollView(.vertical) { Rectangle(width: Pixels(100), height: Pixels(200)) }
+    }
+    let control = hitboxes(scroller())
+    try #require(control == [[0, 0, 100, 60]], "the control: the viewport's whole region: \(control)")
+    let clipped = hitboxes(scroller().clipShape(Circle()))
+    #expect(clipped == [[20, 0, 60, 60]], "cut to the circle's bounding rect: \(clipped)")
+}
+
 /// **2.16 — `.clipped()` and `.cornerRadius` clip on the proposal path**
 /// (probes C3: `.clipped()` cuts the bar at the frame, square; C1:
 /// `.cornerRadius(12)` clips, the corner pixel empty; C4: `cornerRadius(20)`
@@ -130,6 +161,54 @@ private func overflowing() -> some ProposalElement {
     #expect(clipped.hitHeights == [40], "the hitbox is cut to the clip's rect: \(clipped.hitHeights)")
 }
 
+/// **2.18b — a legacy `clipShape` wins over `.clipped()`** (`TE-AS` item 4):
+/// with both set, the mask is the shape's region, in either spelling order —
+/// the geometry of every built-in lies inside the box, so the shape alone is
+/// the intersection. A 40×40 `Box`: `.clipped()` alone masks (0, 0, 40, 40)
+/// radius 0 (the control); with `.clipShape(Circle())` too, radius 20.
+///
+/// Mutation: **X1** `Decoration.clipRegion(in:)` reads `clipsContent` first.
+@Test @MainActor func aLegacyClipShapeWinsOverClipped() throws {
+    @MainActor func child() -> some Element {
+        Box().cssWidth(Pixels(60)).cssHeight(Pixels(60)).flexShrink(0).background(.surface)
+    }
+    @MainActor func maskRadii<E: Element>(_ box: E) throws -> [Float] {
+        let rects = paintedShapes(200, 200, Row { box }.alignItems(.flexStart)
+            .cssWidth(Pixels(200)).cssHeight(Pixels(200)))
+        try #require(rects.count == 1 && rects[0].mask == [0, 0, 40, 40], "\(rects)")
+        return rects[0].maskRadii
+    }
+    let square = try maskRadii(Box { child() }.cssWidth(Pixels(40)).cssHeight(Pixels(40)).clipped())
+    try #require(square == [0, 0, 0, 0], "the control: clipped() alone is square: \(square)")
+    let after = try maskRadii(Box { child() }.cssWidth(Pixels(40)).cssHeight(Pixels(40))
+        .clipped().clipShape(Circle()))
+    #expect(after == [20, 20, 20, 20], "clipShape written after clipped(): \(after)")
+    let before = try maskRadii(Box { child() }.cssWidth(Pixels(40)).cssHeight(Pixels(40))
+        .clipShape(Circle()).clipped())
+    #expect(before == [20, 20, 20, 20], "clipShape written before clipped(): \(before)")
+}
+
+/// **2.18c — a legacy `clipShape`'s box compares by its concrete shape**
+/// (`TE-AS` item 4: `ClipShapeBox`'s `==` opens the existential). Two
+/// decorations differing only in the clip shape are unequal — a different
+/// type, or the same type with a different value — and equal ones are equal.
+///
+/// Mutation: **X3** `ClipShapeBox.==` returns `true`.
+@Test @MainActor func aLegacyClipShapeComparesByItsConcreteShape() {
+    func decoration(_ shape: some Shape & Hashable) -> Decoration {
+        var d = Decoration()
+        d.clipShape = ClipShapeBox(shape)
+        return d
+    }
+    #expect(decoration(Circle()) == decoration(Circle()))
+    #expect(decoration(RoundedRectangle(cornerRadius: Pixels(4)))
+                == decoration(RoundedRectangle(cornerRadius: Pixels(4))))
+    #expect(decoration(Circle()) != decoration(Capsule()), "a different type")
+    #expect(decoration(RoundedRectangle(cornerRadius: Pixels(4)))
+                != decoration(RoundedRectangle(cornerRadius: Pixels(8))), "the same type, another value")
+    #expect(decoration(Circle()) != Decoration(), "a clip against none")
+}
+
 /// **2.19 (exit) — `clipShape` of an ellipse traps naming divergence 91**
 /// (`TE-AJ` item 4). SwiftUI clips to the ellipse (probe C5); every primitive's
 /// mask here is a rounded rectangle, so the explicit form of "not supportable
@@ -192,6 +271,20 @@ private func overflowing() -> some ProposalElement {
     let tucked = Frame.intersect(capsule, radii: r30, shapeBounds(1, 1, 10, 10),
                                  radii: Corners(all: Pixels(2)))
     #expect(tucked.radii == Corners(all: Pixels(2)), "case 2 keeps its answer: \(tucked)")
+    // The container's radius is chosen by quadrant: a radius-5 inner rect in
+    // the bottom-right corner of a 100×100 outer (touching its right and bottom
+    // edges, so neither earlier case applies) lies inside when that corner is
+    // square and outside when it is rounded by 40, whatever the other corners.
+    func corners(_ tl: Float, _ tr: Float, _ br: Float, _ bl: Float) -> Corners<Pixels> {
+        Corners(topLeft: Pixels(tl), topRight: Pixels(tr), bottomRight: Pixels(br), bottomLeft: Pixels(bl))
+    }
+    let box = shapeBounds(0, 0, 100, 100), corner = shapeBounds(60, 60, 40, 40)
+    let r5 = Corners(all: Pixels(5))
+    let squareThere = Frame.intersect(box, radii: corners(40, 0, 0, 0), corner, radii: r5)
+    #expect(squareThere.radii == r5, "the bottom-right corner is square: contained: \(squareThere)")
+    let roundedThere = Frame.intersect(box, radii: corners(0, 0, 40, 0), corner, radii: r5)
+    #expect(roundedThere.radii == Corners(all: Pixels(0)),
+            "the bottom-right corner is rounded: not contained, the square box: \(roundedThere)")
 }
 
 /// **2.21 — divergence 92's pin: two rounded clips that cross intersect as the

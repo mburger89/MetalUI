@@ -1,4 +1,5 @@
 import Testing
+import Metal
 import MetalUICore
 import MetalUILayout
 import MetalUIRender
@@ -130,4 +131,35 @@ import MetalUIRender
     try #require(stroke.count == 1, "\(stroke)")
     #expect(stroke[0].rect == [-5, -5, 110, 70] && stroke[0].border == [10, 10, 10, 10]
                 && stroke[0].kind == ellipse, "stroke: \(stroke[0])")
+}
+
+/// **2.13b — a border wider than half the shape fills it** (probe K10:
+/// `Rectangle().strokeBorder(40)` on 100×60 inks solid over the whole
+/// 100×60). The shape emits one primitive with border 40 over its bounds
+/// (2.8's rule); that the shader then fills it solid is the renderer's rule —
+/// the rect branch's inner edge, `max(halfSize − border, 0)`, collapses — so
+/// this reads PIXELS through a real window: `strokeBorder(40)` renders
+/// byte-identical to `fill` of the same token. The control: `strokeBorder(10)`
+/// leaves the middle unfilled, so it differs from the fill. K10 probes a
+/// rectangle only; a rounded rectangle's or an ellipse's over-wide border is
+/// not claimed here.
+///
+/// Mutation: **K10a** the rect branch's inner half-size `abs(halfSize −
+/// border)` in `rect_fragment` (the inner edge reappears, the middle unfilled).
+@Test @MainActor func aBorderWiderThanHalfTheShapeFillsIt() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    @MainActor func pixels<E: Element>(_ make: @escaping @MainActor () -> E) throws -> [UInt8] {
+        let (window, platform) = try makeFakeWindow(device: device, size: 128, content: make)
+        window.drawFrameIfNeeded()
+        return platform.fakeSurface.readPixels()
+    }
+    let filled = try pixels { Rectangle().fill(.accent).frame(width: Pixels(100), height: Pixels(60)) }
+    let thin = try pixels {
+        Rectangle().strokeBorder(.accent, lineWidth: Pixels(10)).frame(width: Pixels(100), height: Pixels(60))
+    }
+    try #require(thin != filled, "the control: a 10 pt border leaves the middle unfilled")
+    let wide = try pixels {
+        Rectangle().strokeBorder(.accent, lineWidth: Pixels(40)).frame(width: Pixels(100), height: Pixels(60))
+    }
+    #expect(wide == filled, "K10: a 40 pt border on 100×60 is solid")
 }
