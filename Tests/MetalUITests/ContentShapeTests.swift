@@ -194,6 +194,44 @@ private func tappable(_ log: HitLog) -> ModifiedElement<Box<EmptyGroup>> {
     #expect(offset() == 37, "the corner outside the shape passes the wheel to the scroller beneath")
 }
 
+// MARK: - 2.16b scrolled
+
+/// **2.16b** (`IX-R` clause 10's companion: `Frame.insertHitbox` translates a
+/// content shape by the active scroll offset, as it does the bounds). A
+/// 200 × 200 circular target below a 100-pt spacer in a 200 × 200 scroller,
+/// wheel-scrolled by 37: its box is (50, 113)–(250, 313), clipped to the
+/// viewport's bottom at 250, so its circle is centred at (150, 213). A click
+/// 5 pt below the scrolled top edge at the centre x, (150, 118), is inside the
+/// scrolled circle (95 from its centre) and outside the unscrolled one (132
+/// from (150, 250)); the scrolled corner (62, 125) is outside either. V5 (the
+/// shape not translated) reddens the first arm.
+@Test @MainActor func aContentShapeInsideAScrolledScrollerFollowsTheScroll() throws {
+    let log = HitLog()
+    let (window, platform) = try shapeWindow {
+        ScrollView(.vertical) {
+            Column {
+                Box().frame(width: px(200), height: px(100))
+                tappable(log).contentShape(Circle()).onClick { log.hits.append("hit") }
+            }
+        }.frame(width: px(200), height: px(200))
+    }
+    let region = try #require(window.lastScrollRegions.first, "the scroller registers a region")
+    platform.simulateInput(.scrollWheel(ScrollEvent(position: centre, delta: Point(x: px(0), y: px(-37)))))
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    try #require(window.stateTable.peek(region.id, as: ScrollState.self)?.offset == 37, "scrolled by 37")
+    let scrolled = Bounds(origin: pt(50, 113), size: Size(width: px(200), height: px(137)))
+    try #require(window.lastHitboxes.filter { $0.scroll == nil }.map(\.bounds).contains(scrolled),
+                 "the target's clipped, scrolled hit rect: \(window.lastHitboxes.map(\.bounds))")
+    log.hits = []
+    click(platform, pt(150, 118))
+    #expect(log.hits == ["hit"], "inside the scrolled circle: the shape moved with the scroll")
+    log.hits = []
+    click(platform, pt(62, 125))
+    #expect(log.hits == [], "the scrolled corner is outside the circle")
+    withExtendedLifetime(window) {}
+}
+
 /// The id of the window's pointer hitbox with exactly `bounds`.
 @MainActor
 private func hitboxID(_ window: Window, _ bounds: Bounds<Pixels>) -> GlobalElementID? {

@@ -127,11 +127,13 @@ private func filled(_ window: Window, _ token: ColorToken) -> [MUIRect] {
 
 /// **2.12** (`IX-H` item 2; SwiftUI's ring unmeasured). Each of the five
 /// focusable controls draws a 2-pt ring in the key accent around its own box
-/// while focused, and none while not. M2l (the ring's token `.separator`
-/// always) reddens every control.
+/// while focused, and none while not; in a non-key window the focused ring
+/// is `.separator` (`controlAccent(_:)`). M2l (the ring's token `.separator`
+/// always) reddens every control; V10 (the ring `.accent` always) reddens the
+/// `.inactive` arm.
 @Test @MainActor func aFocusedControlDrawsItsRingAndAnUnfocusedOneDoesNot() throws {
     for control in [LookControl.buttonAutomatic, .toggle, .stepper, .picker, .slider] {
-        let (window, _) = try lookWindow(control.root(disabled: false))
+        let (window, platform) = try lookWindow(control.root(disabled: false))
         window.theme = .light
         controlRedraw(window)
         let id = controlID([0, 0])
@@ -149,6 +151,16 @@ private func filled(_ window: Window, _ token: ColorToken) -> [MUIRect] {
         let ring = rings()
         #expect(ring.count == 1, "\(control) focused: one ring (\(ring.count))")
         if let r = ring.first { #expect(ixBounds(r) == box, "\(control): the ring is the control's own box") }
+        platform.simulateControlActiveStateChange(to: .inactive)
+        controlRedraw(window)
+        let separator = window.theme[.separator]
+        let inactiveRings = window.lastScene.rects.filter {
+            ixSame(ixHsla($0.borderColor), separator) && $0.borderWidths.top == 2 && $0.borderWidths.left == 2
+        }
+        #expect(rings().isEmpty, "\(control) focused, inactive window: no accent ring")
+        #expect(inactiveRings.count == 1, "\(control) focused, inactive window: one .separator ring")
+        platform.simulateControlActiveStateChange(to: .key)
+        controlRedraw(window)
         window.focus(nil)
         controlRedraw(window)
         #expect(rings().isEmpty, "\(control) unfocused again: no ring")
