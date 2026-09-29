@@ -433,8 +433,9 @@ pixel exit.
   (`@FocusState`, focus leaves with its identity, hidden is out of the
   keyboard), "Environment" (`controlActiveState` has consumers), "Identity"
   (`$focus` no longer exempt from `ID-C`/`ID-R`/`DD-C` resets — a migration
-  note), "StyledElement" (`Handlers` members 10 → 13: `gestures`,
-  `keyboardShortcut`, `contentShape`), the guard list (three new guard files).
+  note), "StyledElement" (`Handlers` members 10 → 14: `gestures`,
+  `keyboardShortcut`, `contentShape`, and lane 3's `focusBinding` — the first
+  design read 13, corrected by `IX-T`), the guard list (three new guard files).
 - **Plan**: task 12 stays unticked; a dated progress note naming part 2's
   items (§2 rows 27–37) and the human VoiceOver run.
 
@@ -448,4 +449,7 @@ and 3.6 is an existing test, so **12 are new**, and C2.13 retires: **net +11**,
 +1 guard (G3.1). Expected close: **1773 + 23 + 18 + 11 = 1825 tests, 108 + 5 =
 113 guards** (re-cut by `IX-O`; the first design read 1824) — each lane re-takes
 the count and corrects this line in its landing ruling if its own arithmetic
-differs.
+differs. **Measured close (`IX-T`): 1837 tests, 113 guards** —
+lanes 1 and 2 added more than predicted (lane 1 +30 with its fix round,
+`IX-P`/`IX-Q`; lane 2 +22 with its fix round, `IX-R`), lane 3 +12 (net 11 and
+G3.1): 1773 + 30 + 22 + 12 = 1837.

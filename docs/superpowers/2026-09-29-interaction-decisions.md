@@ -12,7 +12,7 @@ and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-T`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-U`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -1191,3 +1191,99 @@ corrected), and the migration note's own text in this doc.
   produced this frame (a windowed-out `List` row) has no binding recorded, so
   its state reads the default until it returns — stated, unpinned.
 
+
+---
+## IX-T — D13's instrument arm re-derived onto a windowed-out `List` row; the `$focus` hazard docs; the migration note; lane 3's exits and corrected figures
+
+**Ruling (`IX-S` option 1).** `aFocusRequestWhileDisabledLeavesNoRetentionSlot`
+(D13, `DisabledTests.swift`, `EV-F`) keeps both arms and its subject, and both
+arms move to the route `IX-I` does not reset: a **`List` row windowed out of its
+scroller** (`TB-AH`: nothing evaluates it, so nothing resets it). Tree:
+`ScrollView { List(12 rows, rowHeight 20) { Box { subject } } }`, driven
+through `Frame` with `focusedElement` threaded forward as `Window` does
+(`aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`'s idiom): a cold
+frame; focus row 4's subject and render at offset 80 (rows 2..<7 built — the
+first request, `try #require`d cleared); two frames at offset 0 (rows 0..<3,
+row 4 out); focus its id again and render at offset 0. **Instrument arm**
+(subject `Box()`, enabled, not focusable): the second request **sticks**,
+pinned wrong on purpose as before. **Subject arm** (subject
+`Box().focusable().disabled(true)`): it does **not** stick. Both below
+`StateTable.sweepThreshold` (`try #require`d). **A T row naming `IX-I`**: the
+test's answer is unchanged in both arms; only its route moved, because `IX-I`
+closed the `if` route by deleting the stray `$focus` slot with the removed
+element. The reviewer's temporary measurement (table 43/42 entries) and this
+test agree.
+
+**Pinned both ways by running, full unfiltered suite each time** (committed
+`96d5874` first, `Frame.swift` restored from a copy, `git status --short`
+empty after each):
+
+| mutation | reddens |
+|---|---|
+| MD1: the `$focus` retention write ungated on `enabled` (`if keyboardVisible`) | D13 only (`!disabled`, 1 issue) |
+| MD2: `resolveFocus`'s retention fallback always clears | D13 (`hazard`), `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`, `theSevenRetentionSlotsAreMutuallyDistinct` (3 issues) |
+
+So each arm can fail, and the arms disagree on the unmutated tree.
+
+**Source docs corrected** (`96d5874`): `Frame.registerHandlers`' `$focus`
+paragraph now says the hazard is reached only through an unevaluated subtree
+(an `if`, a loop's dropped tail or a departed `.id` deletes the stray slot in
+that frame's `sweep()`) and points at D13's `List`-row route;
+`Frame.resolveFocus`'s three measured consequences now hold only for a subtree
+nothing evaluates (retained while out of the window, its ancestors keep
+claiming keys, restored on return), the `if` route dropping focus in the frame
+whose sweep resets the slot (probe arm F2), naming
+`focusDropsWhenAnIfRemovesItsElement` (renamed from
+`focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`).
+`FocusRegistry.shortcut(matching:)`'s doc line is back above it.
+
+**Migration note (`IX-I`, for the record and CLAUDE.md's Identity paragraph).**
+Before this task, a focused element that an evaluated reset removed — an `if`
+that went false, a `for`/`ForEach` that stopped producing it, a position whose
+`.id` changed — kept focus while away (below the sweep threshold,
+indefinitely), its still-produced ancestors kept receiving its keystrokes, and
+focus came back when it returned. **Now focus is cleared in the frame that
+removes it and does not come back** (SwiftUI's answer, probe arms F1, F2): a
+key typed after the removal reaches the nearest remaining handler through
+`Window.onInput`, not the removed subtree's ancestors, and a returning
+`TextField` is unfocused. **To keep the old effect, refocus on return**:
+`Window.focus(id)` from input, or write the `@FocusState` the element is bound
+with (`.focused($state)`, `IX-J`), which applies before the next frame is
+built. **Unchanged**: a `List` row scrolled out of its window keeps focus and
+gets it back (`TB-AH`), every `GlobalElementID`, the seven retention slots,
+`MC-A`/`MC-C`/`MC-P` numbering and `.id()`'s outermost rule; only which entries
+a reset deletes changes (`$ax` stays exempt).
+
+**Windows stack budget** (`IX-N`; a scratch file of literal-size exit tests in
+`MetalUICrossPlatformTests`, deleted after, debug, macOS arm64, 16 KB steps):
+
+| | before (`68a33ec`, `IX-R`; no `Sources/` change to `d50d001`) | after (`96d5874`) |
+|---|---|---|
+| `MemoryLayout<Handlers>.size` | 432 | **440** |
+| smallest thread building every production tree | fails 592 KB, passes **608 KB** | fails 608 KB, passes **624 KB** |
+
+Still well inside the 1 MB Windows thread;
+`everyProductionTreeBuildsOnAOneMegabyteThread` green.
+
+**Container.** A `swift:6.4-noble` container (a `git archive` of `96d5874`)
+builds with 0 `error:`/`warning:` and runs **199 + 10 + 22**
+(`MetalUILayoutTests`, `MetalUICrossPlatformTests`, `MetalUICoreTests`), all
+passing.
+
+**Suite.** After a clean build at `96d5874`: `swift build --build-system native
+--build-tests` 0 `error:`, the one `warning:` SwiftPM's deprecation notice;
+unfiltered `swift test --build-system native --no-parallel` reads **`Test run
+with 1837 tests in 3 suites passed`**, the log carrying `FR-J no-argument
+frame: succeeded=`.
+
+**Corrected figures** (spec §8, §9, edited in this commit): `Handlers` members
+**10 → 14** (lane 3's `focusBinding` is the fourteenth; the design read 13);
+the measured close is **1837 tests** (1773 + lane 1's 30 + lane 2's 22 + lane
+3's 12 = net 11 and G3.1), not the 1825 the design projected, and **113
+guards** by the lanes' counting method (108 → 113, +5; a
+`.enabled(if: canTypecheck` occurrence count reads 106 → 111, the same +5).
+
+**Still owed by lane 3** (not in this fix round's brief): the named mutations
+of `IX-S` (MRk′, MRl, M3a–M3h, M3m, M3n, M3g′) with their reddened sets, G3.1
+mutated red once, the fourteen-image offscreen comparison against `31f2e7a`,
+and the `Backends/SDL` build.
