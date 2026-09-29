@@ -439,7 +439,13 @@ final class StateTable {
     /// (plan task 12 part 1, ruling `IX-I`; probe arms F1, F2): focus leaves
     /// with its identity and does not come back when the identity returns.
     /// Restoring `|| id.component == focusRetentionName` here is mutation
-    /// `MRk′`, which 3.1–3.5 redden.
+    /// `MRk′`, which reddens `focusDropsWhenItsElementIsRenamedAndDoesNotReturn`
+    /// (3.1), `focusDropsWhenAnIfRemovesItsElement` (3.2),
+    /// `aResetKeepsTheAccessibilitySlotButNotFocus` (3.3),
+    /// `aFocusedTextFieldInsideAToggledIfLosesFocusAndStartsFresh` (3.4),
+    /// `aForEachThatDropsItsFocusedElementDropsFocus` (3.5) and
+    /// `aFocusStateReadsTheWindowsFocusAfterEveryMover` (3.8) — plan task 12
+    /// part 1's verifier round re-ran it and found the sixth (record §62).
     private static func isWindowRetained(_ id: GlobalElementID) -> Bool {
         id.component == axRetentionName
     }

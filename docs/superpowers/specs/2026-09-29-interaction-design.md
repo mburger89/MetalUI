@@ -13,7 +13,12 @@ probes **re-run** this session, compiled, reading their recorded values:
 `swiftui-disabled-ancestor-and-order.swift`. Record: `docs/record/62-interaction.md`
 (the Record phase writes it).
 
-**Status: DESIGNED, critic round applied (`IX-O`).** This is the plan's task 12 **first sentence** —
+**Status: DESIGNED, critic round applied (`IX-O`); lane 1 landed (`IX-P`,
+fix round `IX-Q`); lane 2 landed (`IX-R`, fix round inline); lane 3 landed
+(`IX-S`, stopped on a finding; continued by `IX-T`); Record phase close
+applied (record §62 §6) — LANDED, the interaction half of plan task 12.**
+Task 12's box stays unticked; part 2 (accessibility) remains. This is the
+plan's task 12 **first sentence** —
 "Specify gesture composition, button semantics, disabled behaviour, keyboard
 focus, pointer hit testing and content shapes." The second sentence — deliver
 and validate the accessibility bridge with VoiceOver — is **part 2** (`IX-A`).
