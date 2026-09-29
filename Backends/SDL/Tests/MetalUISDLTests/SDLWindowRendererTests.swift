@@ -55,13 +55,13 @@ private func imageScene(_ first: ImageTexture, _ second: ImageTexture) -> Scene 
     scene.insert(MUIRect(bounds: bounds(8.5, 8.25, 90, 50), contentMask: mask, maskCornerRadii: corners(0),
                          background: color(0.3, 0.7, 0.5), borderColor: color(0.1, 0.8, 0.7),
                          cornerRadii: corners(0), borderWidths: MUIEdges(top: 9, right: 9, bottom: 9, left: 9),
-                         order: 0, shape: MUIShapeEllipse.rawValue))
+                         order: 0, shape: MUIUInt(MUIShapeEllipse.rawValue)))
     scene.insert(MUIImage(bounds: bounds(110, 10, 60, 40), contentMask: mask,
                           maskCornerRadii: corners(0), opacity: 1, texture: 0,
-                          filter: MUIImageFilterNearest.rawValue, order: 0), texture: first)
+                          filter: MUIUInt(MUIImageFilterNearest.rawValue), order: 0), texture: first)
     scene.insert(MUIImage(bounds: bounds(120.25, 60.5, 100, 50), contentMask: bounds(120, 60, 100, 50),
                           maskCornerRadii: corners(14), opacity: 0.5, texture: 0,
-                          filter: MUIImageFilterLinear.rawValue, order: 0), texture: second)
+                          filter: MUIUInt(MUIImageFilterLinear.rawValue), order: 0), texture: second)
     scene.finalize()
     return scene
 }
@@ -111,8 +111,30 @@ private func rgba(_ pixels: [UInt8], _ x: Int, _ y: Int) -> [UInt8] {
     try #require(renderer.beginFrame() != nil && renderer.finishFrame(scene: imageScene(checker, other), atlas: atlas))
     #expect(renderer.cachedTextureIdentities == [ObjectIdentifier(checker), ObjectIdentifier(other)], "ramp is released")
     #expect(renderer.textureUploadCount == 3)
+    #expect(renderer.textureReleaseCount == 1, "exactly ramp, once")
     let drawn = try renderer.readPixels(width: width, height: height)
     #expect(drawn == (try replayPixels(imageScene(checker, other), atlas: atlas)))
+    #expect(renderer.textureReleaseCount == 1)
+    #expect(renderer.unsignaledFenceReleaseCount == 0)
+}
+
+/// Record §61 §10 — back-to-back offscreen frames with no readback between
+/// them never release the previous frame's fence before the GPU signals it.
+/// SDL returns a released fence to its pool while the submitted command
+/// buffer still points at it; the next submission re-arms the same fence, so
+/// Direct3D 12 cleaned the newer frame early — resetting its allocator and
+/// destroying its buffers mid-flight — and the debug layer broke in
+/// `D3D12_INTERNAL_DestroyBuffer` (run 36588257167).
+@MainActor
+@Test func backToBackFramesNeverReleaseAnUnsignaledFence() throws {
+    let atlas = GlyphAtlas(width: 256, height: 256)
+    let renderer = try SDLWindowRenderer(offscreenWidth: width, height: height)
+    let frame = try scene("Many frames, no readback", atlas: atlas)
+    for _ in 0..<32 {
+        try #require(renderer.beginFrame() != nil && renderer.finishFrame(scene: frame, atlas: atlas))
+    }
+    #expect(renderer.unsignaledFenceReleaseCount == 0)
+    #expect(try renderer.readPixels(width: width, height: height) == (try replayPixels(frame, atlas: atlas)))
 }
 
 private func replayPixels(_ scene: Scene, atlas: GlyphAtlas) throws -> [UInt8] {

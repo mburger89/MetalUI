@@ -60,6 +60,10 @@ bool mui_renderer_finish(MUIRenderer *r,
     const float *projection);
 // The last offscreen frame as BGRA rows (waits for it).
 bool mui_renderer_read_offscreen(MUIRenderer *r, uint8_t *bgra);
+// How many times the renderer has released an offscreen frame's fence before
+// the GPU signalled it — always 0 (SDL recycles a released fence while the
+// submitted command buffer still points at it; record §61 §10).
+uint32_t mui_renderer_unsignaled_fence_releases(MUIRenderer *r);
 // The window's device pixels per point (SDL_GetWindowPixelDensity).
 float mui_window_pixel_density(void *window);
 

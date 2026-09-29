@@ -402,7 +402,34 @@ struct MUIRenderer {
     SDL_GPUTexture *atlas;
     uint32_t atlas_width, atlas_height;
     SDL_GPUFence *fence;            /* the last offscreen frame */
+    uint32_t unsignaled_fence_releases;
 };
+
+/* Releases the last offscreen frame's fence, counting a release made while
+   the GPU had not yet signalled it. */
+static void release_fence(MUIRenderer *r) {
+    if (!r->fence) return;
+    if (!SDL_QueryGPUFence(r->gpu->device, r->fence)) r->unsignaled_fence_releases += 1;
+    SDL_ReleaseGPUFence(r->gpu->device, r->fence);
+    r->fence = NULL;
+}
+
+uint32_t mui_renderer_unsignaled_fence_releases(MUIRenderer *r) { return r->unsignaled_fence_releases; }
+
+/* Waits for the last offscreen frame, then releases its fence. Never release
+   it unwaited (record §61 §10): SDL returns a released fence to its pool at
+   once, while the submitted command buffer still points at it, and the next
+   submission re-arms that same fence (Direct3D 12 signals it back to 0 from
+   the CPU). The older frame's queue signal then marks the fence done while
+   the newer frame is still executing, and the next cleanup (any submit or
+   wait) resets the newer frame's command allocator and destroys the buffers
+   it released — mid-flight, the Direct3D 12 debug layer's break in
+   D3D12_INTERNAL_DestroyBuffer. */
+static void retire_fence(MUIRenderer *r) {
+    if (!r->fence) return;
+    SDL_WaitForGPUFences(r->gpu->device, true, &r->fence, 1);
+    release_fence(r);
+}
 
 MUIRenderer *mui_renderer_create(const char *shader_dir, const char *driver) {
     ReplayGPU *gpu = replay_create_portable(shader_dir, driver);
@@ -420,7 +447,7 @@ void mui_renderer_destroy(MUIRenderer *r) {
     SDL_GPUDevice *d = r->gpu->device;
     SDL_WaitForGPUIdle(d);
     if (r->cmd) SDL_CancelGPUCommandBuffer(r->cmd);
-    if (r->fence) SDL_ReleaseGPUFence(d, r->fence);
+    release_fence(r); /* signalled: the device is idle */
     if (r->offscreen) SDL_ReleaseGPUTexture(d, r->offscreen);
     if (r->atlas) SDL_ReleaseGPUTexture(d, r->atlas);
     if (r->window) SDL_ReleaseWindowFromGPUDevice(d, r->window);
@@ -592,7 +619,7 @@ bool mui_renderer_finish(MUIRenderer *r,
     if (r->window) {
         ok = SDL_SubmitGPUCommandBuffer(cmd);
     } else {
-        if (r->fence) { SDL_ReleaseGPUFence(d, r->fence); r->fence = NULL; }
+        retire_fence(r);
         r->fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
         ok = r->fence != NULL;
     }
@@ -609,7 +636,7 @@ cleanup:
 bool mui_renderer_read_offscreen(MUIRenderer *r, uint8_t *out) {
     if (!r->offscreen) return SDL_SetError("no offscreen target");
     SDL_GPUDevice *d = r->gpu->device;
-    if (r->fence) { SDL_WaitForGPUFences(d, true, &r->fence, 1); SDL_ReleaseGPUFence(d, r->fence); r->fence = NULL; }
+    retire_fence(r);
     uint32_t w = r->offscreen_width, h = r->offscreen_height, pitch = (w * 4 + 255) & ~255u;
     SDL_GPUTransferBuffer *download = transfer(r->gpu, pitch * h, true, NULL);
     if (!download) return false;
