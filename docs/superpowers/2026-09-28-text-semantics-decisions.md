@@ -5,7 +5,7 @@ on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-AB`;
 next unused is **`TE-AC`**. A bare `TE-3` is a typo, not a citation. **A round
 that appends a ruling moves this line in the same commit.**
 
-**Status, 2026-09-28: DESIGNED; critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
+**Status, 2026-09-28: LANDED — lanes 1–3 and their fix rounds (`TE-T`…`TE-AA`), the Record phase's branch check (`TE-AB`); designed with the critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
 that runs it: **part 1** (this doc) is the text half of the task's first
 sentence — foreground style, font metrics, line limit, truncation, multiline
 alignment, baseline alignment and dynamic type response — plus every item the
@@ -595,6 +595,12 @@ builder frames), `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green,
 **Cost if wrong.** Any moved pixel is named by `compare.sh`; a ruling must
 then name it or the change is reverted.
 
+**Amended by `TE-Y` item 2 (lane 3):** "`Expected.swift` unedited" above did
+not hold — the portable Noto Sans demo frame's paragraph is capped by its
+height proposal (`TE-H` item 2), so `Expected.swift` is re-recorded under
+`TE-Y`, the one named change that moves it. Every other clause stands (the
+fourteen images read 0 px against `169d166`).
+
 ---
 
 ## TE-O — re-owned: to part 2, and elsewhere
@@ -1084,7 +1090,10 @@ static family of four or more faces, 68 families × ten weights × two slopes.
 5. `ShapingCache`'s font memo (`resolvedFonts`) is keyed on the whole
    descriptor — weight by `bitPattern`, slope, design — so a weight resolves
    its own face through the seam (1.3's seam arm; `FontRequest`); it stays
-   never swept, as `TX-C`/`fonts` require.
+   never swept, as `fonts`' doc comment and CLAUDE.md's "Text" paragraph
+   require (move both or neither). *(Branch check: this line first cited
+   `TX-C`, which is the `opsz` pin ruling and says nothing about sweeping; no
+   ruling id carries the never-swept rule.)*
 
 6. **A `W0`…`W9` style takes its weight from the number; the class decides
    only a style with neither a word nor a number** (lane 2's fix round).
