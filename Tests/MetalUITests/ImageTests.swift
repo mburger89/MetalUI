@@ -212,7 +212,9 @@ private func floats(_ b: MUIBounds) -> [Float] {
 /// stored rect may not be infinite). SwiftUI's answer is unprobed; the rule is
 /// `SA-J`'s, not a SwiftUI claim (`TE-AU`).
 ///
-/// Mutation: the precondition removed (both children exit 0).
+/// Four children: zero, +∞, a negative scale and NaN.
+///
+/// Mutation: the precondition removed (all four children exit 0).
 @Test func anImageOfANonPositiveOrNonFiniteScaleTraps() async {
     let zero = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
@@ -229,6 +231,22 @@ private func floats(_ b: MUIBounds) -> [Float] {
     }
     let infiniteStderr = String(decoding: infinite?.standardErrorContent ?? [], as: UTF8.self)
     #expect(infiniteStderr.contains("scale"), "infinite: \(infiniteStderr)")
+
+    let negative = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            _ = Image(decorative: ImageBitmap(width: 1, height: 1, rgba: [0, 0, 0, 255]), scale: -2)
+        }
+    }
+    let negativeStderr = String(decoding: negative?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(negativeStderr.contains("scale"), "negative: \(negativeStderr)")
+
+    let nan = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            _ = Image(decorative: ImageBitmap(width: 1, height: 1, rgba: [0, 0, 0, 255]), scale: .nan)
+        }
+    }
+    let nanStderr = String(decoding: nan?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(nanStderr.contains("scale"), "NaN: \(nanStderr)")
 }
 
 #if canImport(ImageIO)

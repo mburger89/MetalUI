@@ -1292,14 +1292,61 @@ private func twoFrames<Root: Element>(_ make: (Int) -> Root) {
     #expect(rects["c"] == r(0, 38, 50, 10), "GL14 c: \(String(describing: rects["c"]))")
 }
 
+/// **3.12c — the first anchor mark stands on the `UnitPoint` path too**
+/// (`TE-AU` item 4, `GR-G`): the inner modifier marks first, so the inner
+/// anchor wins. The expected rects are GL16's reading
+/// (`onOneNodeTheInnerAnchorAndColumnAlignmentWin`, probe
+/// `docs/probes/swiftui-grid.swift` GL16) carried to a `UnitPoint` chain — in
+/// SwiftUI `.topLeading` is itself a `UnitPoint`, so GL16 *is* a chain of two
+/// `UnitPoint` anchors there. GL14's layout: a 10×10 cell in a 50×30 slot.
+///
+/// - two `UnitPoint`s, inner `(0.25, 1)`, outer `(1, 0)`: a at (10, 20)
+///   (outer-wins would read (40, 0));
+/// - a nine-point `.topLeading` inside a `UnitPoint(x: 1, y: 1)`: a at (0, 0)
+///   (outer-wins (40, 20));
+/// - control, a `UnitPoint(x: 0.25, y: 1)` inside a nine-point
+///   `.bottomTrailing`: a at (10, 20) (the nine-point copy's own guard).
+///
+/// Mutation: **V5** `gridCellAnchors[index] = anchorPoint` unconditionally in
+/// `LayoutTree.markNativeGridCell` (the first two arms redden).
+@MainActor
+@Test func theInnerAnchorWinsThroughTheUnitPointOverload() throws {
+    func place<A: ProposalElementGroup>(_ label: String, _ a: (CellProbe) -> A) throws -> LayoutRect? {
+        let p = CellProbe()
+        let frame = laidOut(88, 68) {
+            Grid {
+                GridRow { a(p); p.fx("b", 10, 30) }
+                GridRow { p.fx("c", 50, 10) }
+            }.fixedSize()
+        }
+        #expect(try rootSize(frame) == size(68, 48), "\(label) size")
+        return try cells(frame, p)["a"]
+    }
+    let twoPoints = try place("two UnitPoints") {
+        $0.fx("a", 10, 10).gridCellAnchor(UnitPoint(x: 0.25, y: 1)).gridCellAnchor(UnitPoint(x: 1, y: 0))
+    }
+    #expect(twoPoints == r(10, 20, 10, 10), "two UnitPoints: \(String(describing: twoPoints))")
+    let nineInsidePoint = try place("nine-point inside UnitPoint") {
+        $0.fx("a", 10, 10).gridCellAnchor(.topLeading).gridCellAnchor(UnitPoint(x: 1, y: 1))
+    }
+    #expect(nineInsidePoint == r(0, 0, 10, 10), "nine-point inside UnitPoint: \(String(describing: nineInsidePoint))")
+    let pointInsideNine = try place("UnitPoint inside nine-point") {
+        $0.fx("a", 10, 10).gridCellAnchor(UnitPoint(x: 0.25, y: 1)).gridCellAnchor(.bottomTrailing)
+    }
+    #expect(pointInsideNine == r(10, 20, 10, 10), "UnitPoint inside nine-point: \(String(describing: pointInsideNine))")
+}
+
 /// **3.12b (exit) — a non-finite `UnitPoint` anchor traps, naming
 /// `gridCellAnchor`** (SA-J: a NaN or infinite factor would store a NaN or
 /// infinite cell rect at a finite proposal; `TE-AU`). SwiftUI's answer is
 /// unprobed; the rule is `SA-J`'s. Control: a finite factor outside `0…1`
 /// lays out (SwiftUI accepts one; the placement is the same formula).
 ///
+/// Both factors are fed, x NaN and y infinite, each in its own child.
+///
 /// Mutation: the precondition in `LayoutTree.markNativeGridCell` removed (the
-/// child exits 0).
+/// children exit 0); **V9** the precondition shrunk to the horizontal factor
+/// (the y child exits 0).
 @Test func aNonFiniteGridCellAnchorTraps() async {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
@@ -1311,6 +1358,17 @@ private func twoFrames<Root: Element>(_ make: (Int) -> Root) {
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
     #expect(stderr.contains("gridCellAnchor must be finite"), "aborted, but not at the anchor check:\n\(stderr)")
+    let vertical = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            let probe = CellProbe()
+            _ = laidOut(100, 100) {
+                Grid { GridRow { probe.fx("a", 10, 10).gridCellAnchor(UnitPoint(x: 0, y: .infinity)) } }
+            }
+        }
+    }
+    let verticalStderr = String(decoding: vertical?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(verticalStderr.contains("gridCellAnchor must be finite"),
+            "y side aborted, but not at the anchor check:\n\(verticalStderr)")
     await #expect(processExitsWith: .success) {
         await MainActor.run {
             let probe = CellProbe()
